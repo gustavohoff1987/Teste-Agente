@@ -156,7 +156,6 @@ function App() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const availableColumns = inspection?.columns || [];
   const selectedFeature = FEATURES.find(f => f.id === active);
   const plot = useMemo(() => {
     if (!result?.rows.length) return null;
@@ -519,7 +518,7 @@ function App() {
               <SelectField label="Território de referência" value={reference} options={inspection.territories} onChange={setReference}/>
             </div>}
           </div>
-        </div>
+        </div>}
       </section>
       <section id="analises" className="section-anchor mt-14">
         <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
@@ -552,7 +551,7 @@ function App() {
           <strong>{preflight?.capabilities[active]?.status === "needs_confirmation" ? "Confirmação necessária" : "Análise não habilitada nesta base"}</strong>
           <ul className="mt-2 list-inside list-disc space-y-1">{(preflight?.capabilities[active]?.reasons || ["Carregue e examine uma base para conhecer os requisitos."]).map((reason,i) => <li key={i}>{reason}</li>)}</ul>
           <button type="button" className="mt-3 text-xs font-bold underline" onClick={() => document.getElementById("associacoes")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Rever associação de campos</button>
-        </div>
+        </div>}
       </section>
       <section id="resultados" ref={resultsRef} className="section-anchor mt-14">
         <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
