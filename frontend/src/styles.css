@@ -6,6 +6,7 @@
 html { scroll-behavior: smooth; }
 body { min-width: 320px; margin: 0; }
 button, select, input { font: inherit; }
+.grid > * { min-width: 0; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #3bb5be; outline-offset: 3px; }
 .hero-gradient { background: radial-gradient(circle at 83% 15%, rgba(57,186,183,.38), transparent 36%), linear-gradient(114deg, #0e2840 0%, #134a62 57%, #176c70 100%); }
 .hero-pattern { background-image: radial-gradient(rgba(255,255,255,.17) 1px, transparent 1px); background-size: 21px 21px; }

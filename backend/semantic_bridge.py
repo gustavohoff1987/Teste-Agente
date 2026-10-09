@@ -7,12 +7,15 @@ import unicodedata
 from typing import Any
 
 import pandas as pd
+from data_contract import (ConfirmationRequired, multiplicity, scoped, text_values,
+                           validate_operation, period_positions, prepare, needs_population)
 
-ROLES = ("territory", "period", "category", "count", "population", "latitude", "longitude", "identity")
+ROLES = ("territory", "territory_id", "period", "category", "count", "population", "latitude", "longitude", "identity")
 ROLE_NAMES = {
     "territory": "Território", "period": "Período", "category": "Categoria",
     "count": "Quantitativo", "population": "População", "latitude": "Latitude",
     "longitude": "Longitude", "identity": "Identificador individual",
+    "territory_id": "Código territorial",
 }
 OPERATIONS = ("density", "counts", "distribution", "comparisons", "temporal",
               "aggregate", "spatial", "ranking", "rotation", "report")
@@ -24,14 +27,15 @@ EXACT = {
                   "municipality", "city", "state", "province", "district", "region",
                   "cod municipio", "codigo municipio", "localidade"),
     "period": ("periodo", "ano", "mes", "data", "competencia", "year", "month", "date", "period"),
-    "category": ("categoria", "categoria profissional", "profissao", "ocupacao", "cbo",
+    "territory_id": ("ibge", "codigo territorial", "territory code", "municipality code", "geocode"),
+    "category": ("categoria", "categoria profissional", "categoria profisional", "profissao", "ocupacao", "cbo",
                  "category", "professional category", "profession", "occupation"),
     "count": ("quantidade", "contagem", "qtd", "n profissionais", "total profissionais",
               "count", "quantitativo", "quantidade de profissionais"),
     "population": ("populacao", "habitantes", "population", "inhabitants",
                    "populacao estimada"),
-    "latitude": ("latitude", "lat"),
-    "longitude": ("longitude", "lon", "lng"),
+    "latitude": ("latitude", "lat", "nu latitude"),
+    "longitude": ("longitude", "lon", "lng", "nu longitude"),
     "identity": ("identificador individual", "id pessoa", "id profissional",
                  "id trabalhador", "identity"),
 }
@@ -117,7 +121,7 @@ def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]
         proposed = []
         for role, aliases in EXACT.items():
             if name in aliases:
-                status = "recognized"
+                status = "proposed" if role == "territory_id" else "recognized"
                 if role in ("latitude", "longitude"):
                     nums = pd.to_numeric(frame[col], errors="coerce")
                     non_null = frame[col].notna()
@@ -154,6 +158,8 @@ def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]
     for role, matches in suggestions.items():
         if len(matches) == 1:
             mapping[role] = matches[0]["column"]
+        elif len([m for m in matches if m["status"] == "recognized"]) == 1:
+            mapping[role] = next(m["column"] for m in matches if m["status"] == "recognized")
     return mapping, columns
 
 
@@ -170,9 +176,13 @@ def category_from_count_header(column: str) -> str:
 def preflight(frame: pd.DataFrame, mapping: dict[str, str],
               options: dict[str, Any] | None = None) -> dict[str, Any]:
     """Matriz potencial de aplicabilidade por contrato, sem cálculo substantivo."""
-    options = options or {}
+    options = {} if options is None else options
     if not isinstance(mapping, dict) or not isinstance(options, dict):
         raise ValueError("Associação de campos inválida.")
+    for key, value in options.items():
+        if (key.endswith("_confirmed") or key == "require_object_confirmation") and not isinstance(value, bool):
+            raise ValueError("Confirmações devem ser valores booleanos, não texto.")
+    original_frame = frame
     mapped: dict[str, str] = {}
     for role, col in mapping.items():
         if role not in ROLES or not isinstance(col, str):
@@ -183,6 +193,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             mapped[role] = col
     if len(mapped.values()) != len(set(mapped.values())):
         raise ValueError("A mesma coluna não pode representar simultaneamente dois papéis diferentes.")
+    frame = scoped(frame, mapped, options)
     _, descriptions = candidates(frame)
     desc = {item["name"]: item for item in descriptions}
     confirmations = options.get("confirmed_roles") or []
@@ -221,7 +232,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     fts = declared_fts or fts_from_column or fts_from_constant
     period = assigned("period") or bool(options.get("single_period_confirmed"))
     measurable = bool(mapped.get("count") or mapped.get("identity"))
-    count_confirmed = assigned("count") or assigned("identity")
+    count_confirmed = assigned("count") if mapped.get("count") else assigned("identity")
     count_unit = bool(options.get("count_unit")) if mapped.get("count") else bool(options.get("identity_count_confirmed"))
     if options.get("count_unit") == "outro" and not str(options.get("custom_count_unit", "")).strip():
         count_unit = False
@@ -233,37 +244,38 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     if options.get("count_unit", "") not in ("", *valid_units):
         raise ValueError("Unidade de contagem não reconhecida.")
     cap: dict[str, dict[str, Any]] = {}
-    count_invalid = False
-    if assigned("count"):
-        series = frame[mapped["count"]]
-        numeric = pd.to_numeric(series, errors="coerce")
-        count_invalid = bool((series.notna() & numeric.isna()).any() or numeric.isna().any()
-                             or (numeric.dropna() < 0).any())
+    count_invalid = False  # Valores e multiplicidade são verificados pelo contrato compartilhado.
     row_key_collision = False
-    if assigned("count"):
-        keys = [mapped[role] for role in ("territory", "period", "category") if assigned(role)]
-        row_key_collision = bool(frame.duplicated(subset=keys).any()) if keys else len(frame) > 1
     territory_missing = assigned("territory") and bool(frame[mapped["territory"]].isna().any())
     period_missing = assigned("period") and bool(frame[mapped["period"]].isna().any())
     category_missing = assigned("category") and bool(frame[mapped["category"]].isna().any())
     identity_missing = assigned("identity") and bool(frame[mapped["identity"]].isna().any())
     coordinate_invalid = False
-    if assigned("latitude") and assigned("longitude"):
-        lat = pd.to_numeric(frame[mapped["latitude"]], errors="coerce")
-        lon = pd.to_numeric(frame[mapped["longitude"]], errors="coerce")
-        coordinate_invalid = bool(lat.isna().any() or lon.isna().any()
-                                  or ((lat < -90) | (lat > 90)).any()
-                                  or ((lon < -180) | (lon > 180)).any())
     period_numeric = False
     if assigned("period") and period_count > 0:
-        values = frame[mapped["period"]].dropna().astype(str)
-        period_numeric = all(re.fullmatch(r"\d+(?:\.\d+)?", v) for v in values)
+        try:
+            period_positions(text_values(frame[mapped["period"]]).dropna(), options.get("period_convention", "auto"))
+            period_numeric = True
+        except ValueError:
+            pass
     all_period_count = frame[mapped["period"]].dropna().nunique() if assigned("period") else 0
     all_category_count = frame[mapped["category"]].dropna().nunique() if assigned("category") else 0
 
+    prepared_cache = {}  # Somente nesta requisição; nenhuma base persiste no servidor.
     for op in OPERATIONS:
         missing: list[str] = []
         pending: list[str] = []
+        consumed = {"territory", "territory_id"}
+        if op == "spatial":
+            consumed.update(("latitude", "longitude"))
+        else:
+            consumed.update(("period", "category"))
+            consumed.add("identity" if op == "rotation" or not mapped.get("count") else "count")
+            if op != "rotation" and needs_population(mapped, options, op):
+                consumed.add("population")
+        for role in ROLES:
+            if role in consumed and mapped.get(role) and not assigned(role):
+                pending.append("Confirme a associação de " + ROLE_NAMES[role] + " à coluna selecionada antes de utilizá-la nesta análise.")
         if op not in ("spatial", "rotation"):
             if not measurable:
                 missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
@@ -273,9 +285,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
             if count_invalid:
                 missing.append("Há valores quantitativos ausentes, negativos ou não numéricos; corrija a base ou a associação.")
-            if row_key_collision:
-                missing.append("Existem várias linhas por conjunto de dimensões associado. Declare a estrutura correta ou apresente dados já agregados; o sistema não somará duplicidades automaticamente.")
-        if territory_missing and op not in ("counts", "temporal", "report"):
+        if territory_missing:
             missing.append("Há valores ausentes na coluna territorial associada.")
         if period_missing and op != "spatial":
             missing.append("Há valores ausentes na coluna temporal associada.")
@@ -302,12 +312,12 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if op == "distribution" and territory and territory_count >= 2:
             pass
         if op == "temporal":
-            if not assigned("period") or period_count < 2:
+            if options.get("period_filter"):
+                missing.append("Remova o filtro de período para comparar dois ou mais períodos.")
+            elif not assigned("period") or period_count < 2:
                 missing.append("Evolução temporal exige ao menos dois períodos reconhecidos.")
             elif not period_numeric:
-                missing.append("Esta versão exige períodos com posições numéricas inequívocas (ex.: 2023 ou 202401).")
-            elif options.get("period_filter"):
-                missing.append("Remova o filtro de período para comparar dois ou mais períodos.")
+                missing.append("Referências temporais inválidas. Use anos, competências AAAAMM, datas ISO ou declare uma escala numérica inequívoca.")
             elif not bool(options.get("temporal_comparability_confirmed")):
                 pending.append("Confirme a comparabilidade dos períodos e a convenção temporal.")
             if territory and not bool(options.get("territory_longitudinal_confirmed")):
@@ -318,6 +328,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             if all_category_count > 1 and not options.get("category_filter"):
                 pending.append("Selecione uma categoria nos filtros antes da agregação.")
         if op == "rotation":
+            if options.get("period_filter"):
+                missing.append("Remova o filtro de período e escolha os períodos inicial e final da coorte.")
             if identity_missing:
                 missing.append("Há identificadores pessoais ausentes; esta coorte não é avaliável.")
             if not assigned("identity"):
@@ -337,19 +349,34 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 missing.append("Há coordenadas ausentes, não numéricas ou fora dos intervalos válidos.")
             if not options.get("crs"):
                 pending.append("Informe o referencial geodésico das coordenadas.")
-            elif options.get("crs") != "SIRGAS2000":
+            elif options.get("crs") not in ("SIRGAS2000", "WGS84"):
                 missing.append("O referencial indicado não é suportado nesta versão.")
             if not options.get("reference_territory"):
                 pending.append("Selecione o território de referência.")
-            elif assigned("territory") and str(options["reference_territory"]) not in set(
-                    frame[mapped["territory"]].dropna().astype(str)):
-                missing.append("O território de referência não está presente na base.")
         if op == "aggregate" and not options.get("no_overlap_confirmed"):
             # Soma de componentes é possível com rótulo explícito; não implica pessoas únicas.
             pass
         if op == "report" and not territory:
             # Relatório de totais da base pode operar sem recorte espacial.
             pass
+        if not missing:
+            try:
+                prepared = None
+                if op not in ("spatial", "rotation"):
+                    cache_key = needs_population(mapped, options, op)
+                    if cache_key not in prepared_cache:
+                        try:
+                            prepared_cache[cache_key] = prepare(frame, mapped, options, op)
+                        except (ValueError, TypeError) as exc:
+                            prepared_cache[cache_key] = exc
+                    prepared = prepared_cache[cache_key]
+                    if isinstance(prepared, Exception):
+                        raise prepared
+                validate_operation(frame, mapped, options, op, prepared=prepared)
+            except ConfirmationRequired as exc:
+                pending.append(str(exc))
+            except (ValueError, TypeError) as exc:
+                missing.append(str(exc))
         if missing:
             status = "unavailable"
         elif pending:
@@ -368,17 +395,17 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 not options.get("require_object_confirmation") or options.get("object_confirmed")):
             met("Objeto de análise", "A profissão ou conjunto de trabalhadores está identificado.")
         if op not in ("spatial", "rotation") and measurable and count_confirmed and count_unit and (
-                not count_invalid and not row_key_collision):
+                not count_invalid and not row_key_collision) and not missing and not pending:
             met("Quantitativo de profissionais", "A medida e a unidade de contagem estão definidas para esta estrutura.")
-        if op in ("density", "comparisons", "ranking", "aggregate") and population:
+        if op in ("density", "comparisons", "ranking", "aggregate") and population and not missing and not pending:
             met("Dados populacionais", "O denominador correspondente foi associado e declarado.")
         if op == "temporal" and assigned("period") and period_count >= 2 and period_numeric and (
                 options.get("temporal_comparability_confirmed")) and (
                 not territory or options.get("territory_longitudinal_confirmed")):
             met("Comparabilidade temporal", "Foram declaradas condições de comparação entre os períodos.")
-        if op == "spatial" and assigned("latitude") and assigned("longitude") and not coordinate_invalid:
+        if op == "spatial" and assigned("latitude") and assigned("longitude") and not coordinate_invalid and not missing:
             met("Coordenadas", "Latitude e longitude foram identificadas e verificadas.")
-        if op == "spatial" and options.get("crs") == "SIRGAS2000":
+        if op == "spatial" and options.get("crs") in ("SIRGAS2000", "WGS84"):
             met("Referencial geodésico", "O referencial informado é suportado pelo motor experimental.")
         if op == "rotation" and assigned("identity") and (
                 options.get("longitudinal_identity_confirmed")) and not identity_missing:
@@ -404,8 +431,11 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 checks.append({"status": kind, "title": title, "detail": message})
         cap[op] = {"status": status, "reasons": missing + pending, "requirements": checks}
     def values(role: str) -> list[str]:
-        return frame[mapped[role]].dropna().astype(str).unique().tolist()[:100] if assigned(role) else []
+        if role == "territory" and assigned(role) and assigned("territory_id"):
+            return (text_values(original_frame[mapped[role]]) + " [" + text_values(original_frame[mapped["territory_id"]]) + "]").dropna().unique().tolist()
+        return text_values(original_frame[mapped[role]]).dropna().unique().tolist() if assigned(role) else []
     return {"capabilities": cap, "field_states": field_states,
+            "multiplicity": multiplicity(frame, mapped, options),
             "values": {"territories": values("territory"), "periods": values("period"),
                        "categories": values("category")},
             "profile": {

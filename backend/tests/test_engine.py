@@ -31,7 +31,8 @@ def test_density_per_thousand(table):
 
 
 def test_aggregate_denominator_not_mean(table):
-    out = compute(table, MAP, "aggregate", {"period_filter": "2024", "category_filter": "Médicos"})
+    out = compute(table, MAP, "aggregate", {"period_filter": "2024", "category_filter": "Médicos",
+                                         "population_additive_confirmed": True, "component_sum_confirmed": True})
     assert out["rows"][0]["Densidade por 1.000"] == pytest.approx(45 / 35000 * 1000)
     assert "Soma dos componentes" in out["rows"][0]["Tipo"]
 
@@ -45,8 +46,8 @@ def test_no_implicit_sum_on_ambiguous_duplicates(table):
 def test_no_implicit_zero(table):
     frame = table.copy()
     frame.loc[0, "Populacao"] = 0
-    out = compute(frame, MAP, "density", {})
-    assert any(r["Densidade por 1.000"] is None for r in out["rows"])
+    with pytest.raises(ValueError, match="não positivas"):
+        compute(frame, MAP, "density", {})
 
 
 def test_quantile_ties_are_kept():

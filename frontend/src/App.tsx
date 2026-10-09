@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ContextConfig from "./ContextConfig";
 import RequirementChecklist from "./RequirementChecklist";
+import DataResolution from "./DataResolution";
+import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
@@ -13,7 +15,7 @@ import {
   ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis
 } from "recharts";
 
-type Role = "territory" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
+type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
 type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
 type Mapping = Partial<Record<Role, string>>;
 type FieldStatus = "recognized" | "confirmed" | "proposed" | "unmapped";
@@ -24,6 +26,7 @@ type ColumnProfile = {
 type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: string; detail: string };
 type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[] };
 type Preflight = {
+  multiplicity: Multiplicity;
   capabilities: Record<Operation, Capability>;
   field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
   values: {territories: string[]; periods: string[]; categories: string[]};
@@ -35,7 +38,7 @@ type Inspection = {
   column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
 };
 type Metric = { label: string; value: string | number };
-type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[] };
+type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown> };
 type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon; tone: string };
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
@@ -75,6 +78,7 @@ const FEATURES: Feature[] = [
   { id: "report", title: "Relatórios", detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" }
 ];
 const ROLES: { key: Role; label: string; help: string }[] = [
+  { key: "territory_id", label: "Código territorial", help: "Distingue unidades com nomes iguais" },
   { key: "territory", label: "Território", help: "Município, polo, DSEI ou outro recorte declarado" },
   { key: "period", label: "Período", help: "Ano ou referência temporal" },
   { key: "category", label: "Categoria", help: "Profissão ou categoria da FTS" },
@@ -91,7 +95,8 @@ const TONES: Record<string, string> = {
   rose: "bg-rose-50 text-rose-700", amber: "bg-amber-50 text-amber-700",
   cyan: "bg-cyan-50 text-cyan-700", slate: "bg-slate-100 text-slate-700"
 };
-const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n);
+const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", n !== 0 && Math.abs(n) < 1e-6
+  ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(n);
 function pretty(value: unknown): string {
   if (value === null || value === undefined) return "Não avaliável";
   if (typeof value === "number") return shortNum(value);
@@ -106,8 +111,12 @@ function downloadText(name: string, body: string, mime: string) {
 function exportCsv(rows: Record<string, unknown>[]) {
   if (!rows.length) return;
   const cols = Object.keys(rows[0]);
-  const escape = (v: unknown) => '"' + (v === null || v === undefined ? "" : String(v)).replaceAll('"', '""') + '"';
-  downloadText("resultado_diagnostico.csv", [cols.map(escape).join(";"), ...rows.map(r => cols.map(c => escape(r[c])).join(";"))].join("\r\n"),
+  const escape = (v: unknown) => {
+    let value = v === null || v === undefined ? "" : String(v);
+    if (typeof v === "string" && /^[\s]*[=+@\-]/.test(value)) value = "'" + value;
+    return '"' + value.replaceAll('"', '""') + '"';
+  };
+  downloadText("resultado_diagnostico.csv", "\uFEFF" + [cols.map(escape).join(";"), ...rows.map(r => cols.map(c => escape(r[c])).join(";"))].join("\r\n"),
     "text/csv;charset=utf-8");
 }
 function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
@@ -120,7 +129,7 @@ function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
   return <label className="flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-slate-600">
     {label}
-    <select className="w-full min-w-0 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none" value={value} onChange={e => onChange(e.target.value)}>
+    <select aria-label={label} className="w-full min-w-0 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none" value={value} onChange={e => onChange(e.target.value)}>
       <option value="">Todos / não selecionado</option>
       {options.map(v => <option key={v} value={v}>{v}</option>)}
     </select>
@@ -160,6 +169,9 @@ function App() {
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [preflighting, setPreflighting] = useState(false);
   const [preflightError, setPreflightError] = useState("");
+  const [resolutions, setResolutions] = useState<ResolutionOptions>({});
+  const revision = useRef(0);
+  const uploadRevision = useRef(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -167,13 +179,14 @@ function App() {
   const plot = useMemo(() => {
     if (!result?.rows.length) return null;
     const keys = Object.keys(result.rows[0]);
-    const numeric = keys.find(k => result.rows.some(r => typeof r[k] === "number"));
-    const category = keys.find(k => result.rows.some(r => typeof r[k] === "string"));
+    const numeric = ["Densidade por 1.000", "Quantidade", "Variação (%)", "Rotatividade (%)", "Distância (km)", "Unidades"].find(k => keys.includes(k)) || keys.find(k => result.rows.some(r => typeof r[k] === "number"));
+    const category = keys.includes("Classe") ? "Classe" : keys.find(k => result.rows.some(r => typeof r[k] === "string"));
     if (!numeric || !category) return null;
-    return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 20), value: Number(r[numeric] ?? 0) })) };
+    return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 35), value: typeof r[numeric] === "number" ? r[numeric] : null })) };
   }, [result]);
 
   async function inspectFile(nextFile: File, nextSheet = "") {
+    const currentUpload = ++uploadRevision.current;
     setInspecting(true);
     setUploadError("");
     setError("");
@@ -185,6 +198,7 @@ function App() {
     try {
       const response = await fetch(API + "/api/inspect", { method: "POST", body: form });
       const details = await readApiResponse(response) as Inspection;
+      if (currentUpload !== uploadRevision.current) return;
       setInspection(details);
       setMapping(details.suggested_mapping);
       setConfirmedRoles([]);
@@ -206,14 +220,20 @@ function App() {
       setPeriodFilter("");
       setCategoryFilter("");
       setReference("");
+      setResolutions({});
+      setConfirmedNoOverlap(false);
+      setCrs("");
+      setQuantiles(5);
     } catch (exc) {
+      if (currentUpload !== uploadRevision.current) return;
       const message = readableError(exc);
       setUploadError(message);
       if (message.includes("Não foi possível alcançar")) setServerStatus("offline");
-    } finally { setInspecting(false); }
+    } finally { if (currentUpload === uploadRevision.current) setInspecting(false); }
   }
   async function chooseFile(next: File | undefined) {
     if (!next) return;
+    uploadRevision.current += 1;
     setFile(next);
     setSheet("");
     setActive(null);
@@ -233,6 +253,7 @@ function App() {
   }
   function semanticOptions() {
     return {
+      ...resolutions,
       period_filter: periodFilter, category_filter: categoryFilter,
       reference_territory: reference, crs, quantile_count: quantiles,
       no_overlap_confirmed: confirmedNoOverlap,
@@ -252,6 +273,13 @@ function App() {
     };
   }
   function associateColumn(column: string, role: Role | "") {
+    if (role === "count") setCountUnit("");
+    if (role === "identity") { setIdentityCountConfirmed(false); setLongitudinalIdentity(false); }
+    if (role === "period") { setPopulationAligned(false); setTemporalCompared(false); setTerritoryStable(false); }
+    if (role === "territory" || role === "territory_id") {
+      setPopulationAligned(false); setTerritoryStable(false); setReference("");
+      setConfirmedNoOverlap(false); setResolutions(previous => ({number_format: previous.number_format}));
+    }
     const previouslyAssociated = (Object.entries(mapping).find(([, value]) => value === column) || [])[0] as Role | undefined;
     setMapping(previous => {
       const next = { ...previous };
@@ -290,6 +318,7 @@ function App() {
     }
     setUploadError("");
     setRunning(true);
+    const currentRevision = revision.current;
     const form = new FormData();
     form.append("file", file); form.append("sheet", sheet); form.append("operation", op);
     form.append("mapping", JSON.stringify(mapping));
@@ -297,9 +326,11 @@ function App() {
     try {
       const response = await fetch(API + "/api/analyze", { method: "POST", body: form });
       const body = await readApiResponse(response);
+      if (currentRevision !== revision.current) return;
       setResult(body as AnalysisResult);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (exc) {
+      if (currentRevision !== revision.current) return;
       setError(readableError(exc));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     }
@@ -325,10 +356,12 @@ function App() {
   // O servidor recalcula a matriz após qualquer associação ou confirmação.
   // Nenhuma habilitação é decidida apenas no navegador.
   useEffect(() => {
+    revision.current += 1;
+    setResult(null);
     if (!inspection || inspection.requires_sheet || !file) return;
     let cancelled = false;
+    const controller = new AbortController();
     setPreflighting(true);
-    setPreflight(null);
     setPreflightError("");
     const timer = window.setTimeout(async () => {
       const form = new FormData();
@@ -336,6 +369,7 @@ function App() {
       form.append("sheet", sheet);
       form.append("mapping", JSON.stringify(mapping));
       form.append("options", JSON.stringify({
+        ...resolutions, quantile_count: quantiles,
         reference_territory: reference, crs,
         no_overlap_confirmed: confirmedNoOverlap,
         fts_scope_confirmed: ftsScopeConfirmed,
@@ -355,20 +389,22 @@ function App() {
         object_confirmed: objectConfirmed
       }));
       try {
-        const response = await fetch(API + "/api/preflight", { method: "POST", body: form });
+        const response = await fetch(API + "/api/preflight", { method: "POST", body: form, signal: controller.signal });
         const next = await readApiResponse(response) as Preflight;
         if (!cancelled) setPreflight(next);
       } catch (exc) {
-        if (!cancelled) setPreflightError(readableError(exc));
+        if (!cancelled) { setPreflight(null); setPreflightError(readableError(exc)); }
       } finally {
         if (!cancelled) setPreflighting(false);
       }
     }, 250);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
   }, [inspection, file, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap]);
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles]);
+
+  useEffect(() => { revision.current += 1; setResult(null); setError(""); }, [active]);
 
   return <div className="min-h-screen bg-canvas">
     <header className="no-print sticky top-0 z-30 border-b border-white/70 bg-white/95 backdrop-blur-xl">
@@ -510,7 +546,6 @@ function App() {
               active === f.id ? "feature-card-active" : "border-line",
               preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
               ].join(" ")}
-            aria-disabled={preflight?.capabilities[f.id]?.status !== "available"}
             title={preflight?.capabilities[f.id]?.reasons.join(" ") || "Análise habilitada"}
             aria-pressed={active === f.id}>
             <span className="flex w-full items-start justify-between">
@@ -531,13 +566,21 @@ function App() {
           O cálculo só ocorre quando você clicar em <strong>Executar análise</strong>.
         </p>
         {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
-          status={!inspection ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
-          requirements={preflight?.capabilities[active]?.requirements || (!inspection ? [
+          status={!inspection || preflightError ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
+          requirements={preflightError ? [{status: "missing", title: "Verificação não concluída", detail: preflightError}] : preflight?.capabilities[active]?.requirements || (!inspection ? [
             {status: "missing", title: "Base de dados", detail: "Importe uma planilha para verificar os requisitos desta análise."}
           ] : [])}
           onExecute={() => { void run(active); }} executing={running}>
+          {inspection && !inspection.requires_sheet && <DataResolution operation={active} columns={inspection.columns}
+            mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
+            periods={preflight?.values.periods || inspection.periods}
+            selectCode={column => {if(column) associateColumn(column, "territory_id"); else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(r => r !== "territory_id"));}}}
+            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
+            confirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
+            selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
+            identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
+            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>}
           {inspection && !inspection.requires_sheet &&
-            preflight?.capabilities[active]?.status !== "available" &&
             <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
               <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
@@ -562,7 +605,7 @@ function App() {
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     O que o quantitativo representa?
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                      value={countUnit} onChange={e => {setCountUnit(e.target.value);setResult(null);}}>
+                      aria-label="O que o quantitativo representa?" value={countUnit} onChange={e => {setCountUnit(e.target.value);setResult(null);}}>
                       <option value="">Selecione a unidade de contagem</option>
                       <option value="pessoas">Pessoas distintas no recorte declarado</option>
                       <option value="vinculos">Vínculos de trabalho</option>
@@ -649,7 +692,7 @@ function App() {
                     Referencial geodésico informado para a base
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                       value={crs} onChange={e=>setCrs(e.target.value)}>
-                      <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
+                      <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option><option value="WGS84">WGS84</option>
                     </select>
                   </label>
                   <SelectField label="Território de referência" value={reference}
@@ -681,6 +724,7 @@ function App() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button disabled={!result} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ArrowDownToLine size={14}/> CSV</button>
+              <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Método e parâmetros</button>
               <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
@@ -714,7 +758,7 @@ function App() {
               {result.metrics.map(metric => <div key={metric.label} className="rounded-2xl border border-line bg-slate-50 px-5 py-5"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-2 text-2xl font-bold text-ink">{pretty(metric.value)}</p></div>)}
             </div>}
             {plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
-              <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos resultados</h4></div>
+              <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos primeiros 12 registros</h4></div>
               <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%">
                 <BarChart data={plot.values} margin={{top:5,right:12,bottom:35,left:0}}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e9eff4" vertical={false}/>
@@ -729,7 +773,7 @@ function App() {
               <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4><span className="text-xs text-slate-400">{result.total_rows} linhas · até 150 exibidas</span></div>
               <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
                 <thead className="sticky top-0 bg-slate-50"><tr>{Object.keys(result.rows[0]).map(k=><th key={k}>{k}</th>)}</tr></thead>
-                <tbody>{result.rows.map((row,i)=><tr key={i}>{Object.keys(result.rows[0]).map(k=><td key={k}>{pretty(row[k])}</td>)}</tr>)}</tbody>
+                <tbody>{result.rows.slice(0,150).map((row,i)=><tr key={i}>{Object.keys(result.rows[0]).map(k=><td key={k}>{pretty(row[k])}</td>)}</tr>)}</tbody>
               </table></div>
             </div>}
             {result.notes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
