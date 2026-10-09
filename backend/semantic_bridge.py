@@ -399,6 +399,15 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             met("Quantitativo de profissionais", "A medida e a unidade de contagem estão definidas para esta estrutura.")
         if op in ("density", "comparisons", "ranking", "aggregate") and population and not missing and not pending:
             met("Dados populacionais", "O denominador correspondente foi associado e declarado.")
+        if op == "distribution":
+            indicator = options.get("distribution_indicator")
+            if indicator in ("density", "quantity"):
+                met("Indicador da distribuição", "Densidade por 1.000 habitantes" if indicator == "density"
+                    else "Quantidade de profissionais")
+            if options.get("period_filter") or all_period_count == 1:
+                met("Período da distribuição", "As unidades serão classificadas em um único período.")
+            if options.get("category_filter") or all_category_count == 1:
+                met("Categoria profissional", "Os quintis serão calculados para uma única categoria.")
         if op == "temporal" and assigned("period") and period_count >= 2 and period_numeric and (
                 options.get("temporal_comparability_confirmed")) and (
                 not territory or options.get("territory_longitudinal_confirmed")):
@@ -412,7 +421,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             met("Identidade longitudinal", "O uso longitudinal da identidade individual foi declarado.")
         for kind, reasons in (("missing", missing), ("needs_confirmation", pending)):
             for message in reasons:
-                if "populaç" in message or "denominador" in message:
+                if "indicador" in message.lower():
+                    title = "Indicador da distribuição"
+                elif "populaç" in message or "denominador" in message:
                     title = "Dados populacionais"
                 elif "territori" in message.lower() or "Território" in message:
                     title = "Unidade territorial"
