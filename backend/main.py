@@ -116,8 +116,8 @@ def _prepared(df: pd.DataFrame, mapping: dict[str, str], options: dict[str, Any]
     identity = _resolve(df, mapping, "identity")
     if need_count and not count and not identity:
         raise ValueError("Para calcular quantitativos, associe Quantidade ou um identificador individual autorizado.")
-    if not category and not options.get("fts_scope_confirmed"):
-        raise ValueError("Sem coluna Categoria, confirme que a base representa a FTS no recorte informado.")
+    if not category and not (options.get("fts_scope_confirmed") or options.get("category_constant")):
+        raise ValueError("Sem coluna Categoria, declare uma categoria constante autorizada ou confirme que a base representa a FTS.")
     if not period and not options.get("single_period_confirmed"):
         raise ValueError("Sem coluna Período, confirme que a base representa um único período.")
     tmp = pd.DataFrame({
