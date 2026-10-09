@@ -27,18 +27,6 @@ export default function DataResolution(p: Props) {
   </label>;
   return <div className="mt-5 space-y-4 rounded-xl border border-line bg-slate-50/50 p-4">
     <h4 className="text-sm font-bold text-ink">Conferir a estrutura dos dados</h4>
-    {p.mapping.territory && <div className="grid gap-3 md:grid-cols-2">
-      <label className="text-xs font-semibold text-slate-700">Código que distingue as unidades territoriais (se necessário)
-        <select className="mt-2 w-full rounded-lg border p-2" value={p.mapping.territory_id || ""} onChange={e => p.selectCode(e.target.value)}>
-          <option value="">Usar os nomes territoriais</option>
-          {p.columns.filter(c => c !== p.mapping.territory).map(c => <option key={c}>{c}</option>)}
-        </select>
-      </label>
-      {p.mapping.territory_id && !p.codeConfirmed && <button type="button" className="self-end rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold" onClick={p.confirmCode}>
-        Confirmar que o código identifica cada unidade territorial
-      </button>}
-      <p className="text-xs leading-5 text-slate-600 md:col-span-2">A unidade escolhida continua sendo {p.mapping.territory}. Nomes iguais podem representar lugares diferentes. Confirme o código somente se sua abrangência corresponder a essa unidade.</p>
-    </div>}
     {!!p.diagnostic?.affected_records && p.mapping.count && <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
       <p className="text-sm font-semibold">{p.diagnostic.affected_records.toLocaleString("pt-BR")} registros em {p.diagnostic.groups.toLocaleString("pt-BR")} grupos com mais de uma linha</p>
       <p className="text-xs">Cópias idênticas em todas as colunas: {p.diagnostic.exact_duplicate_excess}. Colunas que variam: {p.diagnostic.distinguishing_columns.join(", ") || "nenhuma"}.</p>
