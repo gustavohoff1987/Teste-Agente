@@ -69,7 +69,8 @@ def test_file_inspect_and_real_density_analysis(extension, factory):
     assert profile["requires_sheet"] is False
 
     response = client.post("/api/analyze", files={"file": (filename, contents)}, data={
-        "operation": "density", "mapping": json.dumps(MAPPING), "options": "{}"
+        "operation": "density", "mapping": json.dumps(MAPPING),
+        "options": json.dumps({"count_unit": "pessoas", "population_denominator_confirmed": True})
     })
     assert response.status_code == 200, response.text
     data = response.json()
