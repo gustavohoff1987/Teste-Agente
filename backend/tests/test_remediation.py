@@ -95,7 +95,8 @@ def test_unused_population_does_not_block_counts_or_unconfirmed_distribution():
     df["Population"] = [None, "wrong", -1]
     opts = {"count_unit": "vinculos"}
     for op in ("counts", "distribution", "report"):
-        response = post("/api/analyze", df, options=opts, operation=op)
+        settings = {**opts, "distribution_indicator": "quantity"} if op == "distribution" else opts
+        response = post("/api/analyze", df, options=settings, operation=op)
         assert response.status_code == 200, response.text
     assert post("/api/analyze", df, options=opts).status_code == 422
 
@@ -114,9 +115,19 @@ def test_comparisons_and_distribution_do_not_pool_periods_or_break_ties():
     for operation in ("ranking", "comparisons"):
         rows = post("/api/analyze", df, options=opts, operation=operation).json()["rows"]
         assert [r["Posição"] for r in rows] == [1, 1, 3, 1, 2, 3]
-    rows = post("/api/analyze", df, options=opts, operation="distribution").json()["rows"]
-    assert [r["Unidades"] for r in rows] == [3, 0, 2, 1]
-    assert len({r["Período"] for r in rows}) == 2
+    assert post("/api/analyze", df, options={**opts, "distribution_indicator": "density"},
+                operation="distribution").status_code == 422
+    for year, expected in (("2023", [3, 0]), ("2024", [2, 1])):
+        outcome = post("/api/analyze", df,
+                       options={**opts, "distribution_indicator": "density", "period_filter": year},
+                       operation="distribution")
+        assert outcome.status_code == 200, outcome.text
+        rows = outcome.json()["rows"]
+        assert [r["Unidades"] for r in rows] == expected
+        assert {r["Período"] for r in rows} == {year}
+        assert all("Limite superior" not in r for r in rows)
+        assert len(outcome.json()["detail_rows"]) == 3
+        assert all("Densidade por 1.000 habitantes" in r for r in outcome.json()["detail_rows"])
 
 
 def test_territories_in_different_periods_are_not_a_comparison_universe():
@@ -217,7 +228,8 @@ def test_all_ten_operations_have_successful_http_execution():
         "cohort_coverage_confirmed": True, "crs": "WGS84", "reference_territory": "A",
         "population_additive_confirmed": True, "component_sum_confirmed": True}
     for op in OPERATIONS:
-        settings = {**opts, **({"period_filter": "2024"} if op == "aggregate" else {})}
+        settings = {**opts, **({"period_filter": "2024", "distribution_indicator": "density"} if op == "distribution" else
+                             {"period_filter": "2024"} if op == "aggregate" else {})}
         gate = post("/api/preflight", df, mapping, settings).json()["capabilities"][op]
         assert gate["status"] == "available", (op, gate)
         result = post("/api/analyze", df, mapping, settings, op)
@@ -235,3 +247,44 @@ def test_global_declarations_do_not_authorize_unconfirmed_field_mapping(role):
     assert post("/api/analyze", df, mapping, options).status_code == 422
     options["confirmed_roles"] = [role]
     assert post("/api/analyze", df, mapping, options).status_code == 200
+
+
+def test_distribution_requires_explicit_indicator_and_selects_valid_universe():
+    frame = pd.DataFrame({
+        "Municipality": ["A", "B", "C"] * 2,
+        "Year": [2023] * 3 + [2024] * 3,
+        "Profession": ["Nurses"] * 6,
+        "Count": [1, 3, 5, 2, 4, 6],
+        "Population": [1000, 2000, 3000] * 2,
+    })
+    missing = post("/api/preflight", frame, options=O).json()["capabilities"]["distribution"]
+    assert missing["status"] == "needs_confirmation"
+    assert "indicador" in " ".join(missing["reasons"])
+    for indicator in ("quantity", "density"):
+        options = {**O, "distribution_indicator": indicator, "period_filter": "2024"}
+        response = post("/api/analyze", frame, options=options, operation="distribution")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert sum(item["Unidades"] for item in body["rows"]) == 3
+        assert len(body["detail_rows"]) == 3
+        assert {r["Período"] for r in body["detail_rows"]} == {"2024"}
+        assert all("Quintil" in r for r in body["detail_rows"])
+        assert all("Limite superior" not in r for r in body["rows"])
+
+
+def test_distribution_quantity_never_reads_population_unless_density_selected():
+    frame = pd.DataFrame({
+        "Municipality": ["A", "B", "C"],
+        "Year": [2024] * 3,
+        "Profession": ["Nurses"] * 3,
+        "Count": [2, 4, 8],
+        "Population": [0, -5, "invalid"],
+    })
+    quantity = post("/api/analyze", frame,
+                    options={"count_unit": "pessoas", "distribution_indicator": "quantity"},
+                    operation="distribution")
+    assert quantity.status_code == 200, quantity.text
+    assert [r["Quantidade de profissionais"] for r in quantity.json()["detail_rows"]] == [2, 4, 8]
+    density = post("/api/analyze", frame,
+                   options={**O, "distribution_indicator": "density"}, operation="distribution")
+    assert density.status_code == 422
