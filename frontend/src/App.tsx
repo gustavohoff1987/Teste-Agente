@@ -14,9 +14,21 @@ import {
 type Role = "territory" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
 type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
 type Mapping = Partial<Record<Role, string>>;
+type FieldStatus = "recognized" | "confirmed" | "proposed" | "unmapped";
+type ColumnProfile = {
+  name: string; type: string; missing: number; suspicious_header: boolean;
+  proposal: { role: Role; status: "recognized" | "proposed"; evidence: string }[];
+};
+type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[] };
+type Preflight = {
+  capabilities: Record<Operation, Capability>;
+  field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
+  profile: {row_count: number; column_count: number; recognized_roles: number};
+};
 type Inspection = {
   requires_sheet: boolean; sheets: string[]; columns: string[]; row_count: number;
   suggested_mapping: Mapping; periods: string[]; categories: string[]; territories: string[];
+  column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[] };
@@ -130,6 +142,18 @@ function App() {
   const [confirmedNoOverlap, setConfirmedNoOverlap] = useState(false);
   const [ftsScopeConfirmed, setFtsScopeConfirmed] = useState(false);
   const [singlePeriodConfirmed, setSinglePeriodConfirmed] = useState(false);
+  const [confirmedRoles, setConfirmedRoles] = useState<Role[]>([]);
+  const [countUnit, setCountUnit] = useState("");
+  const [populationAligned, setPopulationAligned] = useState(false);
+  const [temporalCompared, setTemporalCompared] = useState(false);
+  const [territoryStable, setTerritoryStable] = useState(false);
+  const [longitudinalIdentity, setLongitudinalIdentity] = useState(false);
+  const [identityCountConfirmed, setIdentityCountConfirmed] = useState(false);
+  const [categoryConstant, setCategoryConstant] = useState("");
+  const [preflight, setPreflight] = useState<Preflight | null>(null);
+  const [preflighting, setPreflighting] = useState(false);
+  const [preflightError, setPreflightError] = useState("");
+
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const availableColumns = inspection?.columns || [];
@@ -157,6 +181,18 @@ function App() {
       const details = await readApiResponse(response) as Inspection;
       setInspection(details);
       setMapping(details.suggested_mapping);
+      setConfirmedRoles([]);
+      setFtsScopeConfirmed(false);
+      setSinglePeriodConfirmed(false);
+      setCountUnit("");
+      setPopulationAligned(false);
+      setTemporalCompared(false);
+      setTerritoryStable(false);
+      setLongitudinalIdentity(false);
+      setIdentityCountConfirmed(false);
+      setCategoryConstant("");
+      setPreflight(details.preflight);
+      setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
       setCategoryFilter("");
@@ -175,6 +211,7 @@ function App() {
     setResult(null);
     setUploadError("");
     setInspection(null);
+    setPreflight(null);
     if (!/\.(csv|xls|xlsx)$/i.test(next.name)) {
       setUploadError("Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.");
       return;
@@ -185,8 +222,48 @@ function App() {
     }
     await inspectFile(next);
   }
+  function semanticOptions() {
+    return {
+      period_filter: periodFilter, category_filter: categoryFilter,
+      reference_territory: reference, crs, quantile_count: quantiles,
+      no_overlap_confirmed: confirmedNoOverlap,
+      fts_scope_confirmed: ftsScopeConfirmed,
+      single_period_confirmed: singlePeriodConfirmed,
+      confirmed_roles: confirmedRoles,
+      count_unit: countUnit,
+      population_denominator_confirmed: populationAligned,
+      temporal_comparability_confirmed: temporalCompared,
+      territory_longitudinal_confirmed: territoryStable,
+      longitudinal_identity_confirmed: longitudinalIdentity,
+      identity_count_confirmed: identityCountConfirmed,
+      category_constant: categoryConstant
+    };
+  }
+  function associateColumn(column: string, role: Role | "") {
+    const previouslyAssociated = (Object.entries(mapping).find(([, value]) => value === column) || [])[0] as Role | undefined;
+    setMapping(previous => {
+      const next = { ...previous };
+      for (const key of ROLES) {
+        if (next[key.key] === column || (role && key.key === role)) delete next[key.key];
+      }
+      if (role) next[role] = column;
+      return next;
+    });
+    setConfirmedRoles(previous => [...previous.filter(r => r !== previouslyAssociated && r !== role), ...(role ? [role] : [])]);
+    setResult(null);
+    setError("");
+  }
   async function run(op: Operation) {
     setActive(op); setResult(null); setError("");
+    if (preflighting || !preflight) {
+      setError("Aguarde a conclusão da verificação de compatibilidade da base.");
+      return;
+    }
+    const capability = preflight.capabilities[op];
+    if (!capability || capability.status !== "available") {
+      setError(capability?.reasons.join(" ") || "Esta análise não está disponível para a base atual.");
+      return;
+    }
     if (!file || !inspection || inspection.requires_sheet || inspecting) {
       setUploadError(inspection?.requires_sheet
         ? "Selecione uma aba do arquivo Excel para concluir a importação."
@@ -200,13 +277,7 @@ function App() {
     const form = new FormData();
     form.append("file", file); form.append("sheet", sheet); form.append("operation", op);
     form.append("mapping", JSON.stringify(mapping));
-    form.append("options", JSON.stringify({
-      period_filter: periodFilter, category_filter: categoryFilter,
-      reference_territory: reference, crs, quantile_count: quantiles,
-      no_overlap_confirmed: confirmedNoOverlap,
-      fts_scope_confirmed: ftsScopeConfirmed,
-      single_period_confirmed: singlePeriodConfirmed
-    }));
+    form.append("options", JSON.stringify(semanticOptions()));
     try {
       const response = await fetch(API + "/api/analyze", { method: "POST", body: form });
       const body = await readApiResponse(response);
@@ -235,6 +306,49 @@ function App() {
       .catch(() => { if (alive) setServerStatus("offline"); });
     return () => { alive = false; };
   }, []);
+  // O servidor recalcula a matriz após qualquer associação ou confirmação.
+  // Nenhuma habilitação é decidida apenas no navegador.
+  useEffect(() => {
+    if (!inspection || inspection.requires_sheet || !file) return;
+    let cancelled = false;
+    setPreflighting(true);
+    setPreflight(null);
+    setPreflightError("");
+    const timer = window.setTimeout(async () => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("sheet", sheet);
+      form.append("mapping", JSON.stringify(mapping));
+      form.append("options", JSON.stringify({
+        reference_territory: reference, crs,
+        no_overlap_confirmed: confirmedNoOverlap,
+        fts_scope_confirmed: ftsScopeConfirmed,
+        single_period_confirmed: singlePeriodConfirmed,
+        confirmed_roles: confirmedRoles,
+        count_unit: countUnit,
+        population_denominator_confirmed: populationAligned,
+        temporal_comparability_confirmed: temporalCompared,
+        territory_longitudinal_confirmed: territoryStable,
+        longitudinal_identity_confirmed: longitudinalIdentity,
+        identity_count_confirmed: identityCountConfirmed,
+        category_constant: categoryConstant
+      }));
+      try {
+        const response = await fetch(API + "/api/preflight", { method: "POST", body: form });
+        const next = await readApiResponse(response) as Preflight;
+        if (!cancelled) setPreflight(next);
+      } catch (exc) {
+        if (!cancelled) setPreflightError(readableError(exc));
+      } finally {
+        if (!cancelled) setPreflighting(false);
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [inspection, file, sheet, mapping, confirmedRoles, countUnit,
+      populationAligned, temporalCompared, territoryStable,
+      longitudinalIdentity, identityCountConfirmed, categoryConstant,
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap]);
+
   return <div className="min-h-screen bg-canvas">
     <header className="no-print sticky top-0 z-30 border-b border-white/70 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1350px] items-center justify-between gap-3 px-5 py-3.5 lg:px-10">
@@ -324,32 +438,99 @@ function App() {
             </div>
           </div>
         </div>
-        {inspection && !inspection.requires_sheet && <div className="mt-5 rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
-          <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Settings2 size={20}/></span>
-            <div><h3 className="font-bold text-ink">Associar campos da base</h3><p className="text-xs text-slate-500">Sugestões são determinísticas, baseadas em nomes reconhecidos. Confirme os significados necessários.</p></div></div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {ROLES.map(role => <label key={role.key} className="flex min-w-0 flex-col gap-1.5">
-              <span className="text-xs font-bold text-slate-700">{role.label}</span>
-              <select className="w-full min-w-0 rounded-xl border border-line bg-slate-50 px-3 py-2.5 text-xs text-ink" value={mapping[role.key] || ""}
-                onChange={e => { setMapping(old => ({...old, [role.key]: e.target.value})); setResult(null); }}>
-                <option value="">Não associado</option>
-                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-              </select>
-              <span className="text-[10px] leading-4 text-slate-400">{role.help}</span>
-            </label>)}
+        {inspection && !inspection.requires_sheet && <div id="associacoes" className="section-anchor mt-5 rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Settings2 size={20}/></span>
+            <div>
+              <h3 className="font-bold text-ink">Reconhecimento e habilitação dos dados</h3>
+              <p className="text-xs leading-5 text-slate-500">O sistema reconhece os cabeçalhos governados e apresenta correspondências propostas. Você só precisa esclarecer campos ambíguos e significados exigidos pela análise.</p>
+            </div>
           </div>
-          <div className="mt-5 flex flex-wrap items-center gap-5 border-t border-line pt-4">
-            <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/> Esta base representa a FTS</label>
-            <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/> Dados de período único (sem coluna de período)</label>
+          {preflighting && <p role="status" className="mb-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Recalculando a disponibilidade das análises...</p>}
+          {preflightError && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
+          <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_1fr]">
+            {inspection.column_profiles.map(profile => {
+              const associated = (Object.entries(mapping).find(([, value]) => value === profile.name) || [])[0] as Role | undefined;
+              const field = associated ? preflight?.field_states[associated] : null;
+              const status = field?.status || (associated ? "proposed" : "unmapped");
+              return <div key={profile.name} className="rounded-xl border border-line bg-slate-50/50 p-3.5">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <strong className="max-w-full break-all text-xs text-ink">{profile.name}</strong>
+                  <span className={["rounded-full px-2 py-1 text-[10px] font-bold",
+                    status === "recognized" || status === "confirmed" ? "bg-emerald-50 text-emerald-700" :
+                    status === "proposed" ? "bg-amber-50 text-amber-700" : "bg-slate-200 text-slate-600"].join(" ")}>
+                    {status === "recognized" ? "Reconhecido" : status === "confirmed" ? "Confirmado" :
+                      status === "proposed" ? "A confirmar" : "Sem associação"}
+                  </span>
+                </div>
+                <p className="mb-2 text-[11px] text-slate-500">{profile.type} · {profile.missing} ausências</p>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                  Significado para a análise
+                  <select className="w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+                    value={associated || ""} onChange={e => associateColumn(profile.name, e.target.value as Role | "")}>
+                    <option value="">Não atribuído / auxiliar</option>
+                    {ROLES.map(role => <option key={role.key} value={role.key}>{role.label}</option>)}
+                  </select>
+                </label>
+                {associated && status === "proposed" && <button type="button" className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-200"
+                  onClick={() => setConfirmedRoles(prev => [...new Set([...prev, associated])])}>
+                  Confirmar associação como {ROLES.find(x => x.key === associated)?.label}
+                </button>}
+                {profile.suspicious_header && <p className="mt-2 text-[11px] leading-4 text-amber-800">Cabeçalho incomum: verifique se a primeira linha da planilha contém os nomes reais das colunas.</p>}
+                {profile.proposal.length > 0 && <p className="mt-2 text-[11px] leading-4 text-slate-500">{profile.proposal[0].evidence}</p>}
+              </div>;
+            })}
           </div>
-        </div>}
+          <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4">
+            <h4 className="mb-3 text-sm font-bold text-ink">Significados complementares</h4>
+            <p className="mb-4 text-xs leading-5 text-slate-600">Estas confirmações não são inferidas do nome da coluna. Elas somente habilitam as operações que dependem delas.</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">Unidade de contagem
+                <select className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink" value={countUnit} onChange={e => {setCountUnit(e.target.value);setResult(null);}}>
+                  <option value="">Não informada</option>
+                  <option value="pessoas">Pessoas distintas no recorte informado</option>
+                  <option value="vinculos">Vínculos de trabalho</option>
+                  <option value="postos">Postos de trabalho</option>
+                  <option value="outro">Outra unidade (verifique a adequação)</option>
+                </select>
+              </label>
+              {!mapping.category && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">Categoria constante da base, se aplicável
+                <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                  value={categoryConstant} placeholder={inspection.suggested_category_constant || "Ex.: Médicos"}
+                  onChange={e => {setCategoryConstant(e.target.value); setResult(null);}}/>
+                {inspection.suggested_category_constant && <span className="text-[11px] font-normal text-slate-500">Sugestão extraída do cabeçalho: {inspection.suggested_category_constant}. Confirme digitando.</span>}
+              </label>}
+            </div>
+            <div className="mt-5 grid gap-3 text-xs text-slate-700 sm:grid-cols-2">
+              <label className="flex items-start gap-2"><input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/> Declaro que a base ou categoria informada integra a força de trabalho na saúde</label>
+              <label className="flex items-start gap-2"><input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/> A base é de um único período (sem coluna temporal)</label>
+              {mapping.population && <label className="flex items-start gap-2"><input type="checkbox" checked={populationAligned} onChange={e => setPopulationAligned(e.target.checked)}/> Confirmo que a população é o denominador pertinente, com território e período alinhados</label>}
+              {mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/> Confirmo a convenção temporal e a comparabilidade dos quantitativos entre períodos</label>}
+              {mapping.territory && mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/> Confirmo que a identidade territorial é comparável entre períodos</label>}
+              {mapping.identity && <label className="flex items-start gap-2"><input type="checkbox" checked={identityCountConfirmed} onChange={e => setIdentityCountConfirmed(e.target.checked)}/> Confirmo identidade individual adequada à contagem distinta</label>}
+              {mapping.identity && mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity} onChange={e => setLongitudinalIdentity(e.target.checked)}/> Confirmo identidade pessoal válida longitudinalmente para rotatividade</label>}
+            </div>
+            {mapping.latitude && mapping.longitude && <div className="mt-5 grid gap-3 border-t border-cyan-100 pt-4 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">Referencial geodésico (se conhecido)
+                <select className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal" value={crs} onChange={e => setCrs(e.target.value)}>
+                  <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
+                </select>
+              </label>
+              <SelectField label="Território de referência" value={reference} options={inspection.territories} onChange={setReference}/>
+            </div>}
+          </div>
+        </div>
       </section>
       <section id="analises" className="section-anchor mt-14">
-        <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Cada cartão corresponde a uma operação analítica. Selecione um para executar o cálculo; o sistema informa quando os dados ou significados necessários estiverem ausentes." />
+        <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
           {FEATURES.map((f, index) => <button key={f.id} type="button" onClick={() => { void run(f.id); }}
             className={["feature-card no-print group flex min-h-[177px] flex-col items-start rounded-[20px] border bg-white p-4 text-left shadow-card sm:p-5",
-              active === f.id ? "feature-card-active" : "border-line"].join(" ")}
+              active === f.id ? "feature-card-active" : "border-line",
+              preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
+              ].join(" ")}
+            aria-disabled={preflight?.capabilities[f.id]?.status !== "available"}
+            title={preflight?.capabilities[f.id]?.reasons.join(" ") || "Análise habilitada"}
             aria-pressed={active === f.id}>
             <span className="flex w-full items-start justify-between">
               <span className={["flex h-11 w-11 items-center justify-center rounded-2xl", TONES[f.tone]].join(" ")}><f.icon size={21} strokeWidth={1.85}/></span>
@@ -357,11 +538,20 @@ function App() {
             </span>
             <span className="mt-5 block text-sm font-bold text-ink">{f.title}</span>
             <span className="mt-1 block text-[11px] leading-5 text-slate-500">{f.detail}</span>
-            <span className="mt-auto pt-3 text-[10px] font-semibold text-slate-300">{String(index + 1).padStart(2, "0")}</span>
+            <span className={["mt-auto pt-3 text-[10px] font-bold",
+              preflight?.capabilities[f.id]?.status === "available" ? "text-emerald-700" : "text-slate-500"].join(" ")}>
+              {preflighting ? "Verificando..." : preflight?.capabilities[f.id]?.status === "available" ? "Disponível" :
+                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Requer confirmação" : "Não habilitada"}
+            </span>
           </button>)}
         </div>
         <div className="mt-5 rounded-[18px] border border-cyan-100 bg-cyan-50/70 px-5 py-4 text-sm text-slate-600">
-          <div className="flex items-start gap-3"><HelpCircle size={20} className="mt-0.5 shrink-0 text-teal"/><p className="leading-6"><strong className="text-ink">Como funciona:</strong> o upload apenas examina a estrutura. O cálculo ocorre quando você escolhe uma análise. Não são inventados denominadores, métodos, períodos nem parâmetros normativos.</p></div>
+          <div className="flex items-start gap-3"><HelpCircle size={20} className="mt-0.5 shrink-0 text-teal"/><p className="leading-6"><strong className="text-ink">Como funciona:</strong> a importação realiza somente o exame habilitador. Um cartão destacado executa a operação quando selecionado. Um cartão esmaecido continua consultável, mas não dispara cálculo enquanto os requisitos não forem atendidos.</p></div>
+        </div>
+        {active && preflight?.capabilities[active]?.status !== "available" && <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>{preflight?.capabilities[active]?.status === "needs_confirmation" ? "Confirmação necessária" : "Análise não habilitada nesta base"}</strong>
+          <ul className="mt-2 list-inside list-disc space-y-1">{(preflight?.capabilities[active]?.reasons || ["Carregue e examine uma base para conhecer os requisitos."]).map((reason,i) => <li key={i}>{reason}</li>)}</ul>
+          <button type="button" className="mt-3 text-xs font-bold underline" onClick={() => document.getElementById("associacoes")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Rever associação de campos</button>
         </div>
       </section>
       <section id="resultados" ref={resultsRef} className="section-anchor mt-14">
@@ -389,7 +579,7 @@ function App() {
             </>}
             {active === "aggregate" && <label className="col-span-2 flex items-center gap-2 self-center text-xs text-slate-700"><input type="checkbox" checked={confirmedNoOverlap} onChange={e=>setConfirmedNoOverlap(e.target.checked)}/> Declaro que não há sobreposição de pessoas nos territórios considerados</label>}
           </div>}
-          {active && inspection && !inspection.requires_sheet && <div className="no-print mt-5 flex justify-end">
+          {active && inspection && !inspection.requires_sheet && preflight?.capabilities[active]?.status === "available" && <div className="no-print mt-5 flex justify-end">
             <button disabled={running} onClick={()=>{void run(active);}} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2.5 text-sm font-bold text-white hover:bg-ink disabled:opacity-50">
               {running ? <LoaderCircle size={16} className="animate-spin"/> : <Calculator size={16}/>} {running ? "Calculando..." : "Executar / atualizar análise"}</button>
           </div>}
@@ -398,7 +588,7 @@ function App() {
           {!running && !result && !error && <div className="flex flex-col items-center justify-center py-16 text-center">
             <span className="mb-4 rounded-2xl bg-slate-50 p-5 text-slate-300"><Database size={34} strokeWidth={1.6}/></span>
             <p className="text-base font-bold text-ink">Seu diagnóstico começa aqui</p>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Carregue uma base e selecione um dos cartões acima. Resultados reais substituirão esta área automaticamente.</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Carregue uma base, confira os significados e selecione um cartão habilitado. A análise nunca é executada durante o upload.</p>
           </div>}
           {result && <div className="pt-6">
             <h3 className="text-xl font-bold text-ink">{result.title}</h3>
