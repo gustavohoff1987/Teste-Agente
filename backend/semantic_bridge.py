@@ -250,14 +250,15 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     for op in OPERATIONS:
         missing: list[str] = []
         pending: list[str] = []
-        if not measurable:
-            missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
-        elif not count_confirmed:
-            pending.append("Confirme a função de quantitativo/identificador da coluna sugerida.")
-        if measurable and not count_unit:
-            pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
-        if count_invalid and op != "spatial":
-            missing.append("Há valores quantitativos ausentes, negativos ou não numéricos; corrija a base ou a associação.")
+        if op not in ("spatial", "rotation"):
+            if not measurable:
+                missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
+            elif not count_confirmed:
+                pending.append("Confirme a função de quantitativo/identificador da coluna sugerida.")
+            if measurable and not count_unit:
+                pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
+            if count_invalid:
+                missing.append("Há valores quantitativos ausentes, negativos ou não numéricos; corrija a base ou a associação.")
         if not fts and op != "spatial":
             pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
         if not period and op != "spatial":
@@ -303,8 +304,6 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 pending.append("Confirme a comparabilidade territorial entre períodos.")
         if op == "spatial":
             # Geometria pode ser base auxiliar sem quantitativos/categorias/períodos.
-            missing = [x for x in missing if not x.startswith("Associe uma coluna de quantitativos")]
-            pending = [x for x in pending if not x.startswith("Informe a unidade de contagem")]
             for role in ("latitude", "longitude"):
                 if not assigned(role):
                     missing.append("Associe e valide " + ROLE_NAMES[role] + ".")
