@@ -584,13 +584,22 @@ function App() {
             onClick={() => document.getElementById("filtros-resultados")?.scrollIntoView({behavior:"smooth", block:"center"})}>
             Escolher período, categoria e indicador da distribuição
           </button>}
-          {inspection && !inspection.requires_sheet && <DataResolution operation={active} columns={inspection.columns}
+          {inspection && !inspection.requires_sheet && <details
+            key={active + ":" + (preflight?.capabilities[active]?.status || "loading")}
+            defaultOpen={preflight?.capabilities[active]?.status !== "available"}
+            className="mt-5 rounded-xl border border-cyan-100 bg-slate-50/50 p-4">
+            <summary className="cursor-pointer text-sm font-bold text-ink">
+              Informações complementares
+              <span className="ml-2 font-normal text-slate-600">
+                {preflight?.capabilities[active]?.status === "available" ? "— concluídas (editar)" : "— conferir o que falta"}
+              </span>
+            </summary>
+            <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
             periods={preflight?.values.periods || inspection.periods}
             selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
             identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
-            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>}
-          {inspection && !inspection.requires_sheet &&
+            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>
             <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
               <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
@@ -721,7 +730,8 @@ function App() {
                 onClick={() => document.getElementById("associacoes")?.scrollIntoView({behavior:"smooth",block:"start"})}>
                 Rever espaço, tempo e objeto
               </button>
-            </div>}
+            </div>
+          </details>}
         </RequirementChecklist>}
       </section>
       <section id="resultados" ref={resultsRef} className="section-anchor mt-14">
