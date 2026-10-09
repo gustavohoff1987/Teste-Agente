@@ -531,8 +531,10 @@ function App() {
           O cálculo só ocorre quando você clicar em <strong>Executar análise</strong>.
         </p>
         {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
-          status={!preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
-          requirements={preflight?.capabilities[active]?.requirements || []}
+          status={!inspection ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
+          requirements={preflight?.capabilities[active]?.requirements || (!inspection ? [
+            {status: "missing", title: "Base de dados", detail: "Importe uma planilha para verificar os requisitos desta análise."}
+          ] : [])}
           onExecute={() => { void run(active); }} executing={running}>
           {inspection && !inspection.requires_sheet &&
             preflight?.capabilities[active]?.status !== "available" &&
