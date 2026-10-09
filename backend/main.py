@@ -197,23 +197,44 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                  "A ausência de sobreposição não é inferida. Sem premissa/deduplicação, o resultado é apenas soma dos componentes."]
         return _result("Agregação territorial", "População territorial compartilhada contabilizada uma vez.", rows, notes=notes)
     if operation == "distribution":
-        metric = "density" if data["density"].notna().any() else "quantity"
-        label = "Densidade por 1.000" if metric == "density" else "Quantidade"
+        # A escolha do indicador e do universo é obrigatória no contrato compartilhado.
+        indicator = options["distribution_indicator"]
+        metric = "density" if indicator == "density" else "quantity"
+        label = "Densidade por 1.000 habitantes" if indicator == "density" else "Quantidade de profissionais"
         k = int(options.get("quantile_count", 5))
-        if k < 2 or k > 10:
-            raise ValueError("O número de classes deve estar entre 2 e 10.")
         rows = []
-        for (period, category), group in data.groupby(["period", "category"]):
+        detail_rows = []
+        names = {1: "Menores valores", 2: "Valores baixos", 3: "Valores intermediários",
+                 4: "Valores altos", 5: "Maiores valores"}
+        for (period, category), group in data.groupby(["period", "category"], sort=True):
             series = group[metric]
-            if len(group) < 2:
-                rows.append({"Período": period, "Categoria": category, "Classe": "Não avaliável", "Unidades": len(group), "Limite superior": None})
-                continue
+            if len(group) < 2 or series.isna().any():
+                raise ValueError("A distribuição exige ao menos dois territórios avaliáveis por período e categoria.")
             cuts = [float(np.quantile(series, j / k, method="linear")) for j in range(1, k)]
             classes = np.searchsorted(cuts, series.to_numpy(), side="left") + 1
-            rows.extend({"Período": period, "Categoria": category, "Classe": "Q" + str(i),
-                         "Unidades": int((classes == i).sum()), "Limite superior": cuts[i-1] if i < k else None} for i in range(1, k + 1))
-        return _result("Distribuição por quantis", "Percentis Hyndman–Fan tipo 7; valores iguais permanecem na classe inferior.",
-                       rows, notes=["Indicador: " + label, "Cada período e categoria constitui um universo separado. A última classe não possui limite superior."])
+            for i in range(1, k + 1):
+                title = f"{i}º quintil — {names[i]}" if k == 5 else f"{i}ª faixa de {k}"
+                rows.append({"Período": period, "Categoria": category,
+                             "Classe": "Q" + str(i), "Quintil": title,
+                             "Unidades": int((classes == i).sum()), "Indicador": label})
+            for pos, (_, record) in enumerate(group.iterrows()):
+                i = int(classes[pos])
+                detail_rows.append({
+                    "Território": record["territory"], "Período": period, "Categoria": category,
+                    "Quintil": f"{i}º quintil" if k == 5 else f"{i}ª faixa de {k}",
+                    label: float(record[metric]),
+                    "Quantidade": float(record["quantity"]),
+                    "População": float(record["population"]) if pd.notna(record["population"]) else None,
+                })
+        result = _result(
+            "Distribuição territorial",
+            "Unidades territoriais classificadas do menor para o maior valor do indicador escolhido. Cada período e categoria compõem um universo próprio.",
+            rows, notes=["Indicador escolhido: " + label,
+                         "Quintis com pontos de corte Hyndman–Fan tipo 7. Valores iguais permanecem na classe inferior, portanto as contagens podem ser diferentes.",
+                         "Os pontos de corte são usados internamente; os resultados individuais estão no detalhamento territorial."]
+        )
+        result["detail_rows"] = detail_rows
+        return result
     if operation == "temporal":
         # Sem denominador declarado a série continua válida como quantitativo;
         # nunca fabricar densidades nem presumir população.
