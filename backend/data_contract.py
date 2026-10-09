@@ -115,8 +115,10 @@ def multiplicity(frame, mapping, options):
 
 
 def needs_population(mapping, options, operation):
+    if operation == "distribution":
+        return options.get("distribution_indicator") == "density"
     return operation in ("density", "comparisons", "ranking", "aggregate") or bool(
-        operation in ("distribution", "temporal", "report") and mapping.get("territory") and options.get("population_denominator_confirmed"))
+        operation in ("temporal", "report") and mapping.get("territory") and options.get("population_denominator_confirmed"))
 
 
 def prepare(frame, mapping, options, operation):
@@ -263,6 +265,15 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
     if operation in ("comparisons", "ranking") and not options.get("comparison_confirmed"):
         raise ConfirmationRequired("Confirme que medida, unidade e definição populacional são equivalentes entre os territórios comparados.")
     if operation == "distribution":
+        indicator = options.get("distribution_indicator")
+        if indicator not in ("quantity", "density"):
+            raise ConfirmationRequired("Escolha o indicador da distribuição: quantidade de profissionais ou densidade por 1.000 habitantes.")
+        if indicator == "density" and (not mapping.get("population") or not options.get("population_denominator_confirmed")):
+            raise ConfirmationRequired("Para distribuir por densidade, associe e confirme a população correspondente.")
+        if data.period.nunique() > 1 and not options.get("period_filter"):
+            raise ConfirmationRequired("Escolha um período para classificar territórios do mesmo momento. Os quintis não devem misturar diferentes períodos.")
+        if data.category.nunique() > 1 and not options.get("category_filter"):
+            raise ConfirmationRequired("Escolha uma categoria profissional para comparar unidades com o mesmo objeto de análise.")
         k = options.get("quantile_count", 5)
         if not isinstance(k, int) or isinstance(k, bool) or not 2 <= k <= 10:
             raise ValueError("O número de classes deve ser inteiro entre 2 e 10.")
