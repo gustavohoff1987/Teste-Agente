@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ContextConfig from "./ContextConfig";
+import RequirementChecklist from "./RequirementChecklist";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
@@ -499,7 +500,12 @@ function App() {
       <section id="analises" className="section-anchor mt-14">
         <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {FEATURES.map((f, index) => <button key={f.id} type="button" onClick={() => { void run(f.id); }}
+          {FEATURES.map((f, index) => <button key={f.id} type="button" onClick={() => {
+              setActive(f.id);
+              setResult(null);
+              setError("");
+              window.setTimeout(() => document.getElementById("requisitos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
+            }}
             className={["feature-card no-print group flex min-h-[177px] flex-col items-start rounded-[20px] border bg-white p-4 text-left shadow-card sm:p-5",
               active === f.id ? "feature-card-active" : "border-line",
               preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
@@ -516,18 +522,152 @@ function App() {
             <span className={["mt-auto pt-3 text-[10px] font-bold",
               preflight?.capabilities[f.id]?.status === "available" ? "text-emerald-700" : "text-slate-500"].join(" ")}>
               {preflighting ? "Verificando..." : preflight?.capabilities[f.id]?.status === "available" ? "Disponível" :
-                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Requer confirmação" : "Não habilitada"}
+                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Confirmação necessária" : "Não habilitada"}
             </span>
           </button>)}
         </div>
-        <div className="mt-5 rounded-[18px] border border-cyan-100 bg-cyan-50/70 px-5 py-4 text-sm text-slate-600">
-          <div className="flex items-start gap-3"><HelpCircle size={20} className="mt-0.5 shrink-0 text-teal"/><p className="leading-6"><strong className="text-ink">Como funciona:</strong> a importação realiza somente o exame habilitador. Um cartão destacado executa a operação quando selecionado. Um cartão esmaecido continua consultável, mas não dispara cálculo enquanto os requisitos não forem atendidos.</p></div>
-        </div>
-        {active && preflight?.capabilities[active]?.status !== "available" && <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>{preflight?.capabilities[active]?.status === "needs_confirmation" ? "Confirmação necessária" : "Análise não habilitada nesta base"}</strong>
-          <ul className="mt-2 list-inside list-disc space-y-1">{(preflight?.capabilities[active]?.reasons || ["Carregue e examine uma base para conhecer os requisitos."]).map((reason,i) => <li key={i}>{reason}</li>)}</ul>
-          <button type="button" className="mt-3 text-xs font-bold underline" onClick={() => document.getElementById("associacoes")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Rever associação de campos</button>
-        </div>}
+        <p className="mt-4 text-xs leading-6 text-slate-600">
+          <strong className="text-ink">Como funciona:</strong> selecione um cartão para consultar os requisitos.
+          O cálculo só ocorre quando você clicar em <strong>Executar análise</strong>.
+        </p>
+        {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
+          status={!preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
+          requirements={preflight?.capabilities[active]?.requirements || []}
+          onExecute={() => { void run(active); }} executing={running}>
+          {inspection && !inspection.requires_sheet &&
+            preflight?.capabilities[active]?.status !== "available" &&
+            <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
+              <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {active !== "spatial" && active !== "rotation" && <>
+                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    Onde estão os quantitativos dos profissionais?
+                    <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={mapping.count || ""} onChange={e => {
+                        if (e.target.value) associateColumn(e.target.value, "count");
+                        else { setMapping(prev=>({...prev,count:""})); setConfirmedRoles(prev=>prev.filter(x=>x!=="count"));setResult(null); }
+                      }}>
+                      <option value="">Não encontrado nesta base</option>
+                      {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
+                    </select>
+                  </label>
+                  {mapping.count && preflight.field_states.count.status === "proposed" &&
+                    <button type="button" onClick={() => setConfirmedRoles(prev=>[...new Set([...prev, "count"])])}
+                      className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
+                      Confirmar que esta coluna contém quantitativos
+                    </button>}
+                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    O que o quantitativo representa?
+                    <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={countUnit} onChange={e => {setCountUnit(e.target.value);setResult(null);}}>
+                      <option value="">Selecione a unidade de contagem</option>
+                      <option value="pessoas">Pessoas distintas no recorte declarado</option>
+                      <option value="vinculos">Vínculos de trabalho</option>
+                      <option value="postos">Postos de trabalho</option>
+                      <option value="outro">Outra unidade</option>
+                    </select>
+                  </label>
+                  {countUnit === "outro" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    Especifique a unidade de contagem
+                    <input className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={customCountUnit} onChange={e => setCustomCountUnit(e.target.value)}/>
+                  </label>}
+                </>}
+                {["density","comparisons","ranking","aggregate"].includes(active) && <>
+                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    Coluna com a população correspondente
+                    <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={mapping.population || ""} onChange={e => {
+                        if (e.target.value) associateColumn(e.target.value, "population");
+                        else {setMapping(prev=>({...prev,population:""}));setConfirmedRoles(prev=>prev.filter(x=>x!=="population"));setResult(null);}
+                        setPopulationAligned(false);
+                      }}>
+                      <option value="">Não encontrada nesta base</option>
+                      {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
+                    </select>
+                  </label>
+                  {mapping.population && preflight.field_states.population.status === "proposed" &&
+                    <button type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
+                      onClick={() => setConfirmedRoles(prev=>[...new Set([...prev, "population"])])}>Confirmar coluna de população</button>}
+                  {mapping.population && <label className="flex items-start gap-2 self-center text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={populationAligned} onChange={e => setPopulationAligned(e.target.checked)}/>
+                    Confirmo que a população corresponde aos territórios e períodos analisados
+                  </label>}
+                </>}
+                {active !== "spatial" && !mapping.period && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  <input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/>
+                  Confirmo que a base se refere a um único período
+                </label>}
+                {active !== "spatial" && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  <input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/>
+                  Confirmo que os trabalhadores informados fazem parte da força de trabalho na saúde
+                </label>}
+                {active === "temporal" && <>
+                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/>
+                    Confirmo que os períodos e os quantitativos são comparáveis
+                  </label>
+                  {mapping.territory && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/>
+                    Confirmo que os territórios mantêm identidade comparável ao longo dos períodos
+                  </label>}
+                </>}
+                {active === "rotation" && <>
+                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    Coluna de identificação individual
+                    <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={mapping.identity || ""} onChange={e => {if(e.target.value)associateColumn(e.target.value,"identity");else setMapping(prev=>({...prev,identity:""}));}}>
+                      <option value="">Não identificada</option>
+                      {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
+                    </select>
+                  </label>
+                  {mapping.identity && preflight.field_states.identity.status === "proposed" && <button
+                    type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
+                    onClick={() => setConfirmedRoles(prev=>[...new Set([...prev,"identity"])])}>Confirmar identificação individual</button>}
+                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={longitudinalIdentity} onChange={e => setLongitudinalIdentity(e.target.checked)}/>
+                    Confirmo identidade pessoal válida entre os períodos, com abrangência e completude adequadas
+                  </label>
+                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/>
+                    Confirmo a comparabilidade territorial entre períodos, quando aplicável
+                  </label>
+                </>}
+                {active === "spatial" && <>
+                  {(["latitude","longitude"] as Role[]).map(role => <label key={role} className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    {role === "latitude" ? "Latitude" : "Longitude"}
+                    <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={mapping[role] || ""} onChange={e => {if(e.target.value) associateColumn(e.target.value,role); else setMapping(prev=>({...prev,[role]:""}));}}>
+                      <option value="">Não encontrada</option>
+                      {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
+                    </select>
+                  </label>)}
+                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                    Referencial geodésico informado para a base
+                    <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                      value={crs} onChange={e=>setCrs(e.target.value)}>
+                      <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
+                    </select>
+                  </label>
+                  <SelectField label="Território de referência" value={reference}
+                    options={preflight.values.territories} onChange={setReference}/>
+                </>}
+                {active === "aggregate" && <>
+                  <SelectField label="Selecionar período" value={periodFilter} options={preflight.values.periods} onChange={v => {setPeriodFilter(v);setResult(null);}}/>
+                  <SelectField label="Selecionar categoria" value={categoryFilter} options={preflight.values.categories} onChange={v => {setCategoryFilter(v);setResult(null);}}/>
+                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                    <input type="checkbox" checked={confirmedNoOverlap} onChange={e => setConfirmedNoOverlap(e.target.checked)}/>
+                    Declaro ausência de sobreposição das pessoas entre territórios, se desejar interpretar o total como pessoas únicas
+                  </label>
+                </>}
+              </div>
+              <button type="button" className="mt-4 text-xs font-bold text-teal underline"
+                onClick={() => document.getElementById("associacoes")?.scrollIntoView({behavior:"smooth",block:"start"})}>
+                Rever espaço, tempo e objeto
+              </button>
+            </div>}
+        </RequirementChecklist>}
       </section>
       <section id="resultados" ref={resultsRef} className="section-anchor mt-14">
         <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
