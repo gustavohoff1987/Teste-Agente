@@ -233,6 +233,14 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         numeric = pd.to_numeric(series, errors="coerce")
         count_invalid = bool((series.notna() & numeric.isna()).any() or numeric.isna().any()
                              or (numeric.dropna() < 0).any())
+    row_key_collision = False
+    if assigned("count"):
+        keys = [mapped[role] for role in ("territory", "period", "category") if assigned(role)]
+        row_key_collision = bool(frame.duplicated(subset=keys).any()) if keys else len(frame) > 1
+    territory_missing = assigned("territory") and bool(frame[mapped["territory"]].isna().any())
+    period_missing = assigned("period") and bool(frame[mapped["period"]].isna().any())
+    category_missing = assigned("category") and bool(frame[mapped["category"]].isna().any())
+    identity_missing = assigned("identity") and bool(frame[mapped["identity"]].isna().any())
     coordinate_invalid = False
     if assigned("latitude") and assigned("longitude"):
         lat = pd.to_numeric(frame[mapped["latitude"]], errors="coerce")
@@ -259,6 +267,14 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
             if count_invalid:
                 missing.append("Há valores quantitativos ausentes, negativos ou não numéricos; corrija a base ou a associação.")
+            if row_key_collision:
+                missing.append("Existem várias linhas por conjunto de dimensões associado. Declare a estrutura correta ou apresente dados já agregados; o sistema não somará duplicidades automaticamente.")
+        if territory_missing and op not in ("counts", "temporal", "report"):
+            missing.append("Há valores ausentes na coluna territorial associada.")
+        if period_missing and op != "spatial":
+            missing.append("Há valores ausentes na coluna temporal associada.")
+        if category_missing and op != "spatial":
+            missing.append("Há valores ausentes na categoria associada.")
         if not fts and op != "spatial":
             pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
         if not period and op != "spatial":
@@ -294,6 +310,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             if all_category_count > 1 and not options.get("category_filter"):
                 pending.append("Selecione uma categoria nos filtros antes da agregação.")
         if op == "rotation":
+            if identity_missing:
+                missing.append("Há identificadores pessoais ausentes; esta coorte não é avaliável.")
             if not assigned("identity"):
                 missing.append("Rotatividade exige um identificador individual da mesma pessoa.")
             elif not bool(options.get("longitudinal_identity_confirmed")):
