@@ -126,6 +126,12 @@ def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]
                         status = "proposed"
                 proposed.append({"role": role, "status": status,
                                  "evidence": "Correspondência por alias governado CFG-VOC"})
+        # Expressões territoriais compostas: hipótese, nunca vínculo autoritativo.
+        if not proposed and name in ("regiao geografica", "regiao de saude",
+                                     "unidade federativa", "uf", "geographic region",
+                                     "administrative region"):
+            proposed.append({"role": "territory", "status": "proposed",
+                             "evidence": "Expressão geográfica candidata; confirme a unidade que deseja analisar"})
         if not proposed and COUNT_PATTERN.fullmatch(name):
             nums = pd.to_numeric(frame[col], errors="coerce")
             if (frame[col].notna() & nums.isna()).any():
@@ -276,7 +282,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if category_missing and op != "spatial":
             missing.append("Há valores ausentes na categoria associada.")
         if not fts and op != "spatial":
-            pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
+            pending.append("Confirme a profissão ou o conjunto de trabalhadores que será analisado e sua relação com a força de trabalho na saúde.")
+        if options.get("require_object_confirmation") and not options.get("object_confirmed") and op != "spatial":
+            pending.append("Confirme o objeto de análise apresentado pelo sistema.")
         if not period and op != "spatial":
             pending.append("Associe Período ou confirme que a base possui um período único.")
         if not territory and op not in ("counts", "temporal", "report"):
@@ -348,7 +356,53 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             status = "needs_confirmation"
         else:
             status = "available"
-        cap[op] = {"status": status, "reasons": missing + pending}
+        # Lista de requisitos da própria matriz; não duplicar critérios no React.
+        checks: list[dict[str, str]] = []
+        def met(title: str, detail: str) -> None:
+            checks.append({"status": "met", "title": title, "detail": detail})
+        if territory and not territory_missing and op not in ("counts", "temporal", "report"):
+            met("Unidade territorial", "A unidade territorial foi associada a um campo válido.")
+        if period and not period_missing and op != "spatial":
+            met("Referência temporal", "Há uma referência temporal identificada para os dados.")
+        if fts and op != "spatial" and (
+                not options.get("require_object_confirmation") or options.get("object_confirmed")):
+            met("Objeto de análise", "A profissão ou conjunto de trabalhadores está identificado.")
+        if op not in ("spatial", "rotation") and measurable and count_confirmed and count_unit and (
+                not count_invalid and not row_key_collision):
+            met("Quantitativo de profissionais", "A medida e a unidade de contagem estão definidas para esta estrutura.")
+        if op in ("density", "comparisons", "ranking", "aggregate") and population:
+            met("Dados populacionais", "O denominador correspondente foi associado e declarado.")
+        if op == "temporal" and assigned("period") and period_count >= 2 and period_numeric and (
+                options.get("temporal_comparability_confirmed")) and (
+                not territory or options.get("territory_longitudinal_confirmed")):
+            met("Comparabilidade temporal", "Foram declaradas condições de comparação entre os períodos.")
+        if op == "spatial" and assigned("latitude") and assigned("longitude") and not coordinate_invalid:
+            met("Coordenadas", "Latitude e longitude foram identificadas e verificadas.")
+        if op == "spatial" and options.get("crs") == "SIRGAS2000":
+            met("Referencial geodésico", "O referencial informado é suportado pelo motor experimental.")
+        if op == "rotation" and assigned("identity") and (
+                options.get("longitudinal_identity_confirmed")) and not identity_missing:
+            met("Identidade longitudinal", "O uso longitudinal da identidade individual foi declarado.")
+        for kind, reasons in (("missing", missing), ("needs_confirmation", pending)):
+            for message in reasons:
+                if "populaç" in message or "denominador" in message:
+                    title = "Dados populacionais"
+                elif "territori" in message.lower() or "Território" in message:
+                    title = "Unidade territorial"
+                elif "períod" in message.lower() or "temporal" in message.lower():
+                    title = "Referência e comparabilidade temporal"
+                elif "objeto de análise" in message or "profissão" in message or "força de trabalho" in message:
+                    title = "Objeto de análise"
+                elif "contagem" in message or "quantitativ" in message or "identificador" in message:
+                    title = "Dados e medida dos profissionais"
+                elif "coordenad" in message.lower() or "Latitude" in message or "Longitude" in message:
+                    title = "Coordenadas geográficas"
+                elif "geodésico" in message:
+                    title = "Referencial geodésico"
+                else:
+                    title = "Condição para esta análise"
+                checks.append({"status": kind, "title": title, "detail": message})
+        cap[op] = {"status": status, "reasons": missing + pending, "requirements": checks}
     def values(role: str) -> list[str]:
         return frame[mapped[role]].dropna().astype(str).unique().tolist()[:100] if assigned(role) else []
     return {"capabilities": cap, "field_states": field_states,
