@@ -507,7 +507,13 @@ function App() {
                 <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                   value={categoryConstant} placeholder={inspection.suggested_category_constant || "Ex.: Médicos"}
                   onChange={e => {setCategoryConstant(e.target.value); setResult(null);}}/>
-                {inspection.suggested_category_constant && <span className="text-[11px] font-normal text-slate-500">Sugestão extraída do cabeçalho: {inspection.suggested_category_constant}. Confirme digitando.</span>}
+                {inspection.suggested_category_constant && <span className="flex flex-wrap items-center gap-2 text-[11px] font-normal text-slate-500">
+                  Sugestão extraída do cabeçalho: {inspection.suggested_category_constant}.
+                  <button type="button" className="rounded-lg border border-teal/30 bg-white px-2 py-1 font-bold text-teal hover:bg-cyan-50"
+                    onClick={() => {setCategoryConstant(inspection.suggested_category_constant); setResult(null);}}>
+                    Confirmar sugestão
+                  </button>
+                </span>}
               </label>}
             </div>
             <div className="mt-5 grid gap-3 text-xs text-slate-700 sm:grid-cols-2">
