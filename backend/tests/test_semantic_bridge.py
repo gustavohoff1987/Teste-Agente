@@ -178,3 +178,68 @@ def test_report_without_population_is_quantitative_not_density():
     assert response.status_code == 200, response.text
     row = response.json()["rows"][0]
     assert "Densidade por 1.000" not in row
+
+
+def test_geographic_region_is_suggested_but_requires_confirmation():
+    frame = pd.DataFrame({
+        "Região Geográfica": ["Norte", "Sul"],
+        "Competência": [2024, 2024],
+        "Total de médicos únicos": [10, 20],
+    })
+    mapping, profile = candidates(frame)
+    assert mapping["territory"] == "Região Geográfica"
+    assert mapping["period"] == "Competência"
+    assert mapping["count"] == "Total de médicos únicos"
+    gate = preflight(frame, mapping)
+    assert gate["field_states"]["territory"]["status"] == "proposed"
+    assert any(row["status"] == "missing" for row in gate["capabilities"]["density"]["requirements"])
+
+
+def test_explicit_object_confirmation_controls_user_interface_gate():
+    frame = pd.DataFrame({
+        "Região Geográfica": ["Norte", "Sul"],
+        "Competência": [2024, 2024],
+        "Quantidade": [10, 20],
+        "População": [10000, 20000],
+    })
+    mapping, _ = candidates(frame)
+    opts = {
+        "confirmed_roles": ["territory"],
+        "count_unit": "pessoas",
+        "population_denominator_confirmed": True,
+        "category_constant": "Médicos",
+        "require_object_confirmation": True,
+        "object_confirmed": False,
+    }
+    first = preflight(frame, mapping, opts)["capabilities"]["density"]
+    assert first["status"] == "needs_confirmation"
+    assert any("Confirme o objeto de análise" in r for r in first["reasons"])
+    assert any(r["status"] == "needs_confirmation" and r["title"] == "Objeto de análise"
+               for r in first["requirements"])
+    opts["object_confirmed"] = True
+    ready = preflight(frame, mapping, opts)["capabilities"]["density"]
+    assert ready["status"] == "available"
+    assert ready["reasons"] == []
+    assert all(item["status"] == "met" for item in ready["requirements"])
+
+
+def test_population_absence_is_visible_as_red_checklist_requirement():
+    frame = pd.DataFrame({
+        "Região Geográfica": ["Norte", "Sul"],
+        "Competência": [2024, 2024],
+        "Quantidade": [10, 20],
+    })
+    mapping, _ = candidates(frame)
+    opts = {
+        "confirmed_roles": ["territory"],
+        "count_unit": "pessoas",
+        "category_constant": "Médicos",
+        "require_object_confirmation": True,
+        "object_confirmed": True,
+    }
+    gate = preflight(frame, mapping, opts)["capabilities"]["density"]
+    assert gate["status"] == "unavailable"
+    assert any(item["status"] == "missing" and item["title"] == "Dados populacionais"
+               for item in gate["requirements"])
+    assert any(item["status"] == "met" and item["title"] == "Unidade territorial"
+               for item in gate["requirements"])
