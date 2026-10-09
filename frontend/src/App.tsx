@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
-  FileUp, Fingerprint, FolderUp, Globe2, HelpCircle, Info, Layers3, ListFilter,
+  FileUp, Fingerprint, FolderUp, Bot, HelpCircle, Info, Layers3, ListFilter,
   LoaderCircle, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, Table2, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
@@ -23,6 +23,29 @@ type AnalysisResult = { title: string; description: string; rows: Record<string,
 type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon; tone: string };
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
+
+async function readApiResponse(response: Response): Promise<any> {
+  const raw = await response.text();
+  let body: any;
+  try { body = JSON.parse(raw); }
+  catch {
+    throw new Error("O servidor retornou uma resposta inválida (HTTP " + response.status + "). Verifique as janelas do Python e do Vite.");
+  }
+  if (!response.ok) {
+    const message = typeof body?.detail === "string" ? body.detail : "Falha no processamento da solicitação.";
+    throw new Error(message + " (HTTP " + response.status + ")");
+  }
+  return body;
+}
+
+function readableError(exc: unknown): string {
+  const value = exc instanceof Error ? exc.message : String(exc);
+  if (/failed to fetch|networkerror|fetch failed|network request failed/i.test(value)) {
+    return "Não foi possível alcançar o motor Python. Confirme que o FastAPI está ativo na porta 8000 e a interface Vite na porta 5173.";
+  }
+  return value;
+}
+
 const FEATURES: Feature[] = [
   { id: "density", title: "Densidade", detail: "Profissionais por 1.000 habitantes", icon: Calculator, tone: "teal" },
   { id: "counts", title: "Quantitativos", detail: "Contagens absolutas da força de trabalho", icon: UsersRound, tone: "indigo" },
@@ -97,6 +120,8 @@ function App() {
   const [active, setActive] = useState<Operation | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
   const [periodFilter, setPeriodFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [reference, setReference] = useState("");
@@ -119,30 +144,58 @@ function App() {
   }, [result]);
 
   async function inspectFile(nextFile: File, nextSheet = "") {
-    setInspecting(true); setError(""); setResult(null); setInspection(null);
+    setInspecting(true);
+    setUploadError("");
+    setError("");
+    setResult(null);
+    setInspection(null);
     const form = new FormData();
-    form.append("file", nextFile); form.append("sheet", nextSheet);
+    form.append("file", nextFile);
+    form.append("sheet", nextSheet);
     try {
       const response = await fetch(API + "/api/inspect", { method: "POST", body: form });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Não foi possível examinar o arquivo.");
-      const details = body as Inspection;
-      setInspection(details); setMapping(details.suggested_mapping);
-      setPeriodFilter(""); setCategoryFilter(""); setReference("");
-    } catch (exc) { setError(exc instanceof Error ? exc.message : "Falha na conexão com o motor Python."); }
-    finally { setInspecting(false); }
+      const details = await readApiResponse(response) as Inspection;
+      setInspection(details);
+      setMapping(details.suggested_mapping);
+      setServerStatus("online");
+      setPeriodFilter("");
+      setCategoryFilter("");
+      setReference("");
+    } catch (exc) {
+      const message = readableError(exc);
+      setUploadError(message);
+      if (message.includes("Não foi possível alcançar")) setServerStatus("offline");
+    } finally { setInspecting(false); }
   }
   async function chooseFile(next: File | undefined) {
     if (!next) return;
-    setFile(next); setSheet(""); setActive(null); setResult(null);
+    setFile(next);
+    setSheet("");
+    setActive(null);
+    setResult(null);
+    setUploadError("");
+    setInspection(null);
+    if (!/\.(csv|xls|xlsx)$/i.test(next.name)) {
+      setUploadError("Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.");
+      return;
+    }
+    if (next.size > 30 * 1024 * 1024) {
+      setUploadError("Arquivo acima de 30 MB. Este é o limite experimental da versão atual; a base não foi processada.");
+      return;
+    }
     await inspectFile(next);
   }
   async function run(op: Operation) {
     setActive(op); setResult(null); setError("");
-    if (!file || !inspection || inspection.requires_sheet) {
-      setError("Carregue uma base válida e conclua a seleção de planilha antes de executar.");
+    if (!file || !inspection || inspection.requires_sheet || inspecting) {
+      setUploadError(inspection?.requires_sheet
+        ? "Selecione uma aba do arquivo Excel para concluir a importação."
+        : inspecting ? "Aguarde a conclusão do exame do arquivo."
+        : "A importação não foi concluída. Confira a mensagem na área de upload antes de executar a análise.");
+      document.getElementById("dados")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
+    setUploadError("");
     setRunning(true);
     const form = new FormData();
     form.append("file", file); form.append("sheet", sheet); form.append("operation", op);
@@ -156,11 +209,13 @@ function App() {
     }));
     try {
       const response = await fetch(API + "/api/analyze", { method: "POST", body: form });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Não foi possível executar a análise.");
+      const body = await readApiResponse(response);
       setResult(body as AnalysisResult);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-    } catch (exc) { setError(exc instanceof Error ? exc.message : "Falha de comunicação com o motor Python."); }
+    } catch (exc) {
+      setError(readableError(exc));
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    }
     finally { setRunning(false); }
   }
   function sampleCsv() {
@@ -169,12 +224,22 @@ function App() {
       "text/csv;charset=utf-8");
   }
 
-  useEffect(() => { document.title = "Agente Diagnóstico Territorial"; }, []);
+  useEffect(() => {
+    document.title = "Agente Diagnóstico Territorial";
+    let alive = true;
+    fetch(API + "/api/health")
+      .then(async response => {
+        await readApiResponse(response);
+        if (alive) setServerStatus("online");
+      })
+      .catch(() => { if (alive) setServerStatus("offline"); });
+    return () => { alive = false; };
+  }, []);
   return <div className="min-h-screen bg-canvas">
     <header className="no-print sticky top-0 z-30 border-b border-white/70 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1350px] items-center justify-between gap-3 px-5 py-3.5 lg:px-10">
         <a href="#inicio" className="flex items-center gap-3">
-          <span className="rounded-xl bg-ink p-2.5 text-white"><Globe2 size={22} strokeWidth={1.8} /></span>
+          <span className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-950"><Bot size={23} strokeWidth={2.2} /></span>
           <span><span className="block text-sm font-bold leading-tight tracking-tight text-ink sm:text-base">Agente Diagnóstico Territorial</span>
             <span className="block text-[10px] font-medium uppercase tracking-[.14em] text-slate-500">Força de Trabalho na Saúde</span></span>
         </a>
@@ -183,8 +248,12 @@ function App() {
           <a href="#analises" className="hover:text-teal">Análises</a>
           <a href="#resultados" className="hover:text-teal">Resultados</a>
         </nav>
-        <span className="flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
-          <ShieldCheck size={13}/> Sem LLM
+        <span aria-live="polite" className={["flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold",
+          serverStatus === "online" ? "border-emerald-100 bg-emerald-50 text-emerald-700" :
+          serverStatus === "offline" ? "border-rose-100 bg-rose-50 text-rose-700" :
+          "border-slate-200 bg-slate-50 text-slate-500"].join(" ")}>
+          {serverStatus === "online" ? <CheckCircle2 size={13}/> : serverStatus === "offline" ? <XCircle size={13}/> : <LoaderCircle size={13} className="animate-spin"/>}
+          {serverStatus === "online" ? "Motor conectado" : serverStatus === "offline" ? "Motor indisponível" : "Conectando"}
         </span>
       </div>
     </header>
@@ -204,21 +273,36 @@ function App() {
           <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="rounded-xl bg-cyan-50 p-2.5 text-teal"><FolderUp size={21}/></span><h3 className="font-bold text-ink">Importar base de dados</h3></div>
-              <span className="text-xs font-semibold text-slate-400">CSV · XLSX</span>
+              <span className="text-xs font-semibold text-slate-400">CSV · XLS · XLSX</span>
             </div>
-            <input ref={inputRef} type="file" accept=".csv,.xlsx" className="hidden" onChange={e => { void chooseFile(e.target.files?.[0]); }} />
+            <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }} />
             <div className="cursor-pointer rounded-[18px] border-2 border-dashed border-cyan-200 bg-gradient-to-b from-cyan-50/75 to-white px-5 py-10 text-center transition hover:border-teal"
               role="button" tabIndex={0} onClick={() => inputRef.current?.click()}
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}>
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-teal shadow-sm"><UploadCloud size={27} strokeWidth={1.7}/></div>
               <p className="text-base font-bold text-ink">{file ? file.name : "Selecione seu arquivo para começar"}</p>
-              <p className="mt-2 text-xs text-slate-500">{file ? "Clique para substituir a base selecionada." : "CSV ou Excel · Limite experimental de 30 MB"}</p>
+              <p className="mt-2 text-xs text-slate-500">{file ? "Clique para substituir a base selecionada." : "CSV ou Excel (.xls/.xlsx) · Limite experimental de 30 MB"}</p>
               <span className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-bold text-white"><FileUp size={15}/> Selecionar arquivo</span>
             </div>
-            {inspecting && <p className="mt-4 flex items-center gap-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/> Examinando a estrutura...</p>}
-            {inspection?.requires_sheet && <div className="mt-5"><SelectField label="Escolha a planilha do arquivo Excel" value={sheet} options={inspection.sheets} onChange={next => { setSheet(next); if (file) void inspectFile(file, next); }}/></div>}
-            {inspection && !inspection.requires_sheet && <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              <CheckCircle2 size={17}/><span className="font-bold">Estrutura reconhecida</span><span className="text-xs">{shortNum(inspection.row_count)} linhas · {inspection.columns.length} colunas</span>
+            {inspecting && <div role="status" aria-live="polite" className="mt-4 flex items-center gap-2 rounded-xl bg-cyan-50 px-4 py-3 text-sm font-semibold text-teal">
+              <LoaderCircle size={17} className="animate-spin"/> Lendo e validando a estrutura do arquivo. Aguarde...
+            </div>}
+            {uploadError && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <XCircle size={17} className="mt-0.5 shrink-0"/> <div><strong>Importação não concluída.</strong><p className="mt-1 leading-5">{uploadError}</p></div>
+            </div>}
+            {inspection?.requires_sheet && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+              <p className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-900"><Info size={17}/> Arquivo recebido: escolha uma planilha para continuar.</p>
+              <label className="flex flex-col gap-1 text-xs font-bold text-slate-700">Aba do arquivo Excel
+                <select className="rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-normal text-ink" value={sheet} onChange={e => { const next = e.target.value; setSheet(next); if (file && next) void inspectFile(file, next); }}>
+                  <option value="">Selecione uma aba</option>
+                  {inspection.sheets.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+            </div>}
+            {inspection && !inspection.requires_sheet && <div role="status" aria-live="polite" className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <CheckCircle2 size={19}/><span className="font-bold">Arquivo importado e examinado com sucesso</span>
+              <span className="text-xs">{shortNum(inspection.row_count)} linhas · {inspection.columns.length} colunas{sheet ? " · Aba: " + sheet : ""}</span>
+              <p className="w-full text-xs leading-5">Agora confira as associações de campos abaixo e clique em um cartão de análise. O arquivo é utilizado apenas nesta sessão local do navegador.</p>
             </div>}
             <p className="mt-4 text-xs leading-5 text-slate-500"><Info size={13} className="mr-1 inline"/> O exame inicial não produz diagnóstico. Nenhum arquivo é guardado pelo backend após a requisição; evite enviar bases com dados pessoais desnecessários.</p>
           </div>
