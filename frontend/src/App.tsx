@@ -434,7 +434,7 @@ function App() {
       </section>
       <footer className="no-print mt-14 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 text-xs text-slate-400 sm:flex-row sm:items-center">
         <p>Agente Diagnóstico Territorial · Protótipo experimental v0.1</p>
-        <p className="flex items-center gap-2"><Fingerprint size={15}/> Processamento determinístico · Sem integração com LLM</p>
+        <p className="flex items-center gap-2"><Fingerprint size={15}/> Processamento determinístico · Diagnósticos territoriais</p>
       </footer>
     </main>
   </div>;
