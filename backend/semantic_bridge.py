@@ -214,8 +214,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     fts_from_constant = normalize(options.get("category_constant", "")) in FTS_GOVERNED
     fts = declared_fts or fts_from_column or fts_from_constant
     period = assigned("period") or bool(options.get("single_period_confirmed"))
-    measurable = assigned("count") or assigned("identity")
-    count_unit = bool(options.get("count_unit")) if assigned("count") else bool(options.get("identity_count_confirmed"))
+    measurable = bool(mapped.get("count") or mapped.get("identity"))
+    count_confirmed = assigned("count") or assigned("identity")
+    count_unit = bool(options.get("count_unit")) if mapped.get("count") else bool(options.get("identity_count_confirmed"))
     population = assigned("population") and bool(options.get("population_denominator_confirmed"))
     territory = assigned("territory")
     period_count = frame[mapped["period"]].dropna().nunique() if assigned("period") else 0
@@ -229,7 +230,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         pending: list[str] = []
         if not measurable:
             missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
-        elif not count_unit:
+        elif not count_confirmed:
+            pending.append("Confirme a função de quantitativo/identificador da coluna sugerida.")
+        if measurable and not count_unit:
             pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
         if not fts and op != "spatial":
             pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
