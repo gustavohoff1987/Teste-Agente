@@ -23,6 +23,7 @@ type Capability = { status: "available" | "needs_confirmation" | "unavailable"; 
 type Preflight = {
   capabilities: Record<Operation, Capability>;
   field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
+  values: {territories: string[]; periods: string[]; categories: string[]};
   profile: {row_count: number; column_count: number; recognized_roles: number};
 };
 type Inspection = {
@@ -144,6 +145,7 @@ function App() {
   const [singlePeriodConfirmed, setSinglePeriodConfirmed] = useState(false);
   const [confirmedRoles, setConfirmedRoles] = useState<Role[]>([]);
   const [countUnit, setCountUnit] = useState("");
+  const [customCountUnit, setCustomCountUnit] = useState("");
   const [populationAligned, setPopulationAligned] = useState(false);
   const [temporalCompared, setTemporalCompared] = useState(false);
   const [territoryStable, setTerritoryStable] = useState(false);
@@ -184,6 +186,7 @@ function App() {
       setFtsScopeConfirmed(false);
       setSinglePeriodConfirmed(false);
       setCountUnit("");
+      setCustomCountUnit("");
       setPopulationAligned(false);
       setTemporalCompared(false);
       setTerritoryStable(false);
@@ -230,6 +233,7 @@ function App() {
       single_period_confirmed: singlePeriodConfirmed,
       confirmed_roles: confirmedRoles,
       count_unit: countUnit,
+      custom_count_unit: customCountUnit,
       population_denominator_confirmed: populationAligned,
       temporal_comparability_confirmed: temporalCompared,
       territory_longitudinal_confirmed: territoryStable,
@@ -325,6 +329,9 @@ function App() {
         single_period_confirmed: singlePeriodConfirmed,
         confirmed_roles: confirmedRoles,
         count_unit: countUnit,
+        custom_count_unit: customCountUnit,
+        period_filter: periodFilter,
+        category_filter: categoryFilter,
         population_denominator_confirmed: populationAligned,
         temporal_comparability_confirmed: temporalCompared,
         territory_longitudinal_confirmed: territoryStable,
@@ -343,8 +350,8 @@ function App() {
       }
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [inspection, file, sheet, mapping, confirmedRoles, countUnit,
-      populationAligned, temporalCompared, territoryStable,
+  }, [inspection, file, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
+      periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap]);
 
@@ -492,6 +499,9 @@ function App() {
                   <option value="postos">Postos de trabalho</option>
                   <option value="outro">Outra unidade (verifique a adequação)</option>
                 </select>
+                {countUnit === "outro" && <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                  placeholder="Especifique a unidade de contagem" value={customCountUnit}
+                  onChange={e => setCustomCountUnit(e.target.value)}/>}
               </label>
               {!mapping.category && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">Categoria constante da base, se aplicável
                 <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -515,7 +525,7 @@ function App() {
                   <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
                 </select>
               </label>
-              <SelectField label="Território de referência" value={reference} options={inspection.territories} onChange={setReference}/>
+              <SelectField label="Território de referência" value={reference} options={preflight?.values.territories || inspection.territories} onChange={setReference}/>
             </div>}
           </div>
         </div>}
@@ -567,12 +577,12 @@ function App() {
             </div>
           </div>
           {inspection && !inspection.requires_sheet && <div className="no-print grid gap-4 border-b border-line py-5 sm:grid-cols-2 lg:grid-cols-4">
-            <SelectField label="Filtrar por período" value={periodFilter} options={inspection.periods} onChange={v => {setPeriodFilter(v); setResult(null);}}/>
-            <SelectField label="Filtrar por categoria" value={categoryFilter} options={inspection.categories} onChange={v => {setCategoryFilter(v); setResult(null);}}/>
+            <SelectField label="Filtrar por período" value={periodFilter} options={preflight?.values.periods || inspection.periods} onChange={v => {setPeriodFilter(v); setResult(null);}}/>
+            <SelectField label="Filtrar por categoria" value={categoryFilter} options={preflight?.values.categories || inspection.categories} onChange={v => {setCategoryFilter(v); setResult(null);}}/>
             {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">Número de classes
               <select className="rounded-xl border border-line px-3 py-2.5 text-sm" value={quantiles} onChange={e => {setQuantiles(Number(e.target.value)); setResult(null);}}>{[4, 5, 10].map(v=><option value={v} key={v}>{v}</option>)}</select></label>}
             {active === "spatial" && <>
-              <SelectField label="Território de referência" value={reference} options={inspection.territories} onChange={setReference}/>
+              <SelectField label="Território de referência" value={reference} options={preflight?.values.territories || inspection.territories} onChange={setReference}/>
               <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">Referencial geodésico
                 <select className="rounded-xl border border-line px-3 py-2.5 text-sm" value={crs} onChange={e=>setCrs(e.target.value)}><option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option></select></label>
             </>}
