@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import ContextConfig from "./ContextConfig";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
@@ -19,7 +20,8 @@ type ColumnProfile = {
   name: string; type: string; missing: number; suspicious_header: boolean;
   proposal: { role: Role; status: "recognized" | "proposed"; evidence: string }[];
 };
-type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[] };
+type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: string; detail: string };
+type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[] };
 type Preflight = {
   capabilities: Record<Operation, Capability>;
   field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
@@ -152,6 +154,8 @@ function App() {
   const [longitudinalIdentity, setLongitudinalIdentity] = useState(false);
   const [identityCountConfirmed, setIdentityCountConfirmed] = useState(false);
   const [categoryConstant, setCategoryConstant] = useState("");
+  const [objectDraft, setObjectDraft] = useState("");
+  const [objectConfirmed, setObjectConfirmed] = useState(false);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [preflighting, setPreflighting] = useState(false);
   const [preflightError, setPreflightError] = useState("");
@@ -193,6 +197,8 @@ function App() {
       setLongitudinalIdentity(false);
       setIdentityCountConfirmed(false);
       setCategoryConstant("");
+      setObjectDraft(details.suggested_category_constant || "");
+      setObjectConfirmed(false);
       setPreflight(details.preflight);
       setPreflightError("");
       setServerStatus("online");
@@ -239,7 +245,9 @@ function App() {
       territory_longitudinal_confirmed: territoryStable,
       longitudinal_identity_confirmed: longitudinalIdentity,
       identity_count_confirmed: identityCountConfirmed,
-      category_constant: categoryConstant
+      category_constant: categoryConstant,
+      require_object_confirmation: true,
+      object_confirmed: objectConfirmed
     };
   }
   function associateColumn(column: string, role: Role | "") {
@@ -253,6 +261,10 @@ function App() {
       return next;
     });
     setConfirmedRoles(previous => [...previous.filter(r => r !== previouslyAssociated && r !== role), ...(role ? [role] : [])]);
+    if (role === "category" || previouslyAssociated === "category") {
+      setObjectConfirmed(false);
+      setCategoryConstant("");
+    }
     setResult(null);
     setError("");
   }
@@ -337,7 +349,9 @@ function App() {
         territory_longitudinal_confirmed: territoryStable,
         longitudinal_identity_confirmed: longitudinalIdentity,
         identity_count_confirmed: identityCountConfirmed,
-        category_constant: categoryConstant
+        category_constant: categoryConstant,
+        require_object_confirmation: true,
+        object_confirmed: objectConfirmed
       }));
       try {
         const response = await fetch(API + "/api/preflight", { method: "POST", body: form });
@@ -352,7 +366,7 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [inspection, file, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
-      longitudinalIdentity, identityCountConfirmed, categoryConstant,
+      longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap]);
 
   return <div className="min-h-screen bg-canvas">
@@ -444,97 +458,43 @@ function App() {
             </div>
           </div>
         </div>
-        {inspection && !inspection.requires_sheet && <div id="associacoes" className="section-anchor mt-5 rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
-          <div className="mb-5 flex items-center gap-3">
-            <span className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><Settings2 size={20}/></span>
-            <div>
-              <h3 className="font-bold text-ink">Reconhecimento e habilitação dos dados</h3>
-              <p className="text-xs leading-5 text-slate-500">O sistema reconhece os cabeçalhos governados e apresenta correspondências propostas. Você só precisa esclarecer campos ambíguos e significados exigidos pela análise.</p>
-            </div>
-          </div>
-          {preflighting && <p role="status" className="mb-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Recalculando a disponibilidade das análises...</p>}
-          {preflightError && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
-          <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_1fr]">
-            {inspection.column_profiles.map(profile => {
-              const associated = (Object.entries(mapping).find(([, value]) => value === profile.name) || [])[0] as Role | undefined;
-              const field = associated ? preflight?.field_states[associated] : null;
-              const status = field?.status || (associated ? "proposed" : "unmapped");
-              return <div key={profile.name} className="rounded-xl border border-line bg-slate-50/50 p-3.5">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <strong className="max-w-full break-all text-xs text-ink">{profile.name}</strong>
-                  <span className={["rounded-full px-2 py-1 text-[10px] font-bold",
-                    status === "recognized" || status === "confirmed" ? "bg-emerald-50 text-emerald-700" :
-                    status === "proposed" ? "bg-amber-50 text-amber-700" : "bg-slate-200 text-slate-600"].join(" ")}>
-                    {status === "recognized" ? "Reconhecido" : status === "confirmed" ? "Confirmado" :
-                      status === "proposed" ? "A confirmar" : "Sem associação"}
-                  </span>
-                </div>
-                <p className="mb-2 text-[11px] text-slate-500">{profile.type} · {profile.missing} ausências</p>
-                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-                  Significado para a análise
-                  <select className="w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-                    value={associated || ""} onChange={e => associateColumn(profile.name, e.target.value as Role | "")}>
-                    <option value="">Não atribuído / auxiliar</option>
-                    {ROLES.map(role => <option key={role.key} value={role.key}>{role.label}</option>)}
-                  </select>
-                </label>
-                {associated && status === "proposed" && <button type="button" className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-200"
-                  onClick={() => setConfirmedRoles(prev => [...new Set([...prev, associated])])}>
-                  Confirmar associação como {ROLES.find(x => x.key === associated)?.label}
-                </button>}
-                {profile.suspicious_header && <p className="mt-2 text-[11px] leading-4 text-amber-800">Cabeçalho incomum: verifique se a primeira linha da planilha contém os nomes reais das colunas.</p>}
-                {profile.proposal.length > 0 && <p className="mt-2 text-[11px] leading-4 text-slate-500">{profile.proposal[0].evidence}</p>}
-              </div>;
-            })}
-          </div>
-          <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4">
-            <h4 className="mb-3 text-sm font-bold text-ink">Significados complementares</h4>
-            <p className="mb-4 text-xs leading-5 text-slate-600">Estas confirmações não são inferidas do nome da coluna. Elas somente habilitam as operações que dependem delas.</p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">Unidade de contagem
-                <select className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink" value={countUnit} onChange={e => {setCountUnit(e.target.value);setResult(null);}}>
-                  <option value="">Não informada</option>
-                  <option value="pessoas">Pessoas distintas no recorte informado</option>
-                  <option value="vinculos">Vínculos de trabalho</option>
-                  <option value="postos">Postos de trabalho</option>
-                  <option value="outro">Outra unidade (verifique a adequação)</option>
-                </select>
-                {countUnit === "outro" && <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                  placeholder="Especifique a unidade de contagem" value={customCountUnit}
-                  onChange={e => setCustomCountUnit(e.target.value)}/>}
-              </label>
-              {!mapping.category && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">Categoria constante da base, se aplicável
-                <input className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                  value={categoryConstant} placeholder={inspection.suggested_category_constant || "Ex.: Médicos"}
-                  onChange={e => {setCategoryConstant(e.target.value); setResult(null);}}/>
-                {inspection.suggested_category_constant && <span className="flex flex-wrap items-center gap-2 text-[11px] font-normal text-slate-500">
-                  Sugestão extraída do cabeçalho: {inspection.suggested_category_constant}.
-                  <button type="button" className="rounded-lg border border-teal/30 bg-white px-2 py-1 font-bold text-teal hover:bg-cyan-50"
-                    onClick={() => {setCategoryConstant(inspection.suggested_category_constant); setResult(null);}}>
-                    Confirmar sugestão
-                  </button>
-                </span>}
-              </label>}
-            </div>
-            <div className="mt-5 grid gap-3 text-xs text-slate-700 sm:grid-cols-2">
-              <label className="flex items-start gap-2"><input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/> Declaro que a base ou categoria informada integra a força de trabalho na saúde</label>
-              <label className="flex items-start gap-2"><input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/> A base é de um único período (sem coluna temporal)</label>
-              {mapping.population && <label className="flex items-start gap-2"><input type="checkbox" checked={populationAligned} onChange={e => setPopulationAligned(e.target.checked)}/> Confirmo que a população é o denominador pertinente, com território e período alinhados</label>}
-              {mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/> Confirmo a convenção temporal e a comparabilidade dos quantitativos entre períodos</label>}
-              {mapping.territory && mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/> Confirmo que a identidade territorial é comparável entre períodos</label>}
-              {mapping.identity && <label className="flex items-start gap-2"><input type="checkbox" checked={identityCountConfirmed} onChange={e => setIdentityCountConfirmed(e.target.checked)}/> Confirmo identidade individual adequada à contagem distinta</label>}
-              {mapping.identity && mapping.period && <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity} onChange={e => setLongitudinalIdentity(e.target.checked)}/> Confirmo identidade pessoal válida longitudinalmente para rotatividade</label>}
-            </div>
-            {mapping.latitude && mapping.longitude && <div className="mt-5 grid gap-3 border-t border-cyan-100 pt-4 md:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">Referencial geodésico (se conhecido)
-                <select className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-normal" value={crs} onChange={e => setCrs(e.target.value)}>
-                  <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
-                </select>
-              </label>
-              <SelectField label="Território de referência" value={reference} options={preflight?.values.territories || inspection.territories} onChange={setReference}/>
-            </div>}
-          </div>
-        </div>}
+        {inspection && !inspection.requires_sheet && <>
+          {preflighting && <p role="status" className="mt-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Conferindo as informações da base...</p>}
+          {preflightError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
+          <ContextConfig columns={inspection.columns} mapping={mapping}
+            fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
+            suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
+            objectConfirmed={objectConfirmed}
+            onSelect={(role, column) => {
+              if (column) associateColumn(column, role);
+              else {
+                setMapping(prev => ({...prev, [role]: ""}));
+                setConfirmedRoles(prev => prev.filter(x => x !== role));
+                setResult(null);
+              }
+              if (role === "category") {
+                setObjectConfirmed(false);
+                setCategoryConstant("");
+              }
+            }}
+            onConfirmRole={role => {
+              setConfirmedRoles(prev => [...new Set([...prev, role])]);
+              setResult(null);
+            }}
+            onDraft={value => {
+              setObjectDraft(value);
+              setObjectConfirmed(false);
+              setCategoryConstant("");
+              setResult(null);
+            }}
+            onConfirmObject={() => {
+              if (!mapping.category) setCategoryConstant(objectDraft.trim());
+              else setConfirmedRoles(prev => [...new Set([...prev, "category"])]);
+              setObjectConfirmed(true);
+              setResult(null);
+            }}
+          />
+        </>}
       </section>
       <section id="analises" className="section-anchor mt-14">
         <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
