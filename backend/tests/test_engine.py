@@ -55,7 +55,7 @@ def test_quantile_ties_are_kept():
                           "Ano": [2024]*5, "Categoria": ["Med"]*5,
                           "Quantidade": [3, 5, 7, 9, 11]})
     mapping = {k: v for k, v in MAP.items() if k != "population"}
-    result = compute(frame, mapping, "distribution", {"quantile_count": 4})
+    result = compute(frame, mapping, "distribution", {"quantile_count": 4, "distribution_indicator": "quantity"})
     assert [r["Unidades"] for r in result["rows"]] == [2, 1, 1, 1]
 
 
