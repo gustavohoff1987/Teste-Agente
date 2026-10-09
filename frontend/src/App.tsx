@@ -586,7 +586,7 @@ function App() {
           </button>}
           {inspection && !inspection.requires_sheet && <details
             key={active + ":" + (preflight?.capabilities[active]?.status || "loading")}
-            defaultOpen={preflight?.capabilities[active]?.status !== "available"}
+            open={preflight?.capabilities[active]?.status !== "available"}
             className="mt-5 rounded-xl border border-cyan-100 bg-slate-50/50 p-4">
             <summary className="cursor-pointer text-sm font-bold text-ink">
               Informações complementares
