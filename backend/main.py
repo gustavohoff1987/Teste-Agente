@@ -325,7 +325,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
                        "Ordem relativa descritiva; não constitui julgamento normativo.", rows,
                        notes=["Resultados exibidos por período e categoria. A comparação exige equivalência metodológica das unidades."])
     # densidade e relatório de quantitativos (sem denominador, não fingir densidade)
-    if operation == "report" and not options.get("population_denominator_confirmed"):
+    if operation == "report" and (not options.get("population_denominator_confirmed") or not mapping.get("territory")):
         rows = _records(data[keys + ["quantity"]].rename(columns=cols))
         return _result("Relatório de quantitativos", "Quantitativos da força de trabalho na base analisada.", rows,
                        notes=["Sem denominador populacional confirmado: nenhuma densidade foi calculada."])
