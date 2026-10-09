@@ -123,7 +123,7 @@ def _prepared(df: pd.DataFrame, mapping: dict[str, str], options: dict[str, Any]
     tmp = pd.DataFrame({
         "territory": df[territory].astype("string").str.strip() if territory else "Base inteira (sem dimensão territorial)",
         "period": df[period].astype("string").str.strip() if period else "Período declarado",
-        "category": df[category].astype("string").str.strip() if category else "FTS declarada",
+        "category": df[category].astype("string").str.strip() if category else (str(options.get("category_constant", "")).strip() or "FTS declarada"),
     })
     if tmp[["territory", "period", "category"]].isna().any().any():
         raise ValueError("Existem valores ausentes nas dimensões necessárias.")
@@ -253,7 +253,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         rows = _records(data[keys + ["quantity"]].rename(columns=cols))
         return _result("Quantitativos absolutos", "Contagem conforme a unidade de observação e o significado autorizados.", rows,
                        [{"label": "Registros territoriais", "value": len(rows)}])
-    if operation in ("density", "report", "comparisons", "ranking", "distribution", "aggregate") and data["population"].isna().all() and operation in ("density", "report", "aggregate"):
+    if operation in ("density", "aggregate") and data["population"].isna().all():
         raise ValueError("Associe uma coluna População para calcular densidades.")
     if operation == "aggregate":
         if data["period"].nunique() > 1 or data["category"].nunique() > 1:
