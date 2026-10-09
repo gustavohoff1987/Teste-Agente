@@ -15,7 +15,6 @@ type Props = {
   operation: string; columns: string[]; mapping: Record<string, string | undefined>;
   diagnostic?: Multiplicity; options: ResolutionOptions; periods: string[];
   setOptions: (options: ResolutionOptions) => void;
-  selectCode: (column: string) => void; codeConfirmed: boolean; confirmCode: () => void;
   selectIdentity: (column: string) => void; identityConfirmed: boolean; confirmIdentity: (value: boolean) => void;
   confirmCoordinates: () => void;
 };
