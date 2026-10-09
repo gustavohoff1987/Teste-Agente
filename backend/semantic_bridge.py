@@ -217,6 +217,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     measurable = bool(mapped.get("count") or mapped.get("identity"))
     count_confirmed = assigned("count") or assigned("identity")
     count_unit = bool(options.get("count_unit")) if mapped.get("count") else bool(options.get("identity_count_confirmed"))
+    if options.get("count_unit") == "outro" and not str(options.get("custom_count_unit", "")).strip():
+        count_unit = False
     population = assigned("population") and bool(options.get("population_denominator_confirmed"))
     territory = assigned("territory")
     period_count = frame[mapped["period"]].dropna().nunique() if assigned("period") else 0
@@ -225,6 +227,26 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     if options.get("count_unit", "") not in ("", *valid_units):
         raise ValueError("Unidade de contagem não reconhecida.")
     cap: dict[str, dict[str, Any]] = {}
+    count_invalid = False
+    if assigned("count"):
+        series = frame[mapped["count"]]
+        numeric = pd.to_numeric(series, errors="coerce")
+        count_invalid = bool((series.notna() & numeric.isna()).any() or numeric.isna().any()
+                             or (numeric.dropna() < 0).any())
+    coordinate_invalid = False
+    if assigned("latitude") and assigned("longitude"):
+        lat = pd.to_numeric(frame[mapped["latitude"]], errors="coerce")
+        lon = pd.to_numeric(frame[mapped["longitude"]], errors="coerce")
+        coordinate_invalid = bool(lat.isna().any() or lon.isna().any()
+                                  or ((lat < -90) | (lat > 90)).any()
+                                  or ((lon < -180) | (lon > 180)).any())
+    period_numeric = False
+    if assigned("period") and period_count > 0:
+        values = frame[mapped["period"]].dropna().astype(str)
+        period_numeric = all(re.fullmatch(r"\d+(?:\.\d+)?", v) for v in values)
+    all_period_count = frame[mapped["period"]].dropna().nunique() if assigned("period") else 0
+    all_category_count = frame[mapped["category"]].dropna().nunique() if assigned("category") else 0
+
     for op in OPERATIONS:
         missing: list[str] = []
         pending: list[str] = []
@@ -234,6 +256,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             pending.append("Confirme a função de quantitativo/identificador da coluna sugerida.")
         if measurable and not count_unit:
             pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
+        if count_invalid and op != "spatial":
+            missing.append("Há valores quantitativos ausentes, negativos ou não numéricos; corrija a base ou a associação.")
         if not fts and op != "spatial":
             pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
         if not period and op != "spatial":
@@ -255,10 +279,19 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if op == "temporal":
             if not assigned("period") or period_count < 2:
                 missing.append("Evolução temporal exige ao menos dois períodos reconhecidos.")
+            elif not period_numeric:
+                missing.append("Esta versão exige períodos com posições numéricas inequívocas (ex.: 2023 ou 202401).")
+            elif options.get("period_filter"):
+                missing.append("Remova o filtro de período para comparar dois ou mais períodos.")
             elif not bool(options.get("temporal_comparability_confirmed")):
                 pending.append("Confirme a comparabilidade dos períodos e a convenção temporal.")
             if territory and not bool(options.get("territory_longitudinal_confirmed")):
                 pending.append("Confirme a identidade territorial ao longo do tempo.")
+        if op == "aggregate":
+            if all_period_count > 1 and not options.get("period_filter"):
+                pending.append("Selecione um período nos filtros para agregar sem somar anos distintos.")
+            if all_category_count > 1 and not options.get("category_filter"):
+                pending.append("Selecione uma categoria nos filtros antes da agregação.")
         if op == "rotation":
             if not assigned("identity"):
                 missing.append("Rotatividade exige um identificador individual da mesma pessoa.")
@@ -275,12 +308,17 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             for role in ("latitude", "longitude"):
                 if not assigned(role):
                     missing.append("Associe e valide " + ROLE_NAMES[role] + ".")
+            if coordinate_invalid:
+                missing.append("Há coordenadas ausentes, não numéricas ou fora dos intervalos válidos.")
             if not options.get("crs"):
                 pending.append("Informe o referencial geodésico das coordenadas.")
             elif options.get("crs") != "SIRGAS2000":
                 missing.append("O referencial indicado não é suportado nesta versão.")
             if not options.get("reference_territory"):
                 pending.append("Selecione o território de referência.")
+            elif assigned("territory") and str(options["reference_territory"]) not in set(
+                    frame[mapped["territory"]].dropna().astype(str)):
+                missing.append("O território de referência não está presente na base.")
         if op == "aggregate" and not options.get("no_overlap_confirmed"):
             # Soma de componentes é possível com rótulo explícito; não implica pessoas únicas.
             pass
