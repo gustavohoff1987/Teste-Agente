@@ -554,7 +554,7 @@ function App() {
                       {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
                     </select>
                   </label>
-                  {mapping.count && preflight.field_states.count.status === "proposed" &&
+                  {mapping.count && preflight?.field_states.count.status === "proposed" &&
                     <button type="button" onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "count"])])}
                       className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
                       Confirmar que esta coluna contém quantitativos
@@ -589,7 +589,7 @@ function App() {
                       {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
                     </select>
                   </label>
-                  {mapping.population && preflight.field_states.population.status === "proposed" &&
+                  {mapping.population && preflight?.field_states.population.status === "proposed" &&
                     <button type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
                       onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "population"])])}>Confirmar coluna de população</button>}
                   {mapping.population && <label className="flex items-start gap-2 self-center text-xs leading-5 text-slate-700">
@@ -624,7 +624,7 @@ function App() {
                       {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
                     </select>
                   </label>
-                  {mapping.identity && preflight.field_states.identity.status === "proposed" && <button
+                  {mapping.identity && preflight?.field_states.identity.status === "proposed" && <button
                     type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
                     onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "identity"])])}>Confirmar identificação individual</button>}
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
@@ -653,11 +653,11 @@ function App() {
                     </select>
                   </label>
                   <SelectField label="Território de referência" value={reference}
-                    options={preflight.values.territories} onChange={setReference}/>
+                    options={preflight?.values.territories || []} onChange={setReference}/>
                 </>}
                 {active === "aggregate" && <>
-                  <SelectField label="Selecionar período" value={periodFilter} options={preflight.values.periods} onChange={v => {setPeriodFilter(v);setResult(null);}}/>
-                  <SelectField label="Selecionar categoria" value={categoryFilter} options={preflight.values.categories} onChange={v => {setCategoryFilter(v);setResult(null);}}/>
+                  <SelectField label="Selecionar período" value={periodFilter} options={preflight?.values.periods || []} onChange={v => {setPeriodFilter(v);setResult(null);}}/>
+                  <SelectField label="Selecionar categoria" value={categoryFilter} options={preflight?.values.categories || []} onChange={v => {setCategoryFilter(v);setResult(null);}}/>
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={confirmedNoOverlap} onChange={e => setConfirmedNoOverlap(e.target.checked)}/>
                     Declaro ausência de sobreposição das pessoas entre territórios, se desejar interpretar o total como pessoas únicas
