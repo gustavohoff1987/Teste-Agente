@@ -490,7 +490,7 @@ function App() {
             }}
             onConfirmObject={() => {
               if (!mapping.category) setCategoryConstant(objectDraft.trim());
-              else setConfirmedRoles(prev => [...new Set([...prev, "category"])]);
+              else setConfirmedRoles(prev => [...new Set<Role>([...prev, "category"])]);
               setObjectConfirmed(true);
               setResult(null);
             }}
@@ -553,7 +553,7 @@ function App() {
                     </select>
                   </label>
                   {mapping.count && preflight.field_states.count.status === "proposed" &&
-                    <button type="button" onClick={() => setConfirmedRoles(prev=>[...new Set([...prev, "count"])])}
+                    <button type="button" onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "count"])])}
                       className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
                       Confirmar que esta coluna contém quantitativos
                     </button>}
@@ -589,7 +589,7 @@ function App() {
                   </label>
                   {mapping.population && preflight.field_states.population.status === "proposed" &&
                     <button type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
-                      onClick={() => setConfirmedRoles(prev=>[...new Set([...prev, "population"])])}>Confirmar coluna de população</button>}
+                      onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "population"])])}>Confirmar coluna de população</button>}
                   {mapping.population && <label className="flex items-start gap-2 self-center text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={populationAligned} onChange={e => setPopulationAligned(e.target.checked)}/>
                     Confirmo que a população corresponde aos territórios e períodos analisados
@@ -624,7 +624,7 @@ function App() {
                   </label>
                   {mapping.identity && preflight.field_states.identity.status === "proposed" && <button
                     type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
-                    onClick={() => setConfirmedRoles(prev=>[...new Set([...prev,"identity"])])}>Confirmar identificação individual</button>}
+                    onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "identity"])])}>Confirmar identificação individual</button>}
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={longitudinalIdentity} onChange={e => setLongitudinalIdentity(e.target.checked)}/>
                     Confirmo identidade pessoal válida entre os períodos, com abrangência e completude adequadas
