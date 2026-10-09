@@ -83,9 +83,10 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
         except Exception as exc:
             raise ValueError("Não foi possível interpretar a estrutura do CSV.") from exc
         return frame, []
-    if extension == "xlsx":
+    if extension in ("xlsx", "xls"):
         try:
-            book = pd.ExcelFile(io.BytesIO(contents), engine="openpyxl")
+            engine = "openpyxl" if extension == "xlsx" else "xlrd"
+            book = pd.ExcelFile(io.BytesIO(contents), engine=engine)
             sheets = book.sheet_names
             if not sheet and len(sheets) > 1:
                 return None, sheets
@@ -96,8 +97,8 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
         except ValueError:
             raise
         except Exception as exc:
-            raise ValueError("Não foi possível interpretar o arquivo Excel.") from exc
-    raise ValueError("Formato não suportado. Utilize CSV ou XLSX.")
+            raise ValueError("Não foi possível interpretar este arquivo Excel. Confira se é um .xls ou .xlsx válido, sem proteção por senha.") from exc
+    raise ValueError("Formato não suportado. Utilize CSV, XLS ou XLSX.")
 
 
 def _resolve(df: pd.DataFrame, mapping: dict[str, str], key: str, required: bool = False) -> str | None:
