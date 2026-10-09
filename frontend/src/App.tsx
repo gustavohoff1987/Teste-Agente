@@ -132,7 +132,8 @@ function SelectField({ label, value, options, onChange }: { label: string; value
     {label}
     <select aria-label={label} className="w-full min-w-0 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none" value={value} onChange={e => onChange(e.target.value)}>
       <option value="">Todos / não selecionado</option>
-      {options.map(v => <option key={v} value={v}>{v}</option>)}
+      {(label.toLowerCase().includes("período") ? [...options].sort((a,b)=>b.localeCompare(a,"pt-BR",{numeric:true})) : options).map(v =>
+        <option key={v} value={v}>{label.toLowerCase().includes("período") ? displayPeriod(v) : v}</option>)}
     </select>
   </label>;
 }
@@ -579,6 +580,10 @@ function App() {
             {status: "missing", title: "Base de dados", detail: "Importe uma planilha para verificar os requisitos desta análise."}
           ] : [])}
           onExecute={() => { void run(active); }} executing={running}>
+          {active === "distribution" && inspection && <button type="button" className="mt-4 inline-flex text-xs font-bold text-teal underline"
+            onClick={() => document.getElementById("filtros-resultados")?.scrollIntoView({behavior:"smooth", block:"center"})}>
+            Escolher período, categoria e indicador da distribuição
+          </button>}
           {inspection && !inspection.requires_sheet && <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
             periods={preflight?.values.periods || inspection.periods}
@@ -728,22 +733,37 @@ function App() {
               <div><h3 className="font-bold text-ink">{selectedFeature ? selectedFeature.title : "Selecione uma análise"}</h3><p className="mt-1 text-xs text-slate-500">{selectedFeature?.detail || "Os resultados aparecerão aqui após a execução."}</p></div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button disabled={!result} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ArrowDownToLine size={14}/> CSV</button>
+              <button disabled={!result} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ArrowDownToLine size={14}/> {active === "distribution" ? "Resumo CSV" : "CSV"}</button>
               <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Método e parâmetros</button>
               <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
-          {inspection && !inspection.requires_sheet && <div className="no-print grid gap-4 border-b border-line py-5 sm:grid-cols-2 lg:grid-cols-4">
+          {inspection && !inspection.requires_sheet && <div id="filtros-resultados" className="no-print border-b border-line py-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div><h4 className="text-sm font-bold text-ink">Escolha o recorte da análise</h4>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Defina período e categoria. Para a distribuição, escolha também o indicador usado na classificação dos territórios.</p></div>
+              {active && <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">Os resultados são recalculados após executar / atualizar</span>}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <SelectField label="Filtrar por período" value={periodFilter} options={preflight?.values.periods || inspection.periods} onChange={v => {setPeriodFilter(v); setResult(null);}}/>
             <SelectField label="Filtrar por categoria" value={categoryFilter} options={preflight?.values.categories || inspection.categories} onChange={v => {setCategoryFilter(v); setResult(null);}}/>
-            {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">Número de classes
-              <select className="rounded-xl border border-line px-3 py-2.5 text-sm" value={quantiles} onChange={e => {setQuantiles(Number(e.target.value)); setResult(null);}}>{[4, 5, 10].map(v=><option value={v} key={v}>{v}</option>)}</select></label>}
+            {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
+              Indicador da distribuição
+              <select aria-label="Indicador da distribuição" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                value={distributionIndicator} onChange={e => {setDistributionIndicator(e.target.value as "" | "density" | "quantity");setResult(null);}}>
+                <option value="">Selecione o indicador</option>
+                <option value="density">Densidade de profissionais por 1.000 habitantes</option>
+                <option value="quantity">Quantidade absoluta de profissionais</option>
+              </select>
+              <span className="font-normal leading-5 text-slate-500">A densidade exige população correspondente. Os quintis nunca misturam períodos e categorias.</span>
+            </label>}
             {active === "spatial" && <>
               <SelectField label="Território de referência" value={reference} options={preflight?.values.territories || inspection.territories} onChange={setReference}/>
               <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">Referencial geodésico
                 <select className="rounded-xl border border-line px-3 py-2.5 text-sm" value={crs} onChange={e=>setCrs(e.target.value)}><option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option></select></label>
             </>}
             {active === "aggregate" && <label className="col-span-2 flex items-center gap-2 self-center text-xs text-slate-700"><input type="checkbox" checked={confirmedNoOverlap} onChange={e=>setConfirmedNoOverlap(e.target.checked)}/> Declaro que não há sobreposição de pessoas nos territórios considerados</label>}
+            </div>
           </div>}
           {active && inspection && !inspection.requires_sheet && preflight?.capabilities[active]?.status === "available" && <div className="no-print mt-5 flex justify-end">
             <button disabled={running} onClick={()=>{void run(active);}} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2.5 text-sm font-bold text-white hover:bg-ink disabled:opacity-50">
@@ -762,7 +782,9 @@ function App() {
             {result.metrics.length > 0 && <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {result.metrics.map(metric => <div key={metric.label} className="rounded-2xl border border-line bg-slate-50 px-5 py-5"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-2 text-2xl font-bold text-ink">{pretty(metric.value)}</p></div>)}
             </div>}
-            {plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
+            {active === "distribution" && result.detail_rows && <DistributionResults
+              summary={result.rows} detail={result.detail_rows} onExport={exportCsv}/>}
+            {active !== "distribution" && plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos primeiros 12 registros</h4></div>
               <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%">
                 <BarChart data={plot.values} margin={{top:5,right:12,bottom:35,left:0}}>
@@ -774,7 +796,7 @@ function App() {
                 </BarChart>
               </ResponsiveContainer></div>
             </div>}
-            {result.rows.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-line">
+            {active !== "distribution" && result.rows.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-line">
               <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4><span className="text-xs text-slate-400">{result.total_rows} linhas · até 150 exibidas</span></div>
               <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
                 <thead className="sticky top-0 bg-slate-50"><tr>{Object.keys(result.rows[0]).map(k=><th key={k}>{k}</th>)}</tr></thead>
