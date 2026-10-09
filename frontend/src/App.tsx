@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ContextConfig from "./ContextConfig";
 import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
+import DistributionResults, { displayPeriod } from "./DistributionResults";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -38,7 +39,7 @@ type Inspection = {
   column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
 };
 type Metric = { label: string; value: string | number };
-type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown> };
+type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
 type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon; tone: string };
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
@@ -152,6 +153,7 @@ function App() {
   const [reference, setReference] = useState("");
   const [crs, setCrs] = useState("");
   const [quantiles, setQuantiles] = useState(5);
+  const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [confirmedNoOverlap, setConfirmedNoOverlap] = useState(false);
   const [ftsScopeConfirmed, setFtsScopeConfirmed] = useState(false);
   const [singlePeriodConfirmed, setSinglePeriodConfirmed] = useState(false);
@@ -224,6 +226,7 @@ function App() {
       setConfirmedNoOverlap(false);
       setCrs("");
       setQuantiles(5);
+      setDistributionIndicator("");
     } catch (exc) {
       if (currentUpload !== uploadRevision.current) return;
       const message = readableError(exc);
@@ -256,6 +259,7 @@ function App() {
       ...resolutions,
       period_filter: periodFilter, category_filter: categoryFilter,
       reference_territory: reference, crs, quantile_count: quantiles,
+      distribution_indicator: distributionIndicator,
       no_overlap_confirmed: confirmedNoOverlap,
       fts_scope_confirmed: ftsScopeConfirmed,
       single_period_confirmed: singlePeriodConfirmed,
@@ -370,6 +374,7 @@ function App() {
       form.append("mapping", JSON.stringify(mapping));
       form.append("options", JSON.stringify({
         ...resolutions, quantile_count: quantiles,
+        distribution_indicator: distributionIndicator,
         reference_territory: reference, crs,
         no_overlap_confirmed: confirmedNoOverlap,
         fts_scope_confirmed: ftsScopeConfirmed,
@@ -402,7 +407,7 @@ function App() {
   }, [inspection, file, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles]);
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator]);
 
   useEffect(() => { revision.current += 1; setResult(null); setError(""); }, [active]);
 
@@ -419,13 +424,9 @@ function App() {
           <a href="#analises" className="hover:text-teal">Análises</a>
           <a href="#resultados" className="hover:text-teal">Resultados</a>
         </nav>
-        <span aria-live="polite" className={["flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold",
-          serverStatus === "online" ? "border-emerald-100 bg-emerald-50 text-emerald-700" :
-          serverStatus === "offline" ? "border-rose-100 bg-rose-50 text-rose-700" :
-          "border-slate-200 bg-slate-50 text-slate-500"].join(" ")}>
-          {serverStatus === "online" ? <CheckCircle2 size={13}/> : serverStatus === "offline" ? <XCircle size={13}/> : <LoaderCircle size={13} className="animate-spin"/>}
-          {serverStatus === "online" ? "Motor conectado" : serverStatus === "offline" ? "Motor indisponível" : "Conectando"}
-        </span>
+        {serverStatus === "offline" && <span role="status" className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
+          <XCircle size={13}/> Serviço de análise indisponível
+        </span>}
       </div>
     </header>
     <main id="inicio" className="mx-auto max-w-[1350px] px-4 pb-20 pt-6 sm:px-6 lg:px-10">
@@ -502,6 +503,13 @@ function App() {
             fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
             suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
             objectConfirmed={objectConfirmed}
+            territoryCode={mapping.territory_id || ""}
+            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
+            onSelectCode={column => {
+              if(column) associateColumn(column, "territory_id");
+              else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(role => role !== "territory_id"));setResult(null);}
+            }}
+            onConfirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
             onSelect={(role, column) => {
               if (column) associateColumn(column, role);
               else {
@@ -574,9 +582,6 @@ function App() {
           {inspection && !inspection.requires_sheet && <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
             periods={preflight?.values.periods || inspection.periods}
-            selectCode={column => {if(column) associateColumn(column, "territory_id"); else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(r => r !== "territory_id"));}}}
-            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
-            confirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
             selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
             identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
             confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>}
