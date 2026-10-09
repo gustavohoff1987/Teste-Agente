@@ -16,6 +16,10 @@ type Props = {
   onConfirmRole: (role: Role) => void;
   onDraft: (value: string) => void;
   onConfirmObject: () => void;
+  territoryCode?: string;
+  codeConfirmed?: boolean;
+  onSelectCode: (column: string) => void;
+  onConfirmCode: () => void;
 };
 
 const DIMENSIONS = [
@@ -77,6 +81,24 @@ export default function ContextConfig(props: Props) {
             className="mt-2 self-start rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100">
             Confirmar associação
           </button>}
+          {role === "territory" && selected && <details className="mt-4 border-t border-line pt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-teal">Identificação territorial · {props.territoryCode ? "código associado" : "opcional"}</summary>
+            <p className="my-2 text-xs leading-5 text-slate-600">Se lugares diferentes tiverem o mesmo nome, indique a coluna que diferencia cada unidade territorial.</p>
+            <label className="flex flex-col gap-2 text-xs font-semibold text-slate-700">
+              Código ou identificador da unidade
+              <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                value={props.territoryCode || ""} onChange={e => props.onSelectCode(e.target.value)}>
+                <option value="">Não informado</option>
+                {columns.filter(col => col !== selected).map(col => <option key={col} value={col}>{col}</option>)}
+              </select>
+            </label>
+            {props.territoryCode && !props.codeConfirmed && <button type="button"
+              onClick={props.onConfirmCode}
+              className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+              Confirmar identificador territorial
+            </button>}
+            {props.territoryCode && props.codeConfirmed && <p className="mt-2 text-xs font-semibold text-emerald-700">Código confirmado</p>}
+          </details>}
         </div>;
       })}
       <div className="flex flex-col rounded-[18px] border border-line bg-slate-50/40 p-4 sm:p-5">
