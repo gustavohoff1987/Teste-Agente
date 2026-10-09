@@ -14,6 +14,7 @@ import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
+from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -24,18 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
-ROLES = ("territory", "period", "category", "count", "population", "latitude", "longitude", "identity")
-ALIASES = {
-    "territory": ("territorio", "municipio", "cod_municipio", "codigo_municipio", "localidade", "territory"),
-    "period": ("periodo", "ano", "competencia", "year", "period"),
-    "category": ("categoria", "ocupacao", "cbo", "profissao", "category"),
-    "count": ("quantidade", "contagem", "qtd", "n_profissionais", "total_profissionais", "count"),
-    "population": ("populacao", "populacao_estimada", "habitantes", "population"),
-    "latitude": ("latitude", "lat"),
-    "longitude": ("longitude", "lon", "lng"),
-    "identity": ("identificador_individual", "id_pessoa", "id_profissional", "id_trabalhador", "identity"),
-}
-ANALYSES = ("density", "counts", "distribution", "comparisons", "temporal", "aggregate", "spatial", "ranking", "rotation", "report")
+ALIASES = EXACT
+ANALYSES = OPERATIONS
 
 
 def canonical_name(name: str) -> str:
@@ -45,12 +36,8 @@ def canonical_name(name: str) -> str:
 
 
 def suggest(columns: list[str]) -> dict[str, str]:
-    result = {}
-    for role, aliases in ALIASES.items():
-        matching = [col for col in columns if canonical_name(col) in aliases]
-        if len(matching) == 1:
-            result[role] = matching[0]
-    return result
+    """Compatibilidade com os testes; delega à ponte única."""
+    return candidates(pd.DataFrame(columns=[str(x) for x in columns]))[0]
 
 
 def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.DataFrame | None, list[str]]:
@@ -82,7 +69,7 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
             frame = pd.read_csv(io.StringIO(text), sep=separator, low_memory=False)
         except Exception as exc:
             raise ValueError("Não foi possível interpretar a estrutura do CSV.") from exc
-        return frame, []
+        return normalize_headers(frame), []
     if extension in ("xlsx", "xls"):
         try:
             engine = "openpyxl" if extension == "xlsx" else "xlrd"
@@ -93,7 +80,7 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
             if sheet and sheet not in sheets:
                 raise ValueError("A planilha selecionada não existe neste arquivo.")
             frame = pd.read_excel(book, sheet_name=sheet or sheets[0])
-            return frame, sheets
+            return normalize_headers(frame), sheets
         except ValueError:
             raise
         except Exception as exc:
@@ -106,7 +93,7 @@ def _resolve(df: pd.DataFrame, mapping: dict[str, str], key: str, required: bool
     if selected and selected not in df.columns:
         raise ValueError("Campo selecionado inexistente: " + selected)
     if required and not selected:
-        raise ValueError("Associe a coluna de " + key + " antes de executar esta análise.")
+        raise ValueError("Associe a coluna de " + {"territory": "Território", "period": "Período", "identity": "Identificador individual", "latitude": "Latitude", "longitude": "Longitude"}.get(key, key) + " antes de executar esta análise.")
     return selected or None
 
 
@@ -120,8 +107,8 @@ def _parse_numbers(series: pd.Series, label: str) -> pd.Series:
     return values
 
 
-def _prepared(df: pd.DataFrame, mapping: dict[str, str], options: dict[str, Any], *, need_count: bool = True) -> pd.DataFrame:
-    territory = _resolve(df, mapping, "territory", True)
+def _prepared(df: pd.DataFrame, mapping: dict[str, str], options: dict[str, Any], *, need_count: bool = True, allow_global: bool = False) -> pd.DataFrame:
+    territory = _resolve(df, mapping, "territory", not allow_global)
     period = _resolve(df, mapping, "period")
     category = _resolve(df, mapping, "category")
     count = _resolve(df, mapping, "count")
@@ -134,7 +121,7 @@ def _prepared(df: pd.DataFrame, mapping: dict[str, str], options: dict[str, Any]
     if not period and not options.get("single_period_confirmed"):
         raise ValueError("Sem coluna Período, confirme que a base representa um único período.")
     tmp = pd.DataFrame({
-        "territory": df[territory].astype("string").str.strip(),
+        "territory": df[territory].astype("string").str.strip() if territory else "Base inteira (sem dimensão territorial)",
         "period": df[period].astype("string").str.strip() if period else "Período declarado",
         "category": df[category].astype("string").str.strip() if category else "FTS declarada",
     })
@@ -258,7 +245,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
             rows.append({"Território": item.territory, "Distância (km)": round(meters / 1000, 3)})
         return _result("Distâncias geodésicas", "Distância direta sobre o elipsoide GRS80 (SIRGAS2000). Não representa tempo nem distância por estrada.",
                        sorted(rows, key=lambda x: x["Distância (km)"]), notes=["Referência: " + str(refname)])
-    data = _prepared(df, mapping, options)
+    data = _prepared(df, mapping, options, allow_global=operation in ("counts", "temporal", "report"))
     keys = ["territory", "period", "category"]
     cols = {"territory": "Território", "period": "Período", "category": "Categoria",
             "quantity": "Quantidade", "population": "População", "density": "Densidade por 1.000"}
@@ -296,7 +283,10 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         return _result("Distribuição por quantis", "Percentis Hyndman–Fan tipo 7; valores iguais permanecem na classe inferior.",
                        rows, notes=["Indicador: " + label, "Pontos de corte: " + ", ".join(str(round(cut, 5)) for cut in cuts)])
     if operation == "temporal":
-        pivot = data.pivot_table(index=["territory", "category"], columns="period", values="density", aggfunc="first")
+        # Sem denominador declarado a série continua válida como quantitativo;
+        # nunca fabricar densidades nem presumir população.
+        metric = "density" if data["density"].notna().any() and options.get("population_denominator_confirmed") else "quantity"
+        pivot = data.pivot_table(index=["territory", "category"], columns="period", values=metric, aggfunc="first")
         periods = sorted(data["period"].unique().tolist())
         if len(periods) < 2:
             raise ValueError("Mudança temporal exige ao menos dois períodos.")
@@ -322,8 +312,8 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
             else:
                 row["Tendência"] = "Não avaliável (< 4 observações)"
             rows.append(row)
-        return _result("Evolução temporal", "Mudança entre os períodos extremos observados; tendência apenas com pelo menos quatro observações.",
-                       rows, notes=["Comparabilidade longitudinal entre períodos deve ser estabelecida pelos metadados da base."])
+        return _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
+                       rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução."])
     if operation in ("comparisons", "ranking"):
         if not data["density"].notna().any():
             raise ValueError("Estas análises requerem densidades avaliáveis.")
@@ -334,7 +324,11 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         return _result("Recortes e rankings" if operation == "ranking" else "Comparação territorial",
                        "Ordem relativa descritiva; não constitui julgamento normativo.", rows,
                        notes=["Resultados exibidos por período e categoria. A comparação exige equivalência metodológica das unidades."])
-    # density and report
+    # densidade e relatório de quantitativos (sem denominador, não fingir densidade)
+    if operation == "report" and not options.get("population_denominator_confirmed"):
+        rows = _records(data[keys + ["quantity"]].rename(columns=cols))
+        return _result("Relatório de quantitativos", "Quantitativos da força de trabalho na base analisada.", rows,
+                       notes=["Sem denominador populacional confirmado: nenhuma densidade foi calculada."])
     rows = _records(data[keys + ["quantity", "population", "density"]].rename(columns=cols))
     valid = int(data["density"].notna().sum())
     notes = ["Densidade = quantitativo / população × 1.000.",
@@ -364,18 +358,35 @@ async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
         frame, sheets = read_dataset(await _read_upload(file), file.filename or "", sheet)
         if frame is None:
             return {"requires_sheet": True, "sheets": sheets, "columns": [], "row_count": 0, "suggested_mapping": {},
-                    "periods": [], "categories": [], "territories": []}
+                    "column_profiles": [], "periods": [], "categories": [], "territories": [], "preflight": None,
+                    "suggested_category_constant": ""}
         if frame.empty:
             raise ValueError("Planilha sem registros.")
-        columns = [str(column) for column in frame.columns]
-        mapping = suggest(columns)
+        mapping, profiles = candidates(frame)
         def available(role):
             col = mapping.get(role)
             return frame[col].dropna().astype(str).unique().tolist()[:80] if col else []
-        return {"requires_sheet": False, "sheets": sheets, "columns": columns, "row_count": len(frame),
-                "suggested_mapping": mapping, "periods": available("period"),
-                "categories": available("category"), "territories": available("territory")}
+        from semantic_bridge import category_from_count_header
+        return {"requires_sheet": False, "sheets": sheets, "columns": frame.columns.tolist(), "row_count": len(frame),
+                "suggested_mapping": mapping, "column_profiles": profiles,
+                "suggested_category_constant": category_from_count_header(mapping.get("count", "")),
+                "preflight": preflight(frame, mapping),
+                "periods": available("period"), "categories": available("category"), "territories": available("territory")}
     except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/preflight")
+async def api_preflight(file: UploadFile = File(...), mapping: str = Form("{}"),
+                        options: str = Form("{}"), sheet: str = Form("")):
+    try:
+        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        if frame is None:
+            raise ValueError("Selecione uma planilha para concluir o exame.")
+        fields = json.loads(mapping)
+        settings = json.loads(options)
+        return preflight(frame, fields, settings)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -383,13 +394,19 @@ async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
 async def analyze(file: UploadFile = File(...), operation: str = Form(...), mapping: str = Form("{}"),
                   options: str = Form("{}"), sheet: str = Form("")):
     try:
-        frame, sheets = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
         fields = json.loads(mapping)
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Parâmetros de análise inválidos.")
+        eligibility = preflight(frame, fields, settings)
+        gate = eligibility["capabilities"].get(operation)
+        if gate is None:
+            raise ValueError("Análise desconhecida.")
+        if gate["status"] != "available":
+            raise ValueError("Análise não habilitada para a configuração atual: " + " ".join(gate["reasons"]))
         return compute(frame, fields, operation, settings)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
