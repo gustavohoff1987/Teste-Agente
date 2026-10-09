@@ -43,6 +43,41 @@ COUNT_PATTERN = re.compile(
     r"(?:profissionais?|medic[oa]s?|enfermeir[oa]s?|trabalhadores?|vinculos?|postos?)"
     r"(?:\s+(?:unicos?|distintos?|ativos?))?$"
 )
+# Reconhecimento FTS_INEQUIVOCA: aliases integrais de CFG-DOM §4.3;
+# categorias contextuais não são aceitas automaticamente.
+FTS_GOVERNED = {
+    "medico", "medica", "medicos", "medicas", "medicina", "profissional medico", "profissional medica",
+    "physician", "physicians", "medical doctor", "medical doctors", "medicine",
+    "enfermeiro", "enfermeira", "enfermeiros", "enfermeiras", "enfermagem",
+    "nurse", "nurses", "nursing",
+    "dentista", "dentistas", "cirurgiao dentista", "cirurgia dentista",
+    "cirurgioes dentistas", "odontologo", "odontologa", "odontologia",
+    "dentist", "dentists", "dentistry",
+    "farmaceutico", "farmaceutica", "farmaceuticos", "farmaceuticas", "farmacia",
+    "pharmacist", "pharmacists", "pharmacy",
+    "fisioterapeuta", "fisioterapeutas", "fisioterapia", "physiotherapist", "physiotherapists",
+    "physical therapist", "physical therapists", "physiotherapy", "physical therapy",
+    "terapeuta ocupacional", "terapeutas ocupacionais", "terapia ocupacional",
+    "occupational therapist", "occupational therapists", "occupational therapy",
+    "fonoaudiologo", "fonoaudiologa", "fonoaudiologos", "fonoaudiologas", "fonoaudiologia",
+    "speech therapist", "speech therapists", "speech language pathologist", "speech language pathologists",
+    "speech language pathology", "speech therapy",
+    "nutricionista", "nutricionistas", "nutricao", "nutritionist", "nutritionists", "nutrition",
+    "biomedico", "biomedica", "biomedicos", "biomedicas", "biomedicina",
+    "tecnico de enfermagem", "tecnica de enfermagem", "tecnicos de enfermagem",
+    "tecnicas de enfermagem", "nursing technician", "nursing technicians",
+    "auxiliar de enfermagem", "auxiliares de enfermagem", "nursing assistant", "nursing assistants",
+    "tecnico em radiologia", "tecnica em radiologia", "tecnico de radiologia",
+    "tecnica de radiologia", "radiology technician", "radiology technicians",
+    "radiologic technologist", "radiologic technologists",
+    "agente comunitario de saude", "agentes comunitarios de saude", "acs",
+    "community health worker", "community health workers",
+    "agente de combate as endemias", "agentes de combate as endemias", "ace",
+    "endemic disease control agent", "endemic disease control agents",
+    "psicologo", "psicologa", "psicologos", "psicologas", "psicologia",
+    "psychologist", "psychologists", "psychology",
+}
+# Em cabeçalhos compostos, nomes de profissões são apenas candidatos.
 CATEGORIES = {
     "medicos": "Médicos", "medicas": "Médicas",
     "enfermeiros": "Enfermeiros", "enfermeiras": "Enfermeiras",
@@ -171,7 +206,13 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         reasons.append(message)
         return "needs_confirmation" if needs else "unavailable"
 
-    fts = bool(options.get("fts_scope_confirmed")) or assigned("category")
+    declared_fts = bool(options.get("fts_scope_confirmed"))
+    categorical_values = (frame[mapped["category"]].dropna().astype(str).unique().tolist()
+                          if assigned("category") else [])
+    fts_from_column = bool(categorical_values) and all(normalize(value) in FTS_GOVERNED
+                                                       for value in categorical_values)
+    fts_from_constant = normalize(options.get("category_constant", "")) in FTS_GOVERNED
+    fts = declared_fts or fts_from_column or fts_from_constant
     period = assigned("period") or bool(options.get("single_period_confirmed"))
     measurable = assigned("count") or assigned("identity")
     count_unit = bool(options.get("count_unit")) if assigned("count") else bool(options.get("identity_count_confirmed"))
@@ -182,8 +223,6 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     valid_units = {"pessoas", "vinculos", "postos", "outro"}
     if options.get("count_unit", "") not in ("", *valid_units):
         raise ValueError("Unidade de contagem não reconhecida.")
-    if options.get("category_constant") and not options.get("fts_scope_confirmed"):
-        fts = False  # texto livre não estabelece pertinência
     cap: dict[str, dict[str, Any]] = {}
     for op in OPERATIONS:
         missing: list[str] = []
@@ -192,9 +231,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
         elif not count_unit:
             pending.append("Informe a unidade de contagem e sua identidade antes da análise.")
-        if not fts:
-            pending.append("Estabeleça a categoria profissional ou declare o domínio FTS desta base.")
-        if not period:
+        if not fts and op != "spatial":
+            pending.append("Estabeleça a pertença à força de trabalho em saúde por categoria governada ou declaração explícita do domínio da base.")
+        if not period and op != "spatial":
             pending.append("Associe Período ou confirme que a base possui um período único.")
         if not territory and op not in ("counts", "temporal", "report"):
             missing.append("Esta análise exige dimensão territorial reconhecida ou confirmada.")
@@ -227,7 +266,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             if territory and not bool(options.get("territory_longitudinal_confirmed")):
                 pending.append("Confirme a comparabilidade territorial entre períodos.")
         if op == "spatial":
-            # Não depende de quantitativos, mas exige geometria e escopo.
+            # Geometria pode ser base auxiliar sem quantitativos/categorias/períodos.
             missing = [x for x in missing if not x.startswith("Associe uma coluna de quantitativos")]
             pending = [x for x in pending if not x.startswith("Informe a unidade de contagem")]
             for role in ("latitude", "longitude"):
@@ -252,7 +291,12 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         else:
             status = "available"
         cap[op] = {"status": status, "reasons": missing + pending}
-    return {"capabilities": cap, "field_states": field_states, "profile": {
-        "row_count": len(frame), "column_count": len(frame.columns),
-        "recognized_roles": sum(s["status"] in ("recognized", "confirmed") for s in field_states.values()),
-    }}
+    def values(role: str) -> list[str]:
+        return frame[mapped[role]].dropna().astype(str).unique().tolist()[:100] if assigned(role) else []
+    return {"capabilities": cap, "field_states": field_states,
+            "values": {"territories": values("territory"), "periods": values("period"),
+                       "categories": values("category")},
+            "profile": {
+                "row_count": len(frame), "column_count": len(frame.columns),
+                "recognized_roles": sum(s["status"] in ("recognized", "confirmed") for s in field_states.values()),
+            }}
