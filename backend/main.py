@@ -186,7 +186,7 @@ def _result(title: str, description: str, rows: list[dict], metrics: list[dict] 
         if isinstance(value, (np.integer,)):
             return int(value)
         if isinstance(value, (np.floating, float)):
-            return round(float(value), 5) if np.isfinite(value) else None
+            return float(value) if np.isfinite(value) else None
         if pd.isna(value):
             return None
         return value
