@@ -44,3 +44,13 @@ O estado de campo `recognized` é limitado ao **papel lexical/técnico da coluna
 ## Validação
 
 Os testes de API e motor ficam em `backend/tests/test_semantic_bridge.py` e `test_upload_api.py`. A build TypeScript/Vite roda no CI.
+
+## Extensões para a base Brasil
+
+Os aliases `pais`/`country` e `cod_ibge`/`codigo_ibge` são complementos operacionais
+do protótipo. O código territorial permanece uma proposta que exige confirmação.
+O par explícito `periodo_ano`/`periodo_mes` produz um campo AAAAMM derivado em memória,
+proposto para confirmação e rastreado nos metadados, sem apagar colunas originais.
+Não se presume equivalência entre totais nacionais e contagens municipais.
+O catálogo escolhe uma fonte por recorte e reutiliza os contratos do upload.
+Ver [integração e validação](DADOS_BRASIL_VALIDACAO.md).

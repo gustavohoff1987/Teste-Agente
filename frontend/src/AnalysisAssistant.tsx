@@ -15,7 +15,7 @@ type Reply = { reply: string; proposal: Proposal; verification?: Verification; r
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal; verification?: Verification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -36,7 +36,8 @@ const ANALYSIS: Record<Operation, string> = {
   rotation: "Rotatividade", report: "Relatórios",
 };
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+  const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
@@ -75,16 +76,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     event.preventDefault();
     const message = draft.trim();
     if (sending || !status?.configured || !privacyAccepted || message.length < 3 || message.length > 800 ||
-        (!!file && !contextReady)) return;
+        (hasSource && !contextReady)) return;
     const requestRevision = revision.current;
     const history = turns.filter(t => t.role === "user").slice(-4).map(t => t.content);
     setSending(true);
     setError("");
     try {
       let response: Response;
-      if (file) {
+      if (hasSource) {
         const form = new FormData();
-        form.append("file", file);
+        if (dataset) {
+          form.append("dataset", dataset); form.append("scope", scope); form.append("dataset_version", datasetVersion);
+        } else if (file) form.append("file", file);
         form.append("sheet", sheet);
         form.append("message", message);
         form.append("history", JSON.stringify(history));
@@ -102,7 +105,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Não foi possível interpretar o pedido.");
       const validated = body as Reply;
       if (!validated.proposal || validated.executed !== false || validated.origin !== "INTERPRETACAO_LLM" ||
-          (!!file && validated.verification?.source !== "BACKEND_PREFLIGHT"))
+          (hasSource && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
         {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification}]);
@@ -142,7 +145,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     </div>}
 
     <p className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 text-xs leading-5 text-slate-700">
-      {file ? contextReady
+      {hasSource ? contextReady
         ? "Base carregada: o Python confere os campos e requisitos antes de revisar a proposta. Nenhum registro é enviado ao Gemini."
         : "Aguarde a validação da base para ativar a interpretação contextual."
         : "Sem base carregada: interpretação preliminar, sem verificar períodos ou categorias mencionados."}
@@ -227,7 +230,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
         <div className="flex items-center justify-between gap-3 px-3 pb-3">
           <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
           <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
-            disabled={!status?.configured || !privacyAccepted || draft.trim().length < 3 || sending || (!!file && !contextReady)}
+            disabled={!status?.configured || !privacyAccepted || draft.trim().length < 3 || sending || (hasSource && !contextReady)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
             {sending ? <LoaderCircle size={18} className="animate-spin"/> : <Send size={19}/>}
           </button>

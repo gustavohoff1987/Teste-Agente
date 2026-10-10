@@ -11,6 +11,7 @@ type Props<T extends string> = {
   capabilities?: Partial<Record<T, { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[] }>>;
   checking: boolean;
   hasData: boolean;
+  scopeChanges?: T[];
   onSelect: (operation: T) => void;
   onRequirements: () => void;
 };
@@ -22,7 +23,7 @@ const PALETTES: Record<string, [string, string]> = {
   cyan: ["#0d7f9f", "#e7f7fc"], slate: ["#4b6580", "#edf2f8"],
 };
 
-export default function AnalysisCarousel<T extends string>({ features, active, capabilities, checking, hasData,
+export default function AnalysisCarousel<T extends string>({ features, active, capabilities, checking, hasData, scopeChanges = [],
   onSelect, onRequirements }: Props<T>) {
   const [index, setIndex] = useState(0);
   const deckRef = useRef<HTMLDivElement>(null);
@@ -32,7 +33,9 @@ export default function AnalysisCarousel<T extends string>({ features, active, c
   const feature = features[index];
   const selected = active === feature.id;
   const capability = capabilities?.[feature.id];
+  const changesScope = scopeChanges.includes(feature.id);
   const status = checking ? "Verificando..." : !hasData ? "Importe uma base para habilitar" :
+    changesScope ? "Selecione para conferir o recorte" :
     capability?.status === "available" ? "Disponível" : capability?.status === "needs_confirmation" ?
     "Confirmação necessária" : "Não habilitada";
   const [accent, soft] = PALETTES[feature.tone] || PALETTES.teal;
@@ -117,7 +120,7 @@ export default function AnalysisCarousel<T extends string>({ features, active, c
       <button type="button" className={"analysis-card" + (selected ? " analysis-card-selected" : "")}
         aria-label={"Selecionar análise: " + feature.title} aria-pressed={selected}
         aria-describedby="analysis-card-detail analysis-card-status"
-        title={capability?.reasons.join(" ") || "Selecione para conferir os requisitos"}
+        title={changesScope ? "Ao selecionar, os requisitos serão conferidos no recorte apropriado da base Brasil." : capability?.reasons.join(" ") || "Selecione para conferir os requisitos"}
         onClick={() => onSelect(feature.id)}>
         <span className="card-selection">{selected ? <><Check size={13}/> Selecionada</> : "ANÁLISE TERRITORIAL"}</span>
         <span className="analysis-art"><AnalysisIllustration kind={feature.id}/></span>

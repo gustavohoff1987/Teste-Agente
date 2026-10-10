@@ -25,9 +25,9 @@ EXACT = {
     "territory": ("territorio", "unidade territorial", "municipio", "cidade", "estado",
                   "provincia", "distrito", "regiao", "territory", "territorial unit",
                   "municipality", "city", "state", "province", "district", "region",
-                  "cod municipio", "codigo municipio", "localidade"),
+                  "cod municipio", "codigo municipio", "localidade", "pais", "country"),
     "period": ("periodo", "ano", "mes", "data", "competencia", "year", "month", "date", "period"),
-    "territory_id": ("ibge", "codigo territorial", "territory code", "municipality code", "geocode"),
+    "territory_id": ("ibge", "cod ibge", "codigo ibge", "codigo territorial", "territory code", "municipality code", "geocode"),
     "category": ("categoria", "categoria profissional", "categoria profisional", "profissao", "ocupacao", "cbo",
                  "category", "professional category", "profession", "occupation"),
     "count": ("quantidade", "contagem", "qtd", "n profissionais", "total profissionais",
@@ -119,6 +119,11 @@ def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]
         col = str(raw)
         name = normalize(col)
         proposed = []
+        derived = next((item for item in frame.attrs.get("derived_fields", [])
+                        if item["column"] == col), None)
+        if derived:
+            proposed.append({"role": derived["role"], "status": "proposed",
+                             "evidence": "Período AAAAMM composto de " + " e ".join(derived["source_columns"]) + "; confirme a referência temporal"})
         for role, aliases in EXACT.items():
             if name in aliases:
                 status = "proposed" if role == "territory_id" else "recognized"
@@ -129,7 +134,8 @@ def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]
                     if (non_null & (nums.isna() | (nums < lower) | (nums > upper))).any():
                         status = "proposed"
                 proposed.append({"role": role, "status": status,
-                                 "evidence": "Correspondência por alias governado CFG-VOC"})
+                                 "evidence": ("Alias operacional do catálogo Brasil" if name in ("pais", "country", "cod ibge", "codigo ibge")
+                                              else "Correspondência por alias governado CFG-VOC")})
         # Expressões territoriais compostas: hipótese, nunca vínculo autoritativo.
         if not proposed and name in ("regiao geografica", "regiao de saude",
                                      "unidade federativa", "uf", "geographic region",

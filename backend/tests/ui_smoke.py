@@ -37,11 +37,11 @@ with sync_playwright() as p:
     expect(page.get_by_role("heading", level=1)).to_be_visible()
     page.locator('input[type="file"]').set_input_files(source)
     expect(page.get_by_role("heading", name="Configuração da análise", exact=True)).to_be_visible()
-    territory = page.locator("#associacoes select").nth(0)
+    territory = page.get_by_label("Unidade territorial de análise", exact=True)
     expect(territory).to_have_value("municipio")
-    expect(page.locator("#associacoes select").nth(2)).to_have_value("categoria_profisional")
+    expect(page.get_by_label("Como a categoria aparece na sua base?", exact=True)).to_have_value("categoria_profissional")
     territory.select_option("municipio")
-    page.locator("#associacoes select").nth(1).select_option("Período")
+    page.get_by_label("Unidade temporal de análise", exact=True).select_option("Período (ano e mês)")
     page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
     page.get_by_role("button", name="Selecionar análise: Densidade", exact=True).click()
     execute = page.get_by_role("button", name="Executar análise", exact=True)
@@ -49,7 +49,8 @@ with sync_playwright() as p:
     expect(page.get_by_text(re.compile(r"11.528 registros em 5.324 grupos"))).to_be_visible()
     assert not analyzed, "Selecionar um cartão não pode executar a análise"
     page.screenshot(path=str(output / "multiplicity.png"), full_page=True)
-    page.get_by_role("button", name="Confirmar que o código identifica cada unidade territorial", exact=True).click()
+    page.get_by_text("Identificação territorial · código associado", exact=True).click()
+    page.get_by_role("button", name="Confirmar identificador territorial", exact=True).click()
     page.get_by_label("O que o quantitativo representa?", exact=True).select_option("pessoas")
     page.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados", exact=True).check()
     expect(execute).to_be_enabled()
@@ -77,7 +78,7 @@ with sync_playwright() as p:
     dialect = csv.Sniffer().sniff(original_text[:16384], delimiters=",;")
     original = list(csv.DictReader(io.StringIO(original_text), dialect=dialect))
     mapping = result["metadata"]["mapping"]
-    expected = {(r[mapping["territory"]] + " [" + r[mapping["territory_id"]] + "]", r[mapping["period"]], r[mapping["category"]]):
+    expected = {(r[mapping["territory"]] + " [" + r[mapping["territory_id"]] + "]", r["periodo_ano"] + r["periodo_mes"].zfill(2), r[mapping["category"]]):
                 (Decimal(r[mapping["count"]]), Decimal(r[mapping["population"]])) for r in original}
     max_error = Decimal(0)
     assert len(expected) == len(rows)
@@ -92,11 +93,12 @@ with sync_playwright() as p:
     method = json.loads(Path(event.value.path()).read_text(encoding="utf-8"))
     assert method["operation"] == "density" and len(method["data_sha256"]) == 64
     page.screenshot(path=str(output / "density.png"), full_page=True)
-    page.get_by_label("Filtrar por período", exact=True).select_option("202406")
+    page.locator('select[aria-label="Filtrar por período"]:visible').select_option("202406")
     expect(page.get_by_role("button", name="CSV", exact=True)).to_be_disabled()
-    expect(execute).to_be_enabled()
+    update = page.get_by_role("button", name="Executar / atualizar análise", exact=True)
+    expect(update).to_be_enabled()
     with page.expect_response(lambda r: r.url.endswith("/api/analyze"), timeout=120000) as response:
-        execute.click()
+        update.click()
     assert response.value.status == 200
     selected = response.value.json()
     assert all(row["Período"] == "202406" for row in selected["rows"])
@@ -108,16 +110,17 @@ with sync_playwright() as p:
     assert page.locator("#analises .carousel-progress > span").count() == 10
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
     evidence = {"gate": "Densidade ponta a ponta", "status": "PASS", "source_sha256": digest,
-        "territory": "municipio", "territory_id": "ibge", "count_unit": "pessoas distintas no recorte",
+        "territory": "municipio", "territory_id": "cod_ibge", "count_unit": "pessoas distintas no recorte",
         "ui_execution_http_status": 200, "exported_rows": len(rows), "independently_checked_rows": len(rows),
         "maximum_decimal_error": str(max_error), "filtered_rows": len(selected["rows"]),
         "page_errors": errors, "mobile_width": 390, "original_preserved": True}
     # Falha simulada do exame: uma habilitação anterior jamais pode ser reutilizada.
+    page.get_by_role("button", name="Voltar à análise", exact=True).click()
     page.route("**/api/preflight", lambda route: route.fulfill(status=503, content_type="application/json", body='{"detail":"Falha simulada de teste"}'))
-    page.get_by_label("Filtrar por período", exact=True).select_option("202401")
+    page.locator('select[aria-label="Filtrar por período"]:visible').select_option("202401")
     expect(page.get_by_text("Verificação não concluída", exact=True)).to_be_visible()
     expect(execute).to_be_disabled()
-    expect(page.get_by_role("button", name="CSV", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="CSV", exact=True, include_hidden=True)).to_be_disabled()
     page.unroute("**/api/preflight")
     browser.close()
 

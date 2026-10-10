@@ -2,7 +2,8 @@
 
 Referência metodológica: IMPLEMENTATION_SPEC.md v1.2.4.
 A integração conversacional não implementa a governança integral da SPEC.
-Nenhum arquivo enviado é armazenado no servidor ou enviado ao LLM.
+Uploads não são persistidos. A base Brasil usa armazenamento privado configurável.
+Nenhum arquivo ou registro é enviado ao LLM.
 """
 import csv
 import hashlib
@@ -19,6 +20,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
 from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values
+from dataset_normalization import compose_period
+from brazil_data import load_brazil
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
@@ -78,7 +81,7 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
             frame = frame.replace(r"^\s*$", pd.NA, regex=True)
         except Exception as exc:
             raise ValueError("Não foi possível interpretar a estrutura do CSV.") from exc
-        return normalize_headers(frame), []
+        return compose_period(normalize_headers(frame)), []
     if extension in ("xlsx", "xls"):
         try:
             engine = "openpyxl" if extension == "xlsx" else "xlrd"
@@ -93,7 +96,7 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
                 raise ValueError("Planilha sem registros.")
             frame = raw.iloc[1:].reset_index(drop=True)
             frame.columns = [str(x).strip() if pd.notna(x) else f"Unnamed: {i}" for i, x in enumerate(raw.iloc[0])]
-            return normalize_headers(frame), sheets
+            return compose_period(normalize_headers(frame)), sheets
         except ValueError:
             raise
         except Exception as exc:
@@ -123,8 +126,15 @@ def _records(data: pd.DataFrame) -> list[dict]:
 
 def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
     result = _compute(df, mapping, operation, options)
-    result["metadata"] = {"method_version": "deterministic-0.2", "operation": operation,
-                          "mapping": mapping, "options": options, "input_rows": len(df)}
+    result["metadata"] = {"method_version": "deterministic-0.3", "operation": operation,
+                          "mapping": mapping, "options": options, "input_rows": len(df),
+                          "derived_fields": df.attrs.get("derived_fields", [])}
+    if df.attrs.get("source"):
+        result["metadata"]["source"] = df.attrs["source"]
+    for field in df.attrs.get("derived_fields", []):
+        if mapping.get(field["role"]) == field["column"]:
+            result["notes"].append("Período AAAAMM composto em memória a partir de " +
+                                   " e ".join(field["source_columns"]) + "; colunas originais preservadas.")
     unit = "pessoas distintas" if not mapping.get("count") else options.get("custom_count_unit") if options.get("count_unit") == "outro" else options.get("count_unit", "unidade declarada")
     if operation != "spatial":
         result["notes"].append("Unidade de contagem: " + str(unit) + ". Não há conversão entre pessoas, vínculos e postos.")
@@ -307,6 +317,20 @@ async def _read_upload(file: UploadFile) -> bytes:
     return contents
 
 
+async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version=""):
+    if bool(file) == bool(dataset):
+        raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
+    if dataset:
+        if dataset != "brazil":
+            raise ValueError("Base de dados não reconhecida.")
+        raw, filename, source = load_brazil(scope, operation, dataset_version)
+        frame, sheets = read_dataset(raw, filename)
+        if frame is not None:
+            frame.attrs["source"] = source
+        return frame, []
+    return read_dataset(await _read_upload(file), file.filename or "", sheet)
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "llm": False, "version": "0.1.0"}
@@ -329,12 +353,13 @@ async def llm_interpretation(request: ChatRequest) -> dict:
 
 @app.post("/api/llm/interpret-context")
 async def llm_interpretation_with_dataset(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     message: str = Form(...),
     history: str = Form("[]"),
     mapping: str = Form("{}"),
     options: str = Form("{}"),
     sheet: str = Form(""),
+    dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
 ) -> dict:
     """Pré-exame local de uma base e interpretação LLM de um resumo técnico.
 
@@ -347,7 +372,7 @@ async def llm_interpretation_with_dataset(
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Contexto de análise inválido.")
-        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
         eligibility = preflight(frame, fields, settings)
@@ -370,13 +395,14 @@ async def llm_interpretation_with_dataset(
 
 
 @app.post("/api/inspect")
-async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
+async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
+                  dataset: str = Form(""), scope: str = Form("auto"), operation: str = Form("")):
     try:
-        frame, sheets = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        frame, sheets = await _request_dataset(file, sheet, dataset, scope, operation)
         if frame is None:
             return {"requires_sheet": True, "sheets": sheets, "columns": [], "row_count": 0, "suggested_mapping": {},
                     "column_profiles": [], "periods": [], "categories": [], "territories": [], "preflight": None,
-                    "suggested_category_constant": ""}
+                    "suggested_category_constant": "", "derived_fields": []}
         if frame.empty:
             raise ValueError("Planilha sem registros.")
         mapping, profiles = candidates(frame)
@@ -386,6 +412,8 @@ async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
         from semantic_bridge import category_from_count_header
         return {"requires_sheet": False, "sheets": sheets, "columns": frame.columns.tolist(), "row_count": len(frame),
                 "suggested_mapping": mapping, "column_profiles": profiles,
+                "derived_fields": frame.attrs.get("derived_fields", []),
+                "source": frame.attrs.get("source"),
                 "suggested_category_constant": category_from_count_header(mapping.get("count", "")),
                 "preflight": preflight(frame, mapping),
                 "periods": available("period"), "categories": available("category"), "territories": available("territory")}
@@ -394,10 +422,12 @@ async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
 
 
 @app.post("/api/preflight")
-async def api_preflight(file: UploadFile = File(...), mapping: str = Form("{}"),
-                        options: str = Form("{}"), sheet: str = Form("")):
+async def api_preflight(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                        options: str = Form("{}"), sheet: str = Form(""),
+                        dataset: str = Form(""), scope: str = Form("auto"),
+                        operation: str = Form(""), dataset_version: str = Form("")):
     try:
-        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
         if frame is None:
             raise ValueError("Selecione uma planilha para concluir o exame.")
         fields = json.loads(mapping)
@@ -408,10 +438,11 @@ async def api_preflight(file: UploadFile = File(...), mapping: str = Form("{}"),
 
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...), operation: str = Form(...), mapping: str = Form("{}"),
-                  options: str = Form("{}"), sheet: str = Form("")):
+async def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
+                  options: str = Form("{}"), sheet: str = Form(""),
+                  dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form("")):
     try:
-        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
         fields = json.loads(mapping)

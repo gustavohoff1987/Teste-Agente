@@ -20,6 +20,7 @@ type Props = {
   codeConfirmed?: boolean;
   onSelectCode: (column: string) => void;
   onConfirmCode: () => void;
+  periodSources?: string[];
 };
 
 const DIMENSIONS = [
@@ -65,11 +66,16 @@ export default function ContextConfig(props: Props) {
           <label className="mt-4 flex flex-col gap-2 text-xs font-semibold text-slate-700">
             Associação sugerida pelo sistema
             <select className="w-full min-w-0 rounded-xl border border-line bg-white px-3 py-3 text-sm font-normal text-ink"
+              aria-label={heading}
               value={selected} onChange={e => onSelect(role, e.target.value)}>
               <option value="">Não identificada</option>
               {columns.map(col => <option key={col} value={col}>{col}</option>)}
             </select>
           </label>
+          {role === "period" && props.periodSources && <p className="mt-2 text-xs leading-5 text-slate-600">
+            Período composto de {props.periodSources.join(" e ")} no formato AAAAMM.
+            Os campos originais foram preservados. Confirme se essa é a referência temporal dos dados.
+          </p>}
           <div className="mt-3 flex items-center gap-2" aria-live="polite">
             {established
               ? <><CheckCircle2 size={17} className="text-emerald-600"/><span className="text-xs font-semibold text-emerald-700">Associação identificada</span></>
@@ -113,6 +119,7 @@ export default function ContextConfig(props: Props) {
         <label className="mt-4 flex flex-col gap-2 text-xs font-semibold text-slate-700">
           Como a categoria aparece na sua base?
           <select className="w-full min-w-0 rounded-xl border border-line bg-white px-3 py-3 text-sm font-normal text-ink"
+            aria-label="Como a categoria aparece na sua base?"
             value={mapping.category || ""} onChange={e => onSelect("category", e.target.value)}>
             <option value="">Uma categoria para toda a base</option>
             {columns.map(col => <option key={col} value={col}>{col}</option>)}

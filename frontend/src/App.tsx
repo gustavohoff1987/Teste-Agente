@@ -43,6 +43,9 @@ type Inspection = {
   requires_sheet: boolean; sheets: string[]; columns: string[]; row_count: number;
   suggested_mapping: Mapping; periods: string[]; categories: string[]; territories: string[];
   column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
+  derived_fields?: { column: string; role: Role; source_columns: string[]; format: string }[];
+  source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
+    default_scopes: Record<Operation, "national" | "municipal"> };
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
@@ -141,6 +144,8 @@ function App() {
   const [page, setPage] = useState<"home" | "results">(() => ["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [usingBrazil, setUsingBrazil] = useState(false);
+  const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
@@ -190,16 +195,19 @@ function App() {
     return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 35), value: typeof r[numeric] === "number" ? r[numeric] : null })) };
   }, [result]);
 
-  async function inspectFile(nextFile: File, nextSheet = "") {
+  async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "") {
     if (!privacy.accepted) return;
     const currentUpload = ++uploadRevision.current;
+    revision.current += 1;
     setInspecting(true);
     setUploadError("");
     setError("");
     setResult(null);
     setInspection(null);
+    setPreflight(null);
     const form = new FormData();
-    form.append("file", nextFile);
+    if (nextFile) form.append("file", nextFile);
+    else { form.append("dataset", "brazil"); form.append("scope", level); form.append("operation", operation); }
     form.append("sheet", nextSheet);
     try {
       const response = await fetch(API + "/api/inspect", { method: "POST", body: form });
@@ -241,6 +249,7 @@ function App() {
   async function chooseFile(next: File | undefined) {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
+    setUsingBrazil(false);
     setFile(next);
     setSheet("");
     setActive(null);
@@ -257,6 +266,26 @@ function App() {
       return;
     }
     await inspectFile(next);
+  }
+  function appendSource(form: FormData) {
+    if (usingBrazil) {
+      form.append("dataset", "brazil");
+      form.append("scope", inspection?.source?.scope || "auto");
+      form.append("dataset_version", inspection?.source?.version || "");
+    } else if (file) form.append("file", file);
+    form.append("sheet", sheet);
+  }
+  function chooseBrazil() {
+    if (!privacy.accepted) return;
+    setUsingBrazil(true); setFile(null); setSheet(""); setActive(null); setBrazilLevel("auto");
+    void inspectFile(null);
+  }
+  function selectAnalysis(operation: Operation) {
+    setActive(operation); setResult(null); setError("");
+    if (usingBrazil) {
+      const nextScope = brazilLevel === "auto" ? inspection?.source?.default_scopes[operation] : brazilLevel;
+      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation);
+    }
   }
   function semanticOptions() {
     return {
@@ -317,7 +346,7 @@ function App() {
       setError(capability?.reasons.join(" ") || "Esta análise não está disponível para a base atual.");
       return;
     }
-    if (!file || !inspection || inspection.requires_sheet || inspecting) {
+    if ((!file && !usingBrazil) || !inspection || inspection.requires_sheet || inspecting) {
       setUploadError(inspection?.requires_sheet
         ? "Selecione uma aba do arquivo Excel para concluir a importação."
         : inspecting ? "Aguarde a conclusão do exame do arquivo."
@@ -330,7 +359,7 @@ function App() {
     navigate("results");
     const currentRevision = revision.current;
     const form = new FormData();
-    form.append("file", file); form.append("sheet", sheet); form.append("operation", op);
+    appendSource(form); form.append("operation", op);
     form.append("mapping", JSON.stringify(mapping));
     form.append("options", JSON.stringify(semanticOptions()));
     try {
@@ -384,15 +413,14 @@ function App() {
   useEffect(() => {
     revision.current += 1;
     setResult(null);
-    if (!inspection || inspection.requires_sheet || !file) return;
+    if (!inspection || inspection.requires_sheet || (!file && !usingBrazil)) return;
     let cancelled = false;
     const controller = new AbortController();
     setPreflighting(true);
     setPreflightError("");
     const timer = window.setTimeout(async () => {
       const form = new FormData();
-      form.append("file", file);
-      form.append("sheet", sheet);
+      appendSource(form);
       form.append("mapping", JSON.stringify(mapping));
       form.append("options", JSON.stringify({
         ...resolutions, quantile_count: quantiles,
@@ -426,7 +454,7 @@ function App() {
       }
     }, 250);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
-  }, [inspection, file, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
+  }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator]);
@@ -482,12 +510,12 @@ function App() {
             <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-blue-700"><Database size={23}/></span>
             <h2 className="text-sm font-bold text-ink sm:text-base">Usar dados do Brasil</h2>
             <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
-              Base nacional em preparação para uso no protótipo.
+              Explore a força de trabalho na saúde no Brasil e em seus municípios.
             </p>
-            <span title="A base ainda não foi disponibilizada no projeto"
-              className="mt-4 inline-flex w-full cursor-not-allowed justify-center rounded-xl border border-blue-200 bg-blue-100 px-3 py-3 text-xs font-semibold text-blue-800">
-              Disponível em breve
-            </span>
+            <button type="button" disabled={!privacy.accepted || inspecting} onClick={chooseBrazil}
+              className="mt-4 inline-flex w-full justify-center rounded-xl border border-blue-200 bg-blue-600 px-3 py-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
+              Usar dados do Brasil
+            </button>
           </div>
           <div className="rounded-[20px] border border-emerald-100 bg-emerald-50/80 p-4 sm:p-5">
             <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-emerald-700"><FileUp size={23}/></span>
@@ -530,36 +558,52 @@ function App() {
         </div>}
         {inspection && !inspection.requires_sheet && <div role="status" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs text-emerald-800">
           <CheckCircle2 size={17}/>
-          <strong>{file?.name || "Arquivo"} carregado</strong>
+          <strong>{usingBrazil ? "Dados do Brasil carregados" : (file?.name || "Arquivo") + " carregado"}</strong>
           <span className="text-slate-500">{shortNum(inspection.row_count)} registros · {inspection.columns.length} colunas</span>
           <button type="button" className="ml-auto font-semibold underline" onClick={()=>navigate("home","preparacao")}>Revisar campos</button>
+        </div>}
+        {usingBrazil && inspection?.source && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4">
+          <label className="flex flex-wrap items-center gap-3 text-xs font-semibold text-ink">
+            Abrangência da análise
+            <select aria-label="Abrangência da análise" value={brazilLevel}
+              className="rounded-xl border border-line bg-white px-3 py-2 text-sm"
+              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); void inspectFile(null, "", level, active || ""); }}>
+              <option value="auto">Conforme a análise escolhida</option>
+              <option value="national">Brasil</option>
+              <option value="municipal">Municípios</option>
+            </select>
+          </label>
+          <p className="mt-2 text-xs leading-5 text-slate-600">
+            Recorte atual: {inspection.source.scope === "national" ? "Brasil" : "Municípios"}.
+            Quantitativos, evolução temporal e relatórios usam o recorte nacional por padrão; as demais análises usam municípios.
+            Você pode escolher a abrangência. Contagens municipais não são somadas para estimar pessoas únicas no Brasil.
+          </p>
         </div>}
       </section>
 
       <div className="analysis-workspace">
       <AnalysisCarousel<Operation> features={FEATURES} active={active}
+        scopeChanges={usingBrazil && brazilLevel === "auto" && inspection?.source ?
+          FEATURES.filter(feature => inspection.source!.default_scopes[feature.id] !== inspection.source!.scope).map(feature => feature.id) : []}
         capabilities={preflight?.capabilities} checking={preflighting || inspecting} hasData={!!inspection && !inspection.requires_sheet}
-        onSelect={operation => {
-          setActive(operation);
-          setResult(null);
-          setError("");
-        }}
+        onSelect={selectAnalysis}
         onRequirements={() => navigate("home", "requisitos")}/>
       <AnalysisAssistant
         apiBase={API}
         privacyAccepted={privacy.accepted}
         file={file}
+        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
+        datasetVersion={inspection?.source?.version || ""}
         sheet={sheet}
         mapping={mapping}
         options={semanticOptions()}
         contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
         contextVersion={JSON.stringify({
           file: file?.name, modified: file?.lastModified, size: file?.size,
-          sheet, mapping, options: semanticOptions()
+          usingBrazil, source: inspection?.source, sheet, mapping, options: semanticOptions()
         })}
         onSelectAnalysis={operation => {
-        setActive(operation);
-        setResult(null);
+        selectAnalysis(operation);
         navigate("home", "requisitos");
       }}/>
       </div>
@@ -569,6 +613,7 @@ function App() {
           {preflighting && <p role="status" className="mt-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Conferindo as informações da base...</p>}
           {preflightError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
           <ContextConfig columns={inspection.columns} mapping={mapping}
+            periodSources={inspection.derived_fields?.find(field => field.role === "period" && field.column === mapping.period)?.source_columns}
             fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
             suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
             objectConfirmed={objectConfirmed}
@@ -839,7 +884,7 @@ function App() {
             </div>
           </div>}
           {active && inspection && !inspection.requires_sheet && preflight?.capabilities[active]?.status === "available" && <div className="no-print mt-5 flex justify-end">
-            <button disabled={running} onClick={()=>{void run(active);}} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2.5 text-sm font-bold text-white hover:bg-ink disabled:opacity-50">
+            <button disabled={running || preflighting || inspecting || !privacy.accepted} onClick={()=>{void run(active);}} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2.5 text-sm font-bold text-white hover:bg-ink disabled:opacity-50">
               {running ? <LoaderCircle size={16} className="animate-spin"/> : <Calculator size={16}/>} {running ? "Calculando..." : "Executar / atualizar análise"}</button>
           </div>}
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}

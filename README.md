@@ -32,11 +32,68 @@ npm run dev
 Abrir `http://localhost:5173`. O Vite encaminha `/api` ao FastAPI local.
 Documentação da API: `http://localhost:8000/docs`.
 
+## Duas formas de carregar dados
+
+**Usar dados do Brasil** abre uma única base lógica administrada pelo servidor.
+O usuário não seleciona arquivos. Ao escolher uma análise, o sistema usa o recorte
+nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
+municípios. **Abrangência da análise** permite escolher Brasil ou Municípios
+explicitamente. Trocar de recorte limpa resultados e confirmações anteriores.
+
+As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
+municipal para o Brasil ou soma automática de pessoas entre municípios. Agregação
+municipal só ocorre com as declarações já exigidas pelo motor, inclusive o rótulo de
+possível dupla contagem quando se autoriza somar componentes. As confirmações de
+unidade, período, população e comparabilidade continuam obrigatórias.
+
+**Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
+aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e
+verificação contextual do agente. Nenhum registro é enviado ao provedor de IA.
+
+### Instalar a base Brasil (administração)
+
+Os dados não acompanham o código no Git. Prepare uma cópia privada validada:
+
+```powershell
+python backend/install_brazil_data.py --source 'C:\Users\User\Desktop\Dados_Brasil'
+```
+
+O instalador valida os dois arquivos, preserva os bytes dos originais e grava cópias
+e manifesto SHA-256 em `.local/datasets/brasil/`, ignorada pelo Git. Recusa sobrescrever
+uma instalação existente. O aplicativo passa a ler essas cópias; não precisa mais
+acessar a pasta original. Não publique as cópias em repositórios nem no diretório
+público do frontend. Se a instalação estiver ausente, incompleta ou adulterada, a
+interface informa a indisponibilidade e o upload continua funcionando.
+
+A origem fica isolada em `backend/brazil_data.py`. O diretório padrão é relativo ao
+projeto; `ADT_BRASIL_DATA_DIR` permite substituí-lo, e o instalador aceita
+`--destination <pasta nova>`. Uma atualização pode ser instalada e validada em outra
+pasta antes de alterar a configuração. A API verifica ambos os hashes e rejeita uma
+versão diferente daquela inspecionada pela interface.
+
+Para uma futura operação online, será necessário disponibilizar as fontes autorizadas
+ao backend e configurar esse diretório ou adaptar o carregador para outra origem,
+preservando o contrato de versão, integridade e granularidade. Os dados devem continuar
+fora do Git e dos arquivos públicos do frontend. A escolha de infraestrutura, o
+provisionamento e a publicação ficam para uma etapa futura; não foram implementados.
+
+Campos `periodo_ano` e `periodo_mes` são preservados e compõem **Período (ano e mês)**
+em memória, no formato AAAAMM, mediante confirmação do papel temporal. Componentes
+inválidos são rejeitados. A transformação e a versão da base constam em **Método e
+parâmetros**. Cabeçalhos antigos continuam suportados.
+
+Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
+recorte nacional, nem identificadores individuais em qualquer recorte. Há 132 linhas
+municipais com coordenadas fora dos intervalos válidos (seis municípios nos 22 períodos).
+A análise espacial da base completa permanece bloqueada, e rotatividade não pode ser
+calculada dessas contagens. Nenhum registro foi corrigido ou excluído automaticamente.
+Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md).
+
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
 A interface possui uma área de conversa na página inicial, abaixo dos atalhos de análises. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
-**Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. O arquivo é reenviado **somente ao backend Python local**, que revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
+**Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
 O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado continua exigindo confirmação. A interface mostra habilitação, pendências e discrepâncias e **não executa operações**. Ao trocar a base ou alterar o contexto, propostas anteriores são descartadas na aba, evitando reuso silencioso de interpretação desatualizada.
 
@@ -133,7 +190,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os dois testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
+Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 20 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
 
 ```powershell
 py -m pip install -r backend/requirements-ui.txt
