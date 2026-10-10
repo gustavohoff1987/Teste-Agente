@@ -2,7 +2,7 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind; uma página responsiva com upload, **associação semântica por coluna**, confirmação guiada e **cartões destacados/esmaecidos pela matriz de aplicabilidade**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
+- **Interface:** React + TypeScript + Tailwind; telas responsivas de início e resultados com upload, **associação semântica por coluna**, confirmação guiada e **cartões destacados/esmaecidos pela matriz de aplicabilidade**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
 - **Motor:** Python + FastAPI; as dez capacidades permanecem determinísticas.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
@@ -34,7 +34,7 @@ Documentação da API: `http://localhost:8000/docs`.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
-A interface possui uma seção **Assistente IA** entre o carregamento/configuração dos dados e os dez cartões analíticos.
+A interface possui uma área de conversa na página inicial, abaixo dos atalhos de análises. Informações técnicas do serviço ficam em um painel secundário.
 
 **Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. O arquivo é reenviado **somente ao backend Python local**, que revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
@@ -46,31 +46,44 @@ A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemin
 
 O LLM retorna uma proposta estruturada de operação/indicador; o backend valida os valores permitidos e só apresenta expressões territoriais, categorias e períodos ancorados no texto sanitizado. O texto explicativo mostrado na interface é composto por templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. A opção **Ver requisitos** só abre o cartão sugerido: não executa nem confirma nada.
 
-### Configurar localmente (Windows PowerShell)
+### Chave Gemini permanente no Windows (configuração única)
 
-1. Certifique-se de que a chave da **Gemini Developer API** pertence ao projeto e à modalidade de faturamento pretendida. A disponibilidade do nível gratuito deve ser verificada diretamente no Google AI Studio; o aplicativo **não verifica nem garante custo zero**.
-2. No PowerShell usado para iniciar o backend, sem colocar a chave nos arquivos do Git:
+A aplicação aceita `GEMINI_API_KEY` de duas fontes, por esta ordem:
+1. **Variável de ambiente do servidor ou hospedagem:** tem prioridade, adequada para publicação.
+2. **Arquivo `backend/.env` local:** carregado automaticamente ao iniciar o FastAPI, útil no desenvolvimento.
+
+O arquivo `.env` é **texto puro com segredo**, por isso não deve ser compartilhado, enviado ao ChatGPT, incluído em capturas nem publicado. Está excluído do Git por `.gitignore`; somente `backend/.env.example` (sem chave) é versionado. Preserve as permissões de acesso à sua conta Windows.
+
+Após atualizar o repositório, abra um PowerShell na pasta `backend`:
 
 ```powershell
 cd "C:\Users\User\Desktop\Github\Teste-Agente\backend"
-$chaveSegura = Read-Host "Cole a chave do Gemini" -AsSecureString
-$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($chaveSegura)
-try { $env:GEMINI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+py -m pip install -r requirements.txt
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
+```
+
+No Bloco de Notas, localize `GEMINI_API_KEY=` e **cole sua chave existente depois do sinal de igual**, sem espaços extras. Salve e feche. **Não envie capturas desta tela nem cole a chave no chat.**
+
+Reinicie o backend (encerre o Uvicorn anterior com Ctrl+C, se necessário):
+
+```powershell
 py -m uvicorn main:app --reload --port 8000
 ```
 
-> O comando funciona no Windows PowerShell 5.1 e no PowerShell mais recente. A entrada da chave é ocultada; a variável é válida somente no processo do terminal e nos processos filhos. Não salve nem envie a chave ao chat ou ao GitHub.
-
-Em outra janela:
+No navegador abra a aplicação; para conferir sem expor a credencial, em outra janela PowerShell execute:
 
 ```powershell
-cd "C:\Users\User\Desktop\Github\Teste-Agente\frontend"
-npm.cmd run dev
+Invoke-RestMethod http://127.0.0.1:8000/api/llm/status
 ```
 
-Abra `http://localhost:5173/#assistente`. Verifique **Gemini configurado**; escreva, por exemplo, "Quero analisar a distribuição da densidade de médicos por município em 202406", confirme o aviso de privacidade e clique em **Interpretar com Gemini**. Na resposta, clique **Ver requisitos** se desejar continuar no motor.
+O campo `configured: True` indica que o backend encontrou uma chave, **não garante que a Google ainda aceite a chave ou que haja quota gratuita**. A validação real requer uma solicitação à API.
 
-O backend utiliza por padrão `gemini-3.5-flash-lite`. A seleção opcional de outro modelo explicitamente admitido é feita por `ADT_GEMINI_MODEL` no ambiente do backend. Modelos e cotas disponíveis podem variar. A função usa uma chamada REST com JSON estruturado, timeout e erros tratados; nenhuma dependência nova é necessária. O contador de **20 requisições diárias** é apenas uma barreira local por processo, reiniciada quando o servidor reinicia: **não substitui cotas nem limites de faturamento do Google**.
+Se `configured: False` persistir, confirme se o arquivo está precisamente em `backend/.env`, se o `GEMINI_API_KEY` foi preenchido e se o servidor foi reiniciado. Não é necessário criar uma nova chave diariamente.
+
+**Alternativa sem arquivo persistente:** uma variável `GEMINI_API_KEY` definida manualmente no PowerShell ainda funciona e tem prioridade, mas dura somente naquela sessão de terminal. Para produção, cadastre a chave como **segredo do ambiente da hospedagem**, não envie `.env` à plataforma nem configure a chave no React.
+
+O backend utiliza por padrão `gemini-3.5-flash-lite`. Os limites e o faturamento do Google variam e não são verificados pelo protótipo. O contador local de 20 solicitações por processo **não é um controle de custo ou segurança contra abuso**.
 
 Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/llm/interpret` (sem base) e `POST /api/llm/interpret-context` (multipart, com base validada apenas pelo Python). O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
 
