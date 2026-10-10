@@ -159,3 +159,19 @@ def test_context_request_blocks_non_analytic_upload_without_provider(monkeypatch
     }, data={"message": "Quero analisar medicos", "history": "[]"})
     assert r.status_code == 422
     assert calls == []
+
+
+def test_confirmed_category_constant_is_checked_without_category_column():
+    from llm_context import review_interpretation
+    eligibility = {
+        "capabilities": {"distribution": {"status": "needs_confirmation"}},
+        "values": {"periods": [], "categories": [], "territories": []},
+    }
+    proposal = {"operation": "distribution", "indicator": "density",
+                "period": "", "category": "medicos", "territory": ""}
+    without = review_interpretation(proposal, eligibility)
+    with_confirmation = review_interpretation(proposal, eligibility,
+                                             category_constant="Médicos")
+    assert without["slots"]["category"] == "not_confirmed_in_dataset"
+    assert with_confirmation["slots"]["category"] == "found_in_dataset"
+    assert with_confirmation["ready_to_execute"] is False
