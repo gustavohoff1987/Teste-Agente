@@ -4,13 +4,12 @@ A SPEC v1.2.4 é referência de fronteiras: propostas sem autoridade factual,
 minimização pré-LLM, resposta estruturada validada e confirmação pelo usuário.
 Não implementa o agente normativo completo descrito na SPEC.
 """
-import asyncio
 import json
 import os
 import re
 import threading
 import unicodedata
-from datetime import date, timezone, datetime
+from datetime import date
 from typing import Any
 
 import httpx
@@ -186,7 +185,7 @@ def _anchor(value: Any, user_text: str) -> str:
     def norm(v: str) -> str:
         return "".join(x for x in unicodedata.normalize("NFKD", v.casefold())
                        if not unicodedata.combining(x))
-    if norm(value) not in norm(user_text):
+    if not re.search(r"(?<!\\w)" + re.escape(norm(value)) + r"(?!\\w)", norm(user_text)):
         return ""
     return value
 
@@ -202,6 +201,10 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
     # podem voltar como candidatos. Não representam seleção ou autorização.
     source = " ".join(sanitized)
     anchors = {key: _anchor(raw.get(key), source) for key in ("period", "category", "territory")}
+    if operation == "none":
+        indicator = "none"
+    if operation in ("density", "comparisons", "ranking") and indicator == "quantity":
+        raise LLMError(502, "O indicador sugerido não é compatível com a operação.")
     proposal = {"operation": None if operation == "none" else operation,
                 "indicator": None if indicator == "none" else indicator,
                 **anchors}
