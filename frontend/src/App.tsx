@@ -3,6 +3,7 @@ import ContextConfig from "./ContextConfig";
 import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
+import AnalysisAssistant from "./AnalysisAssistant";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -422,6 +423,7 @@ function App() {
         </a>
         <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-500 md:flex">
           <a href="#dados" className="hover:text-teal">Dados</a>
+          <a href="#assistente" className="hover:text-teal">Assistente IA</a>
           <a href="#analises" className="hover:text-teal">Análises</a>
           <a href="#resultados" className="hover:text-teal">Resultados</a>
         </nav>
@@ -542,6 +544,11 @@ function App() {
           />
         </>}
       </section>
+      <AnalysisAssistant apiBase={API} onSelectAnalysis={operation => {
+        setActive(operation);
+        setResult(null);
+        document.getElementById("analises")?.scrollIntoView({behavior:"smooth", block:"start"});
+      }}/>
       <section id="analises" className="section-anchor mt-14">
         <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
