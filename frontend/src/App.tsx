@@ -4,10 +4,12 @@ import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
 import AnalysisAssistant from "./AnalysisAssistant";
+import BrandAvatar from "./BrandAvatar";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
+  Home, Menu, X, MessageCircle, Grid2X2, ChevronRight,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
   FileUp, Fingerprint, FolderUp, Bot, HelpCircle, Info, Layers3, ListFilter,
   LoaderCircle, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
@@ -139,6 +141,9 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   </label>;
 }
 function App() {
+  const [page, setPage] = useState<"home" | "results">(() => window.location.hash === "#resultados" ? "results" : "home");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAllAnalyses, setShowAllAnalyses] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -334,11 +339,13 @@ function App() {
       const body = await readApiResponse(response);
       if (currentRevision !== revision.current) return;
       setResult(body as AnalysisResult);
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      navigate("results");
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     } catch (exc) {
       if (currentRevision !== revision.current) return;
       setError(readableError(exc));
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      navigate("results");
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     }
     finally { setRunning(false); }
   }
@@ -348,6 +355,20 @@ function App() {
       "text/csv;charset=utf-8");
   }
 
+  function navigate(view: "home" | "results", target?: string) {
+    setPage(view);
+    setMobileMenuOpen(false);
+    const fragment = target || (view === "results" ? "resultados" : "inicio");
+    if (window.location.hash !== "#" + fragment) window.location.hash = fragment;
+    window.setTimeout(() => document.getElementById(fragment)?.scrollIntoView({
+      behavior: "smooth", block: "start"
+    }), 80);
+  }
+  useEffect(() => {
+    const onHashChange = () => setPage(window.location.hash === "#resultados" ? "results" : "home");
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   useEffect(() => {
     document.title = "Agente Diagnóstico Territorial";
     let alive = true;
@@ -413,33 +434,63 @@ function App() {
 
   useEffect(() => { revision.current += 1; setResult(null); setError(""); }, [active]);
 
+  const sideLink = (label: string, view: "home" | "results", Icon: LucideIcon, target?: string) =>
+    <button type="button" onClick={() => navigate(view, target)}
+      className={["flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition",
+        page === view && !target ? "bg-blue-600 text-white" : "text-slate-200 hover:bg-white/10 hover:text-white"].join(" ")}>
+      <Icon size={18}/>{label}
+    </button>;
+
   return <div className="min-h-screen bg-canvas">
-    <header className="no-print sticky top-0 z-30 border-b border-white/70 bg-white/95 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1350px] items-center justify-between gap-3 px-5 py-3.5 lg:px-10">
-        <a href="#inicio" className="flex items-center gap-3">
-          <span className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-950"><Bot size={23} strokeWidth={2.2} /></span>
-          <span><span className="block text-sm font-bold leading-tight tracking-tight text-ink sm:text-base">Agente Diagnóstico Territorial</span>
-            <span className="block text-[10px] font-medium uppercase tracking-[.14em] text-slate-500">Força de Trabalho na Saúde</span></span>
-        </a>
-        <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-500 md:flex">
-          <a href="#dados" className="hover:text-teal">Dados</a>
-          <a href="#assistente" className="hover:text-teal">Assistente IA</a>
-          <a href="#analises" className="hover:text-teal">Análises</a>
-          <a href="#resultados" className="hover:text-teal">Resultados</a>
-        </nav>
-        {serverStatus === "offline" && <span role="status" className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
-          <XCircle size={13}/> Serviço de análise indisponível
-        </span>}
+    <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
+      <div className="flex items-center gap-3 px-2">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><BrandAvatar size={39}/></span>
+        <div><p className="text-sm font-bold leading-tight">Agente Diagnóstico Territorial</p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-300">Força de Trabalho na Saúde</p></div>
       </div>
-    </header>
-    <main id="inicio" className="mx-auto max-w-[1350px] px-4 pb-20 pt-6 sm:px-6 lg:px-10">
-      <section className="hero-gradient relative overflow-hidden rounded-[28px] px-6 py-10 text-white shadow-card sm:px-10 sm:py-14 lg:px-14">
-        <div className="hero-pattern absolute inset-y-0 right-0 w-[40%] opacity-40" />
-        <div className="relative z-10 max-w-3xl">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-[11px] font-semibold tracking-wide"><Sparkles size={13}/> INTELIGÊNCIA ANALÍTICA DETERMINÍSTICA</span>
-          <h1 className="max-w-3xl text-3xl font-semibold leading-[1.15] tracking-tight sm:text-4xl lg:text-5xl">Transforme dados em diagnósticos territoriais.</h1>
-          <p className="mt-5 max-w-2xl text-sm leading-7 text-cyan-50/90 sm:text-base">Explore a distribuição, a evolução e as desigualdades territoriais da força de trabalho na saúde. Envie seus dados, escolha uma análise e visualize resultados rastreáveis — sem precisar escrever comandos.</p>
-          <a href="#dados" className="no-print mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-ink shadow-lg transition hover:bg-cyan-50">Começar análise <ArrowRight size={17}/></a>
+      <nav aria-label="Navegação principal" className="mt-12 space-y-1">
+        {sideLink("Início", "home", Home)}
+        {sideLink("Nova análise", "home", MessageCircle, "assistente")}
+        {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
+        {sideLink("Resultados", "results", BarChart3)}
+      </nav>
+      <div className="mt-auto border-t border-white/15 pt-5">
+        <a href="https://github.com/gustavohoff1987/Teste-Agente/blob/feat/portal-uma-pagina-v1/README.md"
+          target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-200 hover:bg-white/10">
+          <HelpCircle size={18}/> Documentação
+        </a>
+        <p className="px-3 pt-4 text-[11px] leading-5 text-slate-400">Protótipo de análise territorial</p>
+      </div>
+    </aside>
+    <div className="min-w-0 lg:pl-[235px]">
+      <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-xl bg-slate-50 p-1"><BrandAvatar size={36}/></span>
+          <div><p className="text-xs font-bold text-ink">Agente Diagnóstico Territorial</p>
+          <p className="text-[10px] text-slate-500">Força de Trabalho na Saúde</p></div>
+        </div>
+        <button type="button" aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(v => !v)}
+          className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
+        {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
+          {sideLink("Início", "home", Home)}
+          {sideLink("Nova análise", "home", MessageCircle, "assistente")}
+          {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
+          {sideLink("Resultados", "results", BarChart3)}
+        </nav>}
+      </header>
+      {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
+      <main id="inicio" className="mx-auto max-w-[1330px] px-4 pb-16 pt-6 sm:px-7 lg:px-10">
+      <div className={page === "home" ? "" : "hidden"}>
+      <section className="workspace-hero relative overflow-hidden rounded-[24px] border border-blue-100 px-5 py-8 shadow-sm sm:px-9 sm:py-11">
+        <div className="relative z-10 max-w-[720px]">
+          <h1 className="text-3xl font-bold leading-[1.13] tracking-tight text-ink sm:text-4xl">
+            Transforme dados em diagnósticos territoriais
+          </h1>
+          <p className="mt-4 text-sm text-slate-600 sm:text-base">
+            Envie seus dados, escolha uma análise e visualize os resultados.
+          </p>
         </div>
       </section>
       <section id="dados" className="section-anchor mt-14">
@@ -752,7 +803,8 @@ function App() {
           </details>}
         </RequirementChecklist>}
       </section>
-      <section id="resultados" ref={resultsRef} className="section-anchor mt-14">
+      </div>
+      <section id="resultados" ref={resultsRef} className={["section-anchor pt-3", page === "results" ? "" : "hidden"].join(" ")}>
         <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
@@ -842,7 +894,8 @@ function App() {
         <p>Agente Diagnóstico Territorial · Protótipo experimental v0.1</p>
         <p className="flex items-center gap-2"><Fingerprint size={15}/> Processamento determinístico · Diagnósticos territoriais</p>
       </footer>
-    </main>
+      </main>
+    </div>
   </div>;
 }
 
