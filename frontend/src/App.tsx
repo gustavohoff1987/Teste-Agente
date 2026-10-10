@@ -141,7 +141,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   </label>;
 }
 function App() {
-  const [page, setPage] = useState<"home" | "results">(() => window.location.hash === "#resultados" ? "results" : "home");
+  const [page, setPage] = useState<"home" | "results">(() => ["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showAllAnalyses, setShowAllAnalyses] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -365,7 +365,7 @@ function App() {
     }), 80);
   }
   useEffect(() => {
-    const onHashChange = () => setPage(window.location.hash === "#resultados" ? "results" : "home");
+    const onHashChange = () => setPage(["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -673,6 +673,7 @@ function App() {
             </label>}
           </div>
         </div>}
+        {active && error && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">{error}</p>}
         {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
           status={!inspection || preflightError ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
           requirements={preflightError ? [{status: "missing", title: "Verificação não concluída", detail: preflightError}] : preflight?.capabilities[active]?.requirements || (!inspection ? [
@@ -835,6 +836,10 @@ function App() {
       </section>
       </div>
       <section id="resultados" ref={resultsRef} className={["section-anchor pt-3", page === "results" ? "" : "hidden"].join(" ")}>
+        <button type="button" onClick={() => navigate("home", "requisitos")}
+          className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
+          <ArrowRight size={15} className="rotate-180"/> Voltar à análise
+        </button>
         <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
