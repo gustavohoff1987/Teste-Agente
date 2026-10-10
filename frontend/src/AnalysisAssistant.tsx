@@ -8,12 +8,25 @@ type Proposal = {
   operation: Operation | null; indicator: "density" | "quantity" | null;
   territory: string; period: string; category: string;
 };
-type Reply = { reply: string; proposal: Proposal; requires_confirmation: boolean;
+type Verification = { source: "BACKEND_PREFLIGHT"; capability_status: "available" | "needs_confirmation" | "unavailable" | "not_selected"; slots: Record<"period" | "category" | "territory", string>; blockers: string[]; ready_to_execute: false; next_action: "confirm_in_interface" };
+type Reply = { reply: string; proposal: Proposal; verification?: Verification; requires_confirmation: boolean;
   executed: boolean; origin: string; note: string; model: string; privacy: string };
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
-type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal };
-type Props = { apiBase: string; onSelectAnalysis: (operation: Operation) => void };
+type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal; verification?: Verification };
+type Props = { apiBase: string; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void };
+const STATUS_LABEL: Record<Verification["capability_status"], string> = {
+  available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
+  needs_confirmation: "Há confirmações ou parâmetros pendentes",
+  unavailable: "Capacidade não habilitada com a configuração atual",
+  not_selected: "Capacidade não identificada",
+};
+const SLOT_LABEL: Record<string, string> = {
+  found_in_dataset: "Encontrado na base",
+  not_confirmed_in_dataset: "Não confirmado nos valores da base",
+  not_requested: "Não informado",
+  requires_unit_confirmation: "Confirmar unidade e nível territorial",
+};
 
 const ANALYSIS: Record<Operation, string> = {
   density: "Densidade", counts: "Quantitativos", distribution: "Distribuição",
@@ -22,7 +35,7 @@ const ANALYSIS: Record<Operation, string> = {
   rotation: "Rotatividade", report: "Relatórios",
 };
 
-export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) {
+export default function AnalysisAssistant({ apiBase, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [draft, setDraft] = useState("");
@@ -31,6 +44,7 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const revision = useRef(0);
 
   async function refreshStatus() {
     setLoadingStatus(true);
@@ -48,33 +62,55 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
 
   useEffect(() => { void refreshStatus(); }, [apiBase]);
   useEffect(() => {
+    // A nova base ou os novos parâmetros invalidam propostas anteriores.
+    revision.current += 1;
+    setTurns([]);
+    setError("");
+  }, [contextVersion]);
+  useEffect(() => {
     if (turns.length) chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
-    if (sending || !status?.configured || !privacyAccepted || message.length < 3 || message.length > 800) return;
+    if (sending || !status?.configured || !privacyAccepted || message.length < 3 || message.length > 800 ||
+        (!!file && !contextReady)) return;
+    const requestRevision = revision.current;
     const history = turns.filter(t => t.role === "user").slice(-4).map(t => t.content);
     setSending(true);
     setError("");
     try {
-      const response = await fetch(apiBase + "/api/llm/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history }),
-      });
+      let response: Response;
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("sheet", sheet);
+        form.append("message", message);
+        form.append("history", JSON.stringify(history));
+        form.append("mapping", JSON.stringify(mapping));
+        form.append("options", JSON.stringify(options));
+        response = await fetch(apiBase + "/api/llm/interpret-context", { method: "POST", body: form });
+      } else {
+        response = await fetch(apiBase + "/api/llm/interpret", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, history }),
+        });
+      }
       const body = await response.json();
+      if (requestRevision !== revision.current) return;
       if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Não foi possível interpretar o pedido.");
       const validated = body as Reply;
-      if (!validated.proposal || validated.executed !== false || validated.origin !== "INTERPRETACAO_LLM")
-        throw new Error("A resposta do serviço não atende ao contrato de interpretação.");
+      if (!validated.proposal || validated.executed !== false || validated.origin !== "INTERPRETACAO_LLM" ||
+          (!!file && validated.verification?.source !== "BACKEND_PREFLIGHT"))
+        throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
-        {role:"assistant", content:validated.reply, proposal:validated.proposal}]);
+        {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification}]);
       setDraft("");
       void refreshStatus();
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Não foi possível acessar a API.");
+      if (requestRevision === revision.current)
+        setError(exc instanceof Error ? exc.message : "Não foi possível acessar a API.");
     } finally {
       setSending(false);
     }
@@ -117,6 +153,12 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
       no GitHub ou na interface.
     </p>}
 
+    <p className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 text-xs leading-5 text-slate-700">
+      {file ? contextReady
+        ? "Base carregada: o Python confere os campos e requisitos antes de revisar a proposta. Nenhum registro é enviado ao Gemini."
+        : "Aguarde a validação da base para ativar a interpretação contextual."
+        : "Sem base carregada: interpretação preliminar, sem verificar períodos ou categorias mencionados."}
+    </p>
     <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-slate-50/50">
       <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-xs font-semibold text-slate-600">
         <MessageSquare size={16} className="text-teal"/> Conversa nesta aba · {turns.length / 2} solicitações concluídas
@@ -144,6 +186,18 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
                 className="no-print inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 font-bold text-teal hover:bg-cyan-100">
                 Ver requisitos de {ANALYSIS[turn.proposal.operation]} <ArrowRight size={14}/>
               </button>}
+              {turn.verification && <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-slate-700">
+                <p className="font-semibold">Revisão determinística do Python</p>
+                <p className="mt-1">{STATUS_LABEL[turn.verification.capability_status]}</p>
+                {(["period", "category", "territory"] as const).filter(k => !!turn.proposal?.[k]).map(k =>
+                  <p key={k} className="mt-1">{k === "period" ? "Período" : k === "category" ? "Categoria" : "Território"}: {" "}
+                    {SLOT_LABEL[turn.verification!.slots[k]] || "Verificação pendente"}</p>)}
+                {turn.verification.blockers.length > 0 && <div className="mt-2">
+                  <p className="font-semibold">Pontos a resolver:</p>
+                  <ul className="ml-4 mt-1 list-disc space-y-1">{turn.verification.blockers.map((reason, i) =>
+                    <li key={i}>{reason}</li>)}</ul>
+                </div>}
+              </div>}
               <p className="text-slate-500">A seleção apenas abre a capacidade; não autoriza cálculo nem confirma campos.</p>
             </div>}
           </div>
@@ -173,7 +227,7 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="flex items-center gap-1.5 text-xs text-slate-500"><ShieldCheck size={15} className="text-teal"/>
           O arquivo importado não é enviado ao Gemini; as análises continuam no Python.</p>
-        <button type="submit" disabled={!status?.configured || !privacyAccepted || draft.trim().length < 3 || sending}
+        <button type="submit" disabled={!status?.configured || !privacyAccepted || draft.trim().length < 3 || sending || (!!file && !contextReady)}
           className="inline-flex items-center gap-2 rounded-xl bg-teal px-5 py-3 text-sm font-bold text-white hover:bg-ink disabled:cursor-not-allowed disabled:opacity-40">
           {sending ? <LoaderCircle size={17} className="animate-spin"/> : <Send size={17}/>}
           {sending ? "Enviando..." : "Interpretar com Gemini"}
@@ -182,8 +236,8 @@ export default function AnalysisAssistant({ apiBase, onSelectAnalysis }: Props) 
     </form>
     <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-500">
       <CheckCircle2 size={14} className="mt-0.5 shrink-0"/>
-      Esta é a primeira iteração do LLM: uma proposta conversacional, não um agente autônomo completo.
-      Requisitos, parâmetros e resultados só são validados pelo motor determinístico após sua confirmação.
+      Iteração 2: o Python examina o contexto da base e os requisitos antes de apresentar a proposta.
+      O Gemini não executa análises, não define parâmetros substantivos nem substitui a confirmação humana.
     </p>
   </section>;
 }
