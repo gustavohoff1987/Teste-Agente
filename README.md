@@ -3,9 +3,10 @@
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
 - **Interface:** React + TypeScript + Tailwind; uma página responsiva com upload, **associação semântica por coluna**, confirmação guiada e **cartões destacados/esmaecidos pela matriz de aplicabilidade**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
-- **Motor:** Python + FastAPI, operações determinísticas sem LLM.
+- **Motor:** Python + FastAPI; as dez capacidades permanecem determinísticas.
+- **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
-- **Não há chamada Gemini** nesta versão. Uma integração posterior pode ser feita sem transferir cálculos para o modelo.
+- **Gemini não é requisito para o funcionamento analítico.** Sem chave, a conversa fica indisponível e as dez capacidades continuam operacionais. Esta integração é apenas a primeira iteração e **não representa conformidade integral com a governança de LLM da SPEC**.
 
 ## Executar localmente
 
@@ -30,6 +31,44 @@ npm run dev
 
 Abrir `http://localhost:5173`. O Vite encaminha `/api` ao FastAPI local.
 Documentação da API: `http://localhost:8000/docs`.
+
+## Conversação com Gemini — primeira iteração (opcional)
+
+A interface possui uma seção **Assistente IA** entre o carregamento/configuração dos dados e os dez cartões analíticos.
+
+A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
+
+O LLM retorna uma proposta estruturada de operação/indicador; o backend valida os valores permitidos e só apresenta expressões territoriais, categorias e períodos ancorados no texto sanitizado. O texto explicativo mostrado na interface é composto por templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. A opção **Ver requisitos** só abre o cartão sugerido: não executa nem confirma nada.
+
+### Configurar localmente (Windows PowerShell)
+
+1. Certifique-se de que a chave da **Gemini Developer API** pertence ao projeto e à modalidade de faturamento pretendida. A disponibilidade do nível gratuito deve ser verificada diretamente no Google AI Studio; o aplicativo **não verifica nem garante custo zero**.
+2. No PowerShell usado para iniciar o backend, sem colocar a chave nos arquivos do Git:
+
+```powershell
+cd "C:\Users\User\Desktop\Github\Teste-Agente\backend"
+$env:GEMINI_API_KEY = Read-Host "Cole sua chave do Gemini (entrada oculta)" -AsSecureString | ConvertFrom-SecureString -AsPlainText
+py -m uvicorn main:app --reload --port 8000
+```
+
+> Se sua versão do PowerShell não oferecer `ConvertFrom-SecureString -AsPlainText`, defina a variável de ambiente por um meio local seguro compatível e não cole a chave no chat ou no terminal compartilhado. A chave precisa existir no processo que inicia o Python.
+
+Em outra janela:
+
+```powershell
+cd "C:\Users\User\Desktop\Github\Teste-Agente\frontend"
+npm.cmd run dev
+```
+
+Abra `http://localhost:5173/#assistente`. Verifique **Gemini configurado**; escreva, por exemplo, "Quero analisar a distribuição da densidade de médicos por município em 202406", confirme o aviso de privacidade e clique em **Interpretar com Gemini**. Na resposta, clique **Ver requisitos** se desejar continuar no motor.
+
+O backend utiliza por padrão `gemini-2.5-flash-lite`. A seleção opcional de outro modelo explicitamente admitido é feita por `ADT_GEMINI_MODEL` no ambiente do backend. Modelos e cotas disponíveis podem variar. A função usa uma chamada REST com JSON estruturado, timeout e erros tratados; nenhuma dependência nova é necessária. O contador de **20 requisições diárias** é apenas uma barreira local por processo, reiniciada quando o servidor reinicia: **não substitui cotas nem limites de faturamento do Google**.
+
+Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave) e `POST /api/llm/interpret`. O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
+
+### Fronteira da SPEC
+
+Referências: FN-INT-01/02 (propostas interpretativas), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações). A implementação experimental não cobre o fluxo normativo completo de estados, alternativas ancoradas, catálogo documental V-16 e validações exaustivas. Antes de usar informações sensíveis ou alegar conformidade científica integral, essas lacunas precisam ser implementadas e auditadas.
 
 ## Testes
 
