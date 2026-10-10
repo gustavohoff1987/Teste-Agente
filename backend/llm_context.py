@@ -6,7 +6,6 @@ permanecem neste backend. Nenhum valor vindo do navegador é aceito como
 evidência de disponibilidade sem revalidação da base.
 """
 from typing import Any
-import re
 import unicodedata
 
 from semantic_bridge import OPERATIONS
@@ -48,15 +47,19 @@ def _slot_status(value: str, possibilities: list[str]) -> str:
             else "not_confirmed_in_dataset")
 
 
-def review_interpretation(proposal: dict, eligibility: dict[str, Any]) -> dict:
+def review_interpretation(proposal: dict, eligibility: dict[str, Any],
+                          category_constant: str = "") -> dict:
     """Revisão do resultado LLM com evidência produzida por código."""
     operation = proposal.get("operation")
     gate = eligibility["capabilities"].get(operation) if operation else None
     capability_status = gate["status"] if gate else "not_selected"
     values = eligibility["values"]
+    # Categoria constante já confirmada pelo usuário não exige coluna de
+    # categoria própria. Não inventar equivalências ou categorias adicionais.
+    categories = [*values["categories"], *([category_constant] if category_constant else [])]
     slots = {
         "period": _slot_status(proposal.get("period", ""), values["periods"]),
-        "category": _slot_status(proposal.get("category", ""), values["categories"]),
+        "category": _slot_status(proposal.get("category", ""), categories),
     }
     territorial = proposal.get("territory", "")
     # 'Municípios' é um nível territorial pedido, não um nome da base;
