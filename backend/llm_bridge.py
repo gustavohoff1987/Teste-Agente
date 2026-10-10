@@ -231,7 +231,8 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
             "note": "Proposta não verificada contra a base: nenhuma análise foi executada."}
 
 
-async def interpret(request: ChatRequest, eligibility: dict | None = None) -> dict:
+async def interpret(request: ChatRequest, eligibility: dict | None = None,
+                    category_constant: str = "") -> dict:
     if not _enabled():
         raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
     model = _configured_model()
@@ -251,7 +252,9 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None) -> di
     raw = await _call_gemini(provider_messages, model, os.environ["GEMINI_API_KEY"].strip())
     response = _validate(raw, sanitized)
     if eligibility is not None:
-        response["verification"] = review_interpretation(response["proposal"], eligibility)
+        response["verification"] = review_interpretation(
+            response["proposal"], eligibility, category_constant=category_constant
+        )
         response["note"] = (
             "Proposta examinada contra o pré-exame da base no servidor. "
             "A autorização e a execução permanecem pendentes."
