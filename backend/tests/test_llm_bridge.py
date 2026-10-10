@@ -47,7 +47,7 @@ def test_interpretation_is_structured_sanitized_and_does_not_execute(monkeypatch
     assert body["proposal"]["indicator"] == "density"
     assert body["proposal"]["period"] == "202406"
     assert body["proposal"]["category"] == "médicos"
-    assert captured["model"] == "gemini-2.5-flash-lite"
+    assert captured["model"] == "gemini-3.5-flash-lite"
     assert captured["api_key"] == "test-private-key"
     assert "test-private-key" not in response.text
     assert "file" not in captured
@@ -159,7 +159,7 @@ def test_http_transport_uses_json_schema_header_and_no_dataset(monkeypatch):
     monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", FakeHTTPClient)
     response = asyncio.run(llm_bridge._call_gemini(
         ["Quero distribuição da densidade de médicos em municípios em 2024"],
-        "gemini-2.5-flash-lite", "test-secret"))
+        "gemini-3.5-flash-lite", "test-secret"))
     assert response["operation"] == "distribution"
     assert captured["url"].startswith("https://generativelanguage.googleapis.com/")
     assert captured["headers"]["x-goog-api-key"] == "test-secret"
