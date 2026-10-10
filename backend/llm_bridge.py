@@ -30,8 +30,9 @@ OPERATIONS = {
 }
 INDICATORS = {"density": "Densidade por 1.000 habitantes",
               "quantity": "Quantidade absoluta de profissionais"}
-ALLOWED_MODELS = {"gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.7-flash",
-                  "gemini-3.8-flash"}
+# Modelos com modalidade gratuita documentada; a chave/projeto pode mesmo assim
+# estar em modalidade paga. Este filtro não substitui controle externo de faturamento.
+ALLOWED_MODELS = {"gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.7-flash"}
 MODEL_DEFAULT = "gemini-2.5-flash-lite"
 MAX_REQUESTS_PER_DAY = 20  # guarda local, não é controle de faturamento da Google
 _lock = threading.Lock()
