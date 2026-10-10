@@ -1,6 +1,8 @@
-"""Motor experimental sem LLM. Referência metodológica: IMPLEMENTATION_SPEC.md v1.2.4.
-Não substitui a validação integral de todos os contratos e cenários da SPEC.
-Nenhum arquivo enviado é armazenado no servidor.
+"""Motor determinístico experimental com interpretação LLM opcional e isolada.
+
+Referência metodológica: IMPLEMENTATION_SPEC.md v1.2.4.
+A integração conversacional não implementa a governança integral da SPEC.
+Nenhum arquivo enviado é armazenado no servidor ou enviado ao LLM.
 """
 import csv
 import hashlib
@@ -17,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
 from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values
+from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -307,6 +310,21 @@ async def _read_upload(file: UploadFile) -> bytes:
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "llm": False, "version": "0.1.0"}
+
+
+@app.get("/api/llm/status")
+def llm_configuration_status() -> dict:
+    """Indica disponibilidade local; não verifica crédito, franquia ou faturamento Google."""
+    return llm_status()
+
+
+@app.post("/api/llm/interpret")
+async def llm_interpretation(request: ChatRequest) -> dict:
+    """Interpretação preliminar, sem acesso a arquivos ou execução analítica."""
+    try:
+        return await llm_interpret(request)
+    except LLMError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
 
 @app.post("/api/inspect")
