@@ -33,7 +33,8 @@ with sync_playwright() as p:
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.on("request", lambda request: analyzed.append(request.url) if request.url.endswith("/api/analyze") else None)
     page.goto("http://127.0.0.1:5173/")
-    expect(page.get_by_text("Motor conectado", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Li e concordo", exact=True).click()
+    expect(page.get_by_role("heading", level=1)).to_be_visible()
     page.locator('input[type="file"]').set_input_files(source)
     expect(page.get_by_role("heading", name="Configuração da análise", exact=True)).to_be_visible()
     territory = page.locator("#associacoes select").nth(0)
@@ -42,7 +43,7 @@ with sync_playwright() as p:
     territory.select_option("municipio")
     page.locator("#associacoes select").nth(1).select_option("Período")
     page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
-    page.get_by_role("button", name=re.compile(r"^Densidade\s*Profissionais")).click()
+    page.get_by_role("button", name="Selecionar análise: Densidade", exact=True).click()
     execute = page.get_by_role("button", name="Executar análise", exact=True)
     expect(execute).to_be_disabled()
     expect(page.get_by_text(re.compile(r"11.528 registros em 5.324 grupos"))).to_be_visible()
@@ -103,7 +104,8 @@ with sync_playwright() as p:
     # Responsividade e preservação dos dez cartões em tela estreita.
     page.set_viewport_size({"width": 390, "height": 844})
     page.screenshot(path=str(output / "mobile.png"), full_page=True)
-    assert page.locator("#analises > div.grid > button").count() == 10
+    assert page.locator("#analises .analysis-card").count() == 1
+    assert page.locator("#analises .carousel-progress > span").count() == 10
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
     evidence = {"gate": "Densidade ponta a ponta", "status": "PASS", "source_sha256": digest,
         "territory": "municipio", "territory_id": "ibge", "count_unit": "pessoas distintas no recorte",

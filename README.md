@@ -2,7 +2,7 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind; telas responsivas de início e resultados com upload, **associação semântica por coluna**, confirmação guiada e **cartões destacados/esmaecidos pela matriz de aplicabilidade**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
+- **Interface:** React + TypeScript + Tailwind; telas responsivas de início e resultados com upload, **associação semântica por coluna**, confirmação guiada e **seletor de análises em carrossel com indicação de aplicabilidade e seleção em relevo**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
 - **Motor:** Python + FastAPI; as dez capacidades permanecem determinísticas.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
@@ -34,7 +34,7 @@ Documentação da API: `http://localhost:8000/docs`.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
-A interface possui uma área de conversa na página inicial, abaixo dos atalhos de análises. Informações técnicas do serviço ficam em um painel secundário.
+A interface possui uma área de conversa na página inicial, abaixo dos atalhos de análises. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
 **Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. O arquivo é reenviado **somente ao backend Python local**, que revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
@@ -104,6 +104,10 @@ npm run build
 ```
 
 A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull requests.
+
+Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
+
+`py backend/tests/ui_carousel_smoke.py` verifica as dez análises no seletor, setas, teclado, roda do mouse, gesto de deslizar no celular, destaque da seleção, ações do banner, responsividade e redução de movimento. Percorrer os cards não seleciona nem executa análises; a seleção permite abrir os requisitos, que continuam sendo verificados antes da execução.
 
 ## Ponte semântica e habilitação de análises
 

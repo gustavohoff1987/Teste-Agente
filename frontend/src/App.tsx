@@ -5,13 +5,16 @@ import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
 import AnalysisAssistant from "./AnalysisAssistant";
 import BrandAvatar from "./BrandAvatar";
+import AnalysisCarousel from "./AnalysisCarousel";
+import WelcomeHero from "./WelcomeHero";
+import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, Calculator, CheckCircle2,
-  Home, Menu, X, MessageCircle, Grid2X2, ChevronRight,
+  ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2,
+  Home, Menu, X, MessageCircle, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
-  FileUp, Fingerprint, FolderUp, Bot, HelpCircle, Info, Layers3, ListFilter,
+  FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
   LoaderCircle, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, Table2, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
@@ -92,13 +95,6 @@ const ROLES: { key: Role; label: string; help: string }[] = [
   { key: "longitude", label: "Longitude", help: "Graus decimais" },
   { key: "identity", label: "Identificador individual", help: "Apenas para contagem distinta ou coortes" }
 ];
-const TONES: Record<string, string> = {
-  teal: "bg-teal-50 text-teal-700", indigo: "bg-indigo-50 text-indigo-700",
-  violet: "bg-violet-50 text-violet-700", orange: "bg-orange-50 text-orange-700",
-  blue: "bg-blue-50 text-blue-700", emerald: "bg-emerald-50 text-emerald-700",
-  rose: "bg-rose-50 text-rose-700", amber: "bg-amber-50 text-amber-700",
-  cyan: "bg-cyan-50 text-cyan-700", slate: "bg-slate-100 text-slate-700"
-};
 const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", n !== 0 && Math.abs(n) < 1e-6
   ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(n);
 function pretty(value: unknown): string {
@@ -141,9 +137,9 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   </label>;
 }
 function App() {
+  const privacy = useSessionPrivacy();
   const [page, setPage] = useState<"home" | "results">(() => ["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showAllAnalyses, setShowAllAnalyses] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -195,6 +191,7 @@ function App() {
   }, [result]);
 
   async function inspectFile(nextFile: File, nextSheet = "") {
+    if (!privacy.accepted) return;
     const currentUpload = ++uploadRevision.current;
     setInspecting(true);
     setUploadError("");
@@ -242,7 +239,7 @@ function App() {
     } finally { if (currentUpload === uploadRevision.current) setInspecting(false); }
   }
   async function chooseFile(next: File | undefined) {
-    if (!next) return;
+    if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
     setFile(next);
     setSheet("");
@@ -309,6 +306,7 @@ function App() {
     setError("");
   }
   async function run(op: Operation) {
+    if (!privacy.accepted) return;
     setActive(op); setResult(null); setError("");
     if (preflighting || !preflight) {
       setError("Aguarde a conclusão da verificação de compatibilidade da base.");
@@ -443,6 +441,7 @@ function App() {
     </button>;
 
   return <div className="min-h-screen bg-canvas">
+    {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
     <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
       <div className="flex items-center gap-3 px-2">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><BrandAvatar size={39}/></span>
@@ -455,14 +454,6 @@ function App() {
         {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
         {sideLink("Resultados", "results", BarChart3)}
       </nav>
-      <div className="mt-auto border-t border-white/15 pt-5">
-        <a href="https://github.com/gustavohoff1987/Teste-Agente/blob/feat/portal-uma-pagina-v1/README.md"
-          target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-200 hover:bg-white/10">
-          <HelpCircle size={18}/> Documentação
-        </a>
-        <p className="px-3 pt-4 text-[11px] leading-5 text-slate-400">Protótipo de análise territorial</p>
-      </div>
     </aside>
     <div className="min-w-0 lg:pl-[235px]">
       <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
@@ -484,16 +475,7 @@ function App() {
       {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
       <main id="inicio" className="mx-auto max-w-[1330px] px-4 pb-16 pt-6 sm:px-7 lg:px-10">
       <div className={page === "home" ? "" : "hidden"}>
-      <section className="workspace-hero relative overflow-hidden rounded-[24px] border border-blue-100 px-5 py-8 shadow-sm sm:px-9 sm:py-11">
-        <div className="relative z-10 max-w-[720px]">
-          <h1 className="text-3xl font-bold leading-[1.13] tracking-tight text-ink sm:text-4xl">
-            Transforme dados em diagnósticos territoriais.
-          </h1>
-          <p className="mt-4 text-sm text-slate-600 sm:text-base">
-            Envie seus dados, escolha uma análise e visualize os resultados.
-          </p>
-        </div>
-      </section>
+      <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
       <section id="dados" className="section-anchor mt-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
@@ -513,7 +495,7 @@ function App() {
             <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
               Utilize dados de qualquer país ou território.
             </p>
-            <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="hidden"
+            <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="hidden"
               onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }}/>
             <button type="button" onClick={() => inputRef.current?.click()}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
@@ -554,44 +536,18 @@ function App() {
         </div>}
       </section>
 
-      <section id="analises" className="section-anchor mt-8">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-ink">Escolha uma análise ou descreva seu objetivo</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-600">Selecione uma capacidade ou converse com o agente logo abaixo.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5 lg:gap-3">
-          {(showAllAnalyses ? FEATURES : FEATURES.slice(0, 6)).map((f) => <button key={f.id} type="button" onClick={() => {
-              setActive(f.id);
-              setResult(null);
-              setError("");
-              window.setTimeout(() => document.getElementById("requisitos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
-            }}
-            className={["feature-card no-print group flex min-h-[108px] flex-col items-start rounded-2xl border bg-white p-3 text-left shadow-sm sm:p-4",
-              active === f.id ? "feature-card-active" : "border-line",
-              preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
-              ].join(" ")}
-            title={preflight?.capabilities[f.id]?.reasons.join(" ") || "Análise habilitada"}
-            aria-pressed={active === f.id}>
-            <span className="flex w-full items-start justify-between">
-              <span className={["flex h-9 w-9 items-center justify-center rounded-xl", TONES[f.tone]].join(" ")}><f.icon size={20} strokeWidth={1.9}/></span>
-              <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-teal" />
-            </span>
-            <span className="mt-3 block text-sm font-bold text-ink">{f.title}</span>
-            <span className="mt-1 hidden text-[11px] leading-5 text-slate-500 xl:block">{f.detail}</span>
-            <span className={["mt-auto pt-3 text-[10px] font-bold",
-              preflight?.capabilities[f.id]?.status === "available" ? "text-emerald-700" : "text-slate-500"].join(" ")}>
-              {preflighting ? "Verificando..." : preflight?.capabilities[f.id]?.status === "available" ? "Disponível" :
-                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Confirmação necessária" : "Não habilitada"}
-            </span>
-          </button>)}
-        </div>
-        <button type="button" onClick={() => setShowAllAnalyses(v => !v)}
-          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-teal hover:underline">
-          {showAllAnalyses ? "Mostrar menos opções" : "Ver todas as 10 análises"} <ChevronRight size={14}/>
-        </button>
-      </section>
+      <div className="analysis-workspace">
+      <AnalysisCarousel<Operation> features={FEATURES} active={active}
+        capabilities={preflight?.capabilities} checking={preflighting || inspecting} hasData={!!inspection && !inspection.requires_sheet}
+        onSelect={operation => {
+          setActive(operation);
+          setResult(null);
+          setError("");
+        }}
+        onRequirements={() => navigate("home", "requisitos")}/>
       <AnalysisAssistant
         apiBase={API}
+        privacyAccepted={privacy.accepted}
         file={file}
         sheet={sheet}
         mapping={mapping}
@@ -606,6 +562,7 @@ function App() {
         setResult(null);
         navigate("home", "requisitos");
       }}/>
+      </div>
       <section id="preparacao" className="section-anchor mt-7">
         {inspection && !inspection.requires_sheet && <h2 className="mb-3 text-xl font-bold text-ink">Confira os dados carregados</h2>}
         {inspection && !inspection.requires_sheet && <>
@@ -941,7 +898,6 @@ function App() {
       </section>
       <footer className="no-print mt-14 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 text-xs text-slate-400 sm:flex-row sm:items-center">
         <p>Agente Diagnóstico Territorial · Protótipo experimental v0.1</p>
-        <p className="flex items-center gap-2"><Fingerprint size={15}/> Processamento determinístico · Diagnósticos territoriais</p>
       </footer>
       </main>
     </div>

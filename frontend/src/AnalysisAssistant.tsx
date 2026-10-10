@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import BrandAvatar from "./BrandAvatar";
-import { AlertCircle, ArrowRight, BrainCircuit, CheckCircle2, LoaderCircle,
+import { AlertCircle, ArrowRight, LoaderCircle,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
 type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" |
@@ -15,7 +15,7 @@ type Reply = { reply: string; proposal: Proposal; verification?: Verification; r
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal; verification?: Verification };
-type Props = { apiBase: string; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -36,11 +36,10 @@ const ANALYSIS: Record<Operation, string> = {
   rotation: "Rotatividade", report: "Relatórios",
 };
 
-export default function AnalysisAssistant({ apiBase, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -118,7 +117,7 @@ export default function AnalysisAssistant({ apiBase, file, sheet, mapping, optio
   }
 
   return <section id="assistente" aria-label="Assistente de análise territorial"
-    className="section-anchor mt-6 rounded-[24px] border border-line bg-white p-5 shadow-sm sm:p-7">
+    className="assistant-panel section-anchor rounded-[24px] border border-line bg-white p-5 shadow-sm sm:p-7">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex items-start gap-3">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-50">
@@ -132,23 +131,15 @@ export default function AnalysisAssistant({ apiBase, file, sheet, mapping, optio
           </p>
         </div>
       </div>
-      <details className="group relative text-xs text-slate-500">
-        <summary className="cursor-pointer rounded-lg px-2 py-1.5 hover:bg-slate-50">Informações do serviço</summary>
-        <div className="absolute right-0 z-10 mt-2 w-64 rounded-xl border border-line bg-white p-3 shadow-lg">
-          <p>{status?.configured ? "Serviço de conversa disponível." : "Conversa indisponível no momento."}</p>
-          {status?.configured && <p className="mt-1">Modelo: {status.model} · Uso técnico local: {status.requests_used_today}/{status.local_daily_limit}</p>}
-          <p className="mt-1">Limites e faturamento externos não verificados pelo protótipo.</p>
-          <button type="button" onClick={() => {void refreshStatus();}} disabled={loadingStatus}
-            className="mt-2 inline-flex items-center gap-1 font-semibold text-teal">
-            <RefreshCw size={13} className={loadingStatus ? "animate-spin" : ""}/> Atualizar estado
-          </button>
-        </div>
-      </details>
     </div>
 
-    {!status?.configured && <p role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
-      A conversa está temporariamente indisponível. Os recursos de importação e análise continuam acessíveis.
-    </p>}
+    {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
+      <p>{loadingStatus ? "Conectando à conversa..." : "A conversa está temporariamente indisponível. Os recursos de importação e análise continuam acessíveis."}</p>
+      {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
+        className="mt-2 inline-flex items-center gap-1 font-semibold underline">
+        <RefreshCw size={13}/> Tentar novamente
+      </button>}
+    </div>}
 
     <p className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 text-xs leading-5 text-slate-700">
       {file ? contextReady
@@ -168,7 +159,7 @@ export default function AnalysisAssistant({ apiBase, file, sheet, mapping, optio
             <div>
               <p className="font-bold text-ink">Olá! O que você deseja analisar?</p>
               <p className="mt-1 text-xs leading-6 text-slate-600">
-                Selecione uma das análises acima ou descreva seu objetivo em linguagem natural.
+                Explore os tipos de análise ou descreva seu objetivo em linguagem natural.
                 As propostas e os dados serão conferidos antes da execução.
               </p>
             </div>
@@ -227,7 +218,7 @@ export default function AnalysisAssistant({ apiBase, file, sheet, mapping, optio
       <div className="rounded-2xl border border-blue-200 bg-white shadow-sm transition focus-within:border-teal focus-within:ring-2 focus-within:ring-cyan-100">
         <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
         <textarea id="assistant-input" rows={3} maxLength={800} value={draft}
-          onChange={e => setDraft(e.target.value)} disabled={sending}
+          onChange={e => setDraft(e.target.value)} disabled={sending || !privacyAccepted}
           onKeyDown={e => { if(e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault(); e.currentTarget.form?.requestSubmit();
           }}}
@@ -242,16 +233,11 @@ export default function AnalysisAssistant({ apiBase, file, sheet, mapping, optio
           </button>
         </div>
       </div>
-      <label className="flex items-start gap-2 text-[11px] leading-5 text-slate-600">
-        <input type="checkbox" className="mt-0.5" checked={privacyAccepted} onChange={e => setPrivacyAccepted(e.target.checked)}/>
-        <span>Confirmo que minha mensagem não contém dados pessoais ou informações sensíveis.
-          O texto minimizado será encaminhado a um serviço externo de IA.</span>
-      </label>
       {error && <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
         <AlertCircle size={16} className="shrink-0"/>{error}
       </p>}
       <p className="flex items-center gap-1.5 text-[11px] text-slate-500"><ShieldCheck size={14} className="text-teal"/>
-        Arquivos e registros individuais não são enviados ao serviço de IA. Os cálculos são realizados no Python.
+        As mensagens são tratadas para reduzir a exposição de dados antes de serem encaminhadas a um serviço externo de IA. Arquivos e registros individuais não são enviados a esse serviço.
       </p>
     </form>
   </section>;
