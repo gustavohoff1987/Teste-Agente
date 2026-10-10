@@ -44,7 +44,7 @@ def _dataset() -> bytes:
 def _form(message="Quero distribuicao da densidade de medicos por municipios em 202406",
           mapping=None, options=None) -> dict:
     return {
-        "file": ("exclusivo_privado.csv", io.BytesIO(_dataset()), "text/csv"),
+        "files": {"file": ("exclusivo_privado.csv", io.BytesIO(_dataset()), "text/csv")},
         "data": {
             "message": message, "history": "[]",
             "mapping": json.dumps(MAPPING if mapping is None else mapping),
