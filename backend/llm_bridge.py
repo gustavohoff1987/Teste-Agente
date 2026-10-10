@@ -15,6 +15,12 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 from llm_context import provider_snapshot, review_interpretation
+from llm_config import load_local_environment
+
+
+# Carregado na inicialização do backend; sem log da chave e sem sobrescrever
+# credenciais injetadas pela futura plataforma de hospedagem.
+load_local_environment()
 
 
 OPERATIONS = {
