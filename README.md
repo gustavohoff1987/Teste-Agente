@@ -47,11 +47,13 @@ O LLM retorna uma proposta estruturada de operação/indicador; o backend valida
 
 ```powershell
 cd "C:\Users\User\Desktop\Github\Teste-Agente\backend"
-$env:GEMINI_API_KEY = Read-Host "Cole sua chave do Gemini (entrada oculta)" -AsSecureString | ConvertFrom-SecureString -AsPlainText
+$chaveSegura = Read-Host "Cole a chave do Gemini" -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($chaveSegura)
+try { $env:GEMINI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 py -m uvicorn main:app --reload --port 8000
 ```
 
-> Se sua versão do PowerShell não oferecer `ConvertFrom-SecureString -AsPlainText`, defina a variável de ambiente por um meio local seguro compatível e não cole a chave no chat ou no terminal compartilhado. A chave precisa existir no processo que inicia o Python.
+> O comando funciona no Windows PowerShell 5.1 e no PowerShell mais recente. A entrada da chave é ocultada; a variável é válida somente no processo do terminal e nos processos filhos. Não salve nem envie a chave ao chat ou ao GitHub.
 
 Em outra janela:
 
