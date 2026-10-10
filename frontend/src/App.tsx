@@ -329,6 +329,7 @@ function App() {
     }
     setUploadError("");
     setRunning(true);
+    navigate("results");
     const currentRevision = revision.current;
     const form = new FormData();
     form.append("file", file); form.append("sheet", sheet); form.append("operation", op);
@@ -486,7 +487,7 @@ function App() {
       <section className="workspace-hero relative overflow-hidden rounded-[24px] border border-blue-100 px-5 py-8 shadow-sm sm:px-9 sm:py-11">
         <div className="relative z-10 max-w-[720px]">
           <h1 className="text-3xl font-bold leading-[1.13] tracking-tight text-ink sm:text-4xl">
-            Transforme dados em diagnósticos territoriais
+            Transforme dados em diagnósticos territoriais.
           </h1>
           <p className="mt-4 text-sm text-slate-600 sm:text-base">
             Envie seus dados, escolha uma análise e visualize os resultados.
@@ -885,11 +886,24 @@ function App() {
               {running ? <LoaderCircle size={16} className="animate-spin"/> : <Calculator size={16}/>} {running ? "Calculando..." : "Executar / atualizar análise"}</button>
           </div>}
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}
-          {running && <div className="flex items-center justify-center gap-2 py-16 text-sm text-teal"><LoaderCircle className="animate-spin"/> Processando dados...</div>}
+          {running && <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-teal">
+            <LoaderCircle size={28} className="animate-spin"/>
+            <strong>Preparando seu diagnóstico</strong>
+            <p className="max-w-sm text-xs leading-5 text-slate-600">
+              O motor analítico está processando a base. Os resultados aparecerão aqui ao concluir.
+            </p>
+          </div>}
           {!running && !result && !error && <div className="flex flex-col items-center justify-center py-16 text-center">
             <span className="mb-4 rounded-2xl bg-slate-50 p-5 text-slate-300"><Database size={34} strokeWidth={1.6}/></span>
-            <p className="text-base font-bold text-ink">Seu diagnóstico começa aqui</p>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Carregue uma base, confira os significados e selecione um cartão habilitado. A análise nunca é executada durante o upload.</p>
+            <p className="text-base font-bold text-ink">Seus resultados aparecerão aqui</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+              Volte à análise, confirme os campos e os parâmetros e execute quando estiver pronto.
+              Nenhum cálculo ocorre apenas por importar dados.
+            </p>
+            <button type="button" onClick={() => navigate("home", "analises")}
+              className="no-print mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700">
+              Escolher uma análise
+            </button>
           </div>}
           {result && <div className="pt-6">
             <h3 className="text-xl font-bold text-ink">{result.title}</h3>
