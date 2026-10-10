@@ -493,107 +493,64 @@ function App() {
           </p>
         </div>
       </section>
-      <section id="dados" className="section-anchor mt-14">
-        <SectionHeader eyebrow="01 · Preparar" title="Comece pelos seus dados" description="Carregue um arquivo estruturado. O sistema examina a estrutura e identifica quais campos estão disponíveis antes de realizar qualquer cálculo."/>
-        <div className="grid gap-5 lg:grid-cols-[1.25fr_.85fr]">
-          <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><span className="rounded-xl bg-cyan-50 p-2.5 text-teal"><FolderUp size={21}/></span><h3 className="font-bold text-ink">Importar base de dados</h3></div>
-              <span className="text-xs font-semibold text-slate-400">CSV · XLS · XLSX</span>
-            </div>
-            <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }} />
-            <div className="cursor-pointer rounded-[18px] border-2 border-dashed border-cyan-200 bg-gradient-to-b from-cyan-50/75 to-white px-5 py-10 text-center transition hover:border-teal"
-              role="button" tabIndex={0} onClick={() => inputRef.current?.click()}
-              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}>
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-teal shadow-sm"><UploadCloud size={27} strokeWidth={1.7}/></div>
-              <p className="text-base font-bold text-ink">{file ? file.name : "Selecione seu arquivo para começar"}</p>
-              <p className="mt-2 text-xs text-slate-500">{file ? "Clique para substituir a base selecionada." : "CSV ou Excel (.xls/.xlsx) · Limite experimental de 30 MB"}</p>
-              <span className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-xs font-bold text-white"><FileUp size={15}/> Selecionar arquivo</span>
-            </div>
-            {inspecting && <div role="status" aria-live="polite" className="mt-4 flex items-center gap-2 rounded-xl bg-cyan-50 px-4 py-3 text-sm font-semibold text-teal">
-              <LoaderCircle size={17} className="animate-spin"/> Lendo e validando a estrutura do arquivo. Aguarde...
-            </div>}
-            {uploadError && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-              <XCircle size={17} className="mt-0.5 shrink-0"/> <div><strong>Importação não concluída.</strong><p className="mt-1 leading-5">{uploadError}</p></div>
-            </div>}
-            {inspection?.requires_sheet && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-900"><Info size={17}/> Arquivo recebido: escolha uma planilha para continuar.</p>
-              <label className="flex flex-col gap-1 text-xs font-bold text-slate-700">Aba do arquivo Excel
-                <select className="rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-normal text-ink" value={sheet} onChange={e => { const next = e.target.value; setSheet(next); if (file && next) void inspectFile(file, next); }}>
-                  <option value="">Selecione uma aba</option>
-                  {inspection.sheets.map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
-              </label>
-            </div>}
-            {inspection && !inspection.requires_sheet && <div role="status" aria-live="polite" className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              <CheckCircle2 size={19}/><span className="font-bold">Arquivo importado e examinado com sucesso</span>
-              <span className="text-xs">{shortNum(inspection.row_count)} linhas · {inspection.columns.length} colunas{sheet ? " · Aba: " + sheet : ""}</span>
-              <p className="w-full text-xs leading-5">Agora confira as associações de campos abaixo e clique em um cartão de análise. O arquivo é utilizado apenas nesta sessão local do navegador.</p>
-            </div>}
-            <p className="mt-4 text-xs leading-5 text-slate-500"><Info size={13} className="mr-1 inline"/> O exame inicial não produz diagnóstico. Nenhum arquivo é guardado pelo backend após a requisição; evite enviar bases com dados pessoais desnecessários.</p>
+      <section id="dados" className="section-anchor mt-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
+            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-blue-700"><Database size={23}/></span>
+            <h2 className="text-sm font-bold text-ink sm:text-base">Usar dados do Brasil</h2>
+            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
+              Base nacional em preparação para uso no protótipo.
+            </p>
+            <span title="A base ainda não foi disponibilizada no projeto"
+              className="mt-4 inline-flex w-full cursor-not-allowed justify-center rounded-xl border border-blue-200 bg-blue-100 px-3 py-3 text-xs font-semibold text-blue-800">
+              Disponível em breve
+            </span>
           </div>
-          <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7">
-            <div className="mb-5 flex items-center gap-2.5"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><Table2 size={21}/></span><h3 className="font-bold text-ink">Como estruturar seus dados</h3></div>
-            <p className="mb-4 text-xs leading-6 text-slate-500">Este é um exemplo recomendado, não um modelo obrigatório. A compatibilidade depende dos campos necessários a cada análise.</p>
-            <div className="overflow-x-auto rounded-xl border border-line">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[11px] text-slate-500"><tr>{["Território", "Período", "Categoria", "Quantidade", "População"].map(x => <th key={x} className="whitespace-nowrap px-3 py-3">{x}</th>)}</tr></thead>
-                <tbody className="text-slate-700"><tr>{["A", "2024", "Médicos", "120", "80.000"].map((x, i) => <td key={i} className="whitespace-nowrap border-t border-line px-3 py-3">{x}</td>)}</tr>
-                  <tr>{["B", "2024", "Médicos", "65", "65.000"].map((x, i) => <td key={i} className="whitespace-nowrap border-t border-line px-3 py-3">{x}</td>)}</tr></tbody>
-              </table>
-            </div>
-            <button onClick={sampleCsv} className="no-print mt-4 flex items-center gap-2 text-sm font-bold text-teal hover:underline"><Download size={16}/> Baixar modelo CSV</button>
-            <div className="mt-5 grid gap-3 border-t border-line pt-4 text-xs text-slate-600">
-              <p><span className="font-bold text-ink">Para densidade:</span> quantitativos e população correspondente.</p>
-              <p><span className="font-bold text-ink">Para análises espaciais:</span> coordenadas e referencial geodésico.</p>
-              <p><span className="font-bold text-ink">Para rotatividade:</span> identificador individual com significado longitudinal autorizado.</p>
-            </div>
+          <div className="rounded-[20px] border border-emerald-100 bg-emerald-50/80 p-4 sm:p-5">
+            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-emerald-700"><FileUp size={23}/></span>
+            <h2 className="text-sm font-bold text-ink sm:text-base">Importar seus dados</h2>
+            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
+              Utilize dados de qualquer país ou território.
+            </p>
+            <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="hidden"
+              onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }}/>
+            <button type="button" onClick={() => inputRef.current?.click()}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
+              <UploadCloud size={16}/> Importar arquivo <span className="text-[10px] font-normal">CSV ou Excel</span>
+            </button>
+          </div>
+          <div className="rounded-[20px] border border-amber-100 bg-amber-50/65 p-4 sm:p-5">
+            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-amber-700"><Table2 size={23}/></span>
+            <h2 className="text-sm font-bold text-ink sm:text-base">Estrutura dos dados</h2>
+            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
+              Baixe o modelo recomendado e preencha com seus dados.
+            </p>
+            <button type="button" onClick={sampleCsv}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
+              <Download size={16}/> Baixar modelo CSV
+            </button>
           </div>
         </div>
-        {inspection && !inspection.requires_sheet && <>
-          {preflighting && <p role="status" className="mt-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Conferindo as informações da base...</p>}
-          {preflightError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
-          <ContextConfig columns={inspection.columns} mapping={mapping}
-            fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
-            suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
-            objectConfirmed={objectConfirmed}
-            territoryCode={mapping.territory_id || ""}
-            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
-            onSelectCode={column => {
-              if(column) associateColumn(column, "territory_id");
-              else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(role => role !== "territory_id"));setResult(null);}
-            }}
-            onConfirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
-            onSelect={(role, column) => {
-              if (column) associateColumn(column, role);
-              else {
-                setMapping(prev => ({...prev, [role]: ""}));
-                setConfirmedRoles(prev => prev.filter(x => x !== role));
-                setResult(null);
-              }
-              if (role === "category") {
-                setObjectConfirmed(false);
-                setCategoryConstant("");
-              }
-            }}
-            onConfirmRole={role => {
-              setConfirmedRoles(prev => [...new Set([...prev, role])]);
-              setResult(null);
-            }}
-            onDraft={value => {
-              setObjectDraft(value);
-              setObjectConfirmed(false);
-              setCategoryConstant("");
-              setResult(null);
-            }}
-            onConfirmObject={() => {
-              if (!mapping.category) setCategoryConstant(objectDraft.trim());
-              else setConfirmedRoles(prev => [...new Set<Role>([...prev, "category"])]);
-              setObjectConfirmed(true);
-              setResult(null);
-            }}
-          />
-        </>}
+        <p className="mt-3 text-xs text-slate-500">O modelo é recomendado, mas não obrigatório. A compatibilidade depende da análise escolhida.</p>
+        {inspecting && <p role="status" className="mt-3 flex items-center gap-2 rounded-xl bg-cyan-50 px-4 py-3 text-xs text-teal">
+          <LoaderCircle size={16} className="animate-spin"/> Examinando os dados. Aguarde...</p>}
+        {uploadError && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+          <XCircle size={15} className="mr-2 inline"/>{uploadError}</p>}
+        {inspection?.requires_sheet && <div className="mt-4 rounded-xl border border-amber-200 bg-white p-4">
+          <label className="flex flex-col gap-2 text-xs font-semibold text-ink">Selecione a aba do arquivo Excel
+            <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
+              value={sheet} onChange={e=>{const next=e.target.value;setSheet(next);if(file&&next)void inspectFile(file,next);}}>
+              <option value="">Selecione uma aba</option>
+              {inspection.sheets.map(name=><option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+        </div>}
+        {inspection && !inspection.requires_sheet && <div role="status" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs text-emerald-800">
+          <CheckCircle2 size={17}/>
+          <strong>{file?.name || "Arquivo"} carregado</strong>
+          <span className="text-slate-500">{shortNum(inspection.row_count)} registros · {inspection.columns.length} colunas</span>
+          <button type="button" className="ml-auto font-semibold underline" onClick={()=>navigate("home","preparacao")}>Revisar campos</button>
+        </div>}
       </section>
       <AnalysisAssistant
         apiBase={API}
