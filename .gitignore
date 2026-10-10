@@ -6,3 +6,8 @@ node_modules/
 frontend/dist/
 test-results/
 .local/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
