@@ -32,9 +32,15 @@ npm run dev
 Abrir `http://localhost:5173`. O Vite encaminha `/api` ao FastAPI local.
 Documentação da API: `http://localhost:8000/docs`.
 
-## Conversação com Gemini — primeira iteração (opcional)
+## Conversação com Gemini — iteração 2 contextual (opcional)
 
 A interface possui uma seção **Assistente IA** entre o carregamento/configuração dos dados e os dez cartões analíticos.
+
+**Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. O arquivo é reenviado **somente ao backend Python local**, que revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
+
+O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado continua exigindo confirmação. A interface mostra habilitação, pendências e discrepâncias e **não executa operações**. Ao trocar a base ou alterar o contexto, propostas anteriores são descartadas na aba, evitando reuso silencioso de interpretação desatualizada.
+
+**Sem base carregada:** o comportamento de primeira iteração continua disponível em `POST /api/llm/interpret`, mas a proposta é explicitamente preliminar e não verifica a existência dos valores sugeridos.
 
 A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
 
@@ -66,11 +72,11 @@ Abra `http://localhost:5173/#assistente`. Verifique **Gemini configurado**; escr
 
 O backend utiliza por padrão `gemini-3.5-flash-lite`. A seleção opcional de outro modelo explicitamente admitido é feita por `ADT_GEMINI_MODEL` no ambiente do backend. Modelos e cotas disponíveis podem variar. A função usa uma chamada REST com JSON estruturado, timeout e erros tratados; nenhuma dependência nova é necessária. O contador de **20 requisições diárias** é apenas uma barreira local por processo, reiniciada quando o servidor reinicia: **não substitui cotas nem limites de faturamento do Google**.
 
-Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave) e `POST /api/llm/interpret`. O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
+Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/llm/interpret` (sem base) e `POST /api/llm/interpret-context` (multipart, com base validada apenas pelo Python). O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
 
 ### Fronteira da SPEC
 
-Referências: FN-INT-01/02 (propostas interpretativas), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações). A implementação experimental não cobre o fluxo normativo completo de estados, alternativas ancoradas, catálogo documental V-16 e validações exaustivas. Antes de usar informações sensíveis ou alegar conformidade científica integral, essas lacunas precisam ser implementadas e auditadas.
+Referências: FN-INT-01/02 (propostas interpretativas), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações), C-04 (verificação determinística), RQ-ARQ-06 (minimização), RQ-ORQ-01 (planos governados). A implementação experimental **não realiza ainda** FN-INT-03/04, FN-ORQ-01, FN-META-01 e CAP-SIN-01, nem cobre o fluxo normativo completo de estados, alternativas ancoradas, catálogo documental V-16 e validações exaustivas. Antes de usar informações sensíveis ou alegar conformidade científica integral, essas lacunas precisam ser implementadas e auditadas.
 
 ## Testes
 
@@ -90,7 +96,7 @@ A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull reque
 
 O motor `backend/semantic_bridge.py` reutiliza regras de reconhecimento governado da SPEC para propor a associação entre **nomes originais das colunas** e papéis analíticos internos, sem exigir renomeação pelo usuário. Correspondências não conclusivas (por exemplo, "Total de médicos únicos") aguardam confirmação e não autorizam deduções de unicidade. O exame automático `/api/inspect` fornece candidatos, perfis de colunas e uma matriz inicial; `/api/preflight` a recalcula após esclarecimentos. O endpoint `/api/analyze` **revalida** a habilitação antes da execução.
 
-**Experimento sem LLM:** cartões clicáveis para solicitar análises diferem do canal conversacional normativo da SPEC. Ver `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md` para rastreabilidade, divergências e limitações.
+**Experimento híbrido:** os cartões clicáveis para solicitar análises ainda diferem do canal conversacional normativo da SPEC; a interpretação com LLM não substitui os gates nem autoriza execução. Ver `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md` para rastreabilidade, divergências e limitações.
 
 Exemplo de CSV com `0`, `Competência`, `Total de médicos únicos`: a coluna `Competência` é reconhecida como período, `Total de médicos únicos` é **proposto** como quantitativo; o cabeçalho `0` não é presumido território. Após confirmação da contagem/unidade, categoria constante ou domínio FTS autorizado e comparabilidade temporal quando cabível, quantitativos e série temporal podem ficar disponíveis **sem inventar território nem população**. Densidade continuará indisponível sem o denominador e recorte apropriados.
 
