@@ -327,6 +327,43 @@ async def llm_interpretation(request: ChatRequest) -> dict:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
 
+@app.post("/api/llm/interpret-context")
+async def llm_interpretation_with_dataset(
+    file: UploadFile = File(...),
+    message: str = Form(...),
+    history: str = Form("[]"),
+    mapping: str = Form("{}"),
+    options: str = Form("{}"),
+    sheet: str = Form(""),
+) -> dict:
+    """Pré-exame local de uma base e interpretação LLM de um resumo técnico.
+
+    O arquivo é lido pelo FastAPI apenas; nenhuma linha, coluna ou nome de
+    arquivo é incorporado ao contexto entregue ao provedor.
+    """
+    try:
+        request = ChatRequest(message=message, history=json.loads(history))
+        fields = json.loads(mapping)
+        settings = json.loads(options)
+        if not isinstance(fields, dict) or not isinstance(settings, dict):
+            raise ValueError("Contexto de análise inválido.")
+        frame, _ = read_dataset(await _read_upload(file), file.filename or "", sheet)
+        if frame is None or frame.empty:
+            raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
+        eligibility = preflight(frame, fields, settings)
+        return await llm_interpret(request, eligibility=eligibility)
+    except LLMError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="Não foi possível validar o contexto da base.") from exc
+    except Exception as exc:
+        # Erros de Pydantic também não devem ecoar conteúdos potencialmente sensíveis.
+        from pydantic import ValidationError
+        if isinstance(exc, ValidationError):
+            raise HTTPException(status_code=422, detail="Mensagem ou histórico inválido.") from exc
+        raise
+
+
 @app.post("/api/inspect")
 async def inspect(file: UploadFile = File(...), sheet: str = Form("")):
     try:
