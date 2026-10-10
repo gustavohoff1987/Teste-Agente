@@ -544,7 +544,18 @@ function App() {
           />
         </>}
       </section>
-      <AnalysisAssistant apiBase={API} onSelectAnalysis={operation => {
+      <AnalysisAssistant
+        apiBase={API}
+        file={file && inspection && !inspection.requires_sheet ? file : null}
+        sheet={sheet}
+        mapping={mapping}
+        options={semanticOptions()}
+        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
+        contextVersion={JSON.stringify({
+          file: file?.name, modified: file?.lastModified, size: file?.size,
+          sheet, mapping, options: semanticOptions()
+        })}
+        onSelectAnalysis={operation => {
         setActive(operation);
         setResult(null);
         document.getElementById("analises")?.scrollIntoView({behavior:"smooth", block:"start"});
