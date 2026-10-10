@@ -8,6 +8,23 @@ body { min-width: 320px; margin: 0; }
 button, select, input { font: inherit; }
 .grid > * { min-width: 0; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #3bb5be; outline-offset: 3px; }
+.workspace-hero {
+  background: radial-gradient(ellipse at 92% 13%, rgba(183,231,233,.68), transparent 43%),
+              radial-gradient(ellipse at 69% 140%, rgba(216,233,255,.8), transparent 52%),
+              linear-gradient(114deg, #ffffff 0%, #f7fbff 62%, #eef7f7 100%);
+}
+.workspace-hero::after {
+  content: "";
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  right: -118px;
+  bottom: -315px;
+  border-radius: 48%;
+  border: 38px solid rgba(129,190,215,.14);
+  transform: rotate(-25deg);
+  pointer-events: none;
+}
 .hero-gradient { background: radial-gradient(circle at 83% 15%, rgba(57,186,183,.38), transparent 36%), linear-gradient(114deg, #0e2840 0%, #134a62 57%, #176c70 100%); }
 .hero-pattern { background-image: radial-gradient(rgba(255,255,255,.17) 1px, transparent 1px); background-size: 21px 21px; }
 .feature-card { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
