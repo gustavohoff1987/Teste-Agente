@@ -546,7 +546,7 @@ function App() {
       </section>
       <AnalysisAssistant
         apiBase={API}
-        file={file && inspection && !inspection.requires_sheet ? file : null}
+        file={file}
         sheet={sheet}
         mapping={mapping}
         options={semanticOptions()}
