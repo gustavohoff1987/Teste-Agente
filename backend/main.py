@@ -351,7 +351,12 @@ async def llm_interpretation_with_dataset(
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
         eligibility = preflight(frame, fields, settings)
-        return await llm_interpret(request, eligibility=eligibility)
+        declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
+        if not isinstance(declared_category, str):
+            raise ValueError("Categoria declarada inválida.")
+        return await llm_interpret(
+            request, eligibility=eligibility, category_constant=declared_category
+        )
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
