@@ -5,7 +5,8 @@ import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
 import AnalysisAssistant from "./AnalysisAssistant";
 import BrandAvatar from "./BrandAvatar";
-import AnalysisCarousel from "./AnalysisCarousel";
+import AnalysisList from "./AnalysisList";
+import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
@@ -151,6 +152,10 @@ function App() {
   const [mapping, setMapping] = useState<Mapping>({});
   const [inspecting, setInspecting] = useState(false);
   const [running, setRunning] = useState(false);
+  const [step, setStep] = useState(0);
+  const steps = useRef<Partial<Record<Operation, number>>>({});
+  const [scopeNotice, setScopeNotice] = useState("");
+  const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [active, setActive] = useState<Operation | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
@@ -182,6 +187,25 @@ function App() {
   const [resolutions, setResolutions] = useState<ResolutionOptions>({});
   const revision = useRef(0);
   const uploadRevision = useRef(0);
+  const scopeDrafts = useRef<Record<string, ReturnType<typeof snapshotPreparation>>>({});
+
+  function snapshotPreparation() {
+    return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
+      objectDraft, quantiles, distributionIndicator };
+  }
+  function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
+    const o = saved.options;
+    setMapping(saved.mapping); setConfirmedRoles(o.confirmed_roles);
+    setFtsScopeConfirmed(o.fts_scope_confirmed); setSinglePeriodConfirmed(o.single_period_confirmed);
+    setCountUnit(o.count_unit); setCustomCountUnit(o.custom_count_unit);
+    setPopulationAligned(o.population_denominator_confirmed); setTemporalCompared(o.temporal_comparability_confirmed);
+    setTerritoryStable(o.territory_longitudinal_confirmed); setLongitudinalIdentity(o.longitudinal_identity_confirmed);
+    setIdentityCountConfirmed(o.identity_count_confirmed); setCategoryConstant(o.category_constant);
+    setObjectDraft(saved.objectDraft); setObjectConfirmed(o.object_confirmed);
+    setPeriodFilter(o.period_filter); setCategoryFilter(o.category_filter); setReference(o.reference_territory);
+    setResolutions(saved.resolutions); setConfirmedNoOverlap(o.no_overlap_confirmed); setCrs(o.crs);
+    setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
+  }
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -195,8 +219,10 @@ function App() {
     return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 35), value: typeof r[numeric] === "number" ? r[numeric] : null })) };
   }, [result]);
 
-  async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "") {
+  async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
+    const previous = preserve && inspection?.source ? { info: inspection, saved: snapshotPreparation() } : null;
+    if (previous) scopeDrafts.current[previous.info.source!.version + ":" + previous.info.source!.scope] = previous.saved;
     const currentUpload = ++uploadRevision.current;
     revision.current += 1;
     setInspecting(true);
@@ -239,6 +265,34 @@ function App() {
       setCrs("");
       setQuantiles(5);
       setDistributionIndicator("");
+      setScopeNotice("");
+      if (previous && details.source) {
+        const sameVersion = previous.info.source!.version === details.source.version;
+        const cached = sameVersion ? scopeDrafts.current[details.source.version + ":" + details.source.scope] : undefined;
+        if (cached) {
+          restorePreparation(cached);
+          setScopeNotice("Preparação deste recorte restaurada: a versão dos dados é a mesma. As confirmações serão revalidadas pelo servidor.");
+        } else if (sameVersion) {
+          // Só atravessam granularidades significados comuns verificáveis na mesma versão.
+          // Unicidade, população, território e comparabilidade pertencem a cada recorte.
+          const old = previous.saved;
+          const equalValues = (a: string[], b: string[]) => a.length < 80 && b.length < 80 && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+          const periodBefore = previous.info.derived_fields?.find(f => f.column === old.mapping.period);
+          const periodAfter = details.derived_fields?.find(f => f.column === details.suggested_mapping.period);
+          const samePeriod = !!periodBefore && !!periodAfter && JSON.stringify(periodBefore) === JSON.stringify(periodAfter) && equalValues(previous.info.periods, details.periods);
+          const sameCategory = !!old.mapping.category && old.mapping.category === details.suggested_mapping.category && equalValues(previous.info.categories, details.categories);
+          setConfirmedRoles(old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory)));
+          if (samePeriod) setPeriodFilter(old.options.period_filter);
+          if (sameCategory) {
+            setObjectConfirmed(old.options.object_confirmed); setFtsScopeConfirmed(old.options.fts_scope_confirmed);
+            setCategoryFilter(old.options.category_filter);
+          }
+          setScopeNotice("A abrangência mudou. Confirmações comuns de período e categoria foram mantidas quando equivalentes. Território, unidade de contagem, população e comparabilidade precisam ser conferidos neste recorte.");
+        } else {
+          scopeDrafts.current = {};
+          setScopeNotice("A versão dos dados mudou. Revise as associações e confirme novamente os significados e as condições metodológicas.");
+        }
+      }
     } catch (exc) {
       if (currentUpload !== uploadRevision.current) return;
       const message = readableError(exc);
@@ -249,6 +303,7 @@ function App() {
   async function chooseFile(next: File | undefined) {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
+    scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
     setUsingBrazil(false);
     setFile(next);
     setSheet("");
@@ -277,14 +332,17 @@ function App() {
   }
   function chooseBrazil() {
     if (!privacy.accepted) return;
+    scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
     setUsingBrazil(true); setFile(null); setSheet(""); setActive(null); setBrazilLevel("auto");
     void inspectFile(null);
   }
   function selectAnalysis(operation: Operation) {
+    if (active) steps.current[active] = step;
+    setStep(steps.current[operation] || 0);
     setActive(operation); setResult(null); setError("");
     if (usingBrazil) {
       const nextScope = brazilLevel === "auto" ? inspection?.source?.default_scopes[operation] : brazilLevel;
-      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation);
+      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation, true);
     }
   }
   function semanticOptions() {
@@ -452,9 +510,9 @@ function App() {
       } finally {
         if (!cancelled) setPreflighting(false);
       }
-    }, 250);
+    }, 150);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
-  }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit,
+  }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator]);
@@ -468,6 +526,7 @@ function App() {
       <Icon size={18}/>{label}
     </button>;
 
+  const visibleRequirements = preparationRequirements(active ? preflight?.capabilities[active]?.requirements || [] : []);
   return <div className="min-h-screen bg-canvas">
     {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
     <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
@@ -562,12 +621,31 @@ function App() {
           <span className="text-slate-500">{shortNum(inspection.row_count)} registros · {inspection.columns.length} colunas</span>
           <button type="button" className="ml-auto font-semibold underline" onClick={()=>navigate("home","preparacao")}>Revisar campos</button>
         </div>}
+      </section>
+
+      <div id="analises" className="preparation-workspace section-anchor mt-6">
+        <AnalysisList features={FEATURES} active={active} disabled={inspecting} onSelect={selectAnalysis}/>
+        <PreparationPanel title={selectedFeature?.title || "Preparar uma análise"} step={step} onStep={setStep}
+          checking={preflighting || inspecting} requirements={visibleRequirements}
+          ready={!!active && !preflighting && !inspecting && preflight?.capabilities[active]?.status === "available"}
+          notice={scopeNotice}>
+          {!active ? <p className="text-sm text-slate-600">Escolha uma análise na lista para iniciar a preparação.</p> :
+          !inspection || inspection.requires_sheet ? <div className="space-y-3 text-sm text-slate-600">
+            <p>{inspecting ? "Conferindo a base selecionada…" : "Carregue os dados do Brasil ou importe um arquivo na área de dados. Se o Excel possuir várias abas, escolha a aba nessa área."}</p>
+            {uploadError && <p role="alert">{uploadError}</p>}
+          </div> : <>
+            {preflightError && <div role="alert" className="mb-3 text-sm text-rose-800">{preflightError}
+              <button type="button" className="ml-2 font-bold underline" onClick={() => setPreflightAttempt(n => n + 1)}>Verificar novamente</button>
+            </div>}
+            {error && <p role="alert" className="mb-3 text-sm text-rose-800">{error}</p>}
+            {step === 0 && <>
+              <p className="text-xs text-slate-600">{usingBrazil ? "Dados do Brasil" : file?.name} · {shortNum(inspection.row_count)} registros. Confira os significados propostos; confirmações válidas permanecem registradas.</p>
         {usingBrazil && inspection?.source && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4">
           <label className="flex flex-wrap items-center gap-3 text-xs font-semibold text-ink">
             Abrangência da análise
             <select aria-label="Abrangência da análise" value={brazilLevel}
               className="rounded-xl border border-line bg-white px-3 py-2 text-sm"
-              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); void inspectFile(null, "", level, active || ""); }}>
+              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); const resolved = level === "auto" ? inspection.source?.default_scopes[active || "density"] : level; if (resolved !== inspection.source?.scope) void inspectFile(null, "", level, active || "", true); }}>
               <option value="auto">Conforme a análise escolhida</option>
               <option value="national">Brasil</option>
               <option value="municipal">Municípios</option>
@@ -575,44 +653,11 @@ function App() {
           </label>
           <p className="mt-2 text-xs leading-5 text-slate-600">
             Recorte atual: {inspection.source.scope === "national" ? "Brasil" : "Municípios"}.
-            Quantitativos, evolução temporal e relatórios usam o recorte nacional por padrão; as demais análises usam municípios.
-            Você pode escolher a abrangência. Contagens municipais não são somadas para estimar pessoas únicas no Brasil.
+            A seleção automática acompanha a análise. As fontes nacional e municipal mantêm suas contagens separadas.
           </p>
         </div>}
-      </section>
 
-      <div className="analysis-workspace">
-      <AnalysisCarousel<Operation> features={FEATURES} active={active}
-        scopeChanges={usingBrazil && brazilLevel === "auto" && inspection?.source ?
-          FEATURES.filter(feature => inspection.source!.default_scopes[feature.id] !== inspection.source!.scope).map(feature => feature.id) : []}
-        capabilities={preflight?.capabilities} checking={preflighting || inspecting} hasData={!!inspection && !inspection.requires_sheet}
-        onSelect={selectAnalysis}
-        onRequirements={() => navigate("home", "requisitos")}/>
-      <AnalysisAssistant
-        apiBase={API}
-        privacyAccepted={privacy.accepted}
-        file={file}
-        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
-        datasetVersion={inspection?.source?.version || ""}
-        sheet={sheet}
-        mapping={mapping}
-        options={semanticOptions()}
-        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
-        contextVersion={JSON.stringify({
-          file: file?.name, modified: file?.lastModified, size: file?.size,
-          usingBrazil, source: inspection?.source, sheet, mapping, options: semanticOptions()
-        })}
-        onSelectAnalysis={operation => {
-        selectAnalysis(operation);
-        navigate("home", "requisitos");
-      }}/>
-      </div>
-      <section id="preparacao" className="section-anchor mt-7">
-        {inspection && !inspection.requires_sheet && <h2 className="mb-3 text-xl font-bold text-ink">Confira os dados carregados</h2>}
-        {inspection && !inspection.requires_sheet && <>
-          {preflighting && <p role="status" className="mt-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Conferindo as informações da base...</p>}
-          {preflightError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
-          <ContextConfig columns={inspection.columns} mapping={mapping}
+          <ContextConfig spatial={active === "spatial"} columns={inspection.columns} mapping={mapping}
             periodSources={inspection.derived_fields?.find(field => field.role === "period" && field.column === mapping.period)?.source_columns}
             fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
             suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
@@ -653,9 +698,16 @@ function App() {
               setResult(null);
             }}
           />
-        </>}
-      </section>
-      <section id="requisitos" className="section-anchor mt-7">
+                {active !== "spatial" && !mapping.period && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  <input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/>
+                  Confirmo que a base se refere a um único período
+                </label>}
+                {active !== "spatial" && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  <input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/>
+                  Confirmo que os trabalhadores informados fazem parte da força de trabalho na saúde
+                </label>}
+            </>}
+            {step === 1 && <>
         {active && inspection && !inspection.requires_sheet && <div className="mb-4 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-bold text-ink">Parâmetros da análise</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -676,27 +728,7 @@ function App() {
             </label>}
           </div>
         </div>}
-        {active && error && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">{error}</p>}
-        {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
-          status={!inspection || preflightError ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
-          requirements={preflightError ? [{status: "missing", title: "Verificação não concluída", detail: preflightError}] : preflight?.capabilities[active]?.requirements || (!inspection ? [
-            {status: "missing", title: "Base de dados", detail: "Importe uma planilha para verificar os requisitos desta análise."}
-          ] : [])}
-          onExecute={() => { void run(active); }} executing={running}>
-          {active === "distribution" && inspection && <button type="button" className="mt-4 inline-flex text-xs font-bold text-teal underline"
-            onClick={() => navigate("results", "filtros-resultados")}>
-            Escolher período, categoria e indicador da distribuição
-          </button>}
-          {inspection && !inspection.requires_sheet && <details
-            key={active + ":" + (preflight?.capabilities[active]?.status || "loading")}
-            open={preflight?.capabilities[active]?.status !== "available"}
-            className="mt-5 rounded-xl border border-cyan-100 bg-slate-50/50 p-4">
-            <summary className="cursor-pointer text-sm font-bold text-ink">
-              Informações complementares
-              <span className="ml-2 font-normal text-slate-600">
-                {preflight?.capabilities[active]?.status === "available" ? "— concluídas (editar)" : "— conferir o que falta"}
-              </span>
-            </summary>
+
             <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
             periods={preflight?.values.periods || inspection.periods}
@@ -741,7 +773,7 @@ function App() {
                       value={customCountUnit} onChange={e => setCustomCountUnit(e.target.value)}/>
                   </label>}
                 </>}
-                {["density","comparisons","ranking","aggregate"].includes(active) && <>
+                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density")) && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Coluna com a população correspondente
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -762,14 +794,6 @@ function App() {
                     Confirmo que a população corresponde aos territórios e períodos analisados
                   </label>}
                 </>}
-                {active !== "spatial" && !mapping.period && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                  <input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/>
-                  Confirmo que a base se refere a um único período
-                </label>}
-                {active !== "spatial" && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                  <input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/>
-                  Confirmo que os trabalhadores informados fazem parte da força de trabalho na saúde
-                </label>}
                 {active === "temporal" && <>
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/>
@@ -821,25 +845,53 @@ function App() {
                     options={preflight?.values.territories || []} onChange={setReference}/>
                 </>}
                 {active === "aggregate" && <>
-                  <SelectField label="Selecionar período" value={periodFilter} options={preflight?.values.periods || []} onChange={v => {setPeriodFilter(v);setResult(null);}}/>
-                  <SelectField label="Selecionar categoria" value={categoryFilter} options={preflight?.values.categories || []} onChange={v => {setCategoryFilter(v);setResult(null);}}/>
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={confirmedNoOverlap} onChange={e => setConfirmedNoOverlap(e.target.checked)}/>
                     Declaro ausência de sobreposição das pessoas entre territórios, se desejar interpretar o total como pessoas únicas
                   </label>
                 </>}
               </div>
-              <button type="button" className="mt-4 text-xs font-bold text-teal underline"
-                onClick={() => document.getElementById("associacoes")?.scrollIntoView({behavior:"smooth",block:"start"})}>
-                Rever espaço, tempo e objeto
-              </button>
             </div>
-          </details>}
-        </RequirementChecklist>}
-      </section>
+
+            </>}
+            {step === 2 && <>
+              <div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                <h3 className="font-bold text-ink">Resumo da configuração</h3>
+                <p>Base: {usingBrazil ? "Dados do Brasil — " + (inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
+                <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
+                <p>Período: {periodFilter || "Todos os períodos da base"} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
+                <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (identityCountConfirmed ? "Pessoas distintas" : "Conforme a análise")}</p>
+              </div>
+              <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
+                status={preflightError ? "unavailable" : !preflight || preflighting || inspecting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
+                requirements={visibleRequirements.filter(item => item.status === "met")}
+                onExecute={() => { void run(active); }} executing={running}/>
+            </>}
+          </>}
+        </PreparationPanel>
+      </div>
+      <AnalysisAssistant
+        apiBase={API}
+        privacyAccepted={privacy.accepted}
+        file={file}
+        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
+        datasetVersion={inspection?.source?.version || ""}
+        sheet={sheet}
+        mapping={mapping}
+        options={semanticOptions()}
+        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
+        contextVersion={JSON.stringify({
+          file: file?.name, modified: file?.lastModified, size: file?.size,
+          usingBrazil, source: inspection?.source, sheet, mapping, options: semanticOptions()
+        })}
+        onSelectAnalysis={operation => {
+        selectAnalysis(operation);
+        navigate("home", "preparacao");
+      }}/>
+
       </div>
       <section id="resultados" ref={resultsRef} className={["section-anchor pt-3", page === "results" ? "" : "hidden"].join(" ")}>
-        <button type="button" onClick={() => navigate("home", "requisitos")}
+        <button type="button" onClick={() => navigate("home", "preparacao")}
           className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
           <ArrowRight size={15} className="rotate-180"/> Voltar à análise
         </button>
@@ -856,37 +908,9 @@ function App() {
               <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
-          {inspection && !inspection.requires_sheet && <div id="filtros-resultados" className="no-print border-b border-line py-5">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div><h4 className="text-sm font-bold text-ink">Escolha o recorte da análise</h4>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Defina período e categoria. Para a distribuição, escolha também o indicador usado na classificação dos territórios.</p></div>
-              {active && <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">Os resultados são recalculados após executar / atualizar</span>}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <SelectField label="Filtrar por período" value={periodFilter} options={preflight?.values.periods || inspection.periods} onChange={v => {setPeriodFilter(v); setResult(null);}}/>
-            <SelectField label="Filtrar por categoria" value={categoryFilter} options={preflight?.values.categories || inspection.categories} onChange={v => {setCategoryFilter(v); setResult(null);}}/>
-            {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
-              Indicador da distribuição
-              <select aria-label="Indicador da distribuição" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                value={distributionIndicator} onChange={e => {setDistributionIndicator(e.target.value as "" | "density" | "quantity");setResult(null);}}>
-                <option value="">Selecione o indicador</option>
-                <option value="density">Densidade de profissionais por 1.000 habitantes</option>
-                <option value="quantity">Quantidade absoluta de profissionais</option>
-              </select>
-              <span className="font-normal leading-5 text-slate-500">A densidade exige população correspondente. Os quintis nunca misturam períodos e categorias.</span>
-            </label>}
-            {active === "spatial" && <>
-              <SelectField label="Território de referência" value={reference} options={preflight?.values.territories || inspection.territories} onChange={setReference}/>
-              <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">Referencial geodésico
-                <select className="rounded-xl border border-line px-3 py-2.5 text-sm" value={crs} onChange={e=>setCrs(e.target.value)}><option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option></select></label>
-            </>}
-            {active === "aggregate" && <label className="col-span-2 flex items-center gap-2 self-center text-xs text-slate-700"><input type="checkbox" checked={confirmedNoOverlap} onChange={e=>setConfirmedNoOverlap(e.target.checked)}/> Declaro que não há sobreposição de pessoas nos territórios considerados</label>}
-            </div>
-          </div>}
-          {active && inspection && !inspection.requires_sheet && preflight?.capabilities[active]?.status === "available" && <div className="no-print mt-5 flex justify-end">
-            <button disabled={running || preflighting || inspecting || !privacy.accepted} onClick={()=>{void run(active);}} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2.5 text-sm font-bold text-white hover:bg-ink disabled:opacity-50">
-              {running ? <LoaderCircle size={16} className="animate-spin"/> : <Calculator size={16}/>} {running ? "Calculando..." : "Executar / atualizar análise"}</button>
-          </div>}
+          <div id="filtros-resultados" className="no-print mt-4">
+            <button type="button" className="font-bold text-teal underline" onClick={() => {setStep(1); navigate("home", "preparacao");}}>Alterar parâmetros na preparação</button>
+          </div>
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}
           {running && <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-teal">
             <LoaderCircle size={28} className="animate-spin"/>

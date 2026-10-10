@@ -21,7 +21,7 @@ export default function RequirementChecklist({ analysis, status, requirements,
   const available = status === "available";
   const label = available ? "Disponível" : status === "needs_confirmation" ?
     "Confirmação necessária" : status === "loading" ? "Verificando..." : "Não habilitada";
-  return <section id="requisitos" aria-label={"Requisitos de " + analysis}
+  return <section aria-label={"Requisitos de " + analysis}
     className="section-anchor mt-5 rounded-[20px] border border-line bg-white p-5 shadow-card sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>

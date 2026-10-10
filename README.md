@@ -38,7 +38,9 @@ Documentação da API: `http://localhost:8000/docs`.
 O usuário não seleciona arquivos. Ao escolher uma análise, o sistema usa o recorte
 nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
 municípios. **Abrangência da análise** permite escolher Brasil ou Municípios
-explicitamente. Trocar de recorte limpa resultados e confirmações anteriores.
+explicitamente. Trocar de recorte limpa resultados; confirmações comuns verificáveis
+de período/categoria são preservadas. A preparação de cada recorte é mantida na memória
+da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame do backend.
 
 As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
 municipal para o Brasil ou soma automática de pessoas entre municípios. Agregação
@@ -164,7 +166,13 @@ A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull reque
 
 Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
 
-`py backend/tests/ui_carousel_smoke.py` verifica as dez análises no seletor, setas, teclado, roda do mouse, gesto de deslizar no celular, destaque da seleção, ações do banner, responsividade e redução de movimento. Percorrer os cards não seleciona nem executa análises; a seleção permite abrir os requisitos, que continuam sendo verificados antes da execução.
+O layout atual usa uma lista vertical e um painel de preparação em três etapas.
+`python backend/tests/ui_preparation_smoke.py` verifica esse fluxo, incluindo seleção,
+pendências, confirmação do código territorial, troca de abrangência, densidade,
+quantitativos, população na distribuição, falha/recuperação do pré-exame e upload
+internacional. Requer os servidores locais e o catálogo Brasil instalado; não chama
+o Gemini. Os roteiros anteriores que dependiam do carrossel e de controles dispersos
+descrevem o layout antigo. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
 
 ## Ponte semântica e habilitação de análises
 
