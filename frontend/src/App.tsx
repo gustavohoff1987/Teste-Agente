@@ -552,6 +552,43 @@ function App() {
           <button type="button" className="ml-auto font-semibold underline" onClick={()=>navigate("home","preparacao")}>Revisar campos</button>
         </div>}
       </section>
+
+      <section id="analises" className="section-anchor mt-8">
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-ink">Escolha uma análise ou descreva seu objetivo</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Selecione uma capacidade ou converse com o agente logo abaixo.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5 lg:gap-3">
+          {(showAllAnalyses ? FEATURES : FEATURES.slice(0, 6)).map((f) => <button key={f.id} type="button" onClick={() => {
+              setActive(f.id);
+              setResult(null);
+              setError("");
+              window.setTimeout(() => document.getElementById("requisitos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
+            }}
+            className={["feature-card no-print group flex min-h-[108px] flex-col items-start rounded-2xl border bg-white p-3 text-left shadow-sm sm:p-4",
+              active === f.id ? "feature-card-active" : "border-line",
+              preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
+              ].join(" ")}
+            title={preflight?.capabilities[f.id]?.reasons.join(" ") || "Análise habilitada"}
+            aria-pressed={active === f.id}>
+            <span className="flex w-full items-start justify-between">
+              <span className={["flex h-9 w-9 items-center justify-center rounded-xl", TONES[f.tone]].join(" ")}><f.icon size={20} strokeWidth={1.9}/></span>
+              <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-teal" />
+            </span>
+            <span className="mt-3 block text-sm font-bold text-ink">{f.title}</span>
+            <span className="mt-1 hidden text-[11px] leading-5 text-slate-500 xl:block">{f.detail}</span>
+            <span className={["mt-auto pt-3 text-[10px] font-bold",
+              preflight?.capabilities[f.id]?.status === "available" ? "text-emerald-700" : "text-slate-500"].join(" ")}>
+              {preflighting ? "Verificando..." : preflight?.capabilities[f.id]?.status === "available" ? "Disponível" :
+                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Confirmação necessária" : "Não habilitada"}
+            </span>
+          </button>)}
+        </div>
+        <button type="button" onClick={() => setShowAllAnalyses(v => !v)}
+          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-teal hover:underline">
+          {showAllAnalyses ? "Mostrar menos opções" : "Ver todas as 10 análises"} <ChevronRight size={14}/>
+        </button>
+      </section>
       <AnalysisAssistant
         apiBase={API}
         file={file}
@@ -566,40 +603,76 @@ function App() {
         onSelectAnalysis={operation => {
         setActive(operation);
         setResult(null);
-        document.getElementById("analises")?.scrollIntoView({behavior:"smooth", block:"start"});
+        navigate("home", "requisitos");
       }}/>
-      <section id="analises" className="section-anchor mt-14">
-        <SectionHeader eyebrow="02 · Explorar" title="Escolha sua análise" description="Os dez cartões permanecem visíveis. Apenas as análises habilitadas pela verificação de campos e significados ficam destacadas; as demais indicam o que falta." />
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {FEATURES.map((f, index) => <button key={f.id} type="button" onClick={() => {
-              setActive(f.id);
-              setResult(null);
-              setError("");
-              window.setTimeout(() => document.getElementById("requisitos")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
+      <section id="preparacao" className="section-anchor mt-7">
+        {inspection && !inspection.requires_sheet && <h2 className="mb-3 text-xl font-bold text-ink">Confira os dados carregados</h2>}
+        {inspection && !inspection.requires_sheet && <>
+          {preflighting && <p role="status" className="mt-4 flex items-center gap-2 text-xs text-teal"><LoaderCircle size={15} className="animate-spin"/> Conferindo as informações da base...</p>}
+          {preflightError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{preflightError}</p>}
+          <ContextConfig columns={inspection.columns} mapping={mapping}
+            fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
+            suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
+            objectConfirmed={objectConfirmed}
+            territoryCode={mapping.territory_id || ""}
+            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
+            onSelectCode={column => {
+              if(column) associateColumn(column, "territory_id");
+              else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(role => role !== "territory_id"));setResult(null);}
             }}
-            className={["feature-card no-print group flex min-h-[177px] flex-col items-start rounded-[20px] border bg-white p-4 text-left shadow-card sm:p-5",
-              active === f.id ? "feature-card-active" : "border-line",
-              preflight?.capabilities[f.id]?.status === "available" && !preflighting ? "ring-1 ring-teal-100" : "opacity-55 grayscale-[.3] hover:opacity-85"
-              ].join(" ")}
-            title={preflight?.capabilities[f.id]?.reasons.join(" ") || "Análise habilitada"}
-            aria-pressed={active === f.id}>
-            <span className="flex w-full items-start justify-between">
-              <span className={["flex h-11 w-11 items-center justify-center rounded-2xl", TONES[f.tone]].join(" ")}><f.icon size={21} strokeWidth={1.85}/></span>
-              <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-teal" />
-            </span>
-            <span className="mt-5 block text-sm font-bold text-ink">{f.title}</span>
-            <span className="mt-1 block text-[11px] leading-5 text-slate-500">{f.detail}</span>
-            <span className={["mt-auto pt-3 text-[10px] font-bold",
-              preflight?.capabilities[f.id]?.status === "available" ? "text-emerald-700" : "text-slate-500"].join(" ")}>
-              {preflighting ? "Verificando..." : preflight?.capabilities[f.id]?.status === "available" ? "Disponível" :
-                preflight?.capabilities[f.id]?.status === "needs_confirmation" ? "Confirmação necessária" : "Não habilitada"}
-            </span>
-          </button>)}
-        </div>
-        <p className="mt-4 text-xs leading-6 text-slate-600">
-          <strong className="text-ink">Como funciona:</strong> selecione um cartão para consultar os requisitos.
-          O cálculo só ocorre quando você clicar em <strong>Executar análise</strong>.
-        </p>
+            onConfirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
+            onSelect={(role, column) => {
+              if (column) associateColumn(column, role);
+              else {
+                setMapping(prev => ({...prev, [role]: ""}));
+                setConfirmedRoles(prev => prev.filter(x => x !== role));
+                setResult(null);
+              }
+              if (role === "category") {
+                setObjectConfirmed(false);
+                setCategoryConstant("");
+              }
+            }}
+            onConfirmRole={role => {
+              setConfirmedRoles(prev => [...new Set([...prev, role])]);
+              setResult(null);
+            }}
+            onDraft={value => {
+              setObjectDraft(value);
+              setObjectConfirmed(false);
+              setCategoryConstant("");
+              setResult(null);
+            }}
+            onConfirmObject={() => {
+              if (!mapping.category) setCategoryConstant(objectDraft.trim());
+              else setConfirmedRoles(prev => [...new Set<Role>([...prev, "category"])]);
+              setObjectConfirmed(true);
+              setResult(null);
+            }}
+          />
+        </>}
+      </section>
+      <section id="requisitos" className="section-anchor mt-7">
+        {active && inspection && !inspection.requires_sheet && <div className="mb-4 rounded-2xl border border-line bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold text-ink">Parâmetros da análise</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <SelectField label="Filtrar por período" value={periodFilter}
+              options={preflight?.values.periods || inspection.periods}
+              onChange={v => {setPeriodFilter(v); setResult(null);}}/>
+            <SelectField label="Filtrar por categoria" value={categoryFilter}
+              options={preflight?.values.categories || inspection.categories}
+              onChange={v => {setCategoryFilter(v); setResult(null);}}/>
+            {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
+              Indicador da distribuição
+              <select aria-label="Indicador da distribuição" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                value={distributionIndicator} onChange={e => {setDistributionIndicator(e.target.value as "" | "density" | "quantity");setResult(null);}}>
+                <option value="">Selecione o indicador</option>
+                <option value="density">Densidade por 1.000 habitantes</option>
+                <option value="quantity">Quantidade absoluta de profissionais</option>
+              </select>
+            </label>}
+          </div>
+        </div>}
         {active && <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
           status={!inspection || preflightError ? "unavailable" : !preflight || preflighting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
           requirements={preflightError ? [{status: "missing", title: "Verificação não concluída", detail: preflightError}] : preflight?.capabilities[active]?.requirements || (!inspection ? [
@@ -607,7 +680,7 @@ function App() {
           ] : [])}
           onExecute={() => { void run(active); }} executing={running}>
           {active === "distribution" && inspection && <button type="button" className="mt-4 inline-flex text-xs font-bold text-teal underline"
-            onClick={() => document.getElementById("filtros-resultados")?.scrollIntoView({behavior:"smooth", block:"center"})}>
+            onClick={() => navigate("results", "filtros-resultados")}>
             Escolher período, categoria e indicador da distribuição
           </button>}
           {inspection && !inspection.requires_sheet && <details
