@@ -64,7 +64,7 @@ npm.cmd run dev
 
 Abra `http://localhost:5173/#assistente`. Verifique **Gemini configurado**; escreva, por exemplo, "Quero analisar a distribuição da densidade de médicos por município em 202406", confirme o aviso de privacidade e clique em **Interpretar com Gemini**. Na resposta, clique **Ver requisitos** se desejar continuar no motor.
 
-O backend utiliza por padrão `gemini-2.5-flash-lite`. A seleção opcional de outro modelo explicitamente admitido é feita por `ADT_GEMINI_MODEL` no ambiente do backend. Modelos e cotas disponíveis podem variar. A função usa uma chamada REST com JSON estruturado, timeout e erros tratados; nenhuma dependência nova é necessária. O contador de **20 requisições diárias** é apenas uma barreira local por processo, reiniciada quando o servidor reinicia: **não substitui cotas nem limites de faturamento do Google**.
+O backend utiliza por padrão `gemini-3.5-flash-lite`. A seleção opcional de outro modelo explicitamente admitido é feita por `ADT_GEMINI_MODEL` no ambiente do backend. Modelos e cotas disponíveis podem variar. A função usa uma chamada REST com JSON estruturado, timeout e erros tratados; nenhuma dependência nova é necessária. O contador de **20 requisições diárias** é apenas uma barreira local por processo, reiniciada quando o servidor reinicia: **não substitui cotas nem limites de faturamento do Google**.
 
 Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave) e `POST /api/llm/interpret`. O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
 
