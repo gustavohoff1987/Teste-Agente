@@ -132,3 +132,39 @@ def test_history_is_limited_and_only_user_text_is_sent(monkeypatch):
     excessive = client.post("/api/llm/interpret",
                             json={"message": "E quanto à distribuição?", "history": ["Pergunta"] * 5})
     assert excessive.status_code == 422
+
+
+def test_http_transport_uses_json_schema_header_and_no_dataset(monkeypatch):
+    import asyncio
+    import httpx
+    captured = {}
+
+    class FakeHTTPClient:
+        def __init__(self, *args, **kwargs):
+            captured["timeout"] = kwargs["timeout"]
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, url, headers, json):
+            captured.update(url=url, headers=headers, body=json)
+            return httpx.Response(200, json={"candidates": [{"content": {"parts": [{
+                "text": '{"operation":"distribution","indicator":"density","period":"2024",'
+                        '"category":"médicos","territory":"municípios"}'
+            }]}}]})
+
+    monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", FakeHTTPClient)
+    response = asyncio.run(llm_bridge._call_gemini(
+        ["Quero distribuição da densidade de médicos em municípios em 2024"],
+        "gemini-2.5-flash-lite", "test-secret"))
+    assert response["operation"] == "distribution"
+    assert captured["url"].startswith("https://generativelanguage.googleapis.com/")
+    assert captured["headers"]["x-goog-api-key"] == "test-secret"
+    assert captured["timeout"] <= 30
+    assert captured["body"]["generationConfig"]["responseMimeType"] == "application/json"
+    assert "responseSchema" in captured["body"]["generationConfig"]
+    assert all(k not in captured["body"] for k in ("file", "mapping", "rows", "data"))
+    assert "test-secret" not in str(captured["body"])
