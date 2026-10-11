@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Clock3, HelpCircle, MapPinned, UsersRound } 
 type Role = "territory" | "period" | "category";
 type FieldState = { status: "recognized" | "confirmed" | "proposed" | "unmapped"; column: string };
 type Mapping = Partial<Record<Role, string>>;
+type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
 
 type Props = {
   columns: string[];
@@ -20,6 +21,9 @@ type Props = {
   codeConfirmed?: boolean;
   onSelectCode: (column: string) => void;
   onConfirmCode: () => void;
+  detectedLevels?: {role: string; column: string}[];
+  selectedLevels?: Partial<Record<SuperiorLevel, string>>;
+  onSelectLevel: (level: SuperiorLevel, column: string) => void;
   periodSources?: string[];
   spatial?: boolean;
 };
@@ -108,6 +112,31 @@ export default function ContextConfig(props: Props) {
               Confirmar identificador territorial
             </button>}
             {props.territoryCode && props.codeConfirmed && <p className="mt-2 text-xs font-semibold text-emerald-700">Código confirmado</p>}
+            <details className="mt-4 border-t border-line pt-3">
+              <summary className="cursor-pointer text-xs font-bold text-teal">
+                Hierarquia territorial · níveis superiores (opcionais)
+              </summary>
+              <p className="mt-2 text-xs leading-5 text-slate-600">
+                O território de análise está contido no superior 1, que está contido no superior 2.
+                O sistema reconhece nomes conhecidos; para cabeçalhos diferentes, indique a coluna.
+                Isso não autoriza automaticamente somar dados de territórios distintos.
+              </p>
+              {(["territorio_superior_1", "territorio_superior_2"] as const).map((level, index) => {
+                const inferred = props.detectedLevels?.find(item => item.role === level)?.column || "";
+                const value = props.selectedLevels?.[level] || inferred;
+                return <label key={level} className="mt-3 flex flex-col gap-2 text-xs font-semibold text-slate-700">
+                  Território superior {index + 1}
+                  <select aria-label={"Território superior " + (index + 1)}
+                    className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                    value={value} onChange={e => props.onSelectLevel(level, e.target.value)}>
+                    <option value="">Não informado</option>
+                    {columns.filter(col => col !== selected && col !== props.territoryCode).map(col =>
+                      <option key={col} value={col}>{col}</option>)}
+                  </select>
+                  {inferred && !props.selectedLevels?.[level] && <span className="text-[11px] font-normal text-emerald-700">Reconhecido pelo cabeçalho</span>}
+                </label>;
+              })}
+            </details>
           </div>}
         </div>;
       })}
