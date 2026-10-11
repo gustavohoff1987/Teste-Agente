@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 from territorial_hierarchy import describe_hierarchy
 from data_contract import (ConfirmationRequired, multiplicity, scoped, text_values,
-                           validate_operation, period_positions, prepare, needs_population)
+                           validate_operation, period_positions, prepare, needs_population, dimensions, count_unit_label, canonical_crs)
 
 ROLES = ("territory", "territory_id", "period", "category", "count", "population", "latitude", "longitude", "identity")
 ROLE_NAMES = {
@@ -18,8 +18,8 @@ ROLE_NAMES = {
     "longitude": "Longitude", "identity": "Identificador individual",
     "territory_id": "Código identificador territorial",
 }
-OPERATIONS = ("density", "counts", "distribution", "comparisons", "temporal",
-              "aggregate", "spatial", "ranking", "rotation", "report")
+from analysis_catalog import OPERATION_LABELS
+OPERATIONS = tuple(OPERATION_LABELS)
 # Baseados nos grupos de cabeçalhos da CFG-VOC §4.4.9; os complementos
 # operacionais ficam explícitos e NÃO alteram a configuração normativa.
 EXACT = {
@@ -247,6 +247,13 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
     territory = assigned("territory")
     period_count = frame[mapped["period"]].dropna().nunique() if assigned("period") else 0
     territory_count = frame[mapped["territory"]].dropna().nunique() if territory else 0
+    if territory and assigned("territory_id"):
+        try:
+            identity_mapping = {r: c for r, c in mapped.items() if r in ("territory", "territory_id")}
+            territory_count = dimensions(frame, identity_mapping,
+                {**options, "single_period_confirmed": True, "fts_scope_confirmed": True}).territory.nunique()
+        except ValueError:
+            pass  # O contrato compartilhado relata a causa específica abaixo.
     valid_units = {"pessoas", "vinculos", "postos", "outro"}
     if options.get("count_unit", "") not in ("", *valid_units):
         raise ValueError("Unidade de contagem não reconhecida.")
@@ -304,9 +311,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             pending.append("Confirme o objeto de análise apresentado pelo sistema.")
         if not period and op != "spatial":
             pending.append("Associe Período ou confirme que a base possui um período único.")
-        if not territory and op not in ("counts", "temporal", "report"):
+        if not territory and (op not in ("counts", "temporal", "report") or needs_population(mapped, options, op)):
             missing.append("Esta análise exige dimensão territorial reconhecida ou confirmada.")
-        if op in ("density", "comparisons", "ranking", "aggregate"):
+        if needs_population(mapped, options, op):
             if not assigned("population"):
                 missing.append("Associe a coluna de população correspondente.")
             elif not population:
@@ -356,7 +363,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 missing.append("Há coordenadas ausentes, não numéricas ou fora dos intervalos válidos.")
             if not options.get("crs"):
                 pending.append("Informe o referencial geodésico das coordenadas.")
-            elif options.get("crs") not in ("SIRGAS2000", "WGS84"):
+            elif not canonical_crs(options.get("crs")):
                 missing.append("O referencial indicado não é suportado nesta versão.")
             if not options.get("reference_territory"):
                 pending.append("Selecione o território de referência.")
@@ -381,7 +388,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                         raise prepared
                 validate_operation(frame, mapped, options, op, prepared=prepared)
             except ConfirmationRequired as exc:
-                pending.append(str(exc))
+                if str(exc) not in pending:
+                    pending.append(str(exc))
             except (ValueError, TypeError) as exc:
                 missing.append(str(exc))
         if missing:
@@ -410,7 +418,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             indicator = options.get("distribution_indicator")
             if indicator in ("density", "quantity"):
                 met("Indicador da distribuição", "Densidade por 1.000 habitantes" if indicator == "density"
-                    else "Quantidade de profissionais")
+                    else "Quantidade de " + count_unit_label(mapped, options))
             if options.get("period_filter") or all_period_count == 1:
                 met("Período da distribuição", "As unidades serão classificadas em um único período.")
             if options.get("category_filter") or all_category_count == 1:
@@ -421,7 +429,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             met("Comparabilidade temporal", "Foram declaradas condições de comparação entre os períodos.")
         if op == "spatial" and assigned("latitude") and assigned("longitude") and not coordinate_invalid and not missing:
             met("Coordenadas", "Latitude e longitude foram identificadas e verificadas.")
-        if op == "spatial" and options.get("crs") in ("SIRGAS2000", "WGS84"):
+        if op == "spatial" and canonical_crs(options.get("crs")):
             met("Referencial geodésico", "O referencial informado é suportado pelo motor experimental.")
         if op == "rotation" and assigned("identity") and (
                 options.get("longitudinal_identity_confirmed")) and not identity_missing:
@@ -429,7 +437,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         for kind, reasons in (("missing", missing), ("needs_confirmation", pending)):
             for message in reasons:
                 if "indicador" in message.lower():
-                    title = "Indicador da distribuição"
+                    title = "Indicador da análise"
                 elif "populaç" in message or "denominador" in message:
                     title = "Dados populacionais"
                 elif "territori" in message.lower() or "Território" in message:

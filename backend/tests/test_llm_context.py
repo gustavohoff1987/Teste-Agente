@@ -61,7 +61,7 @@ def test_verified_context_does_not_send_base_values_or_labels(monkeypatch):
         assert model == "gemini-3.5-flash-lite"
         assert key == "test-only-not-real"
         return {
-            "operation": "distribution", "indicator": "density",
+            "intent": "ANALITICO", "topic": "none", "operation": "distribution", "indicator": "density",
             "period": "202406", "category": "medicos", "territory": "municipios",
         }
 
@@ -95,7 +95,7 @@ def test_verified_context_does_not_send_base_values_or_labels(monkeypatch):
 
 def test_nonexistent_period_is_not_treated_as_verified(monkeypatch):
     async def provider(payload, model, key):
-        return {"operation": "distribution", "indicator": "density",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "distribution", "indicator": "density",
                 "period": "203001", "category": "medicos", "territory": ""}
     monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
     r = client.post("/api/llm/interpret-context",
@@ -109,7 +109,7 @@ def test_nonexistent_period_is_not_treated_as_verified(monkeypatch):
 
 def test_model_cannot_invent_a_field_value_which_user_never_named(monkeypatch):
     async def provider(payload, model, key):
-        return {"operation": "distribution", "indicator": "density",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "distribution", "indicator": "density",
                 "period": "202406", "category": "Enfermeiros", "territory": "Vila Protegida"}
     monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
     r = client.post("/api/llm/interpret-context",

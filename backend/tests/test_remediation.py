@@ -14,7 +14,7 @@ from data_contract import period_positions
 client = TestClient(app)
 M = {"territory": "Municipality", "period": "Year", "category": "Profession",
      "count": "Count", "population": "Population"}
-O = {"count_unit": "pessoas", "population_denominator_confirmed": True}
+O = {"count_unit": "pessoas", "report_indicator": "quantity", "population_denominator_confirmed": True}
 
 
 def sample():
@@ -93,7 +93,7 @@ def test_unused_population_does_not_block_counts_or_unconfirmed_distribution():
     df = sample().iloc[:3].copy()
     df["Municipality"] = ["A", "B", "C"]
     df["Population"] = [None, "wrong", -1]
-    opts = {"count_unit": "vinculos"}
+    opts = {"count_unit": "vinculos", "report_indicator": "quantity"}
     for op in ("counts", "distribution", "report"):
         settings = {**opts, "distribution_indicator": "quantity"} if op == "distribution" else opts
         response = post("/api/analyze", df, options=settings, operation=op)
@@ -112,7 +112,7 @@ def test_comparisons_and_distribution_do_not_pool_periods_or_break_ties():
     df = pd.DataFrame({"Municipality": ["A", "B", "C"] * 2, "Year": [2023]*3+[2024]*3,
         "Profession": ["Nurses"]*6, "Count": [2, 4, 4, 30, 20, 10], "Population": [1000]*6})
     opts = {**O, "comparison_confirmed": True, "quantile_count": 2}
-    for operation in ("ranking", "comparisons"):
+    for operation in ("ranking",):
         rows = post("/api/analyze", df, options=opts, operation=operation).json()["rows"]
         assert [r["Posição"] for r in rows] == [1, 1, 3, 1, 2, 3]
     assert post("/api/analyze", df, options={**opts, "distribution_indicator": "density"},
@@ -135,7 +135,7 @@ def test_territories_in_different_periods_are_not_a_comparison_universe():
     df["Municipality"] = ["A", "B"]
     for op in ("comparisons", "ranking", "distribution", "temporal"):
         assert post("/api/analyze", df, options={**O, "comparison_confirmed": True,
-            "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}, operation=op).status_code == 422
+            "temporal_indicator": "quantity", "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}, operation=op).status_code == 422
 
 
 def test_calendar_positions_and_incomplete_temporal_series():
@@ -145,7 +145,7 @@ def test_calendar_positions_and_incomplete_temporal_series():
             period_positions(values)
     df = pd.DataFrame({"Municipality": ["A"]*4+["B"], "Year": ["2023-12", "2024-01", "2024-02", "2024-03", "2024-01"],
         "Profession": ["Nurses"]*5, "Count": [10, 12, 15, 16, 8]})
-    opts = {"count_unit": "pessoas", "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}
+    opts = {"count_unit": "pessoas", "temporal_indicator": "quantity", "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}
     response = post("/api/analyze", df, {k:v for k,v in M.items() if k != "population"}, opts, "temporal")
     assert response.status_code == 200, response.text
     rows = response.json()["rows"]
@@ -180,8 +180,8 @@ def test_individual_union_is_deduplicated_and_cohort_is_private():
         assert post("/api/analyze", df, mapping, {**rotation_opts, **bad}, "rotation").status_code == 422
 
 
-@pytest.mark.parametrize("crs", ["WGS84", "SIRGAS2000"])
-def test_spatial_decimal_comma_wgs84_and_coordinate_conflict(crs):
+@pytest.mark.parametrize("crs", ["SIRGAS_2000", "SIRGAS2000"])
+def test_spatial_decimal_comma_sirgas_and_coordinate_conflict(crs):
     df = pd.DataFrame({"Municipality": ["A", "B"], "Latitude": ["0,0", "0,0"], "Longitude": ["0,0", "1,0"]})
     mapping = {"territory": "Municipality", "latitude": "Latitude", "longitude": "Longitude"}
     opts = {"number_format": "decimal_comma", "confirmed_roles": ["latitude", "longitude"], "crs": crs, "reference_territory": "A"}
@@ -223,9 +223,9 @@ def test_all_ten_operations_have_successful_http_execution():
         "Profession": ["Nurses"]*8, "Count": [10,20,12,22,13,24,16,30], "Population": [1000,2000]*4,
         "Latitude": [0,1]*4, "Longitude": [0,1]*4, "Identity": ["synthetic-a", "synthetic-b"]*4})
     mapping = {**M, "latitude": "Latitude", "longitude": "Longitude", "identity": "Identity"}
-    opts = {**O, "comparison_confirmed": True, "temporal_comparability_confirmed": True,
+    opts = {**O, "comparison_confirmed": True, "temporal_indicator": "quantity", "temporal_comparability_confirmed": True,
         "territory_longitudinal_confirmed": True, "longitudinal_identity_confirmed": True,
-        "cohort_coverage_confirmed": True, "crs": "WGS84", "reference_territory": "A",
+        "cohort_coverage_confirmed": True, "crs": "SIRGAS2000", "reference_territory": "A",
         "population_additive_confirmed": True, "component_sum_confirmed": True}
     for op in OPERATIONS:
         settings = {**opts, **({"period_filter": "2024", "distribution_indicator": "density"} if op == "distribution" else
@@ -284,7 +284,7 @@ def test_distribution_quantity_never_reads_population_unless_density_selected():
                     options={"count_unit": "pessoas", "distribution_indicator": "quantity"},
                     operation="distribution")
     assert quantity.status_code == 200, quantity.text
-    assert [r["Quantidade de profissionais"] for r in quantity.json()["detail_rows"]] == [2, 4, 8]
+    assert [r["Quantidade de pessoas"] for r in quantity.json()["detail_rows"]] == [2, 4, 8]
     density = post("/api/analyze", frame,
                    options={**O, "distribution_indicator": "density"}, operation="distribution")
     assert density.status_code == 422

@@ -8,7 +8,7 @@ evidência de disponibilidade sem revalidação da base.
 from typing import Any
 import unicodedata
 
-from semantic_bridge import OPERATIONS
+from semantic_bridge import OPERATIONS, preflight
 
 
 def _norm(value: str) -> str:
@@ -48,11 +48,12 @@ def _slot_status(value: str, possibilities: list[str]) -> str:
 
 
 def review_interpretation(proposal: dict, eligibility: dict[str, Any],
-                          category_constant: str = "") -> dict:
+                          category_constant: str = "", *, frame=None, mapping=None, options=None) -> dict:
     """Revisão do resultado LLM com evidência produzida por código."""
     operation = proposal.get("operation")
     gate = eligibility["capabilities"].get(operation) if operation else None
     capability_status = gate["status"] if gate else "not_selected"
+    current_status = capability_status
     values = eligibility["values"]
     # Categoria constante já confirmada pelo usuário não exige coluna de
     # categoria própria. Não inventar equivalências ou categorias adicionais.
@@ -70,6 +71,33 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
         slots["territory"] = "not_requested"
 
     blockers = []
+    if operation and frame is not None:
+        # Cópia provisória: nenhuma seleção ou confirmação é aplicada à sessão.
+        proposed = dict(options or {})
+        if operation in ("distribution", "temporal", "report"):
+            proposed[operation + "_indicator"] = proposal.get("indicator") or ""
+        for role, choices in (("period", values["periods"]), ("category", categories)):
+            candidate = proposal.get(role)
+            if not candidate:
+                continue
+            matches = [value for value in choices if _norm(value) == _norm(candidate)]
+            if len(matches) != 1:
+                capability_status = "unavailable"
+                blockers.append("O recorte proposto não tem correspondência única na base.")
+                break
+            if (mapping or {}).get(role):
+                proposed[role + "_filter"] = matches[0]
+        else:
+            try:
+                proposed_gate = preflight(frame, mapping, proposed)["capabilities"][operation]
+                capability_status = proposed_gate["status"]
+                blockers.extend(proposed_gate["reasons"])
+            except (ValueError, TypeError):
+                capability_status = "unavailable"
+                blockers.append("Não foi possível validar o recorte proposto.")
+    elif operation:
+        capability_status = "needs_confirmation"
+        blockers.append("A proposta exige novo pré-exame com seus próprios parâmetros.")
     if operation is None:
         blockers.append("Escolha uma das capacidades de diagnóstico territorial.")
     if capability_status == "unavailable":
@@ -87,6 +115,8 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
     return {
         "source": "BACKEND_PREFLIGHT",
         "capability_status": capability_status,
+        "current_capability_status": current_status,
+        "configuration_reviewed": "proposal" if frame is not None else "current_only",
         "slots": slots,
         "blockers": blockers,
         "ready_to_execute": False,

@@ -10,18 +10,7 @@ import unicodedata
 from typing import Any
 
 # Catálogo fechado de alternativas para pedidos explicitamente concorrentes.
-_OPERATION_LABELS: dict[str, str] = {
-    "density": "Densidade",
-    "counts": "Quantitativos",
-    "distribution": "Distribuição",
-    "comparisons": "Comparações",
-    "temporal": "Evolução temporal",
-    "aggregate": "Agregações",
-    "spatial": "Análise espacial",
-    "ranking": "Rankings",
-    "rotation": "Rotatividade",
-    "report": "Relatórios",
-}
+from analysis_catalog import OPERATION_LABELS as _OPERATION_LABELS
 _PATTERNS = {
     "density": r"densidade",
     "counts": r"quantitativos?",
@@ -87,14 +76,17 @@ def clarification_for(
     if not operation:
         return None
     if operation == "distribution" and not proposal.get("indicator"):
+        scope = "".join(" " + label + " " + proposal[slot] for slot, label in
+                        (("period", "no período"), ("category", "para a categoria"),
+                         ("territory", "na unidade territorial")) if proposal.get(slot))
         return _make(
             "INDICADOR_DISTRIBUICAO",
             "Para a distribuição, qual indicador deseja utilizar?",
             [
                 {"label": "Densidade por 1.000 habitantes",
-                 "draft": "Quero a distribuição da densidade por 1.000 habitantes."},
+                 "draft": "Quero a distribuição da densidade por 1.000 habitantes" + scope + "."},
                 {"label": "Quantidade absoluta de profissionais",
-                 "draft": "Quero a distribuição por quantidade absoluta de profissionais."},
+                 "draft": "Quero a distribuição por quantidade absoluta" + scope + "."},
             ],
             "A distribuição admite indicadores diferentes; escolha explícita necessária.",
         )

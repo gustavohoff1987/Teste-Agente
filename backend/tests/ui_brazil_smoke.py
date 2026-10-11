@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 from playwright.sync_api import sync_playwright, expect
+from ui_support import URL, offline, stage, select
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +24,7 @@ def main():
         expect.set_options(timeout=60000)
         browser = p.chromium.launch(headless=True, channel=os.getenv("ADT_BROWSER_CHANNEL", "chrome"))
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, accept_downloads=True)
+        offline(context)
         context.route("**/api/llm/status", lambda route: route.fulfill(json={"configured": True}))
         context.route("**/api/llm/interpret*", lambda route: route.fulfill(json={
             "reply": "Confira os requisitos para a análise solicitada.", "proposal": {
@@ -35,19 +37,18 @@ def main():
         errors, requests = [], []
         page.on("pageerror", lambda exc: (errors.append(str(exc)), print("PAGE ERROR", exc, flush=True)))
         page.on("request", lambda req: requests.append(req) if req.method == "POST" else None)
-        page.goto("http://localhost:5173/")
+        page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=True).click()
         expect(page.get_by_text("Dados do Brasil carregados", exact=True)).to_be_visible()
         print("Brazil catalog loaded", flush=True)
         assert "Dados_Brasil.xlsx" not in page.inner_text("body")
         assert "Dados_Municipios_Brasil.csv" not in page.inner_text("body")
-        card = page.locator("#analises .analysis-card")
+        card = page.locator("#analises button[aria-pressed]")
         card.press("Home")
         print("Carousel Home", flush=True)
         card.press("ArrowRight")
         print("Carousel counts", flush=True)
-        expect(page.locator("#analysis-card-status")).to_have_text("Selecione para conferir o recorte")
         card.click()
         print("Requested national scope", flush=True)
         territory = page.get_by_label("Unidade territorial de análise", exact=True)
@@ -61,11 +62,15 @@ def main():
             raise
         print("National scope selected", flush=True)
         execute = page.get_by_role("button", name="Executar análise", exact=True)
+        stage(page, 3)
         expect(execute).to_be_disabled()
+        stage(page, 1)
         assert not any(req.url.endswith("/api/analyze") for req in requests)
         period.select_option("Período (ano e mês)")
         page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
+        stage(page, 2)
         page.get_by_label("O que o quantitativo representa?", exact=True).select_option("pessoas")
+        stage(page, 3)
         expect(execute).to_be_enabled()
         print("National counts enabled", flush=True)
         page.screenshot(path=str(OUTPUT / "brazil-national-desktop.png"))
@@ -93,17 +98,21 @@ def main():
         card.click()
         expect(territory).to_have_value("municipio")
         print("Municipal scope selected", flush=True)
-        expect(page.get_by_role("log")).not_to_contain_text("Confira os requisitos")
+        expect(page.get_by_role("log")).to_contain_text("Confira os requisitos")
+        stage(page, 3)
         expect(execute).to_be_disabled()
+        stage(page, 2)
         # Mudança de granularidade não herda confirmações do total nacional.
         expect(page.get_by_label("O que o quantitativo representa?", exact=True)).to_have_value("")
-        period.select_option("Período (ano e mês)")
+        stage(page, 1)
         page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
-        page.get_by_text("Identificação territorial · código associado", exact=True).click()
+        page.get_by_role("button", name="Confirmar associação", exact=True).click()
         page.get_by_role("button", name="Confirmar identificador territorial", exact=True).click()
+        stage(page, 2)
         page.get_by_label("O que o quantitativo representa?", exact=True).select_option("pessoas")
         page.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados", exact=True).check()
         page.locator('select[aria-label="Filtrar por período"]:visible').select_option("202406")
+        stage(page, 3)
         expect(execute).to_be_enabled()
         with page.expect_response(lambda r: r.url.endswith("/api/analyze")) as event:
             execute.click()
@@ -116,22 +125,27 @@ def main():
                 assert 'name="dataset"' in req.post_data and 'name="file"' not in req.post_data
         page.get_by_role("button", name="Início", exact=True).click()
         # Seleção explícita prevalece sobre o padrão da análise.
+        stage(page, 1)
         page.get_by_label("Abrangência da análise").select_option("municipal")
         expect(territory).to_have_value("municipio")
         card.press("ArrowRight")
         card.click()
+        stage(page, 1)
         expect(territory).to_have_value("municipio")
         # O upload internacional continua acessível e não herda a base Brasil.
         page.locator('input[type="file"]').set_input_files({"name": "international.csv", "mimeType": "text/csv",
             "buffer": b"country;year;category;count\nCanada;2024;nurses;20\n"})
         expect(territory).to_have_value("country")
+        expect(page.get_by_role("log")).not_to_contain_text("Confira os requisitos")
         expect(page.get_by_label("Abrangência da análise")).to_have_count(0)
         expect(page.get_by_text("international.csv carregado", exact=True)).to_be_visible()
         card.press("Home")
         card.press("ArrowRight")
         card.click()
         page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
+        stage(page, 2)
         page.get_by_label("O que o quantitativo representa?", exact=True).select_option("pessoas")
+        stage(page, 3)
         expect(execute).to_be_enabled()
         with page.expect_response(lambda r: r.url.endswith("/api/analyze")) as event:
             execute.click()
@@ -141,6 +155,7 @@ def main():
         assert "source" not in uploaded["metadata"]
         page.get_by_role("button", name="Início", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=True).click()
+        stage(page, 1)
         expect(territory).to_have_value("municipio")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")

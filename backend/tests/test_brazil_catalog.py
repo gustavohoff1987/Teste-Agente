@@ -83,7 +83,7 @@ def test_contextual_agent_can_read_resident_data_without_upload(catalog, monkeyp
 
     async def provider(payload, model, key):
         sent.append(json.dumps(payload))
-        return {"operation": "counts", "indicator": "quantity", "period": "202406", "category": "", "territory": ""}
+        return {"intent": "ANALITICO", "topic": "none", "operation": "counts", "indicator": "quantity", "period": "202406", "category": "", "territory": ""}
 
     monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
     response = client.post("/api/llm/interpret-context", data={**form(inspected()), "message": "Quantitativos em 202406"})

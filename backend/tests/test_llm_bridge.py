@@ -33,7 +33,7 @@ def test_interpretation_is_structured_sanitized_and_does_not_execute(monkeypatch
 
     async def fake_model(sent, model, api_key):
         captured.update(sent=sent, model=model, api_key=api_key)
-        return {"operation": "distribution", "indicator": "density",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "distribution", "indicator": "density",
                 "period": "202406", "category": "médicos", "territory": "municípios"}
 
     monkeypatch.setattr(llm_bridge, "_call_gemini", fake_model)
@@ -60,7 +60,7 @@ def test_redaction_occurs_before_external_call(monkeypatch):
 
     async def fake_model(sent, _model, _key):
         seen.extend(sent)
-        return {"operation": "density", "indicator": "density",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "density", "indicator": "density",
                 "period": "2024", "category": "médicos", "territory": ""}
     monkeypatch.setattr(llm_bridge, "_call_gemini", fake_model)
     response = client.post("/api/llm/interpret", json={
@@ -76,7 +76,7 @@ def test_redaction_occurs_before_external_call(monkeypatch):
 def test_discard_model_invented_entities_and_unknown_schema(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "secret")
     async def fake_model(_sent, _model, _key):
-        return {"operation": "density", "indicator": "density",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "density", "indicator": "density",
                 "period": "2035", "category": "Neurocirurgiões", "territory": "Fortaleza"}
     monkeypatch.setattr(llm_bridge, "_call_gemini", fake_model)
     response = client.post("/api/llm/interpret", json={"message": "Quero analisar médicos em 2024"})
@@ -86,7 +86,7 @@ def test_discard_model_invented_entities_and_unknown_schema(monkeypatch):
     assert response.json()["proposal"]["territory"] == ""
 
     async def bad_model(_sent, _model, _key):
-        return {"operation": "invented_operation", "indicator": "density"}
+        return {"intent": "ANALITICO", "topic": "none", "operation": "invented_operation", "indicator": "density"}
     monkeypatch.setattr(llm_bridge, "_call_gemini", bad_model)
     invalid = client.post("/api/llm/interpret", json={"message": "Quero analisar médicos em 2024"})
     assert invalid.status_code == 502
@@ -120,7 +120,7 @@ def test_history_is_limited_and_only_user_text_is_sent(monkeypatch):
 
     async def fake_model(sent, _model, _key):
         seen.extend(sent)
-        return {"operation": "none", "indicator": "none",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "none", "indicator": "none",
                 "period": "", "category": "", "territory": ""}
     monkeypatch.setattr(llm_bridge, "_call_gemini", fake_model)
     response = client.post("/api/llm/interpret",

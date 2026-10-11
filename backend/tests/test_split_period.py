@@ -42,7 +42,7 @@ def test_split_period_import_confirmation_filter_and_temporal(extension):
     assert info["periods"] == ["202312", "202401"]
     assert info["preflight"]["field_states"]["period"]["status"] == "proposed"
     assert info["derived_fields"][0]["source_columns"] == ["periodo_ano", "periodo_mes"]
-    options = {"count_unit": "pessoas", "temporal_comparability_confirmed": True,
+    options = {"count_unit": "pessoas", "temporal_indicator": "quantity", "temporal_comparability_confirmed": True,
                "territory_longitudinal_confirmed": True}
 
     def analyze(operation):
@@ -109,7 +109,7 @@ def test_contextual_agent_uses_composed_period_without_sending_source(monkeypatc
 
     async def provider(payload, model, key):
         sent.append(json.dumps(payload, ensure_ascii=False))
-        return {"operation": "counts", "indicator": "quantity", "period": "202401",
+        return {"intent": "ANALITICO", "topic": "none", "operation": "counts", "indicator": "quantity", "period": "202401",
                 "category": "", "territory": ""}
 
     monkeypatch.setattr(llm_bridge, "_call_gemini", provider)

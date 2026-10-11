@@ -19,12 +19,13 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
-from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values
+from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values, count_unit_label, canonical_crs
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
 from brazil_data import load_brazil
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
+from llm_context import review_interpretation
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -75,13 +76,22 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
             if len(candidates) != 1:
                 raise ValueError("Separador CSV ambíguo. Informe um CSV delimitado por vírgulas ou ponto e vírgula.")
             separator = candidates[0]
-        header = next(csv.reader(io.StringIO(text), delimiter=separator))
-        normalize_headers(pd.DataFrame(columns=header))
         try:
-            # Preserva códigos e zeros iniciais; conversão numérica pertence ao contrato.
-            frame = pd.read_csv(io.StringIO(text), sep=separator, dtype=str, keep_default_na=False)
+            # Um único parser preserva aspas, delimitadores e quebras em células.
+            # Pandas pode inferir um índice e deslocar colunas em linhas excedentes.
+            records = csv.reader(io.StringIO(text, newline=""), delimiter=separator, strict=True)
+            header = next(records)
+            normalize_headers(pd.DataFrame(columns=header))
+            rows = []
+            for record in records:
+                if not record:
+                    continue
+                if len(record) != len(header):
+                    raise ValueError(f"CSV inconsistente na linha {records.line_num}: número de campos diferente do cabeçalho.")
+                rows.append(record)
+            frame = pd.DataFrame(rows, columns=header)
             frame = frame.replace(r"^\s*$", pd.NA, regex=True)
-        except Exception as exc:
+        except (csv.Error, StopIteration) as exc:
             raise ValueError("Não foi possível interpretar a estrutura do CSV.") from exc
         return compose_period(normalize_headers(frame)), []
     if extension in ("xlsx", "xls"):
@@ -135,6 +145,8 @@ def _records(data: pd.DataFrame) -> list[dict]:
 
 
 def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
+    if operation == "spatial" and canonical_crs(options.get("crs")):
+        options = {**options, "crs": canonical_crs(options["crs"])}
     result = _compute(df, mapping, operation, options)
     result["metadata"] = {"method_version": "deterministic-0.3", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
@@ -184,11 +196,11 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         if match.empty:
             raise ValueError("Selecione um território de referência existente na base.")
         reference = match.iloc[0]
-        geod = Geod(ellps="GRS80" if options["crs"] == "SIRGAS2000" else "WGS84")
+        geod = Geod(ellps="GRS80")
         rows = []
         for _, item in geo.iterrows():
             _, _, meters = geod.inv(float(reference.lon), float(reference.lat), float(item.lon), float(item.lat))
-            rows.append({"Território": item.territory, "Distância (km)": round(meters / 1000, 3)})
+            rows.append({"Território": item.territory, "Distância (km)": meters / 1000})
         return _result("Distâncias geodésicas", "Distância direta no referencial " + options["crs"] + ". Não representa tempo nem distância por estrada.",
                        sorted(rows, key=lambda x: x["Distância (km)"]), notes=["Referência: " + str(refname)])
     data = validate_operation(df, mapping, options, operation)
@@ -224,7 +236,8 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         # A escolha do indicador e do universo é obrigatória no contrato compartilhado.
         indicator = options["distribution_indicator"]
         metric = "density" if indicator == "density" else "quantity"
-        label = "Densidade por 1.000 habitantes" if indicator == "density" else "Quantidade de profissionais"
+        unit = count_unit_label(mapping, options)
+        label = "Densidade por 1.000 habitantes" if indicator == "density" else "Quantidade de " + unit
         k = int(options.get("quantile_count", 5))
         rows = []
         detail_rows = []
@@ -240,13 +253,15 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                 title = f"{i}º quintil — {names[i]}" if k == 5 else f"{i}ª faixa de {k}"
                 rows.append({"Período": period, "Categoria": category,
                              "Classe": "Q" + str(i), "Quintil": title,
-                             "Unidades": int((classes == i).sum()), "Indicador": label})
+                             "Unidades": int((classes == i).sum()), "Indicador": label,
+                             "Unidade de contagem": unit})
             for pos, (_, record) in enumerate(group.iterrows()):
                 i = int(classes[pos])
                 detail_rows.append({
                     "Território": record["territory"], "Período": period, "Categoria": category,
                     "Quintil": f"{i}º quintil" if k == 5 else f"{i}ª faixa de {k}",
                     label: float(record[metric]),
+                    "Unidade de contagem": unit,
                     "Quantidade": float(record["quantity"]),
                     "População": float(record["population"]) if pd.notna(record["population"]) else None,
                 })
@@ -260,9 +275,7 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         result["detail_rows"] = detail_rows
         return result
     if operation == "temporal":
-        # Sem denominador declarado a série continua válida como quantitativo;
-        # nunca fabricar densidades nem presumir população.
-        metric = "density" if data["density"].notna().any() and options.get("population_denominator_confirmed") else "quantity"
+        metric = options["temporal_indicator"]
         pivot = data.pivot_table(index=["territory", "category"], columns="period", values=metric, aggfunc="first")
         positions = period_positions(data.period.unique(), options.get("period_convention", "auto"))
         periods = sorted(positions, key=positions.get)
@@ -271,14 +284,11 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         rows = []
         for (ter, cat), values in pivot.iterrows():
             a, b = values.get(periods[0]), values.get(periods[-1])
-            if pd.isna(a) or pd.isna(b):
-                rows.append({"Território": ter, "Categoria": cat, "Período inicial": periods[0], "Período final": periods[-1],
-                             "Inicial": None, "Final": None, "Variação absoluta": None, "Variação (%)": None,
-                             "Tendência": "Não avaliável: observação ausente em um dos extremos"})
-                continue
+            endpoints = pd.notna(a) and pd.notna(b)
             row = {"Território": ter, "Categoria": cat, "Período inicial": periods[0], "Período final": periods[-1], "Inicial": float(a), "Final": float(b),
-                   "Variação absoluta": float(b - a),
-                   "Variação (%)": float((b - a) / a * 100) if a != 0 else None}
+                   "Variação absoluta": float(b - a) if endpoints else None,
+                   "Variação (%)": float((b - a) / a * 100) if endpoints and a != 0 else None,
+                   "Condição da mudança": "Avaliável" if endpoints else "Não avaliável: observação ausente em um dos extremos"}
             observations = [(positions[p], float(values[p])) for p in periods if p in values and pd.notna(values[p])]
             if len(observations) >= 4:
                 speeds = [(observations[j+1][1]-observations[j][1])/(observations[j+1][0]-observations[j][0])
@@ -292,7 +302,34 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             rows.append(row)
         return _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
                        rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução."])
-    if operation in ("comparisons", "ranking"):
+    if operation == "comparisons":
+        rows = []
+        for (period, category), group in data.groupby(["period", "category"], sort=True):
+            group = group.sort_values("territory")
+            common = {"Período": period, "Categoria": category,
+                      "Indicador": "Densidade por 1.000", "Unidade de contagem": count_unit_label(mapping, options)}
+            if len(group) == 2:
+                a, b = group.iloc[0], group.iloc[1]
+                rows.append({**common, "Objeto A": a.territory, "Valor A": a.density,
+                    "Objeto B": b.territory, "Valor B": b.density,
+                    "Relação A/B": "IGUALDADE" if a.density == b.density else "MAIOR" if a.density > b.density else "MENOR",
+                    "Diferença A − B": a.density - b.density, "Condição": "Comparável"})
+            else:
+                values = sorted(group.density.unique())
+                following = dict(zip(values, [*values[1:], None]))
+                equal_counts = group.density.value_counts()
+                for item in group.itertuples():
+                    rows.append({**common, "Território": item.territory, "Densidade por 1.000": item.density,
+                        "Próximo valor maior": following[item.density],
+                        "Unidades com mesmo valor": int(equal_counts[item.density]),
+                        "Condição": "Comparável" if len(group) > 1 else "Não avaliável: menos de dois territórios neste recorte"})
+        # Períodos com cardinalidades diferentes mantêm todas as colunas no CSV.
+        columns = dict.fromkeys(key for row in rows for key in row)
+        rows = [{key: row.get(key) for key in columns} for row in rows]
+        return _result("Comparação territorial", "Valores e relações comparativas por período e categoria, sem posições de ranking.", rows,
+            notes=["Entre dois objetos: A e B em ordem de nome, relação A/B e diferença assinada A − B.",
+                   "Entre três ou mais: valores iguais e próximo valor estritamente maior descrevem a ordem do conjunto; sem diferenças automáticas entre pares."])
+    if operation == "ranking":
         if not data["density"].notna().any():
             raise ValueError("Estas análises requerem densidades avaliáveis.")
         data = data.sort_values(["period", "category", "density", "territory"], ascending=[True, True, False, True]).copy()
@@ -306,10 +343,10 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                        "Ordem relativa descritiva; não constitui julgamento normativo.", rows,
                        notes=["Resultados exibidos por período e categoria. A comparação exige equivalência metodológica das unidades."])
     # densidade e relatório de quantitativos (sem denominador, não fingir densidade)
-    if operation == "report" and (not options.get("population_denominator_confirmed") or not mapping.get("territory")):
+    if operation == "report" and options["report_indicator"] == "quantity":
         rows = _records(data[keys + ["quantity"]].rename(columns=cols))
         return _result("Relatório de quantitativos", "Quantitativos da força de trabalho na base analisada.", rows,
-                       notes=["Sem denominador populacional confirmado: nenhuma densidade foi calculada."])
+                       notes=["Indicador escolhido: quantidade. Nenhuma densidade foi calculada."])
     rows = _records(data[keys + ["quantity", "population", "density"]].rename(columns=cols))
     valid = int(data["density"].notna().sum())
     notes = ["Densidade = quantitativo / população × 1.000.",
@@ -380,6 +417,7 @@ async def llm_interpretation_with_dataset(
     file: UploadFile | None = File(None),
     message: str = Form(...),
     history: str = Form("[]"),
+    context_ready: bool = Form(True),
     mapping: str = Form("{}"),
     options: str = Form("{}"),
     sheet: str = Form(""),
@@ -401,6 +439,8 @@ async def llm_interpretation_with_dataset(
         quick = llm_local_response(request)
         if quick is not None:
             return quick
+        if not context_ready:
+            raise HTTPException(status_code=409, detail="Aguarde ou repita a validação da base antes de solicitar uma proposta analítica.")
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
@@ -409,7 +449,9 @@ async def llm_interpretation_with_dataset(
         if not isinstance(declared_category, str):
             raise ValueError("Categoria declarada inválida.")
         return await llm_interpret(
-            request, eligibility=eligibility, category_constant=declared_category
+            request, eligibility=eligibility, category_constant=declared_category,
+            proposal_reviewer=lambda proposal: review_interpretation(proposal, eligibility,
+                category_constant=declared_category, frame=frame, mapping=fields, options=settings)
         )
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc

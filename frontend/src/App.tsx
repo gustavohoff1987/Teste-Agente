@@ -23,7 +23,7 @@ import {
 } from "recharts";
 
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
-type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
+import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 type Mapping = Partial<Record<Role, string>>;
 type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
 type SuperiorMapping = Partial<Record<SuperiorLevel, string>>;
@@ -79,16 +79,16 @@ function readableError(exc: unknown): string {
 }
 
 const FEATURES: Feature[] = [
-  { id: "density", title: "Densidade", detail: "Profissionais por 1.000 habitantes", icon: Calculator, tone: "teal" },
-  { id: "counts", title: "Quantitativos", detail: "Contagens absolutas da força de trabalho", icon: UsersRound, tone: "indigo" },
-  { id: "distribution", title: "Distribuição", detail: "Quantis, posições e frequências", icon: BarChart3, tone: "violet" },
-  { id: "comparisons", title: "Comparações", detail: "Territórios, categorias e períodos", icon: MoveRight, tone: "orange" },
-  { id: "temporal", title: "Evolução temporal", detail: "Mudanças e tendências", icon: TrendingUp, tone: "blue" },
-  { id: "aggregate", title: "Agregações", detail: "Conjuntos territoriais e indicadores", icon: Layers3, tone: "emerald" },
-  { id: "spatial", title: "Análise espacial", detail: "Distâncias e referências geográficas", icon: MapPinned, tone: "rose" },
-  { id: "ranking", title: "Recortes e rankings", detail: "Seleções, posições e ordenações", icon: ListFilter, tone: "amber" },
-  { id: "rotation", title: "Rotatividade", detail: "Permanência da coorte inicial", icon: RefreshCw, tone: "cyan" },
-  { id: "report", title: "Relatórios", detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" }
+  { id: "density", title: ANALYSIS_LABELS.density, detail: "Profissionais por 1.000 habitantes", icon: Calculator, tone: "teal" },
+  { id: "counts", title: ANALYSIS_LABELS.counts, detail: "Contagens absolutas da força de trabalho", icon: UsersRound, tone: "indigo" },
+  { id: "distribution", title: ANALYSIS_LABELS.distribution, detail: "Quantis, posições e frequências", icon: BarChart3, tone: "violet" },
+  { id: "comparisons", title: ANALYSIS_LABELS.comparisons, detail: "Territórios, categorias e períodos", icon: MoveRight, tone: "orange" },
+  { id: "temporal", title: ANALYSIS_LABELS.temporal, detail: "Mudanças e tendências", icon: TrendingUp, tone: "blue" },
+  { id: "aggregate", title: ANALYSIS_LABELS.aggregate, detail: "Conjuntos territoriais e indicadores", icon: Layers3, tone: "emerald" },
+  { id: "spatial", title: ANALYSIS_LABELS.spatial, detail: "Distâncias e referências geográficas", icon: MapPinned, tone: "rose" },
+  { id: "ranking", title: ANALYSIS_LABELS.ranking, detail: "Seleções, posições e ordenações", icon: ListFilter, tone: "amber" },
+  { id: "rotation", title: ANALYSIS_LABELS.rotation, detail: "Permanência da coorte inicial", icon: RefreshCw, tone: "cyan" },
+  { id: "report", title: ANALYSIS_LABELS.report, detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" }
 ];
 const ROLES: { key: Role; label: string; help: string }[] = [
   { key: "territory_id", label: "Código territorial", help: "Distingue unidades com nomes iguais" },
@@ -151,6 +151,8 @@ function App() {
   const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [sourceVersion, setSourceVersion] = useState("");
+  const [sourceGeneration, setSourceGeneration] = useState(0);
   const [mapping, setMapping] = useState<Mapping>({});
   const [hierarchyColumns, setHierarchyColumns] = useState<SuperiorMapping>({});
   const [inspecting, setInspecting] = useState(false);
@@ -170,6 +172,8 @@ function App() {
   const [crs, setCrs] = useState("");
   const [quantiles, setQuantiles] = useState(5);
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
+  const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
+  const [reportIndicator, setReportIndicator] = useState<"" | "quantity" | "density">("");
   const [confirmedNoOverlap, setConfirmedNoOverlap] = useState(false);
   const [ftsScopeConfirmed, setFtsScopeConfirmed] = useState(false);
   const [singlePeriodConfirmed, setSinglePeriodConfirmed] = useState(false);
@@ -209,6 +213,7 @@ function App() {
     setPeriodFilter(o.period_filter); setCategoryFilter(o.category_filter); setReference(o.reference_territory);
     setResolutions(saved.resolutions); setConfirmedNoOverlap(o.no_overlap_confirmed); setCrs(o.crs);
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
+    setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
   }
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -225,6 +230,7 @@ function App() {
 
   async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
+    if (!preserve) setSourceGeneration(value => value + 1);
     const previous = preserve && inspection?.source ? { info: inspection, saved: snapshotPreparation() } : null;
     if (previous) scopeDrafts.current[previous.info.source!.version + ":" + previous.info.source!.scope] = previous.saved;
     const currentUpload = ++uploadRevision.current;
@@ -244,6 +250,7 @@ function App() {
       const details = await readApiResponse(response) as Inspection;
       if (currentUpload !== uploadRevision.current) return;
       setInspection(details);
+      setSourceVersion(details.source?.version || "");
       setMapping(details.suggested_mapping);
       setHierarchyColumns({});
       setConfirmedRoles([]);
@@ -270,6 +277,7 @@ function App() {
       setCrs("");
       setQuantiles(5);
       setDistributionIndicator("");
+      setTemporalIndicator(""); setReportIndicator("");
       setScopeNotice("");
       if (previous && details.source) {
         const sameVersion = previous.info.source!.version === details.source.version;
@@ -357,6 +365,7 @@ function App() {
       period_filter: periodFilter, category_filter: categoryFilter,
       reference_territory: reference, crs, quantile_count: quantiles,
       distribution_indicator: distributionIndicator,
+      temporal_indicator: temporalIndicator, report_indicator: reportIndicator,
       no_overlap_confirmed: confirmedNoOverlap,
       fts_scope_confirmed: ftsScopeConfirmed,
       single_period_confirmed: singlePeriodConfirmed,
@@ -481,27 +490,7 @@ function App() {
       const form = new FormData();
       appendSource(form);
       form.append("mapping", JSON.stringify(mapping));
-      form.append("options", JSON.stringify({
-        ...resolutions, hierarchy_columns: hierarchyColumns, quantile_count: quantiles,
-        distribution_indicator: distributionIndicator,
-        reference_territory: reference, crs,
-        no_overlap_confirmed: confirmedNoOverlap,
-        fts_scope_confirmed: ftsScopeConfirmed,
-        single_period_confirmed: singlePeriodConfirmed,
-        confirmed_roles: confirmedRoles,
-        count_unit: countUnit,
-        custom_count_unit: customCountUnit,
-        period_filter: periodFilter,
-        category_filter: categoryFilter,
-        population_denominator_confirmed: populationAligned,
-        temporal_comparability_confirmed: temporalCompared,
-        territory_longitudinal_confirmed: territoryStable,
-        longitudinal_identity_confirmed: longitudinalIdentity,
-        identity_count_confirmed: identityCountConfirmed,
-        category_constant: categoryConstant,
-        require_object_confirmation: true,
-        object_confirmed: objectConfirmed
-      }));
+      form.append("options", JSON.stringify(semanticOptions()));
       try {
         const response = await fetch(API + "/api/preflight", { method: "POST", body: form, signal: controller.signal });
         const next = await readApiResponse(response) as Preflight;
@@ -516,7 +505,7 @@ function App() {
   }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, hierarchyColumns]);
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns]);
 
   useEffect(() => { revision.current += 1; setResult(null); setError(""); }, [active]);
 
@@ -632,7 +621,7 @@ function App() {
         contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
         contextVersion={JSON.stringify({
           file: file?.name, modified: file?.lastModified, size: file?.size,
-          usingBrazil, datasetVersion: inspection?.source?.version, sheet
+          usingBrazil, datasetVersion: sourceVersion, sourceGeneration, sheet
         })}
         validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
         features={FEATURES}
@@ -741,13 +730,24 @@ function App() {
             <SelectField label="Filtrar por categoria" value={categoryFilter}
               options={preflight?.values.categories || inspection.categories}
               onChange={v => {setCategoryFilter(v); setResult(null);}}/>
+            {(active === "temporal" || active === "report") && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
+              {active === "temporal" ? "Indicador da evolução temporal" : "Indicador do relatório"}
+              <select aria-label={active === "temporal" ? "Indicador da evolução temporal" : "Indicador do relatório"}
+                className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
+                value={active === "temporal" ? temporalIndicator : reportIndicator}
+                onChange={e => { (active === "temporal" ? setTemporalIndicator : setReportIndicator)(e.target.value as "" | "density" | "quantity"); setResult(null); }}>
+                <option value="">Selecione o indicador</option>
+                <option value="quantity">Quantidade na unidade declarada</option>
+                <option value="density">Densidade por 1.000 habitantes</option>
+              </select>
+            </label>}
             {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
               Indicador da distribuição
               <select aria-label="Indicador da distribuição" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                 value={distributionIndicator} onChange={e => {setDistributionIndicator(e.target.value as "" | "density" | "quantity");setResult(null);}}>
                 <option value="">Selecione o indicador</option>
                 <option value="density">Densidade por 1.000 habitantes</option>
-                <option value="quantity">Quantidade absoluta de profissionais</option>
+                <option value="quantity">Quantidade na unidade declarada</option>
               </select>
             </label>}
           </div>
@@ -797,7 +797,7 @@ function App() {
                       value={customCountUnit} onChange={e => setCustomCountUnit(e.target.value)}/>
                   </label>}
                 </>}
-                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density")) && <>
+                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density") || (active === "temporal" && temporalIndicator === "density") || (active === "report" && reportIndicator === "density")) && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Coluna com a população correspondente
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -862,7 +862,7 @@ function App() {
                     Referencial geodésico informado para a base
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                       value={crs} onChange={e=>setCrs(e.target.value)}>
-                      <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option><option value="WGS84">WGS84</option>
+                      <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
                     </select>
                   </label>
                   <SelectField label="Território de referência" value={reference}
@@ -881,6 +881,10 @@ function App() {
             {step === 2 && <>
               <div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                 <h3 className="font-bold text-ink">Resumo da configuração</h3>
+                {(["temporal", "report", "distribution"].includes(active)) && <p>Indicador: {
+                  (active === "temporal" ? temporalIndicator : active === "report" ? reportIndicator : distributionIndicator) === "density"
+                    ? "Densidade por 1.000 habitantes" : (active === "temporal" ? temporalIndicator : active === "report" ? reportIndicator : distributionIndicator) === "quantity"
+                    ? "Quantidade na unidade declarada" : "Aguardando escolha"}</p>}
                 <p>Base: {usingBrazil ? "Dados do Brasil — " + (inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
                 <p>Período: {periodFilter || "Todos os períodos da base"} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>

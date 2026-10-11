@@ -82,8 +82,8 @@ def test_real_national_excel_recognition_counts_and_temporal(real_sources):
     assert info["suggested_category_constant"] == ""
     mapping = info["suggested_mapping"]
     assert mapping["territory"] == "pais" and mapping["category"] == "categoria_profissional"
-    options = {"confirmed_roles": ["period"], "count_unit": "pessoas",
-               "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}
+    options = {"confirmed_roles": ["period"], "count_unit": "pessoas", "report_indicator": "quantity",
+               "temporal_indicator": "quantity", "temporal_comparability_confirmed": True, "territory_longitudinal_confirmed": True}
     frame, _ = read_dataset(raw, path.name)
     for op in ("counts", "temporal", "report"):
         response = client.post("/api/analyze", files={"file": (path.name, raw)}, data={
@@ -118,7 +118,7 @@ def real_catalog(real_sources, tmp_path_factory):
 
 def resident(info, operation, **extra):
     options = {"confirmed_roles": ["period", "territory_id"], "count_unit": "pessoas",
-               "population_denominator_confirmed": True, **extra}
+               "population_denominator_confirmed": True, "report_indicator": "density", **extra}
     return client.post("/api/analyze", data={"dataset": "brazil", "scope": info["source"]["scope"],
         "dataset_version": info["source"]["version"], "operation": operation,
         "mapping": json.dumps(info["suggested_mapping"]), "options": json.dumps(options)})
@@ -142,7 +142,8 @@ def test_real_resident_records_and_ranking(real_catalog, operation):
     expected["Posição"] = expected.groupby(["Período", "Categoria"])["Densidade por 1.000"].rank(method="min", ascending=False)
     joined = actual.merge(expected, on=["Território", "Período", "Categoria"], validate="one_to_one", suffixes=("_a", "_e"))
     assert len(actual) == len(joined) == len(expected)
-    columns = (["Posição", "Densidade por 1.000"] if operation in ("comparisons", "ranking") else
+    columns = (["Posição", "Densidade por 1.000"] if operation == "ranking" else
+               ["Densidade por 1.000"] if operation == "comparisons" else
                ["Quantidade"] if operation == "counts" else ["Quantidade", "População", "Densidade por 1.000"])
     for column in columns:
         np.testing.assert_allclose(joined[column + "_a"], joined[column + "_e"], rtol=1e-13)
@@ -172,7 +173,7 @@ def test_real_resident_distribution(real_catalog, indicator):
 @pytest.mark.parametrize("denominator", [True, False])
 def test_real_resident_temporal(real_catalog, denominator):
     info, _, expected = real_catalog
-    result = resident_result(info, "temporal", population_denominator_confirmed=denominator,
+    result = resident_result(info, "temporal", temporal_indicator="density" if denominator else "quantity", population_denominator_confirmed=denominator,
         temporal_comparability_confirmed=True, territory_longitudinal_confirmed=True)
     column = "Densidade por 1.000" if denominator else "Quantidade"
     first = expected.query('Período == "201401"').set_index("Território")[column].to_dict()
@@ -181,7 +182,9 @@ def test_real_resident_temporal(real_catalog, denominator):
     for row in result["rows"]:
         a, b = first.get(row["Território"]), last.get(row["Território"])
         if a is None or b is None:
-            assert row["Inicial"] is None and row["Final"] is None
+            assert row["Inicial"] == (pytest.approx(a) if a is not None else None)
+            assert row["Final"] == (pytest.approx(b) if b is not None else None)
+            assert row["Variação absoluta"] is None
         else:
             assert row["Inicial"] == pytest.approx(a) and row["Final"] == pytest.approx(b)
             assert row["Variação absoluta"] == pytest.approx(b - a)

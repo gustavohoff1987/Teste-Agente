@@ -10,10 +10,10 @@ import os
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
+from ui_support import URL, offline, stage, select
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / ".local" / "ui-validation"
-URL = "http://localhost:5173/"
 DECLARATION = (
     "Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio "
     "dos arquivos enviados ou das mensagens inseridas no chat."
@@ -45,6 +45,7 @@ def main():
         context = browser.new_context(viewport={"width": 1310, "height": 900}, accept_downloads=True)
         context.on("page", lambda page: page.on("pageerror", lambda error: errors.append(str(error))))
         status_state = {"configured": True}
+        offline(context)
         context.route("**/api/llm/status", lambda route: route.fulfill(json=status_state))
         llm_requests = []
 
@@ -118,10 +119,13 @@ def main():
         page.get_by_role("button", name="Análise anterior", exact=True).click()
         page.get_by_role("button", name="Selecionar análise: Densidade", exact=True).click()
         execute = page.get_by_role("button", name="Executar análise", exact=True)
+        stage(page, 3)
         expect(execute).to_be_disabled()
+        stage(page, 2)
         assert not any(url.endswith("/api/analyze") for url in writes)
         page.get_by_label("O que o quantitativo representa?", exact=True).select_option("pessoas")
         page.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados", exact=True).check()
+        stage(page, 3)
         expect(execute).to_be_enabled()
         # Conversa com base mantém o contrato contextual e o aceite da sessão.
         prompt.fill("Quero analisar quantitativos com esta base")

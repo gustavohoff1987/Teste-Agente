@@ -57,7 +57,7 @@ def test_user_confirms_and_enables_count_and_temporal_without_territory():
         "confirmed_roles": ["count"],
         "count_unit": "pessoas",
         "category_constant": "Médicos",
-        "temporal_comparability_confirmed": True,
+        "temporal_indicator": "quantity", "temporal_comparability_confirmed": True,
     }
     matrix = preflight(frame, mapping, opts)
     assert matrix["capabilities"]["counts"]["status"] == "available"
@@ -144,7 +144,7 @@ def test_temporal_not_available_with_single_period():
     frame = pd.DataFrame({"Ano": [2024], "Categoria": ["Médicos"], "Quantidade": [5]})
     mapping, _ = candidates(frame)
     gate = preflight(frame, mapping, {"count_unit": "pessoas",
-                                      "temporal_comparability_confirmed": True})
+                                      "temporal_indicator": "quantity", "temporal_comparability_confirmed": True})
     assert gate["capabilities"]["temporal"]["status"] == "unavailable"
 
 
@@ -171,7 +171,7 @@ def test_unsupported_coordinate_values_require_confirmation():
 def test_report_without_population_is_quantitative_not_density():
     frame = user_frame()
     mapping, _ = candidates(frame)
-    opts = {"confirmed_roles": ["count"], "count_unit": "pessoas", "category_constant": "Médicos"}
+    opts = {"confirmed_roles": ["count"], "count_unit": "pessoas", "category_constant": "Médicos", "report_indicator": "quantity"}
     response = client.post("/api/analyze", files={"file": ("base.csv", user_file())}, data={
         "mapping": json.dumps(mapping), "options": json.dumps(opts), "operation": "report",
     })

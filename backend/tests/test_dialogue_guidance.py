@@ -132,7 +132,7 @@ def test_previous_period_requires_explicit_conversational_reference(monkeypatch)
         "message": "E nesse mesmo período?", "history": [earlier]})
     assert following.status_code == 200, following.text
     assert following.json()["proposal"]["period"] == "202406"
-    assert following.json()["proposal"]["category"] == "medicos"
+    assert following.json()["proposal"]["category"] == ""  # retomada explícita somente do período
     independent = client.post("/api/llm/interpret", json={
         "message": "Quero outro relatório", "history": [earlier]})
     assert independent.status_code == 200, independent.text

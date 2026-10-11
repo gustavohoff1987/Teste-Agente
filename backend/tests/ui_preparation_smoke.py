@@ -6,6 +6,7 @@ Não chama o provedor de IA nem modifica as fontes brasileiras.
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
+from ui_support import URL, offline, stage, select
 
 OUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -15,6 +16,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, channel="chrome")
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, accept_downloads=True)
+        offline(context)
         context.route("**/api/llm/status", lambda route: route.fulfill(json={"configured": False}))
         context.route("**/api/llm/interpret*", lambda route: route.abort())
         page = context.new_page()
@@ -22,7 +24,7 @@ def main():
         expect.set_options(timeout=30000)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto("http://127.0.0.1:5173/")
+        page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=True).click()
         expect(page.get_by_text("Dados do Brasil carregados", exact=True)).to_be_visible()

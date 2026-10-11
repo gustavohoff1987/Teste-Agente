@@ -114,11 +114,26 @@ def multiplicity(frame, mapping, options):
             "examples": examples, "key_columns": keys}
 
 
+def count_unit_label(mapping, options):
+    if not mapping.get("count"):
+        return "pessoas distintas"
+    unit = options.get("count_unit")
+    return (options.get("custom_count_unit", "").strip() if unit == "outro"
+            else {"pessoas": "pessoas", "vinculos": "vínculos", "postos": "postos"}.get(unit, "unidades declaradas"))
+
+
+def canonical_crs(value):
+    """CFG-MET D24: somente aliases enumerados, sem inferir EPSG ou separadores."""
+    if isinstance(value, str) and value.strip().upper() in (
+            "SIRGAS2000", "SIRGAS 2000", "SIRGAS-2000", "SIRGAS_2000"):
+        return "SIRGAS2000"
+    return None
+
+
 def needs_population(mapping, options, operation):
-    if operation == "distribution":
-        return options.get("distribution_indicator") == "density"
-    return operation in ("density", "comparisons", "ranking", "aggregate") or bool(
-        operation in ("temporal", "report") and mapping.get("territory") and options.get("population_denominator_confirmed"))
+    if operation in ("distribution", "temporal", "report"):
+        return options.get(operation + "_indicator") == "density"
+    return operation in ("density", "comparisons", "ranking", "aggregate")
 
 
 def prepare(frame, mapping, options, operation):
@@ -246,10 +261,15 @@ def rotation_data(frame, mapping, options):
 
 
 def validate_operation(frame, mapping, options, operation, prepared=None):
+    if operation in ("distribution", "temporal", "report"):
+        if options.get(operation + "_indicator") not in ("quantity", "density"):
+            raise ConfirmationRequired("Escolha o indicador desta análise: quantidade ou densidade por 1.000 habitantes.")
+        if needs_population(mapping, options, operation) and not options.get("population_denominator_confirmed"):
+            raise ConfirmationRequired("Confirme a definição e o alinhamento do denominador populacional.")
     if operation == "spatial":
         geo = spatial_data(frame, mapping, options)
-        if options.get("crs") not in ("SIRGAS2000", "WGS84"):
-            raise ConfirmationRequired("Informe um referencial suportado: SIRGAS2000 ou WGS84.")
+        if not canonical_crs(options.get("crs")):
+            raise ConfirmationRequired("Informe um referencial suportado: SIRGAS2000.")
         if options.get("reference_territory") not in set(geo.territory):
             raise ConfirmationRequired("Selecione um território de referência existente, com seu código quando associado.")
         return geo
@@ -283,8 +303,8 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
             raise ValueError("Evolução temporal exige pelo menos dois períodos no recorte.")
         periods = sorted(positions, key=positions.get)
         present = data.groupby(["territory", "category"]).period.agg(set)
-        if not any(periods[0] in s and periods[-1] in s for s in present):
-            raise ValueError("Nenhuma unidade tem observações nos dois períodos extremos selecionados.")
+        if not any((periods[0] in s and periods[-1] in s) or len(s) >= 4 for s in present):
+            raise ValueError("Nenhuma unidade tem os dois extremos para mudança ou quatro observações para tendência.")
     if operation == "aggregate":
         if data.period.nunique() != 1 or data.category.nunique() != 1:
             raise ConfirmationRequired("Selecione um período e uma categoria para a agregação.")

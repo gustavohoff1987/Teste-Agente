@@ -4,8 +4,7 @@ import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import { AlertCircle, ArrowRight, LoaderCircle,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
-type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" |
-  "aggregate" | "spatial" | "ranking" | "rotation" | "report";
+import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 type Proposal = {
   operation: Operation | null; indicator: "density" | "quantity" | null;
   territory: string; period: string; category: string;
@@ -33,12 +32,7 @@ const SLOT_LABEL: Record<string, string> = {
   requires_unit_confirmation: "Confirmar unidade e nível territorial",
 };
 
-const ANALYSIS: Record<Operation, string> = {
-  density: "Densidade", counts: "Quantitativos", distribution: "Distribuição",
-  comparisons: "Comparações", temporal: "Evolução temporal", aggregate: "Agregações",
-  spatial: "Análise espacial", ranking: "Rankings e recortes",
-  rotation: "Rotatividade", report: "Relatórios",
-};
+const ANALYSIS = ANALYSIS_LABELS;
 
 export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
@@ -90,13 +84,14 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     setError("");
     try {
       let response: Response;
-      if (hasSource && contextReady) {
+      if (hasSource) {
         const form = new FormData();
         if (dataset) {
           form.append("dataset", dataset); form.append("scope", scope); form.append("dataset_version", datasetVersion);
         } else if (file) form.append("file", file);
         form.append("sheet", sheet);
         form.append("message", message);
+        form.append("context_ready", String(contextReady));
         form.append("history", JSON.stringify(history));
         form.append("mapping", JSON.stringify(mapping));
         form.append("options", JSON.stringify(options));
@@ -113,7 +108,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       const validated = body as Reply;
       if (!validated.proposal || validated.executed !== false ||
           !["INTERPRETACAO_LLM", "CANAL_SISTEMICO"].includes(validated.origin) ||
-          (hasSource && contextReady && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
+          (hasSource && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
         {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);

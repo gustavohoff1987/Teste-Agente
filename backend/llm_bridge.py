@@ -10,10 +10,10 @@ import re
 import threading
 import unicodedata
 from datetime import date
-from typing import Any
+from typing import Any, Literal, Callable
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictStr, ValidationError, field_validator, model_validator
 from llm_context import provider_snapshot, review_interpretation
 from dialogue_guidance import clarification_for
 from llm_config import load_local_environment
@@ -24,18 +24,7 @@ from llm_config import load_local_environment
 load_local_environment()
 
 
-OPERATIONS = {
-    "density": "Densidade",
-    "counts": "Quantitativos",
-    "distribution": "Distribuição",
-    "comparisons": "Comparações",
-    "temporal": "Evolução temporal",
-    "aggregate": "Agregações",
-    "spatial": "Análise espacial",
-    "ranking": "Recortes e rankings",
-    "rotation": "Rotatividade",
-    "report": "Relatórios",
-}
+from analysis_catalog import OPERATION_LABELS as OPERATIONS
 INDICATORS = {"density": "Densidade por 1.000 habitantes",
               "quantity": "Quantidade absoluta de profissionais"}
 # Nesta iteração, permitir apenas o modelo cuja chamada real foi comprovada
@@ -126,6 +115,38 @@ _GENERIC_GREETING = (
 )
 _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
 _TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none")
+
+
+class ModelInterpretation(BaseModel):
+    operation: StrictStr
+    indicator: Literal["density", "quantity", "none"]
+    period: StrictStr = Field(max_length=100)
+    category: StrictStr = Field(max_length=100)
+    territory: StrictStr = Field(max_length=100)
+    intent: Literal["ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL"]
+    topic: Literal["capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none"]
+
+    @field_validator("operation")
+    @classmethod
+    def supported_operation(cls, value):
+        if value not in (*OPERATIONS, "none"):
+            raise ValueError("Operação desconhecida")
+        return value
+
+    @model_validator(mode="after")
+    def compatible(self):
+        allowed = {
+            "counts": {"quantity", "none"}, "density": {"density", "none"},
+            "comparisons": {"density", "none"}, "ranking": {"density", "none"},
+            "aggregate": {"density", "none"}, "spatial": {"none"}, "rotation": {"none"},
+            "none": {"none"}, "distribution": {"quantity", "density", "none"},
+            "temporal": {"quantity", "density", "none"}, "report": {"quantity", "density", "none"},
+        }
+        if self.indicator not in allowed[self.operation]:
+            raise ValueError("Indicador incompatível")
+        if self.operation != "none" and (self.intent != "ANALITICO" or self.topic != "none"):
+            raise ValueError("Intenção incompatível")
+        return self
 
 
 def _text_key(value: str) -> str:
@@ -323,29 +344,33 @@ def _anchor(value: Any, user_text: str) -> str:
     return value
 
 
-# A continuação usa somente dados já declarados nas mensagens pelo usuário.
-# Sem sinal de continuidade, valores de mensagens anteriores não são recuperados.
-_CONTINUATION = re.compile(
-    r"(?i)(?:^\s*(?:e\s|agora\s|mas\s|quanto\s+a)|"
-    r"\b(?:mesm[oa]s?|anteriores?|nesse|nessa|nesses|nessas|tambem)\b)"
-)
+# Referências por parâmetro: conectivos como 'agora' não autorizam recuperar slots.
+_REFERENCES = {
+    "period": r"\b(?:(?:mesmo|nesse|naquele) periodo|periodo anterior)\b",
+    "category": r"\b(?:mesma (?:categoria|profissao)|categoria anterior)\b",
+    "territory": r"\b(?:mesmos? (?:territorios?|municipios?|estados?)|mesma unidade territorial|territorio anterior)\b",
+}
 
 
 def _anchors_for_turn(raw: dict, sanitized: list[str]) -> dict[str, str]:
     current = sanitized[-1]
-    previous = " ".join(sanitized[:-1])
-    continuation = bool(_CONTINUATION.search(_text_key(current)))
+    previous = sanitized[-2] if len(sanitized) > 1 else ""
     values = {}
     for name in ("period", "category", "territory"):
         candidate = raw.get(name)
-        values[name] = (_anchor(candidate, current)
-                        or (_anchor(candidate, previous) if continuation else ""))
+        reference = bool(re.search(_REFERENCES[name], _text_key(current)))
+        # Uma menção temporal atual prevalece mesmo se coexistir com uma retomada.
+        if name == "period" and re.search(r"\b\d{4}(?:\d{2}|-\d{2}(?:-\d{2})?)?\b", current):
+            reference = False
+        values[name] = _anchor(candidate, current) or (_anchor(candidate, previous) if reference else "")
     return values
 
 
 def _validate(raw: Any, sanitized: list[str]) -> dict:
-    if not isinstance(raw, dict):
-        raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.")
+    try:
+        raw = ModelInterpretation.model_validate(raw).model_dump()
+    except ValidationError as exc:
+        raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.") from exc
     operation = raw.get("operation")
     indicator = raw.get("indicator")
     if operation not in (*OPERATIONS, "none") or indicator not in (*INDICATORS, "none"):
@@ -394,7 +419,7 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
 
 
 async def interpret(request: ChatRequest, eligibility: dict | None = None,
-                    category_constant: str = "") -> dict:
+                    category_constant: str = "", proposal_reviewer: Callable | None = None) -> dict:
     # Intenções conversacionais óbvias são atendidas com texto controlado,
     # inclusive durante a indisponibilidade da API externa.
     guidance = _local_guidance(request.message)
@@ -428,9 +453,8 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
         response["reply"] = clarification["prompt"]
         response["requires_confirmation"] = True
     if eligibility is not None:
-        response["verification"] = review_interpretation(
-            response["proposal"], eligibility, category_constant=category_constant
-        )
+        response["verification"] = (proposal_reviewer(response["proposal"]) if proposal_reviewer else
+            review_interpretation(response["proposal"], eligibility, category_constant=category_constant))
         response["note"] = (
             "Proposta examinada contra o pré-exame da base no servidor. "
             "A autorização e a execução permanecem pendentes."
