@@ -26,6 +26,8 @@ import {
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
 type Operation = "density" | "counts" | "distribution" | "comparisons" | "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
 type Mapping = Partial<Record<Role, string>>;
+type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
+type SuperiorMapping = Partial<Record<SuperiorLevel, string>>;
 type FieldStatus = "recognized" | "confirmed" | "proposed" | "unmapped";
 type ColumnProfile = {
   name: string; type: string; missing: number; suspicious_header: boolean;
@@ -35,6 +37,7 @@ type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: st
 type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[] };
 type Preflight = {
   multiplicity: Multiplicity;
+  territorial_hierarchy?: {status: string; levels: {role: string; column: string}[]; warnings: string[]};
   capabilities: Record<Operation, Capability>;
   field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
   values: {territories: string[]; periods: string[]; categories: string[]};
@@ -150,6 +153,7 @@ function App() {
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
+  const [hierarchyColumns, setHierarchyColumns] = useState<SuperiorMapping>({});
   const [inspecting, setInspecting] = useState(false);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(0);
@@ -196,6 +200,7 @@ function App() {
   function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
     const o = saved.options;
     setMapping(saved.mapping); setConfirmedRoles(o.confirmed_roles);
+    setHierarchyColumns(o.hierarchy_columns);
     setFtsScopeConfirmed(o.fts_scope_confirmed); setSinglePeriodConfirmed(o.single_period_confirmed);
     setCountUnit(o.count_unit); setCustomCountUnit(o.custom_count_unit);
     setPopulationAligned(o.population_denominator_confirmed); setTemporalCompared(o.temporal_comparability_confirmed);
@@ -241,6 +246,7 @@ function App() {
       if (currentUpload !== uploadRevision.current) return;
       setInspection(details);
       setMapping(details.suggested_mapping);
+      setHierarchyColumns({});
       setConfirmedRoles([]);
       setFtsScopeConfirmed(false);
       setSinglePeriodConfirmed(false);
@@ -348,6 +354,7 @@ function App() {
   function semanticOptions() {
     return {
       ...resolutions,
+      hierarchy_columns: hierarchyColumns,
       period_filter: periodFilter, category_filter: categoryFilter,
       reference_territory: reference, crs, quantile_count: quantiles,
       distribution_indicator: distributionIndicator,
@@ -476,7 +483,7 @@ function App() {
       appendSource(form);
       form.append("mapping", JSON.stringify(mapping));
       form.append("options", JSON.stringify({
-        ...resolutions, quantile_count: quantiles,
+        ...resolutions, hierarchy_columns: hierarchyColumns, quantile_count: quantiles,
         distribution_indicator: distributionIndicator,
         reference_territory: reference, crs,
         no_overlap_confirmed: confirmedNoOverlap,
@@ -510,7 +517,7 @@ function App() {
   }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
       periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator]);
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, hierarchyColumns]);
 
   useEffect(() => { revision.current += 1; setResult(null); setError(""); }, [active]);
 
@@ -658,6 +665,12 @@ function App() {
             objectConfirmed={objectConfirmed}
             territoryCode={mapping.territory_id || ""}
             codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
+            detectedLevels={preflight?.territorial_hierarchy?.levels || inspection.preflight?.territorial_hierarchy?.levels}
+            selectedLevels={hierarchyColumns}
+            onSelectLevel={(level, column) => {
+              setHierarchyColumns(previous => ({...previous, [level]: column}));
+              setResult(null);
+            }}
             onSelectCode={column => {
               if(column) associateColumn(column, "territory_id");
               else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(role => role !== "territory_id"));setResult(null);}
