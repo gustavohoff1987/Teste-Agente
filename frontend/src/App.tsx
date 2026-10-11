@@ -634,7 +634,7 @@ function App() {
           file: file?.name, modified: file?.lastModified, size: file?.size,
           usingBrazil, datasetVersion: inspection?.source?.version, sheet
         })}
-        validationVersion={JSON.stringify({mapping, options: semanticOptions()})}
+        validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
         features={FEATURES}
         active={active}
         selecting={inspecting}
