@@ -24,7 +24,7 @@ from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
 from brazil_data import load_brazil
-from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status
+from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -396,6 +396,11 @@ async def llm_interpretation_with_dataset(
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Contexto de análise inválido.")
+        # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
+        # O canal local não solicita, valida ou executa análise da base.
+        quick = llm_local_response(request)
+        if quick is not None:
+            return quick
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
