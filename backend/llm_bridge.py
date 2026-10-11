@@ -146,6 +146,12 @@ def _local_guidance(message: str) -> str | None:
     return None
 
 
+def local_response(request: ChatRequest) -> dict | None:
+    """Atendimento sem modelo nem leitura de dataset para perguntas de orientação."""
+    guidance = _local_guidance(request.message)
+    return _system_response(guidance, None, "") if guidance is not None else None
+
+
 def _system_response(reply: str, eligibility: dict | None, category_constant: str) -> dict:
     proposal = {"operation": None, "indicator": None, "period": "",
                 "category": "", "territory": ""}
