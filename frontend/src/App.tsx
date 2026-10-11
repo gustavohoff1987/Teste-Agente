@@ -17,7 +17,7 @@ import {
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
   FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
   LoaderCircle, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
-  Sparkles, Table2, TrendingUp, UploadCloud, UsersRound, XCircle
+  Sparkles, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis
@@ -435,11 +435,6 @@ function App() {
     }
     finally { setRunning(false); }
   }
-  function sampleCsv() {
-    downloadText("modelo_dados_territoriais.csv",
-      "Territorio;Ano;Categoria;Quantidade;Populacao;Latitude;Longitude\r\nMunicipio A;2024;Medicos;120;80000;-15.8;-47.9\r\nMunicipio B;2024;Medicos;65;65000;-16.2;-48.1\r\n",
-      "text/csv;charset=utf-8");
-  }
 
   function navigate(view: "home" | "results", target?: string) {
     setPage(view);
@@ -564,7 +559,7 @@ function App() {
       <div className={page === "home" ? "" : "hidden"}>
       <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
       <section id="dados" className="section-anchor mt-5">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
             <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-blue-700"><Database size={23}/></span>
             <h2 className="text-sm font-bold text-ink sm:text-base">Usar dados do Brasil</h2>
@@ -582,23 +577,22 @@ function App() {
             <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
               Utilize dados de qualquer país ou território.
             </p>
-            <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="hidden"
-              onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }}/>
-            <button type="button" onClick={() => inputRef.current?.click()}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
-              <UploadCloud size={16}/> Importar arquivo <span className="text-[10px] font-normal">CSV ou Excel</span>
-            </button>
-          </div>
-          <div className="rounded-[20px] border border-amber-100 bg-amber-50/65 p-4 sm:p-5">
-            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-amber-700"><Table2 size={23}/></span>
-            <h2 className="text-sm font-bold text-ink sm:text-base">Estrutura dos dados</h2>
-            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
-              Baixe o modelo recomendado e preencha com seus dados.
+            <p className="mt-2 text-xs leading-5 text-slate-600">
+              Baixe uma planilha XLSX formatada com os campos recomendados e uma legenda à direita.
+              Você pode adaptar os cabeçalhos; nomes conhecidos, como Município, UF e Região Geográfica, são reconhecidos.
             </p>
-            <button type="button" onClick={sampleCsv}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
-              <Download size={16}/> Baixar modelo CSV
-            </button>
+            <div className="mt-4 flex flex-col gap-2">
+              <a href={API + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
+                <Download size={16}/> Estrutura recomendada (.xlsx)
+              </a>
+              <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="hidden"
+                onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }}/>
+              <button type="button" disabled={!privacy.accepted} onClick={() => inputRef.current?.click()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-3 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-40">
+                <UploadCloud size={16}/> Importar arquivo <span className="text-[10px] font-normal">CSV ou Excel</span>
+              </button>
+            </div>
           </div>
         </div>
         <p className="mt-3 text-xs text-slate-500">O modelo é recomendado, mas não obrigatório. A compatibilidade depende da análise escolhida.</p>
