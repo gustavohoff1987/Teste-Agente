@@ -22,6 +22,7 @@ from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXA
 from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
+from territorial_hierarchy import describe_hierarchy
 from brazil_data import load_brazil
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status
 
@@ -138,6 +139,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     result["metadata"] = {"method_version": "deterministic-0.3", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
+    result["metadata"]["territorial_hierarchy"] = describe_hierarchy(df, mapping, options.get("hierarchy_columns"))
     if df.attrs.get("source"):
         result["metadata"]["source"] = df.attrs["source"]
     for field in df.attrs.get("derived_fields", []):
