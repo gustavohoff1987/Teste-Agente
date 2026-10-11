@@ -15,12 +15,13 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
 from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values
 from dataset_normalization import compose_period
+from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from brazil_data import load_brazil
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status
 
@@ -94,7 +95,15 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
             raw = pd.read_excel(book, sheet_name=sheet or sheets[0], header=None, dtype=object)
             if raw.empty:
                 raise ValueError("Planilha sem registros.")
+            # A legenda à direita do modelo recomendado não é parte da base importada.
+            recommended = raw.shape[1] > len(RECOMMENDED_HEADERS) + 1 and str(raw.iat[0, 12]).strip() == LEGEND_HEADER
+            if recommended:
+                raw = raw.iloc[:, :len(RECOMMENDED_HEADERS)]
             frame = raw.iloc[1:].reset_index(drop=True)
+            if recommended:
+                frame = frame.dropna(how="all").reset_index(drop=True)
+                if frame.empty:
+                    raise ValueError("Preencha ao menos uma linha de dados antes de importar o modelo recomendado.")
             frame.columns = [str(x).strip() if pd.notna(x) else f"Unnamed: {i}" for i, x in enumerate(raw.iloc[0])]
             return compose_period(normalize_headers(frame)), sheets
         except ValueError:
@@ -329,6 +338,19 @@ async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_ve
             frame.attrs["source"] = source
         return frame, []
     return read_dataset(await _read_upload(file), file.filename or "", sheet)
+
+
+@app.get("/api/modelo/estrutura-recomendada")
+def download_recommended_structure() -> Response:
+    """Modelo XLSX formatado; sem dados pessoais e sem acesso às bases brasileiras."""
+    return Response(
+        content=recommended_workbook(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="modelo_territorial_recomendado.xlsx"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/api/health")
