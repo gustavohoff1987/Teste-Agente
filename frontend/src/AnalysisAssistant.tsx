@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import BrandAvatar from "./BrandAvatar";
+import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import { AlertCircle, ArrowRight, LoaderCircle,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
@@ -15,7 +16,7 @@ type Reply = { reply: string; proposal: Proposal; verification?: Verification; r
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal; verification?: Verification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; onSelectAnalysis: (operation: Operation) => void; dataset?: string; scope?: string; datasetVersion?: string };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -36,7 +37,7 @@ const ANALYSIS: Record<Operation, string> = {
   rotation: "Rotatividade", report: "Relatórios",
 };
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, onSelectAnalysis, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -69,21 +70,24 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     setError("");
   }, [contextVersion]);
   useEffect(() => {
+    // Mudanças na preparação invalidam respostas pendentes sem apagar a conversa.
+    revision.current += 1;
+  }, [validationVersion]);
+  useEffect(() => {
     if (turns.length) chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
-    if (sending || !status?.configured || !privacyAccepted || message.length < 3 || message.length > 800 ||
-        (hasSource && !contextReady)) return;
+    if (sending || !privacyAccepted || message.length < 2 || message.length > 800) return;
     const requestRevision = revision.current;
     const history = turns.filter(t => t.role === "user").slice(-4).map(t => t.content);
     setSending(true);
     setError("");
     try {
       let response: Response;
-      if (hasSource) {
+      if (hasSource && contextReady) {
         const form = new FormData();
         if (dataset) {
           form.append("dataset", dataset); form.append("scope", scope); form.append("dataset_version", datasetVersion);
@@ -104,8 +108,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       if (requestRevision !== revision.current) return;
       if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Não foi possível interpretar o pedido.");
       const validated = body as Reply;
-      if (!validated.proposal || validated.executed !== false || validated.origin !== "INTERPRETACAO_LLM" ||
-          (hasSource && validated.verification?.source !== "BACKEND_PREFLIGHT"))
+      if (!validated.proposal || validated.executed !== false ||
+          !["INTERPRETACAO_LLM", "CANAL_SISTEMICO"].includes(validated.origin) ||
+          (hasSource && contextReady && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
         {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification}]);
@@ -137,7 +142,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     </div>
 
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
-      <p>{loadingStatus ? "Conectando à conversa..." : "A conversa está temporariamente indisponível. Os recursos de importação e análise continuam acessíveis."}</p>
+      <p>{loadingStatus ? "Conectando à conversa..." : "O Gemini está indisponível. Saudações, orientações do agente e análises determinísticas continuam disponíveis."}</p>
       {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
         className="mt-2 inline-flex items-center gap-1 font-semibold underline">
         <RefreshCw size={13}/> Tentar novamente
@@ -147,8 +152,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     <p className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 text-xs leading-5 text-slate-700">
       {hasSource ? contextReady
         ? "Base carregada: o Python confere os campos e requisitos antes de revisar a proposta. Nenhum registro é enviado ao Gemini."
-        : "Aguarde a validação da base para ativar a interpretação contextual."
-        : "Sem base carregada: interpretação preliminar, sem verificar períodos ou categorias mencionados."}
+        : "Base em preparação: dúvidas gerais funcionam; propostas contextuais aguardam a validação da base."
+        : "Sem base carregada: posso apresentar as análises disponíveis e orientar a importação."}
     </p>
     <div className="mt-5 overflow-hidden rounded-2xl border border-line bg-slate-50/40">
       <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-xs font-semibold text-slate-600">
@@ -160,14 +165,16 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           <div className="flex items-start gap-3">
             <BrandAvatar size={33} className="shrink-0"/>
             <div>
-              <p className="font-bold text-ink">Olá! O que você deseja analisar?</p>
+              <p className="font-bold text-ink">Olá! Que tipo de análise você deseja fazer?</p>
               <p className="mt-1 text-xs leading-6 text-slate-600">
-                Explore os tipos de análise ou descreva seu objetivo em linguagem natural.
-                As propostas e os dados serão conferidos antes da execução.
+                Posso apresentar os tipos de análise, orientar a preparação dos dados
+                e propor próximos passos. Os cálculos são realizados pelo Python, após suas confirmações.
               </p>
             </div>
           </div>
-          <p className="pt-2 text-xs font-semibold text-slate-500">Experimente uma pergunta:</p>
+          <ChatAnalysisCarousel features={features} selected={active} disabled={selecting}
+            onSelect={onSelectAnalysis}/>
+          <p className="pt-2 text-xs font-semibold text-slate-500">Ou experimente uma pergunta:</p>
           <div className="flex flex-wrap gap-2">
             {["Quero analisar a densidade de médicos por município em 202406",
               "Mostre a distribuição de profissionais pelos quintis de densidade",
@@ -178,6 +185,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
               </button>)}
           </div>
         </div>}
+        {turns.length > 0 && <ChatAnalysisCarousel features={features} selected={active}
+          disabled={selecting} onSelect={onSelectAnalysis}/>}
         {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
           {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
           <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
@@ -230,7 +239,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
         <div className="flex items-center justify-between gap-3 px-3 pb-3">
           <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
           <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
-            disabled={!status?.configured || !privacyAccepted || draft.trim().length < 3 || sending || (hasSource && !contextReady)}
+            disabled={!privacyAccepted || draft.trim().length < 2 || sending}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
             {sending ? <LoaderCircle size={18} className="animate-spin"/> : <Send size={19}/>}
           </button>
