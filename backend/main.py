@@ -158,7 +158,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         if mapping.get(field["role"]) == field["column"]:
             result["notes"].append("Período AAAAMM composto em memória a partir de " +
                                    " e ".join(field["source_columns"]) + "; colunas originais preservadas.")
-    unit = "pessoas distintas" if not mapping.get("count") else options.get("custom_count_unit") if options.get("count_unit") == "outro" else options.get("count_unit", "unidade declarada")
+    unit = count_unit_label(mapping, options)
     if operation != "spatial":
         result["notes"].append("Unidade de contagem: " + str(unit) + ". Não há conversão entre pessoas, vínculos e postos.")
     if mapping.get("territory_id"):
@@ -225,7 +225,7 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             selected = scoped(df, mapping, options)
             summed_quantity = int(text_values(selected[mapping["identity"]]).nunique())
             is_unique = True
-        unit = "pessoas" if not mapping.get("count") else options.get("count_unit", "unidades declaradas")
+        unit = count_unit_label(mapping, options) if mapping.get("count") else "pessoas"
         label = ("Unidades distintas: " + unit) if is_unique else "Soma dos componentes (possível dupla contagem)"
         rows = [{"Tipo": label, "Quantidade": summed_quantity, "População": summed_population,
                  "Densidade por 1.000": summed_quantity / summed_population * 1000}]
@@ -304,11 +304,13 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                        rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução."])
     if operation == "comparisons":
         rows = []
+        # AT-84: a cardinalidade é a do conjunto solicitado, não a dos objetos que restarem por recorte.
+        pair = data.territory.nunique() == 2
         for (period, category), group in data.groupby(["period", "category"], sort=True):
             group = group.sort_values("territory")
             common = {"Período": period, "Categoria": category,
                       "Indicador": "Densidade por 1.000", "Unidade de contagem": count_unit_label(mapping, options)}
-            if len(group) == 2:
+            if pair and len(group) == 2:
                 a, b = group.iloc[0], group.iloc[1]
                 rows.append({**common, "Objeto A": a.territory, "Valor A": a.density,
                     "Objeto B": b.territory, "Valor B": b.density,
@@ -353,7 +355,7 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
              "Valores ausentes e denominadores nulos não são transformados em zero.",
              "Para exportar um relatório, utilize o recurso de impressão/PDF do navegador."]
     return _result("Relatório analítico" if operation == "report" else "Densidade de profissionais",
-                   (options.get("custom_count_unit") if options.get("count_unit") == "outro" else options.get("count_unit") or "Pessoas") + " por 1.000 habitantes.",
+                   count_unit_label(mapping, options) + " por 1.000 habitantes.",
                    rows, [{"label": "Unidades avaliáveis", "value": valid},
                           {"label": "Não avaliáveis", "value": int(len(data)-valid)}], notes)
 

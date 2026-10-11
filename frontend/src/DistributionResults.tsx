@@ -79,12 +79,12 @@ export default function DistributionResults({ summary, detail, onExport }: Props
       <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/>
         <h4 className="text-sm font-bold text-ink">Quantas unidades pertencem a cada quintil?</h4>
       </div>
-      <div className="h-[245px] w-full"><ResponsiveContainer width="100%" height="100%">
+      <div className="h-[245px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{top:5,right:10,bottom:5,left:2}}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e9eff4" vertical={false}/>
           <XAxis dataKey="name" tick={{fontSize:12,fill:"#668094"}}/>
           <YAxis allowDecimals={false} tick={{fontSize:11,fill:"#668094"}} width={58}/>
-          <Tooltip formatter={(v: number) => [fmt(v), "Unidades territoriais"]}/>
+          <Tooltip formatter={(v: number) => [fmt(v), "Unidades territoriais"]} wrapperStyle={{maxWidth: "calc(100% - 72px)"}} contentStyle={{whiteSpace: "normal"}}/>
           <Bar dataKey="count" name="Unidades territoriais" fill="#15919b" radius={[5,5,0,0]}/>
         </BarChart>
       </ResponsiveContainer></div>

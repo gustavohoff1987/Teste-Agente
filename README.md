@@ -172,7 +172,16 @@ etapas abaixo da conversa, após a escolha do usuário.
 pendências, confirmação do código territorial, troca de abrangência, densidade,
 quantitativos, população na distribuição, falha/recuperação do pré-exame e upload
 internacional. Requer os servidores locais e o catálogo Brasil instalado; não chama
-o Gemini. Os roteiros que dependiam da antiga lista vertical descrevem um layout anterior. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
+o Gemini. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
+
+Os seis roteiros de navegador (`ui_session_smoke.py`, `ui_carousel_smoke.py`,
+`ui_audit_smoke.py`, `ui_preparation_smoke.py`, `ui_brazil_smoke.py` e `ui_smoke.py`)
+refletem a interface atual. Após `npm run build`, podem ser executados contra
+`python backend/tests/serve_ui_offline.py` (build + API, sem transporte externo de IA),
+com `ADT_UI_URL=http://127.0.0.1:18000/`; os dois últimos exigem `ADT_REAL_DATA_DIR`.
+`python backend/tests/ui_integration_smoke.py` percorre a conversa pelo backend real, com
+transporte Gemini simulado: inicie antes um processo novo de
+`python backend/tests/serve_ui_fake_gemini.py` (porta 18200) a cada execução.
 
 ## Ponte semântica e habilitação de análises
 

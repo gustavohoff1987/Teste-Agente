@@ -156,7 +156,9 @@ def main():
         page.get_by_role("button", name="Início", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=True).click()
         stage(page, 1)
-        expect(territory).to_have_value("municipio")
+        # Novo carregamento preserva a análise (Quantitativos), mas não a abrangência explícita anterior.
+        expect(page.get_by_label("Abrangência da análise")).to_have_value("auto")
+        expect(territory).to_have_value("pais")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
         page.locator("#dados").scroll_into_view_if_needed()

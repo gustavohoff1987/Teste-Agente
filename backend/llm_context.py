@@ -8,6 +8,7 @@ evidência de disponibilidade sem revalidação da base.
 from typing import Any
 import unicodedata
 
+from data_contract import text_values
 from semantic_bridge import OPERATIONS, preflight
 
 
@@ -80,6 +81,11 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
             candidate = proposal.get(role)
             if not candidate:
                 continue
+            column = (mapping or {}).get(role)
+            if column and column in frame.columns:
+                # Associação ainda pendente não significa valor ausente: o pré-exame
+                # da proposta relata a confirmação exigida para esse papel.
+                choices = text_values(frame[column]).dropna().unique().tolist()
             matches = [value for value in choices if _norm(value) == _norm(candidate)]
             if len(matches) != 1:
                 capability_status = "unavailable"

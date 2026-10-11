@@ -121,6 +121,23 @@ def test_a08_distribution_keeps_count_unit_in_standalone_rows(unit, label):
     assert all(r["Unidade de contagem"] == label for r in body["detail_rows"])
 
 
+@pytest.mark.parametrize("unit,label", [("vinculos", "vínculos"), ("outro", "horas contratadas")])
+def test_a08_declared_unit_in_aggregate_label_density_description_and_notes(unit, label):
+    frame = temporal_frame()
+    frame["Municipality"] = ["A", "B"]
+    frame["Year"] = 2024
+    options = {"count_unit": unit, "custom_count_unit": "horas contratadas"}
+    aggregate = post(frame, "aggregate", {**options, "population_additive_confirmed": True,
+                                          "no_overlap_confirmed": True})
+    assert aggregate.status_code == 200, aggregate.text
+    assert aggregate.json()["rows"][0]["Tipo"] == "Unidades distintas: " + label
+    density = post(frame, "density", options)
+    assert density.status_code == 200, density.text
+    assert density.json()["description"] == label + " por 1.000 habitantes."
+    for body in (aggregate.json(), density.json()):
+        assert "Unidade de contagem: " + label + "." in " ".join(body["notes"])
+
+
 @pytest.mark.parametrize("counts,relation,difference", [([10, 20], "MENOR", -10),
     ([20, 10], "MAIOR", 10), ([10, 10], "IGUALDADE", 0)])
 def test_a04_two_objects_compare_values_with_explicit_signed_operands(counts, relation, difference):
@@ -144,6 +161,16 @@ def test_a04_three_objects_keep_visual_order_and_do_not_create_pairwise_differen
     assert [r["Território"] for r in rows] == ["A", "B", "C"]
     assert all("Posição" not in r and "Diferença A − B" not in r for r in rows)
     assert [r["Próximo valor maior"] for r in rows] == [20, 30, None]
+
+
+def test_a04_requested_cardinality_prevails_when_only_two_remain_in_a_period():
+    # AT-84: três objetos solicitados não geram diferenças de pares, mesmo se restarem dois.
+    frame = pd.DataFrame({"Municipality": ["A", "B", "C", "A", "B"], "Year": [2023]*3 + [2024]*2,
+        "Profession": ["Nurses"]*5, "Count": [10, 20, 30, 40, 10], "Population": [1000]*5})
+    rows = post(frame, "comparisons").json()["rows"]
+    assert all("Diferença A − B" not in r and "Relação A/B" not in r for r in rows)
+    assert [(r["Período"], r["Território"], r["Próximo valor maior"]) for r in rows] == [
+        ("2023", "A", 20), ("2023", "B", 30), ("2023", "C", None), ("2024", "A", None), ("2024", "B", 40)]
 
 
 @pytest.mark.parametrize("crs", ["SIRGAS2000", "SIRGAS 2000", "SIRGAS-2000", "sirgas2000"])

@@ -951,12 +951,14 @@ function App() {
               summary={result.rows} detail={result.detail_rows} onExport={exportCsv}/>}
             {active !== "distribution" && plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos primeiros 12 registros</h4></div>
-              <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%">
+              {/* O tooltip oculto preserva a posição anterior; sem recorte, estende a página ao estreitar a janela.
+                  A largura máxima mantém o tooltip visível dentro da área de plotagem (eixo Y + margens). */}
+              <div className="h-[280px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
                 <BarChart data={plot.values} margin={{top:5,right:12,bottom:35,left:0}}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e9eff4" vertical={false}/>
                   <XAxis dataKey="name" tick={{fontSize:10,fill:"#668094"}} interval={0} angle={-27} textAnchor="end" height={65}/>
                   <YAxis tick={{fontSize:11,fill:"#668094"}} width={48}/>
-                  <Tooltip formatter={(v: number) => shortNum(v)}/>
+                  <Tooltip formatter={(v: number) => shortNum(v)} wrapperStyle={{maxWidth: "calc(100% - 72px)"}} contentStyle={{whiteSpace: "normal"}}/>
                   <Bar dataKey="value" name={plot.numeric} fill="#15919b" radius={[5,5,0,0]} maxBarSize={48}/>
                 </BarChart>
               </ResponsiveContainer></div>
