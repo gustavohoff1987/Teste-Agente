@@ -93,17 +93,17 @@ Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.m
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
-A interface possui uma área de conversa na página inicial, abaixo dos atalhos de análises. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
+O chat ocupa a área central da página inicial, com as dez análises em um carrossel compacto dentro da conversa. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
 **Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
-O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado continua exigindo confirmação. A interface mostra habilitação, pendências e discrepâncias e **não executa operações**. Ao trocar a base ou alterar o contexto, propostas anteriores são descartadas na aba, evitando reuso silencioso de interpretação desatualizada.
+O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado continua exigindo confirmação. A interface mostra habilitação, pendências e discrepâncias e **não executa operações**. Uma nova base reinicia o histórico; alterações de parâmetros e recorte preservam a conversa, mas invalidam respostas ainda pendentes e exigem nova revalidação no backend.
 
 **Sem base carregada:** o comportamento de primeira iteração continua disponível em `POST /api/llm/interpret`, mas a proposta é explicitamente preliminar e não verifica a existência dos valores sugeridos.
 
 A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
 
-O LLM retorna uma proposta estruturada de operação/indicador; o backend valida os valores permitidos e só apresenta expressões territoriais, categorias e períodos ancorados no texto sanitizado. O texto explicativo mostrado na interface é composto por templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. A opção **Ver requisitos** só abre o cartão sugerido: não executa nem confirma nada.
+O LLM classifica também intenções conversacionais e perguntas sobre o agente; o backend responde com textos de catálogo local. Saudações, ajuda, importação, privacidade, limites e explicação de densidade contam com tratamento determinístico sem consumo de franquia. A parte implementada dessas funções é experimental, não corresponde à governança integral FN-INT/FN-META da SPEC. Para pedidos analíticos, o LLM retorna uma proposta estruturada de operação/indicador; o backend valida os valores permitidos e só apresenta expressões territoriais, categorias e períodos ancorados no texto sanitizado. O texto explicativo mostrado na interface é composto por templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. A opção **Ver requisitos** só abre o cartão sugerido: não executa nem confirma nada.
 
 ### Chave Gemini permanente no Windows (configuração única)
 
@@ -166,13 +166,13 @@ A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull reque
 
 Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
 
-O layout atual usa uma lista vertical e um painel de preparação em três etapas.
+O layout atual reúne chat e carrossel compacto e apresenta a preparação em três
+etapas abaixo da conversa, após a escolha do usuário.
 `python backend/tests/ui_preparation_smoke.py` verifica esse fluxo, incluindo seleção,
 pendências, confirmação do código territorial, troca de abrangência, densidade,
 quantitativos, população na distribuição, falha/recuperação do pré-exame e upload
 internacional. Requer os servidores locais e o catálogo Brasil instalado; não chama
-o Gemini. Os roteiros anteriores que dependiam do carrossel e de controles dispersos
-descrevem o layout antigo. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
+o Gemini. Os roteiros que dependiam da antiga lista vertical descrevem um layout anterior. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
 
 ## Ponte semântica e habilitação de análises
 
