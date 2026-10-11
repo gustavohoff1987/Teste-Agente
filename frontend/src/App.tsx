@@ -5,7 +5,6 @@ import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
 import AnalysisAssistant from "./AnalysisAssistant";
 import BrandAvatar from "./BrandAvatar";
-import AnalysisList from "./AnalysisList";
 import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
@@ -566,29 +565,26 @@ function App() {
       <div className={page === "home" ? "" : "hidden"}>
       <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
       <section id="dados" className="section-anchor mt-5">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
+        <div className="grid items-stretch gap-3 sm:grid-cols-2">
+          <div className="flex h-full flex-col rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
             <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-blue-700"><Database size={23}/></span>
             <h2 className="text-sm font-bold text-ink sm:text-base">Usar dados do Brasil</h2>
             <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
               Explore a força de trabalho na saúde no Brasil e em seus municípios.
             </p>
             <button type="button" disabled={!privacy.accepted || inspecting} onClick={chooseBrazil}
-              className="mt-4 inline-flex w-full justify-center rounded-xl border border-blue-200 bg-blue-600 px-3 py-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
+              className="mt-auto inline-flex w-full justify-center rounded-xl border border-blue-200 bg-blue-600 px-3 py-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
               Usar dados do Brasil
             </button>
           </div>
-          <div className="rounded-[20px] border border-emerald-100 bg-emerald-50/80 p-4 sm:p-5">
+          <div className="flex h-full flex-col rounded-[20px] border border-emerald-100 bg-emerald-50/80 p-4 sm:p-5">
             <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-emerald-700"><FileUp size={23}/></span>
             <h2 className="text-sm font-bold text-ink sm:text-base">Importar seus dados</h2>
-            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
-              Utilize dados de qualquer país ou território.
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Baixe uma planilha formatada com os campos recomendados e uma legenda à direita.
+              Você pode adaptar os cabeçalhos.
             </p>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
-              Baixe uma planilha XLSX formatada com os campos recomendados e uma legenda à direita.
-              Você pode adaptar os cabeçalhos; nomes conhecidos, como Município, UF e Região Geográfica, são reconhecidos.
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-auto flex flex-col gap-2 pt-4">
               <a href={API + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
                 <Download size={16}/> Estrutura recomendada (.xlsx)
@@ -624,8 +620,29 @@ function App() {
         </div>}
       </section>
 
-      <div id="analises" className="preparation-workspace section-anchor mt-6">
-        <AnalysisList features={FEATURES} active={active} disabled={inspecting} onSelect={selectAnalysis}/>
+      <AnalysisAssistant
+        apiBase={API}
+        privacyAccepted={privacy.accepted}
+        file={file}
+        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
+        datasetVersion={inspection?.source?.version || ""}
+        sheet={sheet}
+        mapping={mapping}
+        options={semanticOptions()}
+        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
+        contextVersion={JSON.stringify({
+          file: file?.name, modified: file?.lastModified, size: file?.size,
+          usingBrazil, source: inspection?.source, sheet
+        })}
+        validationVersion={JSON.stringify({mapping, options: semanticOptions()})}
+        features={FEATURES}
+        active={active}
+        selecting={inspecting}
+        onSelectAnalysis={operation => {
+          selectAnalysis(operation);
+          navigate("home", "preparacao");
+        }}/>
+      {active && <div className="preparation-workspace section-anchor mt-5">
         <PreparationPanel title={selectedFeature?.title || "Preparar uma análise"} step={step} onStep={setStep}
           checking={preflighting || inspecting} requirements={visibleRequirements}
           ready={!!active && !preflighting && !inspecting && preflight?.capabilities[active]?.status === "available"}
@@ -876,25 +893,7 @@ function App() {
             </>}
           </>}
         </PreparationPanel>
-      </div>
-      <AnalysisAssistant
-        apiBase={API}
-        privacyAccepted={privacy.accepted}
-        file={file}
-        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
-        datasetVersion={inspection?.source?.version || ""}
-        sheet={sheet}
-        mapping={mapping}
-        options={semanticOptions()}
-        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
-        contextVersion={JSON.stringify({
-          file: file?.name, modified: file?.lastModified, size: file?.size,
-          usingBrazil, source: inspection?.source, sheet, mapping, options: semanticOptions()
-        })}
-        onSelectAnalysis={operation => {
-        selectAnalysis(operation);
-        navigate("home", "preparacao");
-      }}/>
+      </div>}
 
       </div>
       <section id="resultados" ref={resultsRef} className={["section-anchor pt-3", page === "results" ? "" : "hidden"].join(" ")}>
