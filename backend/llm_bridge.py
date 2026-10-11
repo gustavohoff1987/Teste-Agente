@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 from llm_context import provider_snapshot, review_interpretation
+from dialogue_guidance import clarification_for
 from llm_config import load_local_environment
 
 
@@ -100,6 +101,16 @@ _GUIDANCE = {
         "significados dos campos, não inventa métodos e não autoriza agregações. "
         "Se o modelo estiver indisponível, o motor Python e os controles continuam funcionando."
     ),
+    "spatial": (
+        "A distância espacial utiliza coordenadas e cálculo geodésico. Ela representa "
+        "distância geográfica direta, não percurso viário, tempo de deslocamento "
+        "ou acesso efetivo a um serviço. A execução exige coordenadas válidas."
+    ),
+    "aggregation": (
+        "O agrupamento territorial não comprova, por si só, pessoas únicas. "
+        "Quando houver possibilidade de sobreposição, a soma representa contagens "
+        "dos componentes, salvo evidência válida de deduplicação ou aditividade."
+    ),
     "density": (
         "A densidade por 1.000 habitantes é calculada como quantidade de profissionais "
         "dividida pela população correspondente, multiplicada por 1.000. "
@@ -114,7 +125,7 @@ _GENERIC_GREETING = (
     "Você pode escolher no carrossel ou descrever seu objetivo."
 )
 _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
-_TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "none")
+_TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none")
 
 
 def _text_key(value: str) -> str:
@@ -140,6 +151,13 @@ def _local_guidance(message: str) -> str | None:
     if re.fullmatch(r"(como funciona a privacidade|meus dados vao para o gemini|"
                     r"quem acessa meus dados)", text):
         return _GUIDANCE["privacy"]
+    if re.fullmatch(r"(o que e distancia geodesica|distancia geodesica e distancia de estrada|"
+                    r"distancia espacial mede tempo de viagem)", text):
+        return _GUIDANCE["spatial"]
+    if re.fullmatch(r"(posso somar os profissionais de diferentes municipios|"
+                    r"uma soma territorial representa pessoas unicas|"
+                    r"como funciona a agregacao territorial)", text):
+        return _GUIDANCE["aggregation"]
     if re.fullmatch(r"(o gemini faz os calculos|quem faz os calculos|"
                     r"o agente inventa metodos)", text):
         return _GUIDANCE["limits"]
@@ -381,6 +399,15 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     _reserve_request()
     raw = await _call_gemini(provider_messages, model, os.environ["GEMINI_API_KEY"].strip())
     response = _validate(raw, sanitized)
+    # Confirmações e alternativas são apresentadas pelo catálogo determinístico,
+    # nunca como texto gerado pelo provedor. Pedidos explicitamente paralelos
+    # não autorizam que o LLM escolha arbitrariamente a primeira capacidade.
+    clarification = clarification_for(request.message, response["proposal"], None)
+    if clarification is not None and clarification["code"] == "MULTIPLAS_CAPACIDADES":
+        response["proposal"] = {"operation": None, "indicator": None,
+                                "period": "", "category": "", "territory": ""}
+        response["reply"] = clarification["prompt"]
+        response["requires_confirmation"] = True
     if eligibility is not None:
         response["verification"] = review_interpretation(
             response["proposal"], eligibility, category_constant=category_constant
@@ -390,6 +417,13 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
             "A autorização e a execução permanecem pendentes."
         )
         response["reply"] += " A situação dos requisitos foi verificada pelo Python."
+    if clarification is None:
+        clarification = clarification_for(
+            request.message, response["proposal"], response.get("verification"))
+    if clarification is not None:
+        response["clarification"] = clarification
+        if clarification["code"] != "MULTIPLAS_CAPACIDADES":
+            response["reply"] = clarification["prompt"]
     return {**response, "model": model,
             "privacy": "Somente o pedido minimizado e estados técnicos de capacidades foram enviados; "
                        "nenhum arquivo, linha ou nome de campo da base foi enviado."}
