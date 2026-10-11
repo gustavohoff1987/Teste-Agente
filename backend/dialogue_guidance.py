@@ -54,8 +54,10 @@ def explicit_parallel_operations(message: str) -> list[str]:
                 continue
             lhs = rf"\b(?:{lp})\s+e\s+(?:{rp})\b"
             rhs = rf"\b(?:{rp})\s+e\s+(?:{lp})\b"
-            if re.search(lhs, source) or re.search(rhs, source):
+            if re.search(lhs, source):
                 return [left, right]
+            if re.search(rhs, source):
+                return [right, left]
     return []
 
 
