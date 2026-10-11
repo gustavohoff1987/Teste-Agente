@@ -5,7 +5,7 @@ export function preparationRequirements(requirements: Requirement[]) {
   const seen = new Set<string>();
   return requirements.flatMap(item => {
     const code = item.status === "needs_confirmation" &&
-      /Confirme a associação de Código territorial|Confirme que o código identifica/.test(item.detail);
+      /Confirme a associação de Código (?:identificador )?territorial|Confirme que o código identifica/.test(item.detail);
     const next = code ? { ...item, title: "Identificador territorial", detail: item.status === "met" ? item.detail :
       "Confirme o identificador territorial. Ele distingue municípios de mesmo nome; reconhecer a unidade territorial não confirma seu código." } : item;
     const key = next.status + next.detail;
