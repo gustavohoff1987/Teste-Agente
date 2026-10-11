@@ -106,8 +106,8 @@ def main():
         assert len(llm_requests) == 1
         assert llm_requests[0].post_data_json["message"] == "Quero analisar quantitativos"
         page.get_by_role("button", name="Ver requisitos de Quantitativos", exact=True).click()
-        expect(page.locator("#analises .analysis-card")).to_have_accessible_name("Selecionar análise: Quantitativos")
-        expect(page.locator("#analises .analysis-card")).to_have_attribute("aria-pressed", "true")
+        expect(page.get_by_role("button", name="Selecionar análise: Quantitativos", exact=True)).to_be_visible()
+        expect(page.get_by_role("button", name="Selecionar análise: Quantitativos", exact=True)).to_have_attribute("aria-pressed", "true")
         assert not any(url.endswith("/api/analyze") for url in writes)
         # Importação real, confirmações e cálculo real com resultado independente.
         page.locator('input[type="file"]').set_input_files(DATA)
@@ -115,7 +115,7 @@ def main():
         expect(page.get_by_role("log")).not_to_contain_text(REPLY["reply"])
         expect(modal).to_have_count(0)
         page.get_by_role("button", name="Confirmar objeto de análise", exact=True).click()
-        page.locator("#analises .analysis-card").press("Home")
+        page.get_by_role("button", name="Análise anterior", exact=True).click()
         page.get_by_role("button", name="Selecionar análise: Densidade", exact=True).click()
         execute = page.get_by_role("button", name="Executar análise", exact=True)
         expect(execute).to_be_disabled()
@@ -146,7 +146,7 @@ def main():
         expect(modal).to_have_count(0)
         # Explorar outro card não invalida a análise que o usuário já executou.
         page.get_by_role("button", name="Próxima análise", exact=True).click()
-        expect(page.locator("#analises .analysis-card")).to_have_attribute("aria-pressed", "false")
+        expect(page.get_by_role("button", name="Selecionar análise: Quantitativos", exact=True)).to_have_attribute("aria-pressed", "false")
         page.get_by_role("button", name="Resultados", exact=True).click()
         expect(page.locator(".data-table tbody tr")).to_have_count(2)
         expect(page.get_by_role("button", name="CSV", exact=True)).to_be_enabled()
