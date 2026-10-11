@@ -11,11 +11,14 @@ type Proposal = {
   territory: string; period: string; category: string;
 };
 type Verification = { source: "BACKEND_PREFLIGHT"; capability_status: "available" | "needs_confirmation" | "unavailable" | "not_selected"; slots: Record<"period" | "category" | "territory", string>; blockers: string[]; ready_to_execute: false; next_action: "confirm_in_interface" };
-type Reply = { reply: string; proposal: Proposal; verification?: Verification; requires_confirmation: boolean;
+type Clarification = {code: string; prompt: string; reason: string; source: "CATALOGO_LOCAL";
+  choices: {label: string; draft: string}[]; answered: false};
+type Reply = { reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;
   executed: boolean; origin: string; note: string; model: string; privacy: string };
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
-type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal; verification?: Verification };
+type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
+  verification?: Verification; clarification?: Clarification };
 type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
@@ -113,7 +116,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           (hasSource && contextReady && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
-        {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification}]);
+        {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);
       setDraft("");
       void refreshStatus();
     } catch (exc) {
@@ -192,6 +195,20 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
             turn.role === "user" ? "bg-teal text-white" : "border border-line bg-white text-slate-700"].join(" ")}>
             <p className="whitespace-pre-wrap break-words">{turn.content}</p>
+            {turn.role === "assistant" && turn.clarification?.source === "CATALOGO_LOCAL" &&
+              turn.clarification.choices.length > 0 &&
+              <div className="mt-3 flex flex-wrap gap-2" aria-label="Alternativas de esclarecimento">
+                {turn.clarification.choices.map(choice =>
+                  <button key={choice.label} type="button"
+                    onClick={() => {
+                      // Apenas prepara uma manifestação textual; não executa nem confirma.
+                      setDraft(choice.draft);
+                      document.getElementById("assistant-input")?.focus();
+                    }}
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100">
+                    {choice.label}
+                  </button>)}
+              </div>}
             {turn.proposal && (turn.proposal.operation || turn.proposal.period || turn.proposal.category || turn.proposal.territory) && <div className="mt-3 space-y-2 border-t border-line pt-3 text-xs">
               <p className="font-semibold text-slate-700">Proposta sujeita a confirmação</p>
               {turn.proposal.period && <p>Período mencionado: {turn.proposal.period}</p>}
