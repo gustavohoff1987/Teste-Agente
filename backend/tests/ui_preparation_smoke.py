@@ -26,12 +26,24 @@ def main():
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=True).click()
         expect(page.get_by_text("Dados do Brasil carregados", exact=True)).to_be_visible()
-        choices = page.get_by_role("complementary", name="Seleção de análises")
-        expect(choices.get_by_role("button")).to_have_count(10)
+        choices = page.get_by_role("group", name="Carrossel de tipos de análise")
+        expect(choices.get_by_role("button")).to_have_count(3)
         panel = page.get_by_role("region", name="Preparação da análise")
+        titles = ["Densidade", "Quantitativos", "Distribuição", "Comparações",
+                  "Evolução temporal", "Agregações", "Análise espacial",
+                  "Recortes e rankings", "Rotatividade", "Relatórios"]
+        current = 0
 
         def select(name):
-            page.get_by_role("button", name="Selecionar análise: " + name, exact=True).click()
+            nonlocal current
+            desired = titles.index(name)
+            while current < desired:
+                choices.get_by_role("button", name="Próxima análise").click()
+                current += 1
+            while current > desired:
+                choices.get_by_role("button", name="Análise anterior").click()
+                current -= 1
+            choices.get_by_role("button", name="Selecionar análise: " + name, exact=True).click()
             expect(panel.get_by_role("heading", name=name, exact=True)).to_be_visible()
 
         def stage(n):
