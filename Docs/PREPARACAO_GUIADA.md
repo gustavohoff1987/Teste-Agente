@@ -1,8 +1,10 @@
 # Preparação guiada — Teste-Agente
 
-Na branch `feat/portal-uma-pagina-v1`, a preparação reúne a seleção vertical das dez
-análises e um painel com rolagem própria. Em telas pequenas, a lista fica acima do
-painel. O chat, a importação e os resultados continuam na interface.
+Na branch `feat/portal-uma-pagina-v1`, o chat é a área central do início.
+O agente apresenta um carrossel compacto das dez análises, com setas de navegação.
+Ao selecionar uma análise, a preparação guiada é aberta abaixo da conversa,
+em um painel de largura integral e com rolagem própria. A seleção não executa
+cálculos nem altera a matriz de aplicabilidade.
 
 As etapas são identificação dos dados, parâmetros/confirmações e revisão/execução.
 Só a etapa ativa é exibida. As confirmações ficam no estado do aplicativo, e não no
