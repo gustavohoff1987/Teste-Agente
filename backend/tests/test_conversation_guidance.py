@@ -49,3 +49,19 @@ def test_llm_meta_topic_is_validated_against_local_catalog(monkeypatch):
     assert "Python" in body["reply"]
     assert "Nunca executamos checagens" not in body["reply"]
     assert body["proposal"]["operation"] is None
+
+
+def test_guidance_with_dataset_is_not_forced_to_read_dataset(monkeypatch):
+    import main
+
+    async def forbidden(*_args, **_kwargs):
+        raise AssertionError("O dataset não deve ser carregado para uma saudação.")
+
+    monkeypatch.setattr(main, "_request_dataset", forbidden)
+    result = client.post("/api/llm/interpret-context", data={
+        "dataset": "brazil", "message": "olá", "history": "[]",
+        "mapping": "{}", "options": "{}",
+    })
+    assert result.status_code == 200, result.text
+    assert result.json()["origin"] == "CANAL_SISTEMICO"
+    assert result.json()["executed"] is False
