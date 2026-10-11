@@ -110,7 +110,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       const validated = body as Reply;
       if (!validated.proposal || validated.executed !== false ||
           !["INTERPRETACAO_LLM", "CANAL_SISTEMICO"].includes(validated.origin) ||
-          (hasSource && contextReady && validated.verification?.source !== "BACKEND_PREFLIGHT"))
+          (hasSource && contextReady && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       setTurns(previous => [...previous, {role:"user", content:message},
         {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification}]);
