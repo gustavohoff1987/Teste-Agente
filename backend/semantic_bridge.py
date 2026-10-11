@@ -453,7 +453,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             return (text_values(original_frame[mapped[role]]) + " [" + text_values(original_frame[mapped["territory_id"]]) + "]").dropna().unique().tolist()
         return text_values(original_frame[mapped[role]]).dropna().unique().tolist() if assigned(role) else []
     return {"capabilities": cap, "field_states": field_states,
-            "territorial_hierarchy": describe_hierarchy(original_frame, mapped),
+            "territorial_hierarchy": describe_hierarchy(original_frame, mapped, options.get("hierarchy_columns")),
             "multiplicity": multiplicity(frame, mapped, options),
             "values": {"territories": values("territory"), "periods": values("period"),
                        "categories": values("category")},
