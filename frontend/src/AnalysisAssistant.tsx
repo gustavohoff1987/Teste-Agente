@@ -192,7 +192,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
             turn.role === "user" ? "bg-teal text-white" : "border border-line bg-white text-slate-700"].join(" ")}>
             <p className="whitespace-pre-wrap break-words">{turn.content}</p>
-            {turn.proposal && <div className="mt-3 space-y-2 border-t border-line pt-3 text-xs">
+            {turn.proposal && (turn.proposal.operation || turn.proposal.period || turn.proposal.category || turn.proposal.territory) && <div className="mt-3 space-y-2 border-t border-line pt-3 text-xs">
               <p className="font-semibold text-slate-700">Proposta sujeita a confirmação</p>
               {turn.proposal.period && <p>Período mencionado: {turn.proposal.period}</p>}
               {turn.proposal.category && <p>Categoria mencionada: {turn.proposal.category}</p>}
