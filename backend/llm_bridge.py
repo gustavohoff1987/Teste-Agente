@@ -66,8 +66,98 @@ _KEEP = {"Quero", "Preciso", "Gostaria", "Compare", "Comparar", "Analise", "Anal
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=3, max_length=800)
+    message: str = Field(min_length=2, max_length=800)
     history: list[str] = Field(default_factory=list, max_length=4)
+
+
+# Respostas sobre o funcionamento do agente são produzidas a partir do catálogo
+# local, não de conteúdo livre ou não ancorado do provedor externo.
+_GUIDANCE = {
+    "capabilities": (
+        "Posso ajudar com densidade por 1.000 habitantes, quantitativos, distribuição, "
+        "comparações territoriais, evolução temporal, agregações, distâncias geodésicas, "
+        "rankings, rotatividade e relatórios. Escolha uma opção no carrossel ou descreva "
+        "seu objetivo. Cada análise depende dos requisitos disponíveis na sua base."
+    ),
+    "data": (
+        "Você pode usar os dados brasileiros já configurados ou importar CSV, XLS ou XLSX. "
+        "Em 'Importar seus dados', baixe a estrutura recomendada para conhecer os campos "
+        "e a hierarquia territorial. Os nomes de colunas podem ser associados durante "
+        "a preparação. Nenhum cálculo acontece apenas por importar."
+    ),
+    "workflow": (
+        "Escolha um tipo de análise no carrossel da conversa. Em seguida, confira "
+        "a identificação dos dados, os parâmetros e as confirmações; por último, "
+        "revise e execute. O Python valida os requisitos e realiza os cálculos."
+    ),
+    "privacy": (
+        "Os arquivos são processados no backend local. O Gemini recebe apenas mensagens "
+        "minimizadas e, quando necessário, estados técnicos do pré-exame; não recebe "
+        "linhas, colunas nem registros da base. Evite inserir dados pessoais no chat."
+    ),
+    "limits": (
+        "O Gemini propõe interpretações, mas não executa cálculos, não confirma "
+        "significados dos campos, não inventa métodos e não autoriza agregações. "
+        "Se o modelo estiver indisponível, o motor Python e os controles continuam funcionando."
+    ),
+    "density": (
+        "A densidade por 1.000 habitantes é calculada como quantidade de profissionais "
+        "dividida pela população correspondente, multiplicada por 1.000. "
+        "A compatibilidade entre unidade de contagem, território e período precisa "
+        "ser confirmada antes da execução."
+    ),
+}
+_GENERIC_GREETING = (
+    "Olá! Sou o Agente Diagnóstico Territorial. Posso ajudar a explorar dados "
+    "sobre a força de trabalho na saúde, explicar as análises disponíveis "
+    "e orientar sua preparação. Que tipo de análise você deseja fazer? "
+    "Você pode escolher no carrossel ou descrever seu objetivo."
+)
+_INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
+_TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "none")
+
+
+def _text_key(value: str) -> str:
+    plain = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join("".join(c for c in plain if not unicodedata.combining(c)).split())
+
+
+def _local_guidance(message: str) -> str | None:
+    """Atalhos determinísticos para intenções inequívocas, sem consumir franquia."""
+    text = _text_key(message).strip(" .!?")
+    if re.fullmatch(r"(oi|ola|bom dia|boa tarde|boa noite|e ai|hello|hi|hey)", text):
+        return _GENERIC_GREETING
+    if re.fullmatch(r"(ajuda|me ajude|o que voce faz|o que este agente faz|o que o agente faz|"
+                    r"como funciona o agente|quais analises voce faz|quais analises existem|"
+                    r"o que posso fazer aqui|quais sao as opcoes)", text):
+        return _GUIDANCE["capabilities"] + " " + _GUIDANCE["workflow"]
+    if re.fullmatch(r"(como importar (meus )?dados|como envio meus dados|"
+                    r"qual (e a )?estrutura recomendada|como funciona a importacao)", text):
+        return _GUIDANCE["data"]
+    if re.fullmatch(r"(como (se )?calcula (a )?densidade|o que e densidade|"
+                    r"o que significa densidade por 1000 habitantes)", text):
+        return _GUIDANCE["density"]
+    if re.fullmatch(r"(como funciona a privacidade|meus dados vao para o gemini|"
+                    r"quem acessa meus dados)", text):
+        return _GUIDANCE["privacy"]
+    if re.fullmatch(r"(o gemini faz os calculos|quem faz os calculos|"
+                    r"o agente inventa metodos)", text):
+        return _GUIDANCE["limits"]
+    return None
+
+
+def _system_response(reply: str, eligibility: dict | None, category_constant: str) -> dict:
+    proposal = {"operation": None, "indicator": None, "period": "",
+                "category": "", "territory": ""}
+    result = {"reply": reply, "proposal": proposal, "requires_confirmation": False,
+              "executed": False, "origin": "CANAL_SISTEMICO",
+              "note": "Orientação operacional do catálogo local; nenhuma análise executada.",
+              "model": "sem chamada ao Gemini",
+              "privacy": "Nenhum conteúdo desta mensagem foi transmitido ao Gemini."}
+    if eligibility is not None:
+        result["verification"] = review_interpretation(
+            proposal, eligibility, category_constant=category_constant)
+    return result
 
 
 class LLMError(Exception):
@@ -130,8 +220,10 @@ def _schema() -> dict:
             "period": {"type": "STRING"},
             "category": {"type": "STRING"},
             "territory": {"type": "STRING"},
+            "intent": {"type": "STRING", "enum": list(_INTENTS)},
+            "topic": {"type": "STRING", "enum": list(_TOPICS)},
         },
-        "required": ["operation", "indicator", "period", "category", "territory"],
+        "required": ["operation", "indicator", "period", "category", "territory", "intent", "topic"],
     }
 
 
@@ -144,6 +236,11 @@ _SYSTEM = (
     "literalmente explícitos nas mensagens sanitizadas; não fabrique, agregue "
     "ou estabeleça que uma categoria pertence à FTS. "
     "Use 'none' quando não houver solicitação analítica clara. "
+    "Classifique também a intenção em ANALITICO, SOBRE_O_AGENTE, "
+    "CONCEITUAL_DOMINIO ou CONVERSACIONAL; selecione o tópico da enumeração "
+    "somente quando for realmente pedido. Perguntas sobre o agente, importação, "
+    "privacidade, limitações, fluxo de preparação ou definição de densidade "
+    "não são propostas analíticas, a menos que o usuário solicite uma operação. "
     "Se houver CONTEXTO_VERIFICADO, ele descreve apenas papéis técnicos e "
     "estados das capacidades confirmados pelo servidor. Não contém nomes ou "
     "valores da base; não deduza nenhum deles nem contorne indisponibilidades. "
@@ -215,6 +312,22 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
     anchors = {key: _anchor(raw.get(key), source) for key in ("period", "category", "territory")}
     if operation == "none":
         indicator = "none"
+        intent = raw.get("intent")
+        topic = raw.get("topic")
+        if intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO") and topic in _GUIDANCE:
+            proposal = {"operation": None, "indicator": None,
+                        "period": "", "category": "", "territory": ""}
+            return {"reply": _GUIDANCE[topic], "proposal": proposal,
+                    "requires_confirmation": False, "executed": False,
+                    "origin": "INTERPRETACAO_LLM",
+                    "note": "Tópico interpretado pelo LLM; conteúdo extraído do catálogo local."}
+        if intent == "CONVERSACIONAL":
+            proposal = {"operation": None, "indicator": None,
+                        "period": "", "category": "", "territory": ""}
+            return {"reply": _GENERIC_GREETING, "proposal": proposal,
+                    "requires_confirmation": False, "executed": False,
+                    "origin": "INTERPRETACAO_LLM",
+                    "note": "Intenção interpretada pelo LLM; resposta do catálogo local."}
     if operation in ("density", "comparisons", "ranking") and indicator == "quantity":
         raise LLMError(502, "O indicador sugerido não é compatível com a operação.")
     proposal = {"operation": None if operation == "none" else operation,
@@ -239,14 +352,19 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
 
 async def interpret(request: ChatRequest, eligibility: dict | None = None,
                     category_constant: str = "") -> dict:
+    # Intenções conversacionais óbvias são atendidas com texto controlado,
+    # inclusive durante a indisponibilidade da API externa.
+    guidance = _local_guidance(request.message)
+    if guidance is not None:
+        return _system_response(guidance, eligibility, category_constant)
     if not _enabled():
         raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
     model = _configured_model()
     messages = [*request.history, request.message]
-    if any(not isinstance(x, str) or not 3 <= len(x) <= 800 for x in messages):
+    if any(not isinstance(x, str) or not 2 <= len(x) <= 800 for x in messages):
         raise LLMError(422, "Histórico de conversa inválido.")
     sanitized = [_sanitize(m) for m in messages]
-    if not any(re.search(r"[a-zá-ú]{3}", x, re.I) for x in sanitized):
+    if not any(re.search(r"[a-zá-ú]{2}", x, re.I) for x in sanitized):
         raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.")
     provider_messages = sanitized
     if eligibility is not None:
