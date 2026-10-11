@@ -35,7 +35,8 @@ LEVEL_ALIASES = {
 }
 
 
-def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str]) -> dict[str, Any]:
+def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str],
+                       selected_levels: dict[str, str] | None = None) -> dict[str, Any]:
     """Descreve níveis e relações observadas; não altera o DataFrame.
 
     Quando uma coluna pode representar papéis diferentes, a associação do
@@ -52,9 +53,17 @@ def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str]) -> dict[str
     ]
     warnings: list[str] = []
     parents: dict[str, str] = {}
+    selected_levels = selected_levels or {}
+    if not isinstance(selected_levels, dict):
+        raise ValueError("Associação de níveis territoriais inválida.")
     for role in ("territorio_superior_1", "territorio_superior_2"):
-        matches = [str(col) for col in frame.columns
-                   if col != analysis and _key(col) in LEVEL_ALIASES[role]]
+        selected = selected_levels.get(role, "")
+        if selected and (not isinstance(selected, str) or selected not in frame.columns or selected == analysis):
+            warnings.append("Seleção inválida da coluna para " + role + ".")
+            continue
+        matches = ([selected] if selected else
+                   [str(col) for col in frame.columns
+                    if col != analysis and _key(col) in LEVEL_ALIASES[role]])
         if len(matches) == 1:
             parents[role] = matches[0]
             levels.append({"role": role, "column": matches[0],
@@ -63,6 +72,10 @@ def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str]) -> dict[str
         elif len(matches) > 1:
             warnings.append("Há mais de uma candidata a " + role
                             + "; a hierarquia desse nível exige esclarecimento.")
+    if parents.get("territorio_superior_1") == parents.get("territorio_superior_2") and parents.get("territorio_superior_1"):
+        warnings.append("Os dois níveis superiores não podem utilizar a mesma coluna.")
+        parents.pop("territorio_superior_2", None)
+        levels = [level for level in levels if level["role"] != "territorio_superior_2"]
     if "territorio_superior_2" in parents and "territorio_superior_1" not in parents:
         warnings.append("Não é possível estabelecer a relação entre os níveis superiores sem o nível 1.")
 
