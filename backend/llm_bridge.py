@@ -323,6 +323,26 @@ def _anchor(value: Any, user_text: str) -> str:
     return value
 
 
+# A continuação usa somente dados já declarados nas mensagens pelo usuário.
+# Sem sinal de continuidade, valores de mensagens anteriores não são recuperados.
+_CONTINUATION = re.compile(
+    r"(?i)(?:^\s*(?:e\s|agora\s|mas\s|quanto\s+a)|"
+    r"\b(?:mesm[oa]s?|anteriores?|nesse|nessa|nesses|nessas|tambem)\b)"
+)
+
+
+def _anchors_for_turn(raw: dict, sanitized: list[str]) -> dict[str, str]:
+    current = sanitized[-1]
+    previous = " ".join(sanitized[:-1])
+    continuation = bool(_CONTINUATION.search(_text_key(current)))
+    values = {}
+    for name in ("period", "category", "territory"):
+        candidate = raw.get(name)
+        values[name] = (_anchor(candidate, current)
+                        or (_anchor(candidate, previous) if continuation else ""))
+    return values
+
+
 def _validate(raw: Any, sanitized: list[str]) -> dict:
     if not isinstance(raw, dict):
         raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.")
@@ -332,8 +352,7 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         raise LLMError(502, "O Gemini propôs uma operação ou indicador desconhecido.")
     # Apenas os valores textuais explicitamente presentes nas mensagens sanitizadas
     # podem voltar como candidatos. Não representam seleção ou autorização.
-    source = " ".join(sanitized)
-    anchors = {key: _anchor(raw.get(key), source) for key in ("period", "category", "territory")}
+    anchors = _anchors_for_turn(raw, sanitized)
     if operation == "none":
         indicator = "none"
         intent = raw.get("intent")
