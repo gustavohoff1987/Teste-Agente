@@ -7,6 +7,7 @@ import unicodedata
 from typing import Any
 
 import pandas as pd
+from territorial_hierarchy import describe_hierarchy
 from data_contract import (ConfirmationRequired, multiplicity, scoped, text_values,
                            validate_operation, period_positions, prepare, needs_population)
 
@@ -15,19 +16,19 @@ ROLE_NAMES = {
     "territory": "Território", "period": "Período", "category": "Categoria",
     "count": "Quantitativo", "population": "População", "latitude": "Latitude",
     "longitude": "Longitude", "identity": "Identificador individual",
-    "territory_id": "Código territorial",
+    "territory_id": "Código identificador territorial",
 }
 OPERATIONS = ("density", "counts", "distribution", "comparisons", "temporal",
               "aggregate", "spatial", "ranking", "rotation", "report")
 # Baseados nos grupos de cabeçalhos da CFG-VOC §4.4.9; os complementos
 # operacionais ficam explícitos e NÃO alteram a configuração normativa.
 EXACT = {
-    "territory": ("territorio", "unidade territorial", "municipio", "cidade", "estado",
+    "territory": ("territorio", "unidade territorial", "municipio", "territorio analise", "territorio de analise", "cidade", "estado",
                   "provincia", "distrito", "regiao", "territory", "territorial unit",
                   "municipality", "city", "state", "province", "district", "region",
                   "cod municipio", "codigo municipio", "localidade", "pais", "country"),
     "period": ("periodo", "ano", "mes", "data", "competencia", "year", "month", "date", "period"),
-    "territory_id": ("ibge", "cod ibge", "codigo ibge", "codigo territorial", "territory code", "municipality code", "geocode"),
+    "territory_id": ("ibge", "cod ibge", "codigo ibge", "codigo territorial", "codigo identificador", "codigo identificador territorial", "territory code", "municipality code", "geocode"),
     "category": ("categoria", "categoria profissional", "categoria profisional", "profissao", "ocupacao", "cbo",
                  "category", "professional category", "profession", "occupation"),
     "count": ("quantidade", "contagem", "qtd", "n profissionais", "total profissionais",
@@ -452,6 +453,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             return (text_values(original_frame[mapped[role]]) + " [" + text_values(original_frame[mapped["territory_id"]]) + "]").dropna().unique().tolist()
         return text_values(original_frame[mapped[role]]).dropna().unique().tolist() if assigned(role) else []
     return {"capabilities": cap, "field_states": field_states,
+            "territorial_hierarchy": describe_hierarchy(original_frame, mapped),
             "multiplicity": multiplicity(frame, mapped, options),
             "values": {"territories": values("territory"), "periods": values("period"),
                        "categories": values("category")},
