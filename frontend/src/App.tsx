@@ -312,7 +312,7 @@ function App() {
     setUsingBrazil(false);
     setFile(next);
     setSheet("");
-    setActive(null);
+    // Preserva apenas a escolha da capacidade; confirmações são reiniciadas.
     setResult(null);
     setUploadError("");
     setInspection(null);
@@ -338,8 +338,8 @@ function App() {
   function chooseBrazil() {
     if (!privacy.accepted) return;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(true); setFile(null); setSheet(""); setActive(null); setBrazilLevel("auto");
-    void inspectFile(null);
+    setUsingBrazil(true); setFile(null); setSheet(""); setBrazilLevel("auto");
+    void inspectFile(null, "", "auto", active || "");
   }
   function selectAnalysis(operation: Operation) {
     if (active) steps.current[active] = step;
