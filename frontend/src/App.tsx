@@ -632,7 +632,7 @@ function App() {
         contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
         contextVersion={JSON.stringify({
           file: file?.name, modified: file?.lastModified, size: file?.size,
-          usingBrazil, source: inspection?.source, sheet
+          usingBrazil, datasetVersion: inspection?.source?.version, sheet
         })}
         validationVersion={JSON.stringify({mapping, options: semanticOptions()})}
         features={FEATURES}
