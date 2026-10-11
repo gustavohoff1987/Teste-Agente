@@ -119,3 +119,22 @@ def test_contextual_period_question_uses_python_preflight(monkeypatch):
     assert body["verification"]["source"] == "BACKEND_PREFLIGHT"
     assert body["clarification"]["code"] == "PERIODO_NAO_CONFIRMADO"
     assert body["verification"]["ready_to_execute"] is False
+
+
+def test_previous_period_requires_explicit_conversational_reference(monkeypatch):
+    async def provider(_messages, _model, _key):
+        return {"operation": "density", "indicator": "density",
+                "period": "202406", "category": "medicos", "territory": "",
+                "intent": "ANALITICO", "topic": "none"}
+    monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
+    earlier = "Quero densidade de medicos em 202406"
+    following = client.post("/api/llm/interpret", json={
+        "message": "E nesse mesmo período?", "history": [earlier]})
+    assert following.status_code == 200, following.text
+    assert following.json()["proposal"]["period"] == "202406"
+    assert following.json()["proposal"]["category"] == "medicos"
+    independent = client.post("/api/llm/interpret", json={
+        "message": "Quero outro relatório", "history": [earlier]})
+    assert independent.status_code == 200, independent.text
+    assert independent.json()["proposal"]["period"] == ""
+    assert independent.json()["proposal"]["category"] == ""
