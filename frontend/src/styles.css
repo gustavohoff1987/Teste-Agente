@@ -126,7 +126,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 }
 
 /* Seleção e preparação permanecem juntas; somente o conteúdo da etapa rola. */
-.preparation-workspace { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
+.preparation-workspace { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; align-items:start; }
 .analysis-list-panel,.preparation-panel { min-width:0; border:1px solid #dfe7ed; border-radius:20px; background:white; overflow:hidden; }
 .analysis-list-scroll { height:640px; overflow-y:auto; overscroll-behavior:contain; }
 .preparation-panel { height:700px; display:flex; flex-direction:column; }
@@ -134,7 +134,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .preparation-panel #associacoes { margin:0; padding:0; border:0; box-shadow:none; }
 .preparation-panel input,.preparation-panel select { max-width:100%; }
 @media(max-width:900px) {
-  .preparation-workspace { grid-template-columns:190px minmax(0,1fr); }
+  .preparation-workspace { grid-template-columns:minmax(0,1fr); }
   .preparation-panel #associacoes > .grid { grid-template-columns:minmax(0,1fr); }
 }
 @media(max-width:640px) {
