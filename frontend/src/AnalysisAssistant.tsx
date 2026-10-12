@@ -104,11 +104,32 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       return;
     }
     if (!hasSource && /^(?:ol[aá]|oi|bom dia|boa tarde|boa noite|olá[!. ]+)$/i.test(message)) {
-      append("Olá! Para começar, prefere usar os dados do Brasil ou importar seus próprios dados?");
+      append("Olá! Para começar, prefere usar os dados do Brasil atualmente disponibilizados nesta plataforma ou importar seus próprios dados?");
       return;
     }
     if (hasSource && !sourceReady) {
       append("Estou preparando os dados. Assim que estiverem disponíveis, continuaremos a análise.");
+      return;
+    }
+    // Perguntas sobre o conteúdo da base pública não precisam consumir Gemini
+    // nem exigir que o usuário tenha escolhido previamente uma fonte.
+    const normalized = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (/\b(?:dados|base|informacoes)\b/.test(normalized) &&
+        /\bbrasil\b/.test(normalized) &&
+        /\b(?:o que|quais|contem|possui|tem|disponivel|cobertura|periodos|profissoes|categorias|explicar|descrever)\b/.test(normalized)) {
+      setSending(true);
+      setError("");
+      try {
+        const response = await fetch(apiBase + "/api/brazil/description");
+        const body = await response.json();
+        if (!response.ok || typeof body.description !== "string")
+          throw new Error("Não foi possível consultar a descrição.");
+        append(body.description);
+      } catch {
+        append("Ainda não consegui consultar a descrição dos dados do Brasil. Você pode tentar novamente ou importar seus próprios dados.");
+      } finally {
+        setSending(false);
+      }
       return;
     }
     const requestRevision = revision.current;
@@ -147,8 +168,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       const responseText = !sourceReady
         ? suggested
           ? "Entendi. Podemos fazer essa análise de " + ANALYSIS[suggested].toLowerCase() +
-            ". Primeiro, escolha se deseja usar os dados do Brasil ou importar os seus. Depois seguiremos diretamente com a análise."
-          : "Para começar, prefere usar os dados do Brasil ou importar seus próprios dados?"
+            ". Para começar, prefere usar os dados do Brasil atualmente disponibilizados nesta plataforma ou importar os seus? Depois seguiremos diretamente com a análise."
+          : "Para começar, prefere usar os dados do Brasil atualmente disponibilizados nesta plataforma ou importar seus próprios dados?"
         : suggested
           ? "Vamos seguir com a análise de " + ANALYSIS[suggested].toLowerCase() +
             ". Já organizei os campos disponíveis; confira abaixo apenas as escolhas necessárias para obter o resultado."
