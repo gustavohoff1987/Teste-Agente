@@ -35,9 +35,12 @@ def territory_catalog(frame, mapping, options):
     if code_col and "territory_id" not in options.get("confirmed_roles", []):
         raise ValueError("Confirme o identificador territorial antes de selecionar unidades.")
     columns = [name_col] + ([code_col] if code_col else [])
-    hierarchy = describe_hierarchy(frame, mapping, options.get("hierarchy_columns"))
+    # Os níveis dependem só dos nomes das colunas; as relações são conferidas nos pares abaixo.
+    hierarchy = describe_hierarchy(frame.head(0), mapping, options.get("hierarchy_columns"))
     parents = [level["column"] for level in hierarchy["levels"] if level["role"] != "territorio_analise"]
-    pairs = frame[list(dict.fromkeys(columns + parents))].copy()
+    # Deduplicar antes de normalizar preserva o resultado e evita converter cada registro;
+    # o catálogo é consultado várias vezes por requisição.
+    pairs = frame[list(dict.fromkeys(columns + parents))].drop_duplicates().copy()
     for col in pairs:
         pairs[col] = texts(pairs[col])
     pairs = pairs.drop_duplicates()
@@ -55,7 +58,8 @@ def territory_catalog(frame, mapping, options):
     profile = curated_profile(frame, mapping)
     brazil = bool(profile and profile["scope"] == "municipal")
     items = []
-    for _, row in pairs.drop_duplicates(key_col).iterrows():
+    # Registros simples: iterrows copiaria frame.attrs a cada unidade territorial.
+    for row in pairs.drop_duplicates(key_col).to_dict("records"):
         code = str(row[code_col]) if code_col else ""
         name = str(row[name_col])
         state = STATES.get(code[:2]) if brazil and re.fullmatch(r"\d{6,7}", code) else None
