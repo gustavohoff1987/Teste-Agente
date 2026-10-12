@@ -689,7 +689,7 @@ function App() {
 
             <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
-            periods={preflight?.values.periods || inspection.periods}
+            periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
             selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
             identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
             confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>
@@ -862,7 +862,7 @@ function App() {
       onPeriod={v=>{setPeriodFilter(v);setInlineConfirmed(false);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
-      categories={preflight?.values.categories || inspection.categories}
+      categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
       onCategory={v=>{setCategoryFilter(v);setInlineConfirmed(false);}}
       populationAligned={populationAligned}
       onPopulationAligned={setPopulationAligned}
