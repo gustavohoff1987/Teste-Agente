@@ -24,6 +24,7 @@ from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
 from brazil_data import load_brazil
+from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation
 
@@ -446,6 +447,7 @@ async def llm_interpretation_with_dataset(
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
+        settings = apply_curated_options(frame, fields, settings)
         eligibility = preflight(frame, fields, settings)
         declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
         if not isinstance(declared_category, str):
@@ -467,6 +469,59 @@ async def llm_interpretation_with_dataset(
         raise
 
 
+@app.get("/api/brazil/description")
+def describe_brazil() -> dict:
+    """Descrição factual das duas partes da base residente, sem seus registros."""
+    try:
+        profiles = []
+        for scope in ("national", "municipal"):
+            raw, name, source = load_brazil(scope=scope)
+            frame, _ = read_dataset(raw, name)
+            if frame is None or frame.empty:
+                raise ValueError("A base do Brasil não está disponível.")
+            mapping, _ = candidates(frame)
+            profile = curated_profile(frame.assign(), mapping)
+            # A cópia acima não herda necessariamente attrs; reconhecer a fonte
+            # somente após fixar o identificador verificado pelo catálogo.
+            if not profile:
+                frame.attrs["source"] = source
+                profile = curated_profile(frame, mapping)
+            period_col = mapping.get("period")
+            category_col = mapping.get("category")
+            periods = sorted(frame[period_col].dropna().astype(str).unique().tolist()) if period_col else []
+            categories = sorted(frame[category_col].dropna().astype(str).unique().tolist()) if category_col else []
+            profiles.append({"scope": scope, "periods": periods,
+                             "categories": categories,
+                             "curated": bool(profile),
+                             "has_population": bool(mapping.get("population"))})
+        national, municipal = profiles
+        periods = sorted(set(national["periods"]) | set(municipal["periods"]))
+        categories = sorted(set(national["categories"]) | set(municipal["categories"]))
+        if not periods:
+            raise ValueError("Períodos não reconhecidos.")
+        def human_period(value):
+            names = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+            if len(value) == 6 and value.isdigit() and 1 <= int(value[4:]) <= 12:
+                return names[int(value[4:]) - 1] + " de " + value[:4]
+            return value
+        subject = ("médicos" if len(categories) == 1 and categories[0].strip().upper() == "MEDICINA"
+                   else "as categorias profissionais registradas")
+        narrative = (
+            "Os dados do Brasil disponíveis nesta plataforma permitem analisar " + subject +
+            " em recortes do país e dos municípios, com referências temporais de " +
+            human_period(periods[0]) + " a " + human_period(periods[-1]) + ". "
+            "A base inclui quantitativos por período e categoria profissional; "
+            "a parte municipal também contém população estimada e coordenadas "
+            "para análises de densidade e localização. "
+            "Os resultados nacionais e municipais são fontes do mesmo catálogo, "
+            "mas não são somados automaticamente entre si."
+        )
+        return {"description": narrative, "scopes": profiles}
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail="Os dados do Brasil não estão disponíveis para consulta.") from exc
+
+
 @app.post("/api/inspect")
 async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
                   dataset: str = Form(""), scope: str = Form("auto"), operation: str = Form("")):
@@ -483,12 +538,14 @@ async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
             col = mapping.get(role)
             return frame[col].dropna().astype(str).unique().tolist()[:80] if col else []
         from semantic_bridge import category_from_count_header
+        profile = curated_profile(frame, mapping)
         return {"requires_sheet": False, "sheets": sheets, "columns": frame.columns.tolist(), "row_count": len(frame),
                 "suggested_mapping": mapping, "column_profiles": profiles,
+                "curated_defaults": profile,
                 "derived_fields": frame.attrs.get("derived_fields", []),
                 "source": frame.attrs.get("source"),
                 "suggested_category_constant": category_from_count_header(mapping.get("count", "")),
-                "preflight": preflight(frame, mapping),
+                "preflight": preflight(frame, mapping, apply_curated_options(frame, mapping, {})),
                 "periods": available("period"), "categories": available("category"), "territories": available("territory")}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -505,7 +562,7 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
             raise ValueError("Selecione uma planilha para concluir o exame.")
         fields = json.loads(mapping)
         settings = json.loads(options)
-        return preflight(frame, fields, settings)
+        return preflight(frame, fields, apply_curated_options(frame, fields, settings))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -522,6 +579,7 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Parâmetros de análise inválidos.")
+        settings = apply_curated_options(frame, fields, settings)
         eligibility = preflight(frame, fields, settings)
         gate = eligibility["capabilities"].get(operation)
         if gate is None:
