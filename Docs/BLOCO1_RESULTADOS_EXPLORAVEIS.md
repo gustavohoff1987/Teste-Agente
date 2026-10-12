@@ -51,3 +51,98 @@ pessoas distintas. A evolução mantém cada competência separada.
 - O smoke conversacional com catálogo real chegou ao cálculo nacional, mas esperava
   duas competências da fixture sintética e recebeu 22 reais. Essa premissa será
   validada com a fixture correta; não é contabilizada como aprovação.
+
+## Validação final (12/10/2026)
+
+Branch `feat/novos-blocos-incrementais`; commit inicial da validação `13aec9e`.
+Comparação com `feat/portal-uma-pagina-v1` (`d214ab7`): somente os dois commits do
+Bloco 1 (`f714637`, `13aec9e`). Ambiente: contêiner Linux, Python 3.11, pandas 2.3.3,
+Node 22; navegador Chromium 141 via Playwright 1.56 (no CI, Chrome via Playwright).
+
+### Dados reais
+
+Os arquivos brasileiros reais **não estavam disponíveis** no ambiente de validação
+(sem `.local/datasets/brasil`, `ADT_REAL_DATA_DIR` ou `ADT_BRASIL_DATA_DIR`). Toda a
+validação abaixo usa fixtures sintéticas. A conclusão é técnica; a validação empírica
+com os dados reais permanece pendente (ver Pendências).
+
+### Testes executados
+
+| Verificação | Resultado |
+|---|---|
+| `pytest` (backend) | 204 aprovados; 20 ignorados (`test_real_data.py`, exigem `ADT_REAL_DATA_DIR`; não contam como aprovação) |
+| `npm run build` (TypeScript + Vite) | aprovado; aviso preexistente de tamanho do bundle |
+| `ui_block1_smoke.py` (jornada ampliada) | aprovado |
+| `ui_block1_regression.py` | aprovado |
+| `ui_block1_integration.py` (transporte Gemini simulado) | falhou na versão recebida (defeito do teste); aprovado após correção |
+| `ui_conversational_smoke.py` (fixture de duas fontes) | aprovado |
+| `ui_session`, `ui_carousel`, `ui_audit`, `ui_preparation`, `ui_integration_smoke.py` | falham igualmente em `d214ab7` (roteiros desatualizados antes do Bloco 1); não são regressões |
+| `ui_brazil_smoke.py`, `ui_smoke.py`, `ADT_BLOCK1_REAL=1` | não executados: exigem os dados reais |
+| CI após as correções (`f78f67a`, `e749831`) | 4/4 jobs aprovados; em `e749831` o ui-block1 já executa jornada, regressão e integração simulada |
+
+O CI passa a executar no job `ui-block1` a jornada, a regressão e a integração com
+Gemini simulado (processo próprio que bloqueia rede externa; sem chave nem custo).
+
+### Jornada validada (catálogo sintético)
+
+1. Dados do Brasil; 2. "Mostre a densidade médica dos municípios do Amazonas em junho
+de 2024."; 3. resultado na conversa, com densidade = quantidade / população × 1.000;
+4. seleção de Manaus, Tefé e Parintins por código; 5. comparação com os mesmos valores
+da densidade inicial; 6. evolução com competências separadas, extremos e variação
+conferidos contra a série; 7. resultados anteriores reabertos sem alteração (CSV e JSON
+reexportados iguais à resposta do motor); 8. retomada dos parâmetros da comparação,
+reaproveitada sem nova chamada a `/api/analyze`; 9. agregação de uma competência,
+rotulada como soma dos componentes com possível dupla contagem, após declarar
+aditividade populacional; 10. exportações CSV e "Método e parâmetros". Também foram
+verificados reutilização de membros de um resultado, teclado e larguras de 390 e 768 px.
+As capturas de cada etapa foram revisadas visualmente.
+
+### Falhas encontradas e correções
+
+| Falha comprovada | Correção |
+|---|---|
+| `ui_block1_integration.py` esperava 422; o contrato do backend (cenário A12) é 502 para resposta do modelo fora do contrato | teste corrigido (`ad649c9`) |
+| Catálogo territorial recalculado 20–30 vezes por requisição; 0,73 s por chamada em escala nacional | valores distintos antes da normalização, níveis lidos dos nomes das colunas, sem `iterrows`: 0,13 s, mesma saída em 14 cenários (`2bd6e20`) |
+| "Municípios do Paraná" virava o município Paraná (RN); idem Tocantins (MG), Mato Grosso (PB), São Paulo | nome idêntico de estado e município pede esclarecimento; maior expressão prevalece ("Rio Grande do Sul", "Mato Grosso do Sul") (`d613df8`) |
+| Remover a associação do nome/código territorial mantinha IDs inexistentes; todo pré-exame era recusado (422) sem mensagem | seleção limpa ao remover ou mover a identidade territorial (`f78f67a`) |
+| Busca da seleção com ~75 px em 390 px; metadados e série temporal roláveis sem teclado; contraste 4,37:1 no histórico | ajustes localizados de layout e acessibilidade (`c38e01e`) |
+
+A jornada de teste também foi ampliada (`67d75f7`): a antiga verificação de
+imutabilidade comparava um dicionário Python consigo mesmo.
+
+### Desempenho (catálogo sintético de 5.570 municípios × 22 competências)
+
+| Requisição | `d214ab7` | `13aec9e` | após correção |
+|---|---|---|---|
+| preflight sem seleção | 1,53 s | 2,45 s | 2,22 s |
+| preflight com seleção (209) | — | 3,49 s | 2,47 s |
+| densidade sem seleção | 2,13 s | 3,85 s | 3,31 s |
+| densidade com seleção (209) | — | 6,66 s | 3,46 s |
+| comparação (3) | — | 7,14 s | 3,62 s |
+| evolução (3) | — | 6,21 s | 3,69 s |
+
+Na interface, marcar um membro entre 5.570 leva 76–127 ms até o quadro seguinte.
+
+### Pendências
+
+- Validação empírica com os dados reais: `ADT_REAL_DATA_DIR=<pasta> pytest`;
+  `ADT_BLOCK1_REAL=1 python backend/tests/ui_block1_smoke.py` com o catálogo real
+  instalado (62 municípios, 22 competências); `ui_brazil_smoke.py` e `ui_smoke.py`.
+  Conferir também a unidade `251365` com hierarquia divergente.
+- O contrato da interpretação Gemini ainda aceita comparações só por densidade; a
+  comparação por quantidade do Bloco 1 depende da gramática local ou dos controles.
+  Alterar esse contrato é decisão de governança de LLM, não tomada aqui.
+- Cor de destaque global (`#0c8792`) com contraste 4,28:1 em texto de 12 px, e a
+  "Tabela detalhada" rolável sem foco: preexistentes, fora do escopo do Bloco 1.
+- Em escala nacional, cada pré-exame devolve ~1,1 MiB de opções territoriais e cada
+  resultado do universo observado ~1,9 MiB de metadados; aceitável no protótipo, a
+  reavaliar antes de operação online.
+- O histórico rotula todo resultado não vigente como "histórico"; a SPEC (RQ-LIN-20c)
+  distingue deslocamento de foco de substituição de estado.
+- Roteiros de navegador anteriores ao redesenho conversacional precisam ser atualizados.
+
+### Conclusão
+
+**CONCLUÍDO COM RESSALVAS.** As jornadas obrigatórias funcionam com dados sintéticos,
+sem falhas impeditivas conhecidas e com CI aprovado. A ressalva principal é a
+validação empírica com os dados brasileiros reais, ainda não executada.
