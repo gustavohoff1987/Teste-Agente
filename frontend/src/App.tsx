@@ -62,7 +62,7 @@ async function readApiResponse(response: Response): Promise<any> {
   let body: any;
   try { body = JSON.parse(raw); }
   catch {
-    throw new Error("O servidor retornou uma resposta inválida (HTTP " + response.status + "). Verifique as janelas do Python e do Vite.");
+    throw new Error("Não foi possível interpretar a resposta do serviço (HTTP " + response.status + "). Tente novamente ou procure suporte.");
   }
   if (!response.ok) {
     const message = typeof body?.detail === "string" ? body.detail : "Falha no processamento da solicitação.";
@@ -74,7 +74,7 @@ async function readApiResponse(response: Response): Promise<any> {
 function readableError(exc: unknown): string {
   const value = exc instanceof Error ? exc.message : String(exc);
   if (/failed to fetch|networkerror|fetch failed|network request failed/i.test(value)) {
-    return "Não foi possível alcançar o motor Python. Confirme que o FastAPI está ativo na porta 8000 e a interface Vite na porta 5173.";
+    return "Não foi possível acessar o serviço de análise. Tente novamente em instantes.";
   }
   return value;
 }
@@ -425,7 +425,7 @@ function App() {
       setUploadError(inspection?.requires_sheet
         ? "Selecione uma aba do arquivo Excel para concluir a importação."
         : inspecting ? "Aguarde a conclusão do exame do arquivo."
-        : "A importação não foi concluída. Confira a mensagem na área de upload antes de executar a análise.");
+        : "A importação não foi concluída. Confira a mensagem na conversa antes de continuar.");
       document.getElementById("dados")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -932,7 +932,7 @@ function App() {
           className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
-        <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
+        <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
             <div className="flex items-start gap-3">
@@ -953,7 +953,7 @@ function App() {
             <LoaderCircle size={28} className="animate-spin"/>
             <strong>Preparando seu diagnóstico</strong>
             <p className="max-w-sm text-xs leading-5 text-slate-600">
-              O motor analítico está processando a base. Os resultados aparecerão aqui ao concluir.
+              A análise está em andamento. Os resultados aparecerão aqui quando estiverem prontos.
             </p>
           </div>}
           {!running && !result && !error && <div className="flex flex-col items-center justify-center py-16 text-center">
