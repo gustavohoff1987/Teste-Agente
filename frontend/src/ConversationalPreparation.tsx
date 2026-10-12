@@ -96,7 +96,7 @@ export default function ConversationalPreparation(p: Props) {
         </p>
         <p className="leading-8">
           {requiresIndicator && <>O indicador será <InlineChoice label="Indicador" value={p.indicator}
-            options={indicatorOptions} onChange={p.onIndicator}/>. </>}
+            options={indicatorOptions} onChange={v => p.onIndicator(v as "quantity" | "density" | "")}/>. </>}
           {requiresCount && <>A unidade de contagem representa <InlineChoice label="Unidade de contagem"
             value={p.countUnit} options={countUnits} onChange={p.onCountUnit}/>. </>}
           {p.operation !== "spatial" && p.operation !== "temporal" && <>
