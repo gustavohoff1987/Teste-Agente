@@ -116,7 +116,7 @@ export default function ConversationalPreparation(p: Props) {
             <p className="font-medium text-ink">{isTemporal
               ? "Quais períodos você deseja comparar?"
               : "Qual período você deseja analisar?"}</p>
-            <PeriodSelection periods={p.periods} value={p.periodFilter}
+            <PeriodSelection key={p.operation + ":" + p.scope} periods={p.periods} value={p.periodFilter}
               selected={p.selectedPeriods} multiple={isTemporal}
               onSingle={p.onPeriod} onMultiple={p.onSelectedPeriods}
               allowMultiple={allowMultiple}/>
