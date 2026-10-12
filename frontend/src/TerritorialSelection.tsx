@@ -18,7 +18,7 @@ export default function TerritorialSelection({items, selected, onChange, disable
     <h3 className="text-sm font-semibold text-ink">Municípios e territórios selecionados</h3>
     <p className="mt-1 text-xs leading-5 text-slate-600">Use este conjunto nas próximas análises. Cada resultado preserva seu próprio recorte.</p>
     <div className="mt-3 flex flex-wrap gap-2">
-      <label className="min-w-0 flex-1 text-xs">Pesquisar por nome ou código
+      <label className="min-w-[min(12rem,100%)] flex-1 text-xs">Pesquisar por nome ou código
         <input type="search" value={query} onChange={e=>setQuery(e.target.value)} disabled={disabled}
           className="mt-1 block w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"/>
       </label>

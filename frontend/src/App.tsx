@@ -1109,7 +1109,7 @@ function App() {
             {history.map((item,index)=><li key={item.result.result_id} className="min-w-0 max-w-full">
               <button type="button" onClick={()=>openHistorical(item)} aria-pressed={result?.result_id===item.result.result_id}
                 className={"max-w-full rounded-xl border px-3 py-2 text-left text-xs " + (result?.result_id===item.result.result_id ? "border-blue-500 bg-blue-50" : "border-line bg-white")}>
-                <strong>{index+1}. {item.result.title}</strong><span className="block break-words text-slate-500">{item.request}</span>
+                <strong>{index+1}. {item.result.title}</strong><span className="block break-words text-slate-600">{item.request}</span>
                 <span>{item.invalidReason ? "Invalidado" : active && item.contextKey===requestKey(active) ? "Válido · vigente" : "Válido · histórico não vigente"}</span>
               </button>
             </li>)}
@@ -1163,7 +1163,7 @@ function App() {
               <summary className="cursor-pointer font-semibold text-teal">Consultar solicitação e parâmetros</summary>
               <p className="mt-3 break-words">Solicitação: {historical.request}</p>
               <p className="break-all">Identidade: {result.result_id}</p>
-              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(result.metadata,null,2)}</pre>
+              <pre tabIndex={0} aria-label="Metadados e parâmetros do resultado" className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(result.metadata,null,2)}</pre>
               <button type="button" disabled={!!historical.invalidReason || historical.sourceKey!==sourceKey || inspecting || running}
                 onClick={()=>restoreHistorical(historical)} className="no-print mt-3 rounded-lg border px-3 py-2 text-teal disabled:opacity-40">Retomar parâmetros deste resultado</button>
               {historical.sourceKey!==sourceKey && <p className="mt-2">A fonte ou versão atual difere da utilizada neste resultado. O conteúdo histórico permanece consultável.</p>}
@@ -1212,7 +1212,7 @@ function App() {
             {resultOperation === "temporal" && result.detail_rows && <details className="mt-4 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>
               <button type="button" onClick={()=>exportCsv(result.detail_rows!)} className="no-print my-2 rounded-lg border px-3 py-2">Exportar série CSV</button>
-              <div className="max-h-72 overflow-auto"><table className="data-table w-full"><thead><tr>{Object.keys(result.detail_rows[0] || {}).map(key=><th key={key}>{key}</th>)}</tr></thead>
+              <div tabIndex={0} role="region" aria-label="Competências da série temporal" className="max-h-72 overflow-auto"><table className="data-table w-full"><thead><tr>{Object.keys(result.detail_rows[0] || {}).map(key=><th key={key}>{key}</th>)}</tr></thead>
                 <tbody>{result.detail_rows.slice(0,150).map((row,index)=><tr key={index}>{Object.values(row).map((value,i)=><td key={i}>{pretty(value)}</td>)}</tr>)}</tbody></table></div>
             </details>}
             {historical && !historical.invalidReason && <details className="no-print mt-4 text-xs text-slate-500">
