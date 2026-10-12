@@ -101,7 +101,7 @@ def clarification_for(
     if slots.get("category") == "not_confirmed_in_dataset":
         return _make(
             "CATEGORIA_NAO_CONFIRMADA",
-            "A categoria mencionada não foi confirmada na base. Confira seu nome e sua pertinência na preparação.",
+            "Vamos localizar nos dados a categoria correspondente à profissão que você mencionou. Confira a opção adequada antes de calcular.",
             [], "A correspondência de categorias depende dos dados e das regras governadas.",
         )
     if slots.get("territory") == "requires_unit_confirmation":
