@@ -44,6 +44,7 @@ type Props = {
   onExecute: () => void;
   executing: boolean;
   advanced: ReactNode;
+  extra?: ReactNode;
 };
 type Choice = { label: string; value: string };
 function InlineChoice({ label, value, options, onChange }: {
@@ -124,6 +125,7 @@ export default function ConversationalPreparation(p: Props) {
             onChange={e=>p.onPopulationAligned(e.target.checked)}/>
           Confirmo que a população corresponde aos territórios e períodos analisados.
         </label>}
+        {p.extra}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {!p.confirmed && <button type="button" onClick={p.onConfirm} disabled={p.preparing}
             className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
