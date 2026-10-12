@@ -33,6 +33,18 @@ def numbers(series, label, options):
 
 def scoped(frame, mapping, options):
     frame = frame.copy()
+    selected_periods = options.get("period_filters") or []
+    if selected_periods:
+        if (not isinstance(selected_periods, list) or
+                len(selected_periods) > 80 or
+                not all(isinstance(v, str) and 0 < len(v) <= 64 for v in selected_periods) or
+                len(set(selected_periods)) != len(selected_periods) or
+                options.get("period_filter")):
+            raise ValueError("Escolha uma lista de períodos distintos sem combinar com o filtro individual.")
+        col = mapping.get("period")
+        if not col:
+            raise ValueError("Seleção de períodos exige uma referência temporal válida.")
+        frame = frame[text_values(frame[col]).isin(selected_periods)]
     for role in ("period", "category"):
         value = options.get(role + "_filter")
         if value:
@@ -240,8 +252,8 @@ def spatial_data(frame, mapping, options):
 
 
 def rotation_data(frame, mapping, options):
-    if options.get("period_filter"):
-        raise ValueError("Remova o filtro de período e escolha os períodos inicial e final da coorte.")
+    if options.get("period_filter") or options.get("period_filters"):
+        raise ValueError("Remova os filtros de período e escolha os períodos inicial e final da coorte.")
     df = scoped(frame, mapping, options)
     data = dimensions(df, mapping, options)
     person = mapping.get("identity")
