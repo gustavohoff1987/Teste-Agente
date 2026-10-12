@@ -536,7 +536,7 @@ function App() {
         className={"flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition hover:border-blue-400 disabled:opacity-40 " +
           (usingBrazil ? "border-blue-500 bg-blue-50" : "border-line bg-white")}>
         <Database size={20} className="shrink-0 text-teal"/>
-        <span><strong className="block">Usar dados do Brasil</strong><small className="text-slate-500">Fontes nacional e municipal</small></span>
+        <span><strong className="block">Usar dados do Brasil</strong><small className="text-slate-500">Dados para diferentes recortes territoriais</small></span>
         {usingBrazil && <CheckCircle2 size={17} className="ml-auto text-emerald-600"/>}
       </button>
       <div className={"flex items-center gap-2 rounded-xl border px-3 py-3 " +
