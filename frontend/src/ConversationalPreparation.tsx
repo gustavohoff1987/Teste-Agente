@@ -73,7 +73,6 @@ export default function ConversationalPreparation(p: Props) {
   const requiresPopulation = ["density", "comparisons", "ranking", "aggregate"].includes(p.operation) ||
     (["distribution","temporal","report"].includes(p.operation) && p.indicator === "density");
   const requiresIndicator = ["distribution", "temporal", "report"].includes(p.operation);
-  const scope = p.sourceBrazil ? " no recorte " : "";
   const field = (label: string, role: FieldRole) => <InlineChoice label={label} value={p.mapping[role] || ""}
     options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
   const status = p.capability?.status;
