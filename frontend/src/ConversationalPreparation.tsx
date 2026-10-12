@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
+import BrandAvatar from "./BrandAvatar";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
@@ -26,6 +27,7 @@ type Props = {
   periods: string[];
   onPeriod: (period: string) => void;
   categoryFilter: string;
+  requestedCategory: string;
   categories: string[];
   onCategory: (category: string) => void;
   populationAligned: boolean;
@@ -77,45 +79,57 @@ export default function ConversationalPreparation(p: Props) {
   const field = (label: string, role: FieldRole) => <InlineChoice label={label} value={p.mapping[role] || ""}
     options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
   const status = p.capability?.status;
-  const ready = status === "available" && p.confirmed && !p.preparing && !p.executing;
+  const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
+  const periodChoiceRequired = p.operation === "counts" && p.periods.length > 1 && !p.periodFilter;
+  const ready = status === "available" && p.confirmed && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
   return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
     <div className="flex items-start gap-2">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-teal">A</div>
+      <BrandAvatar size={28} className="mt-1 shrink-0"/>
       <div className="min-w-0 flex-1 space-y-3">
-        <p>Vamos preparar esta análise. Já identifiquei as correspondências mais prováveis. Se algum campo estiver incorreto, clique na palavra destacada para alterá-lo.</p>
+        <p>Vamos organizar esta análise com os dados disponíveis. Já encontrei os campos mais prováveis; basta clicar em qualquer termo destacado se quiser alterá-lo.</p>
         <p className="leading-8">
-          {p.sourceBrazil && <>Vou trabalhar com dados de <InlineChoice label="Abrangência territorial" value={p.scope}
-            options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>. </>}
-          O território está em {field("Território", "territory")} e {p.mapping.territory_id || p.columns.some(c => /^(cod[_ -]?ibge|territory[_ -]?id|codigo[_ -]?territorio)$/i.test(c))
-            ? <>seu código identificador em {field("Identificador territorial", "territory_id")}. </> : ""}
-          {p.operation !== "spatial" && <>A categoria está em {field("Categoria profissional", "category")}
-            e o período em {field("Período", "period")}. </>}
-          {requiresCount && <>O quantitativo vem de {field("Quantitativo", "count")}. </>}
-          {requiresPopulation && <>A população de referência está em {field("População", "population")}. </>}
-          {p.operation === "rotation" && <>A identificação longitudinal está em {field("Identificador individual", "identity")}. </>}
-          {p.operation === "spatial" && <>As coordenadas estão em {field("Latitude", "latitude")} e {field("Longitude", "longitude")}. </>}
+          {p.sourceBrazil
+            ? <>Para esta consulta, vou considerar os dados {p.scope === "national" ? "do " : "dos "}
+                <InlineChoice label="Abrangência territorial" value={p.scope}
+                  options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>. </>
+            : <>Nos dados que você importou, </>}
+          {p.sourceBrazil ? <>A referência territorial é </> : <>a referência territorial é </>}
+          {field("Território", "territory")}
+          {p.mapping.territory_id || p.columns.some(c => /^(cod[_ -]?ibge|territory[_ -]?id|codigo[_ -]?territorio)$/i.test(c))
+            ? <>, e cada unidade pode ser identificada pelo código {field("Identificador territorial", "territory_id")}</> : null}.
+          {p.operation !== "spatial" && <> As profissões estão organizadas em {field("Categoria profissional", "category")},
+            enquanto os períodos aparecem em {field("Período", "period")}.</>}
+          {requiresCount && <> Os quantitativos são registrados em {field("Quantitativo", "count")}.</>}
+          {requiresPopulation && <> Para calcular a densidade, usarei a população informada em {field("População", "population")}.</>}
+          {p.operation === "rotation" && <> Para acompanhar pessoas entre períodos, considerarei {field("Identificador individual", "identity")} como identificador.</>}
+          {p.operation === "spatial" && <> As coordenadas constam de {field("Latitude", "latitude")} e {field("Longitude", "longitude")}.</>}
         </p>
         <p className="leading-8">
-          {requiresIndicator && <>O indicador será <InlineChoice label="Indicador" value={p.indicator}
+          {requiresIndicator && <>O indicador escolhido é <InlineChoice label="Indicador" value={p.indicator}
             options={indicatorOptions} onChange={v => p.onIndicator(v as "quantity" | "density" | "")}/>. </>}
-          {requiresCount && <>A unidade de contagem representa <InlineChoice label="Unidade de contagem"
+          {requiresCount && <>Antes do cálculo, preciso saber se esses quantitativos representam <InlineChoice label="Unidade de contagem"
             value={p.countUnit} options={countUnits} onChange={p.onCountUnit}/>. </>}
           {p.operation !== "spatial" && p.operation !== "temporal" && <>
-            {p.periods.length > 1 && <>O período é <InlineChoice label="Filtrar por período"
+            {p.periods.length > 1 && <>Podemos considerar o período <InlineChoice label="Filtrar por período"
               value={p.periodFilter} options={named(p.periods)} onChange={p.onPeriod}/>. </>}
-            {p.categories.length > 1 && <>A categoria selecionada é <InlineChoice label="Filtrar por categoria"
-              value={p.categoryFilter} options={named(p.categories)} onChange={p.onCategory}/>. </>}
+            {p.requestedCategory && p.mapping.category &&
+              <>Você mencionou “{p.requestedCategory}”; selecione como essa profissão aparece nos dados: <InlineChoice
+                label="Filtrar por categoria" value={p.categoryFilter} options={named(p.categories)} onChange={p.onCategory}/>. </>}
+            {!p.requestedCategory && p.categories.length > 1 && <>Se desejar, escolha uma categoria específica em <InlineChoice
+                label="Filtrar por categoria" value={p.categoryFilter} options={named(p.categories)} onChange={p.onCategory}/>. </>}
           </>}
-          {p.operation === "spatial" && <>O referencial informado é <InlineChoice label="Referencial geodésico"
+          {p.operation === "spatial" && <>Para as distâncias, o referencial será <InlineChoice label="Referencial geodésico"
             value={p.crs} options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>,
-            tendo como referência <InlineChoice label="Território de referência" value={p.reference}
+            tendo como ponto de referência <InlineChoice label="Território de referência" value={p.reference}
               options={named(p.territories)} onChange={p.onReference}/>. </>}
         </p>
+        {categoryChoiceRequired && <p className="text-xs text-slate-600">A escolha da categoria confirma a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
+        {periodChoiceRequired && <p className="text-xs text-slate-600">Escolha um período para obter o quantitativo daquele momento, sem somar diferentes períodos.</p>}
         {p.countUnit === "outro" && <label className="flex items-center gap-2 text-sm">
           Nome da unidade: <input value={p.customCountUnit} onChange={e=>p.onCustomCountUnit(e.target.value)}
           className="max-w-[220px] rounded-md border border-blue-200 px-2 py-1" placeholder="Descreva a unidade"/>
         </label>}
-        <p>Confira as correspondências acima e confirme apenas as condições que dependem do seu conhecimento sobre a base.</p>
+        <p>Se essas informações estiverem corretas, podemos prosseguir. As declarações abaixo são necessárias apenas quando não podem ser verificadas pelos dados.</p>
         {p.operation !== "spatial" && <label className="flex items-start gap-2 text-xs leading-5">
           <input type="checkbox" className="mt-1" checked={p.ftsConfirmed} onChange={e=>p.onFtsConfirmed(e.target.checked)}/>
           Confirmo que os dados selecionados correspondem à força de trabalho em saúde.
@@ -127,7 +141,7 @@ export default function ConversationalPreparation(p: Props) {
         </label>}
         {p.extra}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {!p.confirmed && <button type="button" onClick={p.onConfirm} disabled={p.preparing}
+          {!p.confirmed && <button type="button" onClick={p.onConfirm} disabled={p.preparing || categoryChoiceRequired || periodChoiceRequired}
             className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
             Confirmar correspondências
           </button>}
