@@ -327,7 +327,7 @@ function App() {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(false); setInlineConfirmed(false); setRequestedCategory("");
+    setUsingBrazil(false); setInlineConfirmed(false);
     setFile(next);
     setSheet("");
     // Preserva apenas a escolha da capacidade; confirmações são reiniciadas.
