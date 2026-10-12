@@ -69,12 +69,38 @@ def test_logical_dataset_routes_without_merging_and_accepts_municipal_counts(cat
     assert client.post("/api/analyze", data=form(national, "density", population_denominator_confirmed=True)).status_code == 422
 
 
-def test_catalog_confirmations_still_required(catalog):
-    info = inspected()
-    request = form(info)
+def test_curated_brazil_profiles_remove_unnecessary_user_confirmations(catalog):
+    national = inspected()
+    assert national["curated_defaults"]["count_unit"] == "pessoas"
+    assert national["curated_defaults"]["category"] == "MEDICINA"
+    request = form(national)
     request["options"] = "{}"
-    assert client.post("/api/analyze", data=request).status_code == 422
-    assert client.post("/api/preflight", data=request).json()["capabilities"]["counts"]["status"] != "available"
+    result = client.post("/api/analyze", data=request)
+    assert result.status_code == 200, result.text
+    assert [row["Quantidade"] for row in result.json()["rows"]] == [10, 15]
+    assert client.post("/api/preflight", data=request).json()["capabilities"]["counts"]["status"] == "available"
+    municipal = inspected("density")
+    assert municipal["curated_defaults"]["population_denominator_confirmed"] is True
+    density = client.post("/api/analyze", data={
+        **form(municipal, "density"), "options": "{}"})
+    assert density.status_code == 200, density.text
+    description = client.get("/api/brazil/description")
+    assert description.status_code == 200, description.text
+    assert "médicos" in description.json()["description"]
+    assert "junho de 2023" in description.json()["description"]
+    assert "junho de 2024" in description.json()["description"]
+
+
+def test_curated_brazil_profile_never_assumes_unrelated_categories():
+    import pandas as pd
+    from brazil_catalog_profile import curated_profile, apply_curated_options
+    frame = pd.DataFrame({"pais": ["Brasil"], "categoria_profissional": ["NÃO CLASSIFICADA"],
+                          "contagem": [4], "Período (ano e mês)": ["202406"]})
+    frame.attrs["source"] = {"dataset": "brazil", "scope": "national"}
+    mapping = {"territory":"pais", "category":"categoria_profissional",
+               "count":"contagem", "period":"Período (ano e mês)"}
+    assert curated_profile(frame, mapping) is None
+    assert apply_curated_options(frame, mapping, {}) == {}
 
 
 def test_contextual_agent_can_read_resident_data_without_upload(catalog, monkeypatch):
