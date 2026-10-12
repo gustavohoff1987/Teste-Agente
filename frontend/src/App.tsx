@@ -4,6 +4,7 @@ import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
 import DistributionResults, { displayPeriod } from "./DistributionResults";
 import AnalysisAssistant from "./AnalysisAssistant";
+import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
 import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
@@ -144,7 +145,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 }
 function App() {
   const privacy = useSessionPrivacy();
-  const [page, setPage] = useState<"home" | "results">(() => ["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
+  const [page, setPage] = useState<"home" | "results">("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [usingBrazil, setUsingBrazil] = useState(false);
@@ -162,6 +163,7 @@ function App() {
   const [scopeNotice, setScopeNotice] = useState("");
   const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [active, setActive] = useState<Operation | null>(null);
+  const [inlineConfirmed, setInlineConfirmed] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -317,7 +319,7 @@ function App() {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(false);
+    setUsingBrazil(false); setInlineConfirmed(false);
     setFile(next);
     setSheet("");
     // Preserva apenas a escolha da capacidade; confirmações são reiniciadas.
@@ -346,13 +348,13 @@ function App() {
   function chooseBrazil() {
     if (!privacy.accepted) return;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(true); setFile(null); setSheet(""); setBrazilLevel("auto");
+    setUsingBrazil(true); setInlineConfirmed(false); setFile(null); setSheet(""); setBrazilLevel("auto");
     void inspectFile(null, "", "auto", active || "");
   }
   function selectAnalysis(operation: Operation) {
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
-    setActive(operation); setResult(null); setError("");
+    setActive(operation); setResult(null); setError(""); setInlineConfirmed(false);
     if (usingBrazil) {
       const nextScope = brazilLevel === "auto" ? inspection?.source?.default_scopes[operation] : brazilLevel;
       if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation, true);
@@ -429,7 +431,6 @@ function App() {
     }
     setUploadError("");
     setRunning(true);
-    navigate("results");
     const currentRevision = revision.current;
     const form = new FormData();
     appendSource(form); form.append("operation", op);
@@ -440,12 +441,10 @@ function App() {
       const body = await readApiResponse(response);
       if (currentRevision !== revision.current) return;
       setResult(body as AnalysisResult);
-      navigate("results");
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     } catch (exc) {
       if (currentRevision !== revision.current) return;
       setError(readableError(exc));
-      navigate("results");
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     }
     finally { setRunning(false); }
@@ -461,7 +460,7 @@ function App() {
     }), 80);
   }
   useEffect(() => {
-    const onHashChange = () => setPage(["#resultados", "#filtros-resultados"].includes(window.location.hash) ? "results" : "home");
+    const onHashChange = () => setPage("home");
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -517,120 +516,42 @@ function App() {
     </button>;
 
   const visibleRequirements = preparationRequirements(active ? preflight?.capabilities[active]?.requirements || [] : []);
-  return <div className="min-h-screen bg-canvas">
-    {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
-    <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
-      <div className="flex items-center gap-3 px-2">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><BrandAvatar size={39}/></span>
-        <div><p className="text-sm font-bold leading-tight">Agente Diagnóstico Territorial</p>
-          <p className="mt-1 text-[10px] leading-4 text-slate-300">Força de Trabalho na Saúde</p></div>
-      </div>
-      <nav aria-label="Navegação principal" className="mt-12 space-y-1">
-        {sideLink("Início", "home", Home)}
-        {sideLink("Nova análise", "home", MessageCircle, "assistente")}
-        {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
-        {sideLink("Resultados", "results", BarChart3)}
-      </nav>
-    </aside>
-    <div className="min-w-0 lg:pl-[235px]">
-      <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
-        <div className="flex items-center gap-2.5">
-          <span className="rounded-xl bg-slate-50 p-1"><BrandAvatar size={36}/></span>
-          <div><p className="text-xs font-bold text-ink">Agente Diagnóstico Territorial</p>
-          <p className="text-[10px] text-slate-500">Força de Trabalho na Saúde</p></div>
-        </div>
-        <button type="button" aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(v => !v)}
-          className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
-        {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
-          {sideLink("Início", "home", Home)}
-          {sideLink("Nova análise", "home", MessageCircle, "assistente")}
-          {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
-          {sideLink("Resultados", "results", BarChart3)}
-        </nav>}
-      </header>
-      {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
-      <main id="inicio" className="mx-auto max-w-[1330px] px-4 pb-16 pt-6 sm:px-7 lg:px-10">
-      <div className={page === "home" ? "" : "hidden"}>
-      <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
-      <section id="dados" className="section-anchor mt-5">
-        <div className="grid items-stretch gap-3 sm:grid-cols-2">
-          <div className="flex h-full flex-col rounded-[20px] border border-blue-100 bg-blue-50/90 p-4 sm:p-5">
-            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-blue-700"><Database size={23}/></span>
-            <h2 className="text-sm font-bold text-ink sm:text-base">Usar dados do Brasil</h2>
-            <p className="mt-1 min-h-[45px] text-xs leading-5 text-slate-600">
-              Explore a força de trabalho na saúde no Brasil e em seus municípios.
-            </p>
-            <button type="button" disabled={!privacy.accepted || inspecting} onClick={chooseBrazil}
-              className="mt-auto inline-flex w-full justify-center rounded-xl border border-blue-200 bg-blue-600 px-3 py-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
-              Usar dados do Brasil
-            </button>
-          </div>
-          <div className="flex h-full flex-col rounded-[20px] border border-emerald-100 bg-emerald-50/80 p-4 sm:p-5">
-            <span className="mb-3 inline-flex rounded-xl bg-white p-2.5 text-emerald-700"><FileUp size={23}/></span>
-            <h2 className="text-sm font-bold text-ink sm:text-base">Importar seus dados</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Baixe uma planilha formatada com os campos recomendados e uma legenda à direita.
-              Você pode adaptar os cabeçalhos.
-            </p>
-            <div className="mt-auto flex flex-col gap-2 pt-4">
-              <a href={API + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
-                <Download size={16}/> Estrutura recomendada (.xlsx)
-              </a>
-              <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="hidden"
-                onChange={e => { const next = e.target.files?.[0]; e.target.value = ""; void chooseFile(next); }}/>
-              <button type="button" disabled={!privacy.accepted} onClick={() => inputRef.current?.click()}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-3 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-40">
-                <UploadCloud size={16}/> Importar arquivo <span className="text-[10px] font-normal">CSV ou Excel</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">O modelo é recomendado, mas não obrigatório. A compatibilidade depende da análise escolhida.</p>
-        {inspecting && <p role="status" className="mt-3 flex items-center gap-2 rounded-xl bg-cyan-50 px-4 py-3 text-xs text-teal">
-          <LoaderCircle size={16} className="animate-spin"/> Examinando os dados. Aguarde...</p>}
-        {uploadError && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
-          <XCircle size={15} className="mr-2 inline"/>{uploadError}</p>}
-        {inspection?.requires_sheet && <div className="mt-4 rounded-xl border border-amber-200 bg-white p-4">
-          <label className="flex flex-col gap-2 text-xs font-semibold text-ink">Selecione a aba do arquivo Excel
-            <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
-              value={sheet} onChange={e=>{const next=e.target.value;setSheet(next);if(file&&next)void inspectFile(file,next);}}>
-              <option value="">Selecione uma aba</option>
-              {inspection.sheets.map(name=><option key={name} value={name}>{name}</option>)}
-            </select>
-          </label>
-        </div>}
-        {inspection && !inspection.requires_sheet && <div role="status" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs text-emerald-800">
-          <CheckCircle2 size={17}/>
-          <strong>{usingBrazil ? "Dados do Brasil carregados" : (file?.name || "Arquivo") + " carregado"}</strong>
-          <span className="text-slate-500">{shortNum(inspection.row_count)} registros · {inspection.columns.length} colunas</span>
-          <button type="button" className="ml-auto font-semibold underline" onClick={()=>navigate("home","preparacao")}>Revisar campos</button>
-        </div>}
-      </section>
 
-      <AnalysisAssistant
-        apiBase={API}
-        privacyAccepted={privacy.accepted}
-        file={file}
-        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
-        datasetVersion={inspection?.source?.version || ""}
-        sheet={sheet}
-        mapping={mapping}
-        options={semanticOptions()}
-        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
-        contextVersion={JSON.stringify({
-          file: file?.name, modified: file?.lastModified, size: file?.size,
-          usingBrazil, datasetVersion: sourceVersion, sourceGeneration, sheet
-        })}
-        validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
-        features={FEATURES}
-        active={active}
-        selecting={inspecting}
-        onSelectAnalysis={operation => {
-          selectAnalysis(operation);
-          navigate("home", "preparacao");
-        }}/>
+  const sourceChoice = <div id="dados" className="mt-3 space-y-3">
+    <div className="grid gap-2 sm:grid-cols-2">
+      <button type="button" onClick={chooseBrazil} disabled={!privacy.accepted || inspecting}
+        className={"flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition hover:border-blue-400 disabled:opacity-40 " +
+          (usingBrazil ? "border-blue-500 bg-blue-50" : "border-line bg-white")}>
+        <Database size={20} className="shrink-0 text-teal"/>
+        <span><strong className="block">Usar dados do Brasil</strong><small className="text-slate-500">Fontes nacional e municipal</small></span>
+        {usingBrazil && <CheckCircle2 size={17} className="ml-auto text-emerald-600"/>}
+      </button>
+      <div className={"flex items-center gap-2 rounded-xl border px-3 py-3 " +
+        (!usingBrazil && file ? "border-blue-500 bg-blue-50" : "border-line bg-white")}>
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={!privacy.accepted}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:opacity-40">
+          <FileUp size={20} className="shrink-0 text-teal"/>
+          <span><strong className="block">Importar seus dados</strong><small className="text-slate-500">CSV ou Excel</small></span>
+        </button>
+        <a href={API + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx"
+          title="Baixar estrutura recomendada (.xlsx)" aria-label="Baixar estrutura recomendada"
+          className="rounded-md p-1 text-teal hover:bg-blue-50"><Download size={17}/></a>
+      </div>
+    </div>
+    <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="sr-only"
+      onChange={e => {const next=e.target.files?.[0];e.target.value = "";void chooseFile(next);}}/>
+    {inspecting && <p role="status" className="text-xs text-slate-500">Preparando seus dados...</p>}
+    {uploadError && <p role="alert" className="text-xs text-rose-800">{uploadError}</p>}
+    {inspection?.requires_sheet && <label className="text-xs text-slate-700">Qual aba deseja utilizar?
+      <select className="ml-2 rounded-lg border border-line px-2 py-1" value={sheet}
+        onChange={e=>{const next=e.target.value;setSheet(next);if(file&&next)void inspectFile(file,next);}}>
+        <option value="">Selecione uma aba</option>
+        {inspection.sheets.map(name=><option key={name} value={name}>{name}</option>)}
+      </select>
+    </label>}
+  </div>;
+
+  const advancedPreparation = (<>
       {active && <div className="preparation-workspace section-anchor mt-5">
         <PreparationPanel title={selectedFeature?.title || "Preparar uma análise"} step={step} onStep={setStep}
           checking={preflighting || inspecting} requirements={visibleRequirements}
@@ -898,12 +819,66 @@ function App() {
           </>}
         </PreparationPanel>
       </div>}
-
-      </div>
-      <section id="resultados" ref={resultsRef} className={["section-anchor pt-3", page === "results" ? "" : "hidden"].join(" ")}>
-        <button type="button" onClick={() => navigate("home", "preparacao")}
+  </>);
+  const inlinePreparation = active && inspection && !inspection.requires_sheet ?
+    <div id="preparacao-conversacional"><ConversationalPreparation
+      operation={active}
+      sourceBrazil={usingBrazil}
+      scope={inspection.source?.scope || "municipal"}
+      onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
+      columns={inspection.columns}
+      mapping={mapping}
+      onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
+        if(column)associateColumn(column,role as Role);
+        else {setMapping(p=>({...p,[role]:""}));setConfirmedRoles(p=>p.filter(r=>r!==role));setResult(null);}
+        if(role==="population")setPopulationAligned(false);
+      }}
+      countUnit={countUnit}
+      onCountUnit={v=>{setCountUnit(v);setInlineConfirmed(false);}}
+      customCountUnit={customCountUnit}
+      onCustomCountUnit={setCustomCountUnit}
+      indicator={active==="distribution"?distributionIndicator:active==="temporal"?temporalIndicator:reportIndicator}
+      onIndicator={v=>{
+        if(active==="distribution")setDistributionIndicator(v);
+        if(active==="temporal")setTemporalIndicator(v);
+        if(active==="report")setReportIndicator(v);
+        setInlineConfirmed(false);
+      }}
+      periodFilter={periodFilter}
+      periods={preflight?.values.periods || inspection.periods}
+      onPeriod={v=>{setPeriodFilter(v);setInlineConfirmed(false);}}
+      categoryFilter={categoryFilter}
+      categories={preflight?.values.categories || inspection.categories}
+      onCategory={v=>{setCategoryFilter(v);setInlineConfirmed(false);}}
+      populationAligned={populationAligned}
+      onPopulationAligned={setPopulationAligned}
+      ftsConfirmed={ftsScopeConfirmed}
+      onFtsConfirmed={setFtsScopeConfirmed}
+      reference={reference}
+      territories={preflight?.values.territories || inspection.territories}
+      onReference={setReference}
+      crs={crs}
+      onCrs={setCrs}
+      preparing={preflighting || inspecting}
+      confirmed={inlineConfirmed}
+      onConfirm={()=>{
+        setConfirmedRoles(previous=>[...new Set<Role>([...previous,...(Object.entries(mapping)
+          .filter((entry):entry is [Role,string]=>!!entry[1])
+          .map(([role])=>role))])]);
+        if(mapping.category){setObjectConfirmed(true);}
+        else if(objectDraft.trim()){setCategoryConstant(objectDraft.trim());setObjectConfirmed(true);}
+        setInlineConfirmed(true);
+      }}
+      capability={preflight?.capabilities[active]}
+      onExecute={()=>{void run(active);}}
+      executing={running}
+      advanced={advancedPreparation}
+    /></div> : null;
+  const resultContent = (result || running || error) ? (<>
+      <section id="resultados" ref={resultsRef} className="section-anchor mt-4 pt-3">
+        <button type="button" onClick={() => document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"})}
           className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
-          <ArrowRight size={15} className="rotate-180"/> Voltar à análise
+          <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
         <SectionHeader eyebrow="03 · Interpretar" title="Resultados do diagnóstico" description="Os resultados são calculados no motor Python e apresentados com método, cobertura e limitações explícitas."/>
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
@@ -919,7 +894,7 @@ function App() {
             </div>
           </div>
           <div id="filtros-resultados" className="no-print mt-4">
-            <button type="button" className="font-bold text-teal underline" onClick={() => {setStep(1); navigate("home", "preparacao");}}>Alterar parâmetros na preparação</button>
+            <button type="button" className="font-bold text-teal underline" onClick={() => document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"})}>Alterar a preparação</button>
           </div>
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}
           {running && <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-teal">
@@ -977,6 +952,74 @@ function App() {
           </div>}
         </div>
       </section>
+
+  </>) : null;
+
+  return <div className="min-h-screen bg-canvas">
+    {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
+    <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
+      <div className="flex items-center gap-3 px-2">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><BrandAvatar size={39}/></span>
+        <div><p className="text-sm font-bold leading-tight">Agente Diagnóstico Territorial</p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-300">Força de Trabalho na Saúde</p></div>
+      </div>
+      <nav aria-label="Navegação principal" className="mt-12 space-y-1">
+        {sideLink("Início", "home", Home)}
+        {sideLink("Nova análise", "home", MessageCircle, "assistente")}
+        {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
+        {sideLink("Resultados", "home", BarChart3, "resultados")}
+      </nav>
+    </aside>
+    <div className="min-w-0 lg:pl-[235px]">
+      <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-xl bg-slate-50 p-1"><BrandAvatar size={36}/></span>
+          <div><p className="text-xs font-bold text-ink">Agente Diagnóstico Territorial</p>
+          <p className="text-[10px] text-slate-500">Força de Trabalho na Saúde</p></div>
+        </div>
+        <button type="button" aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(v => !v)}
+          className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
+        {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
+          {sideLink("Início", "home", Home)}
+          {sideLink("Nova análise", "home", MessageCircle, "assistente")}
+          {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
+          {sideLink("Resultados", "home", BarChart3, "resultados")}
+        </nav>}
+      </header>
+      {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
+      <main id="inicio" className="mx-auto max-w-[1330px] px-4 pb-16 pt-6 sm:px-7 lg:px-10">
+      <div className={page === "home" ? "" : "hidden"}>
+      <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
+      <AnalysisAssistant
+        apiBase={API}
+        privacyAccepted={privacy.accepted}
+        file={file}
+        dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
+        datasetVersion={inspection?.source?.version || ""}
+        sheet={sheet}
+        mapping={mapping}
+        options={semanticOptions()}
+        contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
+        contextVersion={JSON.stringify({
+          file: file?.name, modified: file?.lastModified, size: file?.size,
+          usingBrazil, datasetVersion: sourceVersion, sourceGeneration, sheet
+        })}
+        validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
+        features={FEATURES}
+        active={active}
+        selecting={inspecting}
+        onSelectAnalysis={selectAnalysis}
+        sourceChoice={sourceChoice}
+        sourceSummary={usingBrazil
+          ? inspection && !inspecting ? "As fontes do Brasil e dos municípios estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando as fontes do Brasil."
+          : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."
+          : ""}
+        preparation={inlinePreparation}
+        resultContent={resultContent}/>
+
+
+      </div>
       <footer className="no-print mt-14 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 text-xs text-slate-400 sm:flex-row sm:items-center">
         <p>Agente Diagnóstico Territorial · Protótipo experimental v0.1</p>
       </footer>
