@@ -54,6 +54,12 @@ def main():
         pair = execute()
         assert pair["rows"][0]["Diferença A − B"] == -10
         assert pair["metadata"]["options"]["territory_ids"] == ["code:local-a", "code:local-b"]
+        # Sem o identificador associado, os IDs "code:" deixam de existir: a seleção é limpa
+        # em vez de manter o pré-exame recusado (422) sem explicação.
+        with page.expect_response(lambda response: response.url.endswith("/api/preflight")) as checked:
+            inline.get_by_role("combobox", name="Identificador territorial", exact=True).select_option("")
+        expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
+        assert checked.value.status == 200, checked.value.text()
         history = page.get_by_role("navigation", name="Histórico de resultados")
         expect(history.locator("ol > li")).to_have_count(2)
         history.get_by_role("button", name="1. Densidade de profissionais", exact=False).click()

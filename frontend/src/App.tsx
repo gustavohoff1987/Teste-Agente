@@ -517,6 +517,12 @@ function App() {
     setActive(item.result.metadata.operation as Operation); setRequestText(item.request);
     setInlineConfirmed(true); setHistoryNotice("Parâmetros e seleção restaurados; o servidor verificará novamente a preparação.");
   }
+  // Os identificadores da seleção derivam do nome/código associados; sem eles, deixam de existir.
+  function removeAssociation(role: Role) {
+    setMapping(previous => ({...previous, [role]: ""}));
+    setConfirmedRoles(previous => previous.filter(item => item !== role));
+    if (role === "territory" || role === "territory_id") setTerritoryIds([]);
+  }
   function associateColumn(column: string, role: Role | "") {
     if (role === "count") setCountUnit("");
     if (role === "identity") { setIdentityCountConfirmed(false); setLongitudinalIdentity(false); }
@@ -527,6 +533,8 @@ function App() {
       setConfirmedNoOverlap(false); setResolutions(previous => ({number_format: previous.number_format}));
     }
     const previouslyAssociated = (Object.entries(mapping).find(([, value]) => value === column) || [])[0] as Role | undefined;
+    // Mover a coluna territorial para outro papel também remove a identidade da seleção.
+    if (previouslyAssociated === "territory" || previouslyAssociated === "territory_id") setTerritoryIds([]);
     setMapping(previous => {
       const next = { ...previous };
       for (const key of ROLES) {
@@ -745,16 +753,12 @@ function App() {
             }}
             onSelectCode={column => {
               if(column) associateColumn(column, "territory_id");
-              else {setMapping(p => ({...p, territory_id: ""})); setConfirmedRoles(p => p.filter(role => role !== "territory_id"));}
+              else removeAssociation("territory_id");
             }}
             onConfirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
             onSelect={(role, column) => {
               if (column) associateColumn(column, role);
-              else {
-                setMapping(prev => ({...prev, [role]: ""}));
-                setConfirmedRoles(prev => prev.filter(x => x !== role));
-
-              }
+              else removeAssociation(role);
               if (role === "category") {
                 setObjectConfirmed(false);
                 setCategoryConstant("");
@@ -978,7 +982,7 @@ function App() {
       mapping={mapping}
       onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
         if(column)associateColumn(column,role as Role);
-        else {setMapping(p=>({...p,[role]:""}));setConfirmedRoles(p=>p.filter(r=>r!==role));}
+        else removeAssociation(role as Role);
         if(role==="population")setPopulationAligned(false);
       }}
       countUnit={countUnit}
