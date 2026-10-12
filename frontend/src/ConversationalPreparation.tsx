@@ -84,7 +84,7 @@ export default function ConversationalPreparation(p: Props) {
     options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
   const status = p.capability?.status;
   const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
-  const periodChoiceRequired = p.operation === "counts" && p.periods.length > 1 && !p.periodFilter;
+  const periodChoiceRequired = p.operation === "counts" && p.periods.length > 1 && !p.periodFilter && p.selectedPeriods.length === 0;
   const ready = status === "available" && p.confirmed && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
   if (p.sourceBrazil && p.curated) {
     const isTemporal = p.operation === "temporal";
