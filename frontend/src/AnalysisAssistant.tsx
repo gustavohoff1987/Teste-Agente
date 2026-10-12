@@ -18,7 +18,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; sourceChoice: ReactNode; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -34,7 +34,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceSummary, preparation, resultContent, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -162,7 +162,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
             </div>
           </div>
           {sourceChoice}
-          {hasSource && <>
+          {sourceReady && <>
             <div className="flex items-start gap-3 pt-2">
               <BrandAvatar size={33} className="shrink-0"/>
               <div className="space-y-2">
@@ -173,7 +173,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
             <ChatAnalysisCarousel features={features} selected={active}
               disabled={selecting} onSelect={onSelectAnalysis}/>
           </>}
-          {!hasSource && <p className="text-xs text-slate-500">Você também pode escrever sua pergunta abaixo.</p>}
+          {!sourceReady && <p className="text-xs text-slate-500">Você também pode escrever sua pergunta abaixo.</p>}
         </div>
         {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
           {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
