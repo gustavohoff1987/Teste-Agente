@@ -872,6 +872,58 @@ function App() {
       capability={preflight?.capabilities[active]}
       onExecute={()=>{void run(active);}}
       executing={running}
+      extra={<div className="space-y-2 text-xs leading-5">
+        {active === "temporal" && <>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
+            onChange={e=>setTemporalCompared(e.target.checked)}/>
+            Confirmo que os quantitativos e os períodos são comparáveis.</label>
+          {mapping.territory && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
+            onChange={e=>setTerritoryStable(e.target.checked)}/>
+            Os territórios correspondem às mesmas unidades ao longo do tempo.</label>}
+        </>}
+        {["comparisons","ranking"].includes(active) && <label className="flex items-start gap-2">
+          <input type="checkbox" checked={!!resolutions.comparison_confirmed}
+            onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
+          As medidas, unidades e populações são comparáveis entre os territórios.</label>}
+        {active === "aggregate" && <>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
+            onChange={e=>setResolutions(p=>({...p,population_additive_confirmed:e.target.checked}))}/>
+            As populações são partes sem sobreposição do conjunto agregado.</label>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={confirmedNoOverlap}
+            onChange={e=>{setConfirmedNoOverlap(e.target.checked);
+              if(e.target.checked)setResolutions(p=>({...p,component_sum_confirmed:false}));}}/>
+            As contagens representam unidades sem sobreposição entre territórios.</label>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.component_sum_confirmed}
+            onChange={e=>{setResolutions(p=>({...p,component_sum_confirmed:e.target.checked}));
+              if(e.target.checked)setConfirmedNoOverlap(false);}}/>
+            Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem.</label>
+        </>}
+        {active === "rotation" && <>
+          <label className="flex items-center gap-2">Período inicial
+            <select aria-label="Período inicial" value={resolutions.initial_period || ""}
+              onChange={e=>setResolutions(p=>({...p,initial_period:e.target.value}))}
+              className="min-w-0 rounded-md border border-blue-200 bg-white px-1 py-0.5">
+              <option value="">Escolher</option>{(preflight?.values.periods || inspection.periods).map(v=><option key={v}>{v}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-2">Período final
+            <select aria-label="Período final" value={resolutions.final_period || ""}
+              onChange={e=>setResolutions(p=>({...p,final_period:e.target.value}))}
+              className="min-w-0 rounded-md border border-blue-200 bg-white px-1 py-0.5">
+              <option value="">Escolher</option>{(preflight?.values.periods || inspection.periods).map(v=><option key={v}>{v}</option>)}
+            </select>
+          </label>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity}
+            onChange={e=>setLongitudinalIdentity(e.target.checked)}/>
+            O identificador representa a mesma pessoa nos períodos.</label>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
+            onChange={e=>setTerritoryStable(e.target.checked)}/>
+            As unidades territoriais são comparáveis entre os períodos.</label>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.cohort_coverage_confirmed}
+            onChange={e=>setResolutions(p=>({...p,cohort_coverage_confirmed:e.target.checked}))}/>
+            A base cobre o mesmo universo de trabalhadores nos períodos considerados.</label>
+        </>}
+      </div>}
       advanced={advancedPreparation}
     /></div> : null;
   const resultContent = (result || running || error) ? (<>
