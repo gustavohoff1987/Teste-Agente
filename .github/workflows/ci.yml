@@ -90,3 +90,24 @@ jobs:
               raise SystemExit('Servidor não iniciou')
           PY
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_smoke.py
+          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_regression.py
+      - name: Validate interpretation through a simulated Gemini transport (no provider calls)
+        run: |
+          # Processo novo: o servidor bloqueia rede externa e substitui apenas o transporte Gemini.
+          ADT_BRASIL_DATA_DIR=/tmp/adt-block1 ADT_FAKE_GEMINI_LOG=/tmp/adt-fake-gemini.jsonl \
+            python backend/tests/serve_ui_fake_gemini.py > /tmp/adt-fake-gemini.log 2>&1 &
+          python - <<'PY'
+          import time, urllib.request
+          for _ in range(50):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:18200/api/health', timeout=2)
+                  break
+              except OSError:
+                  time.sleep(.3)
+          else:
+              raise SystemExit('Servidor não iniciou')
+          PY
+          ADT_UI_URL=http://127.0.0.1:18200/ ADT_FAKE_GEMINI_LOG=/tmp/adt-fake-gemini.jsonl python backend/tests/ui_block1_integration.py
+      - name: Server logs
+        if: failure()
+        run: tail -n 80 /tmp/adt-block1.log /tmp/adt-fake-gemini.log || true
