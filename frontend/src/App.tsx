@@ -164,6 +164,7 @@ function App() {
   const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [active, setActive] = useState<Operation | null>(null);
   const [inlineConfirmed, setInlineConfirmed] = useState(false);
+  const [requestedCategory, setRequestedCategory] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -319,7 +320,7 @@ function App() {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(false); setInlineConfirmed(false);
+    setUsingBrazil(false); setInlineConfirmed(false); setRequestedCategory("");
     setFile(next);
     setSheet("");
     // Preserva apenas a escolha da capacidade; confirmações são reiniciadas.
@@ -348,10 +349,13 @@ function App() {
   function chooseBrazil() {
     if (!privacy.accepted) return;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(true); setInlineConfirmed(false); setFile(null); setSheet(""); setBrazilLevel("auto");
+    setUsingBrazil(true); setInlineConfirmed(false); setRequestedCategory(""); setFile(null); setSheet(""); setBrazilLevel("auto");
     void inspectFile(null, "", "auto", active || "");
   }
-  function selectAnalysis(operation: Operation) {
+  function selectAnalysis(operation: Operation, proposal?: {
+    category: string; period: string; territory: string; indicator: "density" | "quantity" | null
+  }) {
+    setRequestedCategory(proposal?.category || "");
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
     setActive(operation); setResult(null); setError(""); setInlineConfirmed(false);
@@ -360,6 +364,15 @@ function App() {
       if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation, true);
     }
   }
+  // Somente uma correspondência literal inequívoca permite aplicar automaticamente
+  // o filtro pedido. Equivalências semânticas permanecem para escolha explícita.
+  useEffect(() => {
+    if (!inspection || inspection.requires_sheet || inspecting || !requestedCategory || categoryFilter) return;
+    const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    const matches = inspection.categories.filter(value => normalize(value) === normalize(requestedCategory));
+    if (matches.length === 1) setCategoryFilter(matches[0]);
+  }, [requestedCategory, inspection, inspecting, categoryFilter]);
+
   function semanticOptions() {
     return {
       ...resolutions,
@@ -848,6 +861,7 @@ function App() {
       periods={preflight?.values.periods || inspection.periods}
       onPeriod={v=>{setPeriodFilter(v);setInlineConfirmed(false);}}
       categoryFilter={categoryFilter}
+      requestedCategory={requestedCategory}
       categories={preflight?.values.categories || inspection.categories}
       onCategory={v=>{setCategoryFilter(v);setInlineConfirmed(false);}}
       populationAligned={populationAligned}
@@ -1065,7 +1079,7 @@ function App() {
         sourceChoice={sourceChoice}
         sourceReady={!!inspection && !inspection.requires_sheet && !inspecting}
         sourceSummary={usingBrazil
-          ? inspection && !inspecting ? "As fontes do Brasil e dos municípios estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando as fontes do Brasil."
+          ? inspection && !inspecting ? "Os dados do Brasil já estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando os dados do Brasil."
           : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."
           : ""}
         preparation={inlinePreparation}
