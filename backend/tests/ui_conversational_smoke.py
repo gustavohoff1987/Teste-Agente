@@ -144,7 +144,11 @@ def main():
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
         # de períodos diferentes em um único quantitativo.
         inline.get_by_role("button", name="Selecionar vários períodos").click()
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
+        try:
+            expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
+        except AssertionError:
+            print("MULTIPERIOD-UI-DIAGNOSTIC:", inline.inner_text()[:2000], flush=True)
+            raise
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
             inline.get_by_role("button", name="Calcular e mostrar resultado").click()
         assert event.value.status == 200, event.value.text()
