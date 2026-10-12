@@ -38,9 +38,11 @@ jobs:
       - run: pip install -r backend/requirements-ui.txt
       - run: npm install
         working-directory: frontend
+      - name: Install synthetic dual-source Brazilian catalog
+        run: python backend/tests/prepare_ui_brazil_catalog.py
       - name: Start local services and run conversational browser regression
         run: |
-          (cd backend && uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/adt-backend.log 2>&1) &
+          (cd backend && ADT_BRASIL_DATA_DIR=/tmp/adt-brazil-synthetic uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/adt-backend.log 2>&1) &
           (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/adt-frontend.log 2>&1) &
           python - <<'PY'
           import time
