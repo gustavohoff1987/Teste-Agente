@@ -47,10 +47,11 @@ def main():
             inline.get_by_role("button", name="Calcular e mostrar resultado").click()
         assert response.value.status == 200
         expect(page.get_by_role("navigation", name="Histórico de resultados").locator("ol > li")).to_have_count(1)
-        # O provedor falso produz uma combinação inválida; o backend deve rejeitá-la.
-        invalid = send("Quero quantitativos invalido", "/api/llm/interpret-context", 422)
-        assert invalid.status == 422 and len(analyses) == 1
-        expect(page.get_by_role("alert")).to_be_visible()
+        # O provedor falso produz uma combinação inválida; o backend a rejeita como
+        # resposta a montante fora do contrato (502, mesmo contrato do cenário A12).
+        invalid = send("Quero quantitativos invalido", "/api/llm/interpret-context", 502)
+        assert "fake-offline-key" not in invalid.text() and len(analyses) == 1
+        expect(page.get_by_role("alert").filter(has_text="fora do contrato")).to_be_visible()
         send("Quero analisar a densidade", "/api/llm/interpret-context")
         expect(page.get_by_role("alert")).to_have_count(0)
         assert len(analyses) == 1
