@@ -18,7 +18,8 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string;
+  selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -34,7 +35,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -88,6 +89,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     const message = draft.trim();
     if (sending || !privacyAccepted || message.length < 2 || message.length > 800) return;
     setStarted(true);
+    onRequest(message);
     setDraft("");
     const followup = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i.test(message);
     const append = (content: string) => setTurns(previous => [
@@ -137,6 +139,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     setSending(true);
     setError("");
     try {
+      if (sourceReady) {
+        const local = await onExplore(message);
+        if (local !== null) {append(local); return;}
+      }
       let response: Response;
       if (hasSource) {
         const form = new FormData();
@@ -209,7 +215,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     </div>
 
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
-      <p>{loadingStatus ? "Preparando a conversa..." : "O assistente está temporariamente indisponível para perguntas livres. Você ainda pode escolher e executar análises."}</p>
+      <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
       {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
         className="mt-2 inline-flex items-center gap-1 font-semibold underline">
         <RefreshCw size={13}/> Tentar novamente
@@ -255,11 +261,15 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
         </div>)}
-        {started && !sourceReady && <div className="ml-9 space-y-2">
+        {(started || hasSource) && !sourceReady && <div className="ml-9 space-y-2">
           {!hasSource && <p className="text-sm text-slate-700">Escolha os dados para prosseguirmos:</p>}
           {sourceChoice}
         </div>}
         {sourceReady && <div className="ml-9 max-w-3xl space-y-3 text-sm text-slate-700">
+          <details className="no-print text-xs text-teal">
+            <summary className="cursor-pointer">Trocar fonte de dados</summary>
+            {sourceChoice}
+          </details>
           <div className="flex items-start gap-2">
             <BrandAvatar size={27} className="shrink-0"/>
             <p>{active
@@ -277,6 +287,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
               disabled={selecting} onSelect={onSelectAnalysis}/></div>
           </details>}
         </div>}
+        {sourceReady && selection}
         {preparation}
         {resultContent}
         {sending && <p role="status" className="flex items-center gap-2 text-sm text-teal">

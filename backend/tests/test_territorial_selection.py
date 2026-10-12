@@ -137,6 +137,41 @@ def test_local_interpretation_uses_verified_names_and_does_not_execute(frame):
     assert "clarification" in interpret_exploration("Compare os selecionados", frame, MAP, OPTIONS)
 
 
+def test_selection_rejects_related_territorial_levels(frame):
+    frame = frame.copy()
+    frame.loc[frame.municipio == "Fora", "municipio"] = "Amazonas"
+    frame["territorio_superior_1"] = frame.municipio.map(lambda name: "Brasil" if name == "Amazonas" else "Amazonas")
+    opts = chosen(period_filter="202406", territory_ids=["code:130260", "code:X04"])
+    for operation in ("comparisons", "aggregate"):
+        with pytest.raises(ValueError, match="nível superior"):
+            compute(frame, MAP, operation, opts)
+
+
+def test_homonyms_require_codes_in_conversational_resolution(frame):
+    frame = frame.copy()
+    frame.loc[frame.municipio == "Fora", "municipio"] = "Tefé"
+    assert "homônimos" in interpret_exploration("Compare Manaus e Tefé", frame, MAP, OPTIONS)["clarification"]
+    assert len(compute(frame, MAP, "counts", chosen(period_filter="202406"))["rows"]) == 3
+
+
+def test_unrelated_hierarchy_conflict_does_not_block_valid_selection(frame):
+    frame = frame.copy()
+    frame["uf"] = "AM"
+    frame.loc[(frame.municipio == "Fora") & (frame.periodo == "202406"), "uf"] = "PA"
+    choices = territory_catalog(frame, MAP, OPTIONS)
+    assert next(item for item in choices if item["id"] == "code:X04")["selection_reason"]
+    assert len(compute(frame, MAP, "counts", chosen())["rows"]) == 12
+    with pytest.raises(ValueError, match="ambígua"):
+        compute(frame, MAP, "counts", chosen(territory_ids=["code:X04"]))
+
+
+def test_short_territory_names_do_not_capture_generic_conversation(frame):
+    frame = frame.copy()
+    frame.loc[frame.municipio == "Manaus", "municipio"] = "A"
+    assert interpret_exploration("Quero analisar a densidade", frame, MAP, OPTIONS) == {"handled": False}
+    assert interpret_exploration("Compare A e Tefé", frame, MAP, OPTIONS)["operation"] == "comparisons"
+
+
 def test_api_has_unique_results_and_reproducible_execution_key(frame):
     client = TestClient(app)
     source = {"file": ("controlado.csv", frame.to_csv(index=False).encode())}

@@ -8,7 +8,7 @@ from itertools import islice
 
 import numpy as np
 import pandas as pd
-from territorial_selection import selected_frame, selection_coverage
+from territorial_selection import selected_frame, selection_coverage, validate_selected_levels
 
 
 class ConfirmationRequired(ValueError):
@@ -280,6 +280,8 @@ def rotation_data(frame, mapping, options):
 
 
 def validate_operation(frame, mapping, options, operation, prepared=None):
+    if operation in ("comparisons", "ranking", "distribution", "aggregate"):
+        validate_selected_levels(scoped(frame, mapping, options), mapping, options)
     if operation == "comparisons" and options.get("comparison_indicator", "density") not in ("quantity", "density"):
         raise ValueError("Indicador de comparação inválido: escolha quantidade ou densidade.")
     if operation in ("distribution", "temporal", "report"):

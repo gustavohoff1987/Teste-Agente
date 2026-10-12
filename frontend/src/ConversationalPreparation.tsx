@@ -77,9 +77,10 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
 
 export default function ConversationalPreparation(p: Props) {
   const requiresCount = p.operation !== "spatial" && p.operation !== "rotation";
-  const requiresPopulation = ["density", "comparisons", "ranking", "aggregate"].includes(p.operation) ||
+  const requiresPopulation = ["density", "ranking", "aggregate"].includes(p.operation) ||
+    p.operation === "comparisons" && p.indicator !== "quantity" ||
     (["distribution","temporal","report"].includes(p.operation) && p.indicator === "density");
-  const requiresIndicator = ["distribution", "temporal", "report"].includes(p.operation);
+  const requiresIndicator = ["comparisons", "distribution", "temporal", "report"].includes(p.operation);
   const field = (label: string, role: FieldRole) => <InlineChoice label={label} value={p.mapping[role] || ""}
     options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
   const status = p.capability?.status;

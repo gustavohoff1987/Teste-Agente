@@ -27,5 +27,5 @@ def prepare(destination: Path) -> None:
 
 
 if __name__ == "__main__":
-    prepare(Path("/tmp/adt-brazil-synthetic"))
+    prepare(Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp/adt-brazil-synthetic"))
     print("Dual-source synthetic catalog installed outside the repository.")

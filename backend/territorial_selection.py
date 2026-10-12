@@ -46,8 +46,12 @@ def territory_catalog(frame, mapping, options):
     key_col = code_col or name_col
     if pairs.groupby(key_col)[name_col].nunique().gt(1).any():
         raise ValueError("Identificador territorial ambíguo: o mesmo código identifica nomes diferentes.")
-    if parents and pairs.groupby(key_col)[parents].nunique().gt(1).any().any():
-        raise ValueError("Identificação territorial ambígua entre níveis superiores. Associe um código inequívoco ou corrija a hierarquia.")
+    conflicts = set()
+    if parents:
+        divergences = pairs.groupby(key_col)[parents].nunique().gt(1).any(axis=1)
+        conflicts = set(divergences[divergences].index)
+        if conflicts and not code_col:
+            raise ValueError("Identificação territorial ambígua entre níveis superiores. Associe um código inequívoco ou corrija a hierarquia.")
     profile = curated_profile(frame, mapping)
     brazil = bool(profile and profile["scope"] == "municipal")
     items = []
@@ -55,10 +59,14 @@ def territory_catalog(frame, mapping, options):
         code = str(row[code_col]) if code_col else ""
         name = str(row[name_col])
         state = STATES.get(code[:2]) if brazil and re.fullmatch(r"\d{6,7}", code) else None
+        conflict = str(row[key_col]) in conflicts
+        if conflict:
+            state = None
         label = name + (" [" + code + "]" if code else "")
         items.append({"id": ("code:" + code if code else "name:" + name),
                       "name": name, "code": code, "label": label,
                       "parents": [str(row[c]) for c in parents if pd.notna(row[c])],
+                      "selection_reason": "Relações territoriais divergentes na fonte; esclareça a hierarquia desta unidade." if conflict else "",
                       "state": state[0] if state else "", "state_name": state[1] if state else ""})
     return sorted(items, key=lambda item: (item["name"], item["id"]))
 
@@ -77,6 +85,9 @@ def selected_frame(frame, mapping, options):
     unknown = [value for value in ids if value not in known]
     if unknown:
         raise ValueError("Municípios/territórios inexistentes ou incompatíveis com a base: " + ", ".join(unknown[:8]))
+    ambiguous = [item["label"] for item in catalog if item["id"] in ids and item["selection_reason"]]
+    if ambiguous:
+        raise ValueError("Identificação territorial ambígua entre níveis superiores: " + ", ".join(ambiguous[:8]))
     code = mapping.get("territory_id")
     keys = ("code:" if code else "name:") + texts(frame[code or mapping["territory"]])
     return frame.loc[keys.isin(ids)].copy()
@@ -104,3 +115,12 @@ def universe_metadata(frame, mapping, options):
     return {"kind": "selection" if "territory_ids" in options else "observed", "members": members,
             "classification_scope": "subconjunto selecionado" if "territory_ids" in options else "universo observado",
             "state_rule": "brasil-cod-uf-prefix-1" if any(x["state"] for x in members) else None}
+
+
+def validate_selected_levels(frame, mapping, options):
+    if "territory_ids" not in options:
+        return
+    members = territory_catalog(frame, mapping, options)
+    names = {item["name"] for item in members}
+    if any(names.intersection(item["parents"]) for item in members):
+        raise ValueError("Unidades territoriais não comparáveis: a seleção contém território e nível superior relacionado. Separe os níveis antes de comparar ou agregar.")

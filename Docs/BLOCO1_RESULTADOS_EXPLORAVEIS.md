@@ -27,7 +27,11 @@ Python antes de contagens, denominadores, distribuições, comparações e agreg
 Membros sem registros no recorte são bloqueados com motivo, nunca eliminados em silêncio.
 Ausências temporais nos extremos mantêm a mudança não avaliável.
 
-A fonte municipal Brasil não contém UF. A regra `brasil-cod-uf-prefix-1` deriva
+A inspeção dos arquivos locais confirmou `uf` e `regiao_geografica`, além de
+`municipio` e `cod_ibge`. Uma unidade (`251365`) possui hierarquias divergentes na
+fonte e permanece impedida para seleção até esclarecimento; as outras unidades
+não são bloqueadas por esse conflito externo ao seu recorte.
+A regra `brasil-cod-uf-prefix-1` deriva
 somente o estado pelos dois primeiros dígitos, para o perfil governado municipal,
 sem completar códigos de seis dígitos ou inventar limites territoriais. Referência:
 [Tabela de códigos de municípios do IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php).

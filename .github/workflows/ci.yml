@@ -1,7 +1,7 @@
 name: CI Portal Experimental
 on:
   push:
-    branches: [main, feat/portal-uma-pagina-v1]
+    branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais]
   pull_request:
 jobs:
   backend:
@@ -59,3 +59,34 @@ jobs:
                   raise SystemExit("Local service did not start: " + url)
           PY
           cd backend && ADT_BROWSER_CHANNEL=chrome python tests/ui_conversational_smoke.py
+
+  ui-block1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r backend/requirements-ui.txt
+      - run: python -m playwright install --with-deps chrome
+      - run: npm ci && npm run build
+        working-directory: frontend
+      - run: python backend/tests/prepare_block1_catalog.py /tmp/adt-block1
+      - name: Validate selection, history and exploration without Gemini
+        run: |
+          ADT_BRASIL_DATA_DIR=/tmp/adt-block1 python backend/tests/serve_ui_offline.py > /tmp/adt-block1.log 2>&1 &
+          python - <<'PY'
+          import time, urllib.request
+          for _ in range(50):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:18000/api/health', timeout=2)
+                  break
+              except OSError:
+                  time.sleep(.3)
+          else:
+              raise SystemExit('Servidor não iniciou')
+          PY
+          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_smoke.py

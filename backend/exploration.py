@@ -25,13 +25,23 @@ def interpret_exploration(message, frame, mapping, options):
     if not operation:
         return {"handled": False}
     text = normalize(message).rstrip(".?!")
-    catalog = territory_catalog(frame, mapping, options)
+    try:
+        catalog = territory_catalog(frame, mapping, options)
+    except ValueError:
+        if options.get("territory_ids") or "selecionad" in text:
+            return {"handled": True, "clarification": "Confirme a identificação territorial antes de reutilizar a seleção."}
+        return {"handled": False}
     selected = options.get("territory_ids", [])
     uses_selection = bool(re.search(r"\bselecionad[oa]s?\b", text))
+    def named(item):
+        # Uma unidade chamada A não transforma todo artigo "a" em recorte.
+        if len(item["name"]) <= 2:
+            return bool(re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
+        return bool(re.search(r"(?<!\w)" + re.escape(normalize(item["name"])) + r"(?!\w)", text))
+    def state_named(item):
+        return bool(item["state_name"] and re.search(r"\b(?:do|da|de|no|na)\s+" + re.escape(normalize(item["state_name"])) + r"\b", text))
     # Pedidos gerais continuam no canal conversacional já existente.
-    if not uses_selection and not selected and not any(
-        re.search(r"(?<!\w)" + re.escape(normalize(item["name"])) + r"(?!\w)", text)
-        or item["state_name"] and normalize(item["state_name"]) in text for item in catalog):
+    if not uses_selection and not selected and not any(named(item) or state_named(item) for item in catalog):
         return {"handled": False}
     months = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
     period = None
@@ -52,7 +62,8 @@ def interpret_exploration(message, frame, mapping, options):
     remaining = text
     explicit = []
     # Maior expressão primeiro evita reconhecer Rio dentro de Rio de Janeiro.
-    names = sorted(set(normalize(item["name"]) for item in catalog), key=len, reverse=True)
+    names = sorted(set(normalize(item["name"]) for item in catalog
+                       if len(item["name"]) > 2 or re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message)), key=len, reverse=True)
     for name in names:
         pattern = r"(?<!\w)" + re.escape(name) + r"(?!\w)"
         if re.search(pattern, remaining):
@@ -61,7 +72,7 @@ def interpret_exploration(message, frame, mapping, options):
                 return {"handled": True, "clarification": "Há municípios homônimos para “" + name + "”. Selecione os códigos desejados na pesquisa territorial."}
             explicit.append(matches[0]["id"])
             remaining = re.sub(pattern, " ", remaining)
-    states = {normalize(item["state_name"]): item["state_name"] for item in catalog if item["state_name"]}
+    states = {normalize(item["state_name"]): item["state_name"] for item in catalog if state_named(item)}
     state_ids = []
     for state in sorted(states, key=len, reverse=True):
         pattern = r"(?<!\w)" + re.escape(state) + r"(?!\w)"

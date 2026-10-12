@@ -153,14 +153,21 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     if operation == "spatial" and canonical_crs(options.get("crs")):
         options = {**options, "crs": canonical_crs(options["crs"])}
     result = _compute(df, mapping, operation, options)
-    result["metadata"] = {"method_version": "deterministic-0.3", "operation": operation,
+    result["metadata"] = {"method_version": "deterministic-0.4", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
     result["metadata"]["territorial_hierarchy"] = describe_hierarchy(df, mapping, options.get("hierarchy_columns"))
     universe = universe_metadata(scoped(df, mapping, options), mapping, options)
     result["metadata"]["universe"] = universe
+    result["metadata"]["input_file"] = df.attrs.get("input_file")
+    actual_scope = scoped(df, mapping, options)
+    result["metadata"]["periods"] = sorted(text_values(actual_scope[mapping["period"]]).dropna().unique().tolist()) if mapping.get("period") else ["Período declarado"]
+    result["metadata"]["categories"] = sorted(text_values(actual_scope[mapping["category"]]).dropna().unique().tolist()) if mapping.get("category") else [options.get("category_constant", "FTS declarada")]
+    result["metadata"]["indicator"] = (options.get("comparison_indicator", "density") if operation=="comparisons" else
+        options.get(operation + "_indicator") if operation in ("temporal", "report", "distribution") else
+        "quantity" if operation=="counts" else "density" if operation in ("density", "aggregate", "ranking") else operation)
     result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if any(
-        "Não avaliável" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
+        "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
         "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
     if operation in ("ranking", "distribution", "comparisons"):
         result["notes"].append("Universo desta execução: " + universe["classification_scope"] +
@@ -397,7 +404,11 @@ async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_ve
         if frame is not None:
             frame.attrs["source"] = source
         return frame, []
-    return read_dataset(await _read_upload(file), file.filename or "", sheet)
+    raw = await _read_upload(file)
+    frame, sheets = read_dataset(raw, file.filename or "", sheet)
+    if frame is not None:
+        frame.attrs["input_file"] = {"name": file.filename, "sha256": hashlib.sha256(raw).hexdigest(), "sheet": sheet}
+    return frame, sheets
 
 
 @app.get("/api/modelo/estrutura-recomendada")
