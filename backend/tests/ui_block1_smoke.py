@@ -1,26 +1,52 @@
 """Jornada Bloco 1 com catálogo Brasil real ou fixture explicitamente configurada.
 
 Servidor serve_ui_offline.py; nunca chama Gemini. ADT_BLOCK1_REAL=1 valida
-62 municípios amazonenses e 22 competências. Nenhum registro é salvo no teste.
+62 municípios amazonenses e 22 competências. Nenhum registro é salvo no teste;
+capturas de tela ficam em .local/ui-validation/, ignorada pelo Git.
 """
+import csv
+import io
 import json
 import os
+import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from ui_support import URL, offline
 
+OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
+
+
+def exported_rows(download):
+    return list(csv.DictReader(io.StringIO(Path(download.value.path()).read_text(encoding="utf-8-sig")), delimiter=";"))
+
+
+def assert_same_rows(exported, rows):
+    """CSV baixado no navegador × linhas devolvidas pelo motor, em precisão integral."""
+    assert len(exported) == len(rows)
+    for line, row in zip(exported, rows):
+        assert list(line) == list(row)
+        for key, value in row.items():
+            if value is None:
+                assert line[key] == "", (key, line[key])
+            elif isinstance(value, (int, float)):
+                assert float(line[key]) == value, (key, line[key], value)
+            else:
+                assert line[key] == str(value), (key, line[key], value)
+
 
 def main():
     real = os.getenv("ADT_BLOCK1_REAL") == "1"
+    OUTPUT.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, channel=os.getenv("ADT_BROWSER_CHANNEL", "chrome"))
         context = browser.new_context(viewport={"width": 1280, "height": 900}, accept_downloads=True)
         offline(context)
         page = context.new_page()
-        failures, results, llm_calls = [], [], []
+        failures, results, llm_calls, analyses = [], [], [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
+        page.on("request", lambda request: analyses.append(request.url) if request.url.endswith("/api/analyze") else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         chat = page.locator("#assistente")
@@ -43,6 +69,17 @@ def main():
             expect(page.get_by_role("navigation", name="Histórico de resultados").locator("ol > li")).to_have_count(len(results))
             return result
 
+        def shot(name):
+            """Captura após a animação de 1,5 s do Recharts, para registrar o estado final."""
+            page.wait_for_timeout(1600)
+            page.screenshot(path=str(OUTPUT / name), full_page=True)
+
+        def reveal(summary):
+            """Os detalhes permanecem montados entre resultados; só abre se estiver fechado."""
+            details = page.locator("#resultados details", has=page.locator("summary", has_text=summary))
+            if not details.evaluate("element => element.open"):
+                details.locator("summary").click()
+
         send("Olá")
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
@@ -53,7 +90,12 @@ def main():
         assert initial["total_rows"] == (62 if real else 3)
         assert {row["Período"] for row in initial["rows"]} == {"202406"}
         assert all(row["Densidade por 1.000"] == row["Quantidade"] / row["População"] * 1000 for row in initial["rows"])
-        original = json.dumps(initial, sort_keys=True)
+        assert initial["metadata"]["universe"]["kind"] == "selection"
+        assert {item["state"] for item in initial["metadata"]["universe"]["members"]} == {"AM"}
+        # O resultado é apresentado dentro da conversa, com a tabela do motor.
+        expect(chat.locator("#resultados .data-table tbody tr")).to_have_count(62 if real else 3)
+        shot("block1-01-densidade-amazonas.png")
+        density = {row["Território"]: row["Densidade por 1.000"] for row in initial["rows"]}
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         selection.get_by_role("button", name="Limpar seleção", exact=True).click()
         for name, code in [("MANAUS", "130260"), ("TEFE", "130420"), ("PARINTINS", "130340")]:
@@ -68,22 +110,51 @@ def main():
         compared = calculate()
         assert compared["total_rows"] == 3
         assert compared["metadata"]["options"]["territory_ids"] == ["code:130260", "code:130420", "code:130340"]
+        # Mesmos valores da densidade inicial: a seleção não altera o cálculo de cada membro.
+        assert {row["Período"] for row in compared["rows"]} == {"202406"}
+        assert all(row["Densidade por 1.000"] == density[row["Território"]] for row in compared["rows"])
+        shot("block1-02-comparacao.png")
         send("Mostre a evolução dos municípios selecionados.")
         inline.get_by_label("Confirmo que os quantitativos e os períodos são comparáveis.").check()
         inline.get_by_label("Os territórios correspondem às mesmas unidades ao longo do tempo.").check()
         temporal = calculate()
         assert temporal["total_rows"] == 3
         assert len(temporal["detail_rows"]) == (66 if real else 12)
+        # Cada competência permanece separada; extremos e variação vêm da própria série.
+        detail = temporal["detail_rows"]
+        assert len({(row["Território"], row["Período"]) for row in detail}) == len(detail)
+        value = "Densidade por 1.000" if temporal["metadata"]["indicator"] == "density" else "Quantidade"
+        for row in temporal["rows"]:
+            series = sorted((item["Período"], item[value]) for item in detail if item["Território"] == row["Território"])
+            assert (row["Período inicial"], row["Inicial"]) == series[0] and (row["Período final"], row["Final"]) == series[-1]
+            assert row["Variação absoluta"] == row["Final"] - row["Inicial"]
+            if value == "Densidade por 1.000":
+                assert dict(series)["202406"] == density[row["Território"]]
+        shot("block1-03-evolucao.png")
         previous = page.get_by_role("navigation", name="Histórico de resultados")
         previous.get_by_role("button", name="1. Densidade de profissionais", exact=False).click()
-        expect(page.locator("#resultados .data-table tbody tr")).to_have_count(62 if real else 3)
-        page.locator("#resultados").get_by_text("Consultar solicitação e parâmetros", exact=True).click()
-        expect(page.locator("#resultados").get_by_text("Solicitação: Mostre a densidade médica dos municípios do Amazonas em junho de 2024.", exact=True)).to_be_visible()
+        board = page.locator("#resultados")
+        expect(board.locator(".data-table tbody tr")).to_have_count(62 if real else 3)
+        reveal("Consultar solicitação e parâmetros")
+        expect(board.get_by_text("Solicitação: Mostre a densidade médica dos municípios do Amazonas em junho de 2024.", exact=True)).to_be_visible()
         with page.expect_download() as download:
-            page.locator("#resultados").get_by_role("button", name="Método e parâmetros", exact=True).click()
+            board.get_by_role("button", name="Método e parâmetros", exact=True).click()
         exported = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
         assert exported["result_id"] == initial["result_id"] and exported["currency"] == "NAO_VIGENTE"
-        assert json.dumps(initial, sort_keys=True) == original
+        assert exported["options"]["period_filter"] == "202406" and exported["execution_key"] == initial["metadata"]["execution_key"]
+        # O CSV reexportado do histórico coincide com a resposta original: nada foi alterado em silêncio.
+        with page.expect_download() as download:
+            board.get_by_role("button", name="CSV", exact=True).click()
+        assert_same_rows(exported_rows(download), initial["rows"])
+        shot("block1-04-historico.png")
+        # Reutilização do conjunto: membros do resultado alimentam a seleção atual sem alterá-lo.
+        reveal("Selecionar territórios deste resultado")
+        member = board.get_by_label(re.compile(r"\[130420\]"))
+        member.uncheck()
+        expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
+        member.check()
+        expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
+        expect(board.locator(".data-table tbody tr")).to_have_count(62 if real else 3)
 
         send("Agregue os municípios selecionados.")
         inline.get_by_label("Escolher períodos da análise").click()
@@ -95,11 +166,34 @@ def main():
         selected_rows = [row for row in initial["rows"] if any(code in row["Território"] for code in ("130260", "130420", "130340"))]
         assert aggregate["rows"][0]["Quantidade"] == sum(row["Quantidade"] for row in selected_rows)
         assert aggregate["rows"][0]["População"] == sum(row["População"] for row in selected_rows)
-        assert "possível dupla contagem" in aggregate["rows"][0]["Tipo"]
+        assert aggregate["rows"][0]["Densidade por 1.000"] == aggregate["rows"][0]["Quantidade"] / aggregate["rows"][0]["População"] * 1000
+        assert "possível dupla contagem" in aggregate["rows"][0]["Tipo"] and "Unidades distintas" not in aggregate["rows"][0]["Tipo"]
+        assert aggregate["metadata"]["evaluability"]["status"] == "AVALIAVEL_COM_LIMITACOES"
+        with page.expect_download() as download:
+            board.get_by_role("button", name="CSV", exact=True).click()
+        assert_same_rows(exported_rows(download), aggregate["rows"])
+        shot("block1-05-agregacao.png")
         # Repetição exata recupera o resultado sem nova requisição/cálculo.
         inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         expect(previous.locator("ol > li")).to_have_count(4)
+
+        # Retomada: parâmetros e seleção da comparação voltam; o cálculo idêntico é reaproveitado.
+        previous.get_by_role("button", name="2. Comparação territorial", exact=False).click()
+        reveal("Consultar solicitação e parâmetros")
+        board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
+        expect(page.get_by_text("Parâmetros e seleção restaurados", exact=False)).to_be_visible()
+        expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
+        calls = len(analyses)
+        button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
+        expect(button).to_be_enabled(timeout=60000)
+        button.click()
+        expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
+        expect(board.get_by_test_id("result-status")).to_contain_text("válido e vigente")
+        expect(previous.get_by_role("button", name="2. Comparação territorial", exact=False)).to_have_attribute("aria-pressed", "true")
+        expect(previous.locator("ol > li")).to_have_count(4)
+        assert len(analyses) == calls, "a retomada exata não deve recalcular"
+        shot("block1-06-retomada.png")
 
         # Teclado/toque e dimensões móveis preservam a navegação e as ações.
         for width in (390, 768):
@@ -107,6 +201,7 @@ def main():
             page.get_by_role("button", name="Abrir menu", exact=True).click()
             page.get_by_role("button", name="Fechar menu", exact=True).click()
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+            shot(f"block1-07-largura-{width}.png")
         search = selection.get_by_role("searchbox")
         search.focus()
         expect(search).to_be_focused()
@@ -119,7 +214,8 @@ def main():
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         assert not llm_calls, llm_calls
         assert not failures, failures
-        print("Bloco 1: 10 etapas executadas; 4 resultados reais do motor; histórico, reutilização, exportação e responsividade aprovados; catálogo=" + ("Brasil real" if real else "sintético controlado"))
+        print("Bloco 1: 10 etapas executadas; 4 resultados reais do motor; retomada sem recálculo; CSV/JSON conferidos contra o motor; "
+              "histórico, reutilização e responsividade aprovados; catálogo=" + ("Brasil real" if real else "sintético controlado"))
         browser.close()
 
 
