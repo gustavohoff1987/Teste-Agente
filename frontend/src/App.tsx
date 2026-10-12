@@ -1011,6 +1011,7 @@ function App() {
         selecting={inspecting}
         onSelectAnalysis={selectAnalysis}
         sourceChoice={sourceChoice}
+        sourceReady={!!inspection && !inspection.requires_sheet && !inspecting}
         sourceSummary={usingBrazil
           ? inspection && !inspecting ? "As fontes do Brasil e dos municípios estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando as fontes do Brasil."
           : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."
