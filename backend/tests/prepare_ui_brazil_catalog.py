@@ -1,6 +1,9 @@
 """Instala somente bases sintéticas locais para o teste de navegação da CI."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from openpyxl import Workbook
 from install_brazil_data import install
