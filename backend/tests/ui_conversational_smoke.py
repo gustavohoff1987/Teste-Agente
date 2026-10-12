@@ -67,7 +67,7 @@ def main():
         page.reload()
         assistant = page.locator("#assistente")
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
-        expect(assistant.get_by_text("As fontes do Brasil e dos municípios estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
         scope = assistant.get_by_role("combobox", name="Abrangência territorial")
         expect(scope).to_have_value("municipal")
@@ -76,6 +76,50 @@ def main():
         scope = assistant.get_by_role("combobox", name="Abrangência territorial")
         scope.select_option("municipal")
         expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
+        # Uma pergunta natural sugere automaticamente a operação e mostra
+        # a categoria da base como escolha, não como equivalência inventada.
+        page.reload()
+        assistant = page.locator("#assistente")
+        assistant.get_by_role("button", name="Usar dados do Brasil").click()
+        expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
+        def mock_interpret(route):
+            route.fulfill(status=200, content_type="application/json", body=__import__("json").dumps({
+                "origin": "INTERPRETACAO_LLM", "executed": False,
+                "requires_confirmation": True, "model": "mock", "privacy": "teste",
+                "note": "", "reply": "A categoria mencionada não foi confirmada na base. Confira seu nome.",
+                "proposal": {"operation": "counts", "indicator": "quantity",
+                             "period": "", "category": "médicos", "territory": "Brasil"},
+                "verification": {"source": "BACKEND_PREFLIGHT",
+                                 "capability_status": "unavailable",
+                                 "slots": {"period":"not_requested",
+                                           "category":"not_confirmed_in_dataset",
+                                           "territory":"requires_unit_confirmation"},
+                                 "blockers": ["A categoria mencionada não foi confirmada."],
+                                 "ready_to_execute": False, "next_action": "confirm_in_interface"},
+                "clarification": {"code": "CATEGORIA_NAO_CONFIRMADA",
+                                  "prompt": "A categoria mencionada não foi confirmada na base.",
+                                  "reason": "Correspondência não reconhecida",
+                                  "source": "CATALOGO_LOCAL",
+                                  "choices": [], "answered": False}
+            }, ensure_ascii=False))
+        page.route("**/api/llm/interpret-context", mock_interpret)
+        assistant.locator("#assistant-input").fill("Quero saber quantos médicos existem no Brasil")
+        assistant.get_by_role("button", name="Enviar mensagem").click()
+        expect(assistant.get_by_text("Para responder à sua pergunta, vou preparar uma análise de quantitativos", exact=False)).to_be_visible(timeout=30000)
+        assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
+        inline = assistant.locator("#preparacao-conversacional")
+        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
+        expect(inline.get_by_text("Você mencionou “médicos”", exact=False)).to_be_visible()
+        category = inline.get_by_role("combobox", name="Filtrar por categoria")
+        expect(category).to_be_visible()
+        expect(inline.get_by_role("button", name="Confirmar correspondências")).to_be_disabled()
+        category.select_option("MEDICINA")
+        inline.get_by_role("combobox", name="Filtrar por período").select_option("202406")
+        expect(inline.get_by_role("button", name="Confirmar correspondências")).to_be_enabled()
+        assert inline.get_by_text("A categoria está em").count() == 0
+        assert inline.get_by_text("O território está em").count() == 0
+        assert inline.get_by_text("Vamos preparar esta análise").count() == 0
+        assert inline.get_by_text("A", exact=True).count() == 0
         context.close()
         browser.close()
     print("CONVERSATIONAL UI PASS: dual Brazil sources, source in chat, inline edits, analysis and export.")
