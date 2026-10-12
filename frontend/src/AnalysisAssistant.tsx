@@ -140,7 +140,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     </div>
 
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
-      <p>{loadingStatus ? "Conectando à conversa..." : "O Gemini está indisponível. Saudações, orientações do agente e análises determinísticas continuam disponíveis."}</p>
+      <p>{loadingStatus ? "Preparando a conversa..." : "O assistente está temporariamente indisponível para perguntas livres. Você ainda pode escolher e executar análises."}</p>
       {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
         className="mt-2 inline-flex items-center gap-1 font-semibold underline">
         <RefreshCw size={13}/> Tentar novamente
@@ -194,29 +194,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
                     {choice.label}
                   </button>)}
               </div>}
-            {turn.proposal && (turn.proposal.operation || turn.proposal.period || turn.proposal.category || turn.proposal.territory) && <div className="mt-3 space-y-2 border-t border-line pt-3 text-xs">
-              <p className="font-semibold text-slate-700">Proposta sujeita a confirmação</p>
-              {turn.proposal.period && <p>Período mencionado: {turn.proposal.period}</p>}
-              {turn.proposal.category && <p>Categoria mencionada: {turn.proposal.category}</p>}
-              {turn.proposal.territory && <p>Território mencionado: {turn.proposal.territory}</p>}
+            {turn.proposal && (turn.proposal.operation || turn.proposal.period || turn.proposal.category || turn.proposal.territory) && <div className="mt-3 space-y-2 text-xs leading-6">
+              <p>Podemos seguir com {turn.proposal.operation ? ANALYSIS[turn.proposal.operation].toLowerCase() : "sua análise"}
+                {turn.proposal.period ? " no período " + turn.proposal.period : ""}
+                {turn.proposal.category ? ", para " + turn.proposal.category : ""}.
+                Você poderá ajustar os campos na própria conversa.</p>
               {turn.proposal.operation && <button type="button"
                 onClick={() => onSelectAnalysis(turn.proposal!.operation!)}
-                className="no-print inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 font-bold text-teal hover:bg-cyan-100">
-                Preparar {ANALYSIS[turn.proposal.operation]} <ArrowRight size={14}/>
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1 font-semibold text-teal hover:bg-blue-50">
+                Continuar com {ANALYSIS[turn.proposal.operation]} <ArrowRight size={13}/>
               </button>}
-              {turn.verification && <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-slate-700">
-                <p className="font-semibold">O que falta conferir</p>
-                <p className="mt-1">{STATUS_LABEL[turn.verification.capability_status]}</p>
-                {(["period", "category", "territory"] as const).filter(k => !!turn.proposal?.[k]).map(k =>
-                  <p key={k} className="mt-1">{k === "period" ? "Período" : k === "category" ? "Categoria" : "Território"}: {" "}
-                    {SLOT_LABEL[turn.verification!.slots[k]] || "Verificação pendente"}</p>)}
-                {turn.verification.blockers.length > 0 && <div className="mt-2">
-                  <p className="font-semibold">Pontos a resolver:</p>
-                  <ul className="ml-4 mt-1 list-disc space-y-1">{turn.verification.blockers.map((reason, i) =>
-                    <li key={i}>{reason}</li>)}</ul>
-                </div>}
-              </div>}
-              
+              {turn.verification?.capability_status === "unavailable" &&
+                <p className="text-amber-800">Ainda há informações necessárias para essa análise. Confira as opções abaixo.</p>}
             </div>}
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
@@ -252,9 +241,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       {error && <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
         <AlertCircle size={16} className="shrink-0"/>{error}
       </p>}
-      <p className="flex items-center gap-1.5 text-[11px] text-slate-500"><ShieldCheck size={14} className="text-teal"/>
-        As mensagens são tratadas para reduzir a exposição de dados antes de serem encaminhadas a um serviço externo de IA. Arquivos e registros individuais não são enviados a esse serviço.
-      </p>
+      <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
+        <p className="mt-1">As mensagens passam por proteção de identificadores. Arquivos e registros individuais não são enviados ao serviço de IA.</p>
+      </details>
     </form>
   </section>;
 }
