@@ -80,6 +80,20 @@ def test_unknown_period_is_not_confirmed_via_clarification():
     assert "revisar o período" in question["prompt"]
 
 
+def test_unmatched_profession_is_a_guided_choice_not_a_user_error():
+    proposal = {"operation": "counts", "indicator": "quantity",
+                "period": "", "category": "médicos", "territory": ""}
+    verification = {"slots": {"period": "not_requested",
+                               "category": "not_confirmed_in_dataset",
+                               "territory": "not_requested"}}
+    question = clarification_for("Quero saber quantos médicos existem no Brasil",
+                                 proposal, verification)
+    assert question["code"] == "CATEGORIA_NAO_CONFIRMADA"
+    assert "localizar nos dados" in question["prompt"]
+    assert "não foi confirmada" not in question["prompt"]
+    assert question["choices"] == []
+
+
 def test_local_meta_topics_do_not_call_gemini_or_execute(monkeypatch):
     async def unexpected(*_args):
         raise AssertionError("Pergunta do catálogo não deve chamar o Gemini.")
