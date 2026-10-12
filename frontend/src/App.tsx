@@ -48,6 +48,9 @@ type Inspection = {
   suggested_mapping: Mapping; periods: string[]; categories: string[]; territories: string[];
   column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
   derived_fields?: { column: string; role: Role; source_columns: string[]; format: string }[];
+  curated_defaults?: { mapping: Mapping; category: string; scope: "national" | "municipal"; count_unit: string;
+    confirmed_roles: Role[]; fts_scope_confirmed: boolean; object_confirmed: boolean;
+    population_denominator_confirmed: boolean } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
     default_scopes: Record<Operation, "national" | "municipal"> };
 };
@@ -256,24 +259,25 @@ function App() {
       setSourceVersion(details.source?.version || "");
       setMapping(details.suggested_mapping);
       setHierarchyColumns({});
-      setConfirmedRoles([]);
-      setFtsScopeConfirmed(false);
+      setConfirmedRoles(details.curated_defaults?.confirmed_roles || []);
+      setFtsScopeConfirmed(!!details.curated_defaults?.fts_scope_confirmed);
       setSinglePeriodConfirmed(false);
-      setCountUnit("");
+      setCountUnit(details.curated_defaults?.count_unit || "");
       setCustomCountUnit("");
-      setPopulationAligned(false);
+      setPopulationAligned(!!details.curated_defaults?.population_denominator_confirmed);
       setTemporalCompared(false);
       setTerritoryStable(false);
       setLongitudinalIdentity(false);
       setIdentityCountConfirmed(false);
       setCategoryConstant("");
       setObjectDraft(details.suggested_category_constant || "");
-      setObjectConfirmed(false);
+      setObjectConfirmed(!!details.curated_defaults?.object_confirmed);
+      setInlineConfirmed(!!details.curated_defaults);
       setPreflight(details.preflight);
       setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
-      setCategoryFilter("");
+      setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
       setResolutions({});
       setConfirmedNoOverlap(false);
@@ -349,19 +353,25 @@ function App() {
   function chooseBrazil() {
     if (!privacy.accepted) return;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(true); setInlineConfirmed(false); setRequestedCategory(""); setFile(null); setSheet(""); setBrazilLevel("auto");
-    void inspectFile(null, "", "auto", active || "");
+    setUsingBrazil(true); setInlineConfirmed(false); setFile(null); setSheet("");
+    void inspectFile(null, "", brazilLevel, active || "");
   }
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
     setRequestedCategory(proposal?.category || "");
+    const territory = (proposal?.territory || "").normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const hinted = /municipio|municipios|municipal|cidade|cidades/.test(territory) ? "municipal"
+      : /^(?:brasil|pais|nacional)$/.test(territory) ? "national" : "auto";
+    if (hinted !== "auto") setBrazilLevel(hinted);
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
     setActive(operation); setResult(null); setError(""); setInlineConfirmed(false);
     if (usingBrazil) {
-      const nextScope = brazilLevel === "auto" ? inspection?.source?.default_scopes[operation] : brazilLevel;
-      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", brazilLevel, operation, true);
+      const target = hinted !== "auto" ? hinted : brazilLevel;
+      const nextScope = target === "auto" ? inspection?.source?.default_scopes[operation] : target;
+      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", target, operation, true);
     }
   }
   // Somente uma correspondência literal inequívoca permite aplicar automaticamente
@@ -837,6 +847,7 @@ function App() {
     <div id="preparacao-conversacional"><ConversationalPreparation
       operation={active}
       sourceBrazil={usingBrazil}
+      curated={!!inspection.curated_defaults}
       scope={inspection.source?.scope || "municipal"}
       onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
       columns={inspection.columns}
