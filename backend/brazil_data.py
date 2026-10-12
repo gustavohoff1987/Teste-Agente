@@ -48,5 +48,4 @@ def load_brazil(scope="auto", operation="", version=""):
         "dataset": "brazil", "label": "Dados do Brasil", "scope": selected,
         "version": current_version, "default_scopes": DEFAULT_SCOPES,
         "available_scopes": list(FILES),
-        "sources": [{"scope": key, "filename": filename} for key, filename in FILES.items()],
     }
