@@ -40,6 +40,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [started, setStarted] = useState(false);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -61,9 +62,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
 
   useEffect(() => { void refreshStatus(); }, [apiBase]);
   useEffect(() => {
-    // A nova base ou os novos parâmetros invalidam propostas anteriores.
+    // Mudanças de fonte invalidam interpretações pendentes, mas não apagam o
+    // pedido que levou o usuário a escolher seus dados.
     revision.current += 1;
-    setTurns([]);
     setError("");
   }, [contextVersion]);
   useEffect(() => {
@@ -72,12 +73,36 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
   }, [validationVersion]);
   useEffect(() => {
     if (turns.length) chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [turns]);
+  }, [turns, sourceReady, active]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
     if (sending || !privacyAccepted || message.length < 2 || message.length > 800) return;
+    setStarted(true);
+    setDraft("");
+    const followup = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i.test(message);
+    const append = (content: string) => setTurns(previous => [
+      ...previous, {role:"user", content:message}, {role:"assistant", content}
+    ]);
+    // Não reinterpretar o mesmo pedido quando a base ou alguma confirmação
+    // necessária ainda não foi escolhida. O próximo passo já é conhecido.
+    if (!sourceReady && active && followup) {
+      append("Para continuar, escolha os dados que deseja utilizar. Depois, mostrarei os campos que precisam da sua confirmação.");
+      return;
+    }
+    if (sourceReady && active && followup) {
+      append("Sua análise já está selecionada. Confira os campos e as confirmações apresentados logo abaixo; quando estiverem completos, poderá calcular e ver o resultado aqui.");
+      return;
+    }
+    if (!hasSource && /^(?:ol[aá]|oi|bom dia|boa tarde|boa noite|olá[!. ]+)$/i.test(message)) {
+      append("Olá! Para começar, prefere usar os dados do Brasil ou importar seus próprios dados?");
+      return;
+    }
+    if (hasSource && !sourceReady) {
+      append("Estou preparando os dados. Assim que estiverem disponíveis, continuaremos a análise.");
+      return;
+    }
     const requestRevision = revision.current;
     const history = turns.filter(t => t.role === "user").slice(-4).map(t => t.content);
     setSending(true);
@@ -111,15 +136,17 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           (hasSource && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       const suggested = validated.proposal.operation;
-      const responseText = suggested
-        ? "Para responder à sua pergunta, vou preparar uma análise de " + ANALYSIS[suggested].toLowerCase() + ". " +
-          (validated.proposal.category
-            ? "Vamos conferir qual categoria corresponde a “" + validated.proposal.category + "” nos dados e escolher o período antes de calcular."
-            : "Confira os parâmetros destacados a seguir; podemos ajustá-los antes de calcular.")
-        : validated.reply;
+      const responseText = !sourceReady
+        ? suggested
+          ? "Entendi. Podemos fazer essa análise de " + ANALYSIS[suggested].toLowerCase() +
+            ". Primeiro, escolha se deseja usar os dados do Brasil ou importar os seus. Depois seguiremos diretamente com a análise."
+          : "Para começar, prefere usar os dados do Brasil ou importar seus próprios dados?"
+        : suggested
+          ? "Vamos seguir com a análise de " + ANALYSIS[suggested].toLowerCase() +
+            ". Já organizei os campos disponíveis; confira abaixo apenas as escolhas necessárias para obter o resultado."
+          : validated.reply;
       setTurns(previous => [...previous, {role:"user", content:message},
         {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);
-      setDraft("");
       // A interpretação escolhe a capacidade, não executa a análise.
       // O usuário ainda confirma recortes e condições metodológicas.
       if (suggested) onSelectAnalysis(suggested, validated.proposal);
@@ -167,23 +194,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           <div className="flex items-start gap-3">
             <BrandAvatar size={33} className="shrink-0"/>
             <div className="space-y-2">
-              <p className="font-semibold text-ink">Olá! Vamos começar pelos seus dados.</p>
-              <p>Você prefere usar os dados do Brasil ou importar seus próprios dados?</p>
+              <p className="font-semibold text-ink">Olá! Sou o Agente Diagnóstico Territorial.</p>
+              <p>Conte o que deseja analisar ou faça uma pergunta. Vou orientar os próximos passos.</p>
             </div>
           </div>
-          {sourceChoice}
-          {sourceReady && <>
-            <div className="flex items-start gap-3 pt-2">
-              <BrandAvatar size={33} className="shrink-0"/>
-              <div className="space-y-2">
-                <p>{sourceSummary || "Seus dados estão disponíveis para análise."}</p>
-                <p>Que tipo de análise você deseja realizar?</p>
-              </div>
-            </div>
-            <ChatAnalysisCarousel features={features} selected={active}
-              disabled={selecting} onSelect={onSelectAnalysis}/>
-          </>}
-          {!sourceReady && <p className="text-xs text-slate-500">Você também pode escrever sua pergunta abaixo.</p>}
+
         </div>
         {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
           {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
@@ -208,6 +223,24 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
         </div>)}
+        {started && !sourceReady && <div className="ml-9 space-y-2">
+          {!hasSource && <p className="text-sm text-slate-700">Escolha os dados para prosseguirmos:</p>}
+          {sourceChoice}
+        </div>}
+        {sourceReady && <div className="ml-9 max-w-3xl space-y-3 text-sm text-slate-700">
+          <div className="flex items-start gap-2">
+            <BrandAvatar size={27} className="shrink-0"/>
+            <p>{sourceSummary || "Seus dados estão disponíveis para análise."}
+              {!active && " Qual análise você gostaria de realizar?"}</p>
+          </div>
+          {!active && <ChatAnalysisCarousel features={features} selected={active}
+            disabled={selecting} onSelect={onSelectAnalysis}/>}
+          {active && <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer">Escolher outra análise</summary>
+            <div className="mt-2"><ChatAnalysisCarousel features={features} selected={active}
+              disabled={selecting} onSelect={onSelectAnalysis}/></div>
+          </details>}
+        </div>}
         {preparation}
         {resultContent}
         {sending && <p role="status" className="flex items-center gap-2 text-sm text-teal">
