@@ -459,7 +459,6 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
             "Proposta examinada contra o pré-exame da base no servidor. "
             "A autorização e a execução permanecem pendentes."
         )
-        response["reply"] += " A situação dos requisitos foi verificada pelo Python."
     if clarification is None:
         clarification = clarification_for(
             request.message, response["proposal"], response.get("verification"))
