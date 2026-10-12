@@ -28,15 +28,21 @@ export default function PeriodSelection(p: Props) {
   const periods = [...p.periods].sort((a,b) => a.localeCompare(b, "pt-BR", {numeric:true}));
   const toggleMode = () => {
     if (!p.allowMultiple) return;
-    setMultiple(v => !v);
-    p.onSingle("");
-    p.onMultiple([]);
+    if (multiple) {
+      setMultiple(false);
+      p.onMultiple([]);
+      p.onSingle("");
+    } else {
+      setMultiple(true);
+      p.onSingle("");
+      p.onMultiple(periods);
+    }
     setExpanded(true);
   };
   const values = multiple ? p.selected : p.value ? [p.value] : [];
   const description = !values.length
     ? multiple ? "Todos os períodos" : "Escolher período"
-    : multiple ? values.length + (values.length === 1 ? " período" : " períodos") :
+    : multiple ? (values.length === periods.length ? "Todos os períodos" : values.length + (values.length === 1 ? " período" : " períodos")) :
       readablePeriod(values[0]);
   return <div className="mt-2 space-y-2">
     <div className="flex flex-wrap items-center gap-2">
@@ -47,7 +53,7 @@ export default function PeriodSelection(p: Props) {
         </summary>
         <div className="mt-2 max-h-64 min-w-[230px] max-w-full overflow-y-auto rounded-lg border border-line bg-white p-2 shadow-sm">
           {multiple && <button type="button" className="mb-2 text-xs font-semibold text-teal underline"
-            onClick={()=>p.onMultiple([])}>Todos os períodos disponíveis</button>}
+            onClick={()=>p.onMultiple(periods)}>Todos os períodos disponíveis</button>}
           <div className="flex flex-wrap gap-1.5">
             {periods.map(period => {
               const chosen = values.includes(period);
