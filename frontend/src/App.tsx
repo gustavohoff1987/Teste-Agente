@@ -370,7 +370,8 @@ function App() {
     if (hinted !== "auto") setBrazilLevel(hinted);
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
-    setActive(operation); setResult(null); setError(""); setInlineConfirmed(false);
+    setActive(operation); setResult(null); setError("");
+    setInlineConfirmed(!!inspection?.curated_defaults && !inspecting);
     if (usingBrazil) {
       const target = hinted !== "auto" ? hinted : brazilLevel;
       const nextScope = target === "auto" ? inspection?.source?.default_scopes[operation] : target;
