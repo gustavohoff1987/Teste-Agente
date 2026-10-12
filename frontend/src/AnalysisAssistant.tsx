@@ -18,7 +18,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -110,9 +110,19 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           !["INTERPRETACAO_LLM", "CANAL_SISTEMICO"].includes(validated.origin) ||
           (hasSource && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
+      const suggested = validated.proposal.operation;
+      const responseText = suggested
+        ? "Para responder à sua pergunta, vou preparar uma análise de " + ANALYSIS[suggested].toLowerCase() + ". " +
+          (validated.proposal.category
+            ? "Vamos conferir qual categoria corresponde a “" + validated.proposal.category + "” nos dados e escolher o período antes de calcular."
+            : "Confira os parâmetros destacados a seguir; podemos ajustá-los antes de calcular.")
+        : validated.reply;
       setTurns(previous => [...previous, {role:"user", content:message},
-        {role:"assistant", content:validated.reply, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);
+        {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);
       setDraft("");
+      // A interpretação escolhe a capacidade, não executa a análise.
+      // O usuário ainda confirma recortes e condições metodológicas.
+      if (suggested) onSelectAnalysis(suggested, validated.proposal);
       void refreshStatus();
     } catch (exc) {
       if (requestRevision === revision.current)
@@ -158,7 +168,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
             <BrandAvatar size={33} className="shrink-0"/>
             <div className="space-y-2">
               <p className="font-semibold text-ink">Olá! Vamos começar pelos seus dados.</p>
-              <p>Você prefere utilizar as fontes brasileiras ou importar uma base própria?</p>
+              <p>Você prefere usar os dados do Brasil ou importar seus próprios dados?</p>
             </div>
           </div>
           {sourceChoice}
@@ -194,19 +204,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
                     {choice.label}
                   </button>)}
               </div>}
-            {turn.proposal && (turn.proposal.operation || turn.proposal.period || turn.proposal.category || turn.proposal.territory) && <div className="mt-3 space-y-2 text-xs leading-6">
-              <p>Podemos seguir com {turn.proposal.operation ? ANALYSIS[turn.proposal.operation].toLowerCase() : "sua análise"}
-                {turn.proposal.period ? " no período " + turn.proposal.period : ""}
-                {turn.proposal.category ? ", para " + turn.proposal.category : ""}.
-                Você poderá ajustar os campos na própria conversa.</p>
-              {turn.proposal.operation && <button type="button"
-                onClick={() => onSelectAnalysis(turn.proposal!.operation!)}
-                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1 font-semibold text-teal hover:bg-blue-50">
-                Continuar com {ANALYSIS[turn.proposal.operation]} <ArrowRight size={13}/>
-              </button>}
-              {turn.verification?.capability_status === "unavailable" &&
-                <p className="text-amber-800">Ainda há informações necessárias para essa análise. Confira as opções abaixo.</p>}
-            </div>}
+
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
         </div>)}
