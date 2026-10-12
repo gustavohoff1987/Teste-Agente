@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
+import PeriodSelection from "./PeriodSelection";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report";
@@ -12,6 +13,9 @@ type Capability = { status: "available" | "needs_confirmation" | "unavailable"; 
 type Props = {
   operation: AnalysisKind;
   sourceBrazil: boolean;
+  curated: boolean;
+  selectedPeriods: string[];
+  onSelectedPeriods: (periods: string[]) => void;
   scope: SourceScope;
   onScope: (scope: SourceScope) => void;
   columns: string[];
@@ -82,6 +86,73 @@ export default function ConversationalPreparation(p: Props) {
   const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
   const periodChoiceRequired = p.operation === "counts" && p.periods.length > 1 && !p.periodFilter;
   const ready = status === "available" && p.confirmed && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
+  if (p.sourceBrazil && p.curated) {
+    const isTemporal = p.operation === "temporal";
+    const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
+    const needsSinglePeriod = ["counts", "density", "aggregate", "distribution", "comparisons", "ranking"].includes(p.operation);
+    const periodReady = !needsSinglePeriod || p.periods.length <= 1 || !!p.periodFilter || p.selectedPeriods.length > 0 &&
+      p.operation === "counts";
+    const analysisReady = ready && periodReady;
+    const countWords = p.operation === "density" ? "densidade dos médicos" :
+      p.operation === "counts" ? "quantitativos de médicos" :
+      p.operation === "temporal" ? "evolução dos quantitativos de médicos" :
+      p.operation === "aggregate" ? "agregação territorial" : "análise solicitada";
+    return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
+      <div className="flex items-start gap-2">
+        <BrandAvatar size={28} className="mt-1 shrink-0"/>
+        <div className="min-w-0 flex-1 space-y-3">
+          <p>Os dados já estão preparados para {countWords}. As correspondências de território,
+            profissão e quantitativos são conhecidas pela plataforma, por isso não é necessário confirmá-las.</p>
+          <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
+            com a categoria MEDICINA e as referências temporais disponíveis.
+            {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
+          </p>
+          <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer text-teal">Alterar a abrangência territorial</summary>
+            <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
+              value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
+          </details>
+          {p.operation !== "spatial" && p.operation !== "rotation" && p.periods.length > 1 && <>
+            <p className="font-medium text-ink">{isTemporal
+              ? "Quais períodos você deseja comparar?"
+              : "Qual período você deseja analisar?"}</p>
+            <PeriodSelection periods={p.periods} value={p.periodFilter}
+              selected={p.selectedPeriods} multiple={isTemporal}
+              onSingle={p.onPeriod} onMultiple={p.onSelectedPeriods}
+              allowMultiple={allowMultiple}/>
+            {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
+              Para agregar territórios, selecione uma competência por vez.
+              A soma entre diferentes meses não representa pessoas únicas.</p>}
+          </>}
+          {p.operation === "spatial" && <p>Para calcular distâncias, confirme o referencial
+            <InlineChoice label="Referencial geodésico" value={p.crs}
+              options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>
+            e selecione o território de referência
+            <InlineChoice label="Território de referência" value={p.reference}
+              options={named(p.territories)} onChange={p.onReference}/>.</p>}
+          {requiresIndicator && <p>Deseja trabalhar com
+            <InlineChoice label="Indicador" value={p.indicator} options={indicatorOptions}
+              onChange={v=>p.onIndicator(v as "quantity" | "density" | "")}/>?</p>}
+          {p.extra}
+          {!periodReady && <p className="text-xs text-slate-600">Escolha a referência temporal para continuar.</p>}
+          {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
+          {p.confirmed && status !== "available" && !p.preparing &&
+            <p role="status" className="text-xs text-slate-600">Ainda faltam condições específicas para esta análise.
+              Você pode ajustá-las acima ou consultar as opções adicionais.</p>}
+          <div className="flex flex-wrap gap-2">
+            {p.confirmed && <button type="button" disabled={!analysisReady} onClick={p.onExecute}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+              <Play size={14}/>{p.executing ? "Calculando..." : "Calcular e mostrar resultado"}
+            </button>}
+          </div>
+          {p.advanced && status !== "available" && <details className="text-xs text-teal">
+            <summary className="cursor-pointer">Ver outras condições da análise</summary>
+            <div className="mt-2">{p.advanced}</div>
+          </details>}
+        </div>
+      </div>
+    </section>;
+  }
   return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
     <div className="flex items-start gap-2">
       <BrandAvatar size={28} className="mt-1 shrink-0"/>
