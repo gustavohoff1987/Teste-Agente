@@ -25,8 +25,12 @@ def main():
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         assistant = page.locator("#assistente")
         expect(assistant).to_be_visible()
-        assert assistant.locator("#dados").count() == 1
+        assert assistant.locator("#dados").count() == 0
         expect(page.locator("#analises")).to_have_count(0)
+        expect(assistant.get_by_text("Olá! Sou o Agente Diagnóstico Territorial.")).to_be_visible()
+        assistant.locator("#assistant-input").fill("Olá")
+        assistant.get_by_role("button", name="Enviar mensagem").click()
+        expect(assistant.locator("#dados")).to_be_visible()
         assert page.locator("#preparacao").count() == 0
 
         page.locator('input[type="file"]').set_input_files({
@@ -66,6 +70,9 @@ def main():
         # mantendo seleção explícita de abrangência e sem concatenar registros.
         page.reload()
         assistant = page.locator("#assistente")
+        assistant.locator("#assistant-input").fill("Olá")
+        assistant.get_by_role("button", name="Enviar mensagem").click()
+        expect(assistant.locator("#dados")).to_be_visible()
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
@@ -76,12 +83,11 @@ def main():
         scope = assistant.get_by_role("combobox", name="Abrangência territorial")
         scope.select_option("municipal")
         expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
-        # Uma pergunta natural sugere automaticamente a operação e mostra
-        # a categoria da base como escolha, não como equivalência inventada.
+        # O pedido inicial não carrega dados nem exige escolha antecipada.
+        # A intenção deve sobreviver à escolha da fonte e seguir até o cálculo.
         page.reload()
         assistant = page.locator("#assistente")
-        assistant.get_by_role("button", name="Usar dados do Brasil").click()
-        expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.locator("#dados")).to_have_count(0)
         def mock_interpret(route):
             route.fulfill(status=200, content_type="application/json", body=__import__("json").dumps({
                 "origin": "INTERPRETACAO_LLM", "executed": False,
@@ -102,10 +108,17 @@ def main():
                                   "source": "CATALOGO_LOCAL",
                                   "choices": [], "answered": False}
             }, ensure_ascii=False))
-        page.route("**/api/llm/interpret-context", mock_interpret)
+        page.route("**/api/llm/interpret", mock_interpret)
         assistant.locator("#assistant-input").fill("Quero saber quantos médicos existem no Brasil")
         assistant.get_by_role("button", name="Enviar mensagem").click()
-        expect(assistant.get_by_text("Para responder à sua pergunta, vou preparar uma análise de quantitativos", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.get_by_text("Entendi. Podemos fazer essa análise de quantitativos.", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.locator("#dados")).to_be_visible()
+        assert assistant.locator("#preparacao-conversacional").count() == 0
+        assistant.locator("#assistant-input").fill("certo, quantos tem?")
+        assistant.get_by_role("button", name="Enviar mensagem").click()
+        expect(assistant.get_by_text("Para continuar, escolha os dados", exact=False)).to_be_visible()
+        assistant.get_by_role("button", name="Usar dados do Brasil").click()
+        expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis. Vamos continuar", exact=False)).to_be_visible(timeout=30000)
         assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
         inline = assistant.locator("#preparacao-conversacional")
         expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
@@ -122,7 +135,7 @@ def main():
         assert inline.get_by_text("A", exact=True).count() == 0
         context.close()
         browser.close()
-    print("CONVERSATIONAL UI PASS: dual Brazil sources, source in chat, inline edits, analysis and export.")
+    print("CONVERSATIONAL UI PASS: greeting, deferred source selection, resumed intent, inline edits, dual Brazil sources, export.")
 
 
 if __name__ == "__main__":
