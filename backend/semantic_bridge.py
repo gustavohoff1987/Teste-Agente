@@ -460,7 +460,14 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if role == "territory" and assigned(role) and assigned("territory_id"):
             return (text_values(original_frame[mapped[role]]) + " [" + text_values(original_frame[mapped["territory_id"]]) + "]").dropna().unique().tolist()
         return text_values(original_frame[mapped[role]]).dropna().unique().tolist() if assigned(role) else []
+    from territorial_selection import territory_catalog
+    try:
+        territory_choices = territory_catalog(original_frame, mapped, options)
+        selection_reason = ""
+    except ValueError as exc:
+        territory_choices, selection_reason = [], str(exc)
     return {"capabilities": cap, "field_states": field_states,
+            "territory_choices": territory_choices, "selection_reason": selection_reason,
             "territorial_hierarchy": describe_hierarchy(original_frame, mapped, options.get("hierarchy_columns")),
             "multiplicity": multiplicity(frame, mapped, options),
             "values": {"territories": values("territory"), "periods": values("period"),

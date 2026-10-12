@@ -8,6 +8,7 @@ from itertools import islice
 
 import numpy as np
 import pandas as pd
+from territorial_selection import selected_frame, selection_coverage
 
 
 class ConfirmationRequired(ValueError):
@@ -32,7 +33,7 @@ def numbers(series, label, options):
 
 
 def scoped(frame, mapping, options):
-    frame = frame.copy()
+    frame = selected_frame(frame, mapping, options).copy()
     selected_periods = options.get("period_filters") or []
     if selected_periods:
         if (not isinstance(selected_periods, list) or
@@ -57,6 +58,7 @@ def scoped(frame, mapping, options):
             frame = frame[text_values(frame[col]) == str(value).strip()]
     if frame.empty:
         raise ValueError("Nenhum registro corresponde aos filtros selecionados.")
+    selection_coverage(frame, mapping, options)
     return frame
 
 
@@ -146,6 +148,8 @@ def canonical_crs(value):
 
 
 def needs_population(mapping, options, operation):
+    if operation == "comparisons":
+        return options.get("comparison_indicator", "density") == "density"
     if operation in ("distribution", "temporal", "report"):
         return options.get(operation + "_indicator") == "density"
     return operation in ("density", "comparisons", "ranking", "aggregate")
@@ -276,6 +280,8 @@ def rotation_data(frame, mapping, options):
 
 
 def validate_operation(frame, mapping, options, operation, prepared=None):
+    if operation == "comparisons" and options.get("comparison_indicator", "density") not in ("quantity", "density"):
+        raise ValueError("Indicador de comparação inválido: escolha quantidade ou densidade.")
     if operation in ("distribution", "temporal", "report"):
         if options.get(operation + "_indicator") not in ("quantity", "density"):
             raise ConfirmationRequired("Escolha o indicador desta análise: quantidade ou densidade por 1.000 habitantes.")

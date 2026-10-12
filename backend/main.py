@@ -11,6 +11,8 @@ import io
 import json
 import os
 import unicodedata
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -27,6 +29,8 @@ from brazil_data import load_brazil
 from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation
+from territorial_selection import universe_metadata
+from exploration import interpret_exploration, operation_for
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -153,6 +157,14 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
     result["metadata"]["territorial_hierarchy"] = describe_hierarchy(df, mapping, options.get("hierarchy_columns"))
+    universe = universe_metadata(scoped(df, mapping, options), mapping, options)
+    result["metadata"]["universe"] = universe
+    result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if any(
+        "Não avaliável" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
+        "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
+    if operation in ("ranking", "distribution", "comparisons"):
+        result["notes"].append("Universo desta execução: " + universe["classification_scope"] +
+                               ". Posições/classes anteriores não são transferidas para este universo.")
     if df.attrs.get("source"):
         result["metadata"]["source"] = df.attrs["source"]
     for field in df.attrs.get("derived_fields", []):
@@ -301,30 +313,36 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             else:
                 row["Tendência"] = "Não avaliável (< 4 observações)"
             rows.append(row)
-        return _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
-                       rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução."])
+        result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
+                       rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução.",
+                                    "Cada competência é independente; não se somam pessoas de períodos diferentes."])
+        result["detail_rows"] = _records(data[keys + [metric]].rename(columns=cols))
+        return result
     if operation == "comparisons":
         rows = []
+        metric = options.get("comparison_indicator", "density")
+        metric_label = "Densidade por 1.000" if metric == "density" else "Quantidade"
         # AT-84: a cardinalidade é a do conjunto solicitado, não a dos objetos que restarem por recorte.
         pair = data.territory.nunique() == 2
         for (period, category), group in data.groupby(["period", "category"], sort=True):
             group = group.sort_values("territory")
             common = {"Período": period, "Categoria": category,
-                      "Indicador": "Densidade por 1.000", "Unidade de contagem": count_unit_label(mapping, options)}
+                      "Indicador": metric_label, "Unidade de contagem": count_unit_label(mapping, options)}
             if pair and len(group) == 2:
                 a, b = group.iloc[0], group.iloc[1]
-                rows.append({**common, "Objeto A": a.territory, "Valor A": a.density,
-                    "Objeto B": b.territory, "Valor B": b.density,
-                    "Relação A/B": "IGUALDADE" if a.density == b.density else "MAIOR" if a.density > b.density else "MENOR",
-                    "Diferença A − B": a.density - b.density, "Condição": "Comparável"})
+                rows.append({**common, "Objeto A": a.territory, "Valor A": a[metric],
+                    "Objeto B": b.territory, "Valor B": b[metric],
+                    "Relação A/B": "IGUALDADE" if a[metric] == b[metric] else "MAIOR" if a[metric] > b[metric] else "MENOR",
+                    "Diferença A − B": a[metric] - b[metric], "Condição": "Comparável"})
             else:
-                values = sorted(group.density.unique())
+                values = sorted(group[metric].unique())
                 following = dict(zip(values, [*values[1:], None]))
-                equal_counts = group.density.value_counts()
+                equal_counts = group[metric].value_counts()
                 for item in group.itertuples():
-                    rows.append({**common, "Território": item.territory, "Densidade por 1.000": item.density,
-                        "Próximo valor maior": following[item.density],
-                        "Unidades com mesmo valor": int(equal_counts[item.density]),
+                    value = getattr(item, metric)
+                    rows.append({**common, "Território": item.territory, metric_label: value,
+                        "Próximo valor maior": following[value],
+                        "Unidades com mesmo valor": int(equal_counts[value]),
                         "Condição": "Comparável" if len(group) > 1 else "Não avaliável: menos de dois territórios neste recorte"})
         # Períodos com cardinalidades diferentes mantêm todas as colunas no CSV.
         columns = dict.fromkeys(key for row in rows for key in row)
@@ -563,6 +581,30 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.post("/api/exploration/interpret")
+async def exploration_interpret(message: str = Form(...), file: UploadFile | None = File(None),
+                               mapping: str = Form("{}"), options: str = Form("{}"), sheet: str = Form(""),
+                               dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form("")):
+    try:
+        if len(message) > 800:
+            raise ValueError("Mensagem acima do limite de 800 caracteres.")
+        if not operation_for(message):
+            return {"handled": False}
+        frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
+                                          dataset_version=dataset_version)
+        if frame is None:
+            raise ValueError("Escolha a planilha antes de explorar os territórios.")
+        fields, settings = json.loads(mapping), json.loads(options)
+        if not isinstance(fields, dict) or not isinstance(settings, dict):
+            raise ValueError("Parâmetros inválidos.")
+        if dataset == "brazil":
+            fields, _ = candidates(frame)
+        settings = apply_curated_options(frame, fields, settings)
+        return interpret_exploration(message, frame, fields, settings)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/api/analyze")
 async def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
                   options: str = Form("{}"), sheet: str = Form(""),
@@ -584,6 +626,14 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
             raise ValueError("Análise não habilitada para a configuração atual: " + " ".join(gate["reasons"]))
         result = compute(frame, fields, operation, settings)
         result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
+        result["result_id"] = str(uuid.uuid4())
+        result["metadata"]["created_at"] = datetime.now(timezone.utc).isoformat()
+        signature = {"data": result["metadata"]["data_sha256"], "source": frame.attrs.get("source"),
+                     "mapping": fields, "options": settings, "operation": operation,
+                     "method": result["metadata"]["method_version"]}
+        result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        result["metadata"]["validity"] = "VALIDO"
+        result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]
         return result
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
