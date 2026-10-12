@@ -51,6 +51,7 @@ def form(info, operation="counts", **options):
 def test_logical_dataset_routes_without_merging_and_accepts_municipal_counts(catalog):
     national = inspected()
     assert national["row_count"] == 2 and national["source"]["scope"] == "national"
+    assert set(national["source"]["available_scopes"]) == set(FILES)
     assert national["sheets"] == []
     assert all(filename not in json.dumps(national) for filename in FILES.values())
     national_result = client.post("/api/analyze", data=form(national)).json()
