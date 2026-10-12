@@ -480,12 +480,8 @@ def describe_brazil() -> dict:
             if frame is None or frame.empty:
                 raise ValueError("A base do Brasil não está disponível.")
             mapping, _ = candidates(frame)
-            profile = curated_profile(frame.assign(), mapping)
-            # A cópia acima não herda necessariamente attrs; reconhecer a fonte
-            # somente após fixar o identificador verificado pelo catálogo.
-            if not profile:
-                frame.attrs["source"] = source
-                profile = curated_profile(frame, mapping)
+            frame.attrs["source"] = source
+            profile = curated_profile(frame, mapping)
             period_col = mapping.get("period")
             category_col = mapping.get("category")
             periods = sorted(frame[period_col].dropna().astype(str).unique().tolist()) if period_col else []
