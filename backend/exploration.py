@@ -61,24 +61,27 @@ def interpret_exploration(message, frame, mapping, options):
         return {"handled": True, "clarification": "A evolução exige ao menos duas competências. Escolha os períodos no controle da análise temporal."}
     remaining = text
     explicit = []
-    # Maior expressão primeiro evita reconhecer Rio dentro de Rio de Janeiro.
-    names = sorted(set(normalize(item["name"]) for item in catalog
-                       if len(item["name"]) > 2 or re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message)), key=len, reverse=True)
-    for name in names:
-        pattern = r"(?<!\w)" + re.escape(name) + r"(?!\w)"
-        if re.search(pattern, remaining):
-            matches = [item for item in catalog if normalize(item["name"]) == name]
-            if len(matches) != 1:
-                return {"handled": True, "clarification": "Há municípios homônimos para “" + name + "”. Selecione os códigos desejados na pesquisa territorial."}
-            explicit.append(matches[0]["id"])
-            remaining = re.sub(pattern, " ", remaining)
+    names = set(normalize(item["name"]) for item in catalog
+                if len(item["name"]) > 2 or re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
     states = {normalize(item["state_name"]): item["state_name"] for item in catalog if state_named(item)}
     state_ids = []
-    for state in sorted(states, key=len, reverse=True):
-        pattern = r"(?<!\w)" + re.escape(state) + r"(?!\w)"
-        if re.search(pattern, remaining):
-            state_ids += [item["id"] for item in catalog if normalize(item["state_name"]) == state]
-            remaining = re.sub(pattern, " ", remaining)
+    # Maior expressão primeiro, entre municípios e estados: Rio não é reconhecido dentro de
+    # Rio de Janeiro, nem o município Rio Grande dentro do estado Rio Grande do Sul.
+    for expression in sorted(names | set(states), key=lambda value: (-len(value), value)):
+        pattern = r"(?<!\w)" + re.escape(expression) + r"(?!\w)"
+        if not re.search(pattern, remaining):
+            continue
+        # "Municípios do Paraná" não pode virar o município Paraná (RN) sem esclarecimento.
+        if expression in states and expression in names:
+            return {"handled": True, "clarification": "“" + states[expression] + "” identifica um estado e também um município. Selecione os municípios na pesquisa territorial ou pelo filtro de estado."}
+        if expression in states:
+            state_ids += [item["id"] for item in catalog if normalize(item["state_name"]) == expression]
+        else:
+            matches = [item for item in catalog if normalize(item["name"]) == expression]
+            if len(matches) != 1:
+                return {"handled": True, "clarification": "Há municípios homônimos para “" + expression + "”. Selecione os códigos desejados na pesquisa territorial."}
+            explicit.append(matches[0]["id"])
+        remaining = re.sub(pattern, " ", remaining)
     allowed = ("compare comparar comparacao mostre mostrar a o os as de da do das dos em e entre para por "
                "municipio municipios cidade cidades selecionado selecionados selecionada selecionadas "
                "densidade medica medico medicos medicina quantidade quantitativos evolucao temporal "

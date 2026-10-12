@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from main import app, compute
 from semantic_bridge import preflight
+from brazil_catalog_profile import FIELDS, apply_curated_options
 from territorial_selection import territory_catalog
 from exploration import interpret_exploration
 
@@ -186,3 +187,31 @@ def test_api_has_unique_results_and_reproducible_execution_key(frame):
     assert len(a["metadata"]["universe"]["members"]) == 3
     data["options"] = json.dumps(chosen(territory_ids=[]))
     assert client.post("/api/analyze", files=source, data=data).status_code == 422
+
+
+def brazil_municipal(units):
+    """Quadro com o perfil governado municipal; estados derivados do prefixo do código."""
+    frame = pd.DataFrame([{"municipio": name, "cod_ibge": code, "Período (ano e mês)": "202406",
+                           "categoria_profissional": "MEDICINA", "quantidade": "10",
+                           "população_estimada": "1000", "latitude": "-10", "longitude": "-50"}
+                          for name, code in units])
+    frame.attrs["source"] = {"dataset": "brazil", "scope": "municipal"}
+    mapping = dict(FIELDS["municipal"])
+    return frame, mapping, apply_curated_options(frame, mapping, {})
+
+
+def test_state_named_like_a_municipality_is_not_resolved_silently():
+    frame, mapping, options = brazil_municipal([
+        ("PARANA", "240880"), ("NATAL", "240810"), ("CURITIBA", "410690"), ("LONDRINA", "411370"),
+        ("RIO GRANDE", "431560"), ("PORTO ALEGRE", "431490"), ("MANAUS", "130260")])
+    for message in ("Mostre a densidade dos municípios do Paraná.", "Compare a densidade de Paraná e Natal."):
+        parsed = interpret_exploration(message, frame, mapping, options)
+        assert "estado e também um município" in parsed["clarification"] and "territory_ids" not in parsed
+    # Sem referência ao estado, o nome continua identificando o município.
+    assert set(interpret_exploration("Compare Paraná e Natal.", frame, mapping, options)["territory_ids"]) == {
+        "code:240880", "code:240810"}
+    # O estado mais longo prevalece sobre o município contido em seu nome.
+    south = interpret_exploration("Mostre a densidade dos municípios do Rio Grande do Sul.", frame, mapping, options)
+    assert set(south["territory_ids"]) == {"code:431560", "code:431490"}
+    assert set(interpret_exploration("Mostre a densidade dos municípios do Amazonas.", frame, mapping, options)[
+        "territory_ids"]) == {"code:130260"}
