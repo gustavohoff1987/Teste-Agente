@@ -76,13 +76,19 @@ def main():
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
-        scope = assistant.get_by_role("combobox", name="Abrangência territorial")
+        inline = assistant.locator("#preparacao-conversacional")
+        inline.get_by_text("Alterar a abrangência territorial").click()
+        scope = inline.get_by_role("combobox", name="Abrangência territorial")
         expect(scope).to_have_value("municipal")
         scope.select_option("national")
-        expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
-        scope = assistant.get_by_role("combobox", name="Abrangência territorial")
+        inline = assistant.locator("#preparacao-conversacional")
+        inline.get_by_text("Alterar a abrangência territorial").click()
+        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
+        scope = inline.get_by_role("combobox", name="Abrangência territorial")
         scope.select_option("municipal")
-        expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
+        inline = assistant.locator("#preparacao-conversacional")
+        inline.get_by_text("Alterar a abrangência territorial").click()
+        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
         # O pedido inicial não carrega dados nem exige escolha antecipada.
         # A intenção deve sobreviver à escolha da fonte e seguir até o cálculo.
         page.reload()
@@ -121,18 +127,27 @@ def main():
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis. Vamos continuar", exact=False)).to_be_visible(timeout=30000)
         assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
         inline = assistant.locator("#preparacao-conversacional")
-        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
-        expect(inline.get_by_text("Você mencionou “médicos”", exact=False)).to_be_visible()
-        category = inline.get_by_role("combobox", name="Filtrar por categoria")
-        expect(category).to_be_visible()
-        expect(inline.get_by_role("button", name="Confirmar correspondências")).to_be_disabled()
-        category.select_option("MEDICINA")
-        inline.get_by_role("combobox", name="Filtrar por período").select_option("202406")
-        expect(inline.get_by_role("button", name="Confirmar correspondências")).to_be_enabled()
-        assert inline.get_by_text("A categoria está em").count() == 0
-        assert inline.get_by_text("O território está em").count() == 0
-        assert inline.get_by_text("Vamos preparar esta análise").count() == 0
-        assert inline.get_by_text("A", exact=True).count() == 0
+        expect(inline).to_be_visible(timeout=30000)
+        expect(inline.get_by_text("categoria MEDICINA", exact=False)).to_be_visible()
+        assert inline.get_by_role("combobox", name="Categoria profissional").count() == 0
+        assert inline.get_by_role("combobox", name="Unidade de contagem").count() == 0
+        assert inline.get_by_role("button", name="Confirmar correspondências").count() == 0
+        expect(inline.get_by_text("Qual período você deseja analisar?")).to_be_visible()
+        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_disabled()
+        inline.get_by_label("Escolher períodos da análise").click()
+        inline.get_by_role("button", name="junho de 2024", exact=True).click()
+        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
+        with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
+            inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+        assert event.value.status == 200, event.value.text()
+        assert assistant.locator("#resultados .data-table tbody tr").count() == 1
+        # A descrição da base é acessível sem escolher uma fonte.
+        page.reload()
+        assistant = page.locator("#assistente")
+        assistant.locator("#assistant-input").fill("O que tem nos dados do Brasil?")
+        assistant.get_by_role("button", name="Enviar mensagem").click()
+        expect(assistant.get_by_text("junho de 2023", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.locator("#dados")).to_be_visible()
         context.close()
         browser.close()
     print("CONVERSATIONAL UI PASS: greeting, deferred source selection, resumed intent, inline edits, dual Brazil sources, export.")
