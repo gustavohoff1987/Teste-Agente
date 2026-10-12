@@ -85,7 +85,7 @@ export default function ConversationalPreparation(p: Props) {
         <p className="leading-8">
           {p.sourceBrazil && <>Vou trabalhar com dados de <InlineChoice label="Abrangência territorial" value={p.scope}
             options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>. </>}
-          O território está em {field("Território", "territory")} e {p.mapping.territory_id || p.columns.length > 0
+          O território está em {field("Território", "territory")} e {p.mapping.territory_id || p.columns.some(c => /^(cod[_ -]?ibge|territory[_ -]?id|codigo[_ -]?territorio)$/i.test(c))
             ? <>seu código identificador em {field("Identificador territorial", "territory_id")}. </> : ""}
           {p.operation !== "spatial" && <>A categoria está em {field("Categoria profissional", "category")}
             e o período em {field("Período", "period")}. </>}
