@@ -141,6 +141,14 @@ def main():
             inline.get_by_role("button", name="Calcular e mostrar resultado").click()
         assert event.value.status == 200, event.value.text()
         assert assistant.locator("#resultados .data-table tbody tr").count() == 1
+        # A seleção cumulativa mostra competências separadas, sem somar pessoas
+        # de períodos diferentes em um único quantitativo.
+        inline.get_by_role("button", name="Selecionar vários períodos").click()
+        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
+        with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
+            inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+        assert event.value.status == 200, event.value.text()
+        expect(assistant.locator("#resultados .data-table tbody tr")).to_have_count(2)
         # A descrição da base é acessível sem escolher uma fonte.
         page.reload()
         assistant = page.locator("#assistente")
