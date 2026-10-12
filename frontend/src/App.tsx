@@ -877,7 +877,7 @@ function App() {
       }}
       periodFilter={periodFilter}
       periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
-      onPeriod={v=>{setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(false);}}
+      onPeriod={v=>{setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(!!inspection.curated_defaults);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
       categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
