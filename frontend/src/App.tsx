@@ -173,6 +173,7 @@ function App() {
   const [uploadError, setUploadError] = useState("");
   const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
   const [periodFilter, setPeriodFilter] = useState("");
+  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [reference, setReference] = useState("");
   const [crs, setCrs] = useState("");
@@ -204,7 +205,7 @@ function App() {
 
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
-      objectDraft, quantiles, distributionIndicator };
+      objectDraft, quantiles, distributionIndicator, selectedPeriods };
   }
   function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
     const o = saved.options;
@@ -216,7 +217,8 @@ function App() {
     setTerritoryStable(o.territory_longitudinal_confirmed); setLongitudinalIdentity(o.longitudinal_identity_confirmed);
     setIdentityCountConfirmed(o.identity_count_confirmed); setCategoryConstant(o.category_constant);
     setObjectDraft(saved.objectDraft); setObjectConfirmed(o.object_confirmed);
-    setPeriodFilter(o.period_filter); setCategoryFilter(o.category_filter); setReference(o.reference_territory);
+    setPeriodFilter(o.period_filter); setSelectedPeriods(saved.selectedPeriods);
+    setCategoryFilter(o.category_filter); setReference(o.reference_territory);
     setResolutions(saved.resolutions); setConfirmedNoOverlap(o.no_overlap_confirmed); setCrs(o.crs);
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
     setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
@@ -277,6 +279,7 @@ function App() {
       setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
+      setSelectedPeriods([]);
       setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
       setResolutions({});
@@ -387,7 +390,8 @@ function App() {
     return {
       ...resolutions,
       hierarchy_columns: hierarchyColumns,
-      period_filter: periodFilter, category_filter: categoryFilter,
+      period_filter: periodFilter, period_filters: selectedPeriods,
+      category_filter: categoryFilter,
       reference_territory: reference, crs, quantile_count: quantiles,
       distribution_indicator: distributionIndicator,
       temporal_indicator: temporalIndicator, report_indicator: reportIndicator,
@@ -525,7 +529,7 @@ function App() {
     }, 150);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
   }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
-      periodFilter, categoryFilter, populationAligned, temporalCompared, territoryStable,
+      periodFilter, selectedPeriods, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns]);
 
@@ -848,6 +852,8 @@ function App() {
       operation={active}
       sourceBrazil={usingBrazil}
       curated={!!inspection.curated_defaults}
+      selectedPeriods={selectedPeriods}
+      onSelectedPeriods={values=>{setSelectedPeriods(values);setPeriodFilter("");}}
       scope={inspection.source?.scope || "municipal"}
       onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
       columns={inspection.columns}
@@ -870,7 +876,7 @@ function App() {
       }}
       periodFilter={periodFilter}
       periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
-      onPeriod={v=>{setPeriodFilter(v);setInlineConfirmed(false);}}
+      onPeriod={v=>{setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(false);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
       categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
