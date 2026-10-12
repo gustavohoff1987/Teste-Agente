@@ -873,7 +873,7 @@ function App() {
         if(active==="distribution")setDistributionIndicator(v);
         if(active==="temporal")setTemporalIndicator(v);
         if(active==="report")setReportIndicator(v);
-        setInlineConfirmed(false);
+        setInlineConfirmed(!!inspection.curated_defaults);
       }}
       periodFilter={periodFilter}
       periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
