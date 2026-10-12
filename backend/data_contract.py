@@ -44,6 +44,9 @@ def scoped(frame, mapping, options):
         col = mapping.get("period")
         if not col:
             raise ValueError("Seleção de períodos exige uma referência temporal válida.")
+        available = set(text_values(frame[col]).dropna().tolist())
+        if any(period not in available for period in selected_periods):
+            raise ValueError("A seleção contém período não disponível na base atual.")
         frame = frame[text_values(frame[col]).isin(selected_periods)]
     for role in ("period", "category"):
         value = options.get(role + "_filter")
