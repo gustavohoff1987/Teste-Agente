@@ -2,7 +2,7 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind; telas responsivas de início e resultados com upload, **associação semântica por coluna**, confirmação guiada e **seletor de análises em carrossel com indicação de aplicabilidade e seleção em relevo**, além de filtros, gráficos, tabelas e exportação CSV / impressão em PDF.
+- **Interface:** React + TypeScript + Tailwind; após o banner, a conversa concentra escolha da fonte, carrossel de análises, campos editáveis no próprio texto, confirmações agrupadas, resultados e exportações. Ajustes metodológicos excepcionais continuam disponíveis em uma seção avançada recolhida.
 - **Motor:** Python + FastAPI; as dez capacidades permanecem determinísticas.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
@@ -34,8 +34,11 @@ Documentação da API: `http://localhost:8000/docs`.
 
 ## Duas formas de carregar dados
 
-**Usar dados do Brasil** abre uma única base lógica administrada pelo servidor.
-O usuário não seleciona arquivos. Ao escolher uma análise, o sistema usa o recorte
+**Usar dados do Brasil** verifica e disponibiliza as duas fontes conjuntamente em
+uma sessão lógica: `Dados_Brasil.xlsx` (nacional) e
+`Dados_Municipios_Brasil.csv` (municipal). O usuário não precisa escolher
+os arquivos separadamente. São oferecidos como fontes independentes no chat,
+sem concatenar seus registros. Ao escolher uma análise, o sistema usa o recorte
 nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
 municípios. **Abrangência da análise** permite escolher Brasil ou Municípios
 explicitamente. Trocar de recorte limpa resultados; confirmações comuns verificáveis
@@ -51,6 +54,21 @@ unidade, período, população e comparabilidade continuam obrigatórias.
 **Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
 aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e
 verificação contextual do agente. Nenhum registro é enviado ao provedor de IA.
+
+### Teste de navegação conversacional
+
+Com o backend e o Vite locais em execução, e com dependências de
+`backend/requirements-ui.txt` instaladas, execute:
+
+```bash
+cd backend
+python tests/ui_conversational_smoke.py
+```
+
+O teste usa CSV sintético, bloqueia requisições externas e verifica escolha
+de fonte, seletor inline, execução determinística e exportação dentro do chat.
+Também é executado no job `ui-conversational` da CI. As bases brasileiras
+reais continuam fora do Git e exigem validações locais próprias.
 
 ### Instalar a base Brasil (administração)
 
