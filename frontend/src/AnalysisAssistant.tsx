@@ -45,6 +45,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
+  const pendingProposal = useRef<Proposal | null>(null);
 
   async function refreshStatus() {
     setLoadingStatus(true);
@@ -71,6 +72,13 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
     // Mudanças na preparação invalidam respostas pendentes sem apagar a conversa.
     revision.current += 1;
   }, [validationVersion]);
+  useEffect(() => {
+    if (sourceReady && pendingProposal.current?.operation) {
+      const proposal = pendingProposal.current;
+      pendingProposal.current = null;
+      onSelectAnalysis(proposal.operation!, proposal);
+    }
+  }, [sourceReady]);
   useEffect(() => {
     if (turns.length) chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns, sourceReady, active]);
@@ -149,7 +157,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
         {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification}]);
       // A interpretação escolhe a capacidade, não executa a análise.
       // O usuário ainda confirma recortes e condições metodológicas.
-      if (suggested) onSelectAnalysis(suggested, validated.proposal);
+      if (suggested) {
+        if (!sourceReady) pendingProposal.current = validated.proposal;
+        onSelectAnalysis(suggested, validated.proposal);
+      }
       void refreshStatus();
     } catch (exc) {
       if (requestRevision === revision.current)
@@ -230,7 +241,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
         {sourceReady && <div className="ml-9 max-w-3xl space-y-3 text-sm text-slate-700">
           <div className="flex items-start gap-2">
             <BrandAvatar size={27} className="shrink-0"/>
-            <p>{sourceSummary || "Seus dados estão disponíveis para análise."}
+            <p>{active
+              ? (dataset
+                ? "Os dados do Brasil já estão disponíveis. Vamos continuar com a análise solicitada."
+                : "Seus dados estão disponíveis. Vamos continuar com a análise solicitada.")
+              : sourceSummary || "Seus dados estão disponíveis para análise."}
               {!active && " Qual análise você gostaria de realizar?"}</p>
           </div>
           {!active && <ChatAnalysisCarousel features={features} selected={active}
