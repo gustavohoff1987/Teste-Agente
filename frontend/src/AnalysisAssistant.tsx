@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import { AlertCircle, ArrowRight, LoaderCircle,
@@ -18,7 +18,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; dataset?: string; scope?: string; datasetVersion?: string };
+type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation) => void; sourceChoice: ReactNode; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -34,7 +34,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceSummary, preparation, resultContent, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -133,7 +133,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
           <h2 className="text-xl font-bold text-ink sm:text-2xl">Converse com o Agente Diagnóstico Territorial</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
             Descreva a análise que deseja realizar. O agente propõe os próximos passos;
-            você confere os parâmetros antes de qualquer execução.
+            você ajusta o que for necessário e acompanha os resultados aqui mesmo.
           </p>
         </div>
       </div>
@@ -147,44 +147,34 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       </button>}
     </div>}
 
-    <p className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 text-xs leading-5 text-slate-700">
-      {hasSource ? contextReady
-        ? "Base carregada: o Python confere os campos e requisitos antes de revisar a proposta. Nenhum registro é enviado ao Gemini."
-        : "Base em preparação: dúvidas gerais funcionam; propostas contextuais aguardam a validação da base."
-        : "Sem base carregada: posso apresentar as análises disponíveis e orientar a importação."}
-    </p>
     <div className="mt-5 overflow-hidden rounded-2xl border border-line bg-slate-50/40">
       <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-xs font-semibold text-slate-600">
         <MessageSquare size={16} className="text-teal"/> Sua conversa {turns.length > 0 ? "· " + turns.length / 2 + " solicitações" : ""}
       </div>
       <div role="log" aria-label="Histórico da conversa" aria-live="polite"
-        className="max-h-[540px] min-h-[200px] space-y-4 overflow-y-auto px-4 py-5">
-        {!turns.length && <div className="max-w-3xl space-y-3 text-sm text-slate-600">
+        className="min-h-[200px] space-y-4 px-4 py-5">
+        <div className="max-w-3xl space-y-3 text-sm leading-6 text-slate-700">
           <div className="flex items-start gap-3">
             <BrandAvatar size={33} className="shrink-0"/>
-            <div>
-              <p className="font-bold text-ink">Olá! Que tipo de análise você deseja fazer?</p>
-              <p className="mt-1 text-xs leading-6 text-slate-600">
-                Posso apresentar os tipos de análise, orientar a preparação dos dados
-                e propor próximos passos. Os cálculos são realizados pelo Python, após suas confirmações.
-              </p>
+            <div className="space-y-2">
+              <p className="font-semibold text-ink">Olá! Vamos começar pelos seus dados.</p>
+              <p>Você prefere utilizar as fontes brasileiras ou importar uma base própria?</p>
             </div>
           </div>
-          <ChatAnalysisCarousel features={features} selected={active} disabled={selecting}
-            onSelect={onSelectAnalysis}/>
-          <p className="pt-2 text-xs font-semibold text-slate-500">Ou experimente uma pergunta:</p>
-          <div className="flex flex-wrap gap-2">
-            {["Quero analisar a densidade de médicos por município em 202406",
-              "Mostre a distribuição de profissionais pelos quintis de densidade",
-              "Como evoluiu a quantidade de profissionais ao longo dos períodos?"].map(example =>
-              <button type="button" key={example} onClick={() => setDraft(example)}
-                className="rounded-full border border-blue-100 bg-white px-3 py-2 text-left text-xs text-slate-600 hover:border-blue-300 hover:bg-blue-50">
-                {example}
-              </button>)}
-          </div>
-        </div>}
-        {turns.length > 0 && <ChatAnalysisCarousel features={features} selected={active}
-          disabled={selecting} onSelect={onSelectAnalysis}/>}
+          {sourceChoice}
+          {hasSource && <>
+            <div className="flex items-start gap-3 pt-2">
+              <BrandAvatar size={33} className="shrink-0"/>
+              <div className="space-y-2">
+                <p>{sourceSummary || "Seus dados estão disponíveis para análise."}</p>
+                <p>Que tipo de análise você deseja realizar?</p>
+              </div>
+            </div>
+            <ChatAnalysisCarousel features={features} selected={active}
+              disabled={selecting} onSelect={onSelectAnalysis}/>
+          </>}
+          {!hasSource && <p className="text-xs text-slate-500">Você também pode escrever sua pergunta abaixo.</p>}
+        </div>
         {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
           {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
           <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
@@ -212,10 +202,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
               {turn.proposal.operation && <button type="button"
                 onClick={() => onSelectAnalysis(turn.proposal!.operation!)}
                 className="no-print inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 font-bold text-teal hover:bg-cyan-100">
-                Ver requisitos de {ANALYSIS[turn.proposal.operation]} <ArrowRight size={14}/>
+                Preparar {ANALYSIS[turn.proposal.operation]} <ArrowRight size={14}/>
               </button>}
               {turn.verification && <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-slate-700">
-                <p className="font-semibold">Revisão determinística do Python</p>
+                <p className="font-semibold">O que falta conferir</p>
                 <p className="mt-1">{STATUS_LABEL[turn.verification.capability_status]}</p>
                 {(["period", "category", "territory"] as const).filter(k => !!turn.proposal?.[k]).map(k =>
                   <p key={k} className="mt-1">{k === "period" ? "Período" : k === "category" ? "Categoria" : "Território"}: {" "}
@@ -226,11 +216,13 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
                     <li key={i}>{reason}</li>)}</ul>
                 </div>}
               </div>}
-              <p className="text-slate-500">A seleção apenas abre a capacidade; não autoriza cálculo nem confirma campos.</p>
+              
             </div>}
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
         </div>)}
+        {preparation}
+        {resultContent}
         {sending && <p role="status" className="flex items-center gap-2 text-sm text-teal">
           <LoaderCircle size={16} className="animate-spin"/> Interpretando o pedido...
         </p>}
