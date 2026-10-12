@@ -61,9 +61,24 @@ def main():
         with page.expect_download() as download:
             result.get_by_role("button", name="CSV", exact=True).click()
         assert download.value.suggested_filename.endswith(".csv")
+
+        # O catálogo brasileiro disponibiliza as duas fontes na mesma sessão,
+        # mantendo seleção explícita de abrangência e sem concatenar registros.
+        page.reload()
+        assistant = page.locator("#assistente")
+        assistant.get_by_role("button", name="Usar dados do Brasil").click()
+        expect(assistant.get_by_text("As fontes do Brasil e dos municípios estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
+        assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
+        scope = assistant.get_by_role("combobox", name="Abrangência territorial")
+        expect(scope).to_have_value("municipal")
+        scope.select_option("national")
+        expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
+        scope = assistant.get_by_role("combobox", name="Abrangência territorial")
+        scope.select_option("municipal")
+        expect(assistant.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
         context.close()
         browser.close()
-    print("CONVERSATIONAL UI PASS: source in chat, inline edits, analysis and export in chat.")
+    print("CONVERSATIONAL UI PASS: dual Brazil sources, source in chat, inline edits, analysis and export.")
 
 
 if __name__ == "__main__":
