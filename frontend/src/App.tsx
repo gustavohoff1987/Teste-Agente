@@ -858,7 +858,7 @@ function App() {
         setInlineConfirmed(false);
       }}
       periodFilter={periodFilter}
-      periods={preflight?.values.periods || inspection.periods}
+      periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
       onPeriod={v=>{setPeriodFilter(v);setInlineConfirmed(false);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
