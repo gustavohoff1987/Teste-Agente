@@ -48,8 +48,30 @@ da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame do 
 As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
 municipal para o Brasil ou soma automática de pessoas entre municípios. Agregação
 municipal só ocorre com as declarações já exigidas pelo motor, inclusive o rótulo de
-possível dupla contagem quando se autoriza somar componentes. As confirmações de
-unidade, período, população e comparabilidade continuam obrigatórias.
+possível dupla contagem quando se autoriza somar componentes.
+
+A plataforma reconhece automaticamente as associações e significados da base Brasil
+**somente** quando a estrutura, o mapeamento e a categoria única MEDICINA correspondem
+ao perfil governado (`backend/brazil_catalog_profile.py`), após a verificação de
+integridade do catálogo. Nesse caso, a unidade de contagem declarada para o catálogo
+é pessoas por território/período; isso **não** implica identidade única entre
+municípios ou meses. Nenhum perfil é aplicado ao upload do usuário, a estruturas
+desconhecidas ou a categorias inesperadas. Para bases fora do perfil, o fluxo
+retoma as confirmações metodológicas habituais.
+
+No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
+sobre o conteúdo dos dados brasileiros consulta `/api/brazil/description`, que
+verifica as fontes e devolve apenas informações agregadas sobre período, categorias
+e recortes, sem enviar registros ao Gemini. O agente associa pedidos explícitos
+sobre municípios ao recorte municipal e pedidos nacionais à fonte nacional,
+sem solicitar detalhes sobre os arquivos internos.
+
+Períodos são apresentados em português (por exemplo, junho de 2024).
+Quantitativos e relatórios podem mostrar vários períodos **separadamente**; análises
+temporais podem restringir a seleção a múltiplos períodos. A agregação territorial
+continua restrita a uma competência, para não tratar pessoas observadas em meses
+diferentes como pessoas únicas. A confirmação de premissas metodológicas não
+verificáveis pelo catálogo, quando exigida, permanece obrigatória.
 
 **Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
 aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e
