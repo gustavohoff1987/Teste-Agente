@@ -91,6 +91,29 @@ def test_curated_brazil_profiles_remove_unnecessary_user_confirmations(catalog):
     assert "junho de 2024" in description.json()["description"]
 
 
+def test_multiple_periods_are_independent_and_invalid_periods_are_rejected(catalog):
+    national = inspected()
+    import json
+    request = form(national, "counts")
+    request["options"] = json.dumps({"period_filters": ["202306", "202406"]})
+    result = client.post("/api/analyze", data=request)
+    assert result.status_code == 200, result.text
+    assert sorted((row["Período"], row["Quantidade"]) for row in result.json()["rows"]) == [
+        ("202306", 10), ("202406", 15)]
+    request["options"] = json.dumps({"period_filters": ["202406"]})
+    result = client.post("/api/analyze", data=request)
+    assert result.status_code == 200, result.text
+    assert [row["Quantidade"] for row in result.json()["rows"]] == [15]
+    for options in (
+        {"period_filters": ["202306", "209906"]},
+        {"period_filters": ["202306", "202306"]},
+        {"period_filters": ["202306", "202406"], "period_filter": "202406"},
+        {"period_filters": [202306]},
+    ):
+        request["options"] = json.dumps(options)
+        assert client.post("/api/analyze", data=request).status_code == 422
+
+
 def test_curated_brazil_profile_never_assumes_unrelated_categories():
     import pandas as pd
     from brazil_catalog_profile import curated_profile, apply_curated_options
