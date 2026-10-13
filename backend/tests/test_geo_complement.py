@@ -34,13 +34,13 @@ HEADER = ("regiao_geografica;uf;municipio;cod_ibge;latitude;longitude;categoria_
           "quantidade;população_estimada")
 
 
-def municipal_text(valid_ananas_in=None, extra_period=None):
+def municipal_text(valid_ananas_in=None, extra_period=None, names=None):
     lines = [HEADER]
     for period in PERIODS + ((extra_period,) if extra_period else ()):
         year, month = period[:4], str(int(period[4:]))
         for code, (name, uf) in AUTHORIZED.items():
             lat, lon = ("-6,3", "-48,0") if (code == "170100" and period == valid_ananas_in) else INVALID[code]
-            lines.append(f"R;{uf};{name};{code};{lat};{lon};MEDICINA;{year};{month};3;1000")
+            lines.append(f"R;{uf};{(names or {}).get(code, name)};{code};{lat};{lon};MEDICINA;{year};{month};3;1000")
         for name, uf, code, lat, lon in OTHERS:
             lines.append(f"R;{uf};{name};{code};{lat};{lon};MEDICINA;{year};{month};4;1000")
     return "\n".join(lines) + "\n"
@@ -313,6 +313,18 @@ def test_existing_spatial_analysis_uses_the_layer_with_traceability(repo):
     assert body["metadata"]["complemento_geografico"]["estado"] == "valido"
     provenance = body["metadata"]["complemento_geografico"]["proveniencia"]  # registrada no próprio resultado
     assert provenance["produto"].startswith("FIXTURE SINTÉTICA") and provenance["sha256_arquivo"] == "0" * 64
+
+
+@pytest.mark.parametrize("repo", [{"names": {"170100": "OUTRO MUNICIPIO", "350050": "Águas de Lindóia"}}], indirect=True)
+def test_point_is_complemented_only_when_the_name_in_the_base_matches(repo):
+    write_layer(repo, layer_document(repo))
+    for period in ("201401", "202406"):
+        body, units = nearest(period, ["code:170001"])
+        assert units["code:170100"]["condicao_espacial"] == "INVALIDA" and units["code:170100"]["coordenada"] == "original"
+        # Caixa e acentos não distinguem o nome conferido.
+        assert units["code:350050"]["condicao_espacial"] == "VALIDA" and units["code:350050"]["coordenada"] == "complementada"
+        geo = body["metadata"]["nearest_reference"]["complemento_geografico"]
+        assert sorted(geo["municipios_complementados"]) == sorted(set(AUTHORIZED) - {"170100"}) and geo["linhas_complementadas"] == 5
 
 
 @pytest.mark.parametrize("repo", [{"valid_ananas_in": "201401", "extra_period": "202312"}], indirect=True)

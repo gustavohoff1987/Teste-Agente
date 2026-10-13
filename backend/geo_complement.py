@@ -144,13 +144,17 @@ def overlay(frame, mapping, lat, lon):
     valid = np.isfinite(lat_values) & np.isfinite(lon_values) & (np.abs(lat_values) <= 90) & (np.abs(lon_values) <= 180)
     records = current["registros"]
     applied = np.zeros(len(frame), dtype=bool)
-    names = text_values(frame[name_col]).fillna("").map(_plain) if name_col else None
+    # Candidatas: ponto inválido de município da camada em competência autorizada; só elas têm o nome normalizado.
+    candidates = np.flatnonzero(codes.isin(list(records)).to_numpy() & periods.isin(PERIODS).to_numpy() & ~valid)
+    candidate_codes = codes.to_numpy()[candidates]
+    names = text_values(frame[name_col].iloc[candidates]).fillna("").map(_plain).to_numpy() if name_col else None
     for code, record in records.items():
-        rows = (codes == code).to_numpy() & periods.isin(PERIODS).to_numpy() & ~valid
+        match = candidate_codes == code
         if names is not None:
-            rows &= (names == record["municipio"]).to_numpy()  # nome conferido na própria base
+            match &= names == record["municipio"]  # nome conferido na própria base
+        rows = candidates[match]
         lat_values[rows], lon_values[rows] = record["latitude"], record["longitude"]
-        applied |= rows
+        applied[rows] = True
     complemented = sorted(set(codes[applied])) if applied.any() else []
     as_series = isinstance(lat, pd.Series)
     return (pd.Series(lat_values, index=lat.index) if as_series else lat_values,
