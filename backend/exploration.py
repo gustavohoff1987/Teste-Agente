@@ -11,13 +11,22 @@ def normalize(value):
 
 def operation_for(message):
     text = normalize(message)
-    for pattern, operation in ((r"\b(?:compare|comparar|comparacao)\b", "comparisons"),
+    # Referência mais próxima antes de "densidade": o comando prepara a operação e os alvos, sem criar referências.
+    for pattern, operation in ((r"\b(?:referencias?|municipios?) (?:de referencia )?mais proxim[ao]s?\b", "nearest"),
+                               (r"\b(?:compare|comparar|comparacao)\b", "comparisons"),
                                (r"\b(?:evolucao|evoluir|serie temporal)\b", "temporal"),
                                (r"\b(?:agregue|agregar|agregacao|some|somar)\b", "aggregate"),
                                (r"\bdensidade\b", "density"), (r"\b(?:quantitativos|quantidade)\b", "counts")):
         if re.search(pattern, text):
             return operation
     return None
+
+
+def prepare_nearest(step):
+    # O canal do LLM não conhece esta capacidade: o comando só prepara a operação, sem referências.
+    return {"handled": True, "operation": "nearest", "options_patch": {}, "executed": False,
+            "reply": "Preparei a análise de referência mais próxima. " + step +
+                     " Depois defina as referências pela lista ou pelo critério. Nada foi calculado."}
 
 
 def interpret_exploration(message, frame, mapping, options):
@@ -28,6 +37,8 @@ def interpret_exploration(message, frame, mapping, options):
     try:
         catalog = territory_catalog(frame, mapping, options)
     except ValueError:
+        if operation == "nearest":
+            return prepare_nearest("Confirme a identificação territorial e selecione os municípios-alvo na pesquisa territorial.")
         if options.get("territory_ids") or "selecionad" in text:
             return {"handled": True, "clarification": "Confirme a identificação territorial antes de reutilizar a seleção."}
         return {"handled": False}
@@ -42,7 +53,12 @@ def interpret_exploration(message, frame, mapping, options):
         return bool(item["state_name"] and re.search(r"\b(?:do|da|de|no|na)\s+" + re.escape(normalize(item["state_name"])) + r"\b", text))
     # Pedidos gerais continuam no canal conversacional já existente.
     if not uses_selection and not selected and not any(named(item) or state_named(item) for item in catalog):
+        if operation == "nearest":
+            return prepare_nearest("Selecione os municípios-alvo na pesquisa territorial.")
         return {"handled": False}
+    # Nomes citados são só alvos; "entre ..." poderia indicar candidatos a referência.
+    if operation == "nearest" and re.search(r"\bentre\b", text):
+        return {"handled": True, "clarification": "Na referência mais próxima, os municípios citados no pedido são tratados apenas como alvos. Defina as referências pela lista ou pelo critério nos controles da análise."}
     months = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
     period = None
     month = re.search(r"\b(" + "|".join(months) + r")\s+(?:de\s+)?(\d{4})\b", text)
@@ -86,7 +102,9 @@ def interpret_exploration(message, frame, mapping, options):
                "municipio municipios cidade cidades selecionado selecionados selecionada selecionadas "
                "densidade medica medico medicos medicina quantidade quantitativos evolucao temporal "
                "agregue agregar agregacao some somar soma componentes habitantes populacao dos das "
-               "examine examinar analise quero solicito uma um ver selecionadas")
+               "examine examinar analise quero solicito uma um ver selecionadas "
+               "calcule calcular identifique identificar referencia referencias mais proxima proximas proximo proximos "
+               "cada alvo alvos geografica geograficamente qual quais")
     residue = re.sub(r"\b(?:" + "|".join(allowed.split()) + r")\b|[,;:]", " ", remaining)
     if residue.strip():
         return {"handled": True, "clarification": "Não consegui resolver todo o recorte solicitado. Selecione os municípios pelos nomes/códigos e confira a categoria, o indicador e os períodos abaixo."}
@@ -106,5 +124,8 @@ def interpret_exploration(message, frame, mapping, options):
     if operation == "aggregate" and "componentes" in text:
         patch.update(component_sum_confirmed=True, no_overlap_confirmed=False, identity_union_confirmed=False)
     return {"handled": True, "operation": operation, "territory_ids": ids, "options_patch": patch,
-            "reply": "Recorte identificado com " + str(len(ids)) + " territórios. Confira os parâmetros e as condições metodológicas e execute a análise na conversa.",
+            "reply": ("Alvos identificados: " + str(len(ids)) + " territórios. Defina as referências pela lista ou pelo critério e "
+                      "confirme o período e o referencial nos controles abaixo; nenhuma referência foi escolhida e nada foi calculado."
+                      if operation == "nearest" else
+                      "Recorte identificado com " + str(len(ids)) + " territórios. Confira os parâmetros e as condições metodológicas e execute a análise na conversa."),
             "selection_changed": bool(selected and set(ids) != set(selected)), "executed": False}

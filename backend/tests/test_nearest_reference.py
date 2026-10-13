@@ -362,3 +362,21 @@ def test_engine_only_capability_keeps_the_existing_source_descriptor(brazil_cata
     assert inspection["source"]["scope"] == "municipal"
     assert set(inspection["source"]["default_scopes"]) == set(OPERATION_LABELS)
 
+
+def test_conversation_prepares_only_the_operation_and_targets():
+    from exploration import interpret_exploration
+    df = frame()
+    parsed = interpret_exploration("Calcule a referência mais próxima de Manaus e Tefe.", df, MAP, BASE)
+    assert parsed["operation"] == "nearest" and parsed["executed"] is False
+    assert set(parsed["territory_ids"]) == {"code:130260", "code:130420"}  # nomes citados são alvos
+    assert parsed["options_patch"] == {} and "nenhuma referência foi escolhida" in parsed["reply"]
+    # Sem alvos citados: só prepara a operação; o canal do LLM não conhece esta capacidade.
+    response = client.post("/api/exploration/interpret", files={"file": ("sintetico.csv", df.to_csv(index=False).encode())},
+                           data={"message": "Quero a referência mais próxima", "mapping": json.dumps(MAP), "options": json.dumps(BASE)})
+    general = response.json()
+    assert response.status_code == 200 and general["operation"] == "nearest" and general["executed"] is False
+    assert "territory_ids" not in general and general["options_patch"] == {}
+    # Nomes após "entre" poderiam ser candidatos a referência; critério em texto livre não vira parâmetro.
+    assert "clarification" in interpret_exploration("Referência mais próxima de Manaus entre Tefe e Faro", df, MAP, BASE)
+    assert "clarification" in interpret_exploration(
+        "Municípios de referência mais próximos de Manaus com densidade maior que 2,36", df, MAP, BASE)
