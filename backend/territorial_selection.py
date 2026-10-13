@@ -25,6 +25,7 @@ STATES = {
 }
 
 
+@per_request
 def texts(series):
     return series.astype("string").str.strip().replace("", pd.NA)
 

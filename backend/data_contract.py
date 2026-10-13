@@ -16,6 +16,7 @@ class ConfirmationRequired(ValueError):
     pass
 
 
+@per_request  # a mesma coluna é normalizada uma vez por requisição; resultado só lido
 def text_values(series):
     return series.astype("string").str.strip().replace("", pd.NA)
 
