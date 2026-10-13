@@ -32,6 +32,7 @@ from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status
 from llm_context import review_interpretation
 from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for
+from request_memo import RequestMemoMiddleware
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -41,6 +42,8 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+# Catálogo, recorte territorial e hierarquia repetidos numa requisição são calculados uma vez.
+app.add_middleware(RequestMemoMiddleware)
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 ALIASES = EXACT
 ANALYSES = OPERATIONS

@@ -9,6 +9,7 @@ from itertools import islice
 import numpy as np
 import pandas as pd
 from territorial_selection import selected_frame, selection_coverage, validate_selected_levels
+from request_memo import per_request
 
 
 class ConfirmationRequired(ValueError):
@@ -32,6 +33,7 @@ def numbers(series, label, options):
     return result.astype(float)
 
 
+@per_request  # chamadores só leem o recorte; nenhum o altera in place
 def scoped(frame, mapping, options):
     frame = selected_frame(frame, mapping, options).copy()
     selected_periods = options.get("period_filters") or []

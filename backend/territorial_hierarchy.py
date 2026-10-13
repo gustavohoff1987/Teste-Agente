@@ -11,6 +11,8 @@ from typing import Any
 
 import pandas as pd
 
+from request_memo import per_request
+
 
 def _key(value: object) -> str:
     normalized = unicodedata.normalize("NFKD", str(value).strip().lower())
@@ -35,6 +37,7 @@ LEVEL_ALIASES = {
 }
 
 
+@per_request
 def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str],
                        selected_levels: dict[str, str] | None = None) -> dict[str, Any]:
     """Descreve níveis e relações observadas; não altera o DataFrame.

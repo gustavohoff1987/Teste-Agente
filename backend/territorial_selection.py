@@ -5,6 +5,7 @@ import pandas as pd
 
 from brazil_catalog_profile import curated_profile
 from territorial_hierarchy import describe_hierarchy
+from request_memo import per_request
 
 
 # Regra governada apenas para a fonte municipal Brasil. Códigos de seis dígitos
@@ -28,6 +29,7 @@ def texts(series):
     return series.astype("string").str.strip().replace("", pd.NA)
 
 
+@per_request
 def territory_catalog(frame, mapping, options):
     name_col, code_col = mapping.get("territory"), mapping.get("territory_id")
     if not name_col or name_col not in frame:
