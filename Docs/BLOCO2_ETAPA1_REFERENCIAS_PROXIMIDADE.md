@@ -11,7 +11,9 @@ do README sobre a política dos dados do Brasil. A Etapa 2 não foi iniciada.
 > complementar quando existir (coluna “Coordenada complementada (camada oficial)” e
 > `complemento_geografico`, só quando aplicada); e compartilhar, numa mesma requisição, os insumos
 > de referências e coordenadas entre o pré-exame e o cálculo. Resultados e chaves desta etapa não
-> mudam sem a camada.
+> mudam sem a camada. Com a camada oficial incorporada (versão 1), o resultado real de 202406
+> descrito abaixo corresponde à base original sem complemento; com a camada, as 2.007 referências
+> têm coordenada avaliável e os 5.570 alvos têm o mínimo do conjunto completo (Etapa 2, seção 3.5).
 
 Commits da etapa, em ordem: `d320a86` (motor), `d9c525a` (comando conversacional), `2f70f47`
 (medição de desempenho), `ca85c4f` (correção do separador decimal), `f1c73e5` (interface),
@@ -164,7 +166,8 @@ vez de repeti-la, o que reduziu a resposta de 5.570 alvos de 9,6 MB para 6,5 MB.
   cada um a sua geometria para municípios cujas coordenadas mudam.
 - **Granularidade.** A capacidade existe só no recorte municipal (o único com coordenadas) e não
   soma nem mistura contagens entre as fontes nacional e municipal.
-- **Resultado real** (202406, critério densidade ≥ 2,36, categoria MEDICINA): 5.570 alvos;
+- **Resultado real** (202406, critério densidade ≥ 2,36, categoria MEDICINA; base original sem
+  complemento): 5.570 alvos;
   2.007 referências atendem ao critério, das quais 4 sem coordenada válida; por isso,
   `minimo_completo` fica não avaliável para todos os alvos, e 5.564 recebem a mais próxima
   "entre as referências avaliáveis" com `COBERTURA_PARCIAL`; os 6 municípios com coordenadas

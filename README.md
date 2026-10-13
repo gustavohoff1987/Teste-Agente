@@ -129,12 +129,14 @@ parâmetros**. Cabeçalhos antigos continuam suportados.
 
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
 recorte nacional, nem identificadores individuais em qualquer recorte. Há 132 linhas
-municipais com coordenadas fora dos intervalos válidos (seis municípios nos 22 períodos).
-Enquanto a camada geográfica complementar não for incorporada (ver os dez pontos abaixo), a
-análise espacial (distância a um território de referência) da base completa permanece
-bloqueada; a referência mais próxima e os critérios mantêm essas seis unidades no universo
-como não avaliáveis (`COORDENADA_INVALIDA`), sem bloquear os demais resultados. Rotatividade
-não pode ser calculada dessas contagens. Nenhum registro foi corrigido ou excluído nos arquivos.
+municipais com coordenadas fora dos intervalos válidos na fonte original (seis municípios nos
+22 períodos). Com a camada geográfica complementar oficial incorporada (ver os dez pontos
+abaixo), as análises espaciais da base Brasil municipal usam, somente nesses 132 registros, o
+ponto oficial da sede municipal: a análise espacial (distância a um território de referência) da
+base completa em uma competência passou a ser executável, e a referência mais próxima e os
+critérios avaliam os 5.570 municípios. Bases importadas não recebem o complemento; nelas, ponto
+inválido continua não avaliável (`COORDENADA_INVALIDA`). Rotatividade não pode ser calculada
+dessas contagens. Nenhum registro foi corrigido ou excluído nos arquivos.
 Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md).
 
 ### Política dos dados do Brasil
@@ -170,7 +172,8 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
    e junho de 2014 a 2024), 22 linhas nacionais e 122.534 municipais, 5.570 municípios por
    código IBGE, categoria MEDICINA, quantidade e população estimada sem ausências. Limitações:
    sem população e coordenadas no recorte nacional; sem identificadores individuais; seis
-   municípios com coordenadas fora do intervalo em todas as competências; nove municípios com
+   municípios com coordenadas fora do intervalo em todas as competências da fonte original
+   (substituídas nas análises espaciais pela camada complementar oficial); nove municípios com
    coordenadas válidas que mudam entre competências; coordenadas com vírgula decimal e sem
    referencial geodésico declarado na fonte; nomes homônimos exigem o código. Evidências:
    [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md),
@@ -192,27 +195,39 @@ arquivos fora deste repositório privado.
 4. **Cópias antigas.** Não são lidas: `.local/` é ignorada pelo carregador e o teste com uma
    cópia antiga divergente comprova; o instalador só copia a versão governada.
 5. **Camada complementar de coordenadas.** Arquivo versionado
-   `dados/brasil/complemento_coordenadas.json`, validado a cada leitura e aplicado só ao ler
-   coordenadas da base Brasil municipal, na versão da fonte a que se refere, apenas onde o ponto
-   original é inválido; os arquivos originais e as bases importadas não são alterados.
+   `dados/brasil/complemento_coordenadas.json` (versão 1, SHA-256 `5db726905a91…`), validado a
+   cada leitura e aplicado só ao ler coordenadas da base Brasil municipal, na versão da fonte a que
+   se refere (`Dados_Municipios_Brasil.csv`, SHA-256 `89c027c90a2d…`), apenas onde o ponto original
+   é inválido; os arquivos originais e as bases importadas não são alterados.
 6. **Municípios e competências.** Ananás/TO (170100), Pescaria Brava/SC (421265), Balneário
    Rincão/SC (422000), Jaraguari/MS (500490), Campestre da Serra/RS (430367) e Águas de
    Lindóia/SP (350050), nas 22 competências de janeiro e junho de 2014 a 2024 (132 registros).
-7. **Fonte geográfica oficial.** Prevista: IBGE, Censo Demográfico 2022 — Localidades do Brasil
-   (ponto da sede municipal, SIRGAS 2000 declarado pela fonte), com o construtor
-   `backend/build_geo_complement.py`. **Ainda não incorporada:** o acesso a `*.ibge.gov.br` é
-   bloqueado pela política de rede deste ambiente; nenhuma coordenada foi inventada e a camada
-   não existe no repositório.
+7. **Fonte geográfica oficial — incorporada.** IBGE, Censo Demográfico 2022 — Localidades do
+   Brasil: `BR_localidades_2022.gpkg` (SHA-256 `d057a1638b16…`; pacote
+   `Localidades_Brasil_gpkg.zip`, SHA-256 `1d96d5f0b379…`; `gpkg_contents.last_change`
+   2025-11-14T05:05:46.920Z), geometria pontual da sede municipal (`CT_LOCALIDADE` = Cidade,
+   `SCT_LOCALIDADE` = Sede Municipal), SIRGAS 2000 (EPSG:4674 em `gpkg_spatial_ref_sys`),
+   exatamente um registro de sede por município. As coordenadas foram extraídas e verificadas
+   pelo usuário no exemplar do GeoPackage que ele forneceu; **não houve autenticação
+   independente do arquivo junto ao servidor do IBGE** (o acesso a `*.ibge.gov.br` é bloqueado
+   neste ambiente).
 8. **Premissa humana.** Uma coordenada fixa por município nas 22 competências
    (`COORDENADA_FIXA_2014_2024`), decisão metodológica do usuário, sem comprovação independente
    de estabilidade histórica e sem extensão a outros municípios.
-9. **Rastreio de versões.** Versão da base pelo manifesto; versão e SHA-256 da camada nos
-   metadados e na chave de execução das análises espaciais (não nas demais); resultado espacial
-   de outra versão da camada não é retomado em silêncio e preparação antiga é recusada.
-10. **Limitações geográficas que permanecem.** Os seis municípios seguem não avaliáveis em
-    análises espaciais até a camada oficial; nove municípios têm coordenadas válidas que mudam
-    entre competências (cada competência usa a sua); a fonte não declara referencial (SIRGAS 2000
-    é declarado pelo usuário); a distância é geodésica direta, sem trajeto, tempo ou acesso.
+9. **Rastreio de versões e proveniência.** Versão da base pelo manifesto; identificador, versão,
+   SHA-256 e proveniência oficial da camada (produto, arquivo e SHA-256 do GeoPackage, referencial,
+   ponto e declaração de verificação) nos metadados (`complemento_geografico`) e na chave de
+   execução das análises espaciais (não nas demais); municípios, linhas e coordenadas
+   complementadas nos metadados e na coluna “Coordenada complementada (camada oficial)”;
+   resultado espacial de outra versão da camada não é retomado em silêncio e preparação antiga é
+   recusada. Para outra versão da fonte municipal, a camada é registrada como `incompativel` e não
+   é aplicada.
+10. **Limitações geográficas que permanecem.** A coordenada dos seis municípios é a mesma nas 22
+    competências por premissa do usuário, não por comprovação de estabilidade histórica; bases
+    importadas não recebem o complemento; nove municípios têm coordenadas válidas que mudam entre
+    competências (cada competência usa a sua); a fonte original não declara referencial (SIRGAS
+    2000 é declarado pelo usuário; a camada oficial é SIRGAS 2000); a distância é geodésica direta,
+    sem trajeto, tempo ou acesso.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
@@ -386,7 +401,7 @@ desempenho: [Bloco 2, Etapa 2](Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
 Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima e critérios combinados com rankings e faixas.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; coordenadas oficiais dos seis municípios com ponto inválido (camada geográfica pendente); PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 

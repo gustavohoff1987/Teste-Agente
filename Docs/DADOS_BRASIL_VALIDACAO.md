@@ -15,10 +15,17 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 > `dados/brasil/manifesto.json` (tamanho e SHA-256); `.local/` não é mais lida, e uma pasta
 > externa só é aceita de forma explícita, com a versão governada ou fixada. As menções abaixo à
 > instalação obrigatória em `.local/` descrevem a situação anterior. Para os seis municípios com
-> coordenadas inválidas, existe um mecanismo de camada geográfica complementar versionada (sede
-> municipal do IBGE, premissa do usuário de coordenada fixa em 2014–2024), mas as coordenadas
-> oficiais **ainda não foram incorporadas** (acesso ao IBGE bloqueado pela rede do ambiente); a
-> análise espacial da base completa continua bloqueada. Detalhes:
+> coordenadas inválidas, a camada geográfica complementar versionada
+> `dados/brasil/complemento_coordenadas.json` (versão 1) **incorpora as coordenadas oficiais** da
+> sede municipal: IBGE, Censo Demográfico 2022 — Localidades do Brasil (`BR_localidades_2022.gpkg`,
+> SHA-256 `d057a1638b16…`), geometria pontual, SIRGAS 2000 (EPSG:4674), sob a premissa
+> metodológica do usuário de uma coordenada fixa nas 22 competências de 2014 a 2024. As
+> coordenadas foram extraídas e verificadas pelo usuário no exemplar do GeoPackage que ele
+> forneceu; não houve autenticação independente do arquivo junto ao servidor do IBGE. Os arquivos
+> originais não foram alterados: a substituição ocorre só ao ler coordenadas da base Brasil
+> municipal, nessa versão da fonte, nos 132 registros com ponto inválido. A análise espacial da
+> base completa em uma competência passou a ser executável, e a referência mais próxima e os
+> critérios avaliam os 5.570 municípios. Detalhes:
 > [Bloco 2, Etapa 2](BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
 ## Alterações dos campos e consumidores
@@ -71,7 +78,7 @@ essa ambiguidade sem somar municípios homônimos.
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
 | Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados |
 | Agregação | Apenas soma explicitamente autorizada; resultado não identificado como total nacional de pessoas únicas |
-| Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido |
+| Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido (13/10/2026: executável com a camada complementar oficial, distâncias iguais à geodésica independente sobre as coordenadas efetivas) |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |
 
@@ -81,8 +88,8 @@ totalizando 132 linhas: ANANAS (170100), PESCARIA BRAVA (421265), BALNEARIO RINC
 Exemplo: latitude `-63741`. Não é possível determinar a correção apenas pelo valor.
 Também há coordenadas que variam ao longo do tempo. Não se corrigiram ou excluíram
 linhas no aplicativo. O subconjunto válido existe somente no teste de distância.
-(13/10/2026: a correção prevista usa uma fonte oficial externa, sem alterar os arquivos; ver a
-atualização no início deste documento.)
+(13/10/2026: a correção usa a camada complementar com as coordenadas oficiais do IBGE, sem
+alterar os arquivos; ver a atualização no início deste documento.)
 
 ## Reproduzir a validação
 
