@@ -75,7 +75,7 @@ jobs:
       - run: npm ci && npm run build
         working-directory: frontend
       - run: python backend/tests/prepare_block1_catalog.py /tmp/adt-block1
-      - name: Validate selection, history and exploration without Gemini
+      - name: Validate selection, history, exploration and nearest reference without Gemini
         run: |
           ADT_BRASIL_DATA_DIR=/tmp/adt-block1 python backend/tests/serve_ui_offline.py > /tmp/adt-block1.log 2>&1 &
           python - <<'PY'
@@ -91,6 +91,7 @@ jobs:
           PY
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_smoke.py
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_regression.py
+          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_nearest_smoke.py
       - name: Validate interpretation through a simulated Gemini transport (no provider calls)
         run: |
           # Processo novo: o servidor bloqueia rede externa e substitui apenas o transporte Gemini.
