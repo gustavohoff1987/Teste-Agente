@@ -221,6 +221,7 @@ function App() {
   const [eligibilityScope, setEligibilityScope] = useState("");
   const [criteriaComparison, setCriteriaComparison] = useState<CriteriaComparison | null>(null);
   const pendingRanking = useRef<RankingSpec["attribute"] | null>(null);
+  const pendingCriteria = useRef<NonNullable<Exploration["criteria_patch"]> | null>(null);
   const [quantiles, setQuantiles] = useState(5);
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
@@ -330,7 +331,7 @@ function App() {
     setReferenceMode(""); setReferenceIds([]); setCriterionOperator(""); setCriterionValue("");
     // Critérios citam territórios e referências da base anterior: nunca atravessam uma troca de fonte.
     setCriteriaTree(null); setCriteriaRanking(null); setCriteriaBands(null); setDistanceScope(""); setEligibilityScope("");
-    setCriteriaComparison(null); pendingRanking.current = null;
+    setCriteriaComparison(null); pendingRanking.current = null; pendingCriteria.current = null;
   }
   async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
@@ -584,7 +585,18 @@ function App() {
       "). Execute a análise para obter os territórios em ambos, só no atual, só no anterior e indeterminados.";
   }
   function applyCriteriaPatch(patch: NonNullable<Exploration["criteria_patch"]>, reply: string): string {
+    if (usingBrazil && inspection?.source?.scope !== "municipal") {
+      // A troca para o recorte municipal pode restaurar a preparação guardada desse recorte:
+      // a condição pedida só é aplicada depois que ele estiver pronto.
+      pendingCriteria.current = patch;
+      setBrazilLevel("municipal"); setActive("criteria"); setInlineConfirmed(!!inspection?.curated_defaults);
+      void inspectFile(null, "", "municipal", "criteria", true);
+      return reply + " A condição será aplicada assim que o recorte municipal estiver preparado.";
+    }
     if (active !== "criteria") selectAnalysis("criteria");
+    return updateCriteria(patch) || reply;
+  }
+  function updateCriteria(patch: NonNullable<Exploration["criteria_patch"]>): string | null {
     if (patch.compare) return compareWithPrevious();
     setCriteriaComparison(null);
     if (patch.leaf) {
@@ -596,7 +608,7 @@ function App() {
       setCriteriaRanking(current => ({...(current || {direction: ""}), ...(patch.ranking || {}),
         ...(patch.top_n ? {top_n: patch.top_n, exact_n: !!patch.exact_n} : {})} as RankingSpec));
     }
-    return reply;
+    return null;
   }
   async function exploreMessage(message: string): Promise<string | null> {
     if (!inspection || inspecting) return null;
@@ -635,6 +647,10 @@ function App() {
     if (!inspecting && inspection?.source?.scope === "municipal" && pendingExploration.current) {
       const proposal = pendingExploration.current; pendingExploration.current = null;
       applyExploration(proposal);
+    }
+    if (!inspecting && inspection?.source?.scope === "municipal" && pendingCriteria.current) {
+      const patch = pendingCriteria.current; pendingCriteria.current = null;
+      updateCriteria(patch);
     }
   }, [inspection, inspecting]);
   function exploreSelection(operation: Operation) {

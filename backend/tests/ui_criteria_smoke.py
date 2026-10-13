@@ -194,13 +194,20 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), width
         page.screenshot(path=str(OUTPUT / "criteria-03-mobile.png"), full_page=True)
 
-        # Jornada funcional no celular (390 px), na base Brasil sintética do Bloco 1:
-        # nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
-        page.set_viewport_size({"width": 390, "height": 844})
+        # Base Brasil sintética do Bloco 1. Com o recorte nacional escolhido, o comando volta ao recorte
+        # municipal e só aplica a condição depois que ele está pronto (a preparação restaurada não a apaga).
+        page.set_viewport_size({"width": 1280, "height": 900})
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
+        inline.get_by_text("Alterar a abrangência territorial", exact=True).click()
+        inline.get_by_label("Abrangência territorial").select_option("national")
+        expect(inline.get_by_text("o conjunto do Brasil", exact=False)).to_be_visible(timeout=60000)
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
+        expect(builder.get_by_label("Valor de c1")).to_have_value("2", timeout=60000)
+        expect(inline.get_by_text("os municípios brasileiros", exact=False)).to_be_visible()
+        # Jornada funcional no celular (390 px): nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
+        page.set_viewport_size({"width": 390, "height": 844})
         inline.get_by_label("Escolher períodos da análise").click()
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
         empty = execute("Calcular e mostrar resultado")
