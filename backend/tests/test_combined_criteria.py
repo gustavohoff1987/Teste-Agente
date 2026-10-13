@@ -391,3 +391,12 @@ def test_threshold_unit_conversions_are_exact_and_values_stay_in_the_canonical_u
     assert states(per_100k) == states(ok(leaf("densidade", "<", "2.36"))[2])  # 236 por 100 mil = 2,36 por mil, exato
     response = post(tree=leaf("distancia", ">", "1", unit="milhas"), reference_mode="list", reference_ids=REFS)
     assert response.status_code == 422 and "Unidade não suportada" in response.json()["detail"]
+
+
+def test_ranking_direction_and_band_limits_are_never_assumed():
+    gate = post(path="/api/preflight", ranking={"attribute": "densidade"}).json()["capabilities"]["criteria"]
+    assert gate["status"] == "needs_confirmation" and any("direção da ordenação" in r for r in gate["reasons"])
+    response = post(ranking={"attribute": "densidade", "top_n": 2})
+    assert response.status_code == 422 and "direção da ordenação" in response.json()["detail"]
+    gate = post(path="/api/preflight", bands={"attribute": "densidade", "limits": []}).json()["capabilities"]["criteria"]
+    assert gate["status"] == "unavailable" and any("nenhum intervalo é criado pelo sistema" in r for r in gate["reasons"])

@@ -4,7 +4,7 @@ import BrandAvatar from "./BrandAvatar";
 import PeriodSelection from "./PeriodSelection";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
-  "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest";
+  "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
 export type FieldRole = "territory" | "territory_id" | "period" | "category" |
   "count" | "population" | "latitude" | "longitude" | "identity";
 type Mapping = Partial<Record<FieldRole, string>>;
@@ -52,6 +52,7 @@ type Props = {
   advanced: ReactNode;
   extra?: ReactNode;
   referenceMode?: string;
+  criteriaNeeds?: { count: boolean; population: boolean; spatial: boolean };
 };
 type Choice = { label: string; value: string };
 function InlineChoice({ label, value, options, onChange }: {
@@ -77,9 +78,12 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
   {label:"postos de trabalho",value:"postos"},{label:"outra unidade",value:"outro"}];
 
 export default function ConversationalPreparation(p: Props) {
-  const criterion = p.operation === "nearest" && p.referenceMode === "criterion";
-  const requiresCount = p.operation !== "spatial" && p.operation !== "rotation" && (p.operation !== "nearest" || criterion);
-  const requiresPopulation = ["density", "ranking", "aggregate"].includes(p.operation) || criterion ||
+  // Critérios combinados: os papéis seguem as condições, a ordenação e as referências definidas.
+  const needs = p.operation === "criteria" ? p.criteriaNeeds || {count: false, population: false, spatial: false} : null;
+  const criterion = (p.operation === "nearest" && p.referenceMode === "criterion") || !!needs?.count;
+  const spatial = p.operation === "spatial" || p.operation === "nearest" || !!needs?.spatial;
+  const requiresCount = p.operation !== "spatial" && p.operation !== "rotation" && (!["nearest", "criteria"].includes(p.operation) || criterion);
+  const requiresPopulation = ["density", "ranking", "aggregate"].includes(p.operation) || (needs ? needs.population : criterion) ||
     p.operation === "comparisons" && p.indicator !== "quantity" ||
     (["distribution","temporal","report"].includes(p.operation) && p.indicator === "density");
   const requiresIndicator = ["comparisons", "distribution", "temporal", "report"].includes(p.operation);
@@ -92,7 +96,7 @@ export default function ConversationalPreparation(p: Props) {
   if (p.sourceBrazil && p.curated) {
     const isTemporal = p.operation === "temporal";
     const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
-    const needsSinglePeriod = ["counts", "density", "aggregate", "distribution", "comparisons", "ranking", "nearest"].includes(p.operation);
+    const needsSinglePeriod = ["counts", "density", "aggregate", "distribution", "comparisons", "ranking", "nearest", "criteria"].includes(p.operation);
     const periodReady = !needsSinglePeriod || p.periods.length <= 1 || !!p.periodFilter || p.selectedPeriods.length > 0 &&
       p.operation === "counts";
     const analysisReady = ready && periodReady;
@@ -100,7 +104,8 @@ export default function ConversationalPreparation(p: Props) {
       p.operation === "counts" ? "quantitativos de médicos" :
       p.operation === "temporal" ? "evolução dos quantitativos de médicos" :
       p.operation === "aggregate" ? "agregação territorial" :
-      p.operation === "nearest" ? "referência geográfica mais próxima" : "análise solicitada";
+      p.operation === "nearest" ? "referência geográfica mais próxima" :
+      p.operation === "criteria" ? "critérios combinados, ordenações e recortes" : "análise solicitada";
     return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
@@ -134,7 +139,7 @@ export default function ConversationalPreparation(p: Props) {
             e selecione o território de referência
             <InlineChoice label="Território de referência" value={p.reference}
               options={named(p.territories)} onChange={p.onReference}/>.</p>}
-          {p.operation === "nearest" && <p>Para calcular distâncias geodésicas, confirme o referencial das coordenadas
+          {(p.operation === "nearest" || needs?.spatial) && <p>Para calcular distâncias geodésicas, confirme o referencial das coordenadas
             <InlineChoice label="Referencial geodésico" value={p.crs}
               options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>; nenhum referencial é presumido.</p>}
           {requiresIndicator && <p>Deseja trabalhar com
@@ -180,7 +185,7 @@ export default function ConversationalPreparation(p: Props) {
           {requiresCount && <> Os quantitativos são registrados em {field("Quantitativo", "count")}.</>}
           {requiresPopulation && <> Para calcular a densidade, usarei a população informada em {field("População", "population")}.</>}
           {p.operation === "rotation" && <> Para acompanhar pessoas entre períodos, considerarei {field("Identificador individual", "identity")} como identificador.</>}
-          {(p.operation === "spatial" || p.operation === "nearest") && <> As coordenadas constam de {field("Latitude", "latitude")} e {field("Longitude", "longitude")}.</>}
+          {spatial && <> As coordenadas constam de {field("Latitude", "latitude")} e {field("Longitude", "longitude")}.</>}
         </p>
         <p className="leading-8">
           {requiresIndicator && <>O indicador escolhido é <InlineChoice label="Indicador" value={p.indicator}
@@ -200,7 +205,7 @@ export default function ConversationalPreparation(p: Props) {
             value={p.crs} options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>,
             tendo como ponto de referência <InlineChoice label="Território de referência" value={p.reference}
               options={named(p.territories)} onChange={p.onReference}/>. </>}
-          {p.operation === "nearest" && <>Para as distâncias, o referencial das coordenadas é <InlineChoice label="Referencial geodésico"
+          {(p.operation === "nearest" || needs?.spatial) && <>Para as distâncias, o referencial das coordenadas é <InlineChoice label="Referencial geodésico"
             value={p.crs} options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>; nenhum referencial é presumido. </>}
         </p>
         {categoryChoiceRequired && <p className="text-xs text-slate-600">A escolha da categoria confirma a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
@@ -210,7 +215,7 @@ export default function ConversationalPreparation(p: Props) {
           className="max-w-[220px] rounded-md border border-blue-200 px-2 py-1" placeholder="Descreva a unidade"/>
         </label>}
         <p>Se essas informações estiverem corretas, podemos prosseguir. As declarações abaixo são necessárias apenas quando não podem ser verificadas pelos dados.</p>
-        {p.operation !== "spatial" && (p.operation !== "nearest" || criterion) && <label className="flex items-start gap-2 text-xs leading-5">
+        {p.operation !== "spatial" && (!["nearest", "criteria"].includes(p.operation) || criterion) && <label className="flex items-start gap-2 text-xs leading-5">
           <input type="checkbox" className="mt-1" checked={p.ftsConfirmed} onChange={e=>p.onFtsConfirmed(e.target.checked)}/>
           Confirmo que os dados selecionados correspondem à força de trabalho em saúde.
         </label>}

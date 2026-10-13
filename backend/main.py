@@ -34,6 +34,7 @@ from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for
 from request_memo import RequestMemoMiddleware
 from combined_criteria import needs as criteria_needs
+from criteria_conversation import criteria_command
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -717,6 +718,12 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
     try:
         if len(message) > 800:
             raise ValueError("Mensagem acima do limite de 800 caracteres.")
+        requested = json.loads(options)
+        if not isinstance(requested, dict):
+            raise ValueError("Parâmetros inválidos.")
+        command = criteria_command(message, requested)  # critérios combinados: só estrutura, sem dados nem cálculo
+        if command is not None:
+            return command
         if not operation_for(message):
             return {"handled": False}
         frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,

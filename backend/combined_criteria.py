@@ -264,6 +264,14 @@ def criteria_inputs(frame, mapping, options):
         if options.get(key) not in (None, *allowed):
             raise ValueError("Alcance não reconhecido: " + key + ".")
     nodes, leaves, root = parse_tree(tree, options) if tree is not None else ({}, [], None)
+    if ranking:
+        _numeric_spec(ranking, "Ordenação")
+        _direction(ranking)
+        if ranking.get("top_n") is not None:
+            _top_n(ranking)
+    if bands:
+        _numeric_spec(bands, "Faixas")
+        band_edges(bands.get("limits"))
     need = needs(options)
     if need["count"] and not mapping.get("count"):
         raise ValueError("Critérios de densidade e quantidade usam a coluna de quantitativos; associe-a.")
@@ -573,7 +581,7 @@ def _selection_states(definition, members, evaluator, catalog):
         return None, None
     attribute, category, _ = _numeric_spec(ranking, "Ordenação")
     values = evaluator.values(attribute, evaluator.category(category) if attribute in ("densidade", "quantidade") else None)
-    ordered, positions, not_evaluable = ranking_of(values, members, catalog, ranking.get("direction", "asc"))
+    ordered, positions, not_evaluable = ranking_of(values, members, catalog, _direction(ranking))
     top, pending = select_top(ordered, positions, _top_n(ranking), bool(ranking.get("exact_n")))
     if pending:
         return None, pending
@@ -581,12 +589,19 @@ def _selection_states(definition, members, evaluator, catalog):
     return {**{key: "DENTRO" if key in chosen else "FORA" for key in ordered}, **{key: "NAO_AVALIAVEL" for key in not_evaluable}}, None
 
 
+def _direction(ranking):
+    """A direção decide quais territórios vêm primeiro: é sempre escolha explícita do usuário."""
+    direction = ranking.get("direction")
+    if direction not in ("asc", "desc"):
+        raise ConfirmationRequired("Escolha a direção da ordenação: do maior para o menor ou do menor para o maior.")
+    return direction
+
+
 def _top_n(ranking):
     n = ranking.get("top_n")
     if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 10000:
         raise ValueError("N deve ser um inteiro entre 1 e 10.000.")
-    if ranking.get("direction", "asc") not in ("asc", "desc"):
-        raise ValueError("Direção da ordenação: crescente ou decrescente.")
+    _direction(ranking)
     return n
 
 
@@ -611,9 +626,7 @@ def compute_criteria(frame, mapping, options):
     spec = options.get("ranking")
     if spec:
         attribute, category, _ = _numeric_spec(spec, "Ordenação")
-        direction = spec.get("direction", "asc")
-        if direction not in ("asc", "desc"):
-            raise ValueError("Direção da ordenação: crescente ou decrescente.")
+        direction = _direction(spec)
         used_category = evaluator.category(category) if attribute in ("densidade", "quantidade") else None
         values = evaluator.values(attribute, used_category)
         chosen, members = members_for(spec)

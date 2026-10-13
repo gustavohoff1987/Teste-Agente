@@ -10,11 +10,15 @@ import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
 import TerritorialSelection, {type Territory} from "./TerritorialSelection";
 import ReferenceSetup, {type ReferenceMode} from "./ReferenceSetup";
+import CriteriaBuilder from "./CriteriaBuilder";
+import CriteriaResults, {type CriteriaMetadata} from "./CriteriaResults";
+import { addCondition, complete, describe as describeCriteria, leaves as criteriaLeaves, nextId as nextLeafId, uses as criteriaUses,
+  type BandsSpec, type CriteriaNode, type Leaf, type RankingSpec } from "./criteriaTree";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2,
+  ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2, Filter,
   Home, Menu, X, MessageCircle, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
   FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
@@ -65,7 +69,10 @@ type AnalysisResult = { result_id: string; title: string; description: string; r
 type Exploration = {handled: boolean; reply?: string; clarification?: string; operation?: Operation;
   territory_ids?: string[]; options_patch?: {period_filter?: string; period_filters?: string[];
     temporal_indicator?: "quantity" | "density"; comparison_indicator?: "quantity" | "density";
-    component_sum_confirmed?: boolean}; selection_changed?: boolean};
+    component_sum_confirmed?: boolean}; selection_changed?: boolean;
+  criteria_patch?: {mode?: "replace" | "and" | "or"; leaf?: Omit<Leaf, "id">; ranking?: {attribute: RankingSpec["attribute"]; direction: "asc" | "desc"};
+    top_n?: number; exact_n?: boolean; compare?: "previous"}; criteria_pending_ranking?: RankingSpec["attribute"]};
+type CriteriaComparison = {criteria?: CriteriaNode; ranking?: RankingSpec; label: string};
 type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon; tone: string };
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
@@ -104,7 +111,8 @@ const FEATURES: Feature[] = [
   { id: "ranking", title: ANALYSIS_LABELS.ranking, detail: "Seleções, posições e ordenações", icon: ListFilter, tone: "amber" },
   { id: "rotation", title: ANALYSIS_LABELS.rotation, detail: "Permanência da coorte inicial", icon: RefreshCw, tone: "cyan" },
   { id: "report", title: ANALYSIS_LABELS.report, detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" },
-  { id: "nearest", title: ANALYSIS_LABELS.nearest, detail: "Referência geográfica mais próxima de cada alvo", icon: LocateFixed, tone: "amber" }
+  { id: "nearest", title: ANALYSIS_LABELS.nearest, detail: "Referência geográfica mais próxima de cada alvo", icon: LocateFixed, tone: "amber" },
+  { id: "criteria", title: ANALYSIS_LABELS.criteria, detail: "Condições combinadas, réguas, rankings e recortes", icon: Filter, tone: "violet" }
 ];
 const ROLES: { key: Role; label: string; help: string }[] = [
   { key: "territory_id", label: "Código territorial", help: "Distingue unidades com nomes iguais" },
@@ -206,6 +214,13 @@ function App() {
   const [referenceIds, setReferenceIds] = useState<string[]>([]);
   const [criterionOperator, setCriterionOperator] = useState("");
   const [criterionValue, setCriterionValue] = useState("");
+  const [criteriaTree, setCriteriaTree] = useState<CriteriaNode | null>(null);
+  const [criteriaRanking, setCriteriaRanking] = useState<RankingSpec | null>(null);
+  const [criteriaBands, setCriteriaBands] = useState<BandsSpec | null>(null);
+  const [distanceScope, setDistanceScope] = useState("");
+  const [eligibilityScope, setEligibilityScope] = useState("");
+  const [criteriaComparison, setCriteriaComparison] = useState<CriteriaComparison | null>(null);
+  const pendingRanking = useRef<RankingSpec["attribute"] | null>(null);
   const [quantiles, setQuantiles] = useState(5);
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
@@ -235,7 +250,8 @@ function App() {
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
       objectDraft, quantiles, distributionIndicator, selectedPeriods, territoryIds, comparisonIndicator,
-      referenceMode, referenceIds, criterionOperator, criterionValue };
+      referenceMode, referenceIds, criterionOperator, criterionValue,
+      criteriaTree, criteriaRanking, criteriaBands, distanceScope, eligibilityScope, criteriaComparison };
   }
   function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
     const o = saved.options;
@@ -255,6 +271,8 @@ function App() {
     setTerritoryIds(saved.territoryIds); setComparisonIndicator(saved.comparisonIndicator);
     setReferenceMode(saved.referenceMode); setReferenceIds(saved.referenceIds);
     setCriterionOperator(saved.criterionOperator); setCriterionValue(saved.criterionValue);
+    setCriteriaTree(saved.criteriaTree); setCriteriaRanking(saved.criteriaRanking); setCriteriaBands(saved.criteriaBands);
+    setDistanceScope(saved.distanceScope); setEligibilityScope(saved.eligibilityScope); setCriteriaComparison(saved.criteriaComparison);
   }
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,8 +288,12 @@ function App() {
   // Resultado espacial calculado com outra versão da camada não é retomado nem reutilizado em silêncio.
   const compatible = (item: {sourceKey: string; result: AnalysisResult}) =>
     item.sourceKey === sourceKey && (!resultGeoToken(item.result) || resultGeoToken(item.result) === geoToken);
+  const criteriaDistance = criteriaUses(criteriaTree, "distancia", criteriaRanking, criteriaBands) ||
+    criteriaLeaves(criteriaComparison?.criteria || null).some(leaf => leaf.attribute === "distancia");
+  // Critérios só dependem das coordenadas (e da camada complementar) quando usam a distância.
+  const spatialRequest = (operation: Operation) => SPATIAL_OPERATIONS.includes(operation) || (operation === "criteria" && criteriaDistance);
   const requestKey = (operation: Operation) => JSON.stringify({sourceKey, operation, mapping,
-    ...(SPATIAL_OPERATIONS.includes(operation) ? {geo: geoToken} : {}),
+    ...(spatialRequest(operation) ? {geo: geoToken} : {}),
     options: {...semanticOptions(), territory_ids: semanticOptions().territory_ids ? [...territoryIds].sort() : undefined}});
   const historical = history.find(item=>item.result.result_id===result?.result_id);
   const resultOperation = result?.metadata.operation as Operation | undefined;
@@ -283,8 +305,12 @@ function App() {
   const nearestMetadata = result?.metadata.nearest_reference as NearestMetadata | undefined;
   const nearestMembers = nearestMetadata?.conjunto_referencias?.membros.map(item=>item.id) || [];
   // A cobertura por alvo pode ter milhares de registros: na tela, só os primeiros; o JSON exportado é integral.
+  const criteriaMetadata = result?.metadata.criterios as (CriteriaMetadata & {avaliacoes?: unknown[]}) | undefined;
   const metadataText = useMemo(() => {
     if (!result) return "";
+    const evaluations = criteriaMetadata?.avaliacoes;
+    if (evaluations && evaluations.length > 50) return JSON.stringify({...result.metadata, criterios: {...criteriaMetadata, avaliacoes:
+      [...evaluations.slice(0, 50), "… mais " + (evaluations.length - 50) + " avaliações por território na exportação “Método e parâmetros”"]}}, null, 2);
     const coverage = nearestMetadata?.cobertura_referencias;
     return JSON.stringify(coverage && coverage.length > 50 ? {...result.metadata, nearest_reference: {...nearestMetadata,
       cobertura_referencias: [...coverage.slice(0, 50), "… mais " + (coverage.length - 50) + " registros por alvo na exportação “Método e parâmetros”"]}}
@@ -302,6 +328,9 @@ function App() {
   const scopeFor = (operation: Operation) => inspection?.source?.default_scopes[operation] ?? ENGINE_ONLY_SCOPES[operation];
   function resetReferences() {
     setReferenceMode(""); setReferenceIds([]); setCriterionOperator(""); setCriterionValue("");
+    // Critérios citam territórios e referências da base anterior: nunca atravessam uma troca de fonte.
+    setCriteriaTree(null); setCriteriaRanking(null); setCriteriaBands(null); setDistanceScope(""); setEligibilityScope("");
+    setCriteriaComparison(null); pendingRanking.current = null;
   }
   async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
@@ -484,8 +513,16 @@ function App() {
       category_constant: categoryConstant,
       require_object_confirmation: true,
       object_confirmed: objectConfirmed,
-      ...(active === "nearest" && referenceMode ? {reference_mode: referenceMode, ...(referenceMode === "list"
-        ? {reference_ids: referenceIds} : {reference_criterion: {operator: criterionOperator, value: criterionValue}})} : {})
+      ...((active === "nearest" || (active === "criteria" && criteriaDistance)) && referenceMode ? {reference_mode: referenceMode, ...(referenceMode === "list"
+        ? {reference_ids: referenceIds} : {reference_criterion: {operator: criterionOperator, value: criterionValue}})} : {}),
+      ...(active === "criteria" ? {
+        ...(criteriaTree ? {criteria: criteriaTree} : {}),
+        ...(criteriaRanking ? {ranking: {attribute: criteriaRanking.attribute, direction: criteriaRanking.direction || undefined,
+          ...(criteriaRanking.top_n ? {top_n: criteriaRanking.top_n, exact_n: !!criteriaRanking.exact_n} : {}),
+          ...(criteriaTree ? {set: criteriaRanking.set || "atende"} : {})}} : {}),
+        ...(criteriaBands ? {bands: criteriaBands} : {}),
+        ...(distanceScope ? {distance_scope: distanceScope} : {}), ...(eligibilityScope ? {eligibility_scope: eligibilityScope} : {}),
+        ...(criteriaComparison ? {comparison: criteriaComparison} : {})} : {})
     };
   }
   function changeTerritories(ids: string[]) {
@@ -519,18 +556,65 @@ function App() {
     }
     setActive(proposal.operation); setInlineConfirmed(!!inspection?.curated_defaults); setError("");
   }
+  // Resultado anterior comparável: mesma fonte, competência, categoria, universo e, se houver distância, referências.
+  function previousCriteria(): {item: Historical; index: number} | null {
+    const until = historical ? history.indexOf(historical) : history.length;
+    const sorted = (ids?: string[]) => JSON.stringify([...(ids || [])].sort());
+    for (let index = Math.min(until, history.length) - 1; index >= 0; index--) {
+      const item = history[index], saved = item.preparation;
+      if (item.result.metadata.operation !== "criteria" || item.invalidReason || !compatible(item)) continue;
+      const sameContext = saved.options.period_filter === periodFilter && saved.options.category_filter === categoryFilter &&
+        sorted(saved.territoryIds) === sorted(territoryIds);
+      const distance = criteriaLeaves(saved.criteriaTree).some(leaf => leaf.attribute === "distancia") || saved.criteriaRanking?.attribute === "distancia";
+      const sameReferences = !distance || JSON.stringify([saved.referenceMode, saved.referenceIds, saved.criterionOperator, saved.criterionValue]) ===
+        JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]);
+      if (!sameContext || !sameReferences) return null;
+      return {item, index};
+    }
+    return null;
+  }
+  function compareWithPrevious(): string {
+    const previous = previousCriteria();
+    if (!previous) return "Não há resultado anterior de critérios no mesmo contexto (base, competência, categoria, universo e referências). " +
+      "A comparação direta não foi preparada; retome o resultado desejado pelo histórico ou ajuste o contexto.";
+    const saved = previous.item.preparation;
+    setCriteriaComparison({...(saved.criteriaTree ? {criteria: saved.criteriaTree} : {}),
+      ...(saved.criteriaRanking?.top_n ? {ranking: saved.criteriaRanking} : {}), label: "resultado " + (previous.index + 1)});
+    return "Comparação preparada com o resultado " + (previous.index + 1) + " (" + (describeCriteria(saved.criteriaTree, countUnit) || "universo") +
+      "). Execute a análise para obter os territórios em ambos, só no atual, só no anterior e indeterminados.";
+  }
+  function applyCriteriaPatch(patch: NonNullable<Exploration["criteria_patch"]>, reply: string): string {
+    if (active !== "criteria") selectAnalysis("criteria");
+    if (patch.compare) return compareWithPrevious();
+    setCriteriaComparison(null);
+    if (patch.leaf) {
+      const leaf = {...patch.leaf, id: patch.mode === "replace" || !criteriaTree ? "c1" : nextLeafId(criteriaTree)} as Leaf;
+      setCriteriaTree(patch.mode === "replace" || !criteriaTree ? leaf : addCondition(criteriaTree, leaf, patch.mode === "or" ? "or" : "and"));
+      if (patch.mode === "replace") { setCriteriaRanking(null); setCriteriaBands(null); }
+    }
+    if (patch.ranking || patch.top_n) {
+      setCriteriaRanking(current => ({...(current || {direction: ""}), ...(patch.ranking || {}),
+        ...(patch.top_n ? {top_n: patch.top_n, exact_n: !!patch.exact_n} : {})} as RankingSpec));
+    }
+    return reply;
+  }
   async function exploreMessage(message: string): Promise<string | null> {
     if (!inspection || inspecting) return null;
     const currentRevision = revision.current;
     const form = new FormData(); appendSource(form);
     form.append("message", message); form.append("mapping", JSON.stringify(mapping));
     form.append("options", JSON.stringify({...semanticOptions(), exploration_indicator:
-      active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator}));
+      active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
+      exploration_operation: active || "", ...(criteriaTree ? {criteria: criteriaTree} : {}),
+      ...(criteriaRanking?.attribute ? {ranking: criteriaRanking} : {}),
+      ...(pendingRanking.current ? {criteria_pending_ranking: pendingRanking.current} : {})}));
     const response = await fetch(API + "/api/exploration/interpret", {method:"POST", body:form});
     const proposal = await readApiResponse(response) as Exploration;
     if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
     if (!proposal.handled) return null;
+    pendingRanking.current = proposal.criteria_pending_ranking || null;
     if (proposal.clarification) return proposal.clarification;
+    if (proposal.criteria_patch) return applyCriteriaPatch(proposal.criteria_patch, proposal.reply || "");
     if (proposal.operation && !proposal.territory_ids) {
       // Comando que só prepara a operação: alvos, referências e confirmações seguem nos controles.
       selectAnalysis(proposal.operation);
@@ -635,7 +719,7 @@ function App() {
     const currentRevision = revision.current;
     const form = new FormData();
     appendSource(form); form.append("operation", op);
-    if (usingBrazil && SPATIAL_OPERATIONS.includes(op)) form.append("geo_version", geoToken);
+    if (usingBrazil && spatialRequest(op)) form.append("geo_version", geoToken);
     form.append("mapping", JSON.stringify(mapping));
     form.append("options", JSON.stringify(semanticOptions()));
     try {
@@ -681,7 +765,10 @@ function App() {
       .catch(() => { if (alive) setServerStatus("offline"); });
     return () => { alive = false; };
   }, []);
-  const nearestOptions = active === "nearest" && referenceMode ? JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]) : "";
+  const nearestOptions = (active === "nearest" || (active === "criteria" && criteriaDistance)) && referenceMode
+    ? JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]) : "";
+  const criteriaOptions = active === "criteria" ? JSON.stringify([criteriaTree, criteriaRanking, criteriaBands, distanceScope,
+    eligibilityScope, criteriaComparison]) : "";
   // O servidor recalcula a matriz após qualquer associação ou confirmação.
   // Nenhuma habilitação é decidida apenas no navegador.
   useEffect(() => {
@@ -712,7 +799,7 @@ function App() {
       periodFilter, selectedPeriods, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
       ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator,
-      nearestOptions]);
+      nearestOptions, criteriaOptions]);
 
   useEffect(() => { revision.current += 1;  setError(""); }, [active]);
 
@@ -723,7 +810,28 @@ function App() {
       <Icon size={18}/>{label}
     </button>;
 
-  const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason));
+  const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)) ||
+    (active === "criteria" && !!preflight?.capabilities.criteria?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)));
+  const criteriaAll = [...criteriaLeaves(criteriaTree), ...criteriaLeaves(criteriaComparison?.criteria || null)];
+  const criteriaReferencesByCriterion = criteriaDistance && referenceMode === "criterion";
+  const criteriaNeeds = {spatial: criteriaDistance,
+    count: criteriaAll.some(leaf => leaf.attribute === "densidade" || leaf.attribute === "quantidade") ||
+      ["densidade", "quantidade"].includes(criteriaRanking?.attribute || "") || ["densidade", "quantidade"].includes(criteriaBands?.attribute || "") ||
+      criteriaReferencesByCriterion,
+    population: criteriaAll.some(leaf => leaf.attribute === "densidade" || leaf.attribute === "populacao") ||
+      ["densidade", "populacao"].includes(criteriaRanking?.attribute || "") || ["densidade", "populacao"].includes(criteriaBands?.attribute || "") ||
+      criteriaReferencesByCriterion};
+  // Faixa observada no último resultado de critérios, por condição: só posiciona a régua, nunca escolhe o valor.
+  const criteriaRanges = useMemo(() => {
+    const ranges: Record<string, [number, number]> = {};
+    const evaluations = (result?.metadata.criterios as {avaliacoes?: {nos: Record<string, {valor?: number}>}[]} | undefined)?.avaliacoes || [];
+    for (const item of evaluations) for (const [node, detail] of Object.entries(item.nos)) {
+      if (typeof detail.valor !== "number") continue;
+      const range = ranges[node];
+      ranges[node] = range ? [Math.min(range[0], detail.valor), Math.max(range[1], detail.valor)] : [detail.valor, detail.valor];
+    }
+    return ranges;
+  }, [result]);
   const visibleRequirements = preparationRequirements(active ? preflight?.capabilities[active]?.requirements || [] : []);
 
   const sourceChoice = <div id="dados" className="mt-3 space-y-3">
@@ -897,7 +1005,8 @@ function App() {
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
               <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {active !== "spatial" && active !== "rotation" && (active !== "nearest" || referenceMode === "criterion") && <>
+                {active !== "spatial" && active !== "rotation" && (active !== "nearest" || referenceMode === "criterion") &&
+                  (active !== "criteria" || criteriaNeeds.count) && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Onde estão os quantitativos dos profissionais?
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -931,7 +1040,7 @@ function App() {
                       value={customCountUnit} onChange={e => setCustomCountUnit(e.target.value)}/>
                   </label>}
                 </>}
-                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density") || (active === "temporal" && temporalIndicator === "density") || (active === "report" && reportIndicator === "density") || (active === "nearest" && referenceMode === "criterion")) && <>
+                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density") || (active === "temporal" && temporalIndicator === "density") || (active === "report" && reportIndicator === "density") || (active === "nearest" && referenceMode === "criterion") || (active === "criteria" && criteriaNeeds.population)) && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Coluna com a população correspondente
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -983,7 +1092,7 @@ function App() {
                     Confirmo a comparabilidade territorial entre períodos, quando aplicável
                   </label>
                 </>}
-                {(active === "spatial" || active === "nearest") && <>
+                {(active === "spatial" || active === "nearest" || (active === "criteria" && criteriaDistance)) && <>
                   {(["latitude","longitude"] as Role[]).map(role => <label key={role} className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     {role === "latitude" ? "Latitude" : "Longitude"}
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -1023,7 +1132,11 @@ function App() {
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
                 <p>Período: {periodFilter || "Todos os períodos da base"} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
                 <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (identityCountConfirmed ? "Pessoas distintas" : "Conforme a análise")}</p>
-                {active === "nearest" && <p>Referências: {referenceMode === "list" ? "lista explícita com " + referenceIds.length + " municípios" :
+                {active === "criteria" && <p className="break-words">Critérios: {describeCriteria(criteriaTree, countUnit) || "nenhum (somente ordenação)"}
+                  {criteriaRanking && " · Ordenação: " + criteriaRanking.attribute + " " + (criteriaRanking.direction === "desc" ? "decrescente" :
+                    criteriaRanking.direction === "asc" ? "crescente" : "(direção a escolher)") + (criteriaRanking.top_n ? " · " + criteriaRanking.top_n + " primeiros" : "")}
+                  {criteriaComparison && " · Comparação com o " + criteriaComparison.label}</p>}
+                {(active === "nearest" || (active === "criteria" && criteriaDistance)) && <p>Referências: {referenceMode === "list" ? "lista explícita com " + referenceIds.length + " municípios" :
                   referenceMode === "criterion" ? "densidade por 1.000 habitantes " + (criterionOperator || "?") + " " + (criterionValue || "?") :
                   "aguardando definição"} · Referencial: {crs || "não informado"}</p>}
               </div>
@@ -1094,6 +1207,22 @@ function App() {
       onExecute={()=>{void run(active);}}
       executing={running}
       extra={<div className="space-y-2 text-xs leading-5">
+        {active === "criteria" && <CriteriaBuilder tree={criteriaTree} onTree={tree=>{setCriteriaTree(tree);setCriteriaComparison(null);}}
+          ranking={criteriaRanking} onRanking={setCriteriaRanking} bands={criteriaBands} onBands={setCriteriaBands}
+          distanceScope={distanceScope} onDistanceScope={setDistanceScope} eligibilityScope={eligibilityScope} onEligibilityScope={setEligibilityScope}
+          period={periodFilter} category={categoryFilter || categoryConstant} countUnit={countUnit === "outro" ? customCountUnit : countUnit}
+          categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
+          universe={territoryIds.length ? territoryIds.length + " territórios selecionados" : "todos os territórios do período"}
+          selectionIds={territoryIds} ranges={criteriaRanges} disabled={running || inspecting}
+          references={<ReferenceSetup mode={referenceMode} onMode={setReferenceMode}
+            items={preflight?.territory_choices || []} reason={preflight?.selection_reason}
+            referenceIds={referenceIds} onReferenceIds={setReferenceIds}
+            operator={criterionOperator} onOperator={setCriterionOperator} value={criterionValue} onValue={setCriterionValue}
+            showDecimal={decimalPending || !!resolutions.number_format} numberFormat={resolutions.number_format}
+            onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
+            disabled={running || inspecting}/>}/>}
+        {active === "criteria" && criteriaTree && !complete(criteriaTree) && <p role="status" className="text-amber-900">
+          Complete o operador e o valor de cada condição.</p>}
         {active === "nearest" && <ReferenceSetup mode={referenceMode} onMode={setReferenceMode}
           items={preflight?.territory_choices || []} reason={preflight?.selection_reason}
           referenceIds={referenceIds} onReferenceIds={setReferenceIds}
@@ -1153,13 +1282,16 @@ function App() {
         </>}
       </div>}
       referenceMode={referenceMode}
+      criteriaNeeds={criteriaNeeds}
       advanced={advancedPreparation}
     /></div> : null;
   const selectionContent = inspection && (!usingBrazil || inspection.source?.scope==="municipal") ? <>
     <TerritorialSelection items={preflight?.territory_choices || []} selected={territoryIds}
       onChange={changeTerritories} disabled={running || inspecting} reason={preflight?.selection_reason}
       {...(active === "nearest" ? {title: "Municípios-alvo",
-        description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."} : {})}/>
+        description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."}
+        : active === "criteria" ? {title: "Universo dos critérios",
+        description: "Os critérios são avaliados para cada território selecionado. Sem seleção, todos os territórios do período. A seleção não reduz o conjunto de referências."} : {})}/>
     {selectionProposal && <div role="alert" className="no-print my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
       <p>O pedido usará {selectionProposal.territory_ids?.length} territórios em lugar da seleção atual.</p>
       <button type="button" onClick={()=>applyExploration(selectionProposal)} className="mr-2 mt-2 rounded-lg border bg-white px-3 py-2">Usar o recorte mencionado</button>
@@ -1273,7 +1405,11 @@ function App() {
             </div>}
             {resultOperation === "distribution" && result.detail_rows && <DistributionResults
               summary={result.rows} detail={result.detail_rows} onExport={exportCsv}/>}
-            {resultOperation !== "distribution" && plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
+            {resultOperation === "criteria" && criteriaMetadata && <CriteriaResults key={result.result_id} rows={result.rows}
+              meta={criteriaMetadata} onExport={exportCsv} onSelection={changeTerritories}
+              onReferences={ids=>{setReferenceMode("list");setReferenceIds(ids);}}
+              reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}/>}
+            {resultOperation !== "distribution" && resultOperation !== "criteria" && plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos primeiros 12 registros</h4></div>
               {/* O tooltip oculto preserva a posição anterior; sem recorte, estende a página ao estreitar a janela.
                   A largura máxima mantém o tooltip visível dentro da área de plotagem (eixo Y + margens). */}
@@ -1287,7 +1423,7 @@ function App() {
                 </BarChart>
               </ResponsiveContainer></div>
             </div>}
-            {resultOperation !== "distribution" && result.rows.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-line">
+            {resultOperation !== "distribution" && resultOperation !== "criteria" && result.rows.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-line">
               <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4><span className="text-xs text-slate-400">{result.total_rows} linhas · até 150 exibidas</span></div>
               <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
                 <thead className="sticky top-0 bg-slate-50"><tr>{Object.keys(result.rows[0]).map(k=><th key={k}>{k}</th>)}</tr></thead>
