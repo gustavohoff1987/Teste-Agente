@@ -10,13 +10,14 @@ import main
 from brazil_catalog_profile import FIELDS
 from brazil_data import FILES, load_brazil
 from prepare_block1_catalog import prepare
+from catalog_support import use_external_catalog
 
 
 @pytest.fixture
 def catalog(tmp_path, monkeypatch):
     folder = tmp_path / "catalogo"
     prepare(folder)
-    monkeypatch.setenv("ADT_BRASIL_DATA_DIR", str(folder))
+    use_external_catalog(monkeypatch, folder)
     monkeypatch.delenv("ADT_BRASIL_CACHE_MAX_MB", raising=False)
     main._BRAZIL_FRAMES.clear()
     yield folder
@@ -77,8 +78,8 @@ def test_new_version_never_reuses_previous_content(catalog, tmp_path, monkeypatc
     (source / FILES["municipal"]).write_text((catalog / FILES["municipal"]).read_text(encoding="utf-8").replace(
         "MANAUS;130260;2024;6;MEDICINA;15", "MANAUS;130260;2024;6;MEDICINA;40"), encoding="utf-8")
     from install_brazil_data import install
-    install(source, tmp_path / "nova")
-    monkeypatch.setenv("ADT_BRASIL_DATA_DIR", str(tmp_path / "nova"))
+    install(source, tmp_path / "nova", governed=False)
+    use_external_catalog(monkeypatch, tmp_path / "nova")
     second = client.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()
     assert second["source"]["version"] != first["source"]["version"]
     assert analyze(client, first["source"]["version"])[0] == 422  # versão antiga recusada como antes

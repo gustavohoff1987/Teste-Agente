@@ -30,6 +30,10 @@ def _local_only(sock, address):
 
 socket.socket.connect = _local_only
 
+if os.environ.get("ADT_BRASIL_DATA_DIR") and not os.environ.get("ADT_BRASIL_DATA_VERSION"):
+    # Servidor de teste: o catálogo indicado ao iniciá-lo é escolha explícita; sua versão é fixada.
+    from brazil_data import catalog_version
+    os.environ["ADT_BRASIL_DATA_VERSION"] = catalog_version(os.environ["ADT_BRASIL_DATA_DIR"])
 import llm_bridge  # noqa: E402
 from main import app  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402

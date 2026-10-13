@@ -22,7 +22,7 @@ def prepare(destination):
                 rows.append(f"{name};{code};{year};{month};MEDICINA;{count + offset};{population};-3;-60")
         book.save(source / FILES["national"])
         (source / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
-        install(source, destination)
+        install(source, destination, governed=False)  # fixture sintética, nunca a versão governada
 
 
 if __name__ == "__main__":

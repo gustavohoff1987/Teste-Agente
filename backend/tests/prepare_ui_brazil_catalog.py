@@ -23,7 +23,7 @@ def prepare(destination: Path) -> None:
             "B;002;2024;6;MEDICINA;20;2000;-11;-41\n",
             encoding="utf-8",
         )
-        install(source, destination)
+        install(source, destination, governed=False)  # fixture sintética, nunca a versão governada
 
 
 if __name__ == "__main__":

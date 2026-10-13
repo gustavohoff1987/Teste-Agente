@@ -26,7 +26,7 @@ from data_contract import validate_operation, rotation_data, period_positions, s
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
-from brazil_data import load_brazil
+from brazil_data import diagnostics as brazil_diagnostics, load_brazil
 from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation
@@ -446,14 +446,26 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
     return frame
 
 
+def _catalog_summary(frame: pd.DataFrame) -> dict | None:
+    """Identidade da origem Brasil para a interface, sem caminhos físicos (ver /api/brazil/source)."""
+    info = frame.attrs.get("catalog")
+    if not info:
+        return None
+    return {key: info[key] for key in ("modo", "versao", "versao_governada", "versao_fixada", "integridade")}
+
+
 async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version=""):
     if bool(file) == bool(dataset):
         raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
     if dataset:
         if dataset != "brazil":
             raise ValueError("Base de dados não reconhecida.")
-        raw, filename, source = load_brazil(scope, operation, dataset_version)
-        return _brazil_frame(raw, filename, source), []
+        raw, filename, source, integrity = load_brazil(scope, operation, dataset_version, details=True)
+        frame = _brazil_frame(raw, filename, source)
+        if frame is not None:
+            # Fora de "source": a identidade da origem não altera chaves de execução já existentes.
+            frame.attrs["catalog"] = integrity
+        return frame, []
     raw = await _read_upload(file)
     frame, sheets = read_dataset(raw, file.filename or "", sheet)
     if frame is not None:
@@ -477,6 +489,12 @@ def download_recommended_structure() -> Response:
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "llm": False, "version": "0.1.0"}
+
+
+@app.get("/api/brazil/source")
+def brazil_source() -> dict:
+    """Diagnóstico técnico: origem física, versão e integridade da base Brasil, sem conteúdo."""
+    return brazil_diagnostics()
 
 
 @app.get("/api/llm/status")
@@ -618,6 +636,7 @@ async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
                 "curated_defaults": profile,
                 "derived_fields": frame.attrs.get("derived_fields", []),
                 "source": frame.attrs.get("source"),
+                "catalog": _catalog_summary(frame),
                 "suggested_category_constant": category_from_count_header(mapping.get("count", "")),
                 "preflight": preflight(frame, mapping, apply_curated_options(frame, mapping, {})),
                 "periods": available("period"), "categories": available("category"), "territories": available("territory")}

@@ -42,6 +42,8 @@ jobs:
         run: python backend/tests/prepare_ui_brazil_catalog.py
       - name: Start local services and run conversational browser regression
         run: |
+          # Catálogo sintético explicitamente escolhido: pasta e versão fixadas juntas.
+          export ADT_BRASIL_DATA_VERSION="$(python backend/brazil_data.py versao /tmp/adt-brazil-synthetic)"
           (cd backend && ADT_BRASIL_DATA_DIR=/tmp/adt-brazil-synthetic uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/adt-backend.log 2>&1) &
           (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/adt-frontend.log 2>&1) &
           python - <<'PY'

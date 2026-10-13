@@ -69,7 +69,7 @@ def national_fixture(destination):
             book.active.append(["Brasil", y, m, "MEDICINA", 500000 + m])
         book.save(Path(folder) / FILES["national"])
         (Path(folder) / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
-        install(folder, destination)
+        install(folder, destination, governed=False)  # fixture sintética
 
 
 def build_catalog(profile, real_dir, destination):
@@ -250,6 +250,8 @@ def main():
     if args.catalog:
         sys.path.insert(0, str(args.backend))
         os.environ["ADT_BRASIL_DATA_DIR"] = str(args.catalog)
+        from brazil_data import catalog_version
+        os.environ["ADT_BRASIL_DATA_VERSION"] = catalog_version(args.catalog)  # catálogo escolhido explicitamente
         result = run(args)
         if args.report and result:
             args.report.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")

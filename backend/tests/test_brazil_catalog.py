@@ -10,6 +10,7 @@ import llm_bridge
 from brazil_data import FILES
 from install_brazil_data import install
 from main import app
+from catalog_support import use_external_catalog
 
 
 client = TestClient(app)
@@ -30,8 +31,8 @@ def catalog(tmp_path, monkeypatch):
         "A;001;2024;6;MEDICINA;10;1000;-10,1;-40,1\nB;002;2024;6;MEDICINA;12;2000;-11,1;-41,1\n", encoding="utf-8")
     hashes = {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in FILES.values()}
     destination = tmp_path / "resident"
-    install(source, destination)
-    monkeypatch.setenv("ADT_BRASIL_DATA_DIR", str(destination))
+    install(source, destination, governed=False)
+    use_external_catalog(monkeypatch, destination)
     yield source, destination
     assert hashes == {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in FILES.values()}
 

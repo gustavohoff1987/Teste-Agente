@@ -44,7 +44,7 @@ def synthetic_catalog(destination):
         book.active.append(["Brasil", 2024, 6, "MEDICINA", 500000])
         book.save(Path(folder) / FILES["national"])
         (Path(folder) / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
-        install(folder, destination)
+        install(folder, destination, governed=False)  # fixture sintética
 
 
 def measure(function, *args):
@@ -137,6 +137,8 @@ def main():
         else:
             synthetic_catalog(catalog)
         os.environ["ADT_BRASIL_DATA_DIR"] = str(catalog)
+        from brazil_data import catalog_version
+        os.environ["ADT_BRASIL_DATA_VERSION"] = catalog_version(catalog)  # catálogo escolhido explicitamente
         algorithm(report)
         api(report, args.repeat)
     report["rss_max_mib"] = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)

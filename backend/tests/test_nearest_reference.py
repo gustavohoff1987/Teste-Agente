@@ -13,6 +13,7 @@ from llm_bridge import OPERATIONS as LLM_OPERATIONS
 from llm_context import provider_snapshot
 from nearest_reference import GEOD, GRS80_A, GRS80_RF, nearest_exact, nearest_exhaustive
 from prepare_block1_catalog import prepare
+from catalog_support import use_external_catalog
 
 client = TestClient(main.app)
 MAP = {"territory": "municipio", "territory_id": "codigo", "period": "periodo", "category": "categoria",
@@ -339,7 +340,7 @@ def test_result_is_deterministic():
 def brazil_catalog(tmp_path, monkeypatch):
     folder = tmp_path / "catalogo"
     prepare(folder)
-    monkeypatch.setenv("ADT_BRASIL_DATA_DIR", str(folder))
+    use_external_catalog(monkeypatch, folder)
     main._BRAZIL_FRAMES.clear()
     yield folder
     main._BRAZIL_FRAMES.clear()

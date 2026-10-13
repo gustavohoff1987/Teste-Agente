@@ -56,6 +56,8 @@ type Inspection = {
     population_denominator_confirmed: boolean } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
     default_scopes: Partial<Record<Operation, "national" | "municipal">> };
+  catalog?: { modo: string; versao: string; versao_governada: string | null; versao_fixada: string | null;
+    integridade: string } | null;
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
@@ -192,6 +194,7 @@ function App() {
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [sourceDiagnostic, setSourceDiagnostic] = useState<Record<string, unknown> | null>(null);
   const [periodFilter, setPeriodFilter] = useState("");
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -734,6 +737,14 @@ function App() {
     </div>
     {inspecting && <p role="status" className="text-xs text-slate-500">Preparando seus dados...</p>}
     {uploadError && <p role="alert" className="text-xs text-rose-800">{uploadError}</p>}
+    {usingBrazil && inspection?.catalog && <details className="text-[11px] leading-5 text-slate-500"
+      onToggle={e => { if (e.currentTarget.open) void fetch(API + "/api/brazil/source").then(readApiResponse).then(setSourceDiagnostic).catch(() => setSourceDiagnostic(null)); }}>
+      <summary className="cursor-pointer">Diagnóstico técnico da fonte</summary>
+      <p>Origem: {inspection.catalog.modo === "repositorio" ? "arquivos versionados no repositório" : "pasta externa configurada"} ·
+        versão {inspection.catalog.versao.slice(0, 12)} · integridade {inspection.catalog.integridade}
+        {inspection.catalog.versao_fixada ? " · versão fixada explicitamente" : ""}</p>
+      {sourceDiagnostic && <pre tabIndex={0} aria-label="Origem física e identidade da base" className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(sourceDiagnostic, null, 2)}</pre>}
+    </details>}
     {inspection?.requires_sheet && <label className="text-xs text-slate-700">Qual aba deseja utilizar?
       <select className="ml-2 rounded-lg border border-line px-2 py-1" value={sheet}
         onChange={e=>{const next=e.target.value;setSheet(next);if(file&&next)void inspectFile(file,next);}}>

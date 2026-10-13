@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "finalidade": "Identidade governada da base Brasil versionada na raiz do repositório; o backend só usa fontes cujos tamanhos e SHA-256 correspondem a este manifesto.",
+  "arquivos": {
+    "national": {
+      "caminho": "Dados_Brasil.xlsx",
+      "bytes": 7786,
+      "sha256": "7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3"
+    },
+    "municipal": {
+      "caminho": "Dados_Municipios_Brasil.csv",
+      "bytes": 9968224,
+      "sha256": "89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512"
+    }
+  },
+  "versao": "819cf4628bff55b58e3405ec33ec01d675f27be2f3f085235217028eb608a3f4"
+}
