@@ -50,8 +50,10 @@ def main_(period, output):
                "ranking": {"attribute": "distancia", "direction": "desc", "top_n": 20, "set": "atende"}}
 
     def frame():
-        raw, filename, source = load_brazil("municipal", "criteria", info["source"]["version"])
-        return main._brazil_frame(raw, filename, source)
+        raw, filename, source, integrity = load_brazil("municipal", "criteria", info["source"]["version"], details=True)
+        data = main._brazil_frame(raw, filename, source)
+        data.attrs["catalog"] = integrity  # como na API: a camada geográfica só se aplica à versão a que se refere
+        return data
 
     data = frame()
     settings = apply_curated_options(data, mapping, options)
