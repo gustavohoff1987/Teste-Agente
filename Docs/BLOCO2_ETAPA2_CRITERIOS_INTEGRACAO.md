@@ -100,9 +100,10 @@ A versão 1 não foi gerada pelo construtor, porque o GeoPackage não está disp
 ambiente: o usuário autorizou escrever a camada diretamente com os valores e a proveniência que
 forneceu. O construtor continua disponível para versões futuras.
 
-Testes: `test_geo_complement.py` (24, inclusive as 22 competências, distâncias conferidas com
+Testes: `test_geo_complement.py` (25, inclusive as 22 competências, distâncias conferidas com
 geodésica independente, conjuntos de referência e mínimos por período, 12 formas de camada
-inválida, versão de fonte diferente, uploads, identidades e rastreabilidade) e
+inválida, versão de fonte diferente, nome conferido na própria base, uploads, identidades e
+rastreabilidade) e
 `test_build_geo_complement.py` (10, com arquivos sintéticos CSV, XLSX e GeoPackage).
 
 ### 3.5. Coordenadas oficiais incorporadas (versão 1)
@@ -305,6 +306,34 @@ todas as análises). Compressão gzip reduziria a 0,67 MB (nível 1, 30 ms) ou 0
 231 ms); localmente o ganho de tempo é nulo, por isso fica como recomendação para a implantação
 (normalmente no proxy reverso), sem retirar metadados nem alterar as exportações.
 
+**Com a camada oficial.** As medições foram feitas na mesma sessão, alternando a árvore anterior
+(`82199e7`, sem a camada) e a atual, duas rodadas cada. Os números absolutos desta sessão são
+menores que os da tabela acima, medidos em outro momento do ambiente.
+
+| Medida | Sem a camada | Com a camada |
+| --- | --- | --- |
+| Requisição completa dos critérios (mesmo cenário) | 2,53–2,68 s (6,34 MB) | 2,61–2,62 s (6,12 MB) |
+| Pré-exame sem período, vírgula declarada | 2,66–3,05 s | 2,71–2,74 s |
+| Pré-exame de junho de 2024 | 0,83–0,88 s | 0,83–0,88 s |
+| Espacial de junho de 2024, todos os municípios | recusada (pontos inválidos) | 1,60–1,66 s |
+| Bloco 1, `bench_latency.py --profile real` | — | 13 operações sem diferença além da variação entre repetições |
+
+- **Fases** (`bench_criteria.py`): distâncias 0,49–0,50 s (antes 0,53–0,59), com 22.280
+  geodésicas em vez de 22.256, para 11.178.990 pares avaliáveis.
+- **Navegador, critérios:** resposta → tabela em 189 ms (295 ms com ordenação e 20 primeiros);
+  digitação a 4–5 ms.
+- **Navegador, referência mais próxima com todos os municípios:** 5.570 mínimos completos;
+  resposta → tabela em 316 ms.
+
+**Duas correções desta medição.**
+
+- A sobreposição normalizava o nome de todas as linhas para conferir os seis municípios. Agora só
+  as linhas candidatas são normalizadas: o custo caiu de 270 ms para 42 ms nas 22 competências e
+  de 17 ms para 6 ms em uma. Antes da correção, o pré-exame sem período ficava 0,35–0,4 s mais
+  lento com a camada.
+- O roteiro das fases (`bench_criteria.py`) passou a associar ao quadro a identidade da origem,
+  como faz a API. Sem ela, as fases medidas fora da requisição não aplicavam a camada.
+
 ## 8. Validação e regressão (U6)
 
 **Testes novos** (todos com bases sintéticas geradas em tempo de teste, salvo os reais opt-in):
@@ -312,7 +341,7 @@ todas as análises). Compressão gzip reduziria a 0,67 MB (nível 1, 30 ms) ou 0
 | Arquivo | Casos | Cobertura principal |
 | --- | --- | --- |
 | `test_brazil_source.py` | 16 | Origem, manifesto, cópias antigas, reinício, pasta externa, uploads independentes |
-| `test_geo_complement.py` | 24 | Camada: 22 competências, geodésica independente, inválidas, identidades (inclusive `incompativel` para outra versão da fonte, com chave inalterada), critérios com distância |
+| `test_geo_complement.py` | 25 | Camada: 22 competências, geodésica independente, inválidas, nome conferido na própria base, identidades (inclusive `incompativel` para outra versão da fonte, com chave inalterada), proveniência nos resultados, critérios com distância |
 | `test_build_geo_complement.py` | 10 | Construtor: CSV, XLSX, GeoPackage, exceções, referencial não comprovado |
 | `test_combined_criteria.py` | 40 | Critério único, E/OU/NÃO, limites exatos, incompatíveis, população e quantitativos ausentes, referências vazias e não avaliáveis, elegibilidade desconhecida, cobertura parcial aceita e não aceita, ordem, empates, ranking, N primeiros, faixas, comparação, mudança de parâmetros, retomada, exportação, unidades |
 | `test_criteria_conversation.py` | 31 | Os cinco comandos, vocabulário de operadores, unidades, ambiguidades, outros canais intactos, LLM sem a capacidade |
@@ -335,6 +364,30 @@ seção):
 | Equivalência das respostas da API com o baseline `15aa3c8` (Bloco 1, nacional sintética, real) | 76, 76 e 77 casos; **0 diferenças** além das capacidades acrescentadas |
 | SHA-256 dos originais e das cópias de teste | inalterados |
 | Sete roteiros legados (anteriores à interface conversacional) | continuam falhando, **no mesmo passo** da Etapa 1 e do baseline `a202be1`; nenhuma falha nova |
+
+**Regressão da integração das coordenadas oficiais** (commits `ec17a10` a `ffdfdef`):
+
+| Verificação | Resultado |
+| --- | --- |
+| pytest do backend (sintético) | 372 passaram; 27 reais omitidos (opt-in) |
+| pytest completo com as fontes reais (`ADT_REAL_DATA_DIR`) | 399 passaram |
+| TypeScript + Vite build | passou |
+| Jobs `ui-block1` e `ui-conversational` reproduzidos | passaram |
+| Jornadas com dados reais (Bloco 1, referência mais próxima, critérios) | passaram; critérios com 225 que atendem e referência mais próxima com 5.570 mínimos completos, como no recálculo independente |
+| Equivalência com o baseline `15aa3c8` (Bloco 1, nacional sintética, real) | 76, 76 e 77 casos; **0 diferenças** além das capacidades acrescentadas |
+| Comparação integral com as capturas da Etapa 2 sem a camada | só muda a identidade da camada (ver abaixo); linhas e chaves de execução iguais |
+| Sete roteiros legados | 7 de 7 falham no mesmo ponto da Etapa 2 |
+| SHA-256 dos originais e das cópias de teste | inalterados |
+
+Na comparação integral com as capturas da Etapa 2:
+
+- **Catálogos sintéticos:** em 3 casos por catálogo, a camada passa de `ausente` a
+  `incompativel`, com sua identidade.
+- **Catálogo real:** em 2 casos de exame, a camada passa de `ausente` a `valido`.
+- **Resultados não espaciais:** nenhum muda, inclusive densidades, quantitativos, populações e
+  períodos.
+- **Caso espacial do roteiro de equivalência:** é recusado igualmente nas três versões, por não
+  declarar a vírgula decimal; os efeitos espaciais da camada são verificados pelos testes reais.
 
 Cenário real de junho de 2024 (densidade ≥ 2,36 para as referências; densidade < 2,36 E distância
 > 155 km): resultados da base original sem complemento e resultados efetivos com a camada oficial
