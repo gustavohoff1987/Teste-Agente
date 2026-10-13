@@ -111,6 +111,7 @@ const ROLES: { key: Role; label: string; help: string }[] = [
   { key: "longitude", label: "Longitude", help: "Graus decimais" },
   { key: "identity", label: "Identificador individual", help: "Apenas para contagem distinta ou coortes" }
 ];
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((value, index) => value === b[index]);
 const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", n !== 0 && Math.abs(n) < 1e-6
   ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(n);
 function pretty(value: unknown): string {
@@ -448,11 +449,13 @@ function App() {
   }
   function changeTerritories(ids: string[]) {
     revision.current += 1;
-    setTerritoryIds(ids); setSelectionProposal(null);
+    // Reaplicar a mesma seleção não cria estado novo: o pré-exame vigente já corresponde a ela.
+    setTerritoryIds(current=>sameList(current, ids) ? current : ids); setSelectionProposal(null);
     // Premissas sobre uma união não se transferem para membros diferentes.
     setConfirmedNoOverlap(false); setTerritoryStable(false);
-    setResolutions(previous=>({...previous, comparison_confirmed:false, population_additive_confirmed:false,
-      identity_union_confirmed:false}));
+    setResolutions(previous=>previous.comparison_confirmed === false && previous.population_additive_confirmed === false &&
+      previous.identity_union_confirmed === false ? previous : {...previous, comparison_confirmed:false,
+      population_additive_confirmed:false, identity_union_confirmed:false});
   }
   function applyExploration(proposal: Exploration) {
     if (!proposal.operation || !proposal.territory_ids) return;
@@ -465,7 +468,8 @@ function App() {
     changeTerritories(proposal.territory_ids);
     const patch = proposal.options_patch || {};
     if (patch.period_filter !== undefined) setPeriodFilter(patch.period_filter);
-    if (patch.period_filters !== undefined) setSelectedPeriods(patch.period_filters);
+    const periods = patch.period_filters;
+    if (periods !== undefined) setSelectedPeriods(current=>sameList(current, periods) ? current : periods);
     if (patch.temporal_indicator) setTemporalIndicator(patch.temporal_indicator);
     if (patch.comparison_indicator) setComparisonIndicator(patch.comparison_indicator);
     if (patch.component_sum_confirmed) {
