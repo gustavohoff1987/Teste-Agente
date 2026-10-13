@@ -110,7 +110,7 @@ def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str],
         cols = [child, parent]
         if child == analysis and identifier:
             cols.insert(0, identifier)
-        values = frame[cols].astype("string").apply(lambda s: s.str.strip().replace("", pd.NA))
+        values = distinct_raw(frame, cols).astype("string").apply(lambda s: s.str.strip().replace("", pd.NA))
         complete = values.notna().all(axis=1)
         if not complete.all():
             warnings.append("Há relações territoriais incompletas entre "
