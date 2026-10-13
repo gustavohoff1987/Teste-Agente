@@ -57,7 +57,8 @@ type Inspection = {
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
     default_scopes: Partial<Record<Operation, "national" | "municipal">> };
   catalog?: { modo: string; versao: string; versao_governada: string | null; versao_fixada: string | null;
-    integridade: string } | null;
+    integridade: string; complemento_geografico?: { estado: string; sha256?: string; identificador?: string;
+      versao?: string; motivo?: string; token: string } } | null;
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
@@ -68,6 +69,7 @@ type Exploration = {handled: boolean; reply?: string; clarification?: string; op
 type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon; tone: string };
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
+const SPATIAL_OPERATIONS: Operation[] = ["spatial", "nearest"];
 
 async function readApiResponse(response: Response): Promise<any> {
   const raw = await response.text();
@@ -260,7 +262,16 @@ function App() {
   const selectedFeature = FEATURES.find(f => f.id === active);
   const sourceKey = JSON.stringify({source: usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version: sourceVersion, scope: inspection?.source?.scope, sheet});
+  const geoToken = inspection?.catalog?.complemento_geografico?.token || "";
+  const resultGeoToken = (item: AnalysisResult) => {
+    const geo = item.metadata.complemento_geografico as {sha256?: string; estado?: string} | undefined;
+    return geo ? geo.sha256 || geo.estado || "" : "";
+  };
+  // Resultado espacial calculado com outra versão da camada não é retomado nem reutilizado em silêncio.
+  const compatible = (item: {sourceKey: string; result: AnalysisResult}) =>
+    item.sourceKey === sourceKey && (!resultGeoToken(item.result) || resultGeoToken(item.result) === geoToken);
   const requestKey = (operation: Operation) => JSON.stringify({sourceKey, operation, mapping,
+    ...(SPATIAL_OPERATIONS.includes(operation) ? {geo: geoToken} : {}),
     options: {...semanticOptions(), territory_ids: semanticOptions().territory_ids ? [...territoryIds].sort() : undefined}});
   const historical = history.find(item=>item.result.result_id===result?.result_id);
   const resultOperation = result?.metadata.operation as Operation | undefined;
@@ -551,7 +562,7 @@ function App() {
     setResult(item.result); setInvalidationReason(""); setHistoryNotice(""); setError("");
   }
   function restoreHistorical(item: Historical) {
-    if (item.invalidReason || item.sourceKey !== sourceKey) return;
+    if (item.invalidReason || !compatible(item)) return;
     restorePreparation(structuredClone(item.preparation));
     setActive(item.result.metadata.operation as Operation); setRequestText(item.request);
     setInlineConfirmed(true); setHistoryNotice("Parâmetros e seleção restaurados; o servidor verificará novamente a preparação.");
@@ -624,6 +635,7 @@ function App() {
     const currentRevision = revision.current;
     const form = new FormData();
     appendSource(form); form.append("operation", op);
+    if (usingBrazil && SPATIAL_OPERATIONS.includes(op)) form.append("geo_version", geoToken);
     form.append("mapping", JSON.stringify(mapping));
     form.append("options", JSON.stringify(semanticOptions()));
     try {
@@ -742,7 +754,9 @@ function App() {
       <summary className="cursor-pointer">Diagnóstico técnico da fonte</summary>
       <p>Origem: {inspection.catalog.modo === "repositorio" ? "arquivos versionados no repositório" : "pasta externa configurada"} ·
         versão {inspection.catalog.versao.slice(0, 12)} · integridade {inspection.catalog.integridade}
-        {inspection.catalog.versao_fixada ? " · versão fixada explicitamente" : ""}</p>
+        {inspection.catalog.versao_fixada ? " · versão fixada explicitamente" : ""}
+        {inspection.catalog.complemento_geografico && " · camada geográfica complementar: " + inspection.catalog.complemento_geografico.estado +
+          (inspection.catalog.complemento_geografico.versao ? " (versão " + inspection.catalog.complemento_geografico.versao + ")" : "")}</p>
       {sourceDiagnostic && <pre tabIndex={0} aria-label="Origem física e identidade da base" className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(sourceDiagnostic, null, 2)}</pre>}
     </details>}
     {inspection?.requires_sheet && <label className="text-xs text-slate-700">Qual aba deseja utilizar?
@@ -1227,11 +1241,11 @@ function App() {
               <p className="mt-3 break-words">Solicitação: {historical.request}</p>
               <p className="break-all">Identidade: {result.result_id}</p>
               <pre tabIndex={0} aria-label="Metadados e parâmetros do resultado" className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{metadataText}</pre>
-              <button type="button" disabled={!!historical.invalidReason || historical.sourceKey!==sourceKey || inspecting || running}
+              <button type="button" disabled={!!historical.invalidReason || !compatible(historical) || inspecting || running}
                 onClick={()=>restoreHistorical(historical)} className="no-print mt-3 rounded-lg border px-3 py-2 text-teal disabled:opacity-40">Retomar parâmetros deste resultado</button>
-              {historical.sourceKey!==sourceKey && <p className="mt-2">A fonte ou versão atual difere da utilizada neste resultado. O conteúdo histórico permanece consultável.</p>}
+              {!compatible(historical) && <p className="mt-2">A fonte, a versão ou a camada geográfica atual difere da utilizada neste resultado. O conteúdo histórico permanece consultável.</p>}
             </details>}
-            {!!resultMembers.length && historical?.sourceKey===sourceKey && !historical.invalidReason && <details className="no-print my-3 text-xs">
+            {!!resultMembers.length && historical && compatible(historical) && !historical.invalidReason && <details className="no-print my-3 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Selecionar territórios deste resultado</summary>
               <p className="my-2">Marque os territórios que deseja reutilizar. O resultado calculado permanece inalterado.</p>
               <div className="max-h-48 overflow-auto rounded-lg border border-line p-2">
@@ -1241,7 +1255,7 @@ function App() {
                 </label>)}
               </div>
             </details>}
-            {resultOperation === "nearest" && !!nearestMembers.length && historical?.sourceKey===sourceKey && !historical.invalidReason &&
+            {resultOperation === "nearest" && !!nearestMembers.length && historical && compatible(historical) && !historical.invalidReason &&
               <details className="no-print my-3 text-xs">
               <summary className="cursor-pointer font-semibold text-amber-900">Reutilizar as referências deste resultado</summary>
               <p className="my-2">{nearestMembers.length} referências ({nearestMetadata?.conjunto_referencias?.forma === "CRITERIO"

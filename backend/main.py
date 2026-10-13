@@ -177,6 +177,9 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     if nearest:
         result["metadata"]["evaluability"]["status"] = nearest["evaluability"]
         result["metadata"]["nearest_reference"] = nearest["structured"]
+    geo = _geo_identity(df, operation, options)
+    if geo is not None:
+        result["metadata"]["complemento_geografico"] = geo
     if operation in ("ranking", "distribution", "comparisons"):
         result["notes"].append("Universo desta execução: " + universe["classification_scope"] +
                                ". Posições/classes anteriores não são transferidas para este universo.")
@@ -232,11 +235,21 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         reference = match.iloc[0]
         geod = Geod(ellps="GRS80")
         rows = []
+        complemented = set(geo.territory[geo.complementada]) if "complementada" in geo else set()
         for _, item in geo.iterrows():
             _, _, meters = geod.inv(float(reference.lon), float(reference.lat), float(item.lon), float(item.lat))
-            rows.append({"Território": item.territory, "Distância (km)": meters / 1000})
+            row = {"Território": item.territory, "Distância (km)": meters / 1000}
+            if complemented:  # coluna só existe quando a camada complementar foi efetivamente usada
+                sides = [side for side, used in (("território", item.territory in complemented),
+                                                 ("referência", reference.territory in complemented)) if used]
+                row["Coordenada complementada (camada oficial)"] = " e ".join(sides).capitalize() if sides else "Não"
+            rows.append(row)
+        notes = ["Referência: " + str(refname)]
+        if complemented:
+            notes.append(str(len(complemented)) + " território(s) com ponto inválido na fonte original usam coordenadas da camada "
+                         "geográfica complementar versionada, sob a premissa do usuário de coordenada fixa de 2014 a 2024.")
         return _result("Distâncias geodésicas", "Distância direta no referencial " + options["crs"] + ". Não representa tempo nem distância por estrada.",
-                       sorted(rows, key=lambda x: x["Distância (km)"]), notes=["Referência: " + str(refname)])
+                       sorted(rows, key=lambda x: x["Distância (km)"]), notes=notes)
     data = validate_operation(df, mapping, options, operation)
     keys = ["territory", "period", "category"]
     cols = {"territory": "Território", "period": "Período", "category": "Categoria",
@@ -446,12 +459,36 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
     return frame
 
 
+SPATIAL_OPERATIONS = ("spatial", "nearest")
+
+
+def _is_spatial(operation: str, options: dict) -> bool:
+    return operation in SPATIAL_OPERATIONS
+
+
+def _geo_identity(frame: pd.DataFrame, operation: str, options: dict) -> dict | None:
+    """Camada complementar nas análises espaciais da base Brasil municipal; None nas demais (chaves inalteradas)."""
+    source = frame.attrs.get("source") or {}
+    if source.get("dataset") != "brazil" or source.get("scope") != "municipal" or not _is_spatial(operation, options):
+        return None
+    from geo_complement import identity, state
+    return identity(state())
+
+
+def _geo_token(identity: dict) -> str:
+    return identity.get("sha256") or identity["estado"]
+
+
 def _catalog_summary(frame: pd.DataFrame) -> dict | None:
     """Identidade da origem Brasil para a interface, sem caminhos físicos (ver /api/brazil/source)."""
     info = frame.attrs.get("catalog")
     if not info:
         return None
-    return {key: info[key] for key in ("modo", "versao", "versao_governada", "versao_fixada", "integridade")}
+    summary = {key: info[key] for key in ("modo", "versao", "versao_governada", "versao_fixada", "integridade")}
+    if (frame.attrs.get("source") or {}).get("scope") == "municipal":
+        geo = _geo_identity(frame, "spatial", {})
+        summary["complemento_geografico"] = {**geo, "token": _geo_token(geo)}
+    return summary
 
 
 async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version=""):
@@ -687,7 +724,8 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
 @app.post("/api/analyze")
 async def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
                   options: str = Form("{}"), sheet: str = Form(""),
-                  dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form("")):
+                  dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
+                  geo_version: str = Form("")):
     try:
         frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
         if frame is None:
@@ -703,6 +741,9 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
             raise ValueError("Análise desconhecida.")
         if gate["status"] != "available":
             raise ValueError("Análise não habilitada para a configuração atual: " + " ".join(gate["reasons"]))
+        geo = _geo_identity(frame, operation, settings)
+        if geo is not None and geo_version and geo_version != _geo_token(geo):
+            raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base antes de analisar.")
         result = compute(frame, fields, operation, settings)
         result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
         result["result_id"] = str(uuid.uuid4())
@@ -710,6 +751,8 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         signature = {"data": result["metadata"]["data_sha256"], "source": frame.attrs.get("source"),
                      "mapping": fields, "options": settings, "operation": operation,
                      "method": result["metadata"]["method_version"]}
+        if geo is not None and geo["estado"] == "valido":  # só quando a camada pode alterar o resultado espacial
+            signature["geo_complement"] = geo
         result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         result["metadata"]["validity"] = "VALIDO"
         result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]

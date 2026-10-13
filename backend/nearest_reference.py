@@ -19,6 +19,7 @@ import pyproj
 from pyproj import Geod
 
 from data_contract import ConfirmationRequired, canonical_crs, numbers, scoped, text_values
+from geo_complement import overlay
 from territorial_selection import territory_catalog, texts
 
 REFERENCIAL = "SIRGAS2000"
@@ -95,12 +96,15 @@ def territory_coordinates(frame, mapping, options):
                              "Declare a vírgula como separador decimal ou revise a base.")
         raise ConfirmationRequired("Há coordenadas com vírgula. Declare o separador decimal das coordenadas "
                                    "(vírgula ou ponto); nenhum formato é presumido.")
-    missing = (raw_lat.isna() | raw_lon.isna()).to_numpy()
+    # Camada complementar governada (só base Brasil): ponto inválido dos municípios autorizados substituído.
+    lat, lon, applied, complement = overlay(frame, mapping, lat, lon)
+    applied = np.zeros(len(frame), dtype=bool) if applied is None else applied
+    missing = (raw_lat.isna() | raw_lon.isna()).to_numpy() & ~applied
     numeric = np.isfinite(lat.to_numpy()) & np.isfinite(lon.to_numpy())
     in_range = numeric & (np.abs(lat.to_numpy()) <= 90) & (np.abs(lon.to_numpy()) <= 180)
     state = np.where(missing, "AUSENTE", np.where(in_range, "VALIDA", "INVALIDA"))
     rows = pd.DataFrame({"id": row_ids(frame, mapping).to_numpy(), "lat": lat.to_numpy(),
-                         "lon": lon.to_numpy(), "state": state})
+                         "lon": lon.to_numpy(), "state": state, "applied": applied})
     counts = pd.crosstab(rows["id"], rows["state"]).reindex(columns=["VALIDA", "INVALIDA", "AUSENTE"], fill_value=0)
     valid = rows[rows.state == "VALIDA"]
     distinct = valid.groupby("id")[["lat", "lon"]].nunique().max(axis=1)
@@ -114,6 +118,9 @@ def territory_coordinates(frame, mapping, options):
         np.where(counts["VALIDA"].gt(0), "CONFLITANTE",
                  np.where(counts["INVALIDA"].gt(0), "INVALIDA", "AUSENTE")))
     result.loc[result.condicao != "VALIDA", ["lat", "lon"]] = np.nan
+    result["coordenada"] = np.where(rows.groupby("id")["applied"].any().reindex(result.index, fill_value=False),
+                                    "complementada", "original")
+    result.attrs["complemento"] = complement
     return result
 
 
@@ -365,6 +372,9 @@ def compute_nearest(frame, mapping, options):
     def condition(key):
         return coords.at[key, "condicao"] if key in coords.index else "SEM_REGISTRO"
 
+    def origin(key):
+        return coords.at[key, "coordenada"] if key in coords.index else "original"
+
     ref_ids, targets = refs["membros"], inputs["targets"]
     ref_state = {key: condition(key) for key in ref_ids}
     valid_refs = [key for key in ref_ids if ref_state[key] == "VALIDA"]
@@ -377,9 +387,11 @@ def compute_nearest(frame, mapping, options):
     position = {key: i for i, key in enumerate(valid_targets)}
     members = set(ref_ids)
     scope_partial, scope_full = "entre as referências avaliáveis", "conjunto completo de referências"
+    # Coluna de rastreabilidade só quando a camada complementar foi usada em algum alvo ou referência.
+    traced = any(origin(key) == "complementada" for key in set(targets) | members)
     coverage, rows = [], []
     for key in targets:
-        record = {"unidade": key, "condicao_espacial": target_state[key],
+        record = {"unidade": key, "condicao_espacial": target_state[key], "coordenada": origin(key),
                   "referencias_autorizadas": len(ref_ids), "referencias_avaliaveis": 0,
                   "referencias_nao_avaliaveis_com_motivo": [], "alvo_e_referencia": key in members}
         if not ref_ids:
@@ -418,7 +430,7 @@ def compute_nearest(frame, mapping, options):
         full, partial = record["minimo_completo"], record["minimo_avaliaveis"]
         shown = full if full["avaliabilidade"] == "AVALIAVEL" else partial if partial["avaliabilidade"] == "AVALIAVEL" else None
         nearest = shown["referencias"] if shown else []
-        rows.append({
+        row = {
             "Território-alvo": catalog[key]["name"], "Código do alvo": catalog[key]["code"] or None,
             "Referência mais próxima": "; ".join(catalog[r]["name"] for r in nearest) or None,
             "Código da referência": "; ".join(catalog[r]["code"] for r in nearest if catalog[r]["code"]) or None,
@@ -427,8 +439,13 @@ def compute_nearest(frame, mapping, options):
                         "Entre as referências avaliáveis" if shown else "Não avaliável"),
             "Referências avaliáveis": f"{record['referencias_avaliaveis']} de {len(ref_ids)}",
             "Empate": f"Sim ({len(nearest)} referências)" if len(nearest) > 1 else "Não",
-            "Alvo também é referência": "Sim" if record["alvo_e_referencia"] else "Não",
-            "Condição": condition_text})
+            "Alvo também é referência": "Sim" if record["alvo_e_referencia"] else "Não"}
+        if traced:
+            sides = [side for side, used in (("alvo", record["coordenada"] == "complementada"),
+                                             ("referência", any(origin(r) == "complementada" for r in nearest))) if used]
+            row["Coordenada complementada (camada oficial)"] = " e ".join(sides).capitalize() if sides else "Não"
+        row["Condição"] = condition_text
+        rows.append(row)
         coverage.append(record)
     complete = sum(r["minimo_completo"]["avaliabilidade"] == "AVALIAVEL" for r in coverage)
     partial_only = sum(r["minimo_completo"]["avaliabilidade"] != "AVALIAVEL" and
@@ -508,6 +525,16 @@ def compute_nearest(frame, mapping, options):
     if not ref_ids:
         notes.append("Conjunto de referências vazio: nenhuma distância foi calculada e o universo-alvo foi preservado "
                      "(DEPENDENCIA_NAO_AVALIAVEL, detalhe CONJUNTO_REFERENCIAS_VAZIO).")
+    complement = coords.attrs.get("complemento")
+    if complement is not None:
+        if complement.get("municipios_complementados"):
+            notes.append("Coordenadas de " + str(len(complement["municipios_complementados"])) + " município(s) com ponto inválido na "
+                         "fonte original vêm da camada geográfica complementar versionada (" + str(complement.get("identificador")) +
+                         ", versão " + str(complement.get("versao")) + "), sob a premissa do usuário de coordenada fixa de 2014 a "
+                         "2024; os arquivos originais não foram alterados.")
+        elif complement.get("estado") != "valido":
+            notes.append("Camada geográfica complementar " + str(complement.get("estado")) + ": " + str(complement.get("motivo")) +
+                         ". Municípios com coordenada inválida na fonte original permanecem não avaliáveis.")
     title = "Referência mais próxima" + ("" if complete or partial_only else " — sem resultado analítico")
     description = ("Para cada território-alvo, a referência autorizada geograficamente mais próxima, com cobertura das "
                    "referências. " + TPL_11)
@@ -533,6 +560,12 @@ def compute_nearest(frame, mapping, options):
                       "n_somente_entre_avaliaveis": partial_only, "n_nao_avaliaveis_por_motivo": by_motive},
         "limitacoes": limitations, "desfecho": outcome,
         "geodesicas_calculadas": evaluated, "pares_avaliaveis": len(valid_targets) * len(valid_refs)}
+    complement = coords.attrs.get("complemento")
+    if complement is not None:  # base Brasil: identidade da camada e coordenadas efetivamente usadas
+        used = sorted(set(targets) | set(ref_ids))
+        structured["complemento_geografico"] = {**complement, "territorios_complementados": [
+            {"id": key, "territorio": catalog[key]["label"], "latitude": coords.at[key, "lat"], "longitude": coords.at[key, "lon"]}
+            for key in used if origin(key) == "complementada"]}
     evaluability = ("AVALIAVEL" if complete == len(targets) and not limitations[1:] else
                     "AVALIAVEL_COM_LIMITACOES" if complete or partial_only else "NAO_AVALIAVEL")
     return {"title": title, "description": description, "rows": rows, "metrics": metrics, "notes": notes,

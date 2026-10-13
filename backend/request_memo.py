@@ -43,3 +43,13 @@ def per_request(function):
         memo[key] = (frame, value)
         return value
     return wrapper
+
+
+def request_value(key, compute):
+    """Valor calculado uma vez por requisição e lido por todos os chamadores; fora dela, recalculado."""
+    memo = _MEMO.get()
+    if memo is None:
+        return compute()
+    if key not in memo:
+        memo[key] = compute()
+    return memo[key]

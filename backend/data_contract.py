@@ -260,15 +260,22 @@ def spatial_data(frame, mapping, options):
     opts = {**options, "single_period_confirmed": True, "fts_scope_confirmed": True}
     geomapping = {r: c for r, c in mapping.items() if r in ("territory", "territory_id")}
     geo = dimensions(df, geomapping, opts)[["territory"]]
-    for role, low, high in (("latitude", -90, 90), ("longitude", -180, 180)):
+    for role in ("latitude", "longitude"):
         if not mapping.get(role):
             raise ValueError("Associe latitude e longitude.")
         geo[role] = numbers(df[mapping[role]], role, options)
+    # Camada complementar governada (só base Brasil): ponto inválido dos municípios autorizados substituído.
+    from geo_complement import overlay  # importação tardia: o módulo usa este contrato
+    geo["latitude"], geo["longitude"], applied, complement = overlay(df, mapping, geo["latitude"], geo["longitude"])
+    for role, low, high in (("latitude", -90, 90), ("longitude", -180, 180)):
         if geo[role].isna().any() or not geo[role].between(low, high).all():
             raise ValueError("Coordenadas ausentes ou fora dos intervalos geográficos válidos.")
     if geo.groupby("territory")[["latitude", "longitude"]].nunique().gt(1).any().any():
         raise ValueError("Coordenadas conflitantes para o mesmo território. Verifique o identificador ou selecione um período consistente.")
-    return geo.drop_duplicates("territory")
+    geo["complementada"] = applied if applied is not None else False
+    result = geo.drop_duplicates("territory")
+    result.attrs["complemento"] = complement
+    return result
 
 
 def rotation_data(frame, mapping, options):
