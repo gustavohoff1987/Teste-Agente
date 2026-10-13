@@ -215,12 +215,18 @@ def test_invalid_layer_is_never_applied(repo, damage):
 
 
 def test_layer_for_another_version_of_the_municipal_source_is_not_applied(repo):
+    before, _ = nearest("202406", ["code:170001"])
     data = layer_document(repo)
     data["aplica_se_a"]["sha256"] = "f" * 64
     write_layer(repo, data)
     body, units = nearest("202406", ["code:170001"])
     assert units["code:170100"]["condicao_espacial"] == "INVALIDA"
     assert body["metadata"]["nearest_reference"]["complemento_geografico"]["estado"] == "incompativel"
+    # Metadados, preparação e chave de execução coerentes com a camada não aplicada a esta versão da fonte.
+    assert body["metadata"]["complemento_geografico"]["estado"] == "incompativel"
+    assert inspection()["catalog"]["complemento_geografico"]["estado"] == "incompativel"
+    assert body["metadata"]["execution_key"] == before["metadata"]["execution_key"]
+    assert body["rows"] == before["rows"]
 
 
 def test_uploads_never_receive_the_governed_complement(repo):
@@ -250,6 +256,7 @@ def test_exported_rows_and_metadata_trace_the_complemented_points(repo):
     assert rows["170001"][TRACE] == "Referência" and rows["999999"][TRACE] == "Não"
     geo = body["metadata"]["complemento_geografico"]
     assert geo["estado"] == "valido" and geo["sha256"] == state()["sha256"] and geo["versao"] == "1"
+    assert geo["proveniencia"]["referencial"] == "SIRGAS 2000" and geo["proveniencia"]["ponto"] == "sede municipal"
     traced = body["metadata"]["nearest_reference"]["complemento_geografico"]
     assert traced["premissa"] == PREMISE and traced["escopo_temporal"] == ["201401", "202406"]
 
@@ -304,6 +311,8 @@ def test_existing_spatial_analysis_uses_the_layer_with_traceability(repo):
     assert ananas["Distância (km)"] == pytest.approx(km((-7.1, -48.2), FIXED["170100"]), abs=1e-9)  # ordem inversa no motor espacial
     assert any("camada geográfica complementar" in note for note in body["notes"])
     assert body["metadata"]["complemento_geografico"]["estado"] == "valido"
+    provenance = body["metadata"]["complemento_geografico"]["proveniencia"]  # registrada no próprio resultado
+    assert provenance["produto"].startswith("FIXTURE SINTÉTICA") and provenance["sha256_arquivo"] == "0" * 64
 
 
 @pytest.mark.parametrize("repo", [{"valid_ananas_in": "201401", "extra_period": "202312"}], indirect=True)

@@ -29,6 +29,8 @@ PERIODS = tuple(f"{year}{month:02d}" for year in range(2014, 2025) for month in 
 AUTHORIZED = {"170100": ("ANANAS", "TO"), "421265": ("PESCARIA BRAVA", "SC"), "422000": ("BALNEARIO RINCAO", "SC"),
               "500490": ("JARAGUARI", "MS"), "430367": ("CAMPESTRE DA SERRA", "RS"), "350050": ("AGUAS DE LINDOIA", "SP")}
 SHA256 = re.compile(r"[0-9a-f]{64}")
+# Proveniência registrada nos resultados espaciais (inclui a declaração de verificação da fonte).
+PROVENANCE = ("produto", "edicao", "arquivo", "sha256_arquivo", "referencial", "epsg", "ponto", "verificacao")
 
 
 def _plain(text):
@@ -102,9 +104,22 @@ def _state(root=None):
 
 
 def identity(current):
-    """Resumo que entra nas chaves de execução e nos metadados das análises espaciais."""
-    return {key: current.get(key) for key in ("estado", "arquivo", "sha256", "identificador", "versao", "motivo")
-            if current.get(key) is not None}
+    """Resumo que entra nas chaves de execução e nos metadados das análises espaciais, com a proveniência oficial."""
+    summary = {key: current.get(key) for key in ("estado", "arquivo", "sha256", "identificador", "versao", "motivo")
+               if current.get(key) is not None}
+    if current.get("fonte"):
+        summary["proveniencia"] = {key: current["fonte"][key] for key in PROVENANCE if current["fonte"].get(key) is not None}
+    return summary
+
+
+def frame_identity(frame):
+    """Identidade da camada para esta base Brasil municipal: incompatível se a camada se refere a outra versão."""
+    current = state()
+    info = identity(current)
+    municipal = ((frame.attrs.get("catalog") or {}).get("sha256") or {}).get("municipal")
+    if current["estado"] == "valido" and municipal != current["aplica_se_a"]:
+        return {**info, "estado": "incompativel", "motivo": "a camada se refere a outra versão da fonte municipal"}
+    return info
 
 
 def overlay(frame, mapping, lat, lon):
@@ -117,13 +132,9 @@ def overlay(frame, mapping, lat, lon):
     if source.get("dataset") != "brazil" or source.get("scope") != "municipal":
         return lat, lon, None, None  # uploads e recorte nacional: nunca complementados
     current = state()
-    info = identity(current)
-    if current["estado"] != "valido":
+    info = frame_identity(frame)
+    if info["estado"] != "valido":
         return lat, lon, None, info
-    municipal = ((frame.attrs.get("catalog") or {}).get("sha256") or {}).get("municipal")
-    if municipal != current["aplica_se_a"]:
-        return lat, lon, None, {**info, "estado": "incompativel",
-                                "motivo": "a camada se refere a outra versão da fonte municipal"}
     code_col, period_col, name_col = mapping.get("territory_id"), mapping.get("period"), mapping.get("territory")
     if not code_col or not period_col:
         return lat, lon, None, {**info, "estado": "nao_aplicada", "motivo": "código territorial ou período não associados"}

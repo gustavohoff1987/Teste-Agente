@@ -485,8 +485,8 @@ def _geo_identity(frame: pd.DataFrame, operation: str, options: dict) -> dict | 
     source = frame.attrs.get("source") or {}
     if source.get("dataset") != "brazil" or source.get("scope") != "municipal" or not _is_spatial(operation, options):
         return None
-    from geo_complement import identity, state
-    return identity(state())
+    from geo_complement import frame_identity  # incompatível quando a camada se refere a outra versão da fonte
+    return frame_identity(frame)
 
 
 def _geo_token(identity: dict) -> str:

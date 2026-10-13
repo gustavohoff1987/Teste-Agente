@@ -12,12 +12,16 @@ import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+from pyproj import Geod
 
+import geo_complement
 from main import app, read_dataset
 from semantic_bridge import candidates, preflight
 from install_brazil_data import install
 
 client = TestClient(app)
+LAYER_FILE = Path(__file__).resolve().parents[2] / "dados" / "brasil" / "complemento_coordenadas.json"
+TRACE = "Coordenada complementada (camada oficial)"
 
 
 @pytest.fixture(scope="module")
@@ -209,7 +213,14 @@ def test_real_resident_aggregation_is_not_national_unique_count(real_catalog):
     assert national_result["rows"][0]["Quantidade"] < row["Quantidade"]
 
 
-def test_real_resident_spatial_comma_and_coordinate_changes(real_catalog):
+@pytest.fixture
+def without_layer(monkeypatch):
+    """Base original sem complemento: a camada versionada é desconsiderada somente neste teste."""
+    monkeypatch.setattr(geo_complement, "LAYER", Path("dados") / "brasil" / "camada_desconsiderada_no_teste.json")
+
+
+def test_real_resident_spatial_comma_and_coordinate_changes(real_catalog, without_layer):
+    """Base original sem complemento: seis pontos inválidos impedem a análise espacial do recorte completo."""
     info, original, expected = real_catalog
     expected = expected.query('Período == "202406"').copy()
     original = original.loc[expected.index]
@@ -244,6 +255,44 @@ def test_real_resident_spatial_comma_and_coordinate_changes(real_catalog):
     # Haversine independente; tolerância cobre diferença para o elipsoide.
     np.testing.assert_allclose(actual["Distância (km)"], actual.distance, rtol=0.006, atol=0.002)
     assert result["rows"][0] == {"Território": reference, "Distância (km)": 0.0}
+
+
+def test_real_resident_spatial_with_the_official_layer(real_catalog):
+    """Com a camada oficial, a análise espacial de junho de 2024 com todos os municípios passa a ser executável: os seis
+    pontos inválidos na base original usam o ponto oficial e os demais, o original; uploads seguem sem complemento."""
+    info, original, expected = real_catalog
+    expected = expected.query('Período == "202406"').copy()
+    original = original.loc[expected.index]
+    parsed = original[["latitude", "longitude"]].apply(lambda col: col.str.replace(",", ".", regex=False).astype(float))
+    valid = parsed.latitude.between(-90, 90) & parsed.longitude.between(-180, 180)
+    document = json.loads(LAYER_FILE.read_text(encoding="utf-8"))
+    layer, source = {item["codigo_base"]: item for item in document["municipios"]}, document["fonte"]
+    assert (~valid).sum() == 6 and set(original.cod_ibge[~valid]) == set(layer)  # base original
+    points = parsed.copy()  # coordenadas efetivas esperadas, calculadas sem o código do aplicativo
+    for index in points.index[~valid]:
+        item = layer[original.at[index, "cod_ibge"]]
+        points.loc[index, ["latitude", "longitude"]] = item["latitude"], item["longitude"]
+    complemented = set(expected.Território[~valid])
+    options = {"confirmed_roles": ["period", "territory_id", "latitude", "longitude"], "number_format": "decimal_comma",
+               "crs": "SIRGAS2000", "period_filter": "202406"}
+    geod = Geod(ellps="GRS80")
+    for reference in (expected.Território[valid].iloc[0], expected.Território[~valid].iloc[0]):  # ponto original e oficial
+        result = resident_result(info, "spatial", **options, reference_territory=reference)
+        rows = pd.DataFrame(result["rows"]).set_index("Território")
+        assert len(rows) == len(expected) and set(rows.index) == set(expected.Território)
+        point = points.loc[expected.index[expected.Território == reference][0]]
+        _, _, meters = geod.inv(np.full(len(points), point.longitude), np.full(len(points), point.latitude),
+                                points.longitude.to_numpy(), points.latitude.to_numpy())
+        np.testing.assert_array_equal(rows.loc[expected.Território, "Distância (km)"].to_numpy(), meters / 1000)
+        for name, mark in rows[TRACE].items():
+            sides = [side for side, used in (("território", name in complemented), ("referência", reference in complemented)) if used]
+            assert mark == (" e ".join(sides).capitalize() if sides else "Não")
+        geo = result["metadata"]["complemento_geografico"]
+        assert geo["estado"] == "valido" and geo["proveniencia"]["sha256_arquivo"] == source["sha256_arquivo"]
+    upload = client.post("/api/analyze", files={"file": ("spatial-full-period.csv", original.to_csv(index=False, sep=";").encode())},
+        data={"operation": "spatial", "mapping": json.dumps(info["suggested_mapping"]),
+              "options": json.dumps({**options, "reference_territory": expected.Território[valid].iloc[0]})})
+    assert upload.status_code == 422 and "intervalos geográficos" in upload.json()["detail"]  # uploads nunca complementados
 
 
 @pytest.mark.parametrize("operation", ["density", "distribution", "comparisons", "ranking", "aggregate", "spatial", "rotation"])
