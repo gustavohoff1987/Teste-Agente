@@ -18,6 +18,16 @@ class ConfirmationRequired(ValueError):
 
 @per_request  # a mesma coluna é normalizada uma vez por requisição; resultado só lido
 def text_values(series):
+    # Coluna só de textos: cada valor distinto é normalizado uma vez e o resultado é o mesmo.
+    # Com números ou outros tipos não: 130260 e 130260.0 coincidem na deduplicação, mas não como texto.
+    if series.dtype == object and pd.api.types.infer_dtype(series, skipna=True) in ("string", "empty"):
+        codes, uniques = pd.factorize(series, use_na_sentinel=True)
+        normalized = _normalized_text(pd.Series(uniques, dtype=object))
+        return pd.Series(normalized.array.take(codes, allow_fill=True), index=series.index, name=series.name)
+    return _normalized_text(series)
+
+
+def _normalized_text(series):
     return series.astype("string").str.strip().replace("", pd.NA)
 
 

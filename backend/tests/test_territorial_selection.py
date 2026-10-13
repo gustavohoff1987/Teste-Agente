@@ -227,3 +227,23 @@ def test_numeric_codes_keep_the_textual_identity_used_by_the_engine():
     engine = dimensions(frame, MAP, {**OPTIONS, "fts_scope_confirmed": True}).territory
     assert ids == ["code:130260", "code:130260.0", "code:130420"]
     assert sorted(engine.unique()) == ["Alfa [130260.0]", "Alfa [130260]", "Beta [130420]"]
+
+
+def test_text_values_equals_row_by_row_normalization():
+    """Normalizar cada valor distinto uma vez dá, valor a valor, o mesmo resultado de normalizar cada linha."""
+    from decimal import Decimal
+    import numpy as np
+    from data_contract import text_values
+    columns = {
+        "textos": [" Manaus", "Manaus ", "Manaus", "  ", "", "\tTefé\n", " Tefé", "Tefé", None, "Manaus"],
+        "nulos": ["A", np.nan, pd.NA, None, pd.NaT, Decimal("NaN"), " A "],
+        "codigos": [130260, 130260.0, "130260", " 130260 ", None],
+        "vazia": [],
+    }
+    for name, values in columns.items():
+        series = pd.Series(values, dtype=object, index=[f"r{i}" for i in range(len(values))], name=name)
+        expected = series.astype("string").str.strip().replace("", pd.NA)
+        result = text_values(series)
+        pd.testing.assert_series_equal(result, expected, check_exact=True)
+        assert [type(value) for value in result.array] == [type(value) for value in expected.array]
+    assert text_values(pd.Series([130260, 130260.0], dtype=object)).tolist() == ["130260", "130260.0"]
