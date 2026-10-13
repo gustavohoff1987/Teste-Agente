@@ -129,6 +129,8 @@ class Bench:
         return {
             "inspect_municipal": ("/api/inspect", {"dataset": "brazil", "scope": "municipal"}),
             "inspect_national": ("/api/inspect", {"dataset": "brazil", "scope": "national"}),
+            # Primeiro pré-exame da interface após o inspect: sem período, sobre todas as competências.
+            "preflight_sem_periodo": ("/api/preflight", {**base, "options": json.dumps({"category_filter": "MEDICINA"})}),
             "preflight_sem_selecao": ("/api/preflight", {**base, "options": json.dumps(period)}),
             "preflight_selecao_AM": ("/api/preflight", {**base, "options": json.dumps({**period, "territory_ids": self.state})}),
             "preflight_selecao_3": ("/api/preflight", {**base, "options": json.dumps(three)}),
@@ -194,6 +196,8 @@ def run(args):
         return
     results = {}
     for name, (path, data) in ops.items():
+        if args.only and name not in args.only.split(","):
+            continue
         samples, size, status = [], 0, None
         for _ in range(args.repeat):
             elapsed, response = bench.post(path, data)
@@ -209,7 +213,7 @@ def run(args):
                          "kib": size / 1024, "peak_mib": peak, "status": status}
         print(f"{name:<24} {status} primeiro={samples[0]:6.3f}s mediana={results[name]['median']:6.3f}s "
               f"p95={results[name]['p95']:6.3f}s resposta={size / 1024:8.1f} KiB pico={peak:7.1f} MiB", flush=True)
-    comp = components(max(3, min(args.repeat, 7)))
+    comp = {} if args.only else components(max(3, min(args.repeat, 7)))
     for label, value in comp.items():
         print(f"  {label:<52} " + (f"mediana={value['median']:6.3f}s p95={value['p95']:6.3f}s" if "median" in value
                                     else f"{value['value']:8.1f}"), flush=True)
@@ -221,7 +225,8 @@ def run(args):
 def child(args, catalog, *extra):
     """Mede num processo novo que só importa o backend indicado (sem contaminação de módulos)."""
     command = [sys.executable, __file__, "--profile", args.profile, "--backend", str(args.backend),
-               "--catalog", str(catalog), "--repeat", str(args.repeat), *(["--no-memory"] if args.no_memory else []), *extra]
+               "--catalog", str(catalog), "--repeat", str(args.repeat), *(["--no-memory"] if args.no_memory else []),
+               *(["--only", args.only] if args.only else []), *extra]
     return subprocess.run(command, capture_output=True, text=True, check=True).stdout
 
 
@@ -233,6 +238,7 @@ def main():
     parser.add_argument("--json", type=Path)
     parser.add_argument("--cold", action="store_true")
     parser.add_argument("--no-memory", action="store_true", help="omite a passada de tracemalloc (mais rápida)")
+    parser.add_argument("--only", help="operações separadas por vírgula (omite componentes)")
     parser.add_argument("--backend", type=Path, default=ROOT / "backend")
     parser.add_argument("--catalog", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--single", help=argparse.SUPPRESS)
@@ -259,7 +265,7 @@ def main():
         print(json.dumps(meta, ensure_ascii=False), flush=True)
         if args.cold:
             cold = {}
-            for name in ["inspect_municipal", "preflight_sem_selecao", "preflight_selecao_AM", "exploracao_AM",
+            for name in ["inspect_municipal", "preflight_sem_periodo", "preflight_sem_selecao", "preflight_selecao_AM", "exploracao_AM",
                          "densidade_selecao_AM", "comparacao_3", "evolucao_3", "agregacao_3", "quantitativos_nacional"]:
                 cold[name] = json.loads(child(args, folder / "catalogo", "--single", name).strip().splitlines()[-1])
                 print(f"frio {name:<24} {cold[name]['status']} {cold[name]['first']:6.3f}s", flush=True)
