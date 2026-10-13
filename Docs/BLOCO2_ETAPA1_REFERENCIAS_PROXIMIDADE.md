@@ -221,6 +221,22 @@ existente, e o gráfico genérico de barras mostra as distâncias dos primeiros 
   de aplicabilidade. A primeira captura revelou chaves de execução alteradas pela inclusão em
   `default_scopes`; a capacidade passou a ter recorte próprio e as chaves voltaram a coincidir.
 
+**Regressão final** (código de `8fe7316`, mesma árvore deste documento):
+
+| Verificação | Resultado |
+| --- | --- |
+| pytest do backend com fontes sintéticas | 250 passaram, 22 omitidos (testes reais opt-in) |
+| pytest completo com as duas fontes reais (`ADT_REAL_DATA_DIR`) | 272 passaram |
+| Build do frontend (TypeScript + Vite) | passou |
+| Job `ui-block1` reproduzido localmente (smoke, regressão, mais próxima, integração com Gemini simulado) | passou |
+| Job `ui-conversational` reproduzido localmente | passou |
+| Jornada do Bloco 1 com dados reais (`ui_block1_smoke.py`, 62 municípios do AM) | passou |
+| Referência mais próxima no navegador com dados reais (`bench_ui_nearest.py`) | passou |
+| Equivalência da API com `15aa3c8` (Bloco 1, nacional sintética, real) | 76, 76 e 77 casos; 0 diferenças além da capacidade acrescentada |
+| SHA-256 dos originais e das cópias instaladas | inalterados |
+| Sete roteiros anteriores à interface conversacional | falham no mesmo passo e linha que em `15aa3c8` e no baseline `a202be1`; não são regressões |
+| CI no GitHub | runs 194, 195 e 196 verdes; o job `ui-block1` executa `ui_nearest_smoke.py` |
+
 Casos adversariais pedidos e onde são cobertos:
 
 | Caso | Cobertura |
