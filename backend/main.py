@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import threading
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -393,6 +394,45 @@ async def _read_upload(file: UploadFile) -> bytes:
     return contents
 
 
+# Interpretação das fontes governadas Brasil, reaproveitada somente depois de load_brazil
+# verificar o SHA-256 das duas fontes nesta requisição. A chave inclui a versão verificada:
+# conteúdo novo nunca reutiliza o anterior. Uploads não passam por aqui (nada é guardado).
+_BRAZIL_FRAMES: dict[tuple[str, str], pd.DataFrame] = {}
+_BRAZIL_FRAMES_LOCK = threading.Lock()
+
+
+def _brazil_cache_limit_bytes() -> int:
+    """ADT_BRASIL_CACHE_MAX_MB limita o quadro guardado (padrão 512); 0 desliga o reaproveitamento."""
+    try:
+        return max(0, int(os.getenv("ADT_BRASIL_CACHE_MAX_MB", "512"))) * 1024 * 1024
+    except ValueError:
+        return 0
+
+
+def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | None:
+    key = (filename, source["version"])
+    frame = None
+    with _BRAZIL_FRAMES_LOCK:
+        if key in _BRAZIL_FRAMES:
+            # O quadro guardado nunca sai daqui: cada requisição recebe cópia própria.
+            frame = _BRAZIL_FRAMES[key].copy()
+    if frame is None:
+        parsed, _ = read_dataset(raw, filename)
+        if parsed is None:
+            return None
+        limit = _brazil_cache_limit_bytes()
+        if limit and parsed.memory_usage(deep=True).sum() <= limit:
+            with _BRAZIL_FRAMES_LOCK:
+                for stale in [k for k in _BRAZIL_FRAMES if k[0] == filename]:
+                    del _BRAZIL_FRAMES[stale]  # uma versão por fonte: nacional e municipal separadas
+                _BRAZIL_FRAMES[key] = parsed
+                frame = parsed.copy()
+        else:
+            frame = parsed
+    frame.attrs["source"] = source
+    return frame
+
+
 async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version=""):
     if bool(file) == bool(dataset):
         raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
@@ -400,10 +440,7 @@ async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_ve
         if dataset != "brazil":
             raise ValueError("Base de dados não reconhecida.")
         raw, filename, source = load_brazil(scope, operation, dataset_version)
-        frame, sheets = read_dataset(raw, filename)
-        if frame is not None:
-            frame.attrs["source"] = source
-        return frame, []
+        return _brazil_frame(raw, filename, source), []
     raw = await _read_upload(file)
     frame, sheets = read_dataset(raw, file.filename or "", sheet)
     if frame is not None:
@@ -505,11 +542,10 @@ def describe_brazil() -> dict:
         profiles = []
         for scope in ("national", "municipal"):
             raw, name, source = load_brazil(scope=scope)
-            frame, _ = read_dataset(raw, name)
+            frame = _brazil_frame(raw, name, source)
             if frame is None or frame.empty:
                 raise ValueError("A base do Brasil não está disponível.")
             mapping, _ = candidates(frame)
-            frame.attrs["source"] = source
             profile = curated_profile(frame, mapping)
             period_col = mapping.get("period")
             category_col = mapping.get("category")
