@@ -26,9 +26,10 @@ FILES = {"national": "Dados_Brasil.xlsx", "municipal": "Dados_Municipios_Brasil.
 DEFAULT_SCOPES = {op: ("national" if op in ("counts", "temporal", "report") else "municipal")
                   for op in ("density", "counts", "distribution", "comparisons", "temporal",
                              "aggregate", "spatial", "ranking", "rotation", "report")}
-# A referência mais próxima só existe no recorte municipal, o único com coordenadas. Fica fora de
-# default_scopes porque a origem compõe a chave de execução das análises já existentes.
-ENGINE_SCOPES = {**DEFAULT_SCOPES, "nearest": "municipal"}
+# A referência mais próxima e os critérios combinados só existem no recorte municipal, o único com
+# coordenadas. Ficam fora de default_scopes porque a origem compõe a chave de execução das análises
+# já existentes.
+ENGINE_SCOPES = {**DEFAULT_SCOPES, "nearest": "municipal", "criteria": "municipal"}
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GOVERNED_MANIFEST = Path("dados") / "brasil" / "manifesto.json"  # relativo à raiz do repositório
 DEFAULT_DIR = REPO_ROOT / ".local" / "datasets" / "brasil"  # destino padrão do instalador (cópia opcional)

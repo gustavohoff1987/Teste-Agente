@@ -10,6 +10,7 @@ apresentação. A busca da mais próxima é exata: a corda 3D entre os pontos nu
 geodésica, então só se calculam geodésicas de referências cuja corda não supere a menor
 geodésica já obtida. Mínimo e empates são decididos pelas distâncias geodésicas calculadas.
 """
+import json
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 
@@ -20,6 +21,7 @@ from pyproj import Geod
 
 from data_contract import ConfirmationRequired, canonical_crs, numbers, scoped, text_values
 from geo_complement import overlay
+from request_memo import request_value
 from territorial_selection import territory_catalog, texts
 
 REFERENCIAL = "SIRGAS2000"
@@ -242,6 +244,14 @@ def reference_set(frame, mapping, options, period):
 
 
 def nearest_inputs(frame, mapping, options):
+    """Insumos memorizados por requisição: pré-exame e cálculo (inclusive de critérios) usam os mesmos."""
+    key = ("nearest_inputs", id(frame), json.dumps([{role: col for role, col in mapping.items() if col},
+                                                     {**options, "crs": canonical_crs(options.get("crs")) or options.get("crs")}],
+                                                    sort_keys=True, default=str))
+    return request_value(key, lambda: _nearest_inputs(frame, mapping, options), anchor=frame)
+
+
+def _nearest_inputs(frame, mapping, options):
     """Validações e insumos sem distâncias; verificações baratas antes das que percorrem a base."""
     crs = options.get("crs")
     if not canonical_crs(crs):

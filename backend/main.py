@@ -33,6 +33,7 @@ from llm_context import review_interpretation
 from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for
 from request_memo import RequestMemoMiddleware
+from combined_criteria import needs as criteria_needs
 
 app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
 app.add_middleware(
@@ -154,10 +155,11 @@ def _records(data: pd.DataFrame) -> list[dict]:
 
 
 def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
-    if operation in ("spatial", "nearest") and canonical_crs(options.get("crs")):
+    if operation in ("spatial", "nearest", "criteria") and canonical_crs(options.get("crs")):
         options = {**options, "crs": canonical_crs(options["crs"])}
     result = _compute(df, mapping, operation, options)
     nearest = result.pop("_nearest", None)
+    criteria = result.pop("_criteria", None)
     result["metadata"] = {"method_version": "deterministic-0.4", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
@@ -177,6 +179,9 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     if nearest:
         result["metadata"]["evaluability"]["status"] = nearest["evaluability"]
         result["metadata"]["nearest_reference"] = nearest["structured"]
+    if criteria:
+        result["metadata"]["evaluability"]["status"] = criteria["evaluability"]
+        result["metadata"]["criterios"] = criteria["structured"]
     geo = _geo_identity(df, operation, options)
     if geo is not None:
         result["metadata"]["complemento_geografico"] = geo
@@ -190,7 +195,8 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
             result["notes"].append("Período AAAAMM composto em memória a partir de " +
                                    " e ".join(field["source_columns"]) + "; colunas originais preservadas.")
     unit = count_unit_label(mapping, options)
-    if operation != "spatial" and (operation != "nearest" or options.get("reference_mode") == "criterion"):
+    if operation != "spatial" and (operation != "nearest" or options.get("reference_mode") == "criterion") and (
+            operation != "criteria" or criteria_needs(options)["count"]):
         result["notes"].append("Unidade de contagem: " + str(unit) + ". Não há conversão entre pessoas, vínculos e postos.")
     if mapping.get("territory_id"):
         result["notes"].append("Identificação territorial: nome e código associado pelo usuário; códigos não foram confrontados com cadastro externo.")
@@ -225,6 +231,12 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         nearest = compute_nearest(df, mapping, options)
         result = _result(nearest["title"], nearest["description"], nearest["rows"], nearest["metrics"], nearest["notes"])
         result["_nearest"] = {"structured": nearest["structured"], "evaluability": nearest["evaluability"]}
+        return result
+    if operation == "criteria":
+        from combined_criteria import compute_criteria
+        criteria = compute_criteria(df, mapping, options)
+        result = _result(criteria["title"], criteria["description"], criteria["rows"], criteria["metrics"], criteria["notes"])
+        result["_criteria"] = {"structured": criteria["structured"], "evaluability": criteria["evaluability"]}
         return result
     if operation == "spatial":
         geo = validate_operation(df, mapping, options, operation).rename(columns={"latitude": "lat", "longitude": "lon"})
@@ -463,7 +475,8 @@ SPATIAL_OPERATIONS = ("spatial", "nearest")
 
 
 def _is_spatial(operation: str, options: dict) -> bool:
-    return operation in SPATIAL_OPERATIONS
+    """Análises cujo resultado depende de coordenadas; critérios só quando usam a distância."""
+    return operation in SPATIAL_OPERATIONS or (operation == "criteria" and criteria_needs(options)["spatial"])
 
 
 def _geo_identity(frame: pd.DataFrame, operation: str, options: dict) -> dict | None:

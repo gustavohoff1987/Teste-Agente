@@ -136,3 +136,38 @@ def test_real_explicit_list_uses_the_period_geometry(real):
     for key in moved[:5]:
         _, _, meters = GEOD.inv(np.full(3, early[key]["lon"]), np.full(3, early[key]["lat"]), e_lon, e_lat)
         assert earlier[key]["minimo_completo"]["distancia_km"] == meters.min() / 1000
+
+
+def test_real_combined_criteria_density_and_distance_june_2024(real):
+    """Densidade < 2,36 E distância > 155 km (valores do pedido do usuário, não normativos), referências ≥ 2,36."""
+    rows, inspection = real
+    units = independent(rows)
+    tree = {"logic": "and", "operands": [{"attribute": "densidade", "operator": "<", "value": "2,36"},
+                                         {"attribute": "distancia", "operator": ">", "value": "155"}]}
+    refs = {"reference_mode": "criterion", "reference_criterion": {"operator": ">=", "value": "2,36"}}
+    strict = analyze(inspection, operation="criteria", criteria=tree, **refs)["metadata"]["criterios"]
+    low = {key for key, u in units.items() if u["q"] * 1000 < Fraction(Decimal("2.36")) * u["p"]}
+    invalid_refs = {key for key in units if key not in low and not units[key]["valid"]}
+    results = {item["elemento"]: item for item in strict["avaliacoes"]}
+    assert len(results) == len(units) and strict["contagens"]["universo"] == len(units)
+    if invalid_refs:  # sem aceitação explícita, a distância não é afirmada para nenhum alvo
+        assert strict["contagens"]["ATENDE"] == 0
+        assert {k for k, item in results.items() if item["estado"] == "NAO_ATENDE"} == set(units) - low
+        assert {k for k, item in results.items() if item["estado"] == "NAO_AVALIAVEL"} == low
+        assert strict["referencias"]["aceitacoes_disponiveis"]["cobertura_parcial"] == sum(u["valid"] for u in units.values())
+    partial = analyze(inspection, operation="criteria", criteria=tree, distance_scope="evaluable_references",
+                      **refs)["metadata"]["criterios"]
+    results = {item["elemento"]: item for item in partial["avaliacoes"]}
+    valid_refs = sorted(key for key in units if key not in low and units[key]["valid"])
+    r_lat, r_lon = np.array([units[k]["lat"] for k in valid_refs]), np.array([units[k]["lon"] for k in valid_refs])
+    for key in sorted(low)[::40]:
+        item = results[key]
+        if not units[key]["valid"]:
+            assert item["estado"] == "NAO_AVALIAVEL" and item["nos"]["c2"]["motivos"] == ["COORDENADA_INVALIDA"]
+            continue
+        _, _, meters = GEOD.inv(np.full(len(valid_refs), units[key]["lon"]), np.full(len(valid_refs), units[key]["lat"]), r_lon, r_lat)
+        distance = meters.min() / 1000
+        assert item["nos"]["c2"]["valor"] == distance
+        assert item["estado"] == ("ATENDE" if Fraction(distance) > 155 else "NAO_ATENDE")
+    assert "COBERTURA_PARCIAL" in {l["tipo"] for l in partial["limitacoes"]}
+    assert partial["contagens"]["ATENDE"] > 0 and partial["desfecho"] == "RES-LIM"

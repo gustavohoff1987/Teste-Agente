@@ -319,6 +319,9 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
     if operation == "nearest":
         from nearest_reference import nearest_inputs  # importação tardia: o módulo usa este contrato
         return nearest_inputs(frame, mapping, options)
+    if operation == "criteria":
+        from combined_criteria import criteria_inputs  # importação tardia: o módulo usa este contrato
+        return criteria_inputs(frame, mapping, options)
     if operation == "rotation":
         rotation_data(frame, mapping, options)
         if not options.get("cohort_coverage_confirmed"):

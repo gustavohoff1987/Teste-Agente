@@ -45,11 +45,17 @@ def per_request(function):
     return wrapper
 
 
-def request_value(key, compute):
-    """Valor calculado uma vez por requisição e lido por todos os chamadores; fora dela, recalculado."""
+def request_value(key, compute, anchor=None):
+    """Valor calculado uma vez por requisição e lido por todos os chamadores; fora dela, recalculado.
+
+    anchor é o objeto cujo id compõe a chave (ex.: o quadro): fica guardado com o valor para que o id
+    não seja reaproveitado por outro objeto durante a requisição."""
     memo = _MEMO.get()
     if memo is None:
         return compute()
-    if key not in memo:
-        memo[key] = compute()
-    return memo[key]
+    hit = memo.get(key)
+    if hit is not None and hit[0] is anchor:
+        return hit[1]
+    value = compute()  # exceções não são memorizadas
+    memo[key] = (anchor, value)
+    return value

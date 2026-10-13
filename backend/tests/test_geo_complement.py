@@ -315,3 +315,27 @@ def test_valid_original_points_and_periods_outside_the_scope_are_never_complemen
     assert units["code:350050"]["coordenada"] == "complementada"
     _, outside = nearest("202312", ["code:170001"])
     assert all(outside["code:" + code]["condicao_espacial"] == "INVALIDA" for code in AUTHORIZED)  # fora das 22 competências
+
+
+def test_combined_criteria_with_distance_follow_the_layer_and_uf_uses_the_governed_rule(repo):
+    tree = {"logic": "and", "operands": [{"attribute": "uf", "operator": "=", "value": "SC"},
+                                         {"attribute": "distancia", "operator": ">", "value": "100"}]}
+    spatial = {"period_filter": "202406", "criteria": tree, "reference_mode": "list", "reference_ids": ["code:420001"]}
+    density = {"period_filter": "202406", "criteria": {"attribute": "densidade", "operator": "<", "value": "4"}}
+    before, density_before = analyze("criteria", **spatial).json(), analyze("criteria", **density).json()
+    result = {item["elemento"]: item for item in before["metadata"]["criterios"]["avaliacoes"]}
+    assert result["code:421265"]["estado"] == result["code:422000"]["estado"] == "NAO_AVALIAVEL"  # SC, ponto inválido
+    assert result["code:350050"]["estado"] == "NAO_ATENDE"  # SP: a UF decide, mesmo sem coordenada
+    write_layer(repo, layer_document(repo))
+    after, density_after = analyze("criteria", **spatial).json(), analyze("criteria", **density).json()
+    result = {item["elemento"]: item for item in after["metadata"]["criterios"]["avaliacoes"]}
+    beta = (-27.6, -48.6)
+    for code in ("421265", "422000"):
+        distance = km(FIXED[code], beta)
+        assert result["code:" + code]["nos"]["c2"]["valor"] == distance
+        assert result["code:" + code]["estado"] == ("ATENDE" if distance > 100 else "NAO_ATENDE")
+    assert after["metadata"]["complemento_geografico"]["estado"] == "valido"
+    assert after["metadata"]["criterios"]["referencias"]["complemento_geografico"]["linhas_complementadas"] == 6
+    assert after["metadata"]["execution_key"] != before["metadata"]["execution_key"]
+    assert density_after["metadata"]["execution_key"] == density_before["metadata"]["execution_key"]
+    assert "complemento_geografico" not in density_after["metadata"]
