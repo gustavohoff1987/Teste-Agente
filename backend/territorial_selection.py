@@ -4,7 +4,7 @@ import re
 import pandas as pd
 
 from brazil_catalog_profile import curated_profile
-from territorial_hierarchy import describe_hierarchy
+from territorial_hierarchy import describe_hierarchy, distinct_raw
 from request_memo import per_request
 
 
@@ -40,9 +40,8 @@ def territory_catalog(frame, mapping, options):
     # Os níveis dependem só dos nomes das colunas; as relações são conferidas nos pares abaixo.
     hierarchy = describe_hierarchy(frame.head(0), mapping, options.get("hierarchy_columns"))
     parents = [level["column"] for level in hierarchy["levels"] if level["role"] != "territorio_analise"]
-    # Deduplicar antes de normalizar preserva o resultado e evita converter cada registro;
-    # o catálogo é consultado várias vezes por requisição.
-    pairs = frame[list(dict.fromkeys(columns + parents))].drop_duplicates().copy()
+    # Deduplicar antes de normalizar (quando o resultado não muda) evita converter cada registro.
+    pairs = distinct_raw(frame, list(dict.fromkeys(columns + parents))).copy()
     for col in pairs:
         pairs[col] = texts(pairs[col])
     pairs = pairs.drop_duplicates()

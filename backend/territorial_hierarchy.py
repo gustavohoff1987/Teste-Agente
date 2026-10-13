@@ -37,6 +37,18 @@ LEVEL_ALIASES = {
 }
 
 
+def distinct_raw(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Linhas distintas antes da normalização textual, somente quando isso não muda o resultado.
+
+    Vale para colunas inteiramente textuais: a normalização depende só do texto. Valores numéricos
+    (planilhas) ficam como estão, porque 130260 == 130260.0 fundiria textos diferentes.
+    """
+    subset = frame[columns]
+    textual = len(set(columns)) == len(columns) and all(
+        pd.api.types.infer_dtype(subset.iloc[:, i], skipna=True) in ("string", "empty") for i in range(len(columns)))
+    return subset.drop_duplicates() if textual else subset
+
+
 @per_request
 def describe_hierarchy(frame: pd.DataFrame, mapping: dict[str, str],
                        selected_levels: dict[str, str] | None = None) -> dict[str, Any]:

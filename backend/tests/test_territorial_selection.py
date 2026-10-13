@@ -215,3 +215,15 @@ def test_state_named_like_a_municipality_is_not_resolved_silently():
     assert set(south["territory_ids"]) == {"code:431560", "code:431490"}
     assert set(interpret_exploration("Mostre a densidade dos municípios do Amazonas.", frame, mapping, options)[
         "territory_ids"]) == {"code:130260"}
+
+
+def test_numeric_codes_keep_the_textual_identity_used_by_the_engine():
+    """130260 e 130260.0 (planilhas) são textos distintos para dimensions(); o catálogo não os funde."""
+    from data_contract import dimensions
+    frame = pd.DataFrame({"municipio": ["Alfa", "Alfa", "Beta"], "codigo_identificador": [130260, 130260.0, 130420],
+                          "periodo": ["2024", "2023", "2024"], "categoria_profissional": ["MEDICINA"] * 3,
+                          "quantidade": ["1", "2", "3"], "populacao": ["10", "10", "20"]}, dtype=object)
+    ids = [item["id"] for item in territory_catalog(frame, MAP, OPTIONS)]
+    engine = dimensions(frame, MAP, {**OPTIONS, "fts_scope_confirmed": True}).territory
+    assert ids == ["code:130260", "code:130260.0", "code:130420"]
+    assert sorted(engine.unique()) == ["Alfa [130260.0]", "Alfa [130260]", "Beta [130420]"]
