@@ -4,6 +4,15 @@ Branch `feat/novos-blocos-incrementais`, a partir de `15aa3c8` (13/10/2026). Est
 as antigas etapas 2A (referências territoriais) e 2B (referência mais próxima) e a atualização
 do README sobre a política dos dados do Brasil. A Etapa 2 não foi iniciada.
 
+> **Atualização de 13/10/2026 (Etapa 2).** As pendências da seção 13 foram tratadas em
+> [Bloco 2, Etapa 2](BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md): critérios combinados, ordenação,
+> seleção por posição, faixas e integração final. A referência mais próxima passou a: ler a base
+> Brasil diretamente dos arquivos versionados (manifesto governado); usar a camada geográfica
+> complementar quando existir (coluna “Coordenada complementada (camada oficial)” e
+> `complemento_geografico`, só quando aplicada); e compartilhar, numa mesma requisição, os insumos
+> de referências e coordenadas entre o pré-exame e o cálculo. Resultados e chaves desta etapa não
+> mudam sem a camada.
+
 Commits da etapa, em ordem: `d320a86` (motor), `d9c525a` (comando conversacional), `2f70f47`
 (medição de desempenho), `ca85c4f` (correção do separador decimal), `f1c73e5` (interface),
 `e68e8e5` (jornada no navegador e CI), `8fe7316` (responsividade no navegador), seguidos da
@@ -293,8 +302,11 @@ Decisões e leituras adotadas:
 
 - coordenadas válidas divergentes no mesmo período → `COORDENADA_INVALIDA`;
 - candidatos não avaliáveis pelo critério ficam listados à parte e **não** tornam o
-  `minimo_completo` não avaliável, porque não integram o conjunto autorizado. **Decisão em
-  aberto:** se preferir que tornem, a mudança é local e será feita na Etapa 2;
+  `minimo_completo` não avaliável, porque não integram o conjunto autorizado (CAP-REF-01).
+  **Resolvido na Etapa 2:** nesta operação o campo continua relativo às referências confirmadas;
+  nos critérios combinados, a condição de distância fica `NAO_AVALIAVEL` enquanto houver
+  candidatos de elegibilidade desconhecida, salvo aceitação explícita do alcance restrito, e as
+  coberturas da elegibilidade e geográfica e o alcance da afirmação são registrados à parte;
 - referencial informado e não suportado → execução recusada com motivo (equivalente a
   BLQ-MET/METODO_NAO_INCORPORADO), sem objeto de resultado estruturado para a recusa;
 - ponto decimal declarado com coordenadas que têm vírgula → recusa explícita;
@@ -324,7 +336,7 @@ Limitações:
   outras capacidades;
 - réguas e faixas de distância, recortes e rankings por distância e comparações derivadas;
 - integração final com as explorações do Bloco 1 e com a Etapa 2;
-- decisão sobre candidatos não avaliáveis do critério (seção 12);
+- decisão sobre candidatos não avaliáveis do critério (seção 12; resolvida na Etapa 2);
 - fonte governada de referências (CFG-REF), se autorizada;
 - eventual ampliação do contrato do LLM para esta capacidade, somente com autorização;
 - redução opcional do custo de renderização de resultados muito grandes no navegador.

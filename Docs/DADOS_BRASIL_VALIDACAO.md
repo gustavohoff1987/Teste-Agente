@@ -10,6 +10,17 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 > [Política dos dados do Brasil](../README.md#política-dos-dados-do-brasil); as cópias
 > instaladas continuam em `.local/`, ignorada pelo Git.
 
+> **Atualização do Bloco 2, Etapa 2 (13/10/2026).** O backend passou a ler diretamente os dois
+> arquivos versionados na raiz, conferidos a cada requisição contra o manifesto governado
+> `dados/brasil/manifesto.json` (tamanho e SHA-256); `.local/` não é mais lida, e uma pasta
+> externa só é aceita de forma explícita, com a versão governada ou fixada. As menções abaixo à
+> instalação obrigatória em `.local/` descrevem a situação anterior. Para os seis municípios com
+> coordenadas inválidas, existe um mecanismo de camada geográfica complementar versionada (sede
+> municipal do IBGE, premissa do usuário de coordenada fixa em 2014–2024), mas as coordenadas
+> oficiais **ainda não foram incorporadas** (acesso ao IBGE bloqueado pela rede do ambiente); a
+> análise espacial da base completa continua bloqueada. Detalhes:
+> [Bloco 2, Etapa 2](BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
+
 ## Alterações dos campos e consumidores
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
@@ -70,6 +81,8 @@ totalizando 132 linhas: ANANAS (170100), PESCARIA BRAVA (421265), BALNEARIO RINC
 Exemplo: latitude `-63741`. Não é possível determinar a correção apenas pelo valor.
 Também há coordenadas que variam ao longo do tempo. Não se corrigiram ou excluíram
 linhas no aplicativo. O subconjunto válido existe somente no teste de distância.
+(13/10/2026: a correção prevista usa uma fonte oficial externa, sem alterar os arquivos; ver a
+atualização no início deste documento.)
 
 ## Reproduzir a validação
 

@@ -3,7 +3,7 @@
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
 - **Interface:** React + TypeScript + Tailwind; após o banner, a conversa concentra escolha da fonte, carrossel de análises, campos editáveis no próprio texto, confirmações agrupadas, resultados e exportações. Ajustes metodológicos excepcionais continuam disponíveis em uma seção avançada recolhida.
-- **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional e a referência geográfica mais próxima (Bloco 2, Etapa 1) são determinísticas.
+- **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional, a referência geográfica mais próxima (Bloco 2, Etapa 1) e os critérios combinados com réguas, rankings e recortes (Bloco 2, Etapa 2) são determinísticos.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
 - **Gemini não é requisito para o funcionamento analítico.** Sem chave, a conversa fica indisponível e todas as capacidades continuam operacionais. Esta integração é apenas a primeira iteração e **não representa conformidade integral com a governança de LLM da SPEC**.
@@ -93,34 +93,28 @@ Também é executado no job `ui-conversational` da CI. As bases brasileiras
 reais não participam desse teste e exigem validações locais próprias (ver
 [Política dos dados do Brasil](#política-dos-dados-do-brasil)).
 
-### Instalar a base Brasil (administração)
+### Origem da base Brasil (administração)
 
-Os dois arquivos originais estão versionados neste repositório privado, mas o backend não
-os lê diretamente: usa apenas uma instalação validada. Na raiz do repositório, prepare a
-cópia privada a partir dos arquivos versionados:
+O backend lê diretamente os dois arquivos versionados na raiz deste repositório privado,
+`Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, conferindo a cada requisição o tamanho e o
+SHA-256 de cada um contra o manifesto governado `dados/brasil/manifesto.json`. Não há cópia
+intermediária nem fallback: `.local/` não é lida. Arquivo alterado ou manifesto ausente,
+desatualizado ou inválido tornam a base indisponível, com o motivo; o upload continua
+funcionando. A API rejeita uma versão diferente daquela inspecionada pela interface.
 
 ```bash
-python backend/install_brazil_data.py --source .
+python backend/brazil_data.py diagnostico          # origem física, versão e integridade
+python backend/brazil_data.py manifesto            # identidade atual dos arquivos versionados
+python backend/brazil_data.py manifesto --gravar   # só ao atualizar os arquivos, com revisão no Git
 ```
 
-Também é possível instalar a partir de outra pasta com as mesmas fontes:
-
-```powershell
-python backend/install_brazil_data.py --source 'C:\Users\User\Desktop\Dados_Brasil'
-```
-
-O instalador valida os dois arquivos, preserva os bytes dos originais e grava cópias
-e manifesto SHA-256 em `.local/datasets/brasil/`, ignorada pelo Git. Recusa sobrescrever
-uma instalação existente. O aplicativo passa a ler essas cópias; não precisa mais
-acessar a pasta original. Não publique as cópias instaladas em outros repositórios nem
-no diretório público do frontend. Se a instalação estiver ausente, incompleta ou adulterada, a
-interface informa a indisponibilidade e o upload continua funcionando.
-
-A origem fica isolada em `backend/brazil_data.py`. O diretório padrão é relativo ao
-projeto; `ADT_BRASIL_DATA_DIR` permite substituí-lo, e o instalador aceita
-`--destination <pasta nova>`. Uma atualização pode ser instalada e validada em outra
-pasta antes de alterar a configuração. A API verifica ambos os hashes e rejeita uma
-versão diferente daquela inspecionada pela interface.
+Uma instalação externa continua possível para outra infraestrutura: `ADT_BRASIL_DATA_DIR`
+aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
+--destination <pasta nova>` (o instalador copia apenas a versão governada e recusa sobrescrever).
+Ela só é aceita com a versão governada ou com a versão fixada exatamente em
+`ADT_BRASIL_DATA_VERSION`; versão divergente é recusada. Não publique cópias em outros
+repositórios nem no diretório público do frontend. O diagnóstico técnico também está em
+`GET /api/brazil/source` e na área “Diagnóstico técnico da fonte” da interface (sem conteúdo).
 
 Para uma futura operação online, será necessário disponibilizar as fontes autorizadas
 ao backend e configurar esse diretório ou adaptar o carregador para outra origem,
@@ -136,10 +130,11 @@ parâmetros**. Cabeçalhos antigos continuam suportados.
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
 recorte nacional, nem identificadores individuais em qualquer recorte. Há 132 linhas
 municipais com coordenadas fora dos intervalos válidos (seis municípios nos 22 períodos).
-A análise espacial (distância a um território de referência) da base completa permanece
-bloqueada; a referência mais próxima mantém essas seis unidades no universo como não
-avaliáveis (`COORDENADA_INVALIDA`), sem bloquear os demais resultados. Rotatividade não
-pode ser calculada dessas contagens. Nenhum registro foi corrigido ou excluído automaticamente.
+Enquanto a camada geográfica complementar não for incorporada (ver os dez pontos abaixo), a
+análise espacial (distância a um território de referência) da base completa permanece
+bloqueada; a referência mais próxima e os critérios mantêm essas seis unidades no universo
+como não avaliáveis (`COORDENADA_INVALIDA`), sem bloquear os demais resultados. Rotatividade
+não pode ser calculada dessas contagens. Nenhum registro foi corrigido ou excluído nos arquivos.
 Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md).
 
 ### Política dos dados do Brasil
@@ -153,13 +148,14 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
 2. **Originais preservados.** O aplicativo nunca altera esses arquivos. O instalador relê os
    bytes da origem depois da cópia, e os testes reais comparam o SHA-256 dos originais antes
    e depois de cada execução.
-3. **Instalação validada obrigatória.** O backend continua exigindo uma instalação com
-   manifesto SHA-256 (`manifest.json`). Sem ela, ou com cópia incompleta ou adulterada, a
-   base Brasil fica indisponível e o upload continua funcionando.
-4. **Instalação a partir do repositório.** O instalador aceita a raiz do repositório como
-   origem (`--source .`) enquanto o destino privado ainda não existir: ele recusa sobrescrever
-   uma instalação existente.
-5. **Cópias fora do Git.** `.local/datasets/brasil/` continua ignorada pelo Git (regra
+3. **Integridade obrigatória.** O backend usa os arquivos versionados somente quando
+   tamanhos e SHA-256 correspondem ao manifesto governado `dados/brasil/manifesto.json`. Com
+   arquivo alterado ou manifesto ausente, desatualizado ou inválido, a base Brasil fica
+   indisponível e o upload continua funcionando.
+4. **Sem cópias silenciosas.** `.local/` não é lida; uma instalação externa
+   (`ADT_BRASIL_DATA_DIR`) só é usada quando configurada explicitamente e com a versão governada
+   ou fixada em `ADT_BRASIL_DATA_VERSION`.
+5. **Cópias fora do Git.** Instalações e cópias em `.local/` continuam ignoradas pelo Git (regra
    `.local/` do `.gitignore`).
 6. **Fora do frontend público.** Arquivos e cópias não ficam em `frontend/` nem são servidos
    ao navegador, que recebe apenas resultados calculados pela API.
@@ -184,6 +180,39 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
 **Licença e autorização de redistribuição: pendentes.** O repositório não registra a licença
 das fontes nem autorização para redistribuí-las. Até esse registro, não redistribua os
 arquivos fora deste repositório privado.
+
+### Origem, integridade e coordenadas — dez pontos (Bloco 2, Etapa 2)
+
+1. **Onde estão versionados.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, na raiz do
+   repositório; identidade em `dados/brasil/manifesto.json` (versão `819cf4628bff…`).
+2. **Caminho usado pelo backend.** Os próprios arquivos da raiz do repositório; uma pasta
+   externa apenas com `ADT_BRASIL_DATA_DIR` explícito e versão governada ou fixada.
+3. **Prova de integridade.** Tamanho e SHA-256 de cada arquivo conferidos a cada requisição
+   contra o manifesto governado; a versão inspecionada precisa coincidir com a analisada.
+4. **Cópias antigas.** Não são lidas: `.local/` é ignorada pelo carregador e o teste com uma
+   cópia antiga divergente comprova; o instalador só copia a versão governada.
+5. **Camada complementar de coordenadas.** Arquivo versionado
+   `dados/brasil/complemento_coordenadas.json`, validado a cada leitura e aplicado só ao ler
+   coordenadas da base Brasil municipal, na versão da fonte a que se refere, apenas onde o ponto
+   original é inválido; os arquivos originais e as bases importadas não são alterados.
+6. **Municípios e competências.** Ananás/TO (170100), Pescaria Brava/SC (421265), Balneário
+   Rincão/SC (422000), Jaraguari/MS (500490), Campestre da Serra/RS (430367) e Águas de
+   Lindóia/SP (350050), nas 22 competências de janeiro e junho de 2014 a 2024 (132 registros).
+7. **Fonte geográfica oficial.** Prevista: IBGE, Censo Demográfico 2022 — Localidades do Brasil
+   (ponto da sede municipal, SIRGAS 2000 declarado pela fonte), com o construtor
+   `backend/build_geo_complement.py`. **Ainda não incorporada:** o acesso a `*.ibge.gov.br` é
+   bloqueado pela política de rede deste ambiente; nenhuma coordenada foi inventada e a camada
+   não existe no repositório.
+8. **Premissa humana.** Uma coordenada fixa por município nas 22 competências
+   (`COORDENADA_FIXA_2014_2024`), decisão metodológica do usuário, sem comprovação independente
+   de estabilidade histórica e sem extensão a outros municípios.
+9. **Rastreio de versões.** Versão da base pelo manifesto; versão e SHA-256 da camada nos
+   metadados e na chave de execução das análises espaciais (não nas demais); resultado espacial
+   de outra versão da camada não é retomado em silêncio e preparação antiga é recusada.
+10. **Limitações geográficas que permanecem.** Os seis municípios seguem não avaliáveis em
+    análises espaciais até a camada oficial; nove municípios têm coordenadas válidas que mudam
+    entre competências (cada competência usa a sua); a fonte não declara referencial (SIRGAS 2000
+    é declarado pelo usuário); a distância é geodésica direta, sem trajeto, tempo ou acesso.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
@@ -258,8 +287,10 @@ npm run build
 
 A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull requests, além
 dos roteiros de navegador `ui_conversational_smoke.py`, `ui_block1_smoke.py`,
-`ui_block1_regression.py`, `ui_nearest_smoke.py` e `ui_block1_integration.py` (este com
-transporte Gemini simulado), sem chamadas reais ao provedor.
+`ui_block1_regression.py`, `ui_nearest_smoke.py`, `ui_criteria_smoke.py` (desktop e celular) e
+`ui_block1_integration.py` (este com transporte Gemini simulado), sem chamadas reais ao provedor.
+Medições: `backend/tests/bench_criteria.py` (fases no servidor) e `bench_ui_criteria.py`
+(navegador), além dos benchmarks anteriores.
 
 Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
 
@@ -305,7 +336,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 22 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
+Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 23 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
 
 ```powershell
 py -m pip install -r backend/requirements-ui.txt
@@ -331,11 +362,31 @@ representa trajeto viário, tempo de deslocamento nem acessibilidade. O LLM não
 referências nem recebe esta capacidade. Detalhes, testes e desempenho:
 [Bloco 2, Etapa 1](Docs/BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md).
 
+## Critérios combinados, réguas e rankings (Bloco 2, Etapa 2)
+
+O cartão **Critérios combinados** aplica condições simultâneas sobre densidade por 1.000
+habitantes, quantidade, população, distância à referência mais próxima, pertença a uma lista de
+territórios e UF, com `<`, `≤`, `>`, `≥`, `=`, `≠` combinados por E, OU e NÃO em três estados
+(`ATENDE`, `NAO_ATENDE`, `NAO_AVALIAVEL`; indeterminação nunca vira “não atende”). Cada condição
+tem uma régua com indicador, unidade, operador, valor, universo, competência/categoria e origem
+“escolha do usuário”; não há pontos de corte padrão nem caráter legal, sanitário ou científico.
+O resultado separa quem atende, não atende e não é avaliável (com motivos por condição),
+permite ordenar (posições 1, 2, 2, 4), selecionar os N primeiros com os empatados no corte,
+definir faixas `[a, b)` com o último intervalo fechado, comparar com o conjunto anterior,
+exportar CSV/JSON e reutilizar o conjunto como seleção territorial ou referências. A distância
+usa o mínimo do conjunto completo de referências; o mínimo entre as avaliáveis e a restrição às
+referências de elegibilidade confirmada exigem aceitação explícita e ficam rotulados. Na conversa,
+pedidos como “Mostre os municípios com menos de 2 médicos por mil habitantes”, “Agora considere
+também distância superior a 150 km”, “Ordene esses municípios pela distância”, “Mostre os 20
+primeiros” e “Compare esse conjunto com o anterior” são estruturados por um canal determinístico
+(o LLM não recebe a capacidade), com perguntas quando há ambiguidade material. Detalhes, testes e
+desempenho: [Bloco 2, Etapa 2](Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
+
 ## Escopo e limitações do protótipo
 
-Os onze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico e referência geográfica mais próxima.
+Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima e critérios combinados com rankings e faixas.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; critérios combinados de referência, faixas e réguas espaciais; PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; coordenadas oficiais dos seis municípios com ponto inválido (camada geográfica pendente); PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 
