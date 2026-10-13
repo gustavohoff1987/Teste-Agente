@@ -3,10 +3,10 @@
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
 - **Interface:** React + TypeScript + Tailwind; após o banner, a conversa concentra escolha da fonte, carrossel de análises, campos editáveis no próprio texto, confirmações agrupadas, resultados e exportações. Ajustes metodológicos excepcionais continuam disponíveis em uma seção avançada recolhida.
-- **Motor:** Python + FastAPI; as dez capacidades permanecem determinísticas.
+- **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional e a referência geográfica mais próxima (Bloco 2, Etapa 1) são determinísticas.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
-- **Gemini não é requisito para o funcionamento analítico.** Sem chave, a conversa fica indisponível e as dez capacidades continuam operacionais. Esta integração é apenas a primeira iteração e **não representa conformidade integral com a governança de LLM da SPEC**.
+- **Gemini não é requisito para o funcionamento analítico.** Sem chave, a conversa fica indisponível e todas as capacidades continuam operacionais. Esta integração é apenas a primeira iteração e **não representa conformidade integral com a governança de LLM da SPEC**.
 
 ## Executar localmente
 
@@ -90,11 +90,20 @@ python tests/ui_conversational_smoke.py
 O teste usa CSV sintético, bloqueia requisições externas e verifica escolha
 de fonte, seletor inline, execução determinística e exportação dentro do chat.
 Também é executado no job `ui-conversational` da CI. As bases brasileiras
-reais continuam fora do Git e exigem validações locais próprias.
+reais não participam desse teste e exigem validações locais próprias (ver
+[Política dos dados do Brasil](#política-dos-dados-do-brasil)).
 
 ### Instalar a base Brasil (administração)
 
-Os dados não acompanham o código no Git. Prepare uma cópia privada validada:
+Os dois arquivos originais estão versionados neste repositório privado, mas o backend não
+os lê diretamente: usa apenas uma instalação validada. Na raiz do repositório, prepare a
+cópia privada a partir dos arquivos versionados:
+
+```bash
+python backend/install_brazil_data.py --source .
+```
+
+Também é possível instalar a partir de outra pasta com as mesmas fontes:
 
 ```powershell
 python backend/install_brazil_data.py --source 'C:\Users\User\Desktop\Dados_Brasil'
@@ -103,8 +112,8 @@ python backend/install_brazil_data.py --source 'C:\Users\User\Desktop\Dados_Bras
 O instalador valida os dois arquivos, preserva os bytes dos originais e grava cópias
 e manifesto SHA-256 em `.local/datasets/brasil/`, ignorada pelo Git. Recusa sobrescrever
 uma instalação existente. O aplicativo passa a ler essas cópias; não precisa mais
-acessar a pasta original. Não publique as cópias em repositórios nem no diretório
-público do frontend. Se a instalação estiver ausente, incompleta ou adulterada, a
+acessar a pasta original. Não publique as cópias instaladas em outros repositórios nem
+no diretório público do frontend. Se a instalação estiver ausente, incompleta ou adulterada, a
 interface informa a indisponibilidade e o upload continua funcionando.
 
 A origem fica isolada em `backend/brazil_data.py`. O diretório padrão é relativo ao
@@ -116,7 +125,7 @@ versão diferente daquela inspecionada pela interface.
 Para uma futura operação online, será necessário disponibilizar as fontes autorizadas
 ao backend e configurar esse diretório ou adaptar o carregador para outra origem,
 preservando o contrato de versão, integridade e granularidade. Os dados devem continuar
-fora do Git e dos arquivos públicos do frontend. A escolha de infraestrutura, o
+fora dos arquivos públicos do frontend e de qualquer repositório público. A escolha de infraestrutura, o
 provisionamento e a publicação ficam para uma etapa futura; não foram implementados.
 
 Campos `periodo_ano` e `periodo_mes` são preservados e compõem **Período (ano e mês)**
@@ -127,13 +136,58 @@ parâmetros**. Cabeçalhos antigos continuam suportados.
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
 recorte nacional, nem identificadores individuais em qualquer recorte. Há 132 linhas
 municipais com coordenadas fora dos intervalos válidos (seis municípios nos 22 períodos).
-A análise espacial da base completa permanece bloqueada, e rotatividade não pode ser
-calculada dessas contagens. Nenhum registro foi corrigido ou excluído automaticamente.
+A análise espacial (distância a um território de referência) da base completa permanece
+bloqueada; a referência mais próxima mantém essas seis unidades no universo como não
+avaliáveis (`COORDENADA_INVALIDA`), sem bloquear os demais resultados. Rotatividade não
+pode ser calculada dessas contagens. Nenhum registro foi corrigido ou excluído automaticamente.
 Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md).
+
+### Política dos dados do Brasil
+
+Situação vigente em 13/10/2026, enquanto esta for a política de distribuição:
+
+1. **Versionamento.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv` estão versionados
+   na raiz deste repositório privado desde o commit `a202be1` (12/10/2026). SHA-256 dos
+   arquivos versionados: `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3`
+   (nacional) e `89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512` (municipal).
+2. **Originais preservados.** O aplicativo nunca altera esses arquivos. O instalador relê os
+   bytes da origem depois da cópia, e os testes reais comparam o SHA-256 dos originais antes
+   e depois de cada execução.
+3. **Instalação validada obrigatória.** O backend continua exigindo uma instalação com
+   manifesto SHA-256 (`manifest.json`). Sem ela, ou com cópia incompleta ou adulterada, a
+   base Brasil fica indisponível e o upload continua funcionando.
+4. **Instalação a partir do repositório.** O instalador aceita a raiz do repositório como
+   origem (`--source .`) enquanto o destino privado ainda não existir: ele recusa sobrescrever
+   uma instalação existente.
+5. **Cópias fora do Git.** `.local/datasets/brasil/` continua ignorada pelo Git (regra
+   `.local/` do `.gitignore`).
+6. **Fora do frontend público.** Arquivos e cópias não ficam em `frontend/` nem são servidos
+   ao navegador, que recebe apenas resultados calculados pela API.
+7. **Nenhum registro ao Gemini.** O provedor de IA recebe somente o pedido sanitizado e
+   estados técnicos enumerados, nunca arquivos, linhas, nomes de campos ou valores.
+8. **Repositório privado.** O repositório deve permanecer privado enquanto esta for a política
+   de distribuição. Torná-lo público, ou ampliar o acesso de leitura, expõe os dados e todas as
+   versões guardadas no histórico.
+9. **Origem, cobertura e limitações.** Origem registrada: envio dos arquivos ao repositório no
+   commit `a202be1`; a procedência primária (instituição produtora, data de extração e método
+   de produção) não está documentada e permanece pendente. Cobertura: 22 competências (janeiro
+   e junho de 2014 a 2024), 22 linhas nacionais e 122.534 municipais, 5.570 municípios por
+   código IBGE, categoria MEDICINA, quantidade e população estimada sem ausências. Limitações:
+   sem população e coordenadas no recorte nacional; sem identificadores individuais; seis
+   municípios com coordenadas fora do intervalo em todas as competências; nove municípios com
+   coordenadas válidas que mudam entre competências; coordenadas com vírgula decimal e sem
+   referencial geodésico declarado na fonte; nomes homônimos exigem o código. Evidências:
+   [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md),
+   [proposta de acesso aos dados reais](Docs/OTIMIZACAO_LATENCIA.md#11-proposta-separada-acesso-seguro-aos-dados-reais-no-claude-code-web)
+   e [Bloco 2, Etapa 1](Docs/BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md).
+
+**Licença e autorização de redistribuição: pendentes.** O repositório não registra a licença
+das fontes nem autorização para redistribuí-las. Até esse registro, não redistribua os
+arquivos fora deste repositório privado.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
-O chat ocupa a área central da página inicial, com as dez análises em um carrossel compacto dentro da conversa. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
+O chat ocupa a área central da página inicial, com as análises em um carrossel compacto dentro da conversa: as dez do contrato conversacional e, por último, a referência mais próxima. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade em um pop-up. O aceite vale para a sessão da aba, inclusive após recarregar a página; uma nova aba solicita nova confirmação. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
 **Com base carregada:** cada mensagem segue para `POST /api/llm/interpret-context`. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
@@ -202,7 +256,10 @@ cd frontend
 npm run build
 ```
 
-A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull requests.
+A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull requests, além
+dos roteiros de navegador `ui_conversational_smoke.py`, `ui_block1_smoke.py`,
+`ui_block1_regression.py`, `ui_nearest_smoke.py` e `ui_block1_integration.py` (este com
+transporte Gemini simulado), sem chamadas reais ao provedor.
 
 Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
 
@@ -215,8 +272,9 @@ internacional. Requer os servidores locais e o catálogo Brasil instalado; não 
 o Gemini. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
 
 Os seis roteiros de navegador (`ui_session_smoke.py`, `ui_carousel_smoke.py`,
-`ui_audit_smoke.py`, `ui_preparation_smoke.py`, `ui_brazil_smoke.py` e `ui_smoke.py`)
-refletem a interface atual. Após `npm run build`, podem ser executados contra
+`ui_audit_smoke.py`, `ui_preparation_smoke.py`, `ui_brazil_smoke.py` e `ui_smoke.py`) e
+`ui_integration_smoke.py` antecedem a interface conversacional e já falhavam no commit
+`a202be1`; não fazem parte da CI. Após `npm run build`, podem ser executados contra
 `python backend/tests/serve_ui_offline.py` (build + API, sem transporte externo de IA),
 com `ADT_UI_URL=http://127.0.0.1:18000/`; os dois últimos exigem `ADT_REAL_DATA_DIR`.
 `python backend/tests/ui_integration_smoke.py` percorre a conversa pelo backend real, com
@@ -247,7 +305,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 20 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
+Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 22 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
 
 ```powershell
 py -m pip install -r backend/requirements-ui.txt
@@ -256,11 +314,28 @@ py backend/tests/ui_smoke.py
 
 O teste importa a base real, confirma o contexto, resolve os homônimos, executa pela interface, baixa o CSV e confere cada linha contra o original usando Decimal. Evidência resumida e capturas ficam em `.local/ui-validation/`, ignorada pelo Git.
 
+## Referência geográfica mais próxima (Bloco 2, Etapa 1)
+
+Para cada município-alvo, indica a referência autorizada geograficamente mais próxima, com
+código, distância geodésica direta em quilômetros (Karney, elipsoide GRS80/SIRGAS2000, sem
+arredondamento no cálculo) e cobertura das referências. Escolha o cartão **Referência mais
+próxima** ou peça, por exemplo, "Calcule a referência mais próxima de Manaus, Tefé e
+Parintins": o comando prepara só a operação e os alvos, sem criar referências nem executar.
+As referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
+critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
+Período, referencial e separador decimal das coordenadas são confirmados explicitamente;
+nenhum referencial é presumido nem transformado. Referências ou alvos sem coordenada válida
+ficam registrados como não avaliáveis, com `minimo_completo` e `minimo_avaliaveis`
+distintos, empates preservados e ausência nunca convertida em zero. A distância não
+representa trajeto viário, tempo de deslocamento nem acessibilidade. O LLM não escolhe
+referências nem recebe esta capacidade. Detalhes, testes e desempenho:
+[Bloco 2, Etapa 1](Docs/BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md).
+
 ## Escopo e limitações do protótipo
 
-Os dez cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes e tabelas/relatório básico.
+Os onze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico e referência geográfica mais próxima.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; referências e faixas espaciais; PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; critérios combinados de referência, faixas e réguas espaciais; PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 

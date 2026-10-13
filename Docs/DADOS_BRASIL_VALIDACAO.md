@@ -4,6 +4,12 @@ Implementação na branch `feat/portal-uma-pagina-v1`, exclusivamente no Teste-A
 As fontes são lidas sem alteração. Os dados residentes e as evidências de navegador
 ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 
+> **Atualização de 13/10/2026.** Desde o commit `a202be1` (12/10/2026), os dois arquivos
+> originais estão versionados na raiz do repositório privado. As menções a fontes fora do
+> Git refletem a situação de 10/10/2026. A política vigente está no README, em
+> [Política dos dados do Brasil](../README.md#política-dos-dados-do-brasil); as cópias
+> instaladas continuam em `.local/`, ignorada pelo Git.
+
 ## Alterações dos campos e consumidores
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
