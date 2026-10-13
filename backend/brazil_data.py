@@ -13,6 +13,9 @@ FILES = {"national": "Dados_Brasil.xlsx", "municipal": "Dados_Municipios_Brasil.
 DEFAULT_SCOPES = {op: ("national" if op in ("counts", "temporal", "report") else "municipal")
                   for op in ("density", "counts", "distribution", "comparisons", "temporal",
                              "aggregate", "spatial", "ranking", "rotation", "report")}
+# A referência mais próxima só existe no recorte municipal, o único com coordenadas. Fica fora de
+# default_scopes porque a origem compõe a chave de execução das análises já existentes.
+ENGINE_SCOPES = {**DEFAULT_SCOPES, "nearest": "municipal"}
 DEFAULT_DIR = Path(__file__).resolve().parents[1] / ".local" / "datasets" / "brasil"
 
 
@@ -21,9 +24,9 @@ def data_directory():
 
 
 def load_brazil(scope="auto", operation="", version=""):
-    if scope not in ("auto", "national", "municipal") or (operation and operation not in DEFAULT_SCOPES):
+    if scope not in ("auto", "national", "municipal") or (operation and operation not in ENGINE_SCOPES):
         raise ValueError("Recorte ou análise da base Brasil inválido.")
-    selected = DEFAULT_SCOPES.get(operation, "municipal") if scope == "auto" else scope
+    selected = ENGINE_SCOPES.get(operation, "municipal") if scope == "auto" else scope
     folder = data_directory()
     try:
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))

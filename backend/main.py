@@ -154,9 +154,10 @@ def _records(data: pd.DataFrame) -> list[dict]:
 
 
 def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
-    if operation == "spatial" and canonical_crs(options.get("crs")):
+    if operation in ("spatial", "nearest") and canonical_crs(options.get("crs")):
         options = {**options, "crs": canonical_crs(options["crs"])}
     result = _compute(df, mapping, operation, options)
+    nearest = result.pop("_nearest", None)
     result["metadata"] = {"method_version": "deterministic-0.4", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
@@ -173,6 +174,9 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if any(
         "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
         "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
+    if nearest:
+        result["metadata"]["evaluability"]["status"] = nearest["evaluability"]
+        result["metadata"]["nearest_reference"] = nearest["structured"]
     if operation in ("ranking", "distribution", "comparisons"):
         result["notes"].append("Universo desta execução: " + universe["classification_scope"] +
                                ". Posições/classes anteriores não são transferidas para este universo.")
@@ -183,7 +187,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
             result["notes"].append("Período AAAAMM composto em memória a partir de " +
                                    " e ".join(field["source_columns"]) + "; colunas originais preservadas.")
     unit = count_unit_label(mapping, options)
-    if operation != "spatial":
+    if operation != "spatial" and (operation != "nearest" or options.get("reference_mode") == "criterion"):
         result["notes"].append("Unidade de contagem: " + str(unit) + ". Não há conversão entre pessoas, vínculos e postos.")
     if mapping.get("territory_id"):
         result["notes"].append("Identificação territorial: nome e código associado pelo usuário; códigos não foram confrontados com cadastro externo.")
@@ -213,6 +217,12 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                          "Condição": "Avaliável" if c0 else "Coorte inicial vazia"})
         return _result("Rotatividade e permanência", "Coorte inicial de pessoas distintas; identificadores não são retornados.", rows,
                        notes=["É necessária identidade longitudinal autorizada e suficiente nos dois períodos; confirme essa condição antes de interpretar os resultados."])
+    if operation == "nearest":
+        from nearest_reference import compute_nearest
+        nearest = compute_nearest(df, mapping, options)
+        result = _result(nearest["title"], nearest["description"], nearest["rows"], nearest["metrics"], nearest["notes"])
+        result["_nearest"] = {"structured": nearest["structured"], "evaluability": nearest["evaluability"]}
+        return result
     if operation == "spatial":
         geo = validate_operation(df, mapping, options, operation).rename(columns={"latitude": "lat", "longitude": "lon"})
         refname = options.get("reference_territory")

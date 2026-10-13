@@ -309,6 +309,9 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
         if options.get("reference_territory") not in set(geo.territory):
             raise ConfirmationRequired("Selecione um território de referência existente, com seu código quando associado.")
         return geo
+    if operation == "nearest":
+        from nearest_reference import nearest_inputs  # importação tardia: o módulo usa este contrato
+        return nearest_inputs(frame, mapping, options)
     if operation == "rotation":
         rotation_data(frame, mapping, options)
         if not options.get("cohort_coverage_confirmed"):

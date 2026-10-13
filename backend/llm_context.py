@@ -9,7 +9,8 @@ from typing import Any
 import unicodedata
 
 from data_contract import text_values
-from semantic_bridge import OPERATIONS, preflight
+from analysis_catalog import OPERATION_LABELS as OPERATIONS  # só as capacidades do contrato do LLM
+from semantic_bridge import preflight
 
 
 def _norm(value: str) -> str:

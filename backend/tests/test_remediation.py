@@ -229,7 +229,9 @@ def test_all_ten_operations_have_successful_http_execution():
         "population_additive_confirmed": True, "component_sum_confirmed": True}
     for op in OPERATIONS:
         settings = {**opts, **({"period_filter": "2024", "distribution_indicator": "density"} if op == "distribution" else
-                             {"period_filter": "2024"} if op == "aggregate" else {})}
+                             {"period_filter": "2024"} if op == "aggregate" else
+                             {"period_filter": "2024", "reference_mode": "list", "reference_ids": ["name:A"]}
+                             if op == "nearest" else {})}
         gate = post("/api/preflight", df, mapping, settings).json()["capabilities"][op]
         assert gate["status"] == "available", (op, gate)
         result = post("/api/analyze", df, mapping, settings, op)

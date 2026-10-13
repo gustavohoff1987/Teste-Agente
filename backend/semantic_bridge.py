@@ -18,8 +18,8 @@ ROLE_NAMES = {
     "longitude": "Longitude", "identity": "Identificador individual",
     "territory_id": "Código identificador territorial",
 }
-from analysis_catalog import OPERATION_LABELS
-OPERATIONS = tuple(OPERATION_LABELS)
+from analysis_catalog import ENGINE_OPERATION_LABELS
+OPERATIONS = tuple(ENGINE_OPERATION_LABELS)
 # Baseados nos grupos de cabeçalhos da CFG-VOC §4.4.9; os complementos
 # operacionais ficam explícitos e NÃO alteram a configuração normativa.
 EXACT = {
@@ -280,8 +280,12 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         missing: list[str] = []
         pending: list[str] = []
         consumed = {"territory", "territory_id"}
-        if op == "spatial":
+        # Referência mais próxima por critério de densidade consome também as dimensões do critério.
+        criterion = op == "nearest" and options.get("reference_mode") == "criterion"
+        if op in ("spatial", "nearest"):
             consumed.update(("latitude", "longitude"))
+            if criterion:
+                consumed.update(("period", "category", "count", "population"))
         else:
             consumed.update(("period", "category"))
             consumed.add("identity" if op == "rotation" or not mapped.get("count") else "count")
@@ -290,7 +294,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         for role in ROLES:
             if role in consumed and mapped.get(role) and not assigned(role):
                 pending.append("Confirme a associação de " + ROLE_NAMES[role] + " à coluna selecionada antes de utilizá-la nesta análise.")
-        if op not in ("spatial", "rotation"):
+        if op not in ("spatial", "rotation", "nearest") or criterion:
             if not measurable:
                 missing.append("Associe uma coluna de quantitativos ou de identificador individual.")
             elif not count_confirmed:
@@ -303,11 +307,12 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             missing.append("Há valores ausentes na coluna territorial associada.")
         if period_missing and op != "spatial":
             missing.append("Há valores ausentes na coluna temporal associada.")
-        if category_missing and op != "spatial":
+        if category_missing and (op not in ("spatial", "nearest") or criterion):
             missing.append("Há valores ausentes na categoria associada.")
-        if not fts and op != "spatial":
+        if not fts and (op not in ("spatial", "nearest") or criterion):
             pending.append("Confirme a profissão ou o conjunto de trabalhadores que será analisado e sua relação com a força de trabalho na saúde.")
-        if options.get("require_object_confirmation") and not options.get("object_confirmed") and op != "spatial":
+        if options.get("require_object_confirmation") and not options.get("object_confirmed") and (
+                op not in ("spatial", "nearest") or criterion):
             pending.append("Confirme o objeto de análise apresentado pelo sistema.")
         if not period and op != "spatial":
             pending.append("Associe Período ou confirme que a base possui um período único.")
@@ -367,6 +372,11 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 missing.append("O referencial indicado não é suportado nesta versão.")
             if not options.get("reference_territory"):
                 pending.append("Selecione o território de referência.")
+        if op == "nearest":
+            # Referencial, período e referências são verificados por nearest_inputs (validate_operation).
+            for role in ("latitude", "longitude"):
+                if not assigned(role):
+                    missing.append("Associe e valide " + ROLE_NAMES[role] + ".")
         if op == "aggregate" and not options.get("no_overlap_confirmed"):
             # Soma de componentes é possível com rótulo explícito; não implica pessoas únicas.
             pass
@@ -376,7 +386,7 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if not missing:
             try:
                 prepared = None
-                if op not in ("spatial", "rotation"):
+                if op not in ("spatial", "rotation", "nearest"):
                     cache_key = needs_population(mapped, options, op)
                     if cache_key not in prepared_cache:
                         try:
@@ -386,7 +396,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                     prepared = prepared_cache[cache_key]
                     if isinstance(prepared, Exception):
                         raise prepared
-                validate_operation(frame, mapped, options, op, prepared=prepared)
+                # Referências independem do recorte dos alvos: a validação de "nearest" vê a base inteira.
+                validate_operation(original_frame if op == "nearest" else frame, mapped, options, op, prepared=prepared)
             except ConfirmationRequired as exc:
                 if str(exc) not in pending:
                     pending.append(str(exc))
@@ -427,9 +438,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                 options.get("temporal_comparability_confirmed")) and (
                 not territory or options.get("territory_longitudinal_confirmed")):
             met("Comparabilidade temporal", "Foram declaradas condições de comparação entre os períodos.")
-        if op == "spatial" and assigned("latitude") and assigned("longitude") and not coordinate_invalid and not missing:
+        if op in ("spatial", "nearest") and assigned("latitude") and assigned("longitude") and not coordinate_invalid and not missing:
             met("Coordenadas", "Latitude e longitude foram identificadas e verificadas.")
-        if op == "spatial" and canonical_crs(options.get("crs")):
+        if op in ("spatial", "nearest") and canonical_crs(options.get("crs")):
             met("Referencial geodésico", "O referencial informado é suportado pelo motor experimental.")
         if op == "rotation" and assigned("identity") and (
                 options.get("longitudinal_identity_confirmed")) and not identity_missing:
@@ -452,6 +463,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
                     title = "Coordenadas geográficas"
                 elif "geodésico" in message:
                     title = "Referencial geodésico"
+                elif op == "nearest" and "referênc" in message.lower():
+                    title = "Referências territoriais"
                 else:
                     title = "Condição para esta análise"
                 checks.append({"status": kind, "title": title, "detail": message})
