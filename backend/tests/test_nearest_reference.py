@@ -278,6 +278,10 @@ def test_decimal_comma_requires_declaration():
         df[column] = df[column].map(lambda v: None if pd.isna(v) else str(v).replace(".", ","))
     response = run(df, reference_mode="list", reference_ids=["code:130260"])
     assert response.status_code == 422 and "separador decimal" in response.json()["detail"]
+    # Ponto declarado com vírgulas na base: recusa explícita, sem laço de confirmação nem coordenadas descartadas.
+    point = run(df, path="/api/preflight", reference_mode="list", reference_ids=["code:130260"], number_format="decimal_point")
+    gate = point.json()["capabilities"]["nearest"]
+    assert gate["status"] == "unavailable" and any("incompatíveis com o ponto decimal" in r for r in gate["reasons"])
     _, _, units = ok(df, reference_mode="list", reference_ids=["code:130260"], number_format="decimal_comma")
     assert units["code:130420"]["minimo_completo"]["distancia_km"] == geodesic_km("130420", "130260")
 

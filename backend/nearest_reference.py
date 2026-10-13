@@ -90,6 +90,9 @@ def territory_coordinates(frame, mapping, options):
     raw_lon, lon = parse(mapping["longitude"])
     # Sem separador de milhares, vírgula só tem significado declarado (mesma regra de numbers()).
     if not comma and (raw_lat.str.contains(",", regex=False).any() or raw_lon.str.contains(",", regex=False).any()):
+        if options.get("number_format") == "decimal_point":
+            raise ValueError("Há coordenadas com vírgula, incompatíveis com o ponto decimal declarado. "
+                             "Declare a vírgula como separador decimal ou revise a base.")
         raise ConfirmationRequired("Há coordenadas com vírgula. Declare o separador decimal das coordenadas "
                                    "(vírgula ou ponto); nenhum formato é presumido.")
     missing = (raw_lat.isna() | raw_lon.isna()).to_numpy()
