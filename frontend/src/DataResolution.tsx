@@ -48,7 +48,7 @@ export default function DataResolution(p: Props) {
         <option value="decimal_comma">Vírgula decimal, sem separador de milhares</option>
       </select>
     </label>
-    {p.operation !== "spatial" && p.operation !== "rotation" && !p.mapping.count && <div className="space-y-3">
+    {p.operation !== "spatial" && p.operation !== "rotation" && p.operation !== "nearest" && !p.mapping.count && <div className="space-y-3">
       <label className="block text-xs font-semibold">Identificador individual para contar pessoas distintas
         <select className="ml-2 rounded-lg border p-2" value={p.mapping.identity || ""} onChange={e => p.selectIdentity(e.target.value)}>
           <option value="">Selecione</option>{p.columns.map(c => <option key={c}>{c}</option>)}
@@ -56,7 +56,7 @@ export default function DataResolution(p: Props) {
       </label>
       <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={p.identityConfirmed} onChange={e => p.confirmIdentity(e.target.checked)}/>Autorizo contar pessoas distintas: o identificador é completo e identifica a mesma pessoa no recorte.</label>
     </div>}
-    {p.operation === "spatial" && <button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs" onClick={p.confirmCoordinates}>Confirmar as colunas de latitude e longitude selecionadas</button>}
+    {(p.operation === "spatial" || p.operation === "nearest") && <button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs" onClick={p.confirmCoordinates}>Confirmar as colunas de latitude e longitude selecionadas</button>}
     {["comparisons", "ranking"].includes(p.operation) && check("comparison_confirmed", "Confirmo equivalência da medida, unidade de contagem e definição populacional entre os territórios comparados.")}
     {["temporal", "rotation"].includes(p.operation) && <label className="block text-xs font-semibold">Convenção temporal
       <select className="ml-2 rounded-lg border p-2" value={p.options.period_convention || "auto"} onChange={e => set({period_convention: e.target.value})}>

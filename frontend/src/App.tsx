@@ -9,6 +9,7 @@ import BrandAvatar from "./BrandAvatar";
 import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
 import TerritorialSelection, {type Territory} from "./TerritorialSelection";
+import ReferenceSetup, {type ReferenceMode} from "./ReferenceSetup";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
@@ -17,7 +18,7 @@ import {
   Home, Menu, X, MessageCircle, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
   FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
-  LoaderCircle, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
+  LoaderCircle, LocateFixed, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
 import {
@@ -25,7 +26,7 @@ import {
 } from "recharts";
 
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
-import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
+import { ANALYSIS_LABELS, ENGINE_ONLY_SCOPES, type Operation } from "./analysisCatalog";
 type Mapping = Partial<Record<Role, string>>;
 type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
 type SuperiorMapping = Partial<Record<SuperiorLevel, string>>;
@@ -54,7 +55,7 @@ type Inspection = {
     confirmed_roles: Role[]; fts_scope_confirmed: boolean; object_confirmed: boolean;
     population_denominator_confirmed: boolean } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
-    default_scopes: Record<Operation, "national" | "municipal"> };
+    default_scopes: Partial<Record<Operation, "national" | "municipal">> };
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
@@ -98,7 +99,8 @@ const FEATURES: Feature[] = [
   { id: "spatial", title: ANALYSIS_LABELS.spatial, detail: "Distâncias e referências geográficas", icon: MapPinned, tone: "rose" },
   { id: "ranking", title: ANALYSIS_LABELS.ranking, detail: "Seleções, posições e ordenações", icon: ListFilter, tone: "amber" },
   { id: "rotation", title: ANALYSIS_LABELS.rotation, detail: "Permanência da coorte inicial", icon: RefreshCw, tone: "cyan" },
-  { id: "report", title: ANALYSIS_LABELS.report, detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" }
+  { id: "report", title: ANALYSIS_LABELS.report, detail: "Consolidação, tabelas e exportações", icon: FileBarChart2, tone: "slate" },
+  { id: "nearest", title: ANALYSIS_LABELS.nearest, detail: "Referência geográfica mais próxima de cada alvo", icon: LocateFixed, tone: "amber" }
 ];
 const ROLES: { key: Role; label: string; help: string }[] = [
   { key: "territory_id", label: "Código territorial", help: "Distingue unidades com nomes iguais" },
@@ -168,6 +170,7 @@ function App() {
   const [hierarchyColumns, setHierarchyColumns] = useState<SuperiorMapping>({});
   const [inspecting, setInspecting] = useState(false);
   const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
   const [step, setStep] = useState(0);
   const steps = useRef<Partial<Record<Operation, number>>>({});
   const [scopeNotice, setScopeNotice] = useState("");
@@ -194,6 +197,10 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [reference, setReference] = useState("");
   const [crs, setCrs] = useState("");
+  const [referenceMode, setReferenceMode] = useState<ReferenceMode>("");
+  const [referenceIds, setReferenceIds] = useState<string[]>([]);
+  const [criterionOperator, setCriterionOperator] = useState("");
+  const [criterionValue, setCriterionValue] = useState("");
   const [quantiles, setQuantiles] = useState(5);
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
@@ -222,7 +229,8 @@ function App() {
 
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
-      objectDraft, quantiles, distributionIndicator, selectedPeriods, territoryIds, comparisonIndicator };
+      objectDraft, quantiles, distributionIndicator, selectedPeriods, territoryIds, comparisonIndicator,
+      referenceMode, referenceIds, criterionOperator, criterionValue };
   }
   function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
     const o = saved.options;
@@ -240,6 +248,8 @@ function App() {
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
     setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
     setTerritoryIds(saved.territoryIds); setComparisonIndicator(saved.comparisonIndicator);
+    setReferenceMode(saved.referenceMode); setReferenceIds(saved.referenceIds);
+    setCriterionOperator(saved.criterionOperator); setCriterionValue(saved.criterionValue);
   }
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -255,6 +265,17 @@ function App() {
   const resultStatus = historical?.invalidReason ? "INVALIDADO" :
     historical && active && historical.contextKey===requestKey(active) ? "VIGENTE" : "NAO_VIGENTE";
   const resultMembers = (result?.metadata.universe as {members?: Territory[]} | undefined)?.members || [];
+  type NearestMetadata = {conjunto_referencias?: {forma: string; membros: {id: string}[]}; cobertura_referencias?: unknown[]};
+  const nearestMetadata = result?.metadata.nearest_reference as NearestMetadata | undefined;
+  const nearestMembers = nearestMetadata?.conjunto_referencias?.membros.map(item=>item.id) || [];
+  // A cobertura por alvo pode ter milhares de registros: na tela, só os primeiros; o JSON exportado é integral.
+  const metadataText = useMemo(() => {
+    if (!result) return "";
+    const coverage = nearestMetadata?.cobertura_referencias;
+    return JSON.stringify(coverage && coverage.length > 50 ? {...result.metadata, nearest_reference: {...nearestMetadata,
+      cobertura_referencias: [...coverage.slice(0, 50), "… mais " + (coverage.length - 50) + " registros por alvo na exportação “Método e parâmetros”"]}}
+      : result.metadata, null, 2);
+  }, [result]);
   const plot = useMemo(() => {
     if (!result?.rows.length) return null;
     const keys = Object.keys(result.rows[0]);
@@ -264,9 +285,13 @@ function App() {
     return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 35), value: typeof r[numeric] === "number" ? r[numeric] : null })) };
   }, [result]);
 
+  const scopeFor = (operation: Operation) => inspection?.source?.default_scopes[operation] ?? ENGINE_ONLY_SCOPES[operation];
+  function resetReferences() {
+    setReferenceMode(""); setReferenceIds([]); setCriterionOperator(""); setCriterionValue("");
+  }
   async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
-    if (!preserve) {setSourceGeneration(value => value + 1); setTerritoryIds([]);}
+    if (!preserve) {setSourceGeneration(value => value + 1); setTerritoryIds([]); resetReferences();}
     const previous = preserve && inspection?.source ? { info: inspection, saved: snapshotPreparation() } : null;
     if (previous) scopeDrafts.current[previous.info.source!.version + ":" + previous.info.source!.scope] = previous.saved;
     const currentUpload = ++uploadRevision.current;
@@ -407,7 +432,7 @@ function App() {
     }
     if (usingBrazil) {
       const target = hinted !== "auto" ? hinted : brazilLevel;
-      const nextScope = target === "auto" ? inspection?.source?.default_scopes[operation] : target;
+      const nextScope = target === "auto" ? scopeFor(operation) : target;
       if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", target, operation, true);
     }
   }
@@ -444,7 +469,9 @@ function App() {
       identity_count_confirmed: identityCountConfirmed,
       category_constant: categoryConstant,
       require_object_confirmation: true,
-      object_confirmed: objectConfirmed
+      object_confirmed: objectConfirmed,
+      ...(active === "nearest" && referenceMode ? {reference_mode: referenceMode, ...(referenceMode === "list"
+        ? {reference_ids: referenceIds} : {reference_criterion: {operator: criterionOperator, value: criterionValue}})} : {})
     };
   }
   function changeTerritories(ids: string[]) {
@@ -490,6 +517,11 @@ function App() {
     if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
     if (!proposal.handled) return null;
     if (proposal.clarification) return proposal.clarification;
+    if (proposal.operation && !proposal.territory_ids) {
+      // Comando que só prepara a operação: alvos, referências e confirmações seguem nos controles.
+      selectAnalysis(proposal.operation);
+      return proposal.reply || "Análise preparada. Confira as condições abaixo.";
+    }
     if (proposal.selection_changed) {
       setSelectionProposal(proposal);
       return "O pedido menciona um conjunto diferente da seleção atual. Confirme abaixo se deseja usar o recorte mencionado.";
@@ -525,20 +557,20 @@ function App() {
   function removeAssociation(role: Role) {
     setMapping(previous => ({...previous, [role]: ""}));
     setConfirmedRoles(previous => previous.filter(item => item !== role));
-    if (role === "territory" || role === "territory_id") setTerritoryIds([]);
+    if (role === "territory" || role === "territory_id") {setTerritoryIds([]); setReferenceIds([]);}
   }
   function associateColumn(column: string, role: Role | "") {
     if (role === "count") setCountUnit("");
     if (role === "identity") { setIdentityCountConfirmed(false); setLongitudinalIdentity(false); }
     if (role === "period") { setPopulationAligned(false); setTemporalCompared(false); setTerritoryStable(false); }
     if (role === "territory" || role === "territory_id") {
-      setTerritoryIds([]);
+      setTerritoryIds([]); setReferenceIds([]);
       setPopulationAligned(false); setTerritoryStable(false); setReference("");
       setConfirmedNoOverlap(false); setResolutions(previous => ({number_format: previous.number_format}));
     }
     const previouslyAssociated = (Object.entries(mapping).find(([, value]) => value === column) || [])[0] as Role | undefined;
     // Mover a coluna territorial para outro papel também remove a identidade da seleção.
-    if (previouslyAssociated === "territory" || previouslyAssociated === "territory_id") setTerritoryIds([]);
+    if (previouslyAssociated === "territory" || previouslyAssociated === "territory_id") {setTerritoryIds([]); setReferenceIds([]);}
     setMapping(previous => {
       const next = { ...previous };
       for (const key of ROLES) {
@@ -556,7 +588,7 @@ function App() {
     setError("");
   }
   async function run(op: Operation) {
-    if (!privacy.accepted) return;
+    if (!privacy.accepted || runningRef.current) return;
     setActive(op);  setError("");
     if (preflighting || !preflight) {
       setError("Aguarde a conclusão da verificação de compatibilidade da base.");
@@ -585,7 +617,7 @@ function App() {
     }
     const preparation = structuredClone(snapshotPreparation());
     const originRequest = requestText || "Análise de " + ANALYSIS_LABELS[op];
-    setRunning(true);
+    runningRef.current = true; setRunning(true);
     const currentRevision = revision.current;
     const form = new FormData();
     appendSource(form); form.append("operation", op);
@@ -606,7 +638,7 @@ function App() {
       setError(readableError(exc));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     }
-    finally { setRunning(false); }
+    finally { runningRef.current = false; setRunning(false); }
   }
 
   function navigate(view: "home" | "results", target?: string) {
@@ -634,6 +666,7 @@ function App() {
       .catch(() => { if (alive) setServerStatus("offline"); });
     return () => { alive = false; };
   }, []);
+  const nearestOptions = active === "nearest" && referenceMode ? JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]) : "";
   // O servidor recalcula a matriz após qualquer associação ou confirmação.
   // Nenhuma habilitação é decidida apenas no navegador.
   useEffect(() => {
@@ -663,7 +696,8 @@ function App() {
   }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
       periodFilter, selectedPeriods, categoryFilter, populationAligned, temporalCompared, territoryStable,
       longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator]);
+      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator,
+      nearestOptions]);
 
   useEffect(() => { revision.current += 1;  setError(""); }, [active]);
 
@@ -674,6 +708,7 @@ function App() {
       <Icon size={18}/>{label}
     </button>;
 
+  const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason));
   const visibleRequirements = preparationRequirements(active ? preflight?.capabilities[active]?.requirements || [] : []);
 
   const sourceChoice = <div id="dados" className="mt-3 space-y-3">
@@ -730,7 +765,7 @@ function App() {
             Abrangência da análise
             <select aria-label="Abrangência da análise" value={brazilLevel}
               className="rounded-xl border border-line bg-white px-3 py-2 text-sm"
-              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); const resolved = level === "auto" ? inspection.source?.default_scopes[active || "density"] : level; if (resolved !== inspection.source?.scope) void inspectFile(null, "", level, active || "", true); }}>
+              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); const resolved = level === "auto" ? scopeFor(active || "density") : level; if (resolved !== inspection.source?.scope) void inspectFile(null, "", level, active || "", true); }}>
               <option value="auto">Conforme a análise escolhida</option>
               <option value="national">Brasil</option>
               <option value="municipal">Municípios</option>
@@ -837,7 +872,7 @@ function App() {
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
               <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {active !== "spatial" && active !== "rotation" && <>
+                {active !== "spatial" && active !== "rotation" && (active !== "nearest" || referenceMode === "criterion") && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Onde estão os quantitativos dos profissionais?
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -871,7 +906,7 @@ function App() {
                       value={customCountUnit} onChange={e => setCustomCountUnit(e.target.value)}/>
                   </label>}
                 </>}
-                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density") || (active === "temporal" && temporalIndicator === "density") || (active === "report" && reportIndicator === "density")) && <>
+                {(["density","comparisons","ranking","aggregate"].includes(active) || (active === "distribution" && distributionIndicator === "density") || (active === "temporal" && temporalIndicator === "density") || (active === "report" && reportIndicator === "density") || (active === "nearest" && referenceMode === "criterion")) && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Coluna com a população correspondente
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -923,7 +958,7 @@ function App() {
                     Confirmo a comparabilidade territorial entre períodos, quando aplicável
                   </label>
                 </>}
-                {active === "spatial" && <>
+                {(active === "spatial" || active === "nearest") && <>
                   {(["latitude","longitude"] as Role[]).map(role => <label key={role} className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     {role === "latitude" ? "Latitude" : "Longitude"}
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -939,8 +974,8 @@ function App() {
                       <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
                     </select>
                   </label>
-                  <SelectField label="Território de referência" value={reference}
-                    options={preflight?.values.territories || []} onChange={setReference}/>
+                  {active === "spatial" && <SelectField label="Território de referência" value={reference}
+                    options={preflight?.values.territories || []} onChange={setReference}/>}
                 </>}
                 {active === "aggregate" && <>
                   <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
@@ -963,6 +998,9 @@ function App() {
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
                 <p>Período: {periodFilter || "Todos os períodos da base"} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
                 <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (identityCountConfirmed ? "Pessoas distintas" : "Conforme a análise")}</p>
+                {active === "nearest" && <p>Referências: {referenceMode === "list" ? "lista explícita com " + referenceIds.length + " municípios" :
+                  referenceMode === "criterion" ? "densidade por 1.000 habitantes " + (criterionOperator || "?") + " " + (criterionValue || "?") :
+                  "aguardando definição"} · Referencial: {crs || "não informado"}</p>}
               </div>
               <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
                 status={preflightError ? "unavailable" : !preflight || preflighting || inspecting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
@@ -1031,6 +1069,13 @@ function App() {
       onExecute={()=>{void run(active);}}
       executing={running}
       extra={<div className="space-y-2 text-xs leading-5">
+        {active === "nearest" && <ReferenceSetup mode={referenceMode} onMode={setReferenceMode}
+          items={preflight?.territory_choices || []} reason={preflight?.selection_reason}
+          referenceIds={referenceIds} onReferenceIds={setReferenceIds}
+          operator={criterionOperator} onOperator={setCriterionOperator} value={criterionValue} onValue={setCriterionValue}
+          showDecimal={decimalPending || !!resolutions.number_format} numberFormat={resolutions.number_format}
+          onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
+          disabled={running || inspecting}/>}
         {active === "temporal" && <>
           <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
             onChange={e=>setTemporalCompared(e.target.checked)}/>
@@ -1082,11 +1127,14 @@ function App() {
             A base cobre o mesmo universo de trabalhadores nos períodos considerados.</label>
         </>}
       </div>}
+      referenceMode={referenceMode}
       advanced={advancedPreparation}
     /></div> : null;
   const selectionContent = inspection && (!usingBrazil || inspection.source?.scope==="municipal") ? <>
     <TerritorialSelection items={preflight?.territory_choices || []} selected={territoryIds}
-      onChange={changeTerritories} disabled={running || inspecting} reason={preflight?.selection_reason}/>
+      onChange={changeTerritories} disabled={running || inspecting} reason={preflight?.selection_reason}
+      {...(active === "nearest" ? {title: "Municípios-alvo",
+        description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."} : {})}/>
     {selectionProposal && <div role="alert" className="no-print my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
       <p>O pedido usará {selectionProposal.territory_ids?.length} territórios em lugar da seleção atual.</p>
       <button type="button" onClick={()=>applyExploration(selectionProposal)} className="mr-2 mt-2 rounded-lg border bg-white px-3 py-2">Usar o recorte mencionado</button>
@@ -1167,7 +1215,7 @@ function App() {
               <summary className="cursor-pointer font-semibold text-teal">Consultar solicitação e parâmetros</summary>
               <p className="mt-3 break-words">Solicitação: {historical.request}</p>
               <p className="break-all">Identidade: {result.result_id}</p>
-              <pre tabIndex={0} aria-label="Metadados e parâmetros do resultado" className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(result.metadata,null,2)}</pre>
+              <pre tabIndex={0} aria-label="Metadados e parâmetros do resultado" className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{metadataText}</pre>
               <button type="button" disabled={!!historical.invalidReason || historical.sourceKey!==sourceKey || inspecting || running}
                 onClick={()=>restoreHistorical(historical)} className="no-print mt-3 rounded-lg border px-3 py-2 text-teal disabled:opacity-40">Retomar parâmetros deste resultado</button>
               {historical.sourceKey!==sourceKey && <p className="mt-2">A fonte ou versão atual difere da utilizada neste resultado. O conteúdo histórico permanece consultável.</p>}
@@ -1180,6 +1228,18 @@ function App() {
                   <input type="checkbox" checked={territoryIds.includes(item.id)} disabled={running || inspecting}
                     onChange={()=>changeTerritories(territoryIds.includes(item.id) ? territoryIds.filter(id=>id!==item.id) : [...territoryIds,item.id])}/>{item.label}
                 </label>)}
+              </div>
+            </details>}
+            {resultOperation === "nearest" && !!nearestMembers.length && historical?.sourceKey===sourceKey && !historical.invalidReason &&
+              <details className="no-print my-3 text-xs">
+              <summary className="cursor-pointer font-semibold text-amber-900">Reutilizar as referências deste resultado</summary>
+              <p className="my-2">{nearestMembers.length} referências ({nearestMetadata?.conjunto_referencias?.forma === "CRITERIO"
+                ? "definidas pelo critério" : "lista explícita"}). O resultado calculado permanece inalterado.</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={running || inspecting} onClick={()=>{setReferenceMode("list");setReferenceIds(nearestMembers);}}
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-amber-900 disabled:opacity-40">Usar como lista de referências</button>
+                <button type="button" disabled={running || inspecting} onClick={()=>changeTerritories(nearestMembers)}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-teal disabled:opacity-40">Usar como municípios-alvo</button>
               </div>
             </details>}
             <p className="mt-2 text-sm leading-6 text-slate-500">{result.description}</p>
