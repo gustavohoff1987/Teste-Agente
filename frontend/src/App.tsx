@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ContextConfig from "./ContextConfig";
 import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
-import DistributionResults, { displayPeriod } from "./DistributionResults";
+import { displayPeriod } from "./DistributionResults";
+import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
 import AnalysisAssistant from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
@@ -11,7 +12,7 @@ import WelcomeHero from "./WelcomeHero";
 import TerritorialSelection, {type Territory} from "./TerritorialSelection";
 import ReferenceSetup, {type ReferenceMode} from "./ReferenceSetup";
 import CriteriaBuilder from "./CriteriaBuilder";
-import CriteriaResults, {type CriteriaMetadata} from "./CriteriaResults";
+import {type CriteriaMetadata} from "./CriteriaResults";
 import { addCondition, complete, describe as describeCriteria, leaves as criteriaLeaves, nextId as nextLeafId, uses as criteriaUses,
   type BandsSpec, type CriteriaNode, type Leaf, type RankingSpec } from "./criteriaTree";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
@@ -25,9 +26,6 @@ import {
   LoaderCircle, LocateFixed, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis
-} from "recharts";
 
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
 import { ANALYSIS_LABELS, ENGINE_ONLY_SCOPES, type Operation } from "./analysisCatalog";
@@ -309,22 +307,45 @@ function App() {
   const criteriaMetadata = result?.metadata.criterios as (CriteriaMetadata & {avaliacoes?: unknown[]}) | undefined;
   const metadataText = useMemo(() => {
     if (!result) return "";
+    // Na tela, a geometria aparece resumida; a exportação “Método e parâmetros” traz os pontos integralmente.
+    const representation = result.metadata.representacao as {geometria?: {ids?: string[]}} | undefined;
+    const geometry = representation?.geometria;
+    const metadata = geometry?.ids && geometry.ids.length > 50 ? {...result.metadata, representacao: {...representation, geometria:
+      {...geometry, ids: "… " + geometry.ids.length + " identificadores", lat: "… integral na exportação “Método e parâmetros”",
+        lon: "… integral na exportação “Método e parâmetros”"}}} : result.metadata;
     const evaluations = criteriaMetadata?.avaliacoes;
-    if (evaluations && evaluations.length > 50) return JSON.stringify({...result.metadata, criterios: {...criteriaMetadata, avaliacoes:
+    if (evaluations && evaluations.length > 50) return JSON.stringify({...metadata, criterios: {...criteriaMetadata, avaliacoes:
       [...evaluations.slice(0, 50), "… mais " + (evaluations.length - 50) + " avaliações por território na exportação “Método e parâmetros”"]}}, null, 2);
     const coverage = nearestMetadata?.cobertura_referencias;
-    return JSON.stringify(coverage && coverage.length > 50 ? {...result.metadata, nearest_reference: {...nearestMetadata,
+    return JSON.stringify(coverage && coverage.length > 50 ? {...metadata, nearest_reference: {...nearestMetadata,
       cobertura_referencias: [...coverage.slice(0, 50), "… mais " + (coverage.length - 50) + " registros por alvo na exportação “Método e parâmetros”"]}}
-      : result.metadata, null, 2);
+      : metadata, null, 2);
   }, [result]);
-  const plot = useMemo(() => {
-    if (!result?.rows.length) return null;
-    const keys = Object.keys(result.rows[0]);
-    const numeric = ["Densidade por 1.000", "Quantidade", "Variação (%)", "Rotatividade (%)", "Distância (km)", "Unidades"].find(k => keys.includes(k)) || keys.find(k => result.rows.some(r => typeof r[k] === "number"));
-    const category = keys.includes("Classe") ? "Classe" : keys.find(k => result.rows.some(r => typeof r[k] === "string"));
-    if (!numeric || !category) return null;
-    return { numeric, category, values: result.rows.slice(0, 12).map(r => ({ name: String(r[category] ?? "").slice(0, 35), value: typeof r[numeric] === "number" ? r[numeric] : null })) };
-  }, [result]);
+  // Registro da representação em uso (transformações visuais), exportado com “Método e parâmetros”.
+  const representationRecord = useRef<RepresentationRecord | null>(null);
+  const keepRepresentation = useCallback((record: RepresentationRecord) => { representationRecord.current = record; }, []);
+  // Outras competências do mesmo pedido já calculadas e compatíveis: navegação sem fabricar resultados.
+  const siblings = useMemo<Sibling[]>(() => {
+    if (!result || !historical) return [];
+    // Só para agrupar competências: opção desmarcada ou vazia equivale a opção ausente (o motor lê ambas como
+    // não declaradas). O estado vigente continua exigindo a chave exata da solicitação.
+    const empty = (value: unknown) => value === false || value === "" || value === null || value === undefined ||
+      (Array.isArray(value) ? !value.length : typeof value === "object" && !Object.keys(value as object).length);
+    const keyWithoutPeriod = (item: Historical) => {
+      try {
+        const parsed = JSON.parse(item.contextKey);
+        const options = Object.entries(parsed.options || {}).filter(([key, value]) =>
+          key !== "period_filter" && key !== "period_filters" && !empty(value)).sort(([a], [b]) => a.localeCompare(b));
+        return JSON.stringify({...parsed, options});
+      } catch { return item.contextKey; }
+    };
+    const reference = keyWithoutPeriod(historical);
+    return history.filter(item => !item.invalidReason && compatible(item) && keyWithoutPeriod(item) === reference)
+      .map(item => ({item, periods: (item.result.metadata.periods as string[] | undefined) || []}))
+      .filter(entry => entry.periods.length === 1)
+      .map(entry => ({id: entry.item.result.result_id, period: entry.periods[0], current: entry.item.result.result_id === result.result_id}))
+      .sort((a, b) => a.period.localeCompare(b.period, "pt-BR", {numeric: true}));
+  }, [result, history, historical, sourceKey, geoToken]);
 
   const scopeFor = (operation: Operation) => inspection?.source?.default_scopes[operation] ?? ENGINE_ONLY_SCOPES[operation];
   function resetReferences() {
@@ -1353,7 +1374,8 @@ function App() {
               <button disabled={!result || resultStatus==="INVALIDADO"} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ArrowDownToLine size={14}/> {resultOperation === "distribution" ? "Resumo CSV" : "CSV"}</button>
               <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata,
                 result_id:result.result_id, validity: historical?.invalidReason ? "INVALIDADO" : "VALIDO", currency:resultStatus,
-                invalidation_reason:historical?.invalidReason || ""}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Método e parâmetros</button>
+                invalidation_reason:historical?.invalidReason || "",
+                representacao_aplicada: representationRecord.current?.resultado === result.result_id ? representationRecord.current : null}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Método e parâmetros</button>
               <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
@@ -1419,33 +1441,15 @@ function App() {
             {result.metrics.length > 0 && <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {result.metrics.map(metric => <div key={metric.label} className="rounded-2xl border border-line bg-slate-50 px-5 py-5"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-2 text-2xl font-bold text-ink">{pretty(metric.value)}</p></div>)}
             </div>}
-            {resultOperation === "distribution" && result.detail_rows && <DistributionResults
-              summary={result.rows} detail={result.detail_rows} onExport={exportCsv}/>}
-            {resultOperation === "criteria" && criteriaMetadata && <CriteriaResults key={result.result_id} rows={result.rows}
-              meta={criteriaMetadata} onExport={exportCsv} onSelection={changeTerritories}
-              onReferences={ids=>{setReferenceMode("list");setReferenceIds(ids);}}
-              reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}/>}
-            {resultOperation !== "distribution" && resultOperation !== "criteria" && plot && <div className="mt-7 rounded-2xl border border-line p-4 sm:p-6">
-              <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/><h4 className="text-sm font-bold text-ink">Visualização dos primeiros 12 registros</h4></div>
-              {/* O tooltip oculto preserva a posição anterior; sem recorte, estende a página ao estreitar a janela.
-                  A largura máxima mantém o tooltip visível dentro da área de plotagem (eixo Y + margens). */}
-              <div className="h-[280px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
-                <BarChart data={plot.values} margin={{top:5,right:12,bottom:35,left:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e9eff4" vertical={false}/>
-                  <XAxis dataKey="name" tick={{fontSize:10,fill:"#668094"}} interval={0} angle={-27} textAnchor="end" height={65}/>
-                  <YAxis tick={{fontSize:11,fill:"#668094"}} width={48}/>
-                  <Tooltip formatter={(v: number) => shortNum(v)} wrapperStyle={{maxWidth: "calc(100% - 72px)"}} contentStyle={{whiteSpace: "normal"}}/>
-                  <Bar dataKey="value" name={plot.numeric} fill="#15919b" radius={[5,5,0,0]} maxBarSize={48}/>
-                </BarChart>
-              </ResponsiveContainer></div>
-            </div>}
-            {resultOperation !== "distribution" && resultOperation !== "criteria" && result.rows.length > 0 && <div className="mt-7 overflow-hidden rounded-2xl border border-line">
-              <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4><span className="text-xs text-slate-400">{result.total_rows} linhas · até 150 exibidas</span></div>
-              <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
-                <thead className="sticky top-0 bg-slate-50"><tr>{Object.keys(result.rows[0]).map(k=><th key={k}>{k}</th>)}</tr></thead>
-                <tbody>{result.rows.slice(0,150).map((row,i)=><tr key={i}>{Object.keys(result.rows[0]).map(k=><td key={k}>{pretty(row[k])}</td>)}</tr>)}</tbody>
-              </table></div>
-            </div>}
+            <ResultWorkspace key={result.result_id} result={result} operation={resultOperation || ""}
+              reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}
+              status={resultStatus} siblings={siblings} onExport={exportCsv} onRepresentation={keepRepresentation}
+              onOpenSibling={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
+              onReuseSelection={ids => { changeTerritories(ids);
+                setHistoryNotice("Seleção visual levada à preparação: " + ids.length + " território(s). Revise e execute pela preparação."); }}
+              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); }}
+              onDeclareGeometry={choice => { setCrs(choice.crs); setResolutions(previous => ({...previous, number_format: choice.number_format}));
+                setHistoryNotice("Referencial e separador decimal declarados na preparação. Execute novamente para incluir o mapa."); }}/>
             {result.notes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
               <ul className="mt-3 space-y-2 text-xs leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>

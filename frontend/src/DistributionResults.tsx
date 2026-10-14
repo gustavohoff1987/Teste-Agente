@@ -4,7 +4,9 @@ import { ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxi
 
 type SummaryRow = Record<string, unknown>;
 type DetailRow = Record<string, unknown>;
-type Props = { summary: SummaryRow[]; detail: DetailRow[]; onExport: (rows: DetailRow[]) => void };
+type Props = { summary: SummaryRow[]; detail: DetailRow[]; onExport: (rows: DetailRow[]) => void;
+  // Seleção visual compartilhada com o mapa e os gráficos (opcional; sem ela, o comportamento é o anterior).
+  highlight?: Set<string>; idOf?: (row: DetailRow) => string | null; onToggle?: (id: string) => void; onlyHighlighted?: boolean };
 
 const fmt = (value: unknown) => {
   if (typeof value === "number") return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(value);
@@ -23,7 +25,7 @@ const quintileNumber = (label: unknown) => {
   return match ? Number(match[1]) : 0;
 };
 
-export default function DistributionResults({ summary, detail, onExport }: Props) {
+export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted }: Props) {
   const [chosenQuintile, setChosenQuintile] = useState("");
   const [search, setSearch] = useState("");
   const metric = String(summary[0]?.Indicador || "Indicador selecionado");
@@ -32,8 +34,9 @@ export default function DistributionResults({ summary, detail, onExport }: Props
   const count = summary.reduce((sum, row) => sum + Number(row.Unidades || 0), 0);
   const filtered = useMemo(() => detail.filter(row => {
     const sameQuintile = !chosenQuintile || String(row.Quintil).startsWith(chosenQuintile + "º");
-    return sameQuintile && (!search || String(row.Território).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
-  }), [detail, chosenQuintile, search]);
+    const chosen = !onlyHighlighted || (!!idOf && !!highlight?.has(idOf(row) || ""));
+    return chosen && sameQuintile && (!search || String(row.Território).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
+  }), [detail, chosenQuintile, search, onlyHighlighted, highlight, idOf]);
   const labels = ["Menores valores", "Valores baixos", "Valores intermediários", "Valores altos", "Maiores valores"];
   const ordered = [...summary].sort((a, b) => quintileNumber(a.Classe) - quintileNumber(b.Classe));
   const chartData = ordered.map(row => ({
@@ -89,7 +92,7 @@ export default function DistributionResults({ summary, detail, onExport }: Props
         </BarChart>
       </ResponsiveContainer></div>
     </div>
-    <div className="overflow-hidden rounded-2xl border border-line">
+    <div id="tabela-resultado" className="overflow-hidden rounded-2xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div><h4 className="text-sm font-bold text-ink">Detalhamento por território</h4>
           <p className="mt-1 text-xs text-slate-500">{fmt(filtered.length)} unidades exibidas · {metric}</p>
@@ -118,10 +121,15 @@ export default function DistributionResults({ summary, detail, onExport }: Props
           <thead className="sticky top-0 bg-slate-50"><tr>
             <th>Unidade territorial</th><th>Período</th><th>Categoria profissional</th><th>Quintil</th><th>{metric}</th>
           </tr></thead>
-          <tbody>{filtered.slice(0,150).map((row,i) => <tr key={i}>
+          <tbody>{filtered.slice(0,150).map((row,i) => {
+            const id = idOf?.(row) || null, chosen = !!id && !!highlight?.has(id);
+            return <tr key={i} aria-selected={onToggle && id ? chosen : undefined} tabIndex={onToggle && id ? 0 : undefined}
+              onClick={onToggle && id ? () => onToggle(id) : undefined}
+              onKeyDown={onToggle && id ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
+              className={(onToggle && id ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
             <td>{fmt(row.Território)}</td><td>{displayPeriod(String(row["Período"] || ""))}</td>
             <td>{fmt(row.Categoria)}</td><td>{fmt(row.Quintil)}</td><td>{fmt(row[metric])}</td>
-          </tr>)}</tbody>
+          </tr>;})}</tbody>
         </table>
       </div>
       {filtered.length > 150 && <p className="border-t border-line px-5 py-3 text-xs text-slate-500">

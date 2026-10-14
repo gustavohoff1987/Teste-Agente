@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 type Row = Record<string, unknown>;
 type Item = { id: string; territorio: string };
@@ -17,9 +17,9 @@ export type CriteriaMetadata = {
   pendencias?: { tipo: string; pergunta: string }[];
   limitacoes?: { tipo: string; dados_estruturados?: Record<string, unknown>; elementos_afetados?: number }[];
 };
-type Filter = "ATENDE" | "NAO_ATENDE" | "NAO_AVALIAVEL" | "TODOS" | "SELECIONADOS";
+type Filter = "ATENDE" | "NAO_ATENDE" | "NAO_AVALIAVEL" | "TODOS" | "SELECIONADOS" | "MINHA_SELECAO";
 const LABEL: Record<Filter, string> = {ATENDE: "Atendem", NAO_ATENDE: "Não atendem", NAO_AVALIAVEL: "Não avaliáveis",
-  TODOS: "Todos", SELECIONADOS: "Selecionados"};
+  TODOS: "Todos", SELECIONADOS: "Selecionados", MINHA_SELECAO: "Minha seleção"};
 const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", {maximumFractionDigits: 6}).format(n);
 const show = (value: unknown) => value === null || value === undefined ? "—" : typeof value === "number" ? shortNum(value) : String(value);
 const button = "rounded-lg border px-3 py-2 text-xs disabled:opacity-40";
@@ -29,20 +29,29 @@ function List({ title, items }: { title: string; items: Item[] }) {
     <p className="mt-1 max-h-32 overflow-auto break-words text-slate-600">{items.map(item => item.territorio).join("; ") || "—"}</p></details>;
 }
 
-export default function CriteriaResults({ rows, meta, onExport, onSelection, onReferences, reusable, disabled }: {
+// Filtro, seleção visual e painel de exploração podem vir do painel do resultado (estado visual
+// compartilhado com mapa e gráficos); sem eles, o componente mantém o próprio filtro.
+export default function CriteriaResults({ rows, meta, onExport, onSelection, onReferences, reusable, disabled, filter: shared, onFilter,
+  mySelection, onToggle, explorer }: {
   rows: Row[]; meta: CriteriaMetadata; onExport: (rows: Row[]) => void; onSelection: (ids: string[]) => void;
-  onReferences: (ids: string[]) => void; reusable: boolean; disabled: boolean;
+  onReferences: (ids: string[]) => void; reusable: boolean; disabled: boolean; filter?: string; onFilter?: (filter: Filter) => void;
+  mySelection?: Set<string>; onToggle?: (id: string) => void; explorer?: ReactNode;
 }) {
   const hasTree = !!meta.contagens;
   const selected = useMemo(() => new Set((meta.selecao?.membros || []).map(item => item.id)), [meta]);
-  const [filter, setFilter] = useState<Filter>(hasTree ? "ATENDE" : "TODOS");
+  const [own, setOwn] = useState<Filter>(hasTree ? "ATENDE" : "TODOS");
+  const filter = (shared as Filter | undefined) ?? own;
+  const setFilter = onFilter ?? setOwn;
+  const idOf = (row: Row) => row["Código"] ? "code:" + String(row["Código"]) : "name:" + String(row["Território"]);
   const codeOf = (id: string) => id.startsWith("code:") ? id.slice(5) : null;
   const selectedCodes = useMemo(() => new Set([...selected].map(codeOf)), [selected]);
   const visible = useMemo(() => rows.filter(row => filter === "TODOS" ? true : filter === "SELECIONADOS"
-    ? row["Selecionado"] === "Sim" || selectedCodes.has(String(row["Código"])) : row["Resultado"] === filter), [rows, filter, selectedCodes]);
+    ? row["Selecionado"] === "Sim" || selectedCodes.has(String(row["Código"])) : filter === "MINHA_SELECAO" ? !!mySelection?.has(idOf(row))
+    : row["Resultado"] === filter), [rows, filter, selectedCodes, mySelection]);
   const counts: Partial<Record<Filter, number>> = hasTree ? {ATENDE: meta.contagens!.ATENDE, NAO_ATENDE: meta.contagens!.NAO_ATENDE,
     NAO_AVALIAVEL: meta.contagens!.NAO_AVALIAVEL, TODOS: rows.length} : {TODOS: rows.length};
   if (meta.selecao?.membros) counts.SELECIONADOS = meta.selecao.membros.length;
+  if (mySelection) counts.MINHA_SELECAO = mySelection.size;  // estado visual do usuário, não resultado
   const reasons = meta.limitacoes?.find(item => item.tipo === "UNIDADES_NAO_AVALIAVEIS")?.dados_estruturados;
   const columns = rows.length ? Object.keys(rows[0]) : [];
   const meets = meta.conjuntos?.ATENDE || [];
@@ -66,7 +75,8 @@ export default function CriteriaResults({ rows, meta, onExport, onSelection, onR
         <input type="radio" className="sr-only" name="criteria-filter" checked={filter === key} onChange={() => setFilter(key)}/>
         {LABEL[key]} ({counts[key]})</label>)}
     </div>
-    <div className="overflow-hidden rounded-2xl border border-line">
+    {explorer}
+    <div id="tabela-resultado" className="overflow-hidden rounded-2xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <h4 className="text-sm font-bold text-ink">{LABEL[filter]}</h4>
         <span className="text-xs text-slate-400">{visible.length} linhas · até 150 exibidas</span>
@@ -74,7 +84,14 @@ export default function CriteriaResults({ rows, meta, onExport, onSelection, onR
       </div>
       {visible.length ? <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
         <thead className="sticky top-0 bg-slate-50"><tr>{columns.map(key => <th key={key}>{key}</th>)}</tr></thead>
-        <tbody>{visible.slice(0, 150).map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{show(row[key])}</td>)}</tr>)}</tbody>
+        <tbody>{visible.slice(0, 150).map((row, index) => {
+          const id = idOf(row), chosen = !!mySelection?.has(id);
+          return <tr key={index} aria-selected={onToggle ? chosen : undefined} tabIndex={onToggle ? 0 : undefined}
+            onClick={onToggle ? () => onToggle(id) : undefined}
+            onKeyDown={onToggle ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
+            className={(onToggle ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
+            {columns.map(key => <td key={key}>{show(row[key])}</td>)}</tr>;
+        })}</tbody>
       </table></div> : <p className="px-4 py-6 text-xs text-slate-500">Nenhum território nesta condição.</p>}
     </div>
     {meta.faixas && <div className="rounded-xl border border-line p-3 text-xs">
