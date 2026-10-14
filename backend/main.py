@@ -9,6 +9,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import os
 import threading
 import unicodedata
@@ -206,7 +207,19 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         result["notes"].append(f"Remoção autorizada de {removed} cópias idênticas em todas as colunas.")
     if options.get("rows_additive_confirmed"):
         result["notes"].append("Componentes somados sob declaração de ausência de sobreposição do usuário; população territorial utilizada uma vez.")
+    result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria)
     return result
+
+
+def _representation(df, mapping, operation, options, result, nearest, criteria):
+    """Contrato de apresentação (Bloco 3): uma falha nele nunca invalida o resultado analítico."""
+    from representation import VERSION, payload
+    try:
+        return payload(df, mapping, operation, options, result, nearest, criteria)
+    except Exception:  # noqa: BLE001 — registrada no log; tabela e exportações seguem disponíveis
+        logging.getLogger(__name__).exception("Falha ao preparar a representação do resultado")
+        return {"versao": VERSION, "geometria": {"estado": "INDISPONIVEL", "motivo": "Falha interna ao preparar a "
+                                                 "representação; a tabela e as exportações continuam disponíveis."}}
 
 
 def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:

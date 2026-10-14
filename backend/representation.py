@@ -1,0 +1,195 @@
+"""Contrato de apresentação do Bloco 3 (CAP-REP-01 a CAP-REP-04; Parte 13 da SPEC v1.2.4).
+
+Sem operação analítica (INV-11, RQ-REP-09). O contrato declara, para cada resultado, quais colunas
+do próprio resultado são representáveis — rótulo, unidade e natureza: valor contínuo, contagem,
+posição, classe ou estado produzidos por capacidade (RQ-REP-02) — e entrega a geometria autorizada:
+as coordenadas efetivas de cada território na competência do resultado, lidas pela mesma regra das
+análises espaciais (referencial suportado, papéis de latitude e longitude estabelecidos, separador
+decimal declarado e camada geográfica complementar governada). Sem geometria autorizada, o mapa
+recebe BLQ-DAD com o motivo (RQ-REP-07); tabela e gráficos continuam disponíveis.
+"""
+import re
+
+from combined_criteria import needs as criteria_needs
+from data_contract import ConfirmationRequired, canonical_crs, count_unit_label, scoped
+from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
+                               nearest_inputs, territory_coordinates)
+
+VERSION = 1
+DENSITY_UNIT = "por 1.000 habitantes"
+WITHOUT_MAP = {
+    "aggregate": "a agregação produz um único conjunto, sem valor por território",
+    "rotation": "a rotatividade descreve coortes entre duas competências, sem valor por território numa competência",
+    "temporal": "a evolução temporal reúne várias competências, e as coordenadas podem mudar entre elas; "
+                "use o gráfico de linhas",
+}
+STATES = ["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"]
+REACH = ["Conjunto completo de referências", "Entre as referências avaliáveis", "Não avaliável"]
+CRITERIA_VALUE = re.compile(r"(c\d+) · (.+) \((.+)\)")
+
+
+def payload(frame, mapping, operation, options, result, nearest=None, criteria=None):
+    """Contrato compacto anexado aos metadados do resultado (metadata.representacao)."""
+    rows, detail = result.get("rows") or [], result.get("detail_rows") or []
+    table = "detail_rows" if operation == "distribution" and detail else "rows"
+    data = detail if table == "detail_rows" else rows
+    indicators = _indicators(operation, data, mapping, options, criteria)
+    geometry = _geometry(frame, mapping, operation, options, result, nearest, criteria)
+    notes = []
+    if geometry["estado"] == "DISPONIVEL":
+        complement = geometry.get("complemento_geografico") or {}
+        if geometry["complementados"]:
+            notes.append(f"Coordenadas de {len(geometry['complementados'])} território(s) com ponto inválido na fonte original "
+                         f"vêm da camada geográfica complementar versionada ({complement.get('identificador')}, versão "
+                         f"{complement.get('versao')}), sob a premissa do usuário de coordenada fixa de 2014 a 2024.")
+        if geometry["sem_geometria"]:
+            notes.append(f"{len(geometry['sem_geometria'])} território(s) sem coordenada válida na competência permanecem no "
+                         "resultado e na tabela, fora do mapa.")
+    if any(item.get("unidade") == "km" for item in indicators):
+        notes.append(TPL_11)
+    return {"versao": VERSION, "tabela": table, "vinculo": _link(operation, mapping), "indicadores": indicators,
+            "serie": _series(operation, rows, detail, mapping, options), "geometria": geometry, "notas": notes}
+
+
+def _link(operation, mapping):
+    """Coluna da tabela que identifica o território e como ela leva ao identificador estável."""
+    coded = bool(mapping.get("territory_id"))
+    if operation == "nearest":
+        return {"coluna": "Código do alvo", "chave": "codigo"} if coded else {"coluna": "Território-alvo", "chave": "nome"}
+    if operation == "criteria":
+        return {"coluna": "Código", "chave": "codigo"} if coded else {"coluna": "Território", "chave": "nome"}
+    return {"coluna": "Território", "chave": "rotulo"}
+
+
+def _indicators(operation, data, mapping, options, criteria):
+    keys = list(data[0]) if data else []
+    out = []
+
+    def add(column, label, kind, unit=None, origin=None, classes=None, note=None):
+        if column in keys:
+            item = {"coluna": column, "rotulo": label, "tipo": kind, "unidade": unit, "origem": origin,
+                    "classes": classes, "nota": note}
+            out.append({key: value for key, value in item.items() if value is not None})
+
+    count_unit = count_unit_label(mapping, options)
+    if operation == "criteria":
+        add("Resultado", "Resultado dos critérios", "ESTADO", origin="CAP-SUB-01", classes=STATES)
+        add("Posição", "Posição na ordenação", "POSICAO", origin="CAP-SUB-02")
+        for column in keys:
+            match = CRITERIA_VALUE.fullmatch(column)
+            if match:
+                unit = match.group(3)
+                add(column, match.group(1) + " · " + match.group(2), "CONTINUO", unit, "CAP-SUB-01",
+                    note=TPL_11 if unit in ("km", "m") else None)
+        bands = (criteria or {}).get("faixas")
+        column = next((key for key in keys if key.startswith("Faixa · ")), None)
+        if bands and column:
+            add(column, column, "CLASSE", origin=bands.get("capacidade"),
+                classes=[item["faixa"] for item in bands["faixas"]] + ["Fora das faixas", "Não avaliável"])
+    elif operation == "nearest":
+        add("Distância (km)", "Distância à referência mais próxima", "CONTINUO", "km", "CAP-ESP-02", note=TPL_11)
+        add("Alcance", "Alcance da distância", "ESTADO", origin="CAP-ESP-02", classes=REACH)
+    elif operation == "spatial":
+        add("Distância (km)", "Distância ao território de referência", "CONTINUO", "km", "CAP-ESP-01", note=TPL_11)
+    elif operation == "distribution":
+        classes = sorted({str(row["Quintil"]) for row in data if row.get("Quintil")},
+                         key=lambda text: (int(re.match(r"\d+", text).group()) if re.match(r"\d+", text) else 99, text))
+        add("Quintil", "Classe da distribuição", "CLASSE", origin="CAP-DIS-02", classes=classes)
+        add("Densidade por 1.000 habitantes", "Densidade", "CONTINUO", DENSITY_UNIT, "CAP-IND-02")
+        add("Quantidade", "Quantitativo", "CONTAGEM", count_unit, "CAP-IND-01")
+        add("População", "População", "CONTAGEM", "habitantes")
+    elif operation not in WITHOUT_MAP:
+        add("Posição", "Posição", "POSICAO", origin="CAP-SUB-02")
+        add("Densidade por 1.000", "Densidade", "CONTINUO", DENSITY_UNIT, "CAP-IND-02")
+        add("Quantidade", "Quantitativo", "CONTAGEM", count_unit, "CAP-IND-01")
+        add("População", "População", "CONTAGEM", "habitantes")
+    return out
+
+
+def _series(operation, rows, detail, mapping, options):
+    """Série temporal já calculada: competências como eixo; ausências permanecem lacunas."""
+    data, table = (detail, "detail_rows") if operation == "temporal" and detail else (rows, "rows")
+    if not data or "Período" not in data[0] or "Território" not in data[0]:
+        return None
+    if len({row["Período"] for row in data}) < 2:
+        return None  # uma competência não forma série
+    value = next((key for key in ("Densidade por 1.000", "Quantidade") if key in data[0]), None)
+    if not value:
+        return None
+    unit = DENSITY_UNIT if value.startswith("Densidade") else count_unit_label(mapping, options)
+    return {"tabela": table, "periodo": "Período", "territorio": "Território", "categoria": "Categoria",
+            "valor": value, "unidade": unit, "tipo": "CONTINUO" if value.startswith("Densidade") else "CONTAGEM"}
+
+
+def _unavailable(reason, pending=None, period=None):
+    item = {"estado": "INDISPONIVEL", "desfecho": "BLQ-DAD", "motivo": reason, "competencia": period}
+    if pending:
+        item["pendencia"] = pending
+    return item
+
+
+def _geometry(frame, mapping, operation, options, result, nearest, criteria):
+    if operation in WITHOUT_MAP:
+        return {"estado": "NAO_APLICAVEL", "motivo": "Mapa não aplicável: " + WITHOUT_MAP[operation] + "."}
+    members = (result.get("metadata") or {}).get("universe", {}).get("members") or []
+    if not members:
+        return {"estado": "NAO_APLICAVEL", "motivo": "Mapa não aplicável: o resultado não tem territórios identificados."}
+    if nearest is not None:
+        period = nearest["structured"].get("periodo_geometria")
+    elif criteria is not None:
+        period = criteria["structured"].get("periodo")
+    else:
+        periods = (result.get("metadata") or {}).get("periods") or []
+        if mapping.get("period") and len(periods) != 1:
+            return _unavailable("O resultado reúne " + str(len(periods)) + " competências; o mapa usa as coordenadas de uma "
+                                "única competência, pois elas podem mudar entre competências. Escolha uma competência.",
+                                "COMPETENCIA_UNICA")
+        period = periods[0] if mapping.get("period") else None
+    if not mapping.get("latitude") or not mapping.get("longitude"):
+        return _unavailable("Latitude e longitude não estão associadas; o mapa exige geometria autorizada.",
+                            "COORDENADAS_NAO_ASSOCIADAS", period)
+    crs = canonical_crs(options.get("crs"))
+    if not crs:
+        if options.get("crs"):
+            return _unavailable("Referencial geodésico informado não suportado nesta versão (somente SIRGAS2000); nenhuma "
+                                "transformação é aplicada.", "REFERENCIAL_NAO_SUPORTADO", period)
+        return _unavailable("Informe o referencial geodésico das coordenadas para habilitar o mapa; nenhum referencial é "
+                            "presumido.", "REFERENCIAL_GEODESICO", period)
+    if not _coordinate_roles_established(frame, mapping, options):
+        return _unavailable("Confirme que latitude e longitude estão em graus decimais.", "PAPEIS_COORDENADAS", period)
+    ids = [item["id"] for item in members]
+    try:
+        if nearest is not None or (criteria is not None and criteria_needs(options)["spatial"]):
+            # Mesma leitura (memorizada na requisição) que a referência mais próxima usou.
+            inputs = nearest_inputs(frame, mapping, options)
+            coordinates = inputs["coordinates"]
+            ids += inputs["references"]["membros"]
+        elif operation == "spatial":
+            coordinates = territory_coordinates(scoped(frame, mapping, options), mapping, options)  # recorte da análise
+        else:
+            coordinates = territory_coordinates(_in_period(frame, mapping, period), mapping, options)
+    except ConfirmationRequired as exc:
+        return _unavailable(str(exc), "SEPARADOR_DECIMAL" if "separador decimal" in str(exc) else "CONFIRMACAO", period)
+    except ValueError as exc:
+        return _unavailable(str(exc), None, period)
+    wanted = list(dict.fromkeys(ids))
+    present = coordinates.reindex(wanted)
+    point_ids, lat, lon, missing, complemented = [], [], [], [], []
+    for key, row in zip(wanted, present.itertuples()):
+        condition = row.condicao if isinstance(row.condicao, str) else "SEM_REGISTRO"
+        if condition == "VALIDA":
+            point_ids.append(key)
+            lat.append(float(row.lat))
+            lon.append(float(row.lon))
+            if row.coordenada == "complementada":
+                complemented.append(key)
+        else:
+            missing.append({"id": key, "condicao": condition, "motivo": MOTIVES.get(condition),
+                            "texto": CONDITION_TEXT.get(condition)})
+    complement = coordinates.attrs.get("complemento")
+    return {"estado": "DISPONIVEL", "tipo": "PONTOS", "competencia": period, "referencial": crs,
+            "fonte": "latitude e longitude da própria base" + (" na competência " + period if period else ""),
+            "ids": point_ids, "lat": lat, "lon": lon, "complementados": complemented, "sem_geometria": missing,
+            "complemento_geografico": {key: complement[key] for key in
+                                       ("estado", "arquivo", "sha256", "identificador", "versao", "premissa", "proveniencia")
+                                       if complement.get(key) is not None} if complement else None}
