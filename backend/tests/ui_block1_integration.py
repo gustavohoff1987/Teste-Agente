@@ -37,7 +37,12 @@ def main():
         expect(inline.get_by_text("Os dados já estão preparados", exact=False)).to_be_visible(timeout=30000)
         if inline.get_by_label("Escolher períodos da análise").count():
             inline.get_by_label("Escolher períodos da análise").click()
-            inline.get_by_role("button", name="junho de 2024", exact=True).click()
+            # A escolha do período dispara novo pré-exame; o contexto só é enviado como pronto depois
+            # da resposta (context_ready). Sem esperar, o botão pode ser lido habilitado nos ~10 ms antes
+            # de o pré-exame começar e a mensagem sair durante ele (409 "Aguarde ou repita a validação").
+            with page.expect_response(lambda response: response.url.endswith("/api/preflight") and
+                                      b'"period_filter":"202406"' in (response.request.post_data_buffer or b""), timeout=30000):
+                inline.get_by_role("button", name="junho de 2024", exact=True).click()
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
         contextual = send("Quero analisar a densidade dos municípios", "/api/llm/interpret-context").json()
         assert contextual["verification"]["source"] == "BACKEND_PREFLIGHT"
