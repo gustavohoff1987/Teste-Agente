@@ -199,12 +199,20 @@ def main():
         board.locator(".data-table tbody tr", has_text="BETA [110002]").press("Enter")
         page.wait_for_function("window.__adtMapModel.selected.length === 3")
 
-        # 4. Filtro visual compartilhado: “Minha seleção” limita mapa e tabela, sem nova análise.
+        # 4. Filtro visual compartilhado: “Minha seleção” limita mapa e tabela, sem nova análise; “Ver na tabela”
+        # leva do detalhe à tabela com o mesmo recorte.
         calls = len(analyses)
-        board.get_by_role("radiogroup", name="Filtro visual dos territórios").get_by_text("Minha seleção (3)", exact=True).click()
+        filters = board.get_by_role("radiogroup", name="Filtro visual dos territórios")
+        filters.get_by_text("Minha seleção (3)", exact=True).click()
         page.wait_for_function("window.__adtMapModel.passes.filter(Boolean).length === 3")
         expect(board.locator(".data-table tbody tr")).to_have_count(3)
-        board.get_by_role("radiogroup", name="Filtro visual dos territórios").get_by_text("Todos", exact=True).click()
+        filters.get_by_text("Todos", exact=True).click()
+        expect(board.locator(".data-table tbody tr")).to_have_count(len(UNITS))
+        selection.get_by_role("button", name="Ver na tabela", exact=True).click()
+        expect(filters.get_by_role("radio", name="Minha seleção (3)")).to_be_checked()
+        expect(board.locator(".data-table tbody tr")).to_have_count(3)
+        expect(page.locator("#tabela-resultado")).to_be_in_viewport()
+        filters.get_by_text("Todos", exact=True).click()
         expect(board.locator(".data-table tbody tr")).to_have_count(len(UNITS))
 
         # 5. Indicador representado: troca a cor sem mudar valores; zoom, arrasto e extensão completa.
@@ -302,7 +310,9 @@ def main():
         selection = board.get_by_role("region", name="Territórios selecionados")
         expect(selection).to_contain_text(two(scope["distancia_km"]) + " km")
         expect(selection).to_contain_text("empate: todas apresentadas")
-        expect(selection).to_contain_text("cobertura parcial aceita explicitamente")  # referência inválida na lista
+        # Referência inválida na lista: o motor informa o mínimo entre as avaliáveis sem aceitação do usuário.
+        expect(selection).to_contain_text("cobertura parcial: o mínimo do conjunto completo não é avaliável para este alvo")
+        expect(selection).not_to_contain_text("aceita explicitamente")
         page.screenshot(path=str(OUTPUT / "map-02-referencia.png"), full_page=True)
 
         # 11. Critérios: estado do motor por território; não avaliável em anel vazado (nunca zero) e filtro

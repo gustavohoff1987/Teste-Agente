@@ -117,17 +117,18 @@ export default function ResultWorkspace(p: Props) {
       const scope = record.minimo_completo.avaliabilidade === "AVALIAVEL" ? record.minimo_completo :
         record.minimo_avaliaveis.avaliabilidade === "AVALIAVEL" ? record.minimo_avaliaveis : null;
       records.set(record.unidade, { refs: scope?.referencias || [], distance: scope?.distancia_km ?? null, reach: scope?.alcance || "não avaliável",
-        partial: scope === record.minimo_avaliaveis, alsoReference: record.alvo_e_referencia, origin: record.coordenada });
+        partial: scope === record.minimo_avaliaveis, accepted: false, alsoReference: record.alvo_e_referencia, origin: record.coordenada });
     }
     for (const item of criteriaMeta?.avaliacoes || []) {
       const node = Object.values(item.nos).find(entry => "referencias" in entry && entry.referencias !== undefined);
       if (node) records.set(item.elemento, { refs: node.referencias || [], distance: typeof node.valor === "number" ? node.valor : null,
-        reach: node.alcance || "não avaliável", partial: String(node.alcance || "").startsWith("entre"), alsoReference: (node.referencias || []).includes(item.elemento) });
+        reach: node.alcance || "não avaliável", partial: String(node.alcance || "").startsWith("entre"), accepted: true,
+        alsoReference: (node.referencias || []).includes(item.elemento) });
     }
     if (operation === "spatial") {
       const target = [...references][0];
       for (const [id, row] of rowsById) records.set(id, { refs: target ? [target] : [], distance: typeof row["Distância (km)"] === "number" ? row["Distância (km)"] as number : null,
-        reach: "distância ao território de referência", partial: false, alsoReference: id === target });
+        reach: "distância ao território de referência", partial: false, accepted: false, alsoReference: id === target });
     }
     return records;
   }, [result, criteriaMeta, operation, references, rowsById]);
@@ -262,7 +263,8 @@ export default function ResultWorkspace(p: Props) {
           references={references} selected={selectedSet} focusId={focusId} connections={connections} labelOf={labelOf}
           detailOf={valueLine} onSelect={select}
           ariaLabel={"Mapa de pontos: " + points.ids.length + " territórios com coordenada válida em " + period + ", " + indicator.rotulo +
-            ". Os mesmos valores estão na tabela abaixo; use a busca para selecionar um território pelo teclado."}/>
+            ". Com o mapa em foco, as setas deslocam a vista, + e − ampliam ou reduzem e 0 volta à extensão completa. " +
+            "Os mesmos valores estão na tabela abaixo; use a busca para selecionar um território pelo teclado."}/>
         <Legend indicator={indicator} domain={encoding.domain} counts={classCounts()} referencesShown={references.size > 0}
           linksShown={connections.length > 0}/>
       </div>
@@ -448,7 +450,9 @@ export default function ResultWorkspace(p: Props) {
         <dd>{link.refs.length ? link.refs.map(ref => labelOf(ref)).join("; ") + (link.refs.length > 1 ? " (empate: todas apresentadas)" : "") : "não avaliável"}
           {link.distance !== null && <> · <strong>{formatNumber(link.distance)} km</strong> <span className="text-slate-500">(geodésica direta do motor; valor integral {fullPrecision(link.distance)})</span></>}
           {link.alsoReference && " · o próprio alvo é referência (distância zero)"}
-          <span className="block text-slate-600">Alcance: {link.reach}{link.partial ? " — cobertura parcial aceita explicitamente; não equivale ao mínimo do conjunto completo" : ""}</span></dd></>}
+          <span className="block text-slate-600">Alcance: {link.reach}{!link.partial ? "" : link.accepted
+            ? " — cobertura parcial aceita explicitamente; não equivale ao mínimo do conjunto completo"
+            : " — cobertura parcial: o mínimo do conjunto completo não é avaliável para este alvo (referência sem coordenada válida); não equivale a ele"}</span></dd></>}
       <dd className="no-print sm:col-start-2">{index >= 0 && <button type="button" className="mr-2 text-teal underline" onClick={() => { setView("mapa"); setTimeout(() => mapRef.current?.center(id)); }}>
         Centralizar no mapa</button>}
         <button type="button" className="text-teal underline" onClick={() => { setFilter("MINHA_SELECAO"); if (!selectedSet.has(id)) toggle(id);
@@ -545,7 +549,8 @@ function causeText(cause: CriteriaCause): string {
 }
 type NearestScope = { avaliabilidade: string; referencias: string[]; distancia_km: number | null; alcance: string };
 type NearestRecord = { unidade: string; coordenada: string; alvo_e_referencia: boolean; minimo_completo: NearestScope; minimo_avaliaveis: NearestScope };
-type NearestLink = { refs: string[]; distance: number | null; reach: string; partial: boolean; alsoReference: boolean; origin?: string };
+type NearestLink = { refs: string[]; distance: number | null; reach: string; partial: boolean; accepted: boolean; alsoReference: boolean;
+  origin?: string };
 
 function Pair({ label, value, kind }: { label: string; value: unknown; kind: Indicator }) {
   return <><dt className="text-slate-500">{label}</dt>

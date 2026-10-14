@@ -52,7 +52,7 @@ export function CountBars({ data, title, note }: { data: CountDatum[]; title: st
         <CartesianGrid vertical={false} stroke={INK.grid}/>
         <XAxis dataKey="label" tick={{ ...axis, fill: INK.secondary }} interval={0} stroke={INK.grid}/>
         <YAxis allowDecimals={false} tick={axis} width={52} stroke={INK.grid} tickFormatter={(value: number) => formatNumber(value, "CONTAGEM")}/>
-        <Tooltip cursor={{ fill: "rgba(42,120,214,0.06)" }} content={({ active, payload }) => {
+        <Tooltip cursor={{ fill: "rgba(42,120,214,0.06)" }} wrapperStyle={{ maxWidth: "calc(100% - 40px)" }} content={({ active, payload }) => {
           const item = active && payload?.[0]?.payload as CountDatum | undefined;
           return item ? <TooltipBox title={item.label} lines={[{ strong: formatNumber(item.value, "CONTAGEM"), text: " territórios" }]}/> : null;
         }}/>

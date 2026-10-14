@@ -397,11 +397,26 @@ primeiros” e “Compare esse conjunto com o anterior” são estruturados por 
 (o LLM não recebe a capacidade), com perguntas quando há ambiguidade material. Detalhes, testes e
 desempenho: [Bloco 2, Etapa 2](Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
+## Mapas e exploração visual integrada (Bloco 3)
+
+Na própria página de resultados, as abas **Mapa**, **Gráficos** e **Tabela** representam o mesmo
+resultado, sem nova análise. O backend anexa a cada resultado um contrato de apresentação
+(`metadata.representacao`) com as colunas representáveis (rótulo, unidade, natureza e capacidade de
+origem) e as coordenadas autorizadas de cada território na competência do resultado, pela mesma regra
+das análises espaciais (SIRGAS2000, separador decimal declarado, camada complementar governada); sem
+geometria autorizada, o mapa mostra `BLQ-DAD` com o motivo e a tabela continua disponível. O mapa de
+pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, seleciona por clique, busca ou
+tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
+(não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem
+executá-la. Barras e linhas usam só valores e classes do motor, sem quantis, tendências ou posições
+criadas na tela. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
+ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
+
 ## Escopo e limitações do protótipo
 
-Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima e critérios combinados com rankings e faixas.
+Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e representação integrada em mapa de pontos, barras, linhas e tabela.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; PDF gerado diretamente por servidor; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 
