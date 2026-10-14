@@ -188,7 +188,7 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
                             "texto": CONDITION_TEXT.get(condition)})
     complement = coordinates.attrs.get("complemento")
     return {"estado": "DISPONIVEL", "tipo": "PONTOS", "competencia": period, "referencial": crs,
-            "fonte": "latitude e longitude da própria base" + (" na competência " + period if period else ""),
+            "fonte": "latitude e longitude da própria base, na competência do resultado",
             "ids": point_ids, "lat": lat, "lon": lon, "complementados": complemented, "sem_geometria": missing,
             "complemento_geografico": {key: complement[key] for key in
                                        ("estado", "arquivo", "sha256", "identificador", "versao", "premissa", "proveniencia")
