@@ -78,7 +78,6 @@ def main():
         chat = page.locator("#assistente")
         inline = page.locator("#preparacao-conversacional")
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
-        history = page.get_by_role("navigation", name="Histórico de resultados")
 
         def step(name, action):
             nonlocal current
@@ -102,11 +101,13 @@ def main():
             chat.get_by_role("button", name="Enviar mensagem", exact=True).click()
             expect(chat.locator("#assistant-input")).to_be_enabled(timeout=120000)
 
-        def calculate(count):
+        def calculate():
             button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
             expect(button).to_be_enabled(timeout=120000)
-            button.click()
-            expect(history.locator("ol > li")).to_have_count(count, timeout=120000)
+            with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
+                button.click()
+            assert event.value.status == 200, event.value.text()
+            expect(page.locator("#resultados").get_by_test_id("result-status")).to_contain_text("válido e vigente")
 
         page.add_init_script("(" + LONG_TASKS + ")()")
         page.goto(URL)
@@ -116,7 +117,7 @@ def main():
             chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=120000)))
         step("2 pergunta Amazonas", lambda: (send("Mostre a densidade médica dos municípios do Amazonas em junho de 2024."),
                                              expect(selection.get_by_text(re.compile(r"^[1-9]\d* selecionados$"))).to_be_visible(timeout=120000)))
-        step("3 densidade (resultado)", lambda: calculate(1))
+        step("3 densidade (resultado)", calculate)
 
         def choose_trio():
             selection.get_by_role("button", name="Limpar seleção", exact=True).click()
@@ -126,11 +127,11 @@ def main():
             expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         step("4 seleção Manaus/Tefé/Parintins", choose_trio)
         step("5 comparação", lambda: (send("Compare os selecionados."), inline.get_by_label(
-            "As medidas, unidades e populações são comparáveis entre os territórios.").check(), calculate(2)))
+            "As medidas, unidades e populações são comparáveis entre os territórios.").check(), calculate()))
         step("6 evolução", lambda: (send("Mostre a evolução dos municípios selecionados."),
                                     inline.get_by_label("Confirmo que os quantitativos e os períodos são comparáveis.").check(),
                                     inline.get_by_label("Os territórios correspondem às mesmas unidades ao longo do tempo.").check(),
-                                    calculate(3)))
+                                    calculate()))
 
         def aggregate():
             send("Agregue os municípios selecionados.")
@@ -138,11 +139,10 @@ def main():
             inline.get_by_role("button", name="junho de 2024", exact=True).click()
             inline.get_by_label("As populações são partes sem sobreposição do conjunto agregado.").check()
             inline.get_by_label("Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem.").check()
-            calculate(4)
+            calculate()
         step("7 agregação", aggregate)
 
         def restore():
-            history.get_by_role("button", name="2. Comparação territorial", exact=False).click()
             board = page.locator("#resultados")
             details = board.locator("details", has=page.locator("summary", has_text="Consultar solicitação e parâmetros"))
             if not details.evaluate("element => element.open"):
@@ -155,7 +155,6 @@ def main():
         step("8 retomada (reaproveitada)", restore)
         page.wait_for_timeout(1500)
         board = page.locator("#resultados")
-        history.get_by_role("button", name="1. Densidade de profissionais", exact=False).click()
         members = board.locator("details", has=page.locator("summary", has_text="Selecionar territórios deste resultado"))
         if not members.evaluate("element => element.open"):
             members.locator("summary").click()

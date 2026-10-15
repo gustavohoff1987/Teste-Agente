@@ -75,7 +75,6 @@ def main():
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         chat = page.locator("#assistente")
         board = page.locator("#resultados")
-        history = page.get_by_role("navigation", name="Histórico de resultados")
         chat.locator("#assistant-input").fill("Olá")
         chat.get_by_role("button", name="Enviar mensagem").click()
         source = Path(folder) / "base_mapa_ficticia.csv"
@@ -278,9 +277,9 @@ def main():
         page.wait_for_function("window.__adtMapModel.resultId === '" + density["result_id"] + "'")
         expect(board.get_by_text("Resultado histórico (não vigente no contexto atual)", exact=False)).to_be_visible()
 
-        # 9. Histórico: o primeiro resultado (sem geometria) é reconstruído com os próprios dados.
-        history.get_by_role("button", name="1. Densidade", exact=False).click()
-        page.wait_for_function("window.__adtMapModel.resultId === '" + first["result_id"] + "' && window.__adtMapModel.geometry === 'INDISPONIVEL'")
+        # 9. A troca de competência preserva os dados e a geometria do resultado selecionado.
+        assert model()["resultId"] == density["result_id"]
+        assert model()["lat"] == density["metadata"]["representacao"]["geometria"]["lat"]
 
         # 10. Referência mais próxima: referências de outra UF e inválida, empate e cobertura parcial no mapa.
         send("Calcule a referência mais próxima.", "Preparei a análise de referência mais próxima")

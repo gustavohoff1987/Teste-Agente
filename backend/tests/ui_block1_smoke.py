@@ -66,7 +66,7 @@ def main():
             result = event.value.json()
             results.append(result)
             print("Resultado: " + result["title"] + " / " + str(result["total_rows"]) + " linhas", flush=True)
-            expect(page.get_by_role("navigation", name="Histórico de resultados").locator("ol > li")).to_have_count(len(results))
+            expect(page.locator("#resultados").get_by_role("heading", name=result["title"], exact=True)).to_be_visible()
             return result
 
         def shot(name):
@@ -131,22 +131,20 @@ def main():
             if value == "Densidade por 1.000":
                 assert dict(series)["202406"] == density[row["Território"]]
         shot("block1-03-evolucao.png")
-        previous = page.get_by_role("navigation", name="Histórico de resultados")
-        previous.get_by_role("button", name="1. Densidade de profissionais", exact=False).click()
         board = page.locator("#resultados")
-        expect(board.locator(".data-table tbody tr")).to_have_count(62 if real else 3)
+        expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
         reveal("Consultar solicitação e parâmetros")
-        expect(board.get_by_text("Solicitação: Mostre a densidade médica dos municípios do Amazonas em junho de 2024.", exact=True)).to_be_visible()
+        expect(board.get_by_text("Solicitação: Mostre a evolução dos municípios selecionados.", exact=True)).to_be_visible()
         with page.expect_download() as download:
             board.get_by_role("button", name="Método e parâmetros", exact=True).click()
         exported = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
-        assert exported["result_id"] == initial["result_id"] and exported["currency"] == "NAO_VIGENTE"
-        assert exported["options"]["period_filter"] == "202406" and exported["execution_key"] == initial["metadata"]["execution_key"]
-        # O CSV reexportado do histórico coincide com a resposta original: nada foi alterado em silêncio.
+        assert exported["result_id"] == temporal["result_id"] and exported["currency"] == "VIGENTE"
+        assert exported["execution_key"] == temporal["metadata"]["execution_key"]
+        # O CSV do resultado atual coincide com a resposta original do motor.
         with page.expect_download() as download:
             board.get_by_role("button", name="CSV", exact=True).click()
-        assert_same_rows(exported_rows(download), initial["rows"])
-        shot("block1-04-historico.png")
+        assert_same_rows(exported_rows(download), temporal["rows"])
+        shot("block1-04-resultado.png")
         # Reutilização do conjunto: membros do resultado alimentam a seleção atual sem alterá-lo.
         reveal("Selecionar territórios deste resultado")
         member = board.get_by_label(re.compile(r"\[130420\]"))
@@ -154,7 +152,7 @@ def main():
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
         member.check()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
-        expect(board.locator(".data-table tbody tr")).to_have_count(62 if real else 3)
+        expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
 
         send("Agregue os municípios selecionados.")
         inline.get_by_label("Escolher períodos da análise").click()
@@ -176,10 +174,9 @@ def main():
         # Repetição exata recupera o resultado sem nova requisição/cálculo.
         inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
-        expect(previous.locator("ol > li")).to_have_count(4)
+        assert len(analyses) == 4
 
-        # Retomada: parâmetros e seleção da comparação voltam; o cálculo idêntico é reaproveitado.
-        previous.get_by_role("button", name="2. Comparação territorial", exact=False).click()
+        # Retomada dos parâmetros do resultado atual; o cálculo idêntico é reaproveitado.
         reveal("Consultar solicitação e parâmetros")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(page.get_by_text("Parâmetros e seleção restaurados", exact=False)).to_be_visible()
@@ -190,8 +187,7 @@ def main():
         button.click()
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         expect(board.get_by_test_id("result-status")).to_contain_text("válido e vigente")
-        expect(previous.get_by_role("button", name="2. Comparação territorial", exact=False)).to_have_attribute("aria-pressed", "true")
-        expect(previous.locator("ol > li")).to_have_count(4)
+        expect(board.get_by_role("heading", name=aggregate["title"], exact=True)).to_be_visible()
         assert len(analyses) == calls, "a retomada exata não deve recalcular"
         shot("block1-06-retomada.png")
 
@@ -215,7 +211,7 @@ def main():
         assert not llm_calls, llm_calls
         assert not failures, failures
         print("Bloco 1: 10 etapas executadas; 4 resultados reais do motor; retomada sem recálculo; CSV/JSON conferidos contra o motor; "
-              "histórico, reutilização e responsividade aprovados; catálogo=" + ("Brasil real" if real else "sintético controlado"))
+              "apresentação, reutilização e responsividade aprovadas; catálogo=" + ("Brasil real" if real else "sintético controlado"))
         browser.close()
 
 

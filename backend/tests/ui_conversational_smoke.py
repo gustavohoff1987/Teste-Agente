@@ -62,6 +62,10 @@ def main():
         expect(result).to_be_visible(timeout=30000)
         assert result.locator(".data-table tbody tr").count() == 2
         assert result.evaluate("el => el.closest('#assistente') !== null")
+        expect(result.get_by_role("navigation", name="Histórico de resultados")).to_have_count(0)
+        for removed in ("Período AAAAMM composto em memória", "Identificação territorial:",
+                        "Registrar correção que invalida este resultado"):
+            expect(result.get_by_text(removed, exact=False)).to_have_count(0)
         with page.expect_download() as download:
             result.get_by_role("button", name="CSV", exact=True).click()
         assert download.value.suggested_filename.endswith(".csv")

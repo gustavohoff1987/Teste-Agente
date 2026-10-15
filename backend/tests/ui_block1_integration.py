@@ -51,7 +51,7 @@ def main():
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as response:
             inline.get_by_role("button", name="Calcular e mostrar resultado").click()
         assert response.value.status == 200
-        expect(page.get_by_role("navigation", name="Histórico de resultados").locator("ol > li")).to_have_count(1)
+        expect(page.locator("#resultados").get_by_role("heading", name="Densidade de profissionais", exact=True)).to_be_visible()
         # O provedor falso produz uma combinação inválida; o backend a rejeita como
         # resposta a montante fora do contrato (502, mesmo contrato do cenário A12).
         invalid = send("Quero quantitativos invalido", "/api/llm/interpret-context", 502)

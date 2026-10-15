@@ -69,7 +69,6 @@ def main():
         chat = page.locator("#assistente")
         inline = page.locator("#preparacao-conversacional")
         board = page.locator("#resultados")
-        history = page.get_by_role("navigation", name="Histórico de resultados")
 
         def send(message):
             chat.locator("#assistant-input").fill(message)
@@ -151,13 +150,11 @@ def main():
         assert listed["metadata"]["nearest_reference"]["conjunto_referencias"]["forma"] == "LISTA_EXPLICITA"
         assert set(listed["metadata"]["options"]["reference_ids"]) == {"code:130260", "code:350010"}
         assert [r["Distância (km)"] for r in listed["rows"]] == [r["Distância (km)"] for r in criterion["rows"]]
-        expect(history.locator("ol > li")).to_have_count(2)
-        # Retomada do primeiro resultado: modo e critério voltam; o cálculo idêntico é reaproveitado.
-        history.get_by_role("button", name="1. Referência mais próxima", exact=False).click()
+        # Retomada do resultado atual: a lista explícita volta e o cálculo idêntico é reaproveitado.
         reveal("Consultar solicitação e parâmetros")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
-        expect(setup.get_by_label("Critério simples de densidade")).to_be_checked()
-        expect(setup.get_by_label("Valor do critério")).to_have_value("10")
+        expect(setup.get_by_label("Lista de municípios por nome ou código")).to_be_checked()
+        expect(chosen.get_by_text("2 selecionados", exact=True)).to_be_visible()
         calls = len(analyses)
         button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
         expect(button).to_be_enabled(timeout=60000)

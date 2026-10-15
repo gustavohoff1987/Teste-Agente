@@ -1,4 +1,4 @@
-"""Regressões atuais de importação, histórico, seleção e validade sem Gemini."""
+"""Regressões atuais de importação, apresentação, seleção e retomada sem Gemini."""
 import io
 import json
 import os
@@ -60,31 +60,26 @@ def main():
             inline.get_by_role("combobox", name="Identificador territorial", exact=True).select_option("")
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         assert checked.value.status == 200, checked.value.text()
-        history = page.get_by_role("navigation", name="Histórico de resultados")
-        expect(history.locator("ol > li")).to_have_count(2)
-        history.get_by_role("button", name="1. Densidade de profissionais", exact=False).click()
         result = page.locator("#resultados")
-        expect(result.locator(".data-table tbody tr")).to_have_count(3)
+        expect(page.get_by_role("navigation", name="Histórico de resultados")).to_have_count(0)
+        expect(result.locator(".data-table tbody tr")).to_have_count(1)
         result.get_by_text("Consultar solicitação e parâmetros", exact=True).click()
         result.get_by_role("button", name="Retomar parâmetros deste resultado").click()
-        expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
+        expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
         expect(result.get_by_test_id("result-status")).to_contain_text("válido e vigente")
-        result.get_by_text("Registrar correção que invalida este resultado", exact=True).click()
-        result.get_by_label("Motivo factual da invalidação").fill("Quantitativo de origem declarado incorreto pelo responsável pela base.")
-        result.get_by_role("button", name="Invalidar este resultado", exact=True).click()
-        expect(result.get_by_test_id("result-status")).to_contain_text("Resultado invalidado")
-        expect(result.get_by_role("button", name="CSV", exact=True)).to_be_disabled()
-        expect(result.get_by_role("button", name="Retomar parâmetros deste resultado")).to_be_disabled()
+        expect(result.get_by_text("Registrar correção que invalida este resultado", exact=True)).to_have_count(0)
+        expect(result.get_by_role("button", name="CSV", exact=True)).to_be_enabled()
         with page.expect_download() as download:
             result.get_by_role("button", name="Método e parâmetros").click()
         metadata = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
-        assert metadata["validity"] == "INVALIDADO"
-        assert metadata["invalidation_reason"]
-        # Não reutiliza um resultado invalidado, mesmo com parâmetros iguais.
-        again = execute()
-        assert again["result_id"] != first["result_id"]
-        expect(history.locator("ol > li")).to_have_count(3)
-        assert len(calculated) == 3
+        assert metadata["validity"] == "VALIDO" and metadata["result_id"] == pair["result_id"]
+        assert not metadata["invalidation_reason"]
+        # Retomar os parâmetros do resultado atual reaproveita o cálculo existente.
+        button = inline.get_by_role("button", name="Executar análise", exact=True)
+        expect(button).to_be_enabled(timeout=30000)
+        button.click()
+        expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
+        assert len(calculated) == 2
 
         # Troca de fonte preserva o histórico. XLSX com duas abas exige escolha.
         book = Workbook()
@@ -100,15 +95,13 @@ def main():
         expect(page.get_by_role("combobox", name="Qual aba deseja utilizar?", exact=True)).to_be_visible()
         page.get_by_role("combobox", name="Qual aba deseja utilizar?", exact=True).select_option("Dados")
         expect(inline.get_by_role("combobox", name="Território", exact=True)).to_have_value("territorio_analise", timeout=30000)
-        expect(history.locator("ol > li")).to_have_count(3)
         expect(result.get_by_test_id("result-status")).to_contain_text("histórico válido")
-        assert len(calculated) == 3  # Trocar fonte não executa análise.
-        history.get_by_role("button", name="2. Comparação territorial", exact=False).click()
+        assert len(calculated) == 2  # Trocar fonte não executa análise.
         expect(result.locator(".data-table tbody tr")).to_have_count(1)
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         assert not errors, errors
         browser.close()
-        print("BLOCK1 REGRESSION PASS: CSV/XLSX, opaque IDs, quantity comparison, history, parameter restore, invalidation and source replacement.")
+        print("BLOCK1 REGRESSION PASS: CSV/XLSX, opaque IDs, quantity comparison, result presentation, parameter restore and source replacement.")
 
 
 if __name__ == "__main__":

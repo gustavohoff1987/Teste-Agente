@@ -195,7 +195,6 @@ function App() {
   type Historical = {result: AnalysisResult; request: string; sourceKey: string; contextKey: string;
     preparation: ReturnType<typeof snapshotPreparation>; invalidReason: string};
   const [history, setHistory] = useState<Historical[]>([]);
-  const [invalidationReason, setInvalidationReason] = useState("");
   const [historyNotice, setHistoryNotice] = useState("");
   const pendingExploration = useRef<Exploration | null>(null);
   const [selectionProposal, setSelectionProposal] = useState<Exploration | null>(null);
@@ -297,6 +296,9 @@ function App() {
   const historical = history.find(item=>item.result.result_id===result?.result_id);
   const resultOperation = result?.metadata.operation as Operation | undefined;
   const resultFeature = FEATURES.find(item=>item.id===resultOperation);
+  // Estas notas técnicas continuam na exportação, mas não na apresentação dos resultados.
+  const resultNotes = result?.notes.filter(note =>
+    !note.startsWith("Período AAAAMM composto em memória") && !note.startsWith("Identificação territorial:")) || [];
   const resultStatus = historical?.invalidReason ? "INVALIDADO" :
     historical && active && historical.contextKey===requestKey(active) ? "VIGENTE" : "NAO_VIGENTE";
   const resultMembers = (result?.metadata.universe as {members?: Territory[]} | undefined)?.members || [];
@@ -680,7 +682,7 @@ function App() {
     document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"});
   }
   function openHistorical(item: Historical) {
-    setResult(item.result); setInvalidationReason(""); setHistoryNotice(""); setError("");
+    setResult(item.result); setHistoryNotice(""); setError("");
   }
   function restoreHistorical(item: Historical) {
     if (item.invalidReason || !compatible(item)) return;
@@ -1360,21 +1362,6 @@ function App() {
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
         <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
-        {(resultOperation !== "distribution" || history.length > 1) && <nav aria-label="Histórico de resultados"
-          className={"no-print mb-4 space-y-2 " + (resultOperation === "distribution" ? "rounded-xl border border-line px-3 py-2" : "")}>
-          <p className="text-xs text-slate-500">{resultOperation === "distribution" ? "Consultar outras análises realizadas nesta sessão" : history.length + " resultados preservados nesta sessão"}</p>
-          <ol className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
-            {history.map((item,index)=><li key={item.result.result_id} className="min-w-0 max-w-full">
-              <button type="button" onClick={()=>openHistorical(item)} aria-pressed={result?.result_id===item.result.result_id}
-                className={"max-w-full rounded-xl border px-3 py-2 text-left text-xs " + (result?.result_id===item.result.result_id ? "border-blue-500 bg-blue-50" : "border-line bg-white")}>
-                <strong>{index+1}. {item.result.title}</strong><span className="block break-words text-slate-600">{item.request}</span>
-                <span>{item.invalidReason ? "Invalidado" : active && item.contextKey===requestKey(active) ? "Válido · vigente" : "Válido · histórico não vigente"}</span>
-              </button>
-            </li>)}
-          </ol>
-          {historical && history.indexOf(historical)>0 && <button type="button" className="rounded-lg border px-3 py-2 text-xs text-teal"
-            onClick={()=>openHistorical(history[history.indexOf(historical)-1])}>Voltar ao resultado anterior</button>}
-        </nav>}
         {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
@@ -1467,7 +1454,7 @@ function App() {
               onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); }}
               onDeclareGeometry={choice => { setCrs(choice.crs); setResolutions(previous => ({...previous, number_format: choice.number_format}));
                 setHistoryNotice("Referencial e separador decimal declarados na preparação. Execute novamente para incluir o mapa."); }}/>
-            {result.notes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
+            {resultNotes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
               {resultOperation === "distribution" ? <>
                 <p className="mt-3 text-xs leading-6 text-slate-700">
@@ -1478,23 +1465,15 @@ function App() {
                   Os valores de cada grupo e os detalhes podem ser consultados na tabela.</p>
                 <details className="mt-3 text-xs">
                   <summary className="cursor-pointer font-semibold text-teal">Ver informações técnicas completas</summary>
-                  <ul className="mt-2 space-y-2 leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>
+                  <ul className="mt-2 space-y-2 leading-6 text-slate-600">{resultNotes.map((note,i)=><li key={i}>{note}</li>)}</ul>
                 </details>
-              </> : <ul className="mt-3 space-y-2 text-xs leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>}
+              </> : <ul className="mt-3 space-y-2 text-xs leading-6 text-slate-600">{resultNotes.map((note,i)=><li key={i}>{note}</li>)}</ul>}
             </div>}
             {resultOperation === "temporal" && result.detail_rows && <details className="mt-4 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>
               <button type="button" onClick={()=>exportCsv(result.detail_rows!)} className="no-print my-2 rounded-lg border px-3 py-2">Exportar série CSV</button>
               <div tabIndex={0} role="region" aria-label="Competências da série temporal" className="max-h-72 overflow-auto"><table className="data-table w-full"><thead><tr>{Object.keys(result.detail_rows[0] || {}).map(key=><th key={key}>{key}</th>)}</tr></thead>
                 <tbody>{result.detail_rows.slice(0,150).map((row,index)=><tr key={index}>{Object.values(row).map((value,i)=><td key={i}>{pretty(value)}</td>)}</tr>)}</tbody></table></div>
-            </details>}
-            {historical && !historical.invalidReason && <details className="no-print mt-4 text-xs text-slate-500">
-              <summary className="cursor-pointer">Registrar correção que invalida este resultado</summary>
-              <label className="mt-2 block">Motivo factual da invalidação
-                <input value={invalidationReason} onChange={e=>setInvalidationReason(e.target.value)} maxLength={500}
-                  className="mt-1 w-full rounded-lg border p-2"/></label>
-              <button type="button" disabled={!invalidationReason.trim()} className="mt-2 rounded-lg border px-3 py-2 text-rose-700 disabled:opacity-40"
-                onClick={()=>{setHistory(previous=>previous.map(item=>item.result.result_id===result.result_id ? {...item,invalidReason:invalidationReason.trim()} : item));setInvalidationReason("");}}>Invalidar este resultado</button>
             </details>}
           </div>}
         </div>

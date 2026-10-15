@@ -55,7 +55,6 @@ def main():
         chat = page.locator("#assistente")
         inline = page.locator("#preparacao-conversacional")
         board = page.locator("#resultados")
-        history = page.get_by_role("navigation", name="Histórico de resultados")
         builder = inline.get_by_role("group", name="Critérios combinados")
         status = board.get_by_test_id("result-status")
 
@@ -169,23 +168,22 @@ def main():
         expect(status).to_have_text("Resultado válido e vigente no contexto atual")
         assert builder.get_by_label("Régua de c1").count() == 1  # faixa observada disponível após o resultado
 
-        # Histórico: retomar o primeiro resultado restaura o critério e reaproveita o cálculo idêntico.
-        expect(history.locator("ol > li")).to_have_count(6)
-        history.get_by_role("button", name="1. Critérios combinados", exact=False).click()
+        # Retomar o resultado atual restaura seus critérios e reaproveita o cálculo idêntico.
         details = board.locator("details", has=page.locator("summary", has_text="Consultar solicitação e parâmetros"))
         details.locator("summary").click()
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
-        expect(builder.get_by_label("Valor de c1")).to_have_value("2")
-        expect(builder.get_by_label("Valor de c2")).to_have_count(0)
+        expect(builder.get_by_label("Valor de c1")).to_have_value("1,3")
+        expect(builder.get_by_label("Valor de c2")).to_have_value("150")
         calls = len(analyses)
         inline.get_by_role("button", name="Executar análise", exact=True).click()
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == calls
 
         # Reutilização: o conjunto que atende vira a seleção territorial (Bloco 1 e Bloco 2).
-        board.get_by_role("button", name="Usar os que atendem como seleção territorial (5)", exact=True).click()
+        matched = sixth["metadata"]["criterios"]["contagens"]["ATENDE"]
+        board.get_by_role("button", name=f"Usar os que atendem como seleção territorial ({matched})", exact=True).click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
-        expect(selection.get_by_text("5 selecionados", exact=True)).to_be_visible()
+        expect(selection.get_by_text(f"{matched} selecionados", exact=True)).to_be_visible()
 
         # Celular: critérios e resultados acessíveis, sem rolagem horizontal da página.
         for width in (390, 768):
