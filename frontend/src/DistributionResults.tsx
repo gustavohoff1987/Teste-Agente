@@ -19,28 +19,33 @@ export const displayPeriod = (value: string): string => {
   }
   return value;
 };
-const quintileNumber = (label: unknown) => {
-  const text = String(label ?? "");
-  const match = text.match(/^(?:Q|)([1-9])(?:º|ª|$)/);
-  return match ? Number(match[1]) : 0;
+const classNumber = (label: unknown) => {
+  const match = String(label ?? "").match(/\d+/);
+  return match ? Number(match[0]) : 0;
 };
 
 export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted }: Props) {
-  const [chosenQuintile, setChosenQuintile] = useState("");
+  const [chosenGroup, setChosenGroup] = useState("");
   const [search, setSearch] = useState("");
   const metric = String(summary[0]?.Indicador || "Indicador selecionado");
   const period = String(summary[0]?.["Período"] ?? "");
   const category = String(summary[0]?.Categoria ?? "");
   const count = summary.reduce((sum, row) => sum + Number(row.Unidades || 0), 0);
+  const groupLabel = summary.length === 4 ? "quartil" : summary.length === 10 ? "decil" :
+    summary.length === 5 ? "quintil" : "faixa";
+  const pluralLabel = groupLabel === "quartil" ? "quartis" : groupLabel === "quintil" ? "quintis" :
+    groupLabel === "decil" ? "decis" : "faixas";
+  const positionColumn = groupLabel === "faixa" ? "Posição na faixa" : "Posição no " + groupLabel;
   const filtered = useMemo(() => detail.filter(row => {
-    const sameQuintile = !chosenQuintile || String(row.Quintil).startsWith(chosenQuintile + "º");
+    const sameGroup = !chosenGroup || classNumber(row.Quintil) === Number(chosenGroup);
     const chosen = !onlyHighlighted || (!!idOf && !!highlight?.has(idOf(row) || ""));
-    return chosen && sameQuintile && (!search || String(row.Território).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
-  }), [detail, chosenQuintile, search, onlyHighlighted, highlight, idOf]);
+    return chosen && sameGroup && (!search || String(row.Território).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
+  }).sort((a, b) => Number(a["Posição geral"] ?? Infinity) - Number(b["Posição geral"] ?? Infinity) ||
+    String(a.Território).localeCompare(String(b.Território), "pt-BR")), [detail, chosenGroup, search, onlyHighlighted, highlight, idOf]);
   const labels = ["Menores valores", "Valores baixos", "Valores intermediários", "Valores altos", "Maiores valores"];
-  const ordered = [...summary].sort((a, b) => quintileNumber(a.Classe) - quintileNumber(b.Classe));
+  const ordered = [...summary].sort((a, b) => classNumber(a.Classe) - classNumber(b.Classe));
   const chartData = ordered.map(row => ({
-    name: "Q" + quintileNumber(row.Classe),
+    name: (groupLabel === "decil" ? "D" : groupLabel === "faixa" ? "F" : "Q") + classNumber(row.Classe),
     count: Number(row.Unidades || 0),
   }));
 
@@ -58,29 +63,29 @@ export default function DistributionResults({ summary, detail, onExport, highlig
         </span>
       </div>
       <p className="mt-3 text-xs leading-6 text-slate-600">
-        As unidades foram ordenadas pelo indicador escolhido e classificadas em cinco quintis:
-        Q1 reúne os menores valores e Q5 os maiores. Valores iguais permanecem juntos,
+        As unidades foram ordenadas pelo indicador escolhido e divididas em {ordered.length} {pluralLabel}.
+        O primeiro grupo reúne os menores valores e o último, os maiores. Valores iguais permanecem juntos,
         por isso a quantidade de unidades em cada grupo pode variar.
       </p>
     </div>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {ordered.map((row, index) => {
-        const number = quintileNumber(row.Classe) || index + 1;
-        const selected = chosenQuintile === String(number);
-        return <button key={index} type="button" onClick={() => setChosenQuintile(selected ? "" : String(number))}
+        const number = classNumber(row.Classe) || index + 1;
+        const selected = chosenGroup === String(number);
+        return <button key={index} type="button" onClick={() => setChosenGroup(selected ? "" : String(number))}
           aria-pressed={selected}
           className={["rounded-2xl border p-4 text-left transition hover:border-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal",
             selected ? "border-teal bg-cyan-50 shadow-sm" : "border-line bg-white"].join(" ")}>
-          <span className="block text-xs font-bold text-teal">{number}º quintil</span>
+          <span className="block text-xs font-bold text-teal">{number}º {groupLabel}</span>
           <strong className="mt-2 block text-2xl font-bold text-ink">{fmt(row.Unidades)}</strong>
           <span className="mt-1 block text-xs text-slate-600">unidades territoriais</span>
-          <span className="mt-2 block text-xs font-semibold leading-4 text-slate-700">{labels[number - 1] || String(row.Quintil || "Faixa")}</span>
+          <span className="mt-2 block text-xs font-semibold leading-4 text-slate-700">{groupLabel === "quintil" ? labels[number - 1] : number === 1 ? "Menores valores" : number === ordered.length ? "Maiores valores" : "Valores intermediários"}</span>
         </button>;
       })}
     </div>
     <div className="rounded-2xl border border-line p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/>
-        <h4 className="text-sm font-bold text-ink">Quantas unidades pertencem a cada quintil?</h4>
+        <h4 className="text-sm font-bold text-ink">Quantas unidades pertencem a cada {groupLabel}?</h4>
       </div>
       <div className="h-[245px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{top:5,right:10,bottom:5,left:2}}>
@@ -102,11 +107,11 @@ export default function DistributionResults({ summary, detail, onExport, highlig
       </div>
       <div className="no-print grid gap-3 border-b border-line bg-slate-50/60 px-5 py-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
-          Filtrar pelo quintil
-          <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal" value={chosenQuintile}
-            onChange={e => setChosenQuintile(e.target.value)}>
-            <option value="">Todos os quintis</option>
-            {[1,2,3,4,5].map(i => <option key={i} value={i}>{i}º quintil — {labels[i-1]}</option>)}
+          Filtrar por {groupLabel}
+          <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal" value={chosenGroup}
+            onChange={e => setChosenGroup(e.target.value)}>
+            <option value="">Todos os {pluralLabel}</option>
+            {ordered.map((row, i) => <option key={i} value={classNumber(row.Classe)}>{classNumber(row.Classe)}º {groupLabel}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
@@ -119,7 +124,8 @@ export default function DistributionResults({ summary, detail, onExport, highlig
       <div className="max-h-[480px] overflow-auto">
         <table className="data-table w-full">
           <thead className="sticky top-0 bg-slate-50"><tr>
-            <th>Unidade territorial</th><th>Período</th><th>Categoria profissional</th><th>Quintil</th><th>{metric}</th>
+            <th>Unidade territorial</th><th>Período</th><th>Categoria profissional</th><th>{groupLabel === "faixa" ? "Faixa" : groupLabel[0].toUpperCase() + groupLabel.slice(1)}</th>
+            <th>{positionColumn}</th><th>Posição geral</th><th>{metric}</th>
           </tr></thead>
           <tbody>{filtered.slice(0,150).map((row,i) => {
             const id = idOf?.(row) || null, chosen = !!id && !!highlight?.has(id);
@@ -128,7 +134,7 @@ export default function DistributionResults({ summary, detail, onExport, highlig
               onKeyDown={onToggle && id ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
               className={(onToggle && id ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
             <td>{fmt(row.Território)}</td><td>{displayPeriod(String(row["Período"] || ""))}</td>
-            <td>{fmt(row.Categoria)}</td><td>{fmt(row.Quintil)}</td><td>{fmt(row[metric])}</td>
+            <td>{fmt(row.Categoria)}</td><td>{fmt(row.Quintil)}</td><td>{fmt(row[positionColumn])}</td><td>{fmt(row["Posição geral"])}</td><td>{fmt(row[metric])}</td>
           </tr>;})}</tbody>
         </table>
       </div>

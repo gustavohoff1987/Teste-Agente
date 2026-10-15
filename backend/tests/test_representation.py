@@ -246,3 +246,22 @@ def test_complemented_points_use_the_layer_in_the_22_periods_with_its_identity(r
         assert identity["premissa"] == "COORDENADA_FIXA_2014_2024" and identity["proveniencia"]["referencial"] == "SIRGAS 2000"
     contract = brazil(info=info, period_filter="202406")["metadata"]["representacao"]
     assert any("camada geográfica complementar" in note for note in contract["notas"])
+
+
+
+@pytest.mark.parametrize("classes,label", [(4, "quartil"), (5, "quintil"), (10, "decil")])
+def test_distribution_group_positions_from_backend_with_ties(classes, label):
+    """O motor calcula duas posições; filtros da UI não refazem o cálculo."""
+    data = [(*item[:4], 3 if item[4] == 5 else item[4], item[5]) for item in UNITS]
+    body = analyze(frame(data), operation="distribution", distribution_indicator="quantity", quantile_count=classes)
+    rows = body["detail_rows"]
+    position = "Posição no " + label
+    assert len(body["rows"]) == classes and len(rows) == len(data)
+    assert sum(row["Unidades"] for row in body["rows"]) == len(data)
+    assert all(position in row and "Posição geral" in row for row in rows)
+    first = [row for row in rows if row["Quantidade"] == 3.0]
+    assert len(first) == 2 and all(row["Posição geral"] == 1 for row in first)
+    assert all(row[position] == min(r[position] for r in rows if r["Quintil"] == row["Quintil"])
+               for row in first)
+    assert sorted({row["Posição geral"] for row in rows}) == [1, 3, 4, 5, 6, 7, 8]
+    assert all(row["Quintil"].endswith(label) for row in rows)

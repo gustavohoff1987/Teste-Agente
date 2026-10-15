@@ -101,7 +101,7 @@ function readableError(exc: unknown): string {
 const FEATURES: Feature[] = [
   { id: "density", title: ANALYSIS_LABELS.density, detail: "Profissionais por 1.000 habitantes", icon: Calculator, tone: "teal" },
   { id: "counts", title: ANALYSIS_LABELS.counts, detail: "Contagens absolutas da força de trabalho", icon: UsersRound, tone: "indigo" },
-  { id: "distribution", title: ANALYSIS_LABELS.distribution, detail: "Quantis, posições e frequências", icon: BarChart3, tone: "violet" },
+  { id: "distribution", title: ANALYSIS_LABELS.distribution, detail: "Quartis, quintis e decis, posições e frequências", icon: BarChart3, tone: "violet" },
   { id: "comparisons", title: ANALYSIS_LABELS.comparisons, detail: "Territórios, categorias e períodos", icon: MoveRight, tone: "orange" },
   { id: "temporal", title: ANALYSIS_LABELS.temporal, detail: "Mudanças e tendências", icon: TrendingUp, tone: "blue" },
   { id: "aggregate", title: ANALYSIS_LABELS.aggregate, detail: "Conjuntos territoriais e indicadores", icon: Layers3, tone: "emerald" },
@@ -1021,6 +1021,15 @@ function App() {
               </select>
             </label>}
             {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
+              Agrupamento da distribuição
+              <select aria-label="Agrupamento da distribuição" value={quantiles} onChange={event=>setQuantiles(Number(event.target.value))}
+                className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink">
+                <option value={4}>Quartis (4 grupos)</option>
+                <option value={5}>Quintis (5 grupos)</option>
+                <option value={10}>Decis (10 grupos)</option>
+              </select>
+            </label>}
+            {active === "distribution" && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">
               Indicador da distribuição
               <select aria-label="Indicador da distribuição" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                 value={distributionIndicator} onChange={e => {setDistributionIndicator(e.target.value as "" | "density" | "quantity");}}>
@@ -1191,6 +1200,8 @@ function App() {
       operation={active}
       sourceBrazil={usingBrazil}
       curated={!!inspection.curated_defaults}
+      quantiles={quantiles}
+      onQuantiles={setQuantiles}
       selectedPeriods={selectedPeriods}
       onSelectedPeriods={values=>{setSelectedPeriods(values);setPeriodFilter("");}}
       scope={inspection.source?.scope || "municipal"}
@@ -1349,8 +1360,9 @@ function App() {
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
         <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
-        <nav aria-label="Histórico de resultados" className="no-print mb-4 space-y-2">
-          <p className="text-xs text-slate-500">{history.length} resultados preservados nesta sessão</p>
+        {(resultOperation !== "distribution" || history.length > 1) && <nav aria-label="Histórico de resultados"
+          className={"no-print mb-4 space-y-2 " + (resultOperation === "distribution" ? "rounded-xl border border-line px-3 py-2" : "")}>
+          <p className="text-xs text-slate-500">{resultOperation === "distribution" ? "Consultar outras análises realizadas nesta sessão" : history.length + " resultados preservados nesta sessão"}</p>
           <ol className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
             {history.map((item,index)=><li key={item.result.result_id} className="min-w-0 max-w-full">
               <button type="button" onClick={()=>openHistorical(item)} aria-pressed={result?.result_id===item.result.result_id}
@@ -1362,7 +1374,7 @@ function App() {
           </ol>
           {historical && history.indexOf(historical)>0 && <button type="button" className="rounded-lg border px-3 py-2 text-xs text-teal"
             onClick={()=>openHistorical(history[history.indexOf(historical)-1])}>Voltar ao resultado anterior</button>}
-        </nav>
+        </nav>}
         {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
@@ -1404,8 +1416,13 @@ function App() {
           </div>}
           {result && <div className="pt-6">
             <h3 className="text-xl font-bold text-ink">{result.title}</h3>
-            <p data-testid="result-status" className="mt-2 text-xs font-semibold text-slate-600">{resultStatus==="INVALIDADO" ? "Resultado invalidado: " + historical?.invalidReason :
-              resultStatus==="VIGENTE" ? "Resultado válido e vigente no contexto atual" : "Resultado histórico válido · não vigente no contexto atual"}</p>
+            <p data-testid="result-status" className={resultOperation === "distribution" && resultStatus === "VIGENTE" ? "sr-only" : "mt-2 text-xs font-semibold text-slate-600"}>
+              {resultOperation === "distribution" && resultStatus === "VIGENTE" ? "Resultado disponível" :
+                resultStatus === "INVALIDADO" ? "Resultado invalidado: " + historical?.invalidReason :
+                resultStatus === "VIGENTE" ? "Resultado válido e vigente no contexto atual" :
+                resultOperation === "distribution" ? "Resultado de uma análise anterior. O resultado original permanece disponível." :
+                "Resultado histórico válido · não vigente no contexto atual"}
+            </p>
             {historical && <details className="my-3 rounded-lg border border-line p-3 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Consultar solicitação e parâmetros</summary>
               <p className="mt-3 break-words">Solicitação: {historical.request}</p>
@@ -1452,7 +1469,18 @@ function App() {
                 setHistoryNotice("Referencial e separador decimal declarados na preparação. Execute novamente para incluir o mapa."); }}/>
             {result.notes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
-              <ul className="mt-3 space-y-2 text-xs leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>
+              {resultOperation === "distribution" ? <>
+                <p className="mt-3 text-xs leading-6 text-slate-700">
+                  Os territórios são divididos em grupos do menor para o maior valor do indicador escolhido,
+                  sempre em um mesmo período e categoria profissional.</p>
+                <p className="mt-2 text-xs leading-6 text-slate-700">
+                  As posições usam os valores completos, sem arredondar antes de comparar. Valores iguais compartilham a mesma posição.
+                  Os valores de cada grupo e os detalhes podem ser consultados na tabela.</p>
+                <details className="mt-3 text-xs">
+                  <summary className="cursor-pointer font-semibold text-teal">Ver informações técnicas completas</summary>
+                  <ul className="mt-2 space-y-2 leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>
+                </details>
+              </> : <ul className="mt-3 space-y-2 text-xs leading-6 text-slate-600">{result.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>}
             </div>}
             {resultOperation === "temporal" && result.detail_rows && <details className="mt-4 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>

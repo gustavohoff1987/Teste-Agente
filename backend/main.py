@@ -322,8 +322,15 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                 raise ValueError("A distribuição exige ao menos dois territórios avaliáveis por período e categoria.")
             cuts = [float(np.quantile(series, j / k, method="linear")) for j in range(1, k)]
             classes = np.searchsorted(cuts, series.to_numpy(), side="left") + 1
+            # Posições crescentes por período/categoria. Empates recebem a menor
+            # posição, sem desempate artificial (por exemplo: 1, 1, 3).
+            overall_positions = series.rank(method="min", ascending=True).astype(int).to_numpy()
+            inside_positions = series.groupby(classes).rank(method="min", ascending=True).astype(int).to_numpy()
+            group_label = {4: "quartil", 5: "quintil", 10: "decil"}.get(k)
+            position_column = "Posição no " + group_label if group_label else "Posição na faixa"
             for i in range(1, k + 1):
-                title = f"{i}º quintil — {names[i]}" if k == 5 else f"{i}ª faixa de {k}"
+                title = (f"{i}º quintil — {names[i]}" if k == 5 else
+                         f"{i}º {group_label}" if group_label else f"{i}ª faixa de {k}")
                 rows.append({"Período": period, "Categoria": category,
                              "Classe": "Q" + str(i), "Quintil": title,
                              "Unidades": int((classes == i).sum()), "Indicador": label,
@@ -332,7 +339,9 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                 i = int(classes[pos])
                 detail_rows.append({
                     "Território": record["territory"], "Período": period, "Categoria": category,
-                    "Quintil": f"{i}º quintil" if k == 5 else f"{i}ª faixa de {k}",
+                    "Quintil": f"{i}º {group_label}" if group_label else f"{i}ª faixa de {k}",
+                    position_column: int(inside_positions[pos]),
+                    "Posição geral": int(overall_positions[pos]),
                     label: float(record[metric]),
                     "Unidade de contagem": unit,
                     "Quantidade": float(record["quantity"]),
@@ -342,7 +351,8 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             "Distribuição territorial",
             "Unidades territoriais classificadas do menor para o maior valor do indicador escolhido. Cada período e categoria compõem um universo próprio.",
             rows, notes=["Indicador escolhido: " + label,
-                         "Quintis com pontos de corte Hyndman–Fan tipo 7. Valores iguais permanecem na classe inferior, portanto as contagens podem ser diferentes.",
+                         "Distribuição com pontos de corte Hyndman–Fan tipo 7. Valores iguais permanecem na classe inferior, portanto as contagens podem ser diferentes.",
+                         "Posições crescentes por período e categoria; empates preservados (1, 1, 3).",
                          "Os pontos de corte são usados internamente; os resultados individuais estão no detalhamento territorial."]
         )
         result["detail_rows"] = detail_rows

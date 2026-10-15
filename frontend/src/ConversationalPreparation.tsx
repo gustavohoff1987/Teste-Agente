@@ -14,6 +14,8 @@ type Props = {
   operation: AnalysisKind;
   sourceBrazil: boolean;
   curated: boolean;
+  quantiles: number;
+  onQuantiles: (value: number) => void;
   selectedPeriods: string[];
   onSelectedPeriods: (periods: string[]) => void;
   scope: SourceScope;
@@ -74,6 +76,10 @@ function InlineChoice({ label, value, options, onChange }: {
 const named = (values: string[]): Choice[] => values.map(value => ({value, label:value}));
 const sourceOptions: Choice[] = [{label:"municípios",value:"municipal"},{label:"Brasil",value:"national"}];
 const indicatorOptions: Choice[] = [{label:"quantidade",value:"quantity"},{label:"densidade por 1.000",value:"density"}];
+const groupOptions: Choice[] = [
+  {label:"quartis (4 grupos)",value:"4"}, {label:"quintis (5 grupos)",value:"5"},
+  {label:"decis (10 grupos)",value:"10"}
+];
 const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculos",value:"vinculos"},
   {label:"postos de trabalho",value:"postos"},{label:"outra unidade",value:"outro"}];
 
@@ -100,18 +106,11 @@ export default function ConversationalPreparation(p: Props) {
     const periodReady = !needsSinglePeriod || p.periods.length <= 1 || !!p.periodFilter || p.selectedPeriods.length > 0 &&
       p.operation === "counts";
     const analysisReady = ready && periodReady;
-    const countWords = p.operation === "density" ? "densidade dos médicos" :
-      p.operation === "counts" ? "quantitativos de médicos" :
-      p.operation === "temporal" ? "evolução dos quantitativos de médicos" :
-      p.operation === "aggregate" ? "agregação territorial" :
-      p.operation === "nearest" ? "referência geográfica mais próxima" :
-      p.operation === "criteria" ? "critérios combinados, ordenações e recortes" : "análise solicitada";
-    return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
+     return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
         <div className="min-w-0 flex-1 space-y-3">
-          <p>Os dados já estão preparados para {countWords}. As correspondências de território,
-            profissão e quantitativos são conhecidas pela plataforma, por isso não é necessário confirmá-las.</p>
+          <p>Os dados já estão preparados para a análise solicitada.</p>
           <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
             com a categoria MEDICINA e as referências temporais disponíveis.
             {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
@@ -129,7 +128,9 @@ export default function ConversationalPreparation(p: Props) {
               selected={p.selectedPeriods} multiple={isTemporal}
               onSingle={p.onPeriod} onMultiple={p.onSelectedPeriods}
               allowMultiple={allowMultiple}/>
-            {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
+            {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
+            Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
+          {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
               Para agregar territórios, selecione uma competência por vez.
               A soma entre diferentes meses não representa pessoas únicas.</p>}
           </>}
@@ -145,6 +146,9 @@ export default function ConversationalPreparation(p: Props) {
           {requiresIndicator && <p>Deseja trabalhar com
             <InlineChoice label="Indicador" value={p.indicator} options={indicatorOptions}
               onChange={v=>p.onIndicator(v as "quantity" | "density" | "")}/>?</p>}
+          {p.operation === "distribution" && <p>Como deseja organizar a distribuição?
+            <InlineChoice label="Agrupamento da distribuição" value={String(p.quantiles)}
+              options={groupOptions} onChange={value=>p.onQuantiles(Number(value))}/>.</p>}
           {p.extra}
           {!periodReady && <p className="text-xs text-slate-600">Escolha a referência temporal para continuar.</p>}
           {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
