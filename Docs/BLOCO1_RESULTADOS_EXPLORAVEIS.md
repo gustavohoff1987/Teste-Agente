@@ -164,3 +164,16 @@ validação empírica com os dados brasileiros reais, ainda não executada.
   [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
 - **Roteiros anteriores ao redesenho:** `ui_brazil_smoke.py`, `ui_smoke.py` e os demais foram
   movidos para `backend/tests/legado/`. O README de lá traz o mapa do que cobriam e das lacunas.
+
+### Atualização de interface — 15/10/2026: análises anteriores
+
+O histórico interno continua temporário, sem login ou armazenamento permanente. Foi restituído ao
+usuário um acesso discreto **“Análises anteriores”**, recolhido por padrão e exibido quando existem
+ao menos duas análises na sessão. A lista apresenta os resultados do mais recente ao mais antigo,
+destaca aquele que está aberto e permite reabrir os demais sem recalcular.
+
+Reabrir um resultado não restaura silenciosamente suas opções de análise. A ação distinta
+`Retomar parâmetros deste resultado` continua explícita e condicionada à compatibilidade da
+fonte e da camada geográfica. Não foi restaurado o controle de invalidação. O teste
+`ui_block1_smoke.py` confere a navegação sem novas chamadas de análise tanto com dados sintéticos
+quanto com a base Brasil versionada (62 municípios do Amazonas).

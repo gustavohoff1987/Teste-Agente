@@ -4,6 +4,7 @@ import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
 import { displayPeriod } from "./DistributionResults";
 import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
+import PreviousAnalyses from "./PreviousAnalyses";
 import AnalysisAssistant from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
@@ -682,7 +683,8 @@ function App() {
     document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"});
   }
   function openHistorical(item: Historical) {
-    setResult(item.result); setHistoryNotice(""); setError("");
+    if (running || inspecting || preflighting) return;
+    setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
   }
   function restoreHistorical(item: Historical) {
     if (item.invalidReason || !compatible(item)) return;
@@ -1362,6 +1364,14 @@ function App() {
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
         <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
+        {history.length > 1 && <PreviousAnalyses items={history.map(item => ({
+          id: item.result.result_id,
+          title: item.result.title,
+          request: item.request,
+          periods: (item.result.metadata.periods as string[] | undefined) || [],
+          availableForReuse: compatible(item),
+        }))} currentId={result?.result_id || null} disabled={running || inspecting || preflighting}
+          onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>}
         {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">

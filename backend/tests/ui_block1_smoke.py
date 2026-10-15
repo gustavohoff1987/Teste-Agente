@@ -177,6 +177,25 @@ def main():
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == 4
 
+        # "Análises anteriores": acessível ao usuário, sem recalcular nem restaurar
+        # parâmetros de forma implícita. Também mantém o resultado atual na lista.
+        previous = board.get_by_role("region", name="Análises anteriores")
+        expect(previous).to_be_visible()
+        expect(previous.get_by_text("4 análises nesta sessão", exact=True)).to_be_visible()
+        previous.locator("summary").click()
+        expect(previous.get_by_role("button", name="Abrir análise: Agregação territorial")).to_be_disabled()
+        calls = len(analyses)
+        previous.get_by_role("button", name="Abrir análise: Densidade de profissionais").click()
+        expect(board.get_by_test_id("result-title")).to_have_text(initial["title"])
+        expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(62 if real else 3)
+        assert len(analyses) == calls, "reabrir análise anterior não pode gerar nova chamada"
+        expect(previous.get_by_role("button", name="Abrir análise: Densidade de profissionais")).to_be_disabled()
+        previous.get_by_role("button", name="Abrir análise: Agregação territorial").click()
+        expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
+        expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(1)
+        assert len(analyses) == calls
+        shot("block1-06-analises-anteriores.png")
+
         # Retomada dos parâmetros do resultado atual; o cálculo idêntico é reaproveitado.
         reveal("Consultar solicitação e parâmetros")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
