@@ -146,3 +146,21 @@ Na interface, marcar um membro entre 5.570 leva 76–127 ms até o quadro seguin
 **CONCLUÍDO COM RESSALVAS.** As jornadas obrigatórias funcionam com dados sintéticos,
 sem falhas impeditivas conhecidas e com CI aprovado. A ressalva principal é a
 validação empírica com os dados brasileiros reais, ainda não executada.
+
+### Atualização de 15/10/2026
+
+- **Dados reais:** a validação empírica pendente acima passou a rodar em todo push, com a base
+  Brasil versionada na raiz do repositório:
+  - job `dados-reais`: integridade pelo manifesto e os 29 testes reais;
+  - suíte `base-versionada` do job `ui-block1`: esta jornada com `ADT_BLOCK1_REAL=1`, ou seja,
+    62 municípios do AM e 22 competências.
+
+  Na execução local de 15/10/2026, os 29 testes reais passaram em cerca de 7,5 min e a jornada real
+  passou em 79 s. A unidade `251365`, com hierarquia divergente, continua sem verificação dedicada.
+- **Histórico de resultados:** o commit `dbaa0bd` retirou da interface a lista de resultados e o
+  controle de invalidação. Com isso, o passo 7 da jornada validada ("resultados anteriores
+  reabertos") e a ressalva sobre o rótulo "histórico" deixaram de se aplicar. A jornada atual confere
+  o resultado vigente, a retomada e o reaproveitamento. Ver
+  [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
+- **Roteiros anteriores ao redesenho:** `ui_brazil_smoke.py`, `ui_smoke.py` e os demais foram
+  movidos para `backend/tests/legado/`. O README de lá traz o mapa do que cobriam e das lacunas.

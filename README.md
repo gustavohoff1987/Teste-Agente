@@ -79,19 +79,19 @@ verificação contextual do agente. Nenhum registro é enviado ao provedor de IA
 
 ### Teste de navegação conversacional
 
-Com o backend e o Vite locais em execução, e com dependências de
-`backend/requirements-ui.txt` instaladas, execute:
+Com as dependências de `backend/requirements-ui.txt` instaladas e depois de `npm run build`
+em `frontend/`, execute na raiz:
 
 ```bash
-cd backend
-python tests/ui_conversational_smoke.py
+python backend/tests/run_ui_checks.py --suite conversa
 ```
 
-O teste usa CSV sintético, bloqueia requisições externas e verifica escolha
-de fonte, seletor inline, execução determinística e exportação dentro do chat.
-Também é executado no job `ui-conversational` da CI. As bases brasileiras
-reais não participam desse teste e exigem validações locais próprias (ver
-[Política dos dados do Brasil](#política-dos-dados-do-brasil)).
+O executor sobe o servidor local com um catálogo sintético de duas fontes, roda o roteiro
+`ui_conversational_smoke.py` e encerra o servidor. O teste bloqueia requisições externas e
+verifica escolha de fonte, seletor inline, execução determinística e exportação dentro do chat.
+Também é executado no job `ui-conversational` do CI. As bases brasileiras reais não participam
+desse teste: elas são verificadas pelos jobs `dados-reais` e `ui-block1` (suíte
+`base-versionada`). Ver [Testes](#testes) e [Política dos dados do Brasil](#política-dos-dados-do-brasil).
 
 ### Origem da base Brasil (administração)
 
@@ -290,42 +290,43 @@ Referências: FN-INT-01/02 (propostas interpretativas), RQ-DAD-20 e RQ-PRV-02 (p
 
 ## Testes
 
-```bash
-cd backend
-python -m pytest -q
-```
+As regras de trabalho para pessoas e agentes (Claude, Codex e outros) estão em
+[`AGENTS.md`](AGENTS.md). Antes de cada push, rode na raiz as mesmas verificações do CI:
 
 ```bash
-cd frontend
-npm run build
+(cd backend && python -m pytest -q)                                   # backend
+(cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)  # com a base versionada: nada pulado
+(cd frontend && npm ci && npm run build)                              # TypeScript e build
+python backend/tests/run_ui_checks.py                                 # todas as jornadas de navegador
+python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
-A GitHub Action `.github/workflows/ci.yml` executa ambos no push e em pull requests, além
-dos roteiros de navegador `ui_conversational_smoke.py`, `ui_block1_smoke.py`,
-`ui_block1_regression.py`, `ui_nearest_smoke.py`, `ui_criteria_smoke.py` (desktop e celular) e
-`ui_block1_integration.py` (este com transporte Gemini simulado), sem chamadas reais ao provedor.
-Medições: `backend/tests/bench_criteria.py` (fases no servidor) e `bench_ui_criteria.py`
-(navegador), além dos benchmarks anteriores.
+No Windows (PowerShell), defina `$env:ADT_REAL_DATA_DIR` com o caminho completo da raiz do
+repositório. Sem o Google Chrome instalado, defina `ADT_BROWSER_CHANNEL=chromium` para as jornadas.
 
-Com os servidores locais ativos e `backend/requirements-ui.txt` instalado, `py backend/tests/ui_session_smoke.py` verifica a declaração por sessão, navegação por teclado, importação e cálculo com dados sintéticos, exportação CSV, conversa com e sem base, recuperação do serviço e telas desktop/mobile. As respostas de IA são simuladas; esse teste não chama o provedor.
+O workflow `.github/workflows/ci.yml` roda no push e em pull requests. Nenhuma verificação chama o
+provedor real de IA.
 
-O layout atual reúne chat e carrossel compacto e apresenta a preparação em três
-etapas abaixo da conversa, após a escolha do usuário.
-`python backend/tests/ui_preparation_smoke.py` verifica esse fluxo, incluindo seleção,
-pendências, confirmação do código territorial, troca de abrangência, densidade,
-quantitativos, população na distribuição, falha/recuperação do pré-exame e upload
-internacional. Requer os servidores locais e o catálogo Brasil instalado; não chama
-o Gemini. Ver [preparação guiada](Docs/PREPARACAO_GUIADA.md).
+| Job | O que verifica |
+|---|---|
+| `backend` | Suíte pytest. Os testes de dados reais são pulados aqui e rodam em `dados-reais`. |
+| `dados-reais` | Integridade da base Brasil versionada (tamanho e SHA-256 contra `dados/brasil/manifesto.json`) e a suíte completa com os dados reais. Falha se algum teste for pulado. |
+| `frontend` | TypeScript e build de produção. |
+| `ui-conversational` | Jornada conversacional (suíte `conversa`). |
+| `ui-block1` | Blocos 1 a 3 (suíte `bloco1`), interpretação com Gemini simulado (`gemini-simulado`) e jornada do Bloco 1 com a base versionada (`base-versionada`). |
+| `governanca` | Toda mudança de comportamento está em [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md) ou foi declarada sem alteração, e todo roteiro de navegador roda no CI. |
+| `resumo` | Quadro único com o resultado de todos os jobs. Falha se qualquer um falhar. |
 
-Os seis roteiros de navegador (`ui_session_smoke.py`, `ui_carousel_smoke.py`,
-`ui_audit_smoke.py`, `ui_preparation_smoke.py`, `ui_brazil_smoke.py` e `ui_smoke.py`) e
-`ui_integration_smoke.py` antecedem a interface conversacional e já falhavam no commit
-`a202be1`; não fazem parte da CI. Após `npm run build`, podem ser executados contra
-`python backend/tests/serve_ui_offline.py` (build + API, sem transporte externo de IA),
-com `ADT_UI_URL=http://127.0.0.1:18000/`; os dois últimos exigem `ADT_REAL_DATA_DIR`.
-`python backend/tests/ui_integration_smoke.py` percorre a conversa pelo backend real, com
-transporte Gemini simulado: inicie antes um processo novo de
-`python backend/tests/serve_ui_fake_gemini.py` (porta 18200) a cada execução.
+As jornadas de navegador rodam pelo executor único `backend/tests/run_ui_checks.py`. Ele prepara
+os catálogos, sobe e encerra os servidores locais, roda cada roteiro isolado e, no final, lista
+o resultado de todos. Uma falha não esconde as seguintes. Um push novo no mesmo ramo cancela a
+execução anterior do CI, e o resultado exibido é sempre o do estado mais recente. Medições de
+tempo (`backend/tests/bench_*.py`) ficam fora do CI.
+
+Os roteiros de navegador anteriores à interface conversacional foram movidos para
+[`backend/tests/legado/`](backend/tests/legado/README.md). Lá estão o motivo, o mapa do que
+cobriam e as lacunas que ainda precisam de roteiros novos. A preparação em três etapas continua
+descrita em [preparação guiada](Docs/PREPARACAO_GUIADA.md).
 
 ## Ponte semântica e habilitação de análises
 
@@ -351,14 +352,9 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos sem copiá-los para o Git e verificam seus hashes antes e depois. Sem a variável, os 23 testes reais são omitidos. Para repetir o gate de Densidade no Chrome instalado, mantenha Python e Vite ativos e execute:
+Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 29 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
 
-```powershell
-py -m pip install -r backend/requirements-ui.txt
-py backend/tests/ui_smoke.py
-```
-
-O teste importa a base real, confirma o contexto, resolve os homônimos, executa pela interface, baixa o CSV e confere cada linha contra o original usando Decimal. Evidência resumida e capturas ficam em `.local/ui-validation/`, ignorada pelo Git.
+O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a jornada pelo navegador com a base versionada roda na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
 
 ## Referência geográfica mais próxima (Bloco 2, Etapa 1)
 

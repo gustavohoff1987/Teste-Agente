@@ -102,6 +102,15 @@ def test_unsupported_format_reported():
     assert "CSV, XLS ou XLSX" in response.json()["detail"]
 
 
+def test_structurally_inconsistent_csv_is_rejected_with_the_line():
+    """Linha com campos a mais nunca é absorvida nem deslocada em silêncio (antes coberto só no navegador legado)."""
+    for rows in (b"Municipality;Year;Count\nA;2024;10;999\nB;2024;20\n", b"Municipality;Year;Count\nA;2024;10\nB;2024\n"):
+        response = client.post("/api/inspect", files={"file": ("quebrado.csv", rows)})
+        assert response.status_code == 422, response.text
+        line = 2 if b";999" in rows else 3
+        assert f"CSV inconsistente na linha {line}" in response.json()["detail"]
+
+
 def test_health_before_file_upload():
     response = client.get("/api/health")
     assert response.status_code == 200

@@ -193,6 +193,10 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   camada e limitações (`metadata.representacao` do resultado). Faixa “Resultado histórico (não
   vigente no contexto atual)”; resultado invalidado fica só para consulta, sem reutilização da
   seleção. A compatibilidade de fonte e camada segue a regra existente (`compatible`).
+  - **Atualização (15/10/2026, commit `dbaa0bd`):** a lista "Histórico de resultados" e o controle de
+    invalidação saíram da interface. A reconstrução descrita acima continua valendo para o resultado
+    atual, para a retomada e para as competências calculadas. Não há mais como invalidar pela
+    interface. Ver [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
 - **Competências calculadas:** navegação entre resultados já existentes do mesmo pedido que diferem
   só no período. Para esse agrupamento, opção desmarcada ou vazia equivale a opção ausente; o estado
   “vigente” continua exigindo a chave exata. Nenhum resultado é fabricado.

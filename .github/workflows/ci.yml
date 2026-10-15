@@ -3,117 +3,169 @@ on:
   push:
     branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais]
   pull_request:
+
+# Um push novo no mesmo ramo cancela a execução anterior. Assim, commits intermediários não
+# deixam falhas que ninguém vai ler, e o resultado exibido é sempre o do estado mais recente.
+# Nenhuma verificação se perde: a governança confere todos os commits desde a vigência da regra.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash  # bash -eo pipefail: a falha de qualquer comando de um pipe falha o passo
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: pip install -r backend/requirements-test.txt
-      - run: cd backend && python -m pytest -q
+      - run: cd backend && python -m pytest -q -rs
+
+  dados-reais:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install -r backend/requirements-test.txt
+      - name: Integridade da base Brasil versionada (tamanho e SHA-256 conferidos com o manifesto)
+        run: |
+          python backend/brazil_data.py diagnostico | tee "$RUNNER_TEMP/integridade.json"
+          python - "$RUNNER_TEMP/integridade.json" <<'PY'
+          import json, sys
+          estado = json.load(open(sys.argv[1], encoding="utf-8"))
+          if estado.get("modo") != "repositorio" or estado.get("integridade") != "verificada":
+              print("::error title=Base Brasil versionada::integridade não verificada: " + str(estado.get("motivo")))
+              sys.exit(1)
+          PY
+      - name: Suíte completa com os dados reais (nenhum teste pode ser pulado)
+        env:
+          ADT_REAL_DATA_DIR: ${{ github.workspace }}
+        run: |
+          cd backend
+          python -m pytest -q -rs | tee "$RUNNER_TEMP/pytest-dados-reais.log"
+          if grep -qE "[0-9]+ skipped" "$RUNNER_TEMP/pytest-dados-reais.log"; then
+            echo "::error title=Testes pulados::Com a base versionada nenhum teste pode ser pulado; veja as linhas SKIPPED acima."
+            exit 1
+          fi
+
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
-      - run: npm install
+      - run: npm ci
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
 
+  # As jornadas de navegador rodam pelo executor único (backend/tests/run_ui_checks.py), o mesmo
+  # comando usado na máquina local. Cada roteiro roda isolado: uma falha não esconde as seguintes,
+  # e o resumo da execução lista o resultado de cada um.
   ui-conversational:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - run: pip install -r backend/requirements-ui.txt
-      - run: npm install
+      - run: npm ci && npm run build
         working-directory: frontend
-      - name: Install synthetic dual-source Brazilian catalog
-        run: python backend/tests/prepare_ui_brazil_catalog.py
-      - name: Start local services and run conversational browser regression
-        run: |
-          # Catálogo sintético explicitamente escolhido: pasta e versão fixadas juntas.
-          export ADT_BRASIL_DATA_VERSION="$(python backend/brazil_data.py versao /tmp/adt-brazil-synthetic)"
-          (cd backend && ADT_BRASIL_DATA_DIR=/tmp/adt-brazil-synthetic uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/adt-backend.log 2>&1) &
-          (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/adt-frontend.log 2>&1) &
-          python - <<'PY'
-          import time
-          import urllib.request
-          for url in ["http://127.0.0.1:8000/api/health", "http://127.0.0.1:5173"]:
-              for _ in range(50):
-                  try:
-                      with urllib.request.urlopen(url, timeout=2) as response:
-                          if response.status == 200:
-                              break
-                  except Exception:
-                      time.sleep(0.3)
-              else:
-                  raise SystemExit("Local service did not start: " + url)
-          PY
-          cd backend && ADT_BROWSER_CHANNEL=chrome python tests/ui_conversational_smoke.py
+      - name: Jornada conversacional (catálogo sintético, sem Gemini)
+        env:
+          ADT_BROWSER_CHANNEL: chrome
+        run: python backend/tests/run_ui_checks.py --suite conversa
 
   ui-block1:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - run: pip install -r backend/requirements-ui.txt
       - run: python -m playwright install --with-deps chrome
       - run: npm ci && npm run build
         working-directory: frontend
-      - run: python backend/tests/prepare_block1_catalog.py /tmp/adt-block1
-      - name: Validate selection, history, exploration, nearest reference, combined criteria and maps without Gemini
+      - name: Blocos 1 a 3, Gemini simulado e jornada com a base Brasil versionada
+        env:
+          ADT_BROWSER_CHANNEL: chrome
+        run: python backend/tests/run_ui_checks.py --suite bloco1 --suite gemini-simulado --suite base-versionada
+
+  governanca:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # a regra confere todos os commits desde a vigência
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Mudanças de comportamento registradas e jornadas de navegador no CI
+        run: python .github/scripts/verificar_governanca.py
+
+  # Quadro único com o resultado de cada verificação. Falha se qualquer uma falhar, de modo que
+  # basta exigir "resumo" na proteção do ramo para exigir todas.
+  resumo:
+    if: ${{ !cancelled() }}
+    needs: [backend, dados-reais, frontend, ui-conversational, ui-block1, governanca]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Quadro de resultados
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+          COMMIT: ${{ github.sha }}
         run: |
-          ADT_BRASIL_DATA_DIR=/tmp/adt-block1 python backend/tests/serve_ui_offline.py > /tmp/adt-block1.log 2>&1 &
-          python - <<'PY'
-          import time, urllib.request
-          for _ in range(50):
-              try:
-                  urllib.request.urlopen('http://127.0.0.1:18000/api/health', timeout=2)
-                  break
-              except OSError:
-                  time.sleep(.3)
-          else:
-              raise SystemExit('Servidor não iniciou')
+          python3 - <<'PY'
+          import json, os, sys
+          nomes = {
+              "backend": "Backend (pytest)",
+              "dados-reais": "Base Brasil versionada: integridade e testes com dados reais",
+              "frontend": "Frontend: TypeScript e build",
+              "ui-conversational": "Navegador: jornada conversacional",
+              "ui-block1": "Navegador: Blocos 1 a 3, Gemini simulado e base versionada",
+              "governanca": "Governança: registro de comportamento e jornadas no CI",
+          }
+          rotulo = {"success": "✅ passou", "failure": "❌ falhou", "cancelled": "⏹️ cancelado", "skipped": "⏭️ não executado"}
+          resultados = json.loads(os.environ["RESULTADOS"])
+          linhas = ["| Verificação | Resultado |", "|---|---|"]
+          problemas = []
+          for job, nome in nomes.items():
+              estado = resultados.get(job, {}).get("result", "ausente")
+              linhas.append(f"| {nome} | {rotulo.get(estado, estado)} |")
+              if estado != "success":
+                  problemas.append(nome)
+                  print(f"::error title=Verificação sem sucesso::{nome}: {estado}")
+          texto = (f"### Resumo do CI · commit {os.environ['COMMIT'][:7]}\n\n" + "\n".join(linhas) + "\n\n" +
+                   (f"**{len(problemas)} verificação(ões) sem sucesso.** Corrija antes de seguir com novas mudanças."
+                    if problemas else "**Todas as verificações passaram.**") + "\n")
+          print(texto)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write(texto)
+          sys.exit(1 if problemas else 0)
           PY
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_smoke.py
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_block1_regression.py
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_nearest_smoke.py
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_criteria_smoke.py
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_map_smoke.py
-          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_visibility_diagnostic.py
-      - name: Validate interpretation through a simulated Gemini transport (no provider calls)
-        run: |
-          # Processo novo: o servidor bloqueia rede externa e substitui apenas o transporte Gemini.
-          ADT_BRASIL_DATA_DIR=/tmp/adt-block1 ADT_FAKE_GEMINI_LOG=/tmp/adt-fake-gemini.jsonl \
-            python backend/tests/serve_ui_fake_gemini.py > /tmp/adt-fake-gemini.log 2>&1 &
-          python - <<'PY'
-          import time, urllib.request
-          for _ in range(50):
-              try:
-                  urllib.request.urlopen('http://127.0.0.1:18200/api/health', timeout=2)
-                  break
-              except OSError:
-                  time.sleep(.3)
-          else:
-              raise SystemExit('Servidor não iniciou')
-          PY
-          ADT_UI_URL=http://127.0.0.1:18200/ ADT_FAKE_GEMINI_LOG=/tmp/adt-fake-gemini.jsonl python backend/tests/ui_block1_integration.py
-      - name: Server logs
-        if: failure()
-        run: tail -n 80 /tmp/adt-block1.log /tmp/adt-fake-gemini.log || true

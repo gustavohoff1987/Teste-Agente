@@ -139,6 +139,11 @@ python backend/tests/ui_brazil_smoke.py
 python backend/tests/ui_smoke.py
 ```
 
+> **Atualização (15/10/2026):** esses quatro roteiros usam a interface anterior ao redesenho
+> conversacional e foram movidos para `backend/tests/legado/`. O README de lá traz o mapa do que
+> cobriam e das lacunas. As verificações vigentes, inclusive com a base Brasil versionada, rodam
+> no CI e pelo executor `backend/tests/run_ui_checks.py` (ver a seção "Testes" do README).
+
 Os testes gerais usam fontes sintéticas e não precisam do catálogo real. Os testes
 reais são opt-in e comparam os hashes dos originais antes e depois. O teste de upload
 municipal confere o CSV exportado com Decimal, linha por linha. O teste do catálogo

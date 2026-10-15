@@ -10,6 +10,7 @@ Data: 15/10/2026. Branch existente: `feat/novos-blocos-incrementais`. Escopo: re
 - A tabela de distribuição abre ordenada por posição geral crescente: grupos inferiores antes dos superiores. Busca e filtros aplicam-se imediatamente. A exportação de territórios usa a ordem exibida e exporta todo o filtro.
 - O backend emite `Posição geral` e `Posição no quartil/quintil/decil` (ou `Posição na faixa` para os demais valores admitidos pela API), para cada universo período/categoria. Empates recebem a mesma menor posição (1, 1, 3); classificação existente, cortes e cálculos de indicadores não foram modificados.
 - Na primeira análise de distribuição, o painel de histórico com uma única entrada não aparece; com vários resultados continua acessível. A situação técnica “válido/vigente” não fica exposta no resultado atual de distribuição; o histórico e as regras de invalidação seguem intactos.
+  - **Superado no mesmo dia pelo commit `dbaa0bd`:** o painel "Histórico de resultados" e o controle de invalidação foram retirados da interface em todas as análises. O histórico interno da sessão permanece (reaproveitamento, retomada e competências calculadas). Detalhes em [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
 - O bloco “Método e limitações” exibe uma explicação acessível na distribuição, mantendo as notas técnicas originais em um controle expansível. A exportação JSON preserva notas e metadados originais.
 
 ## Limites e preservação

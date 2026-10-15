@@ -33,6 +33,10 @@ permitem tentar novamente.
 
 ## Verificações direcionadas
 
+> **Atualização (15/10/2026):** `ui_preparation_smoke.py` usa a interface anterior ao redesenho
+> conversacional e foi movido para `backend/tests/legado/`. A descrição abaixo registra o que ele
+> verificava. A lacuna remanescente está listada no README daquela pasta.
+
 `python backend/tests/ui_preparation_smoke.py` usa o catálogo local, respostas de
 status da conversa simuladas e bloqueia chamadas de interpretação. Confere seleção,
 etapas, pendência única de código, execução de densidade (5.570 municípios no recorte
