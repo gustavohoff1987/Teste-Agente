@@ -96,6 +96,7 @@ jobs:
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_nearest_smoke.py
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_criteria_smoke.py
           ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_map_smoke.py
+          ADT_UI_URL=http://127.0.0.1:18000/ python backend/tests/ui_visibility_diagnostic.py
       - name: Validate interpretation through a simulated Gemini transport (no provider calls)
         run: |
           # Processo novo: o servidor bloqueia rede externa e substitui apenas o transporte Gemini.
