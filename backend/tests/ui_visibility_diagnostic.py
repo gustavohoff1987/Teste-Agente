@@ -33,6 +33,10 @@ def start(page, source: Path, operation: str):
     chat = page.locator("#assistente")
     page.get_by_label("Importar arquivo de dados").set_input_files(str(source))
     expect(chat.get_by_text("Recebi sua base", exact=False)).to_be_visible(timeout=60000)
+    if operation == "Distribuição":
+        # O carrossel mostra um card por vez: Densidade → Quantitativos → Distribuição.
+        for _ in range(2):
+            chat.get_by_role("button", name="Próxima análise", exact=True).click()
     chat.get_by_role("button", name="Selecionar análise: " + operation, exact=True).click()
     inline = chat.locator("#preparacao-conversacional")
     inline.get_by_role("combobox", name="Unidade de contagem").select_option("pessoas")
