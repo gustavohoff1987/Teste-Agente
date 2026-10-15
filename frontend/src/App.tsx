@@ -1402,7 +1402,7 @@ function App() {
             </button>
           </div>}
           {result && <div className="pt-6">
-            <h3 className="text-xl font-bold text-ink">{result.title}</h3>
+            <h3 data-testid="result-title" className="text-xl font-bold text-ink">{result.title}</h3>
             <p data-testid="result-status" className={resultOperation === "distribution" && resultStatus === "VIGENTE" ? "sr-only" : "mt-2 text-xs font-semibold text-slate-600"}>
               {resultOperation === "distribution" && resultStatus === "VIGENTE" ? "Resultado disponível" :
                 resultStatus === "INVALIDADO" ? "Resultado invalidado: " + historical?.invalidReason :

@@ -66,7 +66,8 @@ def main():
             result = event.value.json()
             results.append(result)
             print("Resultado: " + result["title"] + " / " + str(result["total_rows"]) + " linhas", flush=True)
-            expect(page.locator("#resultados").get_by_role("heading", name=result["title"], exact=True)).to_be_visible()
+            # Identificador estável: o nome do tipo de análise pode repetir o título (ex.: "Evolução temporal").
+            expect(page.locator("#resultados").get_by_test_id("result-title")).to_have_text(result["title"])
             return result
 
         def shot(name):
@@ -187,7 +188,7 @@ def main():
         button.click()
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         expect(board.get_by_test_id("result-status")).to_contain_text("válido e vigente")
-        expect(board.get_by_role("heading", name=aggregate["title"], exact=True)).to_be_visible()
+        expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
         assert len(analyses) == calls, "a retomada exata não deve recalcular"
         shot("block1-06-retomada.png")
 
