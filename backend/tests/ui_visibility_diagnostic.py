@@ -41,10 +41,11 @@ def start(page, source: Path, operation: str):
     inline = chat.locator("#preparacao-conversacional")
     inline.get_by_role("combobox", name="Unidade de contagem").select_option("pessoas")
     inline.get_by_label("Filtrar por período").select_option("202406")
+    if operation == "Distribuição":
+        # A confirmação do denominador só aparece após selecionar densidade.
+        inline.get_by_role("combobox", name="Indicador", exact=True).select_option("density")
     inline.get_by_label("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").check()
     inline.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados.").check()
-    if operation == "Distribuição":
-        inline.get_by_role("combobox", name="Indicador", exact=True).select_option("density")
     inline.get_by_role("button", name="Confirmar correspondências").click()
     return inline
 
