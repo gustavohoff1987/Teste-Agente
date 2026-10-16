@@ -1,5 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 
+import ResultTable, { type TablePresentation } from "./ResultTable";
+
 type Row = Record<string, unknown>;
 type Item = { id: string; territorio: string };
 export type CriteriaMetadata = {
@@ -32,10 +34,11 @@ function List({ title, items }: { title: string; items: Item[] }) {
 // Filtro, seleção visual e painel de exploração podem vir do painel do resultado (estado visual
 // compartilhado com mapa e gráficos); sem eles, o componente mantém o próprio filtro.
 export default function CriteriaResults({ rows, meta, onExport, onSelection, onReferences, reusable, disabled, filter: shared, onFilter,
-  mySelection, onToggle, explorer }: {
+  mySelection, onToggle, explorer, onTablePresentation }: {
   rows: Row[]; meta: CriteriaMetadata; onExport: (rows: Row[]) => void; onSelection: (ids: string[]) => void;
   onReferences: (ids: string[]) => void; reusable: boolean; disabled: boolean; filter?: string; onFilter?: (filter: Filter) => void;
   mySelection?: Set<string>; onToggle?: (id: string) => void; explorer?: ReactNode;
+  onTablePresentation?: (state: TablePresentation) => void;
 }) {
   const hasTree = !!meta.contagens;
   const selected = useMemo(() => new Set((meta.selecao?.membros || []).map(item => item.id)), [meta]);
@@ -79,20 +82,12 @@ export default function CriteriaResults({ rows, meta, onExport, onSelection, onR
     <div id="tabela-resultado" className="overflow-hidden rounded-2xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <h4 className="text-sm font-bold text-ink">{LABEL[filter]}</h4>
-        <span className="text-xs text-slate-400">{visible.length} linhas · até 150 exibidas</span>
-        <button type="button" disabled={!visible.length} onClick={() => onExport(visible)} className={button}>Exportar este recorte (CSV)</button>
+        <span className="text-xs text-slate-400">{visible.length} registros</span>
+
       </div>
-      {visible.length ? <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
-        <thead className="sticky top-0 bg-slate-50"><tr>{columns.map(key => <th key={key}>{key}</th>)}</tr></thead>
-        <tbody>{visible.slice(0, 150).map((row, index) => {
-          const id = idOf(row), chosen = !!mySelection?.has(id);
-          return <tr key={index} aria-selected={onToggle ? chosen : undefined} tabIndex={onToggle ? 0 : undefined}
-            onClick={onToggle ? () => onToggle(id) : undefined}
-            onKeyDown={onToggle ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
-            className={(onToggle ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
-            {columns.map(key => <td key={key}>{show(row[key])}</td>)}</tr>;
-        })}</tbody>
-      </table></div> : <p className="px-4 py-6 text-xs text-slate-500">Nenhum território nesta condição.</p>}
+      <ResultTable rows={visible} columns={columns.map(key => ({key, render: show}))} idOf={idOf}
+        selected={mySelection} onToggle={onToggle} onExport={onExport} exportLabel="Exportar este recorte (CSV)"
+        onPresentation={onTablePresentation}/>
     </div>
     {meta.faixas && <div className="rounded-xl border border-line p-3 text-xs">
       <h4 className="font-bold text-ink">Faixas ({meta.faixas.convencao})</h4>

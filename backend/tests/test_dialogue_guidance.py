@@ -152,3 +152,29 @@ def test_previous_period_requires_explicit_conversational_reference(monkeypatch)
     assert independent.status_code == 200, independent.text
     assert independent.json()["proposal"]["period"] == ""
     assert independent.json()["proposal"]["category"] == ""
+
+
+def test_model_can_return_competing_anchored_interpretations_without_choosing(monkeypatch):
+    async def provider(*_args):
+        return {"operation":"none","indicator":"none","period":"","category":"","territory":"",
+                "intent":"ANALITICO","topic":"none","candidates":[
+                    {"operation":"density","indicator":"density","anchor":"perfil dos municipios"},
+                    {"operation":"counts","indicator":"quantity","anchor":"perfil dos municipios"}]}
+    monkeypatch.setattr(llm_bridge,"_call_gemini",provider)
+    response = client.post("/api/llm/interpret",json={"message":"Analise o perfil dos municipios"})
+    assert response.status_code == 200, response.text
+    body=response.json()
+    assert body["proposal"]["operation"] is None and body["executed"] is False
+    assert body["clarification"]["code"] == "AMBIGUIDADE_MATERIAL"
+    assert {c["operation"] for c in body["clarification"]["choices"]} == {"density","counts"}
+    assert len(body["interpretations"]) == 2
+
+
+def test_unanchored_interpretation_alternatives_are_rejected(monkeypatch):
+    async def provider(*_args):
+        return {"operation":"none","indicator":"none","period":"","category":"","territory":"",
+                "intent":"ANALITICO","topic":"none","candidates":[
+                    {"operation":"density","indicator":"density","anchor":"pedido inexistente"}]}
+    monkeypatch.setattr(llm_bridge,"_call_gemini",provider)
+    result = client.post("/api/llm/interpret",json={"message":"Analise o perfil dos municipios"})
+    assert result.status_code == 502 and "ancorada" in result.json()["detail"]

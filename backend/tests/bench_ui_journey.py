@@ -20,8 +20,8 @@ from ui_support import URL, offline
 LONG_TASKS = """() => { window.__long = []; new PerformanceObserver(list => {
   for (const entry of list.getEntries()) window.__long.push(entry.duration); }).observe({entryTypes: ['longtask']}); }"""
 TOGGLE = """async (code) => {
-  const box = [...document.querySelectorAll('#resultados details input[type=checkbox]')]
-    .find(input => input.parentElement.textContent.includes('[' + code + ']'));
+  const box = [...document.querySelectorAll('#tabela-resultado tbody tr')]
+    .find(row => row.textContent.includes('[' + code + ']'));
   const start = performance.now(); box.click();
   await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   return performance.now() - start;
@@ -144,9 +144,6 @@ def main():
 
         def restore():
             board = page.locator("#resultados")
-            details = board.locator("details", has=page.locator("summary", has_text="Consultar solicitação e parâmetros"))
-            if not details.evaluate("element => element.open"):
-                details.locator("summary").click()
             board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
             button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
             expect(button).to_be_enabled(timeout=120000)
@@ -155,9 +152,10 @@ def main():
         step("8 retomada (reaproveitada)", restore)
         page.wait_for_timeout(1500)
         board = page.locator("#resultados")
-        members = board.locator("details", has=page.locator("summary", has_text="Selecionar territórios deste resultado"))
-        if not members.evaluate("element => element.open"):
-            members.locator("summary").click()
+        # Mede seleção visual na tabela de um resultado territorial já existente.
+        previous = page.get_by_role("region", name="Histórico de análises")
+        previous.locator("summary").click()
+        previous.get_by_role("button", name="Abrir análise: Evolução temporal", exact=True).click()
         toggles = []
         for code in ("130420", "130420"):
             toggles.append(page.evaluate(TOGGLE, code))

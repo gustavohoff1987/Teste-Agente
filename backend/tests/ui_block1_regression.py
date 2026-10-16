@@ -63,7 +63,6 @@ def main():
         result = page.locator("#resultados")
         expect(page.get_by_role("navigation", name="Histórico de resultados")).to_have_count(0)
         expect(result.locator(".data-table tbody tr")).to_have_count(1)
-        result.get_by_text("Consultar solicitação e parâmetros", exact=True).click()
         result.get_by_role("button", name="Retomar parâmetros deste resultado").click()
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
         expect(result.get_by_test_id("result-status")).to_contain_text("válido e vigente")

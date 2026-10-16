@@ -168,8 +168,8 @@ validação empírica com os dados brasileiros reais, ainda não executada.
 ### Atualização de interface — 15/10/2026: análises anteriores
 
 O histórico interno continua temporário, sem login ou armazenamento permanente. Foi restituído ao
-usuário um acesso discreto **“Análises anteriores”**, recolhido por padrão e exibido quando existem
-ao menos duas análises na sessão. A lista apresenta os resultados do mais recente ao mais antigo,
+usuário um acesso discreto **“Histórico de análises”**, recolhido por padrão e sempre acessível no
+topo do painel de análise, inclusive antes do primeiro cálculo. A lista apresenta os resultados do mais recente ao mais antigo,
 destaca aquele que está aberto e permite reabrir os demais sem recalcular.
 
 Reabrir um resultado não restaura silenciosamente suas opções de análise. A ação distinta
@@ -177,3 +177,16 @@ Reabrir um resultado não restaura silenciosamente suas opções de análise. A 
 fonte e da camada geográfica. Não foi restaurado o controle de invalidação. O teste
 `ui_block1_smoke.py` confere a navegação sem novas chamadas de análise tanto com dados sintéticos
 quanto com a base Brasil versionada (62 municípios do Amazonas).
+
+
+## Ajustes de exploração dos resultados (15/10/2026)
+
+A solicitação e a ação “Retomar parâmetros deste resultado” continuam acessíveis, sem o antigo painel com JSON. Os metadados completos são baixados em “Método e parâmetros”. O checklist “Selecionar territórios deste resultado” foi substituído pela seleção nas linhas da tabela, sincronizada com mapa e barras; “Usar seleção na próxima análise” aplica explicitamente os IDs à preparação, sem executar. A retomada permanece coberta por `ui_block1_smoke.py`, `ui_block1_regression.py`, `ui_nearest_smoke.py` e `ui_criteria_smoke.py`; a reutilização pela tabela é coberta por `ui_block1_smoke.py` e `ui_map_smoke.py`.
+
+As tabelas principais e as competências da série usam filtros por coluna, ordenação visual e páginas de 150 registros. O CSV superior preserva o resultado integral; o CSV da tabela acompanha todo o filtro. As barras extensas e as séries paginadas são descritas em [Bloco 3](BLOCO3_MAPAS_VISUALIZACOES.md). O painel recolhido “Histórico de análises” continua disponível na sessão; os textos técnicos removidos anteriormente e o controle de invalidação não reaparecem.
+
+## Continuidade da conversa e painéis (16/10/2026)
+
+No computador, chat e compositor permanecem à esquerda; seleção, preparação e resultado ficam à direita, com rolagens independentes. “Ver preparação” e “Ver resultado” deslocam apenas o painel de análise. Em telas estreitas, os painéis se empilham dentro da altura disponível. O histórico fica no topo e não depende de haver dois resultados. Consultar um cálculo anterior não executa outro nem restaura parâmetros silenciosamente.
+
+Pedidos comparativos com nomes explícitos preparam diretamente o conjunto mencionado; falta de outro município gera pergunta específica. A resposta seguinte completa a seleção pendente da mesma fonte. Alternativas semânticas materialmente diferentes exigem escolha, conforme [conversação incremental](CONVERSACAO_INCREMENTO_FN.md). A jornada `ui_semantic_continuity.py`, registrada em `run_ui_checks.py`, verifica esses fluxos com provedor simulado, ausência de cálculo implícito, histórico desde o primeiro resultado e compositor visível em 1.280, 768 e 390 px.

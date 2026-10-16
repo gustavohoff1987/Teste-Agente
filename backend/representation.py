@@ -10,6 +10,7 @@ recebe BLQ-DAD com o motivo (RQ-REP-07); tabela e gráficos continuam disponíve
 """
 import re
 
+from brazil_catalog_profile import curated_profile
 from combined_criteria import needs as criteria_needs
 from data_contract import ConfirmationRequired, canonical_crs, count_unit_label, scoped
 from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
@@ -72,6 +73,8 @@ def _indicators(operation, data, mapping, options, criteria):
             out.append({key: value for key, value in item.items() if value is not None})
 
     count_unit = count_unit_label(mapping, options)
+    if count_unit == "pessoas" and options.get("fts_scope_confirmed") is True:
+        count_unit = "profissionais"
     if operation == "criteria":
         add("Resultado", "Resultado dos critérios", "ESTADO", origin="CAP-SUB-01", classes=STATES)
         add("Posição", "Posição na ordenação", "POSICAO", origin="CAP-SUB-02")
@@ -117,6 +120,8 @@ def _series(operation, rows, detail, mapping, options):
     if not value:
         return None
     unit = DENSITY_UNIT if value.startswith("Densidade") else count_unit_label(mapping, options)
+    if unit == "pessoas" and options.get("fts_scope_confirmed") is True:
+        unit = "profissionais"
     return {"tabela": table, "periodo": "Período", "territorio": "Território", "categoria": "Categoria",
             "valor": value, "unidade": unit, "tipo": "CONTINUO" if value.startswith("Densidade") else "CONTAGEM"}
 
@@ -148,6 +153,16 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
     if not mapping.get("latitude") or not mapping.get("longitude"):
         return _unavailable("Latitude e longitude não estão associadas; o mapa exige geometria autorizada.",
                             "COORDENADAS_NAO_ASSOCIADAS", period)
+    # Configuração contextual de apresentação da versão governada Brasil. Não é um
+    # padrão para uploads nem uma declaração sobre o datum original, ausente na fonte.
+    # A decisão do produto autoriza esta premissa somente para desenhar os pontos;
+    # não altera opções, distância, pré-exame ou chave de execução da análise.
+    catalog = frame.attrs.get("catalog") or {}
+    automatic = bool(not options.get("crs") and curated_profile(frame, mapping) and
+                     catalog.get("integridade") == "verificada" and catalog.get("versao") and
+                     catalog.get("versao") == catalog.get("versao_governada"))
+    if automatic:
+        options = {**options, "crs": "SIRGAS2000", "number_format": options.get("number_format") or "decimal_comma"}
     crs = canonical_crs(options.get("crs"))
     if not crs:
         if options.get("crs"):
@@ -188,6 +203,9 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
                             "texto": CONDITION_TEXT.get(condition)})
     complement = coordinates.attrs.get("complemento")
     return {"estado": "DISPONIVEL", "tipo": "PONTOS", "competencia": period, "referencial": crs,
+            "configuracao_apresentacao": {"origem": "configuracao_contextual_base_brasil",
+                "premissa": "SIRGAS2000 somente para apresentação dos pontos; datum não declarado na fonte original",
+                "formato_coordenadas": options.get("number_format")} if automatic else None,
             "fonte": "latitude e longitude da própria base, na competência do resultado",
             "ids": point_ids, "lat": lat, "lon": lon, "complementados": complemented, "sem_geometria": missing,
             "complemento_geografico": {key: complement[key] for key in

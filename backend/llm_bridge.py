@@ -66,7 +66,9 @@ _GUIDANCE = {
     "capabilities": (
         "Posso ajudar com densidade por 1.000 habitantes, quantitativos, distribuição, "
         "comparações territoriais, evolução temporal, agregações, distâncias geodésicas, "
-        "rankings, rotatividade e relatórios. Escolha uma opção no carrossel ou descreva "
+        "rankings, rotatividade, relatórios, referência mais próxima e critérios combinados. "
+        "Os resultados podem ser explorados em tabelas, gráficos e mapas quando há localização disponível. "
+        "Escolha uma opção no carrossel ou descreva "
         "seu objetivo. Cada análise depende dos requisitos disponíveis na sua base."
     ),
     "data": (
@@ -117,7 +119,15 @@ _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL
 _TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none")
 
 
+class InterpretationCandidate(BaseModel):
+    operation: StrictStr
+    indicator: Literal["density", "quantity", "none"]
+    anchor: StrictStr = Field(min_length=2, max_length=200)
+    model_config = {"extra": "forbid"}
+
+
 class ModelInterpretation(BaseModel):
+    candidates: list[InterpretationCandidate] = Field(default_factory=list, max_length=5)
     operation: StrictStr
     indicator: Literal["density", "quantity", "none"]
     period: StrictStr = Field(max_length=100)
@@ -159,10 +169,17 @@ def _local_guidance(message: str) -> str | None:
     text = _text_key(message).strip(" .!?")
     if re.fullmatch(r"(oi|ola|bom dia|boa tarde|boa noite|e ai|hello|hi|hey)", text):
         return _GENERIC_GREETING
+    text = re.sub(r"^(?:ola|oi|bom dia|boa tarde|boa noite)[,! ]+", "", text)
     if re.fullmatch(r"(ajuda|me ajude|o que voce faz|o que este agente faz|o que o agente faz|"
                     r"como funciona o agente|quais analises voce faz|quais analises existem|"
-                    r"o que posso fazer aqui|quais sao as opcoes)", text):
+                    r"o que posso fazer aqui|quais sao as opcoes|"
+                    r"o que (?:e possivel|posso) fazer (?:nessa|nesta|na|aqui nesta) (?:pagina|plataforma)|"
+                    r"o que (?:voce|o agente|este agente) (?:e capaz de fazer|consegue fazer)|"
+                    r"quais (?:sao )?(?:as suas |as |suas )?(?:capacidades|funcionalidades)(?: do agente| desta pagina)?|"
+                    r"para que serve (?:esta|essa) (?:pagina|plataforma))", text):
         return _GUIDANCE["capabilities"] + " " + _GUIDANCE["workflow"]
+    if re.fullmatch(r"(?:muito )?(?:obrigad[oa]|valeu|agradeco)(?: pela ajuda)?", text):
+        return "De nada! Se quiser, podemos explorar outra análise ou conversar sobre os resultados."
     if re.fullmatch(r"(como importar (meus )?dados|como envio meus dados|"
                     r"qual (e a )?estrutura recomendada|como funciona a importacao)", text):
         return _GUIDANCE["data"]
@@ -265,6 +282,10 @@ def _schema() -> dict:
             "period": {"type": "STRING"},
             "category": {"type": "STRING"},
             "territory": {"type": "STRING"},
+            "candidates": {"type": "ARRAY", "maxItems": 5, "items": {"type": "OBJECT", "properties": {
+                "operation": {"type": "STRING", "enum": list(OPERATIONS)},
+                "indicator": {"type": "STRING", "enum": [*INDICATORS, "none"]},
+                "anchor": {"type": "STRING"}}, "required": ["operation", "indicator", "anchor"]}},
             "intent": {"type": "STRING", "enum": list(_INTENTS)},
             "topic": {"type": "STRING", "enum": list(_TOPICS)},
         },
@@ -275,11 +296,19 @@ def _schema() -> dict:
 _SYSTEM = (
     "Você é um intérprete preliminar de pedidos de diagnóstico territorial da "
     "força de trabalho em saúde. Não possui dados, resultados, memória de base ou "
-    "permissão para executar ferramentas. Proponha NO MÁXIMO uma capacidade da "
-    "enumeração do esquema. Retorne JSON válido conforme o esquema. "
+    "permissão para executar ferramentas. Identifique as interpretações materialmente plausíveis "
+    "dentro das capacidades da enumeração. Havendo leituras concorrentes que mudariam a análise, "
+    "registre-as em candidates: cada uma com operation, indicator e anchor, um trecho literal "
+    "da mensagem sanitizada atual que sustenta essa leitura. Não invente alternativas apenas "
+    "para preencher a lista. Com leitura única, use a proposta principal e candidates vazio. "
+    "Com ambiguidade material, deixe operation principal como none. Não confunda uma capacidade "
+    "com seu indicador (distribuição da densidade é uma análise). Retorne JSON válido conforme o esquema. "
     "Identifique período, território ou categoria apenas se estiverem "
     "literalmente explícitos nas mensagens sanitizadas; não fabrique, agregue "
     "ou estabeleça que uma categoria pertence à FTS. "
+    "Reconheça paráfrases e continuidade: comparar, analisar comparativamente ou colocar "
+    "municípios lado a lado propõem comparisons, mesmo se ainda faltar o segundo município. "
+    "Não escolha municípios nem transforme quantidades de municípios em nomes. "
     "Use 'none' quando não houver solicitação analítica clara. "
     "Classifique também a intenção em ANALITICO, SOBRE_O_AGENTE, "
     "CONCEITUAL_DOMINIO ou CONVERSACIONAL; selecione o tópico da enumeração "
@@ -371,6 +400,40 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         raw = ModelInterpretation.model_validate(raw).model_dump()
     except ValidationError as exc:
         raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.") from exc
+    candidates = raw.pop("candidates", [])
+    interpretations = []
+    for candidate in candidates:
+        anchor = candidate["anchor"]
+        if not _anchor(anchor, sanitized[-1]):
+            raise LLMError(502, "A interpretação alternativa não está ancorada no pedido atual.")
+        validated = _validate({"operation": candidate["operation"], "indicator": candidate["indicator"],
+            "intent":"ANALITICO", "topic":"none", "period":raw.get("period", ""),
+            "category":raw.get("category", ""), "territory":raw.get("territory", "")}, sanitized)
+        proposal = validated["proposal"]
+        if proposal["operation"] is None:
+            raise LLMError(502, "Interpretação alternativa sem capacidade autorizada.")
+        if not any(item["proposal"]["operation"] == proposal["operation"] and
+                   item["proposal"]["indicator"] == proposal["indicator"] for item in interpretations):
+            interpretations.append({"proposal":proposal, "anchor":anchor})
+    if len(interpretations) > 1:
+        choices = []
+        for item in interpretations:
+            proposal = item["proposal"]
+            label = OPERATIONS[proposal["operation"]]
+            if proposal["indicator"]: label += " · " + INDICATORS[proposal["indicator"]]
+            choices.append({"label":label, "draft":"Quero " + OPERATIONS[proposal["operation"]].lower() + ".",
+                            "operation":proposal["operation"], "indicator":proposal["indicator"]})
+        prompt = "Seu pedido permite mais de uma leitura. Qual destas análises você deseja realizar?"
+        return {"reply":prompt, "proposal":{"operation":None,"indicator":None,"period":"","category":"","territory":""},
+                "requires_confirmation":True,"executed":False,"origin":"INTERPRETACAO_LLM",
+                "note":"Interpretações concorrentes ancoradas no pedido; aguardando escolha do usuário.",
+                "interpretations":interpretations,
+                "clarification":{"code":"AMBIGUIDADE_MATERIAL","prompt":prompt,"choices":choices,
+                                 "reason":"As leituras concorrentes mudam a capacidade ou o indicador.",
+                                 "source":"CATALOGO_LOCAL","answered":False}}
+    if len(interpretations) == 1:
+        proposal = interpretations[0]["proposal"]
+        raw.update(operation=proposal["operation"],indicator=proposal["indicator"] or "none",intent="ANALITICO",topic="none")
     operation = raw.get("operation")
     indicator = raw.get("indicator")
     if operation not in (*OPERATIONS, "none") or indicator not in (*INDICATORS, "none"):

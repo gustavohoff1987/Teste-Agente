@@ -126,13 +126,14 @@ def main():
         tab = board.get_by_role("tab", name="Mapa (indisponível)")
         expect(tab).to_be_visible()  # o motivo fica a um clique, sem esconder tabela e gráficos
         tab.click()
-        expect(board.get_by_text("Mapa indisponível (BLQ-DAD)", exact=True)).to_be_visible()
-        board.get_by_label("Referencial geodésico para o mapa").select_option("SIRGAS2000")
-        board.get_by_label("Separador decimal das coordenadas para o mapa").select_option("decimal_point")
+        expect(board.get_by_text("Mapa indisponível para este resultado", exact=True)).to_be_visible()
+        expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
         calls = len(analyses)
-        board.get_by_role("button", name="Aplicar à preparação", exact=True).click()
-        expect(page.get_by_text("Execute novamente para incluir o mapa", exact=False)).to_be_visible()
-        assert len(analyses) == calls  # declarar não executa análise
+        inline.get_by_text("Ajustar condições específicas, outras confirmações ou situações excepcionais", exact=True).click()
+        inline.get_by_label("Referencial das coordenadas importadas", exact=True).select_option("SIRGAS2000")
+        inline.get_by_label("Separador decimal das coordenadas importadas", exact=True).select_option("decimal_point")
+        confirm()
+        assert len(analyses) == calls  # configurar a origem não executa análise
 
         # 2. Com geometria autorizada: modelo desenhado idêntico ao resultado do motor.
         density = execute()
@@ -238,20 +239,20 @@ def main():
         # 6. Gráficos: barras dos territórios selecionados (valores do motor), sem posições.
         board.get_by_role("tab", name="Gráficos").click()
         expect(board.get_by_label("Indicador das barras")).to_have_value("Quantidade")  # indicador compartilhado com o mapa
-        bars = board.get_by_role("figure", name="Quantitativo (pessoas) · territórios selecionados")
+        bars = board.get_by_role("figure", name="Quantitativo (profissionais) · territórios selecionados")
         expect(bars).to_be_visible()
         for label in ("DELTA [110004]", "ALFA [110001]", "BETA [110002]"):
             expect(bars).to_contain_text(label)
         board.get_by_label("Ordem das barras").select_option("valor")
         expect(board.get_by_text("Ordenação apenas visual: não constitui posição de ranking nem resultado.", exact=True)).to_be_visible()
+        expect(board.get_by_role("button", name="Imagem dos gráficos (PNG)", exact=True)).to_have_count(0)
+        board.get_by_role("tab", name="Mapa", exact=True).click()
+        expect(board.get_by_role("button", name="Imagem do mapa (PNG)", exact=True)).to_have_count(0)
+        expect(board.get_by_role("button", name="Imprimir / PDF", exact=True)).to_be_enabled()
         with page.expect_download() as download:
-            board.get_by_role("button", name="Imagem dos gráficos (PNG)").click()
-        assert Path(download.value.path()).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-        board.get_by_role("tab", name="Mapa").click()
-        with page.expect_download() as download:
-            board.get_by_role("button", name="Imagem do mapa (PNG)").click()
-        png = Path(download.value.path()).read_bytes()
-        assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 20000
+            board.get_by_role("button", name="Método e parâmetros", exact=True).click()
+        exported = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
+        assert exported["representacao"]["geometria"] == geometry
 
         # 7. Reutilização da seleção: só prepara a próxima análise; nada é executado.
         calls = len(analyses)
@@ -275,7 +276,7 @@ def main():
         expect(periods.get_by_role("button")).to_have_count(2)
         periods.get_by_role("button", name="06/2024").click()
         page.wait_for_function("window.__adtMapModel.resultId === '" + density["result_id"] + "'")
-        expect(board.get_by_text("Resultado histórico (não vigente no contexto atual)", exact=False)).to_be_visible()
+        expect(board.get_by_text("Você está consultando uma análise anterior", exact=False)).to_be_visible()
 
         # 9. A troca de competência preserva os dados e a geometria do resultado selecionado.
         assert model()["resultId"] == density["result_id"]
@@ -343,6 +344,8 @@ def main():
         page.emulate_media(media="screen")
 
         # 13. Celular e redimensionamento: sem rolagem horizontal; o mapa acompanha a largura.
+        # Após sair da impressão, aguardar o desenho na largura de tela antes de medir.
+        page.wait_for_function("Math.abs(window.__adtMapStats.slice(-1)[0].w - document.querySelector('[data-testid=territory-map]').getBoundingClientRect().width) < 2")
         desktop = page.evaluate("window.__adtMapStats.slice(-1)[0].w")
         page.set_viewport_size({"width": 390, "height": 844})
         page.wait_for_timeout(400)

@@ -33,6 +33,21 @@ def main():
         expect(assistant.locator("#dados")).to_be_visible()
         assert page.locator("#preparacao").count() == 0
 
+        # Perguntas antes da escolha da fonte recebem conteúdo, sem repetir a apresentação.
+        for question, fragment in (
+            ("O que é possível fazer nessa página?", "critérios combinados"),
+            ("O que o agente é capaz de fazer?", "mapas quando há localização disponível"),
+            ("Como se calcula a densidade?", "multiplicada por 1.000"),
+            ("Muito obrigada pela ajuda!", "De nada!"),
+        ):
+            assistant.locator("#assistant-input").fill(question)
+            with page.expect_response(lambda response: response.url.endswith("/api/llm/interpret")) as response:
+                assistant.get_by_role("button", name="Enviar mensagem", exact=True).click()
+            assert response.value.status == 200
+            expect(assistant.get_by_text(fragment, exact=False).last).to_be_visible()
+            expect(assistant.locator("#preparacao-conversacional")).to_have_count(0)
+        expect(assistant.get_by_text("Olá! Para começar, prefere usar os dados do Brasil", exact=False)).to_have_count(1)
+
         page.locator('input[type="file"]').set_input_files({
             "name": "dados_sinteticos.csv", "mimeType": "text/csv", "buffer": CSV
         })
@@ -128,7 +143,7 @@ def main():
         assistant.get_by_role("button", name="Enviar mensagem").click()
         expect(assistant.get_by_text("Para continuar, escolha os dados", exact=False)).to_be_visible()
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
-        expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis. Vamos continuar", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.locator("#preparacao-conversacional")).to_be_visible(timeout=30000)
         assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
         inline = assistant.locator("#preparacao-conversacional")
         expect(inline).to_be_visible(timeout=30000)

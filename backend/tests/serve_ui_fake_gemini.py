@@ -54,7 +54,14 @@ async def fake_gemini(sanitized, model, api_key):
     if "invalido" in current:
         return {"operation": "counts", "indicator": "density", "period": "", "category": "",
                 "territory": "", "intent": "ANALITICO", "topic": "none"}
-    if "distribui" in current:
+    if "perfil dos municipios" in current:
+        return {"operation":"none","indicator":"none","period":"","category":"","territory":"",
+                "intent":"ANALITICO","topic":"none","candidates":[
+                    {"operation":"density","indicator":"density","anchor":"perfil dos municipios"},
+                    {"operation":"counts","indicator":"quantity","anchor":"perfil dos municipios"}]}
+    if "lado a lado" in current or "comparativ" in current:
+        op, ind = "comparisons", "density"
+    elif "distribui" in current:
         op, ind = "distribution", ("density" if "densidade" in current else "quantity" if "quantidade" in current else "none")
     elif "densidade" in current:
         op, ind = "density", "density"

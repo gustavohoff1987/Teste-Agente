@@ -247,3 +247,27 @@ def test_text_values_equals_row_by_row_normalization():
         pd.testing.assert_series_equal(result, expected, check_exact=True)
         assert [type(value) for value in result.array] == [type(value) for value in expected.array]
     assert text_values(pd.Series([130260, 130260.0], dtype=object)).tolist() == ["130260", "130260.0"]
+
+
+def test_comparative_followup_resolves_city_and_asks_only_for_missing_names():
+    data, mapping, options = brazil_municipal([("SAO PAULO","355030"),("CAMPINAS","350950"),("RIO DE JANEIRO","330455")])
+    first = interpret_exploration("Agora vamos analisar comparativamente no município de São Paulo.", data, mapping, options, operation_hint="comparisons")
+    assert first["operation"] == "comparisons" and first["territory_ids"] == ["code:355030"]
+    assert "qual outro município" in first["clarification"] and first["executed"] is False
+    followup = interpret_exploration("Campinas e Rio de Janeiro", data, mapping,
+        {**options,"territory_ids":first["territory_ids"],"conversation_pending_operation":"comparisons"})
+    assert set(followup["territory_ids"]) == {"code:355030","code:350950","code:330455"}
+    assert "clarification" not in followup and followup["executed"] is False
+
+
+def test_number_of_municipalities_never_selects_an_arbitrary_subset(frame):
+    parsed = interpret_exploration("Analise dois municípios também", frame, MAP,
+        {**chosen(), "exploration_operation":"comparisons"})
+    assert "territory_ids" not in parsed and parsed["requested_count"] == 2
+    assert parsed["reset_selection"] is True and "Quais 2 municípios" in parsed["clarification"]
+
+
+def test_validated_semantic_operation_resolves_multiple_literal_names(frame):
+    parsed = interpret_exploration("Coloque Manaus e Tefé lado a lado", frame, MAP, OPTIONS, operation_hint="comparisons")
+    assert parsed["operation"] == "comparisons" and set(parsed["territory_ids"]) == {"code:130260","code:130420"}
+    assert parsed["executed"] is False

@@ -169,8 +169,6 @@ def main():
         assert builder.get_by_label("Régua de c1").count() == 1  # faixa observada disponível após o resultado
 
         # Retomar o resultado atual restaura seus critérios e reaproveita o cálculo idêntico.
-        details = board.locator("details", has=page.locator("summary", has_text="Consultar solicitação e parâmetros"))
-        details.locator("summary").click()
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(builder.get_by_label("Valor de c1")).to_have_value("1,3")
         expect(builder.get_by_label("Valor de c2")).to_have_value("150")
@@ -197,7 +195,7 @@ def main():
         page.set_viewport_size({"width": 1280, "height": 900})
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         chat.get_by_role("button", name="Usar dados do Brasil").click()
-        expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
+        expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
         inline.get_by_text("Alterar a abrangência territorial", exact=True).click()
         inline.get_by_label("Abrangência territorial").select_option("national")
         expect(inline.get_by_text("o conjunto do Brasil", exact=False)).to_be_visible(timeout=60000)

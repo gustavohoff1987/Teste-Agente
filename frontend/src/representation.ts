@@ -11,6 +11,7 @@ export type Geometry = {
   estado: "DISPONIVEL" | "INDISPONIVEL" | "NAO_APLICAVEL"; motivo?: string; pendencia?: string; desfecho?: string;
   competencia?: string | null; referencial?: string; fonte?: string; ids?: string[]; lat?: number[]; lon?: number[];
   complementados?: string[]; sem_geometria?: MissingPoint[];
+  configuracao_apresentacao?: {origem: string; premissa: string; formato_coordenadas: string} | null;
   complemento_geografico?: { estado?: string; identificador?: string; versao?: string; sha256?: string; premissa?: string;
     proveniencia?: Record<string, unknown> } | null;
 };

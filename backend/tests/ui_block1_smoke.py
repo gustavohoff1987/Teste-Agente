@@ -95,6 +95,15 @@ def main():
         assert {item["state"] for item in initial["metadata"]["universe"]["members"]} == {"AM"}
         # O resultado é apresentado dentro da conversa, com a tabela do motor.
         expect(chat.locator("#resultados .data-table tbody tr")).to_have_count(62 if real else 3)
+        if real:
+            geometry = initial["metadata"]["representacao"]["geometria"]
+            assert geometry["estado"] == "DISPONIVEL" and len(geometry["ids"]) == 62
+            assert geometry["configuracao_apresentacao"]["origem"] == "configuracao_contextual_base_brasil"
+            board = chat.locator("#resultados")
+            expect(board.get_by_test_id("territory-map")).to_be_visible()
+            expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
+            board.get_by_role("tab", name="Gráficos", exact=True).click()
+            expect(board.get_by_test_id("scrollable-bars")).to_have_attribute("data-total", "62")
         shot("block1-01-densidade-amazonas.png")
         density = {row["Território"]: row["Densidade por 1.000"] for row in initial["rows"]}
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
@@ -134,7 +143,6 @@ def main():
         shot("block1-03-evolucao.png")
         board = page.locator("#resultados")
         expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
-        reveal("Consultar solicitação e parâmetros")
         expect(board.get_by_text("Solicitação: Mostre a evolução dos municípios selecionados.", exact=True)).to_be_visible()
         with page.expect_download() as download:
             board.get_by_role("button", name="Método e parâmetros", exact=True).click()
@@ -146,14 +154,16 @@ def main():
             board.get_by_role("button", name="CSV", exact=True).click()
         assert_same_rows(exported_rows(download), temporal["rows"])
         shot("block1-04-resultado.png")
-        # Reutilização do conjunto: membros do resultado alimentam a seleção atual sem alterá-lo.
-        reveal("Selecionar territórios deste resultado")
-        member = board.get_by_label(re.compile(r"\[130420\]"))
-        member.uncheck()
+        # A tabela substitui o checklist duplicado: a seleção só chega à preparação por ação explícita.
+        table_rows = board.locator("#tabela-resultado tbody tr")
+        table_rows.nth(0).click()
+        table_rows.nth(1).click()
+        board.get_by_role("button", name="Usar seleção na próxima análise", exact=True).click()
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
-        member.check()
+        table_rows.nth(2).click()
+        board.get_by_role("button", name="Usar seleção na próxima análise", exact=True).click()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
-        expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
+        expect(table_rows).to_have_count(3)
 
         send("Agregue os municípios selecionados.")
         inline.get_by_label("Escolher períodos da análise").click()
@@ -179,7 +189,7 @@ def main():
 
         # "Análises anteriores": acessível ao usuário, sem recalcular nem restaurar
         # parâmetros de forma implícita. Também mantém o resultado atual na lista.
-        previous = board.get_by_role("region", name="Análises anteriores")
+        previous = page.get_by_role("region", name="Histórico de análises")
         expect(previous).to_be_visible()
         expect(previous.get_by_text("4 análises nesta sessão", exact=True)).to_be_visible()
         previous.locator("summary").click()
@@ -197,7 +207,6 @@ def main():
         shot("block1-06-analises-anteriores.png")
 
         # Retomada dos parâmetros do resultado atual; o cálculo idêntico é reaproveitado.
-        reveal("Consultar solicitação e parâmetros")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(page.get_by_text("Parâmetros e seleção restaurados", exact=False)).to_be_visible()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()

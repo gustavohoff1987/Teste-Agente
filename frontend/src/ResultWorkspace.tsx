@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Download, Map as MapIcon, Search, Table2, X } from "lucide-react";
+import { BarChart3, Map as MapIcon, Search, Table2, X } from "lucide-react";
 import TerritoryMap, { type MapHandle } from "./TerritoryMap";
 import CriteriaResults, { type CriteriaMetadata } from "./CriteriaResults";
 import DistributionResults from "./DistributionResults";
+import ResultTable, { type TablePresentation } from "./ResultTable";
 import { CountBars, SeriesLines, TerritoryBars, type BarDatum, type CountDatum, type LinePoint } from "./ResultCharts";
 import {
   CATEGORICAL, INK, NOT_EVALUABLE, ORDINAL, STATE_COLORS, STATE_LABELS, codeOf, displayPeriod, formatNumber, formatPair, formatValue,
@@ -27,7 +28,6 @@ type Props = {
   onExport: (rows: Row[]) => void;
   onReuseSelection: (ids: string[]) => void;
   onReferences: (ids: string[]) => void;
-  onDeclareGeometry: (choice: { crs: string; number_format: string }) => void;
   onRepresentation: (record: RepresentationRecord) => void;
 };
 type StateFilter = "TODOS" | "MINHA_SELECAO" | string;
@@ -35,7 +35,6 @@ type StateFilter = "TODOS" | "MINHA_SELECAO" | string;
 const pretty = (value: unknown) => value === null || value === undefined ? "Não avaliável" :
   typeof value === "number" ? new Intl.NumberFormat("pt-BR", value !== 0 && Math.abs(value) < 1e-6
     ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(value) : String(value);
-const MAX_BARS = 40;
 const MAX_LINES = 8;
 const MAX_LINKS = 30;
 const chip = (active: boolean) => "flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs " +
@@ -81,8 +80,10 @@ export default function ResultWorkspace(p: Props) {
   const [barOrder, setBarOrder] = useState<"codigo" | "resultado" | "valor">(operation === "ranking" ||
     (operation === "criteria" && !!(result.metadata.criterios as CriteriaMetadata | undefined)?.ordenacao) ? "resultado" : "codigo");
   const [lineCategory, setLineCategory] = useState("");
+  const [linePage, setLinePage] = useState(0);
+  useEffect(() => { setLinePage(0); }, [selected, lineCategory]);
+  const [tablePresentation, setTablePresentation] = useState<TablePresentation | null>(null);
   const mapRef = useRef<MapHandle>(null);
-  const chartsRef = useRef<HTMLDivElement>(null);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const criteriaMeta = result.metadata.criterios as (CriteriaMetadata & { avaliacoes?: CriteriaEvaluation[] }) | undefined;
   const criteriaHasTree = !!criteriaMeta?.contagens;
@@ -191,8 +192,10 @@ export default function ResultWorkspace(p: Props) {
       geometria: geometry ? { estado: geometry.estado, competencia: geometry.competencia, referencial: geometry.referencial,
         complemento_geografico: geometry.complemento_geografico ?? null } : null,
       ordem_barras: barOrder,
+      tabela: tablePresentation,
+      series: rep?.serie ? { pagina_territorios: linePage + 1, limite_por_pagina: MAX_LINES, categoria: lineCategory || null } : null,
     });
-  }, [view, indicator, filter, selected, barOrder, encoding]);
+  }, [view, indicator, filter, selected, barOrder, encoding, tablePresentation, linePage, lineCategory]);
 
   // Gancho de teste (só com window.__ADT_TEST__): o modelo desenhado, para conferência com o resultado.
   useEffect(() => {
@@ -231,10 +234,10 @@ export default function ResultWorkspace(p: Props) {
       </nav>}
     </div>
     {p.status !== "VIGENTE" && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      {p.status === "INVALIDADO" ? "Resultado invalidado: a representação é só para consulta e a seleção não pode ser reutilizada." :
-        "Resultado histórico (não vigente no contexto atual): mapa e gráficos usam os dados, as coordenadas e a versão deste resultado."}</p>}
+      {p.status === "INVALIDADO" ? "Resultado invalidado: disponível apenas para consulta." :
+        "Você está consultando uma análise anterior, com as opções usadas naquele cálculo. Para atualizar, revise a preparação e calcule novamente."}</p>}
     {view === "mapa" && renderMap()}
-    {view === "graficos" && <div ref={chartsRef}>{renderCharts()}</div>}
+    {view === "graficos" && renderCharts()}
     {view === "tabela" && <p className="text-xs text-slate-600">Visualização em tabela: os valores, estados e motivos estão na tabela abaixo,
       a mesma usada pelo mapa e pelos gráficos.</p>}
     {renderSelection()}
@@ -242,8 +245,7 @@ export default function ResultWorkspace(p: Props) {
 
   function renderMap() {
     if (!geometry || !rep) return <Unavailable reason="O resultado não traz o contrato de apresentação; consulte a tabela."/>;
-    if (!points || !encoding || !indicator) return <Unavailable reason={geometry.motivo || "Mapa indisponível."} pending={geometry.pendencia}
-      outcome={geometry.desfecho} onDeclare={p.reusable && !p.disabled ? p.onDeclareGeometry : undefined}/>;
+    if (!points || !encoding || !indicator) return <Unavailable reason={geometry.motivo || "Mapa indisponível."} pending={geometry.pendencia}/>;
     const period = displayPeriod(geometry.competencia);
     return <div className="space-y-3">
       <div className="no-print flex flex-wrap items-end gap-3">
@@ -256,9 +258,8 @@ export default function ResultWorkspace(p: Props) {
           onPick={id => { select(id, false); mapRef.current?.center(id); }}/>
         <label className="flex min-h-9 items-center gap-2 text-xs"><input type="checkbox" checked={multi} onChange={event => setMulti(event.target.checked)}/>
           Seleção múltipla (ou Shift + clique)</label>
-        <button type="button" className={button} onClick={() => exportMapPng()}><Download size={14}/> Imagem do mapa (PNG)</button>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="result-map-layout grid gap-3">
         <TerritoryMap ref={mapRef} ids={points.ids} lat={points.lat} lon={points.lon} fills={encoding.fills} passes={passes}
           references={references} selected={selectedSet} focusId={focusId} connections={connections} labelOf={labelOf}
           detailOf={valueLine} onSelect={select}
@@ -269,14 +270,13 @@ export default function ResultWorkspace(p: Props) {
           linksShown={connections.length > 0}/>
       </div>
       <p className="text-xs leading-5 text-slate-600">
-        {period} · referencial {geometry.referencial} · {geometry.fonte}. Cada ponto é a coordenada informada para o território (sede
-        municipal na base Brasil) e não representa a extensão territorial; a projeção serve só ao desenho e nenhuma distância é medida no mapa.
+        {period}. Cada ponto representa a localização de um território (sede municipal na base Brasil).
+        O conjunto dos pontos permite reconhecer a distribuição geográfica; não representa os limites territoriais.
+        {geometry.configuracao_apresentacao && " Localização ilustrativa; a fonte original não informa o referencial das coordenadas. A premissa de apresentação está registrada em Método e parâmetros."}
         {connections.length > 0 && " Linhas tracejadas são ligações ilustrativas entre alvo e referência: a distância informada é a geodésica direta calculada pelo motor, não um trajeto viário."}
-        {geometry.complemento_geografico?.estado === "valido" && geometry.complementados?.length ? " Camada complementar " +
-          geometry.complemento_geografico.identificador + ", versão " + geometry.complemento_geografico.versao + " (premissa " +
-          geometry.complemento_geografico.premissa + ")." : ""}
       </p>
-      {rep.notas.map(note => <p key={note} className="text-xs leading-5 text-slate-600">{note}</p>)}
+      {rep.notas.length > 0 && <details className="text-xs text-slate-600"><summary className="cursor-pointer">Sobre a localização dos pontos</summary>
+        {rep.notas.map(note => <p key={note} className="mt-2 leading-5">{note}</p>)}</details>}
       {missing.length > 0 && <details className="text-xs">
         <summary className="cursor-pointer font-semibold text-slate-700">Sem coordenada válida na competência ({missing.length}): no resultado e na tabela, fora do mapa</summary>
         <ul className="mt-2 max-h-40 space-y-1 overflow-auto">{missing.map(item => <li key={item.id}>
@@ -289,7 +289,7 @@ export default function ResultWorkspace(p: Props) {
   function classCounts(): Record<string, number> | null {
     if (operation === "criteria" && criteriaMeta?.contagens) return { ATENDE: criteriaMeta.contagens.ATENDE,
       NAO_ATENDE: criteriaMeta.contagens.NAO_ATENDE, NAO_AVALIAVEL: criteriaMeta.contagens.NAO_AVALIAVEL };
-    if (operation === "distribution") return Object.fromEntries(result.rows.map(row => [String(row["Quintil"] ?? "").split(" — ")[0], Number(row["Unidades"])]));
+    if (operation === "distribution") return Object.fromEntries(result.rows.map(row => [String(row["Classe"] ?? row["Quintil"] ?? "").split(" — ")[0], Number(row["Unidades"])]));
     return null;
   }
 
@@ -299,7 +299,7 @@ export default function ResultWorkspace(p: Props) {
     const line = lineChart();
     return <div className="space-y-5">
       <div className="no-print flex flex-wrap items-end gap-3">
-        {numeric.length > 1 && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Indicador das barras
+        {bars && numeric.length > 1 && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Indicador das barras
           <select aria-label="Indicador das barras" value={barIndicator?.coluna} onChange={event => chooseBar(event.target.value)}
             className="w-full min-w-0 rounded-lg border border-line bg-white px-2 py-2 text-sm font-normal">
             {numeric.map(item => <option key={item.coluna} value={item.coluna}>{item.rotulo}{item.unidade ? " (" + item.unidade + ")" : ""}</option>)}
@@ -311,15 +311,12 @@ export default function ResultWorkspace(p: Props) {
             {(operation === "ranking" || criteriaMeta?.ordenacao) && <option value="resultado">Ordem do resultado (ordenação do motor)</option>}
             <option value="valor">Valor, decrescente (apenas visual)</option>
           </select></label>}
-        <button type="button" className={button} onClick={() => exportChartsPng()}><Download size={14}/> Imagem dos gráficos (PNG)</button>
       </div>
       {counts}
       {bars ? <div><h4 className="mb-1 text-sm font-bold text-ink">{bars.title}</h4>
         {barOrder === "valor" && <p className="mb-1 text-xs text-amber-900">Ordenação apenas visual: não constitui posição de ranking nem resultado.</p>}
         <TerritoryBars data={bars.data} unit={barIndicator?.unidade || ""} kind={barIndicator?.tipo || "CONTINUO"} title={bars.title}
-          onSelect={id => select(id, true)}/></div> : numeric.length > 0 &&
-        <p className="text-xs text-slate-600">Selecione até {MAX_BARS} territórios no mapa, na busca ou na tabela para compará-los em barras.
-          Nenhum subconjunto é escolhido pelo sistema.</p>}
+          onSelect={id => select(id, true)}/></div> : null}
       {line}
       {!counts && !bars && !line && numeric.length === 0 && <p className="text-xs text-slate-600">Este resultado não tem valores compatíveis
         com gráficos de barras ou de linhas; consulte a tabela.</p>}
@@ -331,7 +328,7 @@ export default function ResultWorkspace(p: Props) {
     if (operation === "criteria" && criteriaMeta?.contagens) {
       data = ["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"].map(key => ({ label: STATE_LABELS[key], value: (criteriaMeta.contagens as Record<string, number>)[key],
         color: key === "NAO_AVALIAVEL" ? NOT_EVALUABLE : STATE_COLORS[key] }));
-      title = "Territórios por resultado dos critérios"; note = "Contagens produzidas pelo motor (CAP-SUB-01); não avaliável nunca é tratado como não atende.";
+      title = "Territórios por resultado dos critérios"; note = "Não avaliável é apresentado separadamente de não atende.";
     } else if (operation === "nearest") {
       const coverage = (result.metadata.nearest_reference as { cobertura?: { n_minimo_completo: number; n_somente_entre_avaliaveis: number;
         n_nao_avaliaveis_por_motivo: Record<string, number> } } | undefined)?.cobertura;
@@ -339,10 +336,15 @@ export default function ResultWorkspace(p: Props) {
         data = [{ label: "Mínimo do conjunto completo", value: coverage.n_minimo_completo, color: STATE_COLORS["Conjunto completo de referências"] },
           { label: "Somente entre avaliáveis", value: coverage.n_somente_entre_avaliaveis, color: STATE_COLORS["Entre as referências avaliáveis"] },
           ...Object.entries(coverage.n_nao_avaliaveis_por_motivo).map(([motive, n]) => ({ label: "Não avaliável: " + motive, value: n, color: NOT_EVALUABLE }))];
-        title = "Alcance da distância por alvo"; note = "Contagens produzidas pelo motor (CAP-ESP-02); o mínimo entre as avaliáveis não equivale ao do conjunto completo.";
+        title = "Alcance da distância por alvo"; note = "O mínimo entre as referências avaliáveis pode diferir do mínimo do conjunto completo.";
       }
     }
+    if (operation === "distribution") {
+      data = result.rows.map((row, index) => ({label: String(row.Classe ?? row.Quintil ?? ""), value: Number(row.Unidades), color: ORDINAL[index % ORDINAL.length]}));
+      title = "Territórios por grupo da distribuição"; note = "Grupos e quantidades calculados na análise.";
+    }
     const bands = criteriaMeta?.faixas;
+    if (!data.length && !bands) return null;
     return <>
       {data.length > 0 && <div><h4 className="mb-1 text-sm font-bold text-ink">{title}</h4><CountBars data={data} title={title} note={note}/></div>}
       {bands && <div><h4 className="mb-1 text-sm font-bold text-ink">Faixas ({bands.convencao})</h4>
@@ -352,9 +354,9 @@ export default function ResultWorkspace(p: Props) {
   }
 
   function territoryBars(): { data: BarDatum[]; title: string } | null {
-    if (!barIndicator) return null;
+    if (!barIndicator || rep?.serie) return null;
     const universe = [...rowsById.keys()];
-    const ids = selected.length ? selected.filter(id => rowsById.has(id)).slice(0, MAX_BARS) : universe.length <= MAX_BARS ? universe : [];
+    const ids = (selected.length ? selected.filter(id => rowsById.has(id)) : universe).filter(passesFilter);
     if (!ids.length) return null;
     const order = barOrder === "resultado" ? rowIds.filter((id): id is string => !!id && ids.includes(id))
       : barOrder === "valor" ? [...ids].sort((a, b) => (Number(rowsById.get(b)?.[barIndicator.coluna] ?? -Infinity)) - (Number(rowsById.get(a)?.[barIndicator.coluna] ?? -Infinity)))
@@ -375,13 +377,15 @@ export default function ResultWorkspace(p: Props) {
     const category = lineCategory && categories.includes(lineCategory) ? lineCategory : categories[0];
     const territories = [...new Set(source.map(row => String(row[serie.territorio] ?? "")))];
     const labelToId = new Map([...labels.entries()].map(([id, label]) => [label, id]));
-    const chosen = selected.length ? territories.filter(name => selectedSet.has(labelToId.get(name) || "")) :
-      territories.length <= MAX_LINES ? territories : [];
+    const chosen = territories.filter(name => {
+      const id = labelToId.get(name) || "";
+      return (!selected.length || selectedSet.has(id)) && passesFilter(id);
+    });
     const periods = [...new Set(source.map(row => String(row[serie.periodo])))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
     if (periods.length < 2) return <p className="text-xs text-slate-600">Uma única competência não forma série temporal.</p>;
-    if (!chosen.length) return <p className="text-xs text-slate-600">Selecione até {MAX_LINES} territórios para ver a série de {displayPeriod(periods[0])} a
-      {" "}{displayPeriod(periods[periods.length - 1])} em linhas.</p>;
-    const series = chosen.slice(0, MAX_LINES).map((name, index) => ({ key: "s" + index, label: name, color: CATEGORICAL[index] }));
+    if (!chosen.length) return <p className="text-xs text-slate-600">Nenhum território selecionado possui série temporal neste resultado.</p>;
+    const pages = Math.ceil(chosen.length / MAX_LINES), page = Math.min(linePage, pages - 1);
+    const series = chosen.slice(page * MAX_LINES, (page + 1) * MAX_LINES).map((name, index) => ({ key: "s" + index, label: name, color: CATEGORICAL[index] }));
     const points: LinePoint[] = periods.map(period => {
       const point: LinePoint = { periodo: period };
       for (const item of series) {
@@ -396,6 +400,11 @@ export default function ResultWorkspace(p: Props) {
       (category ? " · " + category : "");
     return <div>
       <h4 className="mb-1 text-sm font-bold text-ink">{title}</h4>
+      {pages > 1 && <nav aria-label="Territórios das séries" className="no-print mb-3 flex flex-wrap items-center gap-3 text-xs">
+        <button type="button" className={button} disabled={page === 0} onClick={() => setLinePage(page - 1)}>Territórios anteriores</button>
+        <span>Territórios {page * MAX_LINES + 1} a {Math.min((page + 1) * MAX_LINES, chosen.length)} de {chosen.length}, na ordem dos dados</span>
+        <button type="button" className={button} disabled={page === pages - 1} onClick={() => setLinePage(page + 1)}>Próximos territórios</button>
+      </nav>}
       {categories.length > 1 && <label className="no-print mb-2 flex items-center gap-2 text-xs">Categoria
         <select aria-label="Categoria da série" value={category} onChange={event => setLineCategory(event.target.value)} className="rounded-lg border border-line px-2 py-1">
           {categories.map(item => <option key={item} value={item}>{item}</option>)}</select></label>}
@@ -460,52 +469,9 @@ export default function ResultWorkspace(p: Props) {
     </dl>;
   }
 
-  async function exportMapPng() {
-    const source = mapRef.current?.snapshot();
-    if (!source || !indicator || !geometry) return;
-    const lines = [indicator.rotulo + (indicator.unidade ? " (" + indicator.unidade + ")" : "") + " · " + displayPeriod(geometry.competencia) +
-      " · referencial " + geometry.referencial, legendText(), "Pontos: coordenada informada para o território (não representa sua extensão); " +
-      "projeção só para desenho. Não avaliáveis em anel vazado cinza; referências em losango." + (connections.length ? " Linhas tracejadas: ligação ilustrativa, não trajeto." : ""),
-      ...(rep?.notas || []), "Resultado " + result.result_id + " · " + p.status.toLowerCase().replace("_", " ") + " · " + geometry.fonte];
-    download(compose(source, result.title, lines), "mapa_diagnostico.png");
-  }
-
-  async function exportChartsPng() {
-    const svgs = [...(chartsRef.current?.querySelectorAll("svg.recharts-surface") || [])] as SVGSVGElement[];
-    if (!svgs.length) return;
-    const images = await Promise.all(svgs.map(svg => new Promise<HTMLImageElement>(resolve => {
-      const clone = svg.cloneNode(true) as SVGSVGElement;
-      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(clone));
-    })));
-    const width = Math.max(...images.map(image => image.width)), height = images.reduce((sum, image) => sum + image.height + 12, 0);
-    const sheet = document.createElement("canvas");
-    sheet.width = width; sheet.height = height;
-    const ctx = sheet.getContext("2d")!;
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, width, height);
-    let top = 0;
-    for (const image of images) { ctx.drawImage(image, 0, top); top += image.height + 12; }
-    download(compose(sheet, result.title, [(barIndicator ? barIndicator.rotulo + (barIndicator.unidade ? " (" + barIndicator.unidade + ")" : "") : "") +
-      (geometry?.competencia ? " · " + displayPeriod(geometry.competencia) : ""), barOrder === "valor" ? "Ordem das barras apenas visual (não é ranking)." :
-      "Ordem das barras: " + (barOrder === "resultado" ? "a do resultado de ordenação do motor." : "código territorial."),
-      "Valores calculados pelo motor; ausências como lacunas; sem tendência ou totais calculados na representação.",
-      ...(rep?.notas || []), "Resultado " + result.result_id + " · " + p.status.toLowerCase().replace("_", " ")]), "graficos_diagnostico.png");
-  }
-
-  function legendText() {
-    if (!indicator || !encoding) return "";
-    if (encoding.domain) {
-      const [a, b] = formatPair(encoding.domain[0], encoding.domain[1], indicator.tipo);
-      return "Escala contínua linear de " + a + " a " + b + (indicator.unidade ? " " + indicator.unidade : "") + " (não é classificação).";
-    }
-    return "Classes do motor (" + (indicator.origem || "capacidade") + "): " + (indicator.classes || []).map(item => STATE_LABELS[item] || item).join(", ") + ".";
-  }
-
   const tables = operation === "criteria" && criteriaMeta ? null : operation === "distribution" && result.detail_rows ?
     <DistributionResults summary={result.rows} detail={result.detail_rows} onExport={p.onExport} highlight={selectedSet}
-      idOf={linker} onToggle={toggle} onlyHighlighted={filter === "MINHA_SELECAO"}/> :
+      idOf={linker} onToggle={toggle} onlyHighlighted={filter === "MINHA_SELECAO"} onTablePresentation={setTablePresentation}/> :
     result.rows.length > 0 ? renderTable() : null;
 
   function renderTable() {
@@ -514,22 +480,16 @@ export default function ResultWorkspace(p: Props) {
       .filter(item => filter === "TODOS" || (item.id !== null && passesFilter(item.id)));
     return <div id="tabela-resultado" className="mt-7 overflow-hidden rounded-2xl border border-line">
       <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4>
-        <span className="text-xs text-slate-400">{result.total_rows} linhas · até 150 exibidas{filter !== "TODOS" ? " · filtro visual aplicado" : ""}</span></div>
-      <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
-        <thead className="sticky top-0 bg-slate-50"><tr>{columns.map(key => <th key={key}>{key}</th>)}</tr></thead>
-        <tbody>{visible.slice(0, 150).map(({ row, id }, index) => <tr key={index} aria-selected={id ? selectedSet.has(id) : false}
-          tabIndex={id ? 0 : undefined} onClick={id ? () => toggle(id) : undefined}
-          onKeyDown={id ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(id); } } : undefined}
-          className={(id ? "cursor-pointer " : "") + (id && selectedSet.has(id) ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
-          {columns.map(key => <td key={key}>{pretty(row[key])}</td>)}</tr>)}</tbody>
-      </table></div>
+        <span className="text-xs text-slate-400">{result.total_rows} registros{filter !== "TODOS" ? " · filtro visual aplicado" : ""}</span></div>
+      <ResultTable rows={visible.map(item => item.row)} columns={columns.map(key => ({key}))} idOf={linker}
+        selected={selectedSet} onToggle={toggle} onExport={p.onExport} onPresentation={setTablePresentation}/>
       {filter !== "TODOS" && !visible.length && <p className="px-5 py-3 text-xs text-slate-500">Nenhum território neste filtro visual.</p>}
     </div>;
   }
 
   if (operation === "criteria" && criteriaMeta) return <CriteriaResults key={result.result_id} rows={result.rows} meta={criteriaMeta}
     onExport={p.onExport} onSelection={p.onReuseSelection} onReferences={p.onReferences} reusable={p.reusable} disabled={p.disabled}
-    filter={filter} onFilter={setFilter} mySelection={selectedSet} onToggle={toggle} explorer={visual}/>;
+    filter={filter} onFilter={setFilter} mySelection={selectedSet} onToggle={toggle} explorer={visual} onTablePresentation={setTablePresentation}/>;
   return <>{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
 }
 
@@ -558,30 +518,13 @@ function Pair({ label, value, kind }: { label: string; value: unknown; kind: Ind
       {kind.tipo === "ESTADO" ? (STATE_LABELS[String(value)] || formatValue(value, kind.tipo)) : formatValue(value, kind.tipo)}</dd></>;
 }
 
-function Unavailable({ reason, pending, outcome, onDeclare }: { reason: string; pending?: string; outcome?: string;
-  onDeclare?: (choice: { crs: string; number_format: string }) => void }) {
-  const [crs, setCrs] = useState("");
-  const [separator, setSeparator] = useState("");
-  const declarable = pending === "REFERENCIAL_GEODESICO" || pending === "SEPARADOR_DECIMAL";
+function Unavailable({ reason, pending }: { reason: string; pending?: string }) {
+  const needsLocation = ["REFERENCIAL_GEODESICO", "SEPARADOR_DECIMAL", "PAPEIS_COORDENADAS", "COORDENADAS_NAO_ASSOCIADAS"].includes(pending || "");
   return <div role="status" className="rounded-xl border border-line bg-slate-50 p-4 text-xs leading-5 text-slate-700">
-    <p className="font-semibold text-ink">Mapa indisponível{outcome ? " (" + outcome + ")" : ""}</p>
-    <p className="mt-1">{reason}</p>
-    {declarable && <p className="mt-1">Declare o referencial geodésico e o separador decimal das coordenadas e execute novamente pela
-      preparação; nenhum valor é presumido e nada é recalculado agora.</p>}
-    {declarable && onDeclare && <div className="no-print mt-2 flex flex-wrap items-end gap-2">
-      <label className="flex flex-col gap-1">Referencial geodésico
-        <select aria-label="Referencial geodésico para o mapa" value={crs} onChange={event => setCrs(event.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5">
-          <option value="">Escolha</option><option value="SIRGAS2000">SIRGAS2000</option></select></label>
-      <label className="flex flex-col gap-1">Separador decimal das coordenadas
-        <select aria-label="Separador decimal das coordenadas para o mapa" value={separator} onChange={event => setSeparator(event.target.value)}
-          className="rounded-lg border border-line bg-white px-2 py-1.5">
-          <option value="">Escolha</option><option value="decimal_comma">Vírgula</option><option value="decimal_point">Ponto</option></select></label>
-      <button type="button" disabled={!crs || !separator} onClick={() => onDeclare({ crs, number_format: separator })}
-        className="rounded-lg border border-line bg-white px-3 py-2 font-semibold text-teal disabled:opacity-40">Aplicar à preparação</button>
-    </div>}
-    {pending === "COMPETENCIA_UNICA" && <p className="mt-1">Escolha uma única competência na preparação e execute novamente; os gráficos de linhas
-      mostram a série de várias competências.</p>}
-    <p className="mt-1">A tabela e os gráficos continuam disponíveis.</p>
+    <p className="font-semibold text-ink">Mapa indisponível para este resultado</p>
+    <p className="mt-1">{needsLocation ? "A fonte importada não tem informações de localização completas e confirmadas. A configuração de origem pode ser revisada nas opções avançadas da preparação." : reason}</p>
+    {pending === "COMPETENCIA_UNICA" && <p className="mt-1">Escolha um período para visualizar os pontos no mapa. Para acompanhar vários períodos, use o gráfico de linhas.</p>}
+    <p className="mt-1">Você pode continuar explorando a tabela e os gráficos.</p>
   </div>;
 }
 
@@ -600,7 +543,7 @@ function Legend({ indicator, domain, counts, referencesShown, linksShown }: { in
       {(indicator.classes || []).filter(item => item !== "NAO_AVALIAVEL" && item !== "Não avaliável").map((item, index) =>
         symbol(<circle cx="9" cy="7" r="5" fill={STATE_COLORS[item] || palette[index % palette.length]}/>,
           (STATE_LABELS[item] || item) + (counts && counts[item] !== undefined ? " (" + formatNumber(counts[item], "CONTAGEM") + ")" : "")))}
-      <li className="text-slate-500">Classes produzidas pelo motor ({indicator.origem}); o mapa não cria classes.</li>
+      <li className="text-slate-500">Grupos calculados na análise.</li>
     </ul>}
     <ul className="mt-2 space-y-1 border-t border-line pt-2">
       {symbol(<circle cx="9" cy="7" r="4.5" fill={INK.surface} stroke={NOT_EVALUABLE} strokeWidth="1.5"/>, "Não avaliável (sem valor; nunca zero)" +
@@ -640,42 +583,4 @@ function TerritorySearch({ ids, labelOf, onPick }: { ids: string[]; labelOf: (id
         className={"cursor-pointer px-3 py-2 " + (index === active ? "bg-blue-50" : "")}>{labelOf(id)}</li>)}
     </ul>}
   </div>;
-}
-
-function compose(source: HTMLCanvasElement, title: string, lines: string[]): HTMLCanvasElement {
-  const width = Math.max(source.width, 900);
-  const scale = source.width / width;
-  const font = (size: number, weight = 400) => weight + " " + size + "px system-ui, -apple-system, 'Segoe UI', sans-serif";
-  const measure = document.createElement("canvas").getContext("2d")!;
-  measure.font = font(15);
-  const wrap = (text: string) => {
-    const words = text.split(" "), out: string[] = [];
-    let line = "";
-    for (const word of words) {
-      if (measure.measureText(line + " " + word).width > width - 40 && line) { out.push(line); line = word; } else line = line ? line + " " + word : word;
-    }
-    if (line) out.push(line);
-    return out;
-  };
-  const wrapped = lines.filter(Boolean).flatMap(wrap);
-  const header = 56, footer = 20 + wrapped.length * 21;
-  const sheet = document.createElement("canvas");
-  sheet.width = width; sheet.height = header + source.height / scale + footer;
-  const ctx = sheet.getContext("2d")!;
-  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, sheet.width, sheet.height);
-  ctx.fillStyle = INK.primary; ctx.font = font(20, 600); ctx.fillText(title, 20, 34);
-  ctx.drawImage(source, 0, header, width, source.height / scale);
-  ctx.fillStyle = INK.secondary; ctx.font = font(15);
-  wrapped.forEach((line, index) => ctx.fillText(line, 20, header + source.height / scale + 26 + index * 21));
-  return sheet;
-}
-
-function download(canvas: HTMLCanvasElement, name: string) {
-  canvas.toBlob(blob => {
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url; link.download = name; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, "image/png");
 }

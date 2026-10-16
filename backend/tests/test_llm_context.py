@@ -175,3 +175,28 @@ def test_confirmed_category_constant_is_checked_without_category_column():
     assert without["slots"]["category"] == "not_confirmed_in_dataset"
     assert with_confirmation["slots"]["category"] == "found_in_dataset"
     assert with_confirmation["ready_to_execute"] is False
+
+
+def test_semantic_proposal_becomes_verified_local_territory_selection(monkeypatch):
+    import pandas as pd
+    import main
+    data = pd.DataFrame({"municipio":["Manaus","Tefé","Outro"],"codigo":["m1","m2","m3"],
+        "periodo":["202406"]*3,"categoria":["MEDICINA"]*3,"quantidade":[3,4,5],"populacao":[1000]*3})
+    fields={"territory":"municipio","territory_id":"codigo","period":"periodo","category":"categoria","count":"quantidade","population":"populacao"}
+    options={"confirmed_roles":list(fields),"count_unit":"pessoas","fts_scope_confirmed":True,
+             "object_confirmed":True,"population_denominator_confirmed":True,"period_filter":"202406","category_filter":"MEDICINA"}
+    sent=[]
+    async def provider(messages,*_args):
+        sent.extend(messages)
+        return {"operation":"comparisons","indicator":"density","period":"","category":"","territory":"",
+                "intent":"ANALITICO","topic":"none"}
+    monkeypatch.setattr(llm_bridge,"_call_gemini",provider)
+    result=client.post("/api/llm/interpret-context",files={"file":("privado.csv",data.to_csv(index=False).encode())},
+        data={"message":"Coloque Manaus e Tefé lado a lado","mapping":json.dumps(fields),"options":json.dumps(options)})
+    assert result.status_code == 200, result.text
+    body=result.json()
+    assert body["origin"] == "INTERPRETACAO_LLM" and body["executed"] is False
+    assert set(body["exploration"]["territory_ids"]) == {"code:m1","code:m2"}
+    assert body["exploration"]["options_patch"]["comparison_indicator"] == "density"
+    for secret in ("Manaus","Tefé","privado.csv","populacao","m1","m2"):
+        assert secret not in " ".join(sent)

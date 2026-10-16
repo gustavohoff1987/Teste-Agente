@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import re
 import threading
 import unicodedata
 import uuid
@@ -32,7 +33,7 @@ from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation
 from territorial_selection import universe_metadata
-from exploration import interpret_exploration, operation_for
+from exploration import interpret_exploration, operation_for, normalize as normalize_exploration
 from request_memo import RequestMemoMiddleware
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
@@ -623,11 +624,32 @@ async def llm_interpretation_with_dataset(
         declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
         if not isinstance(declared_category, str):
             raise ValueError("Categoria declarada inválida.")
-        return await llm_interpret(
+        answer = await llm_interpret(
             request, eligibility=eligibility, category_constant=declared_category,
             proposal_reviewer=lambda proposal: review_interpretation(proposal, eligibility,
                 category_constant=declared_category, frame=frame, mapping=fields, options=settings)
         )
+        # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
+        # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
+        proposed_operation = answer.get("proposal", {}).get("operation")
+        slots = answer.get("verification", {}).get("slots", {})
+        if proposed_operation in ("comparisons", "density", "counts", "temporal", "aggregate") and not any(
+                slots.get(key) == "not_confirmed_in_dataset" for key in ("period", "category")):
+            local_frame, local_fields = frame, fields
+            if dataset == "brazil" and frame.attrs.get("source", {}).get("scope") != "municipal":
+                local_frame, _ = await _request_dataset(None, "", "brazil", "municipal", dataset_version=dataset_version)
+                local_fields, _ = candidates(local_frame)
+            local_settings = apply_curated_options(local_frame, local_fields, settings)
+            proposed_indicator = answer["proposal"].get("indicator")
+            if proposed_indicator in ("density", "quantity"):
+                local_settings = {**local_settings, "exploration_indicator": proposed_indicator}
+            resolved = interpret_exploration(message, local_frame, local_fields,
+                local_settings, operation_hint=proposed_operation)
+            if resolved.get("handled"):
+                answer["exploration"] = resolved
+                answer["reply"] = resolved.get("clarification") or resolved.get("reply") or answer["reply"]
+                answer.pop("clarification", None)
+        return answer
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -747,7 +769,18 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         command = criteria_command(message, requested)  # critérios combinados: só estrutura, sem dados nem cálculo
         if command is not None:
             return command
-        if not operation_for(message):
+        # Uma pergunta de orientação não responde à pendência territorial anterior.
+        # Atendê-la aqui evita que o resolvedor de nomes a transforme em novo pedido de municípios.
+        quick = llm_local_response(ChatRequest(message=message, history=[]))
+        if quick is not None:
+            return {"handled": True, "reply": quick["reply"], "executed": False}
+        choice = requested.get("conversation_operation_choice")
+        if choice is not None:
+            from analysis_catalog import OPERATION_LABELS
+            if choice not in OPERATION_LABELS:
+                raise ValueError("Tipo de análise escolhido não reconhecido.")
+        if not choice and not operation_for(message) and not requested.get("conversation_pending_operation") and not (
+                requested.get("exploration_operation") and re.search(r"\b(?:analise|analisar)\b", normalize_exploration(message))):
             return {"handled": False}
         frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
                                           dataset_version=dataset_version)
@@ -759,7 +792,7 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         if dataset == "brazil":
             fields, _ = candidates(frame)
         settings = apply_curated_options(frame, fields, settings)
-        return interpret_exploration(message, frame, fields, settings)
+        return interpret_exploration(message, frame, fields, settings, operation_hint=choice)
     except (ValueError, TypeError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

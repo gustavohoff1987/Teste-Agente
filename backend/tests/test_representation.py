@@ -146,7 +146,7 @@ def test_indicators_are_columns_of_the_result_with_units_and_capability_classes(
     density = analyze(frame(), **GEO)
     by_column = {item["coluna"]: item for item in density["metadata"]["representacao"]["indicadores"]}
     assert by_column["Densidade por 1.000"]["unidade"] == "por 1.000 habitantes" and by_column["Densidade por 1.000"]["tipo"] == "CONTINUO"
-    assert by_column["Quantidade"] == {"coluna": "Quantidade", "rotulo": "Quantitativo", "tipo": "CONTAGEM", "unidade": "pessoas",
+    assert by_column["Quantidade"] == {"coluna": "Quantidade", "rotulo": "Quantitativo", "tipo": "CONTAGEM", "unidade": "profissionais",
                                        "origem": "CAP-IND-01"}
     assert set(by_column) <= set(density["rows"][0])
     distribution = analyze(frame(), "distribution", distribution_indicator="density", quantile_count=5, **GEO)
@@ -226,6 +226,44 @@ def brazil(operation="density", info=None, **extra):
                                                  "options": json.dumps(options)})
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def test_brazil_automatic_map_is_contextual_and_does_not_change_calculations(repo, monkeypatch):
+    """A premissa só desenha a versão íntegra governada; nem opções nem execução mudam."""
+    automatic = brazil(period_filter="202406", crs="", number_format="")
+    geometry = automatic["metadata"]["representacao"]["geometria"]
+    assert geometry["estado"] == "DISPONIVEL" and geometry["ids"]
+    assert geometry["referencial"] == "SIRGAS2000"
+    assert "datum não declarado" in geometry["configuracao_apresentacao"]["premissa"]
+    assert automatic["metadata"]["options"]["crs"] == ""
+    assert automatic["metadata"]["options"]["number_format"] == ""
+    explicit = brazil(period_filter="202406")
+    assert points(geometry) == points(explicit["metadata"]["representacao"]["geometria"])
+    assert automatic["rows"] == explicit["rows"]
+    monkeypatch.setattr(representation, "curated_profile", lambda *_: None)
+    blocked = brazil(period_filter="202406", crs="", number_format="")
+    assert blocked["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_GEODESICO"
+    assert blocked["rows"] == automatic["rows"]
+    assert blocked["metadata"]["execution_key"] == automatic["metadata"]["execution_key"]
+
+
+def test_brazil_map_configuration_does_not_override_explicit_crs_or_external_version(repo, monkeypatch):
+    unsupported = brazil(period_filter="202406", crs="WGS84")
+    assert unsupported["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_NAO_SUPORTADO"
+    import hashlib
+    import brazil_data
+    external = repo.parent / "externa"
+    external.mkdir()
+    for key, filename in brazil_data.FILES.items():
+        content = (repo / filename).read_bytes() + (b"\n" if key == "municipal" else b"")
+        (external / filename).write_bytes(content)
+    hashes = {key: hashlib.sha256((external / filename).read_bytes()).hexdigest() for key, filename in brazil_data.FILES.items()}
+    (external / "manifest.json").write_text(json.dumps({"schema_version": 1, "sha256": hashes}), encoding="utf-8")
+    monkeypatch.setenv("ADT_BRASIL_DATA_DIR", str(external))
+    monkeypatch.setenv("ADT_BRASIL_DATA_VERSION", brazil_data.version_of(hashes))
+    main._BRAZIL_FRAMES.clear()
+    external = brazil(period_filter="202406", crs="", number_format="")
+    assert external["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_GEODESICO"
 
 
 def test_complemented_points_use_the_layer_in_the_22_periods_with_its_identity(repo):  # noqa: F811

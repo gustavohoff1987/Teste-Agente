@@ -10,6 +10,8 @@ metadados de cada resultado um contrato compacto de apresentação, lido das pr�
 resultado e da mesma geometria autorizada das análises espaciais; o frontend apenas representa esse
 conteúdo. Nenhum número dos resultados muda por causa do bloco (seção 14).
 
+Atualização de 15/10/2026: resultados com muitos territórios passam a ter barras com rolagem, séries paginadas e tabelas filtráveis; o mapa da versão Brasil governada usa configuração contextual de apresentação, descrita abaixo. As medições das seções 13 e 14 são históricas, anteriores a esses ajustes.
+
 ## 1. Situação das unidades
 
 | Unidade | Conteúdo | Commit |
@@ -32,7 +34,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
                                                                  └─► tabelas existentes (CriteriaResults, DistributionResults, genérica)
 ```
 
-- **Sem dependência nova.** Mapa em Canvas 2D nativo; gráficos com Recharts 2.15, já presente;
+- **Sem dependência nova.** Mapa em Canvas 2D nativo; gráficos com Recharts 2.15 e barras extensas em HTML com janela visual, sem biblioteca nova;
   ícones lucide-react, já presente. Nenhum serviço de mapas, tile, chave de API ou CDN: a jornada de
   navegador falha se a página fizer qualquer requisição fora de `127.0.0.1` (seção 12).
 - **Backend:** `backend/representation.py` (novo) e uma chamada em `compute()` de `main.py`. Falha no
@@ -41,7 +43,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   assinatura).
 - **Frontend:** `ResultWorkspace.tsx` substitui, dentro da mesma página de resultados, o gráfico
   genérico dos “primeiros 12 registros” (subconjunto escolhido pelo sistema) e a tabela genérica,
-  preservando a marcação da tabela (`.data-table`, “Tabela detalhada”, “N linhas · até 150 exibidas”).
+  preservando a marcação `.data-table` e acrescentando `ResultTable.tsx`, compartilhada pelas tabelas genérica, de distribuição, de critérios e de competências temporais. Todas as linhas ficam acessíveis por páginas de 150.
 
 ## 3. Contrato de apresentação (`metadata.representacao`, versão 1)
 
@@ -51,15 +53,16 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 | `vinculo` | coluna que identifica o território e a chave estável (`rotulo`, `codigo` ou `nome`) |
 | `indicadores` | colunas representáveis do resultado: `coluna`, `rotulo`, `tipo` (`CONTINUO`, `CONTAGEM`, `POSICAO`, `CLASSE`, `ESTADO`), `unidade`, `origem` (capacidade), `classes` produzidas por capacidade, `nota` (TPL-11 para distâncias) |
 | `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências |
-| `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) |
+| `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 
-- **Autorização da geometria** pela regra das análises espaciais: referencial suportado
+- **Autorização da geometria informada** pela regra das análises espaciais: referencial suportado
   (SIRGAS2000, sem transformação), papéis de latitude e longitude estabelecidos, separador decimal
   declarado e camada complementar governada. Referência mais próxima e critérios com distância usam
   exatamente a leitura memorizada da própria análise (`nearest_inputs`); análise espacial usa o seu
   recorte; as demais usam a competência única do resultado. Várias competências → `COMPETENCIA_UNICA`
   (as coordenadas podem mudar entre competências e não são intercambiáveis).
+- **Configuração contextual Brasil:** somente quando a fonte é Brasil, o perfil canônico é reconhecido, a integridade está verificada e a versão efetiva coincide com a governada. Sem CRS informado, a configuração de apresentação utiliza SIRGAS2000 e o formato decimal da fonte (vírgula, salvo opção explícita). É uma premissa ilustrativa autorizada para o desenho dos pontos nesta alteração; **não certifica o datum original**, ausente na fonte. A origem e a premissa ficam em `geometria.configuracao_apresentacao`, na tela e no JSON. Não altera opções, pré-exame, distância nem chave de execução. Referencial explícito não suportado continua bloqueado. Uploads e versões externas diferentes continuam exigindo informação de origem; não há padrão universal. Os cálculos espaciais mantêm sua exigência independente de referencial autorizado.
 - **Compacto e sem registros individualizados:** apenas coordenadas por território (sede municipal) já
   usadas pelas análises; ~234 KiB para 5.570 pontos (seção 13). Nenhum campo protegido.
 
@@ -141,19 +144,21 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 - **Contagens do motor:** territórios por resultado dos critérios, por alcance da referência mais
   próxima ou por faixa. O não avaliável aparece em barra própria e nunca soma em “não atende”.
 - **Barras por território:**
-  - territórios selecionados, ou todos quando o resultado tem até 40; nenhum subconjunto é escolhido
-    pelo sistema;
+  - todos os territórios por padrão, ou os selecionados explicitamente; acima de 40, uma janela com rolagem monta apenas as barras próximas à área visível, mantendo **todos** os territórios acessíveis, inclusive o último;
   - ordem padrão pelo código territorial;
   - “ordem do resultado” só existe quando há ordenação do motor;
   - “valor, decrescente (apenas visual)” traz o aviso “Ordenação apenas visual: não constitui posição
     de ranking nem resultado”;
-  - territórios sem valor são listados à parte, sem barra.
+  - territórios sem valor são identificados como não avaliáveis, sem converter ausência em zero;
+  - quantitativos com unidade pessoas e escopo FTS confirmado usam “profissionais” apenas no rótulo de apresentação; a unidade metodológica original é preservada;
+  - resultados com série temporal usam linhas, evitando representar a primeira competência como se fosse todo o resultado;
+  - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor.
 - **Linhas:**
   - só para séries já calculadas pelo motor (evolução temporal; competências da própria série, sem
     presumir 22 períodos);
   - lacunas preservadas (`connectNulls=false`), sem tendência nem taxas novas;
   - uma única competência não forma série;
-  - territórios selecionados, ou todos até 8.
+  - todos os territórios ou a seleção explícita, com páginas de oito na ordem dos dados; navegação mostra o intervalo e o total, sem amostragem.
 - **Indicador compartilhado:** o indicador escolhido no mapa vale para as barras, e vice-versa,
   quando ambos o representam.
 - **Dispersão e bolhas: não implementados.** RQ-REP-10 não os lista entre os tipos admitidos. Proposta
@@ -181,25 +186,29 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - “Usar seleção na próxima análise” leva os territórios à seleção territorial compartilhada;
   - “Usar seleção como referências” (referência mais próxima e critérios) leva-os à lista de
     referências;
-  - declarar referencial e separador para o mapa (“Aplicar à preparação”) só ajusta a preparação;
+  - a aba Mapa não contém formulário de referencial/separador; em uploads, essas informações de origem podem ser revistas nas opções avançadas da preparação;
   - a execução continua pelo botão da preparação.
+
+### Filtros da tabela
+
+Cada coluna permite busca por texto sem distinguir acentos e comparações numéricas (`>`, `<`, `>=`, `<=`, `=`), com ponto ou vírgula decimal. Ausências não atendem comparações numéricas. A ordenação é apenas visual e não modifica as posições calculadas. Páginas de 150 dão acesso a todos os registros; o CSV da tabela exporta **todo** o filtro, em precisão integral, sem ficar limitado à página. O CSV superior exporta o resultado original. Filtros por coluna não alteram mapa, gráficos ou preparação; o filtro visual comum segue separado e explícito.
 
 ## 9. Painel integrado, histórico e competências (U4)
 
-- **Abas:** Mapa, Gráficos e Tabela, dentro da página de resultados; não há painel separado. A aba
+- **Abas:** Mapa, Gráficos e Tabela, dentro do resultado no painel de análise, ao lado da conversa no computador. A aba
   Mapa indica “(indisponível)” ou “(não aplicável)” quando não há geometria, e o motivo fica a um
   clique, sem esconder tabela e gráficos.
 - **Histórico:** cada resultado é reconstruído com os próprios dados, parâmetros, origem, versão da
-  camada e limitações (`metadata.representacao` do resultado). Faixa “Resultado histórico (não
-  vigente no contexto atual)”; resultado invalidado fica só para consulta, sem reutilização da
+  camada e limitações (`metadata.representacao` do resultado). Aviso em linguagem comum identifica a consulta a uma análise anterior e orienta revisar a preparação para atualizar; resultado invalidado fica só para consulta, sem reutilização da
   seleção. A compatibilidade de fonte e camada segue a regra existente (`compatible`).
-  - **Atualização (15/10/2026, commit `dbaa0bd`):** a lista "Histórico de resultados" e o controle de
+  - **Atualização (16/10/2026):** o painel recolhido “Histórico de análises” fica sempre acessível no topo da área de análise, inclusive com zero ou um cálculo. Reabrir alterna o resultado à direita sem deslocar o compositor do chat. O controle antigo de histórico foi removido no commit `dbaa0bd`: a lista "Histórico de resultados" e o controle de
     invalidação saíram da interface. A reconstrução descrita acima continua valendo para o resultado
     atual, para a retomada e para as competências calculadas. Não há mais como invalidar pela
     interface. Ver [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).
 - **Competências calculadas:** navegação entre resultados já existentes do mesmo pedido que diferem
   só no período. Para esse agrupamento, opção desmarcada ou vazia equivale a opção ausente; o estado
   “vigente” continua exigindo a chave exata. Nenhum resultado é fabricado.
+- **Dimensão do mapa:** a legenda usa coluna própria apenas quando o painel de análise tem ao menos 850 px; em painéis menores, fica abaixo do mapa. O canvas acompanha a largura efetiva do painel, inclusive após alternar entre impressão e tela.
 
 ## 10. Exportações
 
@@ -207,12 +216,11 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 - **JSON:** passa a trazer `representacao`, com a geometria integral, e `representacao_aplicada`,
   o registro das transformações da representação em uso: aba, indicador, escala e domínio (ou classes
   da capacidade), filtro e seleção visuais, arredondamento, projeção, identidade da geometria e da
-  camada, e ordem das barras.
-- **PNG do mapa e dos gráficos:** com título, indicador, unidade, competência, referencial, legenda,
-  notas de cobertura e de coordenadas complementadas, TPL-11, identificador e vigência do resultado.
+  camada, ordem das barras, filtros/ordem/página da tabela e página/categoria das séries.
+- **PNG:** botões de imagem do mapa e dos gráficos removidos por solicitação do produto. O download JSON permanece com todos os pontos, método, parâmetros e origem; não há JSON embutido na página.
 - **Impressão:** inclui a visualização aberta (mapa ou gráficos); os controles ficam fora. **Não há
   gerador de PDF no servidor**; “Imprimir / PDF” usa o recurso de impressão do navegador. SVG não é
-  oferecido (o PNG cobre a necessidade).
+  oferecido. A impressão reflete a visualização aberta e a página atual da tabela, sem prometer um relatório integral de todas as páginas.
 
 ## 11. Acessibilidade e responsividade
 
@@ -231,25 +239,25 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 ## 12. Fidelidade e testes
 
 - **Backend:**
-  - `test_representation.py` (13 casos sintéticos em 11 funções, uma parametrizada): densidade por
+  - `test_representation.py`: densidade por
     competência com município que se desloca, inválido e ausente fora do mapa e listados; homônimos; casos bloqueados (referencial,
     separador, papéis, sem coordenadas, várias competências); agregação e evolução temporal sem mapa e
     com série; indicadores, unidades e classes; referência mais próxima com referências de outra UF e
     inválidas, alvo-referência e cobertura parcial; conjunto de referências vazio; critérios ligados
     por código; robustez (falha no contrato mantém linhas e chave); seis pontos complementados nas 22
     competências com a identidade da camada.
-  - `test_representation_real.py` (2 testes, opt-in com `ADT_REAL_DATA_DIR`): 22 competências iguais à
+  - `test_representation_real.py` (opt-in com `ADT_REAL_DATA_DIR`): mapa automático nas 22 competências igual à
     leitura independente do CSV e da camada (SHA-256 conferido); cenário de critérios com 5.570
     pontos, ATENDE e referências contidas no mapa.
 - **Navegador:** `ui_map_smoke.py`, no job `ui-block1` do CI, com base importada fictícia:
-  1. mapa indisponível sem referencial (BLQ-DAD), com declaração levada à preparação sem executar;
+  1. mapa de upload indisponível sem referencial, sem formulário na aba Mapa; origem configurada na preparação sem executar;
   2. modelo desenhado idêntico à geometria da resposta, legenda com mínimo e máximo, territórios fora
      do mapa listados;
   3. seleção por busca de homônimo, por clique, com Shift e pela tabela;
   4. filtro “Minha seleção” e retorno do detalhe à tabela (“Ver na tabela”);
   5. troca de indicador, zoom, arrasto, teclado e extensão completa, sem nova análise;
-  6. gráficos com ordenação visual rotulada e PNG;
-  7. PNG do mapa e reutilização da seleção sem execução;
+  6. gráficos com ordenação visual rotulada e ausência dos controles PNG;
+  7. geometria integral no JSON e reutilização da seleção sem execução;
   8. segunda competência, com o ponto deslocado e a navegação entre competências;
   9. histórico sem geometria;
   10. referência mais próxima com referências de outra UF e inválida, empate (ligações iguais às
@@ -260,9 +268,19 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 
   A jornada falha com qualquer erro de página ou requisição externa. A pinça (dois dedos) está
   implementada, mas não é exercitada pela automação, que roda em navegador de mesa.
+- **Regressão de visibilidade:** `ui_visibility_diagnostic.py` usa 180 territórios sintéticos, confere barras sem seleção inicial, último território via rolagem, mudança de indicador, filtros/ordenação/páginas/CSV, distribuição e páginas de séries. `ui_block1_smoke.py` com a base versionada confere mapa automático e barras dos 62 municípios do AM. `ui_conversational_smoke.py` confere perguntas antes da fonte e agradecimento; todos os roteiros permanecem registrados em `run_ui_checks.py`.
 - **Dados reais:** `bench_ui_map.py` confere que o modelo desenhado é a geometria da resposta
   (5.570 pontos), que o filtro inicial mostra exatamente os ATENDE desenhados e que as referências
   desenhadas são as do motor.
+
+### Validação dos ajustes de 15/10/2026
+
+- `ADT_REAL_DATA_DIR=<raiz> python -m pytest -q -rs`: **438 aprovados, nenhum pulado**; avisos de depreciação do TestClient e de permissão do cache do pytest no Windows.
+- `npm ci` e `npm run build`: aprovados; permanece o aviso de tamanho do bundle.
+- `python backend/tests/run_ui_checks.py`: **9 roteiros aprovados**; após o ajuste final de seleção das séries, a suíte `bloco1` foi repetida e os **6 roteiros passaram**, incluindo filtros registrados no JSON e retorno à primeira página das séries.
+- Governança aprovada; diagnóstico de dados com `integridade: verificada` antes e depois. Nenhum arquivo versionado de dados nem a SPEC foi alterado.
+- No Windows, os comandos Python foram executados com `PYTHONUTF8=1` para a saída e as mensagens de commits em português; sem isso, a página de códigos cp1252 prejudicava a verificação de governança e a impressão do resumo. Não foi necessário alterar as verificações.
+- Conferência no navegador local: mapa automático com **5.570 pontos** e barras com todos os **5.570 territórios**, sem preenchimento de parâmetros na aba Mapa.
 
 ## 13. Desempenho
 
@@ -424,7 +442,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
 | RQ-REP-06 Controles não iniciam análise | Atendido | conferido nas jornadas |
 | RQ-REP-07 Mapa exige geometria; senão BLQ-DAD | Atendido | seção 3 |
 | RQ-REP-08 Painel sem cálculo entre representações | Atendido | inspeção do código |
-| RQ-REP-09 Referências, parâmetros e limitações | Parcial | PNG e JSON trazem origem e limitações; o modo degradado da síntese não foi exercitado neste bloco |
+| RQ-REP-09 Referências, parâmetros e limitações | Parcial | JSON traz origem e limitações; PNG removido da interface; o modo degradado da síntese não foi exercitado neste bloco |
 | RQ-REP-10 Tipos admitidos | Atendido; dispersão e bolhas fora | seção 7 |
 | RQ-REP-11 Escala e unidade da densidade | Atendido nas representações novas | unidade “por 1.000 habitantes” na legenda, nos eixos e nos detalhes |
 | RQ-REP-12 Conteúdo de HTML, PDF e CSV | Parcial | ver CAP-REP-05; CSV sem mudança |

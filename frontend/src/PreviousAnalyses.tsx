@@ -19,15 +19,16 @@ type Props = {
 };
 
 export default function PreviousAnalyses({ items, currentId, disabled, onOpen }: Props) {
-  return <section aria-label="Análises anteriores" className="no-print mb-5">
-    <details className="group overflow-hidden rounded-xl border border-line bg-white">
+  return <section aria-label="Histórico de análises" className="no-print">
+    <details className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 text-sm font-semibold text-ink marker:hidden hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <Clock3 size={17} className="shrink-0 text-teal" aria-hidden="true"/>
-        <span>Análises anteriores</span>
-        <span className="ml-auto text-xs font-normal text-slate-500">{items.length} análises nesta sessão</span>
+        <span>Histórico de análises</span>
+        <span className="ml-auto text-xs font-normal text-slate-500">{items.length} {items.length === 1 ? "análise" : "análises"} nesta sessão</span>
         <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true"/>
       </summary>
-      <div className="border-t border-line px-4 py-3">
+      <div className="history-list border-t border-line bg-white px-4 py-3 shadow-lg">
+        {!items.length && <p className="mb-2 text-xs text-slate-600">O histórico será preenchido após o primeiro cálculo.</p>}
         <p className="mb-3 text-xs text-slate-500">
           Reabra uma análise desta sessão sem refazer os cálculos. Os resultados não ficam salvos quando a página é recarregada.
         </p>

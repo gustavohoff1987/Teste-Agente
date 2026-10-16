@@ -18,9 +18,10 @@ def test_real_geometry_matches_the_effective_points_in_the_22_periods(real):  # 
     layer, document = official_layer()
     for period in document["escopo_temporal"]["competencias"]:
         units = effective(independent(rows, period), layer)
-        body = analyze(inspection, operation="density", period_filter=period)
+        body = analyze(inspection, operation="density", period_filter=period, crs="", number_format="")
         geometry = body["metadata"]["representacao"]["geometria"]
         assert geometry["estado"] == "DISPONIVEL" and geometry["competencia"] == period and geometry["sem_geometria"] == []
+        assert geometry["configuracao_apresentacao"]["origem"] == "configuracao_contextual_base_brasil"
         assert located(geometry) == {key: (unit["lat"], unit["lon"]) for key, unit in units.items()}
         assert sorted(geometry["complementados"]) == sorted(layer) and len(geometry["ids"]) == len(units)
         identity = geometry["complemento_geografico"]

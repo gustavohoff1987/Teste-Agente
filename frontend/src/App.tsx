@@ -5,7 +5,9 @@ import DataResolution from "./DataResolution";
 import { displayPeriod } from "./DistributionResults";
 import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
 import PreviousAnalyses from "./PreviousAnalyses";
-import AnalysisAssistant from "./AnalysisAssistant";
+import ResultTable from "./ResultTable";
+import { scrollAnalysisTo } from "./workspaceNavigation";
+import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
 import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
@@ -65,10 +67,7 @@ type Inspection = {
 };
 type Metric = { label: string; value: string | number };
 type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
-type Exploration = {handled: boolean; reply?: string; clarification?: string; operation?: Operation;
-  territory_ids?: string[]; options_patch?: {period_filter?: string; period_filters?: string[];
-    temporal_indicator?: "quantity" | "density"; comparison_indicator?: "quantity" | "density";
-    component_sum_confirmed?: boolean}; selection_changed?: boolean;
+type Exploration = TerritorialProposal & {
   criteria_patch?: {mode?: "replace" | "and" | "or"; leaf?: Omit<Leaf, "id">; ranking?: {attribute: RankingSpec["attribute"]; direction: "asc" | "desc"};
     top_n?: number; exact_n?: boolean; compare?: "previous"}; criteria_pending_ranking?: RankingSpec["attribute"]};
 type CriteriaComparison = {criteria?: CriteriaNode; ranking?: RankingSpec; label: string};
@@ -168,6 +167,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 }
 function App() {
   const privacy = useSessionPrivacy();
+  const [conversationStarted, setConversationStarted] = useState(false);
   const [page, setPage] = useState<"home" | "results">("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -192,12 +192,14 @@ function App() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
   const [comparisonIndicator, setComparisonIndicator] = useState<"quantity" | "density">("density");
+  const [requestedIndicator, setRequestedIndicator] = useState<{operation:Operation; indicator:"quantity" | "density"; generation:number} | null>(null);
   const [requestText, setRequestText] = useState("");
   type Historical = {result: AnalysisResult; request: string; sourceKey: string; contextKey: string;
     preparation: ReturnType<typeof snapshotPreparation>; invalidReason: string};
   const [history, setHistory] = useState<Historical[]>([]);
   const [historyNotice, setHistoryNotice] = useState("");
   const pendingExploration = useRef<Exploration | null>(null);
+  const pendingTerritories = useRef<{operation: Operation; requestedCount?: number | null; source: string} | null>(null);
   const [selectionProposal, setSelectionProposal] = useState<Exploration | null>(null);
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -279,6 +281,8 @@ function App() {
   const selectedFeature = FEATURES.find(f => f.id === active);
   const sourceKey = JSON.stringify({source: usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version: sourceVersion, scope: inspection?.source?.scope, sheet});
+  const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
+    version:sourceVersion,sheet});
   const geoToken = inspection?.catalog?.complemento_geografico?.token || "";
   const resultGeoToken = (item: AnalysisResult) => {
     const geo = item.metadata.complemento_geografico as {sha256?: string; estado?: string} | undefined;
@@ -302,28 +306,9 @@ function App() {
     !note.startsWith("Período AAAAMM composto em memória") && !note.startsWith("Identificação territorial:")) || [];
   const resultStatus = historical?.invalidReason ? "INVALIDADO" :
     historical && active && historical.contextKey===requestKey(active) ? "VIGENTE" : "NAO_VIGENTE";
-  const resultMembers = (result?.metadata.universe as {members?: Territory[]} | undefined)?.members || [];
   type NearestMetadata = {conjunto_referencias?: {forma: string; membros: {id: string}[]}; cobertura_referencias?: unknown[]};
   const nearestMetadata = result?.metadata.nearest_reference as NearestMetadata | undefined;
   const nearestMembers = nearestMetadata?.conjunto_referencias?.membros.map(item=>item.id) || [];
-  // A cobertura por alvo pode ter milhares de registros: na tela, só os primeiros; o JSON exportado é integral.
-  const criteriaMetadata = result?.metadata.criterios as (CriteriaMetadata & {avaliacoes?: unknown[]}) | undefined;
-  const metadataText = useMemo(() => {
-    if (!result) return "";
-    // Na tela, a geometria aparece resumida; a exportação “Método e parâmetros” traz os pontos integralmente.
-    const representation = result.metadata.representacao as {geometria?: {ids?: string[]}} | undefined;
-    const geometry = representation?.geometria;
-    const metadata = geometry?.ids && geometry.ids.length > 50 ? {...result.metadata, representacao: {...representation, geometria:
-      {...geometry, ids: "… " + geometry.ids.length + " identificadores", lat: "… integral na exportação “Método e parâmetros”",
-        lon: "… integral na exportação “Método e parâmetros”"}}} : result.metadata;
-    const evaluations = criteriaMetadata?.avaliacoes;
-    if (evaluations && evaluations.length > 50) return JSON.stringify({...metadata, criterios: {...criteriaMetadata, avaliacoes:
-      [...evaluations.slice(0, 50), "… mais " + (evaluations.length - 50) + " avaliações por território na exportação “Método e parâmetros”"]}}, null, 2);
-    const coverage = nearestMetadata?.cobertura_referencias;
-    return JSON.stringify(coverage && coverage.length > 50 ? {...metadata, nearest_reference: {...nearestMetadata,
-      cobertura_referencias: [...coverage.slice(0, 50), "… mais " + (coverage.length - 50) + " registros por alvo na exportação “Método e parâmetros”"]}}
-      : metadata, null, 2);
-  }, [result]);
   // Registro da representação em uso (transformações visuais), exportado com “Método e parâmetros”.
   const representationRecord = useRef<RepresentationRecord | null>(null);
   const keepRepresentation = useCallback((record: RepresentationRecord) => { representationRecord.current = record; }, []);
@@ -483,6 +468,8 @@ function App() {
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
+    setRequestedIndicator(proposal?.indicator ? {operation, indicator:proposal.indicator, generation:sourceGeneration} : null);
+    if (pendingTerritories.current?.operation !== operation) pendingTerritories.current = null;
     setRequestedCategory(proposal?.category || "");
     const territory = (proposal?.territory || "").normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -504,6 +491,19 @@ function App() {
       if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", target, operation, true);
     }
   }
+  useEffect(() => {
+    if (!requestedIndicator) return;
+    if (requestedIndicator.generation !== sourceGeneration || requestedIndicator.operation !== active) {
+      setRequestedIndicator(null); return;
+    }
+    if (inspecting || !inspection) return;
+    const {operation, indicator} = requestedIndicator;
+    if (operation === "comparisons") setComparisonIndicator(indicator);
+    if (operation === "distribution") setDistributionIndicator(indicator);
+    if (operation === "temporal") setTemporalIndicator(indicator);
+    if (operation === "report") setReportIndicator(indicator);
+    setRequestedIndicator(null);
+  }, [requestedIndicator, sourceGeneration, active, inspecting, inspection]);
   // Somente uma correspondência literal inequívoca permite aplicar automaticamente
   // o filtro pedido. Equivalências semânticas permanecem para escolha explícita.
   useEffect(() => {
@@ -580,6 +580,7 @@ function App() {
       setResolutions(previous=>({...previous, component_sum_confirmed:true, identity_union_confirmed:false}));
     }
     setActive(proposal.operation); setInlineConfirmed(!!inspection?.curated_defaults); setError("");
+    setTimeout(() => scrollAnalysisTo("preparacao-conversacional"), 0);
   }
   // Resultado anterior comparável: mesma fonte, competência, categoria, universo e, se houver distância, referências.
   function previousCriteria(): {item: Historical; index: number} | null {
@@ -634,38 +635,49 @@ function App() {
     }
     return null;
   }
-  async function exploreMessage(message: string): Promise<string | null> {
+  function conversationOptions() {
+    const pending = pendingTerritories.current;
+    return {...semanticOptions(), exploration_operation: active || "", exploration_indicator:
+      active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
+      ...(pending?.source === conversationSourceKey ? {conversation_pending_operation:pending.operation,
+        conversation_requested_count:pending.requestedCount} : {})};
+  }
+  function acceptExploration(proposal: Exploration): string {
+    if (proposal.reset_selection) changeTerritories([]);
+    if (proposal.pending_operation) pendingTerritories.current = {operation:proposal.pending_operation,
+      requestedCount:proposal.requested_count, source:conversationSourceKey};
+    else if (proposal.operation && !proposal.clarification) pendingTerritories.current = null;
+    pendingRanking.current = proposal.criteria_pending_ranking || null;
+    if (proposal.criteria_patch) return applyCriteriaPatch(proposal.criteria_patch, proposal.reply || "");
+    if (proposal.operation && proposal.territory_ids) {
+      // Nomes explicitamente pedidos autorizam preparar esse novo conjunto; nada é executado.
+      if (usingBrazil && inspection?.source?.scope !== "municipal") {
+        pendingExploration.current = proposal;
+        setBrazilLevel("municipal"); setActive(proposal.operation);
+        void inspectFile(null, "", "municipal", proposal.operation, true);
+      } else applyExploration(proposal);
+    } else if (proposal.operation) selectAnalysis(proposal.operation);
+    return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros à direita.";
+  }
+  async function exploreMessage(message: string, choice?: {operation:Operation; indicator?:"quantity" | "density" | null}): Promise<string | null> {
     if (!inspection || inspecting) return null;
     const currentRevision = revision.current;
     const form = new FormData(); appendSource(form);
     form.append("message", message); form.append("mapping", JSON.stringify(mapping));
-    form.append("options", JSON.stringify({...semanticOptions(), exploration_indicator:
-      active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
-      exploration_operation: active || "", ...(criteriaTree ? {criteria: criteriaTree} : {}),
+    form.append("options", JSON.stringify({...conversationOptions(), ...(choice ? {conversation_operation_choice:choice.operation, exploration_indicator:choice.indicator || conversationOptions().exploration_indicator} : {}), ...(criteriaTree ? {criteria: criteriaTree} : {}),
       ...(criteriaRanking?.attribute ? {ranking: criteriaRanking} : {}),
       ...(pendingRanking.current ? {criteria_pending_ranking: pendingRanking.current} : {})}));
     const response = await fetch(API + "/api/exploration/interpret", {method:"POST", body:form});
     const proposal = await readApiResponse(response) as Exploration;
     if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
-    if (!proposal.handled) return null;
-    pendingRanking.current = proposal.criteria_pending_ranking || null;
-    if (proposal.clarification) return proposal.clarification;
-    if (proposal.criteria_patch) return applyCriteriaPatch(proposal.criteria_patch, proposal.reply || "");
-    if (proposal.operation && !proposal.territory_ids) {
-      // Comando que só prepara a operação: alvos, referências e confirmações seguem nos controles.
-      selectAnalysis(proposal.operation);
-      return proposal.reply || "Análise preparada. Confira as condições abaixo.";
+    if (!proposal.handled) {
+      if (!choice) return null;
+      // A escolha de capacidade também vale antes de haver uma seleção territorial.
+      const territory = /\b(?:municipios?|municipal|cidades?)\b/.test(message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()) ? "municípios" : "";
+      selectAnalysis(choice.operation, {category:"", period:"", territory, indicator:choice.indicator || null});
+      return "Análise escolhida. Confira o recorte, o indicador e as condições na preparação.";
     }
-    if (proposal.selection_changed) {
-      setSelectionProposal(proposal);
-      return "O pedido menciona um conjunto diferente da seleção atual. Confirme abaixo se deseja usar o recorte mencionado.";
-    }
-    if (usingBrazil && inspection.source?.scope !== "municipal") {
-      pendingExploration.current = proposal;
-      setBrazilLevel("municipal"); setActive(proposal.operation || null);
-      void inspectFile(null, "", "municipal", proposal.operation, true);
-    } else applyExploration(proposal);
-    return proposal.reply || "Recorte preparado. Confira as condições e execute a análise.";
+    return acceptExploration(proposal);
   }
   useEffect(()=>{
     if (!inspecting && inspection?.source?.scope === "municipal" && pendingExploration.current) {
@@ -680,11 +692,12 @@ function App() {
   function exploreSelection(operation: Operation) {
     setRequestText(ANALYSIS_LABELS[operation] + " dos territórios selecionados");
     selectAnalysis(operation);
-    document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"});
+    scrollAnalysisTo("preparacao-conversacional");
   }
   function openHistorical(item: Historical) {
     if (running || inspecting || preflighting) return;
     setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
+    setTimeout(() => scrollAnalysisTo("resultados"), 0);
   }
   function restoreHistorical(item: Historical) {
     if (item.invalidReason || !compatible(item)) return;
@@ -743,7 +756,7 @@ function App() {
         ? "Selecione uma aba do arquivo Excel para concluir a importação."
         : inspecting ? "Aguarde a conclusão do exame do arquivo."
         : "A importação não foi concluída. Confira a mensagem na conversa antes de continuar.");
-      document.getElementById("dados")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollAnalysisTo("dados");
       return;
     }
     setUploadError("");
@@ -751,7 +764,7 @@ function App() {
     const reusable = history.find(item=>item.contextKey===contextKey && !item.invalidReason);
     if (reusable) {
       setResult(reusable.result); setHistoryNotice("Resultado existente recuperado, sem recalcular.");
-      resultsRef.current?.scrollIntoView({behavior:"smooth"});
+      scrollAnalysisTo("resultados");
       return;
     }
     const preparation = structuredClone(snapshotPreparation());
@@ -772,11 +785,11 @@ function App() {
       setHistory(previous=>[...previous, {result:calculated, request:originRequest, sourceKey,
         contextKey, preparation, invalidReason:""}]);
       setResult(calculated); setHistoryNotice("");
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+      setTimeout(() => scrollAnalysisTo("resultados"), 120);
     } catch (exc) {
       if (currentRevision !== revision.current) return;
       setError(readableError(exc));
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+      setTimeout(() => scrollAnalysisTo("resultados"), 120);
     }
     finally { runningRef.current = false; setRunning(false); }
   }
@@ -785,10 +798,11 @@ function App() {
     setPage(view);
     setMobileMenuOpen(false);
     const fragment = target || (view === "results" ? "resultados" : "inicio");
-    if (window.location.hash !== "#" + fragment) window.location.hash = fragment;
-    window.setTimeout(() => document.getElementById(fragment)?.scrollIntoView({
-      behavior: "smooth", block: "start"
-    }), 80);
+    // A alteração nativa do hash também rolaria a página antes da navegação do painel.
+    if (window.location.hash !== "#" + fragment) window.history.pushState(null, "", "#" + fragment);
+    window.setTimeout(() => {
+      if (!scrollAnalysisTo(fragment)) document.getElementById(fragment)?.scrollIntoView({behavior:"smooth", block:"start"});
+    }, 80);
   }
   useEffect(() => {
     const onHashChange = () => setPage("home");
@@ -1335,7 +1349,22 @@ function App() {
       </div>}
       referenceMode={referenceMode}
       criteriaNeeds={criteriaNeeds}
-      advanced={advancedPreparation}
+      advanced={<>
+        {!usingBrazil && mapping.latitude && mapping.longitude && !spatialRequest(active) && <fieldset className="mb-4 rounded-lg border border-line p-3 text-xs">
+          <legend>Localização dos dados importados</legend>
+          <p className="mb-2 text-slate-600">Use as informações da origem do arquivo. A configuração não é necessária para cálculos sem distância.</p>
+          <label className="mr-3 inline-flex flex-col gap-1">Referencial das coordenadas importadas
+            <select aria-label="Referencial das coordenadas importadas" value={crs} onChange={event => setCrs(event.target.value)} className="rounded border p-2">
+              <option value="">Não informado na origem</option><option value="SIRGAS2000">SIRGAS2000</option></select>
+          </label>
+          <label className="inline-flex flex-col gap-1">Separador decimal das coordenadas importadas
+            <select aria-label="Separador decimal das coordenadas importadas" value={resolutions.number_format || ""}
+              onChange={event => setResolutions(previous => ({...previous, number_format: event.target.value || undefined}))} className="rounded border p-2">
+              <option value="">Conforme o arquivo</option><option value="decimal_comma">Vírgula</option><option value="decimal_point">Ponto</option></select>
+          </label>
+        </fieldset>}
+        {advancedPreparation}
+      </>}
     /></div> : null;
   const selectionContent = inspection && (!usingBrazil || inspection.source?.scope==="municipal") ? <>
     <TerritorialSelection items={preflight?.territory_choices || []} selected={territoryIds}
@@ -1357,21 +1386,24 @@ function App() {
           onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
     </div>}
   </> : null;
-  const resultContent = (history.length || result || running || error) ? (<>
-      <section id="resultados" ref={resultsRef} className="section-anchor mt-4 pt-3">
-        <button type="button" onClick={() => document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"})}
-          className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
-          <ArrowRight size={15} className="rotate-180"/> Voltar às opções
-        </button>
-        <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
-        {history.length > 1 && <PreviousAnalyses items={history.map(item => ({
+  const historyContent = (
+<PreviousAnalyses items={history.map(item => ({
           id: item.result.result_id,
           title: item.result.title,
           request: item.request,
           periods: (item.result.metadata.periods as string[] | undefined) || [],
           availableForReuse: compatible(item),
         }))} currentId={result?.result_id || null} disabled={running || inspecting || preflighting}
-          onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>}
+          onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>
+  );
+  const workspaceEngaged = conversationStarted || !!inspection || usingBrazil || !!file || !!active || history.length > 0;
+  const resultContent = (history.length || result || running || error) ? (<>
+      <section id="resultados" ref={resultsRef} className="section-anchor mt-4 pt-3">
+        <button type="button" onClick={() => scrollAnalysisTo("preparacao-conversacional")}
+          className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
+          <ArrowRight size={15} className="rotate-180"/> Voltar às opções
+        </button>
+        <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
         {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
@@ -1389,7 +1421,7 @@ function App() {
             </div>
           </div>
           <div id="filtros-resultados" className="no-print mt-4">
-            <button type="button" className="font-bold text-teal underline" onClick={() => document.getElementById("preparacao-conversacional")?.scrollIntoView({behavior:"smooth"})}>Alterar a preparação</button>
+            <button type="button" className="font-bold text-teal underline" onClick={() => scrollAnalysisTo("preparacao-conversacional")}>Alterar a preparação</button>
           </div>
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}
           {running && <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-teal">
@@ -1420,25 +1452,12 @@ function App() {
                 resultOperation === "distribution" ? "Resultado de uma análise anterior. O resultado original permanece disponível." :
                 "Resultado histórico válido · não vigente no contexto atual"}
             </p>
-            {historical && <details className="my-3 rounded-lg border border-line p-3 text-xs">
-              <summary className="cursor-pointer font-semibold text-teal">Consultar solicitação e parâmetros</summary>
-              <p className="mt-3 break-words">Solicitação: {historical.request}</p>
-              <p className="break-all">Identidade: {result.result_id}</p>
-              <pre tabIndex={0} aria-label="Metadados e parâmetros do resultado" className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words">{metadataText}</pre>
+            {historical && <div className="no-print my-3 text-xs text-slate-600">
+              <p className="break-words">Solicitação: {historical.request}</p>
               <button type="button" disabled={!!historical.invalidReason || !compatible(historical) || inspecting || running}
-                onClick={()=>restoreHistorical(historical)} className="no-print mt-3 rounded-lg border px-3 py-2 text-teal disabled:opacity-40">Retomar parâmetros deste resultado</button>
+                onClick={()=>restoreHistorical(historical)} className="mt-2 text-teal underline disabled:opacity-40">Retomar parâmetros deste resultado</button>
               {!compatible(historical) && <p className="mt-2">A fonte, a versão ou a camada geográfica atual difere da utilizada neste resultado. O conteúdo histórico permanece consultável.</p>}
-            </details>}
-            {!!resultMembers.length && historical && compatible(historical) && !historical.invalidReason && <details className="no-print my-3 text-xs">
-              <summary className="cursor-pointer font-semibold text-teal">Selecionar territórios deste resultado</summary>
-              <p className="my-2">Marque os territórios que deseja reutilizar. O resultado calculado permanece inalterado.</p>
-              <div className="max-h-48 overflow-auto rounded-lg border border-line p-2">
-                {resultMembers.map(item=><label key={item.id} className="flex min-h-10 items-center gap-2 px-2 py-2">
-                  <input type="checkbox" checked={territoryIds.includes(item.id)} disabled={running || inspecting}
-                    onChange={()=>changeTerritories(territoryIds.includes(item.id) ? territoryIds.filter(id=>id!==item.id) : [...territoryIds,item.id])}/>{item.label}
-                </label>)}
-              </div>
-            </details>}
+            </div>}
             {resultOperation === "nearest" && !!nearestMembers.length && historical && compatible(historical) && !historical.invalidReason &&
               <details className="no-print my-3 text-xs">
               <summary className="cursor-pointer font-semibold text-amber-900">Reutilizar as referências deste resultado</summary>
@@ -1461,9 +1480,7 @@ function App() {
               onOpenSibling={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
               onReuseSelection={ids => { changeTerritories(ids);
                 setHistoryNotice("Seleção visual levada à preparação: " + ids.length + " território(s). Revise e execute pela preparação."); }}
-              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); }}
-              onDeclareGeometry={choice => { setCrs(choice.crs); setResolutions(previous => ({...previous, number_format: choice.number_format}));
-                setHistoryNotice("Referencial e separador decimal declarados na preparação. Execute novamente para incluir o mapa."); }}/>
+              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); }}/>
             {resultNotes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
               {resultOperation === "distribution" ? <>
@@ -1482,8 +1499,9 @@ function App() {
             {resultOperation === "temporal" && result.detail_rows && <details className="mt-4 text-xs">
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>
               <button type="button" onClick={()=>exportCsv(result.detail_rows!)} className="no-print my-2 rounded-lg border px-3 py-2">Exportar série CSV</button>
-              <div tabIndex={0} role="region" aria-label="Competências da série temporal" className="max-h-72 overflow-auto"><table className="data-table w-full"><thead><tr>{Object.keys(result.detail_rows[0] || {}).map(key=><th key={key}>{key}</th>)}</tr></thead>
-                <tbody>{result.detail_rows.slice(0,150).map((row,index)=><tr key={index}>{Object.values(row).map((value,i)=><td key={i}>{pretty(value)}</td>)}</tr>)}</tbody></table></div>
+              <div role="region" aria-label="Competências da série temporal">
+                <ResultTable key={result.result_id} rows={result.detail_rows} columns={Object.keys(result.detail_rows[0] || {}).map(key=>({key}))}/>
+              </div>
             </details>}
           </div>}
         </div>
@@ -1491,7 +1509,7 @@ function App() {
 
   </>) : null;
 
-  return <div className="min-h-screen bg-canvas">
+  return <div className={"min-h-screen bg-canvas" + (workspaceEngaged ? " workspace-engaged" : "")}>
     {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
     <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="sr-only"
       aria-label="Importar arquivo de dados"
@@ -1527,10 +1545,13 @@ function App() {
         </nav>}
       </header>
       {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
-      <main id="inicio" className="mx-auto max-w-[1330px] px-4 pb-16 pt-6 sm:px-7 lg:px-10">
+      <main id="inicio" className="workspace-main mx-auto max-w-[1530px] px-4 pb-4 pt-4 sm:px-5 lg:px-5">
       <div className={page === "home" ? "" : "hidden"}>
-      <WelcomeHero onChat={() => navigate("home", "assistente")} onImport={() => inputRef.current?.click()}/>
+      {!workspaceEngaged && <WelcomeHero onChat={() => {setConversationStarted(true); navigate("home", "assistente");}} onImport={() => inputRef.current?.click()}/> }
       <AnalysisAssistant
+        historyContent={historyContent}
+        hasResult={!!result || running}
+        onStarted={() => setConversationStarted(true)}
         apiBase={API}
         privacyAccepted={privacy.accepted}
         file={file}
@@ -1538,7 +1559,7 @@ function App() {
         datasetVersion={inspection?.source?.version || ""}
         sheet={sheet}
         mapping={mapping}
-        options={semanticOptions()}
+        options={conversationOptions()}
         contextReady={!!inspection && !inspection.requires_sheet && !!preflight && !preflighting && !inspecting}
         contextVersion={JSON.stringify({
           file: file?.name, modified: file?.lastModified, size: file?.size,
@@ -1554,6 +1575,7 @@ function App() {
         }}
         onRequest={setRequestText}
         onExplore={exploreMessage}
+        onResolved={acceptExploration}
         selection={selectionContent}
         sourceChoice={sourceChoice}
         sourceReady={!!inspection && !inspection.requires_sheet && !inspecting}

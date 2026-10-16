@@ -21,6 +21,7 @@ function TooltipBox({ title, lines }: { title: string; lines: { color?: string; 
 
 export function TerritoryBars({ data, unit, kind, title, onSelect }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
   onSelect: (id: string) => void }) {
+  if (data.length > 40) return <ScrollableBars key={title} data={data} unit={unit} kind={kind} title={title} onSelect={onSelect}/>;
   const height = Math.max(220, 46 + data.length * 26);
   return <figure aria-label={title} className="w-full">
     <div style={{ height }} className="w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
@@ -42,6 +43,48 @@ export function TerritoryBars({ data, unit, kind, title, onSelect }: { data: Bar
     {data.some(item => item.value === null) && <figcaption className="mt-1 text-xs text-slate-600">
       Sem barra por não avaliabilidade (nunca convertida em zero): {data.filter(item => item.value === null).map(item => item.label).join("; ")}.
     </figcaption>}
+  </figure>;
+}
+
+// Todos os territórios permanecem acessíveis. Só as linhas próximas à área visível
+// são montadas, para evitar milhares de elementos SVG no resultado Brasil.
+function ScrollableBars({ data, unit, kind, title, onSelect }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
+  onSelect: (id: string) => void }) {
+  const [start, setStart] = useState(0);
+  const rowHeight = 34, windowSize = 20;
+  const [min, max] = useMemo(() => {
+    let low = 0, high = 0;
+    for (const item of data) if (item.value !== null) { low = Math.min(low, item.value); high = Math.max(high, item.value); }
+    return [low, high];
+  }, [data]);
+  const span = max - min || 1, zero = -min / span * 100;
+  const offset = Math.min(start, Math.max(0, data.length - 1));
+  return <figure aria-label={title} className="w-full" data-testid="scrollable-bars" data-total={data.length}>
+    <figcaption className="mb-2 text-xs text-slate-600">{data.length.toLocaleString("pt-BR")} territórios.
+      Role o gráfico para percorrer todos ou selecione territórios na tabela para comparar.</figcaption>
+    <div className="mb-1 flex justify-between pl-[42%] text-[11px] text-slate-500"><span>{formatNumber(min, kind)}</span>
+      <span>{formatNumber(max, kind)} {unit}</span></div>
+    <div role="region" aria-label="Barras por território" tabIndex={0} className="max-h-[440px] overflow-y-auto rounded-lg border border-line"
+      onScroll={event => setStart(Math.max(0, Math.floor(event.currentTarget.scrollTop / rowHeight) - 2))}>
+      <div style={{height: data.length * rowHeight, position: "relative"}}>
+        {data.slice(offset, offset + windowSize).map((item, index) => {
+          const value = item.value, end = value === null ? zero : (value - min) / span * 100;
+          return <button key={item.id} type="button" onClick={() => onSelect(item.id)}
+            aria-label={item.label + ": " + (value === null ? "Não avaliável" : formatNumber(value, kind) + " " + unit)}
+            title={item.label + ": " + (value === null ? "Não avaliável" : fullPrecision(value) + " " + unit)}
+            style={{position:"absolute", top: (offset + index) * rowHeight, height: rowHeight}}
+            className="grid w-full grid-cols-[42%_minmax(0,1fr)] items-center gap-2 border-b border-slate-100 px-2 text-left text-xs hover:bg-blue-50 focus-visible:bg-blue-50">
+            <span className="truncate">{item.label}</span>
+            <span className="relative h-6 min-w-0">
+              <span aria-hidden className="absolute inset-y-0 border-l border-slate-300" style={{left: zero + "%"}}/>
+              {value !== null && <span aria-hidden className="absolute top-1 h-4 rounded-sm"
+                style={{left: Math.min(zero, end) + "%", width: Math.abs(end - zero) + "%", background: item.highlighted ? CATEGORICAL[0] : "#9ec5f4"}}/>}
+              <span className="relative block truncate px-1 py-1 text-[10px] text-slate-800">{value === null ? "Não avaliável" : formatNumber(value, kind)}</span>
+            </span>
+          </button>;
+        })}
+      </div>
+    </div>
   </figure>;
 }
 
@@ -90,3 +133,4 @@ export function SeriesLines({ points, series, unit, kind, title }: { points: Lin
 }
 
 export const stateColor = (state: string) => state === "NAO_AVALIAVEL" || state === "Não avaliável" ? NOT_EVALUABLE : undefined;
+import { useMemo, useState } from "react";

@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { BarChart3, Download, Search } from "lucide-react";
+import { BarChart3, Search } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+
+import ResultTable, { type TablePresentation } from "./ResultTable";
 
 type SummaryRow = Record<string, unknown>;
 type DetailRow = Record<string, unknown>;
 type Props = { summary: SummaryRow[]; detail: DetailRow[]; onExport: (rows: DetailRow[]) => void;
   // Seleção visual compartilhada com o mapa e os gráficos (opcional; sem ela, o comportamento é o anterior).
-  highlight?: Set<string>; idOf?: (row: DetailRow) => string | null; onToggle?: (id: string) => void; onlyHighlighted?: boolean };
+  highlight?: Set<string>; idOf?: (row: DetailRow) => string | null; onToggle?: (id: string) => void; onlyHighlighted?: boolean;
+  onTablePresentation?: (state: TablePresentation) => void };
 
 const fmt = (value: unknown) => {
   if (typeof value === "number") return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(value);
@@ -24,7 +27,7 @@ const classNumber = (label: unknown) => {
   return match ? Number(match[0]) : 0;
 };
 
-export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted }: Props) {
+export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted, onTablePresentation }: Props) {
   const [chosenGroup, setChosenGroup] = useState("");
   const [search, setSearch] = useState("");
   const metric = String(summary[0]?.Indicador || "Indicador selecionado");
@@ -102,8 +105,7 @@ export default function DistributionResults({ summary, detail, onExport, highlig
         <div><h4 className="text-sm font-bold text-ink">Detalhamento por território</h4>
           <p className="mt-1 text-xs text-slate-500">{fmt(filtered.length)} unidades exibidas · {metric}</p>
         </div>
-        <button type="button" className="no-print inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs font-bold text-teal hover:bg-cyan-50"
-          onClick={() => onExport(filtered)} disabled={!filtered.length}><Download size={15}/> Exportar territórios (CSV)</button>
+
       </div>
       <div className="no-print grid gap-3 border-b border-line bg-slate-50/60 px-5 py-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
@@ -121,26 +123,14 @@ export default function DistributionResults({ summary, detail, onExport, highlig
             className="w-full rounded-xl border border-line bg-white py-2.5 pl-9 pr-3 text-sm font-normal"/></span>
         </label>
       </div>
-      <div className="max-h-[480px] overflow-auto">
-        <table className="data-table w-full">
-          <thead className="sticky top-0 bg-slate-50"><tr>
-            <th>Unidade territorial</th><th>Período</th><th>Categoria profissional</th><th>{groupLabel === "faixa" ? "Faixa" : groupLabel[0].toUpperCase() + groupLabel.slice(1)}</th>
-            <th>{positionColumn}</th><th>Posição geral</th><th>{metric}</th>
-          </tr></thead>
-          <tbody>{filtered.slice(0,150).map((row,i) => {
-            const id = idOf?.(row) || null, chosen = !!id && !!highlight?.has(id);
-            return <tr key={i} aria-selected={onToggle && id ? chosen : undefined} tabIndex={onToggle && id ? 0 : undefined}
-              onClick={onToggle && id ? () => onToggle(id) : undefined}
-              onKeyDown={onToggle && id ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
-              className={(onToggle && id ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
-            <td>{fmt(row.Território)}</td><td>{displayPeriod(String(row["Período"] || ""))}</td>
-            <td>{fmt(row.Categoria)}</td><td>{fmt(row.Quintil)}</td><td>{fmt(row[positionColumn])}</td><td>{fmt(row["Posição geral"])}</td><td>{fmt(row[metric])}</td>
-          </tr>;})}</tbody>
-        </table>
-      </div>
-      {filtered.length > 150 && <p className="border-t border-line px-5 py-3 text-xs text-slate-500">
-        Exibindo as primeiras 150 unidades na tela. O CSV exporta todas as {fmt(filtered.length)} unidades do filtro.
-      </p>}
+      <ResultTable rows={filtered} columns={[
+        {key: "Território", label: "Unidade territorial", render: fmt},
+        {key: "Período", render: value => displayPeriod(String(value ?? ""))},
+        {key: "Categoria", label: "Categoria profissional", render: fmt},
+        {key: "Quintil", label: groupLabel === "faixa" ? "Faixa" : groupLabel[0].toUpperCase() + groupLabel.slice(1), render: fmt},
+        {key: positionColumn, render: fmt}, {key: "Posição geral", render: fmt}, {key: metric, render: fmt},
+      ]} idOf={idOf} selected={highlight} onToggle={onToggle} onExport={onExport} exportLabel="Exportar territórios (CSV)"
+        onPresentation={onTablePresentation}/>
     </div>
   </div>;
 }

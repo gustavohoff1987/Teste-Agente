@@ -29,8 +29,14 @@ def prepare_nearest(step):
                      " Depois defina as referências pela lista ou pelo critério. Nada foi calculado."}
 
 
-def interpret_exploration(message, frame, mapping, options):
-    operation = operation_for(message)
+def interpret_exploration(message, frame, mapping, options, *, operation_hint=None):
+    # O hint vem de enumeração validada: proposta do LLM ou escolha explícita do usuário.
+    pending = options.get("conversation_pending_operation")
+    operation = operation_hint or operation_for(message)
+    if not operation and pending in ("comparisons", "density", "counts", "temporal", "aggregate"):
+        operation = pending
+    if not operation and re.search(r"\b(?:dois|duas|tres|2|3)\s+(?:municipios|cidades|territorios)\b", normalize(message)) and re.search(r"\b(?:analise|analisar)\b", normalize(message)):
+        operation = options.get("exploration_operation")
     if not operation:
         return {"handled": False}
     text = normalize(message).rstrip(".?!")
@@ -43,6 +49,10 @@ def interpret_exploration(message, frame, mapping, options):
             return {"handled": True, "clarification": "Confirme a identificação territorial antes de reutilizar a seleção."}
         return {"handled": False}
     selected = options.get("territory_ids", [])
+    requested = re.search(r"\b(dois|duas|tres|2|3)\s+(?:municipios|cidades|territorios)\b", text)
+    requested_count = {"dois":2,"duas":2,"tres":3,"2":2,"3":3}.get(requested[1]) if requested else options.get("conversation_requested_count")
+    if requested_count not in (2,3):
+        requested_count = None
     uses_selection = bool(re.search(r"\bselecionad[oa]s?\b", text))
     def named(item):
         # Uma unidade chamada A não transforma todo artigo "a" em recorte.
@@ -50,9 +60,13 @@ def interpret_exploration(message, frame, mapping, options):
             return bool(re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
         return bool(re.search(r"(?<!\w)" + re.escape(normalize(item["name"])) + r"(?!\w)", text))
     def state_named(item):
+        # "no município de São Paulo" já determina a unidade, não o estado homônimo.
+        city = r"\b(?:municipio|cidade)\s+(?:(?:de|do|da)\s+)?" + re.escape(normalize(item["state_name"])) + r"\b"
+        if item["state_name"] and re.search(city, text):
+            return False
         return bool(item["state_name"] and re.search(r"\b(?:do|da|de|no|na)\s+" + re.escape(normalize(item["state_name"])) + r"\b", text))
     # Pedidos gerais continuam no canal conversacional já existente.
-    if not uses_selection and not selected and not any(named(item) or state_named(item) for item in catalog):
+    if not uses_selection and not selected and not requested_count and not pending and not any(named(item) or state_named(item) for item in catalog):
         if operation == "nearest":
             return prepare_nearest("Selecione os municípios-alvo na pesquisa territorial.")
         return {"handled": False}
@@ -104,15 +118,33 @@ def interpret_exploration(message, frame, mapping, options):
                "agregue agregar agregacao some somar soma componentes habitantes populacao dos das "
                "examine examinar analise quero solicito uma um ver selecionadas "
                "calcule calcular identifique identificar referencia referencias mais proxima proximas proximo proximos "
-               "cada alvo alvos geografica geograficamente qual quais")
+               "cada alvo alvos geografica geograficamente qual quais "
+               "agora vamos analisar comparativamente comparativo comparativa no na nos nas tambem "
+               "depois seguir continuar gostaria desejo preciso pode poderia favor por favor colocar coloque "
+               "ponha bote lado lados a ao junto juntos duas dois tres 2 3 mesmo mesma mesmos mesmas "
+               "periodo indicador categorias categoria analises ultima anterior com perfil")
     residue = re.sub(r"\b(?:" + "|".join(allowed.split()) + r")\b|[,;:]", " ", remaining)
     if residue.strip():
-        return {"handled": True, "clarification": "Não consegui resolver todo o recorte solicitado. Selecione os municípios pelos nomes/códigos e confira a categoria, o indicador e os períodos abaixo."}
-    ids = list(dict.fromkeys(explicit or state_ids or selected))
+        return {"handled": True, "operation": operation, "pending_operation": operation,
+                "clarification": "Identifiquei o tipo de análise, mas não consegui confirmar todo o recorte. Quais municípios você quer usar? Informe os nomes ou use a pesquisa territorial; não vou escolher municípios por conta própria."}
+    # Quantidade solicitada sem nomes nunca autoriza escolher os primeiros N da base.
+    targets = explicit or state_ids or (selected if uses_selection or not requested_count else [])
+    if pending == operation and explicit:
+        targets = [*selected, *explicit]
+    ids = list(dict.fromkeys(targets))
     if explicit and state_ids and not set(explicit).issubset(state_ids):
         return {"handled": True, "clarification": "Os municípios mencionados não correspondem ao estado solicitado. Esclareça o recorte territorial."}
     if not ids:
-        return {"handled": True, "clarification": "Selecione ao menos um município na pesquisa territorial antes de continuar."}
+        return {"handled": True, "operation": operation, "pending_operation": operation,
+                "requested_count": requested_count, "reset_selection": bool(requested_count),
+                "clarification": ("Quais " + str(requested_count) + " municípios você quer analisar? Informe os nomes ou use a pesquisa territorial." if requested_count else
+                                  "Quais municípios você quer analisar? Informe os nomes ou selecione-os na pesquisa territorial.")}
+    clarification = None
+    if operation == "comparisons" and len(ids) < 2:
+        label = next(item["label"] for item in catalog if item["id"] == ids[0])
+        clarification = "Identifiquei " + label + ". Com qual outro município você deseja comparar? Pode informar dois ou mais municípios."
+    elif requested_count and len(ids) != requested_count:
+        clarification = "Você pediu " + str(requested_count) + " municípios, mas identificamos " + str(len(ids)) + ". Quais nomes devem compor a análise?"
     patch = {}
     if period:
         patch.update(period_filter=period, period_filters=[])
@@ -124,8 +156,9 @@ def interpret_exploration(message, frame, mapping, options):
     if operation == "aggregate" and "componentes" in text:
         patch.update(component_sum_confirmed=True, no_overlap_confirmed=False, identity_union_confirmed=False)
     return {"handled": True, "operation": operation, "territory_ids": ids, "options_patch": patch,
+            **({"clarification": clarification, "pending_operation": operation, "requested_count": requested_count} if clarification else {}),
             "reply": ("Alvos identificados: " + str(len(ids)) + " territórios. Defina as referências pela lista ou pelo critério e "
-                      "confirme o período e o referencial nos controles abaixo; nenhuma referência foi escolhida e nada foi calculado."
+                      "confirme o período e o referencial na preparação; nenhuma referência foi escolhida e nada foi calculado."
                       if operation == "nearest" else
-                      "Recorte identificado com " + str(len(ids)) + " territórios. Confira os parâmetros e as condições metodológicas e execute a análise na conversa."),
+                      "Recorte identificado com " + str(len(ids)) + " territórios. Confira os parâmetros e as condições metodológicas e execute a análise na preparação."),
             "selection_changed": bool(selected and set(ids) != set(selected)), "executed": False}

@@ -27,7 +27,7 @@
 
 ## Divergências arquiteturais explícitas
 
-A seção 6.7 da SPEC (`RQ-FLX-14`) exige solicitação via conversação com LLM. Esta entrega **não implementa a arquitetura conversacional**; por decisão experimental, os cartões clicáveis funcionam como interface de solicitação. Essa adaptação é local ao protótipo, não uma alteração ou interpretação retroativa da SPEC.
+A seção 6.7 da SPEC (`RQ-FLX-14`) exige solicitação via conversação com LLM. A entrega inicial desta ponte usava cartões clicáveis como interface de solicitação. Os incrementos posteriores adicionaram interpretação conversacional, alternativas ancoradas e resolução territorial local, descritos em [Conversação incremental](CONVERSACAO_INCREMENTO_FN.md). A arquitetura conversacional normativa continua apenas parcialmente implementada; essa adaptação é local ao protótipo, não uma alteração retroativa da SPEC.
 
 O estado de campo `recognized` é limitado ao **papel lexical/técnico da coluna**, não prova de todas as propriedades semânticas necessárias ao cálculo. A matriz pode pedir comprovações adicionais. A extração de termo de categoria de um cabeçalho composto é apenas sugestão até confirmação contextual.
 

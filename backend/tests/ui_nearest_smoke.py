@@ -151,7 +151,6 @@ def main():
         assert set(listed["metadata"]["options"]["reference_ids"]) == {"code:130260", "code:350010"}
         assert [r["Distância (km)"] for r in listed["rows"]] == [r["Distância (km)"] for r in criterion["rows"]]
         # Retomada do resultado atual: a lista explícita volta e o cálculo idêntico é reaproveitado.
-        reveal("Consultar solicitação e parâmetros")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(setup.get_by_label("Lista de municípios por nome ou código")).to_be_checked()
         expect(chosen.get_by_text("2 selecionados", exact=True)).to_be_visible()
@@ -178,7 +177,7 @@ def main():
         source.write_text("\n".join(lines) + "\n", encoding="utf-8")
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         page.get_by_label("Importar arquivo de dados").set_input_files(str(source))
-        expect(chat.get_by_text("Seus dados estão disponíveis", exact=False)).to_be_visible(timeout=60000)
+        expect(chat.get_by_test_id("current-source")).to_contain_text(source.name, timeout=60000)
         expect(inline.get_by_role("group", name="Definição das referências")).to_be_visible()  # a análise segue ativa
         inline.get_by_label("Filtrar por período").select_option("202406")
         inline.get_by_role("button", name="Confirmar correspondências", exact=True).click()

@@ -1,9 +1,32 @@
 """Intenções conversacionais e meta: respostas seguras não acionam análises."""
 import llm_bridge
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 
 client = TestClient(app)
+
+
+@pytest.mark.parametrize("query,fragment", [
+    ("O que é possível fazer nessa página?", "densidade"),
+    ("O que o agente é capaz de fazer?", "critérios combinados"),
+    ("Olá, o que posso fazer aqui?", "gráficos"),
+    ("Quais são as suas funcionalidades?", "referência mais próxima"),
+    ("Muito obrigada pela ajuda!", "De nada"),
+])
+def test_pre_source_questions_and_thanks_are_answered_without_provider_or_analysis(monkeypatch, query, fragment):
+    async def forbidden(*_args):
+        raise AssertionError("Orientação local não deve acionar o provedor.")
+    monkeypatch.setattr(llm_bridge, "_call_gemini", forbidden)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    before = client.get("/api/llm/status").json()["requests_used_today"]
+    response = client.post("/api/llm/interpret", json={"message": query})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert fragment.lower() in body["reply"].lower()
+    assert body["proposal"]["operation"] is None and body["executed"] is False
+    assert body["origin"] == "CANAL_SISTEMICO"
+    assert client.get("/api/llm/status").json()["requests_used_today"] == before
 
 
 def test_greeting_without_key_is_immediate_and_does_not_spend_quota(monkeypatch):
@@ -65,3 +88,25 @@ def test_guidance_with_dataset_is_not_forced_to_read_dataset(monkeypatch):
     assert result.status_code == 200, result.text
     assert result.json()["origin"] == "CANAL_SISTEMICO"
     assert result.json()["executed"] is False
+
+
+@pytest.mark.parametrize("query,fragment", [
+    ("O que o agente é capaz de fazer?", "critérios combinados"),
+    ("Muito obrigada pela ajuda!", "De nada"),
+])
+def test_pending_municipality_question_does_not_swallow_guidance(monkeypatch, query, fragment):
+    import main
+
+    async def forbidden(*_args, **_kwargs):
+        raise AssertionError("Orientação não deve ler a base nem consumir o provedor.")
+
+    monkeypatch.setattr(main, "_request_dataset", forbidden)
+    monkeypatch.setattr(llm_bridge, "_call_gemini", forbidden)
+    result = client.post("/api/exploration/interpret", data={
+        "dataset":"brazil", "message":query, "mapping":"{}",
+        "options":'{"conversation_pending_operation":"comparisons","conversation_requested_count":2}',
+    })
+    assert result.status_code == 200, result.text
+    body = result.json()
+    assert body["handled"] is True and fragment.lower() in body["reply"].lower()
+    assert body["executed"] is False and "operation" not in body and "territory_ids" not in body
