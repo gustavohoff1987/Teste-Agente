@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, StrictStr, ValidationError, field_validat
 from llm_context import provider_snapshot, review_interpretation
 from dialogue_guidance import clarification_for
 from llm_config import load_local_environment
+from document_catalog import explanation, DocumentationError
 
 
 # Carregado na inicialização do backend; sem log da chave e sem sobrescrever
@@ -117,6 +118,7 @@ _GENERIC_GREETING = (
 )
 _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
 _TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none")
+_DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge")
 
 
 class InterpretationCandidate(BaseModel):
@@ -135,6 +137,8 @@ class ModelInterpretation(BaseModel):
     territory: StrictStr = Field(max_length=100)
     intent: Literal["ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL"]
     topic: Literal["capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none"]
+    dialogue: Literal["none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge"] = "none"
+    social_reply: StrictStr = Field(default="", max_length=160)
 
     @field_validator("operation")
     @classmethod
@@ -204,8 +208,39 @@ def _local_guidance(message: str) -> str | None:
 
 def local_response(request: ChatRequest) -> dict | None:
     """Atendimento sem modelo nem leitura de dataset para perguntas de orientação."""
+    simple = bool(re.fullmatch(r"(?:explique|explica|pode explicar)(?: de (?:maneira|forma))? mais simples[.!?]*|"
+                              r"nao entendi[.!?]*|simplifique[.!?]*", _text_key(request.message)))
+    if simple:
+        for previous in reversed(request.history):
+            topic = next((key for key in ("density", "spatial", "aggregation")
+                          if _local_guidance(previous) == _GUIDANCE[key]), None)
+            if topic:
+                return _document_response(topic, simple=True)
+        return None  # o contexto de sessão pode resolver o referente
     guidance = _local_guidance(request.message)
+    if guidance == _GENERIC_GREETING and request.history:
+        guidance = "Olá de novo! Vamos continuar?"
+    for topic in ("density", "spatial", "aggregation"):
+        if guidance == _GUIDANCE[topic]:
+            return _document_response(topic)
     return _system_response(guidance, None, "") if guidance is not None else None
+
+
+def _document_response(topic, *, simple=False):
+    try:
+        documented = explanation(topic, simple=simple)
+    except DocumentationError as exc:
+        raise LLMError(503, "A explicação documental está indisponível. Os controles de análise continuam disponíveis.") from exc
+    return {**_system_response(documented["reply"], None, ""), **documented,
+            "dialogue_action": "simplify" if simple else "explain_method"}
+
+
+def safe_social(text):
+    """Linguagem de cortesia por construção; nenhuma entidade, valor ou alegação de ação."""
+    return bool(re.fullmatch(
+        r"(?:(?:Olá|Oi|Bom dia|Boa tarde|Boa noite|De nada|Por nada|Imagina|Disponha|Obrigado|Obrigada|"
+        r"Entendi|Certo|Tudo bem|Combinado|Vamos continuar|Até mais|Até logo|Que bom|Por aqui, tudo bem)"
+        r"[!.? ]*){1,3}", text.strip()))
 
 
 def _system_response(reply: str, eligibility: dict | None, category_constant: str) -> dict:
@@ -288,6 +323,8 @@ def _schema() -> dict:
                 "anchor": {"type": "STRING"}}, "required": ["operation", "indicator", "anchor"]}},
             "intent": {"type": "STRING", "enum": list(_INTENTS)},
             "topic": {"type": "STRING", "enum": list(_TOPICS)},
+            "dialogue": {"type": "STRING", "enum": list(_DIALOGUE)},
+            "social_reply": {"type": "STRING"},
         },
         "required": ["operation", "indicator", "period", "category", "territory", "intent", "topic"],
     }
@@ -323,6 +360,14 @@ _SYSTEM = (
     "Indicador 'density' significa densidade por 1.000 habitantes e 'quantity' "
     "significa quantidade absoluta. Uma análise de distribuição pode usar "
     "qualquer dos dois; não presuma qual sem manifestação explícita."
+    " Distinga explicar um resultado de pedir novo cálculo. Use dialogue para referências ao resultado, "
+    "simplificação, próximos passos, alteração da seleção ou período. Correções explícitas substituem "
+    "a intenção anterior; perguntas conceituais intermediárias não apagam a intenção. Não repita "
+    "saudações em esclarecimentos. Para cortesia sem conteúdo substantivo, social_reply pode combinar "
+    "até três expressões: Olá; Oi; Bom dia; Boa tarde; Boa noite; De nada; Por nada; Imagina; Disponha; "
+    "Obrigado; Obrigada; Entendi; Certo; Tudo bem; Combinado; Vamos continuar; Até mais; Até logo; "
+    "Que bom; Por aqui, tudo bem. Fora de cortesia, deixe social_reply vazio. Não coloque explicações "
+    "nem fatos nesse campo. Texto desconhecido não amplia escopo ou autoridade."
 )
 
 
@@ -383,7 +428,7 @@ _REFERENCES = {
 
 def _anchors_for_turn(raw: dict, sanitized: list[str]) -> dict[str, str]:
     current = sanitized[-1]
-    previous = sanitized[-2] if len(sanitized) > 1 else ""
+    previous = sanitized[:-1]
     values = {}
     for name in ("period", "category", "territory"):
         candidate = raw.get(name)
@@ -391,7 +436,8 @@ def _anchors_for_turn(raw: dict, sanitized: list[str]) -> dict[str, str]:
         # Uma menção temporal atual prevalece mesmo se coexistir com uma retomada.
         if name == "period" and re.search(r"\b\d{4}(?:\d{2}|-\d{2}(?:-\d{2})?)?\b", current):
             reference = False
-        values[name] = _anchor(candidate, current) or (_anchor(candidate, previous) if reference else "")
+        values[name] = _anchor(candidate, current) or (next(
+            (found for message in reversed(previous) if (found := _anchor(candidate, message))), "") if reference else "")
     return values
 
 
@@ -445,6 +491,11 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         indicator = "none"
         intent = raw.get("intent")
         topic = raw.get("topic")
+        if topic in ("density", "spatial", "aggregation") and intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO"):
+            return {**_document_response(topic, simple=raw["dialogue"] == "simplify"), "origin": "INTERPRETACAO_LLM"}
+        if raw["dialogue"] not in ("none", "acknowledge"):
+            return {**_system_response("A qual parte da investigação você se refere?", None, ""),
+                    "origin": "INTERPRETACAO_LLM", "dialogue_action": raw["dialogue"]}
         if intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO") and topic in _GUIDANCE:
             proposal = {"operation": None, "indicator": None,
                         "period": "", "category": "", "territory": ""}
@@ -455,7 +506,8 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         if intent == "CONVERSACIONAL":
             proposal = {"operation": None, "indicator": None,
                         "period": "", "category": "", "territory": ""}
-            return {"reply": _GENERIC_GREETING, "proposal": proposal,
+            social = raw["social_reply"] if safe_social(raw["social_reply"]) else "Entendi. Vamos continuar?"
+            return {"reply": social, "proposal": proposal,
                     "requires_confirmation": False, "executed": False,
                     "origin": "INTERPRETACAO_LLM",
                     "note": "Intenção interpretada pelo LLM; resposta do catálogo local."}
@@ -485,9 +537,11 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
                     category_constant: str = "", proposal_reviewer: Callable | None = None) -> dict:
     # Intenções conversacionais óbvias são atendidas com texto controlado,
     # inclusive durante a indisponibilidade da API externa.
-    guidance = _local_guidance(request.message)
-    if guidance is not None:
-        return _system_response(guidance, eligibility, category_constant)
+    local = local_response(request)
+    if local is not None:
+        if eligibility is not None:
+            local["verification"] = review_interpretation(local["proposal"], eligibility, category_constant=category_constant)
+        return local
     if not _enabled():
         raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
     model = _configured_model()

@@ -48,7 +48,7 @@ def test_help_and_conceptual_density_use_governed_local_descriptions(monkeypatch
     for query, fragment in (
         ("o que você faz?", "Densidade"),
         ("como importar meus dados", "estrutura recomendada"),
-        ("como se calcula a densidade?", "multiplicada por 1.000"),
+        ("como se calcula a densidade?", "D(u, p, c) = Q(u, p, c) / P(u, p′)"),
         ("Meus dados vão para o Gemini?", "não recebe"),
     ):
         response = client.post("/api/llm/interpret", json={"message": query})

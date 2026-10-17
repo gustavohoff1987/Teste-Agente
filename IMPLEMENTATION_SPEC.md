@@ -3936,3 +3936,11 @@ Cobertura recalculada: 576 fontes normativas e 703 proposições. IDs preservado
 | ENUM-StatusExecucaoElemento | — | IDENTIDADE | L436:27-66; L436:69-369 | =texto | MODELO:ResultadoElemento; RQ-ORQ-14; RQ-RES-04 |
 | ENUM-TipoInteracaoUsuario | — | IDENTIDADE | L437:25-255; L437:258-398 | =texto | CFG-OPR; EV-INTERACAO_USUARIO; RQ-FLX-17 |
 | ENUM-ConsequenciaExclusao | — | IDENTIDADE | L438:25-137; L438:140-313 | =texto | CFG-EXC; RQ-GOV-09 |
+
+## Adendo APT-20261016 — autorização delimitada PT
+
+Decisão expressa do responsável pelo produto em 16/10/2026, registrada em Docs/DECISAO_CATALOGO_PT_20261016.md, aplicável exclusivamente à integração no repositório Teste-Agente. O corpo v1.2.4 e o Anexo A acima permanecem literais e com os mesmos localizadores; a identidade do snapshot local inclui esta decisão APT-20261016, sem alterar a versão dos literais do catálogo.
+
+Para esta integração, a pendência de equivalência EN de §25.9/D31 não impede aceitar e utilizar as formas PT existentes cuja identidade com a fonte vigente, condições, dependências e referências sejam comprovadas deterministicamente. Essa autorização excepciona exclusivamente o impedimento de aceitação PT por pendência EN em §4.4.23.4, passo 10, e §4.4.23.5. Não declara fechamento integral PT/EN, não autoriza apresentação EN sem equivalência registrada e não transforma forma desatualizada em forma vigente. Nesta integração inicial, EN permanece bloqueado; não há tradução livre nem troca silenciosa de idioma.
+
+Permanecem obrigatórios V-01 a V-16, RQ-SIN, a precedência do CONCEPT, as restrições de origem e privacidade, a literalidade e as condições das formas. Não se criam formas, proposições, métodos ou competências. A autorização é externa às sessões analíticas e não pode ser alterada por mensagem, dado ou saída do LLM. A aprovação de um literal PT não demonstra sua aplicabilidade concreta. Publicação futura do catálogo exige nova verificação; sessões conservam seu snapshot.

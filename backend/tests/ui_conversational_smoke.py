@@ -37,7 +37,7 @@ def main():
         for question, fragment in (
             ("O que é possível fazer nessa página?", "critérios combinados"),
             ("O que o agente é capaz de fazer?", "mapas quando há localização disponível"),
-            ("Como se calcula a densidade?", "multiplicada por 1.000"),
+            ("Como se calcula a densidade?", "D(u, p, c) = Q(u, p, c) / P(u, p′)"),
             ("Muito obrigada pela ajuda!", "De nada!"),
         ):
             assistant.locator("#assistant-input").fill(question)
