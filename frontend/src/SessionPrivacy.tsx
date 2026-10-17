@@ -46,7 +46,7 @@ export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
     <p id="privacy-declaration" className="mt-4 text-sm leading-7 text-slate-700">
       Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.
     </p>
-    <p className="mt-3 text-xs leading-5 text-slate-500">Esta confirmação vale para esta sessão.</p>
+    <p className="mt-3 text-xs leading-5 text-slate-500">Esta sessão e seu conteúdo são eliminados ao acionar Encerrar sessão ou após 30 minutos (1800 segundos) sem interação efetiva sua. Fechar a interface não encerra imediatamente. Atividade automática não renova o prazo. Exporte o que deseja conservar antes do encerramento; não há retomada entre sessões.</p>
     <button type="button" autoFocus onClick={onAccept}
       className="mt-6 w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700">
       Li e concordo

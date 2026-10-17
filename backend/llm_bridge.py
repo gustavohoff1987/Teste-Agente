@@ -59,6 +59,8 @@ _KEEP = {"Quero", "Preciso", "Gostaria", "Compare", "Comparar", "Analise", "Anal
 class ChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=800)
     history: list[str] = Field(default_factory=list, max_length=4)
+    context_revision: int = Field(default=0, ge=0, le=2**53 - 1)
+    displayed_result_id: str = Field(default="", max_length=64)
 
 
 # Respostas sobre o funcionamento do agente são produzidas a partir do catálogo
@@ -166,6 +168,23 @@ class ModelInterpretation(BaseModel):
 def _text_key(value: str) -> str:
     plain = unicodedata.normalize("NFKD", value.casefold())
     return " ".join("".join(c for c in plain if not unicodedata.combining(c)).split())
+
+
+def dialogue_action(message):
+    text = _text_key(message).strip(" .!?")
+    if re.search(r"(?:explique|explica|explicar|simplifique|entendi).*?(?:simples|entendi)|^nao entendi$", text):
+        return "simplify"
+    if re.search(r"(?:o que|que|como|por que).*?(?:resultado|apareceu|mostrado)|"
+                 r"(?:explique|explica|entender).*?(?:resultado|apareceu)|qual.*(?:maior|menor).*densidade", text):
+        return "explain_result"
+    if re.fullmatch(r"(?:e agora|continue|o que posso investigar|o que mais|quais os proximos passos|"
+                    r"e agora,? o que posso investigar)", text):
+        return "next_steps"
+    if re.search(r"(?:acrescentar|adicionar|incluir).*outro municipio", text):
+        return "change_selection"
+    if re.search(r"(?:e se|se eu).*mudar.*periodo", text):
+        return "change_period"
+    return None
 
 
 def _local_guidance(message: str) -> str | None:
@@ -534,7 +553,8 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
 
 
 async def interpret(request: ChatRequest, eligibility: dict | None = None,
-                    category_constant: str = "", proposal_reviewer: Callable | None = None) -> dict:
+                    category_constant: str = "", proposal_reviewer: Callable | None = None,
+                    conversation_context: dict | None = None, protected_values=None) -> dict:
     # Intenções conversacionais óbvias são atendidas com texto controlado,
     # inclusive durante a indisponibilidade da API externa.
     local = local_response(request)
@@ -549,6 +569,15 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     if any(not isinstance(x, str) or not 2 <= len(x) <= 800 for x in messages):
         raise LLMError(422, "Histórico de conversa inválido.")
     sanitized = [_sanitize(m) for m in messages]
+    if protected_values is not None:
+        # A base só participa desta comparação local, nunca do corpo enviado.
+        protected = sorted({str(value).strip() for value in protected_values if str(value).strip()}, key=len, reverse=True)
+        sanitized = []
+        for message in messages:
+            for value in protected:
+                if value.casefold() in message.casefold():
+                    message = re.sub(r"(?<!\w)" + re.escape(value) + r"(?!\w)", "[DADO_LOCAL]", message, flags=re.I)
+            sanitized.append(_sanitize(message))
     if not any(re.search(r"[a-zá-ú]{2}", x, re.I) for x in sanitized):
         raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.")
     provider_messages = sanitized
@@ -557,6 +586,8 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
         # Os textos do usuário continuam as únicas âncoras possíveis para os slots.
         safe_context = json.dumps(provider_snapshot(eligibility), ensure_ascii=False, sort_keys=True)
         provider_messages = ["CONTEXTO_VERIFICADO_PELO_BACKEND: " + safe_context, *sanitized]
+    if conversation_context is not None:
+        provider_messages = ["CONTINUIDADE_VERIFICADA: " + json.dumps(conversation_context, ensure_ascii=False), *provider_messages]
     _reserve_request()
     raw = await _call_gemini(provider_messages, model, os.environ["GEMINI_API_KEY"].strip())
     response = _validate(raw, sanitized)

@@ -96,6 +96,11 @@ def main():
         assert "De nada" in thanks["reply"] and len(interpretations) == calls
         send("MANAUS e TEFE", "/api/exploration/interpret")
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
+        contextual = send("E agora?", "/api/llm/interpret-context")
+        assert contextual["context_reference"]["origin"] == "BACKEND_VERIFIED_STATE"
+        # O catálogo sintético conserva os rótulos originais, sem acentos e em caixa alta.
+        assert "MANAUS [130260]" in contextual["reply"] and "TEFE [130420]" in contextual["reply"], contextual
+        assert len(analyses) == 1 and contextual["executed"] is False
 
         ambiguous = send("Analise o perfil dos municipios", "/api/llm/interpret-context")
         assert ambiguous["clarification"]["code"] == "AMBIGUIDADE_MATERIAL"
@@ -122,6 +127,10 @@ def main():
             page.set_viewport_size({"width": width, "height": 844})
             visible_composer()
         assert not errors, errors
+        with page.expect_response(lambda response: response.url.endswith("/api/session/close")) as closed:
+            page.get_by_test_id("end-session").click()
+        assert closed.value.status == 200
+        expect(page.get_by_role("button", name="Li e concordo", exact=True)).to_be_visible()
         browser.close()
     print("CONTINUIDADE SEMÂNTICA PASS: propostas, alternativas ancoradas, nomes pendentes, histórico, painéis e compositor visível.")
 

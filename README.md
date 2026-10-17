@@ -284,7 +284,7 @@ Se `configured: False` persistir, confirme se o arquivo está precisamente em `b
 
 O backend utiliza por padrão `gemini-3.5-flash-lite`. Os limites e o faturamento do Google variam e não são verificados pelo protótipo. O contador local de 20 solicitações por processo **não é um controle de custo ou segurança contra abuso**.
 
-Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/llm/interpret` (sem base) e `POST /api/llm/interpret-context` (multipart, com base validada apenas pelo Python). O histórico de conversa permanece apenas na memória da aba do navegador; o backend não o grava. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico.
+Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/llm/interpret` (sem base) e `POST /api/llm/interpret-context` (multipart, com base validada apenas pelo Python). A transcrição permanece na memória da aba. O backend mantém contexto técnico e referências a resultados em sessão temporária, sem banco ou gravação em disco, isolada por token opaco. Encerrar sessão ou completar 1.800 segundos sem interação efetiva elimina o contexto; polling não renova o prazo. Reiniciar o backend também elimina as sessões. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico. Ver [evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md).
 
 ### Fronteira da SPEC
 

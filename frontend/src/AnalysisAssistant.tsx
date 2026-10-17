@@ -6,6 +6,7 @@ import { AlertCircle, ArrowRight, LoaderCircle,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
+import { sessionFetch as fetch, contextRevision } from "./conversationSession";
 type Proposal = {
   operation: Operation | null; indicator: "density" | "quantity" | null;
   territory: string; period: string; category: string;
@@ -23,7 +24,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
-type Props = { apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string;
+type Props = { displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string;
   onResolved: (proposal: TerritorialProposal) => string; historyContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
@@ -40,7 +41,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, historyContent, onStarted, hasResult, onResolved, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, historyContent, onStarted, hasResult, onResolved, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -81,7 +82,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
   useEffect(() => {
     // Mudanças na preparação invalidam respostas pendentes sem apagar a conversa.
     revision.current += 1;
-  }, [validationVersion]);
+  }, [validationVersion, displayedResultId]);
   useEffect(() => {
     if (sourceReady && pendingProposal.current?.operation) {
       const proposal = pendingProposal.current;
@@ -113,7 +114,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
       append("Para continuar, escolha os dados que deseja utilizar. Depois, mostrarei os campos que precisam da sua confirmação.");
       return;
     }
-    if (sourceReady && active && followup) {
+    if (sourceReady && active && followup && /^(?:pode calcular|sim|vamos)[?.! ]*$/i.test(message)) {
       append("Sua análise já está selecionada. Confira os campos e as confirmações na preparação; quando estiverem completos, poderá calcular e ver o resultado no painel de análise.");
       return;
     }
@@ -175,13 +176,15 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, file, shee
         form.append("message", message);
         form.append("context_ready", String(ready.current));
         form.append("history", JSON.stringify(history));
+        form.append("context_revision", String(contextRevision()));
+        form.append("displayed_result_id", displayedResultId);
         form.append("mapping", JSON.stringify(mapping));
         form.append("options", JSON.stringify(options));
         response = await fetch(apiBase + "/api/llm/interpret-context", { method: "POST", body: form });
       } else {
         response = await fetch(apiBase + "/api/llm/interpret", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history }),
+          body: JSON.stringify({ message, history, context_revision: contextRevision() }),
         });
       }
       const body = await response.json();

@@ -7,10 +7,73 @@ evidência de disponibilidade sem revalidação da base.
 """
 from typing import Any
 import unicodedata
+import hashlib
+import pandas as pd
 
 from data_contract import text_values
 from analysis_catalog import OPERATION_LABELS as OPERATIONS  # só as capacidades do contrato do LLM
 from semantic_bridge import preflight
+from conversation_session import fingerprint
+from territorial_selection import territory_catalog
+
+
+def investigation_context(frame, mapping, options, eligibility):
+    """Snapshot local verificado; os valores nunca integram provider_snapshot."""
+    source = fingerprint({"columns": list(frame.columns), "source": frame.attrs.get("source"),
+                          "data": hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()})
+    parameters = {key: value for key, value in options.items()
+                  if not key.startswith(("conversation_", "exploration_"))}
+    selected = []
+    if options.get("territory_ids"):
+        catalog = territory_catalog(frame, mapping, options)
+        by_id = {item["id"]: item for item in catalog}
+        if any(item not in by_id for item in options["territory_ids"]):
+            raise ValueError("Seleção territorial não pertence à base.")
+        selected = [{"id": item, "label": by_id[item]["label"]} for item in dict.fromkeys(options["territory_ids"])]
+    return {"source": source, "signature": fingerprint({"source": source, "mapping": mapping, "options": parameters}),
+            "selection": selected, "parameters": parameters,
+            "operation": options.get("exploration_operation") if options.get("exploration_operation") in OPERATIONS else None,
+            "capabilities": {key: value["status"] for key, value in eligibility["capabilities"].items()}}
+
+
+def dialogue_projection(capture, has_result=False):
+    """Somente estados/enums: nenhuma seleção, resultado, token ou hash de dados."""
+    context = capture["context"]
+    memory = capture["dialogue"]
+    return {"has_selection": bool(context.get("selection")), "has_verified_result": bool(has_result),
+            "active_operation": context.get("operation"),
+            "previous_operation": memory.get("operation"), "previous_indicator": memory.get("indicator"),
+            "previous_document": memory.get("document")}
+
+
+def screen_reply(action, capture):
+    """Descrição estruturada do estado; não inventa resultado nem aplica parâmetros."""
+    context = capture["context"]
+    selected = context.get("selection", [])
+    lines = []
+    if selected:
+        lines.append("Seleção atual: " + ", ".join(item["label"] for item in selected[:12]) +
+                     (" (demais territórios preservados na seleção)." if len(selected) > 12 else "."))
+    else:
+        lines.append("Seleção territorial: não informada.")
+    parameters = context.get("parameters", {})
+    periods = parameters.get("period_filters") or ([parameters["period_filter"]] if parameters.get("period_filter") else [])
+    if periods:
+        lines.append("Período da preparação: " + ", ".join(map(str, periods)) + ".")
+    if action == "change_selection":
+        lines.append("Qual município você deseja acrescentar?")
+    elif action == "change_period":
+        lines.append("A mudança de período prepara outro recorte; não altera um resultado já calculado. Qual período deseja usar?")
+    else:
+        from analysis_catalog import ENGINE_OPERATION_LABELS
+        available = [ENGINE_OPERATION_LABELS[key] for key, value in context.get("capabilities", {}).items()
+                     if value == "available" and key in ENGINE_OPERATION_LABELS]
+        if available:
+            lines.append("Possibilidades no pré-exame atual (sem execução): " + "; ".join(available) + ".")
+        else:
+            lines.append("Há parâmetros ou confirmações pendentes na preparação.")
+    return {"reply": "\n\n".join(lines), "dialogue_action": action,
+            "context_reference": {"revision": capture["revision"], "origin": "BACKEND_VERIFIED_STATE"}}
 
 
 def _norm(value: str) -> str:

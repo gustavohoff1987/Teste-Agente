@@ -19,6 +19,7 @@ import {type CriteriaMetadata} from "./CriteriaResults";
 import { addCondition, complete, describe as describeCriteria, leaves as criteriaLeaves, nextId as nextLeafId, uses as criteriaUses,
   type BandsSpec, type CriteriaNode, type Leaf, type RankingSpec } from "./criteriaTree";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
+import { sessionFetch as fetch, contextRevision, updateContextRevision, trackSession, endSession } from "./conversationSession";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -167,6 +168,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 }
 function App() {
   const privacy = useSessionPrivacy();
+  useEffect(() => { if (privacy.accepted) return trackSession(); }, [privacy.accepted]);
   const [conversationStarted, setConversationStarted] = useState(false);
   const [page, setPage] = useState<"home" | "results">("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -306,6 +308,8 @@ function App() {
     !note.startsWith("Período AAAAMM composto em memória") && !note.startsWith("Identificação territorial:")) || [];
   const resultStatus = historical?.invalidReason ? "INVALIDADO" :
     historical && active && historical.contextKey===requestKey(active) ? "VIGENTE" : "NAO_VIGENTE";
+  useEffect(() => { updateContextRevision(); }, [sourceKey, JSON.stringify(mapping),
+    JSON.stringify(semanticOptions()), active, result?.result_id]);
   type NearestMetadata = {conjunto_referencias?: {forma: string; membros: {id: string}[]}; cobertura_referencias?: unknown[]};
   const nearestMetadata = result?.metadata.nearest_reference as NearestMetadata | undefined;
   const nearestMembers = nearestMetadata?.conjunto_referencias?.membros.map(item=>item.id) || [];
@@ -452,6 +456,7 @@ function App() {
     await inspectFile(next);
   }
   function appendSource(form: FormData) {
+    form.append("context_revision", String(contextRevision()));
     if (usingBrazil) {
       form.append("dataset", "brazil");
       form.append("scope", inspection?.source?.scope || "auto");
@@ -1511,6 +1516,9 @@ function App() {
 
   return <div className={"min-h-screen bg-canvas" + (workspaceEngaged ? " workspace-engaged" : "")}>
     {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
+    {privacy.accepted && <button type="button" data-testid="end-session"
+      className="no-print fixed bottom-2 right-3 z-30 rounded-lg border border-line bg-white px-3 py-1 text-xs text-slate-500"
+      onClick={() => { void endSession().catch(exc => setError(String(exc.message))); }}>Encerrar sessão</button>}
     <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="sr-only"
       aria-label="Importar arquivo de dados"
       onChange={e => {const next=e.target.files?.[0];e.target.value = "";void chooseFile(next);}}/>
@@ -1554,6 +1562,7 @@ function App() {
         onStarted={() => setConversationStarted(true)}
         apiBase={API}
         privacyAccepted={privacy.accepted}
+        displayedResultId={result?.result_id || ""}
         file={file}
         dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
         datasetVersion={inspection?.source?.version || ""}

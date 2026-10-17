@@ -33,6 +33,14 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
     # O hint vem de enumeração validada: proposta do LLM ou escolha explícita do usuário.
     pending = options.get("conversation_pending_operation")
     operation = operation_hint or operation_for(message)
+    correction = bool(re.fullmatch(r"(?:nao[, ]+)?(?:quero |prefiro |use )?(?:quantidade|quantitativos|densidade)[.!?]*", normalize(message)))
+    adding = bool(re.search(r"\b(?:acrescente|adicione|inclua)\b", normalize(message)))
+    if correction or (adding and not operation):
+        active = options.get("exploration_operation")
+        if active in ("comparisons", "density", "counts", "temporal", "aggregate"):
+            operation = active
+            if correction and active in ("density", "counts"):
+                operation = "density" if "densidade" in normalize(message) else "counts"
     if not operation and pending in ("comparisons", "density", "counts", "temporal", "aggregate"):
         operation = pending
     if not operation and re.search(r"\b(?:dois|duas|tres|2|3)\s+(?:municipios|cidades|territorios)\b", normalize(message)) and re.search(r"\b(?:analise|analisar)\b", normalize(message)):
@@ -53,7 +61,7 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
     requested_count = {"dois":2,"duas":2,"tres":3,"2":2,"3":3}.get(requested[1]) if requested else options.get("conversation_requested_count")
     if requested_count not in (2,3):
         requested_count = None
-    uses_selection = bool(re.search(r"\bselecionad[oa]s?\b", text))
+    uses_selection = bool(re.search(r"\b(?:selecionad[oa]s?|esses|estes|essas|estas)\b", text)) or correction or adding
     def named(item):
         # Uma unidade chamada A não transforma todo artigo "a" em recorte.
         if len(item["name"]) <= 2:
@@ -122,14 +130,15 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                "agora vamos analisar comparativamente comparativo comparativa no na nos nas tambem "
                "depois seguir continuar gostaria desejo preciso pode poderia favor por favor colocar coloque "
                "ponha bote lado lados a ao junto juntos duas dois tres 2 3 mesmo mesma mesmos mesmas "
-               "periodo indicador categorias categoria analises ultima anterior com perfil")
+               "periodo indicador categorias categoria analises ultima anterior com perfil "
+               "esses estes essas estas nao prefiro use acrescente adicione inclua")
     residue = re.sub(r"\b(?:" + "|".join(allowed.split()) + r")\b|[,;:]", " ", remaining)
     if residue.strip():
         return {"handled": True, "operation": operation, "pending_operation": operation,
                 "clarification": "Identifiquei o tipo de análise, mas não consegui confirmar todo o recorte. Quais municípios você quer usar? Informe os nomes ou use a pesquisa territorial; não vou escolher municípios por conta própria."}
     # Quantidade solicitada sem nomes nunca autoriza escolher os primeiros N da base.
     targets = explicit or state_ids or (selected if uses_selection or not requested_count else [])
-    if pending == operation and explicit:
+    if (pending == operation or adding) and explicit:
         targets = [*selected, *explicit]
     ids = list(dict.fromkeys(targets))
     if explicit and state_ids and not set(explicit).issubset(state_ids):
@@ -153,6 +162,8 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                      ("density" if "densidade" in text else options.get("exploration_indicator", "quantity")))
     if operation == "comparisons":
         patch["comparison_indicator"] = "quantity" if "quantidade" in text or "quantitativos" in text else options.get("exploration_indicator", "density")
+    if correction and "densidade" in text:
+        patch["comparison_indicator"] = "density"
     if operation == "aggregate" and "componentes" in text:
         patch.update(component_sum_confirmed=True, no_overlap_confirmed=False, identity_union_confirmed=False)
     return {"handled": True, "operation": operation, "territory_ids": ids, "options_patch": patch,

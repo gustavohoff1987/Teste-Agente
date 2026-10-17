@@ -20,7 +20,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Response
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
@@ -31,14 +31,16 @@ from territorial_hierarchy import describe_hierarchy
 from brazil_data import diagnostics as brazil_diagnostics, load_brazil
 from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
-from llm_context import review_interpretation
+from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply
+from llm_bridge import dialogue_action, _system_response
+from conversation_session import sessions, lifespan
 from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for, normalize as normalize_exploration
 from request_memo import RequestMemoMiddleware
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
 
-app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0")
+app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("ADT_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
@@ -579,12 +581,50 @@ def llm_configuration_status() -> dict:
 
 
 @app.post("/api/llm/interpret")
-async def llm_interpretation(request: ChatRequest) -> dict:
+async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = Header(None)) -> dict:
     """Interpretação preliminar, sem acesso a arquivos ou execução analítica."""
     try:
-        return await llm_interpret(request)
+        if x_adt_session:
+            sessions.event(x_adt_session, "ENVIO_MENSAGEM")
+            capture = sessions.capture(x_adt_session, request.context_revision, {})
+        answer = await llm_interpret(request)
+        if x_adt_session:
+            sessions.remember(x_adt_session, capture["revision"], answer)
+        return answer
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+@app.post("/api/session")
+def create_session():
+    return sessions.create()
+
+
+@app.get("/api/session")
+def session_status(x_adt_session: str = Header(...)):
+    return sessions.status(x_adt_session)
+
+
+@app.post("/api/session/close")
+def close_session(x_adt_session: str = Header(...)):
+    sessions.close(x_adt_session)
+    return {"closed": True}
+
+
+@app.post("/api/session/interact")
+def session_interaction(body: dict, x_adt_session: str = Header(...)):
+    return sessions.event(x_adt_session, body.get("kind"))
+
+
+@app.post("/api/session/revision")
+def session_revision(body: dict, x_adt_session: str = Header(...)):
+    sessions.revision(x_adt_session, body.get("revision"))
+    return sessions.status(x_adt_session)
+
+
+@app.get("/api/session/result/{result_id}")
+def session_result(result_id: str, x_adt_session: str = Header(...)):
+    return sessions.result(x_adt_session, result_id)
 
 
 @app.post("/api/llm/interpret-context")
@@ -597,6 +637,8 @@ async def llm_interpretation_with_dataset(
     options: str = Form("{}"),
     sheet: str = Form(""),
     dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
+    context_revision: int = Form(0), displayed_result_id: str = Form(""),
+    x_adt_session: str | None = Header(None),
 ) -> dict:
     """Pré-exame local de uma base e interpretação LLM de um resumo técnico.
 
@@ -604,7 +646,10 @@ async def llm_interpretation_with_dataset(
     arquivo é incorporado ao contexto entregue ao provedor.
     """
     try:
-        request = ChatRequest(message=message, history=json.loads(history))
+        request = ChatRequest(message=message, history=json.loads(history), context_revision=context_revision,
+                              displayed_result_id=displayed_result_id)
+        if x_adt_session:
+            sessions.event(x_adt_session, "ENVIO_MENSAGEM")
         fields = json.loads(mapping)
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
@@ -612,7 +657,7 @@ async def llm_interpretation_with_dataset(
         # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
         # O canal local não solicita, valida ou executa análise da base.
         quick = llm_local_response(request)
-        if quick is not None:
+        if quick is not None and not x_adt_session:
             return quick
         if not context_ready:
             raise HTTPException(status_code=409, detail="Aguarde ou repita a validação da base antes de solicitar uma proposta analítica.")
@@ -621,13 +666,31 @@ async def llm_interpretation_with_dataset(
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
         settings = apply_curated_options(frame, fields, settings)
         eligibility = preflight(frame, fields, settings)
+        capture = None
+        result_record = None
+        if x_adt_session:
+            capture = sessions.capture(x_adt_session, context_revision,
+                                       investigation_context(frame, fields, settings, eligibility))
+            if displayed_result_id:
+                result_record = sessions.result(x_adt_session, displayed_result_id)
+            action = dialogue_action(message)
+            if action in ("next_steps", "change_selection", "change_period"):
+                answer = {**_system_response("", None, ""), **screen_reply(action, capture)}
+                sessions.remember(x_adt_session, context_revision, answer)
+                return answer
+            if quick is not None:
+                sessions.remember(x_adt_session, context_revision, quick)
+                return quick
         declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
         if not isinstance(declared_category, str):
             raise ValueError("Categoria declarada inválida.")
         answer = await llm_interpret(
             request, eligibility=eligibility, category_constant=declared_category,
             proposal_reviewer=lambda proposal: review_interpretation(proposal, eligibility,
-                category_constant=declared_category, frame=frame, mapping=fields, options=settings)
+                category_constant=declared_category, frame=frame, mapping=fields, options=settings),
+            conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
+            protected_values=([*frame.columns, *(value for column in frame.columns for value in frame[column].dropna().unique())]
+                              if x_adt_session else None),
         )
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
@@ -649,6 +712,10 @@ async def llm_interpretation_with_dataset(
                 answer["exploration"] = resolved
                 answer["reply"] = resolved.get("clarification") or resolved.get("reply") or answer["reply"]
                 answer.pop("clarification", None)
+        if x_adt_session:
+            if answer.get("dialogue_action") in ("next_steps", "change_selection", "change_period"):
+                answer.update(screen_reply(answer["dialogue_action"], capture))
+            sessions.remember(x_adt_session, context_revision, answer)
         return answer
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
@@ -759,10 +826,16 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
 @app.post("/api/exploration/interpret")
 async def exploration_interpret(message: str = Form(...), file: UploadFile | None = File(None),
                                mapping: str = Form("{}"), options: str = Form("{}"), sheet: str = Form(""),
-                               dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form("")):
+                               dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
+                               context_revision: int = Form(0), x_adt_session: str | None = Header(None)):
     try:
         if len(message) > 800:
             raise ValueError("Mensagem acima do limite de 800 caracteres.")
+        if x_adt_session:
+            sessions.event(x_adt_session, "ENVIO_MENSAGEM")
+            sessions.revision(x_adt_session, context_revision)
+        if dialogue_action(message):
+            return {"handled": False}  # o canal contextual distingue explicação de execução
         requested = json.loads(options)
         if not isinstance(requested, dict):
             raise ValueError("Parâmetros inválidos.")
@@ -779,7 +852,10 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
             from analysis_catalog import OPERATION_LABELS
             if choice not in OPERATION_LABELS:
                 raise ValueError("Tipo de análise escolhido não reconhecido.")
+        correction = bool(re.fullmatch(r"(?:nao[, ]+)?(?:quero |prefiro |use )?(?:quantidade|quantitativos|densidade)[.!?]*", normalize_exploration(message)))
+        adding = bool(re.search(r"\b(?:acrescente|adicione|inclua)\b", normalize_exploration(message)))
         if not choice and not operation_for(message) and not requested.get("conversation_pending_operation") and not (
+                requested.get("exploration_operation") and (correction or adding)) and not (
                 requested.get("exploration_operation") and re.search(r"\b(?:analise|analisar)\b", normalize_exploration(message))):
             return {"handled": False}
         frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
@@ -792,6 +868,9 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         if dataset == "brazil":
             fields, _ = candidates(frame)
         settings = apply_curated_options(frame, fields, settings)
+        if x_adt_session:
+            sessions.capture(x_adt_session, context_revision, investigation_context(frame, fields, settings,
+                                                                                   preflight(frame, fields, settings)))
         return interpret_exploration(message, frame, fields, settings, operation_hint=choice)
     except (ValueError, TypeError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -801,8 +880,11 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
 async def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
                   options: str = Form("{}"), sheet: str = Form(""),
                   dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
-                  geo_version: str = Form("")):
+                  geo_version: str = Form(""), context_revision: int = Form(0),
+                  x_adt_session: str | None = Header(None)):
     try:
+        if x_adt_session:
+            sessions.event(x_adt_session, "CONFIRMACAO")
         frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
@@ -820,6 +902,8 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         geo = _geo_identity(frame, operation, settings)
         if geo is not None and geo_version and geo_version != _geo_token(geo):
             raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base antes de analisar.")
+        capture = sessions.capture(x_adt_session, context_revision,
+                  investigation_context(frame, fields, settings, eligibility)) if x_adt_session else None
         result = compute(frame, fields, operation, settings)
         result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
         result["result_id"] = str(uuid.uuid4())
@@ -832,6 +916,9 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         result["metadata"]["validity"] = "VALIDO"
         result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]
+        if capture:
+            result["conversation_reference"] = {"available": sessions.record_result(
+                x_adt_session, context_revision, result, capture["context"])}
         return result
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
