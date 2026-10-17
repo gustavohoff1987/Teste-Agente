@@ -1588,7 +1588,7 @@ function App() {
           {FEATURES.map(feature => <button key={feature.id} type="button"
             onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
             className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
-        </div>
+        </div>}
         {sideLink("Resultados", "results", BarChart3)}
       </nav>
     </aside>
@@ -1612,7 +1612,7 @@ function App() {
           {FEATURES.map(feature => <button key={feature.id} type="button"
             onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
             className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
-        </div>
+        </div>}
           {sideLink("Resultados", "results", BarChart3)}
         </nav>}
       </header>
