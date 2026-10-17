@@ -129,6 +129,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .analysis-scroll { padding:12px; }
 }
 @media print {
+  #selected-result-content[hidden] { display:block !important; }
   .conversation-workspace,.workspace-columns,.analysis-pane,.analysis-scroll { display:block; height:auto; overflow:visible; border:0; padding:0; }
   .analysis-scroll #preparacao-conversacional,.analysis-scroll [aria-label="Seleção territorial compartilhada"] { display:none; }
 }

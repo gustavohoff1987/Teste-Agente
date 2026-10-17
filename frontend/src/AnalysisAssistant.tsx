@@ -25,7 +25,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
 type Props = { displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; dataset?: string; scope?: string; datasetVersion?: string;
-  onResolved: (proposal: TerritorialProposal) => string; historyContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
+  onResolved: (proposal: TerritorialProposal) => string; historyContent: ReactNode; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -41,7 +41,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, historyContent, onStarted, hasResult, onResolved, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, historyContent, investigationContent, onStarted, hasResult, onResolved, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -341,7 +341,8 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
       <div className="analysis-toolbar no-print">
         {historyContent}
-        <nav aria-label="Navegar na análise" className="flex gap-2">
+        <nav aria-label="Navegar na análise" className="flex flex-wrap gap-2">
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs text-teal" onClick={() => scrollAnalysisTo("investigacao")}>Ver investigação</button>
           <button type="button" disabled={!active} className="rounded-lg border px-3 py-2 text-xs text-teal disabled:opacity-40"
             onClick={() => scrollAnalysisTo("preparacao-conversacional")}>Ver preparação</button>
           <button type="button" disabled={!hasResult} className="rounded-lg border px-3 py-2 text-xs text-teal disabled:opacity-40"
@@ -349,6 +350,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
         </nav>
       </div>
       <div className="analysis-scroll" ref={analysisRef} data-testid="analysis-scroll">
+        {investigationContent}
         {sourceReady && selection}
         {preparation}
         {resultContent}

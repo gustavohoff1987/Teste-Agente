@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BarChart3, Search } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 
+import { useInvestigationState } from "./InvestigationViewState";
 import ResultTable, { type TablePresentation } from "./ResultTable";
 
 type SummaryRow = Record<string, unknown>;
@@ -28,8 +29,8 @@ const classNumber = (label: unknown) => {
 };
 
 export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted, onTablePresentation }: Props) {
-  const [chosenGroup, setChosenGroup] = useState("");
-  const [search, setSearch] = useState("");
+  const [chosenGroup, setChosenGroup] = useInvestigationState("distribution.group", "");
+  const [search, setSearch] = useInvestigationState("distribution.search", "");
   const metric = String(summary[0]?.Indicador || "Indicador selecionado");
   const period = String(summary[0]?.["Período"] ?? "");
   const category = String(summary[0]?.Categoria ?? "");

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { useInvestigationState } from "./InvestigationViewState";
 import type { Row } from "./representation";
 
 type Column = { key: string; label?: string; render?: (value: unknown) => ReactNode };
 export type TablePresentation = { filtros: Record<string, string>; ordenacao: { key: string; ascending: boolean } | null;
   pagina: number; tamanho_pagina: number; total_filtrado: number };
-type Props = { rows: Row[]; columns: Column[]; idOf?: (row: Row) => string | null; selected?: Set<string>;
+type Props = { stateKey?: string; rows: Row[]; columns: Column[]; idOf?: (row: Row) => string | null; selected?: Set<string>;
   onToggle?: (id: string) => void; onExport?: (rows: Row[]) => void; exportLabel?: string;
   onPresentation?: (state: TablePresentation) => void };
 const PAGE_SIZE = 150;
@@ -28,10 +29,10 @@ function matches(value: unknown, query: string): boolean {
 }
 
 export default function ResultTable({ rows, columns, idOf, selected, onToggle, onExport,
-  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation }: Props) {
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [sort, setSort] = useState<{ key: string; ascending: boolean } | null>(null);
-  const [page, setPage] = useState(0);
+  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation, stateKey = "main" }: Props) {
+  const [filters, setFilters] = useInvestigationState<Record<string, string>>(stateKey + ".filters", {});
+  const [sort, setSort] = useInvestigationState<{ key: string; ascending: boolean } | null>(stateKey + ".sort", null);
+  const [page, setPage] = useInvestigationState(stateKey + ".page", 0);
   const filtered = useMemo(() => {
     const chosen = rows.filter(row => Object.entries(filters).every(([key, query]) => matches(row[key], query)));
     if (sort) chosen.sort((a, b) => {

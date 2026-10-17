@@ -9,6 +9,7 @@ export type PreviousAnalysis = {
   request: string;
   periods: string[];
   availableForReuse: boolean;
+  context?: string;
 };
 
 type Props = {
@@ -48,6 +49,7 @@ export default function PreviousAnalyses({ items, currentId, disabled, onOpen }:
                     {current && <span className="text-xs font-semibold text-teal">Em exibição</span>}
                   </span>
                   <span className="mt-1 block truncate text-xs text-slate-600">{item.request}</span>
+                  {item.context && <span className="mt-1 block text-xs text-slate-500">{item.context}</span>}
                   {(period || !item.availableForReuse) && <span className="mt-1 block text-xs text-slate-500">
                     {period}{period && !item.availableForReuse ? " · " : ""}
                     {!item.availableForReuse ? "Outra fonte de dados — somente consulta" : ""}

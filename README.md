@@ -3,6 +3,7 @@
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
 - **Interface:** React + TypeScript + Tailwind; no computador, a conversa fica à esquerda e a preparação e os resultados à direita, com rolagens independentes e campo de mensagem sempre visível. Em telas estreitas, os painéis se empilham. O histórico de análises fica acessível no topo do painel direito; ajustes metodológicos excepcionais continuam em uma seção avançada recolhida.
+- **Investigação progressiva:** “Ver investigação” reúne as análises da sessão em etapas, com identidade, reabertura e destaque territorial compatível. Filtros e seleções visuais são lembrados por resultado; novas análises continuam exigindo preparação e execução explícitas. Veja [Análise exploratória integrada](Docs/ANALISE_EXPLORATORIA_INTEGRADA.md).
 - **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional, a referência geográfica mais próxima (Bloco 2, Etapa 1) e os critérios combinados com réguas, rankings e recortes (Bloco 2, Etapa 2) são determinísticos.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.

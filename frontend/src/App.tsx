@@ -5,6 +5,9 @@ import DataResolution from "./DataResolution";
 import { displayPeriod } from "./DistributionResults";
 import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
 import PreviousAnalyses from "./PreviousAnalyses";
+import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
+import { identity, selectionCompatibility } from "./investigation";
+import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
 import { scrollAnalysisTo } from "./workspaceNavigation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
@@ -200,6 +203,9 @@ function App() {
     preparation: ReturnType<typeof snapshotPreparation>; invalidReason: string};
   const [history, setHistory] = useState<Historical[]>([]);
   const [historyNotice, setHistoryNotice] = useState("");
+  const viewMemory = useRef<Record<string, ViewMemory>>({});
+  const [visualSelection, setVisualSelection] = useState<string[]>([]);
+  const [resultExpanded, setResultExpanded] = useState(true);
   const pendingExploration = useRef<Exploration | null>(null);
   const pendingTerritories = useRef<{operation: Operation; requestedCount?: number | null; source: string} | null>(null);
   const [selectionProposal, setSelectionProposal] = useState<Exploration | null>(null);
@@ -315,7 +321,11 @@ function App() {
   const nearestMembers = nearestMetadata?.conjunto_referencias?.membros.map(item=>item.id) || [];
   // Registro da representação em uso (transformações visuais), exportado com “Método e parâmetros”.
   const representationRecord = useRef<RepresentationRecord | null>(null);
-  const keepRepresentation = useCallback((record: RepresentationRecord) => { representationRecord.current = record; }, []);
+  const keepRepresentation = useCallback((record: RepresentationRecord) => {
+    representationRecord.current = record;
+    const selected = (record.selecao_visual as string[]) || [];
+    setVisualSelection(previous => sameList(previous, selected) ? previous : selected);
+  }, []);
   // Outras competências do mesmo pedido já calculadas e compatíveis: navegação sem fabricar resultados.
   const siblings = useMemo<Sibling[]>(() => {
     if (!result || !historical) return [];
@@ -701,8 +711,19 @@ function App() {
   }
   function openHistorical(item: Historical) {
     if (running || inspecting || preflighting) return;
+    setResultExpanded(true);
+    setVisualSelection((viewMemory.current[item.result.result_id]?.selected as string[]) || []);
     setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
     setTimeout(() => scrollAnalysisTo("resultados"), 0);
+  }
+  function transferVisualSelection(id: string) {
+    const target = history.find(item => item.result.result_id === id);
+    if (!historical || !target || !visualSelection.length || !selectionCompatibility(historical, target).allowed) return;
+    const memory = viewMemory.current[id] ||= {};
+    memory.selected = [...visualSelection]; memory.focusId = visualSelection[0];
+    // Filtros pertencem ao resultado de destino. O destaque não altera filtros, parâmetros ou dados.
+    openHistorical(target);
+    setHistoryNotice("Seleção visual destacada na análise aberta. Indicadores, classes e parâmetros continuam próprios de cada resultado; nenhum cálculo foi executado.");
   }
   function restoreHistorical(item: Historical) {
     if (item.invalidReason || !compatible(item)) return;
@@ -768,6 +789,7 @@ function App() {
     const contextKey = requestKey(op);
     const reusable = history.find(item=>item.contextKey===contextKey && !item.invalidReason);
     if (reusable) {
+      setResultExpanded(true);
       setResult(reusable.result); setHistoryNotice("Resultado existente recuperado, sem recalcular.");
       scrollAnalysisTo("resultados");
       return;
@@ -789,7 +811,7 @@ function App() {
       calculated.metadata = {...calculated.metadata, origin_request: originRequest};
       setHistory(previous=>[...previous, {result:calculated, request:originRequest, sourceKey,
         contextKey, preparation, invalidReason:""}]);
-      setResult(calculated); setHistoryNotice("");
+      setResult(calculated); setResultExpanded(true); setHistoryNotice("");
       setTimeout(() => scrollAnalysisTo("resultados"), 120);
     } catch (exc) {
       if (currentRevision !== revision.current) return;
@@ -1391,6 +1413,11 @@ function App() {
           onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
     </div>}
   </> : null;
+  const investigationContent = (
+    <InvestigationOverview items={history} currentId={result?.result_id || null} selected={visualSelection}
+      busy={running || inspecting || preflighting} onTransfer={transferVisualSelection}
+      onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
+      onPrepare={() => scrollAnalysisTo("preparacao-conversacional")}/>);
   const historyContent = (
 <PreviousAnalyses items={history.map(item => ({
           id: item.result.result_id,
@@ -1398,6 +1425,7 @@ function App() {
           request: item.request,
           periods: (item.result.metadata.periods as string[] | undefined) || [],
           availableForReuse: compatible(item),
+          context: "Etapa " + (history.indexOf(item) + 1) + " · " + identity(item).scope + " · " + identity(item).status,
         }))} currentId={result?.result_id || null} disabled={running || inspecting || preflighting}
           onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>
   );
@@ -1408,7 +1436,10 @@ function App() {
           className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
-        <SectionHeader eyebrow="Sua análise" title="Resultado do diagnóstico" description="Confira os resultados e, quando desejar, exporte os dados ou consulte os detalhes do método."/>
+        <SectionHeader eyebrow="Resultado selecionado" title="Resultado do diagnóstico" description="Explore esta etapa da investigação. As demais análises continuam disponíveis na visão geral e no histórico."/>
+        {result && <button type="button" aria-expanded={resultExpanded} aria-controls="selected-result-content"
+          className="no-print mb-3 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-teal"
+          onClick={() => setResultExpanded(value => !value)}>{resultExpanded ? "Recolher análise" : "Expandir análise"}</button>}
         {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
@@ -1448,7 +1479,8 @@ function App() {
               Escolher uma análise
             </button>
           </div>}
-          {result && <div className="pt-6">
+          {result && <InvestigationViewState.Provider key={result.result_id} value={viewMemory.current[result.result_id] ||= {}}>
+            <div id="selected-result-content" hidden={!resultExpanded} className="pt-6">
             <h3 data-testid="result-title" className="text-xl font-bold text-ink">{result.title}</h3>
             <p data-testid="result-status" className={resultOperation === "distribution" && resultStatus === "VIGENTE" ? "sr-only" : "mt-2 text-xs font-semibold text-slate-600"}>
               {resultOperation === "distribution" && resultStatus === "VIGENTE" ? "Resultado disponível" :
@@ -1457,6 +1489,11 @@ function App() {
                 resultOperation === "distribution" ? "Resultado de uma análise anterior. O resultado original permanece disponível." :
                 "Resultado histórico válido · não vigente no contexto atual"}
             </p>
+            {historical && <ResultIdentity entry={historical}/>}
+            {result.conversation_reference?.available === false && <p role="status" className="my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Resultado disponível para consulta e exportação nesta aba. O limite de memória das referências conversacionais foi atingido; a conversa não pode ler este resultado por referência.
+            </p>}
+            {result.total_rows === 0 && <p role="status" className="my-3 text-sm text-slate-600">Esta análise não produziu linhas de resultado. Consulte o recorte e as limitações antes de preparar outra execução.</p>}
             {historical && <div className="no-print my-3 text-xs text-slate-600">
               <p className="break-words">Solicitação: {historical.request}</p>
               <button type="button" disabled={!!historical.invalidReason || !compatible(historical) || inspecting || running}
@@ -1505,10 +1542,10 @@ function App() {
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>
               <button type="button" onClick={()=>exportCsv(result.detail_rows!)} className="no-print my-2 rounded-lg border px-3 py-2">Exportar série CSV</button>
               <div role="region" aria-label="Competências da série temporal">
-                <ResultTable key={result.result_id} rows={result.detail_rows} columns={Object.keys(result.detail_rows[0] || {}).map(key=>({key}))}/>
+                <ResultTable key={result.result_id} stateKey="series-detail" rows={result.detail_rows} columns={Object.keys(result.detail_rows[0] || {}).map(key=>({key}))}/>
               </div>
             </details>}
-          </div>}
+          </div></InvestigationViewState.Provider>}
         </div>
       </section>
 
@@ -1558,6 +1595,7 @@ function App() {
       {!workspaceEngaged && <WelcomeHero onChat={() => {setConversationStarted(true); navigate("home", "assistente");}} onImport={() => inputRef.current?.click()}/> }
       <AnalysisAssistant
         historyContent={historyContent}
+        investigationContent={investigationContent}
         hasResult={!!result || running}
         onStarted={() => setConversationStarted(true)}
         apiBase={API}

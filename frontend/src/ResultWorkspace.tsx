@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BarChart3, Map as MapIcon, Search, Table2, X } from "lucide-react";
+import { useInvestigationState } from "./InvestigationViewState";
 import TerritoryMap, { type MapHandle } from "./TerritoryMap";
 import CriteriaResults, { type CriteriaMetadata } from "./CriteriaResults";
 import DistributionResults from "./DistributionResults";
@@ -59,9 +60,9 @@ export default function ResultWorkspace(p: Props) {
     [geometry]);
   const mappable = useMemo(() => (rep?.indicadores || []).filter(item => item.tipo !== "POSICAO"), [rep]);
   const numeric = useMemo(() => (rep?.indicadores || []).filter(item => item.tipo === "CONTINUO" || item.tipo === "CONTAGEM"), [rep]);
-  const [indicatorColumn, setIndicatorColumn] = useState(() => mappable[0]?.coluna || "");
+  const [indicatorColumn, setIndicatorColumn] = useInvestigationState("indicatorColumn", () => mappable[0]?.coluna || "");
   const indicator = mappable.find(item => item.coluna === indicatorColumn) || mappable[0];
-  const [barColumn, setBarColumn] = useState(() => numeric[0]?.coluna || "");
+  const [barColumn, setBarColumn] = useInvestigationState("barColumn", () => numeric[0]?.coluna || "");
   const barIndicator = numeric.find(item => item.coluna === barColumn) || numeric[0];
   // Indicador compartilhado: o escolhido no mapa vale para as barras (e vice-versa) quando ambos o representam.
   const chooseIndicator = (column: string) => {
@@ -72,22 +73,26 @@ export default function ResultWorkspace(p: Props) {
     setBarColumn(column);
     if (mappable.some(item => item.coluna === column)) setIndicatorColumn(column);
   };
-  const [view, setView] = useState<View>(() => points ? "mapa" : (rep?.serie || numeric.length) ? "graficos" : "tabela");
-  const [selected, setSelected] = useState<string[]>([]);
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const [multi, setMulti] = useState(false);
+  const [view, setView] = useInvestigationState<View>("view", () => points ? "mapa" : (rep?.serie || numeric.length) ? "graficos" : "tabela");
+  const [selected, setSelected] = useInvestigationState<string[]>("selected", []);
+  const [focusId, setFocusId] = useInvestigationState<string | null>("focusId", null);
+  const [multi, setMulti] = useInvestigationState("multi", false);
   const [notice, setNotice] = useState("");
-  const [barOrder, setBarOrder] = useState<"codigo" | "resultado" | "valor">(operation === "ranking" ||
+  const [barOrder, setBarOrder] = useInvestigationState<"codigo" | "resultado" | "valor">("barOrder", operation === "ranking" ||
     (operation === "criteria" && !!(result.metadata.criterios as CriteriaMetadata | undefined)?.ordenacao) ? "resultado" : "codigo");
-  const [lineCategory, setLineCategory] = useState("");
-  const [linePage, setLinePage] = useState(0);
-  useEffect(() => { setLinePage(0); }, [selected, lineCategory]);
+  const [lineCategory, setLineCategory] = useInvestigationState("lineCategory", "");
+  const [linePage, setLinePage] = useInvestigationState("linePage", 0);
+  const previousSeriesFilter = useRef({selected, lineCategory});
+  useEffect(() => {
+    if (previousSeriesFilter.current.selected !== selected || previousSeriesFilter.current.lineCategory !== lineCategory) setLinePage(0);
+    previousSeriesFilter.current = {selected, lineCategory};
+  }, [selected, lineCategory]);
   const [tablePresentation, setTablePresentation] = useState<TablePresentation | null>(null);
   const mapRef = useRef<MapHandle>(null);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const criteriaMeta = result.metadata.criterios as (CriteriaMetadata & { avaliacoes?: CriteriaEvaluation[] }) | undefined;
   const criteriaHasTree = !!criteriaMeta?.contagens;
-  const [filter, setFilter] = useState<StateFilter>(operation === "criteria" && criteriaHasTree ? "ATENDE" : "TODOS");
+  const [filter, setFilter] = useInvestigationState<StateFilter>("filter", operation === "criteria" && criteriaHasTree ? "ATENDE" : "TODOS");
 
   // Estados produzidos pelo motor que os filtros visuais usam (nunca recalculados aqui).
   const stateOf = useMemo(() => {
