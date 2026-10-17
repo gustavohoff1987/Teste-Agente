@@ -1574,8 +1574,8 @@ function App() {
           <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
         </button>
         {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
-          {FEATURES.map(feature => <button key={feature.operation} type="button"
-            onClick={() => {selectAnalysis(feature.operation); navigate("home", "preparacao-conversacional");}}
+          {FEATURES.map(feature => <button key={feature.id} type="button"
+            onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
             className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
         </div>
         {sideLink("Resultados", "results", BarChart3)}
@@ -1598,8 +1598,8 @@ function App() {
           <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
         </button>
         {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
-          {FEATURES.map(feature => <button key={feature.operation} type="button"
-            onClick={() => {selectAnalysis(feature.operation); navigate("home", "preparacao-conversacional");}}
+          {FEATURES.map(feature => <button key={feature.id} type="button"
+            onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
             className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
         </div>
           {sideLink("Resultados", "results", BarChart3)}
