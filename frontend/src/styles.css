@@ -139,3 +139,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 @container analysis (min-width:850px) {
   .result-map-layout { grid-template-columns:minmax(0,1fr) 260px; }
 }
+
+/* Interface compacta: somente apresentação, sem alterar cálculos ou contratos. */
+.workspace-hero { padding: 19px 30px; gap: 0; }
+.workspace-hero .hero-eyebrow { margin-bottom: 8px; }
+.workspace-hero .hero-copy h1 { max-width: none; font-size: clamp(25px, 2.5vw, 35px); line-height: 1.16; }
+.workspace-hero .hero-description { max-width: 840px; margin-top: 8px; font-size: clamp(13px, 1.1vw, 15px); line-height: 1.45; }
+@media (max-width: 767px) {
+  .workspace-hero { padding: 18px 22px; }
+  .workspace-hero .hero-copy h1 { font-size: clamp(24px, 5vw, 30px); }
+}
