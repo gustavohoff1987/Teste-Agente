@@ -1574,6 +1574,18 @@ function App() {
 
   return <div className={"min-h-screen bg-canvas" + (workspaceEngaged ? " workspace-engaged" : "")}>
     {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
+    {confirmNewAnalysis && <div className="no-print fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="new-analysis-title" className="w-full max-w-md rounded-2xl border border-[#24577d] bg-white p-6 shadow-2xl">
+        <h2 id="new-analysis-title" className="text-lg font-bold text-ink">Deseja iniciar uma nova análise?</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-700">Sua análise atual continuará disponível no <strong>Histórico de análises</strong>, na parte superior do painel de resultados, enquanto esta sessão estiver aberta.</p>
+        <p className="mt-2 text-xs text-slate-600">O histórico não permanece salvo após encerrar a sessão ou recarregar a página. Exporte os resultados que deseja conservar.</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={() => setConfirmNewAnalysis(false)} className="rounded-lg border border-[#24577d] px-4 py-2 text-sm font-semibold text-[#173d5c]">Cancelar</button>
+          <button type="button" onClick={startNewAnalysis} className="rounded-lg bg-[#102740] px-4 py-2 text-sm font-semibold text-white">Iniciar nova análise</button>
+        </div>
+      </section>
+    </div>}
+
     {privacy.accepted && <button type="button" data-testid="end-session"
       className="no-print fixed bottom-2 right-3 z-30 rounded-lg border border-line bg-white px-3 py-1 text-xs text-slate-500"
       onClick={() => { void endSession().catch(exc => setError(String(exc.message))); }}>Encerrar sessão</button>}
