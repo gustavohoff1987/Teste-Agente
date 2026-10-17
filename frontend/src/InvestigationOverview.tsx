@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { identity, parameterLabels, parameterValue, selectionCompatibility, type InvestigationEntry } from "./investigation";
+import { identity, selectionCompatibility, type InvestigationEntry } from "./investigation";
 import { displayPeriod } from "./representation";
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 
@@ -15,17 +15,10 @@ export function ResultIdentity({ entry }: { entry: InvestigationEntry }) {
       <dt className="font-semibold">Fonte</dt><dd className="break-words">{info.source}</dd>
       <dt className="font-semibold">Indicadores e unidades</dt><dd>{info.indicators.join("; ") || "Consulte as colunas e as notas deste resultado."}</dd>
       <dt className="font-semibold">Períodos e categorias</dt><dd>{info.periods.map(displayPeriod).join(", ")} · {info.categories.join(", ")}</dd>
-      <dt className="font-semibold">Recorte territorial</dt><dd>{info.scope}</dd>
-      <dt className="font-semibold">Situação informada pelo motor</dt><dd>{info.status}</dd>
+      <dt className="font-semibold">Território</dt><dd>{info.scope}</dd>
+      {info.status !== "AVALIAVEL" && info.status !== "avaliável" && info.status !== "VIGENTE" &&
+        <><dt className="font-semibold">Situação do resultado</dt><dd>{info.status}</dd></>}
     </dl>
-    <details className="mt-3"><summary className="cursor-pointer font-semibold text-teal">Origem e parâmetros desta execução</summary>
-      <p className="mt-2 break-all">Resultado: {entry.result.result_id} · Versão da base: {info.version}</p>
-      <p>Método: {info.method}{info.createdAt ? " · " + new Date(info.createdAt).toLocaleString("pt-BR") : ""}</p>
-      <p className="mt-2">Territórios: {info.members.map(m => m.label).join("; ") || "Consulte o recorte no resultado."}</p>
-      <dl className="mt-2 space-y-1">{Object.entries(parameterLabels).filter(([key]) => info.options[key] !== undefined && info.options[key] !== "")
-        .map(([key, label]) => <div key={key}><dt className="inline font-semibold">{label}: </dt><dd className="inline">{parameterValue(info.options[key])}</dd></div>)}</dl>
-      <p className="mt-2">Referências, critérios e demais condições completos estão em “Método e parâmetros” e nas notas do resultado.</p>
-    </details>
   </section>;
 }
 
