@@ -37,7 +37,7 @@ export default function PreviousAnalyses({ items, currentId, disabled, onOpen }:
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, []);
   return <section aria-label="Histórico de análises" className="no-print">
-    <details ref={menuRef} className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
+    <details data-testid="analysis-history-menu" ref={menuRef} className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 text-sm font-semibold text-ink marker:hidden hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <Clock3 size={17} className="shrink-0 text-teal" aria-hidden="true"/>
         <span>Histórico de análises</span>
