@@ -1,4 +1,6 @@
-export default function WelcomeHero() {
+type Props = { onChat?: () => void; onImport?: () => void };
+
+export default function WelcomeHero(_props: Props) {
   return <section className="workspace-hero" aria-labelledby="welcome-title">
     <div className="hero-copy">
       <p className="hero-eyebrow"><span/> FORÇA DE TRABALHO NA SAÚDE</p>
