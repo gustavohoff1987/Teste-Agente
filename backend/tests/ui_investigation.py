@@ -69,7 +69,9 @@ def main():
 
         def method():
             with page.expect_download() as download:
-                board.get_by_role('button', name='Método e parâmetros', exact=True).click()
+                board.get_by_text('Opções técnicas avançadas', exact=True).click()
+                board.get_by_role('button', name='Baixar registro técnico (JSON)', exact=True).click()
+                board.get_by_text('Opções técnicas avançadas', exact=True).click()
             return json.loads(Path(download.value.path()).read_text(encoding='utf-8'))
 
         send('Olá')
