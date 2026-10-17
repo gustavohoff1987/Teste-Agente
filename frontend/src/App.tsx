@@ -1469,15 +1469,17 @@ function App() {
               <div><h3 className="font-bold text-ink">{resultFeature?.title || "Selecione uma análise"}</h3><p className="mt-1 text-xs text-slate-500">{resultFeature?.detail || "Os resultados aparecerão aqui após a execução."}</p></div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button disabled={!result || resultStatus==="INVALIDADO"} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ArrowDownToLine size={14}/> {resultOperation === "distribution" ? "Resumo CSV" : "CSV"}</button>
-              <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata,
-                result_id:result.result_id, validity: historical?.invalidReason ? "INVALIDADO" : "VALIDO", currency:resultStatus,
-                invalidation_reason:historical?.invalidReason || "",
-                representacao_aplicada: representationRecord.current?.resultado === result.result_id ? representationRecord.current : null}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Método e parâmetros</button>
-              <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
+              <button disabled={!result || resultStatus==="INVALIDADO"} onClick={() => result && exportCsv(result.rows)} className="flex items-center gap-1.5 rounded-xl border-2 border-[#24577d] bg-[#102740] px-3 py-2 text-xs font-bold text-white hover:bg-[#1d4d71] disabled:opacity-40"><ArrowDownToLine size={14}/> {resultOperation === "distribution" ? "Resumo CSV" : "CSV"}</button>
+
+              <button disabled={!result} onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border-2 border-[#24577d] bg-white px-3 py-2 text-xs font-bold text-[#102740] hover:bg-blue-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
-          <div id="filtros-resultados" className="no-print mt-4">
+          <p className="no-print mt-3 rounded-lg border border-[#b4c9db] bg-[#f1f6fa] px-3 py-2 text-xs leading-5 text-[#173d5c]"><strong>Guarde seus resultados:</strong> exporte em CSV ou use Imprimir / PDF. O histórico é temporário e não fica salvo após encerrar a sessão ou recarregar a página.</p>
+           <details className="no-print mt-2 text-xs text-slate-500"><summary className="cursor-pointer">Opções técnicas avançadas</summary><div className="mt-2">              <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata,
+                result_id:result.result_id, validity: historical?.invalidReason ? "INVALIDADO" : "VALIDO", currency:resultStatus,
+                invalidation_reason:historical?.invalidReason || "",
+                representacao_aplicada: representationRecord.current?.resultado === result.result_id ? representationRecord.current : null}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Baixar registro técnico (JSON)</button></div></details>
+           <div id="filtros-resultados" className="no-print mt-4">
             <button type="button" className="font-bold text-teal underline" onClick={() => scrollAnalysisTo("preparacao-conversacional")}>Alterar a preparação</button>
           </div>
           {error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"><XCircle size={18} className="shrink-0"/>{error}</div>}
