@@ -103,7 +103,7 @@ recolhido na tela.
 | Jornadas completas de navegador | Dez aprovadas | 12 aprovadas na primeira etapa e na repetição final |
 | Dados Brasil | Integridade verificada | Integridade verificada, mesmos hashes e versão |
 | Arquivos protegidos e identidades AST | 38 arquivos; 226 funções/classes | Zero divergências |
-| Governança | Aprovada | Aprovada; conferência final dos commits após registro |
+| Governança | Aprovada | Aprovada, incluindo os dois commits de produto e o registro das jornadas no CI |
 
 Comandos executados em PowerShell, com `PYTHONUTF8=1`; no pytest também
 `ADT_REAL_DATA_DIR=C:\Users\User\Desktop\Github\Teste-Agente`:
@@ -215,10 +215,29 @@ Essas evidências, além dos testes unitários, sustentam a preservação consta
 
 - `819b1db` — investigação progressiva, identidade, controles por resultado, coordenação visual,
   testes e documentação; registrado após build, verificações direcionadas e 12 jornadas.
-- `feat: informar disponibilidade da sessão e validar investigação acumulada` — aviso de descarte,
-  descrição leve do histórico, testes ampliados e registro de validação; commit preparado após
-  aprovação das 12 jornadas finais. Seu hash será acrescentado no fechamento documental.
+- `1765f97` — disponibilidade da sessão, descrição leve do histórico, testes ampliados e registro
+  de validação; registrado após aprovação das 12 jornadas finais. HEAD de produto completo:
+  `1765f971e5a646f1284819d9c5616cf4a5a1d0ed`.
+- Este fechamento documental, `docs: concluir rastreabilidade da investigação integrada`, registra
+  os hashes e o estado final, sem alteração de produto.
 
 Branch mantida em `feat/novos-blocos-incrementais`; nenhum merge, reset, rebase, descarte ou push.
-A implementação e a validação local das etapas A a F estão concluídas. O fechamento documental
-registrará os hashes e a conferência de governança da sequência de commits.
+São três commits locais sobre a referência de acompanhamento `origin/feat/novos-blocos-incrementais`
+utilizada na baseline (`fe5dac3`), sem commits atrás dela. A árvore rastreada termina limpa;
+logs, capturas e registros locais ignorados em `.local/` são preservados. Não havia arquivo
+não rastreado preexistente a incorporar ou descartar. A sequência pode ser identificada com
+`git log --oneline fe5dac3..HEAD`.
+
+## Aceite da entrega local
+
+A implementação e a validação das etapas A a F estão concluídas. Estão implementados o painel
+progressivo, a navegação e reabertura, o histórico preservado, os controles por resultado, a
+coordenação visual condicionada à identidade, os estados de disponibilidade e a integração
+conversacional por referência verificada. Não ficou etapa funcional deste incremento parcialmente
+implementada. As capacidades não implementadas e as limitações da baseline estão discriminadas
+acima, sem atribuir à interface novas capacidades analíticas.
+
+Os critérios de preservação foram confrontados com código, hashes, testes e comportamento
+observável; não foram identificadas regressões nessas verificações. Código, testes, guia e
+registro de comportamento acompanham cada commit de produto. Publicação e CI remoto aguardam
+autorização para push, conforme solicitado.
