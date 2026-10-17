@@ -691,10 +691,6 @@ function App() {
     const normalizedRequest = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const wholeBrazil = /\b(?:brasil|nacional|pais inteiro|todo o pais)\b/.test(normalizedRequest) &&
       !/\b(?:municipios?|municipais|municipal|cidades?|por municipio|por cidade)\b/.test(normalizedRequest);
-    if (usingBrazil && wholeBrazil && inspection?.source?.scope !== "national") {
-      setBrazilLevel("national");
-      void inspectFile(null, "", "national", proposal.operation || active || "counts", true);
-    }
     if (!proposal.handled) {
       if (!choice) return null;
       // A escolha de capacidade também vale antes de haver uma seleção territorial.
@@ -702,7 +698,13 @@ function App() {
       selectAnalysis(choice.operation, {category:"", period:"", territory, indicator:choice.indicator || null});
       return "Análise escolhida. Confira o recorte, o indicador e as condições na preparação.";
     }
-    return acceptExploration(proposal);
+    const responseText = acceptExploration(proposal);
+    if (usingBrazil && wholeBrazil && inspection?.source?.scope !== "national" &&
+        !proposal.territory_ids?.length && !proposal.criteria_patch) {
+      setBrazilLevel("national");
+      void inspectFile(null, "", "national", proposal.operation || active || "counts", true);
+    }
+    return responseText;
   }
   useEffect(()=>{
     if (!inspecting && inspection?.source?.scope === "municipal" && pendingExploration.current) {
