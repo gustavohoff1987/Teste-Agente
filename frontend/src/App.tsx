@@ -27,7 +27,7 @@ import type { Multiplicity, ResolutionOptions } from "./DataResolution";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2, Filter,
-  Home, Menu, X, MessageCircle, Grid2X2,
+  Home, Menu, X, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
   FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
   LoaderCircle, LocateFixed, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
