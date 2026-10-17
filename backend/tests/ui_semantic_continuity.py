@@ -127,7 +127,8 @@ def main():
         expect(page.get_by_test_id("result-title")).to_have_text(density["title"])
         assert len(analyses) == 2
         history.locator("summary").click()
-        page.get_by_role("button", name="Ver resultado", exact=True).click()
+        page.get_by_role("navigation", name="Navegação principal").get_by_role("button", name="Resultados", exact=True).click()
+        expect(page.get_by_test_id("result-title")).to_have_text(density["title"])
         visible_composer()
         page.screenshot(path=str(OUTPUT / "conversa-paineis-semantica.png"), full_page=True)
         for width in (390, 768):
