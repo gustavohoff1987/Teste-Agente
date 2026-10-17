@@ -686,6 +686,15 @@ function App() {
     const response = await fetch(API + "/api/exploration/interpret", {method:"POST", body:form});
     const proposal = await readApiResponse(response) as Exploration;
     if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
+    // Pedido explícito pelo país inteiro seleciona o arquivo nacional governado,
+    // nunca um agregado produzido a partir das linhas municipais.
+    const normalizedRequest = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const wholeBrazil = /\b(?:brasil|nacional|pais inteiro|todo o pais)\b/.test(normalizedRequest) &&
+      !/\b(?:municipios?|municipais|municipal|cidades?|por municipio|por cidade)\b/.test(normalizedRequest);
+    if (usingBrazil && wholeBrazil && inspection?.source?.scope !== "national") {
+      setBrazilLevel("national");
+      void inspectFile(null, "", "national", proposal.operation || active || "counts", true);
+    }
     if (!proposal.handled) {
       if (!choice) return null;
       // A escolha de capacidade também vale antes de haver uma seleção territorial.
