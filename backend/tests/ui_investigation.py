@@ -227,7 +227,13 @@ def main():
             expect(board.get_by_role('button', name='Usar seleção na próxima análise', exact=True)).to_be_disabled()
             # Perda efetiva da sessão no servidor: o próximo controle recebe 410 e descarta a aba.
             assert context.request.post(URL.rstrip('/') + '/api/session/close', headers=headers).status == 200
-            page.get_by_role('navigation', name='Navegação principal').get_by_role('button', name='Resultados', exact=True).click()
+            # A sessão encerrada pode exibir imediatamente o diálogo obrigatório de privacidade.
+            # Se estiver aberto, a interação com a navegação é corretamente bloqueada.
+            privacy = page.get_by_role('button', name='Li e concordo', exact=True)
+            if privacy.is_visible():
+                expect(page.get_by_test_id('session-ended-notice')).to_contain_text('expirou ou ficou indisponível', timeout=15000)
+            else:
+                page.get_by_role('navigation', name='Navegação principal').get_by_role('button', name='Resultados', exact=True).click()
             expect(page.get_by_test_id('session-ended-notice')).to_contain_text('expirou ou ficou indisponível', timeout=15000)
             page.get_by_role('button', name='Li e concordo', exact=True).click()
             send('Olá')
