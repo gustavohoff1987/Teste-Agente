@@ -149,3 +149,14 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .workspace-hero { padding: 18px 22px; }
   .workspace-hero .hero-copy h1 { font-size: clamp(24px, 5vw, 30px); }
 }
+
+/* Hierarquia visual dos controles e delimitação do espaço conversacional. */
+.conversation-workspace { border:2px solid #265578 !important; box-shadow:0 10px 28px #10274020; }
+.workspace-heading { background:#f0f5fa; border-bottom:2px solid #265578; }
+.conversation-pane { border-color:#265578; }
+.analysis-pane { border-left-color:#265578; }
+.analysis-toolbar { background:#f0f5fa; border-bottom:2px solid #265578; }
+.history-menu { border:2px solid #265578 !important; box-shadow:0 2px 8px #1027401a; }
+.history-menu > summary { color:#102740; font-weight:700; padding:10px 13px; }
+.history-menu > summary:hover { background:#e4eef7; }
+.history-list { border:2px solid #265578; box-shadow:0 12px 30px #10274025; }
