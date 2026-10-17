@@ -16,7 +16,7 @@ export function ResultIdentity({ entry }: { entry: InvestigationEntry }) {
       <dt className="font-semibold">Indicadores e unidades</dt><dd>{info.indicators.join("; ") || "Consulte as colunas e as notas deste resultado."}</dd>
       <dt className="font-semibold">Períodos e categorias</dt><dd>{info.periods.map(displayPeriod).join(", ")} · {info.categories.join(", ")}</dd>
       <dt className="font-semibold">Território</dt><dd>{info.scope}</dd>
-      {info.status !== "AVALIAVEL" && info.status !== "avaliável" && info.status !== "VIGENTE" &&
+      {!["avaliavel", "avaliável", "vigente"].includes(info.status.toLocaleLowerCase("pt-BR")) &&
         <><dt className="font-semibold">Situação do resultado</dt><dd>{info.status}</dd></>}
     </dl>
   </section>;
