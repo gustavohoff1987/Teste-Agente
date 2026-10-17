@@ -176,6 +176,7 @@ function App() {
   const [page, setPage] = useState<"home" | "results">("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [analysisMenuOpen, setAnalysisMenuOpen] = useState(false);
+  const [confirmNewAnalysis, setConfirmNewAnalysis] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [usingBrazil, setUsingBrazil] = useState(false);
   const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
@@ -834,6 +835,13 @@ function App() {
     finally { runningRef.current = false; setRunning(false); }
   }
 
+  function startNewAnalysis() {
+    if (running || inspecting || preflighting) return;
+    setActive(null); setResult(null); setVisualSelection([]); setInlineConfirmed(false);
+    setRequestedCategory(""); setRequestedIndicator(null); setRequestText(""); setError("");
+    setHistoryNotice("Nova análise iniciada. Resultados anteriores disponíveis no Histórico de análises.");
+    setConfirmNewAnalysis(false); navigate("home", "assistente");
+  }
   function navigate(view: "home" | "results", target?: string) {
     setPage(view);
     setMobileMenuOpen(false);
@@ -1580,6 +1588,7 @@ function App() {
       </div>
       <nav aria-label="Navegação principal" className="mt-12 space-y-1">
         {sideLink("Início", "home", Home)}
+<button type="button" disabled={running || inspecting || preflighting} onClick={() => {setConfirmNewAnalysis(true);setMobileMenuOpen(false);}} className="flex w-full items-center gap-3 rounded-xl border border-white/25 px-3 py-3 text-left text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-40"><FileBarChart2 size={18}/>Nova análise</button>
         <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
           <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
@@ -1604,6 +1613,7 @@ function App() {
           className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
         {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
           {sideLink("Início", "home", Home)}
+<button type="button" disabled={running || inspecting || preflighting} onClick={() => {setConfirmNewAnalysis(true);setMobileMenuOpen(false);}} className="flex w-full items-center gap-3 rounded-xl border border-white/25 px-3 py-3 text-left text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-40"><FileBarChart2 size={18}/>Nova análise</button>
           <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
           <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
