@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Clock3, ChevronDown } from "lucide-react";
 import { displayPeriod } from "./DistributionResults";
 
@@ -20,8 +21,23 @@ type Props = {
 };
 
 export default function PreviousAnalyses({ items, currentId, disabled, onOpen }: Props) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    function outside(event: PointerEvent) {
+      if (menuRef.current?.open && !menuRef.current.contains(event.target as Node)) menuRef.current.open = false;
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape" && menuRef.current?.open) {
+        menuRef.current.open = false;
+        menuRef.current.querySelector("summary")?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, []);
   return <section aria-label="Histórico de análises" className="no-print">
-    <details className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
+    <details ref={menuRef} className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 text-sm font-semibold text-ink marker:hidden hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <Clock3 size={17} className="shrink-0 text-teal" aria-hidden="true"/>
         <span>Histórico de análises</span>
@@ -41,7 +57,7 @@ export default function PreviousAnalyses({ items, currentId, disabled, onOpen }:
                 : item.periods.length > 1 ? item.periods.length + " períodos" : "";
               return <li key={item.id}>
                 <button type="button" disabled={disabled || current} aria-current={current ? "true" : undefined}
-                  aria-label={"Abrir análise: " + item.title} onClick={() => onOpen(item.id)}
+                  aria-label={"Abrir análise: " + item.title} onClick={() => { onOpen(item.id); if (menuRef.current) menuRef.current.open = false; }}
                   className={"w-full rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-default " +
                     (current ? "border-blue-200 bg-blue-50" : "border-line bg-white hover:border-blue-200 hover:bg-slate-50")}>
                   <span className="flex flex-wrap items-center justify-between gap-2">
