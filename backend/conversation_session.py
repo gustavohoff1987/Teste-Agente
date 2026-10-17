@@ -124,6 +124,9 @@ class SessionStore:
             docs = answer.get("documentation", [])
             if docs:
                 session.dialogue["document"] = docs[0]["id_doc"]
+                session.dialogue["referent"] = "document"
+            if answer.get("result_reference"):
+                session.dialogue["referent"] = "result"
             self._audit(session, "EV-VALIDACAO-SAIDA")
 
     def record_result(self, token, revision, result, context):
@@ -135,7 +138,8 @@ class SessionStore:
             if len(session.results) >= 64 or session.size + size > 32 * 1024 * 1024 or sum(
                     s.size for s in self.sessions.values()) + size > 256 * 1024 * 1024:
                 return False
-            session.results[result["result_id"]] = {"result": deepcopy(result), "context": deepcopy(context)}
+            session.results[result["result_id"]] = {"result": deepcopy(result), "context": deepcopy(context),
+                                                   "integrity": fingerprint(result)}
             session.size += size
             self._audit(session, "RESULTADO_CALCULADO")
             return True
@@ -145,6 +149,8 @@ class SessionStore:
             record = self._get(token).results.get(result_id)
             if record is None:
                 raise HTTPException(404, "Resultado não encontrado nesta sessão. Nenhum valor do navegador foi utilizado.")
+            if fingerprint(record["result"]) != record["integrity"]:
+                raise HTTPException(409, "A integridade do resultado não pôde ser confirmada.")
             return deepcopy(record)
 
 

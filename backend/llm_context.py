@@ -8,6 +8,7 @@ evidência de disponibilidade sem revalidação da base.
 from typing import Any
 import unicodedata
 import hashlib
+import re
 import pandas as pd
 
 from data_contract import text_values
@@ -20,6 +21,7 @@ from territorial_selection import territory_catalog
 def investigation_context(frame, mapping, options, eligibility):
     """Snapshot local verificado; os valores nunca integram provider_snapshot."""
     source = fingerprint({"columns": list(frame.columns), "source": frame.attrs.get("source"),
+                          "input_file": frame.attrs.get("input_file"),
                           "data": hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()})
     parameters = {key: value for key, value in options.items()
                   if not key.startswith(("conversation_", "exploration_"))}
@@ -110,6 +112,28 @@ def _slot_status(value: str, possibilities: list[str]) -> str:
     # reconhecimento governado, inexistente integralmente no protótipo.
     return ("found_in_dataset" if _norm(value) in {_norm(item) for item in possibilities}
             else "not_confirmed_in_dataset")
+
+
+def bind_local_parameters(proposal, message, eligibility):
+    """Recupera literais do pedido original apenas no Python, após minimização externa.
+
+    Não cria equivalências nem escolhe entre valores concorrentes. O pré-exame da
+    proposta continua responsável por decidir se cada literal é admissível.
+    """
+    if not proposal.get("operation"):
+        return []
+    text, ambiguous = _norm(message), []
+    for role, key in (("period", "periods"), ("category", "categories")):
+        found = [str(value) for value in eligibility["values"][key]
+                 if re.search(r"(?<!\w)" + re.escape(_norm(value)) + r"(?!\w)", text)]
+        if role == "period":
+            found = list(dict.fromkeys([*found, *re.findall(r"(?<!\w)(?:19|20)\d{2}(?:\d{2})?(?!\w)", text)]))
+        if len(found) == 1:
+            proposal[role] = found[0]
+        elif len(found) > 1:
+            proposal[role] = ""
+            ambiguous.append(role)
+    return ambiguous
 
 
 def review_interpretation(proposal: dict, eligibility: dict[str, Any],

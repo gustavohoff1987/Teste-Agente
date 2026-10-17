@@ -31,9 +31,11 @@ from territorial_hierarchy import describe_hierarchy
 from brazil_data import diagnostics as brazil_diagnostics, load_brazil
 from brazil_catalog_profile import curated_profile, apply_curated_options
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
-from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply
-from llm_bridge import dialogue_action, _system_response
+from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
+from llm_bridge import dialogue_action, _system_response, _document_response
+from document_catalog import TOPICS
 from conversation_session import sessions, lifespan
+from result_conversation import answer_result
 from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for, normalize as normalize_exploration
 from request_memo import RequestMemoMiddleware
@@ -657,7 +659,10 @@ async def llm_interpretation_with_dataset(
         # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
         # O canal local não solicita, valida ou executa análise da base.
         quick = llm_local_response(request)
-        if quick is not None and not x_adt_session:
+        if quick is not None and (not x_adt_session or dialogue_action(message) != "simplify"):
+            if x_adt_session:
+                sessions.revision(x_adt_session, context_revision)
+                sessions.remember(x_adt_session, context_revision, quick)
             return quick
         if not context_ready:
             raise HTTPException(status_code=409, detail="Aguarde ou repita a validação da base antes de solicitar uma proposta analítica.")
@@ -674,6 +679,15 @@ async def llm_interpretation_with_dataset(
             if displayed_result_id:
                 result_record = sessions.result(x_adt_session, displayed_result_id)
             action = dialogue_action(message)
+            if action == "simplify" and capture["dialogue"].get("referent") == "document":
+                topic = next((key for key, ids in TOPICS.items() if capture["dialogue"].get("document") in ids), None)
+                if topic:
+                    quick = _document_response(topic, simple=True)
+            if action in ("explain_result", "simplify") and not (
+                    action == "simplify" and quick and capture["dialogue"].get("referent") == "document"):
+                answer = {**_system_response("", None, ""), **answer_result(message, action, result_record, capture)}
+                sessions.remember(x_adt_session, context_revision, answer)
+                return answer
             if action in ("next_steps", "change_selection", "change_period"):
                 answer = {**_system_response("", None, ""), **screen_reply(action, capture)}
                 sessions.remember(x_adt_session, context_revision, answer)
@@ -684,13 +698,21 @@ async def llm_interpretation_with_dataset(
         declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
         if not isinstance(declared_category, str):
             raise ValueError("Categoria declarada inválida.")
+        def review_local(proposal):
+            ambiguous = bind_local_parameters(proposal, request.message, eligibility)
+            reviewed = review_interpretation(proposal, eligibility, category_constant=declared_category,
+                                               frame=frame, mapping=fields, options=settings)
+            if ambiguous:
+                reviewed["capability_status"] = "needs_confirmation"
+                reviewed["blockers"].append("Há mais de um período ou categoria no pedido; confirme o recorte na preparação.")
+                reviewed["ambiguous_parameters"] = ambiguous
+            return reviewed
         answer = await llm_interpret(
             request, eligibility=eligibility, category_constant=declared_category,
-            proposal_reviewer=lambda proposal: review_interpretation(proposal, eligibility,
-                category_constant=declared_category, frame=frame, mapping=fields, options=settings),
+            proposal_reviewer=review_local,
             conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
-            protected_values=([*frame.columns, *(value for column in frame.columns for value in frame[column].dropna().unique())]
-                              if x_adt_session else None),
+            protected_values=([*frame.columns, frame.attrs.get("input_file", {}).get("name", ""), sheet,
+                               *(value for column in frame.columns for value in frame[column].dropna().unique())]),
         )
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
@@ -715,6 +737,11 @@ async def llm_interpretation_with_dataset(
         if x_adt_session:
             if answer.get("dialogue_action") in ("next_steps", "change_selection", "change_period"):
                 answer.update(screen_reply(answer["dialogue_action"], capture))
+            elif answer.get("dialogue_action") in ("explain_result", "simplify"):
+                answer.update(answer_result(message, answer["dialogue_action"], result_record, capture))
+                # Uma intenção de explicação não muda a operação em preparação.
+                answer["proposal"] = _system_response("", None, "")["proposal"]
+                answer.pop("exploration", None)
             sessions.remember(x_adt_session, context_revision, answer)
         return answer
     except LLMError as exc:
@@ -834,11 +861,14 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         if x_adt_session:
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
             sessions.revision(x_adt_session, context_revision)
-        if dialogue_action(message):
-            return {"handled": False}  # o canal contextual distingue explicação de execução
         requested = json.loads(options)
         if not isinstance(requested, dict):
             raise ValueError("Parâmetros inválidos.")
+        if dialogue_action(message):
+            if requested.get("conversation_operation_choice") == "comparisons":
+                message = "Compare esses municípios"  # escolha explícita na alternativa; ainda sem cálculo
+            else:
+                return {"handled": False}  # o canal contextual distingue explicação de execução
         command = criteria_command(message, requested)  # critérios combinados: só estrutura, sem dados nem cálculo
         if command is not None:
             return command
@@ -846,6 +876,8 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         # Atendê-la aqui evita que o resolvedor de nomes a transforme em novo pedido de municípios.
         quick = llm_local_response(ChatRequest(message=message, history=[]))
         if quick is not None:
+            if x_adt_session and quick.get("documentation"):
+                return {"handled": False}  # registra o referente documental no contexto da sessão
             return {"handled": True, "reply": quick["reply"], "executed": False}
         choice = requested.get("conversation_operation_choice")
         if choice is not None:

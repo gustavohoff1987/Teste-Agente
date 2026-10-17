@@ -172,10 +172,11 @@ def _text_key(value: str) -> str:
 
 def dialogue_action(message):
     text = _text_key(message).strip(" .!?")
-    if re.search(r"(?:explique|explica|explicar|simplifique|entendi).*?(?:simples|entendi)|^nao entendi$", text):
+    if re.search(r"(?:explique|explica|explicar|simplifique|entendi).*?(?:simples|entendi)|^nao entendi$|^simplifique$", text):
         return "simplify"
     if re.search(r"(?:o que|que|como|por que).*?(?:resultado|apareceu|mostrado)|"
-                 r"(?:explique|explica|entender).*?(?:resultado|apareceu)|qual.*(?:maior|menor).*densidade", text):
+                 r"(?:explique|explica|entender).*?(?:resultado|apareceu)|qual.*(?:maior|menor).*densidade|"
+                 r"(?:por que|porque).*densidade|(?:o que|que).*esse numero|(?:o que|que).*isso significa", text):
         return "explain_result"
     if re.fullmatch(r"(?:e agora|continue|o que posso investigar|o que mais|quais os proximos passos|"
                     r"e agora,? o que posso investigar)", text):
@@ -571,12 +572,33 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     sanitized = [_sanitize(m) for m in messages]
     if protected_values is not None:
         # A base só participa desta comparação local, nunca do corpo enviado.
-        protected = sorted({str(value).strip() for value in protected_values if str(value).strip()}, key=len, reverse=True)
+        protected = {"".join(c for c in unicodedata.normalize("NFKD", str(value).strip().casefold())
+                             if not unicodedata.combining(c)) for value in protected_values if str(value).strip()}
         sanitized = []
         for message in messages:
+            # Normalizar uma vez por mensagem, não uma vez por célula da base.
+            folded, positions = [], []
+            for index, character in enumerate(message):
+                normalized = "".join(c for c in unicodedata.normalize("NFKD", character.casefold())
+                                     if not unicodedata.combining(c))
+                folded.append(normalized)
+                positions.extend([index] * len(normalized))
+            normalized_message, spans = "".join(folded), []
             for value in protected:
-                if value.casefold() in message.casefold():
-                    message = re.sub(r"(?<!\w)" + re.escape(value) + r"(?!\w)", "[DADO_LOCAL]", message, flags=re.I)
+                if not value or value not in normalized_message:
+                    continue
+                spans.extend((positions[m.start()], positions[m.end()-1]+1) for m in re.finditer(
+                    r"(?<!\w)" + re.escape(value) + r"(?!\w)", normalized_message))
+            merged = []
+            for start, end in sorted(spans):
+                if merged and start <= merged[-1][1]:
+                    merged[-1][1] = max(merged[-1][1], end)
+                else:
+                    merged.append([start, end])
+            for start, end in reversed(merged):
+                message = message[:start] + "[DADO_LOCAL]" + message[end:]
+            # Valores digitados podem ter vindo de resultados calculados, não só de células.
+            message = re.sub(r"(?<!\w)[+-]?\d[\d.,]*(?!\w)", "[VALOR_LOCAL]", message)
             sanitized.append(_sanitize(message))
     if not any(re.search(r"[a-zá-ú]{2}", x, re.I) for x in sanitized):
         raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.")

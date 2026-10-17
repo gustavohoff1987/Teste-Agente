@@ -67,7 +67,7 @@ type Inspection = {
       versao?: string; motivo?: string; token: string } } | null;
 };
 type Metric = { label: string; value: string | number };
-type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[] };
+type AnalysisResult = { result_id: string; title: string; description: string; rows: Record<string, unknown>[]; total_rows: number; metrics: Metric[]; notes: string[]; metadata: Record<string, unknown>; detail_rows?: Record<string, unknown>[]; conversation_reference?: {available: boolean} };
 type Exploration = TerritorialProposal & {
   criteria_patch?: {mode?: "replace" | "and" | "or"; leaf?: Omit<Leaf, "id">; ranking?: {attribute: RankingSpec["attribute"]; direction: "asc" | "desc"};
     top_n?: number; exact_n?: boolean; compare?: "previous"}; criteria_pending_ranking?: RankingSpec["attribute"]};
@@ -1562,7 +1562,7 @@ function App() {
         onStarted={() => setConversationStarted(true)}
         apiBase={API}
         privacyAccepted={privacy.accepted}
-        displayedResultId={result?.result_id || ""}
+        displayedResultId={result?.conversation_reference?.available ? result.result_id : ""}
         file={file}
         dataset={usingBrazil ? "brazil" : ""} scope={inspection?.source?.scope || "auto"}
         datasetVersion={inspection?.source?.version || ""}

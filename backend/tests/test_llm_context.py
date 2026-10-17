@@ -91,6 +91,9 @@ def test_verified_context_does_not_send_base_values_or_labels(monkeypatch):
     assert "Unidade" not in sent[0]
     assert "recognized_roles" in sent[0]
     assert "capabilities" in sent[0]
+    # Período e categoria são recuperados localmente, sem enviar seus valores ao modelo.
+    assert "202406" not in content
+    assert "medicos" not in content.lower()
 
 
 def test_nonexistent_period_is_not_treated_as_verified(monkeypatch):

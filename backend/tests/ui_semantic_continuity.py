@@ -67,6 +67,13 @@ def main():
         assert event.value.status == 200
         density = event.value.json()
         expect(history).to_contain_text("1 análise nesta sessão")
+        explanation = send("O que esse resultado significa?", "/api/llm/interpret-context")
+        assert explanation["result_reference"]["result_id"] == density["result_id"]
+        assert explanation["result_reference"]["origin"] == "BACKEND_VERIFIED_RESULT"
+        assert explanation["segments"] and explanation["documentation"]
+        simpler = send("Explique de maneira mais simples", "/api/llm/interpret-context")
+        assert simpler["result_reference"]["result_id"] == density["result_id"]
+        assert len(simpler["reply"]) < len(explanation["reply"]) and len(analyses) == 1
         left = page.get_by_test_id("conversation-pane").bounding_box()
         right = page.get_by_test_id("analysis-pane").bounding_box()
         assert left["x"] + left["width"] <= right["x"] + 2

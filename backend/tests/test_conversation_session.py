@@ -129,9 +129,17 @@ def test_protected_dataset_literals_and_dialogue_context_never_leave_backend(mon
                     intent="CONVERSACIONAL",topic="none",social_reply="Entendi.")
     monkeypatch.setenv("GEMINI_API_KEY","offline")
     monkeypatch.setattr(llm_bridge,"_call_gemini",provider)
-    response=request(headers,"Me ajude a estudar Vila Secreta em 202406, MEDICINA, Populacao 1000")
+    response=request(headers,"Me ajude a estudar Vila Secreta em 202406, MEDICINA, Populacao 1000 no arquivo private.csv")
     assert response.status_code == 200, response.text
     content=" ".join(sent)
-    for value in ("Vila Secreta","202406","MEDICINA","Populacao","1000",headers["X-ADT-Session"]):
+    for value in ("Vila Secreta","202406","MEDICINA","Populacao","1000","private.csv",headers["X-ADT-Session"]):
         assert value not in content
     assert "CONTINUIDADE_VERIFICADA" in content
+
+
+def test_greeting_and_general_method_do_not_require_ready_dataset():
+    headers = session()
+    for message in ("Olá", "O que é densidade?"):
+        answer = request(headers, message, context_ready=False)
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["executed"] is False

@@ -1,4 +1,4 @@
-# Conversação experimental — incrementos FN (atualizado em 16/10/2026)
+# Conversação experimental — incrementos FN (atualizado em 17/10/2026)
 
 Esta implementação é **parcial** e incremental. A referência normativa continua
 sendo `IMPLEMENTATION_SPEC.md` v1.2.4, especialmente §8.5, Parte 6 e Parte 14.
@@ -11,7 +11,8 @@ Nenhum dos contratos FN abaixo foi declarado integralmente atendido.
 | FN-INT-01 | Distingue conversa, pergunta sobre o agente e proposta analítica; identifica capacidades explicitamente coordenadas e admite candidatas ancoradas para leituras concorrentes, sem escolher arbitrariamente uma delas | LeituraMinima integral com funções coexistentes, dados conversacionais, triagem nominal completa, tipagem de todos os trechos |
 | FN-INT-02 | Modelo propõe capacidade/indicador ou até cinco candidatas; cada alternativa exige âncora literal no pedido atual. Slots de período, categoria e território continuam ancorados; nomes municipais são resolvidos localmente após validar a capacidade. Pendência simples de nomes admite continuação na mesma fonte | InterpretaçãoOperacional completa, múltiplos entregáveis, todas as associações de pendências/linhas e regras de admissibilidade |
 | FN-INT-03 | Perguntas padronizadas para capacidades concorrentes, indicador da distribuição, período/categoria não confirmados e município faltante. Escolha estruturada prepara a análise localmente quando há base; demais escolhas preparam rascunho | Seleção completa de formas CFG-DOC/TPL-04, cobertura integral CFG-AMB/CFG-OPC e validação V-16 |
-| FN-META-01 | Catálogo local controlado de explicações sobre o agente, importação, limites, privacidade, densidade, distâncias e sobreposição; classificações de assunto produzidas pelo Gemini não são exibidas como texto livre | Catálogo documental CFG-DOC integral, âncoras DOC: materializadas, consultas a eventos C-13 e V-16 integral |
+| FN-META-01 | Formas PT literais com âncoras DOC: para densidade, distância e agregação; catálogo conferido contra o Anexo A; EN bloqueado pela autorização APT-20261016. Orientações legadas continuam locais | Seleção contextual de todas as formas, consultas integrais a C-13 e V-16 integral |
+| FN-INT-04 / CAP-SIN-01 (parciais) | Seleção e parâmetros verificados por sessão; leitura de densidade, quantitativos e comparação por referência ao resultado do backend; segmentos copiados com caminhos e relações já calculadas; preparação explícita de comparação faltante | Síntese analítica abrangente das demais capacidades, múltiplos entregáveis, livre paráfrase metodológica (não autorizada) |
 
 ## Fronteiras preservadas
 
@@ -24,15 +25,13 @@ Nenhum dos contratos FN abaixo foi declarado integralmente atendido.
   resolvedor Python e **apenas prepara** a análise. Sem base, ou em perguntas
   legadas sem operação estruturada, preenche o rascunho da mensagem. Nenhuma
   alternativa calcula resultados ou confirma premissas metodológicas.
-- As menções ao histórico são limitadas aos textos já escritos pelo usuário.
+- O histórico textual enviado continua limitado aos textos escritos pelo usuário; a sessão guarda também intenção, referente documental e resultados verificados, sem enviar seus dados ao provedor.
   Períodos e categorias retomados passam novamente pela validação de valores
   da base. Solicitações novas sem anáfora explícita não herdam esses valores.
 - Perguntas diretas sobre o funcionamento do agente são respondidas localmente,
   sem consumir quota da API Gemini, inclusive em modo degradado ou durante uma
   pendência de nomes de municípios. A pergunta de orientação não apaga essa pendência.
-- Não foram adicionados planejamento de várias análises (FN-ORQ-01),
-  sugestões derivadas dos resultados (FN-INT-04), sínteses (CAP-SIN-01),
-  execução automática nem alterações ao motor de cálculo.
+- Não foram adicionados planejamento de várias análises (FN-ORQ-01), execução automática nem alterações ao motor de cálculo. A leitura de resultados e sugestões têm o escopo parcial registrado em [Evolução conversacional](EVOLUCAO_CONVERSACIONAL_20261016.md); não equivalem à implementação integral de FN-INT-04/CAP-SIN-01.
 
 ## Continuidade e ambiguidade material
 
