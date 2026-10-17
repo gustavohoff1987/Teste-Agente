@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
-import { scrollAnalysisTo } from "./workspaceNavigation";
 import { AlertCircle, ArrowRight, LoaderCircle,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
