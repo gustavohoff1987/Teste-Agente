@@ -34,18 +34,21 @@ export default function InvestigationOverview(p: Props) {
   const current = p.items.find(i => i.result.result_id === p.currentId);
   const pages = Math.max(1, Math.ceil(p.items.length / PAGE));
   useEffect(() => { const index = p.items.findIndex(i => i.result.result_id === p.currentId); if (index >= 0) setPage(Math.floor(index / PAGE)); }, [p.currentId, p.items.length]);
-  const entries = useMemo(() => p.items.map((entry, index) => ({entry, info: identity(entry), index})), [p.items]);
+  // Descreve apenas a página visível; não retém listas territoriais de todas as etapas.
+  const entries = useMemo(() => p.items.slice(page * PAGE, (page + 1) * PAGE)
+    .map((entry, offset) => ({entry, info: identity(entry), index: page * PAGE + offset})), [p.items, page]);
+  const dimensions = useMemo(() => new Set(p.items.map(e => e.result.metadata.operation)).size, [p.items]);
   return <section id="investigacao" aria-label="Investigação territorial" data-testid="investigation-overview" className="no-print my-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="font-semibold text-ink">Sua investigação territorial</h2>
-        <p className="mt-1 text-xs text-slate-600">{p.items.length} {p.items.length === 1 ? "resultado disponível" : "resultados disponíveis"} · {new Set(entries.map(e => e.info.operation)).size} dimensões analíticas</p></div>
+        <p className="mt-1 text-xs text-slate-600">{p.items.length} {p.items.length === 1 ? "resultado disponível" : "resultados disponíveis"} · {dimensions} dimensões analíticas</p></div>
       <button type="button" className={button} onClick={p.onPrepare}>Acrescentar uma análise</button>
     </div>
     <p className="my-3 text-xs leading-5 text-slate-600">Cada análise conserva sua fonte, recorte e parâmetros. Abrir resultados ou destacar territórios não executa cálculos.
       {p.selected.length > 0 && ` Seleção visual ativa: ${p.selected.length} território(s).`}</p>
     {p.busy && <p role="status" className="my-2 text-xs font-semibold text-teal">Preparando a próxima análise. Os resultados concluídos permanecem disponíveis abaixo.</p>}
     {!p.items.length && <p className="text-xs text-slate-600">Execute a primeira análise para iniciar esta investigação.</p>}
-    <ol className="grid gap-3 sm:grid-cols-2">{entries.slice(page * PAGE, (page + 1) * PAGE).map(({entry, info, index}) => {
+    <ol className="grid gap-3 sm:grid-cols-2">{entries.map(({entry, info, index}) => {
       const active = entry.result.result_id === p.currentId;
       const link = current && !active ? selectionCompatibility(current, entry) : null;
       return <li key={entry.result.result_id} data-testid="investigation-card" className={"min-w-0 rounded-xl border p-3 " + (active ? "border-blue-400 bg-white" : "border-line bg-white/80")}>

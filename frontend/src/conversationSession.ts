@@ -5,11 +5,15 @@ let creating: Promise<string> | null = null;
 let revision = 0;
 let ending = false;
 
-function ended() {
+function ended(reason: "unavailable" | "closed" = "unavailable") {
   if (ending) return;
   ending = true;
   token = "";
-  try { sessionStorage.removeItem("adt:privacy-accepted:v1"); } catch { /* sem armazenamento */ }
+  try {
+    sessionStorage.removeItem("adt:privacy-accepted:v1");
+    // Somente um motivo de descarte, sem token, dados, IDs ou histórico persistidos.
+    sessionStorage.setItem("adt:session-ended", reason);
+  } catch { /* sem armazenamento */ }
   window.location.reload(); // descarta também arquivos, resultados e histórico em memória da aba
 }
 
@@ -47,7 +51,7 @@ export async function endSession() {
     const response = await fetch(API + "/api/session/close", {method:"POST", headers:{"X-ADT-Session":token}});
     if (!response.ok) throw new Error("Não foi possível encerrar a sessão no servidor. Tente novamente.");
   }
-  ended();
+  ended("closed");
 }
 
 export function trackSession() {

@@ -61,15 +61,164 @@ O comportamento está descrito em [Análise exploratória integrada](ANALISE_EXP
 As diferenças de operação, indicador e parâmetros ficam explícitas; destaque não autoriza
 comparação de valores. Recortes diferentes continuam consultáveis de maneira independente.
 
-## Validação e estado da execução
+## Funcionalidades entregues e preservadas
 
-Primeira etapa validada: 24 testes de compatibilidade aprovados; 48 testes direcionados de
-conversa/sessão/documentação/governança e seis testes adversariais adicionais aprovados;
-**12 jornadas completas aprovadas**, incluindo a nova investigação sintética e Brasil real.
-Inspeção visual das capturas em desktop e 390 px confirmou a composição dentro dos painéis.
+As etapas A a E foram implementadas na mesma execução de desenvolvimento. A visão geral mantém
+as etapas concluídas, distingue a etapa em exibição e permite abrir contexto e navegar. Uma única
+representação detalhada oferece aprofundamento, expansão/recolhimento, indicadores, tabelas,
+distribuições, gráficos, séries, mapas, distâncias, recortes e notas conforme a operação existente.
+O resultado anterior continua visível durante a execução e após uma falha de transporte.
+
+Cada resultado lembra seus filtros, seleção, indicador, aba, ordenação e páginas. A transferência
+explícita entre dimensões compatíveis leva somente IDs; seleção visual, filtro e preparação são
+estados distintos. As confirmações metodológicas continuam necessárias para executar uma comparação.
+Mudanças na preparação não reescrevem resultados anteriores. O histórico original permanece
+acessível e a reabertura não requer nova chamada a `/api/analyze`.
+
+A conversa acompanha o resultado aberto com a referência já resolvida pelo servidor. A jornada
+verifica `BACKEND_VERIFIED_RESULT` e o ID exato após reabrir uma análise. Nenhum valor visual é
+convertido em fonte de verdade, e não se acrescentou interpretação ao Gemini. Sua configuração,
+minimização de dados e limites permaneceram intactos.
+
+Estados vazios, carregamento, erro, ausência de linhas, limitação de referência conversacional e
+descarte da sessão têm mensagens explícitas. Após encerramento ou indisponibilidade/expiração,
+um marcador de motivo sem dados nem token explica que a investigação anterior foi descartada;
+o próximo aceite remove o marcador. O limite de 64 referências/32 MiB por sessão e o prazo de
+1.800 segundos não mudaram. Um resultado que excede o registro do servidor continua consultável
+e exportável na aba, sem referência conversacional recuperável.
+
+Preservados por revisão de código e regressão: operações, pré-exame, validações, agregação,
+sobreposição, comparação, distâncias, séries, mapas, filtros, exportações CSV/JSON/impressão,
+histórico, continuidade conversacional e isolamento. Não houve exclusão de função, dependência
+ou teste, nem alteração nos motores e dados. A impressão inclui o resultado mesmo quando
+recolhido na tela.
+
+## Validação executada
+
+| Verificação | Baseline | Entrega |
+|---|---|---|
+| Backend completo, incluindo dados reais | 481 aprovados, zero pulados | 487 aprovados, zero pulados; 460,09 s |
+| Compatibilidade do frontend | Testes novos neste incremento | 24 aprovados, zero pulados |
+| Instalação/build | `npm ci` e build aprovados | TypeScript e Vite aprovados; `prebuild` roda os 24 testes |
+| Jornadas completas de navegador | Dez aprovadas | 12 aprovadas na primeira etapa e na repetição final |
+| Dados Brasil | Integridade verificada | Integridade verificada, mesmos hashes e versão |
+| Arquivos protegidos e identidades AST | 38 arquivos; 226 funções/classes | Zero divergências |
+| Governança | Aprovada | Aprovada; conferência final dos commits após registro |
+
+Comandos executados em PowerShell, com `PYTHONUTF8=1`; no pytest também
+`ADT_REAL_DATA_DIR=C:\Users\User\Desktop\Github\Teste-Agente`:
+
+```text
+python -m pytest -q -rs                       (em backend/)
+npm ci                                      (em frontend/, baseline)
+npm run build                               (em frontend/; inclui npm test)
+python backend/tests/run_ui_checks.py
+python backend/brazil_data.py diagnostico
+python .github/scripts/verificar_governanca.py
+python .local/integrity_exploration.py
+git diff --check
+```
+
+Os novos testes de frontend executam o módulo TypeScript real usando o compilador já instalado.
+As jornadas utilizam navegador Chrome headless e API/motor reais; bloqueiam rede externa. O
+transporte Gemini simulado fica restrito às suítes que já o declaravam. Não se substituiu cálculo
+ou validação por resposta fabricada. A indisponibilidade de rede é injetada somente para verificar
+o tratamento de erro. A verificação durante carregamento segura o transporte e depois o libera
+para o motor real.
+
+Os seis novos testes em `test_investigation_session.py` cobrem alternância de referência sem
+cálculo ou chamada ao provedor, 65 cálculos e preservação das primeiras 64 referências, oito
+requisições concorrentes com IDs distintos, isolamento entre sessões, leitura sem renovação
+do prazo, expiração, adulteração, revisão obsoleta e tentativa de obter relação não calculada.
+Os 24 testes de frontend cobrem identidade, fonte, versão/hash, método, campos, período, categoria,
+unidade, duplicatas, sobreposição, recorte, IDs ambíguos, validade e representação ausentes,
+coortes/agregados/séries e camadas geográficas diferentes.
+
+### Jornadas exploratórias e alcance da evidência
+
+Resultado da execução final do executor completo:
+
+| Suíte | Roteiro | Resultado | Tempo |
+|---|---|---|---|
+| conversa | `ui_conversational_smoke.py` | Aprovado | 14 s |
+| bloco1 | `ui_block1_smoke.py` | Aprovado | 29 s |
+| bloco1 | `ui_block1_regression.py` | Aprovado | 8 s |
+| bloco1 | `ui_nearest_smoke.py` | Aprovado | 14 s |
+| bloco1 | `ui_criteria_smoke.py` | Aprovado | 21 s |
+| bloco1 | `ui_map_smoke.py` | Aprovado | 33 s |
+| bloco1 | `ui_visibility_diagnostic.py` | Aprovado | 34 s |
+| bloco1 | `ui_investigation.py` | Aprovado | 41 s |
+| gemini-simulado | `ui_block1_integration.py` | Aprovado | 5 s |
+| gemini-simulado | `ui_semantic_continuity.py` | Aprovado | 13 s |
+| base-versionada | `ui_block1_smoke.py` | Aprovado | 74 s |
+| base-versionada | `ui_investigation.py` | Aprovado | 60 s |
+
+- `ui_investigation.py`, catálogo sintético: nove resultados abertos na investigação, densidade,
+  quintis, comparação e distância; filtros e seleção preservados; destaque no mapa; duas páginas
+  de etapas; recorte e período incompatíveis; parâmetros novos sem recálculo dos anteriores;
+  leitura conversacional da referência ativa; CSV/JSON existentes e impressão recolhida;
+  falha de rede sem perda do histórico; limite real de referências preenchido pela API;
+  troca de fonte, perda da sessão no servidor e encerramento voluntário.
+- A mesma jornada com a base versionada: quatro resultados, 62 municípios do Amazonas,
+  quintis, seleção no mapa, comparação com confirmação e bloqueio entre períodos/recortes.
+- As dez jornadas anteriores permanecem no executor, incluindo CSV/XLSX, seleção, pré-exame,
+  referência mais próxima, critérios, mapas, evolução temporal, agregação, exportações e
+  consciência de contexto com transporte semântico simulado.
+- Volume: regressão visual existente com 180 territórios; novo histórico paginado; 65 resultados
+  no registro de sessão; aritmética independente dos 122.534 registros/5.570 municípios e
+  geometria das 22 competências na suíte real de backend. Isso não constitui benchmark para
+  quantidade ilimitada de resultados na aba.
+- Responsividade verificada em 1.360, 768 e 390 px, sem extravasamento horizontal. Capturas
+  desktop e móvel inspecionadas visualmente; controles e detalhes permanecem nos painéis roláveis.
+
+As tentativas iniciais da jornada ampliada revelaram dois seletores incorretos no teste novo:
+referência espacial buscada sem o código exibido e texto de importação inicial procurado após
+troca de fonte. A inspeção mostrou o produto cumprindo o contrato. Corrigiram-se os seletores
+para o rótulo territorial do universo e `current-source`, mantendo as mesmas verificações.
+Nenhum teste preexistente foi afrouxado. A regressão de impressão causada pelo recolhimento foi
+corrigida antes do primeiro commit e exercitada com mídia `print` na jornada.
+
 A jornada usa escolha direta para Distribuição: o pedido composto em texto não confirmou essa
-operação no modo offline da baseline, e a tentativa de repetir densidade foi corretamente
-reutilizada sem chamada ao motor. Não se alterou interpretação conversacional para contornar isso.
+operação no modo offline da baseline, e repetir densidade foi corretamente reutilizado sem
+chamada ao motor. Não se alterou interpretação conversacional para contornar esse comportamento.
 
-Validação completa, testes adversariais adicionais, commits e estado final serão registrados
-após a execução. Este registro intermediário não declara aceite integral.
+## Integridade além da contagem de testes
+
+A comparação byte a byte por SHA-256 abrange todo backend de produto, bases, manifesto, camada
+geográfica, SPEC, catálogo documental e arquivos `.github/`. As identidades AST complementam
+essa verificação. Os hashes nacionais e municipais e a versão governada permanecem os do
+registro inicial. O diff do incremento em `backend/` contém apenas testes e seu executor.
+
+A revisão do diff confirmou a reutilização dos renderizadores e exportadores existentes,
+manutenção das rotas e ausência de alteração de contratos analíticos. As jornadas confrontam
+JSON exportado, IDs selecionados, referências do chat e resultados da API; contam chamadas ao
+motor para comprovar navegação sem recálculo. A suíte real confere os originais antes e depois.
+Essas evidências, além dos testes unitários, sustentam a preservação constatada nesta entrega.
+
+## Limites explícitos
+
+- Não há login, persistência permanente, restauração após recarga ou nova política de retenção.
+- O enquadramento manual do mapa volta à extensão inicial quando a representação é remontada;
+  filtros, seleção e indicador do resultado são preservados.
+- Relações entre resultados incompatíveis, harmonização, inferência e novos cálculos pelo chat
+  não foram implementados, conforme as fronteiras da missão. Agregados, coortes e séries
+  continuam consultáveis, sem transferência de seleção individual entre etapas.
+- A conversa sobre resultados preserva a cobertura governada da baseline; o incremento não
+  habilita explicações livres de operações que ainda não têm composição documental autorizada.
+- O CONCEPT não está disponível no checkout. Não há comprovação de inspeção direta desse arquivo;
+  os contratos acessíveis foram conferidos na SPEC e na documentação vigente.
+- Permanecem os avisos preexistentes de bundle Vite acima de 500 kB, depreciação Starlette/httpx
+  e auditoria npm (sete ocorrências na instalação). Não se alteraram dependências fora do escopo.
+- CI remoto não foi executado: não houve push. As mesmas suítes foram executadas localmente.
+
+## Commits e estado da branch
+
+- `819b1db` — investigação progressiva, identidade, controles por resultado, coordenação visual,
+  testes e documentação; registrado após build, verificações direcionadas e 12 jornadas.
+- `feat: informar disponibilidade da sessão e validar investigação acumulada` — aviso de descarte,
+  descrição leve do histórico, testes ampliados e registro de validação; commit preparado após
+  aprovação das 12 jornadas finais. Seu hash será acrescentado no fechamento documental.
+
+Branch mantida em `feat/novos-blocos-incrementais`; nenhum merge, reset, rebase, descarte ou push.
+A implementação e a validação local das etapas A a F estão concluídas. O fechamento documental
+registrará os hashes e a conferência de governança da sequência de commits.

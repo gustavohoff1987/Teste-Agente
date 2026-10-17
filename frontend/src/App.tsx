@@ -6,7 +6,7 @@ import { displayPeriod } from "./DistributionResults";
 import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
 import PreviousAnalyses from "./PreviousAnalyses";
 import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
-import { identity, selectionCompatibility } from "./investigation";
+import { resultSummary, selectionCompatibility } from "./investigation";
 import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
 import { scrollAnalysisTo } from "./workspaceNavigation";
@@ -717,6 +717,7 @@ function App() {
     setTimeout(() => scrollAnalysisTo("resultados"), 0);
   }
   function transferVisualSelection(id: string) {
+    if (running || inspecting || preflighting) return;
     const target = history.find(item => item.result.result_id === id);
     if (!historical || !target || !visualSelection.length || !selectionCompatibility(historical, target).allowed) return;
     const memory = viewMemory.current[id] ||= {};
@@ -1419,13 +1420,13 @@ function App() {
       onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
       onPrepare={() => scrollAnalysisTo("preparacao-conversacional")}/>);
   const historyContent = (
-<PreviousAnalyses items={history.map(item => ({
+<PreviousAnalyses items={history.map((item, index) => ({
           id: item.result.result_id,
           title: item.result.title,
           request: item.request,
           periods: (item.result.metadata.periods as string[] | undefined) || [],
           availableForReuse: compatible(item),
-          context: "Etapa " + (history.indexOf(item) + 1) + " · " + identity(item).scope + " · " + identity(item).status,
+          context: "Etapa " + (index + 1) + " · " + resultSummary(item).scope + " · " + resultSummary(item).status,
         }))} currentId={result?.result_id || null} disabled={running || inspecting || preflighting}
           onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>
   );

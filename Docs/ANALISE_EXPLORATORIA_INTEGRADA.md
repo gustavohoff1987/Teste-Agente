@@ -45,6 +45,9 @@ para abrir espaço nem alteração do prazo de 1.800 segundos sem interação ef
 
 Recarregar a página descarta a investigação local. Encerrar, expirar ou perder a sessão no servidor
 descarta o conteúdo conforme o mecanismo já existente. Exporte o que precisa conservar.
+Após encerramento ou perda/expiração da sessão, o aviso inicial informa o descarte e deixa
+explícito que os resultados anteriores não podem ser reabertos. Um marcador de motivo, sem
+dados, referências ou token, dura até o próximo aceite de privacidade; não recupera a investigação.
 
 ## Arquitetura e validação
 
@@ -57,3 +60,4 @@ pelas visualizações. Não há dependência nova nem mudança de motor ou API.
 Testes: `npm test` em `frontend/` valida a política real de compatibilidade; `ui_investigation.py`
 é registrado no executor para catálogo sintético e base versionada. As jornadas anteriores e
 os testes de backend continuam cobrindo métodos, limites, privacidade, sessão e exportações.
+O `prebuild` executa os testes de compatibilidade também em cada build do CI, sem alterar o workflow.

@@ -13,6 +13,15 @@ function normalize(value: unknown): unknown {
 }
 const sameSet = (a: unknown, b: unknown) => canonical([...strings(a)].sort()) === canonical([...strings(b)].sort());
 
+// O histórico resumido não precisa materializar os membros de cada universo.
+export function resultSummary(entry: InvestigationEntry) {
+  return {
+    scope: String(object(entry.result.metadata.universe).classification_scope || "Recorte não informado"),
+    status: entry.invalidReason ? "Invalidado" : String(object(entry.result.metadata.evaluability).status || "Situação não informada")
+      .replaceAll("_", " ").toLocaleLowerCase("pt-BR"),
+  };
+}
+
 export function identity(entry: InvestigationEntry) {
   const m = entry.result.metadata, source = object(m.source), universe = object(m.universe), options = object(m.options);
   const members = Array.isArray(universe.members) ? universe.members as Bag[] : [];
@@ -25,11 +34,9 @@ export function identity(entry: InvestigationEntry) {
     periods: strings(m.periods), categories: strings(m.categories),
     indicators: indicators.map(i => String(i.rotulo) + (i.unidade ? " (" + i.unidade + ")" : "")),
     members: members.map(i => ({ id: String(i.id), label: String(i.label || i.name || i.id) })),
-    scope: String(universe.classification_scope || "Recorte não informado"),
+    ...resultSummary(entry),
     method: String(m.method_version || "Método não informado"),
     createdAt: typeof m.created_at === "string" ? m.created_at : "",
-    status: entry.invalidReason ? "Invalidado" : String(object(m.evaluability).status || "Situação não informada")
-      .replaceAll("_", " ").toLocaleLowerCase("pt-BR"),
     options,
   };
 }

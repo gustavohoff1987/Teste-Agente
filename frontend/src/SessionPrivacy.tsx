@@ -15,6 +15,7 @@ export function useSessionPrivacy() {
   function accept() {
     try {
       window.sessionStorage.setItem(SESSION_KEY, "true");
+      window.sessionStorage.removeItem("adt:session-ended");
     } catch {
       // Se o navegador bloquear o armazenamento, mantém o aceite nesta página.
     }
@@ -26,6 +27,9 @@ export function useSessionPrivacy() {
 
 export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [endedReason] = useState(() => {
+    try { return sessionStorage.getItem("adt:session-ended"); } catch { return null; }
+  });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -43,6 +47,10 @@ export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
     className="privacy-dialog no-print m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-3xl border border-line bg-white p-6 text-ink shadow-2xl sm:p-8">
     <span className="mb-5 inline-flex rounded-2xl bg-cyan-50 p-3 text-teal"><ShieldCheck size={28}/></span>
     <h2 id="privacy-title" className="text-xl font-bold">Antes de começar</h2>
+    {endedReason && <p role="status" data-testid="session-ended-notice" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+      {endedReason === "closed" ? "A sessão anterior foi encerrada." : "A sessão anterior expirou ou ficou indisponível no servidor."}
+      {" "}Os resultados e a investigação temporária foram descartados. Eles não podem ser reabertos nesta nova sessão.
+    </p>}
     <p id="privacy-declaration" className="mt-4 text-sm leading-7 text-slate-700">
       Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.
     </p>
