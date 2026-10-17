@@ -111,7 +111,8 @@ def main():
         assert len(exported) == len(expected) and all(float(row["Quantidade"]) >= 30 for row in exported)
         assert [float(row["Quantidade"]) for row in exported] == sorted((row["Quantidade"] for row in expected), reverse=True)
         with density_page.expect_download() as event:
-            board.get_by_role("button", name="Método e parâmetros", exact=True).click()
+            board.get_by_text("Opções técnicas avançadas", exact=True).click()
+            board.get_by_role("button", name="Baixar registro técnico (JSON)", exact=True).click()
         method = json.loads(Path(event.value.path()).read_text(encoding="utf-8"))
         applied = method["representacao_aplicada"]["tabela"]
         assert applied["filtros"]["Quantidade"] == ">= 30" and applied["total_filtrado"] == len(expected)
