@@ -145,7 +145,8 @@ def main():
         expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
         expect(board.get_by_text("Solicitação: Mostre a evolução dos municípios selecionados.", exact=True)).to_be_visible()
         with page.expect_download() as download:
-            board.get_by_role("button", name="Método e parâmetros", exact=True).click()
+            board.get_by_text("Opções técnicas avançadas", exact=True).click()
+            board.get_by_role("button", name="Baixar registro técnico (JSON)", exact=True).click()
         exported = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
         assert exported["result_id"] == temporal["result_id"] and exported["currency"] == "VIGENTE"
         assert exported["execution_key"] == temporal["metadata"]["execution_key"]
