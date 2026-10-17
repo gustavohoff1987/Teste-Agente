@@ -175,6 +175,7 @@ function App() {
   const [conversationStarted, setConversationStarted] = useState(false);
   const [page, setPage] = useState<"home" | "results">("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [analysisMenuOpen, setAnalysisMenuOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [usingBrazil, setUsingBrazil] = useState(false);
   const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
@@ -833,7 +834,7 @@ function App() {
     }, 80);
   }
   useEffect(() => {
-    const onHashChange = () => setPage("home");
+    const onHashChange = () => setPage(window.location.hash === "#resultados" ? "results" : "home");
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -1568,9 +1569,16 @@ function App() {
       </div>
       <nav aria-label="Navegação principal" className="mt-12 space-y-1">
         {sideLink("Início", "home", Home)}
-        {sideLink("Nova análise", "home", MessageCircle, "assistente")}
-        {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
-        {sideLink("Resultados", "home", BarChart3, "resultados")}
+        <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
+          <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
+        </button>
+        {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
+          {FEATURES.map(feature => <button key={feature.operation} type="button"
+            onClick={() => {selectAnalysis(feature.operation); navigate("home", "preparacao-conversacional");}}
+            className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
+        </div>
+        {sideLink("Resultados", "results", BarChart3)}
       </nav>
     </aside>
     <div className="min-w-0 lg:pl-[235px]">
@@ -1585,16 +1593,24 @@ function App() {
           className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
         {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
           {sideLink("Início", "home", Home)}
-          {sideLink("Nova análise", "home", MessageCircle, "assistente")}
-          {sideLink("Tipos de análise", "home", Grid2X2, "analises")}
-          {sideLink("Resultados", "home", BarChart3, "resultados")}
+          <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
+          <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
+        </button>
+        {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
+          {FEATURES.map(feature => <button key={feature.operation} type="button"
+            onClick={() => {selectAnalysis(feature.operation); navigate("home", "preparacao-conversacional");}}
+            className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
+        </div>
+          {sideLink("Resultados", "results", BarChart3)}
         </nav>}
       </header>
       {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
       <main id="inicio" className="workspace-main mx-auto max-w-[1530px] px-4 pb-4 pt-4 sm:px-5 lg:px-5">
-      <div className={page === "home" ? "" : "hidden"}>
-      {!workspaceEngaged && <WelcomeHero onChat={() => {setConversationStarted(true); navigate("home", "assistente");}} onImport={() => inputRef.current?.click()}/> }
+      <div>
+      {page === "home" && !workspaceEngaged && <WelcomeHero onChat={() => {setConversationStarted(true); navigate("home", "assistente");}} onImport={() => inputRef.current?.click()}/> }
       <AnalysisAssistant
+        resultsOnly={page === "results"}
         historyContent={historyContent}
         investigationContent={investigationContent}
         hasResult={!!result || running}
