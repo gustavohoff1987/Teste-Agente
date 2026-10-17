@@ -69,7 +69,8 @@ def main():
         expect(result.get_by_text("Registrar correção que invalida este resultado", exact=True)).to_have_count(0)
         expect(result.get_by_role("button", name="CSV", exact=True)).to_be_enabled()
         with page.expect_download() as download:
-            result.get_by_role("button", name="Método e parâmetros").click()
+            board.get_by_text("Opções técnicas avançadas", exact=True).click()
+            result.get_by_role("button", name="Baixar registro técnico (JSON)").click()
         metadata = json.loads(Path(download.value.path()).read_text(encoding="utf-8"))
         assert metadata["validity"] == "VALIDO" and metadata["result_id"] == pair["result_id"]
         assert not metadata["invalidation_reason"]
