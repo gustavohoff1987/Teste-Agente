@@ -200,6 +200,7 @@ def main():
         expect(board.get_by_test_id("result-title")).to_have_text(initial["title"])
         expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(62 if real else 3)
         assert len(analyses) == calls, "reabrir análise anterior não pode gerar nova chamada"
+        previous.locator("summary").click()
         expect(previous.get_by_role("button", name="Abrir análise: Densidade de profissionais")).to_be_disabled()
         previous.get_by_role("button", name="Abrir análise: Agregação territorial").click()
         expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
