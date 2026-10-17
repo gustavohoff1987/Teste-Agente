@@ -213,7 +213,7 @@ def main():
         expect(previous.get_by_test_id("analysis-history-menu")).to_have_attribute("open", "")
         board.get_by_test_id("result-title").click()
         expect(previous.get_by_test_id("analysis-history-menu")).not_to_have_attribute("open", "")
-        page.get_by_test_id("nav-new-analysis").filter(visible=True).first.click()
+        page.get_by_role("navigation", name="Navegação principal").get_by_test_id("nav-new-analysis").click()
         confirmation = page.get_by_test_id("new-analysis-confirmation")
         expect(confirmation).to_be_visible()
         expect(confirmation).to_contain_text("Histórico de análises")
