@@ -191,6 +191,7 @@ def main():
         # "Análises anteriores": acessível ao usuário, sem recalcular nem restaurar
         # parâmetros de forma implícita. Também mantém o resultado atual na lista.
         previous = page.get_by_role("region", name="Histórico de análises")
+        expect(previous.get_by_test_id("analysis-history-menu")).to_be_visible()
         expect(previous).to_be_visible()
         expect(previous.get_by_text("4 análises nesta sessão", exact=True)).to_be_visible()
         previous.locator("summary").click()
@@ -206,6 +207,20 @@ def main():
         expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
         expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(1)
         assert len(analyses) == calls
+        # O menu deve recolher ao clicar fora; a confirmação de nova análise
+        # deve permitir cancelamento sem descartar o resultado nem o histórico.
+        previous.locator("summary").click()
+        expect(previous.get_by_test_id("analysis-history-menu")).to_have_attribute("open", "")
+        board.get_by_test_id("result-title").click()
+        expect(previous.get_by_test_id("analysis-history-menu")).not_to_have_attribute("open", "")
+        page.get_by_test_id("nav-new-analysis").filter(visible=True).first.click()
+        confirmation = page.get_by_test_id("new-analysis-confirmation")
+        expect(confirmation).to_be_visible()
+        expect(confirmation).to_contain_text("Histórico de análises")
+        page.get_by_test_id("cancel-new-analysis").click()
+        expect(confirmation).not_to_be_visible()
+        expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
+        assert len(analyses) == calls, "cancelar nova análise não deve executar cálculo"
         shot("block1-06-analises-anteriores.png")
 
         # Retomada dos parâmetros do resultado atual; o cálculo idêntico é reaproveitado.
