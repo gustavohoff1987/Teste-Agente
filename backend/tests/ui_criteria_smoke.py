@@ -182,6 +182,7 @@ def main():
         # Reutilização: o conjunto que atende vira a seleção territorial (Bloco 1 e Bloco 2).
         matched = sixth["metadata"]["criterios"]["contagens"]["ATENDE"]
         board.get_by_role("button", name=f"Usar os que atendem como seleção territorial ({matched})", exact=True).click()
+        page.get_by_role("button", name="1. Territórios").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(selection.get_by_text(f"{matched} selecionados", exact=True)).to_be_visible()
 
