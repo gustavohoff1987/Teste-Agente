@@ -181,3 +181,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **8a62496, 2486b14:** jornada Playwright estendida para confirmar fechamento do histórico por clique externo e cancelamento de nova análise sem recálculo nem perda do resultado; o botão é localizado dentro da navegação desktop. Permanecem as asserções de reabertura, contagem de linhas e não recálculo.
 - **Diretriz permanente:** alterações de interface exigem identificar roteiros Playwright afetados, preservar asserções funcionais e acrescentar cobertura para novos comportamentos. Preferir seletores acessíveis e identificadores estáveis, sem afrouxar os critérios de aceite apenas para obter CI verde.
 - **Validação:** aguarda execução do CI no HEAD desta iteração; não declarar aprovação antes de verificar os jobs.
+
+
+### 2026-10-17 · CI #263 — contenção de largura intrínseca na interface integrada
+
+- **7bde790:** CSS da área integrada ajustado para permitir encolhimento de componentes flexíveis, cartões e textos extensos, sem ocultação global de conteúdo.
+- **Comportamento: sem alteração —** correção exclusivamente de apresentação responsiva; não modifica navegação, cálculos, contratos analíticos, dados, sessão ou personagem.
+- **Evidência:** CI #263 (run 39084993288) aprovou backend, dados-reais, frontend e ui-conversational, mas ainda reprovou ui-block1 por transbordamento horizontal em quatro roteiros. A correção CSS foi insuficiente e exige diagnóstico de elemento excedente antes de nova intervenção.
+- **Governança:** o job reprovou pela ausência deste registro no commit 7bde790; esta entrada regulariza a rastreabilidade documental sem afirmar que a regressão visual foi resolvida.
