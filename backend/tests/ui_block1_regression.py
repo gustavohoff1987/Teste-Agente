@@ -49,6 +49,7 @@ def main():
             selection.get_by_role("searchbox").fill(code)
             selection.get_by_role("checkbox").check()
         page.get_by_role("button", name="Comparar selecionados", exact=True).click()
+        page.get_by_role("button", name="2. Preparação").click()
         inline.get_by_role("combobox", name="Indicador", exact=True).select_option("quantity")
         inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.").check()
         inline.get_by_role("button", name="Confirmar correspondências").click()
