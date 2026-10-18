@@ -108,6 +108,7 @@ def main():
             expect(board.get_by_test_id("scrollable-bars")).to_have_attribute("data-total", "62")
         shot("block1-01-densidade-amazonas.png")
         density = {row["Território"]: row["Densidade por 1.000"] for row in initial["rows"]}
+        page.get_by_role("button", name="1. Territórios").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         selection.get_by_role("button", name="Limpar seleção", exact=True).click()
         for name, code in [("MANAUS", "130260"), ("TEFE", "130420"), ("PARINTINS", "130340")]:
@@ -118,7 +119,7 @@ def main():
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         send("Compare os selecionados.")
         inline = page.locator("#preparacao-conversacional")
-        inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.").check()
+        expect(inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.")).to_have_count(0)
         compared = calculate()
         assert compared["total_rows"] == 3
         assert compared["metadata"]["options"]["territory_ids"] == ["code:130260", "code:130420", "code:130340"]
