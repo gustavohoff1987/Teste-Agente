@@ -486,7 +486,7 @@ export default function ResultWorkspace(p: Props) {
     return <div id="tabela-resultado" className="mt-7 overflow-hidden rounded-2xl border border-line">
       <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4>
         <span className="text-xs text-slate-400">{result.total_rows} registros{filter !== "TODOS" ? " · filtro visual aplicado" : ""}</span></div>
-      <ResultTable rows={visible.map(item => item.row)} columns={columns.map(key => ({key}))} idOf={linker}
+      <ResultTable rows={visible.map(item => item.row)} columns={columns.map(key => ({key}))} stacked={operation === "comparisons"} idOf={linker}
         selected={selectedSet} onToggle={toggle} onExport={p.onExport} onPresentation={setTablePresentation}/>
       {filter !== "TODOS" && !visible.length && <p className="px-5 py-3 text-xs text-slate-500">Nenhum território neste filtro visual.</p>}
     </div>;
