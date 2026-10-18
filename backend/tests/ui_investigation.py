@@ -128,7 +128,8 @@ def main():
         expect(rows).to_have_count(first['total_rows'])
         board.get_by_role('button', name='Usar seleção na próxima análise', exact=True).click()
         send('Compare os selecionados.')
-        inline.get_by_label('As medidas, unidades e populações são comparáveis entre os territórios.').check()
+        # Base governada: a comparabilidade deve ser inferida sem confirmação manual.
+        expect(inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.")).to_have_count(0)
         compared = calculate()
         assert set(compared['metadata']['options']['territory_ids']) == set(selected)
         open_stage(0)
