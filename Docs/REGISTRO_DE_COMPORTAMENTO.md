@@ -256,3 +256,5 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **b99948a** — Comportamento: a resposta atual do agente acompanha a preparação ativa, sem exigir rolagem até o rodapé.
 - **82bc86e** — Comportamento: sem alteração — correção de fechamento JSX da resposta atual para restabelecer compilação.
 - **Validação:** o CI #290 revelou erro de compilação JSX e quatro commits sem registro. As correções foram publicadas; aprovação depende da nova execução do CI.
+
+- **2190e59** — Comportamento: sem alteração — remoção de efeito de rolagem que ainda referenciava o histórico visual já retirado; corrige erro TS2304 identificado no CI #292.
