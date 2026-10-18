@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import PeriodSelection from "./PeriodSelection";
@@ -84,6 +84,7 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
   {label:"postos de trabalho",value:"postos"},{label:"outra unidade",value:"outro"}];
 
 export default function ConversationalPreparation(p: Props) {
+  const [editingPeriod, setEditingPeriod] = useState(false);
   // Critérios combinados: os papéis seguem as condições, a ordenação e as referências definidas.
   const needs = p.operation === "criteria" ? p.criteriaNeeds || {count: false, population: false, spatial: false} : null;
   const criterion = (p.operation === "nearest" && p.referenceMode === "criterion") || !!needs?.count;
@@ -106,6 +107,7 @@ export default function ConversationalPreparation(p: Props) {
     const periodReady = !needsSinglePeriod || p.periods.length <= 1 || !!p.periodFilter || p.selectedPeriods.length > 0 &&
       p.operation === "counts";
     const analysisReady = ready && periodReady;
+    const periodStage = needsSinglePeriod && p.periods.length > 1 && (!periodReady || editingPeriod);
      return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
@@ -120,20 +122,23 @@ export default function ConversationalPreparation(p: Props) {
             <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
               value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
           </details>
-          {p.operation !== "spatial" && p.operation !== "rotation" && p.periods.length > 1 && <>
+          {periodStage && <>
             <p className="font-medium text-ink">{isTemporal
               ? "Quais períodos você deseja comparar?"
               : "Qual período você deseja analisar?"}</p>
             <PeriodSelection key={p.operation + ":" + p.scope} periods={p.periods} value={p.periodFilter}
               selected={p.selectedPeriods} multiple={isTemporal}
-              onSingle={p.onPeriod} onMultiple={p.onSelectedPeriods}
+              onSingle={value=>{p.onPeriod(value);setEditingPeriod(false);}} onMultiple={p.onSelectedPeriods}
               allowMultiple={allowMultiple}/>
             {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
             Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
           {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
               Para agregar territórios, selecione uma competência por vez.
               A soma entre diferentes meses não representa pessoas únicas.</p>}
+            {periodReady && <button type="button" onClick={()=>setEditingPeriod(false)} className="rounded-lg bg-teal px-3 py-2 text-xs font-semibold text-white">Avançar</button>}
           </>}
+          {!periodStage && needsSinglePeriod && p.periods.length > 1 && <button type="button" className="text-xs font-semibold text-teal underline" onClick={()=>setEditingPeriod(true)}>Voltar à escolha do período</button>}
+          {!periodStage && <>
           {p.operation === "spatial" && <p>Para calcular distâncias, confirme o referencial
             <InlineChoice label="Referencial geodésico" value={p.crs}
               options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>
@@ -161,6 +166,7 @@ export default function ConversationalPreparation(p: Props) {
               <Play size={14}/>{p.executing ? "Calculando..." : "Calcular e mostrar resultado"}
             </button>}
           </div>
+          </>}
           {p.advanced && status !== "available" && <details className="text-xs text-teal">
             <summary className="cursor-pointer">Ver outras condições da análise</summary>
             <div className="mt-2">{p.advanced}</div>
