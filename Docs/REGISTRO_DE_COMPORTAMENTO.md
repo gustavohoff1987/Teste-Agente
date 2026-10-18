@@ -258,3 +258,8 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **Validação:** o CI #290 revelou erro de compilação JSX e quatro commits sem registro. As correções foram publicadas; aprovação depende da nova execução do CI.
 
 - **2190e59** — Comportamento: sem alteração — remoção de efeito de rolagem que ainda referenciava o histórico visual já retirado; corrige erro TS2304 identificado no CI #292.
+
+### 2026-10-18 · Inicialização da interface após CI #294
+
+- **280f89d** — Comportamento: sem alteração — corrige a ordem de inicialização de `curatedComparisonReady` em `App.tsx`, posicionando-a antes do uso de `semanticOptions()` nas dependências de efeito avaliadas durante a renderização. Evita acesso à variável antes da inicialização e permite que o diálogo inicial de privacidade seja montado.
+- **Diagnóstico:** no CI #294, backend, dados reais, compilação frontend e governança passaram; todos os roteiros Playwright falharam antes de começar, aguardando `Li e concordo`. A falha de renderização é consistente com a referência antecipada observada no código. A correção deve ser confirmada por nova execução de navegador; não se alteraram testes para contornar a falha.
