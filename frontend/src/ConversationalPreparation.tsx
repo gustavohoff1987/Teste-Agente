@@ -117,11 +117,11 @@ export default function ConversationalPreparation(p: Props) {
             com a categoria MEDICINA e as referências temporais disponíveis.
             {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
           </p>}
-          {!periodStage && <details className="text-xs text-slate-500">
+          <details className="text-xs text-slate-500">
             <summary className="cursor-pointer text-teal">Alterar a abrangência territorial</summary>
             <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
               value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
-          </details>}
+          </details>
           {periodStage && <>
             <p className="font-medium text-ink">{isTemporal
               ? "Quais períodos você deseja comparar?"
