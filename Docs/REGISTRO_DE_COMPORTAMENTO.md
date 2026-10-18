@@ -296,3 +296,16 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **bc49fa3** — Comportamento: ao trocar de período único para múltiplos períodos, o seletor envia uma única transição `onMultiple(periods)`; o pai já limpa o período único. Evita callbacks conflitantes que poderiam esvaziar a seleção e bloquear Avançar. Detectado na execução conversacional do CI #326; requer validação posterior.
 
 - **d7ff52d** — Teste: após HTTP 200 de análise, aguarda a renderização assíncrona da tabela antes de verificar uma linha; não altera o valor esperado nem o critério de aceitação. Falha de sincronização detectada no CI #328.
+
+### 2026-10-18 — Regularização histórica da tentativa de simplificação revertida
+
+Os commits abaixo foram publicados durante uma tentativa de simplificação da interface, posteriormente **integralmente revertida** pelo commit `40504a3761e739b6d4cf61c656fe4b95ed9c8c92`. Esta entrada registra o histórico exigido pela governança, **não reintroduz as mudanças**. O estado dos arquivos de produto e testes após a reversão corresponde exatamente à árvore da versão estável `5c40232fabbb4e266fdb5911e5aee0afe3a5f08d` (CI #331 aprovado).
+
+- `ff7d023`: unificação experimental das etapas Territórios e Preparação; revertida.
+- `68f69be`: redirecionamento experimental dos comandos territoriais; revertido.
+- `9d3c7cf`: remoção experimental de confirmações de comparabilidade da interface; revertida.
+- `15fba0d`: reformulação experimental de textos e abrangência territorial; revertida.
+- `3575484`: ampliação experimental da tipografia operacional; revertida.
+- `9678d22`: exibição condicional experimental do formato numérico; revertida.
+
+**Situação atual:** nenhuma dessas alterações permanece no produto. A reversão mantém as regras analíticas, os testes e os dados do baseline aprovado. O presente commit altera exclusivamente este registro documental.
