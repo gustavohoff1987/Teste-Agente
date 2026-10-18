@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
-import PeriodSelection, {readablePeriod} from "./PeriodSelection";
+import PeriodSelection from "./PeriodSelection";
+import {describePeriods} from "./periods";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
@@ -22,6 +23,10 @@ type Props = {
   onSelectedPeriods: (periods: string[]) => void;
   scope: SourceScope;
   onScope: (scope: SourceScope) => void;
+  scopeChoice: boolean;
+  rescoping: SourceScope | null;
+  scopeError: string;
+  selectionCount: number;
   columns: string[];
   mapping: Mapping;
   onField: (role: FieldRole, column: string) => void;
@@ -75,6 +80,42 @@ function InlineChoice({ label, value, options, onChange }: {
     <ChevronDown size={12} aria-hidden="true" className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2"/>
   </span>;
 }
+const SCOPES: {value: SourceScope; label: string; hint: string}[] = [
+  {value: "municipal", label: "Municípios", hint: "Um valor por município, com seleção de territórios."},
+  {value: "national", label: "Brasil (total nacional)", hint: "Total da fonte nacional; não é a soma dos municípios."},
+];
+/** Abrangência visível só onde as duas fontes produzem resultado; nas demais análises, informação fixa. */
+function ScopeChoice({scope, choice, rescoping, error, selectionCount, onScope}: {scope: SourceScope; choice: boolean;
+  rescoping: SourceScope | null; error: string; selectionCount: number; onScope: (scope: SourceScope) => void}) {
+  const loading = rescoping && <p role="status" className="mt-1 text-xs text-teal">Carregando {rescoping === "national"
+    ? "o total nacional" : "os dados municipais"}… A preparação continua na tela e o cálculo é liberado ao terminar.</p>;
+  if (!choice) return <div data-testid="scope-info" className="text-xs text-slate-600">
+    <p><strong className="font-semibold text-ink">Abrangência:</strong> municípios brasileiros. Esta análise usa somente a fonte municipal.</p>
+    {loading}{error && <p role="alert" className="mt-1 text-rose-800">{error}</p>}
+  </div>;
+  return <fieldset data-testid="scope-choice" className="rounded-xl border border-line bg-white px-3 pb-3 pt-1">
+    <legend className="px-1 text-xs font-semibold text-ink">Abrangência dos dados</legend>
+    <div className="flex flex-wrap gap-2">
+      {SCOPES.map(item => <label key={item.value} className={"flex min-w-[min(13rem,100%)] flex-1 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 " +
+        (scope === item.value ? "border-teal bg-cyan-50" : "border-line hover:bg-slate-50")}>
+        <input type="radio" name="abrangencia-dados" aria-label={item.label} aria-describedby={"abrangencia-" + item.value}
+          value={item.value} checked={scope === item.value} disabled={!!rescoping} onChange={() => onScope(item.value)} className="mt-1"/>
+        <span><strong className="block text-sm font-semibold text-ink">{item.label}</strong>
+          <small id={"abrangencia-" + item.value} className="text-xs leading-5 text-slate-600">{item.hint}</small></span>
+      </label>)}
+    </div>
+    {loading}
+    {error && <p role="alert" className="mt-1 text-xs text-rose-800">{error}</p>}
+    {scope === "national" && selectionCount > 0 && <p className="mt-1 text-xs text-slate-600">A seleção de {selectionCount} território(s)
+      continua guardada, mas não se aplica ao total nacional.</p>}
+  </fieldset>;
+}
+function SummaryItem({label, value, testId}: {label: string; value: string; testId?: string}) {
+  return <div className="min-w-0 rounded-lg border border-line bg-slate-50 px-3 py-2">
+    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+    <dd data-testid={testId} className="text-sm font-semibold leading-5 text-ink">{value}</dd>
+  </div>;
+}
 const named = (values: string[]): Choice[] => values.map(value => ({value, label:value}));
 const sourceOptions: Choice[] = [{label:"municípios",value:"municipal"},{label:"Brasil",value:"national"}];
 const indicatorOptions: Choice[] = [{label:"quantidade",value:"quantity"},{label:"densidade por 1.000",value:"density"}];
@@ -114,21 +155,23 @@ export default function ConversationalPreparation(p: Props) {
     const periodReady = !usesPeriods || p.periods.length <= 1 || (multiple ? p.selectedPeriods.length > 0 : !!p.periodFilter);
     const analysisReady = ready && periodReady;
     const periodStage = usesPeriods && p.periods.length > 1 && (!periodReady || editingPeriod);
+    const indicatorLabel = p.operation === "density" || (requiresIndicator && p.indicator === "density") ? "Densidade por 1.000 habitantes"
+      : p.operation === "counts" || (requiresIndicator && p.indicator === "quantity") ? "Quantidade de profissionais" : "";
      return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
         <div className="min-w-0 flex-1 space-y-3">
-          <p className="font-medium text-ink">{periodStage ? "Escolha o período da análise" : "Parâmetros da análise"}</p>
-          {!periodStage && <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
-            com a categoria {p.categoryFilter || "confirmada na fonte"}.
-            {usesPeriods && <span data-testid="period-summary"> Períodos: {(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods).map(readablePeriod).join(", ")}.</span>}
-            {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
-          </p>}
-          <details className="text-xs text-slate-500">
-            <summary className="cursor-pointer text-teal">Alterar a abrangência territorial</summary>
-            <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
-              value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
-          </details>
+          <p className="font-medium text-ink">{periodStage ? "Escolha o período da análise" : "Resumo da análise"}</p>
+          {/* Resumo visual em vez de texto corrido: períodos em ordem cronológica e resumidos por intervalo. */}
+          {!periodStage && <dl data-testid="analysis-summary" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryItem label="Fonte" value={p.scope === "national" ? "Brasil (total nacional)" : "Municípios brasileiros"}/>
+            <SummaryItem label="Categoria" value={p.categoryFilter || "confirmada na fonte"}/>
+            {usesPeriods && <SummaryItem testId="period-summary" label="Períodos"
+              value={describePeriods(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods, p.periods)}/>}
+            {indicatorLabel && <SummaryItem label="Indicador" value={indicatorLabel}/>}
+          </dl>}
+          <ScopeChoice scope={p.scope} choice={p.scopeChoice} rescoping={p.rescoping} error={p.scopeError}
+            selectionCount={p.selectionCount} onScope={p.onScope}/>
           {periodStage && <>
             <p className="font-medium text-ink">{isTemporal
               ? "Quais períodos você deseja comparar?"

@@ -82,7 +82,16 @@ def main():
         expect(inline.get_by_role('button', name='Avançar', exact=True)).to_have_count(0)
         for month in ('janeiro de 2024', 'junho de 2024'):
             inline.get_by_role('button', name=month, exact=True).click()
+        # Intervalo contínuo pelos seletores de início e fim, sem clicar competência por competência.
+        inline.get_by_role('button', name='Limpar', exact=True).click()
+        expect(inline.get_by_label('Escolher períodos da análise')).to_contain_text('Escolher períodos')
+        inline.get_by_label('Início do intervalo').select_option('202401')
+        inline.get_by_label('Fim do intervalo').select_option('202406')
+        expect(inline.get_by_test_id('period-range-summary')).to_contain_text('2 competências, de janeiro de 2024 a junho de 2024')
+        for month in ('janeiro de 2024', 'junho de 2024'):
+            expect(inline.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', 'true')
         inline.get_by_role('button', name='Avançar', exact=True).click()
+        expect(inline.get_by_test_id('period-summary')).to_contain_text('de janeiro de 2024 a junho de 2024')
         multiple = calculate()
         assert {row['Período']:row['Quantidade'] for row in multiple['rows']} == {'202401':103, '202406':105}
         with page.expect_download() as download:
@@ -154,6 +163,33 @@ def main():
             page.screenshot(path=str(OUTPUT/f'estabilizacao-{width}.png'))
         page.add_style_tag(content='body,button,input,textarea,select {font-family: "DejaVu Sans", sans-serif !important;}')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2')
+
+        # Troca de análise com troca de recorte (abrangência automática): o período único da densidade não é
+        # imposto à evolução temporal, e a preparação não volta à escolha da fonte durante o carregamento.
+        fresh = context.new_page()
+        fresh.on('pageerror', lambda error: errors.append(str(error)))
+        fresh.goto(URL)
+        fresh.get_by_role('button', name='Li e concordo', exact=True).click()
+        fresh.get_by_role('button', name='Usar dados do Brasil').click()
+        expect(fresh.get_by_test_id('current-source')).to_contain_text('Dados do Brasil', timeout=90000)
+        select(fresh, 'Densidade')
+        steps = fresh.locator('#preparacao-conversacional')
+        expect(steps.get_by_test_id('scope-info')).to_contain_text('municípios brasileiros', timeout=90000)
+        steps.get_by_label('Escolher períodos da análise').click()
+        steps.get_by_role('button', name='junho de 2024', exact=True).click()
+        expect(steps.get_by_test_id('period-summary')).to_have_text('junho de 2024', timeout=90000)
+        select(fresh, 'Evolução temporal')
+        national = steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)
+        expect(national).to_be_checked(timeout=90000)
+        expect(national).to_be_enabled(timeout=90000)
+        expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
+        # Voltar ao recorte municipal reabre o rascunho desse recorte sem impor o período único da densidade.
+        municipal = steps.get_by_role('radio', name='Municípios', exact=True)
+        municipal.check()
+        expect(municipal).to_be_checked(timeout=90000)
+        expect(municipal).to_be_enabled(timeout=90000)
+        expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
+        fresh.close()
 
         # Importação: múltiplos períodos não dispensam confirmação da unidade e da FTS.
         imported = context.new_page()

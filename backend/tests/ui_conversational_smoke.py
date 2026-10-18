@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, select
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -97,18 +97,22 @@ def main():
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
         inline = assistant.locator("#preparacao-conversacional")
-        inline.get_by_text("Alterar a abrangência territorial").click()
-        scope = inline.get_by_role("combobox", name="Abrangência territorial")
-        expect(scope).to_have_value("municipal")
-        scope.select_option("national")
-        inline = assistant.locator("#preparacao-conversacional")
-        inline.get_by_text("Alterar a abrangência territorial").click()
-        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("national", timeout=30000)
-        scope = inline.get_by_role("combobox", name="Abrangência territorial")
-        scope.select_option("municipal")
-        inline = assistant.locator("#preparacao-conversacional")
-        inline.get_by_text("Alterar a abrangência territorial").click()
-        expect(inline.get_by_role("combobox", name="Abrangência territorial")).to_have_value("municipal", timeout=30000)
+        # Densidade só existe no recorte municipal: a abrangência é informada, sem escolha que levaria a um bloqueio.
+        expect(inline.get_by_test_id("scope-info")).to_contain_text("municípios brasileiros", timeout=30000)
+        expect(inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)).to_have_count(0)
+        # Quantitativos existem nas duas fontes: a escolha é explícita e a troca não volta à escolha da fonte.
+        select(page, "Quantitativos")
+        national = inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)
+        municipal = inline.get_by_role("radio", name="Municípios", exact=True)
+        expect(national).to_be_checked(timeout=30000)
+        expect(national).to_be_enabled(timeout=30000)
+        municipal.check()
+        expect(municipal).to_be_checked(timeout=30000)
+        expect(assistant.get_by_role("button", name="Usar dados do Brasil")).to_have_count(0)
+        expect(municipal).to_be_enabled(timeout=30000)
+        national.check()
+        expect(national).to_be_checked(timeout=30000)
+        expect(national).to_be_enabled(timeout=30000)
         # O pedido inicial não carrega dados nem exige escolha antecipada.
         # A intenção deve sobreviver à escolha da fonte e seguir até o cálculo.
         page.reload()
@@ -156,7 +160,8 @@ def main():
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_have_count(0)
         inline.get_by_label("Escolher períodos da análise").click()
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
-        expect(inline.get_by_text("categoria MEDICINA", exact=False)).to_be_visible()
+        expect(inline.get_by_test_id("analysis-summary")).to_contain_text("MEDICINA")
+        expect(inline.get_by_test_id("period-summary")).to_have_text("junho de 2024")
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
             execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))

@@ -41,10 +41,15 @@ uma sessão lógica: `Dados_Brasil.xlsx` (nacional) e
 os arquivos separadamente. São oferecidos como fontes independentes no chat,
 sem concatenar seus registros. Ao escolher uma análise, o sistema usa o recorte
 nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
-municípios. **Abrangência da análise** permite escolher Brasil ou Municípios
-explicitamente. Trocar de recorte limpa resultados; confirmações comuns verificáveis
-de período/categoria são preservadas. A preparação de cada recorte é mantida na memória
-da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame do backend.
+municípios. Nessas três análises, válidas nas duas fontes, a preparação mostra a escolha
+**Abrangência dos dados** entre Municípios e Brasil (total nacional); nas demais, informa que
+a análise usa somente a fonte municipal, sem uma opção que levaria ao bloqueio. Ao trocar de
+recorte, a preparação continua na tela, bloqueada e com aviso de carregamento, até o novo
+recorte chegar; a interface não volta à escolha da fonte. Trocar de recorte limpa resultados;
+confirmações comuns verificáveis de período/categoria são preservadas quando a análise de
+destino aceita o mesmo modo de período (único ou vários). A preparação de cada recorte é
+mantida na memória da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame
+do backend.
 
 As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
 municipal para o Brasil ou soma automática de pessoas entre municípios. Na agregação

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, select
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -205,11 +205,15 @@ def main():
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
-        inline.get_by_text("Alterar a abrangência territorial", exact=True).click()
-        inline.get_by_label("Abrangência territorial").select_option("national")
-        expect(inline.get_by_label("Abrangência territorial")).to_have_value("national", timeout=60000)
+        # Critérios só existem no recorte municipal: o recorte nacional é escolhido numa análise que o admite.
+        select(page, "Quantitativos")
+        national = inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)
+        national.check()
+        expect(national).to_be_checked(timeout=60000)
+        expect(national).to_be_enabled(timeout=60000)
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
-        expect(inline.get_by_label("Abrangência territorial")).to_have_value("municipal", timeout=60000)
+        expect(inline.get_by_test_id("scope-info")).to_contain_text("municípios brasileiros", timeout=60000)
+        expect(inline.get_by_test_id("scope-info")).not_to_contain_text("Carregando", timeout=60000)
         # Jornada funcional no celular (390 px): nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
         page.set_viewport_size({"width": 390, "height": 844})
         inline.get_by_label("Escolher períodos da análise").click()

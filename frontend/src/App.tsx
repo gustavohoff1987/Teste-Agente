@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
-import { ANALYSIS_LABELS, ENGINE_ONLY_SCOPES, type Operation } from "./analysisCatalog";
+import { ANALYSIS_LABELS, ENGINE_ONLY_SCOPES, NATIONAL_SCOPE_OPERATIONS, type Operation } from "./analysisCatalog";
 type Mapping = Partial<Record<Role, string>>;
 type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
 type SuperiorMapping = Partial<Record<SuperiorLevel, string>>;
@@ -203,6 +203,9 @@ function App() {
   const [mapping, setMapping] = useState<Mapping>({});
   const [hierarchyColumns, setHierarchyColumns] = useState<SuperiorMapping>({});
   const [inspecting, setInspecting] = useState(false);
+  // Troca de abrangência em andamento (recorte de destino) e falha ao carregar o novo recorte.
+  const [rescoping, setRescoping] = useState<"national" | "municipal" | null>(null);
+  const [scopeError, setScopeError] = useState("");
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
   const [step, setStep] = useState(0);
@@ -393,10 +396,12 @@ function App() {
     revision.current += 1;
     setInspecting(true);
     setUploadError("");
-    setError("");
-
-    setInspection(null);
-    setPreflight(null);
+    setError(""); setScopeError("");
+    // Troca de abrangência: a preparação atual continua na tela, bloqueada, até o novo recorte chegar;
+    // a interface não volta à escolha da fonte.
+    if (previous) setRescoping(level === "national" || level === "municipal" ? level
+      : (operation && scopeFor(operation as Operation)) || "municipal");
+    else { setInspection(null); setPreflight(null); }
     const form = new FormData();
     if (nextFile) form.append("file", nextFile);
     else { form.append("dataset", "brazil"); form.append("scope", level); form.append("operation", operation); }
@@ -441,8 +446,14 @@ function App() {
       if (previous && details.source) {
         const sameVersion = previous.info.source!.version === details.source.version;
         const cached = sameVersion ? scopeDrafts.current[details.source.version + ":" + details.source.scope] : undefined;
+        // A escolha de períodos só atravessa quando a análise de destino aceita o mesmo modo: o período
+        // único de uma densidade não substitui as competências de uma evolução temporal (e vice-versa).
+        const fits = (multiple: boolean) => multiple ? ["counts", "report", "temporal"].includes(operation) : operation !== "temporal";
         if (cached) {
           restorePreparation(cached);
+          if (!fits(cached.multiplePeriods)) {
+            setPeriodFilter(""); setSelectedPeriods(operation === "temporal" ? details.periods : []); setMultiplePeriods(operation === "temporal");
+          }
           setScopeNotice("Preparação deste recorte restaurada: a versão dos dados é a mesma. As confirmações serão revalidadas pelo servidor.");
         } else if (sameVersion) {
           // Só atravessam granularidades significados comuns verificáveis na mesma versão.
@@ -455,7 +466,7 @@ function App() {
           const sameCategory = !!old.mapping.category && old.mapping.category === details.suggested_mapping.category && equalValues(previous.info.categories, details.categories);
           setConfirmedRoles([...new Set([...(details.curated_defaults?.confirmed_roles || []),
             ...old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory))])]);
-          if (samePeriod) {setPeriodFilter(old.options.period_filter);setSelectedPeriods(old.selectedPeriods);setMultiplePeriods(old.multiplePeriods);}
+          if (samePeriod && fits(old.multiplePeriods)) {setPeriodFilter(old.options.period_filter);setSelectedPeriods(old.selectedPeriods);setMultiplePeriods(old.multiplePeriods);}
           if (sameCategory) {
             setObjectConfirmed(old.options.object_confirmed); setFtsScopeConfirmed(old.options.fts_scope_confirmed);
             setCategoryFilter(old.options.category_filter);
@@ -471,9 +482,13 @@ function App() {
     } catch (exc) {
       if (currentUpload !== uploadRevision.current) return;
       const message = readableError(exc);
-      setUploadError(message);
+      if (previous) {
+        // O recorte pedido não foi carregado: a preparação anterior continua válida e visível.
+        setBrazilLevel(previous.info.source!.scope);
+        setScopeError("Não foi possível carregar o novo recorte: " + message + " A preparação anterior foi mantida.");
+      } else setUploadError(message);
       if (message.includes("Não foi possível alcançar")) setServerStatus("offline");
-    } finally { if (currentUpload === uploadRevision.current) setInspecting(false); }
+    } finally { if (currentUpload === uploadRevision.current) { setInspecting(false); setRescoping(null); } }
   }
   async function chooseFile(next: File | undefined) {
     if (!next || !privacy.accepted) return;
@@ -1362,8 +1377,12 @@ function App() {
       multiplePeriods={multiplePeriods}
       periodEditor={periodEditor}
       onSelectedPeriods={values=>{setMultiplePeriods(true);setSelectedPeriods(values);setPeriodFilter("");}}
-      scope={inspection.source?.scope || "municipal"}
+      scope={rescoping || inspection.source?.scope || "municipal"}
       onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
+      scopeChoice={NATIONAL_SCOPE_OPERATIONS.includes(active)}
+      rescoping={rescoping}
+      scopeError={scopeError}
+      selectionCount={territoryIds.length}
       columns={inspection.columns}
       mapping={mapping}
       onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
@@ -1763,7 +1782,7 @@ function App() {
         onResolved={acceptExploration}
         selection={selectionContent}
         sourceChoice={sourceChoice}
-        sourceReady={!!inspection && !inspection.requires_sheet && !inspecting}
+        sourceReady={!!inspection && !inspection.requires_sheet && (!inspecting || !!rescoping)}
         sourceSummary={usingBrazil
           ? inspection && !inspecting ? "Os dados do Brasil já estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando os dados do Brasil."
           : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."

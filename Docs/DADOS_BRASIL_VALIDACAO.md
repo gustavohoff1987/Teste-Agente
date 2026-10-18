@@ -49,8 +49,10 @@ exportação registram a regra, os campos de origem, o recorte e a versão lógi
 
 O catálogo `brazil_data.py` administra duas fontes privadas. A interface mostra
 somente Dados do Brasil e a abrangência analítica. O padrão é nacional para contagens,
-evolução temporal e relatórios; municipal para as outras operações. O usuário pode
-escolher a abrangência explicitamente. Trocar de recorte exige novas confirmações.
+evolução temporal e relatórios; municipal para as outras operações. Nessas três análises,
+as únicas com resultado nas duas fontes, o usuário escolhe a abrangência explicitamente; nas
+demais, a preparação informa que só a fonte municipal se aplica. Trocar de recorte exige novas
+confirmações.
 
 Não há união, preenchimento ou soma entre fontes. Quantitativos nacionais são lidos
 da fonte nacional; não são obtidos pela soma das contagens municipais. Na agregação

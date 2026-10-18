@@ -121,11 +121,21 @@ navegação mudam somente a área visível. “Quero analisar vários
 períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
 que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
 
-No seletor múltiplo, a competência única já escolhida é preservada. O usuário pode acrescentar,
-retirar ou escolher todas; sem nenhuma, precisa selecionar antes de avançar. Ao voltar para período
-único, a primeira competência selecionada permanece. O resumo mostra as referências efetivas.
-As competências não são somadas como pessoas únicas. Condições avançadas permanecem acessíveis
-mesmo depois de o pré-exame habilitar o cálculo.
+No seletor múltiplo, a competência única já escolhida é preservada. O usuário escolhe um intervalo
+contínuo ("de janeiro de 2014 até junho de 2015"), acrescenta ou retira competências uma a uma
+(as marcadas têm ✓ e fundo preenchido; as demais, contorno tracejado), escolhe todas ou limpa; sem
+nenhuma, precisa selecionar antes de avançar. Uma linha abaixo descreve a escolha ("4 competências,
+de janeiro de 2014 a junho de 2015"). Ao voltar para período único, a primeira competência
+selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
+permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
+
+Na base oficial, o "Resumo da análise" substitui o texto corrido dos parâmetros por cartões de
+fonte, categoria, períodos e indicador. Os períodos aparecem em ordem cronológica e resumidos por
+intervalo, com as lacunas nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de
+2024, exceto junho de 2015"). A abrangência é uma escolha entre Municípios e Brasil (total nacional)
+somente em quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes; nas
+demais, a preparação informa que só a fonte municipal se aplica. Durante a troca de abrangência, a
+preparação continua visível e bloqueada, com aviso de carregamento junto à escolha.
 
 Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
 quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. Nesse caso,

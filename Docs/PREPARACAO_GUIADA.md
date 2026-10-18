@@ -28,6 +28,11 @@ permitem tentar novamente.
   e domínios equivalentes são transferidos. Listas truncadas não comprovam equivalência.
 - Território, código, unicidade da contagem, população e comparabilidade são específicos
   de cada recorte. Quando ainda não preparados nele, exigem nova conferência, com aviso.
+- A escolha de períodos só atravessa a troca (ou a restauração do recorte) quando a análise
+  de destino aceita o mesmo modo: o período único de uma densidade não substitui as
+  competências de uma evolução temporal, que recebe todas as competências do recorte.
+- Durante a troca, a preparação anterior continua visível e bloqueada, com aviso de
+  carregamento junto à abrangência; se o novo recorte não carregar, ela é mantida com o motivo.
 - Uma versão diferente invalida a preparação anterior. Novo upload, novo carregamento
   do Brasil e recarregamento da página não reutilizam confirmações de outra base.
 

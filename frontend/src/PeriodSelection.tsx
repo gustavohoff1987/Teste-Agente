@@ -1,17 +1,6 @@
 import {useState} from "react";
-import {ChevronDown} from "lucide-react";
-
-const months = ["janeiro","fevereiro","março","abril","maio","junho","julho",
-  "agosto","setembro","outubro","novembro","dezembro"];
-
-export function readablePeriod(value: string): string {
-  const match = /^(\d{4})(\d{2})$/.exec(value);
-  if (match) {
-    const month = Number(match[2]);
-    if (month >= 1 && month <= 12) return months[month - 1] + " de " + match[1];
-  }
-  return value;
-}
+import {Check, ChevronDown} from "lucide-react";
+import {chronological, describePeriods, periodRange, readablePeriod} from "./periods";
 
 type Props = {
   periods: string[];
@@ -25,7 +14,12 @@ type Props = {
 export default function PeriodSelection(p: Props) {
   const [expanded, setExpanded] = useState(false);
   const multiple = p.multiple;
-  const periods = [...p.periods].sort((a,b) => a.localeCompare(b, "pt-BR", {numeric:true}));
+  const periods = chronological(p.periods);
+  const ordered = chronological(p.selected.filter(item => periods.includes(item)));
+  const chooseRange = (first: string, last: string) => {
+    const range = periodRange(periods, first, last);
+    if (range.length) p.onMultiple(range);
+  };
   const toggleMode = () => {
     if (!p.allowMultiple) return;
     if (multiple) {
@@ -39,8 +33,9 @@ export default function PeriodSelection(p: Props) {
   const values = multiple ? p.selected : p.value ? [p.value] : [];
   const description = !values.length
     ? multiple ? "Escolher períodos" : "Escolher período"
-    : multiple ? (values.length === periods.length ? "Todos os períodos" : values.length + (values.length === 1 ? " período" : " períodos")) :
-      readablePeriod(values[0]);
+    : multiple ? (values.length === periods.length ? "Todos os períodos (" + periods.length + ")"
+      : values.length + " de " + periods.length + " períodos") : readablePeriod(values[0]);
+  const select = "min-w-0 rounded-md border border-line bg-white px-2 py-1 text-xs";
   return <div className="mt-2 space-y-2">
     <div className="flex flex-wrap items-center gap-2">
       <details className="relative max-w-full" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}>
@@ -48,9 +43,25 @@ export default function PeriodSelection(p: Props) {
           className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-teal">
           {description} <ChevronDown size={14}/>
         </summary>
-        <div className="mt-2 max-h-64 min-w-[230px] max-w-full overflow-y-auto rounded-lg border border-line bg-white p-2 shadow-sm">
-          {multiple && <button type="button" className="mb-2 text-xs font-semibold text-teal underline"
-            onClick={()=>p.onMultiple(periods)}>Todos os períodos disponíveis</button>}
+        <div className="mt-2 max-h-80 min-w-[230px] max-w-full overflow-y-auto rounded-lg border border-line bg-white p-3 shadow-sm">
+          {multiple && <div className="mb-3 flex flex-wrap items-center gap-2 text-xs" role="group" aria-label="Intervalo de períodos">
+            <span className="font-semibold text-ink">Intervalo:</span>
+            <label className="flex items-center gap-1">de
+              <select aria-label="Início do intervalo" className={select} value={ordered[0] || ""}
+                onChange={e => chooseRange(e.target.value, ordered[ordered.length - 1] || periods[periods.length - 1])}>
+                {!ordered.length && <option value="">escolher</option>}
+                {periods.map(item => <option key={item} value={item}>{readablePeriod(item)}</option>)}
+              </select></label>
+            <label className="flex items-center gap-1">até
+              <select aria-label="Fim do intervalo" className={select} value={ordered[ordered.length - 1] || ""}
+                onChange={e => chooseRange(ordered[0] || periods[0], e.target.value)}>
+                {!ordered.length && <option value="">escolher</option>}
+                {periods.map(item => <option key={item} value={item}>{readablePeriod(item)}</option>)}
+              </select></label>
+            <button type="button" className="font-semibold text-teal underline" onClick={()=>p.onMultiple(periods)}>Todos os períodos disponíveis</button>
+            <button type="button" className="font-semibold text-teal underline" disabled={!p.selected.length} onClick={()=>p.onMultiple([])}>Limpar</button>
+          </div>}
+          {multiple && <p className="mb-2 text-xs text-slate-600">Ou clique em cada competência para incluí-la ou retirá-la:</p>}
           <div className="flex flex-wrap gap-1.5">
             {periods.map(period => {
               const chosen = values.includes(period);
@@ -59,12 +70,14 @@ export default function PeriodSelection(p: Props) {
                   if (multiple) p.onMultiple(chosen ? p.selected.filter(x=>x!==period) : [...p.selected,period]);
                   else {p.onSingle(period);setExpanded(false);}
                 }}
-                className={"rounded-md border px-2 py-1 text-xs transition " +
-                  (chosen ? "border-blue-500 bg-blue-100 font-semibold text-blue-900" : "border-slate-200 bg-white hover:bg-slate-50")}>
-                {readablePeriod(period)}
+                className={"inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition " +
+                  (chosen ? "border-blue-700 bg-blue-700 font-semibold text-white" : "border-dashed border-slate-300 bg-white text-slate-700 hover:bg-slate-50")}>
+                {multiple && chosen && <Check size={12} aria-hidden="true"/>}{readablePeriod(period)}
               </button>;
             })}
           </div>
+          {multiple && <p data-testid="period-range-summary" className="mt-2 text-xs text-slate-700">
+            Selecionadas: {describePeriods(p.selected, periods)}.</p>}
         </div>
       </details>
       {p.allowMultiple && <button type="button" className="text-xs text-teal underline"
