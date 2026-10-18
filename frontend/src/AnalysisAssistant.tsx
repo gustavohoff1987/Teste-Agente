@@ -53,6 +53,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   const [workspaceStage, setWorkspaceStage] = useState<"territories" | "preparation" | "results">("preparation");
   useEffect(() => { setWorkspaceStage("preparation"); }, [active, contextVersion]);
   useEffect(() => { if (displayedResultId) setWorkspaceStage("results"); }, [displayedResultId]);
+  useEffect(() => { if (resultsOnly && hasResult) setWorkspaceStage("results"); }, [resultsOnly, hasResult]);
 
 
 
@@ -337,6 +338,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
             className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
         </div>}
         {sourceReady && active && workspaceStage === "results" && <>
+          {turns.at(-1)?.role === "assistant" && <div className="latest-reply m-4" role="status" data-testid="latest-reply"><BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>}
           {investigationContent}
           {resultContent}
           <button type="button" onClick={()=>setWorkspaceStage("preparation")}
