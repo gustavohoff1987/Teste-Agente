@@ -319,6 +319,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       <div className="analysis-scroll" data-testid="analysis-scroll">
         {(!sourceReady || !active) && investigationContent}
         {sourceReady && active && workspaceStage === "territories" && <div className="preparation-context" data-testid="preparation-context">
+          {turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply"><BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>}
           <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
           {selection}
           <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
