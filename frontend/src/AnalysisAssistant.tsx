@@ -24,7 +24,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
 type Props = { displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
-  onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
+  onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -40,7 +40,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -103,6 +103,22 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     onRequest(message);
     setTurns(previous => [...previous, {role:"user", content:message}]);
     setDraft("");
+    // A resposta à escolha de fonte pertence à etapa ativa, não ao interpretador analítico.
+    // Botões e texto compartilham as mesmas ações de seleção governadas pelo App.
+    if (!hasSource) {
+      const sourceReply = message.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+        .replace(/[.,!?]/g, " ").replace(/\\s+/g, " ").trim();
+      if (/^(?:(?:quero|vou|prefiro|usar|utilizar|escolho|seleciono|pode usar|quero usar) )*(?:(?:os|a|a base|a base de|a base do) )?(?:dados do brasil|base do brasil|base brasileira|brasil)$/.test(sourceReply)) {
+        onChooseBrazil();
+        setTurns(previous => [...previous, {role:"assistant", content:"Dados do Brasil selecionados. Vou preparar a fonte oficial; depois escolha a análise desejada."}]);
+        return;
+      }
+      if (/^(?:(?:quero|vou|prefiro|usar|utilizar|escolho|seleciono|quero usar) )*(?:importar|upload|enviar arquivo|meus dados|importar meus dados|importar arquivo)$/.test(sourceReply)) {
+        onChooseImport();
+        setTurns(previous => [...previous, {role:"assistant", content:"Selecione o arquivo CSV ou Excel que deseja importar."}]);
+        return;
+      }
+    }
     const followup = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i.test(message);
     const append = (content: string) => setTurns(previous => [
       ...previous, {role:"assistant", content}
