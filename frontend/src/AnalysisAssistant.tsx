@@ -288,6 +288,9 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       <div className="analysis-scroll" data-testid="analysis-scroll">
         {investigationContent}
         <div className="preparation-context" data-testid="preparation-context">
+          {sourceReady && active && turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply">
+            <BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
+          </div>}
           {sourceReady && active && <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Vamos preparar {ANALYSIS[active].toLowerCase()}. Escolha os territórios, períodos e parâmetros abaixo; as validações orientam o que falta confirmar.</p></div>}
           {sourceReady && selection}
           {preparation}
@@ -297,7 +300,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       </div>
     </section>
     <div className="conversation-dock no-print" data-testid="conversation-dock">
-      {turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
+      {(!sourceReady || !active) && turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
         {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
 
       </div>}
