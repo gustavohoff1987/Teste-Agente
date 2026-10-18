@@ -103,6 +103,21 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .workspace-hero .hero-copy h1 { font-size: clamp(24px, 5vw, 30px); }
 }
 
+/* Contenção responsiva: permite que cartões e textos extensos encolham sem
+   cortar controles nem ocultar o transbordamento da página. */
+.workspace-main,
+.conversation-workspace,
+.integrated-investigation,
+.analysis-pane,
+.analysis-scroll,
+.preparation-context,
+.conversation-pane,
+.conversation-composer,
+.conversation-dock { min-width:0; max-width:100%; }
+.workspace-main :is(.grid, .flex) > * { min-width:0; }
+.workspace-main :is(p, dd, dt, strong, h2, h3, summary) { overflow-wrap:anywhere; }
+.workspace-main :is(input, textarea, select) { max-width:100%; }
+
 /* Fluxo horizontal único: personagem, preparação, resultados e conversa contextual. */
 .workspace-main { width:100%; max-width:1920px; }
 .main-navigation { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; margin:14px 0; }
