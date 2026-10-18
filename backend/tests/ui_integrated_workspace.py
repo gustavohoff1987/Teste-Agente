@@ -103,7 +103,7 @@ def main():
         page.get_by_test_id('nav-results').click()
         expect(page.get_by_test_id('preparation-context')).not_to_be_visible()
         expect(page.locator('#assistant-input')).to_be_visible()
-        page.get_by_role('button', name='1. Preparação', exact=True).click()
+        page.get_by_role('button', name='2. Preparação', exact=True).click()
         expect(page.get_by_test_id('preparation-context')).to_be_visible()
 
         # Exportação permanece do resultado selecionado, com identidade e números originais.

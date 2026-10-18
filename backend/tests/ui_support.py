@@ -46,7 +46,7 @@ def end_session(page):
 
 def workspace(page, stage):
     """Percorre as etapas visíveis, sem forçar interação com controles ocultos."""
-    names = {"territories": "1. Preparação", "preparation": "1. Preparação", "results": "2. Resultados"}
+    names = {"territories": "1. Territórios", "preparation": "2. Preparação", "results": "3. Resultados"}
     button = page.get_by_role("button", name=names[stage], exact=True)
     button.click()
     expect(button).to_have_attribute("aria-current", "step")

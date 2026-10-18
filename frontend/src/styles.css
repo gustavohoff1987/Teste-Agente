@@ -185,16 +185,3 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
   .conversation-workspace,.integrated-investigation,.analysis-pane,.analysis-scroll { display:block; height:auto; overflow:visible; border:0; padding:0; }
   .preparation-context { display:none !important; }
 }
-
-/* Legibilidade uniforme nas áreas operacionais, sem alterar escala dos títulos. */
-.workspace-main .text-xs { font-size: 0.875rem; line-height: 1.5; }
-.workspace-main .text-sm { font-size: 0.9375rem; line-height: 1.55; }
-.workspace-main .data-table th { font-size: 0.8125rem; }
-.workspace-main .data-table td { font-size: 0.9375rem; }
-.workspace-main .hero-description { font-size: 0.9375rem; }
-.workspace-main .hero-actions button { font-size: 0.875rem; }
-.workspace-main .hero-eyebrow { font-size: 0.75rem; }
-.workspace-main .hero-tag { font-size: 0.75rem; }
-@media (max-width: 479px) {
-  .workspace-main .hero-actions button { font-size: 0.8125rem; }
-}

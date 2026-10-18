@@ -76,7 +76,7 @@ function InlineChoice({ label, value, options, onChange }: {
   </span>;
 }
 const named = (values: string[]): Choice[] => values.map(value => ({value, label:value}));
-const sourceOptions: Choice[] = [{label:"Municípios do Brasil",value:"municipal"},{label:"Brasil (total nacional)",value:"national"}];
+const sourceOptions: Choice[] = [{label:"municípios",value:"municipal"},{label:"Brasil",value:"national"}];
 const indicatorOptions: Choice[] = [{label:"quantidade",value:"quantity"},{label:"densidade por 1.000",value:"density"}];
 const groupOptions: Choice[] = [
   {label:"quartis (4 grupos)",value:"4"}, {label:"quintis (5 grupos)",value:"5"},
@@ -125,8 +125,8 @@ export default function ConversationalPreparation(p: Props) {
             {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
           </p>}
           <details className="text-xs text-slate-500">
-            <summary className="cursor-pointer text-teal">Escolher abrangência dos dados</summary>
-            <div className="mt-2 text-sm">Dados disponíveis para <InlineChoice label="Abrangência territorial"
+            <summary className="cursor-pointer text-teal">Alterar a abrangência territorial</summary>
+            <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
               value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
           </details>
           {periodStage && <>
@@ -166,9 +166,8 @@ export default function ConversationalPreparation(p: Props) {
           {!periodReady && <p className="text-xs text-slate-600">Escolha a referência temporal para continuar.</p>}
           {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
           {p.confirmed && status !== "available" && !p.preparing &&
-            <p role="status" className="text-sm text-amber-900">{p.capability?.reasons?.length
-              ? p.capability.reasons.slice(0,2).join(" ")
-              : "Não foi possível verificar os requisitos desta análise com os dados disponíveis."}</p>}
+            <p role="status" className="text-xs text-slate-600">Ainda faltam condições específicas para esta análise.
+              Você pode ajustá-las acima ou consultar as opções adicionais.</p>}
           <div className="flex flex-wrap gap-2">
             {p.confirmed && <button type="button" disabled={!analysisReady} onClick={p.onExecute}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
@@ -267,7 +266,7 @@ export default function ConversationalPreparation(p: Props) {
         </p>}
         {p.advanced && <details className="rounded-lg border border-slate-100 px-2 py-2">
           <summary className="flex cursor-pointer items-center gap-1 text-xs font-medium text-teal">
-            <SlidersHorizontal size={14}/> Outras opções de preparação
+            <SlidersHorizontal size={14}/> Ajustar condições específicas, outras confirmações ou situações excepcionais
           </summary>
           <div className="mt-3">{p.advanced}</div>
         </details>}

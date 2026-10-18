@@ -3,7 +3,7 @@ export type WorkspaceStage = "territories" | "preparation" | "results";
 /** Abre a etapa antes de localizar o alvo, inclusive quando ele ainda não foi montado. */
 export function scrollAnalysisTo(id: string): boolean {
   const stage: WorkspaceStage | undefined = id === "preparacao-conversacional" ? "preparation"
-    : id === "territorios" ? "preparation"
+    : id === "territorios" ? "territories"
     : ["resultados", "selected-result-content"].includes(id) ? "results" : undefined;
   if (stage) window.dispatchEvent(new CustomEvent("adt:stage", {detail: stage}));
   requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({block: "start",
@@ -23,5 +23,5 @@ export function navigationCommand(message: string, current: WorkspaceStage, hasR
     : /^(?:(?:ver|mostrar|mostre|ir para|voltar para|volte para) )?(?:os |o )?(?:resultados|resultado)$/.test(value) ? "results"
     : value === "voltar" ? current === "results" ? "preparation" : "territories"
     : /^(?:avancar|proxima etapa|continuar)$/.test(value) ? current === "territories" ? "preparation" : hasResult ? "results" : null : null;
-  return target === "results" && !hasResult ? null : target === "territories" ? "preparation" : target;
+  return target === "results" && !hasResult ? null : target;
 }

@@ -1433,8 +1433,20 @@ function App() {
           showDecimal={decimalPending || !!resolutions.number_format} numberFormat={resolutions.number_format}
           onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
           disabled={running || inspecting}/>}
-        {/* Comparabilidade temporal e estabilidade territorial são verificadas no pré-exame; não se solicitam declarações sem evidência. */}
-        {["comparisons","ranking"].includes(active) && curatedComparisonReady && <p role="status" className="text-sm text-emerald-800">Comparabilidade verificada nos dados disponíveis.</p>}
+        {active === "temporal" && <>
+          <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
+            onChange={e=>setTemporalCompared(e.target.checked)}/>
+            Confirmo que os quantitativos e os períodos são comparáveis.</label>
+          {mapping.territory && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
+            onChange={e=>setTerritoryStable(e.target.checked)}/>
+            Os territórios correspondem às mesmas unidades ao longo do tempo.</label>}
+        </>}
+        {["comparisons","ranking"].includes(active) && (curatedComparisonReady
+          ? <p role="status" className="text-xs text-emerald-800">Unidades, período e denominador reconhecidos na base municipal governada.</p>
+          : <label className="flex items-start gap-2">
+              <input type="checkbox" checked={!!resolutions.comparison_confirmed}
+                onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
+              As medidas, unidades e populações são comparáveis entre os territórios.</label>)}
         {active === "aggregate" && <>
           <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
             onChange={e=>setResolutions(p=>({...p,population_additive_confirmed:e.target.checked}))}/>
@@ -1466,7 +1478,9 @@ function App() {
           <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity}
             onChange={e=>setLongitudinalIdentity(e.target.checked)}/>
             O identificador representa a mesma pessoa nos períodos.</label>
-          {/* A estabilidade territorial é condição governada, nunca presumida por ocultação de uma caixa. */}
+          <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
+            onChange={e=>setTerritoryStable(e.target.checked)}/>
+            As unidades territoriais são comparáveis entre os períodos.</label>
           <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.cohort_coverage_confirmed}
             onChange={e=>setResolutions(p=>({...p,cohort_coverage_confirmed:e.target.checked}))}/>
             A base cobre o mesmo universo de trabalhadores nos períodos considerados.</label>
@@ -1475,7 +1489,7 @@ function App() {
       referenceMode={referenceMode}
       criteriaNeeds={criteriaNeeds}
       advanced={<>
-        {!usingBrazil && mapping.latitude && mapping.longitude && !spatialRequest(active) && decimalPending && <fieldset className="mb-4 rounded-lg border border-line p-3 text-xs">
+        {!usingBrazil && mapping.latitude && mapping.longitude && !spatialRequest(active) && <fieldset className="mb-4 rounded-lg border border-line p-3 text-xs">
           <legend>Localização dos dados importados</legend>
           <p className="mb-2 text-slate-600">Use as informações da origem do arquivo. A configuração não é necessária para cálculos sem distância.</p>
           <label className="mr-3 inline-flex flex-col gap-1">Referencial das coordenadas importadas

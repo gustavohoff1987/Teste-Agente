@@ -83,7 +83,7 @@ def main():
         assert result["origin"] == "INTERPRETACAO_LLM"
         assert set(result["exploration"]["territory_ids"]) == {"code:130260", "code:130420"}
         assert len(analyses) == 1
-        page.get_by_role("button", name="1. Preparação").click()
+        page.get_by_role("button", name="1. Territórios").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada", exact=True)
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
 
@@ -91,11 +91,11 @@ def main():
         assert partial["exploration"]["territory_ids"] == ["code:130260"]
         expect(chat.get_by_test_id("latest-reply")).to_contain_text("Com qual outro município")
         send("TEFE e PARINTINS", "/api/exploration/interpret")
-        page.get_by_role("button", name="1. Preparação", exact=True).click()
+        page.get_by_role("button", name="1. Territórios", exact=True).click()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         send("Analise dois municípios também", "/api/exploration/interpret")
         expect(chat.get_by_test_id("latest-reply")).to_contain_text("Quais 2 municípios")
-        page.get_by_role("button", name="1. Preparação", exact=True).click()
+        page.get_by_role("button", name="1. Territórios", exact=True).click()
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         calls = len(interpretations)
         guidance = send("O que o agente é capaz de fazer?", "/api/exploration/interpret")
@@ -104,7 +104,7 @@ def main():
         thanks = send("Muito obrigada pela ajuda!", "/api/exploration/interpret")
         assert "De nada" in thanks["reply"] and len(interpretations) == calls
         send("MANAUS e TEFE", "/api/exploration/interpret")
-        page.get_by_role("button", name="1. Preparação", exact=True).click()
+        page.get_by_role("button", name="1. Territórios", exact=True).click()
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
         contextual = send("E agora?", "/api/llm/interpret-context")
         assert contextual["context_reference"]["origin"] == "BACKEND_VERIFIED_STATE"
