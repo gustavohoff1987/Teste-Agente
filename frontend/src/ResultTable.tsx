@@ -64,7 +64,7 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
     {stacked && <div className="space-y-3 p-4" aria-label="Comparação em registros separados">
       {visible.map((row, index) => {
         const id = idOf?.(row), chosen = !!id && !!selected?.has(id);
-        return <article key={id ? id + ":" + index : index}
+        return <article data-testid="comparison-territory-row" key={id ? id + ":" + index : index}
           className={"rounded-xl border p-4 " + (chosen ? "border-blue-400 bg-blue-50" : "border-line bg-white")}>
           <div className="mb-3 flex items-center justify-between gap-3">
             <strong className="text-sm text-ink">Território {current * PAGE_SIZE + index + 1}</strong>
