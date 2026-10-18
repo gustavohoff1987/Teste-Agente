@@ -9,6 +9,7 @@ import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
 import { resultSummary, selectionCompatibility } from "./investigation";
 import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
+import { tableColumns } from "./representation";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { matchesCuratedPreparation } from "./curatedPreparation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
@@ -1686,7 +1687,7 @@ function App() {
               <summary className="cursor-pointer font-semibold text-teal">Consultar competências da série temporal</summary>
               <button type="button" onClick={()=>exportCsv(result.detail_rows!)} className="no-print my-2 rounded-lg border px-3 py-2">Exportar série CSV</button>
               <div role="region" aria-label="Competências da série temporal">
-                <ResultTable key={result.result_id} stateKey="series-detail" rows={result.detail_rows} columns={Object.keys(result.detail_rows[0] || {}).map(key=>({key}))}/>
+                <ResultTable key={result.result_id} stateKey="series-detail" rows={result.detail_rows} columns={tableColumns(Object.keys(result.detail_rows[0] || {}))}/>
               </div>
             </details>}
           </div></InvestigationViewState.Provider>}

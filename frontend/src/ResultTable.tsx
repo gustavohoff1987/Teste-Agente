@@ -2,7 +2,8 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { useInvestigationState } from "./InvestigationViewState";
 import type { Row } from "./representation";
 
-type Column = { key: string; label?: string; render?: (value: unknown) => ReactNode };
+// display: texto de apresentação (ex.: competência 201406 como 06/2014); a busca aceita o texto e o valor original.
+type Column = { key: string; label?: string; render?: (value: unknown) => ReactNode; display?: (value: unknown) => string };
 export type TablePresentation = { filtros: Record<string, string>; ordenacao: { key: string; ascending: boolean } | null;
   pagina: number; tamanho_pagina: number; total_filtrado: number };
 type Props = { stateKey?: string; rows: Row[]; columns: Column[]; idOf?: (row: Row) => string | null; selected?: Set<string>;
@@ -15,8 +16,9 @@ const show = (value: unknown) => value == null ? "Não avaliável" : typeof valu
     ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(value) : String(value);
 
 // Filtros são apenas de apresentação: não alteram indicadores, classes nem a seleção territorial.
-function matches(value: unknown, query: string): boolean {
+function matches(value: unknown, query: string, display?: (value: unknown) => string): boolean {
   if (!query.trim()) return true;
+  if (display && plain(display(value)).includes(plain(query.trim()))) return true;
   const comparison = query.trim().match(/^(>=|<=|>|<|=)\s*(-?\d+(?:[.,]\d+)?)$/);
   if (comparison) {
     if (typeof value !== "number") return false;
@@ -33,8 +35,10 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
   const [filters, setFilters] = useInvestigationState<Record<string, string>>(stateKey + ".filters", {});
   const [sort, setSort] = useInvestigationState<{ key: string; ascending: boolean } | null>(stateKey + ".sort", null);
   const [page, setPage] = useInvestigationState(stateKey + ".page", 0);
+  const displayOf = (key: string) => columns.find(column => column.key === key)?.display;
+  const text = (key: string, value: unknown) => displayOf(key)?.(value) ?? show(value);
   const filtered = useMemo(() => {
-    const chosen = rows.filter(row => Object.entries(filters).every(([key, query]) => matches(row[key], query)));
+    const chosen = rows.filter(row => Object.entries(filters).every(([key, query]) => matches(row[key], query, displayOf(key))));
     if (sort) chosen.sort((a, b) => {
       const left = a[sort.key], right = b[sort.key];
       if (left == null) return right == null ? 0 : 1;
@@ -82,14 +86,14 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
             <dl className="mt-2 grid gap-2 sm:grid-cols-2">
               {["Período", "Categoria", "Indicador", "Unidade de contagem", "Valor " + side].map(key => <div key={key} className="min-w-0">
                 <dt className="text-xs text-slate-500">{key.startsWith("Valor ") ? "Valor" : key}</dt>
-                <dd className="break-words text-sm" title={typeof row[key] === "number" ? "Valor integral: " + String(row[key]) : undefined}>{show(row[key])}</dd>
+                <dd className="break-words text-sm" title={typeof row[key] === "number" ? "Valor integral: " + String(row[key]) : undefined}>{text(key, row[key])}</dd>
               </div>)}
             </dl>
           </article>)}
           <dl data-testid="comparison-pair-summary" className="grid gap-2 px-1 sm:grid-cols-2">
             {columns.filter(column => !["Objeto A", "Objeto B", "Valor A", "Valor B", "Período", "Categoria", "Indicador", "Unidade de contagem"].includes(column.key)).map(column =>
               <div key={column.key}><dt className="text-xs text-slate-500">{column.label || column.key}</dt>
-                <dd className="break-words text-sm" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>{show(row[column.key])}</dd></div>)}
+                <dd className="break-words text-sm" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>{text(column.key, row[column.key])}</dd></div>)}
           </dl>
         </div>;
         return <article data-testid="comparison-territory-row" key={id ? id + ":" + index : index}
@@ -103,7 +107,7 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
             {columns.map(column=><div key={column.key} className="min-w-0 border-b border-slate-100 pb-2">
               <dt className="text-xs font-medium text-slate-500">{column.label || column.key}</dt>
               <dd className="break-words text-sm text-ink" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>
-                {column.render ? column.render(row[column.key]) : show(row[column.key])}
+                {column.render ? column.render(row[column.key]) : text(column.key, row[column.key])}
               </dd>
             </div>)}
           </dl>
@@ -131,7 +135,7 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
           onKeyDown={id && onToggle ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(id); } } : undefined}
           className={(id && onToggle ? "cursor-pointer " : "") + (chosen ? "bg-blue-50 outline outline-1 outline-blue-300" : "")}>
           {columns.map(column => <td key={column.key} title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>
-            {column.render ? column.render(row[column.key]) : show(row[column.key])}</td>)}
+            {column.render ? column.render(row[column.key]) : text(column.key, row[column.key])}</td>)}
         </tr>;
       })}</tbody>
     </table></div>}

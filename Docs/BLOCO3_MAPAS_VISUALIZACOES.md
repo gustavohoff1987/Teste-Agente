@@ -109,6 +109,10 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 - **Ligações:** tracejadas, só para até 30 territórios selecionados, rotuladas “ligação ilustrativa
   (não é trajeto)”.
 - **Dica** contida na área do mapa; legenda como região própria (“Legenda do mapa”).
+- **Poucos territórios (18/10/2026):** com até 12 pontos, o nome de cada território aparece junto ao
+  ponto, com halo da superfície; com até três, também o valor do indicador representado. A grade de
+  coordenadas ganhou passos de 0,05°, 0,02° e 0,01°, para que um ponto isolado venha com latitude e
+  longitude de referência. Nomes e valores vêm do resultado (rótulos de metadado autorizado).
 - **Paletas validadas** pelo validador de paletas (modo claro, superfície `#fcfcfb`):
   - par de estados ATENDE `#eb6834` / NÃO ATENDE `#2a78d6`: todas as verificações aprovadas (pior ΔE
     em daltonismo 24,7; contraste ≥ 3:1);
@@ -158,7 +162,18 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
     presumir 22 períodos);
   - lacunas preservadas (`connectNulls=false`), sem tendência nem taxas novas;
   - uma única competência não forma série;
-  - todos os territórios ou a seleção explícita, com páginas de oito na ordem dos dados; navegação mostra o intervalo e o total, sem amostragem.
+  - todos os territórios ou a seleção explícita, com páginas de oito na ordem dos dados; navegação mostra o intervalo e o total, sem amostragem;
+  - eixo vertical em números redondos ao redor dos valores observados (passo 1, 2, 2,5 ou 5 × 10ⁿ),
+    para que a variação fique visível; quando o eixo não começa em zero, a legenda do gráfico informa
+    onde começa. A unidade e a escala de apresentação (por 1.000 habitantes, CAP-IND-02) não mudam;
+  - linhas de 2 px e marcadores de 8 px com anel da superfície; série única sem caixa de legenda (o
+    território fica na legenda do gráfico); até quatro séries, rótulo direto só no último valor.
+- **Cartões de destaque (painel simples, RQ-REP-10):** densidade, quantitativos, relatório e evolução
+  com até três registros mostram, acima das abas, um cartão por registro com os valores do próprio
+  motor, formatados por RQ-REP-05: território, categoria, valor principal, unidade e competência; na
+  densidade, também quantidade e população. Na evolução, inicial → final, variação absoluta e
+  percentual e a tendência do motor. A seta indica só o sinal da variação, sem cor de juízo, porque
+  não há limiar normativo. Nenhum total, média, posição ou classe é criado.
 - **Indicador compartilhado:** o indicador escolhido no mapa vale para as barras, e vice-versa,
   quando ambos o representam.
 - **Dispersão e bolhas: não implementados.** RQ-REP-10 não os lista entre os tipos admitidos. Proposta
@@ -191,13 +206,18 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 
 ### Filtros da tabela
 
-Cada coluna permite busca por texto sem distinguir acentos e comparações numéricas (`>`, `<`, `>=`, `<=`, `=`), com ponto ou vírgula decimal. Ausências não atendem comparações numéricas. A ordenação é apenas visual e não modifica as posições calculadas. Páginas de 150 dão acesso a todos os registros; o CSV da tabela exporta **todo** o filtro, em precisão integral, sem ficar limitado à página. O CSV superior exporta o resultado original. Filtros por coluna não alteram mapa, gráficos ou preparação; o filtro visual comum segue separado e explícito.
+Cada coluna permite busca por texto sem distinguir acentos e comparações numéricas (`>`, `<`, `>=`, `<=`, `=`), com ponto ou vírgula decimal. Competências (“Período”, “Período inicial”, “Período final”) aparecem como mês/ano (06/2024); a busca aceita tanto 06/2024 quanto o valor original 202406, que continua no CSV. Ausências não atendem comparações numéricas. A ordenação é apenas visual e não modifica as posições calculadas. Páginas de 150 dão acesso a todos os registros; o CSV da tabela exporta **todo** o filtro, em precisão integral, sem ficar limitado à página. O CSV superior exporta o resultado original. Filtros por coluna não alteram mapa, gráficos ou preparação; o filtro visual comum segue separado e explícito.
 
 ## 9. Painel integrado, histórico e competências (U4)
 
 - **Abas:** Mapa, Gráficos e Tabela, dentro do resultado no painel de análise, ao lado da conversa no computador. A aba
   Mapa indica “(indisponível)” ou “(não aplicável)” quando não há geometria, e o motivo fica a um
-  clique, sem esconder tabela e gráficos.
+  clique, sem esconder tabela e gráficos. “Mapa não aplicável a este resultado” tem título próprio;
+  na evolução temporal, orienta preparar uma densidade ou quantitativos de uma competência para ver
+  os territórios no mapa. A regra de não desenhar a evolução no mapa continua a mesma.
+- **Identidade do resultado:** até três competências por extenso; acima disso, quantidade e extremos
+  (“22 competências, de 01/2014 a 06/2024”), com a lista completa no título do elemento e nas
+  exportações.
 - **Histórico:** cada resultado é reconstruído com os próprios dados, parâmetros, origem, versão da
   camada e limitações (`metadata.representacao` do resultado). Aviso em linguagem comum identifica a consulta a uma análise anterior e orienta revisar a preparação para atualizar; resultado invalidado fica só para consulta, sem reutilização da
   seleção. A compatibilidade de fonte e camada segue a regra existente (`compatible`).

@@ -26,6 +26,14 @@ export function describePeriods(values: string[], all: string[]): string {
     : " (" + missing.length + " competências do intervalo não incluídas)");
 }
 
+/** Competências de um resultado: até três por extenso; acima disso, quantidade e extremos (a lista completa
+ * fica no título do elemento e nas exportações). */
+export function compactPeriods(values: string[], format: (value: string) => string): string {
+  const ordered = chronological(values);
+  if (ordered.length <= 3) return ordered.map(format).join(", ");
+  return ordered.length + " competências, de " + format(ordered[0]) + " a " + format(ordered[ordered.length - 1]);
+}
+
 /** Intervalo contínuo e inclusivo entre duas competências, na ordem cronológica das disponíveis. */
 export function periodRange(all: string[], first: string, last: string): string[] {
   const periods = chronological(all);

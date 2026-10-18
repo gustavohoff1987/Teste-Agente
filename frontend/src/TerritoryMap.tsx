@@ -149,6 +149,21 @@ const TerritoryMap = forwardRef<MapHandle, MapProps>(function TerritoryMap(props
       const i = hover.current;
       ctx.lineWidth = 1.5; ctx.strokeStyle = INK.secondary; ctx.beginPath(); ctx.arc(sx[i], sy[i], r + 2.5, 0, 2 * Math.PI); ctx.stroke();
     }
+    // 7. Poucos territórios: nome (e, até três, o valor) junto ao ponto, com halo da superfície; um ponto
+    //    isolado sem nome não diz onde nem o quê.
+    if (n <= 12) {
+      ctx.lineJoin = "round";
+      for (let i = 0; i < n; i++) {
+        if (!p.passes[i] || !inside(i)) continue;
+        const lines = [[p.labelOf(p.ids[i]), "600 12px system-ui, sans-serif", INK.primary],
+          ...(n <= 3 ? [[p.detailOf(p.ids[i]), "11px system-ui, sans-serif", INK.secondary]] : [])];
+        lines.forEach(([text, font, color], line) => {
+          ctx.font = font; ctx.lineWidth = 3; ctx.strokeStyle = INK.surface;
+          const x = Math.min(sx[i] + r + 6, w - ctx.measureText(text).width - 4), y = sy[i] + 4 + line * 15;
+          ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y);
+        });
+      }
+    }
     // Gancho de teste e medição (só com window.__ADT_TEST__): tempo de desenho, zoom e posição de cada ponto.
     const scope = window as unknown as { __ADT_TEST__?: boolean; __adtMapStats?: unknown[]; __adtMapLocate?: (id: string) => number[] | null };
     if (scope.__ADT_TEST__) {
@@ -354,7 +369,7 @@ const TerritoryMap = forwardRef<MapHandle, MapProps>(function TerritoryMap(props
 
 function drawGraticule(ctx: CanvasRenderingContext2D, v: View, w: number, h: number, k: number) {
   const pxPerDegree = v.scale;
-  const step = [20, 10, 5, 2, 1, 0.5, 0.25, 0.1].find(candidate => candidate * pxPerDegree * Math.max(k, 0.3) <= 160 && candidate * pxPerDegree * Math.max(k, 0.3) >= 50) ?? 10;
+  const step = [20, 10, 5, 2, 1, 0.5, 0.25, 0.1, 0.05, 0.02, 0.01].find(candidate => candidate * pxPerDegree * Math.max(k, 0.3) <= 160 && candidate * pxPerDegree * Math.max(k, 0.3) >= 50) ?? 10;
   const left = v.cx - w / 2 / v.scale, right = v.cx + w / 2 / v.scale, top = v.cy - h / 2 / v.scale, bottom = v.cy + h / 2 / v.scale;
   ctx.strokeStyle = INK.grid; ctx.lineWidth = 1; ctx.fillStyle = INK.muted; ctx.font = "10px system-ui, sans-serif";
   ctx.beginPath();

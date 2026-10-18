@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { identity, selectionCompatibility, type InvestigationEntry } from "./investigation";
 import { displayPeriod } from "./representation";
+import { chronological, compactPeriods } from "./periods";
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 
 type Props = { title: string; items: InvestigationEntry[]; currentId: string | null; selected: string[]; busy: boolean;
@@ -14,7 +15,8 @@ export function ResultIdentity({ entry }: { entry: InvestigationEntry }) {
     <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)]">
       <dt className="font-semibold">Fonte</dt><dd className="break-words">{info.source}</dd>
       <dt className="font-semibold">Indicadores e unidades</dt><dd>{info.indicators.join("; ") || "Consulte as colunas e as notas deste resultado."}</dd>
-      <dt className="font-semibold">Períodos e categorias</dt><dd>{info.periods.map(displayPeriod).join(", ")} · {info.categories.join(", ")}</dd>
+      <dt className="font-semibold">Períodos e categorias</dt><dd title={chronological(info.periods).map(displayPeriod).join(", ")}>
+        {compactPeriods(info.periods, displayPeriod)} · {info.categories.join(", ")}</dd>
       <dt className="font-semibold">Território</dt><dd>{info.scope}</dd>
       {!["avaliavel", "avaliável", "vigente"].includes(info.status.toLocaleLowerCase("pt-BR")) &&
         <><dt className="font-semibold">Situação do resultado</dt><dd>{info.status}</dd></>}
@@ -48,7 +50,8 @@ export default function InvestigationOverview(p: Props) {
         <div className="flex flex-wrap justify-between gap-2 text-xs"><strong>Etapa {index + 1} · {ANALYSIS_LABELS[info.operation as Operation] || info.operation}</strong>
           <span>{active ? "Em exibição" : "Resultado anterior"}</span></div>
         <p className="mt-2 text-sm font-semibold text-ink">{entry.result.title}</p>
-        <p className="mt-1 text-xs text-slate-600">{info.periods.map(displayPeriod).join(", ")} · {info.categories.join(", ")}</p>
+        <p className="mt-1 text-xs text-slate-600" title={chronological(info.periods).map(displayPeriod).join(", ")}>
+          {compactPeriods(info.periods, displayPeriod)} · {info.categories.join(", ")}</p>
         <p className="mt-1 text-xs text-slate-600">{info.members.length} territórios · {info.status}</p>
         <details className="mt-2 text-xs"><summary className="cursor-pointer text-teal">Ver contexto da etapa {index + 1}</summary>
           <p className="mt-2 break-words">{info.source} · {info.scope}</p><p>{info.indicators.join("; ")}</p><p>{entry.request}</p>

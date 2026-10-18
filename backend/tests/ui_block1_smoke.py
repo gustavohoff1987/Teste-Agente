@@ -151,6 +151,13 @@ def main():
         shot("block1-03-evolucao.png")
         board = page.locator("#resultados")
         expect(board.locator("#tabela-resultado .data-table tbody tr")).to_have_count(3)
+        # Até três registros: cartões de destaque com os valores do motor; competências legíveis na tabela.
+        highlights = board.get_by_test_id("result-highlights")
+        expect(highlights.locator("article")).to_have_count(3)
+        for row in temporal["rows"]:
+            expect(highlights).to_contain_text(row["Território"])
+        start = temporal["rows"][0]["Período inicial"]
+        expect(board.locator("#tabela-resultado .data-table tbody tr").first).to_contain_text(start[4:] + "/" + start[:4])
         expect(board.get_by_text("Solicitação: Mostre a evolução dos municípios selecionados.", exact=True)).to_be_visible()
         with page.expect_download() as download:
             board.get_by_text("Opções técnicas avançadas", exact=True).click()

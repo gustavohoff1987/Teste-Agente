@@ -8,8 +8,10 @@ import ResultTable, { type TablePresentation } from "./ResultTable";
 import { CountBars, SeriesLines, TerritoryBars, type BarDatum, type CountDatum, type LinePoint } from "./ResultCharts";
 import {
   CATEGORICAL, INK, NOT_EVALUABLE, ORDINAL, STATE_COLORS, STATE_LABELS, codeOf, displayPeriod, formatNumber, formatPair, formatValue,
-  fullPrecision, labelIndex, representationOf, rowLinker, sequentialColor, tableOf, type Indicator, type ResultLike, type Row,
+  fullPrecision, labelIndex, representationOf, rowLinker, sequentialColor, tableColumns, tableOf, type Indicator, type IndicatorKind,
+  type ResultLike, type Row,
 } from "./representation";
+import { readablePeriod } from "./periods";
 
 // Painel único do resultado (CAP-REP-04: justaposição de tabela, gráficos e mapa dos mesmos
 // resultados, sem cálculo entre eles). Seleção, filtro, indicador e enquadramento são estado visual
@@ -223,6 +225,50 @@ export default function ResultWorkspace(p: Props) {
         {item.label}</label>)}
   </div>;
 
+  // Até três registros: o número é a informação principal (cartão de destaque), com os valores do motor.
+  const unitOf = (column: string) => rep?.indicadores.find(item => item.coluna === column)?.unidade || "";
+  function renderHighlights() {
+    const source = result.rows;
+    if (!source.length || source.length > 3 || !["density", "counts", "temporal", "report"].includes(operation)) return null;
+    return <section aria-label="Destaques do resultado" data-testid="result-highlights" className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {source.map((row, index) => <article key={index} className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
+        <p className="truncate text-xs font-semibold text-slate-600" title={String(row["Território"] ?? "")}>
+          {String(row["Território"] ?? "Resultado")}{row["Categoria"] ? " · " + String(row["Categoria"]) : ""}</p>
+        {operation === "temporal" ? changeTile(row) : levelTile(row)}
+      </article>)}
+    </section>;
+  }
+  function levelTile(row: Row) {
+    const density = operation === "density" || (operation === "report" && typeof row["Densidade por 1.000"] === "number");
+    const column = density ? "Densidade por 1.000" : "Quantidade", value = row[column];
+    return <>
+      <p className="mt-1 text-4xl font-semibold text-ink" title={typeof value === "number" ? "Valor integral: " + fullPrecision(value) : undefined}>
+        {formatValue(value, density ? "CONTINUO" : "CONTAGEM")}</p>
+      <p className="text-xs text-slate-600">{density ? "profissionais por 1.000 habitantes" : unitOf("Quantidade") || "na unidade declarada"}
+        {row["Período"] ? " · " + readablePeriod(String(row["Período"])) : ""}</p>
+      {density && typeof row["Quantidade"] === "number" && typeof row["População"] === "number" && <p className="mt-2 text-xs text-slate-500">
+        {formatNumber(row["Quantidade"], "CONTAGEM")} {unitOf("Quantidade") || "na unidade declarada"} · {formatNumber(row["População"], "CONTAGEM")} habitantes</p>}
+    </>;
+  }
+  function changeTile(row: Row) {
+    const kind: IndicatorKind = rep?.serie?.tipo || "CONTINUO", unit = rep?.serie?.unidade || "";
+    const delta = row["Variação absoluta"], share = row["Variação (%)"];
+    const signed = (value: number, digits?: IndicatorKind) => (value > 0 ? "+" : "") + formatNumber(value, digits);
+    return <>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-3xl font-semibold text-ink">
+        <span title={typeof row["Inicial"] === "number" ? "Valor integral: " + fullPrecision(row["Inicial"]) : undefined}>{formatValue(row["Inicial"], kind)}</span>
+        <span aria-label="para" className="text-lg text-slate-400">→</span>
+        <span title={typeof row["Final"] === "number" ? "Valor integral: " + fullPrecision(row["Final"]) : undefined}>{formatValue(row["Final"], kind)}</span>
+        <span className="text-xs font-normal text-slate-600">{unit}</span></p>
+      <p className="text-xs text-slate-600">{readablePeriod(String(row["Período inicial"] ?? ""))} → {readablePeriod(String(row["Período final"] ?? ""))}</p>
+      {typeof delta === "number" ? <p data-testid="change-delta" className="mt-2 inline-flex flex-wrap items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-ink">
+        <span aria-hidden="true">{delta > 0 ? "▲" : delta < 0 ? "▼" : "■"}</span>
+        {signed(delta, kind)}{typeof share === "number" ? " (" + signed(share) + "%)" : ""} no período</p>
+        : <p className="mt-2 text-xs text-slate-600">{String(row["Condição da mudança"] ?? "Variação não avaliável")}</p>}
+      {row["Tendência"] != null && <p className="mt-1 text-xs text-slate-600">Tendência do motor: {String(row["Tendência"])}</p>}
+    </>;
+  }
+
   const visual = <section aria-label="Exploração visual" className="mt-5 space-y-3">
     <div className="no-print flex flex-wrap items-center justify-between gap-2">
       <div role="tablist" aria-label="Forma de visualização" className="flex w-full min-w-0 flex-wrap rounded-xl border border-line bg-slate-50 p-1 sm:inline-flex sm:w-auto">
@@ -250,7 +296,8 @@ export default function ResultWorkspace(p: Props) {
 
   function renderMap() {
     if (!geometry || !rep) return <Unavailable reason="O resultado não traz o contrato de apresentação; consulte a tabela."/>;
-    if (!points || !encoding || !indicator) return <Unavailable reason={geometry.motivo || "Mapa indisponível."} pending={geometry.pendencia}/>;
+    if (!points || !encoding || !indicator) return <Unavailable reason={geometry.motivo || "Mapa indisponível."} pending={geometry.pendencia}
+      notApplicable={geometry.estado === "NAO_APLICAVEL"} temporal={operation === "temporal"}/>;
     const period = displayPeriod(geometry.competencia);
     return <div className="space-y-3">
       <div className="no-print flex flex-wrap items-end gap-3">
@@ -486,7 +533,7 @@ export default function ResultWorkspace(p: Props) {
     return <div id="tabela-resultado" className="mt-7 overflow-hidden rounded-2xl border border-line">
       <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4>
         <span className="text-xs text-slate-400">{result.total_rows} registros{filter !== "TODOS" ? " · filtro visual aplicado" : ""}</span></div>
-      <ResultTable rows={visible.map(item => item.row)} columns={columns.map(key => ({key}))} stacked={operation === "comparisons"} idOf={linker}
+      <ResultTable rows={visible.map(item => item.row)} columns={tableColumns(columns)} stacked={operation === "comparisons"} idOf={linker}
         selected={selectedSet} onToggle={toggle} onExport={p.onExport} onPresentation={setTablePresentation}/>
       {filter !== "TODOS" && !visible.length && <p className="px-5 py-3 text-xs text-slate-500">Nenhum território neste filtro visual.</p>}
     </div>;
@@ -495,7 +542,7 @@ export default function ResultWorkspace(p: Props) {
   if (operation === "criteria" && criteriaMeta) return <CriteriaResults key={result.result_id} rows={result.rows} meta={criteriaMeta}
     onExport={p.onExport} onSelection={p.onReuseSelection} onReferences={p.onReferences} reusable={p.reusable} disabled={p.disabled}
     filter={filter} onFilter={setFilter} mySelection={selectedSet} onToggle={toggle} explorer={visual} onTablePresentation={setTablePresentation}/>;
-  return <>{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
+  return <>{renderHighlights()}{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
 }
 
 type CriteriaCause = { origem: string; motivo?: string; detalhe?: string; candidatos_elegibilidade_desconhecida?: number;
@@ -523,12 +570,14 @@ function Pair({ label, value, kind }: { label: string; value: unknown; kind: Ind
       {kind.tipo === "ESTADO" ? (STATE_LABELS[String(value)] || formatValue(value, kind.tipo)) : formatValue(value, kind.tipo)}</dd></>;
 }
 
-function Unavailable({ reason, pending }: { reason: string; pending?: string }) {
+function Unavailable({ reason, pending, notApplicable = false, temporal = false }: { reason: string; pending?: string;
+  notApplicable?: boolean; temporal?: boolean }) {
   const needsLocation = ["REFERENCIAL_GEODESICO", "SEPARADOR_DECIMAL", "PAPEIS_COORDENADAS", "COORDENADAS_NAO_ASSOCIADAS"].includes(pending || "");
   return <div role="status" className="rounded-xl border border-line bg-slate-50 p-4 text-xs leading-5 text-slate-700">
-    <p className="font-semibold text-ink">Mapa indisponível para este resultado</p>
+    <p className="font-semibold text-ink">{notApplicable ? "Mapa não aplicável a este resultado" : "Mapa indisponível para este resultado"}</p>
     <p className="mt-1">{needsLocation ? "A fonte importada não tem informações de localização completas e confirmadas. A configuração de origem pode ser revisada nas opções avançadas da preparação." : reason}</p>
     {pending === "COMPETENCIA_UNICA" && <p className="mt-1">Escolha um período para visualizar os pontos no mapa. Para acompanhar vários períodos, use o gráfico de linhas.</p>}
+    {temporal && <p className="mt-1">Para ver os territórios no mapa, prepare uma densidade ou quantitativos de uma competência (por exemplo, a final da série).</p>}
     <p className="mt-1">Você pode continuar explorando a tabela e os gráficos.</p>
   </div>;
 }

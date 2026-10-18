@@ -167,6 +167,7 @@ def main():
             execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
         assert event.value.status == 200, event.value.text()
         expect(assistant.locator("#resultados .data-table tbody tr")).to_have_count(1, timeout=30000)
+        expect(assistant.get_by_test_id("result-highlights")).to_contain_text("junho de 2024")
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
         # de períodos diferentes em um único quantitativo.
         workspace(page, "preparation")

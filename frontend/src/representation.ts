@@ -104,6 +104,24 @@ export const displayPeriod = (value: string | null | undefined): string => {
   return value;
 };
 
+/** Escala vertical em números redondos ao redor dos valores observados (passo 1, 2, 2,5 ou 5 × 10ⁿ). Só
+ * enquadra o desenho; valores positivos nunca ganham eixo negativo. */
+export function niceDomain(values: number[]): [number, number] {
+  if (!values.length) return [0, 1];
+  let low = Math.min(...values), high = Math.max(...values);
+  if (low === high) { const pad = Math.abs(low) * 0.1 || 1; low -= pad; high += pad; }
+  const raw = (high - low) / 4, power = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(factor => factor * power).find(candidate => candidate >= raw) ?? 10 * power;
+  const tidy = (value: number) => Number(value.toPrecision(12));  // sem resíduo binário (1,6000000000000001)
+  const start = tidy(Math.floor(tidy(low / step)) * step), end = tidy(Math.ceil(tidy(high / step)) * step);
+  return [low >= 0 && start < 0 ? 0 : start, end];
+}
+
+// Competências AAAAMM exibidas como mês/ano nas tabelas; o CSV e os filtros usam também o valor original.
+export const PERIOD_COLUMNS = new Set(["Período", "Período inicial", "Período final"]);
+export const tableColumns = (keys: string[]) => keys.map(key => PERIOD_COLUMNS.has(key)
+  ? { key, display: (value: unknown) => typeof value === "string" ? displayPeriod(value) : String(value ?? "") } : { key });
+
 // Paleta validada (skill de visualização): sequencial azul (passos 250→700), ordinal azul de cinco
 // passos, categóricas nas três primeiras posições validadas para todos os pares (mapa).
 export const SEQUENTIAL = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b"];

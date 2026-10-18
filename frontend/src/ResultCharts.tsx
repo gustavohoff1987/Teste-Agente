@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CATEGORICAL, INK, NOT_EVALUABLE, displayPeriod, formatNumber, fullPrecision, type IndicatorKind } from "./representation";
+import { CATEGORICAL, INK, NOT_EVALUABLE, displayPeriod, formatNumber, fullPrecision, niceDomain, type IndicatorKind } from "./representation";
 
 // Gráficos de barras e de linhas (CAP-REP-02) sobre valores já calculados pelo motor. A ordem padrão
 // é a do código territorial ou a do resultado de ordenação (RQ-REP-03); reordenar pelo valor é estado
@@ -110,25 +110,38 @@ export function CountBars({ data, title, note }: { data: CountDatum[]; title: st
 
 export function SeriesLines({ points, series, unit, kind, title }: { points: LinePoint[]; series: { key: string; label: string; color: string }[];
   unit: string; kind: IndicatorKind; title: string }) {
+  // Eixo em números redondos ao redor dos valores: uma série de densidade entre 1,6 e 1,9 deixa de virar uma
+  // linha achatada sobre o zero. O começo do eixo é informado na legenda quando não é zero.
+  const domain = niceDomain(points.flatMap(point => series.map(item => point[item.key])).filter((value): value is number => typeof value === "number"));
+  const last = Object.fromEntries(series.map(item => [item.key,
+    points.reduce((found, point, index) => typeof point[item.key] === "number" ? index : found, -1)]));
+  const labeled = series.length <= 4;  // rótulo direto só no último valor de cada série (seletivo)
   return <figure aria-label={title} className="w-full">
     <div className="h-[300px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
-      <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
+      <LineChart data={points} margin={{ top: 12, right: labeled ? 52 : 16, bottom: 4, left: 4 }}>
         <CartesianGrid vertical={false} stroke={INK.grid}/>
         <XAxis dataKey="periodo" tick={axis} tickFormatter={(value: string) => displayPeriod(value)} stroke={INK.grid} minTickGap={12}/>
-        <YAxis tick={axis} width={64} stroke={INK.grid} tickFormatter={(value: number) => formatNumber(value, kind)}
+        <YAxis tick={axis} width={64} stroke={INK.grid} domain={domain} tickCount={5} allowDecimals={kind !== "CONTAGEM"}
+          tickFormatter={(value: number) => formatNumber(value, kind)}
           label={{ value: unit, angle: -90, position: "insideLeft", style: { fontSize: 11, fill: INK.muted } }}/>
         <Tooltip wrapperStyle={{ maxWidth: "calc(100% - 40px)" }} content={({ active, payload, label }) => active && payload?.length ?
           <TooltipBox title={displayPeriod(String(label))} lines={series.map(item => {
             const value = payload.find(entry => entry.dataKey === item.key)?.value as number | null | undefined;
             return { color: item.color, strong: value === null || value === undefined ? "sem valor" : formatNumber(value, kind), text: " " + item.label };
           })}/> : null}/>
-        <Legend wrapperStyle={{ fontSize: 11, color: INK.secondary }} iconType="plainline"/>
+        {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: INK.secondary }} iconType="plainline"/>}
         {series.map(item => <Line key={item.key} type="linear" dataKey={item.key} name={item.label} stroke={item.color} strokeWidth={2}
-          dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false} isAnimationActive={false}/>)}
+          dot={{ r: 4, fill: item.color, stroke: INK.surface, strokeWidth: 2 }} activeDot={{ r: 6, stroke: INK.surface, strokeWidth: 2 }}
+          connectNulls={false} isAnimationActive={false}
+          label={labeled ? (props: { x?: number; y?: number; index?: number; value?: number }) =>
+            props.index === last[item.key] && typeof props.value === "number"
+              ? <text x={(props.x ?? 0) + 9} y={(props.y ?? 0) + 4} fontSize={11} fontWeight={600} fill={INK.primary}>{formatNumber(props.value, kind)}</text>
+              : <g/> : undefined}/>)}
       </LineChart>
     </ResponsiveContainer></div>
-    <figcaption className="mt-1 text-xs text-slate-600">Competências sem valor aparecem como lacunas; não há interpolação, linha de
-      tendência ou taxa calculada pela representação.</figcaption>
+    <figcaption className="mt-1 text-xs text-slate-600">{series.length === 1 ? series[0].label + ". " : ""}Competências sem valor aparecem
+      como lacunas; não há interpolação, linha de tendência ou taxa calculada pela representação.
+      {domain[0] > 0 ? " O eixo vertical começa em " + formatNumber(domain[0], kind) + " para mostrar a variação; os valores são os do motor." : ""}</figcaption>
   </figure>;
 }
 
