@@ -6,7 +6,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 CSV = b"territorio_analise;codigo_identificador;periodo;categoria_profissional;quantidade;populacao\nAlfa;local-a;2024;MEDICINA;10;1000\nBeta;local-b;2024;MEDICINA;20;4000\nGama;local-c;2024;MEDICINA;30;5000\n"
 
@@ -37,7 +37,7 @@ def main():
             button = inline.get_by_role("button", name="Executar análise", exact=True)
             expect(button).to_be_enabled(timeout=30000)
             with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
-                button.click()
+                execute_analysis(page, button)
             assert event.value.status == 200, event.value.text()
             return event.value.json()
 
@@ -77,7 +77,7 @@ def main():
         # Retomar os parâmetros do resultado atual reaproveita o cálculo existente.
         button = inline.get_by_role("button", name="Executar análise", exact=True)
         expect(button).to_be_enabled(timeout=30000)
-        button.click()
+        execute_analysis(page, button)
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(calculated) == 2
 

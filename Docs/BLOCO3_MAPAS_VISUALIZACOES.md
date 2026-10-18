@@ -201,7 +201,7 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
 - **Histórico:** cada resultado é reconstruído com os próprios dados, parâmetros, origem, versão da
   camada e limitações (`metadata.representacao` do resultado). Aviso em linguagem comum identifica a consulta a uma análise anterior e orienta revisar a preparação para atualizar; resultado invalidado fica só para consulta, sem reutilização da
   seleção. A compatibilidade de fonte e camada segue a regra existente (`compatible`).
-  - **Atualização (16/10/2026):** o painel recolhido “Histórico de análises” fica sempre acessível no topo da área de análise, inclusive com zero ou um cálculo. Reabrir alterna o resultado à direita sem deslocar o compositor do chat. O controle antigo de histórico foi removido no commit `dbaa0bd`: a lista "Histórico de resultados" e o controle de
+  - **Atualização (16/10/2026):** o controle “Histórico” fica na barra horizontal, inclusive com zero ou um cálculo. Reabrir alterna o resultado no fluxo único; o campo de mensagem continua acessível. A disposição vigente está em `INTERFACE_CONVERSACIONAL_INTEGRADA.md`. O controle antigo de histórico foi removido no commit `dbaa0bd`: a lista "Histórico de resultados" e o controle de
     invalidação saíram da interface. A reconstrução descrita acima continua valendo para o resultado
     atual, para a retomada e para as competências calculadas. Não há mais como invalidar pela
     interface. Ver [`REGISTRO_DE_COMPORTAMENTO.md`](REGISTRO_DE_COMPORTAMENTO.md).

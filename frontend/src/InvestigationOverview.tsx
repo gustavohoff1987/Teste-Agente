@@ -3,7 +3,7 @@ import { identity, selectionCompatibility, type InvestigationEntry } from "./inv
 import { displayPeriod } from "./representation";
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 
-type Props = { items: InvestigationEntry[]; currentId: string | null; selected: string[]; busy: boolean;
+type Props = { title: string; items: InvestigationEntry[]; currentId: string | null; selected: string[]; busy: boolean;
   onOpen: (id: string) => void; onTransfer: (id: string) => void; onPrepare: () => void };
 const button = "rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40";
 const PAGE = 6;
@@ -33,11 +33,11 @@ export default function InvestigationOverview(p: Props) {
   const dimensions = useMemo(() => new Set(p.items.map(e => e.result.metadata.operation)).size, [p.items]);
   return <section id="investigacao" aria-label="Investigação territorial" data-testid="investigation-overview" className="no-print my-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="font-semibold text-ink">Sua investigação territorial</h2>
-        <p className="mt-1 text-xs text-slate-600">{p.items.length} {p.items.length === 1 ? "resultado disponível" : "resultados disponíveis"} · {dimensions} dimensões analíticas</p></div>
-      <button type="button" className={button} onClick={p.onPrepare}>Acrescentar uma análise</button>
+      <div><h2 className="font-semibold text-ink">{p.title}</h2>
+        <p className="mt-1 text-xs text-slate-600">{p.items.length} {p.items.length === 1 ? "resultado disponível" : "resultados disponíveis"} · {dimensions} {dimensions === 1 ? "dimensão analítica" : "dimensões analíticas"}</p></div>
+      <button type="button" className={button} onClick={p.onPrepare}>Acrescentar ao diagnóstico</button>
     </div>
-    <p className="my-3 text-xs leading-5 text-slate-600">Cada análise conserva sua fonte, recorte e parâmetros. Abrir resultados ou destacar territórios não executa cálculos.
+    <p className="my-3 text-xs leading-5 text-slate-600">Cada componente conserva sua fonte, recorte, parâmetros e método. A composição não soma nem harmoniza valores; diferenças de período, categoria, unidade ou denominador limitam a comparação. Abrir resultados ou destacar territórios não executa cálculos.
       {p.selected.length > 0 && ` Seleção visual ativa: ${p.selected.length} território(s).`}</p>
     {p.busy && <p role="status" className="my-2 text-xs font-semibold text-teal">Preparando a próxima análise. Os resultados concluídos permanecem disponíveis abaixo.</p>}
     {!p.items.length && <p className="text-xs text-slate-600">Execute a primeira análise para iniciar esta investigação.</p>}

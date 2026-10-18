@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 # nome, código, (lat, lon) em 202401, (lat, lon) em 202406, quantidade, população — valores fictícios.
@@ -94,7 +94,7 @@ def main():
             expect(button).to_be_enabled(timeout=60000)
             before = len(analyses)
             with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-                button.click()
+                execute_analysis(page, button)
             assert event.value.status == 200, event.value.text()[:500]
             page.wait_for_timeout(300)
             assert len(analyses) == before + 1

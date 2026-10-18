@@ -1,7 +1,7 @@
 # Investigação territorial progressiva
 
 A investigação reúne as análises concluídas **somente na memória da aba e da sessão atual**.
-“Ver investigação” abre uma sequência de etapas, com seis cartões por página. Cada etapa identifica
+A visão do diagnóstico atual apresenta uma sequência de componentes, com seis cartões por página. “Nova análise” permite criar uma análise independente ou acrescentar um componente ao diagnóstico. O Histórico da barra horizontal reúne todas as análises da sessão, identificando os diagnósticos aos quais pertencem. Cada etapa identifica
 operação, período, categoria, recorte e situação informada pelo motor. “Ver contexto” expande os
 detalhes; “Abrir etapa” consulta o resultado existente. O histórico anterior continua disponível.
 
@@ -61,3 +61,5 @@ Testes: `npm test` em `frontend/` valida a política real de compatibilidade; `u
 é registrado no executor para catálogo sintético e base versionada. As jornadas anteriores e
 os testes de backend continuam cobrindo métodos, limites, privacidade, sessão e exportações.
 O `prebuild` executa os testes de compatibilidade também em cada build do CI, sem alterar o workflow.
+
+A organização de diagnósticos usa apenas referências aos resultados existentes, na memória da aba. O mesmo resultado pode ser reutilizado em outro diagnóstico sem recalcular, copiar valores ou alterar o resultado original. Veja o [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).

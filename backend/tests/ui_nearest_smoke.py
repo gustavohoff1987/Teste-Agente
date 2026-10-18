@@ -16,7 +16,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -80,7 +80,7 @@ def main():
             expect(button).to_be_enabled(timeout=60000)
             before = len(analyses)
             with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-                button.dblclick() if double else button.click()
+                execute_analysis(page, button, double)
             assert event.value.status == 200, event.value.text()[:500]
             expect(board.locator("h3", has_text="Referência mais próxima").first).to_be_visible()
             page.wait_for_timeout(400)
@@ -97,7 +97,7 @@ def main():
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
         send("Calcule a referência mais próxima de Manaus, Tefe e Parintins.")
-        expect(chat.get_by_text("nenhuma referência foi escolhida e nada foi calculado", exact=False)).to_be_visible()
+        expect(chat.get_by_test_id("latest-reply")).to_contain_text("nenhuma referência foi escolhida e nada foi calculado")
         targets = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(targets.get_by_role("heading", name="Municípios-alvo")).to_be_visible()
         expect(targets.get_by_text("3 selecionados", exact=True)).to_be_visible()
@@ -158,7 +158,7 @@ def main():
         calls = len(analyses)
         button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
         expect(button).to_be_enabled(timeout=60000)
-        button.click()
+        execute_analysis(page, button)
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == calls
         # Reutilizar como alvos troca só a seleção de alvos; o resultado calculado permanece.

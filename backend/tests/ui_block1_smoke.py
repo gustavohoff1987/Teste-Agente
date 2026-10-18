@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -61,7 +61,7 @@ def main():
             button = page.locator("#preparacao-conversacional").get_by_role("button", name="Calcular e mostrar resultado", exact=True)
             expect(button).to_be_enabled(timeout=60000)
             with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=60000) as event:
-                button.click()
+                execute_analysis(page, button)
             assert event.value.status == 200, event.value.text()
             result = event.value.json()
             results.append(result)
@@ -184,7 +184,7 @@ def main():
         assert_same_rows(exported_rows(download), aggregate["rows"])
         shot("block1-05-agregacao.png")
         # Repetição exata recupera o resultado sem nova requisição/cálculo.
-        inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+        execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True))
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == 4
 
@@ -216,7 +216,7 @@ def main():
         page.get_by_role("navigation", name="Navegação principal").get_by_test_id("nav-new-analysis").click()
         confirmation = page.get_by_test_id("new-analysis-confirmation")
         expect(confirmation).to_be_visible()
-        expect(confirmation).to_contain_text("Histórico de análises")
+        expect(confirmation).to_contain_text("Histórico desta sessão")
         page.get_by_test_id("cancel-new-analysis").click()
         expect(confirmation).not_to_be_visible()
         expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
@@ -230,7 +230,7 @@ def main():
         calls = len(analyses)
         button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
         expect(button).to_be_enabled(timeout=60000)
-        button.click()
+        execute_analysis(page, button)
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         expect(board.get_by_test_id("result-status")).to_contain_text("válido e vigente")
         expect(board.get_by_test_id("result-title")).to_have_text(aggregate["title"])
@@ -240,8 +240,9 @@ def main():
         # Teclado/toque e dimensões móveis preservam a navegação e as ações.
         for width in (390, 768):
             page.set_viewport_size({"width": width, "height": 844})
-            page.get_by_role("button", name="Abrir menu", exact=True).click()
-            page.get_by_role("button", name="Fechar menu", exact=True).click()
+            expect(page.get_by_test_id("main-navigation")).to_be_visible()
+            expect(page.get_by_test_id("main-navigation").locator(':scope > button')).to_have_count(4)
+            expect(page.get_by_test_id("analysis-history-menu").locator('summary')).to_be_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
             shot(f"block1-07-largura-{width}.png")
         search = selection.get_by_role("searchbox")

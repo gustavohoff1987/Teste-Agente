@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 export type ChatFeature<T extends string> = {
-  id: T; title: string; detail: string; icon: LucideIcon; tone: string;
+  id: T; title: string; detail: string; icon: LucideIcon; tone: string; availability?: string;
 };
 
 type Props<T extends string> = {
@@ -100,6 +100,7 @@ export default function ChatAnalysisCarousel<T extends string>({
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-ink">{feature.title}</span>
           <span className="mt-1 block text-[11px] leading-4 text-slate-600">{feature.detail}</span>
+          {feature.availability && <span className="mt-1 block text-[11px] leading-4 text-slate-600">{feature.availability}</span>}
           <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-teal">
             {isSelected ? "Análise selecionada · ver preparação" : "Selecionar e preparar"} <ArrowRight size={12}/>
           </span>

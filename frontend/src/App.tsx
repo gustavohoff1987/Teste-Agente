@@ -13,6 +13,8 @@ import { scrollAnalysisTo } from "./workspaceNavigation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
+import WorkspaceDialog from "./WorkspaceDialog";
+import { analyticalRequest, attachResult, diagnosticLabel, presentationIntent, type Diagnostic, type Placement } from "./diagnostics";
 import PreparationPanel, { preparationRequirements } from "./PreparationPanel";
 import WelcomeHero from "./WelcomeHero";
 import TerritorialSelection, {type Territory} from "./TerritorialSelection";
@@ -174,9 +176,16 @@ function App() {
   useEffect(() => { if (privacy.accepted) return trackSession(); }, [privacy.accepted]);
   const [conversationStarted, setConversationStarted] = useState(false);
   const [page, setPage] = useState<"home" | "results">("home");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [analysisMenuOpen, setAnalysisMenuOpen] = useState(false);
   const [confirmNewAnalysis, setConfirmNewAnalysis] = useState(false);
+  const [confirmNewSession, setConfirmNewSession] = useState(false);
+  const [closingSession, setClosingSession] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [diagnosticId, setDiagnosticId] = useState(1);
+  const nextDiagnostic = useRef(1);
+  const placement = useRef<Placement | null>(null);
+  const pendingRun = useRef<Operation | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [usingBrazil, setUsingBrazil] = useState(false);
   const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
@@ -485,6 +494,8 @@ function App() {
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
+    setCatalogOpen(false);
+    setPage("home");
     setRequestedIndicator(proposal?.indicator ? {operation, indicator:proposal.indicator, generation:sourceGeneration} : null);
     if (pendingTerritories.current?.operation !== operation) pendingTerritories.current = null;
     setRequestedCategory(proposal?.category || "");
@@ -674,13 +685,13 @@ function App() {
         void inspectFile(null, "", "municipal", proposal.operation, true);
       } else applyExploration(proposal);
     } else if (proposal.operation) selectAnalysis(proposal.operation);
-    return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros à direita.";
+    return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros na preparação.";
   }
   async function exploreMessage(message: string, choice?: {operation:Operation; indicator?:"quantity" | "density" | null}): Promise<string | null> {
     if (!inspection || inspecting) return null;
     const currentRevision = revision.current;
     const form = new FormData(); appendSource(form);
-    form.append("message", message); form.append("mapping", JSON.stringify(mapping));
+    form.append("message", analyticalRequest(message)); form.append("mapping", JSON.stringify(mapping));
     form.append("options", JSON.stringify({...conversationOptions(), ...(choice ? {conversation_operation_choice:choice.operation, exploration_indicator:choice.indicator || conversationOptions().exploration_indicator} : {}), ...(criteriaTree ? {criteria: criteriaTree} : {}),
       ...(criteriaRanking?.attribute ? {ranking: criteriaRanking} : {}),
       ...(pendingRanking.current ? {criteria_pending_ranking: pendingRanking.current} : {})}));
@@ -724,6 +735,10 @@ function App() {
   }
   function openHistorical(item: Historical) {
     if (running || inspecting || preflighting) return;
+    const group = diagnostics.find(group => group.id === diagnosticId && group.resultIds.includes(item.result.result_id))
+      || diagnostics.find(group => group.resultIds.includes(item.result.result_id));
+    if (group) setDiagnosticId(group.id);
+    placement.current = null;
     setResultExpanded(true);
     setVisualSelection((viewMemory.current[item.result.result_id]?.selected as string[]) || []);
     setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
@@ -779,7 +794,7 @@ function App() {
 
     setError("");
   }
-  async function run(op: Operation) {
+  async function run(op: Operation, confirmedPlacement?: Placement) {
     if (!privacy.accepted || runningRef.current) return;
     setActive(op);  setError("");
     if (preflighting || !preflight) {
@@ -801,8 +816,19 @@ function App() {
     }
     setUploadError("");
     const contextKey = requestKey(op);
+    const chosenPlacement = confirmedPlacement || placement.current;
+    const currentGroup = diagnostics.find(group => group.id === diagnosticId);
+    const alreadyHere = currentGroup?.resultIds.some(id => history.some(item => item.result.result_id === id && item.contextKey === contextKey && !item.invalidReason));
+    if (currentGroup?.resultIds.length && !chosenPlacement && !alreadyHere) {
+      pendingRun.current = op; setConfirmNewAnalysis(true); return;
+    }
+    const destination = chosenPlacement === "independent" && currentGroup?.resultIds.length
+      ? ++nextDiagnostic.current : diagnosticId;
+    setDiagnosticId(destination);
     const reusable = history.find(item=>item.contextKey===contextKey && !item.invalidReason);
     if (reusable) {
+      setDiagnostics(groups => attachResult(groups, destination, reusable.result.result_id));
+      placement.current = null;
       setResultExpanded(true);
       setResult(reusable.result); setHistoryNotice("Resultado existente recuperado, sem recalcular.");
       scrollAnalysisTo("resultados");
@@ -825,6 +851,8 @@ function App() {
       calculated.metadata = {...calculated.metadata, origin_request: originRequest};
       setHistory(previous=>[...previous, {result:calculated, request:originRequest, sourceKey,
         contextKey, preparation, invalidReason:""}]);
+      setDiagnostics(groups => attachResult(groups, destination, calculated.result_id));
+      placement.current = null;
       setResult(calculated); setResultExpanded(true); setHistoryNotice("");
       setTimeout(() => scrollAnalysisTo("resultados"), 120);
     } catch (exc) {
@@ -835,27 +863,52 @@ function App() {
     finally { runningRef.current = false; setRunning(false); }
   }
 
-  function startNewAnalysis() {
+  function startNewAnalysis(mode: Placement) {
     if (running || inspecting || preflighting) return;
-    setActive(null); setResult(null); setVisualSelection([]); setInlineConfirmed(false);
+    placement.current = mode;
+    setConfirmNewAnalysis(false);
+    if (pendingRun.current) {
+      const operation = pendingRun.current; pendingRun.current = null;
+      void run(operation, mode); return;
+    }
+    if (mode === "independent" && diagnostics.some(group => group.id === diagnosticId && group.resultIds.length))
+      setDiagnosticId(++nextDiagnostic.current);
+    setActive(null); if (mode === "independent") setResult(null); setVisualSelection([]); setInlineConfirmed(false);
     setRequestedCategory(""); setRequestedIndicator(null); setRequestText(""); setError("");
     setHistoryNotice("Nova análise iniciada. Resultados anteriores disponíveis no Histórico de análises.");
-    setConfirmNewAnalysis(false); navigate("home", "assistente");
+    setCatalogOpen(true); navigate("home", "analises");
+  }
+  function requestNewAnalysis() {
+    pendingRun.current = null;
+    if (result || active || diagnostics.some(group => group.id === diagnosticId && group.resultIds.length)) setConfirmNewAnalysis(true);
+    else startNewAnalysis("independent");
+  }
+  function recordRequest(message: string) {
+    setRequestText(message);
+    const intent = presentationIntent(message);
+    if (intent) placement.current = intent;
+  }
+  async function closeSession() {
+    setClosingSession(true); setSessionError("");
+    try { await endSession(); }
+    catch (exc) { setSessionError(readableError(exc)); setClosingSession(false); }
   }
   function navigate(view: "home" | "results", target?: string) {
     setPage(view);
-    setMobileMenuOpen(false);
+    if (view === "results") setResultExpanded(true);
     const fragment = target || (view === "results" ? "resultados" : "inicio");
     // A alteração nativa do hash também rolaria a página antes da navegação do painel.
     if (window.location.hash !== "#" + fragment) window.history.pushState(null, "", "#" + fragment);
     window.setTimeout(() => {
-      if (!scrollAnalysisTo(fragment)) document.getElementById(fragment)?.scrollIntoView({behavior:"smooth", block:"start"});
+      scrollAnalysisTo(view === "results" && result && !target ? "selected-result-content" : fragment);
     }, 80);
   }
   useEffect(() => {
     const onHashChange = () => setPage(window.location.hash === "#resultados" ? "results" : "home");
+    const onPrepare = () => setPage("home");
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("adt:prepare", onPrepare);
+    return () => { window.removeEventListener("hashchange", onHashChange); window.removeEventListener("adt:prepare", onPrepare); };
   }, []);
   useEffect(() => {
     document.title = "Agente Diagnóstico Territorial";
@@ -905,13 +958,6 @@ function App() {
       nearestOptions, criteriaOptions]);
 
   useEffect(() => { revision.current += 1;  setError(""); }, [active]);
-
-  const sideLink = (label: string, view: "home" | "results", Icon: LucideIcon, target?: string) =>
-    <button type="button" onClick={() => navigate(view, target)}
-      className={["flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition",
-        page === view && !target ? "bg-blue-600 text-white" : "text-slate-200 hover:bg-white/10 hover:text-white"].join(" ")}>
-      <Icon size={18}/>{label}
-    </button>;
 
   const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)) ||
     (active === "criteria" && !!preflight?.capabilities.criteria?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)));
@@ -1434,30 +1480,36 @@ function App() {
           onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
     </div>}
   </> : null;
-  const investigationContent = (
-    <InvestigationOverview items={history} currentId={result?.result_id || null} selected={visualSelection}
+  const currentDiagnostic = diagnostics.find(group => group.id === diagnosticId);
+  const investigationContent = currentDiagnostic?.resultIds.length ? (
+    <InvestigationOverview title={diagnosticLabel(currentDiagnostic)} items={currentDiagnostic.resultIds.map(id => history.find(item => item.result.result_id === id)!).filter(Boolean)} currentId={result?.result_id || null} selected={visualSelection}
       busy={running || inspecting || preflighting} onTransfer={transferVisualSelection}
       onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
-      onPrepare={() => scrollAnalysisTo("preparacao-conversacional")}/>);
+      onPrepare={() => startNewAnalysis("append")}/>) : null;
   const historyContent = (
-<PreviousAnalyses items={history.map((item, index) => ({
-          id: item.result.result_id,
+<PreviousAnalyses items={history.flatMap(item => diagnostics.filter(group => group.resultIds.includes(item.result.result_id)).map(group => ({
+          id: group.id + ":" + item.result.result_id,
+          resultId: item.result.result_id,
           title: item.result.title,
           request: item.request,
           periods: (item.result.metadata.periods as string[] | undefined) || [],
           availableForReuse: compatible(item),
-          context: "Etapa " + (index + 1) + " · " + resultSummary(item).scope + " · " + resultSummary(item).status,
-        }))} currentId={result?.result_id || null} disabled={running || inspecting || preflighting}
-          onOpen={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}/>
+          context: diagnosticLabel(group) + " · " + resultSummary(item).scope + " · " + resultSummary(item).status,
+        })))} currentId={result ? diagnosticId + ":" + result.result_id : null} disabled={running || inspecting || preflighting}
+          onOpen={id => {
+            const group = diagnostics.find(group => group.resultIds.some(resultId => id === group.id + ":" + resultId));
+            const item = group && history.find(entry => id === group.id + ":" + entry.result.result_id);
+            if (item && group) { openHistorical(item); setDiagnosticId(group.id); }
+          }}/>
   );
   const workspaceEngaged = conversationStarted || !!inspection || usingBrazil || !!file || !!active || history.length > 0;
-  const resultContent = (history.length || result || running || error) ? (<>
+  const resultContent = (result || running || error) ? (<>
       <section id="resultados" ref={resultsRef} className="section-anchor mt-4 pt-3">
         <button type="button" onClick={() => scrollAnalysisTo("preparacao-conversacional")}
           className="no-print mb-5 inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-xs font-semibold text-teal hover:bg-blue-50">
           <ArrowRight size={15} className="rotate-180"/> Voltar às opções
         </button>
-        <SectionHeader eyebrow="Resultado selecionado" title="Resultado do diagnóstico" description="Explore esta etapa da investigação. As demais análises continuam disponíveis na visão geral e no histórico."/>
+        <div className="agent-guidance"><BrandAvatar size={42}/><div><h2 className="font-bold">{currentDiagnostic ? diagnosticLabel(currentDiagnostic) : "Resultado da análise"}</h2><p>{running ? "Acompanhe a execução pelo motor determinístico." : result ? "O motor determinístico produziu este resultado. Explore gráficos, mapas e tabelas ou pergunte sobre o que está em exibição." : "Confira a orientação abaixo antes de continuar a análise."}</p></div></div>
         {result && <button type="button" aria-expanded={resultExpanded} aria-controls="selected-result-content"
           className="no-print mb-3 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-teal"
           onClick={() => setResultExpanded(value => !value)}>{resultExpanded ? "Recolher análise" : "Expandir análise"}</button>}
@@ -1474,9 +1526,9 @@ function App() {
               <button disabled={!result} data-testid="print-results-pdf" onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border-2 border-[#24577d] bg-white px-3 py-2 text-xs font-bold text-[#102740] hover:bg-blue-50 disabled:opacity-40"><FileSpreadsheet size={14}/> Imprimir / PDF</button>
             </div>
           </div>
-          <p className="no-print mt-3 rounded-lg border border-[#b4c9db] bg-[#f1f6fa] px-3 py-2 text-xs leading-5 text-[#173d5c]"><strong>Guarde seus resultados:</strong> exporte em CSV ou use Imprimir / PDF. O histórico é temporário e não fica salvo após encerrar a sessão ou recarregar a página.</p>
+          <p className="no-print mt-3 rounded-lg border border-[#b4c9db] bg-[#f1f6fa] px-3 py-2 text-xs leading-5 text-[#173d5c]"><strong>Guarde seus resultados:</strong> o CSV exporta a tabela principal desta análise; tabelas de detalhe têm exportação própria. Imprimir / PDF inclui a visualização e a página da tabela em exibição. Para conservar um diagnóstico, exporte cada componente pelo Histórico. A sessão é temporária.</p>
            <details data-testid="advanced-technical-export" className="no-print mt-2 text-xs text-slate-500"><summary className="cursor-pointer">Opções técnicas avançadas</summary><div className="mt-2">              <button disabled={!result} onClick={() => result && downloadText("metodo_diagnostico.json", JSON.stringify({title: result.title, notes: result.notes, ...result.metadata,
-                result_id:result.result_id, validity: historical?.invalidReason ? "INVALIDADO" : "VALIDO", currency:resultStatus,
+                 result_id:result.result_id, organizacao_na_sessao: diagnostics.filter(group => group.resultIds.includes(result.result_id)).map(group => ({diagnostico: diagnosticLabel(group), componentes: group.resultIds})), validity: historical?.invalidReason ? "INVALIDADO" : "VALIDO", currency:resultStatus,
                 invalidation_reason:historical?.invalidReason || "",
                 representacao_aplicada: representationRecord.current?.resultado === result.result_id ? representationRecord.current : null}, null, 2), "application/json")} className="rounded-xl border px-3 py-2 text-xs disabled:opacity-40">Baixar registro técnico (JSON)</button></div></details>
            <div id="filtros-resultados" className="no-print mt-4">
@@ -1489,18 +1541,6 @@ function App() {
             <p className="max-w-sm text-xs leading-5 text-slate-600">
               A análise está em andamento. Os resultados aparecerão aqui quando estiverem prontos.
             </p>
-          </div>}
-          {!running && !result && !error && <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="mb-4 rounded-2xl bg-slate-50 p-5 text-slate-300"><Database size={34} strokeWidth={1.6}/></span>
-            <p className="text-base font-bold text-ink">Seus resultados aparecerão aqui</p>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Volte à análise, confirme os campos e os parâmetros e execute quando estiver pronto.
-              Nenhum cálculo ocorre apenas por importar dados.
-            </p>
-            <button type="button" onClick={() => navigate("home", "analises")}
-              className="no-print mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700">
-              Escolher uma análise
-            </button>
           </div>}
           {result && <InvestigationViewState.Provider key={result.result_id} value={viewMemory.current[result.result_id] ||= {}}>
             <div id="selected-result-content" hidden={!resultExpanded} className="pt-6">
@@ -1576,77 +1616,47 @@ function App() {
 
   return <div className={"min-h-screen bg-canvas" + (workspaceEngaged ? " workspace-engaged" : "")}>
     {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
-    {confirmNewAnalysis && <div className="no-print fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4">
-      <section data-testid="new-analysis-confirmation" role="dialog" aria-modal="true" aria-labelledby="new-analysis-title" className="w-full max-w-md rounded-2xl border border-[#24577d] bg-white p-6 shadow-2xl">
-        <h2 id="new-analysis-title" className="text-lg font-bold text-ink">Deseja iniciar uma nova análise?</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-700">Sua análise atual continuará disponível no <strong>Histórico de análises</strong>, na parte superior do painel de resultados, enquanto esta sessão estiver aberta.</p>
-        <p className="mt-2 text-xs text-slate-600">O histórico não permanece salvo após encerrar a sessão ou recarregar a página. Exporte os resultados que deseja conservar.</p>
-        <div className="mt-6 flex justify-end gap-3">
-          <button type="button" data-testid="cancel-new-analysis" onClick={() => setConfirmNewAnalysis(false)} className="rounded-lg border border-[#24577d] px-4 py-2 text-sm font-semibold text-[#173d5c]">Cancelar</button>
-          <button type="button" data-testid="confirm-new-analysis" onClick={startNewAnalysis} className="rounded-lg bg-[#102740] px-4 py-2 text-sm font-semibold text-white">Iniciar nova análise</button>
-        </div>
-      </section>
-    </div>}
-
-    {privacy.accepted && <button type="button" data-testid="end-session"
-      className="no-print fixed bottom-2 right-3 z-30 rounded-lg border border-line bg-white px-3 py-1 text-xs text-slate-500"
-      onClick={() => { void endSession().catch(exc => setError(String(exc.message))); }}>Encerrar sessão</button>}
+    {confirmNewAnalysis && <WorkspaceDialog id="new-analysis-confirmation" title="Como deseja continuar?"
+      onClose={() => {setConfirmNewAnalysis(false); pendingRun.current = null;}}>
+      <p className="mt-4 text-sm leading-6">Os resultados concluídos ficam no Histórico desta sessão. Você pode iniciar uma análise independente ou acrescentar um componente ao diagnóstico atual, preservando os resultados e parâmetros de cada análise. Uma preparação ainda não executada pode ser ajustada na próxima análise.</p>
+      <div className="dialog-actions">
+        <button type="button" data-testid="confirm-new-analysis" onClick={() => startNewAnalysis("independent")}>Iniciar uma análise independente</button>
+        <button type="button" data-testid="append-diagnostic" onClick={() => startNewAnalysis("append")}>Acrescentar ao diagnóstico atual</button>
+        <button type="button" data-testid="cancel-new-analysis" onClick={() => {setConfirmNewAnalysis(false); pendingRun.current = null;}}>Cancelar</button>
+      </div>
+    </WorkspaceDialog>}
+    {confirmNewSession && <WorkspaceDialog id="new-session-confirmation" title="Deseja iniciar uma nova sessão?" busy={closingSession}
+      onClose={() => setConfirmNewSession(false)}>
+      <p className="mt-4 text-sm leading-6">Ao iniciar uma nova sessão, suas análises e resultados atuais deixarão de estar disponíveis. Se desejar conservá-los, você pode exportá-los antes de continuar.</p>
+      <p className="mt-3 text-xs leading-5">CSV e Imprimir / PDF exportam somente a análise em exibição. Para guardar todas, continue nesta sessão e exporte cada análise pelo Histórico. Não há persistência entre sessões.</p>
+      {result && <p className="mt-2 text-sm font-semibold">Em exibição: {result.title}</p>}
+      <div className="dialog-actions">
+        <button type="button" data-testid="session-export-csv" disabled={!result || closingSession || resultStatus === "INVALIDADO"} onClick={() => result && exportCsv(result.rows)}>Exportar CSV</button>
+        <button type="button" disabled={!result || closingSession} onClick={() => window.print()}>Imprimir / PDF</button>
+        <button type="button" data-testid="cancel-new-session" disabled={closingSession} onClick={() => setConfirmNewSession(false)}>Continuar nesta sessão</button>
+        <button type="button" data-testid="confirm-new-session" disabled={closingSession} onClick={() => void closeSession()}>{closingSession ? "Encerrando sessão…" : "Iniciar nova sessão"}</button>
+      </div>
+      {sessionError && <p role="alert" className="mt-3 text-sm text-rose-800">{sessionError}</p>}
+    </WorkspaceDialog>}
     <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="sr-only"
       aria-label="Importar arquivo de dados"
       onChange={e => {const next=e.target.files?.[0];e.target.value = "";void chooseFile(next);}}/>
-    <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-[235px] flex-col bg-[#102740] px-4 py-6 text-white lg:flex">
-      <div className="flex items-center gap-3 px-2">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><BrandAvatar size={39}/></span>
-        <div><p className="text-sm font-bold leading-tight">Agente Diagnóstico Territorial</p>
-          <p className="mt-1 text-[10px] leading-4 text-slate-300">Força de Trabalho na Saúde</p></div>
-      </div>
-      <nav aria-label="Navegação principal" className="mt-12 space-y-1">
-        {sideLink("Início", "home", Home)}
-<button type="button" disabled={running || inspecting || preflighting} data-testid="nav-new-analysis" onClick={() => {setConfirmNewAnalysis(true);setMobileMenuOpen(false);}} className="flex w-full items-center gap-3 rounded-xl border border-white/25 px-3 py-3 text-left text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-40"><FileBarChart2 size={18}/>Nova análise</button>
-        <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
-          <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
-        </button>
-        {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
-          {FEATURES.map(feature => <button key={feature.id} type="button"
-            onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
-            className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
-        </div>}
-        {sideLink("Resultados", "results", BarChart3)}
-      </nav>
-    </aside>
-    <div className="min-w-0 lg:pl-[235px]">
-      <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
-        <div className="flex items-center gap-2.5">
-          <span className="rounded-xl bg-slate-50 p-1"><BrandAvatar size={36}/></span>
-          <div><p className="text-xs font-bold text-ink">Agente Diagnóstico Territorial</p>
-          <p className="text-[10px] text-slate-500">Força de Trabalho na Saúde</p></div>
-        </div>
-        <button type="button" aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(v => !v)}
-          className="rounded-xl border border-line p-2 text-ink">{mobileMenuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
-        {mobileMenuOpen && <nav className="absolute left-3 right-3 top-[69px] space-y-1 rounded-2xl bg-[#102740] p-3 shadow-xl">
-          {sideLink("Início", "home", Home)}
-<button type="button" disabled={running || inspecting || preflighting} data-testid="nav-new-analysis" onClick={() => {setConfirmNewAnalysis(true);setMobileMenuOpen(false);}} className="flex w-full items-center gap-3 rounded-xl border border-white/25 px-3 py-3 text-left text-sm font-semibold text-white hover:bg-white/15 disabled:opacity-40"><FileBarChart2 size={18}/>Nova análise</button>
-          <button type="button" aria-expanded={analysisMenuOpen} onClick={() => setAnalysisMenuOpen(value => !value)}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">
-          <Grid2X2 size={18}/>Tipos de análise <span className="ml-auto">{analysisMenuOpen ? "−" : "+"}</span>
-        </button>
-        {analysisMenuOpen && <div className="max-h-[45vh] space-y-1 overflow-y-auto pl-5" aria-label="Análises disponíveis">
-          {FEATURES.map(feature => <button key={feature.id} type="button"
-            onClick={() => {selectAnalysis(feature.id); navigate("home", "preparacao-conversacional");}}
-            className="block w-full rounded-lg px-2 py-2 text-left text-xs text-slate-200 hover:bg-white/10">{feature.title}</button>)}
-        </div>}
-          {sideLink("Resultados", "results", BarChart3)}
-        </nav>}
-      </header>
-      {serverStatus === "offline" && <div role="status" className="no-print mx-auto mt-3 max-w-[1260px] rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
-      <main id="inicio" className="workspace-main mx-auto max-w-[1530px] px-4 pb-4 pt-4 sm:px-5 lg:px-5">
+    <div className="min-w-0">
+      {serverStatus === "offline" && <div role="status" className="no-print m-4 rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
+      <main id="inicio" className="workspace-main mx-auto px-4 pb-4 pt-4 sm:px-5">
       <div>
-      {page === "home" && !workspaceEngaged && <WelcomeHero onChat={() => {setConversationStarted(true); navigate("home", "assistente");}} onImport={() => inputRef.current?.click()}/> }
+      <div className="no-print"><WelcomeHero/></div>
+      <nav aria-label="Navegação principal" data-testid="main-navigation" className="main-navigation no-print">
+        <button type="button" data-testid="nav-home" onClick={() => navigate("home", "inicio")} aria-current={page === "home" ? "page" : undefined}><Home size={18}/>Início</button>
+        <button type="button" data-testid="nav-new-session" onClick={() => {setSessionError(""); setConfirmNewSession(true);}}><RefreshCw size={18}/>Nova sessão</button>
+        <button type="button" data-testid="nav-new-analysis" disabled={running || inspecting || preflighting} onClick={requestNewAnalysis}><FileBarChart2 size={18}/>Nova análise</button>
+        {historyContent}
+        <button type="button" data-testid="nav-results" onClick={() => navigate("results")} aria-current={page === "results" ? "page" : undefined}><BarChart3 size={18}/>Resultados</button>
+      </nav>
       <AnalysisAssistant
         resultsOnly={page === "results"}
-        historyContent={historyContent}
+        catalogOpen={catalogOpen}
+        running={running}
         investigationContent={investigationContent}
         hasResult={!!result || running}
         onStarted={() => setConversationStarted(true)}
@@ -1665,14 +1675,14 @@ function App() {
           usingBrazil, datasetVersion: sourceVersion, sourceGeneration, sheet
         })}
         validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
-        features={FEATURES}
+        features={FEATURES.map(feature => ({...feature, availability: !preflight || inspecting || preflighting ? "Escolha e prepare os dados para verificar os requisitos." : preflight.capabilities[feature.id]?.status === "available" ? "Requisitos atendidos com a preparação atual." : preflight.capabilities[feature.id]?.status === "needs_confirmation" ? "Há parâmetros ou confirmações pendentes." : "Requisitos ainda não atendidos; consulte a preparação."}))}
         active={active}
         selecting={inspecting}
         onSelectAnalysis={(operation,proposal)=>{
           if(!proposal)setRequestText("Análise de " + ANALYSIS_LABELS[operation]);
           selectAnalysis(operation,proposal);
         }}
-        onRequest={setRequestText}
+        onRequest={recordRequest}
         onExplore={exploreMessage}
         onResolved={acceptExploration}
         selection={selectionContent}

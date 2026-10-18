@@ -19,10 +19,28 @@ def card(page):
 
 
 def select(page, title):
+    choices = page.get_by_role("group", name="Carrossel de tipos de análise")
+    if not choices.is_visible():
+        page.get_by_text("Escolher outra análise", exact=True).click()
     card(page).press("Home")
     for _ in range(TITLES.index(title)):
         page.get_by_role("button", name="Próxima análise", exact=True).click()
     card(page).click()
+
+
+def execute_analysis(page, button, double=False):
+    """Mantém a intenção das jornadas progressivas, escolhendo composição explicitamente."""
+    button.dblclick() if double else button.click()
+    dialog = page.get_by_test_id("new-analysis-confirmation")
+    if dialog.is_visible():
+        expect(dialog).to_contain_text("preservando os resultados e parâmetros")
+        dialog.get_by_test_id("append-diagnostic").click()
+
+
+def end_session(page):
+    page.get_by_test_id("nav-new-session").click()
+    expect(page.get_by_test_id("new-session-confirmation")).to_be_visible()
+    page.get_by_test_id("confirm-new-session").click()
 
 
 def stage(page, number):

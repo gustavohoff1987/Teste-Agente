@@ -68,17 +68,7 @@ pedidos automaticamente.
 
 ## Espaço de trabalho
 
-Em telas a partir de 1.024 px, a conversa fica à esquerda e seleção, preparação e
-resultados à direita. As áreas têm rolagem independente e o compositor permanece
-visível. Em telas estreitas, os painéis se empilham dentro da altura disponível.
-Novas respostas acompanham a rolagem da conversa, sem levar a página ao topo.
-O histórico de análises fica acessível desde o início e reabre cálculos existentes
-no painel de resultados, sem recalcular nem restaurar parâmetros implicitamente.
-Reabrir resultados, alternar preparação/resultado ou usar o atalho “Resultados”
-desloca somente a área de análise; a barra do histórico e o compositor permanecem
-visíveis. A atualização do fragmento da URL não dispara rolagem nativa da página.
-Após selecionar uma análise, a identificação compacta da fonte substitui a
-apresentação repetida dos dados; o carrossel continua acessível em “Escolher outra análise”.
+A interface atual tem um único fluxo de investigação: conversa expansível, preparação, resultados e campo de mensagem contextual. A barra horizontal reúne as cinco ações principais, sem navegação lateral permanente. Os contratos de interpretação descritos aqui permanecem iguais. A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
 ## Testes
 

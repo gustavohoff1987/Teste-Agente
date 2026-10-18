@@ -1,0 +1,13 @@
+{
+  "head_inicial": "0203f5482130ce3a169b91910f34177eac02d90b",
+  "integridade": "verificada",
+  "arquivos_inalterados": {
+    "Dados_Brasil.xlsx": "7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3",
+    "Dados_Municipios_Brasil.csv": "89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512",
+    "IMPLEMENTATION_SPEC.md": "0b1cfd1ee30866813c018507c1c0169c1eedf9a84b9955396bf99840e7fb41d6",
+    "frontend/src/BrandAvatar.tsx": "41c37c0b87e1557f4246a0f162e011fbccf2e88620850fffcb67df6d91d13938",
+    ".github/workflows/ci.yml": "b03af458a28e67bb417d4fe32ac3aa9514172fb2cab87f26bd6fb03c3b89e256",
+    "dados\\brasil\\complemento_coordenadas.json": "0ba2b664cc9b1acb6cc67e548eb5297128ae02fcd2b8f640d4c1dca39ffdbbf9",
+    "dados\\brasil\\manifesto.json": "b54ca471c174112ef8e0dfab6adfb7c58822b01b20772329f279bd778a445285"
+  }
+}

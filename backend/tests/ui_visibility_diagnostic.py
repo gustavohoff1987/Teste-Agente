@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 COUNT = 180
@@ -55,7 +55,7 @@ def execute(page, inline):
     control = inline.get_by_role("button", name="Executar análise", exact=True)
     expect(control).to_be_enabled(timeout=60000)
     with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-        control.click()
+        execute_analysis(page, control)
     assert event.value.status == 200, event.value.text()[:1200]
     result = event.value.json()
     assert result["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_GEODESICO"
@@ -138,7 +138,7 @@ def main():
             confirmation.click()
         expect(density_inline.get_by_role("button", name="Executar análise", exact=True)).to_be_enabled(timeout=60000)
         with density_page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-            density_inline.get_by_role("button", name="Executar análise", exact=True).click()
+            execute_analysis(density_page, density_inline.get_by_role("button", name="Executar análise", exact=True))
         assert event.value.status == 200, event.value.text()[:1000]
         geometry = event.value.json()["metadata"]["representacao"]["geometria"]
         assert geometry["estado"] == "DISPONIVEL" and len(geometry["ids"]) == COUNT
@@ -168,7 +168,7 @@ def main():
         if confirmation.count():
             confirmation.click()
         with density_page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-            density_inline.get_by_role("button", name="Executar análise", exact=True).click()
+            execute_analysis(density_page, density_inline.get_by_role("button", name="Executar análise", exact=True))
         assert event.value.status == 200, event.value.text()[:1000]
         assert event.value.json()["metadata"]["representacao"]["serie"]
         board.get_by_role("tab", name="Gráficos", exact=True).click()

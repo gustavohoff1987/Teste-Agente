@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -25,9 +25,9 @@ def main():
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         assistant = page.locator("#assistente")
         expect(assistant).to_be_visible()
-        assert assistant.locator("#dados").count() == 0
+        expect(assistant.locator("#dados")).to_be_visible()
         expect(page.locator("#analises")).to_have_count(0)
-        expect(assistant.get_by_text("Olá! Sou o Agente Diagnóstico Territorial.")).to_be_visible()
+        expect(assistant.get_by_text("Olá! Conte o que deseja analisar", exact=False)).to_be_visible()
         assistant.locator("#assistant-input").fill("Olá")
         assistant.get_by_role("button", name="Enviar mensagem").click()
         expect(assistant.locator("#dados")).to_be_visible()
@@ -71,7 +71,7 @@ def main():
         execute = inline.get_by_role("button", name="Executar análise")
         expect(execute).to_be_enabled(timeout=30000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
-            execute.click()
+            execute_analysis(page, execute)
         assert event.value.status == 200, event.value.text()
         result = assistant.locator("#resultados")
         expect(result).to_be_visible(timeout=30000)
@@ -112,7 +112,7 @@ def main():
         # A intenção deve sobreviver à escolha da fonte e seguir até o cálculo.
         page.reload()
         assistant = page.locator("#assistente")
-        expect(assistant.locator("#dados")).to_have_count(0)
+        expect(assistant.locator("#dados")).to_be_visible()
         def mock_interpret(route):
             route.fulfill(status=200, content_type="application/json", body=__import__("json").dumps({
                 "origin": "INTERPRETACAO_LLM", "executed": False,
@@ -136,12 +136,12 @@ def main():
         page.route("**/api/llm/interpret", mock_interpret)
         assistant.locator("#assistant-input").fill("Quero saber quantos médicos existem no Brasil")
         assistant.get_by_role("button", name="Enviar mensagem").click()
-        expect(assistant.get_by_text("Entendi. Podemos fazer essa análise de quantitativos.", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.get_by_test_id("latest-reply")).to_contain_text("Entendi. Podemos fazer essa análise de quantitativos.", timeout=30000)
         expect(assistant.locator("#dados")).to_be_visible()
         assert assistant.locator("#preparacao-conversacional").count() == 0
         assistant.locator("#assistant-input").fill("certo, quantos tem?")
         assistant.get_by_role("button", name="Enviar mensagem").click()
-        expect(assistant.get_by_text("Para continuar, escolha os dados", exact=False)).to_be_visible()
+        expect(assistant.get_by_test_id("latest-reply")).to_contain_text("Para continuar, escolha os dados")
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
         expect(assistant.locator("#preparacao-conversacional")).to_be_visible(timeout=30000)
         assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
@@ -157,7 +157,7 @@ def main():
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
-            inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+            execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
         assert event.value.status == 200, event.value.text()
         assert assistant.locator("#resultados .data-table tbody tr").count() == 1
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
@@ -169,7 +169,7 @@ def main():
             print("MULTIPERIOD-UI-DIAGNOSTIC:", inline.inner_text()[:2000], flush=True)
             raise
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
-            inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+            execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
         assert event.value.status == 200, event.value.text()
         expect(assistant.locator("#resultados .data-table tbody tr")).to_have_count(2)
         # A descrição da base é acessível sem escolher uma fonte.
@@ -177,7 +177,7 @@ def main():
         assistant = page.locator("#assistente")
         assistant.locator("#assistant-input").fill("O que tem nos dados do Brasil?")
         assistant.get_by_role("button", name="Enviar mensagem").click()
-        expect(assistant.get_by_text("junho de 2023", exact=False)).to_be_visible(timeout=30000)
+        expect(assistant.get_by_test_id("latest-reply")).to_contain_text("junho de 2023", timeout=30000)
         expect(assistant.locator("#dados")).to_be_visible()
         context.close()
         browser.close()

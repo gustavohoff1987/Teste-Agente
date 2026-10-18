@@ -24,7 +24,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
 type Props = { displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
-  onResolved: (proposal: TerritorialProposal) => string; historyContent: ReactNode; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
+  onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
   needs_confirmation: "Há confirmações ou parâmetros pendentes",
@@ -40,7 +40,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, historyContent, investigationContent, onStarted, hasResult, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -49,9 +49,9 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   const [started, setStarted] = useState(false);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const chatEnd = useRef<HTMLDivElement>(null);
+  const [conversationExpanded, setConversationExpanded] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
-  const analysisRef = useRef<HTMLDivElement>(null);
+
   const revision = useRef(0);
   const ready = useRef(contextReady);
   ready.current = contextReady;
@@ -91,7 +91,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   }, [sourceReady]);
   useEffect(() => {
     const log = logRef.current;
-    if (log) log.scrollTo({top: log.scrollHeight, behavior: "smooth"});
+    if (log) log.scrollTo({top: log.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
   }, [turns, sourceReady, active]);
 
   async function send(event: FormEvent) {
@@ -114,7 +114,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       return;
     }
     if (sourceReady && active && followup && /^(?:pode calcular|sim|vamos)[?.! ]*$/i.test(message)) {
-      append("Sua análise já está selecionada. Confira os campos e as confirmações na preparação; quando estiverem completos, poderá calcular e ver o resultado no painel de análise.");
+      append("Sua análise já está selecionada. Confira os campos e as confirmações na preparação; quando estiverem completos, poderá calcular e ver o resultado nesta investigação.");
       return;
     }
     if (!hasSource && /^(?:ol[aá]|oi|bom dia|boa tarde|boa noite)[!. ]*$/i.test(message)) {
@@ -219,13 +219,12 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
 
   return <section id="assistente" aria-label="Assistente de análise territorial"
     className="assistant-panel section-anchor conversation-workspace rounded-[24px] border border-line bg-white shadow-sm">
-    <header className="no-print workspace-heading">
-      <BrandAvatar size={32}/>
-      <div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
-        <p className="text-xs text-slate-500">Converse e acompanhe suas análises e resultados.</p></div>
-    </header>
-    <div className="workspace-columns" style={resultsOnly ? {display:"flex", flexDirection:"column"} : undefined}>
-    <div className="conversation-pane no-print" style={resultsOnly ? {order:2, width:"100%", maxWidth:"100%", minHeight:280} : undefined} data-testid="conversation-pane">
+    <div className="integrated-investigation" data-results-focus={resultsOnly}>
+    <div className="conversation-pane no-print" data-testid="conversation-pane">
+    <div className="agent-guidance">
+      <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
+      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as confirmações para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
+    </div>
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
       <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
       {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
@@ -234,25 +233,11 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       </button>}
     </div>}
 
-    <div className="conversation-thread">
-      <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-xs font-semibold text-slate-600">
-        <MessageSquare size={16} className="text-teal"/> Sua conversa {turns.length > 0 ? "· " + turns.filter(turn => turn.role === "user").length + " solicitações" : ""}
-      </div>
-      {sourceReady && <p data-testid="current-source" className="border-b border-line bg-white px-4 py-2 text-[11px] text-slate-500">
-        Fonte atual: {dataset ? "Dados do Brasil" : file?.name || "Dados importados"}
-      </p>}
+    <details className="conversation-thread" data-testid="conversation-history" open={conversationExpanded}
+      onToggle={event => setConversationExpanded(event.currentTarget.open)}>
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-teal">Histórico da conversa · {turns.filter(turn => turn.role === "user").length} solicitações</summary>
       <div ref={logRef} role="log" aria-label="Histórico da conversa" aria-live="polite"
         className="conversation-log space-y-4 px-4 py-5" data-testid="conversation-log">
-        <div className="max-w-3xl space-y-3 text-sm leading-6 text-slate-700">
-          <div className="flex items-start gap-3">
-            <BrandAvatar size={33} className="shrink-0"/>
-            <div className="space-y-2">
-              <p className="font-semibold text-ink">Olá! Sou o Agente Diagnóstico Territorial.</p>
-              <p>Conte o que deseja analisar ou faça uma pergunta. Vou orientar os próximos passos.</p>
-            </div>
-          </div>
-
-        </div>
         {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
           {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
           <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
@@ -273,7 +258,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
                       onRequest(turn.request);
                       try {
                         const reply = await onExplore(turn.request, {operation:choice.operation,indicator:choice.indicator});
-                        setTurns(previous => [...previous,{role:"assistant",content:reply || "Análise escolhida. Revise a preparação à direita."}]);
+                        setTurns(previous => [...previous,{role:"assistant",content:reply || "Análise escolhida. Revise a preparação abaixo."}]);
                       } catch (exc) { setError(exc instanceof Error ? exc.message : "Não foi possível preparar a escolha."); }
                       finally { setSending(false); }
                     }}
@@ -285,31 +270,39 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
           </div>
           {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
         </div>)}
-        {(started || hasSource) && !sourceReady && <div className="ml-9 space-y-2">
-          {!hasSource && <p className="text-sm text-slate-700">Escolha os dados para prosseguirmos:</p>}
-          {sourceChoice}
-        </div>}
-        {sourceReady && <div className="ml-9 max-w-3xl space-y-3 text-sm text-slate-700">
-          <details className="no-print text-xs text-teal">
-            <summary className="cursor-pointer">Trocar fonte de dados</summary>
-            {sourceChoice}
-          </details>
-          {!active && <p>{sourceSummary || "Seus dados estão disponíveis para análise."} Qual análise você gostaria de realizar?</p>}
-          {!active && <ChatAnalysisCarousel features={features} selected={active}
-            disabled={selecting} onSelect={onSelectAnalysis}/>}
-          {active && <details className="text-xs text-slate-500">
-            <summary className="cursor-pointer">Escolher outra análise</summary>
-            <div className="mt-2"><ChatAnalysisCarousel features={features} selected={active}
-              disabled={selecting} onSelect={onSelectAnalysis}/></div>
-          </details>}
-        </div>}
-        {sending && <p role="status" className="flex items-center gap-2 text-sm text-teal">
-          <LoaderCircle size={16} className="animate-spin"/> Interpretando o pedido...
-        </p>}
-        <div ref={chatEnd}/>
       </div>
+    </details>
+    {!sourceReady && <div className="px-4 pb-4">{sourceChoice}</div>}
+    {sourceReady && <div className="px-4 pb-4">
+      <details className="no-print text-xs text-teal"><summary className="cursor-pointer">Trocar fonte de dados</summary>{sourceChoice}</details>
+      <p data-testid="current-source" className="mt-2 text-xs text-slate-500">Fonte atual: {dataset ? "Dados do Brasil" : file?.name || "Dados importados"}</p>
+    </div>}
+    {(catalogOpen || sourceReady && !active) && <div className="px-4 pb-4" data-testid="analysis-catalog">
+      <ChatAnalysisCarousel features={features} selected={active} disabled={selecting} onSelect={onSelectAnalysis}/>
+    </div>}
+    {active && !catalogOpen && <details className="m-4 mt-0 text-xs text-teal">
+      <summary className="cursor-pointer">Escolher outra análise</summary>
+      <ChatAnalysisCarousel features={features} selected={active} disabled={selecting} onSelect={onSelectAnalysis}/>
+    </details>}
     </div>
-
+    <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
+      <div className="analysis-scroll" data-testid="analysis-scroll">
+        {investigationContent}
+        <div className="preparation-context" data-testid="preparation-context">
+          {sourceReady && active && <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Vamos preparar {ANALYSIS[active].toLowerCase()}. Escolha os territórios, períodos e parâmetros abaixo; as validações orientam o que falta confirmar.</p></div>}
+          {sourceReady && selection}
+          {preparation}
+        </div>
+        {resultContent}
+        {resultsOnly && !hasResult && <p className="p-4 text-sm">Seus resultados aparecerão aqui após o primeiro cálculo. Comece em Nova análise ou converse comigo.</p>}
+      </div>
+    </section>
+    <div className="conversation-dock no-print" data-testid="conversation-dock">
+      {turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
+        {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
+        {turns.at(-1)?.clarification && <button type="button" className="font-semibold text-teal underline" onClick={() => {setConversationExpanded(true); document.querySelector('[data-testid="conversation-history"]')?.scrollIntoView();}}>Ver alternativas na conversa</button>}</div>
+      </div>}
+      {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
     <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
       <div className="rounded-2xl border border-blue-200 bg-white shadow-sm transition focus-within:border-teal focus-within:ring-2 focus-within:ring-cyan-100">
         <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
@@ -337,22 +330,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       </details>
     </form>
     </div>
-    <section className="analysis-pane" style={resultsOnly ? {order:1, width:"100%", maxWidth:"100%", minWidth:0} : undefined} data-testid="analysis-pane" aria-label="Área de análises e resultados">
-      <div className="analysis-toolbar no-print">
-        {historyContent}
 
-      </div>
-      <div className="analysis-scroll" ref={analysisRef} data-testid="analysis-scroll">
-        {investigationContent}
-        {sourceReady && selection}
-        {preparation}
-        {resultContent}
-        {!active && !hasResult && <div className="rounded-2xl border border-dashed border-line bg-slate-50 p-6 text-sm leading-6 text-slate-600">
-          <h3 className="font-bold text-ink">Sua análise aparece aqui</h3>
-          <p className="mt-2">Escolha os dados e descreva o que deseja comparar, calcular ou explorar. Você pode continuar conversando enquanto consulta os resultados.</p>
-        </div>}
-      </div>
-    </section>
     </div>
   </section>;
 }

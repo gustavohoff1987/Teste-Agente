@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
         assert contextual["executed"] is False
         assert not analyses
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as response:
-            inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+            execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
         assert response.value.status == 200
         expect(page.locator("#resultados").get_by_test_id("result-title")).to_have_text("Densidade de profissionais")
         # O provedor falso produz uma combinação inválida; o backend a rejeita como

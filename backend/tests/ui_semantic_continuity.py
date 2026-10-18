@@ -1,9 +1,9 @@
-"""Continuidade semântica e painéis com rolagem independente; provedor simulado."""
+"""Continuidade semântica no fluxo integrado e compositor acessível; provedor simulado."""
 import os
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import end_session, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -28,9 +28,6 @@ def main():
         def visible_composer():
             box = composer.bounding_box()
             assert box and box["y"] >= 0 and box["y"] + box["height"] <= page.viewport_size["height"] + 2, box
-            toolbar = page.locator(".analysis-toolbar").bounding_box()
-            assert toolbar and toolbar["y"] >= 0 and toolbar["y"] + toolbar["height"] <= page.viewport_size["height"] + 2, toolbar
-            assert page.evaluate("window.scrollY <= 2"), "Navegar no resultado deslocou a página externa."
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
 
         def send(message, endpoint=None):
@@ -49,6 +46,7 @@ def main():
 
         send("Olá")
         expect(history).to_be_visible()
+        page.get_by_test_id("conversation-history").locator("summary").click()
         page.get_by_role("button", name="Usar dados do Brasil", exact=False).click()
         expect(page.get_by_test_id("current-source")).to_be_visible(timeout=60000)
         first_choices = send("Analise o perfil dos municipios", "/api/llm/interpret-context")
@@ -63,7 +61,7 @@ def main():
         execute = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
         expect(execute).to_be_enabled(timeout=60000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=60000) as event:
-            execute.click()
+            execute_analysis(page, execute)
         assert event.value.status == 200
         density = event.value.json()
         expect(history).to_contain_text("1 análise nesta sessão")
@@ -76,8 +74,9 @@ def main():
         assert len(simpler["reply"]) < len(explanation["reply"]) and len(analyses) == 1
         left = page.get_by_test_id("conversation-pane").bounding_box()
         right = page.get_by_test_id("analysis-pane").bounding_box()
-        assert left["x"] + left["width"] <= right["x"] + 2
-        page.get_by_test_id("analysis-scroll").evaluate("el => el.scrollTop = el.scrollHeight")
+        assert abs(left["x"] - right["x"]) <= 8
+        assert right["width"] >= left["width"] - 8
+        page.get_by_test_id("result-title").scroll_into_view_if_needed()
         visible_composer()
 
         result = send("Coloque Manaus e Tefé lado a lado", "/api/llm/interpret-context")
@@ -89,11 +88,11 @@ def main():
 
         partial = send("Agora vamos analisar comparativamente no município de Manaus", "/api/llm/interpret-context")
         assert partial["exploration"]["territory_ids"] == ["code:130260"]
-        expect(chat.get_by_text("Com qual outro município", exact=False)).to_be_visible()
+        expect(chat.get_by_test_id("latest-reply")).to_contain_text("Com qual outro município")
         send("TEFE e PARINTINS", "/api/exploration/interpret")
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         send("Analise dois municípios também", "/api/exploration/interpret")
-        expect(chat.get_by_text("Quais 2 municípios", exact=False)).to_be_visible()
+        expect(chat.get_by_test_id("latest-reply")).to_contain_text("Quais 2 municípios")
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         calls = len(interpretations)
         guidance = send("O que o agente é capaz de fazer?", "/api/exploration/interpret")
@@ -119,7 +118,7 @@ def main():
         assert len(analyses) == 1  # escolher a leitura prepara, nunca calcula
         expect(execute).to_be_enabled(timeout=60000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
-            execute.click()
+            execute_analysis(page, execute)
         assert event.value.status == 200 and event.value.json()["metadata"]["operation"] == "counts"
         expect(history).to_contain_text("2 análises nesta sessão")
         history.locator("summary").click()
@@ -136,7 +135,7 @@ def main():
             visible_composer()
         assert not errors, errors
         with page.expect_response(lambda response: response.url.endswith("/api/session/close")) as closed:
-            page.get_by_test_id("end-session").click()
+            end_session(page)
         assert closed.value.status == 200
         expect(page.get_by_role("button", name="Li e concordo", exact=True)).to_be_visible()
         browser.close()

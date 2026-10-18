@@ -26,8 +26,14 @@ def test_catalog_or_spec_tampering_and_missing_authorization_fail_closed():
         docs.load_catalog(catalog + b"\n# altered", spec)
     with pytest.raises(docs.DocumentationError):
         docs.load_catalog(catalog, spec.replace(b"RQ-DOC-01", b"RQ-DOC-99", 1))
+    # O checkout Windows pode usar CRLF; remova de fato a autorização em ambas
+    # as plataformas, em vez de reenviar acidentalmente a SPEC completa.
+    normalized = spec.decode().replace("\r\n", "\n")
+    assert docs.ADDENDUM in normalized
+    without_authorization = normalized.split(docs.ADDENDUM)[0].encode()
+    assert docs.ADDENDUM.encode() not in without_authorization
     with pytest.raises(docs.DocumentationError):
-        docs.load_catalog(catalog, spec.decode().split(docs.ADDENDUM)[0].encode())
+        docs.load_catalog(catalog, without_authorization)
 
 
 def test_form_requires_evidence_and_rejects_free_substitution():

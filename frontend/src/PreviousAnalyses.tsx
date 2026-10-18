@@ -6,6 +6,7 @@ import { displayPeriod } from "./DistributionResults";
 // Não altera a fonte, os parâmetros nem dispara outra análise.
 export type PreviousAnalysis = {
   id: string;
+  resultId?: string;
   title: string;
   request: string;
   periods: string[];
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function PreviousAnalyses({ items, currentId, disabled, onOpen }: Props) {
+  const count = new Set(items.map(item => item.resultId || item.id)).size;
   const menuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     function outside(event: PointerEvent) {
@@ -40,8 +42,8 @@ export default function PreviousAnalyses({ items, currentId, disabled, onOpen }:
     <details data-testid="analysis-history-menu" ref={menuRef} className="history-menu group overflow-hidden rounded-xl border border-line bg-white">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3 text-sm font-semibold text-ink marker:hidden hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <Clock3 size={17} className="shrink-0 text-teal" aria-hidden="true"/>
-        <span>Histórico de análises</span>
-        <span className="ml-auto text-xs font-normal text-slate-500">{items.length} {items.length === 1 ? "análise" : "análises"} nesta sessão</span>
+        <span>Histórico</span>
+        <span className="sr-only">{count} {count === 1 ? "análise" : "análises"} nesta sessão</span>
         <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true"/>
       </summary>
       <div className="history-list border-t border-line bg-white px-4 py-3 shadow-lg">

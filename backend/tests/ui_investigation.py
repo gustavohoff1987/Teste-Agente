@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, offline, select
+from ui_support import end_session, execute_analysis, URL, offline, select
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
 
@@ -51,7 +51,7 @@ def main():
             button = inline.get_by_role('button', name='Calcular e mostrar resultado', exact=True)
             expect(button).to_be_enabled(timeout=90000)
             with page.expect_response(lambda r: r.url.endswith('/api/analyze'), timeout=120000) as event:
-                button.click()
+                execute_analysis(page, button)
             assert event.value.status == 200, event.value.text()
             result = event.value.json()
             results.append(result)
@@ -75,7 +75,8 @@ def main():
             return json.loads(Path(download.value.path()).read_text(encoding='utf-8'))
 
         send('Olá')
-        expect(overview).to_contain_text('0 resultados disponíveis')
+        expect(overview).to_have_count(0)
+        expect(page.get_by_test_id('investigation-card')).to_have_count(0)
         chat.get_by_role('button', name='Usar dados do Brasil', exact=False).click()
         expect(page.get_by_test_id('current-source')).to_be_visible(timeout=90000)
         send('Mostre a densidade médica dos municípios do Amazonas em junho de 2024.')
@@ -194,7 +195,7 @@ def main():
             page.route('**/api/analyze', lambda route: route.abort('failed'))
             execute = inline.get_by_role('button', name='Calcular e mostrar resultado', exact=True)
             expect(execute).to_be_enabled(timeout=90000)
-            execute.click()
+            execute_analysis(page, execute)
             expect(board.get_by_role('alert')).to_contain_text('Não foi possível acessar o serviço de análise')
             expect(board.get_by_test_id('result-title')).to_have_text(spatial['title'])
             expect(overview).to_contain_text('7 resultados disponíveis')
@@ -237,13 +238,15 @@ def main():
             expect(page.get_by_test_id('session-ended-notice')).to_contain_text('expirou ou ficou indisponível', timeout=15000)
             page.get_by_role('button', name='Li e concordo', exact=True).click()
             send('Olá')
-            expect(overview).to_contain_text('0 resultados disponíveis')
-        page.get_by_test_id('end-session').click()
+            expect(overview).to_have_count(0)
+            expect(page.get_by_test_id('investigation-card')).to_have_count(0)
+        end_session(page)
         expect(page.get_by_role('button', name='Li e concordo', exact=True)).to_be_visible(timeout=15000)
         expect(page.get_by_test_id('session-ended-notice')).to_contain_text('A sessão anterior foi encerrada.')
         page.get_by_role('button', name='Li e concordo', exact=True).click()
         send('Olá')
-        expect(overview).to_contain_text('0 resultados disponíveis')
+        expect(overview).to_have_count(0)
+        expect(page.get_by_test_id('investigation-card')).to_have_count(0)
         assert not errors, errors
         browser.close()
     print(f'INVESTIGAÇÃO PASS: {len(results)} resultados reais, reabertura, filtros preservados, destaque compatível, recorte/período incompatíveis, conversa ancorada, exportação, responsividade e encerramento. Volume, distância, falha de rede, limite de referências e perda de sessão exercitados no catálogo sintético. Base real={real}', flush=True)

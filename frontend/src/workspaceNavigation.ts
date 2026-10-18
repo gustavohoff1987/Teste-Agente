@@ -1,9 +1,8 @@
-/** Move somente a área rolável da análise, preservando a conversa e o histórico. */
+/** Navegação no fluxo único, respeitando movimento reduzido. */
 export function scrollAnalysisTo(id: string): boolean {
   const target = document.getElementById(id);
-  const panel = target?.closest<HTMLElement>(".analysis-scroll");
-  if (!target || !panel) return false;
-  const top = panel.scrollTop + target.getBoundingClientRect().top - panel.getBoundingClientRect().top - 12;
-  panel.scrollTo({top: Math.max(0, top), behavior: "smooth"});
+  if (!target) return false;
+  if (target.closest(".preparation-context")) window.dispatchEvent(new Event("adt:prepare"));
+  requestAnimationFrame(() => target.scrollIntoView({block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}));
   return true;
 }

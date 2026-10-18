@@ -15,7 +15,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import URL, offline
+from ui_support import execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -69,7 +69,7 @@ def main():
             expect(button).to_be_enabled(timeout=60000)
             before = len(analyses)
             with page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
-                button.dblclick() if double else button.click()
+                execute_analysis(page, button, double)
             assert event.value.status == 200, event.value.text()[:500]
             expect(board.locator("h3", has_text="Critérios combinados").first).to_be_visible()
             page.wait_for_timeout(400)
@@ -174,7 +174,7 @@ def main():
         expect(builder.get_by_label("Valor de c1")).to_have_value("1,3")
         expect(builder.get_by_label("Valor de c2")).to_have_value("150")
         calls = len(analyses)
-        inline.get_by_role("button", name="Executar análise", exact=True).click()
+        execute_analysis(page, inline.get_by_role("button", name="Executar análise", exact=True))
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == calls
 

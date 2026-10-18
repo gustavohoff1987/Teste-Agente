@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-17 · Interface conversacional integrada, sessões e diagnósticos
+
+- **Antes:** menu lateral permanente e chat em coluna separada; a investigação reunia todos os resultados sem distinguir diagnósticos; encerramento imediato por um controle separado.
+- **Agora:** banner horizontal e cinco ações únicas (Início, Nova sessão, Nova análise, Histórico e Resultados); conversa expansível e campo contextual; personagem original junto à condução e aos resultados. Nova sessão exige confirmação, oferece exportação com limitação explícita por análise e revoga a sessão no servidor. Nova análise distingue criação independente e composição ordenada; intenção explícita na conversa evita a escolha redundante. O histórico reabre resultados e diagnósticos sem recálculo.
+- **Permanece:** cálculos, fórmulas, validações, contratos analíticos/conversacionais, isolamento e limites de sessão, fontes nacional e municipal, manifesto, SPEC, personagem, visualizações, filtros e exportação técnica. Composição não harmoniza nem combina valores. Não há persistência nem exportação consolidada de múltiplas análises.
+- **Motivo:** conduzir toda a investigação no mesmo ambiente, com distinção clara entre sessão, análise e diagnóstico, preservando identidade e rastreabilidade.
+- **Documentação e testes:** guia da interface, relatório de rastreabilidade, README e guias temáticos atualizados. Jornadas preservam asserções funcionais e adotam a nova navegação; novo roteiro integrado registrado no executor. Teste de autorização PT corrigido para remover efetivamente o adendo em arquivos CRLF antes de exigir rejeição; nenhuma verificação de segurança foi relaxada.
+
 ### 2026-10-17 · Disponibilidade da investigação e encerramento visível
 
 - **Antes:** expiração, reinício do servidor ou encerramento descartavam a investigação e recarregavam a página sem informar o motivo ao retornar.
