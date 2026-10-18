@@ -197,3 +197,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **Comportamento: sem alteração —** somente diagnóstico de teste Playwright; nenhum componente de produto, regra, dado ou cálculo foi modificado.
 - **Motivo:** CI #264 manteve as quatro falhas de largura em `ui-block1`, apesar da correção CSS anterior. A evidência de qual elemento transborda é necessária para uma correção direcionada.
 - **Validação:** aguardando logs do CI do novo commit; não declarar correção visual antes da nova evidência.
+
+
+### 2026-10-17 · CI #266 — correção localizada da barra de visualizações
+
+- **863d178:** o Playwright identificou viewport 390 px, largura da página 403 px e botão `Tabela` até x=403; a barra de abas `Mapa / Gráficos / Tabela` era `inline-flex` sem quebra. Passou a usar largura disponível e quebra de linha, preservando rótulos, seleção, papéis acessíveis e conteúdo das visualizações.
+- **Comportamento:** a barra de visualizações passa a quebrar linhas em telas estreitas; não altera o cálculo, as representações, os dados, os contratos analíticos nem o personagem.
+- **Limite:** SVGs e tabelas largas são conteúdo interno a examinar nos testes; não foram escondidos por `overflow-x:hidden` global nem houve redução das asserções.
+- **Validação:** pendente de CI no commit que inclui esta entrada.
