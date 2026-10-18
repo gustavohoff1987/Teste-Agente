@@ -85,9 +85,9 @@ def main():
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
         send("Mostre a densidade médica dos municípios do Amazonas em junho de 2024.")
-        page.get_by_role("button", name="1. Territórios").click()
+        page.get_by_role("button", name="1. Preparação").click()
         expect(page.get_by_role("region", name="Seleção territorial compartilhada").get_by_text("62 selecionados" if real else "3 selecionados", exact=True)).to_be_visible(timeout=60000)
-        page.get_by_role("button", name="2. Preparação").click()
+        page.get_by_role("button", name="1. Preparação").click()
         initial = calculate()
         assert initial["metadata"]["operation"] == "density"
         assert initial["total_rows"] == (62 if real else 3)
@@ -108,7 +108,7 @@ def main():
             expect(board.get_by_test_id("scrollable-bars")).to_have_attribute("data-total", "62")
         shot("block1-01-densidade-amazonas.png")
         density = {row["Território"]: row["Densidade por 1.000"] for row in initial["rows"]}
-        page.get_by_role("button", name="1. Territórios").click()
+        page.get_by_role("button", name="1. Preparação").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         selection.get_by_role("button", name="Limpar seleção", exact=True).click()
         for name, code in [("MANAUS", "130260"), ("TEFE", "130420"), ("PARINTINS", "130340")]:
