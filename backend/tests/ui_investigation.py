@@ -6,7 +6,7 @@ fabricado: todos os resultados usados na jornada vêm de /api/analyze.
 import json
 import os
 from pathlib import Path
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright, expect
 from ui_support import end_session, execute_analysis, URL, offline, select
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
@@ -231,11 +231,19 @@ def main():
             # A sessão encerrada pode exibir imediatamente o diálogo obrigatório de privacidade.
             # Se estiver aberto, a interação com a navegação é corretamente bloqueada.
             privacy = page.get_by_role('button', name='Li e concordo', exact=True)
-            if privacy.is_visible():
-                expect(page.get_by_test_id('session-ended-notice')).to_contain_text('expirou ou ficou indisponível', timeout=15000)
-            else:
-                page.get_by_role('navigation', name='Navegação principal').get_by_role('button', name='Resultados', exact=True).click()
-            expect(page.get_by_test_id('session-ended-notice')).to_contain_text('expirou ou ficou indisponível', timeout=15000)
+            notice = page.get_by_test_id('session-ended-notice')
+            if not privacy.is_visible():
+                # O diálogo pode surgir entre is_visible() e click() após o 410.
+                # Não forçar clique através do diálogo: aceitar apenas essa corrida
+                # comprovada, mantendo falhas de navegação reais visíveis.
+                try:
+                    page.get_by_role('navigation', name='Navegação principal').get_by_role(
+                        'button', name='Resultados', exact=True
+                    ).click(timeout=2500)
+                except PlaywrightTimeoutError:
+                    if not privacy.is_visible():
+                        raise
+            expect(notice).to_contain_text('expirou ou ficou indisponível', timeout=15000)
             page.get_by_role('button', name='Li e concordo', exact=True).click()
             send('Olá')
             expect(overview).to_have_count(0)
