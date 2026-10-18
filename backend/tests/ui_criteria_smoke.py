@@ -109,7 +109,7 @@ def main():
 
         # 2. Distância acrescentada com E; referências definidas pelo usuário (critério ≥ 3).
         send("Agora considere também distância superior a 150 km.", "nenhuma referência foi escolhida pelo sistema")
-        page.get_by_role("button", name="2. Preparação").click()
+        page.get_by_role("button", name="1. Preparação").click()
         expect(builder.get_by_label("Combinação atual")).to_contain_text("E distância à referência mais próxima > 150 km")
         setup = builder.get_by_role("group", name="Definição das referências")
         expect(setup.get_by_role("radio", checked=True)).to_have_count(0)
@@ -187,7 +187,7 @@ def main():
         # Reutilização: o conjunto que atende vira a seleção territorial (Bloco 1 e Bloco 2).
         matched = sixth["metadata"]["criterios"]["contagens"]["ATENDE"]
         board.get_by_role("button", name=f"Usar os que atendem como seleção territorial ({matched})", exact=True).click()
-        page.get_by_role("button", name="1. Territórios").click()
+        page.get_by_role("button", name="1. Preparação").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(selection.get_by_text(f"{matched} selecionados", exact=True)).to_be_visible()
 
@@ -205,7 +205,7 @@ def main():
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
-        inline.get_by_text("Alterar a abrangência territorial", exact=True).click()
+        inline.get_by_text("Escolher abrangência dos dados", exact=True).click()
         inline.get_by_label("Abrangência territorial").select_option("national")
         expect(inline.get_by_label("Abrangência territorial")).to_have_value("national", timeout=60000)
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
