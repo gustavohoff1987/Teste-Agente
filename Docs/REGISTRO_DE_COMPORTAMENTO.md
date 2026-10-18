@@ -263,3 +263,13 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 
 - **280f89d** — Comportamento: sem alteração — corrige a ordem de inicialização de `curatedComparisonReady` em `App.tsx`, posicionando-a antes do uso de `semanticOptions()` nas dependências de efeito avaliadas durante a renderização. Evita acesso à variável antes da inicialização e permite que o diálogo inicial de privacidade seja montado.
 - **Diagnóstico:** no CI #294, backend, dados reais, compilação frontend e governança passaram; todos os roteiros Playwright falharam antes de começar, aguardando `Li e concordo`. A falha de renderização é consistente com a referência antecipada observada no código. A correção deve ser confirmada por nova execução de navegador; não se alteraram testes para contornar a falha.
+
+### 2026-10-18 · Bateria de estabilização da navegação progressiva
+
+- **0be6576** — Comportamento: a última resposta do agente permanece visível também na etapa Territórios. Preserva o contexto conversacional quando o usuário alterna entre as etapas, sem reintroduzir o histórico acumulado.
+- **64db942, 42d4009, 666ba63, 0481a62, 29ed5a2** — Testes: adequação inicial dos roteiros Playwright para seleção territorial em etapa própria e histórico visual removido. As asserções de seleção e dados continuam.
+- **aec647d, 223e393, 7c7d0e, a29a7e4, 08e84d3** — Testes: retorno explícito à etapa Preparação antes de configurar ou executar; substituição de navegação legada pela etapa numerada.
+- **bb94ef8, 5417716, 7a33cd8, 14f39e8** — Testes: controles técnicos de dados importados e critérios são acessados pela etapa Preparação; a seleção compartilhada é verificada na etapa Territórios.
+- **c9ceb01** — Testes: em base brasileira governada, a confirmação manual de comparabilidade não deve aparecer; a execução continua exigindo resposta analítica válida.
+- **402c690** — Testes: comentário esclarece que bases importadas continuam exigindo declaração explícita de comparabilidade.
+- **Garantias:** nenhum motor analítico, dado original, regra de pré-exame, API ou SPEC foi alterado. Os testes mantêm verificações de valores, quantidade, seleção, execução e identidade de resultados. A aprovação depende de execução CI completa, inclusive testes de navegador.
