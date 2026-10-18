@@ -306,3 +306,6 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **3575484** — Tipografia das áreas operacionais ampliada por regras CSS consistentes, mantendo cores e hierarquia.
 - **0caee13, 115c7ba, 4da1b66, 9264026** — Atualização inicial dos roteiros de navegação para duas etapas. O teste de estabilização verifica bloqueio da evolução quando comparabilidade não é comprovada; cobertura de evolução aprovada anteriormente não deve ser interpretada como validada após esta mudança.
 - **Risco/pendência:** o fluxo de evolução temporal, antes apoiado em declarações manuais, exige solução governada de verificação por evidências para voltar a executar sem essas caixas. Não transformar remoção visual em confirmação implícita. Outros testes de navegador podem necessitar atualização. CI ainda não confirmado.
+
+- **a4b7fcd, 21a64f7, 3d7f210, ae90ddc, 0e17e18, 4df0486, fdc5c71** — Atualização dos seletores de etapas e abrangência em sete roteiros de navegador; preservam as verificações substantivas existentes.
+- **9678d22** — Formato numérico das coordenadas importadas somente aparece quando o pré-exame detecta ambiguidade (`decimalPending`); desaparece dos fluxos normais, sem suprimir resolução necessária.
