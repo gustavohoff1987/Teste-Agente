@@ -7,7 +7,7 @@ export type TablePresentation = { filtros: Record<string, string>; ordenacao: { 
   pagina: number; tamanho_pagina: number; total_filtrado: number };
 type Props = { stateKey?: string; rows: Row[]; columns: Column[]; idOf?: (row: Row) => string | null; selected?: Set<string>;
   onToggle?: (id: string) => void; onExport?: (rows: Row[]) => void; exportLabel?: string;
-  onPresentation?: (state: TablePresentation) => void };
+  onPresentation?: (state: TablePresentation) => void; stacked?: boolean };
 const PAGE_SIZE = 150;
 const plain = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 const show = (value: unknown) => value == null ? "Não avaliável" : typeof value === "number"
@@ -29,7 +29,7 @@ function matches(value: unknown, query: string): boolean {
 }
 
 export default function ResultTable({ rows, columns, idOf, selected, onToggle, onExport,
-  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation, stateKey = "main" }: Props) {
+  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation, stateKey = "main", stacked = false }: Props) {
   const [filters, setFilters] = useInvestigationState<Record<string, string>>(stateKey + ".filters", {});
   const [sort, setSort] = useInvestigationState<{ key: string; ascending: boolean } | null>(stateKey + ".sort", null);
   const [page, setPage] = useInvestigationState(stateKey + ".page", 0);
@@ -61,7 +61,28 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
       </div>
     </div>
     {sort && <p className="no-print px-4 py-2 text-xs text-slate-600">Ordenação da tabela apenas para consulta; as posições calculadas na análise são preservadas.</p>}
-    <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
+    {stacked && <div className="space-y-3 p-4" aria-label="Comparação em registros separados">
+      {visible.map((row, index) => {
+        const id = idOf?.(row), chosen = !!id && !!selected?.has(id);
+        return <article key={id ? id + ":" + index : index}
+          className={"rounded-xl border p-4 " + (chosen ? "border-blue-400 bg-blue-50" : "border-line bg-white")}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <strong className="text-sm text-ink">Território {current * PAGE_SIZE + index + 1}</strong>
+            {id && onToggle && <button type="button" onClick={()=>onToggle(id)}
+              aria-pressed={chosen} className="text-xs font-semibold text-teal underline">{chosen ? "Retirar da seleção" : "Selecionar território"}</button>}
+          </div>
+          <dl className="grid gap-2 sm:grid-cols-2">
+            {columns.map(column=><div key={column.key} className="min-w-0 border-b border-slate-100 pb-2">
+              <dt className="text-xs font-medium text-slate-500">{column.label || column.key}</dt>
+              <dd className="break-words text-sm text-ink" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>
+                {column.render ? column.render(row[column.key]) : show(row[column.key])}
+              </dd>
+            </div>)}
+          </dl>
+        </article>;
+      })}
+    </div>}
+    {!stacked && <div className="max-h-[520px] overflow-auto"><table className="data-table w-full">
       <thead className="sticky top-0 z-10 bg-slate-50"><tr>{columns.map(column => <th key={column.key}
         aria-sort={sort?.key === column.key ? sort.ascending ? "ascending" : "descending" : "none"}>
         <button type="button" className="text-left" aria-label={"Ordenar tabela por " + (column.label || column.key)} onClick={() => {
@@ -85,7 +106,7 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
             {column.render ? column.render(row[column.key]) : show(row[column.key])}</td>)}
         </tr>;
       })}</tbody>
-    </table></div>
+    </table></div>}
     {!filtered.length && <p role="status" className="px-4 py-5 text-xs text-slate-600">Nenhum registro corresponde aos filtros da tabela.</p>}
     {pages > 1 && <nav aria-label="Páginas da tabela" className="no-print flex flex-wrap items-center justify-between gap-2 border-t border-line p-3 text-xs">
       <button type="button" disabled={current === 0} onClick={() => setPage(current - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Página anterior</button>
