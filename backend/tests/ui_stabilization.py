@@ -33,7 +33,7 @@ def main():
             assert len(analyses) == before, 'mensagem prepara, mas não autoriza execução'
 
         def prepared():
-            expect(page.get_by_role('button', name='2. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
+            expect(page.get_by_role('button', name='1. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
             expect(inline).to_be_visible()
             expect(board).not_to_be_visible()
 
@@ -138,7 +138,9 @@ def main():
         assert any('premissa governada' in note for note in temporal['notes'])
         assert not any('pelo usuário para esta execução' in note for note in temporal['notes'])
         send('Volte para a seleção de territórios.')
-        expect(page.get_by_role('button', name='1. Territórios', exact=True)).to_have_attribute('aria-current', 'step')
+        # Territórios ficam na preparação: o comando abre o bloco de seleção expandido.
+        expect(page.get_by_role('button', name='1. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
+        expect(page.get_by_test_id('territory-toggle')).to_have_attribute('aria-expanded', 'true')
         expect(page.get_by_role('region', name='Seleção territorial compartilhada')).to_contain_text('3 selecionados')
         expect(board).not_to_be_visible()
         # Duas famílias de fontes e quatro larguras: não depender da métrica da fonte Windows.

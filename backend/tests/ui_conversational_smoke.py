@@ -164,7 +164,7 @@ def main():
         expect(assistant.locator("#resultados .data-table tbody tr")).to_have_count(1, timeout=30000)
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
         # de períodos diferentes em um único quantitativo.
-        page.get_by_role("button", name="2. Preparação").click()
+        workspace(page, "preparation")
         inline.get_by_role("button", name="Voltar à escolha do período").click()
         inline.get_by_role("button", name="Selecionar vários períodos").click()
         inline.get_by_role("button", name="Todos os períodos disponíveis", exact=True).click()

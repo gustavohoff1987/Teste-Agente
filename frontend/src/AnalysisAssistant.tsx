@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
-import {navigationCommand, normalizeCommand, type WorkspaceStage} from "./workspaceNavigation";
+import {navigationCommand, normalizeCommand, type NavigationTarget, type WorkspaceStage} from "./workspaceNavigation";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
-import { AlertCircle, ArrowRight, LoaderCircle,
+import { AlertCircle, ArrowRight, LoaderCircle, MapPin,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
@@ -24,7 +24,8 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
-type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: WorkspaceStage) => void; onMultiplePeriods: () => boolean; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
+type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: NavigationTarget) => void; onMultiplePeriods: () => boolean;
+  territorySummary?: {label: string; text: string; selected: boolean; selectable: boolean}; territoriesOpen: boolean; onTerritoriesOpen: (open: boolean) => void; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
   onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
@@ -41,7 +42,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -127,8 +128,9 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
       if (target && (target !== "results" || hasResult || running)) {
         setWorkspaceStage(target);
         setTurns(previous => [...previous, {role:"assistant",content:target === "territories"
-          ? "Etapa de territórios aberta. Sua seleção anterior foi preservada."
-          : target === "preparation" ? "Etapa de preparação aberta. Confira os parâmetros e as condições para calcular."
+          ? territorySummary?.selectable === false ? "No recorte nacional há um único território, o Brasil. Para escolher municípios, use a abrangência Municípios na preparação."
+          : "Seleção de territórios aberta na preparação. Sua seleção anterior foi preservada."
+          : target === "preparation" ? "Preparação aberta. Confira os territórios, o período e os parâmetros para calcular."
           : "Resultados da investigação abertos."}]);
         return;
       }
@@ -301,9 +303,8 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
       {sourceReady && active && <nav aria-label="Etapas da investigação" className="no-print flex flex-wrap items-center gap-2 px-4 pt-3">
         {([
-          ["territories", "1. Territórios"],
-          ["preparation", "2. Preparação"],
-          ["results", "3. Resultados"],
+          ["preparation", "1. Preparação"],
+          ["results", "2. Resultados"],
         ] as const).map(([id,label])=><button key={id} type="button" aria-current={workspaceStage === id ? "step" : undefined}
           disabled={id === "results" && !hasResult && !running}
           onClick={()=>setWorkspaceStage(id)}
@@ -314,18 +315,22 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
         {notice && <p role="status" className="no-print my-3 text-xs text-teal">{notice}</p>}
         {(!sourceReady || !active) && investigationContent}
         {sourceReady && active && <div className="preparation-context" data-testid="preparation-context" hidden={workspaceStage === "results"}>
-          <div id="territorios" hidden={workspaceStage !== "territories"}>
-            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
-            {selection}
-            <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
-              className="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Avançar para preparação</button></div>
-          </div>
-          <div hidden={workspaceStage !== "preparation"}>
-            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Confira os parâmetros desta análise. O motor valida as condições antes de habilitar o cálculo.</p></div>
-            {preparation}
-            <button type="button" onClick={()=>setWorkspaceStage("territories")}
-              className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
-          </div>
+          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Defina territórios, período e parâmetros. O motor valida as condições antes de habilitar o cálculo.</p></div>
+          {/* Territórios fazem parte da preparação: um resumo de uma linha, expandido só quando o usuário pede. */}
+          {territorySummary && <section id="territorios" aria-label="Territórios da análise" data-testid="territory-card"
+            className="no-print section-anchor mb-4 rounded-2xl border border-line bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <p className="flex min-w-0 items-start gap-2 text-sm text-slate-700"><MapPin size={16} className="mt-0.5 shrink-0 text-teal"/>
+                <span className="min-w-0"><strong className="text-ink">{territorySummary.label}:</strong> {territorySummary.text}</span></p>
+              {territorySummary.selectable && selection && <button type="button" data-testid="territory-toggle" aria-expanded={territoriesOpen}
+                aria-controls="territorios-painel" onClick={() => onTerritoriesOpen(!territoriesOpen)}
+                className={"rounded-lg px-3 py-2 text-xs font-semibold " + (territoriesOpen ? "bg-teal text-white" : "border border-teal text-teal hover:bg-cyan-50")}>
+                {territoriesOpen ? "Concluir seleção" : territorySummary.selected ? "Alterar territórios" : "Escolher territórios"}</button>}
+            </div>
+            {territorySummary.selectable && selection &&
+              <div id="territorios-painel" hidden={!territoriesOpen} className="border-t border-line px-4 pb-2">{selection}</div>}
+          </section>}
+          {preparation}
         </div>}
         <div className="results-stage" hidden={sourceReady && !!active && workspaceStage !== "results"}>
           {sourceReady && active && investigationContent}

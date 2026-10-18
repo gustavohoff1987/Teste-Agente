@@ -1,8 +1,10 @@
-export type WorkspaceStage = "territories" | "preparation" | "results";
+export type WorkspaceStage = "preparation" | "results";
+/** Destinos de navegação: "territories" abre a preparação com a seleção territorial expandida. */
+export type NavigationTarget = WorkspaceStage | "territories";
 
 /** Abre a etapa antes de localizar o alvo, inclusive quando ele ainda não foi montado. */
 export function scrollAnalysisTo(id: string): boolean {
-  const stage: WorkspaceStage | undefined = id === "preparacao-conversacional" ? "preparation"
+  const stage: NavigationTarget | undefined = id === "preparacao-conversacional" ? "preparation"
     : id === "territorios" ? "territories"
     : ["resultados", "selected-result-content"].includes(id) ? "results" : undefined;
   if (stage) window.dispatchEvent(new CustomEvent("adt:stage", {detail: stage}));
@@ -16,12 +18,12 @@ export function normalizeCommand(message: string): string {
     .replace(/[.,!?]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function navigationCommand(message: string, current: WorkspaceStage, hasResult: boolean): WorkspaceStage | null {
+export function navigationCommand(message: string, current: WorkspaceStage, hasResult: boolean): NavigationTarget | null {
   const value = normalizeCommand(message);
   const target = /^(?:(?:ver|mostrar|mostre|ir para|voltar para|volte para|voltar a|volte a) )?(?:a |os |as )?(?:territorios|municipios|selecao de territorios)$/.test(value) ? "territories"
     : /^(?:(?:ver|mostrar|mostre|ir para|voltar para|volte para|voltar a|volte a) )?(?:a |os |as )?(?:preparacao|parametros|configuracao)$/.test(value) ? "preparation"
     : /^(?:(?:ver|mostrar|mostre|ir para|voltar para|volte para) )?(?:os |o )?(?:resultados|resultado)$/.test(value) ? "results"
     : value === "voltar" ? current === "results" ? "preparation" : "territories"
-    : /^(?:avancar|proxima etapa|continuar)$/.test(value) ? current === "territories" ? "preparation" : hasResult ? "results" : null : null;
+    : /^(?:avancar|proxima etapa|continuar)$/.test(value) ? hasResult ? "results" : null : null;
   return target === "results" && !hasResult ? null : target;
 }

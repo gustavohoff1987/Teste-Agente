@@ -46,7 +46,9 @@ declarado. Apenas o transporte de interpretação externa é simulado. Ela perco
 - alternância entre período único e múltiplos, persistência ao navegar, seleção vazia e exportação;
 - reabertura do resultado atual pelo histórico sem recalcular;
 - importação com confirmação explícita da unidade e da força de trabalho em saúde;
-- larguras de 1440, 1024, 768 e 390 px, três etapas por largura, acesso ao compositor e ausência
+- larguras de 1440, 1024, 768 e 390 px, três etapas por largura (desde a tarde de 18/10/2026,
+  territórios são um bloco da preparação; a jornada percorre o bloco aberto, a preparação e os
+  resultados), acesso ao compositor e ausência
   de transbordamento horizontal, com uma verificação adicional de fonte DejaVu Sans.
 
 Cada envio de mensagem confere que nenhuma requisição de cálculo foi disparada. Os valores de

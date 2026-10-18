@@ -99,16 +99,25 @@ enviar identificadores ou dados da base ao provedor. Testes e evidências estão
 
 ## Etapas operacionais, períodos e comparação
 
-Somente uma etapa principal fica visível: **1. Territórios**, **2. Preparação** ou **3. Resultados**.
+Somente uma área principal fica visível: **1. Preparação** ou **2. Resultados**. A seleção territorial
+faz parte da preparação: um bloco de uma linha resume a seleção atual (por exemplo, “Territórios:
+1 selecionado: ABREU E LIMA (PE)”) e só expande a busca quando o usuário escolhe “Escolher
+territórios” ou “Alterar territórios”; “Concluir seleção” recolhe o bloco. Assim, a preparação
+continua curta, sem a etapa própria de territórios nem a rolagem longa anterior. Em referência mais
+próxima e critérios, o bloco se chama “Municípios-alvo” e “Universo dos critérios”. No recorte
+nacional, o bloco só informa que há um único território (Brasil) e que a escolha de municípios vale
+para a abrangência Municípios.
 Voltar preserva seleção, opções e edição de períodos. “Retomar parâmetros” restaura a preparação
-e a revalida. “Usar seleção na próxima análise” abre Territórios; reutilizar referências abre
-Preparação. O Histórico e a navegação Resultados abrem inclusive o mesmo resultado já selecionado.
+e a revalida. “Usar seleção na próxima análise” abre a preparação com o bloco de territórios
+expandido; reutilizar referências abre a preparação. O Histórico e a navegação Resultados abrem
+inclusive o mesmo resultado já selecionado.
 Uma resposta assíncrona não agenda uma navegação posterior capaz de desfazer a escolha do usuário.
 O carrossel de análises mantém a opção em exploração quando o pré-exame apenas atualiza sua
 disponibilidade; selecionar outra análise continua abrindo a preparação correspondente.
 
 “Usar dados do Brasil.” aciona a mesma seleção de fonte dos botões. “Volte para a seleção de
-territórios.” e os demais comandos de navegação mudam somente a etapa. “Quero analisar vários
+territórios.” abre a preparação com o bloco de territórios expandido; os demais comandos de
+navegação mudam somente a área visível. “Quero analisar vários
 períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
 que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
 

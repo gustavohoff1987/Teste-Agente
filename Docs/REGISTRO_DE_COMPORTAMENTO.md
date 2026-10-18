@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-18 · Territórios dentro da preparação
+
+- **Antes:** cada análise tinha três etapas, "1. Territórios", "2. Preparação" e "3. Resultados". A seleção territorial ocupava uma etapa própria, com "Avançar para preparação" e "Voltar aos territórios".
+- **Agora:** duas áreas, "1. Preparação" e "2. Resultados". A seleção territorial é um bloco da preparação, com resumo de uma linha ("Territórios: todos os territórios do recorte" ou "1 selecionado: ABREU E LIMA (PE)") e os botões "Escolher territórios", "Alterar territórios" e "Concluir seleção". O bloco começa recolhido. Comandos como "Volte para a seleção de territórios.", "Usar seleção na próxima análise" e "Usar como municípios-alvo" abrem a preparação com o bloco expandido. Em referência mais próxima e critérios, o bloco se chama "Municípios-alvo" e "Universo dos critérios". No recorte nacional, o bloco só informa o território único (Brasil), e o comando de territórios explica que a escolha de municípios vale para a abrangência Municípios.
+- **Permanece:** o componente de seleção (busca, estado, limpar, adicionar correspondências e atalhos de análise), a preservação da seleção ao navegar, os cálculos e os contratos. Nenhum controle volta a ser empilhado numa página longa.
+- **Motivo:** orientação em vídeo do responsável pelo produto (18/10/2026, 00:45–01:47 e 04:19–04:36): a etapa de territórios é desnecessária e a segmentação incomoda, sem voltar à rolagem longa que motivou as etapas.
+- **Documentação e testes:** guia da interface, README e nota na auditoria de estabilização. O auxiliar `workspace()` de `ui_support.py` abre o bloco quando a jornada pede territórios, e os roteiros usam o auxiliar em vez dos rótulos antigos. As verificações de seleção, valores e exportações não mudaram.
+
 ### 2026-10-18 · Premissas de comparabilidade internas na base oficial
 
 - **Antes:** na base Brasil governada, a evolução temporal exigia as caixas "Confirmo que os quantitativos e os períodos são comparáveis." e "Os territórios correspondem às mesmas unidades ao longo do tempo.". Comparações e rankings só dispensavam a confirmação numa competência municipal identificada, por inferência do navegador. A agregação exigia declarar populações sem sobreposição e a forma de contagem. O resultado temporal dizia que as premissas tinham sido declaradas pelo usuário.

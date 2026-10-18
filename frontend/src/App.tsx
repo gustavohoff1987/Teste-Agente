@@ -9,7 +9,7 @@ import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
 import { resultSummary, selectionCompatibility } from "./investigation";
 import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
-import { scrollAnalysisTo, type WorkspaceStage } from "./workspaceNavigation";
+import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { matchesCuratedPreparation } from "./curatedPreparation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
@@ -178,6 +178,8 @@ function App() {
   useEffect(() => { if (privacy.accepted) return trackSession(); }, [privacy.accepted]);
   const [conversationStarted, setConversationStarted] = useState(false);
   const [workspaceStage, setWorkspaceStage] = useState<WorkspaceStage>("preparation");
+  // A seleção territorial é um bloco da preparação, recolhido até o usuário pedir.
+  const [territoriesOpen, setTerritoriesOpen] = useState(false);
   const [multiplePeriods, setMultiplePeriods] = useState(false);
   const [periodEditor, setPeriodEditor] = useState(0);
   const [page, setPage] = useState<"home" | "results">("home");
@@ -384,7 +386,7 @@ function App() {
   }
   async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
     if (!privacy.accepted) return;
-    if (!preserve) {setSourceGeneration(value => value + 1); setTerritoryIds([]); resetReferences();}
+    if (!preserve) {setSourceGeneration(value => value + 1); setTerritoryIds([]); resetReferences(); setTerritoriesOpen(false);}
     const previous = preserve && inspection?.source ? { info: inspection, saved: snapshotPreparation() } : null;
     if (previous) scopeDrafts.current[previous.info.source!.version + ":" + previous.info.source!.scope] = previous.saved;
     const currentUpload = ++uploadRevision.current;
@@ -514,7 +516,7 @@ function App() {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
     setCatalogOpen(false); setPeriodEditor(0);
-    setPage("home"); setWorkspaceStage("preparation");
+    setPage("home"); setWorkspaceStage("preparation"); setTerritoriesOpen(false);
     setRequestedIndicator(proposal?.indicator ? {operation, indicator:proposal.indicator, generation:sourceGeneration} : null);
     if (pendingTerritories.current?.operation !== operation) pendingTerritories.current = null;
     setRequestedCategory(proposal?.category || "");
@@ -927,6 +929,12 @@ function App() {
     try { await endSession(); }
     catch (exc) { setSessionError(readableError(exc)); setClosingSession(false); }
   }
+  /** Botões, comandos e atalhos usam o mesmo destino; territórios abrem dentro da preparação. */
+  function openStage(target: NavigationTarget) {
+    if (target === "territories") setTerritoriesOpen(true);
+    const stage = target === "results" ? "results" : "preparation";
+    setWorkspaceStage(stage); setPage(stage === "results" ? "results" : "home");
+  }
   function navigate(view: "home" | "results", target?: string) {
     setPage(view);
     if (view === "results") { setResultExpanded(true); setWorkspaceStage("results"); }
@@ -941,10 +949,7 @@ function App() {
       setPage(results ? "results" : "home");
       if (results) setWorkspaceStage("results");
     };
-    const onStage = (event: Event) => {
-      const stage = (event as CustomEvent<WorkspaceStage>).detail;
-      setWorkspaceStage(stage); setPage(stage === "results" ? "results" : "home");
-    };
+    const onStage = (event: Event) => openStage((event as CustomEvent<NavigationTarget>).detail);
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("adt:stage", onStage);
     return () => { window.removeEventListener("hashchange", onHashChange); window.removeEventListener("adt:stage", onStage); };
@@ -1456,12 +1461,12 @@ function App() {
             onChange={e=>{setResolutions(p=>({...p,component_sum_confirmed:e.target.checked}));
               if(e.target.checked)setConfirmedNoOverlap(false);}}/>
             Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem.</label>
+          </>}
         </>}
         {active === "rotation" && <>
           <label className="flex items-center gap-2">Período inicial
             <select aria-label="Período inicial" value={resolutions.initial_period || ""}
               onChange={e=>setResolutions(p=>({...p,initial_period:e.target.value}))}
-          </>}
               className="min-w-0 rounded-md border border-blue-200 bg-white px-1 py-0.5">
               <option value="">Escolher</option>{(preflight?.values.periods || inspection.periods).map(v=><option key={v}>{v}</option>)}
             </select>
@@ -1523,6 +1528,21 @@ function App() {
           onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
     </div>}
   </> : null;
+  // Resumo de uma linha da seleção, mostrado no bloco de territórios da preparação. No recorte nacional
+  // o bloco só informa que há um único território, para que o comando "territórios" tenha destino.
+  const territorySummary = selectionContent ? (() => {
+    const names = new Map((preflight?.territory_choices || []).map(item => [item.id, item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label]));
+    const shown = territoryIds.slice(0, 3).map(id => names.get(id) || id);
+    const more = territoryIds.length - shown.length;
+    return {label: active === "nearest" ? "Municípios-alvo" : active === "criteria" ? "Universo dos critérios" : "Territórios",
+      selected: territoryIds.length > 0, selectable: true,
+      text: territoryIds.length ? territoryIds.length + (territoryIds.length === 1 ? " selecionado: " : " selecionados: ") +
+        shown.join(", ") + (more > 0 ? " e mais " + more : "")
+        : active === "nearest" ? "todos os municípios do período (nenhuma seleção)"
+        : active === "criteria" ? "todos os territórios do período (nenhuma seleção)" : "todos os territórios do recorte (nenhuma seleção)"};
+  })() : usingBrazil && inspection?.source?.scope === "national" ? {label: "Territórios", selected: false, selectable: false,
+    text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
+    : undefined;
   const currentDiagnostic = diagnostics.find(group => group.id === diagnosticId);
   const investigationContent = currentDiagnostic?.resultIds.length ? (
     <InvestigationOverview title={diagnosticLabel(currentDiagnostic)} items={currentDiagnostic.resultIds.map(id => history.find(item => item.result.result_id === id)!).filter(Boolean)} currentId={result?.result_id || null} selected={visualSelection}
@@ -1698,7 +1718,10 @@ function App() {
       <AnalysisAssistant
         notice={historyNotice}
         workspaceStage={workspaceStage}
-        onStage={stage => {setWorkspaceStage(stage);setPage(stage === "results" ? "results" : "home");}}
+        onStage={openStage}
+        territorySummary={territorySummary}
+        territoriesOpen={territoriesOpen}
+        onTerritoriesOpen={setTerritoriesOpen}
         onMultiplePeriods={() => {
           if (!active || !["counts", "temporal", "report"].includes(active)) return false;
           if (!multiplePeriods) {setSelectedPeriods(periodFilter ? [periodFilter] : inspection?.periods || []);setPeriodFilter("");}

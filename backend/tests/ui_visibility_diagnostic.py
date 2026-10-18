@@ -130,7 +130,7 @@ def main():
         board.get_by_role("tab", name="Mapa (indisponível)", exact=True).click()
         expect(board.get_by_text("Mapa indisponível para este resultado", exact=True)).to_be_visible()
         expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
-        density_page.get_by_role("button", name="2. Preparação").click()
+        workspace(density_page, "preparation")
         density_inline.get_by_text("Ajustar condições específicas, outras confirmações ou situações excepcionais", exact=True).click()
         density_inline.get_by_label("Referencial das coordenadas importadas", exact=True).select_option("SIRGAS2000")
         density_inline.get_by_label("Separador decimal das coordenadas importadas", exact=True).select_option("decimal_point")
