@@ -112,16 +112,16 @@ export default function ConversationalPreparation(p: Props) {
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
         <div className="min-w-0 flex-1 space-y-3">
-          <p>Os dados já estão preparados para a análise solicitada.</p>
-          <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
+          <p className="font-medium text-ink">{periodStage ? "Escolha o período da análise" : "Parâmetros da análise"}</p>
+          {!periodStage && <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
             com a categoria MEDICINA e as referências temporais disponíveis.
             {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
-          </p>
-          <details className="text-xs text-slate-500">
+          </p>}
+          {!periodStage && <details className="text-xs text-slate-500">
             <summary className="cursor-pointer text-teal">Alterar a abrangência territorial</summary>
             <div className="mt-2 text-sm">Considerar os dados de <InlineChoice label="Abrangência territorial"
               value={p.scope} options={sourceOptions} onChange={v=>p.onScope(v as SourceScope)}/>.</div>
-          </details>
+          </details>}
           {periodStage && <>
             <p className="font-medium text-ink">{isTemporal
               ? "Quais períodos você deseja comparar?"
@@ -167,7 +167,7 @@ export default function ConversationalPreparation(p: Props) {
             </button>}
           </div>
           </>}
-          {p.advanced && status !== "available" && <details className="text-xs text-teal">
+          {p.advanced && status !== "available" && !periodStage && <details className="text-xs text-teal">
             <summary className="cursor-pointer">Ver outras condições da análise</summary>
             <div className="mt-2">{p.advanced}</div>
           </details>}
