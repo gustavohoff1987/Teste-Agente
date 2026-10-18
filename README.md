@@ -47,9 +47,10 @@ de período/categoria são preservadas. A preparação de cada recorte é mantid
 da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame do backend.
 
 As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
-municipal para o Brasil ou soma automática de pessoas entre municípios. Agregação
-municipal só ocorre com as declarações já exigidas pelo motor, inclusive o rótulo de
-possível dupla contagem quando se autoriza somar componentes.
+municipal para o Brasil ou soma automática de pessoas entre municípios. Na agregação
+municipal da base oficial, o total é a soma dos componentes, sempre rotulada como possível
+dupla contagem; em bases importadas, o motor continua exigindo as declarações de aditividade
+e da forma de contagem.
 
 A plataforma reconhece automaticamente as associações e significados da base Brasil
 **somente** quando a estrutura, o mapeamento e a categoria única MEDICINA correspondem
@@ -59,6 +60,16 @@ integridade do catálogo. Nesse caso, a unidade de contagem declarada para o cat
 municípios ou meses. Nenhum perfil é aplicado ao upload do usuário, a estruturas
 desconhecidas ou a categorias inesperadas. Para bases fora do perfil, o fluxo
 retoma as confirmações metodológicas habituais.
+
+**Premissas internas da base oficial.** Com o perfil governado reconhecido, a interface não
+pede ao usuário as confirmações de comparabilidade. O backend as resolve e registra a origem de
+cada uma em "Método e limitações" e nas opções exportadas (`governed_premises`). Comparabilidade
+temporal, comparabilidade entre municípios, populações municipais sem sobreposição e agregação
+como soma dos componentes são regras do perfil, decididas pelo responsável pelo produto em
+18/10/2026. A identidade territorial ao longo do tempo só vale depois de verificada nos dados:
+cada código IBGE mantém o mesmo nome em todas as competências. Sem essa evidência, a confirmação
+volta a ser pedida. Bases importadas e significados alterados mantêm todas as declarações.
+Detalhes em [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial).
 
 No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
 sobre o conteúdo dos dados brasileiros consulta `/api/brazil/description`, que
@@ -71,8 +82,8 @@ Períodos são apresentados em português (por exemplo, junho de 2024).
 Quantitativos e relatórios podem mostrar vários períodos **separadamente**; análises
 temporais podem restringir a seleção a múltiplos períodos. A agregação territorial
 continua restrita a uma competência, para não tratar pessoas observadas em meses
-diferentes como pessoas únicas. A confirmação de premissas metodológicas não
-verificáveis pelo catálogo, quando exigida, permanece obrigatória.
+diferentes como pessoas únicas. Fora do perfil governado, a confirmação de premissas
+metodológicas não verificáveis pelo catálogo, quando exigida, permanece obrigatória.
 
 **Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
 aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e

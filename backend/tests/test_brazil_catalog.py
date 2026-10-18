@@ -115,6 +115,68 @@ def test_multiple_periods_are_independent_and_invalid_periods_are_rejected(catal
         assert client.post("/api/analyze", data=request).status_code == 422
 
 
+GOVERNED = ["temporal_comparability_confirmed", "territory_longitudinal_confirmed", "comparison_confirmed",
+            "population_additive_confirmed", "component_sum_confirmed"]
+
+
+def test_official_base_resolves_comparability_premises_without_user_declarations(catalog):
+    national = inspected("temporal")
+    assert [item["option"] for item in national["curated_defaults"]["premises"]] == GOVERNED[:2]
+    request = {**form(national, "temporal"), "options": json.dumps({"temporal_indicator": "quantity"})}
+    assert client.post("/api/preflight", data=request).json()["capabilities"]["temporal"]["status"] == "available"
+    body = client.post("/api/analyze", data=request).json()
+    assert (body["rows"][0]["Inicial"], body["rows"][0]["Final"]) == (10, 15)
+    notes = " ".join(body["notes"])
+    assert "premissa governada" in notes and "verificada nos dados" in notes and "pelo usuário para esta execução" not in notes
+    assert body["metadata"]["options"]["governed_premises"] == GOVERNED[:2]
+
+    municipal = inspected("density")
+    assert [item["option"] for item in municipal["curated_defaults"]["premises"]] == GOVERNED
+
+    def run(operation, **options):
+        response = client.post("/api/analyze", data={**form(municipal, operation), "options": json.dumps(options)})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    temporal = run("temporal", temporal_indicator="density")
+    assert [row["Inicial"] for row in temporal["rows"]] == [6.0, 4.0]  # 6/1000 e 8/2000 por mil habitantes
+    assert "Comparabilidade entre territórios" in " ".join(run("comparisons", period_filter="202306")["notes"])
+    assert run("ranking", period_filter="202306")["total_rows"] == 2
+    total = run("aggregate", period_filter="202306")
+    assert total["rows"][0]["Tipo"] == "Soma dos componentes (possível dupla contagem)"
+    assert (total["rows"][0]["Quantidade"], total["rows"][0]["População"]) == (14, 3000)
+    assert "possível dupla contagem" in " ".join(total["notes"])
+    # Outro modo de agregação, escolhido explicitamente, continua prevalecendo.
+    unique = run("aggregate", period_filter="202306", no_overlap_confirmed=True)
+    assert unique["rows"][0]["Tipo"] == "Unidades distintas: pessoas"
+    assert "component_sum_confirmed" not in unique["metadata"]["options"]["governed_premises"]
+
+
+def test_territorial_identity_premise_requires_evidence_and_imports_keep_declarations():
+    import pandas as pd
+    from brazil_catalog_profile import FIELDS, apply_curated_options, curated_profile, premise_notes
+    names = ["A", "A", "B", "B"]
+    frame = pd.DataFrame({"municipio": names, "cod_ibge": ["001", "001", "002", "002"],
+                          "Período (ano e mês)": ["202306", "202406"] * 2, "categoria_profissional": ["MEDICINA"] * 4,
+                          "quantidade": ["6", "10", "8", "12"], "população_estimada": ["1000"] * 2 + ["2000"] * 2,
+                          "latitude": ["-10,1"] * 4, "longitude": ["-40,1"] * 4})
+    frame.attrs["source"] = {"dataset": "brazil", "scope": "municipal"}
+    mapping = dict(FIELDS["municipal"])
+    assert apply_curated_options(frame, mapping, {})["governed_premises"] == GOVERNED
+    # O mesmo código com dois nomes: a identidade territorial não é afirmada e volta a ser pedida ao usuário.
+    renamed = frame.assign(municipio=["A", "A antigo", "B", "B"])
+    renamed.attrs["source"] = frame.attrs["source"]
+    options = apply_curated_options(renamed, mapping, {})
+    assert "territory_longitudinal_confirmed" not in options and "territory_longitudinal_confirmed" not in options["governed_premises"]
+    assert [item["option"] for item in curated_profile(renamed, mapping)["premises"]] == [GOVERNED[0], *GOVERNED[2:]]
+    assert premise_notes(options, "temporal") == [premise_notes({"governed_premises": GOVERNED}, "temporal")[0]]
+    # Arquivo importado com a mesma estrutura: nenhuma premissa interna; as declarações continuam com o usuário.
+    imported = frame.copy()
+    imported.attrs = {}
+    assert apply_curated_options(imported, mapping, {"temporal_indicator": "quantity"}) == {"temporal_indicator": "quantity"}
+    assert premise_notes({"temporal_comparability_confirmed": True}, "temporal") == []
+
+
 def test_curated_brazil_profile_never_assumes_unrelated_categories():
     import pandas as pd
     from brazil_catalog_profile import curated_profile, apply_curated_options

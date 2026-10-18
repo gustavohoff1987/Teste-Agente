@@ -130,9 +130,12 @@ def main():
         assert all(row["Densidade por 1.000"] == density[row["Território"]] for row in compared["rows"])
         shot("block1-02-comparacao.png")
         send("Mostre a evolução dos municípios selecionados.")
-        inline.get_by_label("Confirmo que os quantitativos e os períodos são comparáveis.").check()
-        inline.get_by_label("Os territórios correspondem às mesmas unidades ao longo do tempo.").check()
+        # Base oficial: comparabilidade temporal e identidade territorial são premissas internas, sem caixas.
+        expect(inline.get_by_label("Confirmo que os quantitativos e os períodos são comparáveis.")).to_have_count(0)
+        expect(inline.get_by_label("Os territórios correspondem às mesmas unidades ao longo do tempo.")).to_have_count(0)
         temporal = calculate()
+        assert temporal["metadata"]["options"]["governed_premises"][:2] == ["temporal_comparability_confirmed", "territory_longitudinal_confirmed"]
+        assert not any("pelo usuário para esta execução" in note for note in temporal["notes"])
         assert temporal["total_rows"] == 3
         assert len(temporal["detail_rows"]) == (66 if real else 12)
         # Cada competência permanece separada; extremos e variação vêm da própria série.
@@ -175,10 +178,13 @@ def main():
         send("Agregue os municípios selecionados.")
         inline.get_by_label("Escolher períodos da análise").click()
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)).to_be_disabled()
-        inline.get_by_label("As populações são partes sem sobreposição do conjunto agregado.").check()
-        inline.get_by_label("Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem.").check()
+        # Populações disjuntas e soma dos componentes são premissas internas da base oficial, sem caixas.
+        for label in ("As populações são partes sem sobreposição do conjunto agregado.",
+                      "As contagens representam unidades sem sobreposição entre territórios.",
+                      "Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem."):
+            expect(inline.get_by_label(label)).to_have_count(0)
         aggregate = calculate()
+        assert any("possível dupla contagem" in note for note in aggregate["notes"])
         selected_rows = [row for row in initial["rows"] if any(code in row["Território"] for code in ("130260", "130420", "130340"))]
         assert aggregate["rows"][0]["Quantidade"] == sum(row["Quantidade"] for row in selected_rows)
         assert aggregate["rows"][0]["População"] == sum(row["População"] for row in selected_rows)

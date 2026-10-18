@@ -65,7 +65,8 @@ type Inspection = {
   derived_fields?: { column: string; role: Role; source_columns: string[]; format: string }[];
   curated_defaults?: { mapping: Mapping; category: string; scope: "national" | "municipal"; count_unit: string;
     confirmed_roles: Role[]; fts_scope_confirmed: boolean; object_confirmed: boolean;
-    population_denominator_confirmed: boolean } | null;
+    population_denominator_confirmed: boolean;
+    premises?: { option: string; label: string; origin: string; operations: Operation[] }[] } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
     default_scopes: Partial<Record<Operation, "national" | "municipal">> };
   catalog?: { modo: string; versao: string; versao_governada: string | null; versao_fixada: string | null;
@@ -305,16 +306,14 @@ function App() {
   const selectedFeature = FEATURES.find(f => f.id === active);
   const sourceKey = JSON.stringify({source: usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version: sourceVersion, scope: inspection?.source?.scope, sheet});
-  // A base municipal governada declara papéis, unidade e alinhamento do denominador.
-  // A comparabilidade só é inferida no recorte de uma competência identificada;
-  // importações e demais recortes continuam exigindo evidência explícita.
+  // A base oficial governada declara papéis, unidade e alinhamento do denominador.
   const curatedSetup = matchesCuratedPreparation(inspection?.curated_defaults, {
     official: usingBrazil, mapping, category: categoryFilter, countUnit,
     fts: ftsScopeConfirmed, object: objectConfirmed, population: populationAligned,
   });
-  const curatedComparisonReady = !!(curatedSetup && inspection?.source?.scope === "municipal" &&
-    inspection.periods.includes(periodFilter) && !selectedPeriods.length && populationAligned &&
-    mapping.count && mapping.population && mapping.territory);
+  // Premissas de comparabilidade internas da base oficial: o backend as aplica e registra a origem no
+  // resultado; a interface não as pede. Importações e significados alterados continuam com as declarações.
+  const governedPremises = new Set(curatedSetup ? (inspection?.curated_defaults?.premises || []).map(item => item.option) : []);
 
   const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version:sourceVersion,sheet});
@@ -565,7 +564,6 @@ function App() {
   function semanticOptions() {
     return {
       ...resolutions,
-      ...(curatedComparisonReady ? {comparison_confirmed: true} : {}),
       ...(territoryIds.length && (!usingBrazil || inspection?.source?.scope === "municipal") ? {territory_ids: territoryIds} : {}),
       comparison_indicator: comparisonIndicator,
       hierarchy_columns: hierarchyColumns,
@@ -1261,11 +1259,11 @@ function App() {
                   </label>}
                 </>}
                 {active === "temporal" && <>
-                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  {!governedPremises.has("temporal_comparability_confirmed") && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/>
                     Confirmo que os períodos e os quantitativos são comparáveis
-                  </label>
-                  {mapping.territory && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                  </label>}
+                  {mapping.territory && !governedPremises.has("territory_longitudinal_confirmed") && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
                     <input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/>
                     Confirmo que os territórios mantêm identidade comparável ao longo dos períodos
                   </label>}
@@ -1434,23 +1432,22 @@ function App() {
           onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
           disabled={running || inspecting}/>}
         {active === "temporal" && <>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
+          {!governedPremises.has("temporal_comparability_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
             onChange={e=>setTemporalCompared(e.target.checked)}/>
-            Confirmo que os quantitativos e os períodos são comparáveis.</label>
-          {mapping.territory && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
+            Confirmo que os quantitativos e os períodos são comparáveis.</label>}
+          {mapping.territory && !governedPremises.has("territory_longitudinal_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
             onChange={e=>setTerritoryStable(e.target.checked)}/>
             Os territórios correspondem às mesmas unidades ao longo do tempo.</label>}
         </>}
-        {["comparisons","ranking"].includes(active) && (curatedComparisonReady
-          ? <p role="status" className="text-xs text-emerald-800">Unidades, período e denominador reconhecidos na base municipal governada.</p>
-          : <label className="flex items-start gap-2">
+        {["comparisons","ranking"].includes(active) && !governedPremises.has("comparison_confirmed") && <label className="flex items-start gap-2">
               <input type="checkbox" checked={!!resolutions.comparison_confirmed}
                 onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
-              As medidas, unidades e populações são comparáveis entre os territórios.</label>)}
+              As medidas, unidades e populações são comparáveis entre os territórios.</label>}
         {active === "aggregate" && <>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
+          {!governedPremises.has("population_additive_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
             onChange={e=>setResolutions(p=>({...p,population_additive_confirmed:e.target.checked}))}/>
-            As populações são partes sem sobreposição do conjunto agregado.</label>
+            As populações são partes sem sobreposição do conjunto agregado.</label>}
+          {!governedPremises.has("component_sum_confirmed") && <>
           <label className="flex items-start gap-2"><input type="checkbox" checked={confirmedNoOverlap}
             onChange={e=>{setConfirmedNoOverlap(e.target.checked);
               if(e.target.checked)setResolutions(p=>({...p,component_sum_confirmed:false}));}}/>
@@ -1464,6 +1461,7 @@ function App() {
           <label className="flex items-center gap-2">Período inicial
             <select aria-label="Período inicial" value={resolutions.initial_period || ""}
               onChange={e=>setResolutions(p=>({...p,initial_period:e.target.value}))}
+          </>}
               className="min-w-0 rounded-md border border-blue-200 bg-white px-1 py-0.5">
               <option value="">Escolher</option>{(preflight?.values.periods || inspection.periods).map(v=><option key={v}>{v}</option>)}
             </select>

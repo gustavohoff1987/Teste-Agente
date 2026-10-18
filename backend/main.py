@@ -29,7 +29,7 @@ from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
 from brazil_data import diagnostics as brazil_diagnostics, load_brazil
-from brazil_catalog_profile import curated_profile, apply_curated_options
+from brazil_catalog_profile import curated_profile, apply_curated_options, premise_notes
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
 from llm_bridge import dialogue_action, _system_response, _document_response
@@ -212,6 +212,7 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         result["notes"].append(f"Remoção autorizada de {removed} cópias idênticas em todas as colunas.")
     if options.get("rows_additive_confirmed"):
         result["notes"].append("Componentes somados sob declaração de ausência de sobreposição do usuário; população territorial utilizada uma vez.")
+    result["notes"][:0] = premise_notes(options, operation)  # origem das premissas internas da base oficial
     result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria)
     return result
 
@@ -388,9 +389,14 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             else:
                 row["Tendência"] = "Não avaliável (< 4 observações)"
             rows.append(row)
+        # Na base oficial, as premissas internas substituem a declaração do usuário (ver compute).
+        governed = set(options.get("governed_premises") or [])
+        declared = [label for key, label in (("temporal_comparability_confirmed", "Comparabilidade temporal"),
+                                             ("territory_longitudinal_confirmed", "identidade longitudinal")) if key not in governed]
+        user_note = ([" e ".join(declared).capitalize() + (" foram declaradas" if len(declared) > 1 else " foi declarada") +
+                      " pelo usuário para esta execução."] if declared else [])
         result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
-                       rows, notes=["Comparabilidade temporal e identidade longitudinal foram declaradas pelo usuário para esta execução.",
-                                    "Cada competência é independente; não se somam pessoas de períodos diferentes."])
+                       rows, notes=user_note + ["Cada competência é independente; não se somam pessoas de períodos diferentes."])
         result["detail_rows"] = _records(data[keys + [metric]].rename(columns=cols))
         return result
     if operation == "comparisons":

@@ -38,9 +38,11 @@ sem completar códigos de seis dígitos ou inventar limites territoriais. Refer�
 Essa regra não se aplica a uploads nem autoriza aditividade, identidade longitudinal
 ou ausência de sobreposição de profissionais.
 
-Agregação continua exigindo fundamento para população e uma modalidade explícita
-de contagem. A soma de componentes admite dupla contagem e não é rotulada como
-pessoas distintas. A evolução mantém cada competência separada.
+Agregação continua exigindo fundamento para população e uma modalidade de contagem. Na
+base oficial, ambos são premissas internas do perfil governado (populações municipais
+disjuntas e soma dos componentes); em uploads, continuam declarações explícitas. A soma de
+componentes admite dupla contagem e não é rotulada como pessoas distintas. A evolução
+mantém cada competência separada.
 
 ## Linha de base
 

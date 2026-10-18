@@ -195,11 +195,34 @@ def test_real_resident_temporal(real_catalog, denominator):
             assert row["Variação (%)"] == (pytest.approx((b - a) / a * 100) if a else None)
 
 
+def test_real_official_base_comparability_premises_are_internal(real_catalog):
+    """Identidade territorial verificada nos 5.570 códigos; sem declarações, a série é a mesma das declaradas."""
+    info, _, _ = real_catalog
+    assert [item["option"] for item in info["curated_defaults"]["premises"]] == [
+        "temporal_comparability_confirmed", "territory_longitudinal_confirmed", "comparison_confirmed",
+        "population_additive_confirmed", "component_sum_confirmed"]
+    internal = resident_result(info, "temporal", temporal_indicator="density")
+    declared = resident_result(info, "temporal", temporal_indicator="density",
+        temporal_comparability_confirmed=True, territory_longitudinal_confirmed=True)
+    assert internal["rows"] == declared["rows"] and len(internal["rows"]) == 5570
+    assert internal["notes"] == declared["notes"]  # na base oficial, a origem é sempre a premissa interna
+    assert "pelo usuário para esta execução" not in " ".join(internal["notes"])
+    assert "verificada nos dados" in " ".join(internal["notes"])
+    national = client.post("/api/inspect", data={"dataset": "brazil", "scope": "national"}).json()
+    assert [item["option"] for item in national["curated_defaults"]["premises"]] == [
+        "temporal_comparability_confirmed", "territory_longitudinal_confirmed"]
+
+
 def test_real_resident_aggregation_is_not_national_unique_count(real_catalog):
     info, _, expected = real_catalog
-    assert resident(info, "aggregate", period_filter="202406", population_additive_confirmed=True).status_code == 422
-    result = resident_result(info, "aggregate", period_filter="202406",
+    # Base oficial: populações disjuntas e soma dos componentes são premissas internas, sem declaração do
+    # usuário; o total continua rotulado como possível dupla contagem, nunca como pessoas únicas.
+    result = resident_result(info, "aggregate", period_filter="202406")
+    assert result["metadata"]["options"]["governed_premises"][-2:] == ["population_additive_confirmed", "component_sum_confirmed"]
+    assert any("possível dupla contagem" in note for note in result["notes"])
+    explicit = resident_result(info, "aggregate", period_filter="202406",
         population_additive_confirmed=True, component_sum_confirmed=True)
+    assert explicit["rows"] == result["rows"]
     selected = expected.query('Período == "202406"')
     row = result["rows"][0]
     assert "possível dupla contagem" in row["Tipo"]

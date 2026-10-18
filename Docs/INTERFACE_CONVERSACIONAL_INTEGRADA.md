@@ -119,10 +119,11 @@ As competências não são somadas como pessoas únicas. Condições avançadas 
 mesmo depois de o pré-exame habilitar o cálculo.
 
 Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
-quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. A dispensa
-da confirmação territorial de comparabilidade exige ainda recorte municipal e uma competência
-identificada. Não dispensa a comparabilidade temporal nem a identidade longitudinal declaradas.
-Bases importadas continuam passando por suas confirmações específicas.
+quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. Nesse caso,
+as premissas de comparabilidade são internas: evolução temporal, comparações, rankings e agregação
+não exibem caixas de confirmação, e a origem de cada premissa aparece em "Método e limitações"
+(ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
+Bases importadas e significados alterados continuam passando por suas confirmações específicas.
 
 A comparação de dois municípios apresenta um registro para cada objeto A/B, seguido pela relação,
 diferença e condição retornadas pelo motor. Conjuntos maiores mantêm um registro por território.

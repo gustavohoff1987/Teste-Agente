@@ -50,9 +50,16 @@ declarado. Apenas o transporte de interpretação externa é simulado. Ela perco
   de transbordamento horizontal, com uma verificação adicional de fonte DejaVu Sans.
 
 Cada envio de mensagem confere que nenhuma requisição de cálculo foi disparada. Os valores de
-competências diferentes permanecem em linhas diferentes. Evolução temporal continua exigindo
-as declarações de comparabilidade e identidade territorial. A aplicação não presume essas
+competências diferentes permanecem em linhas diferentes. Evolução temporal continuava exigindo
+as declarações de comparabilidade e identidade territorial. A aplicação não presumia essas
 declarações por reconhecer a fonte oficial.
+
+> **Nota posterior (18/10/2026, tarde).** Por decisão do responsável pelo produto, essas
+> premissas passaram a ser internas na base oficial: a comparabilidade temporal é regra do
+> perfil governado e a identidade territorial é verificada nos dados. A jornada confere que as
+> caixas não aparecem e que o resultado registra a origem. Ver o
+> [registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md) e as
+> [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial).
 
 Os roteiros anteriores cobrem também tabelas, gráficos, mapas e indisponibilidade, filtros,
 seleção compartilhada, referências, critérios, investigação, limite de referências, perda de

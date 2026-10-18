@@ -130,12 +130,13 @@ def main():
         expect(cards).to_have_count(3)
         send('Mostre a evolução dos municípios selecionados.')
         prepared()
-        button = inline.get_by_role('button', name='Calcular e mostrar resultado', exact=True)
-        expect(button).to_be_disabled()
-        inline.get_by_label('Confirmo que os quantitativos e os períodos são comparáveis.').check()
-        inline.get_by_label('Os territórios correspondem às mesmas unidades ao longo do tempo.').check()
+        # Base oficial: as premissas de comparabilidade são internas; nenhuma declaração é pedida.
+        expect(inline.get_by_label('Confirmo que os quantitativos e os períodos são comparáveis.')).to_have_count(0)
+        expect(inline.get_by_label('Os territórios correspondem às mesmas unidades ao longo do tempo.')).to_have_count(0)
         temporal = calculate()
         assert len(temporal['detail_rows']) == 12
+        assert any('premissa governada' in note for note in temporal['notes'])
+        assert not any('pelo usuário para esta execução' in note for note in temporal['notes'])
         send('Volte para a seleção de territórios.')
         expect(page.get_by_role('button', name='1. Territórios', exact=True)).to_have_attribute('aria-current', 'step')
         expect(page.get_by_role('region', name='Seleção territorial compartilhada')).to_contain_text('3 selecionados')
