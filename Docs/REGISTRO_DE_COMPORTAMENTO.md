@@ -246,3 +246,13 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **288f5da:** os comandos conversacionais restritos de navegação ("territórios", "preparação", "resultados", "voltar", "avançar") usam o mesmo estado dos botões, sem reinterpretar os comandos como análises ou recalcular dados.
 - **d31f32c:** a navegação global para Resultados e a chegada de um resultado sincronizam a etapa ativa; a última resposta do agente acompanha preparação ou resultados.
 - **Governança:** nenhuma alteração em algoritmos, bases, APIs, regras de validação ou exportação. A UI deixa de renderizar simultaneamente os três painéis; isso pode exigir atualização de testes de navegação que pressupunham o empilhamento anterior. Testes de CI e inspeção visual ainda pendentes.
+
+
+### 2026-10-17 · Rastreabilidade complementar exigida pelo CI #290
+
+- **648fb62** — Comportamento: a escolha do período na base curada torna-se uma etapa focalizada; informações de outras etapas deixam de ser exibidas simultaneamente.
+- **f2595cf** — Comportamento: a tabela passa a admitir apresentação vertical dos registros comparados, sem alterar os dados exportados.
+- **eef02d6** — Comportamento: a apresentação vertical é habilitada para a operação de comparação territorial.
+- **b99948a** — Comportamento: a resposta atual do agente acompanha a preparação ativa, sem exigir rolagem até o rodapé.
+- **82bc86e** — Comportamento: sem alteração — correção de fechamento JSX da resposta atual para restabelecer compilação.
+- **Validação:** o CI #290 revelou erro de compilação JSX e quatro commits sem registro. As correções foram publicadas; aprovação depende da nova execução do CI.
