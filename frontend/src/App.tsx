@@ -300,6 +300,14 @@ function App() {
   const selectedFeature = FEATURES.find(f => f.id === active);
   const sourceKey = JSON.stringify({source: usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version: sourceVersion, scope: inspection?.source?.scope, sheet});
+  // A base municipal governada declara papéis, unidade e alinhamento do denominador.
+  // A comparabilidade só é inferida no recorte de uma competência identificada;
+  // importações e demais recortes continuam exigindo evidência explícita.
+  const curatedComparisonReady = !!(usingBrazil && inspection?.curated_defaults &&
+    inspection.source?.scope === "municipal" && periodFilter &&
+    inspection.curated_defaults.population_denominator_confirmed &&
+    countUnit && mapping.count && mapping.population && mapping.territory);
+
   const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version:sourceVersion,sheet});
   const geoToken = inspection?.catalog?.complemento_geografico?.token || "";
@@ -540,14 +548,6 @@ function App() {
     const matches = inspection.categories.filter(value => normalize(value) === normalize(requestedCategory));
     if (matches.length === 1) setCategoryFilter(matches[0]);
   }, [requestedCategory, inspection, inspecting, categoryFilter]);
-
-  // A base municipal governada declara papéis, unidade e alinhamento do denominador.
-  // A comparabilidade só é inferida no recorte de uma competência identificada;
-  // importações e demais recortes continuam exigindo evidência explícita.
-  const curatedComparisonReady = !!(usingBrazil && inspection?.curated_defaults &&
-    inspection.source?.scope === "municipal" && periodFilter &&
-    inspection.curated_defaults.population_denominator_confirmed &&
-    countUnit && mapping.count && mapping.population && mapping.territory);
 
   function semanticOptions() {
     return {
