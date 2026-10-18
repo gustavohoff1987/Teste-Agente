@@ -238,3 +238,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **64e0b29:** a seleção de período em operações de competência única é uma etapa focalizada na preparação conversacional da base curada, com retorno explícito à escolha. Os parâmetros e execução só aparecem após essa escolha; não são empilhados junto ao seletor.
 - **Comportamento:** redução de confirmações redundantes apenas sob metadados governados e redução da rolagem acumulativa na etapa de período; nenhuma operação estatística, arquivo de dados, SVG, API ou SPEC alterados.
 - **Limitações:** ainda falta simplificar integralmente todas as etapas e a apresentação comparativa em linhas distintas. O CI e a inspeção visual do HEAD são necessários antes de considerar estes ajustes aprovados.
+
+
+### 2026-10-17 · Etapas ativas navegáveis na investigação
+
+- **beb0412:** a área principal da investigação passa a exibir uma etapa por vez: seleção de territórios, preparação ou resultados. As etapas são acessíveis por botões com `aria-current="step"`; a etapa de resultados fica indisponível antes de haver resultado ou execução. O estado de parâmetros e seleção continua no componente pai, sem descarte ao navegar.
+- **288f5da:** os comandos conversacionais restritos de navegação ("territórios", "preparação", "resultados", "voltar", "avançar") usam o mesmo estado dos botões, sem reinterpretar os comandos como análises ou recalcular dados.
+- **d31f32c:** a navegação global para Resultados e a chegada de um resultado sincronizam a etapa ativa; a última resposta do agente acompanha preparação ou resultados.
+- **Governança:** nenhuma alteração em algoritmos, bases, APIs, regras de validação ou exportação. A UI deixa de renderizar simultaneamente os três painéis; isso pode exigir atualização de testes de navegação que pressupunham o empilhamento anterior. Testes de CI e inspeção visual ainda pendentes.
