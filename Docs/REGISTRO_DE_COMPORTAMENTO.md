@@ -280,3 +280,5 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **8d52c50, 6e58f4b** — Testes: preservam o rótulo específico das condições avançadas para arquivos importados; a navegação até a etapa Preparação continua explícita. Não se altera o requisito de confirmar coordenadas importadas.
 
 - **79e7daa** — Teste: verifica explicitamente três territórios em registros visuais separados na comparação, além da identidade e dos valores retornados pelo motor.
+
+- **387c746** — Comportamento: a abrangência territorial, parâmetro contextual de fonte, permanece acessível durante a etapa de escolha de período. Corrige o bloqueio de navegação ao alternar base municipal/nacional identificado no teste conversacional do CI #322, sem exibir os demais parâmetros técnicos antecipadamente.
