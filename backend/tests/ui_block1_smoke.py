@@ -85,6 +85,7 @@ def main():
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
         send("Mostre a densidade médica dos municípios do Amazonas em junho de 2024.")
+        page.get_by_role("button", name="1. Territórios").click()
         expect(page.get_by_role("region", name="Seleção territorial compartilhada").get_by_text("62 selecionados" if real else "3 selecionados", exact=True)).to_be_visible(timeout=60000)
         initial = calculate()
         assert initial["metadata"]["operation"] == "density"
