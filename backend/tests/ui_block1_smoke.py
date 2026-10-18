@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, select, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -278,9 +278,54 @@ def main():
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
         checkbox.press("Space")
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
+
+        # Distâncias na base oficial: o referencial (SIRGAS 2000) e o separador decimal são premissas internas.
+        # No catálogo sintético (versão externa fixada), o referencial continua sendo pedido ao usuário.
+        page.set_viewport_size({"width": 1280, "height": 900})
+        workspace(page, "preparation")
+        select(page, "Análise espacial")
+        reference = inline.get_by_label("Território de referência", exact=True)
+        expect(reference).to_be_visible(timeout=60000)
+        expect(inline.get_by_label("Referencial geodésico", exact=True)).to_have_count(0 if real else 1)
+        if real:
+            expect(inline.get_by_test_id("crs-summary")).to_have_text("SIRGAS 2000 (premissa da base oficial)")
+            reference.select_option(label=next(member["label"] for member in initial["metadata"]["universe"]["members"]
+                                               if member["id"] == "code:130260"))
+            spatial = calculate()
+            assert spatial["metadata"]["operation"] == "spatial" and spatial["total_rows"] == 3
+            assert spatial["metadata"]["options"]["governed_premises"][-2:] == ["crs", "number_format"]
+            assert any(note.startswith("Referencial geodésico: SIRGAS 2000, premissa governada") for note in spatial["notes"])
+            board.get_by_role("tab", name="Mapa", exact=True).click()
+            expect(board.get_by_text("Referencial SIRGAS 2000: premissa da base oficial", exact=False)).to_be_visible()
+            shot("block1-08-distancias-base-oficial.png")
+
+        def advanced_parameters():
+            """Abre "Ver outras condições da análise" na etapa de parâmetros, onde ficam as confirmações da estrutura."""
+            chooser = inline.get_by_label("Escolher períodos da análise")
+            if chooser.count() and chooser.is_visible():
+                chooser.click()
+                inline.get_by_role("button", name="junho de 2024", exact=True).click()
+            summary = inline.locator("summary", has_text="Ver outras condições da análise")
+            if not summary.evaluate("element => element.parentElement.open"):
+                summary.click()
+            page.get_by_role("region", name="Preparação da análise").get_by_role("button", name="2. Parâmetros e confirmações").click()
+            expect(page.get_by_role("heading", name="Conferir a estrutura dos dados", exact=True)).to_be_visible(timeout=60000)
+
+        # Condições avançadas: premissas internas não voltam como caixas nem como seletores.
+        workspace(page, "preparation")
+        advanced_parameters()
+        expect(page.get_by_test_id("governed-number-format")).to_have_count(1 if real else 0)
+        expect(page.get_by_text("Referencial geodésico informado para a base")).to_have_count(0 if real else 1)
+        select(page, "Agregações")
+        advanced_parameters()
+        for label in ("Declaro que as populações territoriais são partes sem sobreposição do conjunto agregado.",
+                      "Autorizo a soma das contagens dos componentes, ciente de que pode contar a mesma unidade mais de uma vez; "
+                      "o total não será apresentado como pessoas únicas."):
+            expect(page.get_by_label(label, exact=True)).to_have_count(0)
         assert not llm_calls, llm_calls
         assert not failures, failures
-        print("Bloco 1: 10 etapas executadas; 4 resultados reais do motor; retomada sem recálculo; CSV/JSON conferidos contra o motor; "
+        print("Bloco 1: 11 etapas executadas; " + str(len(results)) + " resultados reais do motor; retomada sem recálculo; "
+              "CSV/JSON conferidos contra o motor; origem do referencial das distâncias conferida; "
               "apresentação, reutilização e responsividade aprovadas; catálogo=" + ("Brasil real" if real else "sintético controlado"))
         browser.close()
 

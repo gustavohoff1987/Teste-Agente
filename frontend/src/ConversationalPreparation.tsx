@@ -52,6 +52,8 @@ type Props = {
   onReference: (territory: string) => void;
   crs: string;
   onCrs: (crs: string) => void;
+  /** Base oficial: o referencial é premissa interna (SIRGAS 2000) e não é pedido ao usuário. */
+  governedCrs: boolean;
   preparing: boolean;
   confirmed: boolean;
   onConfirm: () => void;
@@ -64,6 +66,7 @@ type Props = {
   criteriaNeeds?: { count: boolean; population: boolean; spatial: boolean };
 };
 type Choice = { label: string; value: string };
+export const GOVERNED_CRS = "SIRGAS 2000 (premissa da base oficial)";
 function InlineChoice({ label, value, options, onChange }: {
   label: string; value: string; options: Choice[]; onChange: (value: string) => void;
 }) {
@@ -169,6 +172,7 @@ export default function ConversationalPreparation(p: Props) {
             {usesPeriods && <SummaryItem testId="period-summary" label="Períodos"
               value={describePeriods(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods, p.periods)}/>}
             {indicatorLabel && <SummaryItem label="Indicador" value={indicatorLabel}/>}
+            {spatial && p.governedCrs && <SummaryItem testId="crs-summary" label="Referencial" value={GOVERNED_CRS}/>}
           </dl>}
           <ScopeChoice scope={p.scope} choice={p.scopeChoice} rescoping={p.rescoping} error={p.scopeError}
             selectionCount={p.selectionCount} onScope={p.onScope}/>
@@ -190,13 +194,13 @@ export default function ConversationalPreparation(p: Props) {
           </>}
           {!periodStage && usesPeriods && p.periods.length > 1 && <button type="button" className="text-xs font-semibold text-teal underline" onClick={()=>setEditingPeriod(true)}>Voltar à escolha do período</button>}
           {!periodStage && <>
-          {p.operation === "spatial" && <p>Para calcular distâncias, confirme o referencial
+          {p.operation === "spatial" && <p>Para calcular distâncias, {p.governedCrs ? <>selecione</> : <>confirme o referencial
             <InlineChoice label="Referencial geodésico" value={p.crs}
               options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>
-            e selecione o território de referência
+            e selecione</>} o território de referência
             <InlineChoice label="Território de referência" value={p.reference}
               options={named(p.territories)} onChange={p.onReference}/>.</p>}
-          {(p.operation === "nearest" || needs?.spatial) && <p>Para calcular distâncias geodésicas, confirme o referencial das coordenadas
+          {(p.operation === "nearest" || needs?.spatial) && !p.governedCrs && <p>Para calcular distâncias geodésicas, confirme o referencial das coordenadas
             <InlineChoice label="Referencial geodésico" value={p.crs}
               options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>; nenhum referencial é presumido.</p>}
           {requiresIndicator && <p>Deseja trabalhar com

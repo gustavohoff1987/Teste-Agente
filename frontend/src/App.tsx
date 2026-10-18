@@ -13,7 +13,7 @@ import { tableColumns } from "./representation";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { matchesCuratedPreparation } from "./curatedPreparation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
-import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
+import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
 import WorkspaceDialog from "./WorkspaceDialog";
 import { analyticalRequest, attachResult, diagnosticLabel, presentationIntent, type Diagnostic, type Placement } from "./diagnostics";
@@ -582,12 +582,14 @@ function App() {
   function semanticOptions() {
     return {
       ...resolutions,
+      // Base oficial: o separador decimal e o referencial são premissas internas; nada antigo da tela os substitui.
+      ...(governedPremises.has("number_format") ? {number_format: undefined} : {}),
       ...(territoryIds.length && (!usingBrazil || inspection?.source?.scope === "municipal") ? {territory_ids: territoryIds} : {}),
       comparison_indicator: comparisonIndicator,
       hierarchy_columns: hierarchyColumns,
       period_filter: periodFilter, period_filters: selectedPeriods,
       category_filter: categoryFilter,
-      reference_territory: reference, crs, quantile_count: quantiles,
+      reference_territory: reference, crs: governedPremises.has("crs") ? "" : crs, quantile_count: quantiles,
       distribution_indicator: distributionIndicator,
       temporal_indicator: temporalIndicator, report_indicator: reportIndicator,
       no_overlap_confirmed: confirmedNoOverlap,
@@ -1021,6 +1023,7 @@ function App() {
 
   const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)) ||
     (active === "criteria" && !!preflight?.capabilities.criteria?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)));
+  const decimalChoice = !governedPremises.has("number_format") && (decimalPending || !!resolutions.number_format);
   const criteriaAll = [...criteriaLeaves(criteriaTree), ...criteriaLeaves(criteriaComparison?.criteria || null)];
   const criteriaReferencesByCriterion = criteriaDistance && referenceMode === "criterion";
   const criteriaNeeds = {spatial: criteriaDistance,
@@ -1218,7 +1221,8 @@ function App() {
             periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
             selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
             identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
-            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}/>
+            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}
+            governed={governedPremises}/>
             <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
               <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
@@ -1319,13 +1323,13 @@ function App() {
                       {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
                     </select>
                   </label>)}
-                  <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
+                  {!governedPremises.has("crs") && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Referencial geodésico informado para a base
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                       value={crs} onChange={e=>setCrs(e.target.value)}>
                       <option value="">Não informado</option><option value="SIRGAS2000">SIRGAS2000</option>
                     </select>
-                  </label>
+                  </label>}
                   {active === "spatial" && <SelectField label="Território de referência" value={reference}
                     options={preflight?.values.territories || []} onChange={setReference}/>}
                 </>}
@@ -1356,7 +1360,7 @@ function App() {
                   {criteriaComparison && " · Comparação com o " + criteriaComparison.label}</p>}
                 {(active === "nearest" || (active === "criteria" && criteriaDistance)) && <p>Referências: {referenceMode === "list" ? "lista explícita com " + referenceIds.length + " municípios" :
                   referenceMode === "criterion" ? "densidade por 1.000 habitantes " + (criterionOperator || "?") + " " + (criterionValue || "?") :
-                  "aguardando definição"} · Referencial: {crs || "não informado"}</p>}
+                  "aguardando definição"} · Referencial: {governedPremises.has("crs") ? GOVERNED_CRS : crs || "não informado"}</p>}
               </div>
               <RequirementChecklist analysis={selectedFeature?.title || "esta análise"}
                 status={preflightError ? "unavailable" : !preflight || preflighting || inspecting ? "loading" : preflight.capabilities[active]?.status || "unavailable"}
@@ -1419,6 +1423,7 @@ function App() {
       onReference={setReference}
       crs={crs}
       onCrs={setCrs}
+      governedCrs={governedPremises.has("crs")}
       preparing={preflighting || inspecting}
       confirmed={inlineConfirmed}
       onConfirm={()=>{
@@ -1444,7 +1449,7 @@ function App() {
             items={preflight?.territory_choices || []} reason={preflight?.selection_reason}
             referenceIds={referenceIds} onReferenceIds={setReferenceIds}
             operator={criterionOperator} onOperator={setCriterionOperator} value={criterionValue} onValue={setCriterionValue}
-            showDecimal={decimalPending || !!resolutions.number_format} numberFormat={resolutions.number_format}
+            showDecimal={decimalChoice} numberFormat={resolutions.number_format}
             onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
             disabled={running || inspecting}/>}/>}
         {active === "criteria" && criteriaTree && !complete(criteriaTree) && <p role="status" className="text-amber-900">
@@ -1453,7 +1458,7 @@ function App() {
           items={preflight?.territory_choices || []} reason={preflight?.selection_reason}
           referenceIds={referenceIds} onReferenceIds={setReferenceIds}
           operator={criterionOperator} onOperator={setCriterionOperator} value={criterionValue} onValue={setCriterionValue}
-          showDecimal={decimalPending || !!resolutions.number_format} numberFormat={resolutions.number_format}
+          showDecimal={decimalChoice} numberFormat={resolutions.number_format}
           onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
           disabled={running || inspecting}/>}
         {active === "temporal" && <>

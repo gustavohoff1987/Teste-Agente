@@ -360,3 +360,92 @@ def test_combined_criteria_with_distance_follow_the_layer_and_uf_uses_the_govern
     assert after["metadata"]["execution_key"] != before["metadata"]["execution_key"]
     assert density_after["metadata"]["execution_key"] == density_before["metadata"]["execution_key"]
     assert "complemento_geografico" not in density_after["metadata"]
+
+
+def test_governed_version_resolves_crs_and_decimal_separator_only_in_distance_analyses(repo, monkeypatch):
+    """Versão governada: SIRGAS 2000 (regra do perfil) e vírgula decimal (verificada nos dados) sem declaração do usuário."""
+    import llm_bridge
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Nenhuma chamada ao provedor de IA neste teste")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(llm_bridge, "_call_gemini", forbidden)
+    write_layer(repo, layer_document(repo))
+    info = inspection()
+    origins = {item["option"]: item["origin"] for item in info["curated_defaults"]["premises"]}
+    assert (origins["crs"], origins["number_format"]) == ("PERFIL_GOVERNADO", "VERIFICADA_NOS_DADOS")
+    internal = {"crs": "", "number_format": ""}
+    tree = {"logic": "and", "operands": [{"attribute": "uf", "operator": "=", "value": "SC"},
+                                         {"attribute": "distancia", "operator": ">", "value": "100"}]}
+    runs = {"spatial": {"reference_territory": "ALFA [170001]", "territory_ids": ["code:" + c for c in AUTHORIZED] + ["code:170001"]},
+            "nearest": {"reference_mode": "list", "reference_ids": ["code:170001"]},
+            "criteria": {"criteria": tree, "reference_mode": "list", "reference_ids": ["code:420001"]}}
+    for operation, selection in runs.items():
+        gate = client.post("/api/preflight", data={"dataset": "brazil", "scope": "municipal", "operation": operation,
+                                                  "dataset_version": info["source"]["version"],
+                                                  "mapping": json.dumps(info["suggested_mapping"]),
+                                                  "options": json.dumps(options(period_filter="202406", **selection, **internal))})
+        capability = gate.json()["capabilities"][operation]
+        assert capability["status"] == "available", capability["reasons"]
+        assert {"status": "met", "title": "Referencial geodésico",
+                "detail": "SIRGAS 2000, premissa governada da base Brasil oficial."} in capability["requirements"]
+        declared = analyze(operation, info=info, period_filter="202406", **selection)
+        governed = analyze(operation, info=info, period_filter="202406", **selection, **internal)
+        assert declared.status_code == governed.status_code == 200, governed.text
+        declared, governed = declared.json(), governed.json()
+        assert governed["rows"] == declared["rows"]
+        used = governed["metadata"]["options"]
+        assert (used["crs"], used["number_format"]) == ("SIRGAS2000", "decimal_comma")
+        assert used["governed_premises"][-2:] == ["crs", "number_format"]
+        assert not {"crs", "number_format"} & set(declared["metadata"]["options"]["governed_premises"])  # informados
+        notes = " ".join(governed["notes"])
+        assert "Referencial geodésico: SIRGAS 2000, premissa governada" in notes
+        assert "Separador decimal das coordenadas: vírgula, verificada nos dados" in notes
+        assert "Referencial geodésico: SIRGAS 2000" not in " ".join(declared["notes"])
+        geometry = governed["metadata"]["representacao"]["geometria"]
+        assert geometry["estado"] == "DISPONIVEL" and geometry["configuracao_apresentacao"] is None
+        assert geometry["premissa_referencial"].startswith("SIRGAS 2000, premissa governada")
+        assert declared["metadata"]["representacao"]["geometria"]["premissa_referencial"] is None
+    # Sem distância, nenhuma das duas opções entra no cálculo; o mapa continua só de apresentação.
+    density = analyze("density", info=info, period_filter="202406", **internal).json()
+    assert (density["metadata"]["options"]["crs"], density["metadata"]["options"]["number_format"]) == ("", "")
+    assert not {"crs", "number_format"} & set(density["metadata"]["options"]["governed_premises"])
+    geometry = density["metadata"]["representacao"]["geometria"]
+    assert geometry["configuracao_apresentacao"]["origem"] == "configuracao_contextual_base_brasil"
+    assert geometry["premissa_referencial"] is None
+    # O contexto da conversa mantém todas as premissas: o resultado sem distância continua na mesma preparação.
+    headers = {"X-ADT-Session": client.post("/api/session").json()["token"]}
+    context = {"dataset": "brazil", "scope": "municipal", "dataset_version": info["source"]["version"],
+               "mapping": json.dumps(info["suggested_mapping"]), "options": json.dumps(options(period_filter="202406", **internal))}
+    result = client.post("/api/analyze", headers=headers, data={**context, "operation": "density"}).json()
+    reply = client.post("/api/llm/interpret-context", headers=headers,
+                        data={**context, "message": "O que esse resultado significa?", "displayed_result_id": result["result_id"]})
+    assert reply.status_code == 200, reply.text
+    assert reply.json()["result_reference"]["same_preparation"] is True
+    # O que o usuário informa explicitamente prevalece, inclusive quando é incompatível ou não suportado.
+    assert analyze("nearest", info=info, period_filter="202406", **runs["nearest"], number_format="decimal_point").status_code == 422
+    assert analyze("nearest", info=info, period_filter="202406", **runs["nearest"], crs="WGS84").status_code == 422
+
+
+def test_decimal_separator_premise_requires_evidence_and_only_reaches_the_governed_version():
+    import pandas as pd
+    from brazil_catalog_profile import curated_profile
+    mapping = dict(FIELDS["municipal"])
+    frame = pd.DataFrame({"municipio": ["A", "A"], "cod_ibge": ["001", "001"], "Período (ano e mês)": ["202306", "202406"],
+                          "categoria_profissional": ["MEDICINA"] * 2, "quantidade": ["6", "10"],
+                          "população_estimada": ["1000", "1000"], "latitude": ["-10,1", "-10"], "longitude": ["-40,1", "-40"]})
+    governed = {"integridade": "verificada", "versao": "v1", "versao_governada": "v1"}
+
+    def premises(changes=None, catalog=governed):
+        data = frame.assign(**(changes or {}))
+        data.attrs = {"source": {"dataset": "brazil", "scope": "municipal"}, "catalog": catalog}
+        return [item["option"] for item in curated_profile(data, mapping)["premises"]]
+
+    assert premises()[-2:] == ["crs", "number_format"]
+    # Ponto decimal, outra notação, nenhuma vírgula ou vírgula em quantidades: o separador volta a ser pedido.
+    for changes in ({"latitude": ["-10.1", "-10"]}, {"longitude": ["-40,1", "4e1"]}, {"quantidade": ["6,0", "10"]},
+                    {"latitude": ["-10", "-10"], "longitude": ["-40", "-40"]}):
+        assert premises(changes)[-1] == "crs", changes
+    # Versão externa fixada ou integridade não verificada: nenhuma das duas premissas.
+    for catalog in ({**governed, "versao_governada": "v0"}, {**governed, "integridade": "divergente"}, {}):
+        assert not {"crs", "number_format"} & set(premises(catalog=catalog))

@@ -73,7 +73,11 @@ temporal, comparabilidade entre municípios, populações municipais sem sobrepo
 como soma dos componentes são regras do perfil, decididas pelo responsável pelo produto em
 18/10/2026. A identidade territorial ao longo do tempo só vale depois de verificada nos dados:
 cada código IBGE mantém o mesmo nome em todas as competências. Sem essa evidência, a confirmação
-volta a ser pedida. Bases importadas e significados alterados mantêm todas as declarações.
+volta a ser pedida. Nas análises de distância da versão governada (análise espacial, referência
+mais próxima e critérios com distância), também são internos o referencial SIRGAS 2000, regra do
+perfil porque a fonte não declara o referencial, e a vírgula como separador decimal das
+coordenadas, verificada nos dados. Bases importadas e significados alterados mantêm todas as
+declarações.
 Detalhes em [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial).
 
 No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
@@ -242,8 +246,9 @@ arquivos fora deste repositório privado.
 10. **Limitações geográficas que permanecem.** A coordenada dos seis municípios é a mesma nas 22
     competências por premissa do usuário, não por comprovação de estabilidade histórica; bases
     importadas não recebem o complemento; nove municípios têm coordenadas válidas que mudam entre
-    competências (cada competência usa a sua); a fonte original não declara referencial (SIRGAS
-    2000 é declarado pelo usuário; a camada oficial é SIRGAS 2000); a distância é geodésica direta,
+    competências (cada competência usa a sua); a fonte original não declara referencial (na
+    versão governada, SIRGAS 2000 é premissa interna do perfil, decidida pelo responsável pelo
+    produto; a camada oficial é SIRGAS 2000); a distância é geodésica direta,
     sem trajeto, tempo ou acesso.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
@@ -375,7 +380,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 29 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
+Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 30 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
 
 O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a jornada pelo navegador com a base versionada roda na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
 
@@ -388,8 +393,11 @@ próxima** ou peça, por exemplo, "Calcule a referência mais próxima de Manaus
 Parintins": o comando prepara só a operação e os alvos, sem criar referências nem executar.
 As referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
-Período, referencial e separador decimal das coordenadas são confirmados explicitamente;
-nenhum referencial é presumido nem transformado. Referências ou alvos sem coordenada válida
+O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial
+SIRGAS 2000 e a vírgula decimal das coordenadas são premissas internas, registradas nas notas do
+resultado; em bases importadas e em outras versões, referencial e separador decimal são
+confirmados explicitamente, sem referencial presumido. Nenhum referencial é transformado.
+Referências ou alvos sem coordenada válida
 ficam registrados como não avaliáveis, com `minimo_completo` e `minimo_avaliaveis`
 distintos, empates preservados e ausência nunca convertida em zero. A distância não
 representa trajeto viário, tempo de deslocamento nem acessibilidade. O LLM não escolhe
@@ -422,7 +430,7 @@ Na própria página de resultados, as abas **Mapa**, **Gráficos** e **Tabela** 
 resultado, sem nova análise. O backend anexa a cada resultado um contrato de apresentação
 (`metadata.representacao`) com as colunas representáveis (rótulo, unidade, natureza e capacidade de
 origem) e as coordenadas autorizadas de cada território na competência do resultado, pela mesma regra
-das análises espaciais, respeitando a competência e a camada complementar governada. Na versão Brasil íntegra e correspondente ao manifesto governado, o mapa de uma única competência aparece automaticamente: uma configuração contextual adota SIRGAS2000 **somente para apresentação** e o formato decimal conhecido da fonte. O datum original não é declarado pela fonte; essa premissa ilustrativa fica identificada na tela e no JSON, sem mudar as opções analíticas ou calcular distâncias. Não há padrão para uploads ou outras versões externas. Sem localização confirmada, a interface explica a indisponibilidade e mantém tabela e gráficos; a configuração da origem de um upload fica nas opções avançadas da preparação, fora da aba Mapa. O mapa de
+das análises espaciais, respeitando a competência e a camada complementar governada. Na versão Brasil íntegra e correspondente ao manifesto governado, o mapa de uma única competência aparece automaticamente: uma configuração contextual adota SIRGAS2000 **somente para apresentação** e o formato decimal conhecido da fonte. O datum original não é declarado pela fonte; essa premissa ilustrativa fica identificada na tela e no JSON, sem mudar as opções analíticas ou calcular distâncias. Nas análises de distância dessa versão, o referencial já é premissa interna do cálculo: a legenda do mapa informa essa origem e o JSON a registra em `premissa_referencial`. Não há padrão para uploads ou outras versões externas. Sem localização confirmada, a interface explica a indisponibilidade e mantém tabela e gráficos; a configuração da origem de um upload fica nas opções avançadas da preparação, fora da aba Mapa. O mapa de
 pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, seleciona por clique, busca ou
 tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
 (não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem

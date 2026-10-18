@@ -198,9 +198,11 @@ def test_real_resident_temporal(real_catalog, denominator):
 def test_real_official_base_comparability_premises_are_internal(real_catalog):
     """Identidade territorial verificada nos 5.570 códigos; sem declarações, a série é a mesma das declaradas."""
     info, _, _ = real_catalog
+    # Na versão governada, o referencial e o separador decimal das análises de distância também são internos;
+    # a vírgula decimal é verificada nas 122.534 linhas reais.
     assert [item["option"] for item in info["curated_defaults"]["premises"]] == [
         "temporal_comparability_confirmed", "territory_longitudinal_confirmed", "comparison_confirmed",
-        "population_additive_confirmed", "component_sum_confirmed"]
+        "population_additive_confirmed", "component_sum_confirmed", "crs", "number_format"]
     internal = resident_result(info, "temporal", temporal_indicator="density")
     declared = resident_result(info, "temporal", temporal_indicator="density",
         temporal_comparability_confirmed=True, territory_longitudinal_confirmed=True)
@@ -312,6 +314,10 @@ def test_real_resident_spatial_with_the_official_layer(real_catalog):
             assert mark == (" e ".join(sides).capitalize() if sides else "Não")
         geo = result["metadata"]["complemento_geografico"]
         assert geo["estado"] == "valido" and geo["proveniencia"]["sha256_arquivo"] == source["sha256_arquivo"]
+    # Base oficial: sem declaração, o referencial e o separador decimal internos produzem as mesmas distâncias.
+    internal = resident_result(info, "spatial", **{**options, "crs": "", "number_format": ""}, reference_territory=reference)
+    assert internal["rows"] == result["rows"]
+    assert internal["metadata"]["options"]["governed_premises"][-2:] == ["crs", "number_format"]
     upload = client.post("/api/analyze", files={"file": ("spatial-full-period.csv", original.to_csv(index=False, sep=";").encode())},
         data={"operation": "spatial", "mapping": json.dumps(info["suggested_mapping"]),
               "options": json.dumps({**options, "reference_territory": expected.Território[valid].iloc[0]})})

@@ -175,6 +175,12 @@ def test_real_explicit_list_uses_the_period_geometry(real):
         _, _, meters = GEOD.inv(np.full(3, units[key]["lon"]), np.full(3, units[key]["lat"]), r_lon, r_lat)
         record = coverage[key]["minimo_completo"]
         assert record["avaliabilidade"] == "AVALIAVEL" and record["distancia_km"] == meters.min() / 1000
+    # Base oficial: sem declaração, o referencial e o separador decimal são premissas internas, com o mesmo resultado.
+    internal = analyze(inspection, reference_mode="list", reference_ids=refs, crs="", number_format="")
+    assert internal["rows"] == body["rows"]
+    assert internal["metadata"]["nearest_reference"]["cobertura_referencias"] == structured["cobertura_referencias"]
+    assert internal["metadata"]["options"]["governed_premises"][-2:] == ["crs", "number_format"]
+    assert any(note.startswith("Referencial geodésico: SIRGAS 2000, premissa governada") for note in internal["notes"])
     # Municípios cujas coordenadas mudam entre competências: cada período usa a sua geometria.
     early = independent(rows, "201401")
     moved = sorted(k for k in units if early.get(k) and units[k]["valid"] and early[k]["valid"]
@@ -333,3 +339,6 @@ def test_real_combined_criteria_with_the_official_layer(real, june_with_layer):
     partial = analyze(inspection, operation="criteria", criteria=tree, distance_scope="evaluable_references",
                       **options)["metadata"]["criterios"]
     assert {item["elemento"]: item["estado"] for item in partial["avaliacoes"]} == expected
+    # Referencial e separador decimal internos da base oficial: as mesmas avaliações sem declaração do usuário.
+    internal = analyze(inspection, operation="criteria", criteria=tree, crs="", number_format="", **options)
+    assert internal["metadata"]["criterios"]["avaliacoes"] == strict["avaliacoes"]

@@ -411,8 +411,9 @@ agora é `incompativel`, coerente com a sobreposição (teste que falha sem a co
   2014–2024, que não comprova estabilidade histórica; a ausência de autenticação independente do
   GeoPackage junto ao servidor do IBGE; e a regra de que bases importadas não recebem o
   complemento.
-- Distância geodésica direta (sem trajeto viário, tempo ou acessibilidade); referencial SIRGAS 2000
-  declarado pelo usuário para a base, pois a fonte não o declara.
+- Distância geodésica direta (sem trajeto viário, tempo ou acessibilidade); referencial SIRGAS 2000,
+  pois a fonte não o declara: premissa interna na versão governada da base Brasil e declaração do
+  usuário nas bases importadas.
 - Quantidade e densidade nos critérios usam a coluna de quantitativos (contagem por identificador
   individual não habilitada nesta etapa, como no critério de referências da Etapa 1).
 - UF pela regra governada do código IBGE apenas na base Brasil municipal.

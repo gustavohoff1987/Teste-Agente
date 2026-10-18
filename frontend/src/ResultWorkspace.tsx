@@ -325,6 +325,7 @@ export default function ResultWorkspace(p: Props) {
         {period}. Cada ponto representa a localização de um território (sede municipal na base Brasil).
         O conjunto dos pontos permite reconhecer a distribuição geográfica; não representa os limites territoriais.
         {geometry.configuracao_apresentacao && " Localização ilustrativa; a fonte original não informa o referencial das coordenadas. A premissa de apresentação está registrada em Método e parâmetros."}
+        {geometry.premissa_referencial && " Referencial SIRGAS 2000: premissa da base oficial, pois a fonte original não informa o referencial das coordenadas; as distâncias usam esse referencial."}
         {connections.length > 0 && " Linhas tracejadas são ligações ilustrativas entre alvo e referência: a distância informada é a geodésica direta calculada pelo motor, não um trajeto viário."}
       </p>
       {rep.notas.length > 0 && <details className="text-xs text-slate-600"><summary className="cursor-pointer">Sobre a localização dos pontos</summary>

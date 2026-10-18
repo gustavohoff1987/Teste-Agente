@@ -63,7 +63,7 @@ distância viária e tempo de deslocamento.
 | CAP-SUB-01 — critério atômico | Operadores `<`, `≤`, `>`, `≥`, `=`, `≠`, sempre explicitados; valor sem unidade no único contexto da densidade (por 1.000 habitantes); comparação exata em frações (`quantidade × 1.000` contra `valor × população`) | `test_density_criterion_is_exact_at_the_boundary`, `test_criterion_candidates_without_denominator_are_listed_not_assumed`, teste real com recálculo independente |
 | CAP-ESP-01 — distância | Problema geodésico inverso de Karney (GeographicLib, via pyproj), elipsoide GRS80 (a = 6.378.137 m, 1/f = 298,257222101), quilômetros em precisão integral | `test_geodesic_method_is_grs80_and_agrees_with_independent_vincenty` |
 | RQ-DAD-25 — coordenadas | Faixas −90..90 e −180..180; ausência → `SEM_INFORMACAO_ESPACIAL`; fora da faixa ou não numérica → `COORDENADA_INVALIDA`; associação de latitude e longitude confirmada | `test_invalid_reference_gives_partial_minimum_never_presented_as_complete`, `test_targets_without_valid_coordinates_stay_in_universe` |
-| RQ-DAD-26/27 — referencial | Sem referencial: pendência (REFERENCIAL_GEODESICO), nada presumido; aliases governados canonicalizados; referencial informado e não suportado: execução recusada com motivo, sem transformação, aproximação ou substituição, e a base segue utilizável nas demais análises | `test_unsupported_reference_systems_are_never_transformed`, `test_governed_aliases_are_canonicalized`, `test_reference_system_is_never_presumed` |
+| RQ-DAD-26/27 — referencial | Sem referencial: pendência (REFERENCIAL_GEODESICO), nada presumido, salvo na versão governada da base Brasil, em que SIRGAS 2000 é premissa interna do perfil (configuração contextual autorizada pelo responsável pelo produto em 18/10/2026), registrada nas notas e em `governed_premises`; aliases governados canonicalizados; referencial informado e não suportado: execução recusada com motivo, sem transformação, aproximação ou substituição, e a base segue utilizável nas demais análises | `test_unsupported_reference_systems_are_never_transformed`, `test_governed_aliases_are_canonicalized`, `test_reference_system_is_never_presumed`, `test_governed_version_resolves_crs_and_decimal_separator_only_in_distance_analyses` |
 | CAP-ESP-02 — mais próxima | Distância por par com avaliabilidade; `minimo_completo` e `minimo_avaliaveis` distintos; qualificador "entre as referências avaliáveis" obrigatório; COBERTURA_PARCIAL; empates preservados; sem inferência por limites | `test_invalid_reference_gives_partial_minimum_never_presented_as_complete`, `test_ties_preserve_every_reference`, `test_exact_search_equals_exhaustive_search` |
 | TPL-11 / V-06 | Limitação `DISTANCIA_GEODESICA_DIRETA` com o texto de TPL-11 em notas, descrição e limitações estruturadas | testes de API e de navegador |
 | RQ-CAP-08 — desfecho | `RES-LIM` quando há resultado (a limitação de distância direta é analítica); conjunto vazio → `BLQ-DEP` (`CONJUNTO_REFERENCIAS_VAZIO`); nenhuma referência avaliável → `BLQ-DAD` | `test_empty_reference_set_preserves_targets_without_distances`, `test_references_all_without_coordinates_produce_no_analytical_result` |
@@ -189,8 +189,10 @@ A jornada completa ocorre na conversa:
 3. **Modo:** "Lista de municípios por nome ou código" ou "Critério simples de densidade".
 4. **Referências:** segunda seleção, em âmbar ("Municípios de referência"), ou operador e valor
    por 1.000 habitantes, sem sugestão.
-5. **Confirmações:** período, referencial (SIRGAS2000 sem presunção) e, quando há vírgula nas
-   coordenadas, o separador decimal.
+5. **Confirmações:** período; em bases importadas e em outras versões, também o referencial
+   (SIRGAS2000 sem presunção) e, quando há vírgula nas coordenadas, o separador decimal. Na versão
+   governada da base Brasil, os dois são premissas internas, e o resumo da preparação mostra
+   "Referencial: SIRGAS 2000 (premissa da base oficial)".
 6. **Execução:** botão desabilitado até o pré-exame liberar; indicador "Preparando seu
    diagnóstico"; uma execução por vez, mesmo com clique duplo.
 7. **Consulta:** métricas, tabela, notas de método e limitações.

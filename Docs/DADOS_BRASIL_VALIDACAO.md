@@ -63,7 +63,8 @@ Selecionar um recorte sem os requisitos necessários mantém a análise bloquead
 ## Premissas internas da base oficial
 
 Decisão do responsável pelo produto (orientação de 18/10/2026): na base disponibilizada pela
-plataforma, o usuário não confirma premissas de comparabilidade. `brazil_catalog_profile.py`
+plataforma, o usuário não confirma premissas de comparabilidade nem, nas análises de distância da
+versão governada, o referencial e o separador decimal das coordenadas. `brazil_catalog_profile.py`
 as aplica somente quando o perfil governado é reconhecido (estrutura, mapeamento canônico e
 categoria única MEDICINA, depois da integridade conferida pelo manifesto). As opções aplicadas
 ficam em `governed_premises`, e cada resultado afetado traz a nota correspondente em "Método e
@@ -76,18 +77,27 @@ limitações". O usuário não declara nada em nome da fonte.
 | Comparabilidade entre municípios (`comparison_confirmed`) | municipal | comparações e rankings | regra do perfil: mesma medida, unidade e população estimada em cada competência |
 | Populações sem sobreposição (`population_additive_confirmed`) | municipal | agregação | regra do perfil: municípios são partes disjuntas do território nacional |
 | Total como soma dos componentes (`component_sum_confirmed`) | municipal | agregação | regra do perfil: a base não identifica pessoas entre municípios; rótulo de possível dupla contagem |
+| Referencial geodésico SIRGAS 2000 (`crs`) | municipal, só na versão governada | análise espacial, referência mais próxima e critérios com distância | regra do perfil: a fonte não declara o referencial; SIRGAS 2000 é o referencial da camada oficial do IBGE; nenhuma transformação |
+| Vírgula como separador decimal das coordenadas (`number_format`) | municipal, só na versão governada | as mesmas | verificada nos dados: latitude e longitude preenchidas com vírgula decimal ou inteiras (ao menos uma com vírgula), e quantidade e população sem vírgula |
 
 Verificação na versão governada (`819cf4628bff…`): 5.570 códigos e nenhum com mais de um nome
 nas 22 competências. Faltam seis observações código–competência (três em janeiro de 2015 e uma
 em junho de 2015, janeiro de 2017 e janeiro de 2020); elas continuam não avaliáveis nos
 extremos da evolução, sem interpolação. Se uma versão futura falhar na verificação, a identidade
-territorial não é aplicada e a confirmação volta à interface.
+territorial não é aplicada e a confirmação volta à interface. Na mesma versão, as 122.534 linhas
+municipais têm latitude e longitude preenchidas com vírgula decimal ou inteiras (132 latitudes e
+44 longitudes inteiras), e quantidade e população estimada só com dígitos; sem essa evidência, o
+separador decimal volta a ser pedido.
 
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
-fonte, cuja procedência primária segue pendente (README, ponto 9). A declaração explícita de
-ausência de sobreposição, nas opções avançadas, continua prevalecendo sobre a soma dos
-componentes. Bases importadas e preparações com significados alterados mantêm todas as
-confirmações.
+fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
+referencial SIRGAS 2000, que não certifica o datum original. As duas premissas de distância só
+entram nas análises que usam coordenadas: nas demais, o mapa continua com a configuração só de
+apresentação e as opções do cálculo não mudam. A declaração explícita de ausência de
+sobreposição, nas opções avançadas, continua prevalecendo sobre a soma dos componentes, e um
+referencial ou separador informado explicitamente pela API também prevalece (um referencial não
+suportado ou o ponto decimal continuam recusados). Outras versões da base, bases importadas e
+preparações com significados alterados mantêm todas as confirmações.
 
 O catálogo compartilha as rotas existentes com uploads. A requisição usa `dataset=brazil`,
 `scope=national|municipal|auto` e a versão retornada por `/api/inspect`. Nenhum caminho

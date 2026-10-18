@@ -927,10 +927,10 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
         fields = json.loads(mapping)
-        settings = json.loads(options)
-        if not isinstance(fields, dict) or not isinstance(settings, dict):
+        requested = json.loads(options)
+        if not isinstance(fields, dict) or not isinstance(requested, dict):
             raise ValueError("Parâmetros de análise inválidos.")
-        settings = apply_curated_options(frame, fields, settings)
+        settings = apply_curated_options(frame, fields, requested)
         eligibility = preflight(frame, fields, settings)
         gate = eligibility["capabilities"].get(operation)
         if gate is None:
@@ -942,6 +942,10 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
             raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base antes de analisar.")
         capture = sessions.capture(x_adt_session, context_revision,
                   investigation_context(frame, fields, settings, eligibility)) if x_adt_session else None
+        if not _is_spatial(operation, settings):
+            # Referencial e separador decimal internos valem só nas análises de distância. O contexto da
+            # conversa mantém todas as premissas, como nas demais etapas, e a preparação continua a mesma.
+            settings = apply_curated_options(frame, fields, requested, spatial=False)
         result = compute(frame, fields, operation, settings)
         result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
         result["result_id"] = str(uuid.uuid4())

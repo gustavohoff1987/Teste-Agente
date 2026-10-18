@@ -153,7 +153,7 @@ validação empírica com os dados brasileiros reais, ainda não executada.
 
 - **Dados reais:** a validação empírica pendente acima passou a rodar em todo push, com a base
   Brasil versionada na raiz do repositório:
-  - job `dados-reais`: integridade pelo manifesto e os 29 testes reais;
+  - job `dados-reais`: integridade pelo manifesto e os 30 testes reais;
   - suíte `base-versionada` do job `ui-block1`: esta jornada com `ADT_BLOCK1_REAL=1`, ou seja,
     62 municípios do AM e 22 competências.
 

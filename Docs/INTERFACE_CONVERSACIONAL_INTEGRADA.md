@@ -140,8 +140,12 @@ preparação continua visível e bloqueada, com aviso de carregamento junto à e
 Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
 quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. Nesse caso,
 as premissas de comparabilidade são internas: evolução temporal, comparações, rankings e agregação
-não exibem caixas de confirmação, e a origem de cada premissa aparece em "Método e limitações"
+não exibem caixas de confirmação, nem nas condições avançadas, e a origem de cada premissa aparece
+em "Método e limitações"
 (ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
+Na versão governada, as análises de distância também não pedem o referencial nem o separador
+decimal: o resumo mostra "Referencial: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
+informa essa origem, e as condições avançadas informam o formato numérico em vez de pedi-lo.
 Bases importadas e significados alterados continuam passando por suas confirmações específicas.
 
 A comparação de dois municípios apresenta um registro para cada objeto A/B, seguido pela relação,

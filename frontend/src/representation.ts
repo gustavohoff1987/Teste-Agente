@@ -12,6 +12,7 @@ export type Geometry = {
   competencia?: string | null; referencial?: string; fonte?: string; ids?: string[]; lat?: number[]; lon?: number[];
   complementados?: string[]; sem_geometria?: MissingPoint[];
   configuracao_apresentacao?: {origem: string; premissa: string; formato_coordenadas: string} | null;
+  premissa_referencial?: string | null;
   complemento_geografico?: { estado?: string; identificador?: string; versao?: string; sha256?: string; premissa?: string;
     proveniencia?: Record<string, unknown> } | null;
 };

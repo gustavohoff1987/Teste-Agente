@@ -10,7 +10,7 @@ recebe BLQ-DAD com o motivo (RQ-REP-07); tabela e gráficos continuam disponíve
 """
 import re
 
-from brazil_catalog_profile import curated_profile
+from brazil_catalog_profile import curated_profile, governed_version
 from combined_criteria import needs as criteria_needs
 from data_contract import ConfirmationRequired, canonical_crs, count_unit_label, scoped
 from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
@@ -153,14 +153,12 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
     if not mapping.get("latitude") or not mapping.get("longitude"):
         return _unavailable("Latitude e longitude não estão associadas; o mapa exige geometria autorizada.",
                             "COORDENADAS_NAO_ASSOCIADAS", period)
-    # Configuração contextual de apresentação da versão governada Brasil. Não é um
-    # padrão para uploads nem uma declaração sobre o datum original, ausente na fonte.
-    # A decisão do produto autoriza esta premissa somente para desenhar os pontos;
-    # não altera opções, distância, pré-exame ou chave de execução da análise.
-    catalog = frame.attrs.get("catalog") or {}
-    automatic = bool(not options.get("crs") and curated_profile(frame, mapping) and
-                     catalog.get("integridade") == "verificada" and catalog.get("versao") and
-                     catalog.get("versao") == catalog.get("versao_governada"))
+    # Configuração contextual de apresentação da versão governada Brasil nas análises sem
+    # distância. Não é um padrão para uploads nem uma declaração sobre o datum original,
+    # ausente na fonte: desenha os pontos sem alterar opções, pré-exame ou chave de execução.
+    # Nas análises de distância, o referencial já é premissa governada do perfil (opção "crs").
+    automatic = bool(not options.get("crs") and curated_profile(frame, mapping) and governed_version(frame))
+    governed_crs = "crs" in (options.get("governed_premises") or [])
     if automatic:
         options = {**options, "crs": "SIRGAS2000", "number_format": options.get("number_format") or "decimal_comma"}
     crs = canonical_crs(options.get("crs"))
@@ -206,6 +204,8 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
             "configuracao_apresentacao": {"origem": "configuracao_contextual_base_brasil",
                 "premissa": "SIRGAS2000 somente para apresentação dos pontos; datum não declarado na fonte original",
                 "formato_coordenadas": options.get("number_format")} if automatic else None,
+            "premissa_referencial": "SIRGAS 2000, premissa governada da base Brasil oficial; a fonte original não declara o "
+                                    "referencial" if governed_crs else None,
             "fonte": "latitude e longitude da própria base, na competência do resultado",
             "ids": point_ids, "lat": lat, "lon": lon, "complementados": complemented, "sem_geometria": missing,
             "complemento_geografico": {key: complement[key] for key in

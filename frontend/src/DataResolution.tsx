@@ -17,6 +17,8 @@ type Props = {
   setOptions: (options: ResolutionOptions) => void;
   selectIdentity: (column: string) => void; identityConfirmed: boolean; confirmIdentity: (value: boolean) => void;
   confirmCoordinates: () => void;
+  /** Premissas internas da base oficial: o backend as aplica e esta tela não as pede. */
+  governed: ReadonlySet<string>;
 };
 
 export default function DataResolution(p: Props) {
@@ -42,12 +44,14 @@ export default function DataResolution(p: Props) {
         <div className="mt-3">{check("rows_additive_confirmed", "Declaro que essas partes têm a mesma unidade de contagem e não se sobrepõem dentro de cada território, período e categoria; a população é o total territorial compartilhado.")}</div>
       </details>
     </div>}
+    {p.governed.has("number_format") ? <p data-testid="governed-number-format" className="text-xs text-slate-700">
+      <span className="font-semibold">Formato dos valores numéricos:</span> vírgula decimal nas coordenadas, verificada na base oficial.</p> :
     <label className="block text-xs font-semibold text-slate-700">Formato dos valores numéricos
       <select className="mt-2 block w-full min-w-0 rounded-lg border p-2 sm:ml-2 sm:inline sm:w-auto" value={p.options.number_format || "decimal_point"} onChange={e => set({number_format: e.target.value})}>
         <option value="decimal_point">Ponto decimal, sem separador de milhares</option>
         <option value="decimal_comma">Vírgula decimal, sem separador de milhares</option>
       </select>
-    </label>
+    </label>}
     {p.operation !== "spatial" && p.operation !== "rotation" && p.operation !== "nearest" && !p.mapping.count && <div className="space-y-3">
       <label className="block text-xs font-semibold">Identificador individual para contar pessoas distintas
         <select className="ml-2 rounded-lg border p-2" value={p.mapping.identity || ""} onChange={e => p.selectIdentity(e.target.value)}>
@@ -57,7 +61,7 @@ export default function DataResolution(p: Props) {
       <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={p.identityConfirmed} onChange={e => p.confirmIdentity(e.target.checked)}/>Autorizo contar pessoas distintas: o identificador é completo e identifica a mesma pessoa no recorte.</label>
     </div>}
     {(p.operation === "spatial" || p.operation === "nearest") && <button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs" onClick={p.confirmCoordinates}>Confirmar as colunas de latitude e longitude selecionadas</button>}
-    {["comparisons", "ranking"].includes(p.operation) && check("comparison_confirmed", "Confirmo equivalência da medida, unidade de contagem e definição populacional entre os territórios comparados.")}
+    {["comparisons", "ranking"].includes(p.operation) && !p.governed.has("comparison_confirmed") && check("comparison_confirmed", "Confirmo equivalência da medida, unidade de contagem e definição populacional entre os territórios comparados.")}
     {["temporal", "rotation"].includes(p.operation) && <label className="block text-xs font-semibold">Convenção temporal
       <select className="ml-2 rounded-lg border p-2" value={p.options.period_convention || "auto"} onChange={e => set({period_convention: e.target.value})}>
         <option value="auto">Reconhecer ano, AAAAMM ou data ISO</option><option value="yyyymm">Competência AAAAMM</option><option value="date">Data ISO (AAAA-MM-DD)</option><option value="numeric">Posição numérica declarada</option>
@@ -70,8 +74,8 @@ export default function DataResolution(p: Props) {
       {check("cohort_coverage_confirmed", "Confirmo cobertura integral do mesmo universo nos dois períodos; ausência de registro representa ausência na coorte.")}
     </>}
     {p.operation === "aggregate" && <>
-      {check("population_additive_confirmed", "Declaro que as populações territoriais são partes sem sobreposição do conjunto agregado.")}
-      {check("component_sum_confirmed", "Autorizo a soma das contagens dos componentes, ciente de que pode contar a mesma unidade mais de uma vez; o total não será apresentado como pessoas únicas.")}
+      {!p.governed.has("population_additive_confirmed") && check("population_additive_confirmed", "Declaro que as populações territoriais são partes sem sobreposição do conjunto agregado.")}
+      {!p.governed.has("component_sum_confirmed") && check("component_sum_confirmed", "Autorizo a soma das contagens dos componentes, ciente de que pode contar a mesma unidade mais de uma vez; o total não será apresentado como pessoas únicas.")}
       {!p.mapping.count && check("identity_union_confirmed", "O identificador individual reconhece a mesma pessoa em todos os territórios da união; autorizo deduplicar a união.")}
     </>}
   </div>;

@@ -448,7 +448,8 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
         if (op in ("spatial", "nearest") or (op == "criteria" and uses["spatial"])) and assigned("latitude") and assigned("longitude") and not coordinate_invalid and not missing:
             met("Coordenadas", "Latitude e longitude foram identificadas e verificadas.")
         if (op in ("spatial", "nearest") or (op == "criteria" and uses["spatial"])) and canonical_crs(options.get("crs")):
-            met("Referencial geodésico", "O referencial informado é suportado pelo motor experimental.")
+            met("Referencial geodésico", "SIRGAS 2000, premissa governada da base Brasil oficial." if "crs" in (
+                options.get("governed_premises") or []) else "O referencial informado é suportado pelo motor experimental.")
         if op == "rotation" and assigned("identity") and (
                 options.get("longitudinal_identity_confirmed")) and not identity_missing:
             met("Identidade longitudinal", "O uso longitudinal da identidade individual foi declarado.")
