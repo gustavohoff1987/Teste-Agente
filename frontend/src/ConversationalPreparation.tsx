@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
-import PeriodSelection from "./PeriodSelection";
+import PeriodSelection, {readablePeriod} from "./PeriodSelection";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
@@ -17,6 +17,8 @@ type Props = {
   quantiles: number;
   onQuantiles: (value: number) => void;
   selectedPeriods: string[];
+  multiplePeriods: boolean;
+  periodEditor: number;
   onSelectedPeriods: (periods: string[]) => void;
   scope: SourceScope;
   onScope: (scope: SourceScope) => void;
@@ -85,6 +87,8 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
 
 export default function ConversationalPreparation(p: Props) {
   const [editingPeriod, setEditingPeriod] = useState(false);
+  useEffect(() => { setEditingPeriod(false); }, [p.operation, p.scope]);
+  useEffect(() => { setEditingPeriod(p.periodEditor > 0); }, [p.periodEditor]);
   // Critérios combinados: os papéis seguem as condições, a ordenação e as referências definidas.
   const needs = p.operation === "criteria" ? p.criteriaNeeds || {count: false, population: false, spatial: false} : null;
   const criterion = (p.operation === "nearest" && p.referenceMode === "criterion") || !!needs?.count;
@@ -98,23 +102,26 @@ export default function ConversationalPreparation(p: Props) {
     options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
   const status = p.capability?.status;
   const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
-  const periodChoiceRequired = p.operation === "counts" && p.periods.length > 1 && !p.periodFilter && p.selectedPeriods.length === 0;
+  const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
+  const emptyMultiple = allowMultiple && p.multiplePeriods && !p.selectedPeriods.length && p.periods.length > 1;
+  const periodChoiceRequired = emptyMultiple || p.operation === "counts" && p.periods.length > 1 && !p.periodFilter && p.selectedPeriods.length === 0;
   const ready = status === "available" && p.confirmed && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
   if (p.sourceBrazil && p.curated) {
     const isTemporal = p.operation === "temporal";
     const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
-    const needsSinglePeriod = ["counts", "density", "aggregate", "distribution", "comparisons", "ranking", "nearest", "criteria"].includes(p.operation);
-    const periodReady = !needsSinglePeriod || p.periods.length <= 1 || !!p.periodFilter || p.selectedPeriods.length > 0 &&
-      p.operation === "counts";
+    const usesPeriods = !["spatial", "rotation"].includes(p.operation);
+    const multiple = allowMultiple && p.multiplePeriods;
+    const periodReady = !usesPeriods || p.periods.length <= 1 || (multiple ? p.selectedPeriods.length > 0 : !!p.periodFilter);
     const analysisReady = ready && periodReady;
-    const periodStage = needsSinglePeriod && p.periods.length > 1 && (!periodReady || editingPeriod);
+    const periodStage = usesPeriods && p.periods.length > 1 && (!periodReady || editingPeriod);
      return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
       <div className="flex items-start gap-2">
         <BrandAvatar size={28} className="mt-1 shrink-0"/>
         <div className="min-w-0 flex-1 space-y-3">
           <p className="font-medium text-ink">{periodStage ? "Escolha o período da análise" : "Parâmetros da análise"}</p>
           {!periodStage && <p>A consulta utilizará {p.scope === "national" ? "o conjunto do Brasil" : "os municípios brasileiros"},
-            com a categoria MEDICINA e as referências temporais disponíveis.
+            com a categoria {p.categoryFilter || "confirmada na fonte"}.
+            {usesPeriods && <span data-testid="period-summary"> Períodos: {(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods).map(readablePeriod).join(", ")}.</span>}
             {p.operation === "density" && " A densidade será calculada por 1.000 habitantes."}
           </p>}
           <details className="text-xs text-slate-500">
@@ -127,8 +134,9 @@ export default function ConversationalPreparation(p: Props) {
               ? "Quais períodos você deseja comparar?"
               : "Qual período você deseja analisar?"}</p>
             <PeriodSelection key={p.operation + ":" + p.scope} periods={p.periods} value={p.periodFilter}
-              selected={p.selectedPeriods} multiple={isTemporal}
-              onSingle={value=>{p.onPeriod(value);setEditingPeriod(false);}} onMultiple={p.onSelectedPeriods}
+              selected={p.selectedPeriods} multiple={multiple}
+              onSingle={value=>{p.onPeriod(value);setEditingPeriod(false);}}
+              onMultiple={values=>{setEditingPeriod(true);p.onSelectedPeriods(values);}}
               allowMultiple={allowMultiple}/>
             {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
             Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
@@ -137,7 +145,7 @@ export default function ConversationalPreparation(p: Props) {
               A soma entre diferentes meses não representa pessoas únicas.</p>}
             {periodReady && <button type="button" onClick={()=>setEditingPeriod(false)} className="rounded-lg bg-teal px-3 py-2 text-xs font-semibold text-white">Avançar</button>}
           </>}
-          {!periodStage && needsSinglePeriod && p.periods.length > 1 && <button type="button" className="text-xs font-semibold text-teal underline" onClick={()=>setEditingPeriod(true)}>Voltar à escolha do período</button>}
+          {!periodStage && usesPeriods && p.periods.length > 1 && <button type="button" className="text-xs font-semibold text-teal underline" onClick={()=>setEditingPeriod(true)}>Voltar à escolha do período</button>}
           {!periodStage && <>
           {p.operation === "spatial" && <p>Para calcular distâncias, confirme o referencial
             <InlineChoice label="Referencial geodésico" value={p.crs}
@@ -167,7 +175,7 @@ export default function ConversationalPreparation(p: Props) {
             </button>}
           </div>
           </>}
-          {p.advanced && status !== "available" && !periodStage && <details className="text-xs text-teal">
+          {p.advanced && !periodStage && <details className="text-xs text-teal">
             <summary className="cursor-pointer">Ver outras condições da análise</summary>
             <div className="mt-2">{p.advanced}</div>
           </details>}
@@ -203,7 +211,7 @@ export default function ConversationalPreparation(p: Props) {
           {requiresCount && <>Antes do cálculo, preciso saber se esses quantitativos representam <InlineChoice label="Unidade de contagem"
             value={p.countUnit} options={countUnits} onChange={p.onCountUnit}/>. </>}
           {p.operation !== "spatial" && p.operation !== "temporal" && <>
-            {p.periods.length > 1 && <>Podemos considerar o período <InlineChoice label="Filtrar por período"
+            {p.periods.length > 1 && !(allowMultiple && p.multiplePeriods) && <>Podemos considerar o período <InlineChoice label="Filtrar por período"
               value={p.periodFilter} options={named(p.periods)} onChange={p.onPeriod}/>. </>}
             {p.requestedCategory && p.mapping.category &&
               <>Você mencionou “{p.requestedCategory}”; selecione como essa profissão aparece nos dados: <InlineChoice
@@ -218,6 +226,12 @@ export default function ConversationalPreparation(p: Props) {
           {(p.operation === "nearest" || needs?.spatial) && <>Para as distâncias, o referencial das coordenadas é <InlineChoice label="Referencial geodésico"
             value={p.crs} options={[{label:"SIRGAS2000",value:"SIRGAS2000"}]} onChange={p.onCrs}/>; nenhum referencial é presumido. </>}
         </p>
+        {allowMultiple && p.periods.length > 1 && <div>
+          {p.multiplePeriods ? <PeriodSelection periods={p.periods} value={p.periodFilter} selected={p.selectedPeriods}
+            multiple={true} allowMultiple={true} onSingle={p.onPeriod} onMultiple={p.onSelectedPeriods}/> :
+            <button type="button" onClick={()=>p.onSelectedPeriods(p.periodFilter ? [p.periodFilter] : p.periods)}
+              className="text-xs text-teal underline">Selecionar vários períodos</button>}
+        </div>}
         {categoryChoiceRequired && <p className="text-xs text-slate-600">A escolha da categoria confirma a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
         {periodChoiceRequired && <p className="text-xs text-slate-600">Escolha um período para obter o quantitativo daquele momento, sem somar diferentes períodos.</p>}
         {p.countUnit === "outro" && <label className="flex items-center gap-2 text-sm">

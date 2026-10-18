@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 # nome, código, (lat, lon) em 202401, (lat, lon) em 202406, quantidade, população — valores fictícios.
@@ -267,6 +267,7 @@ def main():
         expect(shared.get_by_text("0 selecionados", exact=True)).to_be_visible()
 
         # 8. Outra competência do mesmo pedido: navegação entre resultados existentes, cada um com a sua geometria.
+        workspace(page, "preparation")
         inline.get_by_label("Filtrar por período").select_option("202401")
         confirm()
         previous = execute()

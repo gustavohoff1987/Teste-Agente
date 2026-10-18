@@ -16,7 +16,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -219,6 +219,7 @@ def main():
         assert_same_rows(exported_rows(download), imported["rows"])
         page.screenshot(path=str(OUTPUT / "nearest-02-base-importada.png"), full_page=True)
 
+        workspace(page, "preparation")
         # Tela estreita: controles de alvos e referências acessíveis, sem rolagem horizontal da página.
         for width in (390, 768):
             page.set_viewport_size({"width": width, "height": 844})

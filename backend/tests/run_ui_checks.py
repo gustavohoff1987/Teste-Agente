@@ -48,7 +48,7 @@ SUITES = {
     "gemini-simulado": {
         "descricao": "Interpretação por um transporte Gemini simulado (sem chamadas ao provedor)",
         "catalogo": "bloco1", "servidor": "gemini-simulado",
-        "roteiros": [("ui_block1_integration.py", {}), ("ui_semantic_continuity.py", {})],
+        "roteiros": [("ui_block1_integration.py", {}), ("ui_semantic_continuity.py", {}), ("ui_stabilization.py", {})],
     },
     "base-versionada": {
         "descricao": "Jornada do Bloco 1 com a base Brasil versionada (62 municípios do AM, 22 competências)",

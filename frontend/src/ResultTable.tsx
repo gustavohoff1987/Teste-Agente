@@ -61,13 +61,41 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
       </div>
     </div>
     {sort && <p className="no-print px-4 py-2 text-xs text-slate-600">Ordenação da tabela apenas para consulta; as posições calculadas na análise são preservadas.</p>}
+    {stacked && <details className="no-print px-4 py-3 text-xs">
+      <summary className="cursor-pointer font-semibold text-teal">Filtrar e ordenar a comparação</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{columns.map(column => <div key={column.key} className="min-w-0">
+        <button type="button" aria-label={"Ordenar tabela por " + (column.label || column.key)}
+          onClick={() => {setSort({key: column.key, ascending: sort?.key === column.key ? !sort.ascending : true});setPage(0);}}
+          className="mb-1 font-semibold">{column.label || column.key}{sort?.key === column.key ? sort.ascending ? " ↑" : " ↓" : ""}</button>
+        <input aria-label={"Filtrar " + (column.label || column.key)} value={filters[column.key] || ""}
+          placeholder={rows.some(row => typeof row[column.key] === "number") ? "Ex.: >= 2" : "Buscar..."}
+          onChange={event => {setFilters(previous => ({...previous, [column.key]: event.target.value}));setPage(0);}}
+          className="w-full rounded-md border border-line px-2 py-2"/>
+      </div>)}</div>
+    </details>}
     {stacked && <div className="space-y-3 p-4" aria-label="Comparação em registros separados">
       {visible.map((row, index) => {
         const id = idOf?.(row), chosen = !!id && !!selected?.has(id);
+        if (row["Objeto A"] != null && row["Objeto B"] != null) return <div key={index} className="space-y-3 rounded-xl border border-line p-3">
+          {(["A", "B"] as const).map(side => <article key={side} data-testid="comparison-territory-row" className="rounded-lg border border-line bg-white p-4">
+            <h5 className="font-semibold text-ink">{show(row["Objeto " + side])}</h5>
+            <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+              {["Período", "Categoria", "Indicador", "Unidade de contagem", "Valor " + side].map(key => <div key={key} className="min-w-0">
+                <dt className="text-xs text-slate-500">{key.startsWith("Valor ") ? "Valor" : key}</dt>
+                <dd className="break-words text-sm" title={typeof row[key] === "number" ? "Valor integral: " + String(row[key]) : undefined}>{show(row[key])}</dd>
+              </div>)}
+            </dl>
+          </article>)}
+          <dl data-testid="comparison-pair-summary" className="grid gap-2 px-1 sm:grid-cols-2">
+            {columns.filter(column => !["Objeto A", "Objeto B", "Valor A", "Valor B", "Período", "Categoria", "Indicador", "Unidade de contagem"].includes(column.key)).map(column =>
+              <div key={column.key}><dt className="text-xs text-slate-500">{column.label || column.key}</dt>
+                <dd className="break-words text-sm" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>{show(row[column.key])}</dd></div>)}
+          </dl>
+        </div>;
         return <article data-testid="comparison-territory-row" key={id ? id + ":" + index : index}
           className={"rounded-xl border p-4 " + (chosen ? "border-blue-400 bg-blue-50" : "border-line bg-white")}>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <strong className="text-sm text-ink">Território {current * PAGE_SIZE + index + 1}</strong>
+            <strong className="text-sm text-ink">{show(row["Território"] || "Território " + (current * PAGE_SIZE + index + 1))}</strong>
             {id && onToggle && <button type="button" onClick={()=>onToggle(id)}
               aria-pressed={chosen} className="text-xs font-semibold text-teal underline">{chosen ? "Retirar da seleção" : "Selecionar território"}</button>}
           </div>

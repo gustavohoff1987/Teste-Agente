@@ -65,13 +65,13 @@ async def fake_gemini(sanitized, model, api_key):
         op, ind = "distribution", ("density" if "densidade" in current else "quantity" if "quantidade" in current else "none")
     elif "densidade" in current:
         op, ind = "density", "density"
-    elif "quantitativ" in current:
+    elif "quantitativ" in current or "quantos" in current and ("medic" in current or "médic" in current):
         op, ind = "counts", "quantity"
     else:
         op, ind = "none", "none"
     periods = [p for m in users for p in re.findall(r"\b(20\d{4}|20\d{2})\b", m)]
     category = "MEDICINA" if any("medicina" in m.casefold() for m in users) else ""
-    territory = "municípios" if "munic" in current else ""
+    territory = "municípios" if "munic" in current else "Brasil" if "brasil" in current else ""
     return {"operation": op, "indicator": ind, "period": periods[-1] if periods else "",
             "category": category, "territory": territory,
             "intent": "ANALITICO" if op != "none" else "CONVERSACIONAL", "topic": "none"}

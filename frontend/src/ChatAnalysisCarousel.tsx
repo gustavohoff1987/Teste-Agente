@@ -38,10 +38,11 @@ export default function ChatAnalysisCarousel<T extends string>({
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);
   }, [index, features.length]);
+  const selectedIndex = features.findIndex(feature => feature.id === selected);
   useEffect(() => {
-    const found = features.findIndex(feature => feature.id === selected);
-    if (found !== -1) setIndex(found);
-  }, [selected, features]);
+    // Atualizar a disponibilidade no pré-exame não desfaz a navegação pelo catálogo.
+    if (selectedIndex !== -1) setIndex(selectedIndex);
+  }, [selectedIndex]);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   if (!features.length) return null;
   const feature = features[Math.min(index, features.length - 1)];

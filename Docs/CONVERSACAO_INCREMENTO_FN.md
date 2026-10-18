@@ -68,7 +68,7 @@ pedidos automaticamente.
 
 ## Espaço de trabalho
 
-A interface atual tem um único fluxo de investigação: conversa expansível, preparação, resultados e campo de mensagem contextual. A barra horizontal reúne as cinco ações principais, sem navegação lateral permanente. Os contratos de interpretação descritos aqui permanecem iguais. A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+A interface atual tem um único fluxo de investigação: última resposta conversacional, preparação, resultados e campo de mensagem contextual. A barra horizontal reúne as cinco ações principais, sem navegação lateral permanente. Os contratos de interpretação descritos aqui permanecem iguais. A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
 ## Testes
 

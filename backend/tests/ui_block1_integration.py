@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 
 def main():
@@ -34,7 +34,8 @@ def main():
         assert first["executed"] is False and first["proposal"]["operation"] == "density"
         page.get_by_role("button", name="Usar dados do Brasil").click()
         inline = page.locator("#preparacao-conversacional")
-        expect(inline.get_by_text("Os dados já estão preparados", exact=False)).to_be_visible(timeout=30000)
+        expect(inline.get_by_text("Escolha o período da análise", exact=True)).to_be_visible(timeout=30000)
+        expect(inline.get_by_role("button", name="Confirmar correspondências")).to_have_count(0)
         if inline.get_by_label("Escolher períodos da análise").count():
             inline.get_by_label("Escolher períodos da análise").click()
             # A escolha do período dispara novo pré-exame; o contexto só é enviado como pronto depois

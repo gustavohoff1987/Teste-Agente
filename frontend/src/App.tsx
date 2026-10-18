@@ -9,7 +9,8 @@ import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
 import { resultSummary, selectionCompatibility } from "./investigation";
 import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
-import { scrollAnalysisTo } from "./workspaceNavigation";
+import { scrollAnalysisTo, type WorkspaceStage } from "./workspaceNavigation";
+import { matchesCuratedPreparation } from "./curatedPreparation";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
@@ -175,6 +176,9 @@ function App() {
   const privacy = useSessionPrivacy();
   useEffect(() => { if (privacy.accepted) return trackSession(); }, [privacy.accepted]);
   const [conversationStarted, setConversationStarted] = useState(false);
+  const [workspaceStage, setWorkspaceStage] = useState<WorkspaceStage>("preparation");
+  const [multiplePeriods, setMultiplePeriods] = useState(false);
+  const [periodEditor, setPeriodEditor] = useState(0);
   const [page, setPage] = useState<"home" | "results">("home");
   const [confirmNewAnalysis, setConfirmNewAnalysis] = useState(false);
   const [confirmNewSession, setConfirmNewSession] = useState(false);
@@ -269,7 +273,7 @@ function App() {
 
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
-      objectDraft, quantiles, distributionIndicator, selectedPeriods, territoryIds, comparisonIndicator,
+      objectDraft, quantiles, distributionIndicator, selectedPeriods, multiplePeriods, territoryIds, comparisonIndicator,
       referenceMode, referenceIds, criterionOperator, criterionValue,
       criteriaTree, criteriaRanking, criteriaBands, distanceScope, eligibilityScope, criteriaComparison };
   }
@@ -284,6 +288,7 @@ function App() {
     setIdentityCountConfirmed(o.identity_count_confirmed); setCategoryConstant(o.category_constant);
     setObjectDraft(saved.objectDraft); setObjectConfirmed(o.object_confirmed);
     setPeriodFilter(o.period_filter); setSelectedPeriods(saved.selectedPeriods);
+    setMultiplePeriods(saved.multiplePeriods);
     setCategoryFilter(o.category_filter); setReference(o.reference_territory);
     setResolutions(saved.resolutions); setConfirmedNoOverlap(o.no_overlap_confirmed); setCrs(o.crs);
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
@@ -303,10 +308,13 @@ function App() {
   // A base municipal governada declara papéis, unidade e alinhamento do denominador.
   // A comparabilidade só é inferida no recorte de uma competência identificada;
   // importações e demais recortes continuam exigindo evidência explícita.
-  const curatedComparisonReady = !!(usingBrazil && inspection?.curated_defaults &&
-    inspection.source?.scope === "municipal" && periodFilter &&
-    inspection.curated_defaults.population_denominator_confirmed &&
-    countUnit && mapping.count && mapping.population && mapping.territory);
+  const curatedSetup = matchesCuratedPreparation(inspection?.curated_defaults, {
+    official: usingBrazil, mapping, category: categoryFilter, countUnit,
+    fts: ftsScopeConfirmed, object: objectConfirmed, population: populationAligned,
+  });
+  const curatedComparisonReady = !!(curatedSetup && inspection?.source?.scope === "municipal" &&
+    inspection.periods.includes(periodFilter) && !selectedPeriods.length && populationAligned &&
+    mapping.count && mapping.population && mapping.territory);
 
   const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version:sourceVersion,sheet});
@@ -418,7 +426,8 @@ function App() {
       setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
-      setSelectedPeriods([]);
+      setSelectedPeriods(operation === "temporal" ? details.periods : []); setMultiplePeriods(operation === "temporal");
+      setWorkspaceStage("preparation");
       setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
       setResolutions({});
@@ -443,13 +452,16 @@ function App() {
           const periodAfter = details.derived_fields?.find(f => f.column === details.suggested_mapping.period);
           const samePeriod = !!periodBefore && !!periodAfter && JSON.stringify(periodBefore) === JSON.stringify(periodAfter) && equalValues(previous.info.periods, details.periods);
           const sameCategory = !!old.mapping.category && old.mapping.category === details.suggested_mapping.category && equalValues(previous.info.categories, details.categories);
-          setConfirmedRoles(old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory)));
-          if (samePeriod) setPeriodFilter(old.options.period_filter);
+          setConfirmedRoles([...new Set([...(details.curated_defaults?.confirmed_roles || []),
+            ...old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory))])]);
+          if (samePeriod) {setPeriodFilter(old.options.period_filter);setSelectedPeriods(old.selectedPeriods);setMultiplePeriods(old.multiplePeriods);}
           if (sameCategory) {
             setObjectConfirmed(old.options.object_confirmed); setFtsScopeConfirmed(old.options.fts_scope_confirmed);
             setCategoryFilter(old.options.category_filter);
           }
-          setScopeNotice("A abrangência mudou. Confirmações comuns de período e categoria foram mantidas quando equivalentes. Território, unidade de contagem, população e comparabilidade precisam ser conferidos neste recorte.");
+          setScopeNotice(details.curated_defaults
+            ? "A abrangência mudou. Os significados reconhecidos vêm do perfil oficial deste recorte; períodos e categoria foram preservados quando equivalentes. Condições específicas continuam sujeitas ao pré-exame."
+            : "A abrangência mudou. Confirmações comuns de período e categoria foram mantidas quando equivalentes. Território, unidade de contagem, população e comparabilidade precisam ser conferidos neste recorte.");
         } else {
           scopeDrafts.current = {};
           setScopeNotice("A versão dos dados mudou. Revise as associações e confirme novamente os significados e as condições metodológicas.");
@@ -502,8 +514,8 @@ function App() {
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
-    setCatalogOpen(false);
-    setPage("home");
+    setCatalogOpen(false); setPeriodEditor(0);
+    setPage("home"); setWorkspaceStage("preparation");
     setRequestedIndicator(proposal?.indicator ? {operation, indicator:proposal.indicator, generation:sourceGeneration} : null);
     if (pendingTerritories.current?.operation !== operation) pendingTerritories.current = null;
     setRequestedCategory(proposal?.category || "");
@@ -518,7 +530,8 @@ function App() {
     setActive(operation);  setError("");
     setInlineConfirmed(!!inspection?.curated_defaults && !inspecting);
     if (operation === "temporal") {
-      setPeriodFilter("");
+      setPeriodFilter(""); setMultiplePeriods(true);
+      if (!selectedPeriods.length) setSelectedPeriods(inspection?.periods || []);
       if (!temporalIndicator) setTemporalIndicator(active === "counts" ? "quantity" : "density");
     }
     if (usingBrazil) {
@@ -598,6 +611,7 @@ function App() {
       population_additive_confirmed:false, identity_union_confirmed:false});
   }
   function applyExploration(proposal: Exploration) {
+    setPeriodEditor(0);
     if (!proposal.operation || !proposal.territory_ids) return;
     if (usingBrazil && inspection?.source?.scope !== "municipal") {
       pendingExploration.current = proposal; setSelectionProposal(null);
@@ -607,9 +621,14 @@ function App() {
     }
     changeTerritories(proposal.territory_ids);
     const patch = proposal.options_patch || {};
-    if (patch.period_filter !== undefined) setPeriodFilter(patch.period_filter);
+    if (patch.period_filter) { setPeriodFilter(patch.period_filter); setSelectedPeriods([]); setMultiplePeriods(false); }
+    else if (patch.period_filter !== undefined) setPeriodFilter("");
     const periods = patch.period_filters;
-    if (periods !== undefined) setSelectedPeriods(current=>sameList(current, periods) ? current : periods);
+    if (periods !== undefined) {
+      const next = !periods.length && proposal.operation === "temporal" ? inspection?.periods || [] : periods;
+      setSelectedPeriods(current=>sameList(current, next) ? current : next);
+      if (periods.length || proposal.operation === "temporal") { setPeriodFilter(""); setMultiplePeriods(true); }
+    }
     if (patch.temporal_indicator) setTemporalIndicator(patch.temporal_indicator);
     if (patch.comparison_indicator) setComparisonIndicator(patch.comparison_indicator);
     if (patch.component_sum_confirmed) {
@@ -617,7 +636,7 @@ function App() {
       setResolutions(previous=>({...previous, component_sum_confirmed:true, identity_union_confirmed:false}));
     }
     setActive(proposal.operation); setInlineConfirmed(!!inspection?.curated_defaults); setError("");
-    setTimeout(() => scrollAnalysisTo("preparacao-conversacional"), 0);
+    scrollAnalysisTo("preparacao-conversacional");
   }
   // Resultado anterior comparável: mesma fonte, competência, categoria, universo e, se houver distância, referências.
   function previousCriteria(): {item: Historical; index: number} | null {
@@ -659,6 +678,7 @@ function App() {
     return updateCriteria(patch) || reply;
   }
   function updateCriteria(patch: NonNullable<Exploration["criteria_patch"]>): string | null {
+    scrollAnalysisTo("preparacao-conversacional");
     if (patch.compare) return compareWithPrevious();
     setCriteriaComparison(null);
     if (patch.leaf) {
@@ -751,7 +771,7 @@ function App() {
     setResultExpanded(true);
     setVisualSelection((viewMemory.current[item.result.result_id]?.selected as string[]) || []);
     setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
-    setTimeout(() => scrollAnalysisTo("resultados"), 0);
+    scrollAnalysisTo("resultados");
   }
   function transferVisualSelection(id: string) {
     if (running || inspecting || preflighting) return;
@@ -767,6 +787,7 @@ function App() {
     if (item.invalidReason || !compatible(item)) return;
     restorePreparation(structuredClone(item.preparation));
     setActive(item.result.metadata.operation as Operation); setRequestText(item.request);
+    scrollAnalysisTo("preparacao-conversacional");
     setInlineConfirmed(true); setHistoryNotice("Parâmetros e seleção restaurados; o servidor verificará novamente a preparação.");
   }
   // Os identificadores da seleção derivam do nome/código associados; sem eles, deixam de existir.
@@ -806,6 +827,12 @@ function App() {
   async function run(op: Operation, confirmedPlacement?: Placement) {
     if (!privacy.accepted || runningRef.current) return;
     setActive(op);  setError("");
+    // Uma seleção múltipla esvaziada não autoriza usar todas as competências.
+    // O mesmo bloqueio vale para o botão das opções avançadas.
+    if (multiplePeriods && ["counts", "temporal", "report"].includes(op) && !selectedPeriods.length &&
+        (inspection?.periods.length || 0) > 1) {
+      setPeriodEditor(value => value + 1); scrollAnalysisTo("preparacao-conversacional"); return;
+    }
     if (preflighting || !preflight) {
       setError("Aguarde a conclusão da verificação de compatibilidade da base.");
       return;
@@ -845,7 +872,7 @@ function App() {
     }
     const preparation = structuredClone(snapshotPreparation());
     const originRequest = requestText || "Análise de " + ANALYSIS_LABELS[op];
-    runningRef.current = true; setRunning(true);
+    runningRef.current = true; setRunning(true); scrollAnalysisTo("resultados");
     const currentRevision = revision.current;
     const form = new FormData();
     appendSource(form); form.append("operation", op);
@@ -863,11 +890,11 @@ function App() {
       setDiagnostics(groups => attachResult(groups, destination, calculated.result_id));
       placement.current = null;
       setResult(calculated); setResultExpanded(true); setHistoryNotice("");
-      setTimeout(() => scrollAnalysisTo("resultados"), 120);
+      scrollAnalysisTo("resultados");
     } catch (exc) {
       if (currentRevision !== revision.current) return;
       setError(readableError(exc));
-      setTimeout(() => scrollAnalysisTo("resultados"), 120);
+      scrollAnalysisTo("resultados");
     }
     finally { runningRef.current = false; setRunning(false); }
   }
@@ -904,20 +931,25 @@ function App() {
   }
   function navigate(view: "home" | "results", target?: string) {
     setPage(view);
-    if (view === "results") setResultExpanded(true);
+    if (view === "results") { setResultExpanded(true); setWorkspaceStage("results"); }
     const fragment = target || (view === "results" ? "resultados" : "inicio");
     // A alteração nativa do hash também rolaria a página antes da navegação do painel.
     if (window.location.hash !== "#" + fragment) window.history.pushState(null, "", "#" + fragment);
-    window.setTimeout(() => {
-      scrollAnalysisTo(view === "results" && result && !target ? "selected-result-content" : fragment);
-    }, 80);
+    scrollAnalysisTo(view === "results" && result && !target ? "selected-result-content" : fragment);
   }
   useEffect(() => {
-    const onHashChange = () => setPage(window.location.hash === "#resultados" ? "results" : "home");
-    const onPrepare = () => setPage("home");
+    const onHashChange = () => {
+      const results = window.location.hash === "#resultados";
+      setPage(results ? "results" : "home");
+      if (results) setWorkspaceStage("results");
+    };
+    const onStage = (event: Event) => {
+      const stage = (event as CustomEvent<WorkspaceStage>).detail;
+      setWorkspaceStage(stage); setPage(stage === "results" ? "results" : "home");
+    };
     window.addEventListener("hashchange", onHashChange);
-    window.addEventListener("adt:prepare", onPrepare);
-    return () => { window.removeEventListener("hashchange", onHashChange); window.removeEventListener("adt:prepare", onPrepare); };
+    window.addEventListener("adt:stage", onStage);
+    return () => { window.removeEventListener("hashchange", onHashChange); window.removeEventListener("adt:stage", onStage); };
   }, []);
   useEffect(() => {
     document.title = "Agente Diagnóstico Territorial";
@@ -1126,7 +1158,7 @@ function App() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <SelectField label="Filtrar por período" value={periodFilter}
               options={preflight?.values.periods || inspection.periods}
-              onChange={v => {setPeriodFilter(v); }}/>
+              onChange={v => {setPeriodFilter(v);setSelectedPeriods([]);setMultiplePeriods(false); }}/>
             <SelectField label="Filtrar por categoria" value={categoryFilter}
               options={preflight?.values.categories || inspection.categories}
               onChange={v => {setCategoryFilter(v); }}/>
@@ -1297,7 +1329,7 @@ function App() {
                     ? "Quantidade na unidade declarada" : "Aguardando escolha"}</p>}
                 <p>Base: {usingBrazil ? "Dados do Brasil — " + (inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
-                <p>Período: {periodFilter || "Todos os períodos da base"} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
+                <p>Período: {periodFilter || selectedPeriods.map(displayPeriod).join(", ") || (multiplePeriods ? "Nenhum período selecionado" : "Todos os períodos da base")} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
                 <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (identityCountConfirmed ? "Pessoas distintas" : "Conforme a análise")}</p>
                 {active === "criteria" && <p className="break-words">Critérios: {describeCriteria(criteriaTree, countUnit) || "nenhum (somente ordenação)"}
                   {criteriaRanking && " · Ordenação: " + criteriaRanking.attribute + " " + (criteriaRanking.direction === "desc" ? "decrescente" :
@@ -1320,11 +1352,13 @@ function App() {
     <div id="preparacao-conversacional"><ConversationalPreparation
       operation={active}
       sourceBrazil={usingBrazil}
-      curated={!!inspection.curated_defaults}
+      curated={curatedSetup}
       quantiles={quantiles}
       onQuantiles={setQuantiles}
       selectedPeriods={selectedPeriods}
-      onSelectedPeriods={values=>{setSelectedPeriods(values);setPeriodFilter("");}}
+      multiplePeriods={multiplePeriods}
+      periodEditor={periodEditor}
+      onSelectedPeriods={values=>{setMultiplePeriods(true);setSelectedPeriods(values);setPeriodFilter("");}}
       scope={inspection.source?.scope || "municipal"}
       onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
       columns={inspection.columns}
@@ -1348,7 +1382,7 @@ function App() {
       }}
       periodFilter={periodFilter}
       periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
-      onPeriod={v=>{setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(!!inspection.curated_defaults);}}
+      onPeriod={v=>{setMultiplePeriods(false);setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(!!inspection.curated_defaults);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
       categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
@@ -1506,7 +1540,7 @@ function App() {
           periods: (item.result.metadata.periods as string[] | undefined) || [],
           availableForReuse: compatible(item),
           context: diagnosticLabel(group) + " · " + resultSummary(item).scope + " · " + resultSummary(item).status,
-        })))} currentId={result ? diagnosticId + ":" + result.result_id : null} disabled={running || inspecting || preflighting}
+        })))} currentId={result && workspaceStage === "results" ? diagnosticId + ":" + result.result_id : null} disabled={running || inspecting || preflighting}
           onOpen={id => {
             const group = diagnostics.find(group => group.resultIds.some(resultId => id === group.id + ":" + resultId));
             const item = group && history.find(entry => id === group.id + ":" + entry.result.result_id);
@@ -1524,7 +1558,6 @@ function App() {
         {result && <button type="button" aria-expanded={resultExpanded} aria-controls="selected-result-content"
           className="no-print mb-3 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-teal"
           onClick={() => setResultExpanded(value => !value)}>{resultExpanded ? "Recolher análise" : "Expandir análise"}</button>}
-        {historyNotice && <p role="status" className="my-3 text-xs text-teal">{historyNotice}</p>}
         <div className="rounded-[22px] border border-line bg-white p-5 shadow-card sm:p-7 print-content">
           <div className="no-print flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
             <div className="flex items-start gap-3">
@@ -1580,9 +1613,9 @@ function App() {
               <p className="my-2">{nearestMembers.length} referências ({nearestMetadata?.conjunto_referencias?.forma === "CRITERIO"
                 ? "definidas pelo critério" : "lista explícita"}). O resultado calculado permanece inalterado.</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={running || inspecting} onClick={()=>{setReferenceMode("list");setReferenceIds(nearestMembers);}}
+                <button type="button" disabled={running || inspecting} onClick={()=>{setReferenceMode("list");setReferenceIds(nearestMembers);scrollAnalysisTo("preparacao-conversacional");}}
                   className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-amber-900 disabled:opacity-40">Usar como lista de referências</button>
-                <button type="button" disabled={running || inspecting} onClick={()=>changeTerritories(nearestMembers)}
+                <button type="button" disabled={running || inspecting} onClick={()=>{changeTerritories(nearestMembers);scrollAnalysisTo("territorios");}}
                   className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-teal disabled:opacity-40">Usar como municípios-alvo</button>
               </div>
             </details>}
@@ -1594,9 +1627,9 @@ function App() {
               reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}
               status={resultStatus} siblings={siblings} onExport={exportCsv} onRepresentation={keepRepresentation}
               onOpenSibling={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
-              onReuseSelection={ids => { changeTerritories(ids);
+              onReuseSelection={ids => { changeTerritories(ids); scrollAnalysisTo("territorios");
                 setHistoryNotice("Seleção visual levada à preparação: " + ids.length + " território(s). Revise e execute pela preparação."); }}
-              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); }}/>
+              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); scrollAnalysisTo("preparacao-conversacional"); }}/>
             {resultNotes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
               {resultOperation === "distribution" ? <>
@@ -1665,6 +1698,15 @@ function App() {
         <button type="button" data-testid="nav-results" onClick={() => navigate("results")} aria-current={page === "results" ? "page" : undefined}><BarChart3 size={18}/>Resultados</button>
       </nav>
       <AnalysisAssistant
+        notice={historyNotice}
+        workspaceStage={workspaceStage}
+        onStage={stage => {setWorkspaceStage(stage);setPage(stage === "results" ? "results" : "home");}}
+        onMultiplePeriods={() => {
+          if (!active || !["counts", "temporal", "report"].includes(active)) return false;
+          if (!multiplePeriods) {setSelectedPeriods(periodFilter ? [periodFilter] : inspection?.periods || []);setPeriodFilter("");}
+          setMultiplePeriods(true);setPeriodEditor(value => value + 1);
+          scrollAnalysisTo("preparacao-conversacional"); return true;
+        }}
         resultsOnly={page === "results"}
         catalogOpen={catalogOpen}
         running={running}

@@ -24,24 +24,21 @@ type Props = {
 };
 export default function PeriodSelection(p: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [multiple, setMultiple] = useState(p.multiple);
+  const multiple = p.multiple;
   const periods = [...p.periods].sort((a,b) => a.localeCompare(b, "pt-BR", {numeric:true}));
   const toggleMode = () => {
     if (!p.allowMultiple) return;
     if (multiple) {
-      setMultiple(false);
-      p.onMultiple([]);
-      p.onSingle("");
+      p.onSingle(p.selected[0] || p.value || "");
     } else {
-      setMultiple(true);
       // onMultiple é a transição atômica; o componente pai já limpa o período único.
-      p.onMultiple(periods);
+      p.onMultiple(p.value ? [p.value] : periods);
     }
     setExpanded(true);
   };
   const values = multiple ? p.selected : p.value ? [p.value] : [];
   const description = !values.length
-    ? multiple ? "Todos os períodos" : "Escolher período"
+    ? multiple ? "Escolher períodos" : "Escolher período"
     : multiple ? (values.length === periods.length ? "Todos os períodos" : values.length + (values.length === 1 ? " período" : " períodos")) :
       readablePeriod(values[0]);
   return <div className="mt-2 space-y-2">

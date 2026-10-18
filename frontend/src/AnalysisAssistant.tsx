@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
+import {navigationCommand, normalizeCommand, type WorkspaceStage} from "./workspaceNavigation";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import { AlertCircle, ArrowRight, LoaderCircle,
@@ -23,7 +24,7 @@ type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
 type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Proposal;
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
-type Props = { displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
+type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: WorkspaceStage) => void; onMultiplePeriods: () => boolean; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
   onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
@@ -40,7 +41,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -49,14 +50,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   const [started, setStarted] = useState(false);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  // Navegação visual independente dos parâmetros analíticos: voltar não descarta escolhas.
-  const [workspaceStage, setWorkspaceStage] = useState<"territories" | "preparation" | "results">("preparation");
-  useEffect(() => { setWorkspaceStage("preparation"); }, [active, contextVersion]);
-  useEffect(() => { if (displayedResultId) setWorkspaceStage("results"); }, [displayedResultId]);
-  useEffect(() => { if (resultsOnly && hasResult) setWorkspaceStage("results"); }, [resultsOnly, hasResult]);
-
-
-
+  const latestReply = [...turns].reverse().find(turn => turn.role === "assistant");
 
   const revision = useRef(0);
   const ready = useRef(contextReady);
@@ -108,8 +102,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     // A resposta à escolha de fonte pertence à etapa ativa, não ao interpretador analítico.
     // Botões e texto compartilham as mesmas ações de seleção governadas pelo App.
     if (!hasSource) {
-      const sourceReply = message.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
-        .replace(/[.,!?]/g, " ").replace(/\\s+/g, " ").trim();
+      const sourceReply = normalizeCommand(message);
       if (/^(?:(?:quero|vou|prefiro|usar|utilizar|escolho|seleciono|pode usar|quero usar) )*(?:(?:os|a|a base|a base de|a base do) )?(?:dados do brasil|base do brasil|base brasileira|brasil)$/.test(sourceReply)) {
         onChooseBrazil();
         setTurns(previous => [...previous, {role:"assistant", content:"Dados do Brasil selecionados. Vou preparar a fonte oficial; depois escolha a análise desejada."}]);
@@ -123,13 +116,14 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     }
     // Comandos conversacionais e botões alteram a mesma etapa visual.
     if (sourceReady && active) {
-      const navigation = message.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[.!?]/g,"").trim();
-      const target = /^(?:ver |mostrar |ir para )?(?:territorios|municipios|selecao de territorios)$/.test(navigation) ? "territories"
-        : /^(?:ver |mostrar |ir para )?(?:preparacao|parametros|configuracao)$/.test(navigation) ? "preparation"
-        : /^(?:ver |mostrar |ir para )?(?:resultados|resultado)$/.test(navigation) ? "results"
-        : navigation === "voltar" ? workspaceStage === "results" ? "preparation" : "territories"
-        : /^(?:avancar|proxima etapa|continuar)$/.test(navigation) ? workspaceStage === "territories" ? "preparation" : workspaceStage === "preparation" && hasResult ? "results" : null
-        : null;
+      if (/^(?:quero |desejo )?(?:analisar|selecionar|escolher) (?:varios|multiplos) periodos$/.test(normalizeCommand(message))) {
+        const opened = onMultiplePeriods();
+        setTurns(previous => [...previous, {role:"assistant", content: opened
+          ? "Escolha os períodos na preparação. Cada competência será analisada separadamente."
+          : "Esta análise exige uma competência por vez. Para trabalhar com vários períodos, escolha Quantitativos ou Evolução temporal."}]);
+        return;
+      }
+      const target = navigationCommand(message, workspaceStage, hasResult || running);
       if (target && (target !== "results" || hasResult || running)) {
         setWorkspaceStage(target);
         setTurns(previous => [...previous, {role:"assistant",content:target === "territories"
@@ -274,7 +268,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     {turns.at(-1)?.role === "assistant" && turns.at(-1)?.clarification?.source === "CATALOGO_LOCAL" &&
       <div className="mx-4 mb-3 flex flex-wrap gap-2" aria-label="Alternativas de esclarecimento">
         {turns.at(-1)!.clarification!.choices.map(choice =>
-          <button key={choice.label} type="button" disabled={sending || selecting}
+          <button key={choice.label} type="button" disabled={sending || selecting || turns.at(-1)?.context !== contextVersion}
             onClick={async () => {
               const current = turns.at(-1)!;
               if (!choice.operation || !current.request || !sourceReady) {
@@ -317,37 +311,34 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
             (workspaceStage === id ? "border-teal bg-teal-50 text-teal" : "border-line bg-white text-slate-600")}>{label}</button>)}
       </nav>}
       <div className="analysis-scroll" data-testid="analysis-scroll">
+        {notice && <p role="status" className="no-print my-3 text-xs text-teal">{notice}</p>}
         {(!sourceReady || !active) && investigationContent}
-        {sourceReady && active && workspaceStage === "territories" && <div className="preparation-context" data-testid="preparation-context">
-          {turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply"><BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>}
-          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
-          {selection}
-          <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
-            className="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Avançar para preparação</button></div>
+        {sourceReady && active && <div className="preparation-context" data-testid="preparation-context" hidden={workspaceStage === "results"}>
+          <div id="territorios" hidden={workspaceStage !== "territories"}>
+            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
+            {selection}
+            <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
+              className="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Avançar para preparação</button></div>
+          </div>
+          <div hidden={workspaceStage !== "preparation"}>
+            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Confira os parâmetros desta análise. O motor valida as condições antes de habilitar o cálculo.</p></div>
+            {preparation}
+            <button type="button" onClick={()=>setWorkspaceStage("territories")}
+              className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
+          </div>
         </div>}
-        {sourceReady && active && workspaceStage === "preparation" && <div className="preparation-context" data-testid="preparation-context">
-          {turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply">
-            <BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
-          </div>}
-          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Confira os parâmetros desta análise. O motor valida as condições antes de habilitar o cálculo.</p></div>
-          {preparation}
-          <button type="button" onClick={()=>setWorkspaceStage("territories")}
-            className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
-        </div>}
-        {sourceReady && active && workspaceStage === "results" && <>
-          {turns.at(-1)?.role === "assistant" && <div className="latest-reply m-4" role="status" data-testid="latest-reply"><BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>}
-          {investigationContent}
+        <div className="results-stage" hidden={sourceReady && !!active && workspaceStage !== "results"}>
+          {sourceReady && active && investigationContent}
           {resultContent}
-          <button type="button" onClick={()=>setWorkspaceStage("preparation")}
-            className="m-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar à preparação</button>
-        </>}
-        {(!sourceReady || !active) && resultContent}
+          {sourceReady && active && hasResult && <button type="button" onClick={()=>setWorkspaceStage("preparation")}
+            className="no-print m-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar à preparação</button>}
+        </div>
         {resultsOnly && !hasResult && <p className="p-4 text-sm">Seus resultados aparecerão aqui após o primeiro cálculo. Comece em Nova análise ou converse comigo.</p>}
       </div>
     </section>
     <div className="conversation-dock no-print" data-testid="conversation-dock">
-      {(!sourceReady || !active) && turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
-        {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>
+      {latestReply && <div className="latest-reply" role="status" data-testid="latest-reply">
+        <BrandAvatar size={30}/><div><p className="whitespace-pre-wrap">{latestReply.content}</p></div>
       </div>}
       {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
     <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">

@@ -48,7 +48,7 @@ _PRIVATE = re.compile(
 _NOMINAL = re.compile(r"(?<!\w)[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+"
                       r"(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+){0,3}")
 _KEEP = {"Quero", "Preciso", "Gostaria", "Compare", "Comparar", "Analise", "Analisar",
-         "Mostre", "Mostrar", "Qual", "Quais", "Onde", "Quando", "Como", "Entre",
+         "Mostre", "Mostrar", "Qual", "Quais", "Quantos", "Quantas", "Onde", "Quando", "Como", "Entre",
          "Município", "Municípios", "Estado", "Estados", "Região", "Regiões",
          "Densidade", "Distribuição", "Evolução", "Quantitativos", "Médicos",
          "Médicas", "Enfermeiros", "Enfermeiras", "Brasil", "Saúde", "Profissionais",

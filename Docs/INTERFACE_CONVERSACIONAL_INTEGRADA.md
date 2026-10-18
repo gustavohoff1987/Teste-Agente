@@ -32,8 +32,8 @@ associações e confirmações, escolha de modalidade, recortes, períodos e exe
 existente continua verificando requisitos no backend. O catálogo apresenta a disponibilidade
 informada pelo pré-exame; requisitos ausentes podem ser examinados e resolvidos na preparação.
 
-A conversa completa é expansível. Com ela recolhida, a mensagem recente fica junto ao campo de
-digitação, em uma faixa contextual ancorada à base da janela dentro da investigação. O usuário
+A transcrição permanece em memória para continuidade, sem histórico visual acumulado. A última
+resposta do agente permanece junto ao campo de digitação, em uma faixa contextual ancorada à base da janela dentro da investigação. O usuário
 pode continuar perguntando durante a exploração de gráficos, mapas e tabelas. Alternativas de
 interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável.
 
@@ -85,11 +85,46 @@ representação da análise e associação aos diagnósticos; fica somente em Op
 
 - `App.tsx`: navegação, preparação existente, histórico e associação a diagnósticos.
 - `diagnostics.ts`: referências ordenadas a resultados e intenção explícita de apresentação.
-- `AnalysisAssistant.tsx`: transcrição expansível, escolhas, orientações e compositor contextual.
+- `AnalysisAssistant.tsx`: contexto conversacional em memória, última resposta visível, escolhas e compositor contextual.
 - `WorkspaceDialog.tsx`: confirmação acessível de análises e sessões.
 - `PreviousAnalyses.tsx` e `InvestigationOverview.tsx`: consulta do histórico e componentes.
 - `conversationSession.ts`: fechamento no servidor, incluindo criação de sessão ainda pendente.
 - `workspaceNavigation.ts` e `styles.css`: fluxo único, responsividade, impressão e movimento reduzido.
 
-Motor, API analítica, ponte semântica, manifesto, dados originais, SPEC e SVG do personagem não são
-alterados. Testes e evidências estão no [relatório de rastreabilidade](RASTREABILIDADE_INTERFACE_INTEGRADA_20261017.md).
+Motor, API analítica, manifesto, dados originais, SPEC e SVG do personagem não são alterados.
+A estabilização preserva “Quantos/Quantas” na proteção nominal da ponte de interpretação, sem
+enviar identificadores ou dados da base ao provedor. Testes e evidências estão no
+[relatório da interface](RASTREABILIDADE_INTERFACE_INTEGRADA_20261017.md) e na
+[auditoria de estabilização](AUDITORIA_ESTABILIZACAO_20261018.md).
+
+## Etapas operacionais, períodos e comparação
+
+Somente uma etapa principal fica visível: **1. Territórios**, **2. Preparação** ou **3. Resultados**.
+Voltar preserva seleção, opções e edição de períodos. “Retomar parâmetros” restaura a preparação
+e a revalida. “Usar seleção na próxima análise” abre Territórios; reutilizar referências abre
+Preparação. O Histórico e a navegação Resultados abrem inclusive o mesmo resultado já selecionado.
+Uma resposta assíncrona não agenda uma navegação posterior capaz de desfazer a escolha do usuário.
+O carrossel de análises mantém a opção em exploração quando o pré-exame apenas atualiza sua
+disponibilidade; selecionar outra análise continua abrindo a preparação correspondente.
+
+“Usar dados do Brasil.” aciona a mesma seleção de fonte dos botões. “Volte para a seleção de
+territórios.” e os demais comandos de navegação mudam somente a etapa. “Quero analisar vários
+períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
+que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
+
+No seletor múltiplo, a competência única já escolhida é preservada. O usuário pode acrescentar,
+retirar ou escolher todas; sem nenhuma, precisa selecionar antes de avançar. Ao voltar para período
+único, a primeira competência selecionada permanece. O resumo mostra as referências efetivas.
+As competências não são somadas como pessoas únicas. Condições avançadas permanecem acessíveis
+mesmo depois de o pré-exame habilitar o cálculo.
+
+Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
+quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. A dispensa
+da confirmação territorial de comparabilidade exige ainda recorte municipal e uma competência
+identificada. Não dispensa a comparabilidade temporal nem a identidade longitudinal declaradas.
+Bases importadas continuam passando por suas confirmações específicas.
+
+A comparação de dois municípios apresenta um registro para cada objeto A/B, seguido pela relação,
+diferença e condição retornadas pelo motor. Conjuntos maiores mantêm um registro por território.
+Filtros e ordenação continuam disponíveis em “Filtrar e ordenar a comparação”. O CSV preserva
+as colunas e valores originais; a separação é apenas visual.

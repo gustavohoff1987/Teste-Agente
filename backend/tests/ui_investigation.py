@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright, expect
-from ui_support import end_session, execute_analysis, URL, offline, select
+from ui_support import workspace, end_session, execute_analysis, URL, offline, select
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
 
@@ -140,13 +140,17 @@ def main():
         # Parâmetros atuais não alteram os três resultados já calculados.
         send('Mostre a densidade médica dos municípios do Amazonas em janeiro de 2024.')
         expect(board.get_by_test_id('result-title')).to_have_text(first['title'])
+        workspace(page, 'results')
         assert method()['result_id'] == first['result_id'] and len(requests) == 3
+        workspace(page, 'preparation')
         def while_loading(route):
             # Segura apenas o transporte até verificar a tela; o cálculo seguinte é real.
             expect(overview.get_by_role('status')).to_contain_text('Preparando a próxima análise')
             expect(board.get_by_test_id('result-title')).to_have_text(first['title'])
             selection = page.get_by_role('region', name='Seleção territorial compartilhada', exact=True)
+            workspace(page, 'territories')
             expect(selection.get_by_role('searchbox')).to_be_disabled()
+            workspace(page, 'results')
             expect(overview.get_by_test_id('transfer-selection-1')).to_be_disabled()
             route.continue_()
         page.route('**/api/analyze', while_loading, times=1)
@@ -201,6 +205,7 @@ def main():
             expect(board.get_by_test_id('result-title')).to_have_text(spatial['title'])
             expect(overview).to_contain_text('7 resultados disponíveis')
             page.unroute('**/api/analyze')
+            workspace(page, 'preparation')
             calculate()
             # Limite real do servidor: preenche as referências com cálculos reais da API.
             headers = {'X-ADT-Session': requests[0].headers['x-adt-session']}
@@ -224,6 +229,7 @@ def main():
             page.get_by_label('Importar arquivo de dados').set_input_files({'name': 'outra_fonte.csv', 'mimeType': 'text/csv',
                 'buffer': b'Municipio;Periodo;Quantidade;Populacao\nOutro;2024;1;100\n'})
             expect(page.get_by_test_id('current-source')).to_contain_text('outra_fonte.csv', timeout=90000)
+            workspace(page, 'results')
             overview.get_by_role('button', name='Etapas anteriores', exact=True).click()
             open_stage(0)
             expect(board.get_by_role('button', name='Usar seleção na próxima análise', exact=True)).to_be_disabled()

@@ -156,7 +156,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .latest-reply { display:flex; gap:10px; align-items:flex-start; padding:10px 18px 0; font-size:13px; line-height:1.5; }
 .latest-reply > svg { flex-shrink:0; }
 .latest-reply > div { max-height:140px; overflow:auto; width:100%; }
-[data-results-focus=true] .preparation-context { display:none; }
+
 .workspace-dialog { width:min(600px,calc(100vw - 32px)); max-height:90dvh; overflow:auto; padding:24px; border:2px solid #265578; border-radius:20px; color:#18384c; }
 .workspace-dialog::backdrop { background:#10274099; backdrop-filter:blur(3px); }
 .dialog-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
@@ -180,6 +180,7 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
 }
 @media print {
   .workspace-dialog,.workspace-dialog::backdrop { display:none !important; }
+  .results-stage[hidden] { display:block !important; }
   #selected-result-content[hidden] { display:block !important; }
   .conversation-workspace,.integrated-investigation,.analysis-pane,.analysis-scroll { display:block; height:auto; overflow:visible; border:0; padding:0; }
   .preparation-context { display:none !important; }

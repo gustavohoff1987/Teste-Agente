@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -166,6 +166,7 @@ def main():
         table_rows.nth(1).click()
         board.get_by_role("button", name="Usar seleção na próxima análise", exact=True).click()
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
+        workspace(page, "results")
         table_rows.nth(2).click()
         board.get_by_role("button", name="Usar seleção na próxima análise", exact=True).click()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
@@ -189,6 +190,7 @@ def main():
         assert_same_rows(exported_rows(download), aggregate["rows"])
         shot("block1-05-agregacao.png")
         # Repetição exata recupera o resultado sem nova requisição/cálculo.
+        workspace(page, "preparation")
         execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True))
         expect(page.get_by_text("Resultado existente recuperado, sem recalcular.", exact=True)).to_be_visible()
         assert len(analyses) == 4
@@ -231,7 +233,9 @@ def main():
         # Retomada dos parâmetros do resultado atual; o cálculo idêntico é reaproveitado.
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(page.get_by_text("Parâmetros e seleção restaurados", exact=False)).to_be_visible()
+        workspace(page, "territories")
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
+        workspace(page, "preparation")
         calls = len(analyses)
         button = inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
         expect(button).to_be_enabled(timeout=60000)
@@ -250,6 +254,7 @@ def main():
             expect(page.get_by_test_id("analysis-history-menu").locator('summary')).to_be_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
             shot(f"block1-07-largura-{width}.png")
+        workspace(page, "territories")
         search = selection.get_by_role("searchbox")
         search.focus()
         expect(search).to_be_focused()

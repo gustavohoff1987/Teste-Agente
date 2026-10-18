@@ -25,6 +25,7 @@ def select(page, title):
     card(page).press("Home")
     for _ in range(TITLES.index(title)):
         page.get_by_role("button", name="Próxima análise", exact=True).click()
+    expect(card(page)).to_have_attribute("aria-label", "Selecionar análise: " + title)
     card(page).click()
 
 
@@ -41,6 +42,14 @@ def end_session(page):
     page.get_by_test_id("nav-new-session").click()
     expect(page.get_by_test_id("new-session-confirmation")).to_be_visible()
     page.get_by_test_id("confirm-new-session").click()
+
+
+def workspace(page, stage):
+    """Percorre as etapas visíveis, sem forçar interação com controles ocultos."""
+    names = {"territories": "1. Territórios", "preparation": "2. Preparação", "results": "3. Resultados"}
+    button = page.get_by_role("button", name=names[stage], exact=True)
+    button.click()
+    expect(button).to_have_attribute("aria-current", "step")
 
 
 def stage(page, number):

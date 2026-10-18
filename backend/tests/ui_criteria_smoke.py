@@ -15,7 +15,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -163,14 +163,19 @@ def main():
         assert method["criterios"] == fifth["metadata"]["criterios"] and method["result_id"] == fifth["result_id"]
 
         # Régua: mudar o valor torna o resultado não vigente até nova execução validada pelo motor.
+        workspace(page, "preparation")
         builder.get_by_label("Valor de c1").fill("1,3")
+        workspace(page, "results")
         expect(status).to_have_text("Resultado histórico válido · não vigente no contexto atual")
+        workspace(page, "preparation")
         sixth = execute()
         assert states(sixth)["2006"] == "NAO_ATENDE" and states(sixth)["2001"] == "ATENDE"  # ZETA tem densidade 1,5
         expect(status).to_have_text("Resultado válido e vigente no contexto atual")
+        workspace(page, "preparation")
         assert builder.get_by_label("Régua de c1").count() == 1  # faixa observada disponível após o resultado
 
         # Retomar o resultado atual restaura seus critérios e reaproveita o cálculo idêntico.
+        workspace(page, "results")
         board.get_by_role("button", name="Retomar parâmetros deste resultado", exact=True).click()
         expect(builder.get_by_label("Valor de c1")).to_have_value("1,3")
         expect(builder.get_by_label("Valor de c2")).to_have_value("150")
@@ -186,6 +191,7 @@ def main():
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(selection.get_by_text(f"{matched} selecionados", exact=True)).to_be_visible()
 
+        workspace(page, "preparation")
         # Celular: critérios e resultados acessíveis, sem rolagem horizontal da página.
         for width in (390, 768):
             page.set_viewport_size({"width": width, "height": 844})
@@ -201,14 +207,14 @@ def main():
         expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
         inline.get_by_text("Alterar a abrangência territorial", exact=True).click()
         inline.get_by_label("Abrangência territorial").select_option("national")
-        expect(inline.get_by_text("o conjunto do Brasil", exact=False)).to_be_visible(timeout=60000)
+        expect(inline.get_by_label("Abrangência territorial")).to_have_value("national", timeout=60000)
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
-        expect(builder.get_by_label("Valor de c1")).to_have_value("2", timeout=60000)
-        expect(inline.get_by_text("os municípios brasileiros", exact=False)).to_be_visible()
+        expect(inline.get_by_label("Abrangência territorial")).to_have_value("municipal", timeout=60000)
         # Jornada funcional no celular (390 px): nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
         page.set_viewport_size({"width": 390, "height": 844})
         inline.get_by_label("Escolher períodos da análise").click()
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
+        expect(builder.get_by_label("Valor de c1")).to_have_value("2", timeout=60000)
         empty = execute("Calcular e mostrar resultado")
         assert empty["metadata"]["criterios"]["desfecho"] == "RES-VAZ"
         expect(board.get_by_role("listitem").filter(has_text="resultado vazio, RES-VAZ")).to_be_visible()

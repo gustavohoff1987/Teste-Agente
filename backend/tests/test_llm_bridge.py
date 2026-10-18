@@ -73,6 +73,28 @@ def test_redaction_occurs_before_external_call(monkeypatch):
     assert "PROTEGID" in joined
 
 
+@pytest.mark.parametrize("question", ["Quantos médicos existem no Brasil?", "Quantas médicas existem no Brasil?"])
+def test_quantity_question_preserves_interrogative_without_exposing_identifiers(monkeypatch, question):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only")
+    captured = []
+
+    async def provider(sent, _model, _key):
+        captured.extend(sent)
+        return {"intent": "ANALITICO", "topic": "none", "operation": "counts", "indicator": "quantity",
+                "period": "", "category": "", "territory": "Brasil"}
+
+    monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
+    response = client.post("/api/llm/interpret", json={
+        "message": question + " Contato: João Silva, joao@example.com, CPF 123.456.789-09."})
+    assert response.status_code == 200, response.text
+    assert response.json()["proposal"]["operation"] == "counts"
+    assert response.json()["executed"] is False
+    sent = " ".join(captured)
+    assert question in sent
+    for identifier in ("João Silva", "joao@example.com", "123.456.789-09"):
+        assert identifier not in sent
+
+
 def test_discard_model_invented_entities_and_unknown_schema(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "secret")
     async def fake_model(_sent, _model, _key):

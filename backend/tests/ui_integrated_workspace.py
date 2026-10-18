@@ -6,7 +6,7 @@ import os
 from decimal import Decimal
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline, select
+from ui_support import workspace, URL, offline, select
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
 
@@ -130,6 +130,7 @@ def main():
                     assert actual[key] == ('' if value is None else str(value))
         page.get_by_test_id('cancel-new-session').click()
         expect(page.get_by_test_id('result-title')).to_have_text(first['title'])
+        workspace(page, 'results')
         page.get_by_test_id('advanced-technical-export').locator('summary').click()
         with page.expect_download() as download:
             page.get_by_role('button', name='Baixar registro técnico (JSON)', exact=True).click()

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright, expect
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 CSV = b"territorio_analise;codigo_identificador;periodo;categoria_profissional;quantidade;populacao\nAlfa;local-a;2024;MEDICINA;10;1000\nBeta;local-b;2024;MEDICINA;20;4000\nGama;local-c;2024;MEDICINA;30;5000\n"
 
@@ -59,15 +59,20 @@ def main():
         assert pair["metadata"]["options"]["territory_ids"] == ["code:local-a", "code:local-b"]
         # Sem o identificador associado, os IDs "code:" deixam de existir: a seleção é limpa
         # em vez de manter o pré-exame recusado (422) sem explicação.
+        workspace(page, "preparation")
         with page.expect_response(lambda response: response.url.endswith("/api/preflight")) as checked:
             inline.get_by_role("combobox", name="Identificador territorial", exact=True).select_option("")
+        workspace(page, "territories")
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         assert checked.value.status == 200, checked.value.text()
+        workspace(page, "results")
         result = page.locator("#resultados")
         expect(page.get_by_role("navigation", name="Histórico de resultados")).to_have_count(0)
-        expect(result.locator(".data-table tbody tr")).to_have_count(1)
+        expect(result.get_by_test_id("comparison-territory-row")).to_have_count(2)
         result.get_by_role("button", name="Retomar parâmetros deste resultado").click()
+        workspace(page, "territories")
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
+        workspace(page, "results")
         expect(result.get_by_test_id("result-status")).to_contain_text("válido e vigente")
         expect(result.get_by_text("Registrar correção que invalida este resultado", exact=True)).to_have_count(0)
         expect(result.get_by_role("button", name="CSV", exact=True)).to_be_enabled()
@@ -78,6 +83,7 @@ def main():
         assert metadata["validity"] == "VALIDO" and metadata["result_id"] == pair["result_id"]
         assert not metadata["invalidation_reason"]
         # Retomar os parâmetros do resultado atual reaproveita o cálculo existente.
+        workspace(page, "preparation")
         button = inline.get_by_role("button", name="Executar análise", exact=True)
         expect(button).to_be_enabled(timeout=30000)
         execute_analysis(page, button)
@@ -98,9 +104,11 @@ def main():
         expect(page.get_by_role("combobox", name="Qual aba deseja utilizar?", exact=True)).to_be_visible()
         page.get_by_role("combobox", name="Qual aba deseja utilizar?", exact=True).select_option("Dados")
         expect(inline.get_by_role("combobox", name="Território", exact=True)).to_have_value("territorio_analise", timeout=30000)
+        workspace(page, "results")
         expect(result.get_by_test_id("result-status")).to_contain_text("histórico válido")
         assert len(calculated) == 2  # Trocar fonte não executa análise.
-        expect(result.locator(".data-table tbody tr")).to_have_count(1)
+        expect(result.get_by_test_id("comparison-territory-row")).to_have_count(2)
+        workspace(page, "territories")
         expect(selection.get_by_text("0 selecionados", exact=True)).to_be_visible()
         assert not errors, errors
         browser.close()

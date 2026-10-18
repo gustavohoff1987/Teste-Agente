@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-18 · Estabilização de navegação, períodos e comparações
+
+- **Antes:** etapas controladas em dois componentes e uma regra CSS podiam ocultar a preparação; navegação atrasada após o cálculo podia desfazer o retorno do usuário. O seletor mantinha um modo local divergente dos períodos da análise. Configurações disponíveis desapareciam quando o pré-exame era aprovado; a atualização do pré-exame também podia reiniciar a navegação pelo carrossel. A comparação A/B era apresentada como um único território e perdia filtros. A proteção nominal removia o interrogativo “Quantos” do pedido ao intérprete.
+- **Agora:** `App` controla a etapa única; botões, chat, retomada e reutilização abrem a etapa correspondente sem apagar escolhas. Os painéis inativos preservam estado e ficam ocultos; impressão continua incluindo o resultado. Período único e conjunto de períodos mudam atomicamente; seleção vazia não equivale a todos. A preparação oficial permite editar períodos e condições disponíveis; comparabilidade automática só vale com os significados reconhecidos preservados, em uma competência municipal identificada. O carrossel conserva a opção em exploração quando apenas a disponibilidade é atualizada. Comparações A/B exibem dois registros e as diferenças originais, com filtros, ordenação e exportação. A última resposta do agente permanece junto ao compositor. “Quantos/Quantas” são reconhecidos como interrogativos, mantendo a proteção de identificadores e dados.
+- **Permanece:** dados, manifesto, SPEC, SVG do avatar, métodos, fórmulas, resultados numéricos e contratos analíticos. Importações e comparabilidade temporal conservam declarações necessárias. Mensagens preparam, nunca executam cálculos. CSV mantém as linhas originais do motor, inclusive a relação A/B.
+- **Motivo:** auditoria da branch a partir de `7dd5d2c`, CI #330 reprovado e reprodução local da preparação oculta; falhas de produto distinguidas de roteiros que ainda interagiam com etapas simultâneas.
+- **Documentação e testes:** guia da interface e README atualizados; relatório `AUDITORIA_ESTABILIZACAO_20261018.md`; nova jornada `ui_stabilization.py` registrada no executor, testes de comandos/validade do reconhecimento oficial e integração de proteção de identificadores. Roteiros existentes percorrem etapas sem remover asserções analíticas, de privacidade, exportação ou integridade. Nenhum teste foi removido ou enfraquecido.
+
 ### 2026-10-17 · Interface conversacional integrada, sessões e diagnósticos
 
 - **Antes:** menu lateral permanente e chat em coluna separada; a investigação reunia todos os resultados sem distinguir diagnósticos; encerramento imediato por um controle separado.

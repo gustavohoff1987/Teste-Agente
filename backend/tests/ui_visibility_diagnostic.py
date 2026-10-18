@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 COUNT = 180
@@ -164,6 +164,7 @@ def main():
         distribution_page.screenshot(path=str(OUTPUT / "diagnostico_visibilidade_distribuicao.png"), full_page=True)
 
         # Linhas: mais de oito territórios permanecem acessíveis por páginas sem misturar competências.
+        workspace(density_page, "preparation")
         density_inline.get_by_label("Filtrar por período", exact=True).select_option("")
         confirmation = density_inline.get_by_role("button", name="Confirmar correspondências", exact=True)
         if confirmation.count():

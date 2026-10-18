@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -167,6 +167,7 @@ def main():
         page.get_by_role("button", name="2. Preparação").click()
         inline.get_by_role("button", name="Voltar à escolha do período").click()
         inline.get_by_role("button", name="Selecionar vários períodos").click()
+        inline.get_by_role("button", name="Todos os períodos disponíveis", exact=True).click()
         inline.get_by_role("button", name="Avançar", exact=True).click()
         try:
             expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
