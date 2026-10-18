@@ -278,3 +278,5 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **c1bbc5c** — Comportamento: sem alteração — inclui `data-testid="comparison-territory-row"` nas linhas verticais da comparação, permitindo testes sem dependência da estrutura HTML visual.
 
 - **8d52c50, 6e58f4b** — Testes: preservam o rótulo específico das condições avançadas para arquivos importados; a navegação até a etapa Preparação continua explícita. Não se altera o requisito de confirmar coordenadas importadas.
+
+- **79e7daa** — Teste: verifica explicitamente três territórios em registros visuais separados na comparação, além da identidade e dos valores retornados pelo motor.
