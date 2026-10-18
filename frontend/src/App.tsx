@@ -1683,6 +1683,8 @@ function App() {
           selectAnalysis(operation,proposal);
         }}
         onRequest={recordRequest}
+        onChooseBrazil={chooseBrazil}
+        onChooseImport={() => inputRef.current?.click()}
         onExplore={exploreMessage}
         onResolved={acceptExploration}
         selection={selectionContent}
