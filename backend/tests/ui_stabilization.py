@@ -33,7 +33,7 @@ def main():
             assert len(analyses) == before, 'mensagem prepara, mas não autoriza execução'
 
         def prepared():
-            expect(page.get_by_role('button', name='2. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
+            expect(page.get_by_role('button', name='1. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
             expect(inline).to_be_visible()
             expect(board).not_to_be_visible()
 
@@ -132,18 +132,18 @@ def main():
         prepared()
         button = inline.get_by_role('button', name='Calcular e mostrar resultado', exact=True)
         expect(button).to_be_disabled()
-        inline.get_by_label('Confirmo que os quantitativos e os períodos são comparáveis.').check()
-        inline.get_by_label('Os territórios correspondem às mesmas unidades ao longo do tempo.').check()
-        temporal = calculate()
-        assert len(temporal['detail_rows']) == 12
+        expect(inline.get_by_label('Confirmo que os quantitativos e os períodos são comparáveis.')).to_have_count(0)
+        expect(inline.get_by_label('Os territórios correspondem às mesmas unidades ao longo do tempo.')).to_have_count(0)
+        # Sem evidência de comparabilidade, a operação não é liberada por declaração do usuário.
+        expect(button).to_be_disabled()
         send('Volte para a seleção de territórios.')
-        expect(page.get_by_role('button', name='1. Territórios', exact=True)).to_have_attribute('aria-current', 'step')
+        expect(page.get_by_role('button', name='1. Preparação', exact=True)).to_have_attribute('aria-current', 'step')
         expect(page.get_by_role('region', name='Seleção territorial compartilhada')).to_contain_text('3 selecionados')
         expect(board).not_to_be_visible()
         # Duas famílias de fontes e quatro larguras: não depender da métrica da fonte Windows.
         for width in (1440, 1024, 768, 390):
             page.set_viewport_size({'width':width, 'height':900})
-            for stage in ('territories', 'preparation', 'results'):
+            for stage in ('preparation', 'results'):
                 workspace(page, stage)
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), (width, stage)
                 page.locator('#assistant-input').scroll_into_view_if_needed()
