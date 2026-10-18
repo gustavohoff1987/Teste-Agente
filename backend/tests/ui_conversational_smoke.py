@@ -46,7 +46,8 @@ def main():
             assert response.value.status == 200
             expect(assistant.get_by_text(fragment, exact=False).last).to_be_visible()
             expect(assistant.locator("#preparacao-conversacional")).to_have_count(0)
-        expect(assistant.get_by_text("Olá! Para começar, prefere usar os dados do Brasil", exact=False)).to_have_count(1)
+        # A apresentação inicial não é mais repetida no histórico visual; a conversa continua em memória.
+        expect(assistant.locator("#assistant-input")).to_be_visible()
 
         page.locator('input[type="file"]').set_input_files({
             "name": "dados_sinteticos.csv", "mimeType": "text/csv", "buffer": CSV
