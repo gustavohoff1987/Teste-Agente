@@ -34,7 +34,7 @@ export default function PeriodSelection(p: Props) {
       p.onSingle("");
     } else {
       setMultiple(true);
-      p.onSingle("");
+      // onMultiple é a transição atômica; o componente pai já limpa o período único.
       p.onMultiple(periods);
     }
     setExpanded(true);
