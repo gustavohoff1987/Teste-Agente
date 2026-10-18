@@ -1475,7 +1475,7 @@ function App() {
       referenceMode={referenceMode}
       criteriaNeeds={criteriaNeeds}
       advanced={<>
-        {!usingBrazil && mapping.latitude && mapping.longitude && !spatialRequest(active) && <fieldset className="mb-4 rounded-lg border border-line p-3 text-xs">
+        {!usingBrazil && mapping.latitude && mapping.longitude && !spatialRequest(active) && decimalPending && <fieldset className="mb-4 rounded-lg border border-line p-3 text-xs">
           <legend>Localização dos dados importados</legend>
           <p className="mb-2 text-slate-600">Use as informações da origem do arquivo. A configuração não é necessária para cálculos sem distância.</p>
           <label className="mr-3 inline-flex flex-col gap-1">Referencial das coordenadas importadas
