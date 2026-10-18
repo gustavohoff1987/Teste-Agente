@@ -273,3 +273,6 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **c9ceb01** — Testes: em base brasileira governada, a confirmação manual de comparabilidade não deve aparecer; a execução continua exigindo resposta analítica válida.
 - **402c690** — Testes: comentário esclarece que bases importadas continuam exigindo declaração explícita de comparabilidade.
 - **Garantias:** nenhum motor analítico, dado original, regra de pré-exame, API ou SPEC foi alterado. Os testes mantêm verificações de valores, quantidade, seleção, execução e identidade de resultados. A aprovação depende de execução CI completa, inclusive testes de navegador.
+
+- **1fccd12** — Teste: valida reseleção territorial após abrir explicitamente a etapa Territórios e ausência da confirmação manual na base oficial governada.
+- **c1bbc5c** — Comportamento: sem alteração — inclui `data-testid="comparison-territory-row"` nas linhas verticais da comparação, permitindo testes sem dependência da estrutura HTML visual.
