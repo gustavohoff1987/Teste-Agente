@@ -350,8 +350,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     </section>
     <div className="conversation-dock no-print" data-testid="conversation-dock">
       {(!sourceReady || !active) && turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
-        {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
-
+        {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p></div>
       </div>}
       {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
     <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
