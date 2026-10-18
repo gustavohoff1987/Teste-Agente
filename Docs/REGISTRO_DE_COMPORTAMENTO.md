@@ -230,3 +230,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **Limites:** não automatiza confirmações metodológicas nem substitui a preparação por um novo fluxo progressivo; essas mudanças exigem implementação e testes específicos. Validação de CI pendente.
 
 - **d53bfc1, c5ade11:** roteiros de navegador atualizados para exigir ausência do histórico conversacional visível e continuar testando a continuidade semântica, escolhas contextuais, resultados e limpeza de sessão. Nenhuma asserção analítica foi retirada.
+
+
+### 2026-10-17 · Preparação governada e etapa focalizada
+
+- **b0f9044:** a confirmação de comparabilidade para comparação/ranking é inferida apenas quando a base brasileira é curada, municipal, com período único selecionado, unidade de contagem, quantitativo, população e território associados e denominador certificado pelo perfil curado. Em outros recortes ou arquivos importados, permanece a confirmação explícita. O motor continua validando o pedido.
+- **64e0b29:** a seleção de período em operações de competência única é uma etapa focalizada na preparação conversacional da base curada, com retorno explícito à escolha. Os parâmetros e execução só aparecem após essa escolha; não são empilhados junto ao seletor.
+- **Comportamento:** redução de confirmações redundantes apenas sob metadados governados e redução da rolagem acumulativa na etapa de período; nenhuma operação estatística, arquivo de dados, SVG, API ou SPEC alterados.
+- **Limitações:** ainda falta simplificar integralmente todas as etapas e a apresentação comparativa em linhas distintas. O CI e a inspeção visual do HEAD são necessários antes de considerar estes ajustes aprovados.
