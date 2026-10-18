@@ -43,6 +43,7 @@ def main():
 
         first = execute()
         assert first["total_rows"] == 3
+        page.get_by_role("button", name="1. Territórios").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         for code in ("local-a", "local-b"):
             selection.get_by_role("searchbox").fill(code)
