@@ -49,6 +49,11 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   const [started, setStarted] = useState(false);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  // Navegação visual independente dos parâmetros analíticos: voltar não descarta escolhas.
+  const [workspaceStage, setWorkspaceStage] = useState<"territories" | "preparation" | "results">("preparation");
+  useEffect(() => { setWorkspaceStage("preparation"); }, [active, contextVersion]);
+  useEffect(() => { if (displayedResultId) setWorkspaceStage("results"); }, [displayedResultId]);
+
 
 
 
@@ -285,17 +290,41 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     </details>}
     </div>
     <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
+      {sourceReady && active && <nav aria-label="Etapas da investigação" className="no-print flex flex-wrap items-center gap-2 px-4 pt-3">
+        {([
+          ["territories", "1. Territórios"],
+          ["preparation", "2. Preparação"],
+          ["results", "3. Resultados"],
+        ] as const).map(([id,label])=><button key={id} type="button" aria-current={workspaceStage === id ? "step" : undefined}
+          disabled={id === "results" && !hasResult && !running}
+          onClick={()=>setWorkspaceStage(id)}
+          className={"rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40 " +
+            (workspaceStage === id ? "border-teal bg-teal-50 text-teal" : "border-line bg-white text-slate-600")}>{label}</button>)}
+      </nav>}
       <div className="analysis-scroll" data-testid="analysis-scroll">
-        {investigationContent}
-        <div className="preparation-context" data-testid="preparation-context">
-          {sourceReady && active && turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply">
+        {(!sourceReady || !active) && investigationContent}
+        {sourceReady && active && workspaceStage === "territories" && <div className="preparation-context" data-testid="preparation-context">
+          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
+          {selection}
+          <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
+            className="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Avançar para preparação</button></div>
+        </div>}
+        {sourceReady && active && workspaceStage === "preparation" && <div className="preparation-context" data-testid="preparation-context">
+          {turns.at(-1)?.role === "assistant" && <div className="latest-reply mb-3" role="status" data-testid="latest-reply">
             <BrandAvatar size={30}/><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
           </div>}
-          {sourceReady && active && <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Vamos preparar {ANALYSIS[active].toLowerCase()}. Escolha os territórios, períodos e parâmetros abaixo; as validações orientam o que falta confirmar.</p></div>}
-          {sourceReady && selection}
+          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Confira os parâmetros desta análise. O motor valida as condições antes de habilitar o cálculo.</p></div>
           {preparation}
-        </div>
-        {resultContent}
+          <button type="button" onClick={()=>setWorkspaceStage("territories")}
+            className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
+        </div>}
+        {sourceReady && active && workspaceStage === "results" && <>
+          {investigationContent}
+          {resultContent}
+          <button type="button" onClick={()=>setWorkspaceStage("preparation")}
+            className="m-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar à preparação</button>
+        </>}
+        {(!sourceReady || !active) && resultContent}
         {resultsOnly && !hasResult && <p className="p-4 text-sm">Seus resultados aparecerão aqui após o primeiro cálculo. Comece em Nova análise ou converse comigo.</p>}
       </div>
     </section>
