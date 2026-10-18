@@ -148,14 +148,15 @@ def main():
         assert assistant.get_by_text("A categoria mencionada não foi confirmada", exact=False).count() == 0
         inline = assistant.locator("#preparacao-conversacional")
         expect(inline).to_be_visible(timeout=30000)
-        expect(inline.get_by_text("categoria MEDICINA", exact=False)).to_be_visible()
+        # A descrição curada é exibida após a escolha da competência, não empilhada sobre ela.
         assert inline.get_by_role("combobox", name="Categoria profissional").count() == 0
         assert inline.get_by_role("combobox", name="Unidade de contagem").count() == 0
         assert inline.get_by_role("button", name="Confirmar correspondências").count() == 0
         expect(inline.get_by_text("Qual período você deseja analisar?")).to_be_visible()
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_disabled()
+        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_have_count(0)
         inline.get_by_label("Escolher períodos da análise").click()
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
+        expect(inline.get_by_text("categoria MEDICINA", exact=False)).to_be_visible()
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
             execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
@@ -163,7 +164,10 @@ def main():
         assert assistant.locator("#resultados .data-table tbody tr").count() == 1
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
         # de períodos diferentes em um único quantitativo.
+        page.get_by_role("button", name="2. Preparação").click()
+        inline.get_by_role("button", name="Voltar à escolha do período").click()
         inline.get_by_role("button", name="Selecionar vários períodos").click()
+        inline.get_by_role("button", name="Avançar", exact=True).click()
         try:
             expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_enabled(timeout=30000)
         except AssertionError:
