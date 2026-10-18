@@ -95,10 +95,6 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       onSelectAnalysis(proposal.operation!, proposal);
     }
   }, [sourceReady]);
-  useEffect(() => {
-    const log = logRef.current;
-    if (log) log.scrollTo({top: log.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
-  }, [turns, sourceReady, active]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
