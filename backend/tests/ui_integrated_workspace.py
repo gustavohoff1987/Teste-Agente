@@ -175,7 +175,20 @@ def main():
             expect(page.get_by_test_id('result-title')).to_be_in_viewport()
             page.wait_for_function("document.querySelector('[data-testid=result-title]').getBoundingClientRect().bottom < document.querySelector('[data-testid=conversation-dock]').getBoundingClientRect().top")
             expect(page.locator('#assistant-input')).to_be_in_viewport()
-            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2')
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), page.evaluate("""() => ({
+                viewport: innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                overflowing: [...document.querySelectorAll('body *')].filter(el => {
+                    const r = el.getBoundingClientRect();
+                    return r.width > 0 && (r.right > innerWidth + 2 || r.left < -2);
+                }).slice(0, 20).map(el => ({
+                    tag: el.tagName, id: el.id, className: typeof el.className === 'string' ? el.className.slice(0, 120) : '',
+                    text: (el.textContent || '').trim().slice(0, 70),
+                    left: Math.round(el.getBoundingClientRect().left),
+                    right: Math.round(el.getBoundingClientRect().right),
+                    scrollWidth: el.scrollWidth, clientWidth: el.clientWidth
+                }))
+            })""")
             assert page.get_by_test_id('analysis-pane').bounding_box()['width'] >= width - 80
             page.screenshot(path=str(OUTPUT / f'interface-integrada-{width}.png'))
         assert len(requests) == 5 and not errors, errors
