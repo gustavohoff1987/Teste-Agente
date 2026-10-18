@@ -43,13 +43,13 @@ def main():
 
         first = execute()
         assert first["total_rows"] == 3
-        page.get_by_role("button", name="1. Territórios").click()
+        page.get_by_role("button", name="1. Preparação").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         for code in ("local-a", "local-b"):
             selection.get_by_role("searchbox").fill(code)
             selection.get_by_role("checkbox").check()
         page.get_by_role("button", name="Comparar selecionados", exact=True).click()
-        page.get_by_role("button", name="2. Preparação").click()
+        page.get_by_role("button", name="1. Preparação").click()
         inline.get_by_role("combobox", name="Indicador", exact=True).select_option("quantity")
         # Arquivo importado: a declaração explícita de comparabilidade continua necessária.
         inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.").check()
