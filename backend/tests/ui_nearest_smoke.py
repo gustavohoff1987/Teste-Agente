@@ -101,7 +101,6 @@ def main():
         page.get_by_role("button", name="1. Territórios").click()
         targets = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(targets.get_by_role("heading", name="Municípios-alvo")).to_be_visible()
-        expect(targets.get_by_role("heading", name="Municípios-alvo")).to_be_visible()
         expect(targets.get_by_text("3 selecionados", exact=True)).to_be_visible()
         setup = inline.get_by_role("group", name="Definição das referências")
         expect(setup.get_by_role("radio", checked=True)).to_have_count(0)  # nenhum modo nem referência por padrão
