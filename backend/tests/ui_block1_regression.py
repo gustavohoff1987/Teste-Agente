@@ -51,6 +51,7 @@ def main():
         page.get_by_role("button", name="Comparar selecionados", exact=True).click()
         page.get_by_role("button", name="2. Preparação").click()
         inline.get_by_role("combobox", name="Indicador", exact=True).select_option("quantity")
+        # Arquivo importado: a declaração explícita de comparabilidade continua necessária.
         inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.").check()
         inline.get_by_role("button", name="Confirmar correspondências").click()
         pair = execute()
