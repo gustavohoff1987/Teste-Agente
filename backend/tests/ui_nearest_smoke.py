@@ -98,11 +98,11 @@ def main():
         expect(chat.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=60000)
         send("Calcule a referência mais próxima de Manaus, Tefe e Parintins.")
         expect(chat.get_by_test_id("latest-reply")).to_contain_text("nenhuma referência foi escolhida e nada foi calculado")
-        page.get_by_role("button", name="1. Territórios").click()
+        page.get_by_role("button", name="1. Preparação").click()
         targets = page.get_by_role("region", name="Seleção territorial compartilhada")
         expect(targets.get_by_role("heading", name="Municípios-alvo")).to_be_visible()
         expect(targets.get_by_text("3 selecionados", exact=True)).to_be_visible()
-        page.get_by_role("button", name="2. Preparação").click()
+        page.get_by_role("button", name="1. Preparação").click()
         setup = inline.get_by_role("group", name="Definição das referências")
         expect(setup.get_by_role("radio", checked=True)).to_have_count(0)  # nenhum modo nem referência por padrão
         assert not analyses and not llm_calls
