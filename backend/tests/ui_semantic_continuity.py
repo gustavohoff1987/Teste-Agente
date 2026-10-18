@@ -83,6 +83,7 @@ def main():
         assert result["origin"] == "INTERPRETACAO_LLM"
         assert set(result["exploration"]["territory_ids"]) == {"code:130260", "code:130420"}
         assert len(analyses) == 1
+        page.get_by_role("button", name="1. Territórios").click()
         selection = page.get_by_role("region", name="Seleção territorial compartilhada", exact=True)
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
 
