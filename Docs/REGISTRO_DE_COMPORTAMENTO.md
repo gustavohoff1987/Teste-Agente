@@ -205,3 +205,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **Comportamento:** a barra de visualizações passa a quebrar linhas em telas estreitas; não altera o cálculo, as representações, os dados, os contratos analíticos nem o personagem.
 - **Limite:** SVGs e tabelas largas são conteúdo interno a examinar nos testes; não foram escondidos por `overflow-x:hidden` global nem houve redução das asserções.
 - **Validação:** pendente de CI no commit que inclui esta entrada.
+
+
+### 2026-10-17 · Respostas textuais na etapa de seleção de fonte
+
+- **563af9d, 8152ff0:** a escolha explícita `Dados do Brasil` e equivalentes restritos passa a acionar o mesmo `chooseBrazil` utilizado pelo botão; pedidos explícitos de importação acionam o seletor existente. O roteamento ocorre somente enquanto não há fonte escolhida. O texto original permanece no contexto da sessão.
+- **Comportamento:** respostas diretas à pergunta sobre a fonte deixam de ser tratadas como solicitações analíticas ambíguas. Solicitações de análise abertas continuam submetidas ao interpretador existente.
+- **Escopo:** nenhum motor, regra analítica, base, SPEC ou SVG alterado. As demais simplificações da jornada (comparabilidade governada, etapas e apresentação de comparações) não foram implementadas por estes commits e exigem verificação específica.
+- **Validação:** aguardando TypeScript, testes e CI do HEAD que inclui este registro; não declarar conclusão integral da iteração.
