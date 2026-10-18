@@ -124,6 +124,24 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
         return;
       }
     }
+    // Comandos conversacionais e botões alteram a mesma etapa visual.
+    if (sourceReady && active) {
+      const navigation = message.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[.!?]/g,"").trim();
+      const target = /^(?:ver |mostrar |ir para )?(?:territorios|municipios|selecao de territorios)$/.test(navigation) ? "territories"
+        : /^(?:ver |mostrar |ir para )?(?:preparacao|parametros|configuracao)$/.test(navigation) ? "preparation"
+        : /^(?:ver |mostrar |ir para )?(?:resultados|resultado)$/.test(navigation) ? "results"
+        : navigation === "voltar" ? workspaceStage === "results" ? "preparation" : "territories"
+        : /^(?:avancar|proxima etapa|continuar)$/.test(navigation) ? workspaceStage === "territories" ? "preparation" : workspaceStage === "preparation" && hasResult ? "results" : null
+        : null;
+      if (target && (target !== "results" || hasResult || running)) {
+        setWorkspaceStage(target);
+        setTurns(previous => [...previous, {role:"assistant",content:target === "territories"
+          ? "Etapa de territórios aberta. Sua seleção anterior foi preservada."
+          : target === "preparation" ? "Etapa de preparação aberta. Confira os parâmetros e as condições para calcular."
+          : "Resultados da investigação abertos."}]);
+        return;
+      }
+    }
     const followup = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i.test(message);
     const append = (content: string) => setTurns(previous => [
       ...previous, {role:"assistant", content}
