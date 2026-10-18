@@ -46,7 +46,7 @@ def main():
 
         send("Olá")
         expect(history).to_be_visible()
-        page.get_by_test_id("conversation-history").locator("summary").click()
+        expect(page.get_by_test_id("conversation-history")).to_have_count(0)
         page.get_by_role("button", name="Usar dados do Brasil", exact=False).click()
         expect(page.get_by_test_id("current-source")).to_be_visible(timeout=60000)
         first_choices = send("Analise o perfil dos municipios", "/api/llm/interpret-context")
