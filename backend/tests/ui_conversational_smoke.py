@@ -161,7 +161,7 @@ def main():
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
             execute_analysis(page, inline.get_by_role("button", name="Calcular e mostrar resultado"))
         assert event.value.status == 200, event.value.text()
-        assert assistant.locator("#resultados .data-table tbody tr").count() == 1
+        expect(assistant.locator("#resultados .data-table tbody tr")).to_have_count(1, timeout=30000)
         # A seleção cumulativa mostra competências separadas, sem somar pessoas
         # de períodos diferentes em um único quantitativo.
         page.get_by_role("button", name="2. Preparação").click()
