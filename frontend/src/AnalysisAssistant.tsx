@@ -126,9 +126,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
       const target = navigationCommand(message, workspaceStage, hasResult || running);
       if (target && (target !== "results" || hasResult || running)) {
         setWorkspaceStage(target);
-        setTurns(previous => [...previous, {role:"assistant",content:target === "territories"
-          ? "Etapa de territórios aberta. Sua seleção anterior foi preservada."
-          : target === "preparation" ? "Etapa de preparação aberta. Confira os parâmetros e as condições para calcular."
+        setTurns(previous => [...previous, {role:"assistant",content:target === "territories" || target === "preparation" ? "Preparação aberta. Você pode escolher os territórios e ajustar a análise."
           : "Resultados da investigação abertos."}]);
         return;
       }
@@ -253,7 +251,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     <div className="conversation-pane no-print" data-testid="conversation-pane">
     <div className="agent-guidance">
       <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
-      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as confirmações para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
+      <p>{running ? "Estou calculando sua análise." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as confirmações para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
     </div>
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
       <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
@@ -301,9 +299,8 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
       {sourceReady && active && <nav aria-label="Etapas da investigação" className="no-print flex flex-wrap items-center gap-2 px-4 pt-3">
         {([
-          ["territories", "1. Territórios"],
-          ["preparation", "2. Preparação"],
-          ["results", "3. Resultados"],
+          ["preparation", "1. Preparação"],
+          ["results", "2. Resultados"],
         ] as const).map(([id,label])=><button key={id} type="button" aria-current={workspaceStage === id ? "step" : undefined}
           disabled={id === "results" && !hasResult && !running}
           onClick={()=>setWorkspaceStage(id)}
@@ -314,17 +311,12 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
         {notice && <p role="status" className="no-print my-3 text-xs text-teal">{notice}</p>}
         {(!sourceReady || !active) && investigationContent}
         {sourceReady && active && <div className="preparation-context" data-testid="preparation-context" hidden={workspaceStage === "results"}>
-          <div id="territorios" hidden={workspaceStage !== "territories"}>
-            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para a análise. Sem seleção, utiliza-se o universo definido pelo motor e pela fonte.</p></div>
+          <div id="territorios" hidden={workspaceStage === "results"}>
+            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Escolha os territórios para análise.</p></div>
             {selection}
-            <div className="mt-4 flex justify-end"><button type="button" onClick={()=>setWorkspaceStage("preparation")}
-              className="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Avançar para preparação</button></div>
           </div>
-          <div hidden={workspaceStage !== "preparation"}>
-            <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Confira os parâmetros desta análise. O motor valida as condições antes de habilitar o cálculo.</p></div>
+          <div hidden={workspaceStage === "results"}>
             {preparation}
-            <button type="button" onClick={()=>setWorkspaceStage("territories")}
-              className="mt-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar aos territórios</button>
           </div>
         </div>}
         <div className="results-stage" hidden={sourceReady && !!active && workspaceStage !== "results"}>
