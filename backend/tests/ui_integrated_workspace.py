@@ -211,7 +211,8 @@ def main():
         expect(page.get_by_test_id('investigation-card')).to_have_count(0)
         page.get_by_test_id('analysis-history-menu').locator('summary').click()
         expect(page.get_by_test_id('analysis-history-menu').get_by_role('button')).to_have_count(0)
-        expect(page.get_by_test_id('conversation-history')).to_contain_text('0 solicitações')
+        expect(page.get_by_test_id('conversation-history')).to_have_count(0)
+        expect(page.get_by_test_id('latest-reply')).to_have_count(0)
         assert not errors, errors
         browser.close()
     print('INTERFACE INTEGRADA PASS: cinco ações, teclado, análise independente, composição, reabertura sem recálculo, CSV/JSON, quatro larguras, falha de encerramento e revogação real da sessão.')
