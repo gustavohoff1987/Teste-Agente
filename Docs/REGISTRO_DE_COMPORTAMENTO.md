@@ -189,3 +189,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **Comportamento: sem alteração —** correção exclusivamente de apresentação responsiva; não modifica navegação, cálculos, contratos analíticos, dados, sessão ou personagem.
 - **Evidência:** CI #263 (run 39084993288) aprovou backend, dados-reais, frontend e ui-conversational, mas ainda reprovou ui-block1 por transbordamento horizontal em quatro roteiros. A correção CSS foi insuficiente e exige diagnóstico de elemento excedente antes de nova intervenção.
 - **Governança:** o job reprovou pela ausência deste registro no commit 7bde790; esta entrada regulariza a rastreabilidade documental sem afirmar que a regressão visual foi resolvida.
+
+
+### 2026-10-17 · Diagnóstico dirigido de transbordamento no CI #264
+
+- **2a57a06:** instrumenta a asserção já existente de largura em `ui_integrated_workspace.py` para incluir no erro o tamanho da página e os primeiros elementos que ultrapassam a janela, com coordenadas e dimensões. A condição de aprovação permanece exatamente a mesma.
+- **Comportamento: sem alteração —** somente diagnóstico de teste Playwright; nenhum componente de produto, regra, dado ou cálculo foi modificado.
+- **Motivo:** CI #264 manteve as quatro falhas de largura em `ui-block1`, apesar da correção CSS anterior. A evidência de qual elemento transborda é necessária para uma correção direcionada.
+- **Validação:** aguardando logs do CI do novo commit; não declarar correção visual antes da nova evidência.
