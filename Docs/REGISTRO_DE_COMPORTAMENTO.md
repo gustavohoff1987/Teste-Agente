@@ -284,3 +284,5 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **387c746** — Comportamento: a abrangência territorial, parâmetro contextual de fonte, permanece acessível durante a etapa de escolha de período. Corrige o bloqueio de navegação ao alternar base municipal/nacional identificado no teste conversacional do CI #322, sem exibir os demais parâmetros técnicos antecipadamente.
 
 - **60d596d** — Teste: confirma que a descrição curada e o botão de cálculo surgem após a seleção de competência; a escolha de múltiplos períodos usa a navegação explícita de volta e avanço. Corrige expectativa de empilhamento no teste conversacional identificada no CI #324.
+
+- **bc49fa3** — Comportamento: ao trocar de período único para múltiplos períodos, o seletor envia uma única transição `onMultiple(periods)`; o pai já limpa o período único. Evita callbacks conflitantes que poderiam esvaziar a seleção e bloquear Avançar. Detectado na execução conversacional do CI #326; requer validação posterior.
