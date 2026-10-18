@@ -296,3 +296,13 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **bc49fa3** — Comportamento: ao trocar de período único para múltiplos períodos, o seletor envia uma única transição `onMultiple(periods)`; o pai já limpa o período único. Evita callbacks conflitantes que poderiam esvaziar a seleção e bloquear Avançar. Detectado na execução conversacional do CI #326; requer validação posterior.
 
 - **d7ff52d** — Teste: após HTTP 200 de análise, aguarda a renderização assíncrona da tabela antes de verificar uma linha; não altera o valor esperado nem o critério de aceitação. Falha de sincronização detectada no CI #328.
+
+### 2026-10-18 · Simplificação da preparação e legibilidade
+
+- **ff7d023** — Etapas visíveis reduzidas a Preparação e Resultados; seleção territorial integrada à preparação; orientação substituída por “Escolha os territórios para análise.” A seleção e os componentes são preservados, sem alteração do motor.
+- **68f69be** — Comandos e atalhos territoriais passam a abrir a preparação unificada.
+- **9d3c7cf** — Removidas da apresentação as caixas de declaração de comparabilidade temporal, estabilidade territorial e comparabilidade entre territórios. Os requisitos e bloqueios de pré-exame permanecem ativos, sem preenchimento automático de declarações sem evidência.
+- **15fba0d** — Abrangência territorial renomeada para “Escolher abrangência dos dados”, com opções “Municípios do Brasil” e “Brasil (total nacional)”; mensagem genérica de condições substituída por razões de pré-exame ou impossibilidade de verificação.
+- **3575484** — Tipografia das áreas operacionais ampliada por regras CSS consistentes, mantendo cores e hierarquia.
+- **0caee13, 115c7ba, 4da1b66, 9264026** — Atualização inicial dos roteiros de navegação para duas etapas. O teste de estabilização verifica bloqueio da evolução quando comparabilidade não é comprovada; cobertura de evolução aprovada anteriormente não deve ser interpretada como validada após esta mudança.
+- **Risco/pendência:** o fluxo de evolução temporal, antes apoiado em declarações manuais, exige solução governada de verificação por evidências para voltar a executar sem essas caixas. Não transformar remoção visual em confirmação implícita. Outros testes de navegador podem necessitar atualização. CI ainda não confirmado.
