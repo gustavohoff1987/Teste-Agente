@@ -541,9 +541,18 @@ function App() {
     if (matches.length === 1) setCategoryFilter(matches[0]);
   }, [requestedCategory, inspection, inspecting, categoryFilter]);
 
+  // A base municipal governada declara papéis, unidade e alinhamento do denominador.
+  // A comparabilidade só é inferida no recorte de uma competência identificada;
+  // importações e demais recortes continuam exigindo evidência explícita.
+  const curatedComparisonReady = !!(usingBrazil && inspection?.curated_defaults &&
+    inspection.source?.scope === "municipal" && periodFilter &&
+    inspection.curated_defaults.population_denominator_confirmed &&
+    countUnit && mapping.count && mapping.population && mapping.territory);
+
   function semanticOptions() {
     return {
       ...resolutions,
+      ...(curatedComparisonReady ? {comparison_confirmed: true} : {}),
       ...(territoryIds.length && (!usingBrazil || inspection?.source?.scope === "municipal") ? {territory_ids: territoryIds} : {}),
       comparison_indicator: comparisonIndicator,
       hierarchy_columns: hierarchyColumns,
@@ -1398,10 +1407,12 @@ function App() {
             onChange={e=>setTerritoryStable(e.target.checked)}/>
             Os territórios correspondem às mesmas unidades ao longo do tempo.</label>}
         </>}
-        {["comparisons","ranking"].includes(active) && <label className="flex items-start gap-2">
-          <input type="checkbox" checked={!!resolutions.comparison_confirmed}
-            onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
-          As medidas, unidades e populações são comparáveis entre os territórios.</label>}
+        {["comparisons","ranking"].includes(active) && (curatedComparisonReady
+          ? <p role="status" className="text-xs text-emerald-800">Unidades, período e denominador reconhecidos na base municipal governada.</p>
+          : <label className="flex items-start gap-2">
+              <input type="checkbox" checked={!!resolutions.comparison_confirmed}
+                onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
+              As medidas, unidades e populações são comparáveis entre os territórios.</label>)}
         {active === "aggregate" && <>
           <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
             onChange={e=>setResolutions(p=>({...p,population_additive_confirmed:e.target.checked}))}/>
