@@ -220,3 +220,11 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **921c113:** em `ui_investigation.py`, após o encerramento da sessão pela API, o diálogo de privacidade pode surgir entre a consulta `is_visible()` e o clique em Resultados. O teste agora limita a tentativa de clique a 2,5 s e só tolera seu timeout quando o diálogo obrigatório realmente está visível; caso contrário, propaga a falha original.
 - **Comportamento de produto: inalterado.** A privacidade continua bloqueando cliques no conteúdo de fundo; o teste exige aviso de sessão expirada, aceite explícito e limpeza dos resultados anteriores. Não usa `force=True`, não desabilita o diálogo nem remove asserções.
 - **Validação:** aguardar o CI do HEAD; a correção elimina somente a corrida do roteiro e não implica aprovação antecipada da suíte.
+
+
+### 2026-10-17 · Conversa contextual e compositor inferior
+
+- **30b728a:** remove da apresentação a transcrição expansível da conversa; preserva mensagens na memória da sessão e move alternativas de esclarecimento da resposta atual para o contexto visível, sem depender da transcrição. O histórico de análises permanece separado e acessível.
+- **d1bce10:** a investigação ocupa ao menos a altura disponível, com compositor ancorado na parte inferior quando há pouco conteúdo, e caixa de digitação contornada em verde alinhado à identidade do banner. A posição sticky existente é preservada na exploração de resultados.
+- **Escopo:** interface conversacional e CSS; motor, dados, SPEC, personagem e API analítica inalterados.
+- **Limites:** não automatiza confirmações metodológicas nem substitui a preparação por um novo fluxo progressivo; essas mudanças exigem implementação e testes específicos. Validação de CI pendente.
