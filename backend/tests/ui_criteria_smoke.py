@@ -109,6 +109,7 @@ def main():
 
         # 2. Distância acrescentada com E; referências definidas pelo usuário (critério ≥ 3).
         send("Agora considere também distância superior a 150 km.", "nenhuma referência foi escolhida pelo sistema")
+        page.get_by_role("button", name="2. Preparação").click()
         expect(builder.get_by_label("Combinação atual")).to_contain_text("E distância à referência mais próxima > 150 km")
         setup = builder.get_by_role("group", name="Definição das referências")
         expect(setup.get_by_role("radio", checked=True)).to_have_count(0)
