@@ -129,7 +129,7 @@ def main():
         expect(board.get_by_text("Mapa indisponível para este resultado", exact=True)).to_be_visible()
         expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
         calls = len(analyses)
-        page.get_by_role("button", name="2. Preparação").click()
+        page.get_by_role("button", name="1. Preparação").click()
         inline.get_by_text("Ajustar condições específicas, outras confirmações ou situações excepcionais", exact=True).click()
         inline.get_by_label("Referencial das coordenadas importadas", exact=True).select_option("SIRGAS2000")
         inline.get_by_label("Separador decimal das coordenadas importadas", exact=True).select_option("decimal_point")
