@@ -225,7 +225,7 @@ export default function ResultWorkspace(p: Props) {
 
   const visual = <section aria-label="Exploração visual" className="mt-5 space-y-3">
     <div className="no-print flex flex-wrap items-center justify-between gap-2">
-      <div role="tablist" aria-label="Forma de visualização" className="inline-flex rounded-xl border border-line bg-slate-50 p-1">
+      <div role="tablist" aria-label="Forma de visualização" className="flex w-full min-w-0 flex-wrap rounded-xl border border-line bg-slate-50 p-1 sm:inline-flex sm:w-auto">
         {([["mapa", "Mapa", MapIcon], ["graficos", "Gráficos", BarChart3], ["tabela", "Tabela", Table2]] as const).map(([key, label, Icon]) =>
           <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
             className={"inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold " + (view === key ? "bg-white text-ink shadow-sm" : "text-slate-600")}>
