@@ -286,3 +286,5 @@ Registro retrospectivo dos commits publicados na mesma branch sem atualização 
 - **60d596d** — Teste: confirma que a descrição curada e o botão de cálculo surgem após a seleção de competência; a escolha de múltiplos períodos usa a navegação explícita de volta e avanço. Corrige expectativa de empilhamento no teste conversacional identificada no CI #324.
 
 - **bc49fa3** — Comportamento: ao trocar de período único para múltiplos períodos, o seletor envia uma única transição `onMultiple(periods)`; o pai já limpa o período único. Evita callbacks conflitantes que poderiam esvaziar a seleção e bloquear Avançar. Detectado na execução conversacional do CI #326; requer validação posterior.
+
+- **d7ff52d** — Teste: após HTTP 200 de análise, aguarda a renderização assíncrona da tabela antes de verificar uma linha; não altera o valor esperado nem o critério de aceitação. Falha de sincronização detectada no CI #328.
