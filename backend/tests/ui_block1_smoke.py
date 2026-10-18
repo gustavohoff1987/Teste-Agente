@@ -122,6 +122,8 @@ def main():
         expect(inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.")).to_have_count(0)
         compared = calculate()
         assert compared["total_rows"] == 3
+        expect(page.get_by_test_id("comparison-territory-row")).to_have_count(3)
+        # Cada território da comparação deve ocupar um registro visual próprio.
         assert compared["metadata"]["options"]["territory_ids"] == ["code:130260", "code:130420", "code:130340"]
         # Mesmos valores da densidade inicial: a seleção não altera o cálculo de cada membro.
         assert {row["Período"] for row in compared["rows"]} == {"202406"}
