@@ -49,8 +49,8 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
   const [started, setStarted] = useState(false);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const [conversationExpanded, setConversationExpanded] = useState(false);
-  const logRef = useRef<HTMLDivElement>(null);
+
+
 
   const revision = useRef(0);
   const ready = useRef(contextReady);
@@ -249,45 +249,28 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
       </button>}
     </div>}
 
-    <details className="conversation-thread" data-testid="conversation-history" open={conversationExpanded}
-      onToggle={event => setConversationExpanded(event.currentTarget.open)}>
-      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-teal">Histórico da conversa · {turns.filter(turn => turn.role === "user").length} solicitações</summary>
-      <div ref={logRef} role="log" aria-label="Histórico da conversa" aria-live="polite"
-        className="conversation-log space-y-4 px-4 py-5" data-testid="conversation-log">
-        {turns.map((turn, index) => <div key={index} className={["flex gap-2", turn.role === "user" ? "justify-end" : "justify-start"].join(" ")}>
-          {turn.role === "assistant" && <BrandAvatar size={27} className="mt-1 shrink-0"/>}
-          <div className={["max-w-[94%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[85%]",
-            turn.role === "user" ? "bg-teal text-white" : "border border-line bg-white text-slate-700"].join(" ")}>
-            <p className="whitespace-pre-wrap break-words">{turn.content}</p>
-            {turn.role === "assistant" && turn.clarification?.source === "CATALOGO_LOCAL" &&
-              turn.clarification.choices.length > 0 &&
-              <div className="mt-3 flex flex-wrap gap-2" aria-label="Alternativas de esclarecimento">
-                {turn.clarification.choices.map(choice =>
-                  <button key={choice.label} type="button"
-                    disabled={sending || selecting || !!turn.context && turn.context !== contextVersion}
-                    onClick={async () => {
-                      if (!choice.operation || !turn.request || !sourceReady) {
-                        setDraft(choice.draft); document.getElementById("assistant-input")?.focus(); return;
-                      }
-                      setSending(true); setError("");
-                      setTurns(previous => [...previous,{role:"user",content:"Escolho: " + choice.label}]);
-                      onRequest(turn.request);
-                      try {
-                        const reply = await onExplore(turn.request, {operation:choice.operation,indicator:choice.indicator});
-                        setTurns(previous => [...previous,{role:"assistant",content:reply || "Análise escolhida. Revise a preparação abaixo."}]);
-                      } catch (exc) { setError(exc instanceof Error ? exc.message : "Não foi possível preparar a escolha."); }
-                      finally { setSending(false); }
-                    }}
-                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100">
-                    {choice.label}
-                  </button>)}
-              </div>}
-
-          </div>
-          {turn.role === "user" && <UserRound size={17} className="mt-2 shrink-0 text-slate-500"/>}
-        </div>)}
-      </div>
-    </details>
+    {/* As mensagens continuam em memória para contexto, sem histórico visual.
+        As alternativas de esclarecimento permanecem disponíveis junto à resposta atual. */}
+    {turns.at(-1)?.role === "assistant" && turns.at(-1)?.clarification?.source === "CATALOGO_LOCAL" &&
+      <div className="mx-4 mb-3 flex flex-wrap gap-2" aria-label="Alternativas de esclarecimento">
+        {turns.at(-1)!.clarification!.choices.map(choice =>
+          <button key={choice.label} type="button" disabled={sending || selecting}
+            onClick={async () => {
+              const current = turns.at(-1)!;
+              if (!choice.operation || !current.request || !sourceReady) {
+                setDraft(choice.draft); document.getElementById("assistant-input")?.focus(); return;
+              }
+              setSending(true); setError("");
+              setTurns(previous => [...previous,{role:"user",content:"Escolho: " + choice.label}]);
+              onRequest(current.request);
+              try {
+                const reply = await onExplore(current.request, {operation:choice.operation,indicator:choice.indicator});
+                setTurns(previous => [...previous,{role:"assistant",content:reply || "Análise escolhida. Revise a preparação abaixo."}]);
+              } catch (exc) { setError(exc instanceof Error ? exc.message : "Não foi possível preparar a escolha."); }
+              finally { setSending(false); }
+            }}
+            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100">{choice.label}</button>)}
+      </div>}
     {!sourceReady && <div className="px-4 pb-4">{sourceChoice}</div>}
     {sourceReady && <div className="px-4 pb-4">
       <details className="no-print text-xs text-teal"><summary className="cursor-pointer">Trocar fonte de dados</summary>{sourceChoice}</details>
@@ -316,11 +299,11 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
     <div className="conversation-dock no-print" data-testid="conversation-dock">
       {turns.at(-1) && <div className="latest-reply" role="status" data-testid="latest-reply">
         {turns.at(-1)?.role === "assistant" ? <BrandAvatar size={30}/> : <UserRound size={25} aria-label="Seu pedido"/>}<div><p className="whitespace-pre-wrap">{turns.at(-1)?.content}</p>
-        {turns.at(-1)?.clarification && <button type="button" className="font-semibold text-teal underline" onClick={() => {setConversationExpanded(true); document.querySelector('[data-testid="conversation-history"]')?.scrollIntoView();}}>Ver alternativas na conversa</button>}</div>
+
       </div>}
       {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
     <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
-      <div className="rounded-2xl border border-blue-200 bg-white shadow-sm transition focus-within:border-teal focus-within:ring-2 focus-within:ring-cyan-100">
+      <div className="conversation-input-shell rounded-2xl border-2 bg-white shadow-sm transition">
         <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
         <textarea id="assistant-input" rows={2} maxLength={800} value={draft}
           onChange={e => setDraft(e.target.value)} disabled={sending || !privacyAccepted}
@@ -333,7 +316,7 @@ export default function AnalysisAssistant({ displayedResultId = "", apiBase, pri
           <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
           <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
             disabled={!privacyAccepted || draft.trim().length < 2 || sending}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+            className="conversation-send inline-flex h-10 w-10 items-center justify-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-40">
             {sending ? <LoaderCircle size={18} className="animate-spin"/> : <Send size={19}/>}
           </button>
         </div>
