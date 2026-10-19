@@ -55,10 +55,14 @@ Rode na raiz e só envie se tudo passar:
 
 ```bash
 (cd backend && python -m pytest -q)
-(cd frontend && npm ci && npm run build)
+(cd frontend && npm ci && npm run build)        # npm ci: veja a dispensa logo abaixo
 python backend/tests/run_ui_checks.py           # sem o Google Chrome: ADT_BROWSER_CHANNEL=chromium
 python .github/scripts/verificar_governanca.py
 ```
+
+Na verificação local, o `npm ci` pode ser dispensado quando `package.json` e `package-lock.json`
+não mudaram desde o último `npm ci` bem-sucedido; nesse caso, rode só `npm run build` (decisão do
+responsável pelo produto em 18/10/2026). O CI continua rodando `npm ci` sempre.
 
 Se a mudança toca o motor, a API ou os dados, rode também:
 

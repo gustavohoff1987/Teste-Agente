@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-18 · Verificação local: npm ci dispensado quando as dependências não mudam
+
+- **Antes:** a seção 4 do `AGENTS.md` exigia `npm ci` antes de cada build da verificação local, mesmo sem nenhuma mudança nas dependências do frontend.
+- **Agora:** na verificação local, o `npm ci` pode ser dispensado quando `package.json` e `package-lock.json` não mudaram desde o último `npm ci` bem-sucedido; nesse caso, basta `npm run build`.
+- **Permanece:** o CI roda `npm ci` em todo push, e os jobs e verificações obrigatórios não mudam. Quando as dependências mudam, o `npm ci` continua obrigatório também localmente. Nenhum comportamento do produto muda.
+- **Motivo:** decisão do responsável pelo produto (18/10/2026), para simplificar a verificação local sem reduzir as garantias do CI. Localmente, o `npm ci` repetia uma instalação idêntica e, no Windows, falhava quando um servidor Vite aberto travava arquivos de `node_modules`.
+- **Documentação e testes:** `AGENTS.md` (seção 4) e README (seção Testes). Regra de processo, sem teste do produto.
+
 ### 2026-10-18 · Escolha de vários períodos: clicar escolhe a competência
 
 - **Antes:** quando a lista de vários períodos vinha com todas as competências incluídas por padrão, como na evolução temporal, todas apareciam marcadas e clicar numa delas a retirava. Quem clicava para escolher competências acabava tirando justamente as que queria analisar. Durante o carregamento de outro recorte, a lista continuava clicável, mas a escolha se perdia quando o recorte chegava.

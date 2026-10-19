@@ -329,6 +329,9 @@ python backend/tests/run_ui_checks.py                                 # todas as
 python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
+Localmente, o `npm ci` pode ser dispensado quando `package.json` e `package-lock.json` não mudaram
+desde o último `npm ci` bem-sucedido; basta o `npm run build`. O CI sempre roda o `npm ci`.
+
 No Windows (PowerShell), defina `$env:ADT_REAL_DATA_DIR` com o caminho completo da raiz do
 repositório. Sem o Google Chrome instalado, defina `ADT_BROWSER_CHANNEL=chromium` para as jornadas.
 
