@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CATEGORICAL, INK, NOT_EVALUABLE, displayPeriod, formatNumber, fullPrecision, niceDomain, type IndicatorKind } from "./representation";
 
 // Gráficos de barras e de linhas (CAP-REP-02) sobre valores já calculados pelo motor. A ordem padrão
@@ -6,6 +6,8 @@ import { CATEGORICAL, INK, NOT_EVALUABLE, displayPeriod, formatNumber, fullPreci
 // visual e não exibe posições. Ausências ficam como lacunas, sem interpolação nem linhas de tendência.
 
 export type BarDatum = { id: string; label: string; value: number | null; highlighted: boolean };
+/** Taxa nacional de contexto (D5) desenhada como linha tracejada sobre as barras dos municípios; não colore as barras. */
+export type BarReference = { value: number; label: string; text: string };
 export type CountDatum = { label: string; value: number; color: string };
 export type LinePoint = Record<string, string | number | null>;
 const axis = { fontSize: 11, fill: INK.muted };
@@ -19,13 +21,19 @@ function TooltipBox({ title, lines }: { title: string; lines: { color?: string; 
   </div>;
 }
 
-export function TerritoryBars({ data, unit, kind, title, onSelect }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
-  onSelect: (id: string) => void }) {
-  if (data.length > 40) return <ScrollableBars key={title} data={data} unit={unit} kind={kind} title={title} onSelect={onSelect}/>;
-  const height = Math.max(220, 46 + data.length * 26);
+function ReferenceCaption({ reference }: { reference?: BarReference }) {
+  return reference ? <figcaption data-testid="bars-reference-line" className="mt-1 flex items-center gap-2 text-xs text-slate-600">
+    <svg aria-hidden width="22" height="10"><line x1="1" y1="5" x2="21" y2="5" stroke={INK.primary} strokeWidth="1.5" strokeDasharray="4 3"/></svg>
+    <span>{reference.text}</span></figcaption> : null;
+}
+
+export function TerritoryBars({ data, unit, kind, title, onSelect, reference }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
+  onSelect: (id: string) => void; reference?: BarReference }) {
+  if (data.length > 40) return <ScrollableBars key={title} data={data} unit={unit} kind={kind} title={title} onSelect={onSelect} reference={reference}/>;
+  const height = Math.max(220, 46 + data.length * 26) + (reference ? 16 : 0);
   return <figure aria-label={title} className="w-full">
     <div style={{ height }} className="w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 18, bottom: 4, left: 4 }} barCategoryGap={4}>
+      <BarChart data={data} layout="vertical" margin={{ top: reference ? 20 : 4, right: 18, bottom: 4, left: 4 }} barCategoryGap={4}>
         <CartesianGrid horizontal={false} stroke={INK.grid}/>
         <XAxis type="number" tick={axis} tickFormatter={(value: number) => formatNumber(value, kind)} stroke={INK.grid}/>
         <YAxis type="category" dataKey="label" width={170} tick={{ ...axis, fill: INK.secondary }} interval={0} stroke={INK.grid}
@@ -38,8 +46,12 @@ export function TerritoryBars({ data, unit, kind, title, onSelect }: { data: Bar
         <Bar dataKey="value" name={title} radius={[0, 4, 4, 0]} maxBarSize={18} onClick={(entry: BarDatum) => onSelect(entry.id)} cursor="pointer">
           {data.map(item => <Cell key={item.id} fill={item.highlighted ? CATEGORICAL[0] : "#9ec5f4"}/>)}
         </Bar>
+        {/* A referência entra no eixo (ifOverflow), mas nunca na cor das barras. */}
+        {reference && <ReferenceLine x={reference.value} stroke={INK.primary} strokeWidth={1.5} strokeDasharray="4 3" ifOverflow="extendDomain"
+          label={{ value: reference.label, position: "top", fontSize: 11, fontWeight: 600, fill: INK.primary }}/>}
       </BarChart>
     </ResponsiveContainer></div>
+    <ReferenceCaption reference={reference}/>
     {data.some(item => item.value === null) && <figcaption className="mt-1 text-xs text-slate-600">
       Sem barra por não avaliabilidade (nunca convertida em zero): {data.filter(item => item.value === null).map(item => item.label).join("; ")}.
     </figcaption>}
@@ -48,27 +60,35 @@ export function TerritoryBars({ data, unit, kind, title, onSelect }: { data: Bar
 
 // Todos os territórios permanecem acessíveis. Só as linhas próximas à área visível
 // são montadas, para evitar milhares de elementos SVG no resultado Brasil.
-function ScrollableBars({ data, unit, kind, title, onSelect }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
-  onSelect: (id: string) => void }) {
+function ScrollableBars({ data, unit, kind, title, onSelect, reference }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
+  onSelect: (id: string) => void; reference?: BarReference }) {
   const [start, setStart] = useState(0);
   const rowHeight = 34, windowSize = 20;
   const [min, max] = useMemo(() => {
     let low = 0, high = 0;
     for (const item of data) if (item.value !== null) { low = Math.min(low, item.value); high = Math.max(high, item.value); }
+    if (reference) { low = Math.min(low, reference.value); high = Math.max(high, reference.value); }  // a referência entra no eixo
     return [low, high];
-  }, [data]);
+  }, [data, reference]);
   const span = max - min || 1, zero = -min / span * 100;
+  const mark = reference ? (reference.value - min) / span * 100 : null;
   const offset = Math.min(start, Math.max(0, data.length - 1));
   return <figure aria-label={title} className="w-full" data-testid="scrollable-bars" data-total={data.length}>
     <figcaption className="mb-2 text-xs text-slate-600">{data.length.toLocaleString("pt-BR")} territórios.
       Role o gráfico para percorrer todos ou selecione territórios na tabela para comparar.</figcaption>
     <div className="mb-1 flex justify-between pl-[42%] text-[11px] text-slate-500"><span>{formatNumber(min, kind)}</span>
       <span>{formatNumber(max, kind)} {unit}</span></div>
+    {mark !== null && <div aria-hidden className="relative mb-1 h-4 pl-[42%] text-[11px] font-semibold text-ink">
+      <span className="relative block h-full"><span className="absolute -translate-x-1/2 whitespace-nowrap" style={{left: mark + "%"}}>
+        {reference!.label}</span></span></div>}
     <div role="region" aria-label="Barras por território" tabIndex={0} className="max-h-[440px] overflow-y-auto rounded-lg border border-line"
       onScroll={event => setStart(Math.max(0, Math.floor(event.currentTarget.scrollTop / rowHeight) - 2))}>
       <div style={{height: data.length * rowHeight, position: "relative"}}>
         {data.slice(offset, offset + windowSize).map((item, index) => {
           const value = item.value, end = value === null ? zero : (value - min) / span * 100;
+          // O valor fica logo depois do fim da barra (perto da borda direita, dentro dela), num fundo claro que passa
+          // por cima da linha tracejada da referência: nem a barra nem a linha cobrem o número.
+          const tip = Math.max(zero, end), inside = value !== null && tip > 82;
           return <button key={item.id} type="button" onClick={() => onSelect(item.id)}
             aria-label={item.label + ": " + (value === null ? "Não avaliável" : formatNumber(value, kind) + " " + unit)}
             title={item.label + ": " + (value === null ? "Não avaliável" : fullPrecision(value) + " " + unit)}
@@ -77,14 +97,20 @@ function ScrollableBars({ data, unit, kind, title, onSelect }: { data: BarDatum[
             <span className="truncate">{item.label}</span>
             <span className="relative h-6 min-w-0">
               <span aria-hidden className="absolute inset-y-0 border-l border-slate-300" style={{left: zero + "%"}}/>
-              {value !== null && <span aria-hidden className="absolute top-1 h-4 rounded-sm"
+              {mark !== null && <span aria-hidden data-testid="bar-reference-mark" className="absolute inset-y-0 border-l-[1.5px] border-dashed border-ink"
+                style={{left: mark + "%"}}/>}
+              {value !== null && <span aria-hidden data-testid="bar-fill" className="absolute top-1 h-4 rounded-sm"
                 style={{left: Math.min(zero, end) + "%", width: Math.abs(end - zero) + "%", background: item.highlighted ? CATEGORICAL[0] : "#9ec5f4"}}/>}
-              <span className="relative block truncate px-1 py-1 text-[10px] text-slate-800">{value === null ? "Não avaliável" : formatNumber(value, kind)}</span>
+              <span data-testid="bar-value" className={"absolute top-1 z-[1] whitespace-nowrap rounded-sm px-1 text-[10px] leading-4 " +
+                (inside ? (item.highlighted ? "text-white" : "text-ink") : "bg-white/90 text-slate-800")}
+                style={inside ? { right: (100 - tip) + "%" } : { left: "calc(" + tip + "% + 2px)" }}>
+                {value === null ? "Não avaliável" : formatNumber(value, kind)}</span>
             </span>
           </button>;
         })}
       </div>
     </div>
+    <ReferenceCaption reference={reference}/>
   </figure>;
 }
 

@@ -198,16 +198,16 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), width
         page.screenshot(path=str(OUTPUT / "criteria-03-mobile.png"), full_page=True)
 
-        # Base Brasil sintética do Bloco 1. Com o recorte nacional escolhido, o comando volta ao recorte
-        # municipal e só aplica a condição depois que ele está pronto (a preparação restaurada não a apaga).
+        # Base Brasil sintética do Bloco 1. Com o Brasil (total nacional) marcado numa análise que o aceita, o comando
+        # dos critérios aplica a condição na hora: os critérios usam os municípios, e o Brasil marcado não vale nesta
+        # análise (a seção fica desabilitada com o motivo), sem troca de fonte.
         page.set_viewport_size({"width": 1280, "height": 900})
         chat.get_by_text("Trocar fonte de dados", exact=True).click()
         chat.get_by_role("button", name="Usar dados do Brasil").click()
         expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
-        # Critérios só existem no recorte municipal: o recorte nacional é escolhido numa análise que o admite.
         select(page, "Quantitativos")
         expand(inline.get_by_test_id("territory-toggle"))
-        national = inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)
+        national = inline.get_by_role("checkbox", name="Brasil (total nacional)", exact=True)
         national.check()
         expect(national).to_be_checked(timeout=60000)
         expect(national).to_be_enabled(timeout=60000)
@@ -215,7 +215,11 @@ def main():
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=60000)
         expect(inline.get_by_test_id("scope-loading")).to_have_count(0, timeout=60000)
         expand(inline.get_by_test_id("territory-toggle"))
-        expect(inline.get_by_test_id("scope-info")).to_contain_text("somente a fonte municipal")
+        expect(inline.get_by_test_id("scope-info")).to_have_text("Os critérios são avaliados em cada município marcado ou em todos.")
+        expect(national).to_be_disabled()
+        expect(national).not_to_be_checked()
+        expect(inline.get_by_test_id("territory-section-brasil")).to_contain_text(
+            "Não se aplica: as distâncias e os critérios usam a localização de cada município.")
         # Jornada funcional no celular (390 px): nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
         page.set_viewport_size({"width": 390, "height": 844})
         inline.get_by_label("Escolher períodos da análise").click()

@@ -27,23 +27,22 @@ parâmetros; o alinhamento do denominador é premissa aplicada pelo backend, com
 As antigas caixas "Confirmo…/Declaro…/Autorizo…" não existem mais: as premissas aparecem em
 "Método e limitações". Falhas do pré-exame desabilitam a execução e permitem tentar novamente.
 
-## Troca de abrangência
+## Abrangência territorial e troca de análise
 
-- A memória da aba guarda a preparação de cada recorte pela versão lógica da base.
-- Retornar ao mesmo recorte/versão restaura associações, escolhas e parâmetros,
-  submetendo-os novamente ao backend.
-- Na primeira troca de recorte, somente período derivado e categoria com associações
-  e domínios equivalentes são transferidos. Listas truncadas não comprovam equivalência.
-- Território, código, unicidade da contagem e população são específicos de cada recorte. Quando
-  ainda não preparados nele, exigem nova escolha, com aviso.
-- A escolha de períodos só atravessa a troca (ou a restauração do recorte) quando a análise
-  de destino aceita o mesmo modo: o período único de uma densidade não substitui as
-  competências de uma evolução temporal, que recebe todas as competências do recorte.
-- Durante a troca, a preparação anterior continua visível e bloqueada, com aviso de
-  carregamento abaixo das configurações; se o novo recorte não carregar, ela é mantida com o motivo.
-- Na base oficial, marcar municípios na caixa "Abrangência territorial" com o total nacional
-  escolhido troca o recorte para municípios e aplica a seleção marcada quando ele termina de
-  carregar; se o recorte não carregar, a preparação anterior é mantida e a seleção marcada, descartada.
+- Na base oficial (19/10/2026), não há troca de recorte: a base é examinada uma vez, no recorte
+  municipal, com o bloco dos níveis (Brasil, estados e regras de cada análise). Trocar de análise não
+  chama `/api/inspect`, não bloqueia a preparação e não troca de fonte; a opção "Abrangência da
+  análise" das condições avançadas e a memória da preparação de cada recorte deixaram de existir.
+- A caixa "Abrangência territorial" é uma lista vertical (Brasil, estados e municípios agrupados por
+  estado). Os municípios marcados continuam valendo entre as análises; o Brasil e os estados só valem
+  nas análises que os aceitam; sem nada aplicável, vale o padrão da análise. A interface envia a parte
+  que vale em `options.abrangencia`, e o backend escolhe a rota e confere o pedido
+  ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)).
+- A escolha de períodos continua quando a análise de destino aceita o mesmo modo: o período único de
+  uma densidade não substitui as competências de uma evolução temporal, que recebe todas as
+  competências da abrangência (as da fonte nacional quando vale o Brasil).
+- Na base Brasil sem o perfil oficial, a escolha entre o total nacional e os municípios continua no
+  texto da preparação e recarrega a base no recorte escolhido, sem guardar a preparação anterior.
 - Uma versão diferente invalida a preparação anterior. Novo upload, novo carregamento
   do Brasil e recarregamento da página não reutilizam escolhas de outra base.
 

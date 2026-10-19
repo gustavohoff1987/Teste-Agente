@@ -24,8 +24,8 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Resp
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
-from data_contract import (validate_operation, rotation_data, period_positions, resolve_convention, scoped, text_values,
-                           count_unit_label, canonical_crs)
+from data_contract import (ChoiceRequired, validate_operation, rotation_data, period_positions, resolve_convention, scoped,
+                           text_values, count_unit_label, canonical_crs)
 from temporal_change import evolution, evolution_notes
 from trend import METHOD_VERSION as TREND_METHOD
 from dataset_normalization import compose_period
@@ -311,21 +311,30 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         reference = match.iloc[0]
         geod = Geod(ellps="GRS80")
         rows = []
-        complemented = set(geo.territory[geo.complementada]) if "complementada" in geo else set()
+        complemented = set(geo.territory[geo.complementada & geo.valida]) if "complementada" in geo else set()
+        invalid = geo[~geo.valida] if "valida" in geo else geo.iloc[0:0]
         for _, item in geo.iterrows():
-            _, _, meters = geod.inv(float(reference.lon), float(reference.lat), float(item.lon), float(item.lat))
-            row = {"Território": item.territory, "Distância (km)": meters / 1000}
+            valid = bool(item.get("valida", True))
+            # RQ-DAD-25: coordenada ausente ou inválida deixa só este território não avaliável (lacuna, nunca zero).
+            distance = geod.inv(float(reference.lon), float(reference.lat), float(item.lon), float(item.lat))[2] / 1000 if valid else None
+            row = {"Território": item.territory, "Distância (km)": distance}
             if complemented:  # coluna só existe quando a camada complementar foi efetivamente usada
                 sides = [side for side, used in (("território", item.territory in complemented),
                                                  ("referência", reference.territory in complemented)) if used]
                 row["Coordenada complementada (camada oficial)"] = " e ".join(sides).capitalize() if sides else "Não"
+            if len(invalid):  # coluna só existe quando algum território ficou sem coordenada válida
+                row["Condição"] = "Avaliável" if valid else "Não avaliável: coordenada " + (
+                    "ausente" if item.get("condicao") == "AUSENTE" else "inválida")
             rows.append(row)
         notes = ["Referência: " + str(refname)]
         if complemented:
             notes.append(str(len(complemented)) + " território(s) com ponto inválido na fonte original usam coordenadas da camada "
                          "geográfica complementar versionada, sob a premissa do usuário de coordenada fixa de 2014 a 2024.")
+        if len(invalid):
+            notes.append(str(len(invalid)) + " território(s) sem coordenada válida no recorte ficam não avaliáveis "
+                         "(COORDENADA_INVALIDA), sem distância e fora do mapa; os demais foram calculados.")
         return _result("Distâncias geodésicas", "Distância direta no referencial " + options["crs"] + ". Não representa tempo nem distância por estrada.",
-                       sorted(rows, key=lambda x: x["Distância (km)"]), notes=notes)
+                       sorted(rows, key=lambda x: (x["Distância (km)"] is None, x["Distância (km)"] or 0.0)), notes=notes)
     data = validate_operation(df, mapping, options, operation, prepared=prepared)
     keys = ["territory", "period", "category"]
     cols = {"territory": "Território", "period": "Período", "category": "Categoria",
@@ -915,7 +924,12 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
         if isinstance(settings, dict) and "abrangencia" in settings:
             # Mesmo roteamento do /api/analyze; a rota de níveis devolve o esquema atual da fonte municipal (com a lista
             # de municípios da tela) e capabilities[op].niveis.
-            route = territorial_levels.resolve(sources, fields, operation or "density", settings, scope)
+            try:
+                route = territorial_levels.resolve(sources, fields, operation or "density", settings, scope)
+            except ChoiceRequired as exc:
+                # Escolha pendente na abrangência (estados e municípios juntos, ou territórios de menos): a tela mostra o
+                # motivo e mantém o cálculo bloqueado; o pré-exame não é recusado.
+                return territorial_levels.pending_preflight(sources, fields, operation or "density", settings, str(exc))
             if route.kind != "niveis":
                 return preflight(route.frame, route.mapping, apply_premises(route.frame, route.mapping, route.options))
             municipal = sources.frame("municipal")

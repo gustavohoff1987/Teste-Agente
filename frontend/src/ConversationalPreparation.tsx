@@ -24,13 +24,12 @@ type Props = {
   multiplePeriods: boolean;
   periodEditor: number;
   onSelectedPeriods: (periods: string[]) => void;
+  /** Fonte da base Brasil sem o perfil oficial (fluxo das bases importadas): escolha entre o total nacional e os municípios. */
   scope: SourceScope;
   onScope: (scope: SourceScope) => void;
-  scopeChoice: boolean;
-  rescoping: SourceScope | null;
-  scopeError: string;
-  selectionCount: number;
-  /** Base oficial: a caixa "Abrangência territorial" reúne o Brasil (total nacional) e a escolha de municípios. */
+  /** Base oficial: escolha pendente na abrangência territorial (mistura de níveis ou mínimo de territórios). */
+  territoryPending?: boolean;
+  /** Base oficial: a caixa "Abrangência territorial" reúne o Brasil (total nacional), os estados e os municípios. */
   territoriesOpen: boolean;
   onTerritoriesOpen: (open: boolean) => void;
   territorySelection?: ReactNode;
@@ -102,26 +101,6 @@ function InlineChoice({ label, value, options, onChange, testId, placeholder = "
     <ChevronDown size={12} aria-hidden="true" className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2"/>
   </span>;
 }
-const SCOPES: {value: SourceScope; label: string; hint: string}[] = [
-  {value: "national", label: "Brasil (total nacional)", hint: "Total da fonte nacional; não é a soma dos municípios."},
-  {value: "municipal", label: "Municípios", hint: "Um valor por município. Sem seleção, todos os municípios do recorte."},
-];
-/** Brasil ou municípios, só nas análises com resultado nas duas fontes; nas demais, a abrangência é municipal. */
-function ScopeOptions({scope, rescoping, onScope}: {scope: SourceScope; rescoping: SourceScope | null;
-  onScope: (scope: SourceScope) => void}) {
-  return <fieldset data-testid="scope-choice">
-    <legend className="mb-2 text-xs font-semibold text-ink">Escolha o Brasil (total nacional) ou os municípios:</legend>
-    <div className="grid gap-2 sm:grid-cols-2">
-      {SCOPES.map(item => <label key={item.value} className={"flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 " +
-        (scope === item.value ? "border-teal bg-cyan-50" : "border-line hover:bg-slate-50")}>
-        <input type="radio" name="abrangencia-territorial" aria-label={item.label} aria-describedby={"abrangencia-" + item.value}
-          value={item.value} checked={scope === item.value} disabled={!!rescoping} onChange={() => onScope(item.value)} className="mt-1"/>
-        <span><strong className="block text-sm font-semibold text-ink">{item.label}</strong>
-          <small id={"abrangencia-" + item.value} className="text-xs leading-5 text-slate-600">{item.hint}</small></span>
-      </label>)}
-    </div>
-  </fieldset>;
-}
 // Caixas seletoras das configurações (base oficial): título curto, valor atual e o controle da escolha.
 const BOX = "flex h-full w-full min-w-0 flex-col rounded-lg border px-3 py-2 text-left transition";
 const boxTone = (open: boolean, pending: boolean) => open ? "border-teal bg-cyan-50"
@@ -148,14 +127,6 @@ function ConfigSelect({label, ariaLabel = label, value, options, onChange, place
       {options.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
     </select>
   </label>;
-}
-/** Caixa sem escolha, para o que não se aplica à análise (por exemplo, o período das distâncias). */
-function ConfigInfo({label, value, note, valueTestId}: {label: string; value: string; note: string; valueTestId: string}) {
-  return <div className={BOX + " border-line bg-slate-50"}>
-    <span className={BOX_LABEL}>{label}</span>
-    <span data-testid={valueTestId} className="mt-0.5 text-sm font-semibold leading-5 text-slate-500">{value}</span>
-    <span className="text-[11px] leading-4 text-slate-500">{note}</span>
-  </div>;
 }
 /** Caixa que abre uma lista abaixo das configurações (período e abrangência territorial). */
 function ConfigToggle({id, testId, toggleTestId, label, ariaLabel, value, valueTestId, open, pending = false, controls, onToggle}: {
@@ -188,7 +159,7 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
 export default function ConversationalPreparation(p: Props) {
   // Lista de competências da caixa "Período" (base oficial); a da abrangência é controlada pelo App.
   const [periodOpen, setPeriodOpen] = useState(false);
-  useEffect(() => { setPeriodOpen(false); }, [p.operation, p.scope]);
+  useEffect(() => { setPeriodOpen(false); }, [p.operation]);
   useEffect(() => { setPeriodOpen(p.periodEditor > 0); }, [p.periodEditor]);
   // Critérios combinados: os papéis seguem as condições, a ordenação e as referências definidas.
   const needs = p.operation === "criteria" ? p.criteriaNeeds || {count: false, population: false, spatial: false} : null;
@@ -219,7 +190,8 @@ export default function ConversationalPreparation(p: Props) {
   const usesObject = p.operation !== "spatial" && (!["nearest", "criteria"].includes(p.operation) || criterion);
   if (p.sourceBrazil && p.curated) {
     const isTemporal = p.operation === "temporal";
-    const usesPeriods = !["spatial", "rotation"].includes(p.operation);
+    // Na análise espacial, uma competência: as coordenadas de um mesmo município podem mudar entre competências.
+    const usesPeriods = p.operation !== "rotation";
     const multiple = allowMultiple && p.multiplePeriods;
     const periodReady = !usesPeriods || p.periods.length <= 1 || (multiple ? p.selectedPeriods.length > 0 : !!p.periodFilter);
     const analysisReady = ready && periodReady;
@@ -227,11 +199,12 @@ export default function ConversationalPreparation(p: Props) {
     const periodValue = periodReady ? describePeriods(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods, p.periods)
       : multiple ? "Escolher períodos" : "Escolher período";
     // As quatro caixas aparecem em todas as análises. Sem escolha entre quantidade e densidade, a caixa Indicador mostra
-    // o indicador próprio da análise, numa opção só. O total nacional não tem população: lá a densidade aparece
-    // indisponível, em vez de levar a um cálculo bloqueado.
+    // o indicador próprio da análise, numa opção só. A densidade vale também para o Brasil (população de junho, regra
+    // governada do backend).
     const own = ownIndicator(p.operation, p.criteriaAttributes);
-    const scopedIndicators = p.scope === "national" ? indicatorChoices.map(item => item.value === "density"
-      ? {...item, label: item.label + " (somente municípios)", disabled: true} : item) : indicatorChoices;
+    // Motivos do pré-exame da análise espacial (coordenadas, competência, referência): os mesmos textos do backend.
+    const spatialReasons = p.operation === "spatial" && periodReady && status && status !== "available" && !p.preparing
+      ? (p.capability?.reasons || []).slice(0, 2) : [];
     return <section aria-label="Preparação na conversa" className="mt-2 space-y-3 text-sm leading-7 text-slate-700">
       <h3 className="text-base font-bold text-ink">Configurações</h3>
       <div data-testid="analysis-summary" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -239,14 +212,14 @@ export default function ConversationalPreparation(p: Props) {
           placeholder="Escolher categoria" pending={!p.categoryFilter}/>
         {usesPeriods ? <ConfigToggle label="Período" ariaLabel="Escolher períodos da análise" value={periodValue} valueTestId="period-summary"
             open={periodOpen} pending={!periodReady} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>
-          : p.operation === "rotation" ? <ConfigToggle label="Período" ariaLabel="Escolher os períodos da coorte" valueTestId="period-summary"
+          : <ConfigToggle label="Período" ariaLabel="Escolher os períodos da coorte" valueTestId="period-summary"
             value={rotationPeriods(p.periods, p.rotationPeriods.initial, p.rotationPeriods.final)}
-            open={periodOpen} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>
-          : <ConfigInfo label="Período" value="Não se aplica" note="As distâncias não dependem do período." valueTestId="period-summary"/>}
+            open={periodOpen} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>}
         <ConfigToggle id="territorios" testId="territory-card" toggleTestId="territory-toggle" label="Abrangência territorial"
           ariaLabel="Escolher a abrangência territorial" value={p.territorySummary} valueTestId="scope-summary"
-          open={p.territoriesOpen} controls="territorios-painel" onToggle={() => p.onTerritoriesOpen(!p.territoriesOpen)}/>
-        {requiresIndicator ? <ConfigSelect label="Indicador" value={p.indicator} options={scopedIndicators}
+          open={p.territoriesOpen} pending={!!p.territoryPending} controls="territorios-painel"
+          onToggle={() => p.onTerritoriesOpen(!p.territoriesOpen)}/>
+        {requiresIndicator ? <ConfigSelect label="Indicador" value={p.indicator} options={indicatorChoices}
             onChange={value => p.onIndicator(value as "quantity" | "density")} placeholder="Escolher indicador" pending={!p.indicator}/>
           : <ConfigSelect label="Indicador" value={own} options={[{label: own, value: own}]} onChange={() => {}}/>}
         {p.operation === "distribution" && <ConfigSelect label="Agrupamento" ariaLabel="Agrupamento da distribuição" value={String(p.quantiles)}
@@ -258,16 +231,16 @@ export default function ConversationalPreparation(p: Props) {
       </div>
       {spatial && p.governedCrs && <p className="text-xs text-slate-600">Referencial das distâncias: <strong data-testid="crs-summary"
         className="font-semibold text-ink">{GOVERNED_CRS}</strong></p>}
-      {p.rescoping && <p role="status" data-testid="scope-loading" className="text-xs text-teal">Carregando {p.rescoping === "national"
-        ? "o total nacional" : "os dados municipais"}… A preparação continua na tela e o cálculo é liberado ao terminar.</p>}
-      {p.scopeError && <p role="alert" className="text-xs text-rose-800">{p.scopeError}</p>}
       {usesPeriods && periodOpen && <div id="configuracao-periodo" role="group" aria-label="Período da análise" className={PANEL}>
         <p className="font-medium text-ink">{isTemporal ? "Quais períodos você deseja comparar?" : "Qual período você deseja analisar?"}</p>
-        <PeriodChoices key={p.operation + ":" + p.scope} periods={p.periods} value={p.periodFilter} selected={p.selectedPeriods}
-          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={!!p.rescoping} trendNote={isTemporal}
+        <PeriodChoices key={p.operation} periods={p.periods} value={p.periodFilter} selected={p.selectedPeriods}
+          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={p.executing} trendNote={isTemporal}
           onSingle={p.onPeriod} onChosen={() => setPeriodOpen(false)} onMultiple={p.onSelectedPeriods}/>
         {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
           Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
+        {p.operation === "spatial" && <p data-testid="spatial-period-note" className="text-xs leading-5 text-slate-600">
+          As distâncias usam as coordenadas da competência escolhida; em algumas competências, a fonte traz coordenadas diferentes
+          para o mesmo município.</p>}
         {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
           Para agregar territórios, selecione uma competência por vez.
           A soma entre diferentes meses não representa pessoas únicas.</p>}
@@ -291,17 +264,15 @@ export default function ConversationalPreparation(p: Props) {
           onClick={() => setPeriodOpen(false)} className={DONE}>Concluir</button>
       </div>}
       {p.territoriesOpen && <div id="territorios-painel" role="group" aria-label="Abrangência territorial" className={PANEL}>
-        {p.scopeChoice ? <ScopeOptions scope={p.scope} rescoping={p.rescoping} onScope={p.onScope}/>
-          : <p data-testid="scope-info" className="text-xs leading-5 text-slate-600">Esta análise usa somente a fonte municipal;
-            o total nacional está disponível em Quantitativos, Evolução temporal e Relatórios.</p>}
-        {p.scope === "national" && p.selectionCount > 0 && <p className="text-xs text-slate-600">A seleção de {p.selectionCount} município(s)
-          continua guardada, mas não se aplica ao total nacional.</p>}
         {p.territorySelection}
         <button type="button" data-testid="scope-done" aria-label="Concluir a abrangência territorial"
           onClick={() => p.onTerritoriesOpen(false)} className={DONE}>Concluir</button>
       </div>}
       {p.extra}
       {!periodReady && <p className="text-xs text-slate-600">Escolha o período para continuar.</p>}
+      {p.territoryPending && <p data-testid="territory-pending" className="text-xs text-amber-900">Ajuste a abrangência territorial para continuar.</p>}
+      {spatialReasons.length > 0 && <p role="status" data-testid="spatial-reasons" className="text-xs leading-5 text-amber-900">
+        {spatialReasons.join(" ")}</p>}
       {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
       {status !== "available" && !p.preparing &&
         <p role="status" className="text-xs text-slate-600">Ainda faltam condições específicas para esta análise.

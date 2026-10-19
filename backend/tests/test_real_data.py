@@ -381,27 +381,33 @@ def without_layer(monkeypatch):
 
 
 def test_real_resident_spatial_comma_and_coordinate_changes(real_catalog, without_layer):
-    """Base original sem complemento: seis pontos inválidos impedem a análise espacial do recorte completo."""
+    """Base original sem complemento: na competência escolhida, os seis pontos inválidos deixam só esses municípios não
+    avaliáveis (RQ-DAD-25; antes, o recorte inteiro era recusado). Sem competência escolhida, as coordenadas que mudam
+    entre competências pedem a escolha de uma."""
     info, original, expected = real_catalog
     expected = expected.query('Período == "202406"').copy()
     original = original.loc[expected.index]
-    reference = expected.Território.iloc[0]
-    options = {"confirmed_roles": ["period", "territory_id", "latitude", "longitude"],
-               "number_format": "decimal_comma", "crs": "SIRGAS2000", "reference_territory": reference}
-    assert resident(info, "spatial", **options).status_code == 422
-    assert resident(info, "spatial", **{**options, "number_format": "decimal_point"}, period_filter="202406").status_code == 422
-    response = resident(info, "spatial", **options, period_filter="202406")
-    assert response.status_code == 422
-    assert "intervalos geográficos" in response.json()["detail"]
     parsed = original[["latitude", "longitude"]].apply(lambda col: col.str.replace(",", ".", regex=False).astype(float))
     valid = parsed.latitude.between(-90, 90) & parsed.longitude.between(-180, 180)
     assert (~valid).sum() == 6
+    reference = expected.Território[valid].iloc[0]
+    options = {"confirmed_roles": ["period", "territory_id", "latitude", "longitude"],
+               "number_format": "decimal_comma", "crs": "SIRGAS2000", "reference_territory": reference}
+    every = resident(info, "spatial", **options)
+    assert every.status_code == 422 and "Escolha uma competência no período da análise" in every.json()["detail"]
+    assert resident(info, "spatial", **{**options, "number_format": "decimal_point"}, period_filter="202406").status_code == 422
+    response = resident(info, "spatial", **options, period_filter="202406")
+    assert response.status_code == 200, response.text[:1500]
+    full = response.json()
+    assert len(full["rows"]) == len(expected)
+    lost = [row for row in full["rows"] if row["Distância (km)"] is None]
+    assert {row["Território"] for row in lost} == set(expected.Território[~valid])
+    assert all(row["Condição"] == "Não avaliável: coordenada inválida" for row in lost) and full["rows"][-6:] == lost
+    assert full["metadata"]["evaluability"]["status"] == "AVALIAVEL_COM_LIMITACOES"
     # Subconjunto de teste explícito, nunca exclusão automática no catálogo.
     # Permite confrontar a função de distância sem alterar as fontes.
     original = original.loc[valid]
     expected = expected.loc[valid]
-    reference = expected.Território.iloc[0]
-    options["reference_territory"] = reference
     response = client.post("/api/analyze", files={"file": ("spatial-test-subset.csv", original.to_csv(index=False, sep=";").encode())},
         data={"operation": "spatial", "mapping": json.dumps(info["suggested_mapping"]),
               "options": json.dumps({**options, "period_filter": "202406"})})
@@ -416,6 +422,9 @@ def test_real_resident_spatial_comma_and_coordinate_changes(real_catalog, withou
     # Haversine independente; tolerância cobre diferença para o elipsoide.
     np.testing.assert_allclose(actual["Distância (km)"], actual.distance, rtol=0.006, atol=0.002)
     assert result["rows"][0] == {"Território": reference, "Distância (km)": 0.0}
+    # Na base inteira da competência, os municípios avaliáveis têm exatamente as distâncias do subconjunto válido.
+    assert {row["Território"]: row["Distância (km)"] for row in full["rows"] if row["Distância (km)"] is not None} == {
+        row["Território"]: row["Distância (km)"] for row in result["rows"]}
 
 
 def test_real_resident_spatial_with_the_official_layer(real_catalog):
@@ -457,7 +466,11 @@ def test_real_resident_spatial_with_the_official_layer(real_catalog):
     upload = client.post("/api/analyze", files={"file": ("spatial-full-period.csv", original.to_csv(index=False, sep=";").encode())},
         data={"operation": "spatial", "mapping": json.dumps(info["suggested_mapping"]),
               "options": json.dumps({**options, "reference_territory": expected.Território[valid].iloc[0]})})
-    assert upload.status_code == 422 and "intervalos geográficos" in upload.json()["detail"]  # uploads nunca complementados
+    # Uploads nunca são complementados: os seis pontos inválidos ficam não avaliáveis (antes, o upload inteiro era recusado).
+    assert upload.status_code == 200, upload.text[:1500]
+    uploaded = {row["Território"]: row for row in upload.json()["rows"]}
+    assert {name for name, row in uploaded.items() if row["Distância (km)"] is None} == complemented
+    assert TRACE not in next(iter(uploaded.values()))
 
 
 @pytest.mark.parametrize("operation", ["density", "distribution", "comparisons", "ranking", "aggregate", "spatial", "rotation"])

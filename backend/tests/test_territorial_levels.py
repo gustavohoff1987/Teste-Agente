@@ -544,6 +544,33 @@ def test_inspect_lists_levels_and_preflight_reports_each_level(catalog):
     assert len(body["territory_choices"]) == 5  # a lista da tela vem sempre da fonte municipal inteira
 
 
+def test_preflight_reports_a_pending_scope_choice_instead_of_refusing(catalog):
+    """Mistura de níveis ou territórios de menos: o pré-exame devolve a escolha pendente (a tela mostra o motivo e mantém
+    o cálculo bloqueado); o cálculo continua recusado com o mesmo texto."""
+    info = inspected()
+
+    def check(operation, abrangencia):
+        response = client.post("/api/preflight", data={
+            "dataset": "brazil", "scope": "municipal", "dataset_version": info["source"]["version"], "operation": operation,
+            "mapping": json.dumps(info["suggested_mapping"]),
+            "options": json.dumps({"abrangencia": abrangencia, "period_filter": "202306", "distribution_indicator": "density"})})
+        body = ok(response)
+        capability = body["capabilities"][operation]
+        assert capability["status"] == "needs_confirmation"
+        assert capability["reasons"] == [body["abrangencia_pendente"]]
+        assert capability["niveis"] == {"selecao": {"status": "needs_confirmation", "reasons": [body["abrangencia_pendente"]]}}
+        assert len(body["territory_choices"]) == 5  # esquema da fonte municipal inteira
+        refused(analyze(info, operation, abrangencia, period_filter="202306", distribution_indicator="density"),
+                body["abrangencia_pendente"])
+        return body["abrangencia_pendente"]
+
+    assert check("distribution", {"estados": ["13"], "municipios": {"ids": ["code:130260"]}}) == (
+        "Você marcou estados e municípios. Distribuição usa territórios do mesmo tipo: escolha qual manter.")
+    assert check("ranking", {"municipios": {"ids": ["code:130260"]}}).endswith(
+        "precisa de pelo menos dois territórios do mesmo tipo. Marque mais um.")
+    assert check("aggregate", {"municipios": {"ids": ["code:130260"]}}) == "A agregação precisa de pelo menos dois municípios."
+
+
 # 16. Conversa e provedor ------------------------------------------------------------------------------------------
 def test_conversation_keeps_municipal_ids_and_the_provider_never_sees_levels(catalog, monkeypatch):
     info = inspected()

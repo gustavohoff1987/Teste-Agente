@@ -1395,6 +1395,24 @@ def level_preflight(base: dict, sources, mapping: dict, options: dict, a: Abrang
     return base
 
 
+def pending_preflight(sources, mapping: dict, operation: str, options: dict, message: str) -> dict:
+    """Pré-exame com uma escolha pendente na abrangência (mistura de níveis ou mínimo de territórios): o esquema da fonte
+    municipal inteira, com a análise pedida em "escolha pendente" e o motivo, em vez de recusar o pré-exame. O cálculo
+    continua recusado em /api/analyze (plan), com o mesmo texto."""
+    from analysis_premises import apply_premises
+    from semantic_bridge import preflight
+    municipal = sources.frame("municipal")
+    settings = {key: value for key, value in options.items() if key not in ("abrangencia", "territory_ids")}
+    base = preflight(municipal, mapping, apply_premises(municipal, mapping, settings))
+    capability = base["capabilities"].get(operation)
+    if capability is not None:
+        capability["status"] = "needs_confirmation"
+        capability["reasons"] = [message]
+        capability["niveis"] = {"selecao": {"status": "needs_confirmation", "reasons": [message]}}
+    base["abrangencia_pendente"] = message
+    return base
+
+
 def gate_operation(operation: str, options: dict) -> str:
     """Capacidade municipal que habilita uma parte da rota de níveis. Na comparação, a matriz municipal exigiria dois
     municípios; com níveis lado a lado, vale a capacidade do próprio indicador (relações conferidas no cálculo)."""

@@ -56,7 +56,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 | `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `ESCOLHA_PENDENTE`; até 19/10/2026 este último se chamava `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) e resultados só com Brasil e estados ("Mapa não aplicável: Brasil e estados são agregados sem ponto; marque municípios para ver o mapa."). Só municípios entram no mapa e em `sem_geometria`: Brasil e estados nunca têm ponto |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 | `niveis` | só na rota de níveis (desde 19/10/2026): coluna "Nível", ordem dos níveis presentes, tipo de contagem de cada um e o nível desenhado no mapa ("Município") |
-| `referencias` | só na densidade e no relatório com densidade da base oficial (desde 19/10/2026, D5): a taxa nacional de referência (rótulo, papel `REFERENCIA_DE_CONTEXTO`, unidade, nota e valores por competência), calculada no backend; a tela a desenha sem classificar nem colorir os municípios em relação a ela (o desenho chega na entrada seguinte do registro) |
+| `referencias` | só na densidade e no relatório com densidade da base oficial (desde 19/10/2026, D5): a taxa nacional de referência (rótulo, papel `REFERENCIA_DE_CONTEXTO`, unidade, nota e valores por competência), calculada no backend; a tela a desenha sem classificar nem colorir os municípios em relação a ela: marca e texto na legenda do mapa e linha tracejada nas barras dos municípios (seções 5 e 7) |
 
 - **Autorização da geometria informada** pela regra das análises espaciais: referencial suportado
   (SIRGAS2000, sem transformação), papéis de latitude e longitude estabelecidos (regra, perfil
@@ -83,7 +83,9 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   Bloco 2, não houve autenticação independente do arquivo junto ao servidor do IBGE.
 - **Sem geometria válida:** territórios com coordenada ausente, inválida ou fora do intervalo
   permanecem no resultado e na tabela, listados à parte (“Sem coordenada válida na competência (N)”)
-  com condição e motivo.
+  com condição e motivo. Na análise espacial (desde 19/10/2026, RQ-DAD-25), esses territórios ficam
+  não avaliáveis só eles: linha com distância vazia e “Condição” “Não avaliável: coordenada inválida”
+  (ou “ausente”), fora do mapa (`sem_geometria`); a análise da base oficial usa uma competência por vez.
 - **Limites de UF e do Brasil: não incorporados (pendência).** As malhas oficiais do IBGE não puderam
   ser obtidas neste ambiente (proxy recusou a conexão, HTTP 403). Malhas não oficiais (por exemplo,
   Natural Earth) não foram adotadas: não têm proveniência oficial verificável e usam outro datum, o
@@ -108,6 +110,13 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   pertenças é interpretação a confirmar. Indicador contínuo: escala
   linear entre o menor e o maior valor do resultado, com unidade e intervalo na legenda e o aviso “a
   cor não é classe nem limiar”; **nenhum quantil, faixa ou classe criada no frontend.**
+- **Taxa nacional de contexto (D5, desde 19/10/2026):** na densidade da base oficial de uma
+  competência, a legenda mostra uma marca tracejada sobre a escala, na posição do valor (na borda quando
+  fica fora dela), e o texto “Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
+  contexto; a cor dos municípios não é classificada em relação a ela.” (com “(fora da escala dos
+  municípios)” quando cabe). O domínio de cor continua o mínimo e o máximo dos municípios e as cores não
+  mudam (sem cor de juízo acima ou abaixo da taxa). O gancho de teste `__adtMapModel.reference` traz o
+  valor desenhado. O mapa só tem municípios: Brasil e estados nunca têm ponto.
 - **Não avaliável:** anel vazado cinza, nunca preenchido como zero, com legenda.
 - **Referências:** losangos; esmaecidas quando fora do filtro e sem ligação.
 - **Ligações:** tracejadas, só para até 30 territórios selecionados, rotuladas “ligação ilustrativa
@@ -160,13 +169,24 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - territórios sem valor são identificados como não avaliáveis, sem converter ausência em zero;
   - quantitativos com unidade pessoas e objeto estabelecido como força de trabalho em saúde (`fts_scope_confirmed`: perfil oficial, categorias reconhecidas pelo catálogo da força de trabalho em saúde ou premissa do objeto informado) usam “profissionais” apenas no rótulo de apresentação; a unidade metodológica original é preservada;
   - resultados com série temporal usam linhas, evitando representar a primeira competência como se fosse todo o resultado;
-  - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor.
+  - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor;
+  - na densidade da base oficial de uma competência, a taxa nacional (D5) é uma linha tracejada
+    vertical com o rótulo “Brasil 2,36” e a legenda “Brasil (total nacional): 2,36 por 1.000 habitantes,
+    referência de contexto; a linha não classifica os municípios.” (`bars-reference-line`); ela entra no
+    eixo, mas não muda a cor das barras, também na janela com rolagem;
+  - na janela com rolagem, o número de cada barra fica logo depois do fim dela (perto da borda direita,
+    dentro da barra), num fundo claro por cima da linha tracejada da referência;
+  - com níveis territoriais (desde 19/10/2026), os municípios (`level-panel-mun`) e os estados
+    (`level-panel-uf`, “· Estados (soma dos municípios)”) ficam em figuras separadas; nunca há barra do
+    Brasil nem de um estado entre os municípios.
 - **Linhas:**
   - só para séries já calculadas pelo motor (evolução temporal; competências da própria série, sem
     presumir 22 períodos);
   - lacunas preservadas (`connectNulls=false`), sem tendência nem taxas novas criadas na tela; as unidades de
     `serie.quebras` aparecem só como pontos, sem linha de trajetória;
   - uma única competência não forma série;
+  - com níveis territoriais, um gráfico por painel de `serie.paineis` (`level-panel-{id}`), sem misturar
+    tipos de contagem;
   - todos os territórios ou a seleção explícita, com páginas de oito na ordem dos dados; navegação mostra o intervalo e o total, sem amostragem;
   - eixo vertical em números redondos ao redor dos valores observados (passo 1, 2, 2,5 ou 5 × 10ⁿ),
     para que a variação fique visível; quando o eixo não começa em zero, a legenda do gráfico informa

@@ -11,7 +11,7 @@ import os
 import re
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import TITLES, URL, choose, execute_analysis, offline, select, workspace
+from ui_support import TITLES, URL, choose, execute_analysis, municipality, offline, select, workspace
 
 FORBIDDEN = re.compile(r"Confirm|Declaro|Autorizo|confirmad")
 OPTIONS = re.compile(r'name="options"\r\n\r\n(.*?)\r\n--', re.S)
@@ -146,10 +146,9 @@ def main():
         territory = page.get_by_test_id("territory-card")
         expect(territory).to_be_visible()
         shared = page.get_by_role("region", name="Seleção territorial compartilhada")
-        shared.get_by_role("searchbox").fill("130260")
-        expect(shared.get_by_role("checkbox")).to_have_count(1, timeout=60000)
+        option = municipality(shared, "130260")  # lista vertical: o município fica no grupo do estado
         with page.expect_request(lambda request: request.url.endswith("/api/preflight"), timeout=60000):
-            shared.get_by_role("checkbox").check()
+            option.check()
         no_refused_premises()
 
         assert not llm_calls, llm_calls

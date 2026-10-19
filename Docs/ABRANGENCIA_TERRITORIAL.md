@@ -3,9 +3,8 @@
 Decisões do responsável pelo produto de 19/10/2026: **D3** (abrangência vertical com Brasil, estados,
 todos os municípios e municípios), **D4** (população do Brasil pela soma municipal de junho) e **D5**
 (taxa nacional como referência de contexto na densidade). Este documento descreve o motor e a API
-(`backend/territorial_levels.py`). A lista vertical na tela é a entrada seguinte do registro; até lá, a
-interface continua enviando só municípios, e o comportamento visível muda apenas onde o
-[registro](REGISTRO_DE_COMPORTAMENTO.md) indica.
+(`backend/territorial_levels.py`) e a tela: a lista vertical da caixa "Abrangência territorial" (§6) e a
+taxa nacional no mapa e nas barras (§4.1). As mudanças estão no [registro](REGISTRO_DE_COMPORTAMENTO.md).
 
 ## 1. Princípios
 
@@ -162,6 +161,27 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - Não entra em ranking, distribuição, comparação, agregação nem evolução, nem nas linhas, nas métricas
   ou na avaliabilidade do resultado municipal.
 
+### 4.1 Na tela
+
+- **Legenda do mapa** (densidade de uma competência e uma categoria): uma marca tracejada sobre a escala,
+  na posição do valor (na borda quando fica fora da escala), e o texto (`national-reference`) "Brasil
+  (total nacional): 2,36 por 1.000 habitantes · referência de contexto; a cor dos municípios não é
+  classificada em relação a ela.", com "(fora da escala dos municípios)" quando o valor fica fora dela e,
+  em janeiro, "Em janeiro, a população do Brasil é a de junho de {Y}.". O domínio de cor continua o
+  mínimo e o máximo dos municípios; as cores não mudam. O gancho de teste `__adtMapModel.reference`
+  traz valor, competência, categoria e rótulo.
+- **Barras dos municípios:** linha tracejada vertical com o rótulo "Brasil 2,36" e a legenda
+  (`bars-reference-line`) "Brasil (total nacional): 2,36 por 1.000 habitantes, referência de contexto;
+  a linha não classifica os municípios.". A referência entra no eixo; as barras não mudam de cor. Vale
+  também nas barras com rolagem (mais de 40 municípios); nelas, o número de cada barra fica logo depois
+  do fim dela (perto da borda direita, dentro da barra), num fundo claro por cima da linha tracejada, para
+  que nem a barra nem a linha o cubram.
+- Com vários níveis no resultado, as barras dos municípios (`level-panel-mun`) e as dos estados
+  (`level-panel-uf`, "· Estados (soma dos municípios)", com o aviso de possível dupla contagem) ficam
+  em figuras separadas; nunca há barra do Brasil entre municípios. A série temporal com vários painéis
+  (`serie.paineis`) desenha um gráfico por painel (`level-panel-{id}`). O cartão do resultado e o
+  restante do visual dos níveis ficam para a entrada do visual completo.
+
 ## 5. Contrato da API
 
 ### 5.1 Pedido (`/api/analyze` e `/api/preflight`, `dataset=brazil`)
@@ -211,6 +231,12 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - `/api/preflight` com abrangência segue o mesmo roteamento; na rota de níveis devolve o pré-exame da
   fonte municipal inteira mais `capabilities[op].niveis` (`brasil`, `estados`, `municipios` e, quando
   a seleção não cabe, `selecao`), com o pior estado das partes e os motivos prefixados ("Brasil: …").
+  O pré-exame recebe a análise no campo `operation`.
+- Escolha pendente na abrangência (estados e municípios juntos na distribuição ou no ranking, ou
+  territórios de menos): o `/api/preflight` não recusa o pedido; devolve o pré-exame da fonte municipal
+  inteira com a análise em "escolha pendente" (`needs_confirmation`), o motivo em `reasons` e em
+  `capabilities[op].niveis.selecao`, e `abrangencia_pendente` com o mesmo texto. O `/api/analyze`
+  continua recusando (422) com esse texto.
 - A conversa (`/api/exploration/interpret`, `/api/llm/interpret-context`) continua recebendo só ids de
   município; "municípios da Paraíba" passa a incluir o 251365 (223 municípios na base atual).
   Abrangência, níveis, população nacional e taxa nacional nunca vão ao provedor de IA.
@@ -223,11 +249,82 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - Mudam de propósito as chaves das densidades e dos relatórios com densidade da base oficial (D5) e as
   da rota de níveis. As demais chamadas antigas mantêm a chave.
 
-## 6. Fora deste escopo e pontos residuais
+## 6. A lista vertical na tela
 
-- Lista vertical da abrangência na tela, taxa nacional no mapa e nas barras e análise espacial com
-  escolha de competência: entrada seguinte do registro.
+- Só na caixa **Abrangência territorial** da base oficial (`TerritorialScopeSelector.tsx`, região
+  "Seleção territorial compartilhada"). Os uploads e a "Seleção de referências" continuam com a seleção
+  por pesquisa (`TerritorialSelection.tsx`).
+- A inspeção da base oficial é sempre municipal e traz o bloco `niveis`; trocar de análise não chama
+  `/api/inspect` nem troca de fonte. A lista de municípios vem da inspeção (fonte municipal inteira),
+  nunca do pré-exame de uma rota nacional.
+- Seções, com caixas de marcar nativas (Tab entre os controles, Espaço marca, botão abre cada grupo):
+  - **Brasil:** "Brasil (total nacional)", com a ajuda "Total da fonte nacional; não é a soma dos
+    municípios.".
+  - **Estados** (selo "soma dos municípios"): o aviso "Cada estado é a soma dos seus municípios: o mesmo
+    médico pode ser contado em mais de um município. Por isso, o valor do estado não é o número de
+    médicos diferentes e a soma dos estados não é o total do Brasil.", "Todos os estados (N)"
+    (tri-estado) e cada estado ("Amazonas (AM)", "soma de 62 municípios"). Sem estados identificados
+    pelos códigos (bases sintéticas), a seção informa "Nenhum estado identificado pelos códigos desta
+    base.".
+  - **Municípios:** "Todos os municípios" ("Um valor para cada um dos 5.570 municípios.") e um grupo
+    recolhível por estado: caixa do grupo ("Municípios do Amazonas (62)", tri-estado), botão "Amazonas
+    (AM)" com "k de N municípios" e, aberto, os municípios ("MANAUS [130260]"; no 251365, a nota da UF
+    declarada divergente). Com "Todos os municípios" marcado, grupos e municípios aparecem incluídos e
+    desabilitados. Municípios sem estado identificado ficam numa lista simples.
+- Resumo ao lado: "{n} selecionados", a composição ("Brasil · 1 estado · 3 municípios") ou "Padrão desta
+  análise: …", a escolha pendente (`territory-rule-message`) e "Limpar seleção".
+- **Padrão:** sem nada marcado vale o padrão da análise (§2: Brasil em quantitativos, evolução temporal
+  e relatórios; todos os municípios nas demais), com o selo "padrão desta análise" e a caixa desmarcada.
+  A primeira marcação substitui o padrão (nada é copiado); "Limpar seleção" volta a ele.
+- **Entre análises:** os municípios marcados continuam valendo (como na conversa, nas transferências e
+  em "Usar como municípios-alvo", que substituem a seleção pelos municípios). O Brasil e os estados só
+  valem nas análises que os aceitam; nas demais, a seção fica desabilitada com o motivo do §2 em uma
+  linha, e eles voltam a valer ao retornar a uma análise que os aceita. Sem nada aplicável, vale o
+  padrão. Não há lista de itens "fora desta análise".
+- Marcar um grupo absorve os municípios dele; desmarcar um município de um grupo marcado deixa os demais
+  marcados; "Todos os municípios" absorve grupos e municípios.
+- Resumo da caixa (`scope-summary`), na ordem Brasil → estados → municípios: "Brasil (total nacional)",
+  "Amazonas (estado)", "Amazonas e Pará (estados)", "3 estados", "Todos os municípios", "Municípios do
+  Amazonas (62)", "MANAUS (AM)", "MANAUS (AM) e TEFE (AM)", "3 municípios: MANAUS (AM), TEFE (AM) e mais
+  1", e as combinações ("Brasil (total nacional), Amazonas (estado) e MANAUS (AM)").
+- A interface envia em `options.abrangencia` só a parte que vale na análise (ou o padrão dela) e manda a
+  análise no pré-exame; o backend escolhe a rota e confere aceitação, mínimo e mistura. Escolha pendente
+  deixa a caixa em destaque, mostra "Ajuste a abrangência territorial para continuar." e mantém o
+  cálculo desabilitado. Nada é calculado na tela. A rotatividade, indisponível na base Brasil, segue sem
+  abrangência.
+- A conversa continua recebendo só os municípios marcados (`territory_ids`). Um pedido explícito pelo
+  país inteiro marca só o Brasil; "nos municípios", sem municípios marcados, marca "Todos os municípios".
+- A densidade do Brasil fica disponível na caixa Indicador (sai "(somente municípios)").
+
+## 7. Análise espacial: uma competência e validade por território
+
+- Na base oficial, a caixa Período da análise espacial pede uma competência ("Escolher período"; sai
+  "Não se aplica"), com a nota "As distâncias usam as coordenadas da competência escolhida; em algumas
+  competências, a fonte traz coordenadas diferentes para o mesmo município.". Brasil e estados não se
+  aplicam; o grupo de municípios de um estado vale (expandido nos municípios presentes na competência).
+- RQ-DAD-25 (validade por elemento): coordenada ausente, não numérica ou fora dos intervalos deixa só
+  aquele território não avaliável: "Distância (km)" vazia (nunca zero), "Condição" "Não avaliável:
+  coordenada inválida" ou "Não avaliável: coordenada ausente" (a coluna só aparece quando há algum),
+  no fim da ordem, fora do mapa (`sem_geometria`), com a nota "{n} território(s) sem coordenada válida no
+  recorte ficam não avaliáveis (COORDENADA_INVALIDA), sem distância e fora do mapa; os demais foram
+  calculados." e o resultado avaliável com limitações. Vale para a base oficial (depois da camada
+  complementar) e para as bases importadas.
+- Território de referência sem coordenada válida: recusado com "O território de referência não tem
+  coordenada válida na competência escolhida. Escolha outro território de referência.".
+- Coordenadas válidas diferentes para o mesmo território entre competências: "Coordenadas conflitantes
+  para o mesmo território entre competências. Escolha uma competência no período da análise." (escolha
+  pendente); na mesma competência, "Coordenadas conflitantes para o mesmo território na mesma
+  competência. Verifique o identificador territorial.". Vírgula decimal com o ponto escolhido continua
+  sendo erro de formato da coluna.
+- A tela mostra os motivos do pré-exame da análise espacial (`spatial-reasons`) com o mesmo texto do
+  backend.
+
+## 8. Fora deste escopo e pontos residuais
+
 - "Estado de SP" (objeto) contra "municípios de SP" (grupo) na conversa: hoje os dois viram municípios.
+- Navegação avançada por teclado (foco único com setas, busca por letra), filtro de texto e itens "fora
+  desta análise" na lista: fora da lista enxuta (ajustes do responsável de 19/10/2026).
+- Lista vertical nos uploads e na "Seleção de referências".
 - **Não são divergências da SPEC.** BR-POP-JUNHO-1 é regra autorizada da CAP-IND-02 (L1742), com
   DENOMINADOR_ALTERNATIVO; `brasil-cod-uf-prefix-1` é a correspondência autorizada para a soma por
   estado (CFG-TER L968; RQ-DAD-12 L1349), sempre SOMA_DOS_COMPONENTES (L1747, L1751); NIVEIS-BR-UF-MUN-1
@@ -241,7 +338,7 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   com a nota e a lista dos ausentes. A divergência está registrada no README e no
   [registro](REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada.
 
-## 7. Testes
+## 9. Testes
 
 - `backend/tests/test_territorial_levels.py` (CI, fontes sintéticas): contrato e erros, absorções,
   roteamento e paridade com os caminhos atuais, matriz das 12 análises, BR-POP-JUNHO-1 (inclusive
@@ -256,3 +353,16 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   ranking dos estados, agregação de todos os municípios, 251365 na PB (223 municípios), análise
   espacial com todos os municípios e as âncoras da tendência (Brasil 22 e 11 observações em
   Crescimento; SP e RS não comparáveis na série completa; RS na série de junho).
+- `backend/tests/test_spatial_por_territorio.py` (CI): território com coordenada inválida, não numérica ou
+  ausente não avaliável, referência inválida recusada, coordenadas que mudam entre competências e erro de
+  formato. `test_territorial_levels.py` confere a escolha pendente no pré-exame. Com a base real
+  (`test_real_data.py`), sem a camada os seis municípios ficam não avaliáveis e os demais têm as mesmas
+  distâncias do subconjunto válido.
+- Tela: `frontend/tests/territorialScope.test.mjs` (o que vale em cada análise, padrão, marcar e
+  desmarcar, grupos, contagem, resumo, transferência e competências) e `representation.test.mjs` (taxa
+  nacional só na densidade e nível dos itens); roteiro `backend/tests/ui_territorial_scope.py` nas suítes
+  `bloco1` e `base-versionada` (lista, espacial com competência, Brasil + estado + município na densidade,
+  taxa nacional na legenda e nas barras sem mudar o domínio, ranking só de estados, escolha pendente,
+  "Limpar seleção", conversa que substitui a seleção pelos municípios sem receber a abrangência, nenhum
+  `/api/inspect` ao trocar de análise, larguras de 390 e 768 px; na base versionada, 27 estados, o grupo de MG com 853
+  municípios e "2,36 por 1.000 habitantes").

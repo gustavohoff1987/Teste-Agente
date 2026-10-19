@@ -167,54 +167,55 @@ def main():
         page.add_style_tag(content='body,button,input,textarea,select {font-family: "DejaVu Sans", sans-serif !important;}')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2')
 
-        # Troca de análise com troca de recorte (abrangência automática): o período único da densidade não é
-        # imposto à evolução temporal, e a preparação não volta à escolha da fonte durante o carregamento.
+        # Troca de análise sem troca de fonte (D3): a inspeção é sempre municipal e trocar de análise não recarrega a base;
+        # o período único da densidade não é imposto à evolução temporal.
         fresh = context.new_page()
         fresh.on('pageerror', lambda error: errors.append(str(error)))
+        inspections = []
+        fresh.on('request', lambda request: inspections.append(request.url) if request.url.endswith('/api/inspect') else None)
         fresh.goto(URL)
         fresh.get_by_role('button', name='Li e concordo', exact=True).click()
         fresh.get_by_role('button', name='Usar dados do Brasil').click()
         expect(fresh.get_by_test_id('current-source')).to_contain_text('Dados do Brasil', timeout=90000)
         select(fresh, 'Densidade')
         steps = fresh.locator('#preparacao-conversacional')
-        # Densidade só existe no recorte municipal: a caixa da abrangência territorial informa isso, sem o total nacional.
+        # Densidade: padrão "Todos os municípios", com selo e desmarcado; o Brasil e os estados também podem ser marcados.
         expect(steps.get_by_test_id('scope-summary')).to_have_text('Todos os municípios', timeout=90000)
         expand(steps.get_by_test_id('territory-toggle'))
-        expect(steps.get_by_test_id('scope-info')).to_contain_text('somente a fonte municipal')
-        expect(steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)).to_have_count(0)
+        expect(steps.get_by_test_id('scope-info')).to_have_text('Marque o Brasil, estados e municípios; cada nível aparece em um '
+                                                                'bloco separado no resultado.')
+        national = steps.get_by_role('checkbox', name='Brasil (total nacional)', exact=True)
+        expect(national).to_be_enabled()
+        expect(national).not_to_be_checked()
+        every = steps.get_by_role('checkbox', name='Todos os municípios', exact=True)
+        expect(every).not_to_be_checked()
+        expect(steps.get_by_test_id('territory-badge-padrao')).to_have_count(1)
         steps.get_by_test_id('scope-done').click()
         steps.get_by_label('Escolher períodos da análise').click()
         steps.get_by_role('button', name='junho de 2024', exact=True).click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('junho de 2024', timeout=90000)
-        # Enquanto o recorte nacional carrega, a lista de períodos fica bloqueada: a escolha seria descartada.
-        held, released = [], []
-        fresh.route('**/api/inspect', lambda route: route.continue_() if released else held.append(route))
+        # Trocar de análise não chama /api/inspect: a lista de competências continua habilitada, sem espera.
+        loaded = len(inspections)
         select(fresh, 'Evolução temporal')
         expand(steps.get_by_label('Escolher períodos da análise'))
-        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_disabled()
-        released.append(True)
-        for route in held:
-            route.continue_()
-        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_enabled(timeout=90000)
-        fresh.unroute('**/api/inspect')
+        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_enabled()
         steps.get_by_test_id('period-done').click()
+        # Evolução temporal: o padrão é o Brasil (total nacional), com selo e desmarcado.
         expect(steps.get_by_test_id('scope-summary')).to_have_text('Brasil (total nacional)', timeout=90000)
         expand(steps.get_by_test_id('territory-toggle'))
-        national = steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)
-        expect(national).to_be_checked(timeout=90000)
+        expect(national).not_to_be_checked()
         expect(national).to_be_enabled(timeout=90000)
-        # O total nacional não tem população: a densidade aparece indisponível, em vez de levar a um cálculo bloqueado.
+        # A densidade do Brasil existe (população de junho, regra governada do backend): o indicador fica disponível.
         density = steps.get_by_role('combobox', name='Indicador', exact=True).locator('option[value="density"]')
-        expect(density).to_have_js_property('disabled', True)
+        expect(density).to_have_js_property('disabled', False)
         expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
-        # Voltar ao recorte municipal reabre o rascunho desse recorte sem impor o período único da densidade.
-        municipal = steps.get_by_role('radio', name='Municípios', exact=True)
-        municipal.check()
-        expect(municipal).to_be_checked(timeout=90000)
-        expect(municipal).to_be_enabled(timeout=90000)
+        # Marcar "Todos os municípios" substitui o padrão, sem recarregar a base nem mudar as competências.
+        every.check()
+        expect(every).to_be_checked(timeout=90000)
         expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
         expect(steps.get_by_test_id('scope-summary')).to_have_text('Todos os municípios')
         expect(density).to_have_js_property('disabled', False)
+        assert len(inspections) == loaded, 'trocar de análise ou de abrangência não recarrega a base'
         # Orientação do vídeo (06:04): com todas as competências incluídas por padrão, clicar nelas as escolhe.
         expand(steps.get_by_label('Escolher períodos da análise'))
         expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_have_attribute('aria-pressed', 'false')
@@ -226,7 +227,7 @@ def main():
         steps.get_by_test_id('period-done').click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('janeiro de 2023 e junho de 2024')
         # Todas as análises mostram as mesmas quatro caixas das configurações; sem escolha entre quantidade e densidade,
-        # o Indicador é o da própria análise, e o Período informa quando não se aplica (orientação de 19/10/2026).
+        # o Indicador é o da própria análise (orientação de 19/10/2026), e a análise espacial pede uma competência.
         own = {'Agregações': 'Quantidade e densidade por 1.000 habitantes', 'Análise espacial': 'Distância geodésica (km)',
                'Recortes e rankings': 'Densidade por 1.000 habitantes', 'Rotatividade': 'Permanência e rotatividade da coorte (%)',
                'Referência mais próxima': 'Distância à referência mais próxima (km)', 'Critérios combinados': 'Definido nos critérios'}
@@ -238,7 +239,8 @@ def main():
             if title in own:
                 expect(steps.get_by_role('combobox', name='Indicador', exact=True)).to_have_value(own[title])
             if title == 'Análise espacial':
-                expect(steps.get_by_test_id('period-summary')).to_have_text('Não se aplica')
+                # Uma competência por vez: as coordenadas de um município podem mudar entre competências.
+                expect(steps.get_by_test_id('period-summary')).to_have_text('Escolher período')
             if title == 'Rotatividade':
                 # A coorte vai da primeira à última competência, salvo escolha na própria caixa Período.
                 expect(steps.get_by_test_id('period-summary')).to_have_text('de janeiro de 2023 a junho de 2024')

@@ -16,12 +16,19 @@ export type Geometry = {
   complemento_geografico?: { estado?: string; identificador?: string; versao?: string; sha256?: string; premissa?: string;
     proveniencia?: Record<string, unknown> } | null;
 };
+/** Painel da série na rota de níveis: um tipo de contagem por painel (nunca níveis somados entre si). */
+export type SeriesPanel = { id: string; rotulo: string; niveis: string[]; territorios: string[]; referencia?: string | null };
 export type Series = { tabela: "rows" | "detail_rows"; periodo: string; territorio: string; categoria: string; valor: string;
-  unidade: string; tipo: IndicatorKind; quebras?: { territorio: string; categoria: string }[] };
+  unidade: string; tipo: IndicatorKind; quebras?: { territorio: string; categoria: string }[]; paineis?: SeriesPanel[] };
+/** Taxa nacional de contexto (D5), calculada no backend; a tela só a desenha (legenda e barras). */
+export type ReferenceValue = { competencia: string; categoria: string; valor: number | null; avaliabilidade: string;
+  competencia_populacao: string | null };
+export type NationalReference = { rotulo: string; papel: string; unidade: string; nota: string; valores: ReferenceValue[] };
 export type Representation = { versao: number; tabela: "rows" | "detail_rows"; vinculo: { coluna: string; chave: "rotulo" | "codigo" | "nome" };
-  indicadores: Indicator[]; serie: Series | null; geometria: Geometry; notas: string[] };
+  indicadores: Indicator[]; serie: Series | null; geometria: Geometry; notas: string[]; referencias?: NationalReference[];
+  niveis?: { coluna: string; ordem: string[]; tipos: Record<string, string>; mapa: string } };
+type Member = { id: string; name?: string; code?: string; label: string; nivel?: string };
 export type ResultLike = { result_id: string; title: string; rows: Row[]; detail_rows?: Row[]; metadata: Record<string, unknown> };
-type Member = { id: string; name?: string; code?: string; label: string };
 
 export function representationOf(result: ResultLike): Representation | null {
   const value = result.metadata.representacao as Representation | undefined;
@@ -59,6 +66,30 @@ export function labelIndex(result: ResultLike): Map<string, string> {
 }
 
 export const codeOf = (id: string) => id.startsWith("code:") ? id.slice(5) : "";
+
+/** Nível de um item do universo do resultado ("BR", "UF" ou "MUN"); sem níveis declarados, o item é um município. */
+export function levelOf(result: ResultLike): (id: string) => string {
+  const levels = new Map(membersOf(result).map(item => [item.id, item.nivel || ""]));
+  return id => levels.get(id) || (id.startsWith("code:") || id.startsWith("name:") ? "MUN" : "");
+}
+
+export type ReferenceMark = { valor: number; rotulo: string; unidade: string; competencia: string; categoria: string;
+  competenciaPopulacao: string | null; valorTexto: string; contexto: string; texto: string; nota: string };
+/** Taxa nacional de contexto (D5) de uma competência e categoria, só para a densidade por 1.000 habitantes. Sem um valor
+ * único e avaliável (várias competências ou categorias, ou valor ausente), não há marca. Nada é calculado aqui. */
+export function referenceFor(rep: Representation | null, periods: string[], categories: string[], column: string): ReferenceMark | null {
+  const reference = rep?.referencias?.[0];
+  if (!reference || column !== "Densidade por 1.000" || periods.length !== 1 || categories.length !== 1) return null;
+  const item = reference.valores.find(value => value.competencia === periods[0] && value.categoria === categories[0]);
+  if (!item || typeof item.valor !== "number" || item.avaliabilidade === "NAO_AVALIAVEL") return null;
+  const month = Number(item.competencia.slice(4)), year = item.competencia.slice(0, 4);
+  const january = !!item.competencia_populacao && item.competencia_populacao !== item.competencia;
+  const valorTexto = reference.rotulo + ": " + formatNumber(item.valor) + " " + reference.unidade;
+  const contexto = "referência de contexto; a cor dos municípios não é classificada em relação a ela.";
+  return { valor: item.valor, rotulo: reference.rotulo, unidade: reference.unidade, competencia: item.competencia, categoria: item.categoria,
+    competenciaPopulacao: item.competencia_populacao, valorTexto, contexto, texto: valorTexto + " · " + contexto,
+    nota: january && month >= 1 ? "Em janeiro, a população do Brasil é a de junho de " + year + "." : "" };
+}
 
 const decimal = (digits: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const integer = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });

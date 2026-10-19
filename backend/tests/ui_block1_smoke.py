@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, select, URL, offline
+from ui_support import workspace, execute_analysis, select, URL, offline, municipality
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 
@@ -137,11 +137,9 @@ def main():
         workspace(page, "territories")
         selection = page.get_by_role("region", name="Seleção territorial compartilhada")
         selection.get_by_role("button", name="Limpar seleção", exact=True).click()
+        # Lista vertical da base oficial: os municípios ficam no grupo do estado (aberto pelo botão do grupo).
         for name, code in [("MANAUS", "130260"), ("TEFE", "130420"), ("PARINTINS", "130340")]:
-            selection.get_by_role("searchbox").fill(code)
-            choice = selection.get_by_role("checkbox")
-            expect(choice).to_have_count(1)
-            choice.check()
+            municipality(selection, code).check()
         expect(selection.get_by_text("3 selecionados", exact=True)).to_be_visible()
         send("Compare os selecionados.")
         inline = page.locator("#preparacao-conversacional")
@@ -149,8 +147,11 @@ def main():
         compared = calculate()
         assert compared["total_rows"] == 3
         expect(page.get_by_test_id("comparison-territory-row")).to_have_count(3)
-        # Cada território da comparação deve ocupar um registro visual próprio.
-        assert compared["metadata"]["options"]["territory_ids"] == ["code:130260", "code:130420", "code:130340"]
+        # Cada território da comparação deve ocupar um registro visual próprio. A base oficial envia a abrangência
+        # territorial: os municípios marcados seguem a rota municipal, na ordem do código (o contrato normaliza a ordem).
+        assert compared["metadata"]["options"]["territory_ids"] == ["code:130260", "code:130340", "code:130420"]
+        assert compared["metadata"]["options"]["abrangencia"]["municipios"]["ids"] == ["code:130260", "code:130340", "code:130420"]
+        assert compared["metadata"]["selecao_territorial"]["rota"] == "municipal"
         # Mesmos valores da densidade inicial: a seleção não altera o cálculo de cada membro.
         assert {row["Período"] for row in compared["rows"]} == {"202406"}
         assert all(row["Densidade por 1.000"] == density[row["Território"]] for row in compared["rows"])
@@ -311,11 +312,13 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
             shot(f"block1-07-largura-{width}.png")
         workspace(page, "territories")
-        search = selection.get_by_role("searchbox")
-        search.focus()
-        expect(search).to_be_focused()
-        search.fill("130420")
-        checkbox = selection.get_by_role("checkbox")
+        # Teclado: o botão do grupo abre a lista do estado e a Espaço marca e desmarca a caixa nativa do município.
+        toggle = selection.get_by_test_id("territory-group-toggle-13")
+        toggle.focus()
+        expect(toggle).to_be_focused()
+        if toggle.get_attribute("aria-expanded") != "true":
+            toggle.press("Enter")
+        checkbox = municipality(selection, "130420")
         checkbox.focus()
         checkbox.press("Space")
         expect(selection.get_by_text("2 selecionados", exact=True)).to_be_visible()
@@ -330,11 +333,17 @@ def main():
         reference = inline.get_by_label("Território de referência", exact=True)
         expect(reference).to_be_visible(timeout=60000)
         expect(inline.get_by_label("Referencial geodésico", exact=True)).to_have_count(0 if real else 1)
+        # Uma competência por vez (a da agregação continua escolhida): as distâncias usam as coordenadas dela.
+        expect(inline.get_by_test_id("period-summary")).to_have_text("junho de 2024")
+        inline.get_by_label("Escolher períodos da análise").click()
+        expect(inline.get_by_test_id("spatial-period-note")).to_contain_text("coordenadas da competência escolhida")
+        inline.get_by_test_id("period-done").click()
         if real:
             expect(inline.get_by_test_id("crs-summary")).to_have_text("SIRGAS 2000 (premissa da base oficial)")
             reference.select_option(label=next(member["label"] for member in initial["metadata"]["universe"]["members"]
                                                if member["id"] == "code:130260"))
             spatial = calculate()
+            assert spatial["metadata"]["periods"] == ["202406"]
             assert spatial["metadata"]["operation"] == "spatial" and spatial["total_rows"] == 3
             assert spatial["metadata"]["options"]["governed_premises"][-2:] == ["crs", "number_format"]
             assert any(note.startswith("Referencial geodésico: SIRGAS 2000, premissa governada") for note in spatial["notes"])

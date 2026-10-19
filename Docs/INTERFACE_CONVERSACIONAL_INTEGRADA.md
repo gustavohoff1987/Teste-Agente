@@ -134,8 +134,8 @@ vêm incluídas por padrão (por exemplo, na evolução temporal), elas aparecem
 escolhe só a competência clicada. Depois dessa escolha, ou de "Todos os períodos disponíveis", cada
 clique acrescenta ou retira uma competência (as marcadas têm ✓ e fundo preenchido; as retiradas,
 contorno tracejado). O usuário também escolhe um intervalo contínuo ("de janeiro de 2014 até junho
-de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de concluir. Enquanto
-outro recorte carrega, a lista fica bloqueada, porque a escolha seria descartada quando ele chegasse. Uma linha
+de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de concluir. Durante o
+cálculo, a lista fica bloqueada. Uma linha
 abaixo descreve a escolha ("4 competências, de janeiro de 2014 a junho de 2015"). Ao voltar para
 período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
 permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
@@ -150,13 +150,16 @@ rankings), Quantidade (quantitativos), Quantidade e densidade por 1.000 habitant
 Distância geodésica (km) (análise espacial), Permanência e rotatividade da coorte (%) (rotatividade),
 Distância à referência mais próxima (km) (referência mais próxima) e, nos critérios combinados, os
 atributos usados nas condições, na ordenação e nas faixas ("Definido nos critérios" enquanto não há
-nenhum). Na análise espacial, o Período informa "Não se aplica", porque as distâncias não dependem
-do período; na rotatividade, a caixa Período abre o período inicial e o final da coorte (sem escolha,
-valem a primeira e a última competência). Na mesma grade entram o Agrupamento da distribuição, o
+nenhum). Na análise espacial, o Período pede uma competência ("Escolher período"), com a nota "As
+distâncias usam as coordenadas da competência escolhida; em algumas competências, a fonte traz
+coordenadas diferentes para o mesmo município."; os motivos do pré-exame dessa análise (coordenadas,
+competência, referência) aparecem abaixo das caixas com o texto do backend. Na rotatividade, a caixa
+Período abre o período inicial e o final da coorte (sem escolha, valem a primeira e a última
+competência). Na mesma grade entram o Agrupamento da distribuição, o
 Território de referência da análise espacial e, fora da versão governada, o Referencial geodésico
 das análises de distância; as referências da referência mais próxima e os critérios do usuário
 continuam em quadros próprios logo abaixo. Não há caixa de fonte: a abrangência territorial já diz
-se a análise usa o Brasil ou os municípios. Uma caixa ainda sem escolha fica destacada, e o cálculo
+se a análise usa o Brasil, os estados ou os municípios. Uma caixa ainda sem escolha fica destacada, e o cálculo
 só é liberado depois dela. Valores longos aparecem por inteiro, com quebra de linha.
 
 A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
@@ -176,17 +179,23 @@ constantes e há ao menos quatro competências de junho na janela, o botão "Usa
 (junho)" leva essas competências à caixa Período, sem calcular. O padrão continua sendo todas as
 competências (ver `EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
 
-A caixa **Abrangência territorial** reúne o Brasil (total nacional) e os municípios. Em
-quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes, ela oferece
-"Brasil (total nacional)" e "Municípios", com a lista de municípios para pesquisar por nome ou código
-e marcar um ou mais. Com o total nacional escolhido, a lista vem do último pré-exame municipal ou é
-consultada ao abrir a caixa, sem trocar o recorte; marcar municípios leva então a análise ao recorte
-municipal, já com os municípios marcados. Sem municípios marcados, a análise considera
-todos os municípios do recorte. Ao escolher o total nacional, a seleção de municípios continua
-guardada para a volta aos municípios. Nas demais análises, a caixa informa que só a fonte municipal
-se aplica. O arquivo nacional não tem população: no total nacional, "Densidade por 1.000
-habitantes" aparece indisponível na caixa Indicador. Durante a troca de abrangência, a preparação
-continua visível e bloqueada, com aviso de carregamento abaixo das configurações.
+A caixa **Abrangência territorial** abre uma lista vertical com caixas de marcar nativas (Tab entre
+os controles, Espaço marca, o botão de cada estado abre o grupo): **Brasil (total nacional)**;
+**Estados**, com o aviso de que cada estado é a soma dos seus municípios (o mesmo médico pode ser
+contado em mais de um município; a soma dos estados não é o total do Brasil), "Todos os estados" e
+cada estado com "soma de N municípios"; e **Municípios**, com "Todos os municípios" e um grupo
+recolhível por estado (caixa do grupo, "k de N municípios" e os municípios dentro). Ao lado, "{n}
+selecionados", a composição ou o padrão da análise, a escolha pendente e "Limpar seleção". Sem nada
+marcado vale o padrão da análise, com o selo "padrão desta análise": o Brasil em quantitativos,
+evolução temporal e relatórios; todos os municípios nas demais. A primeira marcação substitui o
+padrão. Os municípios marcados continuam valendo ao trocar de análise; o Brasil e os estados só
+valem nas análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha
+(por exemplo, "Não se aplica: o ranking ordena vários territórios, e o Brasil é um só."). Estados e
+municípios juntos na distribuição ou no ranking, ou territórios de menos, deixam a caixa em destaque,
+com o motivo do backend e "Ajuste a abrangência territorial para continuar.", e o cálculo bloqueado.
+A base é examinada uma vez: trocar de análise não recarrega a base nem troca de fonte. A densidade do
+Brasil fica disponível na caixa Indicador. Detalhes em
+[abrangência territorial](ABRANGENCIA_TERRITORIAL.md).
 
 Os padrões oficiais vêm do perfil validado no backend, campo a campo: mudar uma coluna tira só
 aquele papel do perfil, e a base oficial nunca cai no fluxo das bases importadas. As premissas de

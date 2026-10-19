@@ -44,7 +44,8 @@ SUITES = {
         "catalogo": "bloco1", "servidor": "offline",
         "roteiros": [("ui_block1_smoke.py", {}), ("ui_block1_regression.py", {}), ("ui_nearest_smoke.py", {}),
                      ("ui_criteria_smoke.py", {}), ("ui_map_smoke.py", {}), ("ui_visibility_diagnostic.py", {}),
-                     ("ui_investigation.py", {}), ("ui_integrated_workspace.py", {}), ("ui_sem_confirmacoes.py", {})],
+                     ("ui_investigation.py", {}), ("ui_integrated_workspace.py", {}), ("ui_sem_confirmacoes.py", {}),
+                     ("ui_territorial_scope.py", {})],
     },
     "gemini-simulado": {
         "descricao": "Interpretação por um transporte Gemini simulado (sem chamadas ao provedor)",
@@ -54,7 +55,8 @@ SUITES = {
     "base-versionada": {
         "descricao": "Jornada do Bloco 1 com a base Brasil versionada (62 municípios do AM, 22 competências)",
         "catalogo": "repositorio", "servidor": "offline",
-        "roteiros": [("ui_block1_smoke.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_investigation.py", {"ADT_BLOCK1_REAL": "1"})],
+        "roteiros": [("ui_block1_smoke.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_investigation.py", {"ADT_BLOCK1_REAL": "1"}),
+                     ("ui_territorial_scope.py", {"ADT_BLOCK1_REAL": "1"})],
     },
 }
 SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py"}

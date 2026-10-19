@@ -48,12 +48,13 @@ exportação registram a regra, os campos de origem, o recorte e a versão lógi
 ## Uma base lógica, sem misturar granularidades
 
 O catálogo `brazil_data.py` administra duas fontes privadas. A interface mostra
-somente Dados do Brasil e a abrangência analítica. O padrão é nacional para contagens,
-evolução temporal e relatórios; municipal para as outras operações. Nessas três análises,
-as únicas com resultado nas duas fontes, o usuário escolhe a abrangência explicitamente, na caixa
-"Abrangência territorial" (Brasil ou municípios); nas demais, a preparação informa que só a fonte
-municipal se aplica. Trocar de recorte refaz o pré-exame no backend; escolhas comuns de período e
-categoria são preservadas quando equivalentes.
+somente Dados do Brasil e a abrangência analítica. A base é examinada uma vez, no recorte municipal,
+com o bloco dos níveis; a caixa "Abrangência territorial" é uma lista vertical com o Brasil (total
+nacional), os estados (soma dos municípios) e os municípios agrupados por estado
+([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)). Sem nada marcado vale o padrão da análise: o
+Brasil em contagens, evolução temporal e relatórios; todos os municípios nas outras operações. A
+interface envia a seleção em `options.abrangencia`, e o backend escolhe a fonte (rota municipal,
+nacional ou de níveis) e refaz o pré-exame; trocar de análise não recarrega a base.
 
 Não há união nem preenchimento de linhas entre fontes, e nenhuma fonte é somada à outra. Quantitativos
 nacionais são lidos da fonte nacional; não são obtidos pela soma das contagens municipais. Desde
@@ -150,7 +151,7 @@ por regra e a vírgula decimal é verificada nos dados.
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
 | Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026); densidade do Brasil (BR-POP-JUNHO-1) em Crescimento com 22 observações na série completa e 11 na de junho; SP e RS não comparáveis na série completa e só RS (430607 em 2015/6) na de junho |
 | Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas; "Todos os municípios" em junho de 2024 soma 817.419, com a nota de que não é o total do Brasil (502.495); estado marcado entra pelos seus municípios (19/10/2026) |
-| Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido (13/10/2026: executável com a camada complementar oficial, distâncias iguais à geodésica independente sobre as coordenadas efetivas) |
+| Espacial | Uma competência por vez (as coordenadas de nove municípios mudam entre competências; sem a escolha, a análise pede "Escolha uma competência no período da análise."). Com a camada complementar oficial, a base completa de uma competência é executável, com distâncias iguais à geodésica independente sobre as coordenadas efetivas (13/10/2026). Sem a camada, desde 19/10/2026 os seis municípios com ponto inválido ficam não avaliáveis (COORDENADA_INVALIDA) e os demais têm as mesmas distâncias do subconjunto válido, confrontado com Haversine; antes, o recorte inteiro era recusado |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |
 

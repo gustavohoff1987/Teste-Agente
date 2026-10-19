@@ -1,7 +1,9 @@
 import {useMemo, useState} from "react";
 
 export type Territory = {id: string; name: string; code: string; label: string;
-  state: string; state_name: string; parents: string[]; selection_reason?: string};
+  state: string; state_name: string; parents: string[]; selection_reason?: string;
+  /** Base oficial: prefixo IBGE do estado (regra brasil-cod-uf-prefix-1) e nota quando a UF declarada na fonte diverge. */
+  state_code?: string; hierarchy_note?: string};
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 // Alvos e referências usam o mesmo controle com rótulos e cores distintos (azul e âmbar).

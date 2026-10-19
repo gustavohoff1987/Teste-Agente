@@ -6,12 +6,8 @@ export const ANALYSIS_LABELS = {
   nearest: "Referência mais próxima", criteria: "Critérios combinados",
 } as const;
 export type Operation = keyof typeof ANALYSIS_LABELS;
-// Capacidades só do motor determinístico, fora do contrato do LLM e de default_scopes da base
-// Brasil: existem apenas no recorte municipal, o único com coordenadas.
-export const ENGINE_ONLY_SCOPES: Partial<Record<Operation, "national" | "municipal">> = { nearest: "municipal", criteria: "municipal" };
-// Análises com resultado válido nas duas fontes da base Brasil. A fonte nacional tem um único
-// território e nenhuma população: nas demais, só o recorte municipal é executável.
-export const NATIONAL_SCOPE_OPERATIONS: Operation[] = ["counts", "temporal", "report"];
+// Base Brasil oficial: o que cada análise aceita entre Brasil, estados e municípios vem do backend (bloco "niveis" da
+// inspeção); a interface não decide a fonte nem troca de recorte ao trocar de análise.
 // Indicador das análises sem escolha entre quantidade e densidade, mostrado na caixa "Indicador" das configurações
 // (uma opção, como a categoria): o mesmo que o motor calcula para cada análise.
 const OWN_INDICATORS: Partial<Record<Operation, string>> = {

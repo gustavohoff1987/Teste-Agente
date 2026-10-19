@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose
+from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose, municipality
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -89,8 +89,8 @@ def main():
             result.get_by_role("button", name="CSV", exact=True).click()
         assert download.value.suggested_filename.endswith(".csv")
 
-        # O catálogo brasileiro disponibiliza as duas fontes na mesma sessão,
-        # mantendo seleção explícita de abrangência e sem concatenar registros.
+        # O catálogo brasileiro disponibiliza as duas fontes na mesma sessão, sem concatenar registros: a abrangência
+        # territorial é uma lista vertical com o Brasil (total nacional), os estados e os municípios (D3).
         page.reload()
         assistant = page.locator("#assistente")
         assistant.locator("#assistant-input").fill("Olá")
@@ -100,36 +100,32 @@ def main():
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
         inline = assistant.locator("#preparacao-conversacional")
-        # Densidade só existe no recorte municipal: a caixa da abrangência territorial informa isso, sem escolha
-        # que levaria a um bloqueio.
+        # Densidade: padrão "Todos os municípios"; o Brasil também pode ser marcado (população de junho do backend).
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=30000)
         expand(inline.get_by_test_id("territory-toggle"))
-        expect(inline.get_by_test_id("scope-info")).to_contain_text("somente a fonte municipal")
-        expect(inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)).to_have_count(0)
-        # Quantitativos existem nas duas fontes: a escolha é explícita e a troca não volta à escolha da fonte.
+        expect(inline.get_by_test_id("scope-info")).to_contain_text("cada nível aparece em um bloco separado")
+        expect(inline.get_by_role("checkbox", name="Brasil (total nacional)", exact=True)).to_be_enabled()
+        # Os códigos desta base sintética não identificam estados: a seção informa isso e os municípios ficam numa lista simples.
+        expect(inline.get_by_text("Nenhum estado identificado pelos códigos desta base.", exact=True)).to_be_visible()
+        # Quantitativos: o padrão é o Brasil (total nacional); a troca de análise não volta à escolha da fonte.
         select(page, "Quantitativos")
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Brasil (total nacional)", timeout=30000)
         expand(inline.get_by_test_id("territory-toggle"))
-        national = inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)
-        municipal = inline.get_by_role("radio", name="Municípios", exact=True)
-        expect(national).to_be_checked(timeout=30000)
+        national = inline.get_by_role("checkbox", name="Brasil (total nacional)", exact=True)
+        every = inline.get_by_role("checkbox", name="Todos os municípios", exact=True)
+        expect(national).not_to_be_checked(timeout=30000)
         expect(national).to_be_enabled(timeout=30000)
-        municipal.check()
-        expect(municipal).to_be_checked(timeout=30000)
+        every.check()
+        expect(every).to_be_checked(timeout=30000)
+        expect(inline.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=30000)
         expect(assistant.get_by_role("button", name="Usar dados do Brasil")).to_have_count(0)
-        expect(municipal).to_be_enabled(timeout=30000)
-        national.check()
-        expect(national).to_be_checked(timeout=30000)
-        expect(national).to_be_enabled(timeout=30000)
-        # Na mesma caixa, a lista de municípios aparece também com o total nacional escolhido: marcar um município
-        # leva a análise ao recorte municipal, já com ele selecionado.
+        every.uncheck()
+        expect(inline.get_by_test_id("scope-summary")).to_have_text("Brasil (total nacional)", timeout=30000)
+        # Na mesma caixa, marcar um município substitui o padrão: a análise passa a esse município.
         municipalities = inline.get_by_role("region", name="Seleção territorial compartilhada")
-        municipalities.get_by_role("searchbox").fill("002")
-        expect(municipalities.get_by_role("checkbox")).to_have_count(1, timeout=30000)
-        municipalities.get_by_role("checkbox").check()
+        municipality(municipalities, "002").check()
         expect(inline.get_by_test_id("scope-summary")).to_have_text("B", timeout=30000)
-        expect(municipal).to_be_checked(timeout=30000)
-        expect(municipal).to_be_enabled(timeout=30000)
+        expect(national).not_to_be_checked(timeout=30000)
         expect(municipalities.get_by_text("1 selecionados", exact=True)).to_be_visible()
         button = inline.get_by_role("button", name="Calcular e mostrar resultado")
         expect(button).to_be_enabled(timeout=30000)
@@ -139,6 +135,9 @@ def main():
         chosen = event.value.json()
         assert chosen["metadata"]["source"]["scope"] == "municipal"
         assert chosen["metadata"]["options"]["territory_ids"] == ["code:002"]
+        assert chosen["metadata"]["options"]["abrangencia"] == {"brasil": False, "estados": [],
+                                                                "municipios": {"todos": False, "estados": [], "ids": ["code:002"]}}
+        assert chosen["metadata"]["selecao_territorial"]["rota"] == "municipal"
         assert [row["Quantidade"] for row in chosen["rows"]] == [20]
         # O pedido inicial não carrega dados nem exige escolha antecipada.
         # A intenção deve sobreviver à escolha da fonte e seguir até o cálculo.

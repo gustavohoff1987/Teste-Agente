@@ -298,7 +298,15 @@ def test_existing_spatial_analysis_uses_the_layer_with_traceability(repo):
     selection = {"period_filter": "202406", "reference_territory": "ALFA [170001]",
                  "territory_ids": ["code:" + c for c in AUTHORIZED] + ["code:170001"]}
     before = analyze("spatial", **selection)
-    assert before.status_code == 422  # pontos inválidos impedem a análise espacial desse recorte
+    # RQ-DAD-25: sem a camada, os pontos inválidos deixam só esses territórios não avaliáveis (antes, o recorte todo
+    # era recusado); a referência válida segue calculada.
+    assert before.status_code == 200, before.text
+    lost = {r["Território"]: r for r in before.json()["rows"]}
+    assert len(lost) == len(selection["territory_ids"])
+    assert all(row["Distância (km)"] is None and row["Condição"] == "Não avaliável: coordenada inválida"
+               for name, row in lost.items() if not name.startswith("ALFA"))
+    assert next(row for name, row in lost.items() if name.startswith("ALFA"))["Distância (km)"] == 0.0
+    assert "Coordenada complementada (camada oficial)" not in next(iter(lost.values()))
     write_layer(repo, layer_document(repo))
     response = analyze("spatial", **selection)
     assert response.status_code == 200, response.text

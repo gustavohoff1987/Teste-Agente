@@ -13,7 +13,9 @@ import { tableColumns } from "./representation";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { governedRoles } from "./curatedPreparation";
 import { fieldOptions } from "./fieldChoices";
-import { addsMunicipalities, describeScope } from "./territorialScope";
+import { EMPTY_SCOPE, describeScope, effectiveScope, fromMembers, municipalOnly, periodsForScope,
+  type Abrangencia, type Levels, type ScopeSelection } from "./territorialScope";
+import TerritorialScopeSelector from "./TerritorialScopeSelector";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
@@ -41,7 +43,7 @@ import {
 } from "lucide-react";
 
 type Role = "territory" | "territory_id" | "period" | "category" | "count" | "population" | "latitude" | "longitude" | "identity";
-import { ANALYSIS_LABELS, ENGINE_ONLY_SCOPES, NATIONAL_SCOPE_OPERATIONS, type Operation } from "./analysisCatalog";
+import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
 type Mapping = Partial<Record<Role, string>>;
 type SuperiorLevel = "territorio_superior_1" | "territorio_superior_2";
 type SuperiorMapping = Partial<Record<SuperiorLevel, string>>;
@@ -53,7 +55,9 @@ type ColumnProfile = {
 // "needs_confirmation" é o valor do contrato da API para "escolha pendente" (D1: nenhuma confirmação de campo).
 type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: string; detail: string; kind?: "escolha" | "dados"; step?: 0 | 1 };
 type FieldOrigin = "PERFIL_GOVERNADO" | "REGRA_CONFIGURADA" | "ESCOLHA_DO_USUARIO" | "SUGESTAO_NAO_ESCOLHIDA";
-type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[] };
+type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[];
+  /** Base oficial com abrangência: estado de cada nível e da seleção (mistura ou mínimo pendente). */
+  niveis?: Record<string, { status: string; reasons: string[] }> };
 type Preflight = {
   territory_choices?: Territory[]; selection_reason?: string;
   multiplicity: Multiplicity;
@@ -68,6 +72,8 @@ type Preflight = {
   /** Separador das coordenadas verificado nos dados (null: formato misto; "" quando não se aplica). */
   coordinate_separator?: string | null;
   profile: {row_count: number; column_count: number; recognized_roles: number};
+  /** Base oficial: escolha pendente na abrangência territorial (mistura de níveis ou mínimo de territórios). */
+  abrangencia_pendente?: string;
 };
 type Inspection = {
   requires_sheet: boolean; sheets: string[]; columns: string[]; row_count: number;
@@ -80,6 +86,8 @@ type Inspection = {
     premises?: { option: string; label: string; origin: string; operations: Operation[] }[] } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
     default_scopes: Partial<Record<Operation, "national" | "municipal">> };
+  /** Base oficial: Brasil, estados e regras de cada análise para a abrangência territorial (sem dados ao provedor). */
+  niveis?: Levels;
   catalog?: { modo: string; versao: string; versao_governada: string | null; versao_fixada: string | null;
     integridade: string; complemento_geografico?: { estado: string; sha256?: string; identificador?: string;
       versao?: string; motivo?: string; token: string } } | null;
@@ -206,7 +214,6 @@ function App() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [usingBrazil, setUsingBrazil] = useState(false);
-  const [brazilLevel, setBrazilLevel] = useState<"auto" | "national" | "municipal">("auto");
   const [sheet, setSheet] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [sourceVersion, setSourceVersion] = useState("");
@@ -214,19 +221,20 @@ function App() {
   const [mapping, setMapping] = useState<Mapping>({});
   const [hierarchyColumns, setHierarchyColumns] = useState<SuperiorMapping>({});
   const [inspecting, setInspecting] = useState(false);
-  // Troca de abrangência em andamento (recorte de destino) e falha ao carregar o novo recorte.
-  const [rescoping, setRescoping] = useState<"national" | "municipal" | null>(null);
-  const [scopeError, setScopeError] = useState("");
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
   const [step, setStep] = useState(0);
   const steps = useRef<Partial<Record<Operation, number>>>({});
-  const [scopeNotice, setScopeNotice] = useState("");
   const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [active, setActive] = useState<Operation | null>(null);
   const [requestedCategory, setRequestedCategory] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
+  // Base oficial: Brasil, estados, "Todos os municípios" e grupos por estado marcados na abrangência territorial. Os
+  // municípios marcados ficam em territoryIds, a seleção compartilhada entre as análises, a conversa e as transferências.
+  const [territoryScope, setTerritoryScope] = useState<ScopeSelection>(EMPTY_SCOPE);
+  // Indicação da conversa ("no Brasil", "nos municípios") feita antes da escolha da base, aplicada ao carregá-la.
+  const scopeHint = useRef<"national" | "municipal" | null>(null);
   const [comparisonIndicator, setComparisonIndicator] = useState<"quantity" | "density">("density");
   const [requestedIndicator, setRequestedIndicator] = useState<{operation:Operation; indicator:"quantity" | "density"; generation:number} | null>(null);
   const [requestText, setRequestText] = useState("");
@@ -237,12 +245,6 @@ function App() {
   const viewMemory = useRef<Record<string, ViewMemory>>({});
   const [visualSelection, setVisualSelection] = useState<string[]>([]);
   const [resultExpanded, setResultExpanded] = useState(true);
-  const pendingExploration = useRef<Exploration | null>(null);
-  // Municípios marcados no recorte nacional: aparecem marcados e são aplicados quando o recorte municipal termina de carregar.
-  const [pendingSelection, setPendingSelection] = useState<string[] | null>(null);
-  const [municipalList, setMunicipalList] = useState<{version: string; items: Territory[]; status: "loading" | "ready" | "error";
-    reason: string}>({version: "", items: [], status: "loading", reason: ""});
-  const municipalRequest = useRef("");
   const pendingTerritories = useRef<{operation: Operation; requestedCount?: number | null; source: string} | null>(null);
   const [selectionProposal, setSelectionProposal] = useState<Exploration | null>(null);
   const [error, setError] = useState("");
@@ -265,7 +267,6 @@ function App() {
   const [eligibilityScope, setEligibilityScope] = useState("");
   const [criteriaComparison, setCriteriaComparison] = useState<CriteriaComparison | null>(null);
   const pendingRanking = useRef<RankingSpec["attribute"] | null>(null);
-  const pendingCriteria = useRef<NonNullable<Exploration["criteria_patch"]> | null>(null);
   const [quantiles, setQuantiles] = useState(5);
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
@@ -284,11 +285,10 @@ function App() {
   const [resolutions, setResolutions] = useState<ResolutionOptions>({});
   const revision = useRef(0);
   const uploadRevision = useRef(0);
-  const scopeDrafts = useRef<Record<string, ReturnType<typeof snapshotPreparation>>>({});
 
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
-      objectDraft, quantiles, distributionIndicator, selectedPeriods, multiplePeriods, territoryIds, comparisonIndicator,
+      objectDraft, quantiles, distributionIndicator, selectedPeriods, multiplePeriods, territoryIds, territoryScope, comparisonIndicator,
       referenceMode, referenceIds, criterionOperator, criterionValue,
       criteriaTree, criteriaRanking, criteriaBands, distanceScope, eligibilityScope, criteriaComparison };
   }
@@ -305,7 +305,8 @@ function App() {
     setResolutions(saved.resolutions); setCrs(o.crs);
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
     setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
-    setTerritoryIds(saved.territoryIds); setComparisonIndicator(saved.comparisonIndicator);
+    setTerritoryIds(saved.territoryIds); setTerritoryScope(saved.territoryScope || EMPTY_SCOPE);
+    setComparisonIndicator(saved.comparisonIndicator);
     setReferenceMode(saved.referenceMode); setReferenceIds(saved.referenceIds);
     setCriterionOperator(saved.criterionOperator); setCriterionValue(saved.criterionValue);
     setCriteriaTree(saved.criteriaTree); setCriteriaRanking(saved.criteriaRanking); setCriteriaBands(saved.criteriaBands);
@@ -325,32 +326,13 @@ function App() {
   // Nunca cai no fluxo das bases importadas, mesmo com uma coluna alterada.
   const configurationPanel = usingBrazil && !!inspection?.curated_defaults;
   const municipalScope = !usingBrazil || inspection?.source?.scope === "municipal";
-  // A lista municipal do último pré-exame municipal fica guardada para o recorte nacional; sem ela, é buscada
-  // quando a abrangência é aberta. Só leitura: a análise continua no recorte atual até o usuário marcar municípios.
-  useEffect(() => {
-    const version = inspection?.source?.version;
-    const items = preflight?.territory_choices;
-    if (usingBrazil && version && inspection?.source?.scope === "municipal" && items?.length)
-      setMunicipalList(current => current.version === version && current.status === "ready" ? current
-        : {version, items, status: "ready", reason: ""});
-  }, [preflight]);
-  useEffect(() => {
-    const version = inspection?.source?.version || "";
-    if (!configurationPanel || !territoriesOpen || municipalScope || !version || municipalRequest.current === version ||
-      (municipalList.version === version && municipalList.status === "ready")) return;
-    municipalRequest.current = version;
-    setMunicipalList({version, items: [], status: "loading", reason: ""});
-    const form = new FormData();
-    form.append("dataset", "brazil"); form.append("scope", "municipal"); form.append("operation", active || ""); form.append("sheet", "");
-    fetch(API + "/api/inspect", { method: "POST", body: form }).then(readApiResponse).then((details: Inspection) => {
-      if (details.source?.version !== version) throw new Error("A versão dos dados mudou durante a consulta.");
-      setMunicipalList(current => current.version !== version ? current : {version, items: details.preflight?.territory_choices || [],
-        status: "ready", reason: details.preflight?.selection_reason || ""});
-    }).catch(exc => setMunicipalList(current => current.version !== version ? current : {version, items: [], status: "error",
-      reason: "Não foi possível carregar a lista de municípios. Feche e abra a abrangência para tentar novamente. Detalhe: " +
-        readableError(exc)}))
-      .finally(() => { if (municipalRequest.current === version) municipalRequest.current = ""; });
-  }, [configurationPanel, territoriesOpen, municipalScope, inspection]);
+  // Abrangência territorial da base oficial (D3): a inspeção é sempre municipal e traz o bloco "niveis" (estados, Brasil
+  // e as regras de cada análise). Trocar de análise não recarrega a base: só a parte da seleção que a análise aceita vale
+  // nela (sem nada aplicável, o padrão da análise), e o backend confere o pedido.
+  const levels = usingBrazil ? inspection?.niveis : undefined;
+  const officialScope = configurationPanel && !!levels;
+  const levelRule = officialScope && active ? levels!.operacoes[active] : undefined;
+  const effective = officialScope ? effectiveScope(territoryScope, territoryIds, levelRule) : null;
 
   const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version:sourceVersion,sheet});
@@ -368,7 +350,10 @@ function App() {
   const spatialRequest = (operation: Operation) => SPATIAL_OPERATIONS.includes(operation) || (operation === "criteria" && criteriaDistance);
   const requestKey = (operation: Operation) => JSON.stringify({sourceKey, operation, mapping,
     ...(spatialRequest(operation) ? {geo: geoToken} : {}),
-    options: {...semanticOptions(), territory_ids: semanticOptions().territory_ids ? [...territoryIds].sort() : undefined}});
+    options: {...semanticOptions(), territory_ids: semanticOptions().territory_ids ? [...territoryIds].sort() : undefined,
+      // Mesma abrangência em outra ordem de marcação é o mesmo pedido (o backend também normaliza a ordem).
+      abrangencia: effective ? {...effective.abrangencia, municipios: {...effective.abrangencia.municipios,
+        ids: [...effective.abrangencia.municipios.ids].sort()}} : undefined}});
   const historical = history.find(item=>item.result.result_id===result?.result_id);
   const resultOperation = result?.metadata.operation as Operation | undefined;
   const resultFeature = FEATURES.find(item=>item.id===resultOperation);
@@ -412,28 +397,28 @@ function App() {
       .sort((a, b) => a.period.localeCompare(b.period, "pt-BR", {numeric: true}));
   }, [result, history, historical, sourceKey, geoToken]);
 
-  const scopeFor = (operation: Operation) => inspection?.source?.default_scopes[operation] ?? ENGINE_ONLY_SCOPES[operation];
   function resetReferences() {
     setReferenceMode(""); setReferenceIds([]); setCriterionOperator(""); setCriterionValue("");
     // Critérios citam territórios e referências da base anterior: nunca atravessam uma troca de fonte.
     setCriteriaTree(null); setCriteriaRanking(null); setCriteriaBands(null); setDistanceScope(""); setEligibilityScope("");
-    setCriteriaComparison(null); pendingRanking.current = null; pendingCriteria.current = null;
+    setCriteriaComparison(null); pendingRanking.current = null;
   }
-  async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "", preserve = false) {
+  /** Competências de toda a seleção de uma análise: com o Brasil, as da fonte nacional (e a união com as municipais
+   * quando há outros níveis); sem ele, as da fonte municipal. */
+  function scopePeriodsOf(details: Inspection | null, operation: Operation | "", scope: ScopeSelection, ids: string[]): string[] {
+    const municipal = details?.periods || [];
+    const rule = usingBrazil && details?.curated_defaults && details.niveis && operation ? details.niveis.operacoes[operation] : undefined;
+    return rule ? periodsForScope(effectiveScope(scope, ids, rule), details!.niveis!.brasil.periodos, municipal) : municipal;
+  }
+  async function inspectFile(nextFile: File | null, nextSheet = "", level = "auto", operation = "") {
     if (!privacy.accepted) return;
-    if (!preserve) {setSourceGeneration(value => value + 1); setTerritoryIds([]); resetReferences(); setTerritoriesOpen(false);}
-    const previous = preserve && inspection?.source ? { info: inspection, saved: snapshotPreparation() } : null;
-    if (previous) scopeDrafts.current[previous.info.source!.version + ":" + previous.info.source!.scope] = previous.saved;
+    setSourceGeneration(value => value + 1); setTerritoryIds([]); setTerritoryScope(EMPTY_SCOPE); resetReferences(); setTerritoriesOpen(false);
     const currentUpload = ++uploadRevision.current;
     revision.current += 1;
     setInspecting(true);
     setUploadError("");
-    setError(""); setScopeError("");
-    // Troca de abrangência: a preparação atual continua na tela, bloqueada, até o novo recorte chegar;
-    // a interface não volta à escolha da fonte.
-    if (previous) setRescoping(level === "national" || level === "municipal" ? level
-      : (operation && scopeFor(operation as Operation)) || "municipal");
-    else { setInspection(null); setPreflight(null); }
+    setError("");
+    setInspection(null); setPreflight(null);
     const form = new FormData();
     if (nextFile) form.append("file", nextFile);
     else { form.append("dataset", "brazil"); form.append("scope", level); form.append("operation", operation); }
@@ -442,6 +427,11 @@ function App() {
       const response = await fetch(API + "/api/inspect", { method: "POST", body: form });
       const details = await readApiResponse(response) as Inspection;
       if (currentUpload !== uploadRevision.current) return;
+      // Indicação da conversa feita antes da escolha da base ("no Brasil", "nos municípios").
+      const hint = nextFile ? null : scopeHint.current;
+      scopeHint.current = null;
+      const scope = hint === "national" ? {...EMPTY_SCOPE, brasil: true} : hint === "municipal" ? {...EMPTY_SCOPE, todos: true} : EMPTY_SCOPE;
+      setTerritoryScope(scope);
       setInspection(details);
       setSourceVersion(details.source?.version || "");
       setMapping(details.suggested_mapping);
@@ -457,7 +447,8 @@ function App() {
       setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
-      setSelectedPeriods(operation === "temporal" ? details.periods : []); setMultiplePeriods(operation === "temporal");
+      setSelectedPeriods(operation === "temporal" ? scopePeriodsOf(details, operation, scope, []) : []);
+      setMultiplePeriods(operation === "temporal");
       setWorkspaceStage("preparation");
       setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
@@ -466,55 +457,17 @@ function App() {
       setQuantiles(5);
       setDistributionIndicator("");
       setTemporalIndicator(""); setReportIndicator("");
-      setScopeNotice("");
-      if (previous && details.source) {
-        const sameVersion = previous.info.source!.version === details.source.version;
-        const cached = sameVersion ? scopeDrafts.current[details.source.version + ":" + details.source.scope] : undefined;
-        // A escolha de períodos só atravessa quando a análise de destino aceita o mesmo modo: o período
-        // único de uma densidade não substitui as competências de uma evolução temporal (e vice-versa).
-        const fits = (multiple: boolean) => multiple ? ["counts", "report", "temporal"].includes(operation) : operation !== "temporal";
-        if (cached) {
-          restorePreparation(cached);
-          if (!fits(cached.multiplePeriods)) {
-            setPeriodFilter(""); setSelectedPeriods(operation === "temporal" ? details.periods : []); setMultiplePeriods(operation === "temporal");
-          }
-          setScopeNotice("Preparação deste recorte restaurada: a versão dos dados é a mesma. O servidor confere de novo as escolhas.");
-        } else if (sameVersion) {
-          // Só atravessam granularidades significados comuns verificáveis na mesma versão.
-          // Unicidade, população, território e comparabilidade pertencem a cada recorte.
-          const old = previous.saved;
-          const equalValues = (a: string[], b: string[]) => a.length < 80 && b.length < 80 && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
-          const periodBefore = previous.info.derived_fields?.find(f => f.column === old.mapping.period);
-          const periodAfter = details.derived_fields?.find(f => f.column === details.suggested_mapping.period);
-          const samePeriod = !!periodBefore && !!periodAfter && JSON.stringify(periodBefore) === JSON.stringify(periodAfter) && equalValues(previous.info.periods, details.periods);
-          const sameCategory = !!old.mapping.category && old.mapping.category === details.suggested_mapping.category && equalValues(previous.info.categories, details.categories);
-          setSelectedRoles(old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory)));
-          if (samePeriod && fits(old.multiplePeriods)) {setPeriodFilter(old.options.period_filter);setSelectedPeriods(old.selectedPeriods);setMultiplePeriods(old.multiplePeriods);}
-          if (sameCategory) { setCategoryFilter(old.options.category_filter); setObjectDraft(old.objectDraft); }
-          setScopeNotice(details.curated_defaults
-            ? "A abrangência mudou. Os significados reconhecidos vêm do perfil oficial deste recorte; períodos e categoria foram preservados quando equivalentes. Condições específicas continuam sujeitas ao pré-exame."
-            : "A abrangência mudou. Escolhas comuns de período e categoria foram mantidas quando equivalentes. Revise as colunas escolhidas de território, unidade de contagem e população neste recorte.");
-        } else {
-          scopeDrafts.current = {};
-          setScopeNotice("A versão dos dados mudou. Revise as colunas escolhidas e os parâmetros antes de analisar.");
-        }
-      }
     } catch (exc) {
       if (currentUpload !== uploadRevision.current) return;
       const message = readableError(exc);
-      if (previous) {
-        // O recorte pedido não foi carregado: a preparação anterior continua válida e visível.
-        setBrazilLevel(previous.info.source!.scope);
-        setScopeError("Não foi possível carregar o novo recorte: " + message + " A preparação anterior foi mantida.");
-        setPendingSelection(null);
-      } else setUploadError(message);
+      setUploadError(message);
       if (message.includes("Não foi possível alcançar")) setServerStatus("offline");
-    } finally { if (currentUpload === uploadRevision.current) { setInspecting(false); setRescoping(null); } }
+    } finally { if (currentUpload === uploadRevision.current) setInspecting(false); }
   }
   async function chooseFile(next: File | undefined) {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
-    scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
+    setStep(0); steps.current = {};
     setUsingBrazil(false);
     setFile(next);
     setSheet("");
@@ -544,9 +497,10 @@ function App() {
   }
   function chooseBrazil() {
     if (!privacy.accepted) return;
-    scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
+    setStep(0); steps.current = {};
     setUsingBrazil(true); setFile(null); setSheet("");
-    void inspectFile(null, "", brazilLevel, active || "");
+    // A inspeção da base oficial é sempre municipal, com o bloco dos níveis (Brasil, estados e municípios).
+    void inspectFile(null, "", "municipal", active || "");
   }
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
@@ -559,21 +513,24 @@ function App() {
     const territory = (proposal?.territory || "").normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const hinted = /municipio|municipios|municipal|cidade|cidades/.test(territory) ? "municipal"
-      : /^(?:brasil|pais|nacional)$/.test(territory) ? "national"
-      : territoryIds.length && brazilLevel!=="national" ? "municipal" : "auto";
-    if (hinted !== "auto") setBrazilLevel(hinted);
+      : /^(?:brasil|pais|nacional)$/.test(territory) ? "national" : null;
+    // Trocar de análise não recarrega a base nem troca de fonte: a abrangência marcada continua, e só a parte que a
+    // análise aceita vale nela. Um pedido explícito ("no Brasil", "nos municípios") ajusta a seleção.
+    let scope = territoryScope, ids = territoryIds;
+    if (hinted && (usingBrazil || !inspection)) {
+      if (!inspection) scopeHint.current = hinted;
+      else if (hinted === "national") { scope = {...EMPTY_SCOPE, brasil: true}; ids = []; replaceSelection(scope, ids); }
+      else if (!territoryIds.length && !territoryScope.grupos.length) {
+        scope = {...EMPTY_SCOPE, todos: true}; replaceSelection(scope, ids);
+      }
+    }
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
     setActive(operation);  setError("");
     if (operation === "temporal") {
       setPeriodFilter(""); setMultiplePeriods(true);
-      if (!selectedPeriods.length) setSelectedPeriods(inspection?.periods || []);
+      if (!selectedPeriods.length) setSelectedPeriods(scopePeriodsOf(inspection, operation, scope, ids));
       if (!temporalIndicator) setTemporalIndicator(active === "counts" ? "quantity" : "density");
-    }
-    if (usingBrazil) {
-      const target = hinted !== "auto" ? hinted : brazilLevel;
-      const nextScope = target === "auto" ? scopeFor(operation) : target;
-      if (!nextScope || nextScope !== inspection?.source?.scope) void inspectFile(null, "", target, operation, true);
     }
   }
   useEffect(() => {
@@ -599,11 +556,15 @@ function App() {
   }, [requestedCategory, inspection, inspecting, categoryFilter]);
 
   function semanticOptions() {
+    // Base oficial: a abrangência territorial (Brasil, estados e municípios) segue em "abrangencia", só com a parte que a
+    // análise aceita (ou o padrão dela); o backend resolve a rota e confere o pedido. Nas demais, os territórios marcados.
+    const territorial: {abrangencia?: Abrangencia; territory_ids?: string[]} = effective ? {abrangencia: effective.abrangencia}
+      : territoryIds.length && (!usingBrazil || inspection?.source?.scope === "municipal") ? {territory_ids: territoryIds} : {};
     return {
       ...resolutions,
       // Base oficial: o separador decimal e o referencial são premissas internas; nada antigo da tela os substitui.
       ...(governedPremises.has("number_format") ? {number_format: undefined} : {}),
-      ...(territoryIds.length && (!usingBrazil || inspection?.source?.scope === "municipal") ? {territory_ids: territoryIds} : {}),
+      ...territorial,
       comparison_indicator: comparisonIndicator,
       hierarchy_columns: hierarchyColumns,
       period_filter: periodFilter, period_filters: selectedPeriods,
@@ -630,36 +591,30 @@ function App() {
         ...(criteriaComparison ? {comparison: criteriaComparison} : {})} : {})
     };
   }
-  /** Municípios marcados no recorte nacional levam a análise ao recorte municipal, já com eles; desmarcar só altera
-   * a seleção guardada, sem trocar o recorte. */
-  function selectMunicipalities(ids: string[]) {
-    if (!addsMunicipalities(ids, territoryIds)) { changeTerritories(ids); return; }
-    setPendingSelection(ids);
-    setBrazilLevel("municipal");
-    void inspectFile(null, "", "municipal", active || "", true);
-  }
-  function changeTerritories(ids: string[]) {
+  /** Substitui a seleção territorial (Brasil, estados e grupos da base oficial; municípios marcados). */
+  function replaceSelection(scope: ScopeSelection, ids: string[]) {
     revision.current += 1;
     // Reaplicar a mesma seleção não cria estado novo: o pré-exame vigente já corresponde a ela.
-    setTerritoryIds(current=>sameList(current, ids) ? current : ids); setSelectionProposal(null);
+    setTerritoryIds(current=>sameList(current, ids) ? current : ids);
+    setTerritoryScope(current => JSON.stringify(current) === JSON.stringify(scope) ? current : scope);
+    setSelectionProposal(null);
     // Nenhuma chave de premissa é gravada aqui (K1): as premissas são aplicadas pelo backend a cada pré-exame.
+  }
+  /** Conversa, "Usar os que atendem", transferências e "Usar como municípios-alvo": a seleção passa a ser esses municípios. */
+  function changeTerritories(ids: string[]) {
+    replaceSelection(EMPTY_SCOPE, ids);
   }
   function applyExploration(proposal: Exploration) {
     setPeriodEditor(0);
     if (!proposal.operation || !proposal.territory_ids) return;
-    if (usingBrazil && inspection?.source?.scope !== "municipal") {
-      pendingExploration.current = proposal; setSelectionProposal(null);
-      setBrazilLevel("municipal"); setActive(proposal.operation);
-      void inspectFile(null, "", "municipal", proposal.operation, true);
-      return;
-    }
     changeTerritories(proposal.territory_ids);
     const patch = proposal.options_patch || {};
     if (patch.period_filter) { setPeriodFilter(patch.period_filter); setSelectedPeriods([]); setMultiplePeriods(false); }
     else if (patch.period_filter !== undefined) setPeriodFilter("");
     const periods = patch.period_filters;
     if (periods !== undefined) {
-      const next = !periods.length && proposal.operation === "temporal" ? inspection?.periods || [] : periods;
+      const next = !periods.length && proposal.operation === "temporal" ? scopePeriodsOf(inspection, "temporal", EMPTY_SCOPE,
+        proposal.territory_ids) : periods;
       setSelectedPeriods(current=>sameList(current, next) ? current : next);
       if (periods.length || proposal.operation === "temporal") { setPeriodFilter(""); setMultiplePeriods(true); }
     }
@@ -696,14 +651,7 @@ function App() {
       "). Execute a análise para obter os territórios em ambos, só no atual, só no anterior e indeterminados.";
   }
   function applyCriteriaPatch(patch: NonNullable<Exploration["criteria_patch"]>, reply: string): string {
-    if (usingBrazil && inspection?.source?.scope !== "municipal") {
-      // A troca para o recorte municipal pode restaurar a preparação guardada desse recorte:
-      // a condição pedida só é aplicada depois que ele estiver pronto.
-      pendingCriteria.current = patch;
-      setBrazilLevel("municipal"); setActive("criteria");
-      void inspectFile(null, "", "municipal", "criteria", true);
-      return reply + " A condição será aplicada assim que o recorte municipal estiver preparado.";
-    }
+    // Critérios usam os municípios: o Brasil e os estados marcados não valem nesta análise (sem trocar de fonte).
     if (active !== "criteria") selectAnalysis("criteria");
     return updateCriteria(patch) || reply;
   }
@@ -724,7 +672,11 @@ function App() {
   }
   function conversationOptions() {
     const pending = pendingTerritories.current;
-    return {...semanticOptions(), exploration_operation: active || "", exploration_indicator:
+    // A conversa recebe só os municípios marcados (como antes), nunca a abrangência: Brasil e estados não vão ao
+    // interpretador nem ao provedor de IA.
+    const {abrangencia: _scope, ...options} = semanticOptions();
+    return {...options, ...(usingBrazil && territoryIds.length ? {territory_ids: territoryIds} : {}),
+      exploration_operation: active || "", exploration_indicator:
       active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
       ...(pending?.source === conversationSourceKey ? {conversation_pending_operation:pending.operation,
         conversation_requested_count:pending.requestedCount} : {})};
@@ -736,14 +688,9 @@ function App() {
     else if (proposal.operation && !proposal.clarification) pendingTerritories.current = null;
     pendingRanking.current = proposal.criteria_pending_ranking || null;
     if (proposal.criteria_patch) return applyCriteriaPatch(proposal.criteria_patch, proposal.reply || "");
-    if (proposal.operation && proposal.territory_ids) {
-      // Nomes explicitamente pedidos autorizam preparar esse novo conjunto; nada é executado.
-      if (usingBrazil && inspection?.source?.scope !== "municipal") {
-        pendingExploration.current = proposal;
-        setBrazilLevel("municipal"); setActive(proposal.operation);
-        void inspectFile(null, "", "municipal", proposal.operation, true);
-      } else applyExploration(proposal);
-    } else if (proposal.operation) selectAnalysis(proposal.operation);
+    // Nomes explicitamente pedidos autorizam preparar esse novo conjunto; nada é executado.
+    if (proposal.operation && proposal.territory_ids) applyExploration(proposal);
+    else if (proposal.operation) selectAnalysis(proposal.operation);
     return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros na preparação.";
   }
   async function exploreMessage(message: string, choice?: {operation:Operation; indicator?:"quantity" | "density" | null}): Promise<string | null> {
@@ -757,8 +704,8 @@ function App() {
     const response = await fetch(API + "/api/exploration/interpret", {method:"POST", body:form});
     const proposal = await readApiResponse(response) as Exploration;
     if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
-    // Pedido explícito pelo país inteiro seleciona o arquivo nacional governado,
-    // nunca um agregado produzido a partir das linhas municipais.
+    // Pedido explícito pelo país inteiro marca o Brasil (total nacional): a contagem vem do arquivo nacional governado,
+    // nunca de um agregado produzido a partir das linhas municipais.
     const normalizedRequest = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const wholeBrazil = /\b(?:brasil|nacional|pais inteiro|todo o pais)\b/.test(normalizedRequest) &&
       !/\b(?:municipios?|municipais|municipal|cidades?|por municipio|por cidade)\b/.test(normalizedRequest);
@@ -770,28 +717,10 @@ function App() {
       return "Análise escolhida. Confira o recorte, o indicador e as condições na preparação.";
     }
     const responseText = acceptExploration(proposal);
-    if (usingBrazil && wholeBrazil && inspection?.source?.scope !== "national" &&
-        !proposal.territory_ids?.length && !proposal.criteria_patch) {
-      setBrazilLevel("national");
-      void inspectFile(null, "", "national", proposal.operation || active || "counts", true);
-    }
+    if (usingBrazil && levels && wholeBrazil && !proposal.territory_ids?.length && !proposal.criteria_patch)
+      replaceSelection({...EMPTY_SCOPE, brasil: true}, []);
     return responseText;
   }
-  useEffect(()=>{
-    if (!inspecting && inspection?.source?.scope === "municipal" && pendingSelection) {
-      const known = new Set((preflight?.territory_choices || []).map(item => item.id));
-      changeTerritories(known.size ? pendingSelection.filter(id => known.has(id)) : pendingSelection);
-      setPendingSelection(null);
-    }
-    if (!inspecting && inspection?.source?.scope === "municipal" && pendingExploration.current) {
-      const proposal = pendingExploration.current; pendingExploration.current = null;
-      applyExploration(proposal);
-    }
-    if (!inspecting && inspection?.source?.scope === "municipal" && pendingCriteria.current) {
-      const patch = pendingCriteria.current; pendingCriteria.current = null;
-      updateCriteria(patch);
-    }
-  }, [inspection, inspecting]);
   function exploreSelection(operation: Operation) {
     setRequestText(ANALYSIS_LABELS[operation] + " dos territórios selecionados");
     selectAnalysis(operation);
@@ -995,6 +924,7 @@ function App() {
       .catch(() => { if (alive) setServerStatus("offline"); });
     return () => { alive = false; };
   }, []);
+  const officialScopeKey = officialScope ? JSON.stringify([active, effective?.abrangencia ?? null]) : "";
   const nearestOptions = (active === "nearest" || (active === "criteria" && criteriaDistance)) && referenceMode
     ? JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]) : "";
   const criteriaOptions = active === "criteria" ? JSON.stringify([criteriaTree, criteriaRanking, criteriaBands, distanceScope,
@@ -1012,6 +942,8 @@ function App() {
     const timer = window.setTimeout(async () => {
       const form = new FormData();
       appendSource(form);
+      // Base oficial: a rota (municipal, nacional ou níveis) depende da análise e da abrangência que vale nela.
+      if (officialScope) form.append("operation", active || "");
       form.append("mapping", JSON.stringify(mapping));
       form.append("options", JSON.stringify(semanticOptions()));
       try {
@@ -1028,7 +960,7 @@ function App() {
   }, [inspection, file, usingBrazil, sheet, mapping, selectedRoles, countUnit, customCountUnit, preflightAttempt,
       periodFilter, selectedPeriods, categoryFilter, objectDraft,
       singlePeriod, reference, crs, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator,
-      nearestOptions, criteriaOptions]);
+      nearestOptions, criteriaOptions, officialScopeKey]);
 
   useEffect(() => { revision.current += 1;  setError(""); }, [active]);
 
@@ -1106,23 +1038,31 @@ function App() {
     </label>}
   </div>;
 
-  // Seleção de municípios. Na base oficial, fica na caixa "Abrangência territorial" das configurações e aparece também no
-  // recorte nacional, com a lista guardada ou buscada; marcar municípios leva a análise ao recorte municipal.
-  const territoryItems = municipalScope ? preflight?.territory_choices || []
-    : municipalList.version === inspection?.source?.version ? municipalList.items : [];
+  // Base oficial: a lista vem da inspeção (fonte municipal inteira), nunca do pré-exame de uma rota nacional.
+  const territoryItems = officialScope ? inspection?.preflight?.territory_choices || [] : municipalScope ? preflight?.territory_choices || [] : [];
+  const territoryNames = new Map(territoryItems.map(item => [item.id, item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label]));
+  // Valor da caixa "Abrangência territorial": Brasil, estados e municípios que valem nesta análise, ou o padrão dela.
+  const scopeSummary = describeScope(effective || municipalOnly(territoryIds), levels, id => territoryNames.get(id) || id);
+  // Escolha pendente na abrangência (mistura de níveis ou mínimo de territórios), informada pelo pré-exame.
+  const activeLevels = active ? preflight?.capabilities[active]?.niveis : undefined;
+  const territoryPending = officialScope && !preflighting ? activeLevels?.selecao?.status === "needs_confirmation"
+    ? activeLevels.selecao.reasons[0] || "" : preflight?.abrangencia_pendente || "" : "";
+  const selectionTitle = active === "nearest" ? "Municípios-alvo" : active === "criteria" ? "Universo dos critérios" : "Abrangência territorial";
+  // Seleção territorial. Na base oficial, a lista vertical da caixa "Abrangência territorial" (Brasil, estados e municípios);
+  // nas bases importadas (e nas referências), a seleção de territórios por pesquisa.
   const selectionContent = inspection && (municipalScope || configurationPanel) ? <>
-    <TerritorialSelection items={territoryItems} selected={pendingSelection || territoryIds}
-      onChange={municipalScope ? changeTerritories : selectMunicipalities}
-      disabled={running || inspecting || (!municipalScope && !territoryItems.length)}
-      reason={municipalScope ? preflight?.selection_reason : municipalList.status === "error" ? municipalList.reason
-        : "Carregando a lista de municípios…"} embedded={configurationPanel}
+    {officialScope ? <TerritorialScopeSelector levels={levels!} rule={levelRule} items={territoryItems} scope={territoryScope}
+      ids={territoryIds} effective={effective} summary={scopeSummary} title={selectionTitle} pending={territoryPending}
+      onChange={next => replaceSelection(next.scope, next.ids)} onClear={() => replaceSelection(EMPTY_SCOPE, [])}
+      disabled={running || inspecting} loading={inspecting}/>
+    : <TerritorialSelection items={territoryItems} selected={territoryIds} onChange={changeTerritories}
+      disabled={running || inspecting} reason={preflight?.selection_reason} embedded={configurationPanel}
       {...(active === "nearest" ? {title: "Municípios-alvo",
         description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."}
         : active === "criteria" ? {title: "Universo dos critérios",
         description: "Os critérios são avaliados para cada território selecionado. Sem seleção, todos os territórios do período. A seleção não reduz o conjunto de referências."}
-        : configurationPanel ? {title: "Municípios", description: municipalScope
-          ? "Pesquise por nome ou código e marque os municípios. Sem seleção, a análise considera todos os municípios do recorte."
-          : "Ao marcar municípios, a abrangência passa do total nacional para os municípios marcados."} : {})}/>
+        : configurationPanel ? {title: "Municípios",
+          description: "Pesquise por nome ou código e marque os municípios. Sem seleção, a análise considera todos os municípios do recorte."} : {})}/>}
     {selectionProposal && <div role="alert" className="no-print my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
       <p>O pedido usará {selectionProposal.territory_ids?.length} territórios em lugar da seleção atual.</p>
       <button type="button" onClick={()=>applyExploration(selectionProposal)} className="mr-2 mt-2 rounded-lg border bg-white px-3 py-2">Usar o recorte mencionado</button>
@@ -1136,7 +1076,6 @@ function App() {
           onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
     </div>}
   </> : null;
-  const territoryNames = new Map(territoryItems.map(item => [item.id, item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label]));
   // Resumo de uma linha da seleção, mostrado no bloco de territórios da preparação das demais bases. No recorte nacional
   // o bloco só informa que há um único território, para que o comando "territórios" tenha destino. Na base oficial,
   // a caixa "Abrangência territorial" das configurações substitui o bloco.
@@ -1152,16 +1091,17 @@ function App() {
   })() : usingBrazil && inspection?.source?.scope === "national" ? {label: "Territórios", selected: false, selectable: false,
     text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
     : undefined;
-  // Valor da caixa "Abrangência territorial"; durante a troca de recorte, já mostra o recorte e os municípios pedidos.
-  const scopeSummary = describeScope((rescoping || inspection?.source?.scope) === "national",
-    (pendingSelection || territoryIds).map(id => territoryNames.get(id) || id));
 
+  // Competências oferecidas: com o Brasil e outros níveis, a união das fontes; nos demais casos, as do pré-exame.
+  const scopePeriods = officialScope && effective?.abrangencia.brasil
+    ? periodsForScope(effective, levels!.brasil.periodos, inspection?.periods || [])
+    : preflight?.values.periods?.length ? preflight.values.periods : inspection?.periods || [];
   const advancedPreparation = (<>
       {active && <div className="preparation-workspace section-anchor mt-5">
         <PreparationPanel title={selectedFeature?.title || "Preparar uma análise"} step={step} onStep={setStep}
           checking={preflighting || inspecting} requirements={visibleRequirements}
           ready={!!active && !preflighting && !inspecting && preflight?.capabilities[active]?.status === "available"}
-          notice={scopeNotice}>
+          notice="">
           {!active ? <p className="text-sm text-slate-600">Escolha uma análise na lista para iniciar a preparação.</p> :
           !inspection || inspection.requires_sheet ? <div className="space-y-3 text-sm text-slate-600">
             <p>{inspecting ? "Conferindo a base selecionada…" : "Carregue os dados do Brasil ou importe um arquivo na área de dados. Se o Excel possuir várias abas, escolha a aba nessa área."}</p>
@@ -1173,23 +1113,6 @@ function App() {
             {error && <p role="alert" className="mb-3 text-sm text-rose-800">{error}</p>}
             {step === 0 && <>
               <p className="text-xs text-slate-600">{usingBrazil ? "Dados do Brasil" : file?.name} · {shortNum(inspection.row_count)} registros. Os campos reconhecidos já vêm escolhidos; ajuste qualquer coluna pelos seletores.</p>
-        {usingBrazil && inspection?.source && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4">
-          <label className="flex flex-wrap items-center gap-3 text-xs font-semibold text-ink">
-            Abrangência da análise
-            <select aria-label="Abrangência da análise" value={brazilLevel}
-              className="rounded-xl border border-line bg-white px-3 py-2 text-sm"
-              onChange={e => { const level = e.target.value as typeof brazilLevel; setBrazilLevel(level); const resolved = level === "auto" ? scopeFor(active || "density") : level; if (resolved !== inspection.source?.scope) void inspectFile(null, "", level, active || "", true); }}>
-              <option value="auto">Conforme a análise escolhida</option>
-              <option value="national">Brasil</option>
-              <option value="municipal">Municípios</option>
-            </select>
-          </label>
-          <p className="mt-2 text-xs leading-5 text-slate-600">
-            Recorte atual: {inspection.source.scope === "national" ? "Brasil" : "Municípios"}.
-            A seleção automática acompanha a análise. As fontes nacional e municipal mantêm suas contagens separadas.
-          </p>
-        </div>}
-
           <ContextConfig spatial={active === "spatial"} columns={inspection.columns} mapping={mapping}
             periodSources={inspection.derived_fields?.find(field => field.role === "period" && field.column === mapping.period)?.source_columns}
             fieldStates={preflight?.field_states} suggestions={inspection.suggested_columns}
@@ -1349,7 +1272,7 @@ function App() {
                   (active === "temporal" ? temporalIndicator : active === "report" ? reportIndicator : distributionIndicator) === "density"
                     ? "Densidade por 1.000 habitantes" : (active === "temporal" ? temporalIndicator : active === "report" ? reportIndicator : distributionIndicator) === "quantity"
                     ? "Quantidade na unidade declarada" : "Aguardando escolha"}</p>}
-                <p>Base: {usingBrazil ? "Dados do Brasil — " + (inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
+                <p>Base: {usingBrazil ? "Dados do Brasil — " + (officialScope ? scopeSummary : inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
                 {inspection.curated_defaults && <p>Campos do perfil oficial: {governedRoles(inspection.curated_defaults, mapping).length} de {
                   Object.keys(inspection.curated_defaults.mapping).length} (os demais seguem a sua escolha)</p>}
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
@@ -1383,12 +1306,9 @@ function App() {
       multiplePeriods={multiplePeriods}
       periodEditor={periodEditor}
       onSelectedPeriods={values=>{setMultiplePeriods(true);setSelectedPeriods(values);setPeriodFilter("");}}
-      scope={rescoping || inspection.source?.scope || "municipal"}
-      onScope={v=>{setBrazilLevel(v);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
-      scopeChoice={NATIONAL_SCOPE_OPERATIONS.includes(active)}
-      rescoping={rescoping}
-      scopeError={scopeError}
-      selectionCount={territoryIds.length}
+      scope={inspection.source?.scope || "municipal"}
+      onScope={v=>{if(v!==inspection.source?.scope)void inspectFile(null,"",v,active);}}
+      territoryPending={!!territoryPending}
       territoriesOpen={territoriesOpen}
       onTerritoriesOpen={setTerritoriesOpen}
       territorySelection={selectionContent}
@@ -1421,7 +1341,7 @@ function App() {
         if(active==="report")setReportIndicator(v);
       }}
       periodFilter={periodFilter}
-      periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
+      periods={scopePeriods}
       onPeriod={v=>{setMultiplePeriods(false);setPeriodFilter(v);setSelectedPeriods([]);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
@@ -1603,7 +1523,10 @@ function App() {
               reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}
               status={resultStatus} siblings={siblings} onExport={exportCsv} onRepresentation={keepRepresentation}
               onOpenSibling={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
-              onReuseSelection={ids => { changeTerritories(ids); scrollAnalysisTo("territorios");
+              onReuseSelection={ids => {
+                // Base oficial: itens de nível (Brasil e estados) voltam como tais; os demais, como municípios marcados.
+                if (officialScope) { const next = fromMembers(ids); replaceSelection(next.scope, next.ids); } else changeTerritories(ids);
+                scrollAnalysisTo("territorios");
                 setHistoryNotice("Seleção visual levada à preparação: " + ids.length + " território(s). Revise e execute pela preparação."); }}
               onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); scrollAnalysisTo("preparacao-conversacional"); }}
               onAnnualSeries={periods => {
@@ -1689,7 +1612,7 @@ function App() {
         onTerritoriesOpen={setTerritoriesOpen}
         onMultiplePeriods={() => {
           if (!active || !["counts", "temporal", "report"].includes(active)) return false;
-          if (!multiplePeriods) {setSelectedPeriods(periodFilter ? [periodFilter] : inspection?.periods || []);setPeriodFilter("");}
+          if (!multiplePeriods) {setSelectedPeriods(periodFilter ? [periodFilter] : scopePeriodsOf(inspection, active, territoryScope, territoryIds));setPeriodFilter("");}
           setMultiplePeriods(true);setPeriodEditor(value => value + 1);
           scrollAnalysisTo("preparacao-conversacional"); return true;
         }}
@@ -1728,9 +1651,9 @@ function App() {
         onResolved={acceptExploration}
         selection={selectionContent}
         sourceChoice={sourceChoice}
-        sourceReady={!!inspection && !inspection.requires_sheet && (!inspecting || !!rescoping)}
+        sourceReady={!!inspection && !inspection.requires_sheet && !inspecting}
         sourceSummary={usingBrazil
-          ? inspection && !inspecting ? "Os dados do Brasil já estão disponíveis. Escolha uma análise; ajustaremos a abrangência quando necessário." : "Estou preparando os dados do Brasil."
+          ? inspection && !inspecting ? "Os dados do Brasil já estão disponíveis. Escolha uma análise; na caixa Abrangência territorial, marque o Brasil, estados ou municípios." : "Estou preparando os dados do Brasil."
           : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."
           : ""}
         preparation={inlinePreparation}
