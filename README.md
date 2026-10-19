@@ -361,9 +361,11 @@ Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambig
 ## Testes
 
 As regras de trabalho para pessoas e agentes (Claude, Codex e outros) estão em
-[`AGENTS.md`](AGENTS.md). Antes de cada push, rode as verificações proporcionais à mudança, conforme a
-seção 4 do `AGENTS.md`; o CI roda todas em todo push e precisa terminar em PASS. Comandos de
-referência, na raiz:
+[`AGENTS.md`](AGENTS.md). O CI é o único ambiente de verificação (seção 4 do `AGENTS.md`): roda todos
+os jobs em todo push e precisa terminar em PASS. Antes do push, rodam só checagens de segundos
+(compilação do Python alterado, TypeScript sem build e, depois do commit, a governança). Os comandos
+abaixo reproduzem o CI localmente e só rodam por pedido explícito do responsável pelo produto, ou,
+para diagnosticar uma falha que o log do CI não explica, só o teste que falhou. Na raiz:
 
 ```bash
 (cd backend && python -m pytest -q)                                   # backend
@@ -374,7 +376,7 @@ python backend/tests/run_ui_checks.py --roteiro ui_stabilization.py   # só os r
 python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
-Quando o risco justificar, o script `python scripts/verificar_tudo.py` roda todas essas verificações
+Quando pedido, o script `python scripts/verificar_tudo.py` roda todas essas verificações
 na ordem e termina com um resumo do que passou, falhou ou ficou de fora, e por quê; os logs ficam em `.local/verificacao/`. Os testes
 com dados reais só rodam quando a mudança toca o motor, a API ou os dados (`--dados-reais sim` força),
 e o script decide sozinho a dispensa do `npm ci` descrita abaixo (`--npm-ci` força). No Windows, ele

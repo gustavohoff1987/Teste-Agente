@@ -1,7 +1,7 @@
-"""Verificação completa (todos os passos da seção 4 do AGENTS.md), na ordem, com o resultado de cada passo.
+"""Verificação completa local, na ordem, com o resultado de cada passo.
 
-A verificação local obrigatória é proporcional à mudança (AGENTS.md, seção 4); use este script quando o
-risco justificar a verificação completa.
+O CI é o único ambiente de verificação (AGENTS.md, seção 4). Este script fica fora do fluxo normal:
+rode-o só por pedido explícito do responsável pelo produto, para reproduzir o CI localmente.
 
 Uso, de qualquer pasta do repositório:
     python scripts/verificar_tudo.py [--dados-reais auto|sim|nao] [--npm-ci] [--canal chrome|chromium]
@@ -186,7 +186,7 @@ class Verificacao:
             por_que = "a mudança toca o motor, a API ou os dados: " + ", ".join(relevantes[:4]) + \
                       (f" e mais {len(relevantes) - 4}" if len(relevantes) > 4 else "")
         else:
-            por_que = "a mudança não toca o motor, a API nem os dados (AGENTS.md, seção 4)"
+            por_que = "a mudança não toca o motor, a API nem os dados"
         escolha = self.args.dados_reais
         if escolha == "nao" or (escolha == "auto" and not obrigatorio):
             situacao = "FORA (OBRIGATÓRIO)" if obrigatorio else "FORA"
@@ -221,7 +221,7 @@ class Verificacao:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Verificação completa (todos os passos da seção 4 do AGENTS.md).")
+    parser = argparse.ArgumentParser(description="Verificação completa local, fora do fluxo normal (AGENTS.md, seção 4).")
     parser.add_argument("--dados-reais", choices=("auto", "sim", "nao"), default="auto",
                         help="auto (padrão): só quando a mudança toca o motor, a API ou os dados")
     parser.add_argument("--npm-ci", action="store_true", help="roda o npm ci mesmo sem mudança nas dependências")
