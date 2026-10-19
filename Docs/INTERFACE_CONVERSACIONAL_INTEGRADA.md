@@ -121,12 +121,16 @@ navegação mudam somente a área visível. “Quero analisar vários
 períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
 que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
 
-No seletor múltiplo, a competência única já escolhida é preservada. O usuário escolhe um intervalo
-contínuo ("de janeiro de 2014 até junho de 2015"), acrescenta ou retira competências uma a uma
-(as marcadas têm ✓ e fundo preenchido; as demais, contorno tracejado), escolhe todas ou limpa; sem
-nenhuma, precisa selecionar antes de avançar. Uma linha abaixo descreve a escolha ("4 competências,
-de janeiro de 2014 a junho de 2015"). Ao voltar para período único, a primeira competência
-selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
+No seletor múltiplo, a competência única já escolhida é preservada. Quando todas as competências
+vêm incluídas por padrão (por exemplo, na evolução temporal), elas aparecem sem marca, com o aviso
+"Todos os períodos estão incluídos. Para analisar só alguns, clique neles:", e o primeiro clique
+escolhe só a competência clicada. Depois dessa escolha, ou de "Todos os períodos disponíveis", cada
+clique acrescenta ou retira uma competência (as marcadas têm ✓ e fundo preenchido; as retiradas,
+contorno tracejado). O usuário também escolhe um intervalo contínuo ("de janeiro de 2014 até junho
+de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de avançar. Enquanto
+outro recorte carrega, a lista fica bloqueada, porque a escolha seria descartada quando ele chegasse. Uma linha
+abaixo descreve a escolha ("4 competências, de janeiro de 2014 a junho de 2015"). Ao voltar para
+período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
 permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
 
 Na base oficial, o "Resumo da análise" substitui o texto corrido dos parâmetros por cartões de

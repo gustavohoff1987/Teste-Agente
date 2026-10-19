@@ -34,6 +34,13 @@ export function compactPeriods(values: string[], format: (value: string) => stri
   return ordered.length + " competências, de " + format(ordered[0]) + " a " + format(ordered[ordered.length - 1]);
 }
 
+/** Clique numa competência na escolha de vários períodos. Com todos os períodos incluídos por padrão
+ * (nenhuma escolha feita ainda), o clique escolhe só a clicada; depois, cada clique inclui ou retira. */
+export function clickPeriod(selected: string[], period: string, allByDefault: boolean): string[] {
+  if (allByDefault) return [period];
+  return selected.includes(period) ? selected.filter(item => item !== period) : [...selected, period];
+}
+
 /** Intervalo contínuo e inclusivo entre duas competências, na ordem cronológica das disponíveis. */
 export function periodRange(all: string[], first: string, last: string): string[] {
   const periods = chronological(all);

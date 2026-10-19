@@ -7,7 +7,7 @@ async function source(name) {
     {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 }
-const {compactPeriods, describePeriods, periodRange} = await source('periods');
+const {clickPeriod, compactPeriods, describePeriods, periodRange} = await source('periods');
 // Ordem do arquivo da base Brasil: não cronológica.
 const all = ['201401', '201406', '201501', '201506', '201606', '201701', '201601', '202406', '202401'];
 
@@ -31,4 +31,14 @@ test('intervalo de competências é inclusivo e independe da ordem de início e 
   assert.deepEqual(periodRange(all, '201401', '201506'), ['201401', '201406', '201501', '201506']);
   assert.deepEqual(periodRange(all, '201506', '201401'), ['201401', '201406', '201501', '201506']);
   assert.deepEqual(periodRange(all, '209901', '201401'), []);
+});
+
+test('com todos os períodos por padrão, o clique escolhe a competência; depois, inclui ou retira', () => {
+  // Vídeo, 06:04: com tudo incluído por padrão, clicar em janeiro de 2014 e junho de 2015 escolhe as duas.
+  const first = clickPeriod(all, '201401', true);
+  assert.deepEqual(first, ['201401']);
+  assert.deepEqual(clickPeriod(first, '201506', false), ['201401', '201506']);
+  assert.deepEqual(clickPeriod(['201401', '201506'], '201506', false), ['201401']);
+  // Depois de "Todos os períodos disponíveis" (escolha explícita), o clique retira a competência.
+  assert.deepEqual(clickPeriod(all, '201506', false), all.filter(item => item !== '201506'));
 });

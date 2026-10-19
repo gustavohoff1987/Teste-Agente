@@ -178,7 +178,21 @@ def main():
         steps.get_by_label('Escolher períodos da análise').click()
         steps.get_by_role('button', name='junho de 2024', exact=True).click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('junho de 2024', timeout=90000)
+        # Enquanto o recorte nacional carrega, a lista de períodos fica bloqueada: a escolha seria descartada.
+        held, released = [], []
+        fresh.route('**/api/inspect', lambda route: route.continue_() if released else held.append(route))
         select(fresh, 'Evolução temporal')
+        steps.get_by_role('button', name='Voltar à escolha do período', exact=True).click()
+        chooser = steps.get_by_label('Escolher períodos da análise')
+        if not chooser.locator('..').evaluate('el => el.open'):
+            chooser.click()
+        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_disabled()
+        released.append(True)
+        for route in held:
+            route.continue_()
+        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_enabled(timeout=90000)
+        fresh.unroute('**/api/inspect')
+        steps.get_by_role('button', name='Avançar', exact=True).click()
         national = steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)
         expect(national).to_be_checked(timeout=90000)
         expect(national).to_be_enabled(timeout=90000)
@@ -189,6 +203,20 @@ def main():
         expect(municipal).to_be_checked(timeout=90000)
         expect(municipal).to_be_enabled(timeout=90000)
         expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
+        # Orientação do vídeo (06:04): com todas as competências incluídas por padrão, clicar nelas as escolhe.
+        steps.get_by_role('button', name='Voltar à escolha do período', exact=True).click()
+        chooser = steps.get_by_label('Escolher períodos da análise')
+        if not chooser.locator('..').evaluate('el => el.open'):
+            chooser.click()
+        expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_have_attribute('aria-pressed', 'false')
+        for month in ('janeiro de 2023', 'junho de 2024'):
+            steps.get_by_role('button', name=month, exact=True).click()
+        for month, pressed in (('janeiro de 2023', 'true'), ('junho de 2023', 'false'), ('janeiro de 2024', 'false'),
+                               ('junho de 2024', 'true')):
+            expect(steps.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', pressed)
+        steps.get_by_role('button', name='Avançar', exact=True).click()
+        expect(steps.get_by_test_id('period-summary')).to_have_text(
+            '2 competências, de janeiro de 2023 a junho de 2024, exceto junho de 2023, janeiro de 2024')
         fresh.close()
 
         # Importação: múltiplos períodos não dispensam confirmação da unidade e da FTS.
@@ -205,8 +233,13 @@ def main():
         preparation.get_by_label('Confirmo que os dados selecionados correspondem à força de trabalho em saúde.').check()
         preparation.get_by_role('button', name='Selecionar vários períodos', exact=True).click()
         preparation.get_by_label('Escolher períodos da análise').click()
-        for month in ('janeiro de 2024', 'junho de 2024'):
-            preparation.get_by_role('button', name=month, exact=True).click()
+        # Todos os períodos vêm incluídos por padrão: o primeiro clique escolhe só a competência clicada.
+        january = preparation.get_by_role('button', name='janeiro de 2024', exact=True)
+        january.click()
+        expect(january).to_have_attribute('aria-pressed', 'true')
+        expect(preparation.get_by_role('button', name='junho de 2024', exact=True)).to_have_attribute('aria-pressed', 'false')
+        # Retirada a única escolhida, nenhum período fica selecionado e a confirmação continua bloqueada.
+        january.click()
         expect(preparation.get_by_role('button', name='Confirmar correspondências', exact=True)).to_be_disabled()
         preparation.get_by_role('button', name='Todos os períodos disponíveis', exact=True).click()
         preparation.get_by_role('button', name='Confirmar correspondências', exact=True).click()

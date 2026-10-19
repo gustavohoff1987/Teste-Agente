@@ -184,7 +184,7 @@ export default function ConversationalPreparation(p: Props) {
               selected={p.selectedPeriods} multiple={multiple}
               onSingle={value=>{p.onPeriod(value);setEditingPeriod(false);}}
               onMultiple={values=>{setEditingPeriod(true);p.onSelectedPeriods(values);}}
-              allowMultiple={allowMultiple}/>
+              allowMultiple={allowMultiple} disabled={!!p.rescoping}/>
             {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
             Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
           {p.operation === "aggregate" && <p className="text-xs leading-5 text-slate-600">
