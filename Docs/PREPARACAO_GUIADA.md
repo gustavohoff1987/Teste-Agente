@@ -32,7 +32,10 @@ permitem tentar novamente.
   de destino aceita o mesmo modo: o período único de uma densidade não substitui as
   competências de uma evolução temporal, que recebe todas as competências do recorte.
 - Durante a troca, a preparação anterior continua visível e bloqueada, com aviso de
-  carregamento junto à abrangência; se o novo recorte não carregar, ela é mantida com o motivo.
+  carregamento abaixo das configurações; se o novo recorte não carregar, ela é mantida com o motivo.
+- Na base oficial, marcar municípios na caixa "Abrangência territorial" com o total nacional
+  escolhido troca o recorte para municípios e aplica a seleção marcada quando ele termina de
+  carregar; se o recorte não carregar, a preparação anterior é mantida e a seleção marcada, descartada.
 - Uma versão diferente invalida a preparação anterior. Novo upload, novo carregamento
   do Brasil e recarregamento da página não reutilizam confirmações de outra base.
 

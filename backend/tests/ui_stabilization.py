@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline, execute_analysis, workspace, select
+from ui_support import URL, offline, execute_analysis, workspace, select, expand
 from ui_block1_smoke import exported_rows, assert_same_rows
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
@@ -51,9 +51,7 @@ def main():
             return body
 
         def open_periods():
-            summary = inline.get_by_label('Escolher períodos da análise')
-            if not summary.locator('..').evaluate('el => el.open'):
-                summary.click()
+            expand(inline.get_by_label('Escolher períodos da análise'))
 
         send('Usar dados do Brasil.')
         expect(page.get_by_test_id('current-source')).to_contain_text('Dados do Brasil', timeout=90000)
@@ -79,7 +77,7 @@ def main():
             expect(inline.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', 'true')
             inline.get_by_role('button', name=month, exact=True).click()
         expect(inline.get_by_label('Escolher períodos da análise')).to_contain_text('Escolher períodos')
-        expect(inline.get_by_role('button', name='Avançar', exact=True)).to_have_count(0)
+        expect(inline.get_by_test_id('period-done')).to_have_count(0)
         for month in ('janeiro de 2024', 'junho de 2024'):
             inline.get_by_role('button', name=month, exact=True).click()
         # Intervalo contínuo pelos seletores de início e fim, sem clicar competência por competência.
@@ -90,7 +88,7 @@ def main():
         expect(inline.get_by_test_id('period-range-summary')).to_contain_text('2 competências, de janeiro de 2024 a junho de 2024')
         for month in ('janeiro de 2024', 'junho de 2024'):
             expect(inline.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', 'true')
-        inline.get_by_role('button', name='Avançar', exact=True).click()
+        inline.get_by_test_id('period-done').click()
         expect(inline.get_by_test_id('period-summary')).to_contain_text('de janeiro de 2024 a junho de 2024')
         multiple = calculate()
         assert {row['Período']:row['Quantidade'] for row in multiple['rows']} == {'202401':103, '202406':105}
@@ -105,7 +103,7 @@ def main():
         expect(board.get_by_test_id('result-title')).to_be_visible()
         assert len(analyses) == calls, 'reabrir o mesmo resultado deve apenas navegar'
         workspace(page, 'preparation')
-        inline.get_by_role('button', name='Voltar à escolha do período', exact=True).click()
+        open_periods()
         inline.get_by_role('button', name='Escolher apenas um', exact=True).click()
         expect(inline.get_by_test_id('period-summary')).to_contain_text('janeiro de 2024')
         expect(inline.get_by_test_id('period-summary')).not_to_contain_text('junho de 2024')
@@ -158,6 +156,11 @@ def main():
             for stage in ('territories', 'preparation', 'results'):
                 workspace(page, stage)
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), (width, stage)
+                # A aba ativa desce até o contorno que envolve todo o conteúdo da etapa (sobre a borda superior dele).
+                tab = page.get_by_test_id('stage-tabs').locator('[aria-current="step"]').bounding_box()
+                frame = page.get_by_test_id('stage-frame').bounding_box()
+                assert frame['y'] < tab['y'] + tab['height'] <= frame['y'] + 3, (width, stage, tab, frame)
+                assert frame['x'] - 1 <= tab['x'] and tab['x'] + tab['width'] <= frame['x'] + frame['width'], (width, stage)
                 page.locator('#assistant-input').scroll_into_view_if_needed()
                 expect(page.locator('#assistant-input')).to_be_in_viewport()
             page.screenshot(path=str(OUTPUT/f'estabilizacao-{width}.png'))
@@ -174,7 +177,12 @@ def main():
         expect(fresh.get_by_test_id('current-source')).to_contain_text('Dados do Brasil', timeout=90000)
         select(fresh, 'Densidade')
         steps = fresh.locator('#preparacao-conversacional')
-        expect(steps.get_by_test_id('scope-info')).to_contain_text('municípios brasileiros', timeout=90000)
+        # Densidade só existe no recorte municipal: a caixa da abrangência territorial informa isso, sem o total nacional.
+        expect(steps.get_by_test_id('scope-summary')).to_have_text('Todos os municípios', timeout=90000)
+        expand(steps.get_by_test_id('territory-toggle'))
+        expect(steps.get_by_test_id('scope-info')).to_contain_text('somente a fonte municipal')
+        expect(steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)).to_have_count(0)
+        steps.get_by_test_id('scope-done').click()
         steps.get_by_label('Escolher períodos da análise').click()
         steps.get_by_role('button', name='junho de 2024', exact=True).click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('junho de 2024', timeout=90000)
@@ -182,20 +190,22 @@ def main():
         held, released = [], []
         fresh.route('**/api/inspect', lambda route: route.continue_() if released else held.append(route))
         select(fresh, 'Evolução temporal')
-        steps.get_by_role('button', name='Voltar à escolha do período', exact=True).click()
-        chooser = steps.get_by_label('Escolher períodos da análise')
-        if not chooser.locator('..').evaluate('el => el.open'):
-            chooser.click()
+        expand(steps.get_by_label('Escolher períodos da análise'))
         expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_disabled()
         released.append(True)
         for route in held:
             route.continue_()
         expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_be_enabled(timeout=90000)
         fresh.unroute('**/api/inspect')
-        steps.get_by_role('button', name='Avançar', exact=True).click()
+        steps.get_by_test_id('period-done').click()
+        expect(steps.get_by_test_id('scope-summary')).to_have_text('Brasil (total nacional)', timeout=90000)
+        expand(steps.get_by_test_id('territory-toggle'))
         national = steps.get_by_role('radio', name='Brasil (total nacional)', exact=True)
         expect(national).to_be_checked(timeout=90000)
         expect(national).to_be_enabled(timeout=90000)
+        # O total nacional não tem população: a densidade aparece indisponível, em vez de levar a um cálculo bloqueado.
+        density = steps.get_by_role('combobox', name='Indicador', exact=True).locator('option[value="density"]')
+        expect(density).to_have_js_property('disabled', True)
         expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
         # Voltar ao recorte municipal reabre o rascunho desse recorte sem impor o período único da densidade.
         municipal = steps.get_by_role('radio', name='Municípios', exact=True)
@@ -203,18 +213,17 @@ def main():
         expect(municipal).to_be_checked(timeout=90000)
         expect(municipal).to_be_enabled(timeout=90000)
         expect(steps.get_by_test_id('period-summary')).to_contain_text('todas as 4 competências', timeout=90000)
+        expect(steps.get_by_test_id('scope-summary')).to_have_text('Todos os municípios')
+        expect(density).to_have_js_property('disabled', False)
         # Orientação do vídeo (06:04): com todas as competências incluídas por padrão, clicar nelas as escolhe.
-        steps.get_by_role('button', name='Voltar à escolha do período', exact=True).click()
-        chooser = steps.get_by_label('Escolher períodos da análise')
-        if not chooser.locator('..').evaluate('el => el.open'):
-            chooser.click()
+        expand(steps.get_by_label('Escolher períodos da análise'))
         expect(steps.get_by_role('button', name='janeiro de 2023', exact=True)).to_have_attribute('aria-pressed', 'false')
         for month in ('janeiro de 2023', 'junho de 2024'):
             steps.get_by_role('button', name=month, exact=True).click()
         for month, pressed in (('janeiro de 2023', 'true'), ('junho de 2023', 'false'), ('janeiro de 2024', 'false'),
                                ('junho de 2024', 'true')):
             expect(steps.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', pressed)
-        steps.get_by_role('button', name='Avançar', exact=True).click()
+        steps.get_by_test_id('period-done').click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('janeiro de 2023 e junho de 2024')
         fresh.close()
 

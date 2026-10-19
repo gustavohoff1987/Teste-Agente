@@ -50,7 +50,7 @@ def build_desatualizado():
 
 def capturar(url, saida, canal):
     from playwright.sync_api import expect, sync_playwright
-    from ui_support import execute_analysis, offline, select, workspace
+    from ui_support import execute_analysis, expand, offline, select, workspace
 
     feitas, falhas = [], []
     with sync_playwright() as p:
@@ -77,9 +77,7 @@ def capturar(url, saida, canal):
                 print("   FALHOU:", falhas[-1], flush=True)
 
         def escolher_periodo(rotulo):
-            seletor = preparacao.get_by_label("Escolher períodos da análise")
-            if not seletor.locator("..").evaluate("el => el.open"):
-                seletor.click()
+            expand(preparacao.get_by_label("Escolher períodos da análise"))
             preparacao.get_by_role("button", name=rotulo, exact=True).click()
 
         def inicio():
@@ -91,7 +89,7 @@ def capturar(url, saida, canal):
             page.get_by_role("button", name="Usar dados do Brasil").click()
             expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=90000)
             select(page, "Densidade")
-            expect(preparacao.get_by_test_id("scope-info")).to_be_visible(timeout=90000)
+            expect(preparacao.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=90000)
             escolher_periodo("junho de 2024")
             expect(preparacao.get_by_test_id("analysis-summary")).to_be_visible(timeout=90000)
 
@@ -112,15 +110,20 @@ def capturar(url, saida, canal):
             page.set_viewport_size({"width": 1366, "height": 900})
             workspace(page, "preparation")
             select(page, "Evolução temporal")
-            expect(preparacao.get_by_role("radio", name="Brasil (total nacional)", exact=True)).to_be_enabled(timeout=90000)
-            preparacao.get_by_role("button", name="Voltar à escolha do período", exact=True).click()
-            seletor = preparacao.get_by_label("Escolher períodos da análise")
-            if not seletor.locator("..").evaluate("el => el.open"):
-                seletor.click()
+            expect(preparacao.get_by_test_id("scope-summary")).to_have_text("Brasil (total nacional)", timeout=90000)
+            expect(preparacao.get_by_test_id("scope-loading")).to_have_count(0, timeout=90000)
+            expand(preparacao.get_by_label("Escolher períodos da análise"))
+
+        def abrangencia():
+            preparacao.get_by_test_id("period-done").click()
+            expand(preparacao.get_by_test_id("territory-toggle"))
+            expect(page.get_by_role("region", name="Seleção territorial compartilhada").get_by_role("searchbox")).to_be_enabled(
+                timeout=90000)
 
         def distancias():
             select(page, "Análise espacial")
             expect(preparacao.get_by_test_id("analysis-summary")).to_be_visible(timeout=90000)
+            expect(preparacao.get_by_test_id("scope-loading")).to_have_count(0, timeout=90000)
 
         def condicoes_avancadas():
             resumo = preparacao.locator("summary", has_text="Ver outras condições da análise")
@@ -136,6 +139,7 @@ def capturar(url, saida, canal):
         tela("05-densidade-resultado-tabela", aba("Tabela"))
         tela("06-densidade-resultado-celular", celular)
         tela("07-evolucao-escolha-de-periodos", evolucao)
+        tela("07b-evolucao-abrangencia-territorial", abrangencia)
         tela("08-analise-espacial-preparacao", distancias)
         tela("09-condicoes-avancadas", condicoes_avancadas)
         browser.close()

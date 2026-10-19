@@ -44,6 +44,7 @@ const ANALYSIS = ANALYSIS_LABELS;
 
 export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
+  const staged = sourceReady && !!active;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
@@ -301,21 +302,21 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     </details>}
     </div>
     <section className="analysis-pane" data-testid="analysis-pane" aria-label="Área de análises e resultados">
-      {sourceReady && active && <nav aria-label="Etapas da investigação" className="no-print flex flex-wrap items-center gap-2 px-4 pt-3">
+      <div className="analysis-scroll" data-testid="analysis-scroll">
+      {/* Abas: o contorno desce da aba ativa e envolve todo o conteúdo da etapa (preparação ou resultados). */}
+      {staged && <nav aria-label="Etapas da investigação" data-testid="stage-tabs" className="stage-tabs no-print">
         {([
           ["preparation", "1. Preparação"],
           ["results", "2. Resultados"],
         ] as const).map(([id,label])=><button key={id} type="button" aria-current={workspaceStage === id ? "step" : undefined}
-          disabled={id === "results" && !hasResult && !running}
-          onClick={()=>setWorkspaceStage(id)}
-          className={"rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40 " +
-            (workspaceStage === id ? "border-teal bg-teal-50 text-teal" : "border-line bg-white text-slate-600")}>{label}</button>)}
+          aria-controls="etapa-da-investigacao" disabled={id === "results" && !hasResult && !running}
+          onClick={()=>setWorkspaceStage(id)} className="stage-tab">{label}</button>)}
       </nav>}
-      <div className="analysis-scroll" data-testid="analysis-scroll">
+      <div id="etapa-da-investigacao" className={staged ? "stage-frame" : undefined} data-testid="stage-frame">
         {notice && <p role="status" className="no-print my-3 text-xs text-teal">{notice}</p>}
         {(!sourceReady || !active) && investigationContent}
         {sourceReady && active && <div className="preparation-context" data-testid="preparation-context" hidden={workspaceStage === "results"}>
-          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Defina territórios, período e parâmetros. O motor valida as condições antes de habilitar o cálculo.</p></div>
+          <div className="agent-guidance no-print"><BrandAvatar size={36}/><p>Realize as configurações conforme a sua escolha.</p></div>
           {/* Territórios fazem parte da preparação: um resumo de uma linha, expandido só quando o usuário pede. */}
           {territorySummary && <section id="territorios" aria-label="Territórios da análise" data-testid="territory-card"
             className="no-print section-anchor mb-4 rounded-2xl border border-line bg-white">
@@ -339,6 +340,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
             className="no-print m-4 rounded-lg border border-line px-4 py-2 text-xs font-semibold text-teal">Voltar à preparação</button>}
         </div>
         {resultsOnly && !hasResult && <p className="p-4 text-sm">Seus resultados aparecerão aqui após o primeiro cálculo. Comece em Nova análise ou converse comigo.</p>}
+      </div>
       </div>
     </section>
     <div className="conversation-dock no-print" data-testid="conversation-dock">

@@ -301,9 +301,10 @@ def main():
 
         def advanced_parameters():
             """Abre "Ver outras condições da análise" na etapa de parâmetros, onde ficam as confirmações da estrutura."""
-            chooser = inline.get_by_label("Escolher períodos da análise")
-            if chooser.count() and chooser.is_visible():
-                chooser.click()
+            # Só escolhe a competência quando a caixa "Período" ainda a pede.
+            pending = inline.get_by_test_id("period-summary")
+            if pending.count() and pending.inner_text().startswith("Escolher"):
+                inline.get_by_label("Escolher períodos da análise").click()
                 inline.get_by_role("button", name="junho de 2024", exact=True).click()
             summary = inline.locator("summary", has_text="Ver outras condições da análise")
             if not summary.evaluate("element => element.parentElement.open"):

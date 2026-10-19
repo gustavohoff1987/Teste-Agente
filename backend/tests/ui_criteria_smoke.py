@@ -15,7 +15,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import workspace, execute_analysis, URL, offline, select
+from ui_support import workspace, execute_analysis, URL, offline, select, expand
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -207,13 +207,16 @@ def main():
         expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
         # Critérios só existem no recorte municipal: o recorte nacional é escolhido numa análise que o admite.
         select(page, "Quantitativos")
+        expand(inline.get_by_test_id("territory-toggle"))
         national = inline.get_by_role("radio", name="Brasil (total nacional)", exact=True)
         national.check()
         expect(national).to_be_checked(timeout=60000)
         expect(national).to_be_enabled(timeout=60000)
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
-        expect(inline.get_by_test_id("scope-info")).to_contain_text("municípios brasileiros", timeout=60000)
-        expect(inline.get_by_test_id("scope-info")).not_to_contain_text("Carregando", timeout=60000)
+        expect(inline.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=60000)
+        expect(inline.get_by_test_id("scope-loading")).to_have_count(0, timeout=60000)
+        expand(inline.get_by_test_id("territory-toggle"))
+        expect(inline.get_by_test_id("scope-info")).to_contain_text("somente a fonte municipal")
         # Jornada funcional no celular (390 px): nenhuma densidade abaixo de 2 → resultado vazio (RES-VAZ).
         page.set_viewport_size({"width": 390, "height": 844})
         inline.get_by_label("Escolher períodos da análise").click()

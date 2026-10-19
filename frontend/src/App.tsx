@@ -12,6 +12,7 @@ import ResultTable from "./ResultTable";
 import { tableColumns } from "./representation";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { matchesCuratedPreparation } from "./curatedPreparation";
+import { addsMunicipalities, describeScope } from "./territorialScope";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
@@ -229,6 +230,11 @@ function App() {
   const [visualSelection, setVisualSelection] = useState<string[]>([]);
   const [resultExpanded, setResultExpanded] = useState(true);
   const pendingExploration = useRef<Exploration | null>(null);
+  // Municípios marcados no recorte nacional: aparecem marcados e são aplicados quando o recorte municipal termina de carregar.
+  const [pendingSelection, setPendingSelection] = useState<string[] | null>(null);
+  const [municipalList, setMunicipalList] = useState<{version: string; items: Territory[]; status: "loading" | "ready" | "error";
+    reason: string}>({version: "", items: [], status: "loading", reason: ""});
+  const municipalRequest = useRef("");
   const pendingTerritories = useRef<{operation: Operation; requestedCount?: number | null; source: string} | null>(null);
   const [selectionProposal, setSelectionProposal] = useState<Exploration | null>(null);
   const [error, setError] = useState("");
@@ -320,6 +326,35 @@ function App() {
   // Premissas de comparabilidade internas da base oficial: o backend as aplica e registra a origem no
   // resultado; a interface não as pede. Importações e significados alterados continuam com as declarações.
   const governedPremises = new Set(curatedSetup ? (inspection?.curated_defaults?.premises || []).map(item => item.option) : []);
+  // Base oficial: as configurações reúnem, na caixa "Abrangência territorial", o Brasil (total nacional) e os municípios.
+  const configurationPanel = usingBrazil && curatedSetup;
+  const municipalScope = !usingBrazil || inspection?.source?.scope === "municipal";
+  // A lista municipal do último pré-exame municipal fica guardada para o recorte nacional; sem ela, é buscada
+  // quando a abrangência é aberta. Só leitura: a análise continua no recorte atual até o usuário marcar municípios.
+  useEffect(() => {
+    const version = inspection?.source?.version;
+    const items = preflight?.territory_choices;
+    if (usingBrazil && version && inspection?.source?.scope === "municipal" && items?.length)
+      setMunicipalList(current => current.version === version && current.status === "ready" ? current
+        : {version, items, status: "ready", reason: ""});
+  }, [preflight]);
+  useEffect(() => {
+    const version = inspection?.source?.version || "";
+    if (!configurationPanel || !territoriesOpen || municipalScope || !version || municipalRequest.current === version ||
+      (municipalList.version === version && municipalList.status === "ready")) return;
+    municipalRequest.current = version;
+    setMunicipalList({version, items: [], status: "loading", reason: ""});
+    const form = new FormData();
+    form.append("dataset", "brazil"); form.append("scope", "municipal"); form.append("operation", active || ""); form.append("sheet", "");
+    fetch(API + "/api/inspect", { method: "POST", body: form }).then(readApiResponse).then((details: Inspection) => {
+      if (details.source?.version !== version) throw new Error("A versão dos dados mudou durante a consulta.");
+      setMunicipalList(current => current.version !== version ? current : {version, items: details.preflight?.territory_choices || [],
+        status: "ready", reason: details.preflight?.selection_reason || ""});
+    }).catch(exc => setMunicipalList(current => current.version !== version ? current : {version, items: [], status: "error",
+      reason: "Não foi possível carregar a lista de municípios. Feche e abra a abrangência para tentar novamente. Detalhe: " +
+        readableError(exc)}))
+      .finally(() => { if (municipalRequest.current === version) municipalRequest.current = ""; });
+  }, [configurationPanel, territoriesOpen, municipalScope, inspection]);
 
   const conversationSourceKey = JSON.stringify({source:usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version:sourceVersion,sheet});
@@ -487,6 +522,7 @@ function App() {
         // O recorte pedido não foi carregado: a preparação anterior continua válida e visível.
         setBrazilLevel(previous.info.source!.scope);
         setScopeError("Não foi possível carregar o novo recorte: " + message + " A preparação anterior foi mantida.");
+        setPendingSelection(null);
       } else setUploadError(message);
       if (message.includes("Não foi possível alcançar")) setServerStatus("offline");
     } finally { if (currentUpload === uploadRevision.current) { setInspecting(false); setRescoping(null); } }
@@ -617,6 +653,14 @@ function App() {
         ...(distanceScope ? {distance_scope: distanceScope} : {}), ...(eligibilityScope ? {eligibility_scope: eligibilityScope} : {}),
         ...(criteriaComparison ? {comparison: criteriaComparison} : {})} : {})
     };
+  }
+  /** Municípios marcados no recorte nacional levam a análise ao recorte municipal, já com eles; desmarcar só altera
+   * a seleção guardada, sem trocar o recorte. */
+  function selectMunicipalities(ids: string[]) {
+    if (!addsMunicipalities(ids, territoryIds)) { changeTerritories(ids); return; }
+    setPendingSelection(ids);
+    setBrazilLevel("municipal"); setInlineConfirmed(false);
+    void inspectFile(null, "", "municipal", active || "", true);
   }
   function changeTerritories(ids: string[]) {
     revision.current += 1;
@@ -766,6 +810,11 @@ function App() {
     return responseText;
   }
   useEffect(()=>{
+    if (!inspecting && inspection?.source?.scope === "municipal" && pendingSelection) {
+      const known = new Set((preflight?.territory_choices || []).map(item => item.id));
+      changeTerritories(known.size ? pendingSelection.filter(id => known.has(id)) : pendingSelection);
+      setPendingSelection(null);
+    }
     if (!inspecting && inspection?.source?.scope === "municipal" && pendingExploration.current) {
       const proposal = pendingExploration.current; pendingExploration.current = null;
       applyExploration(proposal);
@@ -1088,6 +1137,56 @@ function App() {
     </label>}
   </div>;
 
+  // Seleção de municípios. Na base oficial, fica na caixa "Abrangência territorial" das configurações e aparece também no
+  // recorte nacional, com a lista guardada ou buscada; marcar municípios leva a análise ao recorte municipal.
+  const territoryItems = municipalScope ? preflight?.territory_choices || []
+    : municipalList.version === inspection?.source?.version ? municipalList.items : [];
+  const selectionContent = inspection && (municipalScope || configurationPanel) ? <>
+    <TerritorialSelection items={territoryItems} selected={pendingSelection || territoryIds}
+      onChange={municipalScope ? changeTerritories : selectMunicipalities}
+      disabled={running || inspecting || (!municipalScope && !territoryItems.length)}
+      reason={municipalScope ? preflight?.selection_reason : municipalList.status === "error" ? municipalList.reason
+        : "Carregando a lista de municípios…"} embedded={configurationPanel}
+      {...(active === "nearest" ? {title: "Municípios-alvo",
+        description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."}
+        : active === "criteria" ? {title: "Universo dos critérios",
+        description: "Os critérios são avaliados para cada território selecionado. Sem seleção, todos os territórios do período. A seleção não reduz o conjunto de referências."}
+        : configurationPanel ? {title: "Municípios", description: municipalScope
+          ? "Pesquise por nome ou código e marque os municípios. Sem seleção, a análise considera todos os municípios do recorte."
+          : "Ao marcar municípios, a abrangência passa do total nacional para os municípios marcados."} : {})}/>
+    {selectionProposal && <div role="alert" className="no-print my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
+      <p>O pedido usará {selectionProposal.territory_ids?.length} territórios em lugar da seleção atual.</p>
+      <button type="button" onClick={()=>applyExploration(selectionProposal)} className="mr-2 mt-2 rounded-lg border bg-white px-3 py-2">Usar o recorte mencionado</button>
+      <button type="button" onClick={()=>setSelectionProposal(null)} className="mt-2 rounded-lg border bg-white px-3 py-2">Manter seleção atual</button>
+    </div>}
+    {municipalScope && !!territoryIds.length && <div aria-label="Explorar seleção" className="no-print mb-3 flex flex-wrap gap-2">
+      {([ ["comparisons", "Comparar selecionados"], ["temporal", "Examinar evolução temporal"], ["aggregate", "Agregar municípios"] ] as const)
+        .filter(([operation])=>!!preflight && (preflight.capabilities[operation].status!=="unavailable" ||
+          operation==="temporal" && preflight.values.periods.length>=2 && !!mapping.count))
+        .map(([operation,label])=><button key={operation} type="button" disabled={running || inspecting || preflighting}
+          onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
+    </div>}
+  </> : null;
+  const territoryNames = new Map(territoryItems.map(item => [item.id, item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label]));
+  // Resumo de uma linha da seleção, mostrado no bloco de territórios da preparação das demais bases. No recorte nacional
+  // o bloco só informa que há um único território, para que o comando "territórios" tenha destino. Na base oficial,
+  // a caixa "Abrangência territorial" das configurações substitui o bloco.
+  const territorySummary = configurationPanel ? undefined : selectionContent ? (() => {
+    const shown = territoryIds.slice(0, 3).map(id => territoryNames.get(id) || id);
+    const more = territoryIds.length - shown.length;
+    return {label: active === "nearest" ? "Municípios-alvo" : active === "criteria" ? "Universo dos critérios" : "Territórios",
+      selected: territoryIds.length > 0, selectable: true,
+      text: territoryIds.length ? territoryIds.length + (territoryIds.length === 1 ? " selecionado: " : " selecionados: ") +
+        shown.join(", ") + (more > 0 ? " e mais " + more : "")
+        : active === "nearest" ? "todos os municípios do período (nenhuma seleção)"
+        : active === "criteria" ? "todos os territórios do período (nenhuma seleção)" : "todos os territórios do recorte (nenhuma seleção)"};
+  })() : usingBrazil && inspection?.source?.scope === "national" ? {label: "Territórios", selected: false, selectable: false,
+    text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
+    : undefined;
+  // Valor da caixa "Abrangência territorial"; durante a troca de recorte, já mostra o recorte e os municípios pedidos.
+  const scopeSummary = describeScope((rescoping || inspection?.source?.scope) === "national",
+    (pendingSelection || territoryIds).map(id => territoryNames.get(id) || id));
+
   const advancedPreparation = (<>
       {active && <div className="preparation-workspace section-anchor mt-5">
         <PreparationPanel title={selectedFeature?.title || "Preparar uma análise"} step={step} onStep={setStep}
@@ -1388,6 +1487,10 @@ function App() {
       rescoping={rescoping}
       scopeError={scopeError}
       selectionCount={territoryIds.length}
+      territoriesOpen={territoriesOpen}
+      onTerritoriesOpen={setTerritoriesOpen}
+      territorySelection={selectionContent}
+      territorySummary={scopeSummary}
       columns={inspection.columns}
       mapping={mapping}
       onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
@@ -1533,41 +1636,6 @@ function App() {
         {advancedPreparation}
       </>}
     /></div> : null;
-  const selectionContent = inspection && (!usingBrazil || inspection.source?.scope==="municipal") ? <>
-    <TerritorialSelection items={preflight?.territory_choices || []} selected={territoryIds}
-      onChange={changeTerritories} disabled={running || inspecting} reason={preflight?.selection_reason}
-      {...(active === "nearest" ? {title: "Municípios-alvo",
-        description: "Para cada município-alvo, será indicada a referência mais próxima. Sem seleção, todos os municípios do período são alvos."}
-        : active === "criteria" ? {title: "Universo dos critérios",
-        description: "Os critérios são avaliados para cada território selecionado. Sem seleção, todos os territórios do período. A seleção não reduz o conjunto de referências."} : {})}/>
-    {selectionProposal && <div role="alert" className="no-print my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
-      <p>O pedido usará {selectionProposal.territory_ids?.length} territórios em lugar da seleção atual.</p>
-      <button type="button" onClick={()=>applyExploration(selectionProposal)} className="mr-2 mt-2 rounded-lg border bg-white px-3 py-2">Usar o recorte mencionado</button>
-      <button type="button" onClick={()=>setSelectionProposal(null)} className="mt-2 rounded-lg border bg-white px-3 py-2">Manter seleção atual</button>
-    </div>}
-    {!!territoryIds.length && <div aria-label="Explorar seleção" className="no-print mb-3 flex flex-wrap gap-2">
-      {([ ["comparisons", "Comparar selecionados"], ["temporal", "Examinar evolução temporal"], ["aggregate", "Agregar municípios"] ] as const)
-        .filter(([operation])=>!!preflight && (preflight.capabilities[operation].status!=="unavailable" ||
-          operation==="temporal" && preflight.values.periods.length>=2 && !!mapping.count))
-        .map(([operation,label])=><button key={operation} type="button" disabled={running || inspecting || preflighting}
-          onClick={()=>exploreSelection(operation)} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-teal disabled:opacity-40">{label}</button>)}
-    </div>}
-  </> : null;
-  // Resumo de uma linha da seleção, mostrado no bloco de territórios da preparação. No recorte nacional
-  // o bloco só informa que há um único território, para que o comando "territórios" tenha destino.
-  const territorySummary = selectionContent ? (() => {
-    const names = new Map((preflight?.territory_choices || []).map(item => [item.id, item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label]));
-    const shown = territoryIds.slice(0, 3).map(id => names.get(id) || id);
-    const more = territoryIds.length - shown.length;
-    return {label: active === "nearest" ? "Municípios-alvo" : active === "criteria" ? "Universo dos critérios" : "Territórios",
-      selected: territoryIds.length > 0, selectable: true,
-      text: territoryIds.length ? territoryIds.length + (territoryIds.length === 1 ? " selecionado: " : " selecionados: ") +
-        shown.join(", ") + (more > 0 ? " e mais " + more : "")
-        : active === "nearest" ? "todos os municípios do período (nenhuma seleção)"
-        : active === "criteria" ? "todos os territórios do período (nenhuma seleção)" : "todos os territórios do recorte (nenhuma seleção)"};
-  })() : usingBrazil && inspection?.source?.scope === "national" ? {label: "Territórios", selected: false, selectable: false,
-    text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
-    : undefined;
   const currentDiagnostic = diagnostics.find(group => group.id === diagnosticId);
   const investigationContent = currentDiagnostic?.resultIds.length ? (
     <InvestigationOverview title={diagnosticLabel(currentDiagnostic)} items={currentDiagnostic.resultIds.map(id => history.find(item => item.result.result_id === id)!).filter(Boolean)} currentId={result?.result_id || null} selected={visualSelection}

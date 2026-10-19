@@ -13,9 +13,11 @@ const TONES = {
 export default function TerritorialSelection({items, selected, onChange, disabled, reason,
   label = "Seleção territorial compartilhada", title = "Municípios e territórios selecionados",
   description = "Use este conjunto nas próximas análises. Cada resultado preserva seu próprio recorte.", tone = "blue",
-  listLabel = "Seleção atual"}: {
+  listLabel = "Seleção atual", embedded = false}: {
   items: Territory[]; selected: string[]; onChange: (ids: string[]) => void; disabled: boolean; reason?: string;
   label?: string; title?: string; description?: string; tone?: keyof typeof TONES; listLabel?: string;
+  /** Dentro de outro quadro (caixa "Abrangência territorial" das configurações): sem moldura própria. */
+  embedded?: boolean;
 }) {
   const colors = TONES[tone];
   const [query, setQuery] = useState("");
@@ -25,7 +27,7 @@ export default function TerritorialSelection({items, selected, onChange, disable
   const matches = useMemo(() => items.filter(item => (!state || item.state_name === state) &&
     normalize([item.label, item.state, item.state_name, ...item.parents].join(" ")).includes(normalize(query))), [items, query, state]);
   const toggle = (id: string) => onChange(selectedSet.has(id) ? selected.filter(value => value !== id) : [...selected, id]);
-  return <section aria-label={label} className={"no-print my-4 min-w-0 rounded-2xl border " + colors.box + " p-4"}>
+  return <section aria-label={label} className={"no-print min-w-0 " + (embedded ? "" : "my-4 rounded-2xl border " + colors.box + " p-4")}>
     <h3 className="text-sm font-semibold text-ink">{title}</h3>
     <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
     <div className="mt-3 flex flex-wrap gap-2">

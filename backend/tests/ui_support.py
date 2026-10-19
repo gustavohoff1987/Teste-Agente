@@ -44,10 +44,18 @@ def end_session(page):
     page.get_by_test_id("confirm-new-session").click()
 
 
+def expand(toggle):
+    """Abre a lista de uma caixa das configurações (período ou abrangência territorial), se estiver fechada."""
+    if toggle.get_attribute("aria-expanded") != "true":
+        toggle.click()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+
+
 def workspace(page, stage):
     """Percorre as áreas visíveis, sem forçar interação com controles ocultos.
 
-    A seleção territorial é um bloco da preparação: "territories" abre a preparação e expande esse bloco."""
+    A seleção territorial é um bloco da preparação: "territories" abre a preparação e expande esse bloco. Na base
+    oficial, o bloco é a caixa "Abrangência territorial" das configurações, com o Brasil e os municípios."""
     names = {"territories": "1. Preparação", "preparation": "1. Preparação", "results": "2. Resultados"}
     button = page.get_by_role("button", name=names[stage], exact=True)
     button.click()
@@ -56,10 +64,8 @@ def workspace(page, stage):
         card = page.get_by_test_id("territory-card")
         expect(card).to_be_visible()
         toggle = card.get_by_test_id("territory-toggle")
-        if toggle.count():  # no recorte nacional o bloco só informa o território único, sem seleção
-            if toggle.get_attribute("aria-expanded") != "true":
-                toggle.click()
-            expect(toggle).to_have_attribute("aria-expanded", "true")
+        if toggle.count():  # fora da base oficial, no recorte nacional o bloco só informa o território único
+            expand(toggle)
 
 
 def stage(page, number):

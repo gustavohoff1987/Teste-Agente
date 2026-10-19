@@ -99,24 +99,30 @@ enviar identificadores ou dados da base ao provedor. Testes e evidências estão
 
 ## Etapas operacionais, períodos e comparação
 
-Somente uma área principal fica visível: **1. Preparação** ou **2. Resultados**. A seleção territorial
-faz parte da preparação: um bloco de uma linha resume a seleção atual (por exemplo, “Territórios:
+Somente uma área principal fica visível: **1. Preparação** ou **2. Resultados**. As duas aparecem
+como abas: um contorno desce da aba ativa e envolve todo o conteúdo da etapa, para deixar claro o que
+pertence à preparação (ou aos resultados); a aba Resultados fica esmaecida até haver um resultado. A
+preparação começa com a orientação "Realize as configurações conforme a sua escolha.".
+
+A seleção territorial faz parte da preparação. Na base oficial, ela fica na caixa **Abrangência
+territorial** das configurações (descrita adiante). Nas bases importadas, e na base oficial com
+significados alterados, um bloco de uma linha resume a seleção atual (por exemplo, “Territórios:
 1 selecionado: ABREU E LIMA (PE)”) e só expande a busca quando o usuário escolhe “Escolher
 territórios” ou “Alterar territórios”; “Concluir seleção” recolhe o bloco. Assim, a preparação
 continua curta, sem a etapa própria de territórios nem a rolagem longa anterior. Em referência mais
-próxima e critérios, o bloco se chama “Municípios-alvo” e “Universo dos critérios”. No recorte
-nacional, o bloco só informa que há um único território (Brasil) e que a escolha de municípios vale
-para a abrangência Municípios.
+próxima e critérios, a lista se chama “Municípios-alvo” e “Universo dos critérios”. Fora da
+base oficial, no recorte nacional, o bloco só informa que há um único território (Brasil) e que a
+escolha de municípios vale para a abrangência Municípios.
 Voltar preserva seleção, opções e edição de períodos. “Retomar parâmetros” restaura a preparação
-e a revalida. “Usar seleção na próxima análise” abre a preparação com o bloco de territórios
-expandido; reutilizar referências abre a preparação. O Histórico e a navegação Resultados abrem
+e a revalida. “Usar seleção na próxima análise” abre a preparação com a seleção territorial
+expandida (na base oficial, a caixa Abrangência territorial); reutilizar referências abre a preparação. O Histórico e a navegação Resultados abrem
 inclusive o mesmo resultado já selecionado.
 Uma resposta assíncrona não agenda uma navegação posterior capaz de desfazer a escolha do usuário.
 O carrossel de análises mantém a opção em exploração quando o pré-exame apenas atualiza sua
 disponibilidade; selecionar outra análise continua abrindo a preparação correspondente.
 
 “Usar dados do Brasil.” aciona a mesma seleção de fonte dos botões. “Volte para a seleção de
-territórios.” abre a preparação com o bloco de territórios expandido; os demais comandos de
+territórios.” abre a preparação com a seleção territorial expandida; os demais comandos de
 navegação mudam somente a área visível. “Quero analisar vários
 períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
 que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
@@ -127,20 +133,40 @@ vêm incluídas por padrão (por exemplo, na evolução temporal), elas aparecem
 escolhe só a competência clicada. Depois dessa escolha, ou de "Todos os períodos disponíveis", cada
 clique acrescenta ou retira uma competência (as marcadas têm ✓ e fundo preenchido; as retiradas,
 contorno tracejado). O usuário também escolhe um intervalo contínuo ("de janeiro de 2014 até junho
-de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de avançar. Enquanto
+de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de concluir. Enquanto
 outro recorte carrega, a lista fica bloqueada, porque a escolha seria descartada quando ele chegasse. Uma linha
 abaixo descreve a escolha ("4 competências, de janeiro de 2014 a junho de 2015"). Ao voltar para
 período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
 permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
 
-Na base oficial, o "Resumo da análise" substitui o texto corrido dos parâmetros por cartões de
-fonte, categoria, períodos e indicador. Os períodos aparecem em ordem cronológica e resumidos por
-intervalo, com as lacunas nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de
-2024, exceto junho de 2015"); até três competências fora de sequência aparecem pelo nome ("janeiro
-de 2014 e junho de 2015"). A abrangência é uma escolha entre Municípios e Brasil (total nacional)
-somente em quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes; nas
-demais, a preparação informa que só a fonte municipal se aplica. Durante a troca de abrangência, a
-preparação continua visível e bloqueada, com aviso de carregamento junto à escolha.
+Na base oficial, a preparação reúne as **Configurações** em caixas seletoras, no lugar do texto
+corrido dos parâmetros: **Categoria** (a base oficial tem só MEDICINA), **Período**, **Abrangência
+territorial** e **Indicador** (Quantidade ou Densidade por 1.000 habitantes; em Densidade e
+Quantitativos, o indicador é o da própria análise). Na mesma grade entram o Agrupamento da
+distribuição, o Território de referência da análise espacial e, fora da versão governada, o
+Referencial geodésico das análises de distância. Não há caixa de fonte: a abrangência territorial já
+diz se a análise usa o Brasil ou os municípios. Uma caixa ainda sem escolha fica destacada, e o
+cálculo só é liberado depois dela.
+
+A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
+Numa análise de período único, escolher a competência recolhe a lista. Vários períodos só existem
+em quantitativos, evolução temporal (que começa com todas as competências) e relatórios, por
+"Selecionar vários períodos"; "Concluir" recolhe a lista. Não há etapa separada de escolha do
+período. A caixa mostra os períodos em ordem cronológica e resumidos por intervalo, com as lacunas
+nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de 2024, exceto junho de 2015");
+até três competências fora de sequência aparecem pelo nome ("janeiro de 2014 e junho de 2015").
+
+A caixa **Abrangência territorial** reúne o Brasil (total nacional) e os municípios. Em
+quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes, ela oferece
+"Brasil (total nacional)" e "Municípios", com a lista de municípios para pesquisar por nome ou código
+e marcar um ou mais. Com o total nacional escolhido, a lista vem do último pré-exame municipal ou é
+consultada ao abrir a caixa, sem trocar o recorte; marcar municípios leva então a análise ao recorte
+municipal, já com os municípios marcados. Sem municípios marcados, a análise considera
+todos os municípios do recorte. Ao escolher o total nacional, a seleção de municípios continua
+guardada para a volta aos municípios. Nas demais análises, a caixa informa que só a fonte municipal
+se aplica. O arquivo nacional não tem população: no total nacional, "Densidade por 1.000
+habitantes" aparece indisponível na caixa Indicador. Durante a troca de abrangência, a preparação
+continua visível e bloqueada, com aviso de carregamento abaixo das configurações.
 
 Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
 quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. Nesse caso,
@@ -149,7 +175,7 @@ não exibem caixas de confirmação, nem nas condições avançadas, e a origem 
 em "Método e limitações"
 (ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
 Na versão governada, as análises de distância também não pedem o referencial nem o separador
-decimal: o resumo mostra "Referencial: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
+decimal: as configurações mostram "Referencial das distâncias: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
 informa essa origem, e as condições avançadas informam o formato numérico em vez de pedi-lo.
 Bases importadas e significados alterados continuam passando por suas confirmações específicas.
 

@@ -148,6 +148,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .analysis-pane { min-width:0; background:#fbfcfd; border-radius:0 0 24px 24px; }
 .analysis-scroll { padding:0 20px 24px; }
 .analysis-scroll #resultados { scroll-margin-top:16px; }
+/* Etapas da investigação como abas: a aba ativa se prolonga num contorno que envolve todo o conteúdo da etapa. */
+.stage-tabs { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px; padding-top:12px; }
+.stage-tab { padding:8px 16px; border:2px solid #dfe7ed; border-bottom:0; border-radius:12px 12px 0 0; background:#f3f6f9; color:#52677a; font-size:12px; font-weight:650; }
+.stage-tab:hover:not(:disabled) { background:#e6f2f4; }
+.stage-tab:disabled { opacity:.45; cursor:not-allowed; }
+.stage-tab[aria-current="step"] { position:relative; z-index:1; margin-bottom:-2px; padding-bottom:10px; border-color:#0c8792; background:#fff; color:#0c8792; }
+.stage-frame { position:relative; padding:4px 14px 16px; border:2px solid #0c8792; border-radius:0 18px 18px 18px; background:#fff; }
 .conversation-dock { position:sticky; bottom:0; z-index:20; border-top:1px solid #bed1df; border-radius:0 0 24px 24px; background:#fff; box-shadow:0 -6px 20px #1027400c; }
 .conversation-composer { padding:10px 16px; margin:auto; width:100%; }
 .conversation-composer textarea { padding:10px 12px; min-height:44px; }
@@ -170,6 +177,8 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
   .main-navigation > button,.main-navigation summary { padding:9px 11px; font-size:12px; }
   .history-list { position:fixed; left:12px; right:12px; top:auto; width:auto; }
   .analysis-scroll { padding:0 8px 16px; }
+  .stage-tab { padding:8px 12px; }
+  .stage-frame { padding:4px 8px 12px; border-radius:0 14px 14px 14px; }
   .agent-guidance { padding:12px 8px; }
   .conversation-composer { padding:8px; }
   .latest-reply { padding:8px 10px 0; font-size:12px; }
@@ -184,4 +193,5 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
   #selected-result-content[hidden] { display:block !important; }
   .conversation-workspace,.integrated-investigation,.analysis-pane,.analysis-scroll { display:block; height:auto; overflow:visible; border:0; padding:0; }
   .preparation-context { display:none !important; }
+  .stage-frame { padding:0 !important; border:0 !important; }
 }

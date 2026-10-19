@@ -2,7 +2,7 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind em uma área de investigação horizontal, com banner e cinco ações: Início, Nova sessão, Nova análise, Histórico e Resultados. Cada análise tem duas áreas, Preparação e Resultados; a seleção de territórios é um bloco recolhível da preparação. O personagem original acompanha dados, preparação e resultados. A conversa preserva o contexto em memória e mostra a última resposta do agente junto ao campo de mensagem, inclusive durante a exploração de resultados.
+- **Interface:** React + TypeScript + Tailwind em uma área de investigação horizontal, com banner e cinco ações: Início, Nova sessão, Nova análise, Histórico e Resultados. Cada análise tem duas áreas em abas, Preparação e Resultados, com um contorno que desce da aba ativa e envolve o conteúdo da etapa. Na base oficial, a preparação reúne as configurações em caixas seletoras (Categoria, Período, Abrangência territorial e Indicador); nas bases importadas, a seleção de territórios é um bloco recolhível da preparação. O personagem original acompanha dados, preparação e resultados. A conversa preserva o contexto em memória e mostra a última resposta do agente junto ao campo de mensagem, inclusive durante a exploração de resultados.
 - **Investigação progressiva:** análises independentes e diagnósticos compostos têm identificação própria. Cada componente mantém resultados, recortes, parâmetros e métodos; a composição não calcula valores conjuntos. Filtros e seleções visuais são lembrados por resultado. Veja [Interface conversacional integrada](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [Análise exploratória integrada](Docs/ANALISE_EXPLORATORIA_INTEGRADA.md).
 - **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional, a referência geográfica mais próxima (Bloco 2, Etapa 1) e os critérios combinados com réguas, rankings e recortes (Bloco 2, Etapa 2) são determinísticos.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
@@ -41,9 +41,12 @@ uma sessão lógica: `Dados_Brasil.xlsx` (nacional) e
 os arquivos separadamente. São oferecidos como fontes independentes no chat,
 sem concatenar seus registros. Ao escolher uma análise, o sistema usa o recorte
 nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
-municípios. Nessas três análises, válidas nas duas fontes, a preparação mostra a escolha
-**Abrangência dos dados** entre Municípios e Brasil (total nacional); nas demais, informa que
-a análise usa somente a fonte municipal, sem uma opção que levaria ao bloqueio. Ao trocar de
+municípios. Nessas três análises, válidas nas duas fontes, a caixa **Abrangência territorial**
+das configurações oferece o Brasil (total nacional) e os municípios, com busca e escolha de um ou
+mais municípios; marcar municípios leva a análise ao recorte municipal. Com o total nacional
+escolhido, a lista de municípios vem do último pré-exame municipal ou de uma consulta só de leitura
+ao recorte municipal (`/api/inspect`), feita ao abrir a caixa. Nas demais, a caixa informa
+que a análise usa somente a fonte municipal, sem uma opção que levaria ao bloqueio. Ao trocar de
 recorte, a preparação continua na tela, bloqueada e com aviso de carregamento, até o novo
 recorte chegar; a interface não volta à escolha da fonte. Trocar de recorte limpa resultados;
 confirmações comuns verificáveis de período/categoria são preservadas quando a análise de
