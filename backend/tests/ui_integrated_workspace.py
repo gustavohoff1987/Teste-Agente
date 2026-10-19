@@ -24,6 +24,11 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('request', lambda request: requests.append(request) if request.url.endswith('/api/analyze') else None)
         page.goto(URL)
+        # O pop-up de início traz só a declaração de privacidade e o botão de aceite.
+        privacy = page.get_by_role('dialog', name='Declaro que não compartilharei dados pessoais ou sensíveis')
+        expect(privacy).to_be_visible()
+        for absent in ('1800', 'eliminad', '30 minutos', 'Antes de começar'):
+            expect(privacy).not_to_contain_text(absent)
         page.get_by_role('button', name='Li e concordo', exact=True).click()
         navigation = page.get_by_test_id('main-navigation')
         expect(navigation.locator(':scope > button')).to_have_count(4)

@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-19 · Pop-up de início só com a declaração de privacidade
+
+- **Antes:** o pop-up de início tinha um ícone, o título "Antes de começar", a declaração de privacidade e um parágrafo sobre o prazo da sessão: "Esta sessão e seu conteúdo são eliminados ao acionar Encerrar sessão ou após 30 minutos (1800 segundos) sem interação efetiva sua…" (texto TPL-09 da SPEC). Depois de uma sessão encerrada, esse parágrafo aparecia também junto do aviso de descarte.
+- **Agora:** o pop-up mostra só a declaração "Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat." e o botão "Li e concordo". A declaração passa a dar nome ao diálogo para leitores de tela. Depois de uma sessão encerrada, o aviso de descarte continua acima da declaração.
+- **Permanece:** o aceite por aba, o aviso de descarte ("A sessão anterior foi encerrada." ou "A sessão anterior expirou ou ficou indisponível no servidor.", seguido de "Os resultados e a investigação temporária foram descartados. Eles não podem ser reabertos nesta nova sessão."), o encerramento da sessão no servidor após 1.800 segundos sem interação efetiva e o descarte do conteúdo. Só o texto sobre o prazo deixa de aparecer.
+- **Motivo:** decisão do responsável pelo produto (19/10/2026): "Pop-up de início é só precisa ter declarado que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat. Só isso." e a informação sobre conteúdos eliminados e 1.800 segundos "não tem sentido". **Divergência da SPEC registrada:** RQ-FLX-19 e TPL-09 pedem esse aviso no início da sessão (AT-44); a SPEC não foi alterada.
+- **Documentação e testes:** README (sessão e fronteira da SPEC) e análise exploratória integrada. `ui_integrated_workspace.py` passa a conferir que o diálogo tem a declaração como nome e não mostra o prazo, "eliminados" nem o título antigo. Nenhuma verificação foi removida.
+
 ### 2026-10-19 · As quatro caixas das configurações em todas as análises
 
 - **Antes:** depois de `deb3882`, as caixas Categoria, Período, Abrangência territorial e Indicador apareciam completas só em densidade, quantitativos, distribuição, comparações, evolução temporal e relatórios. Agregações, recortes e rankings, referência mais próxima e critérios combinados não tinham a caixa Indicador; a análise espacial não tinha Período nem Indicador; a rotatividade não tinha Período nem Indicador e pedia o período inicial e o final em seletores soltos no texto, com os códigos das competências (201401). Valores longos nas caixas de escolha eram cortados com reticências.
