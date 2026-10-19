@@ -140,13 +140,23 @@ período único, a primeira competência selecionada permanece. As competências
 permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
 
 Na base oficial, a preparação reúne as **Configurações** em caixas seletoras, no lugar do texto
-corrido dos parâmetros: **Categoria** (a base oficial tem só MEDICINA), **Período**, **Abrangência
-territorial** e **Indicador** (Quantidade ou Densidade por 1.000 habitantes; em Densidade e
-Quantitativos, o indicador é o da própria análise). Na mesma grade entram o Agrupamento da
-distribuição, o Território de referência da análise espacial e, fora da versão governada, o
-Referencial geodésico das análises de distância. Não há caixa de fonte: a abrangência territorial já
-diz se a análise usa o Brasil ou os municípios. Uma caixa ainda sem escolha fica destacada, e o
-cálculo só é liberado depois dela.
+corrido dos parâmetros. Todas as análises mostram as mesmas quatro caixas, nesta ordem: **Categoria**
+(a base oficial tem só MEDICINA), **Período**, **Abrangência territorial** e **Indicador**. Em
+distribuição, comparações, evolução temporal e relatórios, o Indicador é a escolha entre Quantidade e
+Densidade por 1.000 habitantes. Nas demais análises, a caixa mostra, numa opção só (como a
+categoria), o indicador que o motor calcula: Densidade por 1.000 habitantes (densidade e recortes e
+rankings), Quantidade (quantitativos), Quantidade e densidade por 1.000 habitantes (agregações),
+Distância geodésica (km) (análise espacial), Permanência e rotatividade da coorte (%) (rotatividade),
+Distância à referência mais próxima (km) (referência mais próxima) e, nos critérios combinados, os
+atributos usados nas condições, na ordenação e nas faixas ("Definido nos critérios" enquanto não há
+nenhum). Na análise espacial, o Período informa "Não se aplica", porque as distâncias não dependem
+do período; na rotatividade, a caixa Período abre o período inicial e o final da coorte (sem escolha,
+valem a primeira e a última competência). Na mesma grade entram o Agrupamento da distribuição, o
+Território de referência da análise espacial e, fora da versão governada, o Referencial geodésico
+das análises de distância; as referências da referência mais próxima e os critérios do usuário
+continuam em quadros próprios logo abaixo. Não há caixa de fonte: a abrangência territorial já diz
+se a análise usa o Brasil ou os municípios. Uma caixa ainda sem escolha fica destacada, e o cálculo
+só é liberado depois dela. Valores longos aparecem por inteiro, com quebra de linha.
 
 A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
 Numa análise de período único, escolher a competência recolhe a lista. Vários períodos só existem

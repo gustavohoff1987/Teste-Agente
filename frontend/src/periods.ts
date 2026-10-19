@@ -49,3 +49,11 @@ export function periodRange(all: string[], first: string, last: string): string[
   const [a, b] = [periods.indexOf(first), periods.indexOf(last)].sort((x, y) => x - y);
   return a < 0 ? [] : periods.slice(a, b + 1);
 }
+
+/** Coorte da rotatividade: competências inicial e final; sem escolha, valem a primeira e a última disponíveis. */
+export function rotationPeriods(all: string[], initial: string, final: string): string {
+  const periods = chronological(all);
+  const first = initial || periods[0] || "", last = final || periods[periods.length - 1] || "";
+  if (!first || !last) return "Escolher períodos";
+  return first === last ? readablePeriod(first) : "de " + readablePeriod(first) + " a " + readablePeriod(last);
+}

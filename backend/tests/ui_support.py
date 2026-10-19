@@ -6,7 +6,8 @@ from playwright.sync_api import expect
 URL = os.getenv("ADT_UI_URL", "http://127.0.0.1:5173/")
 assert urlparse(URL).hostname in ("127.0.0.1", "localhost", "::1")
 TITLES = ["Densidade", "Quantitativos", "Distribuição", "Comparações", "Evolução temporal",
-          "Agregações", "Análise espacial", "Recortes e rankings", "Rotatividade", "Relatórios"]
+          "Agregações", "Análise espacial", "Recortes e rankings", "Rotatividade", "Relatórios",
+          "Referência mais próxima", "Critérios combinados"]
 
 
 def offline(context):

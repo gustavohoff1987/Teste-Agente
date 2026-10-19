@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Play, SlidersHorizontal } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import PeriodSelection, {PeriodChoices} from "./PeriodSelection";
-import {describePeriods} from "./periods";
+import {chronological, describePeriods, readablePeriod, rotationPeriods} from "./periods";
+import {ownIndicator} from "./analysisCatalog";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
@@ -32,6 +33,11 @@ type Props = {
   onTerritoriesOpen: (open: boolean) => void;
   territorySelection?: ReactNode;
   territorySummary: string;
+  /** Rotatividade: competências inicial e final da coorte (vazias = primeira e última disponíveis). */
+  rotationPeriods: {initial: string; final: string};
+  onRotationPeriod: (which: "initial" | "final", period: string) => void;
+  /** Critérios combinados: atributos numéricos usados nas condições, na ordenação e nas faixas. */
+  criteriaAttributes: string[];
   columns: string[];
   mapping: Mapping;
   onField: (role: FieldRole, column: string) => void;
@@ -119,17 +125,29 @@ function ConfigSelect({label, ariaLabel = label, value, options, onChange, place
   label: string; ariaLabel?: string; value: string; options: Choice[]; onChange: (value: string) => void;
   placeholder?: string; pending?: boolean;
 }) {
-  return <label className={BOX + " cursor-pointer " + boxTone(false, pending)}>
+  // O valor aparece por inteiro, com quebra de linha; o seletor nativo, transparente, cobre a caixa e recebe o clique e o teclado.
+  const shown = options.find(o => o.value === value)?.label || placeholder;
+  return <label className={BOX + " relative cursor-pointer focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 " +
+    "focus-within:outline-[#3bb5be] " + boxTone(false, pending)}>
     <span className={BOX_LABEL}>{label}</span>
-    <span className="relative mt-0.5 block">
-      <select aria-label={ariaLabel} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full min-w-0 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-6 text-sm font-semibold leading-5 text-ink">
-        {!value && <option value="" disabled>{placeholder}</option>}
-        {options.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
-      </select>
-      <ChevronDown size={14} aria-hidden="true" className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-teal"/>
+    <span aria-hidden="true" className="mt-0.5 flex w-full items-start justify-between gap-2">
+      <span className="min-w-0 text-sm font-semibold leading-5 text-ink">{shown}</span>
+      <ChevronDown size={14} className="mt-0.5 shrink-0 text-teal"/>
     </span>
+    <select aria-label={ariaLabel} value={value} onChange={e => onChange(e.target.value)}
+      className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0">
+      {!value && <option value="" disabled>{placeholder}</option>}
+      {options.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
+    </select>
   </label>;
+}
+/** Caixa sem escolha, para o que não se aplica à análise (por exemplo, o período das distâncias). */
+function ConfigInfo({label, value, note, valueTestId}: {label: string; value: string; note: string; valueTestId: string}) {
+  return <div className={BOX + " border-line bg-slate-50"}>
+    <span className={BOX_LABEL}>{label}</span>
+    <span data-testid={valueTestId} className="mt-0.5 text-sm font-semibold leading-5 text-slate-500">{value}</span>
+    <span className="text-[11px] leading-4 text-slate-500">{note}</span>
+  </div>;
 }
 /** Caixa que abre uma lista abaixo das configurações (período e abrangência territorial). */
 function ConfigToggle({id, testId, toggleTestId, label, ariaLabel, value, valueTestId, open, pending = false, controls, onToggle}: {
@@ -190,9 +208,10 @@ export default function ConversationalPreparation(p: Props) {
     // Períodos em ordem cronológica e resumidos por intervalo; sem escolha, a caixa pede a escolha.
     const periodValue = periodReady ? describePeriods(multiple ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : p.periods, p.periods)
       : multiple ? "Escolher períodos" : "Escolher período";
-    // Densidade e quantitativos têm indicador próprio; nas análises com escolha, a caixa oferece os dois. O total nacional
-    // não tem população: lá a densidade aparece indisponível, em vez de levar a um cálculo bloqueado.
-    const fixedIndicator = indicatorChoices.filter(item => item.value === (p.operation === "density" ? "density" : p.operation === "counts" ? "quantity" : ""));
+    // As quatro caixas aparecem em todas as análises. Sem escolha entre quantidade e densidade, a caixa Indicador mostra
+    // o indicador próprio da análise, numa opção só. O total nacional não tem população: lá a densidade aparece
+    // indisponível, em vez de levar a um cálculo bloqueado.
+    const own = ownIndicator(p.operation, p.criteriaAttributes);
     const scopedIndicators = p.scope === "national" ? indicatorChoices.map(item => item.value === "density"
       ? {...item, label: item.label + " (somente municípios)", disabled: true} : item) : indicatorChoices;
     return <section aria-label="Preparação na conversa" className="mt-2 space-y-3 text-sm leading-7 text-slate-700">
@@ -200,14 +219,18 @@ export default function ConversationalPreparation(p: Props) {
       <div data-testid="analysis-summary" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <ConfigSelect label="Categoria" value={p.categoryFilter} options={named(p.categories)} onChange={p.onCategory}
           placeholder="Escolher categoria" pending={!p.categoryFilter}/>
-        {usesPeriods && <ConfigToggle label="Período" ariaLabel="Escolher períodos da análise" value={periodValue} valueTestId="period-summary"
-          open={periodOpen} pending={!periodReady} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>}
+        {usesPeriods ? <ConfigToggle label="Período" ariaLabel="Escolher períodos da análise" value={periodValue} valueTestId="period-summary"
+            open={periodOpen} pending={!periodReady} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>
+          : p.operation === "rotation" ? <ConfigToggle label="Período" ariaLabel="Escolher os períodos da coorte" valueTestId="period-summary"
+            value={rotationPeriods(p.periods, p.rotationPeriods.initial, p.rotationPeriods.final)}
+            open={periodOpen} controls="configuracao-periodo" onToggle={() => setPeriodOpen(!periodOpen)}/>
+          : <ConfigInfo label="Período" value="Não se aplica" note="As distâncias não dependem do período." valueTestId="period-summary"/>}
         <ConfigToggle id="territorios" testId="territory-card" toggleTestId="territory-toggle" label="Abrangência territorial"
           ariaLabel="Escolher a abrangência territorial" value={p.territorySummary} valueTestId="scope-summary"
           open={p.territoriesOpen} controls="territorios-painel" onToggle={() => p.onTerritoriesOpen(!p.territoriesOpen)}/>
         {requiresIndicator ? <ConfigSelect label="Indicador" value={p.indicator} options={scopedIndicators}
             onChange={value => p.onIndicator(value as "quantity" | "density")} placeholder="Escolher indicador" pending={!p.indicator}/>
-          : !!fixedIndicator.length && <ConfigSelect label="Indicador" value={fixedIndicator[0].value} options={fixedIndicator} onChange={() => {}}/>}
+          : <ConfigSelect label="Indicador" value={own} options={[{label: own, value: own}]} onChange={() => {}}/>}
         {p.operation === "distribution" && <ConfigSelect label="Agrupamento" ariaLabel="Agrupamento da distribuição" value={String(p.quantiles)}
           options={groupChoices} onChange={value => p.onQuantiles(Number(value))}/>}
         {p.operation === "spatial" && <ConfigSelect label="Território de referência" value={p.reference} options={named(p.territories)}
@@ -232,6 +255,22 @@ export default function ConversationalPreparation(p: Props) {
           A soma entre diferentes meses não representa pessoas únicas.</p>}
         {periodReady && <button type="button" data-testid="period-done" aria-label="Concluir a escolha do período"
           onClick={() => setPeriodOpen(false)} className={DONE}>Concluir</button>}
+      </div>}
+      {p.operation === "rotation" && periodOpen && <div id="configuracao-periodo" role="group" aria-label="Períodos da coorte" className={PANEL}>
+        <p className="font-medium text-ink">Quais períodos delimitam a coorte?</p>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {(["initial", "final"] as const).map(which => <label key={which} className="flex items-center gap-2">
+            {which === "initial" ? "Período inicial" : "Período final"}
+            <select aria-label={which === "initial" ? "Período inicial" : "Período final"} value={p.rotationPeriods[which]}
+              onChange={e => p.onRotationPeriod(which, e.target.value)} className="min-w-0 rounded-md border border-line bg-white px-2 py-1">
+              <option value="">{which === "initial" ? "Primeira competência disponível" : "Última competência disponível"}</option>
+              {chronological(p.periods).map(value => <option key={value} value={value}>{readablePeriod(value)}</option>)}
+            </select>
+          </label>)}
+        </div>
+        <p className="text-xs leading-5 text-slate-600">A coorte reúne as pessoas do período inicial; a permanência é conferida no período final.</p>
+        <button type="button" data-testid="period-done" aria-label="Concluir a escolha do período"
+          onClick={() => setPeriodOpen(false)} className={DONE}>Concluir</button>
       </div>}
       {p.territoriesOpen && <div id="territorios-painel" role="group" aria-label="Abrangência territorial" className={PANEL}>
         {p.scopeChoice ? <ScopeOptions scope={p.scope} rescoping={p.rescoping} onScope={p.onScope}/>

@@ -7,7 +7,7 @@ async function source(name) {
     {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 }
-const {clickPeriod, compactPeriods, describePeriods, periodRange} = await source('periods');
+const {clickPeriod, compactPeriods, describePeriods, periodRange, rotationPeriods} = await source('periods');
 // Ordem do arquivo da base Brasil: não cronológica.
 const all = ['201401', '201406', '201501', '201506', '201606', '201701', '201601', '202406', '202401'];
 
@@ -46,4 +46,12 @@ test('com todos os períodos por padrão, o clique escolhe a competência; depoi
   assert.deepEqual(clickPeriod(['201401', '201506'], '201506', false), ['201401']);
   // Depois de "Todos os períodos disponíveis" (escolha explícita), o clique retira a competência.
   assert.deepEqual(clickPeriod(all, '201506', false), all.filter(item => item !== '201506'));
+});
+
+test('coorte da rotatividade: períodos escolhidos ou, sem escolha, a primeira e a última competência', () => {
+  assert.equal(rotationPeriods(all, '', ''), 'de janeiro de 2014 a junho de 2024');
+  assert.equal(rotationPeriods(all, '201506', ''), 'de junho de 2015 a junho de 2024');
+  assert.equal(rotationPeriods(all, '', '201601'), 'de janeiro de 2014 a janeiro de 2016');
+  assert.equal(rotationPeriods(['202406'], '', ''), 'junho de 2024');
+  assert.equal(rotationPeriods([], '', ''), 'Escolher períodos');
 });

@@ -24,8 +24,8 @@ import TerritorialSelection, {type Territory} from "./TerritorialSelection";
 import ReferenceSetup, {type ReferenceMode} from "./ReferenceSetup";
 import CriteriaBuilder from "./CriteriaBuilder";
 import {type CriteriaMetadata} from "./CriteriaResults";
-import { addCondition, complete, describe as describeCriteria, leaves as criteriaLeaves, nextId as nextLeafId, uses as criteriaUses,
-  type BandsSpec, type CriteriaNode, type Leaf, type RankingSpec } from "./criteriaTree";
+import { ATTRIBUTE_LABELS, addCondition, complete, describe as describeCriteria, leaves as criteriaLeaves, nextId as nextLeafId,
+  uses as criteriaUses, type BandsSpec, type CriteriaNode, type Leaf, type RankingSpec } from "./criteriaTree";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import { sessionFetch as fetch, contextRevision, updateContextRevision, trackSession, endSession } from "./conversationSession";
 import type { Multiplicity, ResolutionOptions } from "./DataResolution";
@@ -1074,6 +1074,10 @@ function App() {
     (active === "criteria" && !!preflight?.capabilities.criteria?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)));
   const decimalChoice = !governedPremises.has("number_format") && (decimalPending || !!resolutions.number_format);
   const criteriaAll = [...criteriaLeaves(criteriaTree), ...criteriaLeaves(criteriaComparison?.criteria || null)];
+  // Caixa "Indicador" dos critérios combinados: atributos numéricos das condições, da ordenação e das faixas.
+  const criteriaAttributes = [...new Set([...criteriaAll.map(leaf => leaf.attribute), criteriaRanking?.attribute, criteriaBands?.attribute])]
+    .filter(attribute => attribute === "densidade" || attribute === "quantidade" || attribute === "populacao" || attribute === "distancia")
+    .map(attribute => ATTRIBUTE_LABELS[attribute!]);
   const criteriaReferencesByCriterion = criteriaDistance && referenceMode === "criterion";
   const criteriaNeeds = {spatial: criteriaDistance,
     count: criteriaAll.some(leaf => leaf.attribute === "densidade" || leaf.attribute === "quantidade") ||
@@ -1491,6 +1495,9 @@ function App() {
       onTerritoriesOpen={setTerritoriesOpen}
       territorySelection={selectionContent}
       territorySummary={scopeSummary}
+      rotationPeriods={{initial: resolutions.initial_period || "", final: resolutions.final_period || ""}}
+      onRotationPeriod={(which, value) => setResolutions(previous => ({...previous, [which === "initial" ? "initial_period" : "final_period"]: value}))}
+      criteriaAttributes={criteriaAttributes}
       columns={inspection.columns}
       mapping={mapping}
       onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
@@ -1592,6 +1599,8 @@ function App() {
           </>}
         </>}
         {active === "rotation" && <>
+          {/* Na base oficial, os períodos da coorte ficam na caixa "Período" das configurações. */}
+          {!configurationPanel && <>
           <label className="flex items-center gap-2">Período inicial
             <select aria-label="Período inicial" value={resolutions.initial_period || ""}
               onChange={e=>setResolutions(p=>({...p,initial_period:e.target.value}))}
@@ -1606,6 +1615,7 @@ function App() {
               <option value="">Escolher</option>{(preflight?.values.periods || inspection.periods).map(v=><option key={v}>{v}</option>)}
             </select>
           </label>
+          </>}
           <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity}
             onChange={e=>setLongitudinalIdentity(e.target.checked)}/>
             O identificador representa a mesma pessoa nos períodos.</label>

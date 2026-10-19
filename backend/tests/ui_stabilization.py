@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline, execute_analysis, workspace, select, expand
+from ui_support import URL, offline, execute_analysis, workspace, select, expand, TITLES
 from ui_block1_smoke import exported_rows, assert_same_rows
 
 OUTPUT = Path(__file__).resolve().parents[2] / '.local/ui-validation'
@@ -225,6 +225,27 @@ def main():
             expect(steps.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', pressed)
         steps.get_by_test_id('period-done').click()
         expect(steps.get_by_test_id('period-summary')).to_have_text('janeiro de 2023 e junho de 2024')
+        # Todas as análises mostram as mesmas quatro caixas das configurações; sem escolha entre quantidade e densidade,
+        # o Indicador é o da própria análise, e o Período informa quando não se aplica (orientação de 19/10/2026).
+        own = {'Agregações': 'Quantidade e densidade por 1.000 habitantes', 'Análise espacial': 'Distância geodésica (km)',
+               'Recortes e rankings': 'Densidade por 1.000 habitantes', 'Rotatividade': 'Permanência e rotatividade da coorte (%)',
+               'Referência mais próxima': 'Distância à referência mais próxima (km)', 'Critérios combinados': 'Definido nos critérios'}
+        for title in TITLES:
+            select(fresh, title)
+            boxes = steps.get_by_test_id('analysis-summary')
+            for label in ('Categoria', 'Período', 'Abrangência territorial', 'Indicador'):
+                expect(boxes.get_by_text(label, exact=True)).to_be_visible(timeout=90000)
+            if title in own:
+                expect(steps.get_by_role('combobox', name='Indicador', exact=True)).to_have_value(own[title])
+            if title == 'Análise espacial':
+                expect(steps.get_by_test_id('period-summary')).to_have_text('Não se aplica')
+            if title == 'Rotatividade':
+                # A coorte vai da primeira à última competência, salvo escolha na própria caixa Período.
+                expect(steps.get_by_test_id('period-summary')).to_have_text('de janeiro de 2023 a junho de 2024')
+                expand(steps.get_by_label('Escolher os períodos da coorte'))
+                steps.get_by_label('Período inicial', exact=True).select_option('202306')
+                expect(steps.get_by_test_id('period-summary')).to_have_text('de junho de 2023 a junho de 2024')
+                steps.get_by_test_id('period-done').click()
         fresh.close()
 
         # Importação: múltiplos períodos não dispensam confirmação da unidade e da FTS.
