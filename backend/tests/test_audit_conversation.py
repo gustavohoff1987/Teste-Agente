@@ -82,6 +82,17 @@ def test_a10_pending_context_allows_only_local_guidance(provider):
     assert calls == []
 
 
+@pytest.mark.parametrize("ready", [None, "true", "True"])
+def test_a10_context_is_ready_unless_the_form_says_otherwise(provider, ready):
+    # Sem o campo, o contexto vale como pronto em qualquer versão do FastAPI (a 0.147 lê booleano
+    # ausente como falso); só "false" explícito bloqueia a proposta analítica.
+    install, _ = provider
+    install(RAW)
+    extra = {} if ready is None else {"context_ready": ready}
+    assert context("Quero distribuição", **extra).status_code == 200
+    assert context("Quero distribuição", context_ready="False").status_code == 409
+
+
 @pytest.mark.parametrize("patch", [{"operation": "counts", "indicator": "density"},
     {"operation": "none", "intent": "SOBRE_O_AGENTE", "topic": []}, {"operation": []},
     {"indicator": {}}, {"category": 2}, {"period": None}, {"territory": []},

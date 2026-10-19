@@ -700,7 +700,7 @@ async def llm_interpretation_with_dataset(
     file: UploadFile | None = File(None),
     message: str = Form(...),
     history: str = Form("[]"),
-    context_ready: bool = Form(True),
+    context_ready: str = Form("true"),
     mapping: str = Form("{}"),
     options: str = Form("{}"),
     sheet: str = Form(""),
@@ -730,7 +730,9 @@ async def llm_interpretation_with_dataset(
                 sessions.revision(x_adt_session, context_revision)
                 sessions.remember(x_adt_session, context_revision, quick)
             return quick
-        if not context_ready:
+        # O campo chega como texto; ausente vale "true". A leitura explícita não depende de como cada
+        # versão do FastAPI converte um booleano ausente (a 0.147 passou a tratá-lo como falso).
+        if context_ready.strip().lower() in ("false", "0", "no", "off"):
             raise HTTPException(status_code=409, detail="Aguarde ou repita a validação da base antes de solicitar uma proposta analítica.")
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
