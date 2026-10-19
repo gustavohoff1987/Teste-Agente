@@ -146,6 +146,10 @@ class Bench:
             "quantitativos_nacional": ("/api/analyze", {"dataset": "brazil", "scope": "national",
                                                         "dataset_version": self.version, "operation": "counts",
                                                         "mapping": self.national, "options": json.dumps(period)}),
+            # Rota de níveis (Abr §7.3): Brasil (BR-POP-JUNHO-1), um estado (soma dos municípios) e todos os municípios.
+            "niveis_densidade_br_sp_todos": ("/api/analyze", {
+                **base, "scope": "auto", "operation": "density", "options": json.dumps({
+                    **period, "abrangencia": {"brasil": True, "estados": ["35"], "municipios": {"todos": True}}})}),
         }
 
 

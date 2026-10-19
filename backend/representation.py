@@ -7,6 +7,11 @@ as coordenadas efetivas de cada território na competência do resultado, lidas 
 análises espaciais (referencial suportado, papéis de latitude e longitude estabelecidos, separador
 decimal escolhido ou verificado nos dados e camada geográfica complementar governada). Sem geometria autorizada, o mapa
 recebe BLQ-DAD com o motivo (RQ-REP-07); tabela e gráficos continuam disponíveis.
+
+Nos resultados com níveis territoriais (territorial_levels.py), o contrato declara os níveis ("niveis"), os painéis da
+série por tipo de contagem ("serie.paineis") e só desenha municípios no mapa: Brasil e estados são agregados sem ponto.
+A taxa nacional de referência (D5) chega pronta em "referencias"; o frontend não calcula, não classifica e não colore
+os municípios em relação a ela.
 """
 import re
 
@@ -31,11 +36,12 @@ REACH = ["Conjunto completo de referências", "Entre as referências avaliáveis
 CRITERIA_VALUE = re.compile(r"(c\d+) · (.+) \((.+)\)")
 
 
-def payload(frame, mapping, operation, options, result, nearest=None, criteria=None, breaks=None):
+def payload(frame, mapping, operation, options, result, nearest=None, criteria=None, breaks=None, levels=None):
     """Contrato compacto anexado aos metadados do resultado (metadata.representacao).
 
     `breaks` lista as unidades sem trajetória (tendência NAO_AVALIAVEL por INCOMPARABILIDADE): a série
-    as desenha só como pontos, sem linha entre competências (RQ-REP-15, AT-69)."""
+    as desenha só como pontos, sem linha entre competências (RQ-REP-15, AT-69). `levels` (rota de níveis)
+    traz a coluna e a ordem dos níveis e os painéis da série."""
     rows, detail = result.get("rows") or [], result.get("detail_rows") or []
     table = "detail_rows" if operation == "distribution" and detail else "rows"
     data = detail if table == "detail_rows" else rows
@@ -53,8 +59,14 @@ def payload(frame, mapping, operation, options, result, nearest=None, criteria=N
                          "resultado e na tabela, fora do mapa.")
     if any(item.get("unidade") == "km" for item in indicators):
         notes.append(TPL_11)
-    return {"versao": VERSION, "tabela": table, "vinculo": _link(operation, mapping), "indicadores": indicators,
-            "serie": _series(operation, rows, detail, mapping, options, breaks), "geometria": geometry, "notas": notes}
+    series = _series(operation, rows, detail, mapping, options, breaks)
+    out = {"versao": VERSION, "tabela": table, "vinculo": _link(operation, mapping), "indicadores": indicators,
+           "serie": series, "geometria": geometry, "notas": notes}
+    if levels:
+        out["niveis"] = levels.get("niveis")
+        if series is not None:
+            series["paineis"] = levels.get("paineis") or []
+    return out
 
 
 def _link(operation, mapping):
@@ -153,6 +165,12 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
     members = (result.get("metadata") or {}).get("universe", {}).get("members") or []
     if not members:
         return {"estado": "NAO_APLICAVEL", "motivo": "Mapa não aplicável: o resultado não tem territórios identificados."}
+    # Só municípios têm ponto: Brasil e estados (níveis agregados) nunca entram no mapa nem em "sem_geometria".
+    members = [item for item in members if item.get("nivel") == "MUN" or
+               (item.get("nivel") is None and str(item.get("id", "")).startswith(("code:", "name:")))]
+    if not members:
+        return {"estado": "NAO_APLICAVEL", "motivo": "Mapa não aplicável: Brasil e estados são agregados sem ponto; "
+                                                     "marque municípios para ver o mapa."}
     if nearest is not None:
         period = nearest["structured"].get("periodo_geometria")
     elif criteria is not None:

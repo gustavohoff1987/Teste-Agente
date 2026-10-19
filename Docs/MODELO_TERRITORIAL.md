@@ -37,6 +37,15 @@ não substitui as premissas metodológicas (aplicadas pelo backend, com nota) e 
 contagens de profissionais. Municípios homônimos podem ser diferenciados por
 códigos, que são tratados como identificadores opacos.
 
+Na base Brasil oficial (desde 19/10/2026), o estado de cada município vem do prefixo do código IBGE, pela
+regra governada `brasil-cod-uf-prefix-1`, e não da coluna `uf`. O estado como objeto de análise é sempre a
+soma dos seus municípios (SOMA_DOS_COMPONENTES, com possível dupla contagem), nunca o total de pessoas
+distintas do estado nem algo comparável com o total do Brasil. A divergência da coluna `uf` em uma
+competência (o 251365, declarado PA em 2016/6) vira uma nota, e o município continua selecionável como PB.
+Em bases importadas, a hierarquia de colunas continua só descritiva: não autoriza agregação, e a unidade
+com hierarquia divergente continua bloqueada para seleção. Detalhes:
+[abrangência territorial](ABRANGENCIA_TERRITORIAL.md).
+
 ## Compatibilidade
 
 O carregador normaliza apenas em memória. Nenhuma coluna é renomeada nos

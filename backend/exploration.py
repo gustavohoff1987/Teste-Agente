@@ -111,7 +111,7 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
             continue
         # "Municípios do Paraná" não pode virar o município Paraná (RN) sem esclarecimento.
         if expression in states and expression in names:
-            return {"handled": True, "clarification": "“" + states[expression] + "” identifica um estado e também um município. Selecione os municípios na pesquisa territorial ou pelo filtro de estado."}
+            return {"handled": True, "clarification": "“" + states[expression] + "” identifica um estado e também um município. Marque os municípios na abrangência territorial."}
         if expression in states:
             state_ids += [item["id"] for item in catalog if normalize(item["state_name"]) == expression]
         else:

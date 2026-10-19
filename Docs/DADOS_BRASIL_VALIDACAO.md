@@ -55,9 +55,13 @@ as únicas com resultado nas duas fontes, o usuário escolhe a abrangência expl
 municipal se aplica. Trocar de recorte refaz o pré-exame no backend; escolhas comuns de período e
 categoria são preservadas quando equivalentes.
 
-Não há união, preenchimento ou soma entre fontes. Quantitativos nacionais são lidos
-da fonte nacional; não são obtidos pela soma das contagens municipais. Na agregação
-municipal, a aditividade das populações e a soma dos componentes são premissas internas da
+Não há união nem preenchimento de linhas entre fontes, e nenhuma fonte é somada à outra. Quantitativos
+nacionais são lidos da fonte nacional; não são obtidos pela soma das contagens municipais. Desde
+19/10/2026, a API aceita Brasil, estados e municípios como níveis da base oficial
+([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)), sempre em blocos separados e sem somar um nível a
+outro: a densidade do Brasil combina a contagem nacional com a população municipal de junho do mesmo ano
+(regra governada BR-POP-JUNHO-1), e o estado é a soma dos seus municípios pelo prefixo do código IBGE. Na
+agregação municipal, a aditividade das populações e a soma dos componentes são premissas internas da
 base oficial (seção seguinte), e o total conserva o rótulo de possível dupla contagem.
 Selecionar um recorte sem os requisitos necessários mantém a análise bloqueada.
 
@@ -95,6 +99,20 @@ municipais têm latitude e longitude preenchidas com vírgula decimal ou inteira
 44 longitudes inteiras), e quantidade e população estimada só com dígitos; sem essa evidência, o
 separador decimal vira escolha do usuário.
 
+### Regras governadas dos níveis territoriais (19/10/2026)
+
+| Regra | O que faz | Onde vale |
+|---|---|---|
+| BR-POP-JUNHO-1 (decisão D4) | população do Brasil = soma da `população_estimada` dos municípios na competência de junho do ano, uma vez por município, usada em janeiro e em junho; município sem registro em junho não é estimado: a soma usa os municípios com registro, avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`) | densidade do Brasil na rota de níveis e taxa nacional de referência (D5) nas densidades da base oficial |
+| `brasil-cod-uf-prefix-1` | estado pelo prefixo do código IBGE (não pela coluna `uf`), como soma dos componentes por competência, com o suporte (previstos, incluídos e ausentes) | estados como objeto ou como grupo de municípios |
+| NIVEIS-BR-UF-MUN-1 | Brasil, estados e municípios como universos separados, nunca somados entre si | rota de níveis |
+
+Na versão governada: junho de 2024 soma 212.583.750 habitantes (densidade do Brasil 502.495 ÷ 212.583.750 ×
+1.000 = 2,3638); junho de 2015 não tem o 430607 (CRISTAL DO SUL, RS), e a população de 2015 soma os 5.569
+municípios com registro (204.450.315), com nota; nenhum ano tem população conflitante em junho. A
+população de junho de 2016 inclui a linha do 251365 declarada PA na coluna `uf` (331.942), com nota de
+qualidade da fonte.
+
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
 fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
 referencial SIRGAS 2000, que não certifica o datum original. As duas premissas de distância só
@@ -126,12 +144,12 @@ por regra e a vírgula decimal é verificada nos dados.
 
 | Capacidade | Validação nas fontes atuais |
 | --- | --- |
-| Quantitativos | Nacional e municipal, preservando as contagens de cada fonte |
-| Densidade | Municipal, quantidade / população × 1.000 |
+| Quantitativos | Nacional e municipal, preservando as contagens de cada fonte; estados como soma dos municípios, com Σ estados = Σ municípios em cada competência e o Brasil sempre menor que a soma municipal (19/10/2026) |
+| Densidade | Municipal, quantidade / população × 1.000; Brasil pela regra BR-POP-JUNHO-1 nas 22 competências, conferido com leitura independente (2,3638 em junho de 2024; 2015 com 5.569 municípios e a lista [430607]); estados com o mesmo suporte no numerador e no denominador, com os seis agregados parciais da base (RO, MG e SP em 2015/1, SC em 2017/1, RS em 2015/6 e 2020/1); taxa nacional de referência nas densidades municipais (19/10/2026) |
 | Distribuição | Quantidade e densidade, período único, quintis e empates conferidos |
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
-| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026) |
-| Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas |
+| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026); densidade do Brasil (BR-POP-JUNHO-1) em Crescimento com 22 observações na série completa e 11 na de junho; SP e RS não comparáveis na série completa e só RS (430607 em 2015/6) na de junho |
+| Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas; "Todos os municípios" em junho de 2024 soma 817.419, com a nota de que não é o total do Brasil (502.495); estado marcado entra pelos seus municípios (19/10/2026) |
 | Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido (13/10/2026: executável com a camada complementar oficial, distâncias iguais à geodésica independente sobre as coordenadas efetivas) |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |

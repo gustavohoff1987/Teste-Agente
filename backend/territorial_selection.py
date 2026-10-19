@@ -61,6 +61,13 @@ def territory_catalog(frame, mapping, options):
             raise ValueError("Identificação territorial ambígua entre níveis superiores. Associe um código inequívoco ou corrija a hierarquia.")
     profile = curated_profile(frame, mapping)
     brazil = bool(profile and profile["scope"] == "municipal" and "territory_id" in profile["governed_roles"])
+    declared = {}
+    if brazil and conflicts and parents:
+        # Base oficial: o estado vem do prefixo do código (regra governada brasil-cod-uf-prefix-1), não da coluna uf.
+        # A divergência da fonte vira só uma nota (decisão do responsável pelo produto, 19/10/2026).
+        divergent = pairs[pairs[key_col].isin(conflicts)]
+        declared = {str(key): sorted(set(group[parents[0]].dropna().astype(str)))
+                    for key, group in divergent.groupby(key_col)}
     items = []
     # Registros simples: iterrows copiaria frame.attrs a cada unidade territorial.
     for row in pairs.drop_duplicates(key_col).to_dict("records"):
@@ -68,14 +75,23 @@ def territory_catalog(frame, mapping, options):
         name = str(row[name_col])
         state = STATES.get(code[:2]) if brazil and re.fullmatch(r"\d{6,7}", code) else None
         conflict = str(row[key_col]) in conflicts
-        if conflict:
+        note = ""
+        if conflict and state:
+            note = ("Na fonte, a coluna " + parents[0] + " deste município traz " + " e ".join(declared.get(str(row[key_col]), [])) +
+                    " em competências diferentes; o estado segue o código IBGE (" + state[0] + ").")
+            conflict = False
+        elif conflict:
             state = None
         label = name + (" [" + code + "]" if code else "")
-        items.append({"id": ("code:" + code if code else "name:" + name),
-                      "name": name, "code": code, "label": label,
-                      "parents": [str(row[c]) for c in parents if pd.notna(row[c])],
-                      "selection_reason": "Relações territoriais divergentes na fonte; esclareça a hierarquia desta unidade." if conflict else "",
-                      "state": state[0] if state else "", "state_name": state[1] if state else ""})
+        item = {"id": ("code:" + code if code else "name:" + name),
+                "name": name, "code": code, "label": label,
+                "parents": [str(row[c]) for c in parents if pd.notna(row[c])],
+                "selection_reason": "Relações territoriais divergentes na fonte; esclareça a hierarquia desta unidade." if conflict else "",
+                "state": state[0] if state else "", "state_name": state[1] if state else "",
+                "state_code": code[:2] if state else ""}
+        if note:
+            item["hierarchy_note"] = note
+        items.append(item)
     return sorted(items, key=lambda item: (item["name"], item["id"]))
 
 

@@ -29,7 +29,9 @@ Ausências temporais nos extremos mantêm a mudança não avaliável.
 
 A inspeção dos arquivos locais confirmou `uf` e `regiao_geografica`, além de
 `municipio` e `cod_ibge`. Uma unidade (`251365`) possui hierarquias divergentes na
-fonte e permanece impedida para seleção até esclarecimento; as outras unidades
+fonte (a coluna `uf` traz PA em 2016/6). Desde 19/10/2026, no perfil oficial ela é selecionável como PB,
+pelo prefixo do código IBGE, com a nota `hierarchy_note`; em bases importadas, unidade com hierarquia
+divergente continua impedida para seleção até esclarecimento. As outras unidades
 não são bloqueadas por esse conflito externo ao seu recorte.
 A regra `brasil-cod-uf-prefix-1` deriva
 somente o estado pelos dois primeiros dígitos, para o perfil governado municipal,
@@ -133,7 +135,8 @@ Na interface, marcar um membro entre 5.570 leva 76–127 ms até o quadro seguin
 - Validação empírica com os dados reais: `ADT_REAL_DATA_DIR=<pasta> pytest`;
   `ADT_BLOCK1_REAL=1 python backend/tests/ui_block1_smoke.py` com o catálogo real
   instalado (62 municípios, 22 competências); `ui_brazil_smoke.py` e `ui_smoke.py`.
-  Conferir também a unidade `251365` com hierarquia divergente.
+  A unidade `251365` com hierarquia divergente tem verificação dedicada desde 19/10/2026
+  (`test_territorial_levels.py` e `test_levels_real_data.py`: PB pelo prefixo, selecionável, com nota).
 - O contrato da interpretação Gemini ainda aceita comparações só por densidade; a
   comparação por quantidade do Bloco 1 depende da gramática local ou dos controles.
   Alterar esse contrato é decisão de governança de LLM, não tomada aqui.
@@ -161,7 +164,8 @@ validação empírica com os dados brasileiros reais, ainda não executada.
     62 municípios do AM e 22 competências.
 
   Na execução local de 15/10/2026, os 29 testes reais passaram em cerca de 7,5 min e a jornada real
-  passou em 79 s. A unidade `251365`, com hierarquia divergente, continua sem verificação dedicada.
+  passou em 79 s. A unidade `251365`, com hierarquia divergente, passou a ter verificação dedicada em
+  19/10/2026 (ver [abrangência territorial](ABRANGENCIA_TERRITORIAL.md)).
 - **Histórico de resultados:** o commit `dbaa0bd` retirou da interface a lista de resultados e o
   controle de invalidação. Com isso, o passo 7 da jornada validada ("resultados anteriores
   reabertos") e a ressalva sobre o rótulo "histórico" deixaram de se aplicar. A jornada atual confere

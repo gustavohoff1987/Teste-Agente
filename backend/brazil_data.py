@@ -1,4 +1,8 @@
-"""Base lógica Brasil. Fontes de granularidades distintas nunca são somadas ou unidas.
+"""Base lógica Brasil: fonte nacional (contagem do país) e fonte municipal, lidas e verificadas juntas.
+
+As duas fontes nunca são somadas nem unidas. O total do Brasil vem sempre da fonte nacional; a densidade
+do Brasil combina, por regra governada (BR-POP-JUNHO-1, territorial_levels.py), essa contagem com a
+população municipal de junho do mesmo ano. Estados são somas dos municípios pelo prefixo do código IBGE.
 
 Origem padrão: os dois arquivos versionados na raiz do repositório, conferidos a cada
 requisição contra o manifesto governado `dados/brasil/manifesto.json` (tamanho e SHA-256).
@@ -143,10 +147,18 @@ def _integrity(state):
             "integridade": "verificada"}
 
 
-def load_brazil(scope="auto", operation="", version="", details=False):
+def selected_scope(scope="auto", operation=""):
+    """Recorte efetivo de um pedido: o informado ou, em "auto", o padrão da análise."""
     if scope not in ("auto", "national", "municipal") or (operation and operation not in ENGINE_SCOPES):
         raise ValueError("Recorte ou análise da base Brasil inválido.")
-    selected = ENGINE_SCOPES.get(operation, "municipal") if scope == "auto" else scope
+    return ENGINE_SCOPES.get(operation, "municipal") if scope == "auto" else scope
+
+
+def load_brazil_sources(version=""):
+    """As duas fontes numa única leitura verificada (mesmo estado, mesma versão).
+
+    Devolve ({escopo: (conteúdo, nome do arquivo, source)}, integridade); cada source mantém o próprio
+    escopo, como em load_brazil."""
     try:
         state = _resolve()
         contents = _read_verified(state)
@@ -156,14 +168,21 @@ def load_brazil(scope="auto", operation="", version="", details=False):
     current_version = state["versao"]
     if version and version != current_version:
         raise ValueError("A base Brasil foi atualizada. Carregue-a novamente e revise as escolhas antes de analisar.")
-    source = {
-        "dataset": "brazil", "label": "Dados do Brasil", "scope": selected,
+    sources = {key: (contents[key], FILES[key], {
+        "dataset": "brazil", "label": "Dados do Brasil", "scope": key,
         "version": current_version, "default_scopes": DEFAULT_SCOPES,
         "available_scopes": list(FILES),
-    }
+    }) for key in FILES}
+    return sources, _integrity(state)
+
+
+def load_brazil(scope="auto", operation="", version="", details=False):
+    selected = selected_scope(scope, operation)
+    sources, integrity = load_brazil_sources(version)
+    raw, filename, source = sources[selected]
     if details:
-        return contents[selected], FILES[selected], source, _integrity(state)
-    return contents[selected], FILES[selected], source
+        return raw, filename, source, integrity
+    return raw, filename, source
 
 
 def diagnostics():

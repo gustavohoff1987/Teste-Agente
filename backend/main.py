@@ -31,8 +31,9 @@ from trend import METHOD_VERSION as TREND_METHOD
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
-from brazil_data import diagnostics as brazil_diagnostics, load_brazil
-from brazil_catalog_profile import curated_profile, suggested_mapping
+from brazil_data import diagnostics as brazil_diagnostics, load_brazil_sources, selected_scope
+from brazil_catalog_profile import curated_profile, source_identity, suggested_mapping
+import territorial_levels
 from analysis_premises import apply_premises, limitations, premise_notes
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
@@ -169,6 +170,17 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     if operation in ("spatial", "nearest", "criteria") and canonical_crs(options.get("crs")):
         options = {**options, "crs": canonical_crs(options["crs"])}
     result = _compute(df, mapping, operation, options)
+    return _finish(result, df, mapping, operation, options)
+
+
+def _finish(result: dict, df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any],
+            universe: dict | None = None, periods: list | None = None, categories: list | None = None,
+            levels: dict | None = None) -> dict:
+    """Metadados, notas e representação de um resultado calculado por _compute.
+
+    Sem `universe`, `periods` e `categories`, eles vêm do recorte de `df` (caminho de uma fonte). O orquestrador dos
+    níveis territoriais (territorial_levels.py) os informa, porque o resultado reúne partes de fontes diferentes;
+    `levels` leva a ele as limitações e o contrato de apresentação dos níveis."""
     nearest = result.pop("_nearest", None)
     criteria = result.pop("_criteria", None)
     trend = result.pop("_tendencia", None)
@@ -181,16 +193,22 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         result["metadata"]["mudanca"] = trend["mudanca"]
         result["metadata"]["metodos"] = {"tendencia": TREND_METHOD}
     result["metadata"]["territorial_hierarchy"] = describe_hierarchy(df, mapping, options.get("hierarchy_columns"))
-    universe = universe_metadata(scoped(df, mapping, options), mapping, options)
+    if universe is None:
+        universe = universe_metadata(scoped(df, mapping, options), mapping, options)
     result["metadata"]["universe"] = universe
     result["metadata"]["input_file"] = df.attrs.get("input_file")
-    actual_scope = scoped(df, mapping, options)
-    result["metadata"]["periods"] = sorted(text_values(actual_scope[mapping["period"]]).dropna().unique().tolist()) if mapping.get("period") else ["Período declarado"]
-    result["metadata"]["categories"] = sorted(text_values(actual_scope[mapping["category"]]).dropna().unique().tolist()) if mapping.get("category") else [options.get("category_constant", "FTS declarada")]
+    if periods is None or categories is None:
+        actual_scope = scoped(df, mapping, options)
+        if periods is None:
+            periods = sorted(text_values(actual_scope[mapping["period"]]).dropna().unique().tolist()) if mapping.get("period") else ["Período declarado"]
+        if categories is None:
+            categories = sorted(text_values(actual_scope[mapping["category"]]).dropna().unique().tolist()) if mapping.get("category") else [options.get("category_constant", "FTS declarada")]
+    result["metadata"]["periods"] = periods
+    result["metadata"]["categories"] = categories
     result["metadata"]["indicator"] = (options.get("comparison_indicator", "density") if operation=="comparisons" else
         options.get(operation + "_indicator") if operation in ("temporal", "report", "distribution") else
         "quantity" if operation=="counts" else "density" if operation in ("density", "aggregate", "ranking") else operation)
-    limits = limitations(options, operation)
+    limits = list(dict.fromkeys([*limitations(options, operation), *((levels or {}).get("limitacoes") or [])]))
     result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if limits or any(
         "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
         "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
@@ -208,7 +226,9 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     if operation in ("ranking", "distribution", "comparisons"):
         result["notes"].append("Universo desta execução: " + universe["classification_scope"] +
                                ". Posições/classes anteriores não são transferidas para este universo.")
-    if df.attrs.get("source"):
+    if (levels or {}).get("source"):
+        result["metadata"]["source"] = levels["source"]
+    elif df.attrs.get("source"):
         result["metadata"]["source"] = df.attrs["source"]
     for field in df.attrs.get("derived_fields", []):
         if mapping.get(field["role"]) == field["column"]:
@@ -230,22 +250,25 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     # Origem das premissas: perfil da base oficial e premissas da análise aplicadas pelo backend (sem confirmação).
     result["notes"][:0] = premise_notes(options, operation, mapping)
     result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria,
-                                                          (trend or {}).get("quebras"))
+                                                          (trend or {}).get("quebras"), levels)
     return result
 
 
-def _representation(df, mapping, operation, options, result, nearest, criteria, breaks=None):
+def _representation(df, mapping, operation, options, result, nearest, criteria, breaks=None, levels=None):
     """Contrato de apresentação (Bloco 3): uma falha nele nunca invalida o resultado analítico."""
     from representation import VERSION, payload
     try:
-        return payload(df, mapping, operation, options, result, nearest, criteria, breaks=breaks)
+        return payload(df, mapping, operation, options, result, nearest, criteria, breaks=breaks, levels=levels)
     except Exception:  # noqa: BLE001 — registrada no log; tabela e exportações seguem disponíveis
         logging.getLogger(__name__).exception("Falha ao preparar a representação do resultado")
         return {"versao": VERSION, "geometria": {"estado": "INDISPONIVEL", "motivo": "Falha interna ao preparar a "
                                                  "representação; a tabela e as exportações continuam disponíveis."}}
 
 
-def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
+def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any],
+             prepared: pd.DataFrame | None = None) -> dict:
+    """Linhas da análise. `prepared` (quadro já preparado por data_contract.prepare, mesmas colunas) é usado no lugar
+    da preparação de `df` nas análises numéricas: o orquestrador dos níveis chama esta função uma vez por universo."""
     if operation not in ANALYSES:
         raise ValueError("Análise não reconhecida.")
     if operation == "rotation":
@@ -303,7 +326,7 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                          "geográfica complementar versionada, sob a premissa do usuário de coordenada fixa de 2014 a 2024.")
         return _result("Distâncias geodésicas", "Distância direta no referencial " + options["crs"] + ". Não representa tempo nem distância por estrada.",
                        sorted(rows, key=lambda x: x["Distância (km)"]), notes=notes)
-    data = validate_operation(df, mapping, options, operation)
+    data = validate_operation(df, mapping, options, operation, prepared=prepared)
     keys = ["territory", "period", "category"]
     cols = {"territory": "Território", "period": "Período", "category": "Categoria",
             "quantity": "Quantidade", "population": "População", "density": "Densidade por 1.000"}
@@ -469,7 +492,7 @@ async def _read_upload(file: UploadFile) -> bytes:
     return contents
 
 
-# Interpretação das fontes governadas Brasil, reaproveitada somente depois de load_brazil
+# Interpretação das fontes governadas Brasil, reaproveitada somente depois de load_brazil_sources
 # verificar o SHA-256 das duas fontes nesta requisição. A chave inclui a versão verificada:
 # conteúdo novo nunca reutiliza o anterior. Uploads não passam por aqui (nada é guardado).
 _BRAZIL_FRAMES: dict[tuple[str, str], pd.DataFrame] = {}
@@ -541,23 +564,49 @@ def _catalog_summary(frame: pd.DataFrame) -> dict | None:
     return summary
 
 
-async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version=""):
+class BrazilSources:
+    """As duas fontes da base Brasil de uma requisição, de uma única leitura verificada (mesma versão).
+
+    Cada quadro é montado só quando pedido (cópia do quadro guardado por versão) e mantém o próprio escopo em
+    attrs["source"]; a integridade fica em attrs["catalog"], fora da chave de execução."""
+
+    def __init__(self, version: str = ""):
+        self._contents, self.integrity = load_brazil_sources(version)
+        self.version = self.integrity["versao"]
+        self._frames: dict[str, pd.DataFrame | None] = {}
+
+    def frame(self, scope: str) -> pd.DataFrame | None:
+        if scope not in self._frames:
+            raw, filename, source = self._contents[scope]
+            frame = _brazil_frame(raw, filename, source)
+            if frame is not None:
+                # Fora de "source": a identidade da origem não altera chaves de execução já existentes.
+                frame.attrs["catalog"] = self.integrity
+            self._frames[scope] = frame
+        return self._frames[scope]
+
+
+def _brazil_sources(version: str = "") -> BrazilSources:
+    return BrazilSources(version)
+
+
+async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version="", with_sources=False):
+    """Quadro do pedido (base Brasil ou arquivo importado). Com with_sources, devolve também as duas fontes Brasil
+    da mesma leitura verificada (None nos uploads)."""
     if bool(file) == bool(dataset):
         raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
     if dataset:
         if dataset != "brazil":
             raise ValueError("Base de dados não reconhecida.")
-        raw, filename, source, integrity = load_brazil(scope, operation, dataset_version, details=True)
-        frame = _brazil_frame(raw, filename, source)
-        if frame is not None:
-            # Fora de "source": a identidade da origem não altera chaves de execução já existentes.
-            frame.attrs["catalog"] = integrity
-        return frame, []
+        selected = selected_scope(scope, operation)
+        sources = _brazil_sources(dataset_version)
+        frame = sources.frame(selected)
+        return (frame, [], sources) if with_sources else (frame, [])
     raw = await _read_upload(file)
     frame, sheets = read_dataset(raw, file.filename or "", sheet)
     if frame is not None:
         frame.attrs["input_file"] = {"name": file.filename, "sha256": hashlib.sha256(raw).hexdigest(), "sheet": sheet}
-    return frame, sheets
+    return (frame, sheets, None) if with_sources else (frame, sheets)
 
 
 @app.get("/api/modelo/estrutura-recomendada")
@@ -769,9 +818,9 @@ def describe_brazil() -> dict:
     """Descrição factual das duas partes da base residente, sem seus registros."""
     try:
         profiles = []
+        sources = _brazil_sources()
         for scope in ("national", "municipal"):
-            raw, name, source = load_brazil(scope=scope)
-            frame = _brazil_frame(raw, name, source)
+            frame = sources.frame(scope)
             if frame is None or frame.empty:
                 raise ValueError("A base do Brasil não está disponível.")
             mapping = suggested_mapping(frame)
@@ -799,13 +848,13 @@ def describe_brazil() -> dict:
                    else "as categorias profissionais registradas")
         narrative = (
             "Os dados do Brasil disponíveis nesta plataforma permitem analisar " + subject +
-            " em recortes do país e dos municípios, com referências temporais de " +
+            " em recortes do país, dos estados e dos municípios, com referências temporais de " +
             human_period(periods[0]) + " a " + human_period(periods[-1]) + ". "
             "A base inclui quantitativos por período e categoria profissional; "
             "a parte municipal também contém população estimada e coordenadas "
             "para análises de densidade e localização. "
-            "Os resultados nacionais e municipais são fontes do mesmo catálogo, "
-            "mas não são somados automaticamente entre si."
+            "O total do Brasil vem da fonte nacional; a densidade do Brasil usa a população municipal de junho "
+            "(regra governada); estados são somas dos municípios. As fontes não são somadas entre si."
         )
         return {"description": narrative, "scopes": profiles}
     except (ValueError, OSError, KeyError, TypeError) as exc:
@@ -816,7 +865,7 @@ def describe_brazil() -> dict:
 async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
                   dataset: str = Form(""), scope: str = Form("auto"), operation: str = Form("")):
     try:
-        frame, sheets = await _request_dataset(file, sheet, dataset, scope, operation)
+        frame, sheets, sources = await _request_dataset(file, sheet, dataset, scope, operation, with_sources=True)
         if frame is None:
             return {"requires_sheet": True, "sheets": sheets, "columns": [], "row_count": 0, "suggested_mapping": {},
                     "column_profiles": [], "periods": [], "categories": [], "territories": [], "preflight": None,
@@ -834,7 +883,12 @@ async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
         from semantic_bridge import category_from_count_header
         profile = curated_profile(frame, mapping)
         count_columns = [mapping["count"]] if mapping.get("count") else suggestions.get("count", [])
+        levels = None
+        if sources is not None and source_identity(frame) == "municipal":
+            # Base oficial: Brasil, estados e municípios para a abrangência territorial (sem dados da base ao provedor).
+            levels = territorial_levels.inspect_block(sources, mapping)
         return {"requires_sheet": False, "sheets": sheets, "columns": frame.columns.tolist(), "row_count": len(frame),
+                **({"niveis": levels} if levels else {}),
                 "suggested_mapping": mapping, "suggested_columns": suggestions, "column_profiles": profiles,
                 "curated_defaults": profile,
                 "derived_fields": frame.attrs.get("derived_fields", []),
@@ -853,11 +907,21 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
                         dataset: str = Form(""), scope: str = Form("auto"),
                         operation: str = Form(""), dataset_version: str = Form("")):
     try:
-        frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
+        frame, _, sources = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version, with_sources=True)
         if frame is None:
             raise ValueError("Selecione uma planilha para concluir o exame.")
         fields = json.loads(mapping)
         settings = json.loads(options)
+        if isinstance(settings, dict) and "abrangencia" in settings:
+            # Mesmo roteamento do /api/analyze; a rota de níveis devolve o esquema atual da fonte municipal (com a lista
+            # de municípios da tela) e capabilities[op].niveis.
+            route = territorial_levels.resolve(sources, fields, operation or "density", settings, scope)
+            if route.kind != "niveis":
+                return preflight(route.frame, route.mapping, apply_premises(route.frame, route.mapping, route.options))
+            municipal = sources.frame("municipal")
+            base = preflight(municipal, fields, apply_premises(municipal, fields, route.options))
+            return territorial_levels.level_preflight(base, sources, fields, route.options, route.abrangencia,
+                                                      territorial_levels.municipal_index(municipal))
         return preflight(frame, fields, apply_premises(frame, fields, settings))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -930,13 +994,22 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
     try:
         if x_adt_session:
             sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
-        frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
+        frame, _, sources = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version,
+                                                   with_sources=True)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
         fields = json.loads(mapping)
         requested = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(requested, dict):
             raise ValueError("Parâmetros de análise inválidos.")
+        route = None
+        if "abrangencia" in requested:
+            # Brasil, estados e municípios (D3): só municípios seguem o caminho municipal; só o Brasil sem densidade, o
+            # nacional; o resto, a rota de níveis (territorial_levels.py), que nunca soma um nível a outro.
+            route = territorial_levels.resolve(sources, fields, operation, requested, scope)
+            if route.kind == "niveis":
+                return _analyze_levels(route, sources, operation, x_adt_session, context_revision)
+            frame, fields, requested = route.frame, route.mapping, route.options
         settings = apply_premises(frame, fields, requested)
         eligibility = preflight(frame, fields, settings)
         gate = eligibility["capabilities"].get(operation)
@@ -954,22 +1027,53 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
             # conversa mantém todas as premissas, como nas demais etapas, e a preparação continua a mesma.
             settings = apply_premises(frame, fields, requested, spatial=False)
         result = compute(frame, fields, operation, settings)
-        result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
-        result["result_id"] = str(uuid.uuid4())
-        result["metadata"]["created_at"] = datetime.now(timezone.utc).isoformat()
-        signature = {"data": result["metadata"]["data_sha256"], "source": frame.attrs.get("source"),
-                     "mapping": fields, "options": settings, "operation": operation,
-                     "method": result["metadata"]["method_version"]}
-        if result["metadata"].get("metodos"):  # só nas análises que usam um método versionado (tendência)
-            signature["metodos"] = result["metadata"]["metodos"]
-        if geo is not None and geo["estado"] == "valido":  # só quando a camada pode alterar o resultado espacial
-            signature["geo_complement"] = geo
-        result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-        result["metadata"]["validity"] = "VALIDO"
-        result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]
-        if capture:
-            result["conversation_reference"] = {"available": sessions.record_result(
-                x_adt_session, context_revision, result, capture["context"])}
-        return result
+        if route is not None:
+            result["notes"] += territorial_levels.coverage_notes(route.selecao, operation)
+            result["metadata"]["selecao_territorial"] = route.selecao
+            extra = territorial_levels.route_limitations(route.selecao, operation)
+            if extra:
+                evaluability = result["metadata"]["evaluability"]
+                evaluability["status"] = "AVALIAVEL_COM_LIMITACOES"
+                evaluability["limitacoes"] = list(dict.fromkeys([*(evaluability.get("limitacoes") or []), *extra]))
+        if sources is not None and territorial_levels.wants_reference(operation, settings, frame):
+            # D5: taxa nacional como referência de contexto na densidade da base oficial, também sem abrangência.
+            territorial_levels.attach_reference(result, sources, result["metadata"]["periods"],
+                                                result["metadata"]["categories"])
+        return _seal(result, frame, fields, settings, operation, x_adt_session, context_revision, capture, geo)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _analyze_levels(route, sources, operation, x_adt_session, context_revision):
+    """Rota de níveis: portão das partes, cálculo por universo e a mesma selagem (chave, sessão) da rota atual."""
+    municipal = sources.frame("municipal")
+    fields = route.mapping
+    index = territorial_levels.municipal_index(municipal)
+    settings = apply_premises(municipal, fields, route.options, spatial=False)
+    eligibility = territorial_levels.gate(sources, route, operation, settings, index)
+    capture = sessions.capture(x_adt_session, context_revision,
+              investigation_context(municipal, fields, settings, eligibility)) if x_adt_session else None
+    result = territorial_levels.compute_levels(sources, route, operation, settings)
+    settings = {**settings, "abrangencia": territorial_levels.serialize(route.abrangencia)}
+    return _seal(result, municipal, fields, settings, operation, x_adt_session, context_revision, capture, None)
+
+
+def _seal(result, frame, fields, settings, operation, x_adt_session, context_revision, capture, geo):
+    """Identidade do resultado: hash dos dados, chave de execução reproduzível e registro na sessão."""
+    result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
+    result["result_id"] = str(uuid.uuid4())
+    result["metadata"]["created_at"] = datetime.now(timezone.utc).isoformat()
+    signature = {"data": result["metadata"]["data_sha256"], "source": result["metadata"].get("source", frame.attrs.get("source")),
+                 "mapping": fields, "options": settings, "operation": operation,
+                 "method": result["metadata"]["method_version"]}
+    if result["metadata"].get("metodos"):  # só quando um método versionado é usado (tendência, níveis, população)
+        signature["metodos"] = result["metadata"]["metodos"]
+    if geo is not None and geo["estado"] == "valido":  # só quando a camada pode alterar o resultado espacial
+        signature["geo_complement"] = geo
+    result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    result["metadata"]["validity"] = "VALIDO"
+    result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]
+    if capture:
+        result["conversation_reference"] = {"available": sessions.record_result(
+            x_adt_session, context_revision, result, capture["context"])}
+    return result
