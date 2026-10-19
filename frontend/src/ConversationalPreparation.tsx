@@ -264,7 +264,7 @@ export default function ConversationalPreparation(p: Props) {
       {usesPeriods && periodOpen && <div id="configuracao-periodo" role="group" aria-label="Período da análise" className={PANEL}>
         <p className="font-medium text-ink">{isTemporal ? "Quais períodos você deseja comparar?" : "Qual período você deseja analisar?"}</p>
         <PeriodChoices key={p.operation + ":" + p.scope} periods={p.periods} value={p.periodFilter} selected={p.selectedPeriods}
-          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={!!p.rescoping}
+          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={!!p.rescoping} trendNote={isTemporal}
           onSingle={p.onPeriod} onChosen={() => setPeriodOpen(false)} onMultiple={p.onSelectedPeriods}/>
         {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
           Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}

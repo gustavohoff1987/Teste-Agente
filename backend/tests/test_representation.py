@@ -137,8 +137,20 @@ def test_operations_without_map_explain_why_and_series_stay_available():
                        territory_longitudinal_confirmed=True, territory_ids=["code:130260", "code:130420"], **GEO)
     contract = temporal["metadata"]["representacao"]
     assert contract["geometria"]["estado"] == "NAO_APLICAVEL" and "gráfico de linhas" in contract["geometria"]["motivo"]
+    # D6 (19/10/2026): a série ganha `quebras`, as unidades sem trajetória (tendência não comparável), desenhadas só como pontos.
     assert contract["serie"] == {"tabela": "detail_rows", "periodo": "Período", "territorio": "Território", "categoria": "Categoria",
-                                 "valor": "Densidade por 1.000", "unidade": "por 1.000 habitantes", "tipo": "CONTINUO"}
+                                 "valor": "Densidade por 1.000", "unidade": "por 1.000 habitantes", "tipo": "CONTINUO",
+                                 "quebras": []}
+    # Classes e estados do motor declarados para a apresentação (CAP-TEN-01 e CAP-TMP-01); nenhum vai ao mapa.
+    indicators = {item["coluna"]: item for item in contract["indicadores"]}
+    assert list(indicators) == ["Tendência", "Direção da mudança", "Variação absoluta", "Variação (%)"]
+    assert indicators["Tendência"]["tipo"] == "CLASSE" and indicators["Tendência"]["origem"] == "CAP-TEN-01"
+    assert indicators["Tendência"]["classes"] == ["Crescimento", "Aceleração do crescimento", "Desaceleração do crescimento",
+        "Declínio", "Aceleração do declínio", "Desaceleração do declínio", "Sem classificação",
+        "Não avaliável: série insuficiente", "Não avaliável: série não comparável"]
+    assert indicators["Direção da mudança"] == {"coluna": "Direção da mudança", "rotulo": "Direção da mudança", "tipo": "ESTADO",
+                                                "origem": "CAP-TMP-01", "classes": ["Aumento", "Redução", "Sem mudança"]}
+    assert indicators["Variação absoluta"]["unidade"] == "por 1.000 habitantes" and indicators["Variação (%)"]["unidade"] == "%"
     several = analyze(frame(), period_filter="", territory_ids=["code:130260"], **GEO)["metadata"]["representacao"]
     assert several["serie"]["tabela"] == "rows" and several["geometria"]["pendencia"] == "COMPETENCIA_UNICA"
     single = analyze(frame(), **GEO)["metadata"]["representacao"]

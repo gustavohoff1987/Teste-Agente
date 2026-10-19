@@ -203,3 +203,38 @@ def test_semantic_proposal_becomes_verified_local_territory_selection(monkeypatc
     assert body["exploration"]["options_patch"]["comparison_indicator"] == "density"
     for secret in ("Manaus","Tefé","privado.csv","populacao","m1","m2"):
         assert secret not in " ".join(sent)
+
+
+def test_temporal_trend_and_change_never_reach_the_provider(monkeypatch):
+    """A tendência (metadata.tendencia), a mudança e as velocidades ficam no servidor: o provedor só recebe o pedido
+    minimizado, os estados do pré-exame (provider_snapshot) e a continuidade enumerada da conversa."""
+    raw = ("Unidade;Periodo;Categoria;Quantidade;Populacao\n" + "".join(
+        f"{name};{period};Medicos;{count};10000\n" for name, base in (("Vila Protegida", 10), ("Outra Localidade", 30))
+        for period, count in zip(("2021", "2022", "2023", "2024"), (base, base + 3, base + 7, base + 12)))).encode()
+    options = {"confirmed_roles": list(MAPPING), "count_unit": "pessoas", "population_denominator_confirmed": True,
+               "temporal_indicator": "density", "temporal_comparability_confirmed": True,
+               "territory_longitudinal_confirmed": True}
+    headers = {"X-ADT-Session": client.post("/api/session").json()["token"]}
+    form = {"mapping": json.dumps(MAPPING), "options": json.dumps(options)}
+    analyzed = client.post("/api/analyze", headers=headers, files={"file": ("privado.csv", raw)},
+                           data={**form, "operation": "temporal"})
+    assert analyzed.status_code == 200, analyzed.text
+    result = analyzed.json()
+    assert result["metadata"]["tendencia"]["contagens"]["CRESCIMENTO_ACELERADO"] == 2
+    sent = []
+
+    async def provider(payload, *_args):
+        sent.extend(payload)
+        return {"intent": "ANALITICO", "topic": "none", "operation": "temporal", "indicator": "density",
+                "period": "", "category": "", "territory": ""}
+
+    monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
+    response = client.post("/api/llm/interpret-context", headers=headers, files={"file": ("privado.csv", raw)},
+                           data={**form, "message": "Quero ver a evolução da densidade de outro jeito",
+                                 "history": "[]", "displayed_result_id": result["result_id"]})
+    assert response.status_code == 200, response.text
+    assert sent, "o pedido analítico deveria chegar ao provedor minimizado"
+    content = " ".join(sent)
+    for forbidden in ("tendencia", "CAP-TEN", "Aceleração", "Crescimento", "velocidade", "mudanca", "Aumento",
+                      "Vila Protegida", "privado.csv", result["result_id"]):
+        assert forbidden not in content, forbidden

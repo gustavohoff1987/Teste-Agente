@@ -221,9 +221,50 @@ def test_real_resident_distribution(real_catalog, indicator):
     assert resident(info, "distribution", distribution_indicator=indicator).status_code == 422
 
 
+# Classificação independente da tendência (CAP-TEN-01, DA-15), escrita a partir do texto da SPEC (passos 3 a 6), com
+# Fraction e lendo o CSV por conta própria; não usa backend/trend.py.
+DA15 = {"CRESCIMENTO": "Crescimento", "CRESCIMENTO_ACELERADO": "Aceleração do crescimento",
+        "CRESCIMENTO_DESACELERADO": "Desaceleração do crescimento", "DECLINIO": "Declínio",
+        "DECLINIO_ACELERADO": "Aceleração do declínio", "DECLINIO_DESACELERADO": "Desaceleração do declínio"}
+
+
+def independent_trend(points):
+    points = sorted(points)
+    if len(points) < 4:
+        return "Não avaliável: série insuficiente", f"{len(points)} de 4 observações necessárias"
+    speeds = [(y2 - y1) / (t2 - t1) for (t1, y1), (t2, y2) in zip(points, points[1:])]
+    if all(v == 0 for v in speeds):
+        return "Sem classificação", "Série estável"
+    if any(v > 0 for v in speeds) and any(v < 0 for v in speeds):
+        return "Sem classificação", "Mudança de direção"
+    family = "CRESCIMENTO" if all(v >= 0 for v in speeds) else "DECLINIO"
+    if any(v == 0 for v in speeds):
+        return DA15[family], None
+    steps = list(zip(map(abs, speeds), map(abs, speeds[1:])))
+    if all(b >= a for a, b in steps) and any(b > a for a, b in steps):
+        return DA15[family + "_ACELERADO"], None
+    if all(b <= a for a, b in steps) and any(b < a for a, b in steps):
+        return DA15[family + "_DESACELERADO"], None
+    return DA15[family], None
+
+
+def independent_trends(original, density, month=None):
+    """{(Território, Categoria): (Tendência, Motivo)} a partir do CSV original, com densidade exata."""
+    from fractions import Fraction
+    series = {}
+    for name, code, year, mon, category, quantity, population in zip(
+            original.municipio, original.cod_ibge, original.periodo_ano, original.periodo_mes,
+            original.categoria_profissional, original.quantidade, original["população_estimada"]):
+        if month and int(mon) != month:
+            continue
+        value = Fraction(1000 * int(quantity), int(population)) if density else Fraction(int(quantity))
+        series.setdefault((name + " [" + code + "]", category), []).append((int(year) * 12 + int(mon) - 1, value))
+    return {key: independent_trend(points) for key, points in series.items()}
+
+
 @pytest.mark.parametrize("denominator", [True, False])
 def test_real_resident_temporal(real_catalog, denominator):
-    info, _, expected = real_catalog
+    info, original, expected = real_catalog
     result = resident_result(info, "temporal", temporal_indicator="density" if denominator else "quantity", population_denominator_confirmed=denominator,
         temporal_comparability_confirmed=True, territory_longitudinal_confirmed=True)
     column = "Densidade por 1.000" if denominator else "Quantidade"
@@ -240,6 +281,54 @@ def test_real_resident_temporal(real_catalog, denominator):
             assert row["Inicial"] == pytest.approx(a) and row["Final"] == pytest.approx(b)
             assert row["Variação absoluta"] == pytest.approx(b - a)
             assert row["Variação (%)"] == (pytest.approx((b - a) / a * 100) if a else None)
+            assert row["Direção da mudança"] == ("Aumento" if b > a else "Redução" if b < a else "Sem mudança")
+    # Tendência do motor (série completa, 22 competências) igual à classificação independente, unidade a unidade.
+    engine = {(row["Território"], row["Categoria"]): (row["Tendência"], row["Motivo da tendência"]) for row in result["rows"]}
+    assert engine == independent_trends(original, denominator)
+    tendencia = result["metadata"]["tendencia"]
+    assert tendencia["unidades_total"] == 5570 and tendencia["janela"]["intervalos"] == [5, 7]
+    assert tendencia["contagens"]["CRESCIMENTO"] == (7 if denominator else 53)
+    assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 0, "INCOMPARABILIDADE": 0}
+
+
+@pytest.mark.parametrize("denominator", [True, False])
+def test_real_resident_temporal_annual_june_series(real_catalog, denominator):
+    """Série anual de junho (11 competências, 12 meses entre elas): mesmas classes da leitura independente."""
+    info, original, _ = real_catalog
+    june = sorted(period for period in info["periods"] if period.endswith("06"))
+    assert len(june) == 11
+    result = resident_result(info, "temporal", temporal_indicator="density" if denominator else "quantity",
+                             population_denominator_confirmed=denominator, period_filters=june)
+    engine = {(row["Território"], row["Categoria"]): (row["Tendência"], row["Motivo da tendência"]) for row in result["rows"]}
+    assert engine == independent_trends(original, denominator, month=6)
+    tendencia = result["metadata"]["tendencia"]
+    assert tendencia["janela"]["serie_anual"] == "06" and tendencia["janela"]["intervalos"] == [12]
+    assert (tendencia["contagens"]["CRESCIMENTO"], tendencia["contagens"]["DECLINIO"]) == ((118, 2) if denominator else (276, 19))
+    assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 0, "INCOMPARABILIDADE": 0}
+    assert {row["Observações da tendência"] for row in result["rows"]} <= {10, 11}   # ausências não imputadas
+
+
+def test_real_trend_anchors_brazil_and_anama(real_catalog):
+    """Âncoras conferidas com a classificação independente: Brasil (contagem nacional) cresce; ANAMÃ, em densidade de
+    junho de 2021 a 2024, acelera o crescimento (o float da densidade daria só "Crescimento")."""
+    info, original, _ = real_catalog
+    national = client.post("/api/inspect", data={"dataset": "brazil", "scope": "national"}).json()
+    brazil = resident_result(national, "temporal", temporal_indicator="quantity", population_denominator_confirmed=False)
+    assert [(row["Território"], row["Tendência"], row["Observações da tendência"]) for row in brazil["rows"]] == [
+        ("Brasil", "Crescimento", 22)]
+    assert brazil["metadata"]["tendencia"]["desfecho"] == "RES-VAL"
+    june = ["202106", "202206", "202306", "202406"]
+    anama = resident_result(info, "temporal", temporal_indicator="density", territory_ids=["code:130008"], period_filters=june)
+    row = anama["rows"][0]
+    assert row["Território"].startswith("ANAMA") and row["Tendência"] == "Aceleração do crescimento"
+    rows = original[(original.cod_ibge == "130008") & (original.periodo_mes.astype(int) == 6) &
+                    (original.periodo_ano.astype(int) >= 2021)]
+    from fractions import Fraction
+    exact = [(int(y) * 12 + 5, Fraction(1000 * int(q), int(p))) for y, q, p in
+             zip(rows.periodo_ano, rows.quantidade, rows["população_estimada"])]
+    assert independent_trend(exact) == ("Aceleração do crescimento", None)
+    floats = [(t, Fraction(int(q) / int(p) * 1000)) for (t, _), q, p in zip(exact, rows.quantidade, rows["população_estimada"])]
+    assert independent_trend(floats) == ("Crescimento", None)   # o float separaria velocidades exatamente iguais
 
 
 def test_real_official_base_comparability_premises_are_internal(real_catalog):

@@ -1605,7 +1605,14 @@ function App() {
               onOpenSibling={id => { const item = history.find(entry => entry.result.result_id === id); if (item) openHistorical(item); }}
               onReuseSelection={ids => { changeTerritories(ids); scrollAnalysisTo("territorios");
                 setHistoryNotice("Seleção visual levada à preparação: " + ids.length + " território(s). Revise e execute pela preparação."); }}
-              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); scrollAnalysisTo("preparacao-conversacional"); }}/>
+              onReferences={ids => { setReferenceMode("list"); setReferenceIds(ids); scrollAnalysisTo("preparacao-conversacional"); }}
+              onAnnualSeries={periods => {
+                // Só muda a seleção de períodos da evolução temporal em preparação; o cálculo continua sendo ação do usuário.
+                if (active !== "temporal") { setHistoryNotice("Volte à Evolução temporal para usar a série anual (junho)."); return; }
+                setMultiplePeriods(true); setSelectedPeriods(periods); setPeriodFilter("");
+                setHistoryNotice("Série anual (junho) escolhida na caixa Período: " + periods.length + " competências. Revise e calcule pela preparação.");
+                scrollAnalysisTo("preparacao-conversacional");
+              }}/>
             {resultNotes.length > 0 && <div className="mt-6 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink"><SearchCheck size={17} className="text-teal"/> Método e limitações</h4>
               {resultOperation === "distribution" ? <>

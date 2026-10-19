@@ -12,6 +12,8 @@ import {
   type ResultLike, type Row,
 } from "./representation";
 import { readablePeriod } from "./periods";
+import { TrendBadge, TrendCounts, TrendStageNote, VelocityBars } from "./TrendVisuals";
+import { classOfLabel, familyFilterOptions, familyOfClass, trendMeta, trendMotiveText, unitVelocities } from "./trend";
 
 // Painel único do resultado (CAP-REP-04: justaposição de tabela, gráficos e mapa dos mesmos
 // resultados, sem cálculo entre eles). Seleção, filtro, indicador e enquadramento são estado visual
@@ -32,6 +34,8 @@ type Props = {
   onReuseSelection: (ids: string[]) => void;
   onReferences: (ids: string[]) => void;
   onRepresentation: (record: RepresentationRecord) => void;
+  /** Leva a série anual (junho) da janela à caixa Período da preparação; nada é calculado. */
+  onAnnualSeries?: (periods: string[]) => void;
 };
 type StateFilter = "TODOS" | "MINHA_SELECAO" | string;
 
@@ -80,6 +84,7 @@ export default function ResultWorkspace(p: Props) {
   const [focusId, setFocusId] = useInvestigationState<string | null>("focusId", null);
   const [multi, setMulti] = useInvestigationState("multi", false);
   const [notice, setNotice] = useState("");
+  const [annualNotice, setAnnualNotice] = useState("");
   const [barOrder, setBarOrder] = useInvestigationState<"codigo" | "resultado" | "valor">("barOrder", operation === "ranking" ||
     (operation === "criteria" && !!(result.metadata.criterios as CriteriaMetadata | undefined)?.ordenacao) ? "resultado" : "codigo");
   const [lineCategory, setLineCategory] = useInvestigationState("lineCategory", "");
@@ -93,6 +98,8 @@ export default function ResultWorkspace(p: Props) {
   const mapRef = useRef<MapHandle>(null);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const criteriaMeta = result.metadata.criterios as (CriteriaMetadata & { avaliacoes?: CriteriaEvaluation[] }) | undefined;
+  // Tendência do motor (CAP-TEN-01) na evolução temporal: classes, contagens e velocidades vêm de metadata.tendencia.
+  const trend = useMemo(() => operation === "temporal" ? trendMeta(result.metadata) : null, [result, operation]);
   const criteriaHasTree = !!criteriaMeta?.contagens;
   const [filter, setFilter] = useInvestigationState<StateFilter>("filter", operation === "criteria" && criteriaHasTree ? "ATENDE" : "TODOS");
 
@@ -100,8 +107,9 @@ export default function ResultWorkspace(p: Props) {
   const stateOf = useMemo(() => {
     if (operation === "criteria") return (id: string) => String(rowsById.get(id)?.["Resultado"] ?? "");
     if (operation === "nearest") return (id: string) => String(rowsById.get(id)?.["Alcance"] ?? "");
+    if (trend) return (id: string) => familyOfClass(classOfLabel(rowsById.get(id)?.["Tendência"], trend), trend) ?? "";
     return () => "";
-  }, [operation, rowsById]);
+  }, [operation, rowsById, trend]);
   const engineSelected = useMemo(() => new Set((criteriaMeta?.selecao?.membros || []).map(item => item.id)), [criteriaMeta]);
   const passesFilter = (id: string) => filter === "TODOS" ? true : filter === "MINHA_SELECAO" ? selectedSet.has(id) :
     filter === "SELECIONADOS" ? engineSelected.has(id) : stateOf(id) === filter;
@@ -217,8 +225,10 @@ export default function ResultWorkspace(p: Props) {
   const filterOptions: { key: string; label: string }[] = operation === "nearest"
     ? [{ key: "TODOS", label: "Todos" }, { key: "Conjunto completo de referências", label: "Mínimo do conjunto completo" },
       { key: "Entre as referências avaliáveis", label: "Somente entre avaliáveis" }, { key: "Não avaliável", label: "Não avaliáveis" }]
+    : trend ? [{ key: "TODOS", label: "Todos" }, ...familyFilterOptions(trend)]  // filtro por família (L1776), números do motor
     : [{ key: "TODOS", label: "Todos" }];
-  const sharedFilter = operation !== "criteria" && <div role="radiogroup" aria-label="Filtro visual dos territórios" className="no-print flex flex-wrap gap-2">
+  const sharedFilter = operation !== "criteria" && <div role="radiogroup" aria-label="Filtro visual dos territórios"
+    data-testid={trend ? "trend-family-filter" : undefined} className="no-print flex flex-wrap gap-2">
     {[...filterOptions, { key: "MINHA_SELECAO", label: "Minha seleção (" + selected.length + ")" }].map(item =>
       <label key={item.key} className={chip(filter === item.key)}>
         <input type="radio" className="sr-only" name={"filtro-visual-" + result.result_id} checked={filter === item.key} onChange={() => setFilter(item.key)}/>
@@ -265,8 +275,42 @@ export default function ResultWorkspace(p: Props) {
         <span aria-hidden="true">{delta > 0 ? "▲" : delta < 0 ? "▼" : "■"}</span>
         {signed(delta, kind)}{typeof share === "number" ? " (" + signed(share) + "%)" : ""} no período</p>
         : <p className="mt-2 text-xs text-slate-600">{String(row["Condição da mudança"] ?? "Variação não avaliável")}</p>}
-      {row["Tendência"] != null && <p className="mt-1 text-xs text-slate-600">Tendência do motor: {String(row["Tendência"])}</p>}
+      {row["Tendência"] != null && (trend ? trendLine(row) :
+        <p className="mt-1 text-xs text-slate-600">Tendência do motor: {String(row["Tendência"])}</p>)}
     </>;
+  }
+  // Selo da classe, motivo, número de observações e velocidades do motor (sem classificação nesta camada).
+  function trendLine(row: Row) {
+    if (!trend) return null;
+    const family = familyOfClass(classOfLabel(row["Tendência"], trend), trend);
+    const items = unitVelocities(trend, String(row["Território"] ?? ""), row["Categoria"] == null ? undefined : String(row["Categoria"]));
+    const observations = row["Observações da tendência"];
+    return <div className="mt-2">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
+        <TrendBadge label={row["Tendência"]} meta={trend} motive={row["Motivo da tendência"] as string | null}/>
+        {row["Motivo da tendência"] != null && <span>{String(row["Motivo da tendência"])}</span>}
+        {typeof observations === "number" && <span>· {observations} {observations === 1 ? "observação" : "observações"}</span>}
+      </p>
+      <VelocityBars items={items} family={family} unit={trend.unidade_valor || ""} timeUnit={trend.unidade_tempo}/>
+    </div>;
+  }
+  // Aviso da etapa e atalho para a série anual (junho), que só muda a seleção de períodos da preparação.
+  function renderTrendSummary() {
+    if (!trend) return null;
+    const annual = trend.janela.competencias_serie_anual || [];
+    const offerAnnual = !trend.janela.intervalo_constante && trend.janela.serie_anual_disponivel && annual.length > 0 && !!p.onAnnualSeries;
+    if (!offerAnnual && !trend.bloqueio && trend.desfecho !== "RES-SCL" && trend.desfecho !== "BLQ-MET") return null;
+    return <section aria-label="Tendência da série" className="mt-4 space-y-2">
+      <TrendStageNote meta={trend}/>
+      {offerAnnual && <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <span>As competências desta série estão separadas por {trend.janela.intervalos.join(" e ")} meses; na série anual de junho,
+          12 meses separam as {annual.length} competências.</span>
+        <button type="button" data-testid="trend-annual-june" className={button} disabled={!p.reusable || p.disabled}
+          onClick={() => { p.onAnnualSeries?.(annual); setAnnualNotice("Série anual (junho) levada à caixa Período da preparação: " +
+            annual.length + " competências. Revise e calcule pela preparação; nada foi calculado."); }}>Usar a série anual (junho)</button>
+      </div>}
+      {annualNotice && <p role="status" className="text-xs text-teal">{annualNotice}</p>}
+    </section>;
   }
 
   const visual = <section aria-label="Exploração visual" className="mt-5 space-y-3">
@@ -396,6 +440,7 @@ export default function ResultWorkspace(p: Props) {
       data = result.rows.map((row, index) => ({label: String(row.Classe ?? row.Quintil ?? ""), value: Number(row.Unidades), color: ORDINAL[index % ORDINAL.length]}));
       title = "Territórios por grupo da distribuição"; note = "Grupos e quantidades calculados na análise.";
     }
+    if (trend) return <div><h4 className="mb-1 text-sm font-bold text-ink">Territórios por classe de tendência</h4><TrendCounts meta={trend}/></div>;
     const bands = criteriaMeta?.faixas;
     if (!data.length && !bands) return null;
     return <>
@@ -438,7 +483,9 @@ export default function ResultWorkspace(p: Props) {
     if (periods.length < 2) return <p className="text-xs text-slate-600">Uma única competência não forma série temporal.</p>;
     if (!chosen.length) return <p className="text-xs text-slate-600">Nenhum território selecionado possui série temporal neste resultado.</p>;
     const pages = Math.ceil(chosen.length / MAX_LINES), page = Math.min(linePage, pages - 1);
-    const series = chosen.slice(page * MAX_LINES, (page + 1) * MAX_LINES).map((name, index) => ({ key: "s" + index, label: name, color: CATEGORICAL[index] }));
+    const breaks = new Set((serie.quebras || []).filter(item => item.categoria === category).map(item => item.territorio));
+    const series = chosen.slice(page * MAX_LINES, (page + 1) * MAX_LINES).map((name, index) => ({ key: "s" + index, label: name,
+      color: CATEGORICAL[index], pointsOnly: breaks.has(name) }));
     const points: LinePoint[] = periods.map(period => {
       const point: LinePoint = { periodo: period };
       for (const item of series) {
@@ -500,7 +547,9 @@ export default function ResultWorkspace(p: Props) {
       <dt className="text-slate-500">Coordenada</dt><dd>{index >= 0 ? <>lat. {fullPrecision(points!.lat[index])}, long. {fullPrecision(points!.lon[index])} ·
         {complemented ? " complementada pela camada oficial (coordenada fixa 2014–2024, premissa do usuário)" : " original da base"}</> :
         lost ? "sem coordenada válida: " + (lost.texto || lost.condicao) : geometry?.estado === "DISPONIVEL" ? "fora do conjunto representado" : "mapa indisponível"}</dd>
-      {row ? (rep?.indicadores || []).map(item => <Pair key={item.coluna} label={item.rotulo + (item.unidade ? " (" + item.unidade + ")" : "")}
+      {row ? (rep?.indicadores || []).map(item => trend && item.coluna === "Tendência" ? <Fragment key={item.coluna}>
+        <dt className="text-slate-500">{item.rotulo}</dt><dd>{trendLine(row)}</dd></Fragment> :
+        <Pair key={item.coluna} label={item.rotulo + (item.unidade ? " (" + item.unidade + ")" : "")}
         value={row[item.coluna]} kind={item} />) : <><dt className="text-slate-500">Resultado</dt><dd>{references.has(id) ?
           "Referência fora do universo-alvo (sem valores de alvo)" : "Sem linha neste resultado"}</dd></>}
       {row && typeof row["Motivos"] === "string" && <><dt className="text-slate-500">Motivos</dt><dd>{row["Motivos"] as string}</dd></>}
@@ -534,7 +583,10 @@ export default function ResultWorkspace(p: Props) {
     return <div id="tabela-resultado" className="mt-7 overflow-hidden rounded-2xl border border-line">
       <div className="flex items-center justify-between border-b border-line px-5 py-4"><h4 className="text-sm font-bold text-ink">Tabela detalhada</h4>
         <span className="text-xs text-slate-400">{result.total_rows} registros{filter !== "TODOS" ? " · filtro visual aplicado" : ""}</span></div>
-      <ResultTable rows={visible.map(item => item.row)} columns={tableColumns(columns)} stacked={operation === "comparisons"} idOf={linker}
+      <ResultTable rows={visible.map(item => item.row)} columns={tableColumns(columns).map(column => trend && column.key === "Tendência"
+        ? { ...column, render: (value: unknown) => <TrendBadge label={value} meta={trend}/> }
+        : trend && column.key === "Motivo da tendência" ? { ...column, display: trendMotiveText } : column)}
+        stacked={operation === "comparisons"} idOf={linker}
         selected={selectedSet} onToggle={toggle} onExport={p.onExport} onPresentation={setTablePresentation}/>
       {filter !== "TODOS" && !visible.length && <p className="px-5 py-3 text-xs text-slate-500">Nenhum território neste filtro visual.</p>}
     </div>;
@@ -543,7 +595,7 @@ export default function ResultWorkspace(p: Props) {
   if (operation === "criteria" && criteriaMeta) return <CriteriaResults key={result.result_id} rows={result.rows} meta={criteriaMeta}
     onExport={p.onExport} onSelection={p.onReuseSelection} onReferences={p.onReferences} reusable={p.reusable} disabled={p.disabled}
     filter={filter} onFilter={setFilter} mySelection={selectedSet} onToggle={toggle} explorer={visual} onTablePresentation={setTablePresentation}/>;
-  return <>{renderHighlights()}{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
+  return <>{renderHighlights()}{renderTrendSummary()}{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
 }
 
 type CriteriaCause = { origem: string; motivo?: string; detalhe?: string; candidatos_elegibilidade_desconhecida?: number;

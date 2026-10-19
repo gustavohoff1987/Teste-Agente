@@ -1,6 +1,6 @@
 import {useState} from "react";
 import {Check, ChevronDown} from "lucide-react";
-import {chronological, clickPeriod, describePeriods, periodRange, readablePeriod} from "./periods";
+import {annualSeries, chronological, clickPeriod, describePeriods, isAnnualSeries, periodRange, readablePeriod} from "./periods";
 
 type ChoicesProps = {
   periods: string[];
@@ -18,6 +18,8 @@ type ChoicesProps = {
   modeToggle?: boolean;
   /** Aviso de que as competências são analisadas separadamente; a lista recolhível o mostra do lado de fora. */
   note?: boolean;
+  /** Explica, na evolução temporal, por que a série anual (junho) muda a tendência. */
+  trendNote?: boolean;
 };
 
 /** Texto da escolha atual, usado no gatilho da lista. */
@@ -55,6 +57,10 @@ export function PeriodChoices(p: ChoicesProps) {
   };
   const values = multiple ? p.selected : p.value ? [p.value] : [];
   const select = "min-w-0 rounded-md border border-line bg-white px-2 py-1 text-xs";
+  // Atalho "Série anual (junho)": uma competência por ano, quando a base também tem outros meses. Só escolhe competências.
+  const annual = annualSeries(periods);
+  const offerAnnual = annual.length >= 2 && annual.length < periods.length;
+  const annualChosen = offerAnnual && isAnnualSeries(p.selected, periods);
   return <div className="space-y-2">
     {p.modeToggle && p.allowMultiple && <button type="button" className="text-xs font-semibold text-teal underline disabled:opacity-50"
       disabled={p.disabled} onClick={toggleMode}>{multiple ? "Escolher apenas um" : "Selecionar vários períodos"}</button>}
@@ -73,6 +79,10 @@ export function PeriodChoices(p: ChoicesProps) {
           {periods.map(item => <option key={item} value={item}>{readablePeriod(item)}</option>)}
         </select></label>
       <button type="button" className="font-semibold text-teal underline disabled:opacity-50" disabled={p.disabled} onClick={()=>pick(periods)}>Todos os períodos disponíveis</button>
+      {offerAnnual && <button type="button" data-testid="period-annual-june" aria-pressed={annualChosen} disabled={p.disabled}
+        onClick={() => pick(annual)} className={"rounded-md border px-2 py-0.5 font-semibold disabled:opacity-50 " + (annualChosen
+          ? "border-blue-700 bg-blue-700 text-white" : "border-blue-200 bg-white text-teal hover:bg-blue-50")}>
+        Série anual (junho) · {annual.length} competências</button>}
       <button type="button" className="font-semibold text-teal underline disabled:opacity-50" disabled={p.disabled || !p.selected.length} onClick={()=>pick([])}>Limpar</button>
     </div>}
     {multiple && <p className="text-xs text-slate-600">{allByDefault
@@ -95,6 +105,10 @@ export function PeriodChoices(p: ChoicesProps) {
     </div>
     {multiple && <p data-testid="period-range-summary" className="text-xs text-slate-700">
       Selecionadas: {describePeriods(p.selected, periods)}.</p>}
+    {multiple && offerAnnual && p.trendNote && <p data-testid="period-annual-note" className="text-xs leading-5 text-slate-600">
+      A base tem duas competências por ano, janeiro e junho, com intervalos alternados de 5 e 7 meses. A tendência considera o tempo
+      transcorrido, mas, com as duas competências de cada ano, qualquer queda entre duas vizinhas leva a "Sem classificação (mudança de
+      direção)". A série anual usa só junho: uma competência por ano, 12 meses entre elas, no mesmo mês da população estimada.</p>}
     {multiple && p.note !== false && <SeparateNote/>}
   </div>;
 }
@@ -104,7 +118,7 @@ function SeparateNote() {
     não somarei pessoas de competências diferentes como se fossem indivíduos únicos.</p>;
 }
 
-type Props = Omit<ChoicesProps, "onChosen" | "modeToggle" | "note">;
+type Props = Omit<ChoicesProps, "onChosen" | "modeToggle" | "note" | "trendNote">;
 /** Lista recolhível usada nas bases importadas: o resumo abre as competências, e a troca de modo fica ao lado. */
 export default function PeriodSelection(p: Props) {
   const [expanded, setExpanded] = useState(false);

@@ -17,7 +17,7 @@ export type Geometry = {
     proveniencia?: Record<string, unknown> } | null;
 };
 export type Series = { tabela: "rows" | "detail_rows"; periodo: string; territorio: string; categoria: string; valor: string;
-  unidade: string; tipo: IndicatorKind };
+  unidade: string; tipo: IndicatorKind; quebras?: { territorio: string; categoria: string }[] };
 export type Representation = { versao: number; tabela: "rows" | "detail_rows"; vinculo: { coluna: string; chave: "rotulo" | "codigo" | "nome" };
   indicadores: Indicator[]; serie: Series | null; geometria: Geometry; notas: string[] };
 export type ResultLike = { result_id: string; title: string; rows: Row[]; detail_rows?: Row[]; metadata: Record<string, unknown> };
@@ -133,6 +133,12 @@ export const STATE_COLORS: Record<string, string> = {
   "Conjunto completo de referências": "#2a78d6", "Entre as referências avaliáveis": "#eb6834",
 };
 export const NOT_EVALUABLE = "#898781";
+// Tendência (CAP-TEN-01): cor pela família derivada da DA-15, nunca juízo (sem verde para "bom" nem vermelho para "ruim").
+// "Sem classificação" é resultado do método, não falta de dados: cor própria, sempre com texto. "Não avaliável" usa o cinza
+// do não avaliável com contorno tracejado, como o anel do mapa.
+export const TREND_COLORS: Record<string, string> = {
+  CRESCIMENTO: CATEGORICAL[0], DECLINIO: CATEGORICAL[1], NENHUMA: CATEGORICAL[2], NAO_AVALIAVEL: NOT_EVALUABLE,
+};
 export const INK = { primary: "#0b0b0b", secondary: "#52514e", muted: "#898781", grid: "#e1e0d9", surface: "#fcfcfb", faint: "#d9d8d1" };
 export const STATE_LABELS: Record<string, string> = { ATENDE: "Atende", NAO_ATENDE: "Não atende", NAO_AVALIAVEL: "Não avaliável" };
 

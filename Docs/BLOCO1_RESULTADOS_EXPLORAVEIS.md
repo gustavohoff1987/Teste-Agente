@@ -43,7 +43,9 @@ base oficial, ambos são premissas internas do perfil governado (populações mu
 disjuntas e soma dos componentes); em uploads, são premissas da análise aplicadas pelo backend, com
 nota e limitação, sem declarações (decisão D1, 19/10/2026). A soma de
 componentes admite dupla contagem e não é rotulada como pessoas distintas. A evolução
-mantém cada competência separada.
+mantém cada competência separada e, desde 19/10/2026, traz a direção da mudança e a tendência da
+SPEC (CAP-TEN-01), com selos, contagem por classe e o atalho "Série anual (junho)"
+(`EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
 
 ## Linha de base
 

@@ -92,12 +92,26 @@ def test_temporal_selected_periods_and_missing_endpoints(frame):
     assert len(result["rows"]) == 3 and len(result["detail_rows"]) == 12
     assert all(row["Variação absoluta"] == 5 for row in result["rows"])
     assert all(row["Tendência"] == "Crescimento" for row in result["rows"])
+    # Direção exata da mudança (CAP-TMP-01) e tendência do motor (CAP-TEN-01): 2/5, 1/7 e 2/5 por mês.
+    assert all(row["Direção da mudança"] == "Aumento" and row["Condição da mudança"] == "Avaliável" for row in result["rows"])
+    assert all(row["Motivo da tendência"] is None and row["Observações da tendência"] == 4 for row in result["rows"])
+    assert result["metadata"]["tendencia"]["desfecho"] == "RES-VAL"
+    assert result["metadata"]["tendencia"]["contagens"]["CRESCIMENTO"] == 3
+    assert result["metadata"]["mudanca"]["direcoes"] == {"AUMENTO": 3, "REDUCAO": 0, "SEM_MUDANCA": 0}
     two = compute(frame, MAP, "temporal", chosen(period_filters=["202301", "202406"]))
     assert all("Não avaliável" in row["Tendência"] for row in two["rows"])
+    # Dois períodos: a mudança continua; a tendência fica bloqueada na etapa (BLQ-MET, série insuficiente).
+    assert all(row["Tendência"] == "Não avaliável: série insuficiente" for row in two["rows"])
+    assert all(row["Direção da mudança"] == "Aumento" for row in two["rows"])
+    assert two["metadata"]["tendencia"]["desfecho"] == "BLQ-MET"
+    assert two["metadata"]["tendencia"]["bloqueio"]["texto"] == "Não foi possível analisar a tendência porque há apenas 2 observações válidas."
     partial = frame[~((frame.municipio == "Tefé") & (frame.periodo == "202301"))]
     output = compute(partial, MAP, "temporal", chosen())
     tefe = next(row for row in output["rows"] if row["Território"].startswith("Tefé"))
     assert tefe["Inicial"] is None and tefe["Variação absoluta"] is None
+    assert tefe["Direção da mudança"] is None and tefe["Condição da mudança"].startswith("Não avaliável")
+    assert tefe["Tendência"] == "Não avaliável: série insuficiente" and tefe["Motivo da tendência"] == "3 de 4 observações necessárias"
+    assert output["metadata"]["mudanca"]["nao_avaliaveis"] == {"SEM_REGISTRO_OBSERVADO": 1}
 
 
 def test_missing_members_period_category_and_ambiguous_identity(frame):

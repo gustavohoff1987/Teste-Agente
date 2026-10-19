@@ -245,15 +245,21 @@ def prepare(frame, mapping, options, operation):
     return data
 
 
+def resolve_convention(values, convention="auto"):
+    """Convenção temporal efetiva: a informada ou, em "auto", a reconhecida nos rótulos (AAAAMM, data ou numérica)."""
+    if convention != "auto":
+        return convention
+    labels = list(dict.fromkeys(str(v).strip() for v in values))
+    if all(re.fullmatch(r"\d{6}", x) for x in labels):
+        return "yyyymm"
+    if all(re.fullmatch(r"\d{4}-\d{2}(?:-\d{2})?", x) for x in labels):
+        return "date"
+    return "numeric"
+
+
 def period_positions(values, convention="auto"):
     labels = list(dict.fromkeys(str(v).strip() for v in values))
-    if convention == "auto":
-        if all(re.fullmatch(r"\d{6}", x) for x in labels):
-            convention = "yyyymm"
-        elif all(re.fullmatch(r"\d{4}-\d{2}(?:-\d{2})?", x) for x in labels):
-            convention = "date"
-        else:
-            convention = "numeric"
+    convention = resolve_convention(labels, convention)
     try:
         if convention == "yyyymm":
             dates = pd.to_datetime(labels, format="%Y%m", errors="raise")

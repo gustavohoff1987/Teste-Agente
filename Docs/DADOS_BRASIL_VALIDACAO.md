@@ -130,7 +130,7 @@ por regra e a vírgula decimal é verificada nos dados.
 | Densidade | Municipal, quantidade / população × 1.000 |
 | Distribuição | Quantidade e densidade, período único, quintis e empates conferidos |
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
-| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados |
+| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026) |
 | Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas |
 | Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido (13/10/2026: executável com a camada complementar oficial, distâncias iguais à geodésica independente sobre as coordenadas efetivas) |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |

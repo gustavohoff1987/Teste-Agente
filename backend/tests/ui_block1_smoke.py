@@ -35,6 +35,32 @@ def assert_same_rows(exported, rows):
                 assert line[key] == str(value), (key, line[key], value)
 
 
+def check_trend(board, result):
+    """Selos da tabela com o código da classe de cada linha (rótulo → código pela metadata) e contagens do motor."""
+    tendencia = result["metadata"]["tendencia"]
+    code = {item["rotulo"]: item["codigo"] for item in tendencia["classes"]}
+    code.update({label: "NAO_AVALIAVEL" for label in tendencia["rotulos_nao_avaliavel"].values()})
+    badges = board.locator("#tabela-resultado").get_by_test_id("trend-badge")
+    expect(badges).to_have_count(len(result["rows"]))
+    assert badges.evaluate_all("items => items.map(item => item.dataset.class)") == [code[row["Tendência"]] for row in result["rows"]]
+    assert badges.all_inner_texts() == [row["Tendência"] for row in result["rows"]]
+    # Motivo da tendência: com a classe atribuída o motor não dá motivo (vazio no CSV); a tabela diz "Não se aplica", e não
+    # "Não avaliável", que contradiria o selo da mesma linha.
+    table = board.locator("#tabela-resultado table")
+    headers = [text.strip() for text in table.locator("thead tr").first.locator("th").all_inner_texts()]
+    column = headers.index("Motivo da tendência")
+    motives = table.locator("tbody tr").evaluate_all(f"rows => rows.map(row => row.cells[{column}].innerText.trim())")
+    assert motives == [row["Motivo da tendência"] or "Não se aplica" for row in result["rows"]], motives
+    board.get_by_role("tab", name="Gráficos", exact=True).click()
+    counts = board.get_by_test_id("trend-counts")
+    expect(counts).to_be_visible()
+    shown = dict(counts.get_by_test_id("trend-count").evaluate_all(
+        "items => items.map(item => [item.dataset.key, Number(item.dataset.value)])"))
+    assert shown == {**{key: value for key, value in tendencia["contagens"].items() if key != "SEM_CLASSIFICACAO"},
+                     **{"SEM_CLASSIFICACAO:" + key: value for key, value in tendencia["sem_classificacao_por_motivo"].items()},
+                     **{"NAO_AVALIAVEL:" + key: value for key, value in tendencia["nao_avaliaveis_por_motivo"].items()}}, shown
+
+
 def main():
     real = os.getenv("ADT_BLOCK1_REAL") == "1"
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -159,6 +185,23 @@ def main():
         start = temporal["rows"][0]["Período inicial"]
         expect(board.locator("#tabela-resultado .data-table tbody tr").first).to_contain_text(start[4:] + "/" + start[:4])
         expect(board.get_by_text("Solicitação: Mostre a evolução dos municípios selecionados.", exact=True)).to_be_visible()
+        # Tendência do motor (CAP-TEN-01): selos com o código da classe de cada linha e contagens iguais às do motor.
+        tendencia = temporal["metadata"]["tendencia"]
+        check_trend(board, temporal)
+        expect(highlights.get_by_test_id("trend-badge")).to_have_count(3)
+        expect(highlights.get_by_test_id("trend-velocities")).to_have_count(3)
+        assert highlights.get_by_test_id("trend-velocities").evaluate_all("items => items.map(item => item.dataset.count)") == [
+            str(len(unit["velocidades"])) for unit in tendencia["unidades"]]
+        # Série completa (janeiro e junho alternados): na base real, os três municípios do AM saem sem classificação (RES-SCL)
+        # e o resultado oferece a série anual de junho; no catálogo sintético (só duas competências de junho), não.
+        assert tendencia["desfecho"] == ("RES-SCL" if real else "RES-VAL")
+        stage = board.get_by_test_id("trend-stage-note")
+        if real:
+            expect(stage).to_have_attribute("data-outcome", "RES-SCL")
+        else:
+            expect(stage).to_have_count(0)
+        expect(board.get_by_test_id("trend-annual-june")).to_have_count(1 if real else 0)
+        expect(board.get_by_test_id("trend-family-filter")).to_be_visible()
         with page.expect_download() as download:
             board.get_by_text("Opções técnicas avançadas", exact=True).click()
             board.get_by_role("button", name="Baixar registro técnico (JSON)", exact=True).click()
@@ -323,10 +366,35 @@ def main():
                       "Autorizo a soma das contagens dos componentes, ciente de que pode contar a mesma unidade mais de uma vez; "
                       "o total não será apresentado como pessoas únicas."):
             expect(page.get_by_label(label, exact=True)).to_have_count(0)
+
+        # Atalho "Série anual (junho)" na caixa Período da evolução temporal: só escolhe as competências de junho.
+        workspace(page, "preparation")
+        select(page, "Evolução temporal")
+        inline.get_by_label("Escolher períodos da análise").click()
+        shortcut = inline.get_by_test_id("period-annual-june")
+        expect(shortcut).to_have_attribute("aria-pressed", "false")
+        shortcut.click()
+        expect(shortcut).to_have_attribute("aria-pressed", "true")
+        expect(inline.get_by_test_id("period-range-summary")).to_contain_text("série anual de junho")
+        annual = calculate()
+        june = sorted(period for period in tendencia["janela"]["periodos"] if period.endswith("06"))
+        assert sorted(annual["metadata"]["options"]["period_filters"]) == june
+        assert annual["total_rows"] == 3 and len(annual["detail_rows"]) == (33 if real else 6)
+        check_trend(board, annual)
+        if real:
+            assert annual["metadata"]["tendencia"]["janela"]["serie_anual"] == "06"
+            assert annual["metadata"]["tendencia"]["janela"]["intervalos"] == [12]
+        else:
+            # Duas competências de junho: a mudança continua, e a tendência fica bloqueada na etapa (BLQ-MET).
+            assert annual["metadata"]["tendencia"]["desfecho"] == "BLQ-MET"
+            expect(board.get_by_test_id("trend-stage-note")).to_have_attribute("data-outcome", "BLQ-MET")
+            badges = board.locator("#tabela-resultado").get_by_test_id("trend-badge")
+            assert badges.evaluate_all("items => items.map(item => item.dataset.class)") == ["NAO_AVALIAVEL"] * 3
+        shot("block1-09-serie-anual-junho.png")
         assert not llm_calls, llm_calls
         assert not failures, failures
-        print("Bloco 1: 11 etapas executadas; " + str(len(results)) + " resultados reais do motor; retomada sem recálculo; "
-              "CSV/JSON conferidos contra o motor; origem do referencial das distâncias conferida; "
+        print("Bloco 1: 12 etapas executadas; " + str(len(results)) + " resultados reais do motor; retomada sem recálculo; "
+              "CSV/JSON conferidos contra o motor; origem do referencial das distâncias conferida; tendência e série anual conferidas; "
               "apresentação, reutilização e responsividade aprovadas; catálogo=" + ("Brasil real" if real else "sintético controlado"))
         browser.close()
 

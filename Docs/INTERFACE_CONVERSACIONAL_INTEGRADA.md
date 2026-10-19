@@ -166,6 +166,15 @@ em quantitativos, evolução temporal (que começa com todas as competências) e
 período. A caixa mostra os períodos em ordem cronológica e resumidos por intervalo, com as lacunas
 nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de 2024, exceto junho de 2015");
 até três competências fora de sequência aparecem pelo nome ("janeiro de 2014 e junho de 2015").
+Quando a lista tem outros meses além de junho, o atalho **"Série anual (junho) · N competências"**
+(ao lado de "Todos os períodos disponíveis") escolhe só as competências de junho, uma por ano, e o
+resumo passa a "série anual de junho: 11 competências, de junho de 2014 a junho de 2024". Na
+evolução temporal da base oficial, um texto explica por que a série anual muda a tendência
+(janeiro e junho alternam intervalos de 5 e 7 meses, e qualquer queda entre duas vizinhas leva a
+"Sem classificação (mudança de direção)"). No resultado da evolução, quando os intervalos não são
+constantes e há ao menos quatro competências de junho na janela, o botão "Usar a série anual
+(junho)" leva essas competências à caixa Período, sem calcular. O padrão continua sendo todas as
+competências (ver `EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
 
 A caixa **Abrangência territorial** reúne o Brasil (total nacional) e os municípios. Em
 quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes, ela oferece

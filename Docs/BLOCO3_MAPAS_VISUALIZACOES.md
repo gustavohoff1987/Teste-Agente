@@ -52,7 +52,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 | `tabela` | `rows` ou `detail_rows` (distribuição) |
 | `vinculo` | coluna que identifica o território e a chave estável (`rotulo`, `codigo` ou `nome`) |
 | `indicadores` | colunas representáveis do resultado: `coluna`, `rotulo`, `tipo` (`CONTINUO`, `CONTAGEM`, `POSICAO`, `CLASSE`, `ESTADO`), `unidade`, `origem` (capacidade), `classes` produzidas por capacidade, `nota` (TPL-11 para distâncias) |
-| `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências |
+| `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências. `quebras` (desde 19/10/2026) lista as unidades sem trajetória — tendência não avaliável por série não comparável —, desenhadas só como pontos |
 | `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `ESCOLHA_PENDENTE`; até 19/10/2026 este último se chamava `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 
@@ -162,7 +162,8 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 - **Linhas:**
   - só para séries já calculadas pelo motor (evolução temporal; competências da própria série, sem
     presumir 22 períodos);
-  - lacunas preservadas (`connectNulls=false`), sem tendência nem taxas novas;
+  - lacunas preservadas (`connectNulls=false`), sem tendência nem taxas novas criadas na tela; as unidades de
+    `serie.quebras` aparecem só como pontos, sem linha de trajetória;
   - uma única competência não forma série;
   - todos os territórios ou a seleção explícita, com páginas de oito na ordem dos dados; navegação mostra o intervalo e o total, sem amostragem;
   - eixo vertical em números redondos ao redor dos valores observados (passo 1, 2, 2,5 ou 5 × 10ⁿ),
@@ -175,7 +176,17 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   motor, formatados por RQ-REP-05: território, categoria, valor principal, unidade e competência; na
   densidade, também quantidade e população. Na evolução, inicial → final, variação absoluta e
   percentual e a tendência do motor. A seta indica só o sinal da variação, sem cor de juízo, porque
-  não há limiar normativo. Nenhum total, média, posição ou classe é criado.
+  não há limiar normativo. Nenhum total, média, posição ou classe é criado. Desde 19/10/2026, a
+  tendência aparece como selo da classe (`trend-badge`, com `data-class`), com o motivo, o número de
+  observações e o minigráfico das velocidades do motor (`trend-velocities`).
+- **Tendência na evolução temporal (CAP-TEN-01):** a coluna Tendência da tabela mostra o selo; a aba
+  Gráficos traz a contagem por classe do motor (`trend-counts`), na ordem da SPEC e com os não
+  avaliáveis à parte; o filtro visual ganha as famílias (`trend-family-filter`); o aviso da etapa
+  (`trend-stage-note`) mostra o bloqueio BLQ-MET ou o RES-SCL. Cores pela família: crescimento em
+  azul, declínio em laranja, Sem classificação em verde-água (sempre com texto) e não avaliável em
+  cinza tracejado; não há verde para "bom" nem vermelho para "ruim". Os indicadores declarados são
+  Tendência (CLASSE), Direção da mudança (ESTADO), Variação absoluta e Variação percentual
+  (CONTINUO); o mapa continua não aplicável. Ver `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`.
 - **Indicador compartilhado:** o indicador escolhido no mapa vale para as barras, e vice-versa,
   quando ambos o representam.
 - **Dispersão e bolhas: não implementados.** RQ-REP-10 não os lista entre os tipos admitidos. Proposta

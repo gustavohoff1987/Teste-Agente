@@ -148,6 +148,8 @@ Duas divergências precisam permanecer explícitas:
 - **Canal de análise:** RQ-FLX-14 restringe novas solicitações à conversação; o protótipo conserva acionamento por controles diretos. A divergência já está documentada no README e em `SEMANTIC_BRIDGE_ADAPTACOES.md:30`. Este incremento deve preservar a interface por determinação do pedido; não pode declarar que isso satisfaz integralmente RQ-FLX-14. A importação do catálogo não resolve o conflito. A eventual conformidade integral desse fluxo exige decisão de escopo separada, antes de alterar o produto.
 - **Tendência:** `backend/main.py:380–388` apresenta `Estável`, `Mudança de direção`, `Crescimento` ou `Declínio` a partir das velocidades. CAP-TEN-01 e `CategoriaTendencia` exigem também aceleração/desaceleração e `SEM_CLASSIFICACAO` com motivo para estabilidade/mudança de direção (`IMPLEMENTATION_SPEC.md:390,415,1767`). Não se deve anunciar implementação integral de CAP-TEN-01 nem fabricar as classes ausentes na síntese. O incremento não corrigirá o método: referências que não satisfizerem V-05 ficarão fora da síntese analítica, preservando a apresentação existente e registrando a lacuna. A solução de conformidade desse cálculo pertence a trabalho separado autorizado.
 
+> Atualização de 19/10/2026: CAP-TEN-01 implementada no motor da evolução temporal (as sete classes da DA-15, o motivo de Sem classificação e a aritmética exata); ver [EVOLUCAO_TEMPORAL_E_TENDENCIA.md](EVOLUCAO_TEMPORAL_E_TENDENCIA.md). O texto acima registra o estado de 16/10/2026 e não foi reescrito.
+
 Essas constatações delimitam a promessa do plano. Não são autorização para reconstruir o motor, alterar a SPEC ou remover funcionalidades atuais.
 
 ## 6. Arquitetura mínima de consciência de tela

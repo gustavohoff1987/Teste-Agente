@@ -468,6 +468,22 @@ primeiros” e “Compare esse conjunto com o anterior” são estruturados por 
 (o LLM não recebe a capacidade), com perguntas quando há ambiguidade material. Detalhes, testes e
 desempenho: [Bloco 2, Etapa 2](Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
+## Evolução temporal e tendência (CAP-TMP-01 e CAP-TEN-01)
+
+A evolução temporal traz, por território e categoria, a mudança entre a primeira e a última
+competência (inicial, final, variação absoluta e percentual, a **direção da mudança** — Aumento,
+Redução ou Sem mudança — e a condição, com base zero quando o inicial é 0) e a **tendência** da SPEC
+(CAP-TEN-01, DA-15): Crescimento, Aceleração do crescimento, Desaceleração do crescimento, Declínio,
+Aceleração do declínio, Desaceleração do declínio ou Sem classificação (mudança de direção ou série
+estável), com o motivo e o número de observações. A classificação usa aritmética exata (a densidade
+é recalculada como quantidade × 1.000 / população), sem imputar competências ausentes e com o tempo
+transcorrido entre elas; com menos de quatro competências a etapa recebe BLQ-MET com os textos do
+catálogo, e a mudança continua disponível. Contagens por classe, velocidades e janela ficam em
+`metadata.tendencia` e `metadata.mudanca`, fora do contexto enviado à IA. Na tela: selos por classe,
+contagem por classe na ordem da SPEC, filtro por família, minigráfico de velocidades e o atalho
+**"Série anual (junho)"** na caixa Período (o padrão continua "todas as competências"). Detalhes,
+contagens com os dados reais e testes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md).
+
 ## Mapas e exploração visual integrada (Bloco 3)
 
 Na própria página de resultados, as abas **Mapa**, **Gráficos** e **Tabela** representam o mesmo
@@ -479,14 +495,14 @@ pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, selecion
 tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
 (não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem
 executá-la. Barras e linhas usam só valores e classes do motor, sem quantis, tendências ou posições
-criadas na tela. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final e variação). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
+criadas na tela; na evolução temporal, selos, contagens e velocidades da tendência vêm de `metadata.tendencia`. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final, variação, selo da tendência do motor e minigráfico das velocidades). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
 ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
 
 ## Escopo e limitações do protótipo
 
 Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e representação integrada em mapa de pontos, barras, linhas e tabela.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 **Divergências da SPEC decididas pelo responsável pelo produto** (registradas em [Docs/REGISTRO_DE_COMPORTAMENTO.md](Docs/REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada):
 - o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);

@@ -24,7 +24,10 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Resp
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
-from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values, count_unit_label, canonical_crs
+from data_contract import (validate_operation, rotation_data, period_positions, resolve_convention, scoped, text_values,
+                           count_unit_label, canonical_crs)
+from temporal_change import evolution, evolution_notes
+from trend import METHOD_VERSION as TREND_METHOD
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
@@ -168,9 +171,15 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     result = _compute(df, mapping, operation, options)
     nearest = result.pop("_nearest", None)
     criteria = result.pop("_criteria", None)
+    trend = result.pop("_tendencia", None)
     result["metadata"] = {"method_version": "deterministic-0.4", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
+    if trend:
+        # Tendência (CAP-TEN-01) e mudança (CAP-TMP-01) estruturadas; a versão do método entra na chave de execução.
+        result["metadata"]["tendencia"] = trend["tendencia"]
+        result["metadata"]["mudanca"] = trend["mudanca"]
+        result["metadata"]["metodos"] = {"tendencia": TREND_METHOD}
     result["metadata"]["territorial_hierarchy"] = describe_hierarchy(df, mapping, options.get("hierarchy_columns"))
     universe = universe_metadata(scoped(df, mapping, options), mapping, options)
     result["metadata"]["universe"] = universe
@@ -220,15 +229,16 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
         result["notes"].append("Componentes somados nas colunas escolhidas como partes da mesma unidade; população territorial utilizada uma vez.")
     # Origem das premissas: perfil da base oficial e premissas da análise aplicadas pelo backend (sem confirmação).
     result["notes"][:0] = premise_notes(options, operation, mapping)
-    result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria)
+    result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria,
+                                                          (trend or {}).get("quebras"))
     return result
 
 
-def _representation(df, mapping, operation, options, result, nearest, criteria):
+def _representation(df, mapping, operation, options, result, nearest, criteria, breaks=None):
     """Contrato de apresentação (Bloco 3): uma falha nele nunca invalida o resultado analítico."""
     from representation import VERSION, payload
     try:
-        return payload(df, mapping, operation, options, result, nearest, criteria)
+        return payload(df, mapping, operation, options, result, nearest, criteria, breaks=breaks)
     except Exception:  # noqa: BLE001 — registrada no log; tabela e exportações seguem disponíveis
         logging.getLogger(__name__).exception("Falha ao preparar a representação do resultado")
         return {"versao": VERSION, "geometria": {"estado": "INDISPONIVEL", "motivo": "Falha interna ao preparar a "
@@ -375,35 +385,21 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         result["detail_rows"] = detail_rows
         return result
     if operation == "temporal":
+        # CAP-TMP-01 (mudança entre a primeira e a última competência) e CAP-TEN-01 (tendência, DA-15) em
+        # aritmética exata; Inicial, Final e as variações continuam em float, como antes.
         metric = options["temporal_indicator"]
-        pivot = data.pivot_table(index=["territory", "category"], columns="period", values=metric, aggfunc="first")
-        positions = period_positions(data.period.unique(), options.get("period_convention", "auto"))
-        periods = sorted(positions, key=positions.get)
-        if len(periods) < 2:
-            raise ValueError("Mudança temporal exige ao menos dois períodos.")
-        rows = []
-        for (ter, cat), values in pivot.iterrows():
-            a, b = values.get(periods[0]), values.get(periods[-1])
-            endpoints = pd.notna(a) and pd.notna(b)
-            row = {"Território": ter, "Categoria": cat, "Período inicial": periods[0], "Período final": periods[-1], "Inicial": float(a), "Final": float(b),
-                   "Variação absoluta": float(b - a) if endpoints else None,
-                   "Variação (%)": float((b - a) / a * 100) if endpoints and a != 0 else None,
-                   "Condição da mudança": "Avaliável" if endpoints else "Não avaliável: observação ausente em um dos extremos"}
-            observations = [(positions[p], float(values[p])) for p in periods if p in values and pd.notna(values[p])]
-            if len(observations) >= 4:
-                speeds = [(observations[j+1][1]-observations[j][1])/(observations[j+1][0]-observations[j][0])
-                          for j in range(len(observations)-1)]
-                direction = ("Estável" if all(v == 0 for v in speeds) else
-                             "Mudança de direção" if any(v > 0 for v in speeds) and any(v < 0 for v in speeds) else
-                             "Crescimento" if all(v >= 0 for v in speeds) else "Declínio")
-                row["Tendência"] = direction
-            else:
-                row["Tendência"] = "Não avaliável (< 4 observações)"
-            rows.append(row)
+        convention = resolve_convention(data.period.unique(), options.get("period_convention", "auto"))
+        positions = period_positions(data.period.unique(), convention)
+        rows, detail_rows, tendencia, mudanca, breaks = evolution(
+            data, metric, positions, convention=convention,
+            value_unit="por 1.000 habitantes" if metric == "density" else count_unit_label(mapping, options))
         # As premissas de comparação (perfil oficial ou da análise) entram nas notas por compute; nenhuma é declarada aqui.
-        result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
-                       rows, notes=["Cada competência é independente; não se somam pessoas de períodos diferentes."])
-        result["detail_rows"] = _records(data[keys + [metric]].rename(columns=cols))
+        result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") +
+                         " entre períodos; tendência (CAP-TEN-01) somente com quatro ou mais observações válidas.",
+                         rows, notes=["Cada competência é independente; não se somam pessoas de períodos diferentes.",
+                                      *evolution_notes(tendencia, mudanca, convention)])
+        result["detail_rows"] = detail_rows
+        result["_tendencia"] = {"tendencia": tendencia, "mudanca": mudanca, "quebras": breaks}
         return result
     if operation == "comparisons":
         rows = []
@@ -964,6 +960,8 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         signature = {"data": result["metadata"]["data_sha256"], "source": frame.attrs.get("source"),
                      "mapping": fields, "options": settings, "operation": operation,
                      "method": result["metadata"]["method_version"]}
+        if result["metadata"].get("metodos"):  # só nas análises que usam um método versionado (tendência)
+            signature["metodos"] = result["metadata"]["metodos"]
         if geo is not None and geo["estado"] == "valido":  # só quando a camada pode alterar o resultado espacial
             signature["geo_complement"] = geo
         result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()

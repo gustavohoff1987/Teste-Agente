@@ -12,7 +12,23 @@ export function readablePeriod(value: string): string {
 
 export const chronological = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b, "pt-BR", {numeric: true}));
 
-/** Resumo em ordem cronológica: período único, intervalo contínuo, até três competências fora de sequência
+/** Série anual: as competências AAAAMM de um mesmo mês (padrão: junho, o mês da população estimada da base Brasil),
+ * em ordem cronológica. É uma seleção de competências existentes; nada é agregado. */
+export const ANNUAL_MONTH = "06";
+export function annualSeries(periods: string[], month = ANNUAL_MONTH): string[] {
+  return chronological(periods).filter(period => /^\d{6}$/.test(period) && period.slice(4) === month);
+}
+
+/** A seleção é exatamente a série anual das competências disponíveis, e ela difere de "todas" (há outros meses). */
+export function isAnnualSeries(selected: string[], periods: string[], month = ANNUAL_MONTH): boolean {
+  const annual = annualSeries(periods, month), chosen = chronological(selected);
+  return annual.length >= 2 && annual.length < chronological(periods).length && chosen.length === annual.length &&
+    annual.every((period, index) => period === chosen[index]);
+}
+
+const monthName = (month: string) => months[Number(month) - 1] || month;
+
+/** Resumo em ordem cronológica: período único, intervalo contínuo, série anual, até três competências fora de sequência
  * pelo nome ou intervalo com as lacunas nomeadas. */
 export function describePeriods(values: string[], all: string[]): string {
   const chosen = chronological(values), universe = chronological(all);
@@ -22,6 +38,7 @@ export function describePeriods(values: string[], all: string[]): string {
   const missing = start < 0 || end < 0 ? [] : universe.slice(start, end + 1).filter(item => !chosen.includes(item));
   const range = chosen.length + " competências, de " + readablePeriod(chosen[0]) + " a " + readablePeriod(chosen[chosen.length - 1]);
   if (chosen.length === universe.length) return "todas as " + range;
+  if (isAnnualSeries(chosen, universe)) return "série anual de " + monthName(ANNUAL_MONTH) + ": " + range;
   if (!missing.length) return range;
   if (chosen.length <= 3) return chosen.slice(0, -1).map(readablePeriod).join(", ") + " e " + readablePeriod(chosen[chosen.length - 1]);
   return range + (missing.length <= 3 ? ", exceto " + missing.map(readablePeriod).join(", ")

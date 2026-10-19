@@ -20,3 +20,5 @@ O carregador confere identidade do catálogo e do corpo da SPEC, inventário do 
 EN permanece bloqueado neste incremento, inclusive quando uma forma isolada parece atual: nenhuma equivalência adicional foi aprovada. Não há tradução automática nem troca silenciosa de idioma. Uma revisão futura deve atualizar a autorização de forma rastreável, nunca durante uma sessão.
 
 Esta autorização não corrige a divergência histórica de RQ-FLX-14 nem completa CAP-TEN-01. O incremento preserva os controles diretos e o motor existente; não declara conformidade integral do protótipo.
+
+> Atualização de 19/10/2026: CAP-TEN-01 implementada no motor da evolução temporal (as sete classes da DA-15, o motivo de Sem classificação e a aritmética exata); ver [EVOLUCAO_TEMPORAL_E_TENDENCIA.md](EVOLUCAO_TEMPORAL_E_TENDENCIA.md). O texto acima registra o estado de 16/10/2026 e não foi reescrito.

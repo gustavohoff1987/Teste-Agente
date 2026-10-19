@@ -108,8 +108,8 @@ export function CountBars({ data, title, note }: { data: CountDatum[]; title: st
   </figure>;
 }
 
-export function SeriesLines({ points, series, unit, kind, title }: { points: LinePoint[]; series: { key: string; label: string; color: string }[];
-  unit: string; kind: IndicatorKind; title: string }) {
+export function SeriesLines({ points, series, unit, kind, title }: { points: LinePoint[];
+  series: { key: string; label: string; color: string; pointsOnly?: boolean }[]; unit: string; kind: IndicatorKind; title: string }) {
   // Eixo em números redondos ao redor dos valores: uma série de densidade entre 1,6 e 1,9 deixa de virar uma
   // linha achatada sobre o zero. O começo do eixo é informado na legenda quando não é zero.
   const domain = niceDomain(points.flatMap(point => series.map(item => point[item.key])).filter((value): value is number => typeof value === "number"));
@@ -130,7 +130,9 @@ export function SeriesLines({ points, series, unit, kind, title }: { points: Lin
             return { color: item.color, strong: value === null || value === undefined ? "sem valor" : formatNumber(value, kind), text: " " + item.label };
           })}/> : null}/>
         {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: INK.secondary }} iconType="plainline"/>}
-        {series.map(item => <Line key={item.key} type="linear" dataKey={item.key} name={item.label} stroke={item.color} strokeWidth={2}
+        {/* Sem trajetória (tendência não comparável, `serie.quebras`): só os pontos de cada competência, sem linha entre eles. */}
+        {series.map(item => <Line key={item.key} type="linear" dataKey={item.key} name={item.label} stroke={item.pointsOnly ? "none" : item.color}
+          strokeWidth={item.pointsOnly ? 0 : 2}
           dot={{ r: 4, fill: item.color, stroke: INK.surface, strokeWidth: 2 }} activeDot={{ r: 6, stroke: INK.surface, strokeWidth: 2 }}
           connectNulls={false} isAnimationActive={false}
           label={labeled ? (props: { x?: number; y?: number; index?: number; value?: number }) =>
@@ -141,6 +143,7 @@ export function SeriesLines({ points, series, unit, kind, title }: { points: Lin
     </ResponsiveContainer></div>
     <figcaption className="mt-1 text-xs text-slate-600">{series.length === 1 ? series[0].label + ". " : ""}Competências sem valor aparecem
       como lacunas; não há interpolação, linha de tendência ou taxa calculada pela representação.
+      {series.some(item => item.pointsOnly) ? " Territórios com série não comparável aparecem só como pontos, sem linha de trajetória." : ""}
       {domain[0] > 0 ? " O eixo vertical começa em " + formatNumber(domain[0], kind) + " para mostrar a variação; os valores são os do motor." : ""}</figcaption>
   </figure>;
 }

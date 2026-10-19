@@ -15,6 +15,8 @@ from combined_criteria import needs as criteria_needs
 from data_contract import ChoiceRequired, canonical_crs, count_unit_label, scoped
 from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
                                nearest_inputs, territory_coordinates)
+from temporal_change import DIRECTIONS
+from trend import CLASSES, LABELS, NOT_EVALUABLE_LABELS
 
 VERSION = 1
 DENSITY_UNIT = "por 1.000 habitantes"
@@ -29,8 +31,11 @@ REACH = ["Conjunto completo de referências", "Entre as referências avaliáveis
 CRITERIA_VALUE = re.compile(r"(c\d+) · (.+) \((.+)\)")
 
 
-def payload(frame, mapping, operation, options, result, nearest=None, criteria=None):
-    """Contrato compacto anexado aos metadados do resultado (metadata.representacao)."""
+def payload(frame, mapping, operation, options, result, nearest=None, criteria=None, breaks=None):
+    """Contrato compacto anexado aos metadados do resultado (metadata.representacao).
+
+    `breaks` lista as unidades sem trajetória (tendência NAO_AVALIAVEL por INCOMPARABILIDADE): a série
+    as desenha só como pontos, sem linha entre competências (RQ-REP-15, AT-69)."""
     rows, detail = result.get("rows") or [], result.get("detail_rows") or []
     table = "detail_rows" if operation == "distribution" and detail else "rows"
     data = detail if table == "detail_rows" else rows
@@ -49,7 +54,7 @@ def payload(frame, mapping, operation, options, result, nearest=None, criteria=N
     if any(item.get("unidade") == "km" for item in indicators):
         notes.append(TPL_11)
     return {"versao": VERSION, "tabela": table, "vinculo": _link(operation, mapping), "indicadores": indicators,
-            "serie": _series(operation, rows, detail, mapping, options), "geometria": geometry, "notas": notes}
+            "serie": _series(operation, rows, detail, mapping, options, breaks), "geometria": geometry, "notas": notes}
 
 
 def _link(operation, mapping):
@@ -94,6 +99,14 @@ def _indicators(operation, data, mapping, options, criteria):
         add("Alcance", "Alcance da distância", "ESTADO", origin="CAP-ESP-02", classes=REACH)
     elif operation == "spatial":
         add("Distância (km)", "Distância ao território de referência", "CONTINUO", "km", "CAP-ESP-01", note=TPL_11)
+    elif operation == "temporal":
+        # Classes e estados produzidos pelo motor (CAP-TEN-01 e CAP-TMP-01); o mapa continua não aplicável.
+        unit = DENSITY_UNIT if options.get("temporal_indicator") == "density" else count_unit
+        add("Tendência", "Tendência", "CLASSE", origin="CAP-TEN-01",
+            classes=[LABELS[code] for code in CLASSES] + list(NOT_EVALUABLE_LABELS.values()))
+        add("Direção da mudança", "Direção da mudança", "ESTADO", origin="CAP-TMP-01", classes=list(DIRECTIONS.values()))
+        add("Variação absoluta", "Variação absoluta", "CONTINUO", unit, "CAP-TMP-01")
+        add("Variação (%)", "Variação percentual", "CONTINUO", "%", "CAP-TMP-01")
     elif operation == "distribution":
         classes = sorted({str(row["Quintil"]) for row in data if row.get("Quintil")},
                          key=lambda text: (int(re.match(r"\d+", text).group()) if re.match(r"\d+", text) else 99, text))
@@ -109,8 +122,8 @@ def _indicators(operation, data, mapping, options, criteria):
     return out
 
 
-def _series(operation, rows, detail, mapping, options):
-    """Série temporal já calculada: competências como eixo; ausências permanecem lacunas."""
+def _series(operation, rows, detail, mapping, options, breaks=None):
+    """Série temporal já calculada: competências como eixo; ausências permanecem lacunas; `quebras` sem linha."""
     data, table = (detail, "detail_rows") if operation == "temporal" and detail else (rows, "rows")
     if not data or "Período" not in data[0] or "Território" not in data[0]:
         return None
@@ -123,7 +136,8 @@ def _series(operation, rows, detail, mapping, options):
     if unit == "pessoas" and options.get("fts_scope_confirmed") is True:
         unit = "profissionais"
     return {"tabela": table, "periodo": "Período", "territorio": "Território", "categoria": "Categoria",
-            "valor": value, "unidade": unit, "tipo": "CONTINUO" if value.startswith("Densidade") else "CONTAGEM"}
+            "valor": value, "unidade": unit, "tipo": "CONTINUO" if value.startswith("Densidade") else "CONTAGEM",
+            "quebras": list(breaks or [])}
 
 
 def _unavailable(reason, pending=None, period=None):

@@ -10,6 +10,8 @@ Uma saudação repetida não reinicia a apresentação. Referência explícita a
 
 Textos operacionais legados não migrados continuam identificados como implementação parcial. A autorização PT não resolve a divergência de canal RQ-FLX-14 nem completa a classificação de tendência do motor.
 
+> Atualização de 19/10/2026: CAP-TEN-01 implementada no motor da evolução temporal (as sete classes da DA-15, o motivo de Sem classificação e a aritmética exata); ver [EVOLUCAO_TEMPORAL_E_TENDENCIA.md](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md). O texto acima registra o estado de 16/10/2026 e não foi reescrito.
+
 Testes novos: `test_document_conversation.py`. A expectativa antiga de “multiplicada por 1.000” foi substituída no teste de orientação pela fórmula canônica agora apresentada; o produto mudou deliberadamente para materialização literal, mantendo a cobertura de orientação sem provedor. Os testes novos conferem todas as formas-base, bloqueio EN, adulteração, condições, metadados e continuidade.
 
 Validação inicial: 76 testes automatizados aprovados, sem chamadas externas. A primeira jornada de navegador identificou a mesma expectativa textual antiga em `ui_conversational_smoke.py`; o teste foi ajustado para conferir a fórmula canônica, sem remover a verificação de resposta na interface. Essa falha era uma expectativa desatualizada pela mudança deliberada, não um defeito de cálculo. A repetição da jornada foi aprovada.
@@ -46,6 +48,8 @@ A apresentação usa arredondamento decimal convencional; aumenta casas para nã
 ### Delimitação da entrega
 
 O resultado já pode ser explorado conversacionalmente nas três operações acima. A leitura analítica das demais operações retorna a forma autorizada de insuficiência, conservando o resultado na interface. Isso é uma **limitação desta implementação**, não ausência dessas funcionalidades no motor nem ausência de todo seu conteúdo documental no catálogo. Agregação, rotatividade, referência mais próxima, critérios e outras composições precisam de validação específica de seus qualificadores/alcances antes de habilitar a leitura pelo chat; a alternativa simples nesta entrega é a apresentação determinística existente. Para tendência temporal, permanece também a incompatibilidade anterior de classificação parcial com CAP-TEN-01, sem alteração do motor.
+
+> Atualização de 19/10/2026: CAP-TEN-01 implementada no motor da evolução temporal (as sete classes da DA-15, o motivo de Sem classificação e a aritmética exata); ver [EVOLUCAO_TEMPORAL_E_TENDENCIA.md](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md). O texto acima registra o estado de 16/10/2026 e não foi reescrito.
 
 A evolução não implementa a síntese geral de múltiplos entregáveis ou todos os contratos C/FN/CFG/V da SPEC. Não há segundo LLM, novo método, banco de dados ou dependência externa. As funções `_compute`, `compute`, regras de pré-exame, arquivos da base e configurações do Gemini não foram modificadas.
 
