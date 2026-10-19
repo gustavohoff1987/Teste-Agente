@@ -215,8 +215,7 @@ def main():
                                ('junho de 2024', 'true')):
             expect(steps.get_by_role('button', name=month, exact=True)).to_have_attribute('aria-pressed', pressed)
         steps.get_by_role('button', name='Avançar', exact=True).click()
-        expect(steps.get_by_test_id('period-summary')).to_have_text(
-            '2 competências, de janeiro de 2023 a junho de 2024, exceto junho de 2023, janeiro de 2024')
+        expect(steps.get_by_test_id('period-summary')).to_have_text('janeiro de 2023 e junho de 2024')
         fresh.close()
 
         # Importação: múltiplos períodos não dispensam confirmação da unidade e da FTS.

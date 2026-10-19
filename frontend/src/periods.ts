@@ -12,7 +12,8 @@ export function readablePeriod(value: string): string {
 
 export const chronological = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b, "pt-BR", {numeric: true}));
 
-/** Resumo em ordem cronológica: período único, intervalo contínuo ou intervalo com as lacunas nomeadas. */
+/** Resumo em ordem cronológica: período único, intervalo contínuo, até três competências fora de sequência
+ * pelo nome ou intervalo com as lacunas nomeadas. */
 export function describePeriods(values: string[], all: string[]): string {
   const chosen = chronological(values), universe = chronological(all);
   if (!chosen.length) return "nenhum período selecionado";
@@ -22,6 +23,7 @@ export function describePeriods(values: string[], all: string[]): string {
   const range = chosen.length + " competências, de " + readablePeriod(chosen[0]) + " a " + readablePeriod(chosen[chosen.length - 1]);
   if (chosen.length === universe.length) return "todas as " + range;
   if (!missing.length) return range;
+  if (chosen.length <= 3) return chosen.slice(0, -1).map(readablePeriod).join(", ") + " e " + readablePeriod(chosen[chosen.length - 1]);
   return range + (missing.length <= 3 ? ", exceto " + missing.map(readablePeriod).join(", ")
     : " (" + missing.length + " competências do intervalo não incluídas)");
 }

@@ -17,7 +17,12 @@ test('resumo de períodos em ordem cronológica, por intervalo e com lacunas nom
   assert.equal(describePeriods(['201506', '201401', '201501', '201406'], all), '4 competências, de janeiro de 2014 a junho de 2015');
   assert.equal(describePeriods(all.filter(item => !['201401', '201506'].includes(item)), all),
     '7 competências, de junho de 2014 a junho de 2024, exceto junho de 2015');
-  assert.equal(describePeriods(['201401', '202406'], all), '2 competências, de janeiro de 2014 a junho de 2024 (7 competências do intervalo não incluídas)');
+  // Até três competências fora de sequência aparecem pelo nome; intervalos contínuos mantêm a forma "de … a …".
+  assert.equal(describePeriods(['201506', '201401'], all), 'janeiro de 2014 e junho de 2015');
+  assert.equal(describePeriods(['202406', '201401', '201506'], all), 'janeiro de 2014, junho de 2015 e junho de 2024');
+  assert.equal(describePeriods(['202401', '202406'], all), '2 competências, de janeiro de 2024 a junho de 2024');
+  assert.equal(describePeriods(['201401', '201406', '201606', '202406'], all),
+    '4 competências, de janeiro de 2014 a junho de 2024 (5 competências do intervalo não incluídas)');
   assert.equal(describePeriods([], all), 'nenhum período selecionado');
 });
 

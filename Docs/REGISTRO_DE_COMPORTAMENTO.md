@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-18 · Resumo de períodos: poucas competências fora de sequência pelo nome
+
+- **Antes:** duas ou três competências fora de sequência eram descritas como intervalo com exceções, por exemplo "2 competências, de janeiro de 2014 a junho de 2015, exceto junho de 2014, janeiro de 2015".
+- **Agora:** até três competências fora de sequência aparecem pelo nome: "janeiro de 2014 e junho de 2015" ou "janeiro de 2014, junho de 2015 e junho de 2024". Vale para o cartão "Períodos" do resumo da análise e para a linha "Selecionadas" do seletor.
+- **Permanece:** competência única, intervalos contínuos ("2 competências, de janeiro de 2024 a junho de 2024"), todas as competências e seleções maiores com lacunas nomeadas ou contadas; a ordem cronológica; cálculos e contratos.
+- **Motivo:** proposta da rodada anterior, autorizada pelo responsável pelo produto em 18/10/2026. A forma com exceções era difícil de ler em seleções pequenas, como a do vídeo de orientação.
+- **Documentação e testes:** guia da interface. Teste Node de `describePeriods` com duas e três competências fora de sequência; o intervalo contínuo e a contagem de lacunas continuam cobertos. `ui_stabilization.py` passa a esperar "janeiro de 2023 e junho de 2024" no cenário do vídeo.
+
 ### 2026-10-18 · Verificação local: npm ci dispensado quando as dependências não mudam
 
 - **Antes:** a seção 4 do `AGENTS.md` exigia `npm ci` antes de cada build da verificação local, mesmo sem nenhuma mudança nas dependências do frontend.

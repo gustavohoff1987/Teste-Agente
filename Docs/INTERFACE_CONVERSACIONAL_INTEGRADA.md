@@ -136,7 +136,8 @@ permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
 Na base oficial, o "Resumo da análise" substitui o texto corrido dos parâmetros por cartões de
 fonte, categoria, períodos e indicador. Os períodos aparecem em ordem cronológica e resumidos por
 intervalo, com as lacunas nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de
-2024, exceto junho de 2015"). A abrangência é uma escolha entre Municípios e Brasil (total nacional)
+2024, exceto junho de 2015"); até três competências fora de sequência aparecem pelo nome ("janeiro
+de 2014 e junho de 2015"). A abrangência é uma escolha entre Municípios e Brasil (total nacional)
 somente em quantitativos, evolução temporal e relatórios, as análises válidas nas duas fontes; nas
 demais, a preparação informa que só a fonte municipal se aplica. Durante a troca de abrangência, a
 preparação continua visível e bloqueada, com aviso de carregamento junto à escolha.
