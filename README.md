@@ -329,8 +329,21 @@ python backend/tests/run_ui_checks.py                                 # todas as
 python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
+O script `python scripts/verificar_tudo.py` roda essas verificações na ordem e termina com um resumo
+do que passou, falhou ou ficou de fora, e por quê; os logs ficam em `.local/verificacao/`. Os testes
+com dados reais só rodam quando a mudança toca o motor, a API ou os dados (`--dados-reais sim` força),
+e o script decide sozinho a dispensa do `npm ci` descrita abaixo (`--npm-ci` força). No Windows, ele
+já define `PYTHONUTF8=1` e uma pasta temporária gravável para o pytest. A governança confere os
+commits; depois do commit, rode-a de novo antes do push.
+
 Localmente, o `npm ci` pode ser dispensado quando `package.json` e `package-lock.json` não mudaram
 desde o último `npm ci` bem-sucedido; basta o `npm run build`. O CI sempre roda o `npm ci`.
+
+Para a conferência visual, `python scripts/capturar_telas.py` sobe o servidor de testes com a base
+versionada e percorre as telas principais: início, preparação e resultado da densidade (mapa,
+gráficos, tabela e celular), escolha de períodos da evolução temporal, preparação da análise espacial
+e condições avançadas. As capturas ficam em `.local/capturas/`. Rode depois do `npm run build`; nada
+vai para o provedor de IA e nenhum dado é alterado.
 
 No Windows (PowerShell), defina `$env:ADT_REAL_DATA_DIR` com o caminho completo da raiz do
 repositório. Sem o Google Chrome instalado, defina `ADT_BROWSER_CHANNEL=chromium` para as jornadas.

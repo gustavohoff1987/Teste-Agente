@@ -51,7 +51,10 @@ documentação e os textos da interface em português do Brasil.
 
 ## 4. Antes de cada push
 
-Rode na raiz e só envie se tudo passar:
+Rode na raiz e só envie se tudo passar. O script `python scripts/verificar_tudo.py` roda os passos
+abaixo na ordem, aplica a dispensa do `npm ci` e a regra dos dados reais e termina com um resumo do
+que passou, falhou ou ficou de fora. No Windows, ele já define `PYTHONUTF8=1` e uma pasta temporária
+gravável para o pytest (`--basetemp`). Os passos, um a um:
 
 ```bash
 (cd backend && python -m pytest -q)
@@ -69,6 +72,8 @@ Se a mudança toca o motor, a API ou os dados, rode também:
 ```bash
 (cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)
 ```
+
+A governança confere os commits: depois do commit, rode-a de novo antes do push (leva segundos).
 
 Se alguma verificação não puder rodar no seu ambiente, diga isso explicitamente ao responsável.
 Não presuma que ela passaria.
@@ -96,3 +101,6 @@ Não presuma que ela passaria.
   - `legado/`: roteiros obsoletos, que não rodam.
 - `README.md`, `Docs/` e [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md): documentação.
 - `.github/workflows/ci.yml` e `.github/scripts/verificar_governanca.py`: CI e governança.
+- `scripts/`: ferramentas de desenvolvimento, fora do produto e do CI.
+  - `verificar_tudo.py`: verificação completa da seção 4, com o resultado de cada passo e um resumo final.
+  - `capturar_telas.py`: capturas das telas principais com a base versionada, para a conferência visual.
