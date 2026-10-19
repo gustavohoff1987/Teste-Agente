@@ -17,6 +17,7 @@ import brazil_data
 import main
 from brazil_catalog_profile import FIELDS
 from brazil_data import FILES, GOVERNED_MANIFEST, manifest_from_repository
+from catalog_support import write_state_source
 from geo_complement import AUTHORIZED, LAYER, PERIODS, PREMISE, state
 
 client = TestClient(main.app)
@@ -77,6 +78,7 @@ def repo(tmp_path, monkeypatch, request):
     book.active.append(["Brasil", 2024, 6, "MEDICINA", 100])
     book.save(root / FILES["national"])
     (root / FILES["municipal"]).write_text(municipal_text(**getattr(request, "param", {})), encoding="utf-8")
+    write_state_source(root, {("TO", "202406"): 9})
     (root / GOVERNED_MANIFEST).parent.mkdir(parents=True, exist_ok=True)
     (root / GOVERNED_MANIFEST).write_text(json.dumps(manifest_from_repository(root)), encoding="utf-8")
     monkeypatch.setattr(brazil_data, "REPO_ROOT", root)

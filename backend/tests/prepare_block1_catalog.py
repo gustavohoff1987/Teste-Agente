@@ -6,7 +6,12 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from openpyxl import Workbook
 from brazil_data import FILES
+from catalog_support import write_state_source
 from install_brazil_data import install
+
+# Fonte estadual sintética (médicos únicos por UF): o AM conta menos que a soma dos seus três municípios (quem atua em
+# mais de um conta uma vez); SP, com um só município, conta o mesmo que ele.
+STATES = {"AM": [18, 22, 24, 30], "SP": [100, 102, 103, 105]}
 
 
 def prepare(destination):
@@ -22,6 +27,8 @@ def prepare(destination):
                 rows.append(f"{name};{code};{year};{month};MEDICINA;{count + offset};{population};-3;-60")
         book.save(source / FILES["national"])
         (source / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        write_state_source(source, {(uf, period): count for uf, counts in STATES.items()
+                                    for period, count in zip(("202301", "202306", "202401", "202406"), counts)})
         install(source, destination, governed=False)  # fixture sintética, nunca a versão governada
 
 

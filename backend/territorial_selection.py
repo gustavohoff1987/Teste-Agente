@@ -23,6 +23,9 @@ STATES = {
     "50": ("MS", "Mato Grosso do Sul"), "51": ("MT", "Mato Grosso"),
     "52": ("GO", "Goiás"), "53": ("DF", "Distrito Federal"),
 }
+# Grandes Regiões pelo primeiro dígito do código IBGE da UF (mesma fonte). Só reconhecem, na conversa da base oficial,
+# pedidos pelos estados de uma região; a correspondência é conferida com a coluna regiao_geografica da base real.
+REGIONS = {"1": "Norte", "2": "Nordeste", "3": "Sudeste", "4": "Sul", "5": "Centro-Oeste"}
 
 
 @per_request

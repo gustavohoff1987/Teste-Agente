@@ -46,8 +46,8 @@ documentação e os textos da interface em português do Brasil.
 
 ## 2. Integridade dos dados
 
-- `Dados_Brasil.xlsx`, `Dados_Municipios_Brasil.csv` e `dados/brasil/` só mudam por pedido explícito
-  do responsável pelo produto, **nunca** para fazer um teste passar.
+- `Dados_Brasil.xlsx`, `Dados_Estados_Brasil.csv`, `Dados_Municipios_Brasil.csv` e `dados/brasil/` só mudam
+  por pedido explícito do responsável pelo produto, **nunca** para fazer um teste passar.
 - O backend recusa arquivos que divergem de `dados/brasil/manifesto.json` (tamanho e SHA-256).
   Para conferir: `python backend/brazil_data.py diagnostico` deve mostrar `"integridade": "verificada"`.
 - Para atualizar a base, siga esta ordem:

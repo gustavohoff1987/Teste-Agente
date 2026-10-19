@@ -65,7 +65,10 @@ export default function TerritorialScopeSelector(p: Props) {
     p.onChange(toggle(p.scope, p.ids, item));
     setAnnouncement(message);
   }
-  const allStates = p.levels.estados.map(item => item.prefixo);
+  // Estados como objeto: só as UFs com contagem na fonte estadual (os grupos de municípios usam todos os da lista).
+  const stateObjects = p.levels.estados.filter(item => item.objeto !== false);
+  const stateGroups = p.levels.estados;
+  const allStates = stateObjects.map(item => item.prefixo);
   const statesMarked = allStates.filter(prefix => p.scope.estados.includes(prefix)).length;
 
   function municipality(item: Territory, group?: string) {
@@ -108,11 +111,12 @@ export default function TerritorialScopeSelector(p: Props) {
           </div>
         </fieldset>
         <fieldset data-testid="territory-section-estados" disabled={p.disabled || !accepts("estado")} className="min-w-0 border-t border-line">
-          <legend className={LEGEND}>Estados <span className="ml-1 rounded-full bg-amber-100 px-2 text-[11px] font-semibold text-amber-900">soma dos municípios</span></legend>
+          <legend className={LEGEND}>Estados <span className="ml-1 rounded-full bg-cyan-100 px-2 text-[11px] font-semibold text-cyan-900">médicos únicos</span></legend>
           {!accepts("estado") && p.rule?.motivos.estado && <p className={REASON + " pt-2"}>{p.rule.motivos.estado}</p>}
-          {allStates.length > 0 && <p data-testid="territory-double-count-help" className="mx-3 mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900">
-            Cada estado é a soma dos seus municípios: o mesmo médico pode ser contado em mais de um município. Por isso, o
-            valor do estado não é o número de médicos diferentes e a soma dos estados não é o total do Brasil.</p>}
+          {allStates.length > 0 && <p data-testid="territory-double-count-help" className="mx-3 mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-[11px] leading-4 text-slate-700">
+            Cada estado conta os médicos diferentes do estado (fonte estadual): quem atua em mais de um município do estado
+            conta uma vez. Quem atua em mais de um estado conta em cada um; por isso, a soma dos estados não é o total do
+            Brasil. A população do estado é a soma dos seus municípios na competência.</p>}
           {allStates.length ? <ul>
             <li className={ROW}>
               <input id="territorio-todos-estados" type="checkbox" data-testid="territory-all-states" className={CHECK}
@@ -123,7 +127,7 @@ export default function TerritorialScopeSelector(p: Props) {
               <label htmlFor="territorio-todos-estados" className="cursor-pointer text-xs font-semibold leading-5 text-ink">
                 Todos os estados ({allStates.length})</label>
             </li>
-            {p.levels.estados.map(state => <li key={state.prefixo} className={ROW}>
+            {stateObjects.map(state => <li key={state.prefixo} className={ROW}>
               <input id={"territorio-uf-" + state.prefixo} type="checkbox" data-testid={"territory-option-uf-" + state.prefixo} className={CHECK}
                 aria-describedby={"territorio-uf-" + state.prefixo + "-ajuda"} checked={accepts("estado") && p.scope.estados.includes(state.prefixo)}
                 onChange={() => change({ kind: "estado", prefix: state.prefixo }, state.rotulo +
@@ -131,7 +135,7 @@ export default function TerritorialScopeSelector(p: Props) {
               <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-2 text-xs leading-5">
                 <label htmlFor={"territorio-uf-" + state.prefixo} className="cursor-pointer text-ink">{state.rotulo}</label>
                 <span id={"territorio-uf-" + state.prefixo + "-ajuda"} className="text-[11px] text-slate-600">
-                  soma de {state.municipios.toLocaleString("pt-BR")} {state.municipios === 1 ? "município" : "municípios"}</span>
+                  população de {state.municipios.toLocaleString("pt-BR")} {state.municipios === 1 ? "município" : "municípios"}</span>
               </span>
             </li>)}
           </ul> : accepts("estado") && <p className="px-3 py-2 text-xs text-slate-600">Nenhum estado identificado pelos códigos desta base.</p>}
@@ -153,8 +157,8 @@ export default function TerritorialScopeSelector(p: Props) {
           </div>
           {p.scope.todos && accepts("municipio") && <p className="px-3 pb-2 text-[11px] leading-4 text-slate-600">
             Todos os municípios estão incluídos. Para escolher municípios, desmarque “Todos os municípios”.</p>}
-          {p.levels.estados.length > 0 && <ul aria-label="Municípios por estado">
-            {p.levels.estados.map(state => {
+          {stateGroups.length > 0 && <ul aria-label="Municípios por estado">
+            {stateGroups.map(state => {
               const ids = members(state.prefixo);
               const status = groupState(state.prefixo, p.scope, p.ids, ids);
               const marked = status === "checked" ? ids.length : ids.filter(id => idSet.has(id)).length;
@@ -184,7 +188,7 @@ export default function TerritorialScopeSelector(p: Props) {
             })}
           </ul>}
           {groups.loose.length > 0 && <>
-            {p.levels.estados.length > 0 && <p className="border-t border-slate-100 px-3 pt-2 text-[11px] font-semibold text-slate-600">
+            {stateGroups.length > 0 && <p className="border-t border-slate-100 px-3 pt-2 text-[11px] font-semibold text-slate-600">
               Sem estado identificado pelo código</p>}
             <ul aria-label="Municípios">{groups.loose.map(item => municipality(item))}</ul>
           </>}

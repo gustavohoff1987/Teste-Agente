@@ -28,6 +28,12 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 > critérios avaliam os 5.570 municípios. Detalhes:
 > [Bloco 2, Etapa 2](BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
+> **Atualização de 19/10/2026: fonte estadual.** A base passou a ter três fontes: além da nacional e da
+> municipal, `Dados_Estados_Brasil.csv`, com a contagem de médicos únicos por UF e competência (seção
+> "Fonte estadual de médicos únicos", abaixo). Desde então, o estado é essa contagem, não a soma dos
+> municípios; a população do estado continua vindo dos municípios. Versão governada `68944004901c…`
+> (antes, `819cf4628bff…`; as fontes nacional e municipal não mudaram).
+
 ## Alterações dos campos e consumidores
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
@@ -47,10 +53,10 @@ exportação registram a regra, os campos de origem, o recorte e a versão lógi
 
 ## Uma base lógica, sem misturar granularidades
 
-O catálogo `brazil_data.py` administra duas fontes privadas. A interface mostra
-somente Dados do Brasil e a abrangência analítica. A base é examinada uma vez, no recorte municipal,
+O catálogo `brazil_data.py` administra três fontes privadas (nacional, estadual e municipal). A interface
+mostra somente Dados do Brasil e a abrangência analítica. A base é examinada uma vez, no recorte municipal,
 com o bloco dos níveis; a caixa "Abrangência territorial" é uma lista vertical com o Brasil (total
-nacional), os estados (soma dos municípios) e os municípios agrupados por estado
+nacional), os estados (médicos únicos da fonte estadual) e os municípios agrupados por estado
 ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)). Sem nada marcado vale o padrão da análise: o
 Brasil em contagens, evolução temporal e relatórios; todos os municípios nas outras operações. A
 interface envia a seleção em `options.abrangencia`, e o backend escolhe a fonte (rota municipal,
@@ -61,9 +67,12 @@ nacionais são lidos da fonte nacional; não são obtidos pela soma das contagen
 19/10/2026, a API aceita Brasil, estados e municípios como níveis da base oficial
 ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)), sempre em blocos separados e sem somar um nível a
 outro: a densidade do Brasil combina a contagem nacional com a população municipal de junho do mesmo ano
-(regra governada BR-POP-JUNHO-1), e o estado é a soma dos seus municípios pelo prefixo do código IBGE. Na
-agregação municipal, a aditividade das populações e a soma dos componentes são premissas internas da
-base oficial (seção seguinte), e o total conserva o rótulo de possível dupla contagem.
+(regra governada BR-POP-JUNHO-1), e o estado é a contagem de médicos únicos da fonte estadual, com a
+população dos seus municípios (pelo prefixo do código IBGE) na própria competência (regras
+UF-CONTAGEM-ESTADUAL-1 e UF-POP-MUNICIPIOS-1). A fonte estadual não é um recorte do pedido: ela é lida
+só pela abrangência. Na agregação municipal e na de estados, a aditividade das populações e a soma dos
+componentes são premissas internas da base oficial (seção seguinte), e o total conserva o rótulo de
+possível dupla contagem.
 Selecionar um recorte sem os requisitos necessários mantém a análise bloqueada.
 
 ## Premissas internas da base oficial
@@ -105,7 +114,9 @@ separador decimal vira escolha do usuário.
 | Regra | O que faz | Onde vale |
 |---|---|---|
 | BR-POP-JUNHO-1 (decisão D4) | população do Brasil = soma da `população_estimada` dos municípios na competência de junho do ano, uma vez por município, usada em janeiro e em junho; município sem registro em junho não é estimado: a soma usa os municípios com registro, avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`) | densidade do Brasil na rota de níveis e taxa nacional de referência (D5) nas densidades da base oficial |
-| `brasil-cod-uf-prefix-1` | estado pelo prefixo do código IBGE (não pela coluna `uf`), como soma dos componentes por competência, com o suporte (previstos, incluídos e ausentes) | estados como objeto ou como grupo de municípios |
+| UF-CONTAGEM-ESTADUAL-1 (19/10/2026) | contagem do estado = a da fonte estadual (médicos únicos dentro da UF e da competência), nunca a soma dos municípios; competência sem registro do estado é não avaliável | estados como objeto na rota de níveis |
+| UF-POP-MUNICIPIOS-1 (19/10/2026) | população do estado = soma da `população_estimada` dos seus municípios na própria competência, uma vez por município, só com todos registrados; sem algum, a densidade do estado fica não avaliável (`DENOMINADOR_AUSENTE`), sem estimar | densidade, ranking, distribuição, comparação, evolução e agregação de estados |
+| `brasil-cod-uf-prefix-1` | estado de cada município pelo prefixo do código IBGE (não pela coluna `uf`) | população dos estados, grupos de municípios e BR-POP-JUNHO-1 |
 | NIVEIS-BR-UF-MUN-1 | Brasil, estados e municípios como universos separados, nunca somados entre si | rota de níveis |
 
 Na versão governada: junho de 2024 soma 212.583.750 habitantes (densidade do Brasil 502.495 ÷ 212.583.750 ×
@@ -113,6 +124,44 @@ Na versão governada: junho de 2024 soma 212.583.750 habitantes (densidade do Br
 municípios com registro (204.450.315), com nota; nenhum ano tem população conflitante em junho. A
 população de junho de 2016 inclui a linha do 251365 declarada PA na coluna `uf` (331.942), com nota de
 qualidade da fonte.
+
+### Fonte estadual de médicos únicos (19/10/2026)
+
+**Procedência.** Planilha `medicos_unicos_municipios_estados_201401_202406.xlsx` (SHA-256
+`51aa58879efc2b66b314e8e15d71cd0bf615ba23f79a6357f7c0cc9a7d637887`), entregue pelo responsável pelo produto
+em 19/10/2026, com o pedido de integrar a contagem estadual à base. A aba "Estados" traz o título "MÉDICOS
+ÚNICOS POR ESTADO", o subtítulo "Contagem distinta de chaves dentro da UF e competência — NÃO soma de
+municípios" e uma tabela larga: uma linha por competência e uma coluna por UF. A planilha não fica
+versionada; a procedência primária da contagem (sistema de origem e chave de unicidade) segue a mesma
+pendência das demais fontes (README, ponto 9).
+
+**Conversão.** `backend/build_state_source.py` confere a estrutura e grava os mesmos valores, sem somar,
+estimar ou corrigir, em `Dados_Estados_Brasil.csv` (`uf;periodo_ano;periodo_mes;categoria_profissional;contagem`,
+ponto e vírgula, fim de linha CRLF, como a fonte municipal; categoria MEDICINA, do título da aba). Resultado:
+594 registros, 15.109 bytes, SHA-256 `7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc`,
+registrado no manifesto governado. O teste `test_build_state_source.py` reproduz o arquivo versionado byte a
+byte a partir dos registros e recusa, sem gravar, planilhas com outra estrutura.
+
+**Validação (leitura independente da planilha e dos arquivos).** 27 UFs × 22 competências (janeiro e junho
+de 2014 a 2024) = 594 registros, sem duplicidade de UF e competência, sem célula vazia, todas as contagens
+inteiras e positivas, iguais às da planilha; as mesmas 22 competências das fontes nacional e municipal.
+Em cada competência, Brasil ≤ soma dos estados ≤ soma dos municípios (junho de 2024: 502.495, 539.090 e
+817.419), como esperado de contagens distintas em territórios maiores: quem atua em mais de um município
+do estado conta uma vez no estado, e quem atua em mais de um estado conta em cada um.
+
+**Limitações.**
+- A fonte estadual não traz população: a do estado é a soma dos seus municípios na competência. Ela fica
+  incompleta (densidade do estado não avaliável) em seis pares: RO (110110), MG (313000) e SP (353286) em
+  janeiro de 2015, RS em junho de 2015 (430607) e janeiro de 2020 (431973) e SC em janeiro de 2017 (420555).
+- No Distrito Federal, de janeiro de 2014 a junho de 2017 (oito competências), a contagem estadual supera a
+  do seu único município (Brasília, 530010) na fonte municipal (em janeiro de 2014, 7.832 contra 4.640); a
+  partir de janeiro de 2018, as duas coincidem. Uma contagem distinta não pode superar a soma das partes:
+  as fontes divergem nesse período. Por decisão de integração, os valores entram como estão, com nota no
+  resultado; a divergência foi levada ao responsável pelo produto.
+- A população da PB em junho de 2016 inclui a linha do 251365 declarada PA na coluna `uf` (a mesma nota de
+  qualidade da população do Brasil).
+- A soma de estados não identifica pessoas: a agregação de estados é sempre a soma dos componentes, com
+  possível dupla contagem.
 
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
 fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
@@ -130,7 +179,7 @@ premissa.
 O catálogo compartilha as rotas existentes com uploads. A requisição usa `dataset=brazil`,
 `scope=national|municipal|auto` e a versão retornada por `/api/inspect`. Nenhum caminho
 de arquivo é aceito do navegador. Fonte residente e upload são mutuamente exclusivos.
-Ambos os hashes são verificados; uma fonte ausente ou alterada impede usar o catálogo.
+Os hashes das três fontes são verificados; uma fonte ausente ou alterada impede usar o catálogo.
 A conversa recebe somente os estados técnicos já previstos, nunca linhas ou arquivos.
 
 ## Qualidade dos dados e aplicabilidade
@@ -145,12 +194,12 @@ por regra e a vírgula decimal é verificada nos dados.
 
 | Capacidade | Validação nas fontes atuais |
 | --- | --- |
-| Quantitativos | Nacional e municipal, preservando as contagens de cada fonte; estados como soma dos municípios, com Σ estados = Σ municípios em cada competência e o Brasil sempre menor que a soma municipal (19/10/2026) |
-| Densidade | Municipal, quantidade / população × 1.000; Brasil pela regra BR-POP-JUNHO-1 nas 22 competências, conferido com leitura independente (2,3638 em junho de 2024; 2015 com 5.569 municípios e a lista [430607]); estados com o mesmo suporte no numerador e no denominador, com os seis agregados parciais da base (RO, MG e SP em 2015/1, SC em 2017/1, RS em 2015/6 e 2020/1); taxa nacional de referência nas densidades municipais (19/10/2026) |
+| Quantitativos | Nacional, estadual e municipal, preservando as contagens de cada fonte: as 594 contagens estaduais iguais às da fonte, nunca a soma dos municípios, e, em cada competência, Brasil ≤ Σ estados ≤ Σ municípios (19/10/2026) |
+| Densidade | Municipal, quantidade / população × 1.000; Brasil pela regra BR-POP-JUNHO-1 nas 22 competências, conferido com leitura independente (2,3638 em junho de 2024; 2015 com 5.569 municípios e a lista [430607]); estados pela contagem estadual ÷ população dos seus municípios na competência, nas 594 combinações, conferidos com leitura independente (SP 3,2390 em junho de 2024), com as seis densidades não avaliáveis por população incompleta (RO, MG e SP em 2015/1, SC em 2017/1, RS em 2015/6 e 2020/1); taxa nacional de referência nas densidades municipais (19/10/2026) |
 | Distribuição | Quantidade e densidade, período único, quintis e empates conferidos |
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
-| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026); densidade do Brasil (BR-POP-JUNHO-1) em Crescimento com 22 observações na série completa e 11 na de junho; SP e RS não comparáveis na série completa e só RS (430607 em 2015/6) na de junho |
-| Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas; "Todos os municípios" em junho de 2024 soma 817.419, com a nota de que não é o total do Brasil (502.495); estado marcado entra pelos seus municípios (19/10/2026) |
+| Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026); densidade do Brasil (BR-POP-JUNHO-1) em Crescimento com 22 observações na série completa e 11 na de junho; densidade dos estados com lacunas onde a população está incompleta (SP com 21 observações e RS com 20 na série completa; RS com 10 na de junho), classes iguais às da leitura independente |
+| Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas; "Todos os municípios" em junho de 2024 soma 817.419, com a nota de que não é o total do Brasil (502.495); agregação de estados pela soma das contagens estaduais (Região Norte 27.384; os 27 estados 539.090, acima do total do Brasil), sempre soma dos componentes (19/10/2026) |
 | Espacial | Uma competência por vez (as coordenadas de nove municípios mudam entre competências; sem a escolha, a análise pede "Escolha uma competência no período da análise."). Com a camada complementar oficial, a base completa de uma competência é executável, com distâncias iguais à geodésica independente sobre as coordenadas efetivas (13/10/2026). Sem a camada, desde 19/10/2026 os seis municípios com ponto inválido ficam não avaliáveis (COORDENADA_INVALIDA) e os demais têm as mesmas distâncias do subconjunto válido, confrontado com Haversine; antes, o recorte inteiro era recusado |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |

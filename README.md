@@ -35,24 +35,25 @@ Documentação da API: `http://localhost:8000/docs`.
 
 ## Duas formas de carregar dados
 
-**Usar dados do Brasil** verifica e disponibiliza as duas fontes conjuntamente em
-uma sessão lógica: `Dados_Brasil.xlsx` (nacional) e
-`Dados_Municipios_Brasil.csv` (municipal). O usuário não precisa escolher
-os arquivos separadamente. São oferecidos como fontes independentes no chat,
+**Usar dados do Brasil** verifica e disponibiliza as três fontes conjuntamente em
+uma sessão lógica: `Dados_Brasil.xlsx` (nacional), `Dados_Estados_Brasil.csv` (estadual: médicos
+únicos por UF, desde 19/10/2026) e `Dados_Municipios_Brasil.csv` (municipal). O usuário não precisa
+escolher os arquivos separadamente. São oferecidos como fontes independentes no chat,
 sem concatenar seus registros. A base é examinada uma vez, no recorte municipal, com o bloco dos
 níveis (Brasil, estados e regras de cada análise); trocar de análise não recarrega a base nem troca de
 fonte. A caixa **Abrangência territorial** das configurações abre uma lista vertical com caixas de
-marcar: **Brasil (total nacional)**; **Estados** ("Todos os estados" e cada estado como "soma de N
-municípios", com o aviso de que o mesmo médico pode ser contado em mais de um município e de que a
-soma dos estados não é o total do Brasil); e **Municípios** ("Todos os municípios" e um grupo
+marcar: **Brasil (total nacional)**; **Estados** ("Todos os estados" e cada estado com o selo "médicos
+únicos" e a "população de N municípios", com o aviso de que quem atua em mais de um município do estado
+conta uma vez, de que quem atua em mais de um estado conta em cada um e de que a soma dos estados não
+é o total do Brasil); e **Municípios** ("Todos os municípios" e um grupo
 recolhível por estado, com a caixa do grupo e os municípios dentro). Sem nada marcado vale o padrão
 da análise, com o selo "padrão desta análise": o Brasil em quantitativos, evolução temporal e
 relatórios; todos os municípios nas demais. A primeira marcação substitui o padrão, e "Limpar
 seleção" volta a ele. Os municípios marcados continuam valendo ao trocar de análise (como na
 conversa, nas transferências e em "Usar como municípios-alvo"); o Brasil e os estados só valem nas
 análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha. Mistura
-de estados e municípios em distribuição e ranking, ou territórios de menos, aparece como escolha
-pendente, com o motivo do backend. A interface envia a seleção em `options.abrangencia`, e o backend
+de estados e municípios em distribuição, ranking e agregação, ou territórios de menos, aparece como
+escolha pendente, com o motivo do backend. A interface envia a seleção em `options.abrangencia`, e o backend
 resolve a rota e confere o pedido; nada é calculado na tela. A densidade do Brasil fica disponível.
 
 As fontes mantêm suas granularidades: não há junção de linhas nem soma automática de pessoas
@@ -61,7 +62,16 @@ entre municípios, e o total do Brasil nunca é a soma municipal. **Brasil, esta
 nunca somados entre si: o Brasil é a contagem nacional, com densidade pela população municipal de
 junho do mesmo ano (regra governada BR-POP-JUNHO-1: 2,3638 por 1.000 habitantes em junho de 2024; em
 2015, falta o 430607 em junho e a população soma os 5.569 municípios com registro, com limitação); o
-estado é a soma dos seus municípios pelo prefixo do código IBGE, com possível dupla contagem. Nas
+estado é a contagem de médicos únicos da fonte estadual (regra UF-CONTAGEM-ESTADUAL-1: quem atua em
+mais de um município do estado conta uma vez; nunca a soma dos municípios), com densidade pela
+população da própria competência, a soma dos seus municípios pelo prefixo do código IBGE (regra
+UF-POP-MUNICIPIOS-1: São Paulo, junho de 2024, 148.909 ÷ 45.973.194 × 1.000 = 3,2390); sem algum
+município do estado na competência, a população não é estimada e a densidade do estado fica não
+avaliável (DENOMINADOR_AUSENTE), com a contagem preservada. Quem atua em mais de um estado conta em
+cada um: a soma dos estados (539.090 em junho de 2024) não é o total do Brasil (502.495), e a
+agregação de estados é sempre a soma dos componentes, com possível dupla contagem. A conversa marca
+estados ("Quantos médicos havia em Minas Gerais em junho de 2024?", "estados da Região Norte") e
+pergunta quando o nome também é de município ("São Paulo"). Nas
 densidades da base oficial, o resultado traz a taxa nacional como referência de contexto
 (`metadata.referencia_nacional`), que não classifica nem colore os municípios: na tela, ela é uma
 marca na legenda do mapa ("Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
@@ -157,9 +167,9 @@ desse teste: elas são verificadas pelos jobs `dados-reais` e `ui-block1` (suít
 
 ### Origem da base Brasil (administração)
 
-O backend lê diretamente os dois arquivos versionados na raiz deste repositório privado,
-`Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, conferindo a cada requisição o tamanho e o
-SHA-256 de cada um contra o manifesto governado `dados/brasil/manifesto.json`. Não há cópia
+O backend lê diretamente os três arquivos versionados na raiz deste repositório privado,
+`Dados_Brasil.xlsx`, `Dados_Estados_Brasil.csv` e `Dados_Municipios_Brasil.csv`, conferindo a cada
+requisição o tamanho e o SHA-256 de cada um contra o manifesto governado `dados/brasil/manifesto.json`. Não há cópia
 intermediária nem fallback: `.local/` não é lida. Arquivo alterado ou manifesto ausente,
 desatualizado ou inválido tornam a base indisponível, com o motivo; o upload continua
 funcionando. A API rejeita uma versão diferente daquela inspecionada pela interface.
@@ -168,7 +178,14 @@ funcionando. A API rejeita uma versão diferente daquela inspecionada pela inter
 python backend/brazil_data.py diagnostico          # origem física, versão e integridade
 python backend/brazil_data.py manifesto            # identidade atual dos arquivos versionados
 python backend/brazil_data.py manifesto --gravar   # só ao atualizar os arquivos, com revisão no Git
+python backend/build_state_source.py <planilha.xlsx> [--gravar]  # fonte estadual a partir da planilha de médicos únicos
 ```
+
+A fonte estadual vem da planilha de médicos únicos por estado entregue pelo responsável pelo produto
+(aba "Estados", uma coluna por UF e uma linha por competência). `build_state_source.py` confere a
+estrutura (título e subtítulo que declaram a contagem distinta dentro da UF, as 27 UFs, competências
+AAAAMM únicas e contagens inteiras positivas) e grava os mesmos valores, sem somar nem estimar, no
+formato das demais fontes; qualquer divergência recusa a conversão sem gravar.
 
 Uma instalação externa continua possível para outra infraestrutura: `ADT_BRASIL_DATA_DIR`
 aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
@@ -193,7 +210,11 @@ parâmetros**. Cabeçalhos antigos continuam suportados.
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
 recorte nacional (a densidade do Brasil usa a população municipal de junho, por regra governada;
 ver [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md)), nem identificadores individuais em
-qualquer recorte. Há 132 linhas
+qualquer recorte. A fonte estadual também não tem população: a do estado é a soma dos seus municípios
+na competência, incompleta em seis pares de estado e competência (RO, MG e SP em janeiro de 2015; RS em
+junho de 2015 e janeiro de 2020; SC em janeiro de 2017), em que a densidade do estado não é avaliada.
+No Distrito Federal, de janeiro de 2014 a junho de 2017, a contagem estadual supera a do seu único
+município na fonte municipal; as duas fontes entram como estão, com nota no resultado. Há 132 linhas
 municipais com coordenadas fora dos intervalos válidos na fonte original (seis municípios nos
 22 períodos). Com a camada geográfica complementar oficial incorporada (ver os dez pontos
 abaixo), as análises espaciais da base Brasil municipal usam, somente nesses 132 registros, o
@@ -209,9 +230,11 @@ Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.m
 Situação vigente em 13/10/2026, enquanto esta for a política de distribuição:
 
 1. **Versionamento.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv` estão versionados
-   na raiz deste repositório privado desde o commit `a202be1` (12/10/2026). SHA-256 dos
-   arquivos versionados: `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3`
-   (nacional) e `89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512` (municipal).
+   na raiz deste repositório privado desde o commit `a202be1` (12/10/2026), e
+   `Dados_Estados_Brasil.csv` desde 19/10/2026. SHA-256 dos arquivos versionados:
+   `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3` (nacional),
+   `7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc` (estadual) e
+   `89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512` (municipal).
 2. **Originais preservados.** O aplicativo nunca altera esses arquivos. O instalador relê os
    bytes da origem depois da cópia, e os testes reais comparam o SHA-256 dos originais antes
    e depois de cada execução.
@@ -234,8 +257,11 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
 9. **Origem, cobertura e limitações.** Origem registrada: envio dos arquivos ao repositório no
    commit `a202be1`; a procedência primária (instituição produtora, data de extração e método
    de produção) não está documentada e permanece pendente. Cobertura: 22 competências (janeiro
-   e junho de 2014 a 2024), 22 linhas nacionais e 122.534 municipais, 5.570 municípios por
-   código IBGE, categoria MEDICINA, quantidade e população estimada sem ausências. Limitações:
+   e junho de 2014 a 2024), 22 linhas nacionais, 594 estaduais (27 UFs × 22 competências) e
+   122.534 municipais, 5.570 municípios por código IBGE, categoria MEDICINA, quantidade e população
+   estimada sem ausências. A fonte estadual foi gravada por `build_state_source.py` a partir da
+   planilha `medicos_unicos_municipios_estados_201401_202406.xlsx` (SHA-256 `51aa58879efc…`),
+   entregue pelo responsável pelo produto em 19/10/2026, que não fica versionada. Limitações:
    sem população e coordenadas no recorte nacional; sem identificadores individuais; seis
    municípios com coordenadas fora do intervalo em todas as competências da fonte original
    (substituídas nas análises espaciais pela camada complementar oficial); nove municípios com
@@ -252,7 +278,8 @@ arquivos fora deste repositório privado.
 ### Origem, integridade e coordenadas — dez pontos (Bloco 2, Etapa 2)
 
 1. **Onde estão versionados.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, na raiz do
-   repositório; identidade em `dados/brasil/manifesto.json` (versão `819cf4628bff…`).
+   repositório, com `Dados_Estados_Brasil.csv` desde 19/10/2026; identidade em
+   `dados/brasil/manifesto.json` (versão `68944004901c…`; antes da fonte estadual, `819cf4628bff…`).
 2. **Caminho usado pelo backend.** Os próprios arquivos da raiz do repositório; uma pasta
    externa apenas com `ADT_BRASIL_DATA_DIR` explícito e versão governada ou fixada.
 3. **Prova de integridade.** Tamanho e SHA-256 de cada arquivo conferidos a cada requisição
@@ -445,7 +472,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 31 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
+Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 33 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
 
 O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a jornada pelo navegador com a base versionada roda na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
 

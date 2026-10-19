@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from openpyxl import Workbook
+from catalog_support import write_state_source
 from install_brazil_data import install
 
 
@@ -23,6 +24,8 @@ def prepare(destination: Path) -> None:
             "B;002;2024;6;MEDICINA;20;2000;-11;-41\n",
             encoding="utf-8",
         )
+        # Fonte estadual mínima: os códigos municipais desta base não identificam estados, e a lista continua sem estados.
+        write_state_source(source, {("AC", "202406"): 3, ("AC", "202306"): 2})
         install(source, destination, governed=False)  # fixture sintética, nunca a versão governada
 
 

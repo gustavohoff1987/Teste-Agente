@@ -13,6 +13,7 @@ from openpyxl import Workbook
 import brazil_data
 import main
 from brazil_data import FILES, GOVERNED_MANIFEST, catalog_version, governed_manifest, load_brazil, manifest_from_repository
+from catalog_support import write_state_source
 from install_brazil_data import install
 
 client = TestClient(main.app)
@@ -27,6 +28,7 @@ def write_sources(folder, q=5):
     book.active.append(["Brasil", 2024, 6, "MEDICINA", 100])
     book.save(folder / FILES["national"])
     (folder / FILES["municipal"]).write_text(MUNICIPAL.format(q=q), encoding="utf-8")
+    write_state_source(folder, {("AC", "202406"): 3})
 
 
 def write_manifest(root):
@@ -92,9 +94,12 @@ def test_old_local_copy_is_never_used(repo):
     assert alfa["Quantidade"] == 5  # conteúdo da raiz, nunca o da cópia antiga
 
 
-def test_changed_original_is_refused_without_fallback(repo):
-    path = repo / FILES["municipal"]
-    path.write_text(MUNICIPAL.format(q=6), encoding="utf-8")
+@pytest.mark.parametrize("scope", ["municipal", "state"])
+def test_changed_original_is_refused_without_fallback(repo, scope):
+    if scope == "municipal":
+        (repo / FILES["municipal"]).write_text(MUNICIPAL.format(q=6), encoding="utf-8")
+    else:
+        write_state_source(repo, {("AC", "202406"): 4})  # fonte estadual alterada sem manifesto novo
     response = inspect_municipal()
     assert response.status_code == 422 and "difere do manifesto" in response.json()["detail"]
     assert client.get("/api/brazil/source").json()["integridade"] == "recusada"

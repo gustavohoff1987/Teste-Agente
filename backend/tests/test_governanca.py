@@ -13,7 +13,8 @@ _SPEC.loader.exec_module(gov)
 
 def test_classifica_arquivos_que_podem_mudar_comportamento():
     for caminho in ("frontend/src/App.tsx", "frontend/package.json", "backend/main.py", "backend/requirements.txt",
-                    "dados/brasil/manifesto.json", "Dados_Brasil.xlsx", "Dados_Municipios_Brasil.csv"):
+                    "dados/brasil/manifesto.json", "Dados_Brasil.xlsx", "Dados_Municipios_Brasil.csv",
+                    "Dados_Estados_Brasil.csv"):
         assert gov.afeta_comportamento(caminho), caminho
     for caminho in ("backend/tests/ui_block1_smoke.py", "backend/tests/test_engine.py", "Docs/BLOCO1.md",
                     "README.md", ".github/workflows/ci.yml", "AGENTS.md"):

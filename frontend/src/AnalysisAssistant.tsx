@@ -15,7 +15,8 @@ type Verification = { source: "BACKEND_PREFLIGHT"; capability_status: "available
 type Clarification = {code: string; prompt: string; reason: string; source: "CATALOGO_LOCAL";
   choices: {label: string; draft: string; operation?: Operation; indicator?: "quantity" | "density" | null}[]; answered: false};
 export type TerritorialProposal = {handled: boolean; reply?: string; clarification?: string; operation?: Operation;
-  territory_ids?: string[]; pending_operation?: Operation; requested_count?: number | null;
+  /** Estados citados como objeto (prefixo IBGE), na base oficial: vão para a abrangência territorial. */
+  territory_ids?: string[]; estados?: string[]; pending_operation?: Operation; requested_count?: number | null;
   options_patch?: {period_filter?: string; period_filters?: string[]; temporal_indicator?: "quantity" | "density";
     comparison_indicator?: "quantity" | "density"}; selection_changed?: boolean; reset_selection?: boolean};
 type Reply = { exploration?: TerritorialProposal; reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;

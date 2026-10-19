@@ -187,9 +187,9 @@ def test_levels_summary_keeps_brazil_states_and_municipalities_apart_and_the_rat
     text = resumo["texto"]
     reference = body["metadata"]["referencia_nacional"]["valores"][0]["valor"]
     assert text == ("Na competência 202306, densidade por 1.000 habitantes em blocos por nível, sem somar níveis: Brasil "
-                    "(total nacional), " + f"{reference:.2f}".replace(".", ",") + " por 1.000 habitantes; Estados (soma "
-                    "dos municípios), 1 registro avaliável e 0 não avaliáveis; Municípios, 2 registros avaliáveis e 0 não "
-                    "avaliáveis.")  # o Brasil já é o próprio bloco: a taxa nacional não se repete como referência
+                    "(total nacional), " + f"{reference:.2f}".replace(".", ",") + " por 1.000 habitantes; Estados, 1 "
+                    "registro avaliável e 0 não avaliáveis; Municípios, 2 registros avaliáveis e 0 não avaliáveis."
+                    )  # o Brasil já é o próprio bloco: a taxa nacional não se repete como referência
     municipal = ok(level_analyze(info, "density", {"municipios": {"ids": ["code:130260", "code:150140"]}},
                                  period_filter="202306"))
     context = check(municipal)
@@ -201,25 +201,27 @@ def test_levels_summary_keeps_brazil_states_and_municipalities_apart_and_the_rat
     assert [(item["label"], item["value"], item["nivel"]) for item in body["metrics"]] == [
         ("Brasil (total nacional): registros avaliáveis", 1, "BR"),
         ("Brasil (total nacional): registros não avaliáveis", 0, "BR"),
-        ("Estados (soma dos municípios): registros avaliáveis", 1, "UF"),
-        ("Estados (soma dos municípios): registros não avaliáveis", 0, "UF"),
+        ("Estados: registros avaliáveis", 1, "UF"), ("Estados: registros não avaliáveis", 0, "UF"),
         ("Municípios: registros avaliáveis", 2, "MUN"), ("Municípios: registros não avaliáveis", 0, "MUN")]
     assert body["description"] == ("Densidade de pessoas por 1.000 habitantes por nível territorial (Brasil (total "
-                                   "nacional), estados (soma dos municípios) e municípios), em blocos separados; nenhum "
-                                   "nível é somado a outro.")
+                                   "nacional), estados e municípios), em blocos separados; nenhum nível é somado a outro.")
     kpis = resumo["indicadores"]
     assert kpis[0]["rotulo"] == "Brasil (total nacional)" and kpis[0]["nivel"] == "BR" and kpis[0]["valor"] == reference
     assert kpis[0]["serie"]["caminho"] == ["metadata", "referencia_nacional", "serie"]
-    assert [item["rotulo"] for item in kpis] == ["Brasil (total nacional)", "Estados (soma dos municípios): registros "
-                                                 "avaliáveis", "Municípios: registros avaliáveis"]
+    assert [item["rotulo"] for item in kpis] == ["Brasil (total nacional)", "Estados: registros avaliáveis",
+                                                 "Municípios: registros avaliáveis"]
     serie = body["metadata"]["referencia_nacional"]["serie"]
     assert [item["competencia"] for item in serie] == ["202206", *PERIODS]  # todas as competências da fonte nacional
     assert serie[0]["valor"] is None and serie[0]["motivo"] == "SEM_COMPETENCIA_DE_JUNHO"  # lacuna, nunca zero
     assert body["metadata"]["representacao"]["referencias"][0]["serie"] == serie
     chips = {item["rotulo"]: item["valor"] for item in resumo["procedencia"]}
-    assert chips["Níveis"] == "Brasil (total nacional) · Estado (soma dos municípios) · Município"
-    assert "Soma dos componentes (possível dupla contagem)" in chips["Tipo de contagem"]
+    assert chips["Níveis"] == "Brasil (total nacional) · Estado · Município"
+    assert chips["Tipo de contagem"] == ("Unidades distintas: contagem nacional (não é a soma dos municípios) · Unidades "
+                                         "distintas: contagem estadual (não é a soma dos municípios) · Unidades distintas "
+                                         "no município")
+    assert chips["Fonte"].startswith("Dados do Brasil, fontes nacional, estadual e municipal")
     assert chips["População do Brasil"].startswith("regra BR-POP-JUNHO-1")
+    assert chips["População dos estados"] == "regra UF-POP-MUNICIPIOS-1 (soma dos municípios na própria competência)"
     # A comparação com janela: Brasil lado a lado, sem relação; contagens da tendência do motor.
     window = ok(level_analyze(info, "comparisons", request, period_filters=PERIODS, comparison_values_period="202306"))
     text = check(window)["texto"]

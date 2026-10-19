@@ -1,5 +1,5 @@
-// Abrangência territorial da base oficial (D3): Brasil (total nacional), estados (soma dos municípios pelo código IBGE),
-// "Todos os municípios" e municípios, agrupados por estado. Funções puras: só organizam o que o usuário marcou e o que o
+// Abrangência territorial da base oficial (D3): Brasil (total nacional), estados (médicos únicos da fonte estadual; população
+// pela soma dos municípios do código IBGE), "Todos os municípios" e municípios, agrupados por estado. Funções puras: só organizam o que o usuário marcou e o que o
 // backend informou (bloco "niveis" da inspeção). Nenhum valor, soma, mínimo ou classe é calculado aqui; as regras de
 // cada análise (aceita, padrão, motivos e texto) vêm do backend, que confere de novo o pedido.
 
@@ -8,9 +8,12 @@ export type LevelRule = {
   aceita: Level[]; estado_como: "objeto" | "expansao" | null; minimo: number; combinacao: string;
   padrao: "brasil" | "todos_municipios" | null; disponivel: boolean; texto: string; motivos: Partial<Record<Level, string>>;
 };
-export type StateInfo = { prefixo: string; sigla: string; nome: string; rotulo: string; rotulo_grupo: string; municipios: number };
+/** `objeto`: a UF está na fonte estadual e pode ser marcada como estado (ausente em respostas antigas: vale como sim). */
+export type StateInfo = { prefixo: string; sigla: string; nome: string; rotulo: string; rotulo_grupo: string; municipios: number;
+  objeto?: boolean };
 export type Levels = {
   brasil: { disponivel: boolean; motivo: string; periodos: string[] };
+  fonte_estadual?: { disponivel: boolean; motivo: string; periodos: string[] };
   estados: StateInfo[]; municipios: { total: number }; operacoes: Record<string, LevelRule>;
 };
 /** O que o usuário marcou além dos municípios (estes ficam na seleção compartilhada de identificadores). */

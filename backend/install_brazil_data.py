@@ -25,7 +25,7 @@ def install(source, destination, governed=True):
         raw = (source / filename).read_bytes()
         frame, _ = read_dataset(raw, filename)
         required = {"periodo_ano", "periodo_mes", "categoria_profissional"} | (
-            {"pais", "contagem"} if scope == "national" else
+            {"pais", "contagem"} if scope == "national" else {"uf", "contagem"} if scope == "state" else
             {"municipio", "cod_ibge", "quantidade", "população_estimada", "latitude", "longitude"})
         if frame is None or frame.empty or not required.issubset(frame.columns):
             raise ValueError("As fontes não correspondem à estrutura esperada da base Brasil.")

@@ -10,7 +10,7 @@ import llm_bridge
 from brazil_data import FILES
 from install_brazil_data import install
 from main import app
-from catalog_support import use_external_catalog
+from catalog_support import use_external_catalog, write_state_source
 
 
 client = TestClient(app)
@@ -29,6 +29,7 @@ def catalog(tmp_path, monkeypatch):
         "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada;latitude;longitude\n"
         "A;001;2023;6;MEDICINA;6;1000;-10,1;-40,1\nB;002;2023;6;MEDICINA;8;2000;-11,1;-41,1\n"
         "A;001;2024;6;MEDICINA;10;1000;-10,1;-40,1\nB;002;2024;6;MEDICINA;12;2000;-11,1;-41,1\n", encoding="utf-8")
+    write_state_source(source, {("AC", "202306"): 5, ("AC", "202406"): 7})
     hashes = {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in FILES.values()}
     destination = tmp_path / "resident"
     install(source, destination, governed=False)
@@ -52,7 +53,7 @@ def form(info, operation="counts", **options):
 def test_logical_dataset_routes_without_merging_and_accepts_municipal_counts(catalog):
     national = inspected()
     assert national["row_count"] == 2 and national["source"]["scope"] == "national"
-    assert set(national["source"]["available_scopes"]) == set(FILES)
+    assert national["source"]["available_scopes"] == ["national", "municipal"]  # a fonte estadual não é um recorte
     assert national["sheets"] == []
     assert all(filename not in json.dumps(national) for filename in FILES.values())
     national_result = client.post("/api/analyze", data=form(national)).json()
@@ -249,7 +250,8 @@ def test_stale_version_and_unknown_sources_are_rejected(catalog):
     request["dataset_version"] = "stale-version"
     for endpoint in ("/api/analyze", "/api/preflight"):
         assert client.post(endpoint, data=request).status_code == 422
-    for data in ({"dataset": "../secret"}, {"dataset": "brazil", "scope": "../secret"}, {}):
+    # A fonte estadual só é lida pela abrangência territorial; não é um recorte do pedido.
+    for data in ({"dataset": "../secret"}, {"dataset": "brazil", "scope": "../secret"}, {"dataset": "brazil", "scope": "state"}, {}):
         assert client.post("/api/inspect", data=data).status_code == 422
     assert client.post("/api/inspect", data={"dataset": "brazil"},
                        files={"file": ("upload.csv", b"Ano;Quantidade\n2024;1")}).status_code == 422

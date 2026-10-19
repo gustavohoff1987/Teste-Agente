@@ -75,6 +75,7 @@ def test_new_version_never_reuses_previous_content(catalog, tmp_path, monkeypatc
     source = tmp_path / "fonte"
     source.mkdir()
     (source / FILES["national"]).write_bytes((catalog / FILES["national"]).read_bytes())
+    (source / FILES["state"]).write_bytes((catalog / FILES["state"]).read_bytes())
     (source / FILES["municipal"]).write_text((catalog / FILES["municipal"]).read_text(encoding="utf-8").replace(
         "MANAUS;130260;2024;6;MEDICINA;15", "MANAUS;130260;2024;6;MEDICINA;40"), encoding="utf-8")
     from install_brazil_data import install

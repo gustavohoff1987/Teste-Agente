@@ -198,9 +198,11 @@ Código: `backend/comparison_window.py`, o ramo `comparisons` de `backend/main.p
   competência dos valores fora da janela é recusada (422): "A competência dos valores precisa estar entre os
   períodos escolhidos para a comparação.".
 - **Níveis:** relações só dentro do mesmo nível; o Brasil fica lado a lado, sem relação; estado e município nunca
-  se relacionam; estado parcial na competência dos valores fica fora das relações e mantém o valor no registro
-  ("Avaliável com limitações: soma parcial"); o estado cujo suporte muda na janela recebe INCOMPARABILIDADE pela
-  entrada de `evolution` (sem trajetória).
+  se relacionam. Desde a fonte estadual (19/10/2026), o estado é a contagem de médicos únicos da fonte estadual,
+  sem composição que mude entre competências: estado sem valor na competência dos valores (sem registro ou, na
+  densidade, sem a população completa dos seus municípios) fica fora das relações, com a condição, e mantém a
+  contagem no registro; na janela, a densidade sem população é lacuna (fora das observações, nunca zero). Antes,
+  o estado era a soma dos municípios, e o estado cujo suporte mudava na janela recebia INCOMPARABILIDADE.
 - **Classes lado a lado:** entre territórios, só se lê se a classe é a mesma; as classes não têm ordem entre si
   (nota "Classes de tendência lado a lado: …"). Nenhum texto ordena classes de tendência.
 - **Sem a opção**, a comparação segue exatamente o caminho anterior (relações em cada competência).
@@ -214,8 +216,11 @@ Código: `backend/comparison_window.py`, o ramo `comparisons` de `backend/main.p
   (`comparison-panel`, ver `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`).
 - **Exemplo com a base versionada** (série anual de junho, valores em 06/2024, densidade): Brasil 2,3638 por
   1.000 habitantes, Crescimento (11 observações; 2015 entra com a população dos 5.569 municípios, avaliável com
-  limitações); SP 5,2032, Crescimento; RS não comparável (430607 ausente em 06/2015); AM 1,5365, Manaus 2,0748,
-  Tefé 0,8704 e Parintins 1,1574, todos "Sem classificação (Mudança de direção)"; desfecho RES-LIM.
+  limitações); SP 3,2390, Crescimento; AM 1,3991, Crescimento; RS, Crescimento com 10 observações (sem 06/2015,
+  em que a população do estado está incompleta); Manaus 2,0748, Tefé 0,8704 e Parintins 1,1574, "Sem
+  classificação (Mudança de direção)"; desfecho RES-VAL. Na série completa, a densidade de SP tem 21
+  observações (sem 01/2015) e a do RS, 20 (sem 06/2015 e 01/2020), ambas "Sem classificação (Mudança de
+  direção)".
 
 ## 9. Fora deste escopo
 

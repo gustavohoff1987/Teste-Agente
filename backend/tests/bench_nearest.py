@@ -44,6 +44,9 @@ def synthetic_catalog(destination):
         book.active.append(["Brasil", 2024, 6, "MEDICINA", 500000])
         book.save(Path(folder) / FILES["national"])
         (Path(folder) / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        if "state" in FILES:  # fonte estadual (médicos únicos por UF), exigida desde 19/10/2026
+            (Path(folder) / FILES["state"]).write_text("uf;periodo_ano;periodo_mes;categoria_profissional;contagem\r\n"
+                                                       "AM;2024;6;MEDICINA;150000\r\n", encoding="utf-8")
         install(folder, destination, governed=False)  # fixture sintética
 
 

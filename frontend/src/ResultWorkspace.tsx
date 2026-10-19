@@ -270,11 +270,11 @@ export default function ResultWorkspace(p: Props) {
     if (!source.length || source.length > 3 || !["density", "counts", "temporal", "report"].includes(operation)) return null;
     return <section aria-label="Destaques do resultado" data-testid="result-highlights" className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {source.map((row, index) => {
-        // Níveis em blocos (D3/D5): o nível de cada registro identificado no cartão; a soma dos municípios com textura e aviso.
+        // Níveis em blocos (D3/D5): o nível de cada registro identificado no cartão; o estado com o aviso de que a soma dos
+        // estados não é o total do Brasil.
         const level = LEVEL_OF_LABEL[String(row["Nível"] ?? "")] as LevelCode | undefined;
         return <article key={index} data-level={level} className={"min-w-0 rounded-2xl border bg-white p-4 shadow-sm " +
-          (level === "UF" ? "border-blue-200" : "border-line")}
-          style={level === "UF" ? { backgroundImage: "repeating-linear-gradient(45deg, rgba(234,242,252,0.9) 0 4px, #ffffff 4px 10px)" } : undefined}>
+          (level === "UF" ? "border-blue-200" : "border-line")}>
           {level && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{LEVEL_TITLES[level]}</p>}
           <p className="truncate text-xs font-semibold text-slate-600" title={String(row["Território"] ?? "")}>
             {String(row["Território"] ?? "Resultado")}{row["Categoria"] ? " · " + String(row["Categoria"]) : ""}</p>
@@ -287,13 +287,11 @@ export default function ResultWorkspace(p: Props) {
   function levelTile(row: Row) {
     const density = operation === "density" || (operation === "report" && typeof row["Densidade por 1.000"] === "number");
     const column = density ? "Densidade por 1.000" : "Quantidade", value = row[column];
-    // Soma dos municípios (estado): nunca rotulada como profissionais distintos (RQ-REP-14).
-    const summed = LEVEL_OF_LABEL[String(row["Nível"] ?? "")] === "UF";
-    const counted = summed ? "na soma das contagens dos municípios" : unitOf("Quantidade") || "na unidade declarada";
+    const counted = unitOf("Quantidade") || "na unidade declarada";
     return <>
       <p className="mt-1 text-4xl font-semibold text-ink" title={typeof value === "number" ? "Valor integral: " + fullPrecision(value) : undefined}>
         {formatValue(value, density ? "CONTINUO" : "CONTAGEM")}</p>
-      <p className="text-xs text-slate-600">{density ? (summed ? "por 1.000 habitantes (soma dos municípios)" : "profissionais por 1.000 habitantes") : counted}
+      <p className="text-xs text-slate-600">{density ? "profissionais por 1.000 habitantes" : counted}
         {row["Período"] ? " · " + readablePeriod(String(row["Período"])) : ""}</p>
       {density && typeof row["Quantidade"] === "number" && typeof row["População"] === "number" && <p className="mt-2 text-xs text-slate-500">
         {formatNumber(row["Quantidade"], "CONTAGEM")} {counted} · {formatNumber(row["População"], "CONTAGEM")} habitantes</p>}
@@ -441,19 +439,18 @@ export default function ResultWorkspace(p: Props) {
       text: mark.rotulo + ": " + formatNumber(mark.valor) + " " + mark.unidade + ", referência de contexto; a linha não classifica os municípios." +
         (mark.nota ? " " + mark.nota : "") } : undefined;
     const anyBars = bars || stateBars;
-    // Barras (ou, no ranking, pirulitos com a posição do motor) de um nível; o estado com textura e o aviso de dupla contagem.
+    // Barras (ou, no ranking, pirulitos com a posição do motor) de um nível; o estado com o aviso da fonte estadual.
     const figure = (block: { data: BarDatum[]; title: string }, level: "MUN" | "UF") => operation === "ranking"
       ? <RankingLollipop data={block.data.map(item => ({ id: item.id, label: item.label, value: item.value, highlighted: item.highlighted,
           rank: rowsById.get(item.id)?.["Posição"], condition: String(rowsById.get(item.id)?.["Condição"] ?? "") }))}
           kind={barIndicator?.tipo || "CONTINUO"} unit={barIndicator?.unidade || ""} title={block.title} onSelect={id => select(id, true)}/>
       : <TerritoryBars data={block.data} unit={barIndicator?.unidade || ""} kind={barIndicator?.tipo || "CONTINUO"} title={block.title}
-          onSelect={id => select(id, true)} reference={level === "MUN" ? reference : undefined} texture={level === "UF"}/>;
+          onSelect={id => select(id, true)} reference={level === "MUN" ? reference : undefined}/>;
     const municipal = bars ? <div data-testid={hasLevels ? "level-panel-mun" : undefined} data-level={hasLevels ? "MUN" : undefined}>
       <h4 className="mb-1 text-sm font-bold text-ink">{bars.title}</h4>
       {barOrder === "valor" && <p className="mb-1 text-xs text-amber-900">Ordenação apenas visual: não constitui posição de ranking nem resultado.</p>}
       {figure(bars, "MUN")}</div> : null;
     const states = stateBars ? <div data-testid="level-panel-uf" data-level="UF"><h4 className="mb-1 text-sm font-bold text-ink">{stateBars.title}</h4>
-      <p className="mb-1 text-xs text-slate-600">Soma dos municípios de cada estado (possível dupla contagem); não é comparada com o total do Brasil.</p>
       <StateWarning/>
       {figure(stateBars, "UF")}</div> : null;
     const brazil = hasLevels && anyBars ? brazilBlock() : null;
@@ -591,7 +588,7 @@ export default function ResultWorkspace(p: Props) {
         group: barOrder === "codigo" && level === "MUN" ? stateOfMember.get(id) : undefined };
     });
     return { data, title: barIndicator.rotulo + (barIndicator.unidade ? " (" + barIndicator.unidade + ")" : "") +
-      (hasLevels ? (level === "UF" ? " · Estados (soma dos municípios)" : " · Municípios") : "") +
+      (hasLevels ? (level === "UF" ? " · Estados" : " · Municípios") : "") +
       (selected.length ? " · territórios selecionados" : " · todos os territórios do resultado") };
   }
 
@@ -635,7 +632,7 @@ export default function ResultWorkspace(p: Props) {
       return point;
     });
     // Taxa nacional de contexto (D5, só densidade e relatório com densidade): linha tracejada em tinta secundária, sem ligar
-    // lacunas; nunca no painel dos estados (soma dos municípios) nem quando o Brasil já é uma série marcada.
+    // lacunas; nunca no painel dos estados nem quando o Brasil já é uma série marcada.
     const national = (operation === "density" || operation === "report") && serie.valor === "Densidade por 1.000" &&
       (!panel || (!panel.niveis.includes("UF") && !panel.referencia)) ? rep?.referencias?.[0] : undefined;
     if (national) {

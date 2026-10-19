@@ -181,9 +181,10 @@ competências (ver `EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
 
 A caixa **Abrangência territorial** abre uma lista vertical com caixas de marcar nativas (Tab entre
 os controles, Espaço marca, o botão de cada estado abre o grupo): **Brasil (total nacional)**;
-**Estados**, com o aviso de que cada estado é a soma dos seus municípios (o mesmo médico pode ser
-contado em mais de um município; a soma dos estados não é o total do Brasil), "Todos os estados" e
-cada estado com "soma de N municípios"; e **Municípios**, com "Todos os municípios" e um grupo
+**Estados** (selo "médicos únicos"), com o aviso de que cada estado conta os médicos diferentes do estado
+(fonte estadual: quem atua em mais de um município do estado conta uma vez; quem atua em mais de um estado
+conta em cada um, e a soma dos estados não é o total do Brasil), "Todos os estados" e cada estado com a
+"população de N municípios"; e **Municípios**, com "Todos os municípios" e um grupo
 recolhível por estado (caixa do grupo, "k de N municípios" e os municípios dentro). Ao lado, "{n}
 selecionados", a composição ou o padrão da análise, a escolha pendente e "Limpar seleção". Sem nada
 marcado vale o padrão da análise, com o selo "padrão desta análise": o Brasil em quantitativos,
@@ -191,7 +192,7 @@ evolução temporal e relatórios; todos os municípios nas demais. A primeira m
 padrão. Os municípios marcados continuam valendo ao trocar de análise; o Brasil e os estados só
 valem nas análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha
 (por exemplo, "Não se aplica: o ranking ordena vários territórios, e o Brasil é um só."). Estados e
-municípios juntos na distribuição ou no ranking, ou territórios de menos, deixam a caixa em destaque,
+municípios juntos na distribuição, no ranking ou na agregação, ou territórios de menos, deixam a caixa em destaque,
 com o motivo do backend e "Ajuste a abrangência territorial para continuar.", e o cálculo bloqueado.
 A base é examinada uma vez: trocar de análise não recarrega a base nem troca de fonte. A densidade do
 Brasil fica disponível na caixa Indicador. Detalhes em

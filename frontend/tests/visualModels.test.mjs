@@ -17,8 +17,8 @@ const levels = {
   rows: [
     {'Nível': 'Brasil (total nacional)', 'Período': '202406', Categoria: 'MEDICINA', 'Território': 'Brasil', 'Densidade por 1.000': 2.36,
       'Condição': 'Lado a lado: o Brasil é outro nível e não entra em maior, menor nem diferença com estados ou municípios.'},
-    {'Nível': 'Estado (soma dos municípios)', 'Período': '202406', Categoria: 'MEDICINA', 'Objeto A': 'Amazonas (AM)', 'Valor A': 1.54,
-      'Objeto B': 'São Paulo (SP)', 'Valor B': 5.2, 'Relação A/B': 'MENOR', 'Diferença A − B': -3.67, 'Condição': 'Comparável'},
+    {'Nível': 'Estado', 'Período': '202406', Categoria: 'MEDICINA', 'Objeto A': 'Amazonas (AM)', 'Valor A': 1.4,
+      'Objeto B': 'São Paulo (SP)', 'Valor B': 3.24, 'Relação A/B': 'MENOR', 'Diferença A − B': -1.84, 'Condição': 'Comparável'},
     {'Nível': 'Município', 'Período': '202406', Categoria: 'MEDICINA', 'Território': 'MANAUS [130260]', 'Densidade por 1.000': 2.07, 'Condição': 'Comparável'},
     {'Nível': 'Município', 'Período': '202406', Categoria: 'MEDICINA', 'Território': 'TEFE [130420]', 'Densidade por 1.000': 0.87, 'Condição': 'Comparável'},
     {'Nível': 'Município', 'Período': '202406', Categoria: 'MEDICINA', 'Território': 'PARINTINS [130340]', 'Densidade por 1.000': 1.16, 'Condição': 'Comparável'}],
@@ -26,12 +26,12 @@ const levels = {
     {'Nível': 'Brasil (total nacional)', 'Território': 'Brasil', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 502495, 'População': 212583750,
       'Densidade por 1.000': 2.36, 'Tipo de contagem': 'Unidades distintas: contagem nacional', 'Condição': 'Avaliável', ...window,
       Inicial: 1.59, Final: 2.36, 'Variação absoluta': 0.78, 'Tendência': 'Crescimento', 'Motivo da tendência': null},
-    {'Nível': 'Estado (soma dos municípios)', 'Território': 'Amazonas (AM)', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 6578,
-      'População': 4281209, 'Densidade por 1.000': 1.54, 'Tipo de contagem': 'Soma dos componentes (possível dupla contagem)', 'Condição': 'Avaliável',
-      ...window, Inicial: 1.01, Final: 1.54, 'Variação absoluta': 0.53, 'Tendência': 'Sem classificação', 'Motivo da tendência': 'Mudança de direção'},
-    {'Nível': 'Estado (soma dos municípios)', 'Território': 'São Paulo (SP)', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 239208,
-      'População': 45973194, 'Densidade por 1.000': 5.2, 'Tipo de contagem': 'Soma dos componentes (possível dupla contagem)', 'Condição': 'Avaliável',
-      ...window, Inicial: 3.1, Final: 5.2, 'Variação absoluta': 2.1, 'Tendência': 'Crescimento', 'Motivo da tendência': null},
+    {'Nível': 'Estado', 'Território': 'Amazonas (AM)', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 5990,
+      'População': 4281209, 'Densidade por 1.000': 1.4, 'Tipo de contagem': 'Unidades distintas: contagem estadual (não é a soma dos municípios)',
+      'Condição': 'Avaliável', ...window, Inicial: 0.94, Final: 1.4, 'Variação absoluta': 0.46, 'Tendência': 'Crescimento', 'Motivo da tendência': null},
+    {'Nível': 'Estado', 'Território': 'São Paulo (SP)', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 148909,
+      'População': 45973194, 'Densidade por 1.000': 3.24, 'Tipo de contagem': 'Unidades distintas: contagem estadual (não é a soma dos municípios)',
+      'Condição': 'Avaliável', ...window, Inicial: 2.2, Final: 3.24, 'Variação absoluta': 1.04, 'Tendência': 'Crescimento', 'Motivo da tendência': null},
     {'Nível': 'Município', 'Território': 'MANAUS [130260]', Categoria: 'MEDICINA', 'Período': '202406', Quantidade: 4730, 'População': 2279686,
       'Densidade por 1.000': 2.07, 'Tipo de contagem': 'Unidades distintas: pessoas', 'Condição': 'Avaliável', ...window, Inicial: 1.44, Final: 2.07,
       'Variação absoluta': 0.63, 'Tendência': 'Sem classificação', 'Motivo da tendência': 'Mudança de direção'}],
@@ -50,14 +50,14 @@ test('comparação: grupos por nível na ordem Brasil, estados, municípios; par
   const [brazil, states, towns] = model.groups;
   assert.equal(brazil.relations, false);
   assert.equal(brazil.pair, null);
-  assert.deepEqual(states.pair, {a: 'Amazonas (AM)', b: 'São Paulo (SP)', valueA: 1.54, valueB: 5.2, relation: 'MENOR', difference: -3.67,
+  assert.deepEqual(states.pair, {a: 'Amazonas (AM)', b: 'São Paulo (SP)', valueA: 1.4, valueB: 3.24, relation: 'MENOR', difference: -1.84,
     condition: 'Comparável'});
-  assert.equal(states.countType, 'Soma dos componentes (possível dupla contagem)');
+  assert.equal(states.countType, 'Unidades distintas: contagem estadual (não é a soma dos municípios)');
   assert.equal(towns.relations, false);  // um município só: nada a relacionar
   const amazonas = states.objects[0];
-  assert.deepEqual([amazonas.quantity, amazonas.population, amazonas.density, amazonas.value], [6578, 4281209, 1.54, 1.54]);
+  assert.deepEqual([amazonas.quantity, amazonas.population, amazonas.density, amazonas.value], [5990, 4281209, 1.4, 1.4]);
   assert.deepEqual([amazonas.window.initial, amazonas.window.final, amazonas.window.delta, amazonas.window.trend],
-    [1.01, 1.54, 0.53, 'Sem classificação']);
+    [0.94, 1.4, 0.46, 'Crescimento']);
 });
 
 test('comparação sem competência dos valores: valores das relações num recorte; vários recortes ficam na tabela', () => {

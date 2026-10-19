@@ -57,6 +57,16 @@ comparação e preparar esses dois municípios. “Agora vamos analisar comparat
 no município de São Paulo” distingue a cidade do estado homônimo e pergunta com
 qual outro município comparar. A próxima mensagem pode completar os nomes.
 
+Na base oficial, desde 19/10/2026 (fonte estadual de médicos únicos), a gramática local também marca estados
+como objeto da análise: “Quantos médicos havia em Minas Gerais em junho de 2024?”, “estado de São Paulo” e
+“estados da Região Norte”; anos (“em 2024”) e intervalos (“entre 2014 e 2024”) viram as competências da base
+nesses anos, e “número de médicos” indica quantidade. “Municípios de Minas Gerais” continua marcando os
+municípios do estado. O nome de estado que também é de município (“a densidade de São Paulo”) gera a pergunta
+“estado de São Paulo” ou “município de São Paulo”, com a análise pendente para a resposta; nada é escolhido em
+silêncio, e nada é calculado ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md), seção 5.3). Anos e
+intervalos de anos valem também nas bases importadas: as competências AAAAMM do ano ou, num período anual, o próprio
+ano; sem competência no ano, a conversa pede outra.
+
 “Analise dois municípios também”, com uma análise já selecionada, informa uma
 quantidade, sem autorizar escolher quais municípios. O sistema pede os nomes e
 prepara a seleção quando forem fornecidos. A pendência pertence à fonte/versão;

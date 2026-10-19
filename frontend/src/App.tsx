@@ -624,15 +624,18 @@ function App() {
   }
   function applyExploration(proposal: Exploration) {
     setPeriodEditor(0);
-    if (!proposal.operation || !proposal.territory_ids) return;
-    changeTerritories(proposal.territory_ids);
+    if (!proposal.operation || (!proposal.territory_ids && !proposal.estados)) return;
+    // Estados citados (base oficial) vão para a abrangência como objetos; os municípios, para a seleção compartilhada.
+    const ids = proposal.territory_ids || [];
+    const scope = proposal.estados?.length ? {...EMPTY_SCOPE, estados: proposal.estados} : EMPTY_SCOPE;
+    replaceSelection(scope, ids);
     const patch = proposal.options_patch || {};
     if (patch.period_filter) { setPeriodFilter(patch.period_filter); setSelectedPeriods([]); setMultiplePeriods(false); }
     else if (patch.period_filter !== undefined) setPeriodFilter("");
     const periods = patch.period_filters;
     if (periods !== undefined) {
-      const next = !periods.length && proposal.operation === "temporal" ? scopePeriodsOf(inspection, "temporal", EMPTY_SCOPE,
-        proposal.territory_ids) : periods;
+      const next = !periods.length && proposal.operation === "temporal" ? scopePeriodsOf(inspection, "temporal", scope, ids)
+        : periods;
       setSelectedPeriods(current=>sameList(current, next) ? current : next);
       if (periods.length || proposal.operation === "temporal") { setPeriodFilter(""); setMultiplePeriods(true); }
     }
@@ -708,7 +711,7 @@ function App() {
     pendingRanking.current = proposal.criteria_pending_ranking || null;
     if (proposal.criteria_patch) return applyCriteriaPatch(proposal.criteria_patch, proposal.reply || "");
     // Nomes explicitamente pedidos autorizam preparar esse novo conjunto; nada é executado.
-    if (proposal.operation && proposal.territory_ids) applyExploration(proposal);
+    if (proposal.operation && (proposal.territory_ids || proposal.estados)) applyExploration(proposal);
     else if (proposal.operation) selectAnalysis(proposal.operation);
     return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros na preparação.";
   }
@@ -736,7 +739,8 @@ function App() {
       return "Análise escolhida. Confira o recorte, o indicador e as condições na preparação.";
     }
     const responseText = acceptExploration(proposal);
-    if (usingBrazil && levels && wholeBrazil && !proposal.territory_ids?.length && !proposal.criteria_patch)
+    if (usingBrazil && levels && wholeBrazil && !proposal.territory_ids?.length && !proposal.estados?.length &&
+      !proposal.criteria_patch)
       replaceSelection({...EMPTY_SCOPE, brasil: true}, []);
     return responseText;
   }

@@ -11,7 +11,12 @@
       "caminho": "Dados_Municipios_Brasil.csv",
       "bytes": 9968224,
       "sha256": "89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512"
+    },
+    "state": {
+      "caminho": "Dados_Estados_Brasil.csv",
+      "bytes": 15109,
+      "sha256": "7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc"
     }
   },
-  "versao": "819cf4628bff55b58e3405ec33ec01d675f27be2f3f085235217028eb608a3f4"
+  "versao": "68944004901c7383b6aa24260c2e66d70043cf1d822670c46491ffa8fade420c"
 }

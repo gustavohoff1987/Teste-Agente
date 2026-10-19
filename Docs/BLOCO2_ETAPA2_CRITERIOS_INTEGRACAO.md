@@ -29,11 +29,12 @@ nas análises espaciais da base Brasil municipal.
 ## 2. Origem da base Brasil (U1)
 
 - **Arquivos usados.** O backend lê diretamente `Dados_Brasil.xlsx` e
-  `Dados_Municipios_Brasil.csv` da raiz do repositório. Não há cópia intermediária nem fallback:
+  `Dados_Municipios_Brasil.csv` da raiz do repositório (desde 19/10/2026, também
+  `Dados_Estados_Brasil.csv`, a fonte estadual de médicos únicos). Não há cópia intermediária nem fallback:
   `.local/` não é lida (o teste com uma `.local` antiga e divergente comprova).
 - **Integridade.** A cada requisição, tamanho e SHA-256 de cada arquivo são conferidos contra o
-  manifesto governado `dados/brasil/manifesto.json` (esquema 1; `versao` = resumo canônico dos dois
-  SHA-256, a mesma identidade de versão do Bloco 1). Arquivo alterado, manifesto ausente,
+  manifesto governado `dados/brasil/manifesto.json` (esquema 1; `versao` = resumo canônico dos SHA-256
+  das fontes, a mesma identidade de versão do Bloco 1; desde 19/10/2026, das três). Arquivo alterado, manifesto ausente,
   desatualizado, ilegível ou inconsistente: recusa com motivo explícito; uploads continuam.
 - **Cache.** O cache de quadros processados é chaveado por arquivo e versão; trocar a versão
   nunca reaproveita o quadro anterior. Versão inspecionada diferente da analisada é recusada.

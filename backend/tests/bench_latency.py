@@ -69,6 +69,10 @@ def national_fixture(destination):
             book.active.append(["Brasil", y, m, "MEDICINA", 500000 + m])
         book.save(Path(folder) / FILES["national"])
         (Path(folder) / FILES["municipal"]).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        if "state" in FILES:  # fonte estadual (médicos únicos por UF), exigida desde 19/10/2026
+            lines = ["uf;periodo_ano;periodo_mes;categoria_profissional;contagem"] + [
+                f"{uf};{y};{m};MEDICINA;{1000 + m}" for uf, _ in sorted(set(UF.values())) for y, m in periods]
+            (Path(folder) / FILES["state"]).write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
         install(folder, destination, governed=False)  # fixture sintética
 
 
@@ -146,7 +150,8 @@ class Bench:
             "quantitativos_nacional": ("/api/analyze", {"dataset": "brazil", "scope": "national",
                                                         "dataset_version": self.version, "operation": "counts",
                                                         "mapping": self.national, "options": json.dumps(period)}),
-            # Rota de níveis (Abr §7.3): Brasil (BR-POP-JUNHO-1), um estado (soma dos municípios) e todos os municípios.
+            # Rota de níveis (Abr §7.3): Brasil (BR-POP-JUNHO-1), um estado (fonte estadual, população UF-POP-MUNICIPIOS-1)
+            # e todos os municípios.
             "niveis_densidade_br_sp_todos": ("/api/analyze", {
                 **base, "scope": "auto", "operation": "density", "options": json.dumps({
                     **period, "abrangencia": {"brasil": True, "estados": ["35"], "municipios": {"todos": True}}})}),

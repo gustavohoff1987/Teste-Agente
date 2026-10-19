@@ -16,9 +16,8 @@ import {
 
 const signed = (value: number, kind: IndicatorKind = "CONTINUO") => (value > 0 ? "+" : "") + formatNumber(value, kind);
 const DENSITY_UNIT = "por 1.000 habitantes";
-// Textura da soma dos componentes (estados): listras a 45°, sempre com o rótulo "possível dupla contagem" (RQ-REP-14).
-export const UF_TEXTURE = "repeating-linear-gradient(45deg, rgba(42,120,214,0.55) 0 3px, rgba(42,120,214,0.15) 3px 6px)";
-export const UF_WARNING = "possível dupla contagem · não comparável com a contagem nacional";
+// Estados: médicos únicos da fonte estadual (unidades distintas no estado). A soma dos estados não é o total do Brasil.
+export const UF_WARNING = "médicos únicos de cada estado · a soma dos estados não é o total do Brasil";
 
 /** Largura do contêiner em pixels, para desenhar SVG sem esticar o texto. */
 function useWidth(ready: boolean, initial = 600): [RefObject<HTMLDivElement>, number] {
@@ -40,14 +39,13 @@ function useWidth(ready: boolean, initial = 600): [RefObject<HTMLDivElement>, nu
 function LevelTag({ level }: { level: LevelCode | null }) {
   if (!level) return null;
   return <span data-testid="level-tag" data-level={level} className={"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold " +
-    (level === "UF" ? "border-blue-300 text-blue-900" : level === "BR" ? "border-slate-500 text-ink" : "border-line text-slate-700")}
-    style={level === "UF" ? { backgroundImage: "repeating-linear-gradient(45deg, #eaf2fc 0 3px, #ffffff 3px 6px)" } : undefined}>
+    (level === "UF" ? "border-blue-300 text-blue-900" : level === "BR" ? "border-slate-500 text-ink" : "border-line text-slate-700")}>
     {LEVEL_TITLES[level]}</span>;
 }
 
-/** Aviso fixo do nível estadual (soma dos municípios). */
+/** Aviso fixo do nível estadual: contagem estadual de médicos únicos, que não se soma ao total do Brasil. */
 export function StateWarning() {
-  return <p data-testid="uf-warning" className="text-xs text-blue-900">Soma dos municípios: {UF_WARNING}.</p>;
+  return <p data-testid="uf-warning" className="text-xs text-blue-900">Fonte estadual: {UF_WARNING}.</p>;
 }
 
 // ------------------------------------------------------------------------------------------------ comparação
@@ -155,8 +153,7 @@ function ValueRow({ item, domain, text, unit, stack = false }: { item: Compariso
     <span className="relative h-4 min-w-0">
       <span aria-hidden className="absolute inset-y-0 border-l border-slate-300" style={{ left: zero + "%" }}/>
       {item.value !== null && <span aria-hidden className="absolute top-1 h-2 rounded-sm" style={{ left: Math.min(zero, end) + "%",
-        width: Math.abs(end - zero) + "%", background: item.level === "UF" ? undefined : CATEGORICAL[0],
-        backgroundImage: item.level === "UF" ? UF_TEXTURE : undefined }}/>}
+        width: Math.abs(end - zero) + "%", background: CATEGORICAL[0] }}/>}
       {item.value !== null && <span aria-hidden className="absolute top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
         style={{ left: end + "%", background: item.level === "BR" ? INK.primary : CATEGORICAL[0] }}/>}
     </span>

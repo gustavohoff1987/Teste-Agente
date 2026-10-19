@@ -42,7 +42,7 @@ BACKEND, FRONTEND = ROOT / "backend", ROOT / "frontend"
 # Registro do último npm ci bem-sucedido; fica dentro de node_modules, que o próprio npm ci recria.
 CARIMBO = FRONTEND / "node_modules" / ".adt-npm-ci.json"
 DEPENDENCIAS = ("package.json", "package-lock.json")
-DADOS_RAIZ = ("Dados_Brasil.xlsx", "Dados_Municipios_Brasil.csv")
+DADOS_RAIZ = ("Dados_Brasil.xlsx", "Dados_Municipios_Brasil.csv", "Dados_Estados_Brasil.csv")
 PRODUTO = ("frontend/", "backend/", "dados/")
 
 

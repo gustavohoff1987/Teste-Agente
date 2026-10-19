@@ -1,4 +1,4 @@
-"""Padrões governados para as duas fontes da base pública Brasil.
+"""Padrões governados para as fontes da base pública Brasil (nacional, estadual e municipal).
 
 Essas associações só são aplicadas à base instalada e íntegra, com estrutura
 esperada. Elas não autorizam deduplicação entre municípios ou entre períodos.
@@ -27,6 +27,12 @@ from territorial_hierarchy import distinct_raw
 FIELDS = {
     "national": {
         "territory": "pais", "period": "Período (ano e mês)",
+        "category": "categoria_profissional", "count": "contagem",
+    },
+    # Médicos únicos por UF (contagem distinta dentro da UF e da competência; nunca a soma dos municípios). Só é lida
+    # pela abrangência territorial (territorial_levels.py); a UF é a sigla, ligada ao código IBGE pela tabela STATES.
+    "state": {
+        "territory": "uf", "period": "Período (ano e mês)",
         "category": "categoria_profissional", "count": "contagem",
     },
     "municipal": {
@@ -138,7 +144,7 @@ def governed_version(frame) -> bool:
 
 
 def source_identity(frame) -> str | None:
-    """Identidade da fonte oficial ("national" ou "municipal"), independente do mapeamento: base Brasil, colunas
+    """Identidade da fonte oficial ("national", "state" ou "municipal"), independente do mapeamento: base Brasil, colunas
     esperadas presentes no quadro e categoria única MEDICINA. None para importações e estruturas diferentes."""
     source = frame.attrs.get("source")
     if not isinstance(source, dict) or source.get("dataset") != "brazil":

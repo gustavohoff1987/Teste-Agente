@@ -152,6 +152,27 @@ def test_local_interpretation_uses_verified_names_and_does_not_execute(frame):
     assert "clarification" in interpret_exploration("Compare os selecionados", frame, MAP, OPTIONS)
 
 
+def test_years_in_the_request_become_the_competencias_of_the_base(frame):
+    """Ano e intervalo de anos viram as competências da base (AAAAMM do ano ou, num período anual, o próprio ano); numa
+    análise de uma competência, com várias no ano, a conversa pede a escolha, sem escolher em silêncio."""
+    counts = interpret_exploration("Mostre a quantidade de Manaus e Tefé em 2024", frame, MAP, OPTIONS)
+    assert set(counts["territory_ids"]) == {"code:130260", "code:130420"} and "clarification" not in counts
+    assert counts["options_patch"] == {"period_filter": "", "period_filters": ["202401", "202406"]}
+    density = interpret_exploration("Mostre a densidade de Manaus em 2023", frame, MAP, OPTIONS)
+    assert density["territory_ids"] == ["code:130260"] and density["options_patch"] == {}
+    assert density["clarification"] == ("Em 2023, a base tem 2 competências (janeiro de 2023 e junho de 2023). Esta análise "
+                                        "usa uma competência: escolha uma na caixa Período ou peça, por exemplo, “em junho "
+                                        "de 2023”.")
+    series = interpret_exploration("Mostre a evolução de Manaus e Tefé entre 2023 e 2024", frame, MAP, OPTIONS)
+    assert series["options_patch"] == {"period_filter": "", "period_filters": ["202301", "202306", "202401", "202406"],
+                                       "temporal_indicator": "quantity"}
+    assert interpret_exploration("Mostre a quantidade de Manaus em 2030", frame, MAP, OPTIONS)["clarification"] == (
+        "A base não tem competências em 2030. Escolha uma das competências da base.")
+    annual = frame[frame.periodo.str.endswith("06")].assign(periodo=lambda data: data.periodo.str[:4])
+    assert interpret_exploration("Mostre a quantidade de Manaus em 2024", annual, MAP, OPTIONS)["options_patch"] == {
+        "period_filter": "2024", "period_filters": []}
+
+
 def test_selection_rejects_related_territorial_levels(frame):
     frame = frame.copy()
     frame.loc[frame.municipio == "Fora", "municipio"] = "Amazonas"

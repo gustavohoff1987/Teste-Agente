@@ -561,7 +561,7 @@ async def _read_upload(file: UploadFile) -> bytes:
 
 
 # Interpretação das fontes governadas Brasil, reaproveitada somente depois de load_brazil_sources
-# verificar o SHA-256 das duas fontes nesta requisição. A chave inclui a versão verificada:
+# verificar o SHA-256 das fontes nesta requisição. A chave inclui a versão verificada:
 # conteúdo novo nunca reutiliza o anterior. Uploads não passam por aqui (nada é guardado).
 _BRAZIL_FRAMES: dict[tuple[str, str], pd.DataFrame] = {}
 _BRAZIL_FRAMES_LOCK = threading.Lock()
@@ -633,7 +633,8 @@ def _catalog_summary(frame: pd.DataFrame) -> dict | None:
 
 
 class BrazilSources:
-    """As duas fontes da base Brasil de uma requisição, de uma única leitura verificada (mesma versão).
+    """As fontes da base Brasil de uma requisição (nacional, estadual e municipal), de uma única leitura verificada (mesma
+    versão).
 
     Cada quadro é montado só quando pedido (cópia do quadro guardado por versão) e mantém o próprio escopo em
     attrs["source"]; a integridade fica em attrs["catalog"], fora da chave de execução."""
@@ -659,7 +660,7 @@ def _brazil_sources(version: str = "") -> BrazilSources:
 
 
 async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version="", with_sources=False):
-    """Quadro do pedido (base Brasil ou arquivo importado). Com with_sources, devolve também as duas fontes Brasil
+    """Quadro do pedido (base Brasil ou arquivo importado). Com with_sources, devolve também as fontes Brasil
     da mesma leitura verificada (None nos uploads)."""
     if bool(file) == bool(dataset):
         raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
@@ -885,11 +886,11 @@ async def llm_interpretation_with_dataset(
 
 @app.get("/api/brazil/description")
 def describe_brazil() -> dict:
-    """Descrição factual das duas partes da base residente, sem seus registros."""
+    """Descrição factual das três partes da base residente, sem seus registros."""
     try:
         profiles = []
         sources = _brazil_sources()
-        for scope in ("national", "municipal"):
+        for scope in ("national", "state", "municipal"):
             frame = sources.frame(scope)
             if frame is None or frame.empty:
                 raise ValueError("A base do Brasil não está disponível.")
@@ -903,9 +904,8 @@ def describe_brazil() -> dict:
                              "categories": categories,
                              "curated": bool(profile),
                              "has_population": bool(mapping.get("population"))})
-        national, municipal = profiles
-        periods = sorted(set(national["periods"]) | set(municipal["periods"]))
-        categories = sorted(set(national["categories"]) | set(municipal["categories"]))
+        periods = sorted({period for profile in profiles for period in profile["periods"]})
+        categories = sorted({category for profile in profiles for category in profile["categories"]})
         if not periods:
             raise ValueError("Períodos não reconhecidos.")
         def human_period(value):
@@ -923,8 +923,10 @@ def describe_brazil() -> dict:
             "A base inclui quantitativos por período e categoria profissional; "
             "a parte municipal também contém população estimada e coordenadas "
             "para análises de densidade e localização. "
-            "O total do Brasil vem da fonte nacional; a densidade do Brasil usa a população municipal de junho "
-            "(regra governada); estados são somas dos municípios. As fontes não são somadas entre si."
+            "O total do Brasil vem da fonte nacional, e o de cada estado, da fonte estadual de médicos únicos (quem atua "
+            "em mais de um município do estado conta uma vez). As densidades usam a população municipal: a de junho do "
+            "ano no Brasil e a soma dos municípios do estado na própria competência (regras governadas). As fontes não "
+            "são somadas entre si."
         )
         return {"description": narrative, "scopes": profiles}
     except (ValueError, OSError, KeyError, TypeError) as exc:
@@ -1105,11 +1107,6 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         if route is not None:
             result["notes"] += territorial_levels.coverage_notes(route.selecao, operation)
             result["metadata"]["selecao_territorial"] = route.selecao
-            extra = territorial_levels.route_limitations(route.selecao, operation)
-            if extra:
-                evaluability = result["metadata"]["evaluability"]
-                evaluability["status"] = "AVALIAVEL_COM_LIMITACOES"
-                evaluability["limitacoes"] = list(dict.fromkeys([*(evaluability.get("limitacoes") or []), *extra]))
         if sources is not None and territorial_levels.wants_reference(operation, settings, frame):
             # D5: taxa nacional como referência de contexto na densidade da base oficial, também sem abrangência.
             territorial_levels.attach_reference(result, sources, result["metadata"]["periods"],

@@ -92,10 +92,12 @@ def value_columns(record: dict | None, metric: str, density_columns: bool) -> di
 
 def window_columns(evolved: dict | None) -> dict:
     """Mudança e tendência do objeto na janela, sem a variação percentual (AT-84). Base zero só afeta o percentual,
-    ausente da comparação: a condição da mudança fica "Avaliável"."""
+    ausente da comparação: a condição da mudança fica "Avaliável". Extremo sem valor (densidade sem população) é
+    lacuna (None), nunca NaN."""
     if evolved is None:
         return {column: None for column in WINDOW_COLUMNS}
-    out = {column: evolved.get(column) for column in WINDOW_COLUMNS}
+    out = {column: None if isinstance(evolved.get(column), float) and pd.isna(evolved.get(column)) else evolved.get(column)
+           for column in WINDOW_COLUMNS}
     if out["Condição da mudança"] == CONDITION_BASE_ZERO:
         out["Condição da mudança"] = CONDITION_EVALUABLE
     return out

@@ -7,10 +7,10 @@ type Bag = Record<string, unknown>;
 export type LevelCode = "BR" | "UF" | "MUN";
 
 export const LEVEL_OF_LABEL: Record<string, LevelCode> = {
-  "Brasil (total nacional)": "BR", "Estado (soma dos municípios)": "UF", "Município": "MUN",
+  "Brasil (total nacional)": "BR", "Estado": "UF", "Município": "MUN",
 };
 export const LEVEL_TITLES: Record<LevelCode, string> = {
-  BR: "Brasil (total nacional)", UF: "Estados (soma dos municípios)", MUN: "Municípios",
+  BR: "Brasil (total nacional)", UF: "Estados", MUN: "Municípios",
 };
 const LEVEL_ORDER: LevelCode[] = ["BR", "UF", "MUN"];
 const num = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;

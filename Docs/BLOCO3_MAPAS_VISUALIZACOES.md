@@ -52,7 +52,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 | `tabela` | `rows` ou `detail_rows` (distribuição e, desde 19/10/2026, comparação com competência dos valores: um registro por território, com densidade, quantidade e população, que leva os indicadores e o mapa do par; a tabela principal da comparação continua sendo `rows`, com as relações) |
 | `vinculo` | coluna que identifica o território e a chave estável (`rotulo`, `codigo` ou `nome`) |
 | `indicadores` | colunas representáveis do resultado: `coluna`, `rotulo`, `tipo` (`CONTINUO`, `CONTAGEM`, `POSICAO`, `CLASSE`, `ESTADO`), `unidade`, `origem` (capacidade), `classes` produzidas por capacidade, `nota` (TPL-11 para distâncias) |
-| `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências. `quebras` (desde 19/10/2026) lista as unidades sem trajetória — tendência não avaliável por série não comparável —, desenhadas só como pontos (nos estados com municípios presentes diferentes, também o `nivel` e as competências da mudança). Nos resultados com níveis territoriais, `paineis` separa a série por tipo de contagem: na quantidade, um painel por nível; na densidade, municípios com o Brasil como referência e estados (soma dos municípios) à parte ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)) |
+| `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências. `quebras` (desde 19/10/2026) lista as unidades sem trajetória — tendência não avaliável por série não comparável —, desenhadas só como pontos (com níveis territoriais, também o `nivel`). Nos resultados com níveis territoriais, `paineis` separa a série por nível: na quantidade, um painel por nível; na densidade, municípios com o Brasil como referência e estados (fonte estadual) à parte ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)) |
 | `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `ESCOLHA_PENDENTE`; até 19/10/2026 este último se chamava `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) e resultados só com Brasil e estados ("Mapa não aplicável: Brasil e estados são agregados sem ponto; marque municípios para ver o mapa."). Só municípios entram no mapa e em `sem_geometria`: Brasil e estados nunca têm ponto |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 | `niveis` | só na rota de níveis (desde 19/10/2026): coluna "Nível", ordem dos níveis presentes, tipo de contagem de cada um e o nível desenhado no mapa ("Município") |
@@ -213,13 +213,14 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - na janela com rolagem, o número de cada barra fica logo depois do fim dela (perto da borda direita,
     dentro da barra), num fundo claro por cima da linha tracejada da referência;
   - com níveis territoriais (desde 19/10/2026), os municípios (`level-panel-mun`) e os estados
-    (`level-panel-uf`, “· Estados (soma dos municípios)”) ficam em figuras separadas; nunca há barra do
+    (`level-panel-uf`, “· Estados”) ficam em figuras separadas; nunca há barra do
     Brasil nem de um estado entre os municípios. Desde o visual completo, os blocos ficam no contêiner
     `levels-panel` ("Brasil, estados e municípios em blocos separados, cada um no seu eixo: nenhum nível é
     somado a outro nem comparado com outro."): o bloco do Brasil (`level-panel-br`) mostra o valor da linha
     do motor, o tipo de contagem e "Lado a lado: não entra em maior, menor nem diferença com estados ou
-    municípios."; as barras dos estados têm textura listrada e o aviso `uf-warning` ("Soma dos municípios:
-    possível dupla contagem · não comparável com a contagem nacional."), sem a linha nacional; nas barras dos
+    municípios."; as barras dos estados têm o aviso `uf-warning` ("Fonte estadual: médicos únicos de cada
+    estado · a soma dos estados não é o total do Brasil."), sem a linha nacional (até a fonte estadual, de
+    19/10/2026, eram a soma dos municípios, com textura listrada e o aviso de possível dupla contagem); nas barras dos
     municípios em ordem de código, um separador por estado (`bar-group-separator`, lido de
     `universe.members[].state`), sem reordenar nem contar.
 - **Linhas:**
@@ -257,8 +258,8 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   competência dos valores (só a quantidade no indicador quantidade), a condição e o selo de tendência do motor;
   abaixo, os valores, com a unidade escrita sobre a lista ("Valores por 1.000 habitantes, no eixo deste nível,
   a partir do zero"; lista com rolagem acima de 40). O par de cada nível (`comparison-pair-relation`) mostra a
-  relação A/B e a "Diferença A − B" **do motor**. O Brasil fica "Lado a lado, sem relação"; os estados, com
-  textura e `uf-warning`; não há linha nacional (K10). Com a janela, `comparison-dumbbell` (um grupo
+  relação A/B e a "Diferença A − B" **do motor**. O Brasil fica "Lado a lado, sem relação"; os estados, com o
+  `uf-warning`; não há linha nacional (K10). Com a janela, `comparison-dumbbell` (um grupo
   `comparison-dumbbell-group-*` por nível) com os halteres do primeiro ao último período, a variação e o selo
   `trend-badge` iguais aos de `detail_rows`, e a nota "Classes de tendência lado a lado: entre territórios, só se
   lê se a classe é a mesma; as classes não têm ordem entre si." Nos cartões da tabela
@@ -275,7 +276,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   `data-rank`) no lugar das barras do ranking: "Posição N" do motor, na ordem pedida (padrão: a do resultado),
   haste do zero ao valor, território sem valor sem haste e sem posição, sem linha nacional; estados no bloco
   `level-panel-uf`. Quando o arredondamento igualaria dois vizinhos de valores diferentes (por exemplo, 1,9810
-  e 1,9783 nas posições 21 e 22 dos estados em 06/2024), o valor ganha as casas que os distinguem (RQ-REP-05).
+  e 1,9783, que com duas casas seriam iguais), o valor ganha as casas que os distinguem (RQ-REP-05).
 - **Faixa da distribuição (desde 19/10/2026):** `distribution-strip` (`data-total`): um ponto por território
   na raia da classe do motor (ordem das classes do resumo), na posição do seu valor, cor ordinal pela classe,
   selecionados maiores; nenhum ponto de corte desenhado. O SVG é desenhado na largura do contêiner (o texto não
@@ -301,9 +302,10 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   não há limiar normativo. Nenhum total, média, posição ou classe é criado. Desde 19/10/2026, a
   tendência aparece como selo da classe (`trend-badge`, com `data-class`), com o motivo, o número de
   observações e o minigráfico das velocidades do motor (`trend-velocities`). Com níveis (desde o visual
-  completo), cada cartão traz o nível (`data-level`); o do estado tem textura, o aviso "possível dupla
-  contagem · não comparável com a contagem nacional", a quantidade "na soma das contagens dos municípios" e
-  a densidade "por 1.000 habitantes (soma dos municípios)" (RQ-REP-14; antes, "profissionais").
+  completo), cada cartão traz o nível (`data-level`); o do estado traz o aviso "médicos únicos de cada estado
+  · a soma dos estados não é o total do Brasil" e as mesmas unidades dos demais (desde a fonte estadual, de
+  19/10/2026; antes, como soma dos municípios, tinha textura, o aviso de possível dupla contagem e a
+  quantidade "na soma das contagens dos municípios").
 - **Tendência na evolução temporal (CAP-TEN-01):** a coluna Tendência da tabela mostra o selo; a aba
   Gráficos traz a contagem por classe do motor (`trend-counts`), na ordem da SPEC e com os não
   avaliáveis à parte; o filtro visual ganha as famílias (`trend-family-filter`); o aviso da etapa
@@ -356,8 +358,8 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
     escreveu. Exemplos com a base versionada: "Na competência 06/2024, densidade por 1.000 habitantes: 5.570
     registros avaliáveis e 0 não avaliáveis. Referência de contexto: taxa nacional de 2,36 por 1.000
     habitantes (Brasil, total nacional); não classifica nem colore os territórios." e, com níveis, "…, em
-    blocos por nível, sem somar níveis: Brasil (total nacional), 2,36 por 1.000 habitantes; Estados (soma
-    dos municípios), 1 registro avaliável e 0 não avaliáveis; Municípios, …";
+    blocos por nível, sem somar níveis: Brasil (total nacional), 2,36 por 1.000 habitantes; Estados, 1
+    registro avaliável e 0 não avaliáveis; Municípios, …";
   - `result-kpis` (lista) com até quatro `result-kpi` (`data-nivel` BR, UF ou MUN): valores do motor; a taxa
     nacional (só densidade e relatório com densidade, K10) é um cartão tracejado com o selo "contexto"
     (`data-papel="REFERENCIA_DE_CONTEXTO"`) e "Referência de contexto: não classifica nem colore os
@@ -368,8 +370,9 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
     competências; o rótulo acessível traz o intervalo, os extremos e as lacunas;
   - `result-provenance`: os itens de procedência do motor ("Fonte: Dados do Brasil, fonte municipal · versão
     …", "Fórmula: Densidade = quantidade ÷ população × 1.000 (CAP-IND-02)", "População do Brasil: regra
-    BR-POP-JUNHO-1 (junho, soma dos municípios)", "Tendência: versão …", "Níveis", "Tipo de contagem",
-    "Chave de execução").
+    BR-POP-JUNHO-1 (junho, soma dos municípios)", "População dos estados: regra UF-POP-MUNICIPIOS-1 (soma dos
+    municípios na própria competência)", "Tendência: versão …", "Níveis", "Tipo de contagem", "Chave de
+    execução"; com estados, a fonte é "fontes nacional, estadual e municipal" ou a parte usada).
   `result-title` e `result-status` não mudam. Resultados sem `resumo` (anteriores) mostram a grade de antes
   (`result-metrics`). A descrição do motor continua acima do cabeçalho, com as competências AAAAMM como
   mês/ano. A identidade do resultado mostra a "Situação do resultado" com acentos ("avaliável com
@@ -660,7 +663,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
 | RQ-REP-11 Escala e unidade da densidade | Atendido nas representações novas | unidade “por 1.000 habitantes” na legenda, nos eixos e nos detalhes |
 | RQ-REP-12 Conteúdo de HTML, PDF e CSV | Parcial | ver CAP-REP-05; CSV sem mudança |
 | RQ-REP-13 Visualizador da base | Não tratado neste bloco | — |
-| RQ-REP-14 Tipo de contagem agregada nos rótulos | Atendido nas representações de 19/10/2026 | cartão da agregação com o `Tipo` do motor e "soma das contagens dos componentes"; estado "na soma das contagens dos municípios", com textura e aviso de possível dupla contagem (seção 7); a agregação continua sem mapa |
+| RQ-REP-14 Tipo de contagem agregada nos rótulos | Atendido nas representações de 19/10/2026 | cartão da agregação com o `Tipo` do motor e "soma das contagens dos componentes" (também na agregação de estados); o estado, desde a fonte estadual, é contagem de médicos únicos (unidades distintas no estado), com o aviso de que a soma dos estados não é o total do Brasil (seção 7); a agregação continua sem mapa |
 | RQ-REP-15 Qualificadores obrigatórios | Atendido para alcance e vigência nas representações novas | seções 6 e 9 |
 
 ## 16. Limitações científicas, pendências e decisões abertas

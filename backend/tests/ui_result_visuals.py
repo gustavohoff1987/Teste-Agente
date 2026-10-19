@@ -1,7 +1,8 @@
 """Visual completo dos resultados (D7, 19/10/2026): cabeçalho, níveis, comparação, evolução, ranking, distribuição, agregação,
 rotatividade e escala do mapa, sempre com os valores do motor.
 
-Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências, duas de junho) ou, com
+Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências, duas de junho; estados da
+fonte estadual de médicos únicos) ou, com
 ADT_BLOCK1_REAL=1, a base versionada (somente leitura). Confere, para cada visual, que o que a tela mostra é o que o motor
 entregou (frase em partes, KPIs, procedência, relação e diferença do par, variação e classe de cada território, posição do
 ranking, classe de cada ponto da distribuição, tipo de contagem da agregação, percentuais da coorte), que nada é calculado
@@ -143,7 +144,8 @@ def main():
             expect(side.get_by_test_id("comparison-group-" + level)).to_be_visible()
         expect(side.get_by_test_id("comparison-object")).to_have_count(len(compared["detail_rows"]))
         expect(side.get_by_test_id("comparison-group-br")).not_to_contain_text("Relação A/B")
-        expect(side.get_by_test_id("comparison-group-uf").get_by_test_id("uf-warning")).to_contain_text("possível dupla contagem")
+        expect(side.get_by_test_id("comparison-group-uf").get_by_test_id("uf-warning")).to_contain_text(
+            "a soma dos estados não é o total do Brasil")
         pairs = [row for row in compared["rows"] if row.get("Objeto A")]
         assert len(pairs) == 2
         relations = side.get_by_test_id("comparison-pair-relation")
@@ -193,11 +195,12 @@ def main():
         expect(board.get_by_text("Unidades avaliáveis", exact=True)).to_have_count(0)
         highlights = board.get_by_test_id("result-highlights")
         expect(highlights.locator("article")).to_have_count(3)
-        expect(highlights.locator('article[data-level="UF"]')).to_contain_text("possível dupla contagem")
+        expect(highlights.locator('article[data-level="UF"]')).to_contain_text("médicos únicos de cada estado")
         board.get_by_role("tab", name="Gráficos", exact=True).click()
         levels = board.get_by_test_id("levels-panel")
         expect(levels.get_by_test_id("level-panel-br")).to_contain_text("Brasil (total nacional)")
-        expect(levels.get_by_test_id("level-panel-uf").get_by_test_id("uf-warning")).to_contain_text("possível dupla contagem")
+        expect(levels.get_by_test_id("level-panel-uf").get_by_test_id("uf-warning")).to_contain_text(
+            "Fonte estadual: médicos únicos de cada estado")
         expect(levels.get_by_test_id("level-panel-uf")).not_to_contain_text("pessoas únicas")
         expect(levels.get_by_test_id("level-panel-uf").get_by_test_id("bars-reference-line")).to_have_count(0)
         expect(levels.get_by_test_id("level-panel-mun").get_by_test_id("bars-reference-line")).to_contain_text("referência de contexto")

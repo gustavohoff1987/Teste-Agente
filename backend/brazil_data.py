@@ -1,10 +1,12 @@
-"""Base lógica Brasil: fonte nacional (contagem do país) e fonte municipal, lidas e verificadas juntas.
+"""Base lógica Brasil: fonte nacional (contagem do país), fonte estadual (médicos únicos por UF) e fonte municipal,
+lidas e verificadas juntas.
 
-As duas fontes nunca são somadas nem unidas. O total do Brasil vem sempre da fonte nacional; a densidade
-do Brasil combina, por regra governada (BR-POP-JUNHO-1, territorial_levels.py), essa contagem com a
-população municipal de junho do mesmo ano. Estados são somas dos municípios pelo prefixo do código IBGE.
+As fontes nunca são somadas nem unidas. O total do Brasil vem sempre da fonte nacional, e o de cada estado, da fonte
+estadual (contagem distinta dentro da UF, nunca a soma dos municípios). As densidades do Brasil e dos estados combinam,
+por regras governadas (territorial_levels.py), essas contagens com a população municipal: a de junho do ano no Brasil
+(BR-POP-JUNHO-1) e a da própria competência nos estados (UF-POP-MUNICIPIOS-1, municípios pelo prefixo do código IBGE).
 
-Origem padrão: os dois arquivos versionados na raiz do repositório, conferidos a cada
+Origem padrão: os três arquivos versionados na raiz do repositório, conferidos a cada
 requisição contra o manifesto governado `dados/brasil/manifesto.json` (tamanho e SHA-256).
 Não há cópia intermediária nem fallback para outra pasta: `.local/` não é lida.
 
@@ -26,7 +28,10 @@ import sys
 from pathlib import Path
 
 
-FILES = {"national": "Dados_Brasil.xlsx", "municipal": "Dados_Municipios_Brasil.csv"}
+# A fonte estadual (19/10/2026) vem da planilha de médicos únicos por estado, convertida por build_state_source.py. Ela
+# não é um recorte escolhido pela API (SCOPES): os estados são lidos pela abrangência territorial.
+FILES = {"national": "Dados_Brasil.xlsx", "municipal": "Dados_Municipios_Brasil.csv", "state": "Dados_Estados_Brasil.csv"}
+SCOPES = ("national", "municipal")
 DEFAULT_SCOPES = {op: ("national" if op in ("counts", "temporal", "report") else "municipal")
                   for op in ("density", "counts", "distribution", "comparisons", "temporal",
                              "aggregate", "spatial", "ranking", "rotation", "report")}
@@ -43,14 +48,14 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def version_of(hashes):
-    """Identidade da versão: resumo canônico dos SHA-256 das duas fontes (inalterada desde o Bloco 1)."""
+    """Identidade da versão: resumo canônico dos SHA-256 das fontes (desde 19/10/2026, as três)."""
     return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
 
 
 def _hashes(entries, label):
     if not isinstance(entries, dict) or any(not isinstance(entries.get(k), str) or not SHA256.fullmatch(entries[k])
                                              for k in FILES):
-        raise ValueError(label + " sem SHA-256 válido para as duas fontes")
+        raise ValueError(label + " sem SHA-256 válido para as três fontes")
     return {k: entries[k] for k in FILES}
 
 
@@ -149,13 +154,13 @@ def _integrity(state):
 
 def selected_scope(scope="auto", operation=""):
     """Recorte efetivo de um pedido: o informado ou, em "auto", o padrão da análise."""
-    if scope not in ("auto", "national", "municipal") or (operation and operation not in ENGINE_SCOPES):
+    if scope not in ("auto",) + SCOPES or (operation and operation not in ENGINE_SCOPES):
         raise ValueError("Recorte ou análise da base Brasil inválido.")
     return ENGINE_SCOPES.get(operation, "municipal") if scope == "auto" else scope
 
 
 def load_brazil_sources(version=""):
-    """As duas fontes numa única leitura verificada (mesmo estado, mesma versão).
+    """As três fontes numa única leitura verificada (mesmo estado, mesma versão).
 
     Devolve ({escopo: (conteúdo, nome do arquivo, source)}, integridade); cada source mantém o próprio
     escopo, como em load_brazil."""
@@ -171,7 +176,7 @@ def load_brazil_sources(version=""):
     sources = {key: (contents[key], FILES[key], {
         "dataset": "brazil", "label": "Dados do Brasil", "scope": key,
         "version": current_version, "default_scopes": DEFAULT_SCOPES,
-        "available_scopes": list(FILES),
+        "available_scopes": list(SCOPES),
     }) for key in FILES}
     return sources, _integrity(state)
 

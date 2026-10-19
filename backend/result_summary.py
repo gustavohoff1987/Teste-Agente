@@ -11,7 +11,7 @@ Regras de redação (SPEC, CFG-LEX e Parte 13):
 - termos de LEX-TEN só quando o resultado traz metadata.tendencia (CAP-TEN-01); a mudança entre períodos é aumento,
   redução ou sem mudança (CAP-TMP-01);
 - a taxa nacional é "referência de contexto": nunca "acima" ou "abaixo", nunca classifica nem colore os territórios;
-- estados são "soma dos municípios" (possível dupla contagem) e nunca são comparados com o total do Brasil.
+- estados são a contagem estadual de médicos únicos (fonte estadual), nunca somados ao Brasil nem comparados com ele.
 
 O resumo fica em metadata.representacao.resumo, só para a interface: não entra em llm_context nem em provider_snapshot,
 e nada dele vai ao provedor de IA. Uma falha ao compô-lo nunca derruba a análise (como a representação).
@@ -19,12 +19,12 @@ e nada dele vai ao provedor de IA. Uma falha ao compô-lo nunca derruba a análi
 from __future__ import annotations
 
 from result_conversation import relation_text, resolve, segment_type, value_text, verify_segment
+from territorial_levels import LEVEL_LABELS as LEVEL_ROWS, LEVEL_PLURAL as LEVEL_NAMES
 
 VERSION = 1
 DENSITY_UNIT = "por 1.000 habitantes"
 MAX_KPIS = 4
-LEVEL_NAMES = {"BR": "Brasil (total nacional)", "UF": "Estados (soma dos municípios)", "MUN": "Municípios"}
-LEVEL_ROWS = {"BR": "Brasil (total nacional)", "UF": "Estado (soma dos municípios)", "MUN": "Município"}
+SOURCE_NAMES = {"national": "nacional", "state": "estadual", "municipal": "municipal"}
 FORMULAS = {
     "density": "Densidade = quantidade ÷ população × 1.000 (CAP-IND-02)",
     "aggregate": "Soma das quantidades ÷ soma das populações × 1.000 (CAP-AGR-01)",
@@ -413,9 +413,8 @@ def provenance(result: dict) -> list[dict]:
         scope = {"national": "fonte nacional", "municipal": "fonte municipal", "niveis": "fontes nacional e municipal"}.get(
             source.get("scope"), "base oficial")
         if source.get("scope") == "niveis":
-            used = source.get("fontes_usadas") or []
-            scope = "fontes nacional e municipal" if len(used) == 2 else "fonte " + ("nacional" if used == ["national"]
-                                                                                     else "municipal")
+            used = [SOURCE_NAMES[item] for item in source.get("fontes_usadas") or [] if item in SOURCE_NAMES] or ["municipal"]
+            scope = ("fontes " + ", ".join(used[:-1]) + " e " + used[-1]) if len(used) > 1 else "fonte " + used[0]
         out.append({"rotulo": "Fonte", "valor": "Dados do Brasil, " + scope + (
             " · versão " + str(source["version"])[:12] if source.get("version") else ""), "caminho": ["metadata", "source"]})
     elif metadata.get("input_file"):
@@ -431,6 +430,9 @@ def provenance(result: dict) -> list[dict]:
     if methods.get("populacao_nacional"):
         out.append({"rotulo": "População do Brasil", "valor": "regra " + str(methods["populacao_nacional"]) +
                     " (junho, soma dos municípios)", "caminho": ["metadata", "metodos", "populacao_nacional"]})
+    if methods.get("populacao_estadual"):
+        out.append({"rotulo": "População dos estados", "valor": "regra " + str(methods["populacao_estadual"]) +
+                    " (soma dos municípios na própria competência)", "caminho": ["metadata", "metodos", "populacao_estadual"]})
     if methods.get("tendencia"):
         out.append({"rotulo": "Tendência", "valor": "versão " + str(methods["tendencia"]),
                     "caminho": ["metadata", "metodos", "tendencia"]})

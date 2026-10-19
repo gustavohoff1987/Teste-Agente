@@ -34,22 +34,15 @@ const groupStarts = (data: BarDatum[]) => {
   return groups.size > 1 ? data.map((item, index) => index > 0 && item.group !== data[index - 1].group) : data.map(() => false);
 };
 
-export function TerritoryBars({ data, unit, kind, title, onSelect, reference, texture = false }: { data: BarDatum[]; unit: string; kind: IndicatorKind;
-  title: string; onSelect: (id: string) => void; reference?: BarReference; texture?: boolean }) {
+export function TerritoryBars({ data, unit, kind, title, onSelect, reference }: { data: BarDatum[]; unit: string; kind: IndicatorKind;
+  title: string; onSelect: (id: string) => void; reference?: BarReference }) {
   if (data.length > 40) return <ScrollableBars key={title} data={data} unit={unit} kind={kind} title={title} onSelect={onSelect} reference={reference}/>;
   const height = Math.max(220, 46 + data.length * 26) + (reference ? 16 : 0);
   const starts = groupStarts(data);
-  // Soma dos componentes (estados): textura própria, além do rótulo "possível dupla contagem" (RQ-REP-14).
-  const fill = (item: BarDatum) => texture ? (item.highlighted ? "url(#adt-uf-hatch)" : "url(#adt-uf-hatch-light)") : item.highlighted ? CATEGORICAL[0] : "#9ec5f4";
+  const fill = (item: BarDatum) => item.highlighted ? CATEGORICAL[0] : "#9ec5f4";
   return <figure aria-label={title} className="w-full">
     <div style={{ height }} className="w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: reference ? 20 : 4, right: 52, bottom: 4, left: 4 }} barCategoryGap={4}>
-        {texture && <defs>
-          <pattern id="adt-uf-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="6" height="6" fill="#cfe1f7"/><rect width="3" height="6" fill={CATEGORICAL[0]}/></pattern>
-          <pattern id="adt-uf-hatch-light" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="6" height="6" fill="#eef4fc"/><rect width="3" height="6" fill="#9ec5f4"/></pattern>
-        </defs>}
         <CartesianGrid horizontal={false} stroke={INK.grid}/>
         <XAxis type="number" tick={axis} tickFormatter={(value: number) => formatNumber(value, kind)} stroke={INK.grid}/>
         <YAxis type="category" dataKey="label" width={170} interval={0} stroke={INK.grid}

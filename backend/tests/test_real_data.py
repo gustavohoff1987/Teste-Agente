@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from pyproj import Geod
 
 import geo_complement
+from brazil_data import FILES
 from main import app, read_dataset
 from semantic_bridge import candidates, preflight
 from install_brazil_data import install
@@ -36,7 +37,7 @@ def real_sources():
 
 
 def test_real_municipal_density_and_all_rows_against_independent_arithmetic(real_sources):
-    path = next(p for p in real_sources if p.suffix.lower() == ".csv")
+    path = next(p for p in real_sources if p.name == FILES["municipal"])
     raw = path.read_bytes()
     frame, _ = read_dataset(raw, path.name)
     mapping, _ = candidates(frame)
@@ -82,7 +83,7 @@ def test_real_municipal_import_without_confirmations(real_sources):
     """D1: cópia importada da base municipal. Coordenadas e período reconhecidos por regra, vírgula decimal verificada
     nos dados e código IBGE só como sugestão até ser escolhido; depois da escolha, a densidade fica disponível sem
     nenhuma confirmação, com as premissas no resultado."""
-    path = next(p for p in real_sources if p.suffix.lower() == ".csv")
+    path = next(p for p in real_sources if p.name == FILES["municipal"])
     raw = path.read_bytes()
     inspected = client.post("/api/inspect", files={"file": (path.name, raw)})
     assert inspected.status_code == 200, inspected.text[:1000]
@@ -124,7 +125,7 @@ def test_real_municipal_import_without_confirmations(real_sources):
 
 
 def test_real_national_excel_recognition_counts_and_temporal(real_sources):
-    path = next(p for p in real_sources if p.suffix.lower() == ".xlsx")
+    path = next(p for p in real_sources if p.name == FILES["national"])
     raw = path.read_bytes()
     response = client.post("/api/inspect", files={"file": (path.name, raw)})
     assert response.status_code == 200, response.text
@@ -156,7 +157,7 @@ def real_catalog(real_sources, tmp_path_factory):
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("ADT_BRASIL_DATA_DIR", str(folder))
         info = client.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()
-        source = next(p for p in real_sources if p.suffix.lower() == ".csv")
+        source = next(p for p in real_sources if p.name == FILES["municipal"])
         # Leitura independente do adaptador usado pelo aplicativo.
         original = pd.read_csv(source, sep=";", encoding="utf-8-sig", dtype=str)
         expected = pd.DataFrame({"Território": original.municipio + " [" + original.cod_ibge + "]",

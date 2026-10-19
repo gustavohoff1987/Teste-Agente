@@ -1,8 +1,10 @@
 """Abrangência territorial da base oficial em lista vertical (D3) e taxa nacional de contexto (D5) na tela.
 
 Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; populações 1.000, 2.000, 4.000 e 9.000; contagem
-nacional 100, 102, 103 e 105) ou, com ADT_BLOCK1_REAL=1, a base versionada (somente leitura). Confere:
-- a lista com Brasil, estados (soma dos municípios, com o aviso de dupla contagem) e municípios agrupados por estado;
+nacional 100, 102, 103 e 105; fonte estadual com AM 18, 22, 24 e 30 e SP 100, 102, 103 e 105) ou, com ADT_BLOCK1_REAL=1, a
+base versionada (somente leitura). Confere:
+- a lista com Brasil, estados (médicos únicos da fonte estadual; a soma dos estados não é o total do Brasil) e
+  municípios agrupados por estado;
 - a análise espacial com a escolha de uma competência e o grupo de municípios de um estado;
 - a densidade com Brasil + estado + município numa única execução (níveis em blocos, nunca somados);
 - a taxa nacional na legenda do mapa e como linha tracejada nas barras dos municípios, sem mudar cores nem o domínio;
@@ -109,7 +111,7 @@ def main():
             expand(inline.get_by_test_id("territory-toggle"))
             expect(region).to_be_visible()
 
-        # 1. Lista vertical: Brasil, estados (soma dos municípios) e municípios por estado; padrão da análise com selo.
+        # 1. Lista vertical: Brasil, estados (fonte estadual) e municípios por estado; padrão da análise com selo.
         select(page, "Densidade")
         settled()
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=90000)
@@ -117,8 +119,9 @@ def main():
         expect(region.get_by_test_id("territory-badge-padrao")).to_have_count(1)
         expect(region.get_by_test_id("territory-option-todos-municipios")).not_to_be_checked()
         expect(region.get_by_test_id("territory-count")).to_have_text("0 selecionados")
-        expect(region.get_by_test_id("territory-double-count-help")).to_contain_text("o mesmo médico pode ser contado em mais de um município")
-        expect(region.get_by_test_id("territory-double-count-help")).to_contain_text("não é o total do Brasil")
+        expect(region.get_by_test_id("territory-double-count-help")).to_contain_text(
+            "quem atua em mais de um município do estado conta uma vez")
+        expect(region.get_by_test_id("territory-double-count-help")).to_contain_text("a soma dos estados não é o total do Brasil")
         states = region.locator('[data-testid^="territory-option-uf-"]')
         expect(states).to_have_count(27 if real else 2)
         assert inspections and len(inspections) == 1, inspections
@@ -161,7 +164,8 @@ def main():
         assert spatial["total_rows"] == (62 if real else 3)
         assert spatial["rows"][0]["Território"] == "MANAUS [130260]" and spatial["rows"][0]["Distância (km)"] == 0.0
 
-        # 3. Densidade com Brasil + estado + município, níveis em blocos (nunca somados), e a taxa nacional de contexto.
+        # 3. Densidade com Brasil + estado + município, níveis em blocos (nunca somados), e a taxa nacional de contexto. O
+        # estado vem da fonte estadual (médicos únicos), com a população dos seus municípios na competência.
         select(page, "Densidade")
         settled()
         open_scope()
@@ -179,14 +183,14 @@ def main():
         assert sent["abrangencia"] == {"brasil": True, "estados": ["35" if real else "13"],
                                        "municipios": {"todos": False, "estados": [], "ids": ["code:130260"]}}
         assert density["metadata"]["selecao_territorial"]["rota"] == "niveis"
-        assert [row["Nível"] for row in density["rows"]] == ["Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
+        assert [row["Nível"] for row in density["rows"]] == ["Brasil (total nacional)", "Estado", "Município"]
         brazil, state, manaus = density["rows"]
         if real:
             assert (brazil["Quantidade"], brazil["População"]) == (502495, 212583750)
-            assert (state["Quantidade"], state["População"]) == (239208, 45973194)
+            assert (state["Quantidade"], state["População"]) == (148909, 45973194)
         else:
             assert (brazil["Quantidade"], brazil["População"], brazil["Densidade por 1.000"]) == (105, 16000, 6.5625)
-            assert (state["Quantidade"], state["População"]) == (37, 7000)
+            assert (state["Quantidade"], state["População"]) == (30, 7000)  # 30 médicos únicos, não 15 + 10 + 12
             assert (manaus["Quantidade"], manaus["Densidade por 1.000"]) == (15, 15.0)
         reference = density["metadata"]["referencia_nacional"]["valores"][0]
         assert reference["valor"] == brazil["Densidade por 1.000"] and reference["competencia"] == "202406"
@@ -210,7 +214,9 @@ def main():
         expect(municipal.get_by_test_id("bars-reference-line")).to_contain_text("Brasil (total nacional): " + national + " por 1.000 habitantes")
         expect(municipal.get_by_test_id("bars-reference-line")).to_contain_text("referência de contexto")
         expect(municipal.get_by_text("Brasil " + national, exact=True)).to_be_visible()
-        expect(board.get_by_test_id("level-panel-uf")).to_contain_text("Estados (soma dos municípios)")
+        expect(board.get_by_test_id("level-panel-uf")).to_contain_text(" · Estados")
+        expect(board.get_by_test_id("level-panel-uf")).to_contain_text(
+            "Fonte estadual: médicos únicos de cada estado · a soma dos estados não é o total do Brasil.")
         assert page.evaluate("window.__adtMapModel.fills.length") == 1
 
         # 4. "Todos os municípios" (padrão da densidade): a taxa nacional fica dentro da escala; o domínio é o dos municípios.

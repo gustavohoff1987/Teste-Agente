@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 import geo_complement
 import main
+from brazil_data import FILES
 from install_brazil_data import install
 from nearest_reference import GEOD
 
@@ -42,7 +43,7 @@ def real(tmp_path_factory):
     previous = os.environ.get("ADT_BRASIL_DATA_DIR")
     os.environ["ADT_BRASIL_DATA_DIR"] = str(catalog)
     main._BRAZIL_FRAMES.clear()
-    text = next(p for p in paths if p.suffix.lower() == ".csv").read_bytes().decode("utf-8-sig")
+    text = next(p for p in paths if p.name == FILES["municipal"]).read_bytes().decode("utf-8-sig")
     first = text.splitlines()[0]
     rows = list(csv.DictReader(io.StringIO(text), delimiter=";" if first.count(";") > first.count(",") else ","))
     inspection = client.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()

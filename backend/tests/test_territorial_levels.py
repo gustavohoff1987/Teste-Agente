@@ -3,7 +3,10 @@
 O catálogo tem a coluna uf (com o 251365 declarado PA só em 2024/1), quatro competências municipais e uma competência
 nacional a mais (2022/6), sem população municipal: ela testa a lacuna da densidade do Brasil, que nunca vira zero.
 Em junho de 2024 falta o 130420: a população do Brasil de 2024 soma os municípios com registro (avaliável com
-limitações, como 2015 na base real).
+limitações, como 2015 na base real), e a do Amazonas fica incompleta (densidade do estado não avaliável).
+A fonte estadual sintética (médicos únicos por UF) conta no AM menos que a soma dos seus municípios (quem atua em mais
+de um conta uma vez), não tem a PB em 2023/1 e, na PB em 2024/6, conta mais que o seu único município (fontes que
+divergem, com nota).
 """
 import hashlib
 import json
@@ -18,7 +21,7 @@ import llm_bridge
 import main
 import territorial_levels as levels
 from brazil_data import FILES
-from catalog_support import use_external_catalog
+from catalog_support import use_external_catalog, write_state_source
 from install_brazil_data import install
 from temporal_change import evolution
 from territorial_selection import territory_catalog
@@ -36,6 +39,9 @@ MUNICIPAL = {  # código: (nome, uf, quantidades por competência, populações 
 COORDINATES = {"130260": ("-3,1", "-60,0"), "130420": ("-3,3", "-64,7"), "130340": ("-2,6", "-56,7"),
                "150140": ("-1,4", "-48,5"), "251365": ("-6,5", "-38,4")}
 AM = ["code:130260", "code:130340", "code:130420"]
+STATE = {"AM": {"202301": 50, "202306": 52, "202401": 55, "202406": 58},
+         "PA": {"202301": 50, "202306": 52, "202401": 54, "202406": 56},
+         "PB": {"202306": 5, "202401": 5, "202406": 6}}
 
 
 def municipal_csv():
@@ -53,20 +59,28 @@ def municipal_csv():
     return "\n".join(lines) + "\n"
 
 
-@pytest.fixture
-def catalog(tmp_path, monkeypatch):
-    source = tmp_path / "original"
-    source.mkdir()
+def install_catalog(folder, monkeypatch, state=None):
+    """Fontes sintéticas em folder/original, instaladas fora do repositório e fixadas pela versão."""
+    source = folder / "original"
+    source.mkdir(parents=True)
     book = Workbook()
     book.active.append(["pais", "periodo_ano", "periodo_mes", "categoria_profissional", "contagem"])
     for period, count in NATIONAL.items():
         book.active.append(["Brasil", int(period[:4]), int(period[4:]), "MEDICINA", count])
     book.save(source / FILES["national"])
     (source / FILES["municipal"]).write_text(municipal_csv(), encoding="utf-8")
+    write_state_source(source, {(uf, period): count for uf, counts in (STATE if state is None else state).items()
+                                for period, count in counts.items()})
     hashes = {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in FILES.values()}
-    destination = tmp_path / "resident"
+    destination = folder / "resident"
     install(source, destination, governed=False)
     use_external_catalog(monkeypatch, destination)
+    return source, destination, hashes
+
+
+@pytest.fixture
+def catalog(tmp_path, monkeypatch):
+    source, destination, hashes = install_catalog(tmp_path, monkeypatch)
     yield destination
     assert hashes == {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in FILES.values()}
 
@@ -133,6 +147,11 @@ def test_contract_errors_canonical_ids_and_explicit_absorptions(catalog):
     assert every.absorvidos == ("mun:uf:13", "code:150140") and every.ids == () and every.mun_estados == ()
     group = levels.parse({"municipios": {"estados": ["13"], "ids": ["code:130260", "code:150140"]}})
     assert group.absorvidos == ("code:130260",) and group.ids == ("code:150140",)
+    # Estado como objeto só com registro na fonte estadual; o grupo de municípios depende só dos códigos IBGE.
+    members = {"13": ("130260",), "25": ("251365",)}
+    with pytest.raises(ValueError, match="Estado não reconhecido nesta base: 25."):
+        levels.parse({"estados": ["25"]}, members, frozenset({"13"}))
+    assert levels.parse({"municipios": {"estados": ["25"]}}, members, frozenset({"13"})).mun_estados == ("25",)
     body = ok(analyze(info, "density", {"municipios": {"estados": ["13"], "ids": ["code:130260"]},
                                         "brasil": True}, period_filter="202306"))
     selection = body["metadata"]["selecao_territorial"]
@@ -211,6 +230,10 @@ def test_minimum_and_mixture_are_checked_again_in_the_backend(catalog):
     refused(analyze(info, "comparisons", {"brasil": True}, period_filter="202306"), "pelo menos dois territórios")
     refused(analyze(info, "aggregate", {"municipios": {"ids": ["code:130260"]}}, period_filter="202306"),
             "A agregação precisa de pelo menos dois municípios.")
+    refused(analyze(info, "aggregate", {"estados": ["13"]}, period_filter="202306"),
+            "A agregação precisa de pelo menos dois estados.")
+    refused(analyze(info, "aggregate", {"estados": ["13", "15"], "municipios": {"ids": ["code:130260"]}},
+                    period_filter="202306"), "Você marcou estados e municípios. Agregações usa territórios do mesmo tipo")
 
 
 # 4. BR-POP-JUNHO-1 -----------------------------------------------------------------------------------------------
@@ -275,50 +298,80 @@ def test_brazil_density_uses_the_national_count_and_the_june_population(catalog)
 
 
 # 6 e 7. Estados e blocos ------------------------------------------------------------------------------------------
-def test_states_are_sums_of_their_municipalities_by_the_ibge_prefix(catalog):
+def test_states_use_the_state_count_and_the_population_of_their_municipalities(catalog):
     info = inspected()
     body = ok(analyze(info, "density", {"estados": ["13", "25"]}, period_filters=["202301", "202401", "202406"]))
     rows = body["rows"]
     complete = by(rows, "Amazonas (AM)", "202301")
-    assert (complete["Quantidade"], complete["População"]) == (40 + 10 + 7, 1000 + 2000 + 4000)
-    assert complete["Densidade por 1.000"] == pytest.approx(57 / 7000 * 1000)
-    assert complete["Cobertura"] == "3 de 3 municípios" and complete["Condição"] == "Avaliável"
-    partial = by(rows, "Amazonas (AM)", "202406")
-    assert (partial["Quantidade"], partial["População"]) == (46 + 8, 1020 + 4000)
-    assert partial["Cobertura"] == "2 de 3 municípios; sem registro: 130420"
-    assert "AGREGADO_PARCIAL" in partial["Condição"]
-    assert ("Amazonas (AM) em junho de 2024: soma parcial, 2 de 3 municípios; sem registro: 130420. O valor não representa "
-            "o estado inteiro.") in body["notes"]
+    # Contagem estadual de médicos únicos (50), nunca a soma dos municípios (40 + 10 + 7); população da competência.
+    assert (complete["Quantidade"], complete["População"]) == (50, 1000 + 2000 + 4000)
+    assert complete["Quantidade"] != 40 + 10 + 7
+    assert complete["Densidade por 1.000"] == pytest.approx(float(Fraction(50 * 1000, 7000)), rel=1e-12)
+    assert complete["Competência da população"] == "202301"
+    assert complete["Cobertura"] == "População: 3 de 3 municípios" and complete["Condição"] == "Avaliável"
+    assert by(rows, "Amazonas (AM)", "202401")["População"] == 1020 + 2000 + 4000
+    # Município do estado sem registro: a população não é estimada; a contagem continua avaliável, a densidade não.
+    gap = by(rows, "Amazonas (AM)", "202406")
+    assert (gap["Quantidade"], gap["População"], gap["Densidade por 1.000"]) == (58, None, None)
+    assert gap["Cobertura"] == "População: 2 de 3 municípios; sem registro: 130420"
+    assert gap["Condição"] == levels.STATE_NO_POPULATION
+    assert ("Amazonas (AM) em junho de 2024: população estadual incompleta, 2 de 3 municípios com registro na fonte "
+            "municipal (sem registro: 130420); a população não é estimada e a densidade do estado não é avaliada."
+            ) in body["notes"]
+    # Competência sem registro do estado na fonte estadual: não avaliável, sem zero e sem erro.
+    missing = by(rows, "Paraíba (PB)", "202301")
+    assert (missing["Quantidade"], missing["Densidade por 1.000"]) == (None, None)
+    assert missing["Condição"] == "Não avaliável: sem registro nesta competência na fonte estadual"
     for row in rows:
-        assert row["Nível"] == "Estado (soma dos municípios)"
-        assert row["Tipo de contagem"] == "Soma dos componentes (possível dupla contagem)"
-        assert "pessoas únicas" not in json.dumps(row, ensure_ascii=False) and "Unidades distintas" not in row["Tipo de contagem"]
-    # 251365: PB pelo prefixo do código, embora a coluna uf traga PA em 2024/1; nota de qualidade da fonte.
-    assert by(rows, "Paraíba (PB)", "202401")["Quantidade"] == 5
+        assert row["Nível"] == "Estado"
+        assert row["Tipo de contagem"] == "Unidades distintas: contagem estadual (não é a soma dos municípios)"
+    # 251365: PB pelo prefixo do código, embora a coluna uf traga PA em 2024/1; a população do estado segue o código.
+    pb = by(rows, "Paraíba (PB)", "202401")
+    assert (pb["Quantidade"], pb["População"], pb["Cobertura"]) == (5, 500, "População: 1 de 1 município")
     assert ("Em janeiro de 2024, 1 registro(s) da fonte municipal trazem na coluna uf um estado diferente do indicado pelo "
             "código IBGE (251365); o estado segue o código, e os valores entram como estão na fonte.") in body["notes"]
-    support = {(item["estado"], item["competencia"]): item for item in body["metadata"]["suporte_agregado"]}
-    assert support[("13", "202406")]["ausentes"] == ["130420"] and support[("13", "202406")]["previstos"] == 3
-    assert support[("13", "202406")]["tipo"] == "SOMA_DOS_COMPONENTES" and support[("13", "202406")]["fundamento"] == "CAP-AGR-01"
-    assert levels.NOTE_STATES in body["notes"]
-    assert body["metadata"]["metodos"]["estado"] == "brasil-cod-uf-prefix-1"
+    # Contagem estadual acima da soma completa dos seus municípios: as fontes divergem e entram como estão.
+    assert by(rows, "Paraíba (PB)", "202406")["Densidade por 1.000"] == pytest.approx(12.0)
+    assert ("Paraíba (PB) em junho de 2024: a contagem estadual de médicos únicos (6) supera a soma das contagens dos "
+            "seus municípios na fonte municipal (5); as duas fontes divergem nesta competência e entram como estão."
+            ) in body["notes"]
+    assert not any("Amazonas (AM) em junho de 2024: a contagem estadual" in note for note in body["notes"])  # soma incompleta
+    population = {(item["estado"], item["competencia"]): item for item in body["metadata"]["populacao_estadual"]}
+    assert population[("13", "202301")] == {
+        "estado": "13", "rotulo": "Amazonas (AM)", "competencia": "202301", "competencia_populacao": "202301",
+        "populacao": 7000, "previstos": 3, "incluidos": 3, "ausentes": [], "regra": "UF-POP-MUNICIPIOS-1",
+        "avaliabilidade": "AVALIAVEL", "motivo": None}
+    assert (population[("13", "202406")]["populacao"], population[("13", "202406")]["motivo"],
+            population[("13", "202406")]["ausentes"]) == (None, "DENOMINADOR_AUSENTE", ["130420"])
+    assert ("25", "202301") not in population  # sem contagem estadual, nada a dividir
+    assert levels.NOTE_STATES in body["notes"] and levels.NOTE_STATE_POPULATION in body["notes"]
+    assert body["metadata"]["metodos"] == {"niveis": "NIVEIS-BR-UF-MUN-1", "estado": "UF-CONTAGEM-ESTADUAL-1",
+                                           "populacao_estadual": "UF-POP-MUNICIPIOS-1"}
+    assert body["metadata"]["source"]["fontes_usadas"] == ["state", "municipal"]
+    assert body["metadata"]["universe"]["state_rule"] == "brasil-cod-uf-prefix-1"
     assert body["metadata"]["evaluability"]["status"] == "AVALIAVEL_COM_LIMITACOES"
+    # Só a quantidade: a fonte estadual, sem população nem fonte municipal.
+    counts = ok(analyze(info, "counts", {"estados": ["13", "15"]}, period_filter="202406"))
+    assert [(row["Território"], row["Quantidade"]) for row in counts["rows"]] == [("Amazonas (AM)", 58), ("Pará (PA)", 56)]
+    assert counts["metadata"]["source"]["fontes_usadas"] == ["state"]
+    assert counts["metadata"]["metodos"] == {"niveis": "NIVEIS-BR-UF-MUN-1", "estado": "UF-CONTAGEM-ESTADUAL-1"}
+    assert "populacao_estadual" not in counts["metadata"] and levels.NOTE_STATE_POPULATION not in counts["notes"]
 
 
 def test_levels_appear_in_blocks_and_are_never_summed(catalog):
     info = inspected()
     body = ok(analyze(info, "counts", {"municipios": {"ids": ["code:130260"]}, "estados": ["13"], "brasil": True},
                       period_filter="202306"))
-    assert [row["Nível"] for row in body["rows"]] == ["Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
-    assert [row["Quantidade"] for row in body["rows"]] == [110, 42 + 11 + 7, 42]
+    assert [row["Nível"] for row in body["rows"]] == ["Brasil (total nacional)", "Estado", "Município"]
+    assert [row["Quantidade"] for row in body["rows"]] == [110, 52, 42]  # cada nível da sua fonte; nada somado
     assert not any("Total" in str(value) for row in body["rows"] for value in row.values())
     assert levels.NOTE_LEVELS in body["notes"]
     assert "NIVEIS_TERRITORIAIS_DIFERENTES" in body["metadata"]["evaluability"]["limitacoes"]
     members = body["metadata"]["universe"]["members"]
     assert [(item["id"], item["nivel"]) for item in members] == [("br", "BR"), ("uf:13", "UF"), ("code:130260", "MUN")]
     assert body["metadata"]["universe"]["classification_scope"] == "universos separados por nível"
-    assert body["metadata"]["representacao"]["niveis"]["ordem"] == [
-        "Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
+    assert body["metadata"]["representacao"]["niveis"]["ordem"] == ["Brasil (total nacional)", "Estado", "Município"]
+    assert body["metadata"]["source"]["fontes_usadas"] == ["national", "state", "municipal"]
     # Janeiro com o Brasil e outro nível: a nota da competência da população.
     january = ok(analyze(info, "density", {"brasil": True, "municipios": {"ids": ["code:130260"]}}, period_filter="202301"))
     assert levels.NOTE_JANUARY in january["notes"]
@@ -334,17 +387,20 @@ def test_state_ranking_and_distribution_are_universes_of_their_own(catalog):
     ranking = ok(analyze(info, "ranking", {"estados": ["13", "15", "25"]}, period_filter="202406"))
     rows = ranking["rows"]
     assert [(row["Posição"], row["Território"]) for row in rows[:2]] == [(1, "Pará (PA)"), (2, "Paraíba (PB)")]
-    excluded = by(rows, "Amazonas (AM)")
+    assert by(rows, "Pará (PA)")["Densidade por 1.000"] == pytest.approx(56 / 3000 * 1000)
+    excluded = by(rows, "Amazonas (AM)")  # sem a população completa do estado: fora da ordem, listado à parte
     assert excluded["Posição"] is None and excluded["Densidade por 1.000"] is None
-    assert excluded["Condição"] == "Não avaliável: agregado parcial (2 de 3 municípios; sem registro: 130420)"
-    assert ranking["metadata"]["universe"]["classification_scope"] == "estados selecionados (soma dos municípios)"
-    assert levels.NOTE_STATES_ORDER in ranking["notes"]
+    assert excluded["Condição"] == levels.STATE_NO_POPULATION
+    assert {row["Tipo de contagem"] for row in rows} == {levels.COUNT_TYPES["UF"]}
+    assert ranking["metadata"]["universe"]["classification_scope"] == (
+        "estados selecionados (contagem estadual de médicos únicos)")
+    assert levels.NOTE_STATES in ranking["notes"] and levels.NOTE_STATE_POPULATION in ranking["notes"]
     refused(analyze(info, "ranking", {"estados": ["13", "15"]}, period_filter="202406"),
             "Menos de dois estados avaliáveis em junho de 2024: Amazonas (AM).")
     distribution = ok(analyze(info, "distribution", {"estados": ["13", "15", "25"]}, period_filter="202306",
                               distribution_indicator="density"))
     assert sorted(row["Território"] for row in distribution["detail_rows"]) == ["Amazonas (AM)", "Paraíba (PB)", "Pará (PA)"]
-    assert {row["Nível"] for row in distribution["detail_rows"]} == {"Estado (soma dos municípios)"}
+    assert {row["Nível"] for row in distribution["detail_rows"]} == {"Estado"}
     assert sum(row["Unidades"] for row in distribution["rows"]) == 3
     assert distribution["metadata"]["representacao"]["geometria"]["estado"] == "NAO_APLICAVEL"
 
@@ -355,10 +411,10 @@ def test_comparisons_relate_only_objects_of_the_same_level(catalog):
     body = ok(analyze(info, "comparisons", {"brasil": True, "estados": ["13", "15"], "municipios": {"ids": ["code:130260"]}},
                       period_filter="202306"))
     rows = body["rows"]
-    assert [row["Nível"] for row in rows] == ["Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
+    assert [row["Nível"] for row in rows] == ["Brasil (total nacional)", "Estado", "Município"]
     assert rows[0]["Condição"] == levels.SIDE_BY_SIDE["BR"] and rows[0]["Relação A/B"] is None
     assert (rows[1]["Objeto A"], rows[1]["Objeto B"], rows[1]["Relação A/B"]) == ("Amazonas (AM)", "Pará (PA)", "MENOR")
-    assert rows[1]["Diferença A − B"] == pytest.approx(60 / 7010 * 1000 - 52 / 3000 * 1000)
+    assert rows[1]["Diferença A − B"] == pytest.approx(52 / 7010 * 1000 - 52 / 3000 * 1000)
     assert rows[2]["Condição"] == levels.SIDE_BY_SIDE["MUN"] and rows[2]["Diferença A − B"] is None
     pair = ok(analyze(info, "comparisons", {"brasil": True, "municipios": {"ids": ["code:130260", "code:150140"]}},
                       period_filter="202306", comparison_indicator="quantity"))
@@ -379,10 +435,10 @@ def test_comparison_window_relates_in_the_values_period_and_trends_each_object_b
                       crs="SIRGAS2000"))
     rows = body["rows"]
     assert {row["Período"] for row in rows} == {"202306"}  # relações só na competência dos valores
-    assert [row["Nível"] for row in rows] == ["Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
+    assert [row["Nível"] for row in rows] == ["Brasil (total nacional)", "Estado", "Município"]
     assert rows[0]["Condição"] == levels.SIDE_BY_SIDE["BR"] and rows[0]["Relação A/B"] is None
     assert (rows[1]["Objeto A"], rows[1]["Objeto B"], rows[1]["Relação A/B"]) == ("Amazonas (AM)", "Pará (PA)", "MENOR")
-    assert rows[1]["Diferença A − B"] == pytest.approx(60 / 7010 * 1000 - 52 / 3000 * 1000)
+    assert rows[1]["Diferença A − B"] == pytest.approx(52 / 7010 * 1000 - 52 / 3000 * 1000)
     assert (rows[2]["Objeto A"], rows[2]["Objeto B"], rows[2]["Relação A/B"]) == ("BELEM [150140]", "MANAUS [130260]", "MENOR")
     # Um registro por objeto: valores na competência, mudança e tendência na janela; nenhuma razão ou percentual (AT-84).
     detail = {row["Território"]: row for row in body["detail_rows"]}
@@ -393,11 +449,16 @@ def test_comparison_window_relates_in_the_values_period_and_trends_each_object_b
     assert brazil["Densidade por 1.000"] == pytest.approx(110 / 10510 * 1000)
     assert (brazil["Tendência"], brazil["Observações da tendência"]) == ("Crescimento", 4)
     amazonas = detail["Amazonas (AM)"]
-    assert amazonas["Tipo de contagem"] == "Soma dos componentes (possível dupla contagem)"
-    assert amazonas["Tendência"] == "Não avaliável: série não comparável"
-    assert amazonas["Motivo da tendência"] == "Membros efetivos diferentes entre competências (202406: 130420 ausente)"
-    assert amazonas["Direção da mudança"] is None and "INCOMPARABILIDADE" in amazonas["Condição da mudança"]
-    assert (amazonas["Quantidade"], amazonas["População"]) == (60, 7010)  # na competência dos valores o suporte é completo
+    assert amazonas["Tipo de contagem"] == "Unidades distintas: contagem estadual (não é a soma dos municípios)"
+    assert (amazonas["Quantidade"], amazonas["População"]) == (52, 7010)  # na competência dos valores
+    assert amazonas["Densidade por 1.000"] == pytest.approx(52 / 7010 * 1000)
+    assert amazonas["Cobertura"] == "População: 3 de 3 municípios" and amazonas["Condição"] == "Avaliável"
+    # Densidade de junho de 2024 sem a população completa: lacuna no extremo (nunca NaN nem zero), três observações.
+    assert (amazonas["Inicial"], amazonas["Final"]) == (pytest.approx(50 / 7000 * 1000), None)
+    assert amazonas["Direção da mudança"] is None and amazonas["Variação absoluta"] is None
+    assert amazonas["Condição da mudança"] == "Não avaliável: observação ausente em um dos extremos"
+    assert (amazonas["Tendência"], amazonas["Motivo da tendência"], amazonas["Observações da tendência"]) == (
+        "Não avaliável: série insuficiente", "3 de 4 observações necessárias", 3)
     manaus = detail["MANAUS [130260]"]
     assert (manaus["Período inicial"], manaus["Período final"], manaus["Direção da mudança"]) == ("202301", "202406", "Aumento")
     assert manaus["Variação absoluta"] == pytest.approx(46 / 1020 * 1000 - 40)
@@ -406,10 +467,13 @@ def test_comparison_window_relates_in_the_values_period_and_trends_each_object_b
     assert [(group["nivel"], group["relacoes"]) for group in comparacao["grupos"]] == [("BR", False), ("UF", True), ("MUN", True)]
     assert comparacao["sem_relacao"] == [{"objeto": "Brasil", "nivel": "BR", "motivo": levels.SIDE_BY_SIDE["BR"]}]
     tendencia = body["metadata"]["tendencia"]
-    assert tendencia["nao_avaliaveis_por_motivo"]["INCOMPARABILIDADE"] == 1 and tendencia["desfecho"] == "RES-LIM"
+    assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 1, "INCOMPARABILIDADE": 0}
+    assert tendencia["desfecho"] == "RES-LIM"
     assert body["metadata"]["metodos"]["tendencia"] == "CAP-TEN-01/DA-15/1" and body["metadata"]["metodos"]["niveis"]
-    assert ("A mudança e a tendência de Amazonas (AM) não foram avaliadas: o número de municípios incluídos muda em junho "
-            "de 2024. Escolha um intervalo sem essas competências para avaliá-las.") in body["notes"]
+    assert body["metadata"]["metodos"]["populacao_estadual"] == "UF-POP-MUNICIPIOS-1"
+    assert ("Amazonas (AM) em junho de 2024: população estadual incompleta, 2 de 3 municípios com registro na fonte "
+            "municipal (sem registro: 130420); a população não é estimada e a densidade do estado não é avaliada."
+            ) in body["notes"]
     assert [item["label"] for item in body["metrics"]] == ["Territórios comparados", "Competências na janela"]
     assert [item["value"] for item in body["metrics"]] == [5, 4]
     # O mapa do par: municípios da competência dos valores, um registro por território (detail_rows).
@@ -420,11 +484,11 @@ def test_comparison_window_relates_in_the_values_period_and_trends_each_object_b
     # Estado e município nunca se relacionam: um de cada fica lado a lado, sem relação.
     single = ok(analyze(info, "comparisons", {"estados": ["13"], "municipios": {"ids": ["code:150140"]}},
                         period_filters=PERIODS, comparison_values_period="202406"))
-    assert [row["Condição"] for row in single["rows"]] == [
-        "Não avaliável: agregado parcial (2 de 3 municípios; sem registro: 130420)", levels.SIDE_BY_SIDE["MUN"]]
+    assert [row["Condição"] for row in single["rows"]] == [levels.STATE_NO_POPULATION, levels.SIDE_BY_SIDE["MUN"]]
     partial = {row["Território"]: row for row in single["detail_rows"]}["Amazonas (AM)"]
-    assert partial["Condição"] == "Avaliável com limitações: soma parcial (AGREGADO_PARCIAL)"
-    assert partial["Quantidade"] == 46 + 8  # valor preservado no registro do objeto, com a condição
+    assert partial["Condição"] == levels.STATE_NO_POPULATION
+    # A contagem estadual é preservada no registro do objeto, com a condição; a densidade fica sem valor.
+    assert (partial["Quantidade"], partial["População"], partial["Densidade por 1.000"]) == (58, None, None)
     refused(analyze(info, "comparisons", request, period_filters=PERIODS[:2], comparison_values_period="202406"),
             "A competência dos valores precisa estar entre os períodos escolhidos para a comparação.")
     # Sem a opção, o caminho anterior: relações em cada competência.
@@ -434,28 +498,42 @@ def test_comparison_window_relates_in_the_values_period_and_trends_each_object_b
 
 
 # 10. Evolução temporal --------------------------------------------------------------------------------------------
-def test_temporal_state_with_changing_members_is_incomparable_and_brazil_gaps_stay_empty(catalog):
+def test_temporal_states_use_the_state_series_and_density_gaps_stay_empty(catalog):
     info = inspected()
     body = ok(analyze(info, "temporal", {"brasil": True, "estados": ["13", "15"]}, period_filters=PERIODS,
                       temporal_indicator="density"))
     amazonas = by(body["rows"], "Amazonas (AM)")
-    assert amazonas["Tendência"] == "Não avaliável: série não comparável"
-    assert amazonas["Motivo da tendência"] == "Membros efetivos diferentes entre competências (202406: 130420 ausente)"
+    assert amazonas["Tipo de contagem"] == "Unidades distintas: contagem estadual (não é a soma dos municípios)"
+    assert amazonas["Inicial"] == pytest.approx(50 / 7000 * 1000) and amazonas["Final"] is None
     assert amazonas["Direção da mudança"] is None and amazonas["Variação absoluta"] is None
-    assert "INCOMPARABILIDADE" in amazonas["Condição da mudança"]
+    assert amazonas["Condição da mudança"] == "Não avaliável: observação ausente em um dos extremos"
+    assert (amazonas["Tendência"], amazonas["Motivo da tendência"]) == (
+        "Não avaliável: série insuficiente", "3 de 4 observações necessárias")
     assert by(body["rows"], "Pará (PA)")["Direção da mudança"] == "Aumento"
+    # A competência sem população do estado é lacuna (None), nunca zero.
+    gap = [row for row in body["detail_rows"] if row["Território"] == "Amazonas (AM)" and row["Período"] == "202406"]
+    assert gap == [{"Nível": "Estado", "Território": "Amazonas (AM)", "Período": "202406", "Categoria": "MEDICINA",
+                    "Densidade por 1.000": None}]
     tendencia = body["metadata"]["tendencia"]
     unit = next(item for item in tendencia["unidades"] if item["territorio"] == "Amazonas (AM)")
-    assert unit["velocidades"] == [] and tendencia["nao_avaliaveis_por_motivo"]["INCOMPARABILIDADE"] == 1
-    assert body["metadata"]["mudanca"]["nao_avaliaveis"]["INCOMPARABILIDADE"] == 1
+    assert unit["velocidades"] == [] and unit["ausentes"] == ["202406"]
+    assert tendencia["nao_avaliaveis_por_motivo"] == {"SERIE_INSUFICIENTE": 1, "INCOMPARABILIDADE": 0}
+    assert body["metadata"]["mudanca"]["nao_avaliaveis"] == {"SEM_REGISTRO_OBSERVADO": 1}
     assert sum(body["metadata"]["mudanca"]["direcoes"].values()) == 2  # Brasil e Pará
     serie = body["metadata"]["representacao"]["serie"]
-    assert serie["quebras"] == [{"territorio": "Amazonas (AM)", "categoria": "MEDICINA", "nivel": "UF", "periodos": ["202406"]}]
-    assert [panel["id"] for panel in serie["paineis"]] == ["U", "S"]
-    assert ("A mudança e a tendência de Amazonas (AM) não foram avaliadas: o número de municípios incluídos muda em junho "
-            "de 2024. Escolha um intervalo sem essas competências para avaliá-las.") in body["notes"]
+    assert serie["quebras"] == [] and [panel["id"] for panel in serie["paineis"]] == ["U", "S"]
+    assert ("Amazonas (AM) em junho de 2024: população estadual incompleta, 2 de 3 municípios com registro na fonte "
+            "municipal (sem registro: 130420); a população não é estimada e a densidade do estado não é avaliada."
+            ) in body["notes"]
     brazil = by(body["rows"], "Brasil")
     assert brazil["Observações da tendência"] == 4 and brazil["Inicial"] == pytest.approx(100 / 10510 * 1000)
+    # Quantidade de um estado: a série da fonte estadual inteira, sem população.
+    quantity = ok(analyze(info, "temporal", {"estados": ["13"]}, period_filters=PERIODS, temporal_indicator="quantity"))
+    [row] = quantity["rows"]
+    assert (row["Nível"], row["Território"], row["Inicial"], row["Final"]) == ("Estado", "Amazonas (AM)", 50, 58)
+    assert (row["Variação absoluta"], row["Direção da mudança"], row["Observações da tendência"]) == (8, "Aumento", 4)
+    assert quantity["metadata"]["source"]["fontes_usadas"] == ["state"]
+    assert "populacao_estadual" not in quantity["metadata"]["metodos"]
     # Competência nacional sem população de junho: lacuna (None), nunca zero, e fora das observações.
     full = ok(analyze(info, "temporal", {"brasil": True}, temporal_indicator="density"))
     gap = [row for row in full["detail_rows"] if row["Período"] == "202206"]
@@ -481,23 +559,58 @@ def test_evolution_receives_change_incomparability_through_its_input():
 
 
 # 11. Agregação ----------------------------------------------------------------------------------------------------
-def test_aggregation_expands_states_into_their_municipalities(catalog):
+def test_state_aggregation_sums_state_counts_with_possible_double_counting(catalog):
     info = inspected()
-    state = ok(analyze(info, "aggregate", {"estados": ["13"]}, period_filter="202301"))
-    assert state["rows"] == ok(analyze(info, "aggregate", territory_ids=AM, period_filter="202301"))["rows"]
-    assert state["rows"][0]["Quantidade"] == 57 and state["metadata"]["selecao_territorial"]["rota"] == "municipal"
-    assert state["metadata"]["options"]["territory_ids"] == AM
-    partial = ok(analyze(info, "aggregate", {"estados": ["13"]}, period_filter="202406"))
+    body = ok(analyze(info, "aggregate", {"estados": ["13", "15"]}, period_filter="202301"))
+    [row] = body["rows"]
+    # Soma das contagens estaduais e das populações dos estados (CAP-AGR-01): nunca pessoas únicas no conjunto.
+    assert row["Tipo"] == "Soma dos componentes (possível dupla contagem)"
+    assert (row["Quantidade"], row["População"]) == (50 + 50, 7000 + 3000)
+    assert row["Densidade por 1.000"] == pytest.approx(100 / 10000 * 1000)
+    assert body["metadata"]["selecao_territorial"]["rota"] == "niveis"
+    assert body["metadata"]["universe"]["classification_scope"] == "estados agregados (soma das contagens estaduais)"
+    assert body["metadata"]["evaluability"]["limitacoes"] == ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]
+    assert levels.NOTE_STATES_SUM in body["notes"] and levels.NOTE_STATES in body["notes"]
+    assert body["metrics"] == [{"label": "Territórios agregados", "value": 2}]
+    assert [item["id"] for item in body["metadata"]["universe"]["members"]] == ["uf:13", "uf:15"]
+    refused(analyze(info, "aggregate", {"estados": ["13", "15"]}, period_filter="202301", no_overlap_confirmed=True),
+            levels.STATES_SUM_ONLY)
+    assert body["metadata"]["suporte_agregado"] == [{
+        "competencia": "202301", "categoria": "MEDICINA", "tipo": "SOMA_DOS_COMPONENTES", "fundamento": "CAP-AGR-01",
+        "previstos": 2, "incluidos": ["uf:13", "uf:15"], "nao_avaliaveis": []}]
+    # Estado sem a população completa (ou sem contagem) na competência fica fora: agregado parcial sobre os avaliáveis,
+    # com numerador e denominador no mesmo suporte (CAP-AGR-01), nunca estimado.
+    partial = ok(analyze(info, "aggregate", {"estados": ["13", "15"]}, period_filter="202406"))
+    [row] = partial["rows"]
+    assert (row["Quantidade"], row["População"]) == (56, 3000)  # só o Pará: o Amazonas não tem a população completa
+    assert partial["metrics"] == [{"label": "Territórios agregados", "value": 1}]
+    assert [item["id"] for item in partial["metadata"]["universe"]["members"]] == ["uf:15"]  # os de fora ficam na nota
+    assert partial["metadata"]["evaluability"]["limitacoes"] == ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM", "AGREGADO_PARCIAL"]
+    assert partial["metadata"]["suporte_agregado"][0]["nao_avaliaveis"] == [
+        {"id": "uf:13", "rotulo": "Amazonas (AM)", "motivo": levels.STATE_NO_POPULATION}]
+    assert ("Agregação parcial em junho de 2024: 1 de 2 estados com contagem e população; fora: Amazonas (AM) (" +
+            levels.STATE_NO_POPULATION + "). O valor não representa o conjunto dos estados marcados.") in partial["notes"]
+    missing = ok(analyze(info, "aggregate", {"estados": ["15", "25"]}, period_filter="202301"))
+    assert missing["rows"][0]["Quantidade"] == 50 and missing["metadata"]["suporte_agregado"][0]["nao_avaliaveis"] == [
+        {"id": "uf:25", "rotulo": "Paraíba (PB)", "motivo": "Não avaliável: sem registro nesta competência na fonte estadual"}]
+    lone = levels.Parts()  # nenhum estado avaliável: não há resultado
+    lone.data["UF"] = pd.DataFrame([{"territory": "Amazonas (AM)", "period": "202406", "category": "MEDICINA",
+                                     "quantity": 58, "population": float("nan"), "density": float("nan"),
+                                     "population_period": "202406", "condition": levels.STATE_NO_POPULATION,
+                                     "coverage": None, "level": "UF", "unit": "uf:13", "uf": "13"}], columns=levels.UF_COLUMNS)
+    with pytest.raises(ValueError, match=r"Nenhum estado marcado tem contagem e população em junho de 2024: Amazonas \(AM\)"):
+        levels._aggregate(main, lone, None, {})
+    # Municípios de um estado (grupo) continuam somando as contagens municipais, pelo caminho municipal.
+    group = ok(analyze(info, "aggregate", {"municipios": {"estados": ["13"]}}, period_filter="202301"))
+    assert group["rows"] == ok(analyze(info, "aggregate", territory_ids=AM, period_filter="202301"))["rows"]
+    assert group["rows"][0]["Quantidade"] == 40 + 10 + 7 and group["metadata"]["selecao_territorial"]["rota"] == "municipal"
+    partial = ok(analyze(info, "aggregate", {"municipios": {"estados": ["13"]}}, period_filter="202406"))
     assert (partial["rows"][0]["Quantidade"], partial["rows"][0]["População"]) == (54, 5020)
-    assert ("Amazonas (AM) em junho de 2024: soma parcial, 2 de 3 municípios; sem registro: 130420. O valor não representa "
-            "o estado inteiro.") in partial["notes"]
-    assert "AGREGADO_PARCIAL" in partial["metadata"]["evaluability"]["limitacoes"]
-    overlap = ok(analyze(info, "aggregate", {"estados": ["13"], "municipios": {"ids": ["code:130260"]}}, period_filter="202301"))
-    assert overlap["rows"] == state["rows"] and "code:130260" in overlap["metadata"]["selecao_territorial"]["absorvidos"]
+    assert "Municípios do Amazonas em junho de 2024: 2 de 3 municípios com registro; sem registro: 130420." in partial["notes"]
     every = ok(analyze(info, "aggregate", {"municipios": {"todos": True}}, period_filter="202301"))
     assert ("Soma dos 5 municípios (possível dupla contagem); não é o total do Brasil, que vem da contagem nacional."
             in every["notes"])
-    refused(analyze(info, "aggregate", {"brasil": True, "estados": ["13"]}, period_filter="202301"),
+    refused(analyze(info, "aggregate", {"brasil": True, "estados": ["13", "15"]}, period_filter="202301"),
             "Não se aplica: o total do Brasil vem pronto da fonte nacional")
 
 
@@ -577,10 +690,14 @@ def test_execution_keys_are_reproducible_order_free_and_route_specific(catalog):
 def test_inspect_lists_levels_and_preflight_reports_each_level(catalog):
     info = inspected()
     block = info["niveis"]
-    assert block["regra_estado"] == "brasil-cod-uf-prefix-1" and block["regra_populacao_nacional"] == "BR-POP-JUNHO-1"
-    assert [(item["prefixo"], item["sigla"], item["rotulo_grupo"], item["municipios"]) for item in block["estados"]] == [
-        ("13", "AM", "Municípios do Amazonas", 3), ("15", "PA", "Municípios do Pará", 1),
-        ("25", "PB", "Municípios da Paraíba", 1)]
+    assert (block["regra_estado"], block["regra_populacao_estadual"], block["regra_membros_estado"]) == (
+        "UF-CONTAGEM-ESTADUAL-1", "UF-POP-MUNICIPIOS-1", "brasil-cod-uf-prefix-1")
+    assert block["regra_populacao_nacional"] == "BR-POP-JUNHO-1"
+    assert [(item["prefixo"], item["sigla"], item["rotulo_grupo"], item["municipios"], item["objeto"])
+            for item in block["estados"]] == [
+        ("13", "AM", "Municípios do Amazonas", 3, True), ("15", "PA", "Municípios do Pará", 1, True),
+        ("25", "PB", "Municípios da Paraíba", 1, True)]
+    assert block["fonte_estadual"] == {"disponivel": True, "motivo": "", "periodos": PERIODS}
     assert block["municipios"] == {"total": 5}
     assert block["brasil"]["periodos"] == sorted(NATIONAL)
     assert [(item["competencia"], item["motivo"]) for item in block["brasil"]["densidade_nao_avaliavel"]] == [
@@ -588,6 +705,8 @@ def test_inspect_lists_levels_and_preflight_reports_each_level(catalog):
     assert [(item["competencia"], item["ausentes"]) for item in block["brasil"]["densidade_com_limitacoes"]] == [
         ("202401", ["130420"]), ("202406", ["130420"])]
     assert block["operacoes"]["density"]["aceita"] == ["brasil", "estado", "municipio"]
+    assert block["operacoes"]["aggregate"]["aceita"] == ["estado", "municipio"]
+    assert block["operacoes"]["aggregate"]["estado_como"] == "objeto"
     assert block["operacoes"]["ranking"]["motivos"]["brasil"] == REASONS[("ranking", "brasil")]
     assert block["operacoes"]["comparisons"]["texto"].startswith("Compare dois ou mais territórios.")
     assert "niveis" not in inspected("national")
@@ -631,6 +750,7 @@ def test_preflight_reports_a_pending_scope_choice_instead_of_refusing(catalog):
     assert check("ranking", {"municipios": {"ids": ["code:130260"]}}).endswith(
         "precisa de pelo menos dois territórios do mesmo tipo. Marque mais um.")
     assert check("aggregate", {"municipios": {"ids": ["code:130260"]}}) == "A agregação precisa de pelo menos dois municípios."
+    assert check("aggregate", {"estados": ["13"]}) == "A agregação precisa de pelo menos dois estados."
 
 
 # 16. Conversa e provedor ------------------------------------------------------------------------------------------
@@ -665,8 +785,77 @@ def test_conversation_keeps_municipal_ids_and_the_provider_never_sees_levels(cat
     assert sent, "o pedido analítico deveria chegar ao provedor minimizado"
     content = " ".join(sent)
     for forbidden in ("abrangencia", "referencia", "tendencia", "BR-POP", "Amazonas", "MANAUS", "130260", "Brasil (total",
-                      "soma dos municípios", "suporte_agregado", "niveis", "130420", "TEFE", result["result_id"]):
+                      "soma dos municípios", "suporte_agregado", "niveis", "130420", "TEFE", "UF-CONTAGEM", "UF-POP",
+                      "populacao_estadual", "contagem estadual", "médicos únicos", "Estados_Brasil", result["result_id"]):
         assert forbidden not in content, forbidden
+
+
+def test_conversation_marks_states_regions_and_years_without_choosing_for_the_user(catalog):
+    """A gramática local marca estados (nome, "estado de", região) na abrangência e transforma anos em competências da
+    base; nada é calculado, e a escolha entre competências de uma análise de competência única fica com o usuário."""
+    info = inspected()
+    form = {"dataset": "brazil", "dataset_version": info["source"]["version"], "mapping": json.dumps(info["suggested_mapping"]),
+            "options": "{}"}
+
+    def interpret(message, **options):
+        response = client.post("/api/exploration/interpret", data={**form, "message": message,
+                                                                   "options": json.dumps(options)})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["handled"] is True and body.get("executed", False) is False
+        return body
+
+    counts = interpret("Quantos médicos havia no Amazonas em junho de 2024?")
+    assert (counts["operation"], counts["estados"], counts["territory_ids"]) == ("counts", ["13"], [])
+    assert counts["options_patch"] == {"period_filter": "202406", "period_filters": []} and "clarification" not in counts
+    assert counts["reply"].startswith("Recorte identificado com 1 território.")
+    density = interpret("Qual era a densidade médica do Pará em 2024?")
+    assert (density["operation"], density["estados"], density["options_patch"]) == ("density", ["15"], {})
+    assert density["clarification"] == ("Em 2024, a base tem 2 competências (janeiro de 2024 e junho de 2024). Esta "
+                                        "análise usa uma competência: escolha uma na caixa Período ou peça, por exemplo, "
+                                        "“em junho de 2024”.")
+    assert "pending_operation" not in density
+    region = interpret("Compare a densidade médica dos estados da Região Norte.")
+    assert (region["operation"], region["estados"], region["territory_ids"]) == ("comparisons", ["13", "15"], [])
+    assert region["options_patch"] == {"comparison_indicator": "density"}
+    series = interpret("Mostre a evolução do número de médicos no Amazonas entre 2023 e 2024.")
+    assert (series["operation"], series["estados"]) == ("temporal", ["13"])
+    assert series["options_patch"] == {"period_filter": "", "period_filters": PERIODS, "temporal_indicator": "quantity"}
+    assert "competências" in interpret("Mostre a evolução no Amazonas entre 2010 e 2012.")["clarification"]
+    # "Municípios de um estado" continua marcando os municípios (grupo), não o estado.
+    group = interpret("Compare a densidade dos municípios do Amazonas")
+    assert set(group["territory_ids"]) == set(AM) and "estados" not in group
+    # "para" sem acento é a preposição, nunca o estado do Pará.
+    plain = interpret("Compare Manaus e Belém para a densidade")
+    assert set(plain["territory_ids"]) == {"code:130260", "code:150140"} and "estados" not in plain
+    # Um estado só não forma uma comparação: a conversa pede os demais, sem completar o recorte por conta própria.
+    single = interpret("Compare o Amazonas")
+    assert single["estados"] == ["13"] and "Para comparar estados" in single["clarification"]
+    # Estado como alvo da referência mais próxima: não se aplica (estados não têm um ponto único).
+    assert "estados não têm um ponto único" in interpret("Referência mais próxima no Amazonas")["clarification"]
+
+
+def test_states_need_the_state_source_and_only_its_states_are_objects(tmp_path, monkeypatch):
+    """Sem registro de uma UF na fonte estadual, ela continua como grupo de municípios, mas não como estado; com a fonte
+    estadual fora do perfil oficial, os estados ficam indisponíveis com o motivo, e Brasil e municípios seguem."""
+    install_catalog(tmp_path / "sem_pb", monkeypatch, {uf: counts for uf, counts in STATE.items() if uf != "PB"})
+    info = inspected()
+    assert [(item["sigla"], item["objeto"]) for item in info["niveis"]["estados"]] == [
+        ("AM", True), ("PA", True), ("PB", False)]
+    refused(analyze(info, "density", {"estados": ["25"]}, period_filter="202306"), "Estado não reconhecido nesta base: 25.")
+    group = ok(analyze(info, "counts", {"municipios": {"estados": ["25"]}}, period_filter="202306"))
+    assert [row["Quantidade"] for row in group["rows"]] == [5]
+    install_catalog(tmp_path / "sem_fonte", monkeypatch, {"XX": {"202306": 1}})
+    info = inspected()
+    block = info["niveis"]
+    reason = levels.STATE_UNAVAILABLE + " UF não reconhecida na fonte estadual: XX."
+    assert block["fonte_estadual"] == {"disponivel": False, "motivo": reason, "periodos": []}
+    assert not any(item["objeto"] for item in block["estados"])
+    assert "estado" not in block["operacoes"]["density"]["aceita"]
+    assert block["operacoes"]["density"]["motivos"]["estado"] == reason
+    refused(analyze(info, "density", {"estados": ["13"]}, period_filter="202306"), reason)
+    assert ok(analyze(info, "counts", {"brasil": True}, period_filter="202306"))["rows"][0]["Quantidade"] == 110
+    assert ok(analyze(info, "counts", {"municipios": {"estados": ["13"]}}, period_filter="202306"))["rows"]
 
 
 # 17. Representação ------------------------------------------------------------------------------------------------

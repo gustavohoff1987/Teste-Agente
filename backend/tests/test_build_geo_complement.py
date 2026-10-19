@@ -95,6 +95,7 @@ def repo(tmp_path, monkeypatch):
     book.active.append(["pais", "contagem"])
     book.save(root / FILES["national"])
     (root / FILES["municipal"]).write_text("municipal sintético\n", encoding="utf-8")
+    (root / FILES["state"]).write_text("estadual sintético\n", encoding="utf-8")
     (root / GOVERNED_MANIFEST).parent.mkdir(parents=True)
     (root / GOVERNED_MANIFEST).write_text(json.dumps(manifest_from_repository(root)), encoding="utf-8")
     monkeypatch.setattr(brazil_data, "REPO_ROOT", root)

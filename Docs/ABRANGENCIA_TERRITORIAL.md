@@ -2,19 +2,25 @@
 
 Decisões do responsável pelo produto de 19/10/2026: **D3** (abrangência vertical com Brasil, estados,
 todos os municípios e municípios), **D4** (população do Brasil pela soma municipal de junho) e **D5**
-(taxa nacional como referência de contexto na densidade). Este documento descreve o motor e a API
-(`backend/territorial_levels.py`) e a tela: a lista vertical da caixa "Abrangência territorial" (§6) e a
-taxa nacional no mapa e nas barras (§4.1). As mudanças estão no [registro](REGISTRO_DE_COMPORTAMENTO.md).
+(taxa nacional como referência de contexto na densidade). Na mesma data, o responsável pelo produto
+entregou a contagem de médicos únicos por estado, que virou a fonte estadual da base
+(`Dados_Estados_Brasil.csv`): desde então, o estado é essa contagem, e não mais a soma dos municípios.
+Este documento descreve o motor e a API (`backend/territorial_levels.py`) e a tela: a lista vertical da
+caixa "Abrangência territorial" (§6) e a taxa nacional no mapa e nas barras (§4.1). As mudanças estão no
+[registro](REGISTRO_DE_COMPORTAMENTO.md).
 
 ## 1. Princípios
 
 - Cada nível é um universo próprio, e **nenhum nível é somado a outro** (RQ-DAD-30). Não há linha de
   total entre níveis.
 - **Brasil (BR):** contagem nacional de `Dados_Brasil.xlsx`. Nunca é a soma dos municípios.
-- **Estado (UF):** soma dos municípios pelo prefixo do código IBGE (regra governada
-  `brasil-cod-uf-prefix-1`). A coluna `uf` da fonte não é usada. É sempre SOMA_DOS_COMPONENTES, com
-  possível dupla contagem: quem atua em mais de um município é contado em cada um. Nunca é comparado
-  com o total do Brasil.
+- **Estado (UF):** contagem de médicos únicos da fonte estadual (regra `UF-CONTAGEM-ESTADUAL-1`):
+  contagem distinta dentro da UF e da competência, em que quem atua em mais de um município do estado
+  conta uma vez. Nunca é a soma dos municípios. A população do estado é a soma da população estimada dos
+  seus municípios, pelo prefixo do código IBGE, na própria competência (regra `UF-POP-MUNICIPIOS-1`, com
+  a correspondência `brasil-cod-uf-prefix-1`; a coluna `uf` da fonte municipal não é usada). Quem atua em
+  mais de um estado conta em cada um: a soma dos estados não é o total do Brasil, e o estado nunca é
+  comparado com o Brasil.
 - **Município (MUN):** o caminho municipal de sempre. "Todos os municípios" e "Municípios de um estado"
   são expansões em municípios.
 - Os pedidos que já existiam continuam com as mesmas linhas: só municípios seguem o caminho municipal;
@@ -27,10 +33,10 @@ taxa nacional no mapa e nas barras (§4.1). As mudanças estão no [registro](RE
 | Análise | Brasil | Estados | Municípios | Combinação | Mínimo |
 |---|---|---|---|---|---|
 | Densidade, Quantitativos, Relatórios | sim | sim (objeto) | sim | blocos por nível | 1 |
-| Evolução temporal | sim | sim, com suporte por competência | sim | uma série por objeto; painéis por tipo de contagem | 1 objeto |
+| Evolução temporal | sim | sim (densidade sem população completa é lacuna) | sim | uma série por objeto; painéis por nível | 1 objeto |
 | Comparações | sim, lado a lado | sim | sim | relações só dentro do nível | 2 objetos |
 | Distribuição, Recortes e rankings | não | sim, só entre estados | sim | mesmo nível | 2 |
-| Agregações | não | entra pelos seus municípios | sim | união, um resultado | 2 municípios |
+| Agregações | não | sim, só entre estados (soma das contagens estaduais) | sim | mesmo nível, um resultado | 2 |
 | Análise espacial, Referência mais próxima, Critérios combinados | não | não (o grupo de municípios vale) | sim | — | 1 |
 | Rotatividade | indisponível na base Brasil | — | — | — | — |
 
@@ -40,14 +46,18 @@ Motivos devolvidos pelo backend (mesmo texto no erro 422 e no pré-exame):
 |---|---|---|
 | Distribuição | "Não se aplica: a distribuição agrupa vários territórios, e o Brasil é um só." | — |
 | Recortes e rankings | "Não se aplica: o ranking ordena vários territórios, e o Brasil é um só." | — |
-| Agregações | "Não se aplica: o total do Brasil vem pronto da fonte nacional e não é somado a outros territórios." | — (o estado é expandido) |
+| Agregações | "Não se aplica: o total do Brasil vem pronto da fonte nacional e não é somado a outros territórios." | — |
 | Espacial, mais próxima, critérios | "Não se aplica: as distâncias e os critérios usam a localização de cada município." | "Não se aplica: estados não têm um ponto único. Para usar os municípios de um estado, marque o grupo em Municípios." |
 | Rotatividade | "A rotatividade não está disponível nos dados do Brasil: falta um identificador da mesma pessoa entre os períodos." | (o mesmo) |
 
-Estados e municípios juntos na distribuição ou no ranking são uma escolha pendente ("Você marcou
-estados e municípios. … usa territórios do mesmo tipo: escolha qual manter."); o mínimo também é
+Estados e municípios juntos na distribuição, no ranking ou na agregação são uma escolha pendente ("Você
+marcou estados e municípios. … usa territórios do mesmo tipo: escolha qual manter."); o mínimo também é
 conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo. Marque mais um.";
-"A agregação precisa de pelo menos dois municípios.").
+"A agregação precisa de pelo menos dois estados." ou "… dois municípios."). Na agregação de estados, as
+escolhas "unidades sem sobreposição" e "pessoas distintas" são recusadas: "A agregação de estados é
+sempre a soma das contagens estaduais (possível dupla contagem): quem atua em mais de um estado conta
+em cada um, e a base não identifica as pessoas entre os estados." (na base atual, a soma dos estados
+supera o total do Brasil em todas as competências).
 
 ## 3. Regras de cálculo
 
@@ -72,36 +82,58 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   autorizada pela CAP-IND-02 (L1742) e leva a limitação `DENOMINADOR_ALTERNATIVO` no resultado.
 - Colunas da linha: "Competência da população" (ex.: 202406), "Cobertura" (ex.: "População: 5.569 de
   5.570 municípios em junho de 2015; sem registro: 430607") e "Condição".
-- O índice da fonte municipal (membros por estado, nomes e população de junho por ano) é calculado uma
-  vez por versão da base, com trava, e nunca guardado nos atributos do quadro.
+- O índice da fonte municipal (membros por estado, nomes, população de junho por ano, população de cada
+  estado por competência e a soma das quantidades dos municípios de cada estado, só para conferir a fonte
+  estadual) é calculado uma vez por versão da base, com trava, e nunca guardado nos atributos do quadro.
 
 ### 3.2 Estado
 
-- Membros previstos: os códigos da versão com o prefixo do estado. Valores por competência e categoria:
-  Σ quantidade e Σ população dos membros **presentes** naquela competência (mesmo suporte no numerador
-  e no denominador). Densidade = Σq ÷ Σpop × 1.000.
-- Rótulos: território "São Paulo (SP)", nível "Estado (soma dos municípios)", tipo de contagem
-  "Soma dos componentes (possível dupla contagem)", cobertura "644 de 645 municípios; sem registro:
-  353286".
-- Membro sem registro: AGREGADO_PARCIAL, com o valor dos presentes e a nota "{Estado} em {competência}:
-  soma parcial, {k} de {N} municípios; sem registro: {códigos}. O valor não representa o estado
-  inteiro." Na base atual: RO, MG e SP em janeiro de 2015, SC em janeiro de 2017 e RS em junho de 2015
-  e janeiro de 2020.
-- `metadata.suporte_agregado`: por estado, competência e categoria, `previstos`, `incluidos`,
-  `ausentes`, `tipo: "SOMA_DOS_COMPONENTES"`, `fundamento: "CAP-AGR-01"` e a regra.
+- **Contagem (UF-CONTAGEM-ESTADUAL-1):** a da fonte estadual `Dados_Estados_Brasil.csv`, por UF (a sigla,
+  ligada ao código IBGE pela tabela do IBGE), competência e categoria, como está. Competência sem registro
+  do estado na fonte estadual: "Não avaliável: sem registro nesta competência na fonte estadual", nunca
+  zero. A fonte estadual não é um recorte do pedido (`scope=state` é recusado, e `available_scopes`
+  continua nacional e municipal): ela só é lida pela abrangência. Com a fonte fora do perfil oficial (por
+  exemplo, uma UF desconhecida), os estados ficam indisponíveis com o motivo ("Estados indisponíveis: a
+  fonte estadual de médicos únicos precisa estar no perfil oficial da base Brasil. …"), e Brasil e
+  municípios seguem. Um estado da lista sem registro na fonte estadual continua como grupo de municípios,
+  mas não como estado.
+- **População (UF-POP-MUNICIPIOS-1):** em cada competência, a soma da população estimada dos municípios
+  do estado (prefixo do código IBGE), cada código uma vez, só com todos os municípios previstos
+  registrados. Sem algum deles, a população não é estimada: a densidade do estado fica "Não avaliável:
+  população estadual incompleta nesta competência (DENOMINADOR_AUSENTE)", a contagem continua avaliável
+  e o resultado traz a nota "{Estado} em {competência}: população estadual incompleta, {k} de {N}
+  municípios com registro na fonte municipal (sem registro: {códigos}); a população não é estimada e a
+  densidade do estado não é avaliada.". Na base atual: RO, MG e SP em janeiro de 2015, SC em janeiro de
+  2017 e RS em junho de 2015 e janeiro de 2020. População ausente, não positiva ou conflitante no mesmo
+  município é erro, sem escolha arbitrária.
+- **Densidade:** contagem estadual × 1.000 ÷ população do estado, em aritmética exata. São Paulo, junho
+  de 2024: 148.909 ÷ 45.973.194 × 1.000 = **3,2390** por 1.000 habitantes.
+- Rótulos: território "São Paulo (SP)", nível "Estado", tipo de contagem "Unidades distintas: contagem
+  estadual (não é a soma dos municípios)", cobertura "População: 644 de 645 municípios; sem registro:
+  353286" e "Competência da população" igual à competência.
+- `metadata.populacao_estadual`: por estado e competência, `populacao`, `previstos`, `incluidos`,
+  `ausentes`, `regra`, `avaliabilidade` e `motivo` (`DENOMINADOR_AUSENTE` quando incompleta).
+- **Fontes que divergem:** a contagem distinta do estado não pode superar a soma das contagens dos seus
+  municípios. Quando supera (com todos os municípios presentes), as duas fontes entram como estão e o
+  resultado traz a nota "{Estado} em {competência}: a contagem estadual de médicos únicos ({q}) supera a
+  soma das contagens dos seus municípios na fonte municipal ({s}); as duas fontes divergem nesta
+  competência e entram como estão.". Na base atual, só o Distrito Federal, de janeiro de 2014 a junho de
+  2017 (em janeiro de 2014, 7.832 contra 4.640).
+- **Consistência na base atual:** em cada competência, Brasil ≤ soma dos estados ≤ soma dos municípios
+  (junho de 2024: 502.495, 539.090 e 817.419).
 - **251365:** PB pelo prefixo do código. Em 2016/6, a fonte declara PA na coluna `uf` (população
   331.942); a linha entra como está, com a nota `UF_DECLARADA_DIVERGENTE`: "Em {competência}, {n}
   registro(s) da fonte municipal trazem na coluna uf um estado diferente do indicado pelo código IBGE
   ({códigos}); o estado segue o código, e os valores entram como estão na fonte." Ela aparece na
-  população do Brasil de 2016 (janeiro e junho), na PB em 2016/6 e nos municípios dessa competência. A
-  constante `UF_DIVERGENTE_EXCLUI` (falsa) deixaria a linha fora das somas. Nas bases importadas, a
-  hierarquia divergente continua bloqueando a unidade.
+  população do Brasil de 2016 (janeiro e junho), na população da PB em 2016/6 e nos municípios dessa
+  competência. A constante `UF_DIVERGENTE_EXCLUI` (falsa) deixaria a linha fora das somas (a população
+  da PB em 2016/6 ficaria incompleta). Nas bases importadas, a hierarquia divergente continua
+  bloqueando a unidade.
 
 ### 3.3 Municípios
 
 - Escolhas diretas (`ids`) continuam estritas: código inexistente ou sem registro no recorte é erro.
-- Expansões ("Todos os municípios", grupos por estado e, na agregação, estados) viram os municípios
-  **presentes** depois dos filtros de período e categoria; os ausentes ficam na nota de cobertura e em
+- Expansões ("Todos os municípios" e grupos por estado) viram os municípios **presentes** depois dos filtros de período e categoria; os ausentes ficam na nota de cobertura e em
   `metadata.selecao_territorial.expansoes` (previstos, incluídos e ausentes por competência).
 - "Todos os municípios" sozinho sai sem `territory_ids`, com a nota de cobertura ("Todos os municípios:
   os 5.570 municípios previstos nesta versão da base têm registro no recorte escolhido." ou a lista dos
@@ -112,59 +144,78 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 
 - **Quantitativos, densidade e relatórios:** linhas por nível, na ordem Brasil → estados (por código)
   → municípios, com a coluna "Nível" e "Tipo de contagem". Competência pedida que não existe na fonte
-  de um nível vira linha "Não avaliável: sem registro nesta competência na fonte {nacional|municipal}".
-  Desde o visual completo (19/10/2026), as métricas são **por nível**, com a chave extra `nivel` (BR, UF ou
-  MUN): "Brasil (total nacional): registros avaliáveis" e "…: registros não avaliáveis", "Estados (soma dos
-  municípios): …" e "Municípios: …"; os números de níveis diferentes nunca são somados (antes, "Unidades
-  avaliáveis" e "Não avaliáveis" contavam só os municípios). A descrição diz o que é cada bloco: "Densidade de
-  pessoas por 1.000 habitantes por nível territorial (Brasil (total nacional), estados (soma dos municípios) e
+  de um nível vira linha "Não avaliável: sem registro nesta competência na fonte
+  {nacional|estadual|municipal}". Desde o visual completo (19/10/2026), as métricas são **por nível**, com a
+  chave extra `nivel` (BR, UF ou MUN): "Brasil (total nacional): registros avaliáveis" e "…: registros não
+  avaliáveis", "Estados: …" e "Municípios: …"; os números de níveis diferentes nunca são somados (antes,
+  "Unidades avaliáveis" e "Não avaliáveis" contavam só os municípios). A descrição diz o que é cada bloco:
+  "Densidade de pessoas por 1.000 habitantes por nível territorial (Brasil (total nacional), estados e
   municípios), em blocos separados; nenhum nível é somado a outro." e "Quantitativos de pessoas por nível
   territorial (…)" (antes, "pessoas por 1.000 habitantes.").
-- **Evolução temporal:** uma única chamada de `evolution` para todos os objetos. O estado cujo conjunto
-  de municípios presentes muda na janela recebe a INCOMPARABILIDADE pela entrada (`incomparable`):
-  "Membros efetivos diferentes entre competências (201501: 353286 ausente)"; se os membros dos dois
-  extremos forem diferentes, a mudança também não é avaliada (`change_incomparable`, condição
-  "… (INCOMPARABILIDADE)"). Esses estados vão para `representacao.serie.quebras` com as competências,
-  e a nota diz "A tendência de {Estado} não foi avaliada…" ou "A mudança e a tendência de {Estado} não
-  foram avaliadas…". Na série completa da base atual, SP e RS não são comparáveis; na série de junho, só
-  RS (430607 em 2015/6).
+- **Evolução temporal:** uma única chamada de `evolution` para todos os objetos. O estado é a série da
+  fonte estadual, sem composição que mude entre competências; na densidade, a competência em que a
+  população do estado está incompleta é lacuna (fora das observações, nunca zero), e a mudança usa os
+  extremos quando eles têm valor. Na base atual, a densidade de SP tem 21 observações na série completa
+  (sem 2015/1) e a do RS, 20 (sem 2015/6 e 2020/1); na série anual de junho, o RS tem 10. A quantidade
+  de cada estado tem as 22 competências (RS de 21.680 a 33.985, "Crescimento").
 - **Comparações:** maior, menor, igual e diferença só entre objetos do mesmo nível, com o motor de
   sempre (par A/B ou três ou mais, AT-84). O Brasil e os objetos isolados ficam lado a lado: "Lado a
   lado: o Brasil é outro nível e não entra em maior, menor nem diferença com estados ou municípios.",
-  "Lado a lado: único estado; a soma dos municípios não é comparada com municípios nem com o Brasil." e
-  "Lado a lado: único município; não é comparado com outros níveis.". Estado parcial fica fora da
-  relação: "Não avaliável: agregado parcial (…)". Métrica: "Territórios comparados".
+  "Lado a lado: único estado; não é comparado com municípios nem com o Brasil." e "Lado a lado: único
+  município; não é comparado com outros níveis.". Estado sem valor na competência (sem registro na fonte
+  estadual ou, na densidade, sem a população completa) fica fora da relação, com a condição. Métrica:
+  "Territórios comparados".
 - **Comparações com competência dos valores e janela (desde 19/10/2026, D6):** com `comparison_values_period`,
   as relações usam só essa competência, sempre dentro do mesmo nível (o Brasil lado a lado, sem relação; estado e
   município nunca relacionados), e `detail_rows` traz um registro por objeto, com o "Nível", quantidade, população,
   densidade, "Tipo de contagem", "Cobertura", "Competência da população" (Brasil na densidade), a condição e, com
-  duas ou mais competências, a mudança e a tendência na janela. Estado parcial na competência dos valores fica fora
-  das relações ("Não avaliável: agregado parcial (…)"), mas o registro dele guarda o valor ("Avaliável com
-  limitações: soma parcial (AGREGADO_PARCIAL)"); o estado cujo suporte muda na janela recebe INCOMPARABILIDADE pela
-  entrada de `evolution`, com a nota "A tendência de {Estado} não foi avaliada…". Municípios de `detail_rows` na
+  duas ou mais competências, a mudança e a tendência na janela. Estado sem valor na competência dos valores fica
+  fora das relações, com a condição, e o registro dele guarda a contagem; na janela, a densidade sem população
+  completa é lacuna (extremo vazio, nunca NaN nem zero). Municípios de `detail_rows` na
   ordem do código (RQ-REP-03). `metadata.comparacao.grupos` traz, por nível, o rótulo, o tipo de contagem, os
   objetos pedidos e se houve relação; `sem_relacao`, os objetos sem relação e o motivo. Métricas: "Territórios
   comparados" e "Competências na janela". Na série anual de junho com valores em 06/2024: Brasil 2,3638
-  (Crescimento), SP 5,2032 (Crescimento), RS não comparável (430607 ausente em 06/2015) e AM, Manaus, Tefé e
-  Parintins sem classificação (mudança de direção); ver `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`, seção 8.
-- **Ranking e distribuição de estados:** universo "estados selecionados (soma dos municípios)"; estado
-  parcial fica sem posição (ranking) ou fora das classes (distribuição, com nota), e com menos de dois
-  estados avaliáveis o pedido é recusado ("Menos de dois estados avaliáveis em …"). Nota: "A dupla
-  contagem varia entre os estados; a ordem e as classes podem refletir isso.". Métricas (19/10/2026): no
-  ranking, "Territórios ordenados" e "Não avaliáveis" (estado parcial conta como não avaliável); na
-  distribuição, "Unidades classificadas", "Classes" e "Estados fora da distribuição"
+  (Crescimento), SP 3,2390 (Crescimento), AM 1,3991 (Crescimento), RS com 10 observações (sem 06/2015) e Manaus,
+  Tefé e Parintins sem classificação (mudança de direção); ver `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`, seção 8.
+- **Ranking e distribuição de estados:** universo "estados selecionados (contagem estadual de médicos
+  únicos)"; estado sem valor (sem registro na fonte estadual ou, na densidade, sem a população completa)
+  fica sem posição (ranking) ou fora das classes (distribuição, com a nota "Fora da distribuição: {Estado}
+  em {competência} ({condição})."), e com menos de dois estados avaliáveis o pedido é recusado ("Menos de
+  dois estados avaliáveis em …"). Métricas (19/10/2026): no ranking, "Territórios ordenados" e "Não
+  avaliáveis"; na distribuição, "Unidades classificadas", "Classes" e "Estados fora da distribuição". Na
+  base atual, a densidade de junho de 2024 ordena DF, SP e RS nas três primeiras posições e AM, PA e MA
+  nas três últimas.
+- **Agregação de estados:** universo "estados agregados (soma das contagens estaduais)". Numa competência
+  e numa categoria, soma as contagens estaduais e as populações dos estados, pelo mesmo motor da agregação
+  municipal: tipo "Soma dos componentes (possível dupla contagem)", limitação
+  `SOMA_COM_POSSIVEL_DUPLA_CONTAGEM` e a nota "Agregação de estados: soma das contagens estaduais de médicos
+  únicos (soma dos componentes). Quem atua em mais de um estado é contado em cada um; o total não é o
+  número de médicos diferentes do conjunto nem o total do Brasil.". `metadata.suporte_agregado` registra,
+  na competência, os estados previstos, os incluídos e os não avaliáveis com o motivo (CAP-AGR-01). Estado
+  sem contagem ou sem a população completa na competência fica fora: o agregado é parcial sobre os
+  avaliáveis, com numerador e denominador no mesmo suporte, a limitação `AGREGADO_PARCIAL` e a nota
+  "Agregação parcial em {competência}: {k} de {n} estados com contagem e população; fora: {Estado}
+  ({condição}). O valor não representa o conjunto dos estados marcados."; sem nenhum avaliável, não há
+  resultado ("Nenhum estado marcado tem contagem e população em {competência}: …"). Na base atual, junho
+  de 2024: Região Norte, 27.384 médicos e 18.669.345 habitantes; os 27 estados, 539.090 (acima dos 502.495
+  do Brasil).
 - **Notas de nível:** procedência do Brasil ("Brasil (total nacional): contagem nacional de médicos da
   base Brasil, não a soma dos municípios. População: soma das populações estimadas dos {N} municípios em
   junho de {Y}, usada também em janeiro de {Y} (regra BR-POP-JUNHO-1). Densidade = contagem ÷ população
   × 1.000."; numa série de vários anos, "dos {N} municípios em junho de cada ano" quando todos os anos somam
   o mesmo número de municípios e "dos municípios com registro em junho de cada ano" quando algum ano é
   parcial, como a série que inclui 2015); janeiro com o Brasil e outro nível ("Em janeiro, a população do Brasil é a de junho do
-  mesmo ano; nos estados e municípios, é a da própria competência."); estados ("Estados: soma dos
-  municípios de cada estado (código IBGE). …"); mais de um nível ("Brasil, estados e municípios aparecem
-  em blocos separados; nenhum nível foi somado a outro.").
+  mesmo ano; nos estados e municípios, é a da própria competência."); estados ("Estados: contagem de
+  médicos únicos da fonte estadual. Quem atua em mais de um município do estado conta uma vez; quem atua
+  em mais de um estado conta em cada um, e por isso a soma dos estados não é o total do Brasil."), com a
+  população na densidade ("População dos estados: soma das populações estimadas dos seus municípios
+  (código IBGE) na própria competência (regra UF-POP-MUNICIPIOS-1). …"), as lacunas e as divergências de
+  §3.2; mais de um nível ("Brasil, estados e municípios aparecem em blocos separados; nenhum nível foi
+  somado a outro.").
 - **Avaliabilidade:** `metadata.evaluability.limitacoes` reúne `NIVEIS_TERRITORIAIS_DIFERENTES`,
   `DENOMINADOR_ALTERNATIVO`, `POPULACAO_NACIONAL_PARCIAL`, `SOMA_COM_POSSIVEL_DUPLA_CONTAGEM` e
-  `AGREGADO_PARCIAL`, quando cabem.
+  `AGREGADO_PARCIAL` (agregação de estados com algum de fora), quando cabem; linha não avaliável (estado sem população completa, por exemplo) deixa o resultado avaliável com
+  limitações.
 
 ## 4. Taxa nacional de referência na densidade (D5)
 
@@ -207,18 +258,19 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   do fim dela (perto da borda direita, dentro da barra), num fundo claro por cima da linha tracejada, para
   que nem a barra nem a linha o cubram.
 - Com vários níveis no resultado, as barras dos municípios (`level-panel-mun`) e as dos estados
-  (`level-panel-uf`, "· Estados (soma dos municípios)", com o aviso de possível dupla contagem) ficam
-  em figuras separadas; nunca há barra do Brasil entre municípios. A série temporal com vários painéis
+  (`level-panel-uf`, "· Estados", com o aviso `uf-warning` "Fonte estadual: médicos únicos de cada estado ·
+  a soma dos estados não é o total do Brasil.") ficam em figuras separadas; nunca há barra do Brasil entre municípios. A série temporal com vários painéis
   (`serie.paineis`) desenha um gráfico por painel (`level-panel-{id}`).
 - **Visual completo (19/10/2026):** o cabeçalho do resultado traz o cartão de contexto da taxa nacional (borda
   tracejada, selo "contexto", minigráfico da `serie`) ou, quando o Brasil é um bloco do resultado, o cartão do
   Brasil com o mesmo minigráfico; a dica do ponto no mapa e o detalhe do território mostram "Brasil (contexto)"
-  ao lado do valor do município. Os cartões de destaque trazem o nível; o do estado tem textura, o aviso
-  "possível dupla contagem · não comparável com a contagem nacional", "na soma das contagens dos municípios" e
-  "por 1.000 habitantes (soma dos municípios)" (RQ-REP-14). Na aba Gráficos, o contêiner `levels-panel` reúne o
-  bloco do Brasil (`level-panel-br`: valor, tipo de contagem e "Lado a lado: não entra em maior, menor nem
-  diferença com estados ou municípios."), os estados (`level-panel-uf`, textura listrada e `uf-warning`, sem
-  linha nacional) e os municípios (`level-panel-mun`, com a linha nacional e um separador por estado,
+  ao lado do valor do município. Os cartões de destaque trazem o nível; o do estado traz o aviso "médicos
+  únicos de cada estado · a soma dos estados não é o total do Brasil" e a mesma unidade dos demais
+  (profissionais; por 1.000 habitantes na densidade). Desde a fonte estadual, o estado não tem textura
+  listrada nem o aviso de possível dupla contagem: são unidades distintas no estado. Na aba Gráficos, o
+  contêiner `levels-panel` reúne o bloco do Brasil (`level-panel-br`: valor, tipo de contagem e "Lado a lado:
+  não entra em maior, menor nem diferença com estados ou municípios."), os estados (`level-panel-uf`, com o
+  `uf-warning`, sem linha nacional) e os municípios (`level-panel-mun`, com a linha nacional e um separador por estado,
   `bar-group-separator`, lido de `universe.members[].state`, sem reordenar nem contar). Na comparação, um bloco por
   nível, cada um no seu eixo, e os halteres por nível (ver `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`).
 
@@ -231,31 +283,35 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
                 "municipios": {"todos": false, "estados": ["15"], "ids": ["code:130260"]}}
 ```
 
-- `estados` são objetos UF (soma); `municipios.estados` são grupos (expansão); `ids` no formato do
-  catálogo. `scope` precisa ser `auto` ou `municipal`; `mapping` é o mapeamento municipal da inspeção.
+- `estados` são objetos UF (fonte estadual); `municipios.estados` são grupos (expansão); `ids` no formato
+  do catálogo. `scope` precisa ser `auto` ou `municipal`; `mapping` é o mapeamento municipal da inspeção.
 - Erros (422): upload com abrangência ("A abrangência por Brasil e estados existe só na base Brasil
   oficial."); abrangência com `territory_ids` ("Use a abrangência territorial ou a lista de territórios,
   não as duas."); `scope=national` ("Com a abrangência territorial, o recorte é resolvido pela análise;
-  envie scope=auto."); nada marcado ("Nenhum território marcado na abrangência."); estado fora da lista
-  ou sem membros ("Estado não reconhecido nesta base: {x}."); identificadores repetidos ou acima dos
-  limites; nível não aceito (o motivo do §2).
+  envie scope=auto."); nada marcado ("Nenhum território marcado na abrangência."); estado fora da lista,
+  sem municípios na base ou sem registro na fonte estadual ("Estado não reconhecido nesta base: {x}.");
+  fonte estadual indisponível (o motivo de §3.2); identificadores repetidos ou acima dos limites; nível não
+  aceito (o motivo do §2).
 - Absorção explícita, listada em `metadata.selecao_territorial.absorvidos`: "Todos os municípios"
-  absorve grupos e ids; um grupo absorve os ids dele; na agregação, um estado absorve o grupo e os ids
-  dele.
+  absorve grupos e ids; um grupo absorve os ids dele. Estados nunca absorvem municípios: cada um é um
+  nível.
 
 ### 5.2 Roteamento e resposta
 
 | Abrangência | Rota | Quadro |
 |---|---|---|
-| só municípios, ou estados na agregação | `municipal` | municipal, com `territory_ids` derivados (omitidos em "Todos os municípios") |
+| só municípios | `municipal` | municipal, com `territory_ids` derivados (omitidos em "Todos os municípios") |
 | só Brasil em quantitativos, ou na evolução e no relatório por quantidade | `nacional` | nacional |
-| qualquer outra | `niveis` | as duas fontes, da mesma leitura verificada |
+| qualquer outra (inclusive estados, também na agregação) | `niveis` | as fontes do pedido (nacional, estadual e municipal), da mesma leitura verificada |
 
 - `metadata.selecao_territorial`: `pedido`, `ids_canonicos` (`br`, `uf:35`, `mun:todos`, `mun:uf:35`,
   `code:…`), `absorvidos`, `rota` e `expansoes`.
-- Na rota de níveis: `metadata.source.scope = "niveis"` com `fontes_usadas`; `universe.members` com
-  `nivel` (BR, UF ou MUN) e `classification_scope` "universos separados por nível";
-  `metadata.populacao_nacional` (por competência do Brasil); `metadata.suporte_agregado`;
+- Na rota de níveis: `metadata.source.scope = "niveis"` com `fontes_usadas` (`national`, `state` e
+  `municipal`; a municipal entra com municípios ou com a população dos estados na densidade);
+  `universe.members` com `nivel` (BR, UF ou MUN), `state_rule` e `classification_scope` "universos
+  separados por nível"; `metadata.populacao_nacional` (por competência do Brasil);
+  `metadata.populacao_estadual` (por estado e competência, na densidade); `metadata.suporte_agregado` (na
+  agregação de estados);
   `representacao.niveis` (coluna, ordem, tipos e "Município" no mapa) e `serie.paineis` (na quantidade,
   um painel por nível; na densidade, municípios com o Brasil como referência e estados à parte).
 - O mapa desenha só municípios. Sem municípios: "Mapa não aplicável: Brasil e estados são agregados sem
@@ -263,22 +319,40 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 
 ### 5.3 Inspeção, pré-exame e conversa
 
-- `/api/inspect` da base oficial no recorte municipal devolve `niveis`: regras, Brasil (períodos,
-  competências com densidade não avaliável ou com limitações), estados com sigla, nome, `rotulo_grupo`
-  ("Municípios do Amazonas", "Municípios da Paraíba") e número de municípios, total de municípios e a
-  matriz por análise (`operacoes`, com `texto` e `motivos`). As listas de municípios continuam em
+- `/api/inspect` da base oficial no recorte municipal devolve `niveis`: regras (`regra_estado`
+  `UF-CONTAGEM-ESTADUAL-1`, `regra_populacao_estadual` `UF-POP-MUNICIPIOS-1`, `regra_membros_estado`
+  `brasil-cod-uf-prefix-1` e `regra_populacao_nacional`), Brasil (períodos, competências com densidade não
+  avaliável ou com limitações), `fonte_estadual` (`disponivel`, `motivo` e `periodos`), estados com sigla,
+  nome, `rotulo_grupo` ("Municípios do Amazonas", "Municípios da Paraíba"), número de municípios e
+  `objeto` (com registro na fonte estadual), total de municípios e a matriz por análise (`operacoes`, com
+  `texto` e `motivos`; sem a fonte estadual, "estado" sai de `aceita` com o motivo). As listas de municípios continuam em
   `preflight.territory_choices`, agora com `state_code` e, no 251365, `hierarchy_note`.
 - `/api/preflight` com abrangência segue o mesmo roteamento; na rota de níveis devolve o pré-exame da
   fonte municipal inteira mais `capabilities[op].niveis` (`brasil`, `estados`, `municipios` e, quando
   a seleção não cabe, `selecao`), com o pior estado das partes e os motivos prefixados ("Brasil: …").
   O pré-exame recebe a análise no campo `operation`.
-- Escolha pendente na abrangência (estados e municípios juntos na distribuição ou no ranking, ou
-  territórios de menos): o `/api/preflight` não recusa o pedido; devolve o pré-exame da fonte municipal
+- Escolha pendente na abrangência (estados e municípios juntos na distribuição, no ranking ou na
+  agregação, ou territórios de menos): o `/api/preflight` não recusa o pedido; devolve o pré-exame da fonte municipal
   inteira com a análise em "escolha pendente" (`needs_confirmation`), o motivo em `reasons` e em
   `capabilities[op].niveis.selecao`, e `abrangencia_pendente` com o mesmo texto. O `/api/analyze`
   continua recusando (422) com esse texto.
 - A conversa (`/api/exploration/interpret`, `/api/llm/interpret-context`) continua recebendo só ids de
-  município; "municípios da Paraíba" passa a incluir o 251365 (223 municípios na base atual).
+  município; "municípios da Paraíba" inclui o 251365 (223 municípios na base atual). Desde a fonte
+  estadual, a gramática local da base oficial também marca estados como objeto (campo `estados` da
+  proposta, que substitui a seleção na tela): o nome do estado ("Quantos médicos havia em Minas Gerais em
+  junho de 2024?"), "estado de São Paulo" e "estados da Região Norte" (Grandes Regiões pelo primeiro dígito
+  do código IBGE, conferidas com a coluna `regiao_geografica` da fonte municipal); "municípios de Minas
+  Gerais" continua marcando o grupo de municípios. O nome que é de estado e de município ("São Paulo",
+  "Paraná") só vira o estado com "estado de" ou com a palavra "estado" no pedido; com preposição e sem
+  essa indicação, a conversa pergunta ("“São Paulo” identifica um estado e também um município. Diga
+  “estado de São Paulo” ou “município de São Paulo”."), com a análise pendente para a resposta; sem
+  preposição ("Compare São Paulo e Campinas"), continua o município. "Pará" só é o estado com acento
+  ("para" é preposição). Anos ("em 2024") e intervalos ("entre 2014 e 2024") viram as competências da base
+  nesses anos; numa análise de uma competência, com mais de uma no ano, a conversa pede a escolha
+  ("Em 2024, a base tem 2 competências (janeiro de 2024 e junho de 2024). Esta análise usa uma competência:
+  …"). "Mostre a evolução do número de médicos …" prepara a evolução por quantidade. Na referência mais
+  próxima, um estado como alvo é explicado ("… estados não têm um ponto único. …"); para comparar estados,
+  o pedido precisa citar dois ou mais (ou usar a abrangência). Nada é calculado na conversa.
   Abrangência, níveis, população nacional e taxa nacional nunca vão ao provedor de IA; desde 19/10/2026, nem
   o resumo do resultado, a comparação com janela (`metadata.comparacao`) ou a opção `comparison_values_period`.
 
@@ -286,7 +360,9 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 
 - `options` guarda a abrangência normalizada (listas ordenadas): a ordem do pedido não muda a chave.
 - `metodos` entra só quando usado: `niveis` (`NIVEIS-BR-UF-MUN-1`), `populacao_nacional`
-  (`BR-POP-JUNHO-1`) e `estado` (`brasil-cod-uf-prefix-1`), além de `tendencia` na evolução.
+  (`BR-POP-JUNHO-1`), `estado` (`UF-CONTAGEM-ESTADUAL-1`, até 19/10/2026 `brasil-cod-uf-prefix-1`) e
+  `populacao_estadual` (`UF-POP-MUNICIPIOS-1`, na densidade com estados), além de `tendencia` na evolução.
+  Com a fonte estadual, mudaram de propósito as chaves e os valores dos resultados com estados.
 - Mudam de propósito as chaves das densidades e dos relatórios com densidade da base oficial (D5) e as
   da rota de níveis. As demais chamadas antigas mantêm a chave.
 - Desde 19/10/2026, a comparação com `comparison_values_period` tem chave própria (a opção entra em `options` e,
@@ -304,12 +380,13 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - Seções, com caixas de marcar nativas (Tab entre os controles, Espaço marca, botão abre cada grupo):
   - **Brasil:** "Brasil (total nacional)", com a ajuda "Total da fonte nacional; não é a soma dos
     municípios.".
-  - **Estados** (selo "soma dos municípios"): o aviso "Cada estado é a soma dos seus municípios: o mesmo
-    médico pode ser contado em mais de um município. Por isso, o valor do estado não é o número de
-    médicos diferentes e a soma dos estados não é o total do Brasil.", "Todos os estados (N)"
-    (tri-estado) e cada estado ("Amazonas (AM)", "soma de 62 municípios"). Sem estados identificados
-    pelos códigos (bases sintéticas), a seção informa "Nenhum estado identificado pelos códigos desta
-    base.".
+  - **Estados** (selo "médicos únicos"): o aviso "Cada estado conta os médicos diferentes do estado (fonte
+    estadual): quem atua em mais de um município do estado conta uma vez. Quem atua em mais de um estado
+    conta em cada um; por isso, a soma dos estados não é o total do Brasil. A população do estado é a soma
+    dos seus municípios na competência.", "Todos os estados (N)" (tri-estado) e cada estado com registro
+    na fonte estadual ("Amazonas (AM)", "população de 62 municípios"). Sem estados identificados pelos
+    códigos (bases sintéticas), a seção informa "Nenhum estado identificado pelos códigos desta base.";
+    sem a fonte estadual, a seção fica desabilitada com o motivo.
   - **Municípios:** "Todos os municípios" ("Um valor para cada um dos 5.570 municípios.") e um grupo
     recolhível por estado: caixa do grupo ("Municípios do Amazonas (62)", tri-estado), botão "Amazonas
     (AM)" com "k de N municípios" e, aberto, os municípios ("MANAUS [130260]"; no 251365, a nota da UF
@@ -337,7 +414,8 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   cálculo desabilitado. Nada é calculado na tela. A rotatividade, indisponível na base Brasil, segue sem
   abrangência.
 - A conversa continua recebendo só os municípios marcados (`territory_ids`). Um pedido explícito pelo
-  país inteiro marca só o Brasil; "nos municípios", sem municípios marcados, marca "Todos os municípios".
+  país inteiro marca só o Brasil; "nos municípios", sem municípios marcados, marca "Todos os municípios";
+  estados citados no pedido (§5.3) substituem a seleção pelos estados.
 - A densidade do Brasil fica disponível na caixa Indicador (sai "(somente municípios)").
 
 ## 7. Análise espacial: uma competência e validade por território
@@ -365,14 +443,22 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 
 ## 8. Fora deste escopo e pontos residuais
 
-- "Estado de SP" (objeto) contra "municípios de SP" (grupo) na conversa: hoje os dois viram municípios.
+- Resolvido com a fonte estadual (19/10/2026): "estado de SP" (objeto) e "municípios de SP" (grupo) são
+  pedidos diferentes na conversa (§5.3).
 - Navegação avançada por teclado (foco único com setas, busca por letra), filtro de texto e itens "fora
   desta análise" na lista: fora da lista enxuta (ajustes do responsável de 19/10/2026).
 - Lista vertical nos uploads e na "Seleção de referências".
 - **Não são divergências da SPEC.** BR-POP-JUNHO-1 é regra autorizada da CAP-IND-02 (L1742), com
-  DENOMINADOR_ALTERNATIVO; `brasil-cod-uf-prefix-1` é a correspondência autorizada para a soma por
-  estado (CFG-TER L968; RQ-DAD-12 L1349), sempre SOMA_DOS_COMPONENTES (L1747, L1751); NIVEIS-BR-UF-MUN-1
-  segue a RQ-DAD-30 (L1394).
+  DENOMINADOR_ALTERNATIVO; UF-CONTAGEM-ESTADUAL-1 usa a contagem de pessoas distintas no território vinda de
+  fonte autorizada (QUANTITATIVO_ABSOLUTO pela CAP-IND-01, L959; RQ-DAD-12 L1349), entregue pelo responsável
+  pelo produto; UF-POP-MUNICIPIOS-1 compõe o denominador do estado pela correspondência autorizada
+  `brasil-cod-uf-prefix-1` (CFG-TER L968) e, sem a população completa, deixa a densidade NAO_AVALIAVEL com
+  DENOMINADOR_AUSENTE, sem imputar nem excluir ninguém (CAP-IND-02 L1742; INV-04 L292; DA-10); a agregação de
+  estados é sempre SOMA_DOS_COMPONENTES (CAP-AGR-01, L1747, L1751); NIVEIS-BR-UF-MUN-1 segue a RQ-DAD-30
+  (L1394). A recusa de "unidades sem sobreposição" na agregação de estados aplica a regra metodológica do
+  responsável pelo produto (a soma interestadual não autoriza afirmar pessoas únicas no conjunto) e a
+  coerência exigida da premissa do usuário (DA-07): na base, a soma dos estados supera o total do Brasil em
+  todas as competências.
 - **Divergência da SPEC decidida pelo responsável (D4, ajuste de 2015).** A população parcial de 2015 não
   imputa nem estima ninguém, mas deixa o 430607 fora do denominador enquanto o numerador continua sendo a
   contagem nacional inteira. A SPEC pede, nesse caso, NAO_AVALIAVEL com DENOMINADOR_AUSENTE e não admite
@@ -384,21 +470,28 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 
 ## 9. Testes
 
-- `backend/tests/test_territorial_levels.py` (CI, fontes sintéticas): contrato e erros, absorções,
-  roteamento e paridade com os caminhos atuais, matriz das 12 análises, BR-POP-JUNHO-1 (inclusive
-  junho parcial, ano sem junho e conflito), densidade do Brasil exata, estados e 251365, blocos sem
-  soma, ranking e distribuição de estados, comparações por nível, evolução com INCOMPARABILIDADE e
-  lacuna do Brasil, agregação, análises de distância, D5 (rotas antiga e nova, falha controlada),
-  chaves, inspeção e pré-exame, conversa e privacidade do provedor, representação.
+- `backend/tests/test_territorial_levels.py` (CI, fontes sintéticas, com fonte estadual que conta menos
+  que a soma dos municípios, uma UF sem uma competência e uma competência em que as fontes divergem):
+  contrato e erros, absorções, roteamento e paridade com os caminhos atuais, matriz das 12 análises,
+  BR-POP-JUNHO-1 (inclusive junho parcial, ano sem junho e conflito), densidade do Brasil exata, estados da
+  fonte estadual com a população dos municípios (completa, incompleta e sem registro), divergência entre
+  fontes e 251365, blocos sem soma, ranking e distribuição de estados, comparações por nível, evolução com
+  lacunas, agregação de estados (soma dos componentes, recusas) e de municípios, análises de distância, D5
+  (rotas antiga e nova, falha controlada), chaves, inspeção e pré-exame, fonte estadual sem uma UF ou fora
+  do perfil, conversa (estados, regiões, anos) e privacidade do provedor, representação.
+- `backend/tests/test_build_state_source.py` (CI): conversão da planilha sintética (formato, valores sem
+  mudança, recusas sem gravar) e reprodução byte a byte do arquivo versionado, com o SHA-256 do manifesto.
 - `backend/tests/test_levels_real_data.py` (job `dados-reais`, sem pulos, com SHA-256 conferido antes
   e depois): as 22 densidades do Brasil contra a leitura independente (2,3638 em junho de 2024; 2015
-  com 5.569 municípios e [430607]), a taxa nacional nas rotas antiga e nova, Σ estados = Σ municípios e
-  Brasil sempre menor que a soma municipal, os seis agregados parciais, SP em 2015/1, PB em 2016/6,
-  ranking dos estados, agregação de todos os municípios, 251365 na PB (223 municípios), análise
-  espacial com todos os municípios e as âncoras da tendência (Brasil 22 e 11 observações em
-  Crescimento; SP e RS não comparáveis na série completa; RS na série de junho); desde 19/10/2026, a comparação
-  com a série anual de junho e valores em 06/2024 (Brasil, AM, SP, RS e três municípios do AM, conferida por leitura
-  independente) e o resumo com a série nacional.
+  com 5.569 municípios e [430607]), a taxa nacional nas rotas antiga e nova, as 594 contagens estaduais e as
+  594 densidades dos estados contra a leitura independente (população dos municípios na competência; as seis
+  lacunas; SP 3,2390 em junho de 2024; PB em 2016/6; as oito notas do DF), Brasil ≤ Σ estados ≤ Σ municípios
+  em cada competência, ranking dos estados, agregação da Região Norte, dos 27 estados e de todos os
+  municípios, 251365 na PB (223 municípios), análise espacial com todos os municípios, as âncoras da
+  tendência (Brasil 22 e 11 observações em Crescimento; SP e RS com as lacunas de população), a comparação
+  com a série anual de junho e valores em 06/2024 (Brasil, AM, SP, RS e três municípios do AM, conferida por
+  leitura independente), o resumo com a série nacional, as regiões contra a coluna `regiao_geografica` e as
+  quatro perguntas da conversa (Minas Gerais, São Paulo, Região Norte e Rio Grande do Sul), com o cálculo.
 - `backend/tests/test_spatial_por_territorio.py` (CI): território com coordenada inválida, não numérica ou
   ausente não avaliável, referência inválida recusada, coordenadas que mudam entre competências e erro de
   formato. `test_territorial_levels.py` confere a escolha pendente no pré-exame. Com a base real
@@ -407,7 +500,8 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - Tela: `frontend/tests/territorialScope.test.mjs` (o que vale em cada análise, padrão, marcar e
   desmarcar, grupos, contagem, resumo, transferência e competências) e `representation.test.mjs` (taxa
   nacional só na densidade e nível dos itens); roteiro `backend/tests/ui_territorial_scope.py` nas suítes
-  `bloco1` e `base-versionada` (lista, espacial com competência, Brasil + estado + município na densidade,
+  `bloco1` e `base-versionada` (lista com o aviso da fonte estadual, espacial com competência, Brasil +
+  estado (30 médicos únicos no sintético; 148.909 em SP na base) + município na densidade,
   taxa nacional na legenda e nas barras sem mudar o domínio, ranking só de estados, escolha pendente,
   "Limpar seleção", conversa que substitui a seleção pelos municípios sem receber a abrangência, nenhum
   `/api/inspect` ao trocar de análise, larguras de 390 e 768 px; na base versionada, 27 estados, o grupo de MG com 853
