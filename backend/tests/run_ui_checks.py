@@ -44,7 +44,7 @@ SUITES = {
         "catalogo": "bloco1", "servidor": "offline",
         "roteiros": [("ui_block1_smoke.py", {}), ("ui_block1_regression.py", {}), ("ui_nearest_smoke.py", {}),
                      ("ui_criteria_smoke.py", {}), ("ui_map_smoke.py", {}), ("ui_visibility_diagnostic.py", {}),
-                     ("ui_investigation.py", {}), ("ui_integrated_workspace.py", {})],
+                     ("ui_investigation.py", {}), ("ui_integrated_workspace.py", {}), ("ui_sem_confirmacoes.py", {})],
     },
     "gemini-simulado": {
         "descricao": "Interpretação por um transporte Gemini simulado (sem chamadas ao provedor)",

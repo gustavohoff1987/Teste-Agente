@@ -17,7 +17,7 @@ type Clarification = {code: string; prompt: string; reason: string; source: "CAT
 export type TerritorialProposal = {handled: boolean; reply?: string; clarification?: string; operation?: Operation;
   territory_ids?: string[]; pending_operation?: Operation; requested_count?: number | null;
   options_patch?: {period_filter?: string; period_filters?: string[]; temporal_indicator?: "quantity" | "density";
-    comparison_indicator?: "quantity" | "density"; component_sum_confirmed?: boolean}; selection_changed?: boolean; reset_selection?: boolean};
+    comparison_indicator?: "quantity" | "density"}; selection_changed?: boolean; reset_selection?: boolean};
 type Reply = { exploration?: TerritorialProposal; reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;
   executed: boolean; origin: string; note: string; model: string; privacy: string };
 type Status = { configured: boolean; model: string; requests_used_today: number;
@@ -28,16 +28,16 @@ type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: 
   territorySummary?: {label: string; text: string; selected: boolean; selectable: boolean}; territoriesOpen: boolean; onTerritoriesOpen: (open: boolean) => void; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
   onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
-  available: "Requisitos técnicos atendidos no pré-exame; ainda depende da confirmação humana",
-  needs_confirmation: "Há confirmações ou parâmetros pendentes",
+  available: "Requisitos técnicos atendidos no pré-exame; ainda depende da sua execução na preparação",
+  needs_confirmation: "Há escolhas pendentes",
   unavailable: "Capacidade não habilitada com a configuração atual",
   not_selected: "Capacidade não identificada",
 };
 const SLOT_LABEL: Record<string, string> = {
   found_in_dataset: "Encontrado na base",
-  not_confirmed_in_dataset: "Não confirmado nos valores da base",
+  not_confirmed_in_dataset: "Não encontrado nos valores da base",
   not_requested: "Não informado",
-  requires_unit_confirmation: "Confirmar unidade e nível territorial",
+  set_in_scope: "Definido na abrangência territorial",
 };
 
 const ANALYSIS = ANALYSIS_LABELS;
@@ -140,14 +140,14 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     const append = (content: string) => setTurns(previous => [
       ...previous, {role:"assistant", content}
     ]);
-    // Não reinterpretar o mesmo pedido quando a base ou alguma confirmação
-    // necessária ainda não foi escolhida. O próximo passo já é conhecido.
+    // Não reinterpretar o mesmo pedido quando a base ou alguma escolha
+    // necessária ainda não foi feita. O próximo passo já é conhecido.
     if (!sourceReady && active && followup) {
-      append("Para continuar, escolha os dados que deseja utilizar. Depois, mostrarei os campos que precisam da sua confirmação.");
+      append("Para continuar, escolha os dados que deseja utilizar. Depois, mostrarei os campos para você escolher.");
       return;
     }
     if (sourceReady && active && followup && /^(?:pode calcular|sim|vamos)[?.! ]*$/i.test(message)) {
-      append("Sua análise já está selecionada. Confira os campos e as confirmações na preparação; quando estiverem completos, poderá calcular e ver o resultado nesta investigação.");
+      append("Sua análise já está selecionada. Confira os campos e as escolhas na preparação; quando estiverem completos, poderá calcular e ver o resultado nesta investigação.");
       return;
     }
     if (!hasSource && /^(?:ol[aá]|oi|bom dia|boa tarde|boa noite)[!. ]*$/i.test(message)) {
@@ -236,7 +236,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
       setTurns(previous => [...previous,
         {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification, request:message, context:contextVersion}]);
       // A interpretação escolhe a capacidade, não executa a análise.
-      // O usuário ainda confirma recortes e condições metodológicas.
+      // O usuário ainda escolhe os recortes e executa a análise.
       if (suggested && !resolved) {
         if (!sourceReady) pendingProposal.current = validated.proposal;
         onSelectAnalysis(suggested, validated.proposal);
@@ -256,7 +256,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     <div className="conversation-pane no-print" data-testid="conversation-pane">
     <div className="agent-guidance">
       <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
-      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as confirmações para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
+      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as escolhas para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
     </div>
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
       <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>

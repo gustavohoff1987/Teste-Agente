@@ -28,7 +28,8 @@ Nenhum grupo ou resultado é salvo no armazenamento persistente do navegador.
 ## Condução da investigação
 
 O agente apresenta a escolha da fonte desde a entrada. Depois acompanha o reconhecimento,
-associações e confirmações, escolha de modalidade, recortes, períodos e execução. A preparação
+as escolhas de colunas e parâmetros (sem confirmações de campo, decisão D1 de 19/10/2026), a escolha
+de modalidade, recortes, períodos e execução. A preparação
 existente continua verificando requisitos no backend. O catálogo apresenta a disponibilidade
 informada pelo pré-exame; requisitos ausentes podem ser examinados e resolvidos na preparação.
 
@@ -178,16 +179,27 @@ se aplica. O arquivo nacional não tem população: no total nacional, "Densidad
 habitantes" aparece indisponível na caixa Indicador. Durante a troca de abrangência, a preparação
 continua visível e bloqueada, com aviso de carregamento abaixo das configurações.
 
-Os padrões oficiais vêm do perfil validado no backend. A interface só reaproveita seu reconhecimento
-quando mapeamento, categoria, unidade, FTS, objeto e denominador continuam compatíveis. Nesse caso,
-as premissas de comparabilidade são internas: evolução temporal, comparações, rankings e agregação
+Os padrões oficiais vêm do perfil validado no backend, campo a campo: mudar uma coluna tira só
+aquele papel do perfil, e a base oficial nunca cai no fluxo das bases importadas. As premissas de
+comparabilidade são internas: evolução temporal, comparações, rankings e agregação
 não exibem caixas de confirmação, nem nas condições avançadas, e a origem de cada premissa aparece
 em "Método e limitações"
 (ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
 Na versão governada, as análises de distância também não pedem o referencial nem o separador
 decimal: as configurações mostram "Referencial das distâncias: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
 informa essa origem, e as condições avançadas informam o formato numérico em vez de pedi-lo.
-Bases importadas e significados alterados continuam passando por suas confirmações específicas.
+
+**Bases importadas** seguem a mesma regra, sem confirmações: o parágrafo da preparação diz
+"Preenchi os campos reconhecidos com segurança; escolha os demais nos termos destacados". Cada termo
+é um seletor; as sugestões do backend aparecem no topo, com "(sugerida)", e o seletor fica vazio até a
+escolha (por exemplo, o código territorial, opcional, com "Sem código"). O período tem a opção "A base
+tem um único período". Sem objeto reconhecido, aparece "O objeto da análise é [campo]", com o botão
+"Usar sugestão" quando o cabeçalho sugere uma categoria. O botão "Executar análise" fica sempre
+visível, desabilitado até a análise estar pronta, e os motivos pendentes aparecem logo abaixo. As
+condições avançadas ficam em "Ajustar condições específicas ou situações excepcionais". O
+separador decimal das coordenadas é verificado nos dados e só vira escolha quando o formato é misto;
+o referencial continua um parâmetro. Na conversa, o território citado num pedido é registrado como
+"Definido na abrangência territorial", sem pedido de confirmação.
 
 A comparação de dois municípios apresenta um registro para cada objeto A/B, seguido pela relação,
 diferença e condição retornadas pelo motor. Conjuntos maiores mantêm um registro por território.

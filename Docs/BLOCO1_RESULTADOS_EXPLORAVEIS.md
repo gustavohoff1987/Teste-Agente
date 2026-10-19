@@ -40,7 +40,8 @@ ou ausência de sobreposição de profissionais.
 
 Agregação continua exigindo fundamento para população e uma modalidade de contagem. Na
 base oficial, ambos são premissas internas do perfil governado (populações municipais
-disjuntas e soma dos componentes); em uploads, continuam declarações explícitas. A soma de
+disjuntas e soma dos componentes); em uploads, são premissas da análise aplicadas pelo backend, com
+nota e limitação, sem declarações (decisão D1, 19/10/2026). A soma de
 componentes admite dupla contagem e não é rotulada como pessoas distintas. A evolução
 mantém cada competência separada.
 
@@ -94,8 +95,8 @@ da densidade inicial; 6. evolução com competências separadas, extremos e vari
 conferidos contra a série; 7. resultados anteriores reabertos sem alteração (CSV e JSON
 reexportados iguais à resposta do motor); 8. retomada dos parâmetros da comparação,
 reaproveitada sem nova chamada a `/api/analyze`; 9. agregação de uma competência,
-rotulada como soma dos componentes com possível dupla contagem, após declarar
-aditividade populacional; 10. exportações CSV e "Método e parâmetros". Também foram
+rotulada como soma dos componentes com possível dupla contagem, com a aditividade
+populacional como premissa interna do perfil oficial; 10. exportações CSV e "Método e parâmetros". Também foram
 verificados reutilização de membros de um resultado, teclado e larguras de 390 e 768 px.
 As capturas de cada etapa foram revisadas visualmente.
 
@@ -153,7 +154,7 @@ validação empírica com os dados brasileiros reais, ainda não executada.
 
 - **Dados reais:** a validação empírica pendente acima passou a rodar em todo push, com a base
   Brasil versionada na raiz do repositório:
-  - job `dados-reais`: integridade pelo manifesto e os 30 testes reais;
+  - job `dados-reais`: integridade pelo manifesto e os 31 testes reais;
   - suíte `base-versionada` do job `ui-block1`: esta jornada com `ADT_BLOCK1_REAL=1`, ou seja,
     62 municípios do AM e 22 competências.
 

@@ -300,7 +300,7 @@ def main():
             shot("block1-08-distancias-base-oficial.png")
 
         def advanced_parameters():
-            """Abre "Ver outras condições da análise" na etapa de parâmetros, onde ficam as confirmações da estrutura."""
+            """Abre "Ver outras condições da análise" na etapa de parâmetros, onde ficam as escolhas sobre a estrutura."""
             # Só escolhe a competência quando a caixa "Período" ainda a pede.
             pending = inline.get_by_test_id("period-summary")
             if pending.count() and pending.inner_text().startswith("Escolher"):
@@ -309,7 +309,7 @@ def main():
             summary = inline.locator("summary", has_text="Ver outras condições da análise")
             if not summary.evaluate("element => element.parentElement.open"):
                 summary.click()
-            page.get_by_role("region", name="Preparação da análise").get_by_role("button", name="2. Parâmetros e confirmações").click()
+            page.get_by_role("region", name="Preparação da análise").get_by_role("button", name="2. Parâmetros").click()
             expect(page.get_by_role("heading", name="Conferir a estrutura dos dados", exact=True)).to_be_visible(timeout=60000)
 
         # Condições avançadas: premissas internas não voltam como caixas nem como seletores.

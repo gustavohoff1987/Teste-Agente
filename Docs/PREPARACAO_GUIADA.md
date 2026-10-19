@@ -6,28 +6,36 @@ Ao selecionar uma análise, a preparação guiada é aberta abaixo da conversa,
 em um painel de largura integral e com rolagem própria. A seleção não executa
 cálculos nem altera a matriz de aplicabilidade.
 
-As etapas são identificação dos dados, parâmetros/confirmações e revisão/execução.
-Só a etapa ativa é exibida. As confirmações ficam no estado do aplicativo, e não no
-componente de cada etapa. Associações atendidas têm resumo e opção de edição.
-O código territorial pendente fica visível, separado da unidade territorial.
-As duas mensagens conhecidas de confirmação do código são agrupadas apenas na
-apresentação; os critérios, erros de dados e algoritmos do backend não mudaram.
+As etapas são **1. Identificar os dados**, **2. Parâmetros** e **3. Revisar e executar**.
+Só a etapa ativa é exibida. Não há confirmação de colunas e campos (decisão D1 do responsável
+pelo produto, 19/10/2026): o usuário só escolhe. Cada campo mostra a origem do papel ("Reconhecida
+pelo perfil oficial", "Reconhecida por regra" ou "Escolhida por você"); sem coluna, "Escolher
+coluna"; com uma coluna indicada e não escolhida, "Escolha pendente". Os seletores trazem as
+sugestões do backend no topo, marcadas "(sugerida)", e ficam vazios até a escolha. O código
+territorial é opcional ("Sem código"), separado da unidade territorial; o período tem a opção "A base
+tem um único período"; o objeto de análise é o texto informado, com o botão "Usar sugestão" quando o
+cabeçalho sugere uma categoria. As escolhas ficam no estado do aplicativo, e não no componente de
+cada etapa.
 
-As pendências são distribuídas por etapa. Na revisão, cada pendência oferece um
-atalho para sua etapa. Os controles de preparação não se repetem na página de
-resultados. Distribuição por densidade agora oferece associação e confirmação da
-população na etapa de parâmetros. Falhas do pré-exame desabilitam a execução e
-permitem tentar novamente.
+As pendências são distribuídas por etapa conforme a classificação do backend (`step` de cada
+requisito; a interface não reescreve nem classifica textos). O contador "pend." conta só as escolhas
+do usuário (`kind: "escolha"`); impedimentos nos dados (`kind: "dados"`) aparecem como "Impedimento
+nos dados", sem contador. O selo dos requisitos diz "Escolha pendente". Na revisão, cada pendência
+oferece um atalho para sua etapa. Os controles de preparação não se repetem na página de
+resultados. Distribuição por densidade oferece a escolha da coluna de população na etapa de
+parâmetros; o alinhamento do denominador é premissa aplicada pelo backend, com nota no resultado.
+As antigas caixas "Confirmo…/Declaro…/Autorizo…" não existem mais: as premissas aparecem em
+"Método e limitações". Falhas do pré-exame desabilitam a execução e permitem tentar novamente.
 
 ## Troca de abrangência
 
 - A memória da aba guarda a preparação de cada recorte pela versão lógica da base.
-- Retornar ao mesmo recorte/versão restaura associações, confirmações e parâmetros,
+- Retornar ao mesmo recorte/versão restaura associações, escolhas e parâmetros,
   submetendo-os novamente ao backend.
 - Na primeira troca de recorte, somente período derivado e categoria com associações
   e domínios equivalentes são transferidos. Listas truncadas não comprovam equivalência.
-- Território, código, unicidade da contagem, população e comparabilidade são específicos
-  de cada recorte. Quando ainda não preparados nele, exigem nova conferência, com aviso.
+- Território, código, unicidade da contagem e população são específicos de cada recorte. Quando
+  ainda não preparados nele, exigem nova escolha, com aviso.
 - A escolha de períodos só atravessa a troca (ou a restauração do recorte) quando a análise
   de destino aceita o mesmo modo: o período único de uma densidade não substitui as
   competências de uma evolução temporal, que recebe todas as competências do recorte.
@@ -37,7 +45,7 @@ permitem tentar novamente.
   escolhido troca o recorte para municípios e aplica a seleção marcada quando ele termina de
   carregar; se o recorte não carregar, a preparação anterior é mantida e a seleção marcada, descartada.
 - Uma versão diferente invalida a preparação anterior. Novo upload, novo carregamento
-  do Brasil e recarregamento da página não reutilizam confirmações de outra base.
+  do Brasil e recarregamento da página não reutilizam escolhas de outra base.
 
 ## Verificações direcionadas
 
@@ -58,6 +66,8 @@ recusa de cálculo não confirmado, confirmações do catálogo e rejeição de 
 desatualizada/origem inválida. Não foi executada a suíte completa.
 
 O frontend foi compilado com TypeScript e Vite. Permanece o aviso não impeditivo
-de bundle acima de 500 kB. A classificação visual das pendências utiliza as mensagens
-atuais do backend; mudanças nesses textos devem atualizar essa classificação. A
-autoridade de habilitação continua sendo a matriz retornada pelo backend.
+de bundle acima de 500 kB. A classificação das pendências (`kind` e `step`) vem do backend
+(19/10/2026); antes, a interface a deduzia dos textos. A autoridade de habilitação continua sendo a
+matriz retornada pelo backend. O roteiro `ui_sem_confirmacoes.py` (suíte `bloco1`) percorre as 12
+análises nas bases oficial e importada e confere que não há texto de confirmação nem premissa
+enviada como `false`.

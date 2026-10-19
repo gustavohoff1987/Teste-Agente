@@ -576,7 +576,7 @@ function Unavailable({ reason, pending, notApplicable = false, temporal = false 
   const needsLocation = ["REFERENCIAL_GEODESICO", "SEPARADOR_DECIMAL", "PAPEIS_COORDENADAS", "COORDENADAS_NAO_ASSOCIADAS"].includes(pending || "");
   return <div role="status" className="rounded-xl border border-line bg-slate-50 p-4 text-xs leading-5 text-slate-700">
     <p className="font-semibold text-ink">{notApplicable ? "Mapa não aplicável a este resultado" : "Mapa indisponível para este resultado"}</p>
-    <p className="mt-1">{needsLocation ? "A fonte importada não tem informações de localização completas e confirmadas. A configuração de origem pode ser revisada nas opções avançadas da preparação." : reason}</p>
+    <p className="mt-1">{needsLocation ? "A fonte importada não tem informações de localização completas e escolhidas. A configuração de origem pode ser revisada nas opções avançadas da preparação." : reason}</p>
     {pending === "COMPETENCIA_UNICA" && <p className="mt-1">Escolha um período para visualizar os pontos no mapa. Para acompanhar vários períodos, use o gráfico de linhas.</p>}
     {temporal && <p className="mt-1">Para ver os territórios no mapa, prepare uma densidade ou quantitativos de uma competência (por exemplo, a final da série).</p>}
     <p className="mt-1">Você pode continuar explorando a tabela e os gráficos.</p>

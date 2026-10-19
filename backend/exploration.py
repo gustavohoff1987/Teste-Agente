@@ -52,9 +52,9 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
         catalog = territory_catalog(frame, mapping, options)
     except ValueError:
         if operation == "nearest":
-            return prepare_nearest("Confirme a identificação territorial e selecione os municípios-alvo na pesquisa territorial.")
+            return prepare_nearest("Escolha a coluna do código territorial antes de selecionar os municípios-alvo na pesquisa territorial.")
         if options.get("territory_ids") or "selecionad" in text:
-            return {"handled": True, "clarification": "Confirme a identificação territorial antes de reutilizar a seleção."}
+            return {"handled": True, "clarification": "Escolha a coluna do código territorial antes de selecionar ou reutilizar unidades."}
         return {"handled": False}
     selected = options.get("territory_ids", [])
     requested = re.search(r"\b(dois|duas|tres|2|3)\s+(?:municipios|cidades|territorios)\b", text)
@@ -164,12 +164,10 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
         patch["comparison_indicator"] = "quantity" if "quantidade" in text or "quantitativos" in text else options.get("exploration_indicator", "density")
     if correction and "densidade" in text:
         patch["comparison_indicator"] = "density"
-    if operation == "aggregate" and "componentes" in text:
-        patch.update(component_sum_confirmed=True, no_overlap_confirmed=False, identity_union_confirmed=False)
     return {"handled": True, "operation": operation, "territory_ids": ids, "options_patch": patch,
             **({"clarification": clarification, "pending_operation": operation, "requested_count": requested_count} if clarification else {}),
             "reply": ("Alvos identificados: " + str(len(ids)) + " territórios. Defina as referências pela lista ou pelo critério e "
-                      "confirme o período e o referencial na preparação; nenhuma referência foi escolhida e nada foi calculado."
+                      "escolha o período e o referencial na preparação; nenhuma referência foi escolhida e nada foi calculado."
                       if operation == "nearest" else
                       "Recorte identificado com " + str(len(ids)) + " territórios. Confira os parâmetros e as condições metodológicas e execute a análise na preparação."),
             "selection_changed": bool(selected and set(ids) != set(selected)), "executed": False}

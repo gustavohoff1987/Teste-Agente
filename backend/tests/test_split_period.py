@@ -1,4 +1,4 @@
-"""Regressão de importação, confirmação e rastreabilidade de ano/mês."""
+"""Regressão de importação, reconhecimento e rastreabilidade de ano/mês."""
 import io
 import json
 
@@ -31,7 +31,7 @@ def source(extension="csv", rows=None):
 
 
 @pytest.mark.parametrize("extension", ["csv", "xlsx"])
-def test_split_period_import_confirmation_filter_and_temporal(extension):
+def test_split_period_import_recognition_filter_and_temporal(extension):
     raw = source(extension)
     files = {"file": ("base." + extension, raw)}
     info = client.post("/api/inspect", files=files).json()
@@ -40,18 +40,20 @@ def test_split_period_import_confirmation_filter_and_temporal(extension):
                        "category": "categoria_profissional", "count": "contagem"}
     assert info["columns"][:5] == HEADERS
     assert info["periods"] == ["202312", "202401"]
-    assert info["preflight"]["field_states"]["period"]["status"] == "proposed"
+    # D1: a composição AAAAMM é determinística e validada; o período fica reconhecido por regra, sem confirmação.
+    assert info["preflight"]["field_states"]["period"]["status"] == "recognized"
+    assert info["preflight"]["field_states"]["period"]["origin"] == "REGRA_CONFIGURADA"
     assert info["derived_fields"][0]["source_columns"] == ["periodo_ano", "periodo_mes"]
-    options = {"count_unit": "pessoas", "temporal_indicator": "quantity", "temporal_comparability_confirmed": True,
-               "territory_longitudinal_confirmed": True}
+    options = {"count_unit": "pessoas", "temporal_indicator": "quantity"}
 
     def analyze(operation):
         return client.post("/api/analyze", files=files, data={"operation": operation,
             "mapping": json.dumps(mapping), "options": json.dumps(options)})
 
-    assert analyze("counts").status_code == 422
-    options["confirmed_roles"] = ["period"]
-    result = analyze("temporal")
+    unconfirmed = analyze("counts")  # antes, o período composto exigia confirmação (422)
+    assert unconfirmed.status_code == 200, unconfirmed.text
+    assert [row["Período"] for row in unconfirmed.json()["rows"]] == ["202312", "202401"]
+    result = analyze("temporal")  # premissas de comparação aplicadas pelo backend, sem confirmação
     assert result.status_code == 200, result.text
     row = result.json()["rows"][0]
     assert (row["Território"], row["Período inicial"], row["Período final"]) == ("Brasil", "202312", "202401")
@@ -93,10 +95,11 @@ def test_incomplete_or_ambiguous_components_are_not_combined():
     assert compose_period(incomplete) is incomplete
 
 
-def test_new_territory_code_alias_still_requires_confirmation_and_preserves_zero():
+def test_new_territory_code_alias_is_only_a_suggestion_and_preserves_zero():
     frame, _ = read_dataset(b"municipio;cod_ibge;periodo_ano;periodo_mes\nA;001234;2024;6", "test.csv")
     mapping, profiles = candidates(frame)
-    assert mapping["territory"] == "municipio" and mapping["territory_id"] == "cod_ibge"
+    # O código fica fora do mapeamento até ser escolhido (seletor vazio com a sugestão no topo).
+    assert mapping["territory"] == "municipio" and "territory_id" not in mapping
     assert frame.cod_ibge.iloc[0] == "001234"
     profile = next(p for p in profiles if p["name"] == "cod_ibge")
     assert profile["proposal"][0]["status"] == "proposed"

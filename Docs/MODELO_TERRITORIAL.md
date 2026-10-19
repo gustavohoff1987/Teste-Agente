@@ -23,7 +23,8 @@ nomenclatura é neutra quanto ao país. Não incorpora registros brasileiros.
 
 O carregamento identifica também equivalências determinísticas, por exemplo:
 `municipio` / `UF` / `regiao_geografica` e
-`codigo_identificador` / `cod_ibge`.
+`codigo_identificador` / `cod_ibge`. O código territorial fica como sugestão no topo do seletor, que
+permanece vazio até a escolha do usuário (o nome do campo não basta para estabelecê-lo).
 
 Outros nomes de colunas são permitidos. O território analisado pode ser
 associado na preparação; as colunas superiores desconhecidas podem ser
@@ -32,7 +33,7 @@ selecionadas em **Hierarquia territorial**, na mesma etapa.
 O backend verifica relações observadas nos registros e devolve sua descrição
 em `territorial_hierarchy` no pré-exame, bem como nos metadados dos cálculos.
 Isso **não prova limites administrativos** externos, **não autoriza agregação**,
-não elimina as confirmações metodológicas e não resolve sobreposições de
+não substitui as premissas metodológicas (aplicadas pelo backend, com nota) e não resolve sobreposições de
 contagens de profissionais. Municípios homônimos podem ser diferenciados por
 códigos, que são tratados como identificadores opacos.
 
@@ -53,5 +54,6 @@ tipo de análise e suas respectivas regras de habilitação.
 2. Abra o arquivo Excel e consulte a legenda à direita.
 3. Preencha as colunas A:K. Pode alterar cabeçalhos para equivalentes conhecidos.
 4. Salve em XLSX e escolha **Importar arquivo**.
-5. Confira as associações detectadas e confirme os significados necessários
-   antes de executar cálculos.
+5. Confira as associações detectadas e escolha nos seletores as colunas que ficaram como
+   sugestão (por exemplo, `codigo_identificador`) antes de executar cálculos; não há confirmação
+   de significados.

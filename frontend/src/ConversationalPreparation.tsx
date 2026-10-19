@@ -4,6 +4,8 @@ import BrandAvatar from "./BrandAvatar";
 import PeriodSelection, {PeriodChoices} from "./PeriodSelection";
 import {chronological, describePeriods, readablePeriod, rotationPeriods} from "./periods";
 import {ownIndicator} from "./analysisCatalog";
+import {fieldOptions, periodValue, SINGLE_PERIOD, type FieldChoice} from "./fieldChoices";
+import type {ObjectState} from "./ContextConfig";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
@@ -54,10 +56,16 @@ type Props = {
   requestedCategory: string;
   categories: string[];
   onCategory: (category: string) => void;
-  populationAligned: boolean;
-  onPopulationAligned: (confirmed: boolean) => void;
-  ftsConfirmed: boolean;
-  onFtsConfirmed: (confirmed: boolean) => void;
+  /** Colunas sugeridas pelo backend por papel: aparecem no topo dos seletores, nunca selecionadas em silêncio. */
+  suggestions?: Partial<Record<string, string[]>>;
+  /** Opção "A base tem um único período" do seletor de período. */
+  singlePeriod: boolean;
+  onSinglePeriod: (value: boolean) => void;
+  /** Objeto de análise do pré-exame (reconhecido, informado ou ausente) e o texto informado pelo usuário. */
+  objectState?: ObjectState;
+  objectDraft: string;
+  onObjectDraft: (value: string) => void;
+  suggestedObject: string;
   reference: string;
   territories: string[];
   onReference: (territory: string) => void;
@@ -66,8 +74,6 @@ type Props = {
   /** Base oficial: o referencial é premissa interna (SIRGAS 2000) e não é pedido ao usuário. */
   governedCrs: boolean;
   preparing: boolean;
-  confirmed: boolean;
-  onConfirm: () => void;
   capability?: Capability;
   onExecute: () => void;
   executing: boolean;
@@ -78,17 +84,19 @@ type Props = {
 };
 type Choice = { label: string; value: string; disabled?: boolean };
 export const GOVERNED_CRS = "SIRGAS 2000 (premissa da base oficial)";
-function InlineChoice({ label, value, options, onChange }: {
-  label: string; value: string; options: Choice[]; onChange: (value: string) => void;
+function InlineChoice({ label, value, options, onChange, testId, placeholder = "Escolher campo" }: {
+  label: string; value: string; options: Choice[] | FieldChoice[]; onChange: (value: string) => void; testId?: string;
+  placeholder?: string;
 }) {
-  const current = options.find(o => o.value === value)?.label || "escolher";
+  const current = options.find(o => o.value === value)?.label || (value ? "escolher" : placeholder);
   const width = Math.max(8, Math.min(28, current.length + 3)) + "ch";
-  return <span className="relative mx-0.5 inline-flex max-w-full align-baseline rounded-md bg-blue-50/60 text-teal hover:bg-blue-100 focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-teal">
-    <select aria-label={label} title={"Alterar " + label} value={value}
+  return <span className={"relative mx-0.5 inline-flex max-w-full align-baseline rounded-md text-teal hover:bg-blue-100 focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-teal " +
+    (value || placeholder !== "Escolher campo" ? "bg-blue-50/60" : "bg-amber-50")}>
+    <select aria-label={label} title={"Alterar " + label} value={value} data-testid={testId}
       onChange={e => onChange(e.target.value)}
       style={{width, maxWidth: "min(80vw, 28ch)"}}
       className="min-w-0 cursor-pointer appearance-none overflow-hidden text-ellipsis border-0 bg-transparent py-0.5 pl-1.5 pr-5 text-sm font-semibold underline decoration-teal/40 underline-offset-2 focus:outline-none">
-      <option value="">Escolher campo</option>
+      <option value="">{placeholder}</option>
       {options.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
     <ChevronDown size={12} aria-hidden="true" className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2"/>
@@ -191,14 +199,24 @@ export default function ConversationalPreparation(p: Props) {
     p.operation === "comparisons" && p.indicator !== "quantity" ||
     (["distribution","temporal","report"].includes(p.operation) && p.indicator === "density");
   const requiresIndicator = ["comparisons", "distribution", "temporal", "report"].includes(p.operation);
-  const field = (label: string, role: FieldRole) => <InlineChoice label={label} value={p.mapping[role] || ""}
-    options={named(p.columns)} onChange={v=>p.onField(role,v)}/>;
+  // Seletores de campo (D1): sugestões no topo, com "(sugerida)"; vazio até o usuário escolher. Escolher estabelece o papel.
+  const field = (label: string, role: FieldRole, optional = false) => <InlineChoice label={label} testId={"field-choice-" + role}
+    value={role === "period" ? periodValue(p.mapping.period, p.singlePeriod) : p.mapping[role] || ""}
+    placeholder={optional ? "Sem código" : "Escolher campo"}
+    options={fieldOptions(p.columns, p.suggestions, role, {singlePeriod: role === "period", current: p.mapping[role] || ""})}
+    onChange={v => {
+      if (role === "period" && v === SINGLE_PERIOD) { p.onField(role, ""); p.onSinglePeriod(true); return; }
+      if (role === "period") p.onSinglePeriod(false);
+      p.onField(role, v);
+    }}/>;
   const status = p.capability?.status;
   const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
   const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
   const emptyMultiple = allowMultiple && p.multiplePeriods && !p.selectedPeriods.length && p.periods.length > 1;
   const periodChoiceRequired = emptyMultiple || p.operation === "counts" && p.periods.length > 1 && !p.periodFilter && p.selectedPeriods.length === 0;
-  const ready = status === "available" && p.confirmed && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
+  const ready = status === "available" && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
+  // Objeto de análise: o texto informado é o objeto (sem confirmação); a sugestão do cabeçalho nunca é aplicada sozinha.
+  const usesObject = p.operation !== "spatial" && (!["nearest", "criteria"].includes(p.operation) || criterion);
   if (p.sourceBrazil && p.curated) {
     const isTemporal = p.operation === "temporal";
     const usesPeriods = !["spatial", "rotation"].includes(p.operation);
@@ -285,14 +303,14 @@ export default function ConversationalPreparation(p: Props) {
       {p.extra}
       {!periodReady && <p className="text-xs text-slate-600">Escolha o período para continuar.</p>}
       {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
-      {p.confirmed && status !== "available" && !p.preparing &&
+      {status !== "available" && !p.preparing &&
         <p role="status" className="text-xs text-slate-600">Ainda faltam condições específicas para esta análise.
           Você pode ajustá-las acima ou consultar as opções adicionais.</p>}
       <div className="flex flex-wrap gap-2">
-        {p.confirmed && <button type="button" disabled={!analysisReady} onClick={p.onExecute}
+        <button type="button" disabled={!analysisReady} onClick={p.onExecute}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
           <Play size={14}/>{p.executing ? "Calculando..." : "Calcular e mostrar resultado"}
-        </button>}
+        </button>
       </div>
       {p.advanced && <details className="text-xs text-teal">
         <summary className="cursor-pointer">Ver outras condições da análise</summary>
@@ -304,7 +322,7 @@ export default function ConversationalPreparation(p: Props) {
     <div className="flex items-start gap-2">
       <BrandAvatar size={28} className="mt-1 shrink-0"/>
       <div className="min-w-0 flex-1 space-y-3">
-        <p>Vamos organizar esta análise com os dados disponíveis. Já encontrei os campos mais prováveis; basta clicar em qualquer termo destacado se quiser alterá-lo.</p>
+        <p>Vamos organizar esta análise com os dados disponíveis. Preenchi os campos reconhecidos com segurança; escolha os demais nos termos destacados.</p>
         <p className="leading-8">
           {p.sourceBrazil
             ? <>Para esta consulta, vou considerar os dados {p.scope === "national" ? "do " : "dos "}
@@ -313,8 +331,8 @@ export default function ConversationalPreparation(p: Props) {
             : <>Nos dados que você importou, </>}
           {p.sourceBrazil ? <>A referência territorial é </> : <>a referência territorial é </>}
           {field("Território", "territory")}
-          {p.mapping.territory_id || p.columns.some(c => /^(cod[_ -]?ibge|territory[_ -]?id|codigo[_ -]?territorio)$/i.test(c))
-            ? <>, e cada unidade pode ser identificada pelo código {field("Identificador territorial", "territory_id")}</> : null}.
+          {p.mapping.territory || p.mapping.territory_id || p.suggestions?.territory_id?.length
+            ? <>, e cada unidade pode ser identificada pelo código {field("Identificador territorial", "territory_id", true)} (opcional)</> : null}.
           {p.operation !== "spatial" && <> As profissões estão organizadas em {field("Categoria profissional", "category")},
             enquanto os períodos aparecem em {field("Período", "period")}.</>}
           {requiresCount && <> Os quantitativos são registrados em {field("Quantitativo", "count")}.</>}
@@ -349,41 +367,40 @@ export default function ConversationalPreparation(p: Props) {
             <button type="button" onClick={()=>p.onSelectedPeriods(p.periodFilter ? [p.periodFilter] : p.periods)}
               className="text-xs text-teal underline">Selecionar vários períodos</button>}
         </div>}
-        {categoryChoiceRequired && <p className="text-xs text-slate-600">A escolha da categoria confirma a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
+        {categoryChoiceRequired && <p className="text-xs text-slate-600">A categoria escolhida define a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
+        {usesObject && p.objectState?.status === "ausente" && <p className="flex flex-wrap items-center gap-2 text-sm">
+          O objeto da análise é <input aria-label="Objeto de análise" data-testid="object-draft" value={p.objectDraft}
+            onChange={e => p.onObjectDraft(e.target.value)} placeholder="profissão ou conjunto de trabalhadores"
+            className="max-w-[260px] rounded-md border border-amber-300 bg-amber-50 px-2 py-1"/>
+          {!p.objectDraft && p.suggestedObject && <button type="button" data-testid="object-suggestion"
+            onClick={() => p.onObjectDraft(p.suggestedObject)} className="rounded-md border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-teal">
+            Usar sugestão: {p.suggestedObject}</button>}
+        </p>}
+        {usesObject && p.objectState?.status === "informado" && p.objectDraft && <p className="text-xs text-slate-600">
+          Objeto informado por você: <strong>{p.objectDraft}</strong>. <button type="button" className="underline"
+            onClick={() => p.onObjectDraft("")}>Alterar</button></p>}
         {periodChoiceRequired && <p className="text-xs text-slate-600">Escolha um período para obter o quantitativo daquele momento, sem somar diferentes períodos.</p>}
         {p.countUnit === "outro" && <label className="flex items-center gap-2 text-sm">
           Nome da unidade: <input value={p.customCountUnit} onChange={e=>p.onCustomCountUnit(e.target.value)}
           className="max-w-[220px] rounded-md border border-blue-200 px-2 py-1" placeholder="Descreva a unidade"/>
         </label>}
-        <p>Se essas informações estiverem corretas, podemos prosseguir. As declarações abaixo são necessárias apenas quando não podem ser verificadas pelos dados.</p>
-        {p.operation !== "spatial" && (!["nearest", "criteria"].includes(p.operation) || criterion) && <label className="flex items-start gap-2 text-xs leading-5">
-          <input type="checkbox" className="mt-1" checked={p.ftsConfirmed} onChange={e=>p.onFtsConfirmed(e.target.checked)}/>
-          Confirmo que os dados selecionados correspondem à força de trabalho em saúde.
-        </label>}
-        {requiresPopulation && <label className="flex items-start gap-2 text-xs leading-5">
-          <input type="checkbox" className="mt-1" checked={p.populationAligned}
-            onChange={e=>p.onPopulationAligned(e.target.checked)}/>
-          Confirmo que a população corresponde aos territórios e períodos analisados.
-        </label>}
+        {requiresPopulation && p.mapping.population && <p className="text-xs leading-5 text-slate-600">
+          A população usada é a da mesma linha, no mesmo território e período de cada quantidade; essa premissa aparece em “Método e limitações”.</p>}
         {p.extra}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {!p.confirmed && <button type="button" onClick={p.onConfirm} disabled={p.preparing || categoryChoiceRequired || periodChoiceRequired}
-            className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
-            Confirmar correspondências
-          </button>}
-          {p.confirmed && status === "available" && <button type="button" onClick={p.onExecute}
+          <button type="button" data-testid="execute-analysis" onClick={p.onExecute}
             disabled={!ready} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
             <Play size={14}/> {p.executing ? "Analisando..." : "Executar análise"}
-          </button>}
+          </button>
           {p.preparing && <span role="status" className="text-xs text-slate-500">Verificando as condições da análise...</span>}
         </div>
-        {p.confirmed && status !== "available" && !p.preparing && <p role="status" className="text-xs leading-5 text-amber-900">
+        {status !== "available" && !p.preparing && <p role="status" data-testid="pending-reasons" className="text-xs leading-5 text-amber-900">
           {p.capability?.reasons?.length ? p.capability.reasons.slice(0,3).join(" ") :
             "Ainda há condições a conferir para esta análise."}
         </p>}
         {p.advanced && <details className="rounded-lg border border-slate-100 px-2 py-2">
           <summary className="flex cursor-pointer items-center gap-1 text-xs font-medium text-teal">
-            <SlidersHorizontal size={14}/> Ajustar condições específicas, outras confirmações ou situações excepcionais
+            <SlidersHorizontal size={14}/> Ajustar condições específicas ou situações excepcionais
           </summary>
           <div className="mt-3">{p.advanced}</div>
         </details>}

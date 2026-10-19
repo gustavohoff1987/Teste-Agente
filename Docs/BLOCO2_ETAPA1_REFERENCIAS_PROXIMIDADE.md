@@ -45,9 +45,9 @@ distância viária e tempo de deslocamento.
 | `data_contract.scoped` e o memo por requisição (`request_memo.per_request`) | Recorte dos alvos por período, categoria e seleção, sem recalcular dentro da mesma requisição |
 | `territorial_selection.territory_catalog` | Identidade `code:`/`name:`, rótulos, estados derivados do código e motivos de seleção ambígua, para alvos **e** referências |
 | `data_contract.canonical_crs` | Aliases governados de SIRGAS2000 (sem diferença de caixa e espaços nas pontas): `SIRGAS2000`, `SIRGAS 2000`, `SIRGAS-2000`, `SIRGAS_2000` |
-| `data_contract.numbers` e a regra de vírgula declarada | Quantidade e população do critério; a mesma regra (vírgula só com declaração) vale para as coordenadas |
+| `data_contract.numbers` e a regra de vírgula declarada | Quantidade e população do critério; a mesma regra (vírgula só com separador escolhido ou verificado nos dados) vale para as coordenadas |
 | `semantic_bridge.preflight` e `validate_operation` | Matriz de aplicabilidade e gates; `/api/analyze` revalida antes de executar |
-| `brazil_catalog_profile.apply_curated_options` | Confirmações do perfil governado da base Brasil (unidade, população, objeto), sem perfil para uploads |
+| `analysis_premises.apply_premises` (com `brazil_catalog_profile.apply_curated_options`) | Perfil governado da base Brasil, campo a campo (unidade, população, objeto), e premissas da análise para uploads; nenhuma confirmação |
 | `main.compute` (`_result`, metadados, avaliabilidade, chave de execução) | Resultado no mesmo formato das demais análises, com `metadata.nearest_reference` acrescentado |
 | Histórico, retomada, reutilização, CSV e "Método e parâmetros" | Sem mudança de contrato; o estado das referências entra no instantâneo da preparação |
 | `TerritorialSelection`, `PeriodSelection`, `InlineChoice` e o carrossel | Mesmos controles; a seleção de referências é uma segunda instância, em âmbar |
@@ -62,7 +62,7 @@ distância viária e tempo de deslocamento.
 | CAP-REF-01 — proibições | O LLM não escolhe referências; nenhuma referência, densidade, região ou distância padrão; a condição não tem caráter normativo; o sentido de "referência" não é decidido quando ambíguo | `test_llm_interpretation_contract_is_not_widened`, `test_conversation_prepares_only_the_operation_and_targets` |
 | CAP-SUB-01 — critério atômico | Operadores `<`, `≤`, `>`, `≥`, `=`, `≠`, sempre explicitados; valor sem unidade no único contexto da densidade (por 1.000 habitantes); comparação exata em frações (`quantidade × 1.000` contra `valor × população`) | `test_density_criterion_is_exact_at_the_boundary`, `test_criterion_candidates_without_denominator_are_listed_not_assumed`, teste real com recálculo independente |
 | CAP-ESP-01 — distância | Problema geodésico inverso de Karney (GeographicLib, via pyproj), elipsoide GRS80 (a = 6.378.137 m, 1/f = 298,257222101), quilômetros em precisão integral | `test_geodesic_method_is_grs80_and_agrees_with_independent_vincenty` |
-| RQ-DAD-25 — coordenadas | Faixas −90..90 e −180..180; ausência → `SEM_INFORMACAO_ESPACIAL`; fora da faixa ou não numérica → `COORDENADA_INVALIDA`; associação de latitude e longitude confirmada | `test_invalid_reference_gives_partial_minimum_never_presented_as_complete`, `test_targets_without_valid_coordinates_stay_in_universe` |
+| RQ-DAD-25 — coordenadas | Faixas −90..90 e −180..180; ausência → `SEM_INFORMACAO_ESPACIAL`; fora da faixa ou não numérica → `COORDENADA_INVALIDA`; latitude e longitude estabelecidas por regra (nome e formato decimal único, sem rebaixar a coluna por valor fora da faixa), pelo perfil oficial ou pela escolha do usuário | `test_invalid_reference_gives_partial_minimum_never_presented_as_complete`, `test_targets_without_valid_coordinates_stay_in_universe` |
 | RQ-DAD-26/27 — referencial | Sem referencial: pendência (REFERENCIAL_GEODESICO), nada presumido, salvo na versão governada da base Brasil, em que SIRGAS 2000 é premissa interna do perfil (configuração contextual autorizada pelo responsável pelo produto em 18/10/2026), registrada nas notas e em `governed_premises`; aliases governados canonicalizados; referencial informado e não suportado: execução recusada com motivo, sem transformação, aproximação ou substituição, e a base segue utilizável nas demais análises | `test_unsupported_reference_systems_are_never_transformed`, `test_governed_aliases_are_canonicalized`, `test_reference_system_is_never_presumed`, `test_governed_version_resolves_crs_and_decimal_separator_only_in_distance_analyses` |
 | CAP-ESP-02 — mais próxima | Distância por par com avaliabilidade; `minimo_completo` e `minimo_avaliaveis` distintos; qualificador "entre as referências avaliáveis" obrigatório; COBERTURA_PARCIAL; empates preservados; sem inferência por limites | `test_invalid_reference_gives_partial_minimum_never_presented_as_complete`, `test_ties_preserve_every_reference`, `test_exact_search_equals_exhaustive_search` |
 | TPL-11 / V-06 | Limitação `DISTANCIA_GEODESICA_DIRETA` com o texto de TPL-11 em notas, descrição e limitações estruturadas | testes de API e de navegador |
@@ -107,7 +107,8 @@ distância viária e tempo de deslocamento.
 - **Critério simples.** Densidade por 1.000 habitantes comparada a um valor (vírgula ou ponto,
   finito, não negativo, até 32 caracteres), na competência e na categoria escolhidas (categoria
   única ou escolhida; categoria inexistente é recusada). Exige quantitativo e população
-  confirmados, unidade de contagem declarada e população correspondente; unidades em pessoas
+  estabelecidos (regra, perfil oficial ou escolha), unidade de contagem escolhida e a premissa do
+  denominador (população da mesma linha), aplicada pelo backend; unidades em pessoas
   exigem valores inteiros. Cada candidato recebe `ATENDE`, `NAO_ATENDE` ou `NAO_AVALIAVEL`
   (`DADO_AUSENTE`, `DENOMINADOR_AUSENTE`, `DENOMINADOR_ZERO`). Candidatos não avaliáveis ficam
   listados à parte: não entram nem são excluídos por presunção. Exemplo da exatidão: 59/25.000 ×
@@ -189,10 +190,11 @@ A jornada completa ocorre na conversa:
 3. **Modo:** "Lista de municípios por nome ou código" ou "Critério simples de densidade".
 4. **Referências:** segunda seleção, em âmbar ("Municípios de referência"), ou operador e valor
    por 1.000 habitantes, sem sugestão.
-5. **Confirmações:** período; em bases importadas e em outras versões, também o referencial
-   (SIRGAS2000 sem presunção) e, quando há vírgula nas coordenadas, o separador decimal. Na versão
-   governada da base Brasil, os dois são premissas internas, e o resumo da preparação mostra
-   "Referencial: SIRGAS 2000 (premissa da base oficial)".
+5. **Escolhas:** período; em bases importadas e em outras versões, também o referencial
+   (SIRGAS2000 sem presunção). O separador decimal das coordenadas é verificado nos dados (vírgula
+   quando as coordenadas a usam e quantidades e populações não têm vírgula), com nota no resultado;
+   só com formato misto ele vira escolha. Na versão governada da base Brasil, os dois são premissas
+   internas, e o resumo da preparação mostra "Referencial: SIRGAS 2000 (premissa da base oficial)".
 6. **Execução:** botão desabilitado até o pré-exame liberar; indicador "Preparando seu
    diagnóstico"; uma execução por vez, mesmo com clique duplo.
 7. **Consulta:** métricas, tabela, notas de método e limitações.

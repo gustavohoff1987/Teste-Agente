@@ -16,7 +16,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, choose
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -183,7 +183,9 @@ def main():
         expect(chat.get_by_test_id("current-source")).to_contain_text(source.name, timeout=60000)
         expect(inline.get_by_role("group", name="Definição das referências")).to_be_visible()  # a análise segue ativa
         inline.get_by_label("Filtrar por período").select_option("202406")
-        inline.get_by_role("button", name="Confirmar correspondências", exact=True).click()
+        # D1: o código territorial é escolhido no seletor (sem botão "Confirmar correspondências").
+        assert inline.get_by_role("button", name="Confirmar correspondências", exact=True).count() == 0
+        choose(inline, "Identificador territorial", "codigo_territorial")
         inline.get_by_label("Referencial geodésico").select_option("SIRGAS2000")
         setup.get_by_label("Lista de municípios por nome ou código").check()
         chosen = inline.get_by_role("region", name="Seleção de referências")
@@ -192,12 +194,11 @@ def main():
             expect(chosen.get_by_role("checkbox")).to_have_count(1)
             chosen.get_by_role("checkbox").check()
         expect(chosen.get_by_text("3 selecionados", exact=True)).to_be_visible()
-        # Vírgula nas coordenadas: o formato é declarado pelo usuário, nunca presumido.
-        decimal = setup.get_by_label("Separador decimal das coordenadas")
-        expect(decimal).to_be_visible(timeout=60000)
-        expect(inline.get_by_role("button", name="Executar análise", exact=True)).to_have_count(0)
-        decimal.select_option("decimal_comma")
+        # Vírgula nas coordenadas: o separador é verificado nos dados (coordenadas com vírgula; quantidades e populações
+        # sem vírgula) e registrado em nota; o seletor só aparece quando o formato é misto.
         imported = execute("Executar análise")
+        expect(setup.get_by_label("Separador decimal das coordenadas")).to_have_count(0)
+        assert any(note.startswith("Separador decimal das coordenadas: vírgula, verificada nos dados") for note in imported["notes"])
         structured = imported["metadata"]["nearest_reference"]
         assert structured["periodo_geometria"] == "202406"
         assert [item["id"] for item in structured["referencias_nao_avaliaveis"]] == ["code:1005"]

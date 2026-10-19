@@ -53,12 +53,14 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 | `vinculo` | coluna que identifica o território e a chave estável (`rotulo`, `codigo` ou `nome`) |
 | `indicadores` | colunas representáveis do resultado: `coluna`, `rotulo`, `tipo` (`CONTINUO`, `CONTAGEM`, `POSICAO`, `CLASSE`, `ESTADO`), `unidade`, `origem` (capacidade), `classes` produzidas por capacidade, `nota` (TPL-11 para distâncias) |
 | `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências |
-| `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) |
+| `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `ESCOLHA_PENDENTE`; até 19/10/2026 este último se chamava `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 
 - **Autorização da geometria informada** pela regra das análises espaciais: referencial suportado
-  (SIRGAS2000, sem transformação), papéis de latitude e longitude estabelecidos, separador decimal
-  declarado e camada complementar governada. Referência mais próxima e critérios com distância usam
+  (SIRGAS2000, sem transformação), papéis de latitude e longitude estabelecidos (regra, perfil
+  oficial ou escolha), separador decimal escolhido ou verificado nos dados (em bases importadas, a
+  vírgula verificada vale para desenhar os pontos; formato misto → `SEPARADOR_DECIMAL`) e camada
+  complementar governada. Referência mais próxima e critérios com distância usam
   exatamente a leitura memorizada da própria análise (`nearest_inputs`); análise espacial usa o seu
   recorte; as demais usam a competência única do resultado. Várias competências → `COMPETENCIA_UNICA`
   (as coordenadas podem mudar entre competências e não são intercambiáveis).
@@ -154,7 +156,7 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - “valor, decrescente (apenas visual)” traz o aviso “Ordenação apenas visual: não constitui posição
     de ranking nem resultado”;
   - territórios sem valor são identificados como não avaliáveis, sem converter ausência em zero;
-  - quantitativos com unidade pessoas e escopo FTS confirmado usam “profissionais” apenas no rótulo de apresentação; a unidade metodológica original é preservada;
+  - quantitativos com unidade pessoas e objeto estabelecido como força de trabalho em saúde (`fts_scope_confirmed`: perfil oficial, categorias reconhecidas pelo catálogo da força de trabalho em saúde ou premissa do objeto informado) usam “profissionais” apenas no rótulo de apresentação; a unidade metodológica original é preservada;
   - resultados com série temporal usam linhas, evitando representar a primeira competência como se fosse todo o resultado;
   - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor.
 - **Linhas:**

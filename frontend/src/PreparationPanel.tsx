@@ -1,34 +1,35 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { Requirement } from "./RequirementChecklist";
 
+/** Requisitos sem repetição; o texto e a classificação vêm do backend (nenhuma reescrita na tela). */
 export function preparationRequirements(requirements: Requirement[]) {
   const seen = new Set<string>();
-  return requirements.flatMap(item => {
-    const code = item.status === "needs_confirmation" &&
-      /Confirme a associação de Código (?:identificador )?territorial|Confirme que o código identifica/.test(item.detail);
-    const next = code ? { ...item, title: "Identificador territorial", detail: item.status === "met" ? item.detail :
-      "Confirme o identificador territorial. Ele distingue municípios de mesmo nome; reconhecer a unidade territorial não confirma seu código." } : item;
-    const key = next.status + next.detail;
-    if (seen.has(key)) return [];
+  return requirements.filter(item => {
+    const key = item.status + item.detail;
+    if (seen.has(key)) return false;
     seen.add(key);
-    return [next];
+    return true;
   });
 }
 
+/** Etapa do requisito, classificada pelo backend (0: identificar os dados; 1: parâmetros). */
 export function requirementStep(item: Requirement): number {
-  const text = item.detail.toLowerCase();
-  if (/popula|denominador|comparab|comparação|compare|convenção|filtro|selecione|escolha|coorte|cobertura|contagem|quantitativo|coordenad|latitude|longitude|geodésico|sobrepos|duplic|registros|partes|identificador individual/.test(text)) return 1;
-  if (/identificador territorial|código|objeto|categoria|profissão|força de trabalho|associação|associe período|referência temporal|dimensão territorial/.test(text)) return 0;
-  return 1;
+  return item.step === 0 ? 0 : 1;
+}
+
+/** "pend." conta só escolhas do usuário; impedimentos nos dados aparecem sem contador. */
+export function pendingChoices(requirements: Requirement[]): Requirement[] {
+  return requirements.filter(item => item.status !== "met" && item.kind !== "dados");
 }
 
 type Props = { title: string; step: number; onStep: (step: number) => void; checking: boolean;
   requirements: Requirement[]; ready: boolean; children: ReactNode; notice?: string };
 
-const STEPS = ["Identificar os dados", "Parâmetros e confirmações", "Revisar e executar"];
+const STEPS = ["Identificar os dados", "Parâmetros", "Revisar e executar"];
 export default function PreparationPanel({ title, step, onStep, checking, requirements, ready, children, notice }: Props) {
   const scroll = useRef<HTMLDivElement>(null);
   const pending = requirements.filter(item => item.status !== "met");
+  const choices = pendingChoices(requirements);
   useEffect(() => { scroll.current?.scrollTo({ top: 0 }); }, [step, title]);
   return <section id="preparacao" aria-label="Preparação da análise" className="preparation-panel">
     <header className="border-b border-line p-4 sm:p-5">
@@ -36,7 +37,7 @@ export default function PreparationPanel({ title, step, onStep, checking, requir
       <h2 className="mt-1 text-lg font-bold text-ink">{title}</h2>
       <nav aria-label="Etapas da preparação" className="mt-3 flex flex-wrap gap-2">
         {STEPS.map((label, index) => {
-          const count = pending.filter(item => requirementStep(item) === index).length;
+          const count = choices.filter(item => requirementStep(item) === index).length;
           return <button key={label} type="button" aria-current={step === index ? "step" : undefined}
             onClick={() => onStep(index)} className={"rounded-lg border px-3 py-2 text-left text-xs font-semibold " +
               (step === index ? "border-teal bg-teal-50 text-teal" : "border-line text-slate-600 hover:bg-slate-50")}>
@@ -50,8 +51,9 @@ export default function PreparationPanel({ title, step, onStep, checking, requir
       {checking ? <p role="status" className="mb-3 text-sm text-teal">Atualizando as pendências…</p> :
         <div aria-live="polite" className="mb-3 space-y-2">
           {(step === 2 ? pending : pending.filter(item => requirementStep(item) === step)).map(item =>
-            <div key={item.detail} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5">
-              <strong>{item.title}</strong><p>{item.detail}</p>
+            <div key={item.detail} data-testid={item.kind === "dados" ? "requirement-data" : "requirement-choice"}
+              className={"rounded-lg border p-3 text-xs leading-5 " + (item.kind === "dados" ? "border-slate-200 bg-slate-50" : "border-amber-200 bg-amber-50")}>
+              <strong>{item.kind === "dados" ? "Impedimento nos dados · " : "Escolha pendente · "}{item.title}</strong><p>{item.detail}</p>
               {step === 2 && <button type="button" className="mt-1 font-bold text-teal underline"
                 onClick={() => onStep(requirementStep(item))}>Resolver na etapa {requirementStep(item) + 1}</button>}
             </div>)}

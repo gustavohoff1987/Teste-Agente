@@ -2,13 +2,19 @@
 
 Essas associações só são aplicadas à base instalada e íntegra, com estrutura
 esperada. Elas não autorizam deduplicação entre municípios ou entre períodos.
-Para bases importadas pelo usuário, permanece a confirmação guiada.
+Bases importadas pelo usuário não recebem este perfil: nelas, os papéis valem por regra
+conclusiva ou pela escolha do usuário, e as premissas genéricas vêm de analysis_premises.py.
 
-Na base oficial, as premissas de comparabilidade que o usuário confirmava são internas
-(decisão do responsável pelo produto em 18/10/2026), assim como o referencial geodésico e o
-separador decimal das coordenadas nas análises de distância da versão governada. Cada uma vale
-por regra governada deste perfil ou somente depois de verificada nos dados; o resultado registra
-a origem de cada uma.
+O perfil vale campo a campo (decisão D1 do responsável pelo produto, 19/10/2026): a identidade
+da fonte (base Brasil, colunas esperadas e categoria única MEDICINA) é conferida independentemente
+do mapeamento; cada papel cuja coluna ainda é a canônica fica governado ("governed_roles"), e cada
+premissa vale só quando todos os papéis de que depende estão governados. Mudar uma coluna não
+desliga o perfil inteiro: o que saiu dele passa à camada genérica.
+
+Na base oficial, as premissas de comparabilidade são internas (decisão do responsável pelo produto
+em 18/10/2026), assim como o referencial geodésico e o separador decimal das coordenadas nas
+análises de distância da versão governada. Cada uma vale por regra governada deste perfil ou
+somente depois de verificada nos dados; o resultado registra a origem de cada uma.
 """
 from __future__ import annotations
 
@@ -32,45 +38,50 @@ FIELDS = {
 }
 TRUSTED_CATEGORY = "MEDICINA"
 
-# Premissas internas da base oficial (opção do motor → rótulo, origem, recortes, análises e nota).
+# Premissas internas da base oficial (opção do motor → rótulo, origem, recortes, análises, papéis e nota).
 # PERFIL_GOVERNADO: regra declarada deste perfil. VERIFICADA_NOS_DADOS: só vale depois da
-# conferência em CHECKS; sem ela, a confirmação volta a ser pedida ao usuário. "value" é o valor
-# da opção (padrão: True); "governed_version" restringe a premissa à versão governada da base.
+# conferência em CHECKS; sem ela, a camada genérica (analysis_premises.py) decide. "value" é o valor
+# da opção (padrão: True); "governed_version" restringe a premissa à versão governada da base;
+# "roles" são os papéis de que a premissa depende (só os presentes no recorte contam).
 PREMISES = {
     "temporal_comparability_confirmed": {
         "label": "Comparabilidade temporal", "origin": "PERFIL_GOVERNADO",
         "scopes": ("national", "municipal"), "operations": ("temporal",),
+        "roles": ("period", "category", "count", "territory"),
         "note": "Comparabilidade temporal: premissa governada da base Brasil oficial (mesma fonte, categoria MEDICINA e "
                 "unidade pessoas por território e competência em todas as competências); não foi declarada pelo usuário."},
     "territory_longitudinal_confirmed": {
         "label": "Identidade territorial ao longo do tempo", "origin": "VERIFICADA_NOS_DADOS",
         "scopes": ("national", "municipal"), "operations": ("temporal",),
+        "roles": ("territory", "territory_id", "period"),
         "note": "Identidade territorial: verificada nos dados; cada território mantém o mesmo identificador e o mesmo nome "
                 "em todas as competências. Observações ausentes continuam não avaliáveis."},
     "comparison_confirmed": {
         "label": "Comparabilidade entre municípios", "origin": "PERFIL_GOVERNADO",
         "scopes": ("municipal",), "operations": ("comparisons", "ranking"),
+        "roles": ("count", "population", "territory"),
         "note": "Comparabilidade entre territórios: premissa governada da base Brasil oficial (mesma medida, unidade e "
                 "população estimada para todos os municípios em cada competência)."},
     "population_additive_confirmed": {
         "label": "Populações municipais sem sobreposição", "origin": "PERFIL_GOVERNADO",
-        "scopes": ("municipal",), "operations": ("aggregate",),
+        "scopes": ("municipal",), "operations": ("aggregate",), "roles": ("population", "territory"),
         "note": "Agregação: os municípios são partes disjuntas do território nacional e cada população municipal entra uma "
                 "única vez (premissa governada da base Brasil oficial)."},
     "component_sum_confirmed": {
         "label": "Total como soma dos componentes", "origin": "PERFIL_GOVERNADO",
-        "scopes": ("municipal",), "operations": ("aggregate",),
+        "scopes": ("municipal",), "operations": ("aggregate",), "roles": ("count", "territory"),
         "note": "Agregação: a base não identifica pessoas entre municípios; o total é a soma dos componentes, com possível "
                 "dupla contagem (premissa governada da base Brasil oficial)."},
     "crs": {
         "label": "Referencial geodésico SIRGAS 2000", "origin": "PERFIL_GOVERNADO", "value": "SIRGAS2000",
         "scopes": ("municipal",), "operations": ("spatial", "nearest", "criteria"), "governed_version": True,
+        "roles": ("latitude", "longitude"),
         "note": "Referencial geodésico: SIRGAS 2000, premissa governada da base Brasil oficial (decisão do responsável pelo "
                 "produto); a fonte original não declara o referencial, e nenhuma transformação é aplicada."},
     "number_format": {
         "label": "Vírgula como separador decimal das coordenadas", "origin": "VERIFICADA_NOS_DADOS",
         "value": "decimal_comma", "scopes": ("municipal",), "operations": ("spatial", "nearest", "criteria"),
-        "governed_version": True,
+        "governed_version": True, "roles": ("latitude", "longitude", "count", "population"),
         "note": "Separador decimal das coordenadas: vírgula, verificada nos dados; as coordenadas preenchidas usam vírgula "
                 "decimal ou são inteiras, e quantidades e populações não têm vírgula."},
 }
@@ -126,56 +137,79 @@ def governed_version(frame) -> bool:
                 catalog.get("versao") == catalog.get("versao_governada"))
 
 
-def curated_profile(frame, mapping: dict[str, str]) -> dict[str, Any] | None:
+def source_identity(frame) -> str | None:
+    """Identidade da fonte oficial ("national" ou "municipal"), independente do mapeamento: base Brasil, colunas
+    esperadas presentes no quadro e categoria única MEDICINA. None para importações e estruturas diferentes."""
     source = frame.attrs.get("source")
     if not isinstance(source, dict) or source.get("dataset") != "brazil":
         return None
     scope = source.get("scope")
     expected = FIELDS.get(scope)
-    if not expected or scope not in FILES:
-        return None
-    # Os dois arquivos precisam ter colunas corretas e mapeamento canônico.
-    if any(column not in frame.columns or mapping.get(role) != column
-           for role, column in expected.items()):
+    if not expected or scope not in FILES or any(column not in frame.columns for column in expected.values()):
         return None
     categories = frame[expected["category"]].dropna().astype(str).str.strip().unique().tolist()
     # Nunca declarar FTS ou uma profissão sem evidência concreta da base.
     if len(categories) != 1 or categories[0].upper() != TRUSTED_CATEGORY:
         return None
+    return scope
+
+
+def suggested_mapping(frame) -> dict[str, str]:
+    """Mapeamento inicial: o reconhecido por regra conclusiva e, na fonte oficial, os papéis do perfil."""
+    from semantic_bridge import candidates  # importação tardia: a ponte depende do contrato que usa este perfil
+    mapping, _ = candidates(frame)
+    scope = source_identity(frame)
+    return {**mapping, **FIELDS[scope]} if scope else mapping
+
+
+def curated_profile(frame, mapping: dict[str, str]) -> dict[str, Any] | None:
+    scope = source_identity(frame)
+    if not scope:
+        return None
+    expected = FIELDS[scope]
+    # Campo a campo: só os papéis cuja coluna ainda é a canônica ficam governados.
+    roles = [role for role, column in expected.items() if mapping.get(role) == column]
+    if not roles:
+        return None
+    category = str(frame[expected["category"]].dropna().astype(str).str.strip().iloc[0])
     governed = governed_version(frame)
     premises = [{"option": key, "label": item["label"], "origin": item["origin"], "operations": list(item["operations"])}
                 for key, item in PREMISES.items()
-                if scope in item["scopes"] and (governed or not item.get("governed_version")) and
+                if scope in item["scopes"] and all(role in roles for role in item["roles"] if role in expected) and
+                (governed or not item.get("governed_version")) and
                 (item["origin"] != "VERIFICADA_NOS_DADOS" or _verified(key, frame, expected))]
     return {
         "mapping": dict(expected),
-        "category": categories[0],
-        "count_unit": "pessoas",
-        "confirmed_roles": list(expected),
-        "fts_scope_confirmed": True,
-        "object_confirmed": True,
-        "population_denominator_confirmed": scope == "municipal",
+        "category": category,
+        "count_unit": "pessoas" if "count" in roles else "",
+        # Sinônimo de governed_roles, mantido por compatibilidade: não são escolhas do usuário.
+        "confirmed_roles": roles,
+        "governed_roles": roles,
+        "fts_scope_confirmed": "category" in roles,
+        "object_confirmed": "category" in roles,
+        "population_denominator_confirmed": "population" in roles,
         "scope": scope,
         "premises": premises,
     }
 
 
 def apply_curated_options(frame, mapping, options, spatial=True):
-    """Aplica o perfil governado. spatial=False (cálculo sem distância) omite o referencial e o separador decimal."""
+    """Aplica o perfil governado, campo a campo. spatial=False (cálculo sem distância) omite o referencial e o
+    separador decimal. Os papéis do perfil vão em "governed_roles"; "confirmed_roles" guarda só as escolhas."""
     result = dict(options)
     profile = curated_profile(frame, mapping)
     if not profile:
         return result
-    confirmed = result.get("confirmed_roles") or []
-    if not isinstance(confirmed, list):
+    if not isinstance(result.get("confirmed_roles") or [], list):
         return result  # contrato principal valida o erro de tipo
-    result.update({
-        "count_unit": profile["count_unit"],
-        "confirmed_roles": list(dict.fromkeys([*confirmed, *profile["confirmed_roles"]])),
-        "fts_scope_confirmed": True,
-        "object_confirmed": True,
-        "population_denominator_confirmed": profile["population_denominator_confirmed"],
-    })
+    roles = profile["governed_roles"]
+    result["governed_roles"] = list(roles)
+    if "count" in roles:
+        result["count_unit"] = profile["count_unit"]
+    if "category" in roles:
+        result["fts_scope_confirmed"] = True
+    if "population" in roles:
+        result["population_denominator_confirmed"] = True
     applied = []
     for item in profile["premises"]:
         key = item["option"]

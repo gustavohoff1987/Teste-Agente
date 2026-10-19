@@ -6,7 +6,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, choose
 
 CSV = b"territorio_analise;codigo_identificador;periodo;categoria_profissional;quantidade;populacao\nAlfa;local-a;2024;MEDICINA;10;1000\nBeta;local-b;2024;MEDICINA;20;4000\nGama;local-c;2024;MEDICINA;30;5000\n"
 
@@ -28,10 +28,9 @@ def main():
         expect(page.get_by_text("Recebi sua base", exact=False)).to_be_visible(timeout=30000)
         page.get_by_role("button", name="Selecionar análise: Densidade", exact=True).click()
         inline = page.locator("#preparacao-conversacional")
+        # D1: o código territorial é escolhido no seletor (antes vinha pré-preenchido e era confirmado).
+        choose(inline, "Identificador territorial", "codigo_identificador")
         inline.get_by_role("combobox", name="Unidade de contagem", exact=True).select_option("pessoas")
-        inline.get_by_label("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").check()
-        inline.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados.").check()
-        inline.get_by_role("button", name="Confirmar correspondências").click()
 
         def execute():
             button = inline.get_by_role("button", name="Executar análise", exact=True)
@@ -51,10 +50,11 @@ def main():
         page.get_by_role("button", name="Comparar selecionados", exact=True).click()
         workspace(page, "preparation")
         inline.get_by_role("combobox", name="Indicador", exact=True).select_option("quantity")
-        # Arquivo importado: a declaração explícita de comparabilidade continua necessária.
-        inline.get_by_label("As medidas, unidades e populações são comparáveis entre os territórios.").check()
-        inline.get_by_role("button", name="Confirmar correspondências").click()
+        # Arquivo importado: a comparabilidade é premissa da análise, com nota no resultado (sem caixa de declaração).
+        assert inline.get_by_text("As medidas, unidades e populações são comparáveis", exact=False).count() == 0
         pair = execute()
+        assert any(note.startswith("Comparabilidade entre territórios") for note in pair["notes"])
+        assert "comparison_confirmed" not in json.dumps(pair["metadata"]["options"].get("confirmed_roles"))
         assert pair["rows"][0]["Diferença A − B"] == -10
         assert pair["metadata"]["options"]["territory_ids"] == ["code:local-a", "code:local-b"]
         # Sem o identificador associado, os IDs "code:" deixam de existir: a seleção é limpa

@@ -273,13 +273,20 @@ def test_category_and_period_compatibility_of_the_criterion():
     assert response.status_code == 422 and "categoria" in response.json()["detail"]
 
 
-def test_decimal_comma_requires_declaration():
+def test_decimal_comma_is_verified_in_data_and_mixed_format_requires_choice():
     df = frame()
     for column in ("latitude", "longitude"):
         df[column] = df[column].map(lambda v: None if pd.isna(v) else str(v).replace(".", ","))
-    response = run(df, reference_mode="list", reference_ids=["code:130260"])
+    # D1: vírgula decimal verificada nos dados (quantidades e populações sem vírgula), com nota, sem declaração.
+    verified, _, _ = ok(df, reference_mode="list", reference_ids=["code:130260"])
+    assert "number_format" in verified["metadata"]["options"]["analysis_premises"]
+    assert any("Separador decimal das coordenadas: vírgula, verificada nos dados" in n for n in verified["notes"])
+    # Formato misto (vírgula e ponto): o separador não pode ser verificado e continua uma escolha.
+    mixed = df.copy()
+    mixed.loc[0, "latitude"] = "-3.119"
+    response = run(mixed, reference_mode="list", reference_ids=["code:130260"])
     assert response.status_code == 422 and "separador decimal" in response.json()["detail"]
-    # Ponto declarado com vírgulas na base: recusa explícita, sem laço de confirmação nem coordenadas descartadas.
+    # Ponto escolhido com vírgulas na base: recusa explícita, sem laço de escolha nem coordenadas descartadas.
     point = run(df, path="/api/preflight", reference_mode="list", reference_ids=["code:130260"], number_format="decimal_point")
     gate = point.json()["capabilities"]["nearest"]
     assert gate["status"] == "unavailable" and any("incompatíveis com o ponto decimal" in r for r in gate["reasons"])

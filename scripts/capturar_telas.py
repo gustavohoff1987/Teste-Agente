@@ -130,7 +130,7 @@ def capturar(url, saida, canal):
             if not resumo.evaluate("el => el.parentElement.open"):
                 resumo.click()
             page.get_by_role("region", name="Preparação da análise").get_by_role(
-                "button", name="2. Parâmetros e confirmações").click()
+                "button", name="2. Parâmetros").click()
 
         tela("01-inicio", inicio)
         tela("02-densidade-preparacao", densidade)

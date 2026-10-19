@@ -152,7 +152,7 @@ def test_official_base_resolves_comparability_premises_without_user_declarations
     assert "component_sum_confirmed" not in unique["metadata"]["options"]["governed_premises"]
 
 
-def test_territorial_identity_premise_requires_evidence_and_imports_keep_declarations():
+def test_territorial_identity_premise_requires_evidence_and_imports_use_analysis_premises():
     import pandas as pd
     from brazil_catalog_profile import FIELDS, apply_curated_options, curated_profile, premise_notes
     names = ["A", "A", "B", "B"]
@@ -170,11 +170,34 @@ def test_territorial_identity_premise_requires_evidence_and_imports_keep_declara
     assert "territory_longitudinal_confirmed" not in options and "territory_longitudinal_confirmed" not in options["governed_premises"]
     assert [item["option"] for item in curated_profile(renamed, mapping)["premises"]] == [GOVERNED[0], *GOVERNED[2:]]
     assert premise_notes(options, "temporal") == [premise_notes({"governed_premises": GOVERNED}, "temporal")[0]]
-    # Arquivo importado com a mesma estrutura: nenhuma premissa interna; as declarações continuam com o usuário.
+    # Arquivo importado com a mesma estrutura: nenhuma premissa do perfil oficial.
     imported = frame.copy()
     imported.attrs = {}
     assert apply_curated_options(imported, mapping, {"temporal_indicator": "quantity"}) == {"temporal_indicator": "quantity"}
     assert premise_notes({"temporal_comparability_confirmed": True}, "temporal") == []
+    # D1: na importação, as antigas declarações viram premissas da análise, aplicadas pelos papéis estabelecidos
+    # (o código e o período deste quadro sintético são escolhas do usuário), com origem e nota no resultado.
+    from analysis_premises import GENERIC, apply_premises, premise_notes as analysis_notes
+    chosen = {"temporal_indicator": "quantity", "confirmed_roles": ["territory_id", "period"]}
+    applied = apply_premises(imported, mapping, chosen)
+    assert applied["analysis_premises"] == [
+        "population_denominator_confirmed", "temporal_comparability_confirmed", "territory_longitudinal_confirmed",
+        "comparison_confirmed", "population_additive_confirmed", "component_sum_confirmed", "fts_scope_recognized",
+        "number_format"]
+    assert applied["fts_scope_confirmed"] is True  # MEDICINA reconhecida pelo catálogo da FTS
+    assert applied["number_format"] == "decimal_comma"  # vírgula verificada nos dados
+    assert not {"governed_roles", "governed_premises"} & set(applied)
+    assert GENERIC["territory_longitudinal_confirmed"]["note"] in analysis_notes(applied, "temporal", mapping)
+    # Sem distância, o separador não é aplicado; valor explícito (inclusive false) prevalece.
+    assert "number_format" not in apply_premises(imported, mapping, chosen, spatial=False)
+    refused = apply_premises(imported, mapping, {**chosen, "comparison_confirmed": False})
+    assert refused["comparison_confirmed"] is False and "comparison_confirmed" not in refused["analysis_premises"]
+    # A verificação nos dados falha com o mesmo código e dois nomes: a premissa de identidade não é aplicada.
+    renamed_import = renamed.copy()
+    renamed_import.attrs = {}
+    assert "territory_longitudinal_confirmed" not in apply_premises(renamed_import, mapping, chosen)
+    # Campos do navegador que só o servidor calcula nunca são aceitos.
+    assert "governed_roles" not in apply_premises(imported, mapping, {**chosen, "governed_roles": ["count"]})
 
 
 def test_curated_brazil_profile_never_assumes_unrelated_categories():

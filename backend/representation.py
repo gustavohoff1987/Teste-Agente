@@ -5,14 +5,14 @@ do próprio resultado são representáveis — rótulo, unidade e natureza: valo
 posição, classe ou estado produzidos por capacidade (RQ-REP-02) — e entrega a geometria autorizada:
 as coordenadas efetivas de cada território na competência do resultado, lidas pela mesma regra das
 análises espaciais (referencial suportado, papéis de latitude e longitude estabelecidos, separador
-decimal declarado e camada geográfica complementar governada). Sem geometria autorizada, o mapa
+decimal escolhido ou verificado nos dados e camada geográfica complementar governada). Sem geometria autorizada, o mapa
 recebe BLQ-DAD com o motivo (RQ-REP-07); tabela e gráficos continuam disponíveis.
 """
 import re
 
 from brazil_catalog_profile import curated_profile, governed_version
 from combined_criteria import needs as criteria_needs
-from data_contract import ConfirmationRequired, canonical_crs, count_unit_label, scoped
+from data_contract import ChoiceRequired, canonical_crs, count_unit_label, scoped
 from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
                                nearest_inputs, territory_coordinates)
 
@@ -157,10 +157,17 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
     # distância. Não é um padrão para uploads nem uma declaração sobre o datum original,
     # ausente na fonte: desenha os pontos sem alterar opções, pré-exame ou chave de execução.
     # Nas análises de distância, o referencial já é premissa governada do perfil (opção "crs").
-    automatic = bool(not options.get("crs") and curated_profile(frame, mapping) and governed_version(frame))
+    profile = None if options.get("crs") else curated_profile(frame, mapping)
+    automatic = bool(profile and {"latitude", "longitude"} <= set(profile["governed_roles"]) and governed_version(frame))
     governed_crs = "crs" in (options.get("governed_premises") or [])
     if automatic:
         options = {**options, "crs": "SIRGAS2000", "number_format": options.get("number_format") or "decimal_comma"}
+    elif "number_format" not in options:
+        # Bases importadas: o separador das coordenadas verificado nos dados vale para desenhar os pontos; um valor
+        # escolhido explicitamente prevalece. Formato misto continua pedindo a escolha (SEPARADOR_DECIMAL).
+        from semantic_bridge import verified_separator
+        if verified_separator(frame, mapping) == "decimal_comma":
+            options = {**options, "number_format": "decimal_comma"}
     crs = canonical_crs(options.get("crs"))
     if not crs:
         if options.get("crs"):
@@ -169,7 +176,7 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
         return _unavailable("Informe o referencial geodésico das coordenadas para habilitar o mapa; nenhum referencial é "
                             "presumido.", "REFERENCIAL_GEODESICO", period)
     if not _coordinate_roles_established(frame, mapping, options):
-        return _unavailable("Confirme que latitude e longitude estão em graus decimais.", "PAPEIS_COORDENADAS", period)
+        return _unavailable("Escolha as colunas de latitude e longitude na preparação para ver o mapa.", "PAPEIS_COORDENADAS", period)
     ids = [item["id"] for item in members]
     try:
         if nearest is not None or (criteria is not None and criteria_needs(options)["spatial"]):
@@ -181,8 +188,8 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
             coordinates = territory_coordinates(scoped(frame, mapping, options), mapping, options)  # recorte da análise
         else:
             coordinates = territory_coordinates(_in_period(frame, mapping, period), mapping, options)
-    except ConfirmationRequired as exc:
-        return _unavailable(str(exc), "SEPARADOR_DECIMAL" if "separador decimal" in str(exc) else "CONFIRMACAO", period)
+    except ChoiceRequired as exc:
+        return _unavailable(str(exc), "SEPARADOR_DECIMAL" if "separador decimal" in str(exc) else "ESCOLHA_PENDENTE", period)
     except ValueError as exc:
         return _unavailable(str(exc), None, period)
     wanted = list(dict.fromkeys(ids))

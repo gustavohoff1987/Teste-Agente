@@ -23,13 +23,14 @@ import pandas as pd
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
-from semantic_bridge import candidates, normalize_headers, preflight, ROLES, EXACT, OPERATIONS
+from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
 from data_contract import validate_operation, rotation_data, period_positions, scoped, text_values, count_unit_label, canonical_crs
 from dataset_normalization import compose_period
 from recommended_template import HEADERS as RECOMMENDED_HEADERS, LEGEND_HEADER, recommended_workbook
 from territorial_hierarchy import describe_hierarchy
 from brazil_data import diagnostics as brazil_diagnostics, load_brazil
-from brazil_catalog_profile import curated_profile, apply_curated_options, premise_notes
+from brazil_catalog_profile import curated_profile, suggested_mapping
+from analysis_premises import apply_premises, limitations, premise_notes
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
 from llm_bridge import dialogue_action, _system_response, _document_response
@@ -180,9 +181,12 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
     result["metadata"]["indicator"] = (options.get("comparison_indicator", "density") if operation=="comparisons" else
         options.get(operation + "_indicator") if operation in ("temporal", "report", "distribution") else
         "quantity" if operation=="counts" else "density" if operation in ("density", "aggregate", "ranking") else operation)
-    result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if any(
+    limits = limitations(options, operation)
+    result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if limits or any(
         "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
         "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
+    if limits:
+        result["metadata"]["evaluability"]["limitacoes"] = limits
     if nearest:
         result["metadata"]["evaluability"]["status"] = nearest["evaluability"]
         result["metadata"]["nearest_reference"] = nearest["structured"]
@@ -206,13 +210,16 @@ def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: 
             operation != "criteria" or criteria_needs(options)["count"]):
         result["notes"].append("Unidade de contagem: " + str(unit) + ". Não há conversão entre pessoas, vínculos e postos.")
     if mapping.get("territory_id"):
-        result["notes"].append("Identificação territorial: nome e código associado pelo usuário; códigos não foram confrontados com cadastro externo.")
+        origin = ("código IBGE do perfil da base oficial" if "territory_id" in (options.get("governed_roles") or [])
+                  else "nome e código escolhidos por você")
+        result["notes"].append("Identificação territorial: " + origin + "; códigos não foram confrontados com cadastro externo.")
     if options.get("duplicate_policy") == "remove_exact":
         removed = int(scoped(df, mapping, options).duplicated().sum())
-        result["notes"].append(f"Remoção autorizada de {removed} cópias idênticas em todas as colunas.")
-    if options.get("rows_additive_confirmed"):
-        result["notes"].append("Componentes somados sob declaração de ausência de sobreposição do usuário; população territorial utilizada uma vez.")
-    result["notes"][:0] = premise_notes(options, operation)  # origem das premissas internas da base oficial
+        result["notes"].append(f"Remoção, escolhida por você, de {removed} cópias idênticas em todas as colunas.")
+    if options.get("rows_additive_confirmed") and "rows_additive_confirmed" not in (options.get("analysis_premises") or []):
+        result["notes"].append("Componentes somados nas colunas escolhidas como partes da mesma unidade; população territorial utilizada uma vez.")
+    # Origem das premissas: perfil da base oficial e premissas da análise aplicadas pelo backend (sem confirmação).
+    result["notes"][:0] = premise_notes(options, operation, mapping)
     result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria)
     return result
 
@@ -238,14 +245,18 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         for (ter, cat), group in tmp.groupby(["territory", "category"]):
             c0 = set(group[group.period == first].person)
             c1 = set(group[group.period == last].person)
+            # CAP-ROT-01: unidade sem registro em um dos períodos não tem coorte observável (não é 100% de saída).
+            observed = bool(c0) and bool(c1)
             ongoing = len(c0 & c1)
             rows.append({"Território": ter, "Categoria": cat, "Período inicial": first, "Período final": last, "Coorte inicial": len(c0),
-                         "Permanecem": ongoing, "Saíram": len(c0) - ongoing,
-                         "Permanência (%)": 100 * ongoing / len(c0) if c0 else None,
-                         "Rotatividade (%)": 100 * (len(c0) - ongoing) / len(c0) if c0 else None,
-                         "Condição": "Avaliável" if c0 else "Coorte inicial vazia"})
+                         "Permanecem": ongoing if observed else None, "Saíram": len(c0) - ongoing if observed else None,
+                         "Permanência (%)": 100 * ongoing / len(c0) if observed else None,
+                         "Rotatividade (%)": 100 * (len(c0) - ongoing) / len(c0) if observed else None,
+                         "Condição": "Avaliável" if observed else
+                                     "Não avaliável: sem registro observado em um dos períodos (SEM_REGISTRO_OBSERVADO)"})
         return _result("Rotatividade e permanência", "Coorte inicial de pessoas distintas; identificadores não são retornados.", rows,
-                       notes=["É necessária identidade longitudinal autorizada e suficiente nos dois períodos; confirme essa condição antes de interpretar os resultados."])
+                       notes=["A coorte reúne as pessoas distintas do período inicial pelo identificador individual associado; "
+                              "a permanência é conferida no período final."])
     if operation == "nearest":
         from nearest_reference import compute_nearest
         nearest = compute_nearest(df, mapping, options)
@@ -389,14 +400,9 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             else:
                 row["Tendência"] = "Não avaliável (< 4 observações)"
             rows.append(row)
-        # Na base oficial, as premissas internas substituem a declaração do usuário (ver compute).
-        governed = set(options.get("governed_premises") or [])
-        declared = [label for key, label in (("temporal_comparability_confirmed", "Comparabilidade temporal"),
-                                             ("territory_longitudinal_confirmed", "identidade longitudinal")) if key not in governed]
-        user_note = ([" e ".join(declared).capitalize() + (" foram declaradas" if len(declared) > 1 else " foi declarada") +
-                      " pelo usuário para esta execução."] if declared else [])
+        # As premissas de comparação (perfil oficial ou da análise) entram nas notas por compute; nenhuma é declarada aqui.
         result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") + " entre períodos; tendência somente com quatro ou mais observações.",
-                       rows, notes=user_note + ["Cada competência é independente; não se somam pessoas de períodos diferentes."])
+                       rows, notes=["Cada competência é independente; não se somam pessoas de períodos diferentes."])
         result["detail_rows"] = _records(data[keys + [metric]].rename(columns=cols))
         return result
     if operation == "comparisons":
@@ -675,7 +681,7 @@ async def llm_interpretation_with_dataset(
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
-        settings = apply_curated_options(frame, fields, settings)
+        settings = apply_premises(frame, fields, settings)
         eligibility = preflight(frame, fields, settings)
         capture = None
         result_record = None
@@ -701,7 +707,7 @@ async def llm_interpretation_with_dataset(
             if quick is not None:
                 sessions.remember(x_adt_session, context_revision, quick)
                 return quick
-        declared_category = settings.get("category_constant", "") if settings.get("object_confirmed") is True else ""
+        declared_category = settings.get("category_constant", "")  # objeto informado pelo usuário (sem confirmação)
         if not isinstance(declared_category, str):
             raise ValueError("Categoria declarada inválida.")
         def review_local(proposal):
@@ -710,7 +716,7 @@ async def llm_interpretation_with_dataset(
                                                frame=frame, mapping=fields, options=settings)
             if ambiguous:
                 reviewed["capability_status"] = "needs_confirmation"
-                reviewed["blockers"].append("Há mais de um período ou categoria no pedido; confirme o recorte na preparação.")
+                reviewed["blockers"].append("Há mais de um período ou categoria no pedido; escolha o recorte na preparação.")
                 reviewed["ambiguous_parameters"] = ambiguous
             return reviewed
         answer = await llm_interpret(
@@ -729,8 +735,8 @@ async def llm_interpretation_with_dataset(
             local_frame, local_fields = frame, fields
             if dataset == "brazil" and frame.attrs.get("source", {}).get("scope") != "municipal":
                 local_frame, _ = await _request_dataset(None, "", "brazil", "municipal", dataset_version=dataset_version)
-                local_fields, _ = candidates(local_frame)
-            local_settings = apply_curated_options(local_frame, local_fields, settings)
+                local_fields = suggested_mapping(local_frame)
+            local_settings = apply_premises(local_frame, local_fields, settings)
             proposed_indicator = answer["proposal"].get("indicator")
             if proposed_indicator in ("density", "quantity"):
                 local_settings = {**local_settings, "exploration_indicator": proposed_indicator}
@@ -772,7 +778,7 @@ def describe_brazil() -> dict:
             frame = _brazil_frame(raw, name, source)
             if frame is None or frame.empty:
                 raise ValueError("A base do Brasil não está disponível.")
-            mapping, _ = candidates(frame)
+            mapping = suggested_mapping(frame)
             profile = curated_profile(frame, mapping)
             period_col = mapping.get("period")
             category_col = mapping.get("category")
@@ -821,20 +827,25 @@ async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
                     "suggested_category_constant": "", "derived_fields": []}
         if frame.empty:
             raise ValueError("Planilha sem registros.")
-        mapping, profiles = candidates(frame)
+        _, profiles = candidates(frame)
+        # Só o reconhecido por regra conclusiva (e, na base oficial, o perfil) entra no mapeamento; as sugestões
+        # ficam em suggested_columns, para o topo de cada seletor, e nunca são selecionadas em silêncio (D1).
+        mapping = suggested_mapping(frame)
+        suggestions = suggested_columns(profiles)
         def available(role):
             col = mapping.get(role)
             return frame[col].dropna().astype(str).unique().tolist()[:80] if col else []
         from semantic_bridge import category_from_count_header
         profile = curated_profile(frame, mapping)
+        count_columns = [mapping["count"]] if mapping.get("count") else suggestions.get("count", [])
         return {"requires_sheet": False, "sheets": sheets, "columns": frame.columns.tolist(), "row_count": len(frame),
-                "suggested_mapping": mapping, "column_profiles": profiles,
+                "suggested_mapping": mapping, "suggested_columns": suggestions, "column_profiles": profiles,
                 "curated_defaults": profile,
                 "derived_fields": frame.attrs.get("derived_fields", []),
                 "source": frame.attrs.get("source"),
                 "catalog": _catalog_summary(frame),
-                "suggested_category_constant": category_from_count_header(mapping.get("count", "")),
-                "preflight": preflight(frame, mapping, apply_curated_options(frame, mapping, {})),
+                "suggested_category_constant": category_from_count_header(count_columns[0]) if len(count_columns) == 1 else "",
+                "preflight": preflight(frame, mapping, apply_premises(frame, mapping, {})),
                 "periods": available("period"), "categories": available("category"), "territories": available("territory")}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -851,7 +862,7 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
             raise ValueError("Selecione uma planilha para concluir o exame.")
         fields = json.loads(mapping)
         settings = json.loads(options)
-        return preflight(frame, fields, apply_curated_options(frame, fields, settings))
+        return preflight(frame, fields, apply_premises(frame, fields, settings))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -904,8 +915,8 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Parâmetros inválidos.")
         if dataset == "brazil":
-            fields, _ = candidates(frame)
-        settings = apply_curated_options(frame, fields, settings)
+            fields = suggested_mapping(frame)
+        settings = apply_premises(frame, fields, settings)
         if x_adt_session:
             sessions.capture(x_adt_session, context_revision, investigation_context(frame, fields, settings,
                                                                                    preflight(frame, fields, settings)))
@@ -922,7 +933,7 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
                   x_adt_session: str | None = Header(None)):
     try:
         if x_adt_session:
-            sessions.event(x_adt_session, "CONFIRMACAO")
+            sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
         frame, _ = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
@@ -930,7 +941,7 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         requested = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(requested, dict):
             raise ValueError("Parâmetros de análise inválidos.")
-        settings = apply_curated_options(frame, fields, requested)
+        settings = apply_premises(frame, fields, requested)
         eligibility = preflight(frame, fields, settings)
         gate = eligibility["capabilities"].get(operation)
         if gate is None:
@@ -945,7 +956,7 @@ async def analyze(file: UploadFile | None = File(None), operation: str = Form(..
         if not _is_spatial(operation, settings):
             # Referencial e separador decimal internos valem só nas análises de distância. O contexto da
             # conversa mantém todas as premissas, como nas demais etapas, e a preparação continua a mesma.
-            settings = apply_curated_options(frame, fields, requested, spatial=False)
+            settings = apply_premises(frame, fields, requested, spatial=False)
         result = compute(frame, fields, operation, settings)
         result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
         result["result_id"] = str(uuid.uuid4())

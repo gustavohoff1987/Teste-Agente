@@ -75,7 +75,7 @@ def test_verified_context_does_not_send_base_values_or_labels(monkeypatch):
     assert body["verification"]["ready_to_execute"] is False
     assert body["verification"]["slots"]["period"] == "found_in_dataset"
     assert body["verification"]["slots"]["category"] == "found_in_dataset"
-    assert body["verification"]["slots"]["territory"] == "requires_unit_confirmation"
+    assert body["verification"]["slots"]["territory"] == "set_in_scope"  # sem confirmação da unidade (D1)
     assert body["verification"]["capability_status"] in (
         "available", "needs_confirmation", "unavailable",
     )

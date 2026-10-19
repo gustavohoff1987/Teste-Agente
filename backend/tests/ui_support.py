@@ -69,8 +69,18 @@ def workspace(page, stage):
             expand(toggle)
 
 
+def choose(inline, label, column):
+    """Escolhe a coluna de um campo no seletor da preparação (D1): a sugestão aparece no topo, mas nunca é selecionada
+    em silêncio; escolher a coluna estabelece o papel. Não há botão de confirmação."""
+    field = inline.get_by_label(label, exact=True)
+    expect(field).to_be_visible()
+    field.select_option(column)
+    expect(field).to_have_value(column)
+    return field
+
+
 def stage(page, number):
     panel = page.get_by_role("region", name="Preparação da análise")
-    names = ["1. Identificar os dados", "2. Parâmetros e confirmações", "3. Revisar e executar"]
+    names = ["1. Identificar os dados", "2. Parâmetros", "3. Revisar e executar"]
     panel.get_by_role("button", name=names[number-1], exact=False).click()
     expect(panel.get_by_text(f"Etapa {number} de 3", exact=True)).to_be_visible()

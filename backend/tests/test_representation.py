@@ -112,10 +112,16 @@ def test_map_without_authorized_geometry_is_blocked_with_reason_and_table_intact
 
 def test_coordinate_format_and_roles_must_be_established():
     comma = frame(comma=True)
-    body = analyze(comma, separator=";", **GEO)
-    assert body["metadata"]["representacao"]["geometria"]["pendencia"] == "SEPARADOR_DECIMAL"
+    # D1: a vírgula decimal das coordenadas é verificada nos dados (quantidades e populações sem vírgula).
+    verified = analyze(comma, separator=";", **GEO)["metadata"]["representacao"]["geometria"]
+    assert verified["estado"] == "DISPONIVEL" and points(verified)["code:130340"] == (-2.628, -56.736)
     declared = analyze(comma, separator=";", number_format="decimal_comma", **GEO)["metadata"]["representacao"]["geometria"]
     assert declared["estado"] == "DISPONIVEL" and points(declared)["code:130340"] == (-2.628, -56.736)
+    # Formato misto (vírgula numa coordenada, ponto em outra): o separador não pode ser verificado e continua escolha.
+    mixed = comma.copy()
+    mixed.loc[0, "latitude"] = "-3.119"
+    body = analyze(mixed, separator=";", **GEO)
+    assert body["metadata"]["representacao"]["geometria"]["pendencia"] == "SEPARADOR_DECIMAL"
     renamed = frame().rename(columns={"latitude": "y_coord", "longitude": "x_coord"})
     mapping = {**MAP, "latitude": "y_coord", "longitude": "x_coord"}
     roles = [role for role in MAP if role not in ("latitude", "longitude")]

@@ -27,7 +27,7 @@ Resultados limitados mantêm seus qualificadores; resultado sem linhas recebe me
   não certifica comparabilidade de valores**, não transfere quintis, não produz relações e não
   soma resultados. Relações analíticas continuam exclusivamente nas operações existentes.
 - “Usar seleção na próxima análise” leva identificadores à preparação. Comparações e agregações
-  continuam exigindo suas confirmações e uma execução explícita. Alterar parâmetros não recalcula
+  continuam exigindo as escolhas da preparação e uma execução explícita. Alterar parâmetros não recalcula
   nem modifica resultados anteriores. Abrir uma etapa não restaura parâmetros silenciosamente.
 
 ## Conversa, disponibilidade e privacidade

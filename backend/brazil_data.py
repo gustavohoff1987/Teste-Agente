@@ -155,7 +155,7 @@ def load_brazil(scope="auto", operation="", version="", details=False):
         raise ValueError(UNAVAILABLE + ": " + reason + ".") from exc
     current_version = state["versao"]
     if version and version != current_version:
-        raise ValueError("A base Brasil foi atualizada. Carregue-a novamente e revise as confirmações antes de analisar.")
+        raise ValueError("A base Brasil foi atualizada. Carregue-a novamente e revise as escolhas antes de analisar.")
     source = {
         "dataset": "brazil", "label": "Dados do Brasil", "scope": selected,
         "version": current_version, "default_scopes": DEFAULT_SCOPES,

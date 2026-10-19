@@ -248,7 +248,8 @@ def main():
                 steps.get_by_test_id('period-done').click()
         fresh.close()
 
-        # Importação: múltiplos períodos não dispensam confirmação da unidade e da FTS.
+        # Importação: múltiplos períodos não dispensam a escolha da unidade; a categoria MEDICINA é reconhecida pelo catálogo
+        # (D1: sem caixa de declaração da força de trabalho em saúde nem botão de confirmação).
         imported = context.new_page()
         imported.on('pageerror', lambda error: errors.append(str(error)))
         imported.goto(URL)
@@ -259,7 +260,7 @@ def main():
         select(imported, 'Quantitativos')
         preparation = imported.locator('#preparacao-conversacional')
         preparation.get_by_label('Unidade de contagem', exact=True).select_option('pessoas')
-        preparation.get_by_label('Confirmo que os dados selecionados correspondem à força de trabalho em saúde.').check()
+        expect(preparation.get_by_text('Confirmo', exact=False)).to_have_count(0)
         preparation.get_by_role('button', name='Selecionar vários períodos', exact=True).click()
         preparation.get_by_label('Escolher períodos da análise').click()
         # Todos os períodos vêm incluídos por padrão: o primeiro clique escolhe só a competência clicada.
@@ -267,12 +268,12 @@ def main():
         january.click()
         expect(january).to_have_attribute('aria-pressed', 'true')
         expect(preparation.get_by_role('button', name='junho de 2024', exact=True)).to_have_attribute('aria-pressed', 'false')
-        # Retirada a única escolhida, nenhum período fica selecionado e a confirmação continua bloqueada.
+        # Retirada a única escolhida, nenhum período fica selecionado e a execução continua bloqueada.
         january.click()
-        expect(preparation.get_by_role('button', name='Confirmar correspondências', exact=True)).to_be_disabled()
-        preparation.get_by_role('button', name='Todos os períodos disponíveis', exact=True).click()
-        preparation.get_by_role('button', name='Confirmar correspondências', exact=True).click()
         execute = preparation.get_by_role('button', name='Executar análise', exact=True)
+        expect(execute).to_be_disabled()
+        expect(preparation.get_by_role('button', name='Confirmar correspondências', exact=True)).to_have_count(0)
+        preparation.get_by_role('button', name='Todos os períodos disponíveis', exact=True).click()
         expect(execute).to_be_enabled(timeout=30000)
         with imported.expect_response(lambda r: r.url.endswith('/api/analyze')) as event:
             execute.click()

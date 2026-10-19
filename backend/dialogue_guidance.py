@@ -95,7 +95,7 @@ def clarification_for(
     if slots.get("period") == "not_confirmed_in_dataset":
         return _make(
             "PERIODO_NAO_CONFIRMADO",
-            "O período mencionado não foi confirmado na base. Deseja revisar o período na preparação?",
+            "O período mencionado não foi encontrado na base. Deseja revisar o período na preparação?",
             [], "O pré-exame não encontrou correspondência para o período informado.",
         )
     if slots.get("category") == "not_confirmed_in_dataset":
@@ -103,11 +103,5 @@ def clarification_for(
             "CATEGORIA_NAO_CONFIRMADA",
             "Vamos localizar nos dados a categoria correspondente à profissão que você mencionou. Confira a opção adequada antes de calcular.",
             [], "A correspondência de categorias depende dos dados e das regras governadas.",
-        )
-    if slots.get("territory") == "requires_unit_confirmation":
-        return _make(
-            "UNIDADE_TERRITORIAL",
-            "Confirme a unidade territorial na etapa de identificação dos dados.",
-            [], "A menção a um nível territorial não confirma sua associação com a base.",
         )
     return None

@@ -32,16 +32,16 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
 | --- | --- | --- |
-| `Período` / `Competência` | `periodo_ano` + `periodo_mes` | Composição determinística AAAAMM em memória, com confirmação e linhagem |
-| `ibge` | `cod_ibge` | Novo alias de código territorial; confirmação mantida |
+| `Período` / `Competência` | `periodo_ano` + `periodo_mes` | Composição determinística AAAAMM em memória, reconhecida por regra (componentes validados), com linhagem |
+| `ibge` | `cod_ibge` | Novo alias de código territorial; sugestão até ser escolhido no seletor (na base oficial, papel do perfil) |
 | `categoria_profisional` | `categoria_profissional` | Alias correto já era suportado; testes atualizados, alias antigo preservado |
 | `Contagem` / `Total de médicos únicos` | `quantidade` / `contagem` | Aliases existentes; unidade continua declarada pelo usuário |
 | Nacional sem geografia/categoria explícitas | `pais`, `categoria_profissional` | Reconhecimento de país e uso da categoria da própria base |
-| Coordenadas com vírgula | `latitude`, `longitude` | Formato já suportado mediante declaração; validação de intervalos mantida |
+| Coordenadas com vírgula | `latitude`, `longitude` | Separador decimal verificado nos dados (escolha só com formato misto); valor fora do intervalo não rebaixa a coluna |
 
 O leitor comum atende inspeção, pré-exame, cálculo e contexto conversacional.
-`dataset_normalization.py` mantém os campos originais; `semantic_bridge.py` oferece
-o campo derivado como proposta, não como confirmação. O motor mantém seus cálculos.
+`dataset_normalization.py` mantém os campos originais; `semantic_bridge.py` reconhece
+o campo derivado por regra conclusiva (os componentes são validados na importação). O motor mantém seus cálculos.
 Filtros, multiplicidade e séries usam o mesmo período composto. Os metadados de
 exportação registram a regra, os campos de origem, o recorte e a versão lógica.
 
@@ -52,7 +52,8 @@ somente Dados do Brasil e a abrangência analítica. O padrão é nacional para 
 evolução temporal e relatórios; municipal para as outras operações. Nessas três análises,
 as únicas com resultado nas duas fontes, o usuário escolhe a abrangência explicitamente, na caixa
 "Abrangência territorial" (Brasil ou municípios); nas demais, a preparação informa que só a fonte
-municipal se aplica. Trocar de recorte exige novas confirmações.
+municipal se aplica. Trocar de recorte refaz o pré-exame no backend; escolhas comuns de período e
+categoria são preservadas quando equivalentes.
 
 Não há união, preenchimento ou soma entre fontes. Quantitativos nacionais são lidos
 da fonte nacional; não são obtidos pela soma das contagens municipais. Na agregação
@@ -65,13 +66,17 @@ Selecionar um recorte sem os requisitos necessários mantém a análise bloquead
 Decisão do responsável pelo produto (orientação de 18/10/2026): na base disponibilizada pela
 plataforma, o usuário não confirma premissas de comparabilidade nem, nas análises de distância da
 versão governada, o referencial e o separador decimal das coordenadas. `brazil_catalog_profile.py`
-as aplica somente quando o perfil governado é reconhecido (estrutura, mapeamento canônico e
-categoria única MEDICINA, depois da integridade conferida pelo manifesto). As opções aplicadas
-ficam em `governed_premises`, e cada resultado afetado traz a nota correspondente em "Método e
-limitações". O usuário não declara nada em nome da fonte.
+as aplica quando a fonte oficial é reconhecida (estrutura e categoria única MEDICINA, depois da
+integridade conferida pelo manifesto), **campo a campo** (decisão D1 de 19/10/2026): cada papel cuja
+coluna ainda é a canônica fica em `governed_roles`, e cada premissa vale só quando todos os papéis de
+que depende estão governados. Mudar uma coluna não desliga o perfil inteiro: as premissas que
+dependiam daquele papel passam à camada genérica (`analysis_premises.py`, com nota própria). As
+opções aplicadas ficam em `governed_premises`, e cada resultado afetado traz a nota correspondente
+em "Método e limitações". O usuário não declara nada em nome da fonte.
 
 | Premissa (opção do motor) | Recortes | Análises | Origem |
 |---|---|---|---|
+| Papéis dependentes (todas as premissas) | — | — | `temporal`: período, categoria, contagem e território; identidade territorial: território, código e período; comparabilidade: contagem, população e território; populações: população e território; soma dos componentes: contagem e território; referencial: latitude e longitude; separador: latitude, longitude, contagem e população (só os papéis existentes no recorte contam) |
 | Comparabilidade temporal (`temporal_comparability_confirmed`) | nacional e municipal | evolução temporal | regra do perfil: mesma fonte, categoria e unidade em todas as competências |
 | Identidade territorial ao longo do tempo (`territory_longitudinal_confirmed`) | nacional e municipal | evolução temporal | verificada nos dados: um único território no recorte nacional; no municipal, cada código IBGE mantém o mesmo nome em todas as competências |
 | Comparabilidade entre municípios (`comparison_confirmed`) | municipal | comparações e rankings | regra do perfil: mesma medida, unidade e população estimada em cada competência |
@@ -84,20 +89,24 @@ Verificação na versão governada (`819cf4628bff…`): 5.570 códigos e nenhum 
 nas 22 competências. Faltam seis observações código–competência (três em janeiro de 2015 e uma
 em junho de 2015, janeiro de 2017 e janeiro de 2020); elas continuam não avaliáveis nos
 extremos da evolução, sem interpolação. Se uma versão futura falhar na verificação, a identidade
-territorial não é aplicada e a confirmação volta à interface. Na mesma versão, as 122.534 linhas
+territorial não é aplicada e a evolução temporal fica impedida com o motivo ("Identidade territorial
+ao longo do tempo não verificada"). Na mesma versão, as 122.534 linhas
 municipais têm latitude e longitude preenchidas com vírgula decimal ou inteiras (132 latitudes e
 44 longitudes inteiras), e quantidade e população estimada só com dígitos; sem essa evidência, o
-separador decimal volta a ser pedido.
+separador decimal vira escolha do usuário.
 
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
 fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
 referencial SIRGAS 2000, que não certifica o datum original. As duas premissas de distância só
 entram nas análises que usam coordenadas: nas demais, o mapa continua com a configuração só de
-apresentação e as opções do cálculo não mudam. A declaração explícita de ausência de
-sobreposição, nas opções avançadas, continua prevalecendo sobre a soma dos componentes, e um
+apresentação e as opções do cálculo não mudam. A opção explícita de ausência de sobreposição
+(`no_overlap_confirmed`), aceita só pela API desde 19/10/2026 (a tela não a oferece mais), continua
+prevalecendo sobre a soma dos componentes, e um
 referencial ou separador informado explicitamente pela API também prevalece (um referencial não
-suportado ou o ponto decimal continuam recusados). Outras versões da base, bases importadas e
-preparações com significados alterados mantêm todas as confirmações.
+suportado ou o ponto decimal continuam recusados). Em outras versões da base, em bases importadas e
+nos papéis que saíram do perfil, nenhuma confirmação é pedida: as mesmas condições são premissas da
+análise (`analysis_premises`), com origem e nota; um `false` explícito na API continua recusando a
+premissa.
 
 O catálogo compartilha as rotas existentes com uploads. A requisição usa `dataset=brazil`,
 `scope=national|municipal|auto` e a versão retornada por `/api/inspect`. Nenhum caminho
@@ -109,8 +118,11 @@ A conversa recebe somente os estados técnicos já previstos, nunca linhas ou ar
 
 Foram encontrados 22 períodos (janeiro e junho de 2014 a 2024), 22 linhas nacionais e
 122.534 municipais. Os códigos distinguem 5.570 municípios; nomes isolados geram
-11.528 registros em 5.324 grupos com mais de uma linha. Confirmar o código elimina
-essa ambiguidade sem somar municípios homônimos.
+11.528 registros em 5.324 grupos com mais de uma linha. Escolher o código (na base oficial, papel do
+perfil) elimina essa ambiguidade sem somar municípios homônimos. Numa cópia importada da base
+municipal, o código vem como sugestão no topo do seletor e a densidade fica numa escolha pendente
+("Escolha a coluna do código territorial…") até a escolha; coordenadas e período são reconhecidos
+por regra e a vírgula decimal é verificada nos dados.
 
 | Capacidade | Validação nas fontes atuais |
 | --- | --- |
@@ -119,7 +131,7 @@ essa ambiguidade sem somar municípios homônimos.
 | Distribuição | Quantidade e densidade, período único, quintis e empates conferidos |
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
 | Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados |
-| Agregação | Apenas soma explicitamente autorizada; resultado não identificado como total nacional de pessoas únicas |
+| Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas |
 | Espacial | Base completa bloqueada por coordenadas inválidas; cálculo confrontado com Haversine em subconjunto de teste válido (13/10/2026: executável com a camada complementar oficial, distâncias iguais à geodésica independente sobre as coordenadas efetivas) |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |
@@ -190,7 +202,7 @@ Os testes gerais usam fontes sintéticas e não precisam do catálogo real. Os t
 reais são opt-in e comparam os hashes dos originais antes e depois. O teste de upload
 municipal confere o CSV exportado com Decimal, linha por linha. O teste do catálogo
 confere exportação nacional, densidade municipal, troca de recorte, descarte de
-confirmações, conversa simulada e retorno ao upload internacional. Não há chamadas
+escolhas, conversa simulada e retorno ao upload internacional. Não há chamadas
 reais ao provedor de IA nos testes.
 
 Para a futura operação online, será necessário disponibilizar as fontes autorizadas

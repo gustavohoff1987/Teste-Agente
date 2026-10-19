@@ -8,7 +8,7 @@ async function source(name) {
   return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 }
 const {normalizeCommand, navigationCommand} = await source('workspaceNavigation');
-const {matchesCuratedPreparation} = await source('curatedPreparation');
+const {governedRoles} = await source('curatedPreparation');
 test('comandos de navegação aceitam acentos, pontuação e espaços sem interpretar pedidos analíticos', () => {
   assert.equal(normalizeCommand('  Usar  dados do Brasil. '), 'usar dados do brasil');
   assert.equal(navigationCommand('Volte para a seleção de territórios.', 'results', true), 'territories');
@@ -18,13 +18,13 @@ test('comandos de navegação aceitam acentos, pontuação e espaços sem interp
   assert.equal(navigationCommand('Compare Manaus e Tefé.', 'preparation', true), null);
   assert.equal(navigationCommand('Não volte para a seleção de territórios.', 'results', true), null);
 });
-test('reconhecimento oficial não sobrevive a mudanças dos significados nem se aplica a importações', () => {
-  const defaults = {mapping: {count:'quantidade', period:'competencia', territory:'municipio', population:'populacao'},
-    category:'MEDICINA', count_unit:'pessoas', fts_scope_confirmed:true, object_confirmed:true, population_denominator_confirmed:true};
-  const valid = {official:true, mapping:{...defaults.mapping}, category:'MEDICINA', countUnit:'pessoas', fts:true, object:true, population:true};
-  assert.equal(matchesCuratedPreparation(defaults, valid), true);
-  for (const patch of [{official:false}, {category:'OUTRA'}, {countUnit:'vinculos'}, {population:false}, {fts:false}, {object:false},
-    {mapping:{...valid.mapping, count:'outro_campo'}}, {mapping:{...valid.mapping, identity:'cpf'}}, {mapping:{...valid.mapping, period:''}}])
-    assert.equal(matchesCuratedPreparation(defaults, {...valid, ...patch}), false);
-  assert.equal(matchesCuratedPreparation(null, valid), false);
+test('perfil oficial vale campo a campo: mudar uma coluna tira só aquele papel e importações não têm perfil', () => {
+  const defaults = {mapping: {count:'quantidade', period:'competencia', territory:'municipio', population:'populacao'}};
+  assert.deepEqual(governedRoles(defaults, {...defaults.mapping}), ['count', 'period', 'territory', 'population']);
+  // D1: antes, qualquer mudança desligava o perfil inteiro; agora só o papel alterado sai dele.
+  assert.deepEqual(governedRoles(defaults, {...defaults.mapping, count:'outro_campo'}), ['period', 'territory', 'population']);
+  assert.deepEqual(governedRoles(defaults, {...defaults.mapping, period:''}), ['count', 'territory', 'population']);
+  assert.deepEqual(governedRoles(defaults, {...defaults.mapping, identity:'cpf'}), ['count', 'period', 'territory', 'population']);
+  assert.deepEqual(governedRoles(null, defaults.mapping), []);
+  assert.deepEqual(governedRoles(undefined, {}), []);
 });

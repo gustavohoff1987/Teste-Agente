@@ -48,11 +48,12 @@ def test_a09_review_uses_proposed_indicator_and_period_not_current_gate(provider
 
 
 def test_a09_pending_period_association_is_not_reported_as_missing_value(provider):
-    # Período AAAAMM derivado fica "proposto" até a confirmação; o valor existe na base.
+    # Cabeçalho de período sem regra de reconhecimento ("Ref") fica como escolha pendente até ser escolhido no
+    # seletor; o valor existe na base. (O período AAAAMM composto passou a ser reconhecido por regra, D1.)
     install, _ = provider
-    raw = (b"Municipality,periodo_ano,periodo_mes,Profession,Count\n"
-           b"A,2024,6,Nurses,1\nB,2024,6,Nurses,2\nA,2024,1,Nurses,3\n")
-    mapping = {"territory": "Municipality", "period": "Período (ano e mês)", "category": "Profession", "count": "Count"}
+    raw = (b"Municipality,Ref,Profession,Count\n"
+           b"A,202406,Nurses,1\nB,202406,Nurses,2\nA,202401,Nurses,3\n")
+    mapping = {"territory": "Municipality", "period": "Ref", "category": "Profession", "count": "Count"}
 
     def review(period):
         install({**RAW, "operation": "counts", "indicator": "quantity", "period": period, "category": ""})
@@ -64,7 +65,7 @@ def test_a09_pending_period_association_is_not_reported_as_missing_value(provide
 
     pending = review("202406")
     assert pending["capability_status"] == "needs_confirmation", pending
-    assert any("Confirme a associação de Período" in b for b in pending["blockers"])
+    assert any("Escolha a coluna de Período no seletor" in b for b in pending["blockers"])
     assert not any("correspondência única" in b for b in pending["blockers"])
     assert pending["slots"]["period"] == "not_confirmed_in_dataset" and not pending["ready_to_execute"]
     absent = review("209912")

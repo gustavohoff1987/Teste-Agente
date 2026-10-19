@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 
 from main import app, read_dataset
 from recommended_template import HEADERS, LEGEND_HEADER, recommended_workbook
-from semantic_bridge import candidates, preflight
+from semantic_bridge import candidates, preflight, suggested_columns
 from territorial_hierarchy import describe_hierarchy
 
 client = TestClient(app)
@@ -53,10 +53,13 @@ def test_template_roundtrip_excludes_legend_and_preserves_code():
     assert "LEGENDA" not in str(frame.columns)
     assert str(frame.loc[0, "codigo_identificador"]) == "000123"
     assert frame.attrs["derived_fields"][0]["format"] == "yyyymm"
-    mapping, _ = candidates(frame)
+    mapping, profiles = candidates(frame)
     assert mapping["territory"] == "territorio_analise"
-    assert mapping["territory_id"] == "codigo_identificador"
-    hierarchy = preflight(frame, mapping)["territorial_hierarchy"]
+    # D1: o código é só sugestão até ser escolhido no seletor (seletor vazio com a sugestão no topo).
+    assert "territory_id" not in mapping
+    assert suggested_columns(profiles)["territory_id"] == ["codigo_identificador"]
+    mapping["territory_id"] = "codigo_identificador"  # escolha do usuário
+    hierarchy = preflight(frame, mapping, {"confirmed_roles": ["territory_id"]})["territorial_hierarchy"]
     assert [x["column"] for x in hierarchy["levels"]] == list(HEADERS[:3])
     assert hierarchy["aggregation_authorized"] is False
     assert hierarchy["relations"][0]["conflicting_units"] == 0
@@ -67,7 +70,8 @@ def test_renamed_brazilian_headers_preserve_generic_hierarchy():
     assert frame is not None
     mapping, _ = candidates(frame)
     assert mapping["territory"] == "Município"
-    assert mapping["territory_id"] == "cod_ibge"
+    assert "territory_id" not in mapping  # sugestão até ser escolhida
+    mapping["territory_id"] = "cod_ibge"
     hierarchy = describe_hierarchy(frame, mapping)
     assert hierarchy["status"] == "detected"
     assert [x["column"] for x in hierarchy["levels"]] == [
@@ -83,6 +87,7 @@ def test_homonymous_territory_names_with_distinct_ids_do_not_conflict():
         "codigo_identificador": ["001", "002"],
     })
     mapping, _ = candidates(df)
+    mapping["territory_id"] = "codigo_identificador"  # código escolhido no seletor (antes vinha pré-preenchido)
     hierarchy = describe_hierarchy(df, mapping)
     assert hierarchy["status"] == "detected"
     assert hierarchy["relations"][0]["conflicting_units"] == 0

@@ -35,8 +35,10 @@ def territory_catalog(frame, mapping, options):
     name_col, code_col = mapping.get("territory"), mapping.get("territory_id")
     if not name_col or name_col not in frame:
         raise ValueError("Seleção territorial exige uma coluna de territórios associada.")
-    if code_col and "territory_id" not in options.get("confirmed_roles", []):
-        raise ValueError("Confirme o identificador territorial antes de selecionar unidades.")
+    if code_col:
+        from semantic_bridge import role_established  # importação tardia: a ponte usa este módulo
+        if not role_established(frame, mapping, options, "territory_id"):
+            raise ValueError("Escolha a coluna do código territorial para selecionar unidades.")
     columns = [name_col] + ([code_col] if code_col else [])
     # Os níveis dependem só dos nomes das colunas; as relações são conferidas nos pares abaixo.
     hierarchy = describe_hierarchy(frame.head(0), mapping, options.get("hierarchy_columns"))
@@ -58,7 +60,7 @@ def territory_catalog(frame, mapping, options):
         if conflicts and not code_col:
             raise ValueError("Identificação territorial ambígua entre níveis superiores. Associe um código inequívoco ou corrija a hierarquia.")
     profile = curated_profile(frame, mapping)
-    brazil = bool(profile and profile["scope"] == "municipal")
+    brazil = bool(profile and profile["scope"] == "municipal" and "territory_id" in profile["governed_roles"])
     items = []
     # Registros simples: iterrows copiaria frame.attrs a cada unidade territorial.
     for row in pairs.drop_duplicates(key_col).to_dict("records"):

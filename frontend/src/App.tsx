@@ -11,7 +11,8 @@ import { InvestigationViewState, type ViewMemory } from "./InvestigationViewStat
 import ResultTable from "./ResultTable";
 import { tableColumns } from "./representation";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
-import { matchesCuratedPreparation } from "./curatedPreparation";
+import { governedRoles } from "./curatedPreparation";
+import { fieldOptions } from "./fieldChoices";
 import { addsMunicipalities, describeScope } from "./territorialScope";
 import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
@@ -49,24 +50,32 @@ type ColumnProfile = {
   name: string; type: string; missing: number; suspicious_header: boolean;
   proposal: { role: Role; status: "recognized" | "proposed"; evidence: string }[];
 };
-type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: string; detail: string };
+// "needs_confirmation" é o valor do contrato da API para "escolha pendente" (D1: nenhuma confirmação de campo).
+type Requirement = { status: "met" | "needs_confirmation" | "missing"; title: string; detail: string; kind?: "escolha" | "dados"; step?: 0 | 1 };
+type FieldOrigin = "PERFIL_GOVERNADO" | "REGRA_CONFIGURADA" | "ESCOLHA_DO_USUARIO" | "SUGESTAO_NAO_ESCOLHIDA";
 type Capability = { status: "available" | "needs_confirmation" | "unavailable"; reasons: string[]; requirements: Requirement[] };
 type Preflight = {
   territory_choices?: Territory[]; selection_reason?: string;
   multiplicity: Multiplicity;
   territorial_hierarchy?: {status: string; levels: {role: string; column: string}[]; warnings: string[]};
   capabilities: Record<Operation, Capability>;
-  field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string }>;
+  field_states: Record<Role, { status: FieldStatus; column: string; message: string; evidence?: string; origin?: FieldOrigin }>;
   values: {territories: string[]; periods: string[]; categories: string[]};
+  /** Objeto de análise: reconhecido (catálogo ou perfil), informado por você ou ausente. */
+  object?: {status: "reconhecido" | "informado" | "ausente"; origin: string | null};
+  /** Premissas aplicadas pelo backend nesta preparação (perfil oficial e premissas da análise). */
+  premises?: string[];
+  /** Separador das coordenadas verificado nos dados (null: formato misto; "" quando não se aplica). */
+  coordinate_separator?: string | null;
   profile: {row_count: number; column_count: number; recognized_roles: number};
 };
 type Inspection = {
   requires_sheet: boolean; sheets: string[]; columns: string[]; row_count: number;
-  suggested_mapping: Mapping; periods: string[]; categories: string[]; territories: string[];
+  suggested_mapping: Mapping; suggested_columns?: Partial<Record<Role, string[]>>; periods: string[]; categories: string[]; territories: string[];
   column_profiles: ColumnProfile[]; preflight: Preflight | null; suggested_category_constant: string;
   derived_fields?: { column: string; role: Role; source_columns: string[]; format: string }[];
   curated_defaults?: { mapping: Mapping; category: string; scope: "national" | "municipal"; count_unit: string;
-    confirmed_roles: Role[]; fts_scope_confirmed: boolean; object_confirmed: boolean;
+    confirmed_roles: Role[]; governed_roles?: Role[]; fts_scope_confirmed: boolean; object_confirmed: boolean;
     population_denominator_confirmed: boolean;
     premises?: { option: string; label: string; origin: string; operations: Operation[] }[] } | null;
   source?: { dataset: string; label: string; scope: "national" | "municipal"; version: string;
@@ -215,7 +224,6 @@ function App() {
   const [scopeNotice, setScopeNotice] = useState("");
   const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [active, setActive] = useState<Operation | null>(null);
-  const [inlineConfirmed, setInlineConfirmed] = useState(false);
   const [requestedCategory, setRequestedCategory] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
@@ -262,20 +270,14 @@ function App() {
   const [distributionIndicator, setDistributionIndicator] = useState<"" | "quantity" | "density">("");
   const [temporalIndicator, setTemporalIndicator] = useState<"" | "quantity" | "density">("");
   const [reportIndicator, setReportIndicator] = useState<"" | "quantity" | "density">("");
-  const [confirmedNoOverlap, setConfirmedNoOverlap] = useState(false);
-  const [ftsScopeConfirmed, setFtsScopeConfirmed] = useState(false);
-  const [singlePeriodConfirmed, setSinglePeriodConfirmed] = useState(false);
-  const [confirmedRoles, setConfirmedRoles] = useState<Role[]>([]);
+  // D1: só escolhas. Os papéis escolhidos seguem no campo "confirmed_roles" do contrato da API (significado: escolhidos);
+  // período único é uma opção do seletor de período; o objeto de análise é o texto informado. As antigas declarações
+  // são premissas aplicadas pelo backend, com nota no resultado: a tela não as pede nem envia.
+  const [singlePeriod, setSinglePeriod] = useState(false);
+  const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [countUnit, setCountUnit] = useState("");
   const [customCountUnit, setCustomCountUnit] = useState("");
-  const [populationAligned, setPopulationAligned] = useState(false);
-  const [temporalCompared, setTemporalCompared] = useState(false);
-  const [territoryStable, setTerritoryStable] = useState(false);
-  const [longitudinalIdentity, setLongitudinalIdentity] = useState(false);
-  const [identityCountConfirmed, setIdentityCountConfirmed] = useState(false);
-  const [categoryConstant, setCategoryConstant] = useState("");
   const [objectDraft, setObjectDraft] = useState("");
-  const [objectConfirmed, setObjectConfirmed] = useState(false);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [preflighting, setPreflighting] = useState(false);
   const [preflightError, setPreflightError] = useState("");
@@ -292,18 +294,15 @@ function App() {
   }
   function restorePreparation(saved: ReturnType<typeof snapshotPreparation>) {
     const o = saved.options;
-    setMapping(saved.mapping); setConfirmedRoles(o.confirmed_roles);
+    setMapping(saved.mapping); setSelectedRoles(o.confirmed_roles);
     setHierarchyColumns(o.hierarchy_columns);
-    setFtsScopeConfirmed(o.fts_scope_confirmed); setSinglePeriodConfirmed(o.single_period_confirmed);
+    setSinglePeriod(!!o.single_period_confirmed);
     setCountUnit(o.count_unit); setCustomCountUnit(o.custom_count_unit);
-    setPopulationAligned(o.population_denominator_confirmed); setTemporalCompared(o.temporal_comparability_confirmed);
-    setTerritoryStable(o.territory_longitudinal_confirmed); setLongitudinalIdentity(o.longitudinal_identity_confirmed);
-    setIdentityCountConfirmed(o.identity_count_confirmed); setCategoryConstant(o.category_constant);
-    setObjectDraft(saved.objectDraft); setObjectConfirmed(o.object_confirmed);
+    setObjectDraft(saved.objectDraft);
     setPeriodFilter(o.period_filter); setSelectedPeriods(saved.selectedPeriods);
     setMultiplePeriods(saved.multiplePeriods);
     setCategoryFilter(o.category_filter); setReference(o.reference_territory);
-    setResolutions(saved.resolutions); setConfirmedNoOverlap(o.no_overlap_confirmed); setCrs(o.crs);
+    setResolutions(saved.resolutions); setCrs(o.crs);
     setQuantiles(saved.quantiles); setDistributionIndicator(saved.distributionIndicator);
     setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
     setTerritoryIds(saved.territoryIds); setComparisonIndicator(saved.comparisonIndicator);
@@ -318,16 +317,13 @@ function App() {
   const selectedFeature = FEATURES.find(f => f.id === active);
   const sourceKey = JSON.stringify({source: usingBrazil ? "brazil" : "upload:" + sourceGeneration,
     version: sourceVersion, scope: inspection?.source?.scope, sheet});
-  // A base oficial governada declara papéis, unidade e alinhamento do denominador.
-  const curatedSetup = matchesCuratedPreparation(inspection?.curated_defaults, {
-    official: usingBrazil, mapping, category: categoryFilter, countUnit,
-    fts: ftsScopeConfirmed, object: objectConfirmed, population: populationAligned,
-  });
-  // Premissas de comparabilidade internas da base oficial: o backend as aplica e registra a origem no
-  // resultado; a interface não as pede. Importações e significados alterados continuam com as declarações.
-  const governedPremises = new Set(curatedSetup ? (inspection?.curated_defaults?.premises || []).map(item => item.option) : []);
+  // Premissas aplicadas pelo backend nesta preparação (perfil oficial e premissas da análise, com nota no resultado):
+  // a interface não as pede. Vêm do último pré-exame; antes dele, as do perfil oficial.
+  const governedPremises = new Set(preflight?.premises ||
+    (usingBrazil ? (inspection?.curated_defaults?.premises || []).map(item => item.option) : []));
   // Base oficial: as configurações reúnem, na caixa "Abrangência territorial", o Brasil (total nacional) e os municípios.
-  const configurationPanel = usingBrazil && curatedSetup;
+  // Nunca cai no fluxo das bases importadas, mesmo com uma coluna alterada.
+  const configurationPanel = usingBrazil && !!inspection?.curated_defaults;
   const municipalScope = !usingBrazil || inspection?.source?.scope === "municipal";
   // A lista municipal do último pré-exame municipal fica guardada para o recorte nacional; sem ela, é buscada
   // quando a abrangência é aberta. Só leitura: a análise continua no recorte atual até o usuário marcar municípios.
@@ -450,20 +446,13 @@ function App() {
       setSourceVersion(details.source?.version || "");
       setMapping(details.suggested_mapping);
       setHierarchyColumns({});
-      setConfirmedRoles(details.curated_defaults?.confirmed_roles || []);
-      setFtsScopeConfirmed(!!details.curated_defaults?.fts_scope_confirmed);
-      setSinglePeriodConfirmed(false);
+      // Os papéis do perfil oficial e os reconhecidos por regra são estabelecidos pelo backend; nada é escolhido aqui.
+      setSelectedRoles([]);
+      setSinglePeriod(false);
       setCountUnit(details.curated_defaults?.count_unit || "");
       setCustomCountUnit("");
-      setPopulationAligned(!!details.curated_defaults?.population_denominator_confirmed);
-      setTemporalCompared(false);
-      setTerritoryStable(false);
-      setLongitudinalIdentity(false);
-      setIdentityCountConfirmed(false);
-      setCategoryConstant("");
-      setObjectDraft(details.suggested_category_constant || "");
-      setObjectConfirmed(!!details.curated_defaults?.object_confirmed);
-      setInlineConfirmed(!!details.curated_defaults);
+      // A sugestão do cabeçalho vira um botão "Usar sugestão": nunca é aplicada sozinha.
+      setObjectDraft("");
       setPreflight(details.preflight);
       setPreflightError("");
       setServerStatus("online");
@@ -473,7 +462,6 @@ function App() {
       setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
       setResolutions({});
-      setConfirmedNoOverlap(false);
       setCrs("");
       setQuantiles(5);
       setDistributionIndicator("");
@@ -490,7 +478,7 @@ function App() {
           if (!fits(cached.multiplePeriods)) {
             setPeriodFilter(""); setSelectedPeriods(operation === "temporal" ? details.periods : []); setMultiplePeriods(operation === "temporal");
           }
-          setScopeNotice("Preparação deste recorte restaurada: a versão dos dados é a mesma. As confirmações serão revalidadas pelo servidor.");
+          setScopeNotice("Preparação deste recorte restaurada: a versão dos dados é a mesma. O servidor confere de novo as escolhas.");
         } else if (sameVersion) {
           // Só atravessam granularidades significados comuns verificáveis na mesma versão.
           // Unicidade, população, território e comparabilidade pertencem a cada recorte.
@@ -500,19 +488,15 @@ function App() {
           const periodAfter = details.derived_fields?.find(f => f.column === details.suggested_mapping.period);
           const samePeriod = !!periodBefore && !!periodAfter && JSON.stringify(periodBefore) === JSON.stringify(periodAfter) && equalValues(previous.info.periods, details.periods);
           const sameCategory = !!old.mapping.category && old.mapping.category === details.suggested_mapping.category && equalValues(previous.info.categories, details.categories);
-          setConfirmedRoles([...new Set([...(details.curated_defaults?.confirmed_roles || []),
-            ...old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory))])]);
+          setSelectedRoles(old.options.confirmed_roles.filter(role => (role === "period" && samePeriod) || (role === "category" && sameCategory)));
           if (samePeriod && fits(old.multiplePeriods)) {setPeriodFilter(old.options.period_filter);setSelectedPeriods(old.selectedPeriods);setMultiplePeriods(old.multiplePeriods);}
-          if (sameCategory) {
-            setObjectConfirmed(old.options.object_confirmed); setFtsScopeConfirmed(old.options.fts_scope_confirmed);
-            setCategoryFilter(old.options.category_filter);
-          }
+          if (sameCategory) { setCategoryFilter(old.options.category_filter); setObjectDraft(old.objectDraft); }
           setScopeNotice(details.curated_defaults
             ? "A abrangência mudou. Os significados reconhecidos vêm do perfil oficial deste recorte; períodos e categoria foram preservados quando equivalentes. Condições específicas continuam sujeitas ao pré-exame."
-            : "A abrangência mudou. Confirmações comuns de período e categoria foram mantidas quando equivalentes. Território, unidade de contagem, população e comparabilidade precisam ser conferidos neste recorte.");
+            : "A abrangência mudou. Escolhas comuns de período e categoria foram mantidas quando equivalentes. Revise as colunas escolhidas de território, unidade de contagem e população neste recorte.");
         } else {
           scopeDrafts.current = {};
-          setScopeNotice("A versão dos dados mudou. Revise as associações e confirme novamente os significados e as condições metodológicas.");
+          setScopeNotice("A versão dos dados mudou. Revise as colunas escolhidas e os parâmetros antes de analisar.");
         }
       }
     } catch (exc) {
@@ -531,10 +515,10 @@ function App() {
     if (!next || !privacy.accepted) return;
     uploadRevision.current += 1;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(false); setInlineConfirmed(false);
+    setUsingBrazil(false);
     setFile(next);
     setSheet("");
-    // Preserva apenas a escolha da capacidade; confirmações são reiniciadas.
+    // Preserva apenas a escolha da capacidade; as escolhas de colunas são reiniciadas.
 
     setUploadError("");
     setInspection(null);
@@ -561,7 +545,7 @@ function App() {
   function chooseBrazil() {
     if (!privacy.accepted) return;
     scopeDrafts.current = {}; setScopeNotice(""); setStep(0); steps.current = {};
-    setUsingBrazil(true); setInlineConfirmed(false); setFile(null); setSheet("");
+    setUsingBrazil(true); setFile(null); setSheet("");
     void inspectFile(null, "", brazilLevel, active || "");
   }
   function selectAnalysis(operation: Operation, proposal?: {
@@ -581,7 +565,6 @@ function App() {
     if (active) steps.current[active] = step;
     setStep(steps.current[operation] || 0);
     setActive(operation);  setError("");
-    setInlineConfirmed(!!inspection?.curated_defaults && !inspecting);
     if (operation === "temporal") {
       setPeriodFilter(""); setMultiplePeriods(true);
       if (!selectedPeriods.length) setSelectedPeriods(inspection?.periods || []);
@@ -628,20 +611,13 @@ function App() {
       reference_territory: reference, crs: governedPremises.has("crs") ? "" : crs, quantile_count: quantiles,
       distribution_indicator: distributionIndicator,
       temporal_indicator: temporalIndicator, report_indicator: reportIndicator,
-      no_overlap_confirmed: confirmedNoOverlap,
-      fts_scope_confirmed: ftsScopeConfirmed,
-      single_period_confirmed: singlePeriodConfirmed,
-      confirmed_roles: confirmedRoles,
+      // Papéis escolhidos pelo usuário (contrato: "confirmed_roles"). Nenhuma chave de premissa é enviada, nem como
+      // false: um false explícito recusaria a premissa no backend (K1).
+      confirmed_roles: selectedRoles,
+      ...(singlePeriod && !mapping.period ? {single_period_confirmed: true} : {}),
       count_unit: countUnit,
       custom_count_unit: customCountUnit,
-      population_denominator_confirmed: populationAligned,
-      temporal_comparability_confirmed: temporalCompared,
-      territory_longitudinal_confirmed: territoryStable,
-      longitudinal_identity_confirmed: longitudinalIdentity,
-      identity_count_confirmed: identityCountConfirmed,
-      category_constant: categoryConstant,
-      require_object_confirmation: true,
-      object_confirmed: objectConfirmed,
+      ...(objectDraft.trim() ? (mapping.category ? {object_declaration: objectDraft.trim()} : {category_constant: objectDraft.trim()}) : {}),
       ...((active === "nearest" || (active === "criteria" && criteriaDistance)) && referenceMode ? {reference_mode: referenceMode, ...(referenceMode === "list"
         ? {reference_ids: referenceIds} : {reference_criterion: {operator: criterionOperator, value: criterionValue}})} : {}),
       ...(active === "criteria" ? {
@@ -659,18 +635,14 @@ function App() {
   function selectMunicipalities(ids: string[]) {
     if (!addsMunicipalities(ids, territoryIds)) { changeTerritories(ids); return; }
     setPendingSelection(ids);
-    setBrazilLevel("municipal"); setInlineConfirmed(false);
+    setBrazilLevel("municipal");
     void inspectFile(null, "", "municipal", active || "", true);
   }
   function changeTerritories(ids: string[]) {
     revision.current += 1;
     // Reaplicar a mesma seleção não cria estado novo: o pré-exame vigente já corresponde a ela.
     setTerritoryIds(current=>sameList(current, ids) ? current : ids); setSelectionProposal(null);
-    // Premissas sobre uma união não se transferem para membros diferentes.
-    setConfirmedNoOverlap(false); setTerritoryStable(false);
-    setResolutions(previous=>previous.comparison_confirmed === false && previous.population_additive_confirmed === false &&
-      previous.identity_union_confirmed === false ? previous : {...previous, comparison_confirmed:false,
-      population_additive_confirmed:false, identity_union_confirmed:false});
+    // Nenhuma chave de premissa é gravada aqui (K1): as premissas são aplicadas pelo backend a cada pré-exame.
   }
   function applyExploration(proposal: Exploration) {
     setPeriodEditor(0);
@@ -693,11 +665,7 @@ function App() {
     }
     if (patch.temporal_indicator) setTemporalIndicator(patch.temporal_indicator);
     if (patch.comparison_indicator) setComparisonIndicator(patch.comparison_indicator);
-    if (patch.component_sum_confirmed) {
-      setConfirmedNoOverlap(false);
-      setResolutions(previous=>({...previous, component_sum_confirmed:true, identity_union_confirmed:false}));
-    }
-    setActive(proposal.operation); setInlineConfirmed(!!inspection?.curated_defaults); setError("");
+    setActive(proposal.operation); setError("");
     scrollAnalysisTo("preparacao-conversacional");
   }
   // Resultado anterior comparável: mesma fonte, competência, categoria, universo e, se houver distância, referências.
@@ -732,7 +700,7 @@ function App() {
       // A troca para o recorte municipal pode restaurar a preparação guardada desse recorte:
       // a condição pedida só é aplicada depois que ele estiver pronto.
       pendingCriteria.current = patch;
-      setBrazilLevel("municipal"); setActive("criteria"); setInlineConfirmed(!!inspection?.curated_defaults);
+      setBrazilLevel("municipal"); setActive("criteria");
       void inspectFile(null, "", "municipal", "criteria", true);
       return reply + " A condição será aplicada assim que o recorte municipal estiver preparado.";
     }
@@ -855,22 +823,20 @@ function App() {
     restorePreparation(structuredClone(item.preparation));
     setActive(item.result.metadata.operation as Operation); setRequestText(item.request);
     scrollAnalysisTo("preparacao-conversacional");
-    setInlineConfirmed(true); setHistoryNotice("Parâmetros e seleção restaurados; o servidor verificará novamente a preparação.");
+    setHistoryNotice("Parâmetros e seleção restaurados; o servidor verificará novamente a preparação.");
   }
   // Os identificadores da seleção derivam do nome/código associados; sem eles, deixam de existir.
   function removeAssociation(role: Role) {
     setMapping(previous => ({...previous, [role]: ""}));
-    setConfirmedRoles(previous => previous.filter(item => item !== role));
+    setSelectedRoles(previous => previous.filter(item => item !== role));
     if (role === "territory" || role === "territory_id") {setTerritoryIds([]); setReferenceIds([]);}
   }
+  /** Escolher a coluna estabelece o papel (D1). Só se desfazem as escolhas que dependem da coluna anterior. */
   function associateColumn(column: string, role: Role | "") {
     if (role === "count") setCountUnit("");
-    if (role === "identity") { setIdentityCountConfirmed(false); setLongitudinalIdentity(false); }
-    if (role === "period") { setPopulationAligned(false); setTemporalCompared(false); setTerritoryStable(false); }
     if (role === "territory" || role === "territory_id") {
-      setTerritoryIds([]); setReferenceIds([]);
-      setPopulationAligned(false); setTerritoryStable(false); setReference("");
-      setConfirmedNoOverlap(false); setResolutions(previous => ({number_format: previous.number_format}));
+      setTerritoryIds([]); setReferenceIds([]); setReference("");
+      setResolutions(previous => ({number_format: previous.number_format}));
     }
     const previouslyAssociated = (Object.entries(mapping).find(([, value]) => value === column) || [])[0] as Role | undefined;
     // Mover a coluna territorial para outro papel também remove a identidade da seleção.
@@ -883,11 +849,8 @@ function App() {
       if (role) next[role] = column;
       return next;
     });
-    setConfirmedRoles(previous => [...previous.filter(r => r !== previouslyAssociated && r !== role), ...(role ? [role] : [])]);
-    if (role === "category" || previouslyAssociated === "category") {
-      setObjectConfirmed(false);
-      setCategoryConstant("");
-    }
+    setSelectedRoles(previous => [...previous.filter(r => r !== previouslyAssociated && r !== role), ...(role ? [role] : [])]);
+    if (role === "period") setSinglePeriod(false);
 
     setError("");
   }
@@ -976,7 +939,7 @@ function App() {
     }
     if (mode === "independent" && diagnostics.some(group => group.id === diagnosticId && group.resultIds.length))
       setDiagnosticId(++nextDiagnostic.current);
-    setActive(null); if (mode === "independent") setResult(null); setVisualSelection([]); setInlineConfirmed(false);
+    setActive(null); if (mode === "independent") setResult(null); setVisualSelection([]);
     setRequestedCategory(""); setRequestedIndicator(null); setRequestText(""); setError("");
     setHistoryNotice("Nova análise iniciada. Resultados anteriores disponíveis no Histórico de análises.");
     setCatalogOpen(true); navigate("home", "analises");
@@ -1036,7 +999,7 @@ function App() {
     ? JSON.stringify([referenceMode, referenceIds, criterionOperator, criterionValue]) : "";
   const criteriaOptions = active === "criteria" ? JSON.stringify([criteriaTree, criteriaRanking, criteriaBands, distanceScope,
     eligibilityScope, criteriaComparison]) : "";
-  // O servidor recalcula a matriz após qualquer associação ou confirmação.
+  // O servidor recalcula a matriz após qualquer escolha de coluna ou parâmetro.
   // Nenhuma habilitação é decidida apenas no navegador.
   useEffect(() => {
     revision.current += 1;
@@ -1062,16 +1025,18 @@ function App() {
       }
     }, 150);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
-  }, [inspection, file, usingBrazil, sheet, mapping, confirmedRoles, countUnit, customCountUnit, preflightAttempt,
-      periodFilter, selectedPeriods, categoryFilter, populationAligned, temporalCompared, territoryStable,
-      longitudinalIdentity, identityCountConfirmed, categoryConstant, objectConfirmed,
-      ftsScopeConfirmed, singlePeriodConfirmed, reference, crs, confirmedNoOverlap, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator,
+  }, [inspection, file, usingBrazil, sheet, mapping, selectedRoles, countUnit, customCountUnit, preflightAttempt,
+      periodFilter, selectedPeriods, categoryFilter, objectDraft,
+      singlePeriod, reference, crs, resolutions, quantiles, distributionIndicator, temporalIndicator, reportIndicator, hierarchyColumns, territoryIds, comparisonIndicator,
       nearestOptions, criteriaOptions]);
 
   useEffect(() => { revision.current += 1;  setError(""); }, [active]);
 
-  const decimalPending = !!preflight?.capabilities.nearest?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)) ||
-    (active === "criteria" && !!preflight?.capabilities.criteria?.reasons.some(reason => /separador decimal|ponto decimal/.test(reason)));
+  // O separador decimal das coordenadas é verificado nos dados; só vira escolha quando o formato é misto.
+  const separatorReason = (operation: Operation) =>
+    !!preflight?.capabilities[operation]?.reasons.some(reason => /separador decimal|ponto decimal|formato decimal/.test(reason));
+  const decimalPending = separatorReason("nearest") || (active === "criteria" && separatorReason("criteria")) ||
+    (active === "spatial" && separatorReason("spatial")) || preflight?.coordinate_separator === null;
   const decimalChoice = !governedPremises.has("number_format") && (decimalPending || !!resolutions.number_format);
   const criteriaAll = [...criteriaLeaves(criteriaTree), ...criteriaLeaves(criteriaComparison?.criteria || null)];
   // Caixa "Indicador" dos critérios combinados: atributos numéricos das condições, da ordenação e das faixas.
@@ -1207,7 +1172,7 @@ function App() {
             </div>}
             {error && <p role="alert" className="mb-3 text-sm text-rose-800">{error}</p>}
             {step === 0 && <>
-              <p className="text-xs text-slate-600">{usingBrazil ? "Dados do Brasil" : file?.name} · {shortNum(inspection.row_count)} registros. Confira os significados propostos; confirmações válidas permanecem registradas.</p>
+              <p className="text-xs text-slate-600">{usingBrazil ? "Dados do Brasil" : file?.name} · {shortNum(inspection.row_count)} registros. Os campos reconhecidos já vêm escolhidos; ajuste qualquer coluna pelos seletores.</p>
         {usingBrazil && inspection?.source && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4">
           <label className="flex flex-wrap items-center gap-3 text-xs font-semibold text-ink">
             Abrangência da análise
@@ -1227,55 +1192,24 @@ function App() {
 
           <ContextConfig spatial={active === "spatial"} columns={inspection.columns} mapping={mapping}
             periodSources={inspection.derived_fields?.find(field => field.role === "period" && field.column === mapping.period)?.source_columns}
-            fieldStates={preflight?.field_states} categories={preflight?.values.categories || inspection.categories}
-            suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft}
-            objectConfirmed={objectConfirmed}
+            fieldStates={preflight?.field_states} suggestions={inspection.suggested_columns}
+            categories={preflight?.values.categories || inspection.categories}
+            suggestedCategory={inspection.suggested_category_constant} objectDraft={objectDraft} objectState={preflight?.object}
             territoryCode={mapping.territory_id || ""}
-            codeConfirmed={preflight?.field_states.territory_id?.status === "confirmed"}
+            singlePeriod={singlePeriod} onSinglePeriod={setSinglePeriod}
             detectedLevels={preflight?.territorial_hierarchy?.levels || inspection.preflight?.territorial_hierarchy?.levels}
             selectedLevels={hierarchyColumns}
-            onSelectLevel={(level, column) => {
-              setHierarchyColumns(previous => ({...previous, [level]: column}));
-
-            }}
+            onSelectLevel={(level, column) => setHierarchyColumns(previous => ({...previous, [level]: column}))}
             onSelectCode={column => {
               if(column) associateColumn(column, "territory_id");
               else removeAssociation("territory_id");
             }}
-            onConfirmCode={() => setConfirmedRoles(p => [...new Set<Role>([...p, "territory_id"])])}
             onSelect={(role, column) => {
               if (column) associateColumn(column, role);
               else removeAssociation(role);
-              if (role === "category") {
-                setObjectConfirmed(false);
-                setCategoryConstant("");
-              }
             }}
-            onConfirmRole={role => {
-              setConfirmedRoles(prev => [...new Set([...prev, role])]);
-
-            }}
-            onDraft={value => {
-              setObjectDraft(value);
-              setObjectConfirmed(false);
-              setCategoryConstant("");
-
-            }}
-            onConfirmObject={() => {
-              if (!mapping.category) setCategoryConstant(objectDraft.trim());
-              else setConfirmedRoles(prev => [...new Set<Role>([...prev, "category"])]);
-              setObjectConfirmed(true);
-
-            }}
+            onDraft={setObjectDraft}
           />
-                {active !== "spatial" && !mapping.period && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                  <input type="checkbox" checked={singlePeriodConfirmed} onChange={e => setSinglePeriodConfirmed(e.target.checked)}/>
-                  Confirmo que a base se refere a um único período
-                </label>}
-                {active !== "spatial" && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                  <input type="checkbox" checked={ftsScopeConfirmed} onChange={e => setFtsScopeConfirmed(e.target.checked)}/>
-                  Confirmo que os trabalhadores informados fazem parte da força de trabalho na saúde
-                </label>}
             </>}
             {step === 1 && <>
         {active && inspection && !inspection.requires_sheet && <div className="mb-4 rounded-2xl border border-line bg-white p-4 shadow-sm">
@@ -1322,13 +1256,11 @@ function App() {
             <DataResolution operation={active} columns={inspection.columns}
             mapping={mapping} diagnostic={preflight?.multiplicity} options={resolutions} setOptions={setResolutions}
             periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
-            selectIdentity={column => {if(column) associateColumn(column, "identity"); else setMapping(p => ({...p, identity: ""}));}}
-            identityConfirmed={identityCountConfirmed} confirmIdentity={setIdentityCountConfirmed}
-            confirmCoordinates={() => setConfirmedRoles(p => [...new Set<Role>([...p, "latitude", "longitude"])])}
-            governed={governedPremises}/>
+            selectIdentity={column => {if(column) associateColumn(column, "identity"); else removeAssociation("identity");}}
+            applied={governedPremises} separatorChoice={decimalChoice}/>
             <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 sm:p-5">
               <h4 className="text-sm font-bold text-ink">Completar informações para esta análise</h4>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma confirmação não substitui informações ausentes.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Preencha somente os dados que correspondem à estrutura real da sua base. Uma escolha não substitui informações ausentes.</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 {active !== "spatial" && active !== "rotation" && (active !== "nearest" || referenceMode === "criterion") &&
                   (active !== "criteria" || criteriaNeeds.count) && <>
@@ -1337,17 +1269,13 @@ function App() {
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                       value={mapping.count || ""} onChange={e => {
                         if (e.target.value) associateColumn(e.target.value, "count");
-                        else { setMapping(prev=>({...prev,count:""})); setConfirmedRoles(prev=>prev.filter(x=>x!=="count")); }
+                        else removeAssociation("count");
                       }}>
-                      <option value="">Não encontrado nesta base</option>
-                      {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
+                      <option value="">Escolher coluna</option>
+                      {fieldOptions(inspection.columns, inspection.suggested_columns, "count", {current: mapping.count || ""})
+                        .map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </label>
-                  {mapping.count && preflight?.field_states.count.status === "proposed" &&
-                    <button type="button" onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "count"])])}
-                      className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">
-                      Confirmar que esta coluna contém quantitativos
-                    </button>}
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     O que o quantitativo representa?
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
@@ -1371,59 +1299,33 @@ function App() {
                     <select className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
                       value={mapping.population || ""} onChange={e => {
                         if (e.target.value) associateColumn(e.target.value, "population");
-                        else {setMapping(prev=>({...prev,population:""}));setConfirmedRoles(prev=>prev.filter(x=>x!=="population"));}
-                        setPopulationAligned(false);
+                        else removeAssociation("population");
                       }}>
-                      <option value="">Não encontrada nesta base</option>
-                      {inspection.columns.map(col => <option key={col} value={col}>{col}</option>)}
+                      <option value="">Escolher coluna</option>
+                      {fieldOptions(inspection.columns, inspection.suggested_columns, "population", {current: mapping.population || ""})
+                        .map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </label>
-                  {mapping.population && preflight?.field_states.population.status === "proposed" &&
-                    <button type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
-                      onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "population"])])}>Confirmar coluna de população</button>}
-                  {mapping.population && <label className="flex items-start gap-2 self-center text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={populationAligned} onChange={e => setPopulationAligned(e.target.checked)}/>
-                    Confirmo que a população corresponde aos territórios e períodos analisados
-                  </label>}
-                </>}
-                {active === "temporal" && <>
-                  {!governedPremises.has("temporal_comparability_confirmed") && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={temporalCompared} onChange={e => setTemporalCompared(e.target.checked)}/>
-                    Confirmo que os períodos e os quantitativos são comparáveis
-                  </label>}
-                  {mapping.territory && !governedPremises.has("territory_longitudinal_confirmed") && <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/>
-                    Confirmo que os territórios mantêm identidade comparável ao longo dos períodos
-                  </label>}
                 </>}
                 {active === "rotation" && <>
                   <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     Coluna de identificação individual
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                      value={mapping.identity || ""} onChange={e => {if(e.target.value)associateColumn(e.target.value,"identity");else setMapping(prev=>({...prev,identity:""}));}}>
-                      <option value="">Não identificada</option>
-                      {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
+                      value={mapping.identity || ""} onChange={e => {if(e.target.value)associateColumn(e.target.value,"identity");else removeAssociation("identity");}}>
+                      <option value="">Escolher coluna</option>
+                      {fieldOptions(inspection.columns, inspection.suggested_columns, "identity", {current: mapping.identity || ""})
+                        .map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
-                  </label>
-                  {mapping.identity && preflight?.field_states.identity.status === "proposed" && <button
-                    type="button" className="self-end rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-bold text-amber-900"
-                    onClick={() => setConfirmedRoles(prev=>[...new Set<Role>([...prev, "identity"])])}>Confirmar identificação individual</button>}
-                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={longitudinalIdentity} onChange={e => setLongitudinalIdentity(e.target.checked)}/>
-                    Confirmo identidade pessoal válida entre os períodos, com abrangência e completude adequadas
-                  </label>
-                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={territoryStable} onChange={e => setTerritoryStable(e.target.checked)}/>
-                    Confirmo a comparabilidade territorial entre períodos, quando aplicável
                   </label>
                 </>}
                 {(active === "spatial" || active === "nearest" || (active === "criteria" && criteriaDistance)) && <>
                   {(["latitude","longitude"] as Role[]).map(role => <label key={role} className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
                     {role === "latitude" ? "Latitude" : "Longitude"}
                     <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink"
-                      value={mapping[role] || ""} onChange={e => {if(e.target.value) associateColumn(e.target.value,role); else setMapping(prev=>({...prev,[role]:""}));}}>
-                      <option value="">Não encontrada</option>
-                      {inspection.columns.map(col=><option key={col} value={col}>{col}</option>)}
+                      value={mapping[role] || ""} onChange={e => {if(e.target.value) associateColumn(e.target.value,role); else removeAssociation(role);}}>
+                      <option value="">Escolher coluna</option>
+                      {fieldOptions(inspection.columns, inspection.suggested_columns, role, {current: mapping[role] || ""})
+                        .map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </label>)}
                   {!governedPremises.has("crs") && <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700">
@@ -1435,12 +1337,6 @@ function App() {
                   </label>}
                   {active === "spatial" && <SelectField label="Território de referência" value={reference}
                     options={preflight?.values.territories || []} onChange={setReference}/>}
-                </>}
-                {active === "aggregate" && <>
-                  <label className="flex items-start gap-2 text-xs leading-5 text-slate-700">
-                    <input type="checkbox" checked={confirmedNoOverlap} onChange={e => setConfirmedNoOverlap(e.target.checked)}/>
-                    Declaro ausência de sobreposição das pessoas entre territórios, se desejar interpretar o total como pessoas únicas
-                  </label>
                 </>}
               </div>
             </div>
@@ -1454,9 +1350,11 @@ function App() {
                     ? "Densidade por 1.000 habitantes" : (active === "temporal" ? temporalIndicator : active === "report" ? reportIndicator : distributionIndicator) === "quantity"
                     ? "Quantidade na unidade declarada" : "Aguardando escolha"}</p>}
                 <p>Base: {usingBrazil ? "Dados do Brasil — " + (inspection.source?.scope === "national" ? "Brasil" : "Municípios") : file?.name}</p>
+                {inspection.curated_defaults && <p>Campos do perfil oficial: {governedRoles(inspection.curated_defaults, mapping).length} de {
+                  Object.keys(inspection.curated_defaults.mapping).length} (os demais seguem a sua escolha)</p>}
                 <p>Território: {mapping.territory || "Não associado"}{mapping.territory_id ? " · Identificador: " + mapping.territory_id : ""}</p>
-                <p>Período: {periodFilter || selectedPeriods.map(displayPeriod).join(", ") || (multiplePeriods ? "Nenhum período selecionado" : "Todos os períodos da base")} · Categoria: {categoryFilter || categoryConstant || "Categorias da base"}</p>
-                <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (identityCountConfirmed ? "Pessoas distintas" : "Conforme a análise")}</p>
+                <p>Período: {periodFilter || selectedPeriods.map(displayPeriod).join(", ") || (multiplePeriods ? "Nenhum período selecionado" : "Todos os períodos da base")} · Categoria: {categoryFilter || (!mapping.category && objectDraft.trim()) || "Categorias da base"}</p>
+                <p>Unidade: {countUnit === "outro" ? customCountUnit : countUnit || (mapping.identity && !mapping.count ? "Pessoas distintas (pelo identificador)" : "Conforme a análise")}</p>
                 {active === "criteria" && <p className="break-words">Critérios: {describeCriteria(criteriaTree, countUnit) || "nenhum (somente ordenação)"}
                   {criteriaRanking && " · Ordenação: " + criteriaRanking.attribute + " " + (criteriaRanking.direction === "desc" ? "decrescente" :
                     criteriaRanking.direction === "asc" ? "crescente" : "(direção a escolher)") + (criteriaRanking.top_n ? " · " + criteriaRanking.top_n + " primeiros" : "")}
@@ -1478,7 +1376,7 @@ function App() {
     <div id="preparacao-conversacional"><ConversationalPreparation
       operation={active}
       sourceBrazil={usingBrazil}
-      curated={curatedSetup}
+      curated={configurationPanel}
       quantiles={quantiles}
       onQuantiles={setQuantiles}
       selectedPeriods={selectedPeriods}
@@ -1486,7 +1384,7 @@ function App() {
       periodEditor={periodEditor}
       onSelectedPeriods={values=>{setMultiplePeriods(true);setSelectedPeriods(values);setPeriodFilter("");}}
       scope={rescoping || inspection.source?.scope || "municipal"}
-      onScope={v=>{setBrazilLevel(v);setInlineConfirmed(false);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
+      onScope={v=>{setBrazilLevel(v);if(v!==inspection.source?.scope)void inspectFile(null,"",v,active,true);}}
       scopeChoice={NATIONAL_SCOPE_OPERATIONS.includes(active)}
       rescoping={rescoping}
       scopeError={scopeError}
@@ -1500,13 +1398,19 @@ function App() {
       criteriaAttributes={criteriaAttributes}
       columns={inspection.columns}
       mapping={mapping}
-      onField={(role:FieldRole,column)=>{setInlineConfirmed(false);
+      suggestions={inspection.suggested_columns}
+      onField={(role:FieldRole,column)=>{
         if(column)associateColumn(column,role as Role);
         else removeAssociation(role as Role);
-        if(role==="population")setPopulationAligned(false);
       }}
+      singlePeriod={singlePeriod}
+      onSinglePeriod={setSinglePeriod}
+      objectState={preflight?.object}
+      objectDraft={objectDraft}
+      onObjectDraft={setObjectDraft}
+      suggestedObject={inspection.suggested_category_constant}
       countUnit={countUnit}
-      onCountUnit={v=>{setCountUnit(v);setInlineConfirmed(false);}}
+      onCountUnit={setCountUnit}
       customCountUnit={customCountUnit}
       onCustomCountUnit={setCustomCountUnit}
       indicator={active==="comparisons"?comparisonIndicator:active==="distribution"?distributionIndicator:active==="temporal"?temporalIndicator:reportIndicator}
@@ -1515,19 +1419,14 @@ function App() {
         if(active==="distribution")setDistributionIndicator(v);
         if(active==="temporal")setTemporalIndicator(v);
         if(active==="report")setReportIndicator(v);
-        setInlineConfirmed(!!inspection.curated_defaults);
       }}
       periodFilter={periodFilter}
       periods={preflight?.values.periods?.length ? preflight.values.periods : inspection.periods}
-      onPeriod={v=>{setMultiplePeriods(false);setPeriodFilter(v);setSelectedPeriods([]);setInlineConfirmed(!!inspection.curated_defaults);}}
+      onPeriod={v=>{setMultiplePeriods(false);setPeriodFilter(v);setSelectedPeriods([]);}}
       categoryFilter={categoryFilter}
       requestedCategory={requestedCategory}
       categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
-      onCategory={v=>{setCategoryFilter(v);setInlineConfirmed(false);}}
-      populationAligned={populationAligned}
-      onPopulationAligned={setPopulationAligned}
-      ftsConfirmed={ftsScopeConfirmed}
-      onFtsConfirmed={setFtsScopeConfirmed}
+      onCategory={setCategoryFilter}
       reference={reference}
       territories={preflight?.values.territories || inspection.territories}
       onReference={setReference}
@@ -1535,15 +1434,6 @@ function App() {
       onCrs={setCrs}
       governedCrs={governedPremises.has("crs")}
       preparing={preflighting || inspecting}
-      confirmed={inlineConfirmed}
-      onConfirm={()=>{
-        setConfirmedRoles(previous=>[...new Set<Role>([...previous,...(Object.entries(mapping)
-          .filter((entry):entry is [Role,string]=>!!entry[1])
-          .map(([role])=>role))])]);
-        if(mapping.category){setObjectConfirmed(true);}
-        else if(objectDraft.trim()){setCategoryConstant(objectDraft.trim());setObjectConfirmed(true);}
-        setInlineConfirmed(true);
-      }}
       capability={preflight?.capabilities[active]}
       onExecute={()=>{void run(active);}}
       executing={running}
@@ -1551,7 +1441,7 @@ function App() {
         {active === "criteria" && <CriteriaBuilder tree={criteriaTree} onTree={tree=>{setCriteriaTree(tree);setCriteriaComparison(null);}}
           ranking={criteriaRanking} onRanking={setCriteriaRanking} bands={criteriaBands} onBands={setCriteriaBands}
           distanceScope={distanceScope} onDistanceScope={setDistanceScope} eligibilityScope={eligibilityScope} onEligibilityScope={setEligibilityScope}
-          period={periodFilter} category={categoryFilter || categoryConstant} countUnit={countUnit === "outro" ? customCountUnit : countUnit}
+          period={periodFilter} category={categoryFilter || (!mapping.category ? objectDraft.trim() : "")} countUnit={countUnit === "outro" ? customCountUnit : countUnit}
           categories={preflight?.values.categories?.length ? preflight.values.categories : inspection.categories}
           universe={territoryIds.length ? territoryIds.length + " territórios selecionados" : "todos os territórios do período"}
           selectionIds={territoryIds} ranges={criteriaRanges} disabled={running || inspecting}
@@ -1571,33 +1461,6 @@ function App() {
           showDecimal={decimalChoice} numberFormat={resolutions.number_format}
           onNumberFormat={value=>setResolutions(previous=>({...previous, number_format: value || undefined}))}
           disabled={running || inspecting}/>}
-        {active === "temporal" && <>
-          {!governedPremises.has("temporal_comparability_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={temporalCompared}
-            onChange={e=>setTemporalCompared(e.target.checked)}/>
-            Confirmo que os quantitativos e os períodos são comparáveis.</label>}
-          {mapping.territory && !governedPremises.has("territory_longitudinal_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
-            onChange={e=>setTerritoryStable(e.target.checked)}/>
-            Os territórios correspondem às mesmas unidades ao longo do tempo.</label>}
-        </>}
-        {["comparisons","ranking"].includes(active) && !governedPremises.has("comparison_confirmed") && <label className="flex items-start gap-2">
-              <input type="checkbox" checked={!!resolutions.comparison_confirmed}
-                onChange={e=>setResolutions(p=>({...p,comparison_confirmed:e.target.checked}))}/>
-              As medidas, unidades e populações são comparáveis entre os territórios.</label>}
-        {active === "aggregate" && <>
-          {!governedPremises.has("population_additive_confirmed") && <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.population_additive_confirmed}
-            onChange={e=>setResolutions(p=>({...p,population_additive_confirmed:e.target.checked}))}/>
-            As populações são partes sem sobreposição do conjunto agregado.</label>}
-          {!governedPremises.has("component_sum_confirmed") && <>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={confirmedNoOverlap}
-            onChange={e=>{setConfirmedNoOverlap(e.target.checked);
-              if(e.target.checked)setResolutions(p=>({...p,component_sum_confirmed:false}));}}/>
-            As contagens representam unidades sem sobreposição entre territórios.</label>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.component_sum_confirmed}
-            onChange={e=>{setResolutions(p=>({...p,component_sum_confirmed:e.target.checked}));
-              if(e.target.checked)setConfirmedNoOverlap(false);}}/>
-            Caso contrário, autorizo somar componentes, mesmo com possível dupla contagem.</label>
-          </>}
-        </>}
         {active === "rotation" && <>
           {/* Na base oficial, os períodos da coorte ficam na caixa "Período" das configurações. */}
           {!configurationPanel && <>
@@ -1616,15 +1479,6 @@ function App() {
             </select>
           </label>
           </>}
-          <label className="flex items-start gap-2"><input type="checkbox" checked={longitudinalIdentity}
-            onChange={e=>setLongitudinalIdentity(e.target.checked)}/>
-            O identificador representa a mesma pessoa nos períodos.</label>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={territoryStable}
-            onChange={e=>setTerritoryStable(e.target.checked)}/>
-            As unidades territoriais são comparáveis entre os períodos.</label>
-          <label className="flex items-start gap-2"><input type="checkbox" checked={!!resolutions.cohort_coverage_confirmed}
-            onChange={e=>setResolutions(p=>({...p,cohort_coverage_confirmed:e.target.checked}))}/>
-            A base cobre o mesmo universo de trabalhadores nos períodos considerados.</label>
         </>}
       </div>}
       referenceMode={referenceMode}
@@ -1637,11 +1491,12 @@ function App() {
             <select aria-label="Referencial das coordenadas importadas" value={crs} onChange={event => setCrs(event.target.value)} className="rounded border p-2">
               <option value="">Não informado na origem</option><option value="SIRGAS2000">SIRGAS2000</option></select>
           </label>
-          <label className="inline-flex flex-col gap-1">Separador decimal das coordenadas importadas
+          {decimalChoice ? <label className="inline-flex flex-col gap-1">Separador decimal das coordenadas importadas
             <select aria-label="Separador decimal das coordenadas importadas" value={resolutions.number_format || ""}
               onChange={event => setResolutions(previous => ({...previous, number_format: event.target.value || undefined}))} className="rounded border p-2">
-              <option value="">Conforme o arquivo</option><option value="decimal_comma">Vírgula</option><option value="decimal_point">Ponto</option></select>
-          </label>
+              <option value="">Escolher</option><option value="decimal_comma">Vírgula</option><option value="decimal_point">Ponto</option></select>
+          </label> : preflight?.coordinate_separator ? <p data-testid="verified-number-format" className="mt-2 text-slate-600">
+            Separador decimal das coordenadas: {preflight.coordinate_separator === "decimal_comma" ? "vírgula" : "ponto"}, verificado nos dados.</p> : null}
         </fieldset>}
         {advancedPreparation}
       </>}
@@ -1852,7 +1707,7 @@ function App() {
           usingBrazil, datasetVersion: sourceVersion, sourceGeneration, sheet
         })}
         validationVersion={JSON.stringify({mapping, options: semanticOptions(), scope: inspection?.source?.scope})}
-        features={FEATURES.map(feature => ({...feature, availability: !preflight || inspecting || preflighting ? "Escolha e prepare os dados para verificar os requisitos." : preflight.capabilities[feature.id]?.status === "available" ? "Requisitos atendidos com a preparação atual." : preflight.capabilities[feature.id]?.status === "needs_confirmation" ? "Há parâmetros ou confirmações pendentes." : "Requisitos ainda não atendidos; consulte a preparação."}))}
+        features={FEATURES.map(feature => ({...feature, availability: !preflight || inspecting || preflighting ? "Escolha e prepare os dados para verificar os requisitos." : preflight.capabilities[feature.id]?.status === "available" ? "Requisitos atendidos com a preparação atual." : preflight.capabilities[feature.id]?.status === "needs_confirmation" ? "Há escolhas pendentes." : "Requisitos ainda não atendidos; consulte a preparação."}))}
         active={active}
         selecting={inspecting}
         onSelectAnalysis={(operation,proposal)=>{

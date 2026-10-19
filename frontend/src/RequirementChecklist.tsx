@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import { AlertCircle, CheckCircle2, LoaderCircle, XCircle } from "lucide-react";
 
+/** Requisito do pré-exame. "needs_confirmation" é o valor do contrato da API para "escolha pendente";
+ * kind separa a escolha do usuário do impedimento nos dados, e step indica a etapa da preparação. */
 export type Requirement = {
   status: "met" | "needs_confirmation" | "missing";
   title: string;
   detail: string;
+  kind?: "escolha" | "dados";
+  step?: 0 | 1;
 };
 
 type Props = {
@@ -20,14 +24,14 @@ export default function RequirementChecklist({ analysis, status, requirements,
                                                 onExecute, executing, children }: Props) {
   const available = status === "available";
   const label = available ? "Disponível" : status === "needs_confirmation" ?
-    "Confirmação necessária" : status === "loading" ? "Verificando..." : "Não habilitada";
+    "Escolha pendente" : status === "loading" ? "Verificando..." : "Não habilitada";
   return <section aria-label={"Requisitos de " + analysis}
     className="section-anchor mt-5 rounded-[20px] border border-line bg-white p-5 shadow-card sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="text-base font-bold text-ink">Requisitos para {analysis}</h3>
         <p className="mt-1 text-xs leading-5 text-slate-600">
-          Confira as condições para esta análise. Os sinais indicam o que já foi validado, o que precisa de confirmação e o que está faltando.
+          Confira as condições para esta análise. Os sinais indicam o que já foi validado, o que ainda depende de uma escolha sua e o que está faltando nos dados.
         </p>
       </div>
       <span className={["rounded-full px-3 py-1.5 text-xs font-bold",
@@ -41,7 +45,7 @@ export default function RequirementChecklist({ analysis, status, requirements,
           <div key={requirement.status + requirement.title + index}
             className="flex items-start gap-3 rounded-xl border border-line bg-slate-50/40 p-3.5">
             {requirement.status === "met" ? <CheckCircle2 aria-label="Atendido" size={21} className="mt-0.5 shrink-0 text-emerald-600"/> :
-              requirement.status === "needs_confirmation" ? <AlertCircle aria-label="Confirmação necessária" size={21} className="mt-0.5 shrink-0 text-amber-600"/> :
+              requirement.status === "needs_confirmation" ? <AlertCircle aria-label="Escolha pendente" size={21} className="mt-0.5 shrink-0 text-amber-600"/> :
               <XCircle aria-label="Não atendido" size={21} className="mt-0.5 shrink-0 text-rose-600"/>}
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">{requirement.title}</p>

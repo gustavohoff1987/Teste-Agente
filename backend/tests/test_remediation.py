@@ -68,9 +68,15 @@ def test_authorized_disaggregation_keeps_population_once():
     df["Sector"] = ["Public", "Private"]
     df["Count"] = [10, 15]
     opts = {**O, "component_columns": ["Sector"]}
-    assert post("/api/analyze", df, options=opts).status_code == 422
+    # D1: escolher as colunas dos componentes aplica a premissa de soma das partes, com nota e limitação.
+    implicit = post("/api/analyze", df, options=opts)
+    assert implicit.status_code == 200, implicit.text
+    assert "rows_additive_confirmed" in implicit.json()["metadata"]["options"]["analysis_premises"]
+    assert implicit.json()["metadata"]["evaluability"]["limitacoes"] == ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]
+    assert post("/api/analyze", df, options={**opts, "rows_additive_confirmed": False}).status_code == 422  # recusa explícita
     result = post("/api/analyze", df, options={**opts, "rows_additive_confirmed": True})
     assert result.status_code == 200, result.text
+    assert result.json()["rows"] == implicit.json()["rows"]
     row = result.json()["rows"][0]
     assert (row["Quantidade"], row["População"], row["Densidade por 1.000"]) == (25, 5000, 5)
     df.loc[1, "Population"] = 6000

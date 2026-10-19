@@ -19,7 +19,7 @@ import pandas as pd
 import pyproj
 from pyproj import Geod
 
-from data_contract import ConfirmationRequired, canonical_crs, numbers, scoped, text_values
+from data_contract import ChoiceRequired, canonical_crs, numbers, scoped, text_values
 from geo_complement import overlay
 from request_memo import request_value
 from territorial_selection import territory_catalog, texts
@@ -61,7 +61,7 @@ def analysis_period(frame, mapping, options):
     if not col:
         if options.get("single_period_confirmed"):
             return None
-        raise ConfirmationRequired("Associe o período ou confirme que a base representa um único período.")
+        raise ChoiceRequired("Escolha a coluna de Período ou a opção «A base tem um único período».")
     available = set(text_values(frame[col]).dropna().tolist())
     chosen = str(options.get("period_filter") or "").strip()
     if chosen:
@@ -70,7 +70,7 @@ def analysis_period(frame, mapping, options):
         return chosen
     if len(available) == 1:
         return next(iter(available))
-    raise ConfirmationRequired("Escolha o período: as coordenadas e o critério das referências são lidos "
+    raise ChoiceRequired("Escolha o período: as coordenadas e o critério das referências são lidos "
                                "em uma única competência, pois podem mudar ao longo do tempo.")
 
 
@@ -94,10 +94,10 @@ def territory_coordinates(frame, mapping, options):
     # Sem separador de milhares, vírgula só tem significado declarado (mesma regra de numbers()).
     if not comma and (raw_lat.str.contains(",", regex=False).any() or raw_lon.str.contains(",", regex=False).any()):
         if options.get("number_format") == "decimal_point":
-            raise ValueError("Há coordenadas com vírgula, incompatíveis com o ponto decimal declarado. "
-                             "Declare a vírgula como separador decimal ou revise a base.")
-        raise ConfirmationRequired("Há coordenadas com vírgula. Declare o separador decimal das coordenadas "
-                                   "(vírgula ou ponto); nenhum formato é presumido.")
+            raise ValueError("Há coordenadas com vírgula, incompatíveis com o ponto decimal escolhido. "
+                             "Escolha a vírgula como separador decimal ou revise a base.")
+        raise ChoiceRequired("Escolha o separador decimal das coordenadas (vírgula ou ponto): o formato não pôde ser "
+                             "verificado nos dados.")
     # Camada complementar governada (só base Brasil): ponto inválido dos municípios autorizados substituído.
     lat, lon, applied, complement = overlay(frame, mapping, lat, lon)
     applied = np.zeros(len(frame), dtype=bool) if applied is None else applied
@@ -149,13 +149,13 @@ def density_criterion(frame, mapping, options, period, operator, threshold):
     if not mapping.get("count"):
         raise ValueError("O critério de densidade desta etapa usa coluna de quantitativos; contagem por "
                          "identificador individual não está habilitada para definir referências.")
-    confirmed = options.get("confirmed_roles") or []
-    if "count" not in confirmed or "population" not in confirmed:
-        raise ConfirmationRequired("Confirme as colunas de quantitativo e de população usadas no critério.")
+    from semantic_bridge import premise_reason, role_established  # mesma regra do pré-exame; evita ciclo
+    if not all(role_established(frame, mapping, options, role) for role in ("count", "population")):
+        raise ChoiceRequired("Escolha as colunas de quantitativo e de população usadas no critério.")
     if not options.get("count_unit"):
-        raise ConfirmationRequired("Informe a unidade de contagem dos quantitativos usados no critério.")
+        raise ChoiceRequired("Escolha a unidade de contagem dos quantitativos usados no critério.")
     if not options.get("population_denominator_confirmed"):
-        raise ConfirmationRequired("Confirme a definição e o alinhamento do denominador populacional.")
+        raise ChoiceRequired(premise_reason(options, "population_denominator_confirmed"))
     rows = _in_period(frame, mapping, period)
     category = None
     if mapping.get("category"):
@@ -163,13 +163,14 @@ def density_criterion(frame, mapping, options, period, operator, threshold):
         category = str(options.get("category_filter") or "").strip()
         if not category:
             if len(available) != 1:
-                raise ConfirmationRequired("Escolha a categoria profissional do critério de densidade.")
+                raise ChoiceRequired("Escolha a categoria profissional do critério de densidade.")
             category = next(iter(available))
         if category not in available:
             raise ValueError("A categoria escolhida não existe no período do critério.")
         rows = rows[text_values(rows[mapping["category"]]) == category]
     elif not (options.get("category_constant") or options.get("fts_scope_confirmed")):
-        raise ConfirmationRequired("Declare a categoria ou o conjunto de trabalhadores da base.")
+        raise ChoiceRequired("Informe o objeto de análise: a profissão ou o conjunto de trabalhadores da força de "
+                             "trabalho em saúde.")
     if rows.empty:
         raise ValueError("Não há registros no período e na categoria do critério.")
     ids = row_ids(rows, mapping)
@@ -204,11 +205,11 @@ def reference_set(frame, mapping, options, period):
     """CAP-REF-01: forma, origem e membros do conjunto, preservando candidatos não avaliáveis."""
     mode = options.get("reference_mode")
     if mode not in ("list", "criterion"):
-        raise ConfirmationRequired("Escolha como definir as referências: lista de territórios ou critério de densidade.")
+        raise ChoiceRequired("Escolha como definir as referências: lista de territórios ou critério de densidade.")
     if mode == "list":
         ids = options.get("reference_ids")
         if not ids:
-            raise ConfirmationRequired("Selecione ao menos um território de referência.")
+            raise ChoiceRequired("Selecione ao menos um território de referência.")
         if (not isinstance(ids, list) or len(ids) > 10000 or len(ids) != len(set(ids)) or
                 any(not isinstance(v, str) or not v or len(v) > 512 for v in ids)):
             raise ValueError("A lista de referências deve conter identificadores distintos.")
@@ -216,7 +217,7 @@ def reference_set(frame, mapping, options, period):
         criterion = options.get("reference_criterion") or {}
         operator, value = criterion.get("operator"), criterion.get("value")
         if operator not in OPERATORS or value in (None, ""):
-            raise ConfirmationRequired("Defina o operador e o valor do critério de densidade das referências.")
+            raise ChoiceRequired("Defina o operador e o valor do critério de densidade das referências.")
         threshold = _decimal(value)
     catalog = {item["id"]: item for item in territory_catalog(frame, mapping, options)}
     if mode == "list":
@@ -258,12 +259,12 @@ def _nearest_inputs(frame, mapping, options):
         if crs:
             raise ValueError("Referencial geodésico informado não suportado nesta versão (somente SIRGAS2000). "
                              "Nenhuma transformação, aproximação ou substituição é aplicada.")
-        raise ConfirmationRequired("Informe o referencial geodésico das coordenadas; nenhum referencial é presumido.")
+        raise ChoiceRequired("Escolha o referencial geodésico das coordenadas; nenhum referencial é presumido.")
     for role, label in (("territory", "o território"), ("latitude", "a latitude"), ("longitude", "a longitude")):
         if not mapping.get(role):
             raise ValueError("Associe " + label + " para calcular a referência mais próxima.")
     if not _coordinate_roles_established(frame, mapping, options):
-        raise ConfirmationRequired("Confirme que latitude e longitude estão em graus decimais.")
+        raise ChoiceRequired("Escolha as colunas de latitude e longitude (graus decimais).")
     period = analysis_period(frame, mapping, options)
     references = reference_set(frame, mapping, options, period)
     target_options = {**options, "period_filter": period} if period else options
@@ -290,19 +291,10 @@ def _reject_homonyms(frame, mapping, ids):
 
 
 def _coordinate_roles_established(frame, mapping, options):
-    """RQ-DAD-25: confirmação do usuário ou regra (nome governado, valores numéricos no intervalo)."""
-    from semantic_bridge import EXACT, normalize  # mesma regra de candidates(); importação local evita ciclo
-    confirmed = set(options.get("confirmed_roles") or [])
-    for role, limit in (("latitude", 90), ("longitude", 180)):
-        if role in confirmed:
-            continue
-        column = mapping[role]
-        if normalize(column) not in EXACT[role]:
-            return False
-        values = pd.to_numeric(frame[column], errors="coerce")
-        if (frame[column].notna() & (values.isna() | (values.abs() > limit))).any():
-            return False
-    return True
+    """RQ-DAD-25: escolha do usuário, perfil oficial ou regra (nome do CFG-VOC e valores num formato decimal único).
+    Valor fora do intervalo não rebaixa a coluna: o elemento fica não avaliável (COORDENADA_INVALIDA)."""
+    from semantic_bridge import coordinate_roles  # mesma regra de candidates(); importação local evita ciclo
+    return coordinate_roles(frame, mapping, options) == {"latitude", "longitude"}
 
 
 def _ecef(lat, lon):

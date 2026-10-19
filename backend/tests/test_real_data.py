@@ -41,11 +41,13 @@ def test_real_municipal_density_and_all_rows_against_independent_arithmetic(real
     frame, _ = read_dataset(raw, path.name)
     mapping, _ = candidates(frame)
     assert mapping["territory"] == "municipio"
-    assert mapping["territory_id"] == "cod_ibge"
+    # D1: o código IBGE é só sugestão até ser escolhido no seletor (antes vinha pré-preenchido no mapeamento).
+    assert "territory_id" not in mapping
     assert mapping["category"] == "categoria_profissional"
     assert mapping["period"] == "Período (ano e mês)"
-    names_only = {k:v for k,v in mapping.items() if k != "territory_id"}
-    # Não inferir unidade de contagem nem substituir confirmação por nome de cabeçalho.
+    names_only = dict(mapping)
+    mapping = {**mapping, "territory_id": "cod_ibge"}  # escolha explícita do usuário
+    # Não inferir unidade de contagem nem substituir a escolha por nome de cabeçalho.
     initial = preflight(frame, names_only)
     assert initial["capabilities"]["density"]["status"] != "available"
     profile = initial["multiplicity"]
@@ -74,6 +76,51 @@ def test_real_municipal_density_and_all_rows_against_independent_arithmetic(real
     np.testing.assert_array_equal(joined.Quantidade, joined.q)
     np.testing.assert_array_equal(joined.População, joined.p)
     np.testing.assert_allclose(joined["Densidade por 1.000"], joined.q * 1000 / joined.p, rtol=1e-13)
+
+
+def test_real_municipal_import_without_confirmations(real_sources):
+    """D1: cópia importada da base municipal. Coordenadas e período reconhecidos por regra, vírgula decimal verificada
+    nos dados e código IBGE só como sugestão até ser escolhido; depois da escolha, a densidade fica disponível sem
+    nenhuma confirmação, com as premissas no resultado."""
+    path = next(p for p in real_sources if p.suffix.lower() == ".csv")
+    raw = path.read_bytes()
+    inspected = client.post("/api/inspect", files={"file": (path.name, raw)})
+    assert inspected.status_code == 200, inspected.text[:1000]
+    info = inspected.json()
+    mapping = info["suggested_mapping"]
+    assert info["curated_defaults"] is None  # importação: nenhum perfil oficial
+    assert {mapping[role] for role in ("latitude", "longitude")} == {"latitude", "longitude"}
+    assert mapping["period"] == "Período (ano e mês)" and "territory_id" not in mapping
+    assert info["suggested_columns"]["territory_id"] == ["cod_ibge"]
+    states = info["preflight"]["field_states"]
+    assert {states[role]["origin"] for role in ("latitude", "longitude", "period")} == {"REGRA_CONFIGURADA"}
+    # 242 nomes repetidos numa competência: sem o código, a densidade fica numa escolha pendente (nunca presumida).
+    options = {"count_unit": "pessoas", "period_filter": "202406"}
+    pending = client.post("/api/preflight", files={"file": (path.name, raw)},
+                          data={"mapping": json.dumps(mapping), "options": json.dumps(options)}).json()
+    density = pending["capabilities"]["density"]
+    assert density["status"] == "needs_confirmation"
+    assert any("Escolha a coluna do código territorial" in item["detail"] and item["kind"] == "escolha"
+               for item in density["requirements"])
+    for capability in pending["capabilities"].values():
+        text = " ".join(capability["reasons"])
+        assert "Confirm" not in text and "confirmad" not in text and "Declar" not in text
+    chosen = {**mapping, "territory_id": "cod_ibge"}
+    data = {"mapping": json.dumps(chosen), "options": json.dumps({**options, "confirmed_roles": ["territory_id"]})}
+    ready = client.post("/api/preflight", files={"file": (path.name, raw)}, data=data).json()
+    assert ready["capabilities"]["density"]["status"] == "available"
+    assert ready["field_states"]["territory_id"]["origin"] == "ESCOLHA_DO_USUARIO"
+    nearest = client.post("/api/preflight", files={"file": (path.name, raw)}, data={**data, "options": json.dumps({
+        **options, "confirmed_roles": ["territory_id"], "crs": "SIRGAS2000", "reference_mode": "list",
+        "reference_ids": ["code:130260"]})}).json()
+    assert nearest["capabilities"]["nearest"]["status"] == "available", nearest["capabilities"]["nearest"]["reasons"]
+    assert "number_format" in nearest["premises"]  # vírgula decimal verificada nos 122.534 registros
+    result = client.post("/api/analyze", files={"file": (path.name, raw)}, data={**data, "operation": "density"})
+    assert result.status_code == 200, result.text[:1000]
+    body = result.json()
+    assert len(body["rows"]) == 5570
+    assert "population_denominator_confirmed" in body["metadata"]["options"]["analysis_premises"]
+    assert any(note.startswith("Denominador: população da mesma linha") for note in body["notes"])
 
 
 def test_real_national_excel_recognition_counts_and_temporal(real_sources):

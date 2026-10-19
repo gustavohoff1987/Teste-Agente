@@ -49,7 +49,7 @@ ao recorte municipal (`/api/inspect`), feita ao abrir a caixa. Nas demais, a cai
 que a análise usa somente a fonte municipal, sem uma opção que levaria ao bloqueio. Ao trocar de
 recorte, a preparação continua na tela, bloqueada e com aviso de carregamento, até o novo
 recorte chegar; a interface não volta à escolha da fonte. Trocar de recorte limpa resultados;
-confirmações comuns verificáveis de período/categoria são preservadas quando a análise de
+escolhas comuns verificáveis de período/categoria são preservadas quando a análise de
 destino aceita o mesmo modo de período (único ou vários). A preparação de cada recorte é
 mantida na memória da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame
 do backend.
@@ -57,17 +57,37 @@ do backend.
 As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
 municipal para o Brasil ou soma automática de pessoas entre municípios. Na agregação
 municipal da base oficial, o total é a soma dos componentes, sempre rotulada como possível
-dupla contagem; em bases importadas, o motor continua exigindo as declarações de aditividade
-e da forma de contagem.
+dupla contagem; em bases importadas, a soma dos componentes também é a premissa padrão da
+agregação, com nota e a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM, e o usuário pode escolher
+outro total (pessoas distintas pelo identificador, quando houver).
 
 A plataforma reconhece automaticamente as associações e significados da base Brasil
-**somente** quando a estrutura, o mapeamento e a categoria única MEDICINA correspondem
-ao perfil governado (`backend/brazil_catalog_profile.py`), após a verificação de
-integridade do catálogo. Nesse caso, a unidade de contagem declarada para o catálogo
-é pessoas por território/período; isso **não** implica identidade única entre
-municípios ou meses. Nenhum perfil é aplicado ao upload do usuário, a estruturas
-desconhecidas ou a categorias inesperadas. Para bases fora do perfil, o fluxo
-retoma as confirmações metodológicas habituais.
+quando a fonte é a base oficial íntegra (estrutura esperada e categoria única MEDICINA) do
+perfil governado (`backend/brazil_catalog_profile.py`). O perfil vale **campo a campo**: cada
+papel cuja coluna ainda é a canônica fica reconhecido pelo perfil, e mudar uma coluna tira só
+aquele papel (as premissas que dependem dele passam à camada genérica). A unidade de contagem do
+catálogo é pessoas por território/período, só com a contagem do perfil; isso **não** implica
+identidade única entre municípios ou meses. Nenhum perfil é aplicado ao upload do usuário, a
+estruturas desconhecidas ou a categorias inesperadas.
+
+**Sem confirmações de colunas e campos** (decisão do responsável pelo produto, 19/10/2026), em
+nenhuma análise e em nenhuma base. O usuário só **escolhe** colunas e parâmetros. Um papel fica
+estabelecido por regra conclusiva (alias governado; período AAAAMM composto e validado; latitude e
+longitude com nome do vocabulário e valores num formato decimal único), pelo perfil oficial ou pela
+escolha no seletor. Sugestões não conclusivas (código territorial, UF, região, padrão de contagem,
+categoria sugerida pelo cabeçalho) deixam o seletor vazio, com a sugestão no topo marcada
+"(sugerida)"; escolher a coluna a estabelece, e uma sugestão nunca é usada sem escolha. O objeto de
+análise é o texto informado; o período único é uma opção do seletor de período; o separador decimal
+das coordenadas é verificado nos dados (só vira escolha quando o formato é misto); o referencial
+continua um parâmetro. As antigas declarações viram **premissas** aplicadas pelo backend
+(`backend/analysis_premises.py`), com origem (`PERFIL_GOVERNADO`, `VERIFICADA_NOS_DADOS`,
+`PREMISSA_DA_ANALISE`, `DECLARADA_PELO_USUARIO`), nota em "Método e limitações" e limitação
+quando cabível; um valor `false` explícito na API continua recusando a premissa. Na rotatividade,
+unidade sem registro em um dos períodos fica não avaliável (SEM_REGISTRO_OBSERVADO). O contrato da
+API mantém `confirmed_roles` (papéis escolhidos), `needs_confirmation` (escolha pendente) e
+`confirmed`; cada requisito traz `kind` (`escolha` ou `dados`) e `step`. Valor fora da faixa não
+impede o reconhecimento da coluna de coordenada; a análise espacial sem a camada complementar ainda
+recusa o pedido inteiro quando há coordenada inválida.
 
 **Premissas internas da base oficial.** Com o perfil governado reconhecido, a interface não
 pede ao usuário as confirmações de comparabilidade. O backend as resolve e registra a origem de
@@ -75,12 +95,12 @@ cada uma em "Método e limitações" e nas opções exportadas (`governed_premis
 temporal, comparabilidade entre municípios, populações municipais sem sobreposição e agregação
 como soma dos componentes são regras do perfil, decididas pelo responsável pelo produto em
 18/10/2026. A identidade territorial ao longo do tempo só vale depois de verificada nos dados:
-cada código IBGE mantém o mesmo nome em todas as competências. Sem essa evidência, a confirmação
-volta a ser pedida. Nas análises de distância da versão governada (análise espacial, referência
+cada código IBGE mantém o mesmo nome em todas as competências. Sem essa evidência, a premissa não é
+aplicada e a análise temporal fica impedida com o motivo. Nas análises de distância da versão governada (análise espacial, referência
 mais próxima e critérios com distância), também são internos o referencial SIRGAS 2000, regra do
 perfil porque a fonte não declara o referencial, e a vírgula como separador decimal das
-coordenadas, verificada nos dados. Bases importadas e significados alterados mantêm todas as
-declarações.
+coordenadas, verificada nos dados. Em bases importadas e nos papéis que saíram do perfil, as mesmas
+condições são premissas da análise (`analysis_premises`), com nota, sem caixas de declaração.
 Detalhes em [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial).
 
 No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
@@ -94,8 +114,8 @@ Períodos são apresentados em português (por exemplo, junho de 2024).
 Quantitativos e relatórios podem mostrar vários períodos **separadamente**; análises
 temporais podem restringir a seleção a múltiplos períodos. A agregação territorial
 continua restrita a uma competência, para não tratar pessoas observadas em meses
-diferentes como pessoas únicas. Fora do perfil governado, a confirmação de premissas
-metodológicas não verificáveis pelo catálogo, quando exigida, permanece obrigatória.
+diferentes como pessoas únicas. Fora do perfil governado, as premissas metodológicas são aplicadas
+pelo backend e registradas no resultado; nenhuma confirmação é pedida.
 
 **Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
 aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e
@@ -147,8 +167,9 @@ fora dos arquivos públicos do frontend e de qualquer repositório público. A e
 provisionamento e a publicação ficam para uma etapa futura; não foram implementados.
 
 Campos `periodo_ano` e `periodo_mes` são preservados e compõem **Período (ano e mês)**
-em memória, no formato AAAAMM, mediante confirmação do papel temporal. Componentes
-inválidos são rejeitados. A transformação e a versão da base constam em **Método e
+em memória, no formato AAAAMM (ano × 100 + mês), reconhecido por regra conclusiva: componentes
+inválidos são rejeitados na importação. Se a base já tiver outra coluna de período reconhecida pelo
+nome, a composição fica como sugestão. A transformação e a versão da base constam em **Método e
 parâmetros**. Cabeçalhos antigos continuam suportados.
 
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
@@ -260,9 +281,9 @@ O banner permanece acima da navegação horizontal. Dados, escolhas, preparaçã
 
 “Histórico” reabre resultados da sessão sem recalcular. “Nova sessão” sempre pede confirmação, oferece CSV e impressão do resultado em exibição e informa que cada componente precisa ser exportado separadamente. Confirmar encerra a sessão no servidor e recarrega a interface, descartando arquivos, referências, conversa, resultados e grupos em memória. Se o encerramento falhar, a tela mantém o conteúdo e informa o erro. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade. O pop-up de início traz só essa declaração ("Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.") e o botão "Li e concordo"; depois de uma sessão encerrada, o aviso de descarte aparece acima dela. O prazo da sessão não é exibido. O aceite vale para a sessão da aba; após o encerramento, o aceite é solicitado novamente. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
-**Com base carregada:** pedidos reconhecidos pela gramática local seguem para `POST /api/exploration/interpret`; os demais seguem para `POST /api/llm/interpret-context`. Orientações de catálogo são atendidas localmente, inclusive durante uma pergunta pendente sobre municípios. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as confirmações e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/confirmados e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
+**Com base carregada:** pedidos reconhecidos pela gramática local seguem para `POST /api/exploration/interpret`; os demais seguem para `POST /api/llm/interpret-context`. Orientações de catálogo são atendidas localmente, inclusive durante uma pergunta pendente sobre municípios. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as escolhas, as premissas e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/escolhidos e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
-O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado continua exigindo confirmação. Uma interpretação apenas prepara a análise; o cálculo depende de ação explícita na preparação. Trocar a fonte invalida interpretações e pendências daquela fonte; a conversa e os resultados já calculados permanecem consultáveis na memória da aba. Alterações de parâmetros e recorte invalidam respostas ainda em trânsito e exigem nova revalidação no backend.
+O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos; o nível territorial solicitado é o da abrangência territorial (base oficial) ou da coluna territorial escolhida (base importada), registrado como "Definido na abrangência territorial", sem pedido de confirmação. Uma interpretação apenas prepara a análise; o cálculo depende de ação explícita na preparação. Trocar a fonte invalida interpretações e pendências daquela fonte; a conversa e os resultados já calculados permanecem consultáveis na memória da aba. Alterações de parâmetros e recorte invalidam respostas ainda em trânsito e exigem nova revalidação no backend.
 
 **Sem base carregada:** o comportamento de primeira iteração continua disponível em `POST /api/llm/interpret`, mas a proposta é explicitamente preliminar e não verifica a existência dos valores sugeridos.
 
@@ -270,7 +291,7 @@ A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemin
 
 O LLM classifica também intenções conversacionais e perguntas sobre o agente; o backend responde com textos de catálogo local. Saudações, agradecimentos, ajuda, importação, privacidade, limites e explicação de densidade contam com tratamento determinístico sem consumo de franquia. Perguntas como “O que é possível fazer nessa página?” recebem a orientação correspondente, sem substituir a resposta pela apresentação inicial. A fonte atual aparece em uma identificação compacta; trocar dados continua disponível.
 
-Para pedidos analíticos, o contrato admite uma proposta única ou até cinco candidatas de operação/indicador, cada alternativa ancorada em trecho literal do pedido sanitizado atual. Leituras materialmente diferentes geram escolhas, sem selecionar uma automaticamente. Com base disponível, a escolha explícita prepara a operação no backend; sem base, prepara o rascunho da conversa. Depois de validar a capacidade, o Python resolve os nomes municipais da manifestação original contra o catálogo **somente localmente**, incluindo paráfrases como “coloque Manaus e Tefé lado a lado”. Se só um município for informado numa comparação, pergunta qual outro; “analise dois municípios também” pede os nomes e aproveita a mensagem seguinte, sem escolher os primeiros municípios da base. Homônimos e trechos de recorte não confirmados continuam exigindo esclarecimento. O texto exibido vem de templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. Essa ampliação é parcial: ver [conversação incremental](Docs/CONVERSACAO_INCREMENTO_FN.md).
+Para pedidos analíticos, o contrato admite uma proposta única ou até cinco candidatas de operação/indicador, cada alternativa ancorada em trecho literal do pedido sanitizado atual. Leituras materialmente diferentes geram escolhas, sem selecionar uma automaticamente. Com base disponível, a escolha explícita prepara a operação no backend; sem base, prepara o rascunho da conversa. Depois de validar a capacidade, o Python resolve os nomes municipais da manifestação original contra o catálogo **somente localmente**, incluindo paráfrases como “coloque Manaus e Tefé lado a lado”. Se só um município for informado numa comparação, pergunta qual outro; “analise dois municípios também” pede os nomes e aproveita a mensagem seguinte, sem escolher os primeiros municípios da base. Homônimos e trechos de recorte não reconhecidos continuam exigindo esclarecimento. O texto exibido vem de templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. Essa ampliação é parcial: ver [conversação incremental](Docs/CONVERSACAO_INCREMENTO_FN.md).
 
 A evolução autorizada do diálogo está registrada em [Evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md). A interface usa contexto temporário verificado no backend para seleção, parâmetros, possibilidades do pré-exame e referências a resultados. “Esses municípios”, correções de indicador e inclusão de município reaproveitam a preparação. “E agora?” informa o contexto sem calcular. Densidade, quantitativos e comparação territorial já admitem perguntas sobre o resultado apresentado, com origem verificada, preservação das notas e explicações metodológicas pelo catálogo PT. “Explique de maneira mais simples” reduz a expansão metodológica, conservando fatos e limitações. Relação não calculada oferece preparação de comparação. As demais leituras analíticas conversacionais permanecem limitadas; os respectivos resultados e controles da interface continuam disponíveis. EN não está autorizado nesta integração.
 
@@ -380,19 +401,19 @@ descrita em [preparação guiada](Docs/PREPARACAO_GUIADA.md).
 
 ## Ponte semântica e habilitação de análises
 
-O motor `backend/semantic_bridge.py` reutiliza regras de reconhecimento governado da SPEC para propor a associação entre **nomes originais das colunas** e papéis analíticos internos, sem exigir renomeação pelo usuário. Correspondências não conclusivas (por exemplo, "Total de médicos únicos") aguardam confirmação e não autorizam deduções de unicidade. O exame automático `/api/inspect` fornece candidatos, perfis de colunas e uma matriz inicial; `/api/preflight` a recalcula após esclarecimentos. O endpoint `/api/analyze` **revalida** a habilitação antes da execução.
+O motor `backend/semantic_bridge.py` reutiliza regras de reconhecimento governado da SPEC para propor a associação entre **nomes originais das colunas** e papéis analíticos internos, sem exigir renomeação pelo usuário. Correspondências não conclusivas (por exemplo, "Total de médicos únicos") ficam como sugestão no topo do seletor, que permanece vazio até a escolha do usuário, e não autorizam deduções de unicidade. O exame automático `/api/inspect` fornece candidatos, perfis de colunas e uma matriz inicial; `/api/preflight` a recalcula após esclarecimentos. O endpoint `/api/analyze` **revalida** a habilitação antes da execução.
 
 **Experimento híbrido:** os cartões clicáveis para solicitar análises ainda diferem do canal conversacional normativo da SPEC; a interpretação com LLM não substitui os gates nem autoriza execução. Ver `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md` para rastreabilidade, divergências e limitações.
 
-Exemplo de CSV com `0`, `Competência`, `Total de médicos únicos`: a coluna `Competência` é reconhecida como período, `Total de médicos únicos` é **proposto** como quantitativo; o cabeçalho `0` não é presumido território. Após confirmação da contagem/unidade, categoria constante ou domínio FTS autorizado e comparabilidade temporal quando cabível, quantitativos e série temporal podem ficar disponíveis **sem inventar território nem população**. Densidade continuará indisponível sem o denominador e recorte apropriados.
+Exemplo de CSV com `0`, `Competência`, `Total de médicos únicos`: a coluna `Competência` é reconhecida como período, `Total de médicos únicos` é **sugerido** como quantitativo (sem entrar no mapeamento); o cabeçalho `0` não é presumido território. Depois de escolher a coluna de contagem e a unidade e de informar o objeto de análise (a sugestão "Médicos" do cabeçalho é um botão, nunca aplicada sozinha), quantitativos e série temporal podem ficar disponíveis **sem inventar território nem população**; a comparabilidade temporal é premissa da análise, registrada no resultado. Densidade continuará indisponível sem o denominador e recorte apropriados.
 
 ## Validação local e resolução de registros múltiplos
 
-Municípios ou outras unidades com o mesmo nome podem representar lugares distintos. Selecione a coluna territorial desejada e, nos requisitos da capacidade, associe e confirme o código que distingue essas unidades. O nome continua sendo apresentado junto ao código. O aplicativo não confere códigos em cadastros externos.
+Municípios ou outras unidades com o mesmo nome podem representar lugares distintos. Selecione a coluna territorial desejada e escolha no seletor o código que distingue essas unidades (a coluna de código aparece como sugestão no topo, mas só vale depois de escolhida). O nome continua sendo apresentado junto ao código. O aplicativo não confere códigos em cadastros externos.
 
-A unidade da contagem deve ser declarada. Profissionais distintos em um município, categoria e período não implicam aditividade entre recortes. Cópias idênticas exigem autorização específica para remoção; componentes desagregados exigem dimensões que os distingam e declaração de ausência de sobreposição. População repetida no mesmo território e período é utilizada uma vez; conflitos impedem o cálculo.
+A unidade da contagem deve ser escolhida. Profissionais distintos em um município, categoria e período não implicam aditividade entre recortes. Cópias idênticas só são removidas por escolha explícita em «Linhas idênticas»; componentes desagregados exigem a escolha das dimensões que os distinguem, e a soma das partes vira premissa com nota (e a limitação de possível dupla contagem quando a unidade é pessoas). População repetida no mesmo território e período é utilizada uma vez; conflitos impedem o cálculo.
 
-O CSV contém todos os resultados, com precisão numérica preservada; a tabela mostra até 150 linhas. “Método e parâmetros” exporta as associações, declarações, filtros, versão do método e identificação do conteúdo analisado. PDF usa a impressão do navegador e abrange a apresentação visível.
+O CSV contém todos os resultados, com precisão numérica preservada; a tabela mostra até 150 linhas. “Método e parâmetros” exporta as associações, escolhas, premissas aplicadas, filtros, versão do método e identificação do conteúdo analisado. PDF usa a impressão do navegador e abrange a apresentação visível.
 
 Na raiz do repositório, em PowerShell:
 
@@ -402,7 +423,7 @@ $env:ADT_REAL_DATA_DIR = 'C:\Users\User\Desktop\Dados_Brasil'
 py -m pytest -q
 ```
 
-Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 30 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
+Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 31 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
 
 O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a jornada pelo navegador com a base versionada roda na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
 
@@ -417,8 +438,9 @@ As referências são definidas pelo usuário, por lista de municípios (nome ou 
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
 O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial
 SIRGAS 2000 e a vírgula decimal das coordenadas são premissas internas, registradas nas notas do
-resultado; em bases importadas e em outras versões, referencial e separador decimal são
-confirmados explicitamente, sem referencial presumido. Nenhum referencial é transformado.
+resultado; em bases importadas e em outras versões, o referencial é escolhido explicitamente (nenhum
+referencial é presumido) e o separador decimal das coordenadas é verificado nos dados, com nota (só vira
+escolha quando o formato é misto). Nenhum referencial é transformado.
 Referências ou alvos sem coordenada válida
 ficam registrados como não avaliáveis, com `minimo_completo` e `minimo_avaliaveis`
 distintos, empates preservados e ausência nunca convertida em zero. A distância não
@@ -452,12 +474,12 @@ Na própria página de resultados, as abas **Mapa**, **Gráficos** e **Tabela** 
 resultado, sem nova análise. O backend anexa a cada resultado um contrato de apresentação
 (`metadata.representacao`) com as colunas representáveis (rótulo, unidade, natureza e capacidade de
 origem) e as coordenadas autorizadas de cada território na competência do resultado, pela mesma regra
-das análises espaciais, respeitando a competência e a camada complementar governada. Na versão Brasil íntegra e correspondente ao manifesto governado, o mapa de uma única competência aparece automaticamente: uma configuração contextual adota SIRGAS2000 **somente para apresentação** e o formato decimal conhecido da fonte. O datum original não é declarado pela fonte; essa premissa ilustrativa fica identificada na tela e no JSON, sem mudar as opções analíticas ou calcular distâncias. Nas análises de distância dessa versão, o referencial já é premissa interna do cálculo: a legenda do mapa informa essa origem e o JSON a registra em `premissa_referencial`. Não há padrão para uploads ou outras versões externas. Sem localização confirmada, a interface explica a indisponibilidade e mantém tabela e gráficos; a configuração da origem de um upload fica nas opções avançadas da preparação, fora da aba Mapa. O mapa de
+das análises espaciais, respeitando a competência e a camada complementar governada. Na versão Brasil íntegra e correspondente ao manifesto governado, o mapa de uma única competência aparece automaticamente: uma configuração contextual adota SIRGAS2000 **somente para apresentação** e o formato decimal conhecido da fonte. O datum original não é declarado pela fonte; essa premissa ilustrativa fica identificada na tela e no JSON, sem mudar as opções analíticas ou calcular distâncias. Nas análises de distância dessa versão, o referencial já é premissa interna do cálculo: a legenda do mapa informa essa origem e o JSON a registra em `premissa_referencial`. Não há padrão para uploads ou outras versões externas. Sem localização completa e escolhida, a interface explica a indisponibilidade e mantém tabela e gráficos; a configuração da origem de um upload fica nas opções avançadas da preparação, fora da aba Mapa. O mapa de
 pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, seleciona por clique, busca ou
 tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
 (não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem
 executá-la. Barras e linhas usam só valores e classes do motor, sem quantis, tendências ou posições
-criadas na tela. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com escopo de força de trabalho confirmado usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final e variação). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
+criadas na tela. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final e variação). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
 ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
 
 ## Escopo e limitações do protótipo
@@ -467,7 +489,8 @@ Os doze cartões apresentam a navegação e acionam rotas do motor. A versão im
 **Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; todas as subclasses de tendência; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 **Divergências da SPEC decididas pelo responsável pelo produto** (registradas em [Docs/REGISTRO_DE_COMPORTAMENTO.md](Docs/REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada):
-- o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026).
+- o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);
+- nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe.
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 

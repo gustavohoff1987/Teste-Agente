@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, choose
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 COUNT = 180
@@ -40,14 +40,13 @@ def start(page, source: Path, operation: str):
             chat.get_by_role("button", name="Próxima análise", exact=True).click()
     chat.get_by_role("button", name="Selecionar análise: " + operation, exact=True).click()
     inline = chat.locator("#preparacao-conversacional")
+    # D1: o código é escolhido no seletor (sugestão no topo); sem caixas de declaração nem botão de confirmação.
+    choose(inline, "Identificador territorial", "cod_ibge")
     inline.get_by_role("combobox", name="Unidade de contagem").select_option("pessoas")
     inline.get_by_label("Filtrar por período").select_option("202406")
     if operation == "Distribuição":
-        # A confirmação do denominador só aparece após selecionar densidade.
+        # A população só entra depois de escolher a densidade (premissa do denominador aplicada pelo backend).
         inline.get_by_role("combobox", name="Indicador", exact=True).select_option("density")
-    inline.get_by_label("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").check()
-    inline.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados.").check()
-    inline.get_by_role("button", name="Confirmar correspondências").click()
     return inline
 
 
@@ -131,12 +130,9 @@ def main():
         expect(board.get_by_text("Mapa indisponível para este resultado", exact=True)).to_be_visible()
         expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
         workspace(density_page, "preparation")
-        density_inline.get_by_text("Ajustar condições específicas, outras confirmações ou situações excepcionais", exact=True).click()
+        density_inline.get_by_text("Ajustar condições específicas ou situações excepcionais", exact=True).click()
         density_inline.get_by_label("Referencial das coordenadas importadas", exact=True).select_option("SIRGAS2000")
-        density_inline.get_by_label("Separador decimal das coordenadas importadas", exact=True).select_option("decimal_point")
-        confirmation = density_inline.get_by_role("button", name="Confirmar correspondências", exact=True)
-        if confirmation.count():
-            confirmation.click()
+        expect(density_inline.get_by_test_id("verified-number-format")).to_contain_text("ponto, verificado nos dados")
         expect(density_inline.get_by_role("button", name="Executar análise", exact=True)).to_be_enabled(timeout=60000)
         with density_page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
             execute_analysis(density_page, density_inline.get_by_role("button", name="Executar análise", exact=True))
@@ -166,9 +162,6 @@ def main():
         # Linhas: mais de oito territórios permanecem acessíveis por páginas sem misturar competências.
         workspace(density_page, "preparation")
         density_inline.get_by_label("Filtrar por período", exact=True).select_option("")
-        confirmation = density_inline.get_by_role("button", name="Confirmar correspondências", exact=True)
-        if confirmation.count():
-            confirmation.click()
         with density_page.expect_response(lambda response: response.url.endswith("/api/analyze"), timeout=120000) as event:
             execute_analysis(density_page, density_inline.get_by_role("button", name="Executar análise", exact=True))
         assert event.value.status == 200, event.value.text()[:1000]

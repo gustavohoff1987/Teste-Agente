@@ -1,7 +1,9 @@
 """Contratos estruturais compartilhados pelo exame e pelo cálculo, sem LLM.
 
 RQ-DAD-18/29/35/36: nomes não implicam identidade, soma ou unidade.
-As transformações são locais à requisição e exigem declarações explícitas.
+As transformações são locais à requisição. Papéis de coluna valem por regra conclusiva, pelo perfil
+oficial ou pela escolha do usuário; as antigas declarações são premissas aplicadas pelo backend
+(analysis_premises.py), e um valor falso explícito na API continua recusando a premissa.
 """
 import re
 from itertools import islice
@@ -12,8 +14,22 @@ from territorial_selection import selected_frame, selection_coverage, validate_s
 from request_memo import per_request
 
 
-class ConfirmationRequired(ValueError):
-    pass
+class ChoiceRequired(ValueError):
+    """Escolha pendente do usuário (coluna, parâmetro ou opção) ou premissa recusada explicitamente."""
+
+
+# Nome antigo mantido por compatibilidade: vários módulos e testes o importam.
+ConfirmationRequired = ChoiceRequired
+
+
+def _established(frame, mapping, options, role):
+    from semantic_bridge import role_established  # importação tardia: a ponte usa este contrato
+    return role_established(frame, mapping, options, role)
+
+
+def _premise(options, key):
+    from semantic_bridge import premise_reason  # importação tardia: a ponte usa este contrato
+    return premise_reason(options, key)
 
 
 @per_request  # a mesma coluna é normalizada uma vez por requisição; resultado só lido
@@ -87,9 +103,10 @@ def dimensions(frame, mapping, options, allow_global=False):
             if role == "territory" and not allow_global:
                 raise ValueError("Associe a unidade territorial.")
             if role == "period" and not options.get("single_period_confirmed"):
-                raise ConfirmationRequired("Associe Período ou confirme que a base representa um único período.")
+                raise ChoiceRequired("Escolha a coluna de Período ou a opção «A base tem um único período».")
             if role == "category" and not (options.get("category_constant") or options.get("fts_scope_confirmed")):
-                raise ConfirmationRequired("Declare a categoria ou o conjunto de trabalhadores da base.")
+                raise ChoiceRequired("Informe o objeto de análise: a profissão ou o conjunto de trabalhadores da força de "
+                                     "trabalho em saúde.")
             data[role] = fallback
     if data.isna().any().any():
         raise ValueError("Há valores ausentes ou vazios nas dimensões associadas; corrija a base ou selecione um recorte completo.")
@@ -97,8 +114,9 @@ def dimensions(frame, mapping, options, allow_global=False):
     if id_col:
         if not mapping.get("territory"):
             raise ValueError("Associe também o nome da unidade territorial correspondente ao código.")
-        if "territory_id" not in options.get("confirmed_roles", []):
-            raise ConfirmationRequired("Confirme que o código identifica cada unidade territorial no recorte escolhido.")
+        if not _established(frame, mapping, options, "territory_id"):
+            raise ChoiceRequired("Escolha a coluna do código territorial no seletor; a coluna indicada não foi escolhida "
+                                 "nem reconhecida pelo perfil oficial.")
         codes = text_values(frame[id_col])
         if codes.isna().any():
             raise ValueError("Há códigos territoriais ausentes ou vazios.")
@@ -118,7 +136,7 @@ def multiplicity(frame, mapping, options):
     df = scoped(frame, mapping, options)
     keys = [mapping[r] for r in KEYS if mapping.get(r)]
     code = mapping.get("territory_id")
-    if code and "territory_id" in options.get("confirmed_roles", []):
+    if code and _established(frame, mapping, options, "territory_id"):
         keys = [code if c == mapping.get("territory") else c for c in keys]
     normalized = df.copy()
     for col in keys:
@@ -183,21 +201,21 @@ def prepare(frame, mapping, options, operation):
             raise ValueError("Contagens de pessoas, vínculos e postos devem ser inteiras; confira a unidade e o formato numérico.")
         if data.duplicated(KEYS).any():
             if df.duplicated().any():
-                raise ConfirmationRequired("Há várias linhas idênticas em todas as colunas. Investigue sua origem e autorize a remoção das cópias somente se forem duplicatas de importação.")
+                raise ChoiceRequired("Há várias linhas idênticas em todas as colunas. Em «Linhas idênticas», escolha remover as cópias nesta análise ou corrija a base.")
             parts = options.get("component_columns") or []
             if not isinstance(parts, list) or any(c not in df.columns for c in parts):
                 raise ValueError("As colunas que distinguem os componentes não são válidas.")
             if any(c in mapping.values() for c in parts):
                 raise ValueError("Componentes devem ser dimensões adicionais, não medidas, população ou campos já associados.")
             if not parts:
-                raise ConfirmationRequired("Há várias linhas por território, período e categoria. Associe um código para distinguir territórios homônimos ou indique as colunas que distinguem os componentes da contagem.")
+                raise ChoiceRequired("Há várias linhas por território, período e categoria. Escolha a coluna do código territorial (homônimos) ou as colunas que distinguem os componentes.")
             detail = data[KEYS].copy()
             for i, col in enumerate(parts):
                 detail[f"component_{i}"] = text_values(df[col])
             if detail.isna().any().any() or detail.duplicated().any():
                 raise ValueError("Os componentes indicados não distinguem todos os registros, ou têm valores ausentes. Não é seguro somar essas linhas.")
             if not options.get("rows_additive_confirmed"):
-                raise ConfirmationRequired("Declare que os componentes têm a mesma unidade de contagem e são partes sem sobreposição dentro de cada território, período e categoria.")
+                raise ChoiceRequired(_premise(options, "rows_additive_confirmed"))
             data = data.groupby(KEYS, as_index=False).quantity.sum()
     elif identity:
         values = text_values(df[identity])
@@ -250,7 +268,7 @@ def period_positions(values, convention="auto"):
         if not all(np.isfinite(x) for x in positions) or len(set(positions)) != len(labels):
             raise ValueError()
     except (ValueError, TypeError, OverflowError) as exc:
-        raise ValueError("Referências temporais inválidas ou equivalentes. Declare a convenção e corrija períodos como meses inexistentes ou duas grafias do mesmo período.") from exc
+        raise ValueError("Referências temporais inválidas ou equivalentes. Escolha a convenção e corrija períodos como meses inexistentes ou duas grafias do mesmo período.") from exc
     return dict(zip(labels, positions))
 
 
@@ -306,15 +324,15 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
         raise ValueError("Indicador de comparação inválido: escolha quantidade ou densidade.")
     if operation in ("distribution", "temporal", "report"):
         if options.get(operation + "_indicator") not in ("quantity", "density"):
-            raise ConfirmationRequired("Escolha o indicador desta análise: quantidade ou densidade por 1.000 habitantes.")
+            raise ChoiceRequired("Escolha o indicador desta análise: quantidade ou densidade por 1.000 habitantes.")
         if needs_population(mapping, options, operation) and not options.get("population_denominator_confirmed"):
-            raise ConfirmationRequired("Confirme a definição e o alinhamento do denominador populacional.")
+            raise ChoiceRequired(_premise(options, "population_denominator_confirmed"))
     if operation == "spatial":
         geo = spatial_data(frame, mapping, options)
         if not canonical_crs(options.get("crs")):
-            raise ConfirmationRequired("Informe um referencial suportado: SIRGAS2000.")
+            raise ChoiceRequired("Escolha um referencial suportado: SIRGAS2000.")
         if options.get("reference_territory") not in set(geo.territory):
-            raise ConfirmationRequired("Selecione um território de referência existente, com seu código quando associado.")
+            raise ChoiceRequired("Selecione um território de referência existente, com seu código quando associado.")
         return geo
     if operation == "nearest":
         from nearest_reference import nearest_inputs  # importação tardia: o módulo usa este contrato
@@ -325,24 +343,26 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
     if operation == "rotation":
         rotation_data(frame, mapping, options)
         if not options.get("cohort_coverage_confirmed"):
-            raise ConfirmationRequired("Confirme que os dois períodos cobrem integralmente o mesmo universo de trabalhadores; ausência de registro deve representar ausência na coorte.")
+            raise ChoiceRequired(_premise(options, "cohort_coverage_confirmed"))
         return None
     data = prepare(frame, mapping, options, operation) if prepared is None else prepared
     if operation in ("comparisons", "ranking", "distribution"):
         if not data.groupby(["period", "category"]).territory.nunique().ge(2).any():
             raise ValueError("São necessários pelo menos dois territórios no mesmo período e categoria.")
     if operation in ("comparisons", "ranking") and not options.get("comparison_confirmed"):
-        raise ConfirmationRequired("Confirme que medida, unidade e definição populacional são equivalentes entre os territórios comparados.")
+        raise ChoiceRequired(_premise(options, "comparison_confirmed"))
     if operation == "distribution":
         indicator = options.get("distribution_indicator")
         if indicator not in ("quantity", "density"):
-            raise ConfirmationRequired("Escolha o indicador da distribuição: quantidade de profissionais ou densidade por 1.000 habitantes.")
-        if indicator == "density" and (not mapping.get("population") or not options.get("population_denominator_confirmed")):
-            raise ConfirmationRequired("Para distribuir por densidade, associe e confirme a população correspondente.")
+            raise ChoiceRequired("Escolha o indicador da distribuição: quantidade de profissionais ou densidade por 1.000 habitantes.")
+        if indicator == "density" and not mapping.get("population"):
+            raise ChoiceRequired("Para distribuir por densidade, escolha a coluna de população correspondente.")
+        if indicator == "density" and not options.get("population_denominator_confirmed"):
+            raise ChoiceRequired(_premise(options, "population_denominator_confirmed"))
         if data.period.nunique() > 1 and not options.get("period_filter"):
-            raise ConfirmationRequired("Escolha um período para classificar territórios do mesmo momento. Os quintis não devem misturar diferentes períodos.")
+            raise ChoiceRequired("Escolha um período para classificar territórios do mesmo momento. Os quintis não devem misturar diferentes períodos.")
         if data.category.nunique() > 1 and not options.get("category_filter"):
-            raise ConfirmationRequired("Escolha uma categoria profissional para comparar unidades com o mesmo objeto de análise.")
+            raise ChoiceRequired("Escolha uma categoria profissional para comparar unidades com o mesmo objeto de análise.")
         k = options.get("quantile_count", 5)
         if not isinstance(k, int) or isinstance(k, bool) or not 2 <= k <= 10:
             raise ValueError("O número de classes deve ser inteiro entre 2 e 10.")
@@ -356,14 +376,15 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
             raise ValueError("Nenhuma unidade tem os dois extremos para mudança ou quatro observações para tendência.")
     if operation == "aggregate":
         if data.period.nunique() != 1 or data.category.nunique() != 1:
-            raise ConfirmationRequired("Selecione um período e uma categoria para a agregação.")
+            raise ChoiceRequired("Selecione um período e uma categoria para a agregação.")
         if not options.get("population_additive_confirmed"):
-            raise ConfirmationRequired("Declare que as populações dos territórios são partes sem sobreposição do conjunto agregado.")
+            raise ChoiceRequired(_premise(options, "population_additive_confirmed"))
         modes = [bool(options.get("no_overlap_confirmed")), bool(options.get("component_sum_confirmed")),
                  bool(not mapping.get("count") and options.get("identity_union_confirmed"))]
         if sum(modes) > 1:
             raise ValueError("Escolha uma única forma de agregação: unidades sem sobreposição, soma dos componentes ou deduplicação da união.")
         if not (options.get("no_overlap_confirmed") or options.get("component_sum_confirmed") or (
             not mapping.get("count") and options.get("identity_union_confirmed"))):
-            raise ConfirmationRequired("Informe ausência de sobreposição, autorize a soma dos componentes com possível dupla contagem ou declare identidade válida na união territorial.")
+            raise ChoiceRequired("Escolha o total da agregação: soma dos componentes (possível dupla contagem), unidades sem "
+                                 "sobreposição ou pessoas distintas pelo identificador. " + _premise(options, "component_sum_confirmed"))
     return data

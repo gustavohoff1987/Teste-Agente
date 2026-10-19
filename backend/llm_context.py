@@ -73,7 +73,7 @@ def screen_reply(action, capture):
         if available:
             lines.append("Possibilidades no pré-exame atual (sem execução): " + "; ".join(available) + ".")
         else:
-            lines.append("Há parâmetros ou confirmações pendentes na preparação.")
+            lines.append("Há escolhas pendentes na preparação.")
     return {"reply": "\n\n".join(lines), "dialogue_action": action,
             "context_reference": {"revision": capture["revision"], "origin": "BACKEND_VERIFIED_STATE"}}
 
@@ -144,7 +144,7 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
     capability_status = gate["status"] if gate else "not_selected"
     current_status = capability_status
     values = eligibility["values"]
-    # Categoria constante já confirmada pelo usuário não exige coluna de
+    # Objeto informado pelo usuário (categoria constante) não exige coluna de
     # categoria própria. Não inventar equivalências ou categorias adicionais.
     categories = [*values["categories"], *([category_constant] if category_constant else [])]
     slots = {
@@ -152,16 +152,13 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
         "category": _slot_status(proposal.get("category", ""), categories),
     }
     territorial = proposal.get("territory", "")
-    # 'Municípios' é um nível territorial pedido, não um nome da base;
-    # não presumir que o nível está autorizado pelo cabeçalho da coluna.
-    if territorial:
-        slots["territory"] = "requires_unit_confirmation"
-    else:
-        slots["territory"] = "not_requested"
+    # 'Municípios' é um nível territorial pedido, não um nome da base. O nível vem da abrangência territorial
+    # (base oficial) ou da coluna territorial escolhida (base importada); nenhuma confirmação é pedida (D1).
+    slots["territory"] = "set_in_scope" if territorial else "not_requested"
 
     blockers = []
     if operation and frame is not None:
-        # Cópia provisória: nenhuma seleção ou confirmação é aplicada à sessão.
+        # Cópia provisória: nenhuma seleção ou escolha é aplicada à sessão.
         proposed = dict(options or {})
         if operation in ("distribution", "temporal", "report"):
             proposed[operation + "_indicator"] = proposal.get("indicator") or ""
@@ -171,8 +168,8 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
                 continue
             column = (mapping or {}).get(role)
             if column and column in frame.columns:
-                # Associação ainda pendente não significa valor ausente: o pré-exame
-                # da proposta relata a confirmação exigida para esse papel.
+                # Escolha de coluna ainda pendente não significa valor ausente: o pré-exame
+                # da proposta relata a escolha exigida para esse papel.
                 choices = text_values(frame[column]).dropna().unique().tolist()
             matches = [value for value in choices if _norm(value) == _norm(candidate)]
             if len(matches) != 1:
@@ -197,15 +194,13 @@ def review_interpretation(proposal: dict, eligibility: dict[str, Any],
     if capability_status == "unavailable":
         blockers.append("A capacidade ainda não atende às condições da matriz de aplicabilidade.")
     elif capability_status == "needs_confirmation":
-        blockers.append("Existem confirmações ou parâmetros pendentes para essa capacidade.")
+        blockers.append("Existem escolhas pendentes para essa capacidade.")
     if proposal.get("operation") == "distribution" and not proposal.get("indicator"):
         blockers.append("A distribuição exige escolher densidade ou quantidade de profissionais.")
-    if slots["period"] == "not_confirmed_in_dataset":
-        blockers.append("O período mencionado não foi confirmado entre os valores da base.")
+    if slots["period"] == "not_confirmed_in_dataset":  # valor do contrato: não encontrado na base
+        blockers.append("O período mencionado não foi encontrado entre os valores da base.")
     if slots["category"] == "not_confirmed_in_dataset":
-        blockers.append("A categoria mencionada não foi confirmada entre os valores da base.")
-    if slots["territory"] == "requires_unit_confirmation":
-        blockers.append("Confirme a unidade territorial nos controles da base.")
+        blockers.append("A categoria mencionada não foi encontrada entre os valores da base.")
     return {
         "source": "BACKEND_PREFLIGHT",
         "capability_status": capability_status,

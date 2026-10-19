@@ -19,7 +19,7 @@ from fractions import Fraction
 import numpy as np
 import pandas as pd
 
-from data_contract import ConfirmationRequired, numbers, scoped, text_values
+from data_contract import ChoiceRequired, numbers, scoped, text_values
 from nearest_reference import MOTIVES, TPL_11, _compare, _in_period, analysis_period, compute_nearest, nearest_inputs, row_ids
 from territorial_selection import STATES, territory_catalog
 
@@ -210,13 +210,14 @@ def _category(frame, mapping, options, period, requested):
     rows = _in_period(frame, mapping, period)
     if not mapping.get("category"):
         if not (options.get("category_constant") or options.get("fts_scope_confirmed")):
-            raise ConfirmationRequired("Declare a categoria ou o conjunto de trabalhadores da base.")
+            raise ChoiceRequired("Informe o objeto de análise: a profissão ou o conjunto de trabalhadores da força de "
+                                 "trabalho em saúde.")
         return None
     available = set(text_values(rows[mapping["category"]]).dropna().tolist())
     category = str(requested or options.get("category_filter") or "").strip()
     if not category:
         if len(available) != 1:
-            raise ConfirmationRequired("Escolha a categoria profissional dos critérios.")
+            raise ChoiceRequired("Escolha a categoria profissional dos critérios.")
         category = next(iter(available))
     if category not in available:
         raise ValueError("A categoria " + category + " não existe no período dos critérios.")
@@ -226,12 +227,12 @@ def _category(frame, mapping, options, period, requested):
 def measures(frame, mapping, options, period, category, count, population):
     """Quantidade e/ou população por território no período e na categoria; uma linha por território.
 
-    A associação das colunas (reconhecida por regra configurada ou confirmada) é exigida pelo pré-exame."""
+    A associação das colunas (reconhecida por regra configurada, pelo perfil oficial ou escolhida) é exigida pelo pré-exame."""
     if count:
         if not mapping.get("count"):
             raise ValueError("Critérios de densidade e quantidade usam a coluna de quantitativos; associe-a.")
         if not options.get("count_unit"):
-            raise ConfirmationRequired("Informe a unidade de contagem dos quantitativos usados nos critérios.")
+            raise ChoiceRequired("Escolha a unidade de contagem dos quantitativos usados nos critérios.")
     if population and not mapping.get("population"):
         raise ValueError("Critérios de densidade e de população exigem uma coluna de população associada.")
     rows = _in_period(frame, mapping, period)
@@ -255,7 +256,7 @@ def criteria_inputs(frame, mapping, options):
     """Validações e insumos sem distâncias (usadas também pelo pré-exame)."""
     tree, ranking, bands = options.get("criteria"), options.get("ranking"), options.get("bands")
     if tree is None and not ranking and not bands:
-        raise ConfirmationRequired("Defina ao menos um critério (indicador, operador e valor escolhidos por você) "
+        raise ChoiceRequired("Defina ao menos um critério (indicador, operador e valor escolhidos por você) "
                                    "ou uma ordenação.")
     if not mapping.get("territory"):
         raise ValueError("Associe o território para aplicar critérios.")
@@ -276,7 +277,7 @@ def criteria_inputs(frame, mapping, options):
     if need["count"] and not mapping.get("count"):
         raise ValueError("Critérios de densidade e quantidade usam a coluna de quantitativos; associe-a.")
     if need["count"] and not options.get("count_unit"):
-        raise ConfirmationRequired("Informe a unidade de contagem dos quantitativos usados nos critérios.")
+        raise ChoiceRequired("Escolha a unidade de contagem dos quantitativos usados nos critérios.")
     if need["population"] and not mapping.get("population"):
         raise ValueError("Critérios de densidade e de população exigem uma coluna de população associada.")
     period = analysis_period(frame, mapping, options)
@@ -297,7 +298,8 @@ def criteria_inputs(frame, mapping, options):
             if unknown:
                 raise ValueError("Territórios do critério inexistentes na base: " + ", ".join(unknown[:8]))
     if any(nodes[own]["atributo"] == "densidade" for own in leaves) and not options.get("population_denominator_confirmed"):
-        raise ConfirmationRequired("Confirme a definição e o alinhamento do denominador populacional.")
+        from semantic_bridge import premise_reason  # importação tardia: a ponte usa este módulo
+        raise ChoiceRequired(premise_reason(options, "population_denominator_confirmed"))
     return {"period": period, "nodes": nodes, "leaves": leaves, "root": root, "targets": targets, "catalog": catalog,
             "categories": categories, "spatial": need["spatial"]}
 
@@ -593,7 +595,7 @@ def _direction(ranking):
     """A direção decide quais territórios vêm primeiro: é sempre escolha explícita do usuário."""
     direction = ranking.get("direction")
     if direction not in ("asc", "desc"):
-        raise ConfirmationRequired("Escolha a direção da ordenação: do maior para o menor ou do menor para o maior.")
+        raise ChoiceRequired("Escolha a direção da ordenação: do maior para o menor ou do menor para o maior.")
     return direction
 
 

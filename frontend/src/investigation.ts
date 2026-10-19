@@ -63,9 +63,9 @@ export function selectionCompatibility(a: InvestigationEntry, b: InvestigationEn
     }
   }
   // Condições que mudam o significado das unidades, a resolução de dados ou a agregação.
-  const baseKeys = ["count_unit", "custom_count_unit", "fts_scope_confirmed", "category_constant", "duplicate_policy",
-    "rows_additive_confirmed", "no_overlap_confirmed", "population_additive_confirmed", "identity_union_confirmed",
-    "identity_count_confirmed", "hierarchy_columns", "population_denominator_confirmed"];
+  const baseKeys = ["count_unit", "custom_count_unit", "fts_scope_confirmed", "category_constant", "object_declaration",
+    "single_period_confirmed", "duplicate_policy", "rows_additive_confirmed", "no_overlap_confirmed", "population_additive_confirmed",
+    "identity_union_confirmed", "identity_count_confirmed", "hierarchy_columns", "population_denominator_confirmed"];
   if (baseKeys.some(key => canonical(left.options[key]) !== canonical(right.options[key]))) reasons.push("Unidades, condições de agregação ou tratamento dos dados diferentes.");
   if (canonical(x.complemento_geografico) !== canonical(y.complemento_geografico) && x.complemento_geografico && y.complemento_geografico) reasons.push("Camadas geográficas diferentes.");
   if (x.operation !== y.operation) differences.push("Operações distintas");
@@ -80,8 +80,8 @@ export const parameterLabels: Record<string, string> = {
   comparison_indicator: "Indicador da comparação", distribution_indicator: "Indicador da distribuição",
   temporal_indicator: "Indicador temporal", report_indicator: "Indicador do relatório", reference_territory: "Território de referência",
   crs: "Referencial geodésico", reference_mode: "Forma das referências", duplicate_policy: "Tratamento de duplicatas",
-  no_overlap_confirmed: "Ausência de sobreposição confirmada", rows_additive_confirmed: "Soma de componentes confirmada",
-  population_additive_confirmed: "População aditiva confirmada", comparison_confirmed: "Comparabilidade confirmada",
+  no_overlap_confirmed: "Ausência de sobreposição (premissa)", rows_additive_confirmed: "Soma de componentes",
+  population_additive_confirmed: "Populações somadas como partes disjuntas", comparison_confirmed: "Comparabilidade entre territórios (premissa)",
 };
 export function parameterValue(value: unknown): string {
   return value === true ? "Sim" : value === false ? "Não" : ({quantity: "Quantidade", density: "Densidade", list: "Lista explícita", criterion: "Critério"}[String(value)] || String(value));

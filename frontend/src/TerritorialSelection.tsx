@@ -42,7 +42,7 @@ export default function TerritorialSelection({items, selected, onChange, disable
         </select>
       </label>}
     </div>
-    {!items.length && <p role="status" className="mt-3 text-xs">{reason || "Confirme os campos territoriais para habilitar a seleção."}</p>}
+    {!items.length && <p role="status" className="mt-3 text-xs">{reason || "Escolha a coluna territorial (e o código, se houver) para habilitar a seleção."}</p>}
     {(query || state) && <div className="mt-3 space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <span role="status">{matches.length} correspondências · até 40 exibidas</span>

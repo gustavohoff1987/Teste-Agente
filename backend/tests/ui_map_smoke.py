@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import workspace, execute_analysis, URL, offline
+from ui_support import workspace, execute_analysis, URL, offline, choose
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 # nome, código, (lat, lon) em 202401, (lat, lon) em 202406, quantidade, população — valores fictícios.
@@ -83,11 +83,11 @@ def main():
         expect(chat.get_by_text("Recebi sua base", exact=False)).to_be_visible(timeout=60000)
         chat.get_by_role("button", name="Selecionar análise: Densidade").click()
         inline = chat.locator("#preparacao-conversacional")
+        # D1: o código é escolhido no seletor; latitude com valor fora do intervalo continua reconhecida (o elemento
+        # inválido fica fora do mapa). Não há caixas de declaração nem botão de confirmação.
+        choose(inline, "Identificador territorial", "cod_ibge")
         inline.get_by_role("combobox", name="Unidade de contagem").select_option("pessoas")
         inline.get_by_label("Filtrar por período").select_option("202406")
-        inline.get_by_label("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").check()
-        inline.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados.").check()
-        inline.get_by_role("button", name="Confirmar correspondências").click()
 
         def execute():
             button = inline.get_by_role("button", name="Executar análise", exact=True)
@@ -109,16 +109,6 @@ def main():
             expect(chat.locator("#assistant-input")).to_be_enabled(timeout=60000)
             expect(chat.get_by_text(expected, exact=False).last).to_be_visible()
 
-        def confirm():
-            """Mudanças de recorte pedem nova confirmação das correspondências antes da execução."""
-            for text in ("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.",
-                         "Confirmo que a população corresponde aos territórios e períodos analisados."):
-                if inline.get_by_label(text).count():
-                    inline.get_by_label(text).check()
-            button = inline.get_by_role("button", name="Confirmar correspondências", exact=True)
-            if button.count():
-                button.click()
-
         # 1. Sem referencial declarado o mapa fica indisponível com motivo (BLQ-DAD); a tabela continua.
         first = execute()
         assert first["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_GEODESICO"
@@ -130,10 +120,11 @@ def main():
         expect(board.get_by_label("Referencial geodésico para o mapa")).to_have_count(0)
         calls = len(analyses)
         workspace(page, "preparation")
-        inline.get_by_text("Ajustar condições específicas, outras confirmações ou situações excepcionais", exact=True).click()
+        inline.get_by_text("Ajustar condições específicas ou situações excepcionais", exact=True).click()
         inline.get_by_label("Referencial das coordenadas importadas", exact=True).select_option("SIRGAS2000")
-        inline.get_by_label("Separador decimal das coordenadas importadas", exact=True).select_option("decimal_point")
-        confirm()
+        # O separador decimal das coordenadas é verificado nos dados: só o referencial é escolhido.
+        expect(inline.get_by_label("Separador decimal das coordenadas importadas", exact=True)).to_have_count(0)
+        expect(inline.get_by_test_id("verified-number-format")).to_contain_text("ponto, verificado nos dados")
         assert len(analyses) == calls  # configurar a origem não executa análise
 
         # 2. Com geometria autorizada: modelo desenhado idêntico ao resultado do motor.
@@ -269,7 +260,6 @@ def main():
         # 8. Outra competência do mesmo pedido: navegação entre resultados existentes, cada um com a sua geometria.
         workspace(page, "preparation")
         inline.get_by_label("Filtrar por período").select_option("202401")
-        confirm()
         previous = execute()
         assert previous["metadata"]["representacao"]["geometria"]["competencia"] == "202401"
         page.wait_for_function("window.__adtMapModel.resultId === '" + previous["result_id"] + "'")
@@ -296,7 +286,6 @@ def main():
             expect(chosen.get_by_role("checkbox")).to_have_count(1)
             chosen.get_by_role("checkbox").check()
         inline.get_by_label("Filtrar por período").select_option("202406")
-        confirm()
         nearest = execute()
         structured = nearest["metadata"]["nearest_reference"]
         page.wait_for_function("window.__adtMapModel.resultId === '" + nearest["result_id"] + "'")
@@ -323,7 +312,6 @@ def main():
         send("Mostre os municípios com menos de 2 médicos por mil habitantes.", "“menos de” → <")
         inline.get_by_label("Filtrar por período").select_option("202412")
         inline.get_by_label("Unidade de contagem").select_option("pessoas")
-        confirm()
         criteria = execute()
         evaluations = {item["elemento"]: item["estado"] for item in criteria["metadata"]["criterios"]["avaliacoes"]}
         assert evaluations["code:110010"] == "NAO_AVALIAVEL"

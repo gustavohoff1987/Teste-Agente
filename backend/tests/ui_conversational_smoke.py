@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline, select, expand
+from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -63,12 +63,15 @@ def main():
         # A seleção é uma expressão no parágrafo, não um formulário em largura total.
         assert field.evaluate("el => el.closest('p') !== null")
         assert field.bounding_box()["width"] < 240
-        expect(inline.get_by_role("combobox", name="Identificador territorial")).to_have_value("cod_ibge")
-
+        # D1: o código territorial vem como sugestão no topo do seletor, que fica vazio até a escolha; escolher estabelece
+        # o papel. Não há caixas "Confirmo…" nem o botão "Confirmar correspondências".
+        code = inline.get_by_role("combobox", name="Identificador territorial")
+        expect(code).to_have_value("")
+        expect(code.locator("option").nth(1)).to_have_text("cod_ibge (sugerida)")
+        choose(inline, "Identificador territorial", "cod_ibge")
         inline.get_by_role("combobox", name="Unidade de contagem").select_option("pessoas")
-        inline.get_by_label("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").check()
-        inline.get_by_label("Confirmo que a população corresponde aos territórios e períodos analisados.").check()
-        inline.get_by_role("button", name="Confirmar correspondências").click()
+        assert inline.get_by_role("button", name="Confirmar correspondências").count() == 0
+        assert inline.get_by_text("Confirmo", exact=False).count() == 0
         execute = inline.get_by_role("button", name="Executar análise")
         expect(execute).to_be_enabled(timeout=30000)
         with page.expect_response(lambda response: response.url.endswith("/api/analyze")) as event:
@@ -153,7 +156,7 @@ def main():
                                  "capability_status": "unavailable",
                                  "slots": {"period":"not_requested",
                                            "category":"not_confirmed_in_dataset",
-                                           "territory":"requires_unit_confirmation"},
+                                           "territory":"set_in_scope"},
                                  "blockers": ["A categoria mencionada não foi confirmada."],
                                  "ready_to_execute": False, "next_action": "confirm_in_interface"},
                 "clarification": {"code": "CATEGORIA_NAO_CONFIRMADA",

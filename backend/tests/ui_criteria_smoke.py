@@ -15,7 +15,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
 from pyproj import Geod
-from ui_support import workspace, execute_analysis, URL, offline, select, expand
+from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 GEOD = Geod(ellps="GRS80")
@@ -94,10 +94,9 @@ def main():
         expect(builder.get_by_label("Operador de c1")).to_have_value("<")
         assert not analyses and not llm_calls
         inline.get_by_label("Filtrar por período").select_option("202406")
+        # D1: o código territorial é escolhido no seletor; não há caixas de declaração nem botão de confirmação.
+        choose(inline, "Identificador territorial", "codigo_territorial")
         inline.get_by_label("Unidade de contagem").select_option("pessoas")
-        inline.get_by_text("Confirmo que os dados selecionados correspondem à força de trabalho em saúde.").click()
-        inline.get_by_text("Confirmo que a população corresponde aos territórios e períodos analisados.").click()
-        inline.get_by_role("button", name="Confirmar correspondências", exact=True).click()
         first = execute(double=True)
         assert states(first) == {"2001": "ATENDE", "2002": "NAO_ATENDE", "2003": "NAO_ATENDE", "2004": "NAO_ATENDE",
                                  "2005": "ATENDE", "2006": "ATENDE", "2007": "ATENDE", "2008": "ATENDE"}

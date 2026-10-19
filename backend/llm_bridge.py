@@ -82,7 +82,7 @@ _GUIDANCE = {
     ),
     "workflow": (
         "Escolha um tipo de análise no carrossel da conversa. Em seguida, confira "
-        "a identificação dos dados, os parâmetros e as confirmações; por último, "
+        "a identificação dos dados e os parâmetros; por último, "
         "revise e execute. O Python valida os requisitos e realiza os cálculos."
     ),
     "privacy": (
@@ -91,8 +91,8 @@ _GUIDANCE = {
         "linhas, colunas nem registros da base. Evite inserir dados pessoais no chat."
     ),
     "limits": (
-        "O Gemini propõe interpretações, mas não executa cálculos, não confirma "
-        "significados dos campos, não inventa métodos e não autoriza agregações. "
+        "O Gemini propõe interpretações, mas não executa cálculos, não escolhe nem "
+        "estabelece significados dos campos, não inventa métodos e não autoriza agregações. "
         "Se o modelo estiver indisponível, o motor Python e os controles continuam funcionando."
     ),
     "spatial": (
@@ -108,8 +108,8 @@ _GUIDANCE = {
     "density": (
         "A densidade por 1.000 habitantes é calculada como quantidade de profissionais "
         "dividida pela população correspondente, multiplicada por 1.000. "
-        "A compatibilidade entre unidade de contagem, território e período precisa "
-        "ser confirmada antes da execução."
+        "A população é a da mesma linha, no mesmo território e período de cada quantidade; "
+        "essa premissa é aplicada pelo motor e aparece em \"Método e limitações\"."
     ),
 }
 _GENERIC_GREETING = (
@@ -541,7 +541,7 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
     elif operation == "none":
         followup = "Qual análise deseja realizar sobre a força de trabalho na saúde?"
     else:
-        followup = "Confira a proposta e confirme as dimensões na configuração da análise antes de executar."
+        followup = "Confira a proposta e escolha as dimensões nas configurações antes de executar."
     summary = ("Sugestão preliminar: " + OPERATIONS[operation] + "."
                if operation in OPERATIONS else "Não identifiquei uma análise inequívoca.")
     if indicator in INDICATORS:

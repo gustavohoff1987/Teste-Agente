@@ -12,10 +12,11 @@ def _header(value):
 
 
 def compose_period(frame):
-    """Propõe AAAAMM somente para o par explícito periodo_ano/periodo_mes.
+    """Compõe AAAAMM somente para o par explícito periodo_ano/periodo_mes.
 
-    Não substitui períodos existentes, não agrega registros e não confirma
-    significados. A mesma transformação é aplicada em todas as rotas.
+    Regra de reconhecimento conclusiva: componentes inteiros e válidos (ano de 1000 a 9999, mês de 1 a 12)
+    ou a importação é recusada. Não substitui períodos existentes e não agrega registros. A mesma
+    transformação é aplicada em todas as rotas.
     """
     sources = [[c for c in frame.columns if _header(c) == name]
                for name in ("periodo ano", "periodo mes")]
