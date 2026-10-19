@@ -49,40 +49,43 @@ documentação e os textos da interface em português do Brasil.
 - Nos roteiros de navegador, prefira seletores estáveis: `data-testid`, ou papel com nome exato e
   único. Evite textos que podem se repetir na tela.
 
-## 4. Antes de cada push
+## 4. Verificação proporcional antes do push
 
-Rode na raiz e só envie se tudo passar. O script `python scripts/verificar_tudo.py` roda os passos
-abaixo na ordem, aplica a dispensa do `npm ci` e a regra dos dados reais e termina com um resumo do
-que passou, falhou ou ficou de fora. No Windows, ele já define `PYTHONUTF8=1` e uma pasta temporária
-gravável para o pytest (`--basetemp`). Os passos, um a um:
+A verificação local é proporcional à natureza, ao alcance e ao risco da mudança (decisão do
+responsável pelo produto em 18/10/2026). Rodar toda a suíte localmente antes de cada push não é
+obrigatório: o CI roda todas as verificações em todo push, e o trabalho só termina com o CI em PASS
+(seção 5). Microajustes não pedem a verificação completa. Amplie o escopo quando houver risco
+concreto de integração, regressão ou violação de governança.
 
-```bash
-(cd backend && python -m pytest -q)
-(cd frontend && npm ci && npm run build)        # npm ci: veja a dispensa logo abaixo
-python backend/tests/run_ui_checks.py           # sem o Google Chrome: ADT_BROWSER_CHANNEL=chromium
-python .github/scripts/verificar_governanca.py
-```
+Obrigatório antes de cada push:
 
-Na verificação local, o `npm ci` pode ser dispensado quando `package.json` e `package-lock.json`
-não mudaram desde o último `npm ci` bem-sucedido; nesse caso, rode só `npm run build` (decisão do
-responsável pelo produto em 18/10/2026). O CI continua rodando `npm ci` sempre.
+- rodar as verificações ligadas ao que mudou, conforme a tabela abaixo;
+- depois do commit, rodar a governança: `python .github/scripts/verificar_governanca.py` (leva segundos);
+- se uma verificação obrigatória não puder rodar no seu ambiente, dizer isso explicitamente ao
+  responsável, sem presumir que ela passaria.
 
-Se a mudança toca o motor, a API ou os dados, rode também:
+| O que mudou | Verificação local |
+|---|---|
+| Código do backend | os testes dos módulos alterados; em mudança ampla ou compartilhada, `(cd backend && python -m pytest -q)` |
+| Motor, API ou dados | também os testes com dados reais: `(cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)` |
+| Dados versionados | a ordem da regra 2, com a integridade (`python backend/brazil_data.py diagnostico`) e os testes com dados reais |
+| Frontend | `(cd frontend && npm run build)`, que inclui TypeScript e os testes Node, e os roteiros de navegador afetados |
+| Dependências do frontend | `npm ci` antes do build. Localmente, só quando `package.json` ou `package-lock.json` mudaram desde o último `npm ci` bem-sucedido; o CI roda sempre |
+| Roteiro de navegador | o próprio roteiro: `python backend/tests/run_ui_checks.py --roteiro ui_exemplo.py` |
+| Só documentação | a governança |
 
-```bash
-(cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)
-```
-
-A governança confere os commits: depois do commit, rode-a de novo antes do push (leva segundos).
-
-Se alguma verificação não puder rodar no seu ambiente, diga isso explicitamente ao responsável.
-Não presuma que ela passaria.
+Ferramentas: `run_ui_checks.py --roteiro <arquivo>` roda só os roteiros indicados, e `--suite` roda
+uma suíte inteira (sem o Google Chrome: `ADT_BROWSER_CHANNEL=chromium`). Quando o risco justificar,
+`python scripts/verificar_tudo.py` faz a verificação completa, na ordem e com resumo. No Windows, rode
+o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (`--basetemp`); o script já faz isso.
 
 ## 5. Commits, envio e CI
 
 - Código, testes e documentação de uma mudança vão **no mesmo commit**. Não deixe um commit quebrado
   à espera do commit seguinte.
 - Envie a sequência de commits **num único push**. Cada envio dispara o CI completo.
+- Depois de cada push, acompanhe o GitHub Actions até PASS em todos os jobs obrigatórios; o job
+  `resumo` reúne os resultados.
 - **CI vermelho nunca é normal.** Comece pelo job `resumo`, corrija a falha e só depois inicie outra
   mudança.
 - Não afrouxe `.github/workflows/ci.yml` sem pedido explícito e registro. Isso inclui remover jobs,
@@ -102,5 +105,6 @@ Não presuma que ela passaria.
 - `README.md`, `Docs/` e [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md): documentação.
 - `.github/workflows/ci.yml` e `.github/scripts/verificar_governanca.py`: CI e governança.
 - `scripts/`: ferramentas de desenvolvimento, fora do produto e do CI.
-  - `verificar_tudo.py`: verificação completa da seção 4, com o resultado de cada passo e um resumo final.
+  - `verificar_tudo.py`: verificação completa (todos os passos da seção 4, na ordem), com o resultado de
+    cada passo e um resumo final, para quando o risco justificar.
   - `capturar_telas.py`: capturas das telas principais com a base versionada, para a conferência visual.

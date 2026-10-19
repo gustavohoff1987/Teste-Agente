@@ -319,18 +319,21 @@ Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambig
 ## Testes
 
 As regras de trabalho para pessoas e agentes (Claude, Codex e outros) estão em
-[`AGENTS.md`](AGENTS.md). Antes de cada push, rode na raiz as mesmas verificações do CI:
+[`AGENTS.md`](AGENTS.md). Antes de cada push, rode as verificações proporcionais à mudança, conforme a
+seção 4 do `AGENTS.md`; o CI roda todas em todo push e precisa terminar em PASS. Comandos de
+referência, na raiz:
 
 ```bash
 (cd backend && python -m pytest -q)                                   # backend
 (cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)  # com a base versionada: nada pulado
 (cd frontend && npm ci && npm run build)                              # TypeScript e build
 python backend/tests/run_ui_checks.py                                 # todas as jornadas de navegador
+python backend/tests/run_ui_checks.py --roteiro ui_stabilization.py   # só os roteiros indicados
 python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
-O script `python scripts/verificar_tudo.py` roda essas verificações na ordem e termina com um resumo
-do que passou, falhou ou ficou de fora, e por quê; os logs ficam em `.local/verificacao/`. Os testes
+Quando o risco justificar, o script `python scripts/verificar_tudo.py` roda todas essas verificações
+na ordem e termina com um resumo do que passou, falhou ou ficou de fora, e por quê; os logs ficam em `.local/verificacao/`. Os testes
 com dados reais só rodam quando a mudança toca o motor, a API ou os dados (`--dados-reais sim` força),
 e o script decide sozinho a dispensa do `npm ci` descrita abaixo (`--npm-ci` força). No Windows, ele
 já define `PYTHONUTF8=1` e uma pasta temporária gravável para o pytest. A governança confere os

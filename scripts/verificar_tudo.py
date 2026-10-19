@@ -1,4 +1,7 @@
-"""Verificação completa antes do push (AGENTS.md, seção 4), na ordem, com o resultado de cada passo.
+"""Verificação completa (todos os passos da seção 4 do AGENTS.md), na ordem, com o resultado de cada passo.
+
+A verificação local obrigatória é proporcional à mudança (AGENTS.md, seção 4); use este script quando o
+risco justificar a verificação completa.
 
 Uso, de qualquer pasta do repositório:
     python scripts/verificar_tudo.py [--dados-reais auto|sim|nao] [--npm-ci] [--canal chrome|chromium]
@@ -218,7 +221,7 @@ class Verificacao:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Verificação completa antes do push (AGENTS.md, seção 4).")
+    parser = argparse.ArgumentParser(description="Verificação completa (todos os passos da seção 4 do AGENTS.md).")
     parser.add_argument("--dados-reais", choices=("auto", "sim", "nao"), default="auto",
                         help="auto (padrão): só quando a mudança toca o motor, a API ou os dados")
     parser.add_argument("--npm-ci", action="store_true", help="roda o npm ci mesmo sem mudança nas dependências")

@@ -35,6 +35,14 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-18 · Verificação local proporcional ao risco e ao alcance da mudança
+
+- **Antes:** a seção 4 do `AGENTS.md` exigia, antes de cada push, a verificação local completa: pytest do backend, build do frontend, todas as jornadas de navegador e governança, além dos testes com dados reais quando a mudança tocava o motor, a API ou os dados.
+- **Agora:** a verificação local é proporcional à natureza, ao alcance e ao risco da mudança. Uma tabela indica o que rodar conforme o que mudou: os testes dos módulos alterados, o build e os roteiros de navegador afetados, a governança depois do commit e, quando a mudança toca o motor, a API ou os dados, também os testes com dados reais. Microajustes não pedem a verificação completa, e o escopo cresce quando há risco concreto de integração, regressão ou violação de governança. `run_ui_checks.py --roteiro` roda só os roteiros indicados.
+- **Permanece:** o CI roda todas as verificações em todo push, e o trabalho só termina com o CI em PASS em todos os jobs obrigatórios. Os testes com dados reais continuam obrigatórios quando a mudança toca o motor, a API ou os dados, a integridade e a ordem de atualização da base (regra 2) não mudam, e a governança continua obrigatória. Nenhum job do CI foi alterado, e nenhum comportamento do produto muda.
+- **Motivo:** decisão do responsável pelo produto (18/10/2026), que adotou o princípio de proporcionalidade operacional: evitar verificações redundantes e ciclos longos sem reduzir as garantias exigidas na entrega.
+- **Documentação e testes:** `AGENTS.md` (seções 4 e 5 e mapa rápido), README (seção Testes), descrição de `scripts/verificar_tudo.py` e a opção `--roteiro` do executor de navegador. Regra de processo, sem teste do produto.
+
 ### 2026-10-18 · Resumo de períodos: poucas competências fora de sequência pelo nome
 
 - **Antes:** duas ou três competências fora de sequência eram descritas como intervalo com exceções, por exemplo "2 competências, de janeiro de 2014 a junho de 2015, exceto junho de 2014, janeiro de 2015".

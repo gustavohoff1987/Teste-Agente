@@ -7,6 +7,7 @@ código de saída é 1 se algum roteiro falhou.
 Uso, na raiz do repositório, depois de `npm run build` em frontend/:
     python backend/tests/run_ui_checks.py                        # todas as suítes
     python backend/tests/run_ui_checks.py --suite bloco1         # só uma suíte (pode repetir)
+    python backend/tests/run_ui_checks.py --roteiro ui_stabilization.py   # só os roteiros indicados (pode repetir)
     python backend/tests/run_ui_checks.py --listar               # suítes e roteiros registrados
 
 Navegador: ADT_BROWSER_CHANNEL (o padrão dos roteiros é "chrome"; sem o Google Chrome
@@ -119,8 +120,9 @@ def tail(path, lines=60):
         return ""
 
 
-def run_suite(name, workdir):
+def run_suite(name, workdir, only=None):
     suite = SUITES[name]
+    roteiros = [item for item in suite["roteiros"] if not only or item[0] in only]
     env = base_env()
     results = []
     if suite["catalogo"] in FIXTURES:
@@ -130,7 +132,7 @@ def run_suite(name, workdir):
         if prepared != 0:
             message = f"catálogo de teste não foi preparado ({FIXTURES[suite['catalogo']]}, código {prepared})"
             print(message, flush=True)
-            return [(name, script, "falhou", 0.0, message) for script, _ in suite["roteiros"]]
+            return [(name, script, "falhou", 0.0, message) for script, _ in roteiros]
         env["ADT_BRASIL_DATA_DIR"] = str(catalog)
     if suite["servidor"] == "gemini-simulado":
         env["ADT_FAKE_GEMINI_LOG"] = str(workdir / ("gemini-simulado-" + name + ".jsonl"))
@@ -140,9 +142,9 @@ def run_suite(name, workdir):
     except (RuntimeError, OSError) as exc:
         message = "servidor não iniciou: " + str(exc)
         print(message + "\n" + tail(server_log), flush=True)
-        return [(name, script, "falhou", 0.0, message) for script, _ in suite["roteiros"]]
+        return [(name, script, "falhou", 0.0, message) for script, _ in roteiros]
     try:
-        for script, extra in suite["roteiros"]:
+        for script, extra in roteiros:
             label = script + (" (" + ", ".join(f"{k}={v}" for k, v in extra.items()) + ")" if extra else "")
             print(f"::group::{name} · {label}" if GITHUB else f"\n===== {name} · {label}", flush=True)
             started = time.monotonic()
@@ -184,8 +186,13 @@ def report(results):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--suite", action="append", choices=sorted(SUITES), help="suíte a executar (repetível)")
+    parser.add_argument("--roteiro", action="append",
+                        help="roteiro a executar, nas suítes em que está registrado (repetível)")
     parser.add_argument("--listar", action="store_true", help="mostra suítes e roteiros registrados")
     args = parser.parse_args()
+    registrados = {script for suite in SUITES.values() for script, _ in suite["roteiros"]}
+    if set(args.roteiro or []) - registrados:
+        parser.error("roteiro não registrado: " + ", ".join(sorted(set(args.roteiro) - registrados)))
     if args.listar:
         for name, suite in SUITES.items():
             print(f"{name}: {suite['descricao']}")
@@ -198,7 +205,8 @@ def main():
     results = []
     with tempfile.TemporaryDirectory(prefix="adt-ui-") as folder:
         for name in args.suite or list(SUITES):
-            results.extend(run_suite(name, Path(folder)))
+            if not args.roteiro or any(script in args.roteiro for script, _ in SUITES[name]["roteiros"]):
+                results.extend(run_suite(name, Path(folder), args.roteiro))
     return 1 if report(results) else 0
 
 
