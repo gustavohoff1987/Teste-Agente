@@ -279,25 +279,52 @@ def period_positions(values, convention="auto"):
 
 
 def spatial_data(frame, mapping, options):
+    """Uma coordenada por território do recorte (RQ-DAD-25: validade por elemento).
+
+    Coordenada ausente, não numérica ou fora dos intervalos geográficos deixa só aquele território não avaliável
+    (colunas "valida" e "condicao"); os demais seguem. Coordenadas válidas diferentes para o mesmo território (por
+    exemplo, em competências diferentes) continuam impedindo a análise: a escolha de uma competência resolve."""
     df = scoped(frame, mapping, options)
     # A análise espacial não exige categoria ou referência temporal.
     opts = {**options, "single_period_confirmed": True, "fts_scope_confirmed": True}
     geomapping = {r: c for r, c in mapping.items() if r in ("territory", "territory_id")}
     geo = dimensions(df, geomapping, opts)[["territory"]]
+    comma = options.get("number_format") == "decimal_comma"
+    raw = {}
     for role in ("latitude", "longitude"):
         if not mapping.get(role):
             raise ValueError("Associe latitude e longitude.")
-        geo[role] = numbers(df[mapping[role]], role, options)
+        raw[role] = text_values(df[mapping[role]])
+        if not comma and raw[role].str.contains(",", regex=False).any():
+            # Formato da coluna, não de um elemento: a vírgula só tem significado declarado (mesma regra de numbers()).
+            raise ValueError(f"Há valores não numéricos ou não finitos em {role}. Confira o formato decimal e a coluna selecionada.")
+        source = raw[role].str.replace(",", ".", regex=False) if comma else raw[role]
+        geo[role] = pd.to_numeric(source, errors="coerce").astype(float)
     # Camada complementar governada (só base Brasil): ponto inválido dos municípios autorizados substituído.
     from geo_complement import overlay  # importação tardia: o módulo usa este contrato
     geo["latitude"], geo["longitude"], applied, complement = overlay(df, mapping, geo["latitude"], geo["longitude"])
-    for role, low, high in (("latitude", -90, 90), ("longitude", -180, 180)):
-        if geo[role].isna().any() or not geo[role].between(low, high).all():
-            raise ValueError("Coordenadas ausentes ou fora dos intervalos geográficos válidos.")
-    if geo.groupby("territory")[["latitude", "longitude"]].nunique().gt(1).any().any():
-        raise ValueError("Coordenadas conflitantes para o mesmo território. Verifique o identificador ou selecione um período consistente.")
-    geo["complementada"] = applied if applied is not None else False
-    result = geo.drop_duplicates("territory")
+    applied = pd.Series(applied if applied is not None else False, index=geo.index, dtype=bool)
+    missing = (raw["latitude"].isna() | raw["longitude"].isna()) & ~applied
+    finite = np.isfinite(geo["latitude"]) & np.isfinite(geo["longitude"])
+    in_range = finite & geo["latitude"].between(-90, 90) & geo["longitude"].between(-180, 180)
+    geo["condicao"] = np.where(missing, "AUSENTE", np.where(in_range, "VALIDA", "INVALIDA"))
+    valid = geo[geo.condicao == "VALIDA"]
+    if valid.groupby("territory")[["latitude", "longitude"]].nunique().gt(1).any().any():
+        period = mapping.get("period")
+        if period and text_values(df[period]).nunique() > 1:
+            raise ChoiceRequired("Coordenadas conflitantes para o mesmo território entre competências. Escolha uma competência "
+                                 "no período da análise.")
+        raise ValueError("Coordenadas conflitantes para o mesmo território na mesma competência. Verifique o identificador "
+                         "territorial.")
+    # O território é avaliável só quando todas as suas linhas trazem a coordenada válida.
+    state = geo.groupby("territory")["condicao"].agg(lambda values: "VALIDA" if (values == "VALIDA").all()
+                                                     else "AUSENTE" if (values == "AUSENTE").all() else "INVALIDA")
+    geo["complementada"] = applied.to_numpy()
+    result = geo.sort_values("condicao", key=lambda col: col.ne("VALIDA")).drop_duplicates("territory").copy()
+    result["condicao"] = result.territory.map(state)
+    result["valida"] = result.condicao.eq("VALIDA")
+    result.loc[~result.valida, ["latitude", "longitude"]] = np.nan
+    result = result.sort_index()
     result.attrs["complemento"] = complement
     return result
 
@@ -339,6 +366,9 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
             raise ChoiceRequired("Escolha um referencial suportado: SIRGAS2000.")
         if options.get("reference_territory") not in set(geo.territory):
             raise ChoiceRequired("Selecione um território de referência existente, com seu código quando associado.")
+        if not geo.loc[geo.territory == options["reference_territory"], "valida"].iloc[0]:
+            raise ValueError("O território de referência não tem coordenada válida na competência escolhida. Escolha outro "
+                             "território de referência.")
         return geo
     if operation == "nearest":
         from nearest_reference import nearest_inputs  # importação tardia: o módulo usa este contrato

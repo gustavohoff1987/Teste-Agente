@@ -59,12 +59,15 @@ def window(periods: list[str], positions: dict, convention: str | None) -> dict:
 
 
 def evolution(data, metric: str, positions: dict, *, convention: str | None = None, incomparable: dict | None = None,
-              value_unit: str | None = None, scale: int = 1000):
+              value_unit: str | None = None, scale: int = 1000, change_incomparable: dict | None = None):
     """Mudança (CAP-TMP-01) e tendência (CAP-TEN-01) por (território, categoria) na janela `positions`.
 
     `data` traz as colunas territory, period, category, quantity, population e density do motor
     (`validate_operation`). Valor ausente (NaN) é observação ausente, nunca zero. `incomparable`
     mapeia (território, categoria) ao texto do componente divergente (agregados com suporte variável).
+    `change_incomparable` mapeia (território, categoria) ao motivo pelo qual a mudança entre os extremos não é
+    avaliada (agregado com membros diferentes no primeiro e no último período); só então a contagem
+    `nao_avaliaveis` ganha a chave INCOMPARABILIDADE.
 
     Devolve (rows, detail_rows, meta_tendencia, meta_mudanca, quebras); `quebras` lista as unidades sem
     trajetória (INCOMPARABILIDADE), que a representação desenha só como pontos.
@@ -80,16 +83,22 @@ def evolution(data, metric: str, positions: dict, *, convention: str | None = No
     first, last = periods[0], periods[-1]
     rows, units, breaks = [], [], []
     directions = dict.fromkeys(DIRECTIONS, 0)
-    missing_endpoints = base_zero = 0
+    missing_endpoints = base_zero = unchangeable = 0
     for (ter, cat), trend in trends:
         observed = set(trend.periods)
         a, b = floats.get((ter, cat, first)), floats.get((ter, cat, last))
         endpoints = first in observed and last in observed
+        blocked = (change_incomparable or {}).get((ter, cat)) if endpoints else None
+        endpoints = endpoints and not blocked
         row = {"Território": ter, "Categoria": cat, "Período inicial": first, "Período final": last,
                "Inicial": float(a) if a is not None else None, "Final": float(b) if b is not None else None,
                "Variação absoluta": float(b - a) if endpoints else None,
                "Variação (%)": float((b - a) / a * 100) if endpoints and a != 0 else None}
-        if endpoints:
+        if blocked:
+            unchangeable += 1
+            row["Direção da mudança"] = None
+            row["Condição da mudança"] = "Não avaliável: " + blocked + " (INCOMPARABILIDADE)"
+        elif endpoints:
             moved = change(trend.value_at(first), trend.value_at(last))
             directions[moved["direcao"]] += 1
             row["Direção da mudança"] = moved["rotulo_direcao"]
@@ -116,6 +125,8 @@ def evolution(data, metric: str, positions: dict, *, convention: str | None = No
     meta_change = {"capacidade": "CAP-TMP-01", "periodo_inicial": first, "periodo_final": last,
                    "direcoes": directions, "nao_avaliaveis": {"SEM_REGISTRO_OBSERVADO": missing_endpoints},
                    "percentual_nao_avaliavel": {"BASE_ZERO": base_zero}}
+    if change_incomparable is not None:
+        meta_change["nao_avaliaveis"]["INCOMPARABILIDADE"] = unchangeable
     return rows, detail_rows, meta_trend, meta_change, breaks
 
 

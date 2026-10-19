@@ -173,16 +173,17 @@ def test_xlsx_numeric_header_is_normalized():
 
 
 def test_out_of_range_coordinate_does_not_demote_the_column():
-    # RQ-DAD-25: valor fora do intervalo não rebaixa a coluna; o elemento é que fica inválido. Sem a camada
-    # complementar, a análise espacial continua recusando o pedido inteiro (o tratamento por território vem depois).
-    frame = pd.DataFrame({"Território": ["A"], "Latitude": [110], "Longitude": [-48.0]})
+    # RQ-DAD-25: valor fora do intervalo não rebaixa a coluna; o elemento é que fica inválido. Na análise espacial, só
+    # aquele território fica não avaliável; como referência, ele impede a análise com um motivo claro.
+    frame = pd.DataFrame({"Território": ["A", "B"], "Latitude": [110, -3.1], "Longitude": [-48.0, -60.0]})
     mapping, profiles = candidates(frame)
     assert mapping["latitude"] == "Latitude"
     assert "fora do intervalo" in profiles[1]["proposal"][0]["evidence"]
     matrix = preflight(frame, mapping, {"crs": "SIRGAS2000", "reference_territory": "A"})
     assert matrix["field_states"]["latitude"]["status"] == "recognized"
     assert matrix["capabilities"]["spatial"]["status"] == "unavailable"
-    assert any("intervalos geográficos" in r for r in matrix["capabilities"]["spatial"]["reasons"])
+    assert any("referência não tem coordenada válida" in r for r in matrix["capabilities"]["spatial"]["reasons"])
+    assert preflight(frame, mapping, {"crs": "SIRGAS2000", "reference_territory": "B"})["capabilities"]["spatial"]["status"] == "available"
 
 
 def test_report_without_population_is_quantitative_not_density():

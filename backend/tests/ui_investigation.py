@@ -149,7 +149,8 @@ def main():
             expect(board.get_by_test_id('result-title')).to_have_text(first['title'])
             selection = page.get_by_role('region', name='Seleção territorial compartilhada', exact=True)
             workspace(page, 'territories')
-            expect(selection.get_by_role('searchbox')).to_be_disabled()
+            # Durante o cálculo, a lista da abrangência territorial fica bloqueada (caixas de marcar desabilitadas).
+            expect(selection.get_by_test_id('territory-option-todos-municipios')).to_be_disabled()
             workspace(page, 'results')
             expect(overview.get_by_test_id('transfer-selection-1')).to_be_disabled()
             route.continue_()
@@ -210,11 +211,15 @@ def main():
             # Limite real do servidor: preenche as referências com cálculos reais da API.
             headers = {'X-ADT-Session': requests[0].headers['x-adt-session']}
             state = context.request.get(URL.rstrip('/') + '/api/session', headers=headers).json()
+            # O pedido da interface leva a abrangência territorial; as opções do resultado registram também os
+            # municípios derivados dela (territory_ids). O reenvio repete o pedido, sem os derivados.
+            replay = {key: value for key, value in first['metadata']['options'].items()
+                      if not (key == 'territory_ids' and 'abrangencia' in first['metadata']['options'])}
             for _ in range(64 - len(results)):
                 response = context.request.post(URL.rstrip('/') + '/api/analyze', headers=headers, form={
                     'dataset': 'brazil', 'scope': 'municipal', 'operation': 'counts',
                     'dataset_version': first['metadata']['source']['version'],
-                    'mapping': json.dumps(first['metadata']['mapping']), 'options': json.dumps(first['metadata']['options']),
+                    'mapping': json.dumps(first['metadata']['mapping']), 'options': json.dumps(replay),
                     'context_revision': str(state['revision']),
                 })
                 assert response.status == 200, response.text()

@@ -39,23 +39,34 @@ Documentação da API: `http://localhost:8000/docs`.
 uma sessão lógica: `Dados_Brasil.xlsx` (nacional) e
 `Dados_Municipios_Brasil.csv` (municipal). O usuário não precisa escolher
 os arquivos separadamente. São oferecidos como fontes independentes no chat,
-sem concatenar seus registros. Ao escolher uma análise, o sistema usa o recorte
-nacional para quantitativos, evolução temporal e relatórios; para as demais, usa
-municípios. Nessas três análises, válidas nas duas fontes, a caixa **Abrangência territorial**
-das configurações oferece o Brasil (total nacional) e os municípios, com busca e escolha de um ou
-mais municípios; marcar municípios leva a análise ao recorte municipal. Com o total nacional
-escolhido, a lista de municípios vem do último pré-exame municipal ou de uma consulta só de leitura
-ao recorte municipal (`/api/inspect`), feita ao abrir a caixa. Nas demais, a caixa informa
-que a análise usa somente a fonte municipal, sem uma opção que levaria ao bloqueio. Ao trocar de
-recorte, a preparação continua na tela, bloqueada e com aviso de carregamento, até o novo
-recorte chegar; a interface não volta à escolha da fonte. Trocar de recorte limpa resultados;
-escolhas comuns verificáveis de período/categoria são preservadas quando a análise de
-destino aceita o mesmo modo de período (único ou vários). A preparação de cada recorte é
-mantida na memória da aba e restaurada ao retornar à mesma versão, sempre com novo pré-exame
-do backend.
+sem concatenar seus registros. A base é examinada uma vez, no recorte municipal, com o bloco dos
+níveis (Brasil, estados e regras de cada análise); trocar de análise não recarrega a base nem troca de
+fonte. A caixa **Abrangência territorial** das configurações abre uma lista vertical com caixas de
+marcar: **Brasil (total nacional)**; **Estados** ("Todos os estados" e cada estado como "soma de N
+municípios", com o aviso de que o mesmo médico pode ser contado em mais de um município e de que a
+soma dos estados não é o total do Brasil); e **Municípios** ("Todos os municípios" e um grupo
+recolhível por estado, com a caixa do grupo e os municípios dentro). Sem nada marcado vale o padrão
+da análise, com o selo "padrão desta análise": o Brasil em quantitativos, evolução temporal e
+relatórios; todos os municípios nas demais. A primeira marcação substitui o padrão, e "Limpar
+seleção" volta a ele. Os municípios marcados continuam valendo ao trocar de análise (como na
+conversa, nas transferências e em "Usar como municípios-alvo"); o Brasil e os estados só valem nas
+análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha. Mistura
+de estados e municípios em distribuição e ranking, ou territórios de menos, aparece como escolha
+pendente, com o motivo do backend. A interface envia a seleção em `options.abrangencia`, e o backend
+resolve a rota e confere o pedido; nada é calculado na tela. A densidade do Brasil fica disponível.
 
-As fontes mantêm suas granularidades: não há junção de linhas, propagação de população
-municipal para o Brasil ou soma automática de pessoas entre municípios. Na agregação
+As fontes mantêm suas granularidades: não há junção de linhas nem soma automática de pessoas
+entre municípios, e o total do Brasil nunca é a soma municipal. **Brasil, estados e municípios**
+(19/10/2026) são níveis da base oficial na API (`options.abrangencia`), sempre em blocos separados e
+nunca somados entre si: o Brasil é a contagem nacional, com densidade pela população municipal de
+junho do mesmo ano (regra governada BR-POP-JUNHO-1: 2,3638 por 1.000 habitantes em junho de 2024; em
+2015, falta o 430607 em junho e a população soma os 5.569 municípios com registro, com limitação); o
+estado é a soma dos seus municípios pelo prefixo do código IBGE, com possível dupla contagem. Nas
+densidades da base oficial, o resultado traz a taxa nacional como referência de contexto
+(`metadata.referencia_nacional`), que não classifica nem colore os municípios: na tela, ela é uma
+marca na legenda do mapa ("Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
+contexto") e uma linha tracejada "Brasil 2,36" nas barras dos municípios. Detalhes:
+[abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md). Na agregação
 municipal da base oficial, o total é a soma dos componentes, sempre rotulada como possível
 dupla contagem; em bases importadas, a soma dos componentes também é a premissa padrão da
 agregação, com nota e a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM, e o usuário pode escolher
@@ -86,8 +97,13 @@ quando cabível; um valor `false` explícito na API continua recusando a premiss
 unidade sem registro em um dos períodos fica não avaliável (SEM_REGISTRO_OBSERVADO). O contrato da
 API mantém `confirmed_roles` (papéis escolhidos), `needs_confirmation` (escolha pendente) e
 `confirmed`; cada requisito traz `kind` (`escolha` ou `dados`) e `step`. Valor fora da faixa não
-impede o reconhecimento da coluna de coordenada; a análise espacial sem a camada complementar ainda
-recusa o pedido inteiro quando há coordenada inválida.
+impede o reconhecimento da coluna de coordenada. Na análise espacial, coordenada ausente, não
+numérica ou fora dos intervalos deixa só aquele território não avaliável (RQ-DAD-25: linha com
+"Distância (km)" vazia e "Condição" "Não avaliável: coordenada inválida" ou "… ausente", fora do
+mapa); um território de referência sem coordenada válida é recusado com "O território de referência
+não tem coordenada válida na competência escolhida. Escolha outro território de referência.", e
+coordenadas válidas diferentes para o mesmo território pedem "Escolha uma competência no período da
+análise.". Na base oficial, a caixa Período da análise espacial pede uma competência.
 
 **Premissas internas da base oficial.** Com o perfil governado reconhecido, a interface não
 pede ao usuário as confirmações de comparabilidade. O backend as resolve e registra a origem de
@@ -107,8 +123,8 @@ No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
 sobre o conteúdo dos dados brasileiros consulta `/api/brazil/description`, que
 verifica as fontes e devolve apenas informações agregadas sobre período, categorias
 e recortes, sem enviar registros ao Gemini. O agente associa pedidos explícitos
-sobre municípios ao recorte municipal e pedidos nacionais à fonte nacional,
-sem solicitar detalhes sobre os arquivos internos.
+sobre municípios aos municípios marcados e pedidos pelo país inteiro ao Brasil (total nacional) da
+abrangência territorial, sem solicitar detalhes sobre os arquivos internos.
 
 Períodos são apresentados em português (por exemplo, junho de 2024).
 Quantitativos e relatórios podem mostrar vários períodos **separadamente**; análises
@@ -173,14 +189,16 @@ nome, a composição fica como sugestão. A transformação e a versão da base 
 parâmetros**. Cabeçalhos antigos continuam suportados.
 
 Limitações verificadas nas fontes de 10/10/2026: não há população ou coordenadas no
-recorte nacional, nem identificadores individuais em qualquer recorte. Há 132 linhas
+recorte nacional (a densidade do Brasil usa a população municipal de junho, por regra governada;
+ver [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md)), nem identificadores individuais em
+qualquer recorte. Há 132 linhas
 municipais com coordenadas fora dos intervalos válidos na fonte original (seis municípios nos
 22 períodos). Com a camada geográfica complementar oficial incorporada (ver os dez pontos
 abaixo), as análises espaciais da base Brasil municipal usam, somente nesses 132 registros, o
 ponto oficial da sede municipal: a análise espacial (distância a um território de referência) da
 base completa em uma competência passou a ser executável, e a referência mais próxima e os
 critérios avaliam os 5.570 municípios. Bases importadas não recebem o complemento; nelas, ponto
-inválido continua não avaliável (`COORDENADA_INVALIDA`). Rotatividade não pode ser calculada
+inválido continua não avaliável (`COORDENADA_INVALIDA`), só naquele território. Rotatividade não pode ser calculada
 dessas contagens. Nenhum registro foi corrigido ou excluído nos arquivos.
 Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md).
 
@@ -504,11 +522,12 @@ ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MA
 
 Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e representação integrada em mapa de pontos, barras, linhas e tabela.
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada; regras de comparabilidade longitudinal; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada (parcialmente atendida: Brasil, estados e municípios na base oficial, na lista vertical da caixa Abrangência territorial; nas bases importadas e nas referências, a seleção por pesquisa; ver [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md)); regras de comparabilidade longitudinal; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 **Divergências da SPEC decididas pelo responsável pelo produto** (registradas em [Docs/REGISTRO_DE_COMPORTAMENTO.md](Docs/REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada):
 - o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);
-- nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe.
+- nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe;
+- a densidade do Brasil de 2015 (regra BR-POP-JUNHO-1) é avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`): a população de junho soma os 5.569 municípios com registro, sem o 430607, enquanto o numerador continua sendo a contagem nacional inteira, em vez de NAO_AVALIAVEL por DENOMINADOR_AUSENTE e sem exclusão do ausente (CAP-IND-02 L1742, DA-10, INV-04, AT-08; a densidade parcial da CAP-AGR-01, L1751, exige o mesmo suporte no numerador e no denominador) (19/10/2026).
 
 Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 

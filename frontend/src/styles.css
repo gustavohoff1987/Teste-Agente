@@ -92,6 +92,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 @container analysis (min-width:850px) {
   .result-map-layout { grid-template-columns:minmax(0,1fr) 260px; }
 }
+/* Abrangência territorial da base oficial: lista vertical com rolagem própria; resumo ao lado a partir de 720 px. */
+.territory-scope-layout { grid-template-columns:minmax(0,1fr); }
+.territory-list { max-height:min(60dvh,460px); overscroll-behavior:contain; }
+@container analysis (min-width:720px) {
+  .territory-scope-layout { grid-template-columns:minmax(0,1fr) 220px; }
+}
 
 /* Interface compacta: somente apresentação, sem alterar cálculos ou contratos. */
 .workspace-hero { padding: 19px 30px; gap: 0; }

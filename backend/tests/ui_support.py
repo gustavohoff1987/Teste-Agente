@@ -56,7 +56,7 @@ def workspace(page, stage):
     """Percorre as áreas visíveis, sem forçar interação com controles ocultos.
 
     A seleção territorial é um bloco da preparação: "territories" abre a preparação e expande esse bloco. Na base
-    oficial, o bloco é a caixa "Abrangência territorial" das configurações, com o Brasil e os municípios."""
+    oficial, o bloco é a caixa "Abrangência territorial" das configurações, com o Brasil, os estados e os municípios."""
     names = {"territories": "1. Preparação", "preparation": "1. Preparação", "results": "2. Resultados"}
     button = page.get_by_role("button", name=names[stage], exact=True)
     button.click()
@@ -67,6 +67,18 @@ def workspace(page, stage):
         toggle = card.get_by_test_id("territory-toggle")
         if toggle.count():  # fora da base oficial, no recorte nacional o bloco só informa o território único
             expand(toggle)
+
+
+def municipality(region, code):
+    """Base oficial: caixa de marcar de um município na lista vertical da abrangência territorial. Abre o grupo do estado
+    (prefixo do código IBGE) quando a lista agrupa os municípios por estado."""
+    option = region.get_by_test_id("territory-option-code-" + code)
+    if not option.count():
+        group = region.get_by_test_id("territory-group-toggle-" + code[:2])
+        if group.count() and group.get_attribute("aria-expanded") != "true":
+            group.click()
+    expect(option).to_have_count(1)
+    return option
 
 
 def choose(inline, label, column):
