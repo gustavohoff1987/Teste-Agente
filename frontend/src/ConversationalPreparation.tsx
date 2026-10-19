@@ -49,6 +49,9 @@ type Props = {
   indicator: string;
   onIndicator: (value: "quantity" | "density" | "") => void;
   periodFilter: string;
+  /** Comparação (D6): competência dos valores (a única escolhida ou uma da janela) e a escolha na caixa própria. */
+  valuesPeriod?: string;
+  onValuesPeriod?: (period: string) => void;
   periods: string[];
   onPeriod: (period: string) => void;
   categoryFilter: string;
@@ -108,13 +111,13 @@ const boxTone = (open: boolean, pending: boolean) => open ? "border-teal bg-cyan
 const BOX_LABEL = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 const PANEL = "space-y-3 rounded-xl border border-teal/40 bg-white p-3 sm:p-4";
 const DONE = "rounded-lg bg-teal px-3 py-2 text-xs font-semibold text-white";
-function ConfigSelect({label, ariaLabel = label, value, options, onChange, placeholder = "Escolher", pending = false}: {
+function ConfigSelect({label, ariaLabel = label, value, options, onChange, placeholder = "Escolher", pending = false, testId}: {
   label: string; ariaLabel?: string; value: string; options: Choice[]; onChange: (value: string) => void;
-  placeholder?: string; pending?: boolean;
+  placeholder?: string; pending?: boolean; testId?: string;
 }) {
   // O valor aparece por inteiro, com quebra de linha; o seletor nativo, transparente, cobre a caixa e recebe o clique e o teclado.
   const shown = options.find(o => o.value === value)?.label || placeholder;
-  return <label className={BOX + " relative cursor-pointer focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 " +
+  return <label data-testid={testId} className={BOX + " relative cursor-pointer focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 " +
     "focus-within:outline-[#3bb5be] " + boxTone(false, pending)}>
     <span className={BOX_LABEL}>{label}</span>
     <span aria-hidden="true" className="mt-0.5 flex w-full items-start justify-between gap-2">
@@ -182,7 +185,11 @@ export default function ConversationalPreparation(p: Props) {
     }}/>;
   const status = p.capability?.status;
   const categoryChoiceRequired = !!p.requestedCategory && !!p.mapping.category && !p.categoryFilter;
-  const allowMultiple = ["counts", "report", "temporal"].includes(p.operation);
+  // Comparação (D6): uma competência ou uma janela de competências, com os valores numa delas.
+  const allowMultiple = ["counts", "report", "temporal", "comparisons"].includes(p.operation);
+  const comparing = p.operation === "comparisons";
+  const windowPeriods = chronological(p.multiplePeriods ? p.selectedPeriods : p.periodFilter ? [p.periodFilter] : []);
+  const valuesChoices: Choice[] = windowPeriods.map(value => ({value, label: readablePeriod(value)}));
   const emptyMultiple = allowMultiple && p.multiplePeriods && !p.selectedPeriods.length && p.periods.length > 1;
   const periodChoiceRequired = emptyMultiple || p.operation === "counts" && p.periods.length > 1 && !p.periodFilter && p.selectedPeriods.length === 0;
   const ready = status === "available" && !p.preparing && !p.executing && !categoryChoiceRequired && !periodChoiceRequired;
@@ -222,6 +229,9 @@ export default function ConversationalPreparation(p: Props) {
         {requiresIndicator ? <ConfigSelect label="Indicador" value={p.indicator} options={indicatorChoices}
             onChange={value => p.onIndicator(value as "quantity" | "density")} placeholder="Escolher indicador" pending={!p.indicator}/>
           : <ConfigSelect label="Indicador" value={own} options={[{label: own, value: own}]} onChange={() => {}}/>}
+        {comparing && <ConfigSelect label="Competência dos valores" ariaLabel="Competência dos valores da comparação"
+          testId="comparison-values-period" value={p.valuesPeriod || ""} options={valuesChoices}
+          onChange={value => p.onValuesPeriod?.(value)} placeholder="Escolha o período" pending={!p.valuesPeriod}/>}
         {p.operation === "distribution" && <ConfigSelect label="Agrupamento" ariaLabel="Agrupamento da distribuição" value={String(p.quantiles)}
           options={groupChoices} onChange={value => p.onQuantiles(Number(value))}/>}
         {p.operation === "spatial" && <ConfigSelect label="Território de referência" value={p.reference} options={named(p.territories)}
@@ -232,10 +242,15 @@ export default function ConversationalPreparation(p: Props) {
       {spatial && p.governedCrs && <p className="text-xs text-slate-600">Referencial das distâncias: <strong data-testid="crs-summary"
         className="font-semibold text-ink">{GOVERNED_CRS}</strong></p>}
       {usesPeriods && periodOpen && <div id="configuracao-periodo" role="group" aria-label="Período da análise" className={PANEL}>
-        <p className="font-medium text-ink">{isTemporal ? "Quais períodos você deseja comparar?" : "Qual período você deseja analisar?"}</p>
+        <p className="font-medium text-ink">{isTemporal ? "Quais períodos você deseja comparar?" : comparing
+          ? "Qual período (ou janela de períodos) você deseja usar na comparação?" : "Qual período você deseja analisar?"}</p>
         <PeriodChoices key={p.operation} periods={p.periods} value={p.periodFilter} selected={p.selectedPeriods}
-          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={p.executing} trendNote={isTemporal}
+          multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={p.executing} trendNote={isTemporal || comparing}
           onSingle={p.onPeriod} onChosen={() => setPeriodOpen(false)} onMultiple={p.onSelectedPeriods}/>
+        {comparing && <p data-testid="comparison-window-note" className="text-xs leading-5 text-slate-600">
+          Os valores lado a lado e as relações (maior, menor, diferença) usam só a competência da caixa “Competência dos valores”.
+          Com dois ou mais períodos, cada território ganha também a mudança entre o primeiro e o último e a classe de tendência
+          na janela; sem variação percentual nem razão automáticas.</p>}
         {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
           Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
         {p.operation === "spatial" && <p data-testid="spatial-period-note" className="text-xs leading-5 text-slate-600">
@@ -338,6 +353,10 @@ export default function ConversationalPreparation(p: Props) {
             <button type="button" onClick={()=>p.onSelectedPeriods(p.periodFilter ? [p.periodFilter] : p.periods)}
               className="text-xs text-teal underline">Selecionar vários períodos</button>}
         </div>}
+        {comparing && p.multiplePeriods && windowPeriods.length > 1 && <p className="leading-8">Os valores comparados são os da
+          competência <InlineChoice label="Competência dos valores da comparação" testId="comparison-values-period" value={p.valuesPeriod || ""}
+            options={valuesChoices} onChange={value => p.onValuesPeriod?.(value)} placeholder="escolher"/>; nas demais
+          competências da janela, cada território ganha a mudança e a classe de tendência.</p>}
         {categoryChoiceRequired && <p className="text-xs text-slate-600">A categoria escolhida define a correspondência desejada; não vou presumir que nomes diferentes tenham o mesmo significado.</p>}
         {usesObject && p.objectState?.status === "ausente" && <p className="flex flex-wrap items-center gap-2 text-sm">
           O objeto da análise é <input aria-label="Objeto de análise" data-testid="object-draft" value={p.objectDraft}

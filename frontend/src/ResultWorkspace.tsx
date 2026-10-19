@@ -3,7 +3,7 @@ import { BarChart3, Map as MapIcon, Search, Table2, X } from "lucide-react";
 import { useInvestigationState } from "./InvestigationViewState";
 import TerritoryMap, { type MapHandle } from "./TerritoryMap";
 import CriteriaResults, { type CriteriaMetadata } from "./CriteriaResults";
-import DistributionResults from "./DistributionResults";
+import DistributionResults, { groupNoun } from "./DistributionResults";
 import ResultTable, { type TablePresentation } from "./ResultTable";
 import { CountBars, SeriesLines, TerritoryBars, type BarDatum, type BarReference, type CountDatum, type LinePoint } from "./ResultCharts";
 import {
@@ -14,6 +14,10 @@ import {
 import { readablePeriod } from "./periods";
 import { TrendBadge, TrendCounts, TrendStageNote, VelocityBars } from "./TrendVisuals";
 import { classOfLabel, familyFilterOptions, familyOfClass, trendMeta, trendMotiveText, unitVelocities } from "./trend";
+import { AggregateCard, ComparisonPanel, DistributionStrip, DumbbellList, LevelBlock, RankingLollipop, RotationCohortBars, StateWarning,
+  TrendSmallMultiples, UF_WARNING } from "./ResultVisuals";
+import { LEVEL_OF_LABEL, LEVEL_TITLES, colorPosition, colorScaleFor, scaleTicks, temporalDumbbells, type ColorScale,
+  type LevelCode } from "./visualModels";
 
 // Painel único do resultado (CAP-REP-04: justaposição de tabela, gráficos e mapa dos mesmos
 // resultados, sem cálculo entre eles). Seleção, filtro, indicador e enquadramento são estado visual
@@ -23,7 +27,7 @@ type View = "mapa" | "graficos" | "tabela";
 export type Sibling = { id: string; period: string; current: boolean };
 export type RepresentationRecord = Record<string, unknown>;
 type Props = {
-  result: ResultLike & { total_rows: number; notes: string[] };
+  result: ResultLike & { total_rows: number; notes: string[]; metrics?: { label: string; value: string | number }[] };
   operation: string;
   reusable: boolean;
   disabled: boolean;
@@ -62,6 +66,9 @@ export default function ResultWorkspace(p: Props) {
   const labels = useMemo(() => labelIndex(result), [result]);
   // Rota de níveis (base oficial): Brasil, estados e municípios em blocos; o mapa e as barras dos municípios só têm municípios.
   const levelOfId = useMemo(() => levelOf(result), [result]);
+  // Estado de cada município (members[].state): separadores nas barras em ordem de código, sem reordenar nem contar.
+  const stateOfMember = useMemo(() => new Map(((result.metadata.universe as { members?: { id: string; state?: string }[] } | undefined)?.members || [])
+    .filter(item => item.state).map(item => [item.id, item.state as string])), [result]);
   const hasLevels = !!representationOf(result)?.niveis;
   const resultPeriods = (result.metadata.periods as string[] | undefined) || [];
   const resultCategories = (result.metadata.categories as string[] | undefined) || [];
@@ -105,6 +112,10 @@ export default function ResultWorkspace(p: Props) {
   const criteriaMeta = result.metadata.criterios as (CriteriaMetadata & { avaliacoes?: CriteriaEvaluation[] }) | undefined;
   // Tendência do motor (CAP-TEN-01) na evolução temporal: classes, contagens e velocidades vêm de metadata.tendencia.
   const trend = useMemo(() => operation === "temporal" ? trendMeta(result.metadata) : null, [result, operation]);
+  // Comparação com janela: classes de tendência por território (selos), sem filtro por família nem contagens na tela.
+  const comparisonTrend = useMemo(() => operation === "comparisons" ? trendMeta(result.metadata) : null, [result, operation]);
+  // Escala de cor do mapa (estado visual): logarítmica por padrão; linear à escolha. Nenhuma classe é criada (RQ-REP-02).
+  const [colorScaleChoice, setColorScaleChoice] = useInvestigationState<ColorScale>("colorScale", "logaritmica");
   const criteriaHasTree = !!criteriaMeta?.contagens;
   const [filter, setFilter] = useInvestigationState<StateFilter>("filter", operation === "criteria" && criteriaHasTree ? "ATENDE" : "TODOS");
 
@@ -163,10 +174,11 @@ export default function ResultWorkspace(p: Props) {
       const values = raw.map(value => typeof value === "number" ? value : null);
       let min = Infinity, max = -Infinity;
       values.forEach((value, i) => { if (value !== null && universe[i]) { min = Math.min(min, value); max = Math.max(max, value); } });
-      const span = max - min;
+      const domain = Number.isFinite(min) ? [min, max] as [number, number] : null;
+      const scale = colorScaleFor(domain, colorScaleChoice);
       const fills = values.map((value, i) => !universe[i] ? INK.surface : value === null ? null :
-        sequentialColor(span > 0 ? (value - min) / span : 0.5));
-      return { fills, domain: Number.isFinite(min) ? [min, max] as [number, number] : null, classes: null as string[] | null };
+        sequentialColor(domain ? colorPosition(value, domain, scale) : 0.5));
+      return { fills, domain, classes: null as string[] | null, scale: scale as ColorScale | null };
     }
     const classes = indicator.classes || [];
     const palette = indicator.tipo === "CLASSE" && indicator.origem === "CAP-DIS-02" ? ORDINAL : CATEGORICAL;
@@ -174,8 +186,8 @@ export default function ResultWorkspace(p: Props) {
       palette[Math.max(0, classes.indexOf(value)) % palette.length]);
     const fills = raw.map((value, i) => !universe[i] ? INK.surface : value === null || value === undefined || value === "" ? null :
       colorOfClass(String(value)));
-    return { fills, domain: null, classes };
-  }, [points, indicator, rowsById]);
+    return { fills, domain: null, classes, scale: null as ColorScale | null };
+  }, [points, indicator, rowsById, colorScaleChoice]);
   const passes = useMemo(() => points ? points.ids.map(id => passesFilter(id)) : [], [points, filter, selectedSet, stateOf, engineSelected]);
   // Taxa nacional de contexto (D5) na legenda do mapa: posição sobre a escala, sem alterar cores nem o domínio.
   const mapReference = useMemo(() => indicator && geometry?.competencia
@@ -189,7 +201,10 @@ export default function ResultWorkspace(p: Props) {
     if (!row) return references.has(id) ? "Referência (fora do universo-alvo)" : "Sem linha no resultado";
     const value = row[indicator.coluna];
     const unit = indicator.unidade ? " " + indicator.unidade : "";
-    return indicator.rotulo + ": " + (typeof value === "number" ? formatNumber(value, indicator.tipo) + unit : formatValue(value, indicator.tipo));
+    // Taxa nacional de contexto (D5) ao lado do valor, com casas suficientes para não parecerem iguais (RQ-REP-05).
+    const [own, national] = typeof value === "number" && mapReference ? formatPair(value, mapReference.valor, indicator.tipo) : ["", ""];
+    return indicator.rotulo + ": " + (typeof value === "number" ? (own || formatNumber(value, indicator.tipo)) + unit : formatValue(value, indicator.tipo)) +
+      (national ? " · Brasil (contexto): " + national + unit : "");
   };
 
   function select(id: string, additive: boolean) {
@@ -207,7 +222,10 @@ export default function ResultWorkspace(p: Props) {
     p.onRepresentation({
       resultado: result.result_id, visao: view, indicador: indicator ? { coluna: indicator.coluna, unidade: indicator.unidade, tipo: indicator.tipo,
         origem: indicator.origem } : null,
-      escala: indicator && (indicator.tipo === "CONTINUO" || indicator.tipo === "CONTAGEM") ? { tipo: "mapeamento visual contínuo linear",
+      escala: indicator && (indicator.tipo === "CONTINUO" || indicator.tipo === "CONTAGEM") ? {
+        tipo: encoding?.scale === "logaritmica" ? "mapeamento visual contínuo logarítmico" : "mapeamento visual contínuo linear",
+        transformacao: encoding?.scale === "logaritmica" ? "posição = ln(valor ÷ mínimo) ÷ ln(máximo ÷ mínimo)"
+          : "posição = (valor − mínimo) ÷ (máximo − mínimo)", escolha: colorScaleChoice,
         dominio: encoding?.domain, rampa: "azul sequencial (passos 250 a 700)", classificacao: false } :
         indicator ? { tipo: "classes ou estados produzidos por " + (indicator.origem || "capacidade"), classes: indicator.classes } : null,
       filtro_visual: filter, selecao_visual: selected, arredondamento: "RQ-REP-05: duas casas para medidas contínuas, inteiros para contagens",
@@ -218,7 +236,7 @@ export default function ResultWorkspace(p: Props) {
       tabela: tablePresentation,
       series: rep?.serie ? { pagina_territorios: linePage + 1, limite_por_pagina: MAX_LINES, categoria: lineCategory || null } : null,
     });
-  }, [view, indicator, filter, selected, barOrder, encoding, tablePresentation, linePage, lineCategory]);
+  }, [view, indicator, filter, selected, barOrder, encoding, tablePresentation, linePage, lineCategory, colorScaleChoice]);
 
   // Gancho de teste (só com window.__ADT_TEST__): o modelo desenhado, para conferência com o resultado.
   useEffect(() => {
@@ -226,6 +244,7 @@ export default function ResultWorkspace(p: Props) {
     if (!scope.__ADT_TEST__) return;
     scope.__adtMapModel = points && encoding ? { resultId: result.result_id, ids: points.ids, lat: points.lat, lon: points.lon,
       fills: encoding.fills, passes, references: [...references], selected, focusId, indicator: indicator?.coluna, domain: encoding.domain,
+      scale: encoding.scale,
       connections, reference: mapReference ? { valor: mapReference.valor, competencia: mapReference.competencia,
         categoria: mapReference.categoria, rotulo: mapReference.rotulo } : null } : { resultId: result.result_id, geometry: geometry?.estado || null };
   }, [points, encoding, passes, references, selected, focusId, connections, mapReference]);
@@ -250,23 +269,34 @@ export default function ResultWorkspace(p: Props) {
     const source = result.rows;
     if (!source.length || source.length > 3 || !["density", "counts", "temporal", "report"].includes(operation)) return null;
     return <section aria-label="Destaques do resultado" data-testid="result-highlights" className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {source.map((row, index) => <article key={index} className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
-        <p className="truncate text-xs font-semibold text-slate-600" title={String(row["Território"] ?? "")}>
-          {String(row["Território"] ?? "Resultado")}{row["Categoria"] ? " · " + String(row["Categoria"]) : ""}</p>
-        {operation === "temporal" ? changeTile(row) : levelTile(row)}
-      </article>)}
+      {source.map((row, index) => {
+        // Níveis em blocos (D3/D5): o nível de cada registro identificado no cartão; a soma dos municípios com textura e aviso.
+        const level = LEVEL_OF_LABEL[String(row["Nível"] ?? "")] as LevelCode | undefined;
+        return <article key={index} data-level={level} className={"min-w-0 rounded-2xl border bg-white p-4 shadow-sm " +
+          (level === "UF" ? "border-blue-200" : "border-line")}
+          style={level === "UF" ? { backgroundImage: "repeating-linear-gradient(45deg, rgba(234,242,252,0.9) 0 4px, #ffffff 4px 10px)" } : undefined}>
+          {level && <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{LEVEL_TITLES[level]}</p>}
+          <p className="truncate text-xs font-semibold text-slate-600" title={String(row["Território"] ?? "")}>
+            {String(row["Território"] ?? "Resultado")}{row["Categoria"] ? " · " + String(row["Categoria"]) : ""}</p>
+          {operation === "temporal" ? changeTile(row) : levelTile(row)}
+          {level === "UF" && <p className="mt-2 text-[11px] text-blue-900">{UF_WARNING}</p>}
+        </article>;
+      })}
     </section>;
   }
   function levelTile(row: Row) {
     const density = operation === "density" || (operation === "report" && typeof row["Densidade por 1.000"] === "number");
     const column = density ? "Densidade por 1.000" : "Quantidade", value = row[column];
+    // Soma dos municípios (estado): nunca rotulada como profissionais distintos (RQ-REP-14).
+    const summed = LEVEL_OF_LABEL[String(row["Nível"] ?? "")] === "UF";
+    const counted = summed ? "na soma das contagens dos municípios" : unitOf("Quantidade") || "na unidade declarada";
     return <>
       <p className="mt-1 text-4xl font-semibold text-ink" title={typeof value === "number" ? "Valor integral: " + fullPrecision(value) : undefined}>
         {formatValue(value, density ? "CONTINUO" : "CONTAGEM")}</p>
-      <p className="text-xs text-slate-600">{density ? "profissionais por 1.000 habitantes" : unitOf("Quantidade") || "na unidade declarada"}
+      <p className="text-xs text-slate-600">{density ? (summed ? "por 1.000 habitantes (soma dos municípios)" : "profissionais por 1.000 habitantes") : counted}
         {row["Período"] ? " · " + readablePeriod(String(row["Período"])) : ""}</p>
       {density && typeof row["Quantidade"] === "number" && typeof row["População"] === "number" && <p className="mt-2 text-xs text-slate-500">
-        {formatNumber(row["Quantidade"], "CONTAGEM")} {unitOf("Quantidade") || "na unidade declarada"} · {formatNumber(row["População"], "CONTAGEM")} habitantes</p>}
+        {formatNumber(row["Quantidade"], "CONTAGEM")} {counted} · {formatNumber(row["População"], "CONTAGEM")} habitantes</p>}
     </>;
   }
   function changeTile(row: Row) {
@@ -372,7 +402,8 @@ export default function ResultWorkspace(p: Props) {
             ". Com o mapa em foco, as setas deslocam a vista, + e − ampliam ou reduzem e 0 volta à extensão completa. " +
             "Os mesmos valores estão na tabela abaixo; use a busca para selecionar um território pelo teclado."}/>
         <Legend indicator={indicator} domain={encoding.domain} counts={classCounts()} referencesShown={references.size > 0}
-          linksShown={connections.length > 0} reference={mapReference}/>
+          linksShown={connections.length > 0} reference={mapReference} scale={encoding.scale} choice={colorScaleChoice}
+          onScale={setColorScaleChoice} resultId={result.result_id}/>
       </div>
       <p className="text-xs leading-5 text-slate-600">
         {period}. Cada ponto representa a localização de um território (sede municipal na base Brasil).
@@ -404,18 +435,36 @@ export default function ResultWorkspace(p: Props) {
     const bars = territoryBars();
     const stateBars = hasLevels ? territoryBars("UF") : null;
     const line = lineChart();
-    const mark = bars && barIndicator ? referenceFor(rep, resultPeriods, resultCategories, barIndicator.coluna) : null;
+    const temporalExtras = temporalVisuals();
+    const mark = bars && barIndicator && operation !== "ranking" ? referenceFor(rep, resultPeriods, resultCategories, barIndicator.coluna) : null;
     const reference: BarReference | undefined = mark ? { value: mark.valor, label: "Brasil " + formatNumber(mark.valor),
       text: mark.rotulo + ": " + formatNumber(mark.valor) + " " + mark.unidade + ", referência de contexto; a linha não classifica os municípios." +
         (mark.nota ? " " + mark.nota : "") } : undefined;
+    const anyBars = bars || stateBars;
+    // Barras (ou, no ranking, pirulitos com a posição do motor) de um nível; o estado com textura e o aviso de dupla contagem.
+    const figure = (block: { data: BarDatum[]; title: string }, level: "MUN" | "UF") => operation === "ranking"
+      ? <RankingLollipop data={block.data.map(item => ({ id: item.id, label: item.label, value: item.value, highlighted: item.highlighted,
+          rank: rowsById.get(item.id)?.["Posição"], condition: String(rowsById.get(item.id)?.["Condição"] ?? "") }))}
+          kind={barIndicator?.tipo || "CONTINUO"} unit={barIndicator?.unidade || ""} title={block.title} onSelect={id => select(id, true)}/>
+      : <TerritoryBars data={block.data} unit={barIndicator?.unidade || ""} kind={barIndicator?.tipo || "CONTINUO"} title={block.title}
+          onSelect={id => select(id, true)} reference={level === "MUN" ? reference : undefined} texture={level === "UF"}/>;
+    const municipal = bars ? <div data-testid={hasLevels ? "level-panel-mun" : undefined} data-level={hasLevels ? "MUN" : undefined}>
+      <h4 className="mb-1 text-sm font-bold text-ink">{bars.title}</h4>
+      {barOrder === "valor" && <p className="mb-1 text-xs text-amber-900">Ordenação apenas visual: não constitui posição de ranking nem resultado.</p>}
+      {figure(bars, "MUN")}</div> : null;
+    const states = stateBars ? <div data-testid="level-panel-uf" data-level="UF"><h4 className="mb-1 text-sm font-bold text-ink">{stateBars.title}</h4>
+      <p className="mb-1 text-xs text-slate-600">Soma dos municípios de cada estado (possível dupla contagem); não é comparada com o total do Brasil.</p>
+      <StateWarning/>
+      {figure(stateBars, "UF")}</div> : null;
+    const brazil = hasLevels && anyBars ? brazilBlock() : null;
     return <div className="space-y-5">
       <div className="no-print flex flex-wrap items-end gap-3">
-        {bars && numeric.length > 1 && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Indicador das barras
+        {anyBars && numeric.length > 1 && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Indicador das barras
           <select aria-label="Indicador das barras" value={barIndicator?.coluna} onChange={event => chooseBar(event.target.value)}
             className="w-full min-w-0 rounded-lg border border-line bg-white px-2 py-2 text-sm font-normal">
             {numeric.map(item => <option key={item.coluna} value={item.coluna}>{item.rotulo}{item.unidade ? " (" + item.unidade + ")" : ""}</option>)}
           </select></label>}
-        {bars && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Ordem das barras
+        {anyBars && <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-semibold text-slate-700 sm:w-auto sm:max-w-xs">Ordem das barras
           <select aria-label="Ordem das barras" value={barOrder} onChange={event => setBarOrder(event.target.value as typeof barOrder)}
             className="w-full min-w-0 rounded-lg border border-line bg-white px-2 py-2 text-sm font-normal">
             <option value="codigo">Código territorial (padrão)</option>
@@ -424,22 +473,78 @@ export default function ResultWorkspace(p: Props) {
           </select></label>}
       </div>
       {counts}
-      {bars ? <div data-testid={hasLevels ? "level-panel-mun" : undefined}><h4 className="mb-1 text-sm font-bold text-ink">{bars.title}</h4>
-        {barOrder === "valor" && <p className="mb-1 text-xs text-amber-900">Ordenação apenas visual: não constitui posição de ranking nem resultado.</p>}
-        <TerritoryBars data={bars.data} unit={barIndicator?.unidade || ""} kind={barIndicator?.tipo || "CONTINUO"} title={bars.title}
-          onSelect={id => select(id, true)} reference={reference}/></div> : null}
-      {stateBars && <div data-testid="level-panel-uf"><h4 className="mb-1 text-sm font-bold text-ink">{stateBars.title}</h4>
-        <p className="mb-1 text-xs text-slate-600">Soma dos municípios de cada estado (possível dupla contagem); não é comparada com o total do Brasil.</p>
-        <TerritoryBars data={stateBars.data} unit={barIndicator?.unidade || ""} kind={barIndicator?.tipo || "CONTINUO"} title={stateBars.title}
-          onSelect={id => select(id, true)}/></div>}
+      {operation === "distribution" && distributionStrip()}
+      {hasLevels && (brazil || states || municipal) ? <section data-testid="levels-panel" aria-label="Níveis territoriais em blocos" className="space-y-4">
+        <p className="text-xs text-slate-600">Brasil, estados e municípios em blocos separados, cada um no seu eixo: nenhum nível é somado
+          a outro nem comparado com outro.</p>
+        {brazil}{states}{municipal}
+      </section> : municipal}
       {line}
-      {!counts && !bars && !line && numeric.length === 0 && <p className="text-xs text-slate-600">Este resultado não tem valores compatíveis
+      {temporalExtras}
+      {!counts && !anyBars && !line && numeric.length === 0 && <p className="text-xs text-slate-600">Este resultado não tem valores compatíveis
         com gráficos de barras ou de linhas; consulte a tabela.</p>}
     </div>;
   }
 
+  // Bloco do Brasil no painel de níveis: o valor da contagem nacional (uma linha do motor), sem barra entre os outros níveis.
+  function brazilBlock() {
+    const row = rows.find(item => LEVEL_OF_LABEL[String(item["Nível"] ?? "")] === "BR");
+    if (!row || !barIndicator) return null;
+    const value = row[barIndicator.coluna];
+    return <LevelBlock level="BR">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{LEVEL_TITLES.BR}</p>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-bold text-ink">
+        <span title={typeof value === "number" ? "Valor integral: " + fullPrecision(value) : undefined}>{formatValue(value, barIndicator.tipo)}</span>
+        <span className="text-xs font-normal text-slate-600">{barIndicator.unidade || ""}{row["Período"] ? " · " + displayPeriod(String(row["Período"])) : ""}</span></p>
+      <p className="text-xs text-slate-600">{String(row["Tipo de contagem"] ?? "Contagem nacional")}. Lado a lado: não entra em maior,
+        menor nem diferença com estados ou municípios.</p>
+    </LevelBlock>;
+  }
+
+  // Faixa da distribuição: um ponto por território na raia da sua classe (do motor).
+  function distributionStrip() {
+    const detail = result.detail_rows || [];
+    const column = String(result.rows[0]?.["Indicador"] ?? "");
+    const indicatorOf = rep?.indicadores.find(item => item.coluna === column);
+    if (!detail.length || !column) return null;
+    return <div><h4 className="mb-1 text-sm font-bold text-ink">Territórios na faixa da distribuição · {column}</h4>
+      {hasLevels && <StateWarning/>}
+      <DistributionStrip summary={result.rows} detail={detail} column={column} unit={indicatorOf?.unidade || ""}
+        kind={indicatorOf?.tipo || "CONTINUO"} highlight={selectedSet} idOf={linker}/></div>;
+  }
+
+  // Evolução temporal: pequenos múltiplos (mesma escala) e halteres do primeiro ao último período, por painel de contagem.
+  function temporalVisuals() {
+    const serie = rep?.serie;
+    if (operation !== "temporal" || !serie || serie.tabela !== "detail_rows") return null;
+    const source = result.detail_rows || [];
+    const categories = [...new Set(source.map(row => String(row[serie.categoria] ?? "")))];
+    const category = lineCategory && categories.includes(lineCategory) ? lineCategory : categories[0];
+    const labelToId = new Map([...labels.entries()].map(([id, label]) => [label, id]));
+    const visible = (name: string) => { const id = labelToId.get(name) || ""; return (!selected.length || selectedSet.has(id)) && passesFilter(id); };
+    const panels = serie.paineis && serie.paineis.length > 1 ? serie.paineis : [null];
+    const breaks = new Set((serie.quebras || []).filter(item => item.categoria === category).map(item => item.territorio));
+    return <div className="space-y-6">{panels.map(panel => {
+      const names = [...new Set(result.rows.map(row => String(row["Território"] ?? "")))]
+        .filter(name => (!panel || panel.territorios.includes(name)) && visible(name));
+      if (!names.length) return null;
+      const suffix = panel ? " · " + panel.rotulo : "";
+      const items = temporalDumbbells(result.rows.filter(row => names.includes(String(row["Território"] ?? ""))), category);
+      return <div key={panel?.id || "todos"} className="space-y-4" data-panel={panel?.id}>
+        <TrendSmallMultiples source={source} spec={serie} territories={names} category={category} kind={serie.tipo} unit={serie.unidade}
+          trend={trend} rows={result.rows} breaks={breaks} dashed={panel?.referencia || null}
+          title={"Pequenos múltiplos" + suffix + (category ? " · " + category : "")}/>
+        <div><h4 className="mb-1 text-sm font-bold text-ink">Do primeiro ao último período{suffix}</h4>
+          <DumbbellList testId="temporal-dumbbells" items={items} kind={serie.tipo} unit={serie.unidade} trend={trend}
+            title={"Halteres do primeiro ao último período" + suffix}/>
+          <p className="mt-1 text-xs text-slate-600">Círculo vazado: primeiro período; cheio: último. A variação entre parênteses e a
+            classe são as do motor; a ordem é a do resultado.</p></div>
+      </div>;
+    })}</div>;
+  }
+
   function countBars() {
-    let data: CountDatum[] = [], title = "", note = "";
+    let data: CountDatum[] = [], title = "", note = "", heading = "";
     if (operation === "criteria" && criteriaMeta?.contagens) {
       data = ["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"].map(key => ({ label: STATE_LABELS[key], value: (criteriaMeta.contagens as Record<string, number>)[key],
         color: key === "NAO_AVALIAVEL" ? NOT_EVALUABLE : STATE_COLORS[key] }));
@@ -456,13 +561,15 @@ export default function ResultWorkspace(p: Props) {
     }
     if (operation === "distribution") {
       data = result.rows.map((row, index) => ({label: String(row.Classe ?? row.Quintil ?? ""), value: Number(row.Unidades), color: ORDINAL[index % ORDINAL.length]}));
+      // Um só gráfico de contagens (o repetido saiu de DistributionResults): o título pergunta, a figura mantém o nome.
       title = "Territórios por grupo da distribuição"; note = "Grupos e quantidades calculados na análise.";
+      heading = "Quantas unidades pertencem a cada " + groupNoun(result.rows.length) + "?";
     }
     if (trend) return <div><h4 className="mb-1 text-sm font-bold text-ink">Territórios por classe de tendência</h4><TrendCounts meta={trend}/></div>;
     const bands = criteriaMeta?.faixas;
     if (!data.length && !bands) return null;
     return <>
-      {data.length > 0 && <div><h4 className="mb-1 text-sm font-bold text-ink">{title}</h4><CountBars data={data} title={title} note={note}/></div>}
+      {data.length > 0 && <div><h4 className="mb-1 text-sm font-bold text-ink">{heading || title}</h4><CountBars data={data} title={title} note={note}/></div>}
       {bands && <div><h4 className="mb-1 text-sm font-bold text-ink">Faixas ({bands.convencao})</h4>
         <CountBars data={bands.faixas.map((item, index) => ({ label: item.faixa, value: item.n, color: ORDINAL[Math.min(index, ORDINAL.length - 1)] }))}
           title="Faixas" note="Limites escolhidos pelo usuário e contagens do motor; fora das faixas e não avaliáveis estão na tabela."/></div>}
@@ -480,7 +587,8 @@ export default function ResultWorkspace(p: Props) {
       : [...ids].sort((a, b) => (codeOf(a) || a).localeCompare(codeOf(b) || b, "pt-BR", { numeric: true }));
     const data = [...new Set(order)].map(id => {
       const value = rowsById.get(id)?.[barIndicator.coluna];
-      return { id, label: labelOf(id), value: typeof value === "number" ? value : null, highlighted: !selected.length || selectedSet.has(id) };
+      return { id, label: labelOf(id), value: typeof value === "number" ? value : null, highlighted: !selected.length || selectedSet.has(id),
+        group: barOrder === "codigo" && level === "MUN" ? stateOfMember.get(id) : undefined };
     });
     return { data, title: barIndicator.rotulo + (barIndicator.unidade ? " (" + barIndicator.unidade + ")" : "") +
       (hasLevels ? (level === "UF" ? " · Estados (soma dos municípios)" : " · Municípios") : "") +
@@ -513,8 +621,9 @@ export default function ResultWorkspace(p: Props) {
     if (!chosen.length) return <p className="text-xs text-slate-600">Nenhum território selecionado possui série temporal neste resultado.</p>;
     const pages = Math.ceil(chosen.length / MAX_LINES), page = Math.min(linePage, pages - 1);
     const breaks = new Set((serie.quebras || []).filter(item => item.categoria === category).map(item => item.territorio));
+    // Brasil marcado na abrangência (referência do painel): linha tracejada em tinta, fora da paleta dos territórios.
     const series = chosen.slice(page * MAX_LINES, (page + 1) * MAX_LINES).map((name, index) => ({ key: "s" + index, label: name,
-      color: CATEGORICAL[index], pointsOnly: breaks.has(name) }));
+      color: panel?.referencia === name ? INK.primary : CATEGORICAL[index], pointsOnly: breaks.has(name), dashed: panel?.referencia === name }));
     const points: LinePoint[] = periods.map(period => {
       const point: LinePoint = { periodo: period };
       for (const item of series) {
@@ -525,6 +634,18 @@ export default function ResultWorkspace(p: Props) {
       }
       return point;
     });
+    // Taxa nacional de contexto (D5, só densidade e relatório com densidade): linha tracejada em tinta secundária, sem ligar
+    // lacunas; nunca no painel dos estados (soma dos municípios) nem quando o Brasil já é uma série marcada.
+    const national = (operation === "density" || operation === "report") && serie.valor === "Densidade por 1.000" &&
+      (!panel || (!panel.niveis.includes("UF") && !panel.referencia)) ? rep?.referencias?.[0] : undefined;
+    if (national) {
+      const values = new Map(national.valores.filter(item => item.categoria === category)
+        .map(item => [item.competencia, item.avaliabilidade !== "NAO_AVALIAVEL" && typeof item.valor === "number" ? item.valor : null]));
+      if ([...values.values()].some(value => value !== null)) {
+        series.push({ key: "ref", label: national.rotulo + " · taxa nacional (contexto)", color: INK.secondary, pointsOnly: false, dashed: true });
+        points.forEach(point => { point.ref = values.get(String(point.periodo)) ?? null; });
+      }
+    }
     const title = (panel ? panel.rotulo : serie.valor.startsWith("Densidade") ? "Densidade" : "Quantitativo") + " (" + serie.unidade +
       ") por competência" + (category ? " · " + category : "");
     return <div>
@@ -581,6 +702,13 @@ export default function ResultWorkspace(p: Props) {
         <Pair key={item.coluna} label={item.rotulo + (item.unidade ? " (" + item.unidade + ")" : "")}
         value={row[item.coluna]} kind={item} />) : <><dt className="text-slate-500">Resultado</dt><dd>{references.has(id) ?
           "Referência fora do universo-alvo (sem valores de alvo)" : "Sem linha neste resultado"}</dd></>}
+      {row && mapReference && indicator?.coluna === "Densidade por 1.000" && <><dt className="text-slate-500">Brasil (contexto)</dt>
+        <dd data-testid="detail-national-reference">{(() => {
+          const value = row[indicator.coluna];
+          const [, national] = typeof value === "number" ? formatPair(value, mapReference.valor) : ["", formatNumber(mapReference.valor)];
+          return national + " " + mapReference.unidade + " · taxa nacional em " + displayPeriod(mapReference.competencia) +
+            "; referência de contexto, não classifica o território.";
+        })()}</dd></>}
       {row && typeof row["Motivos"] === "string" && <><dt className="text-slate-500">Motivos</dt><dd>{row["Motivos"] as string}</dd></>}
       {Object.entries(criteriaMeta?.avaliacoes?.find(item => item.elemento === id)?.nos || {}).filter(([, node]) => node.causas?.length)
         .map(([key, node]) => <Fragment key={key}><dt className="text-slate-500">{key} não avaliável</dt>
@@ -602,6 +730,8 @@ export default function ResultWorkspace(p: Props) {
 
   const tables = operation === "criteria" && criteriaMeta ? null : operation === "distribution" && result.detail_rows ?
     <DistributionResults summary={result.rows} detail={result.detail_rows} onExport={p.onExport} highlight={selectedSet}
+      total={(() => { const value = result.metrics?.find(item => item.label === "Unidades classificadas")?.value;
+        return typeof value === "number" ? value : null; })()}
       idOf={linker} onToggle={toggle} onlyHighlighted={filter === "MINHA_SELECAO"} onTablePresentation={setTablePresentation}/> :
     result.rows.length > 0 ? renderTable() : null;
 
@@ -615,16 +745,48 @@ export default function ResultWorkspace(p: Props) {
       <ResultTable rows={visible.map(item => item.row)} columns={tableColumns(columns).map(column => trend && column.key === "Tendência"
         ? { ...column, render: (value: unknown) => <TrendBadge label={value} meta={trend}/> }
         : trend && column.key === "Motivo da tendência" ? { ...column, display: trendMotiveText } : column)}
-        stacked={operation === "comparisons"} idOf={linker}
+        stacked={operation === "comparisons"} idOf={linker} cardExtra={operation === "comparisons" ? comparisonExtra : undefined}
         selected={selectedSet} onToggle={toggle} onExport={p.onExport} onPresentation={setTablePresentation}/>
       {filter !== "TODOS" && !visible.length && <p className="px-5 py-3 text-xs text-slate-500">Nenhum território neste filtro visual.</p>}
     </div>;
   }
 
+  // Comparação com janela: em cada cartão da tabela, os valores do território na competência dos valores e a sua mudança e
+  // classe de tendência (do motor), sem repetir o "Valor" do cartão.
+  function comparisonExtra(territory: string): ReactNode {
+    const detail = (result.detail_rows || []).find(row => String(row["Território"] ?? "") === territory);
+    if (!detail || !result.metadata.comparacao) return null;
+    const window = "Período inicial" in detail;
+    const kind: IndicatorKind = typeof detail["Densidade por 1.000"] === "number" || "Densidade por 1.000" in detail ? "CONTINUO" : "CONTAGEM";
+    return <div data-testid="comparison-card-extra" className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-700">
+      <p>Na competência dos valores: quantidade {typeof detail["Quantidade"] === "number" ? formatNumber(detail["Quantidade"] as number, "CONTAGEM") : "não avaliável"}
+        {"População" in detail ? <> · população {typeof detail["População"] === "number" ? formatNumber(detail["População"] as number, "CONTAGEM") + " habitantes"
+          : "não avaliável"}</> : null}</p>
+      {window && <p className="flex flex-wrap items-center gap-1.5">
+        <span>{displayPeriod(String(detail["Período inicial"] ?? ""))} → {displayPeriod(String(detail["Período final"] ?? ""))}:{" "}
+          {typeof detail["Variação absoluta"] === "number" ? <strong>{(detail["Variação absoluta"] as number) > 0 ? "+" : ""}
+            {formatNumber(detail["Variação absoluta"] as number, kind)}</strong> : String(detail["Condição da mudança"] || "mudança não avaliável")}
+          {detail["Direção da mudança"] ? " (" + String(detail["Direção da mudança"]).toLocaleLowerCase("pt-BR") + ")" : ""}</span>
+        {detail["Tendência"] != null && (comparisonTrend ? <TrendBadge label={detail["Tendência"]} meta={comparisonTrend}
+          motive={detail["Motivo da tendência"] as string | null}/> : <span>{String(detail["Tendência"])}</span>)}
+        {detail["Motivo da tendência"] != null && <span>{String(detail["Motivo da tendência"])}</span>}
+      </p>}
+    </div>;
+  }
+
+  // Painel próprio da análise, antes das abas: comparação lado a lado, cartão da agregação e barras da coorte.
+  function renderAnalysisPanel() {
+    if (operation === "comparisons") return <ComparisonPanel result={result} trend={comparisonTrend} unit={unitOf("Quantidade") || "na unidade declarada"}/>;
+    if (operation === "aggregate") return <AggregateCard result={{ rows: result.rows, metrics: result.metrics || [], metadata: result.metadata }}
+      unit={unitOf("Quantidade") || "na unidade declarada"}/>;
+    if (operation === "rotation") return <RotationCohortBars rows={result.rows}/>;
+    return null;
+  }
+
   if (operation === "criteria" && criteriaMeta) return <CriteriaResults key={result.result_id} rows={result.rows} meta={criteriaMeta}
     onExport={p.onExport} onSelection={p.onReuseSelection} onReferences={p.onReferences} reusable={p.reusable} disabled={p.disabled}
     filter={filter} onFilter={setFilter} mySelection={selectedSet} onToggle={toggle} explorer={visual} onTablePresentation={setTablePresentation}/>;
-  return <>{renderHighlights()}{renderTrendSummary()}{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
+  return <>{renderHighlights()}{renderAnalysisPanel()}{renderTrendSummary()}{sharedFilter && <div className="mt-6">{sharedFilter}</div>}{visual}{tables}</>;
 }
 
 type CriteriaCause = { origem: string; motivo?: string; detalhe?: string; candidatos_elegibilidade_desconhecida?: number;
@@ -664,12 +826,19 @@ function Unavailable({ reason, pending, notApplicable = false, temporal = false 
   </div>;
 }
 
-function Legend({ indicator, domain, counts, referencesShown, linksShown, reference }: { indicator: Indicator; domain: [number, number] | null;
-  counts: Record<string, number> | null; referencesShown: boolean; linksShown: boolean; reference: ReferenceMark | null }) {
+function Legend({ indicator, domain, counts, referencesShown, linksShown, reference, scale, choice, onScale, resultId }: { indicator: Indicator;
+  domain: [number, number] | null; counts: Record<string, number> | null; referencesShown: boolean; linksShown: boolean;
+  reference: ReferenceMark | null; scale: ColorScale | null; choice: ColorScale; onScale: (scale: ColorScale) => void; resultId: string }) {
   // Taxa nacional (D5): marca sobre a escala, presa a ela; o domínio continua o dos municípios e as cores não mudam.
   const outside = !!reference && !!domain && (reference.valor < domain[0] || reference.valor > domain[1]);
   const position = reference && domain ? reference.valor < domain[0] ? 0 : reference.valor > domain[1] ? 1
-    : domain[1] > domain[0] ? (reference.valor - domain[0]) / (domain[1] - domain[0]) : 0.5 : null;
+    : colorPosition(reference.valor, domain, scale || "linear") : null;
+  // Marcas de leitura da escala logarítmica (1, 2 e 5 × 10ⁿ): eixo da legenda, não limites de classe.
+  const ticks = domain && scale ? scaleTicks(domain, scale) : [];
+  const logarithmic = scale === "logaritmica";
+  const single = !!domain && !(domain[1] > domain[0]);
+  // Marcas 1, 2 e 5 × 10ⁿ escritas sem zeros à direita (0,5; 2; 50): são marcas do eixo, não valores do resultado.
+  const tickText = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
   const symbol = (shape: ReactNode, text: string) => <li className="flex items-center gap-2"><svg aria-hidden width="18" height="14">{shape}</svg>{text}</li>;
   const [low, high] = domain ? formatPair(domain[0], domain[1], indicator.tipo) : ["", ""];
   const palette = indicator.tipo === "CLASSE" && indicator.origem === "CAP-DIS-02" ? ORDINAL : CATEGORICAL;
@@ -680,9 +849,30 @@ function Legend({ indicator, domain, counts, referencesShown, linksShown, refere
         <div aria-hidden className="h-2.5 w-full rounded" style={{ background: "linear-gradient(90deg," + Array.from({ length: 10 }, (_, i) => sequentialColor(i / 9)).join(",") + ")" }}/>
         {position !== null && <span aria-hidden data-testid="national-reference-mark" className="absolute -top-1 border-l-2 border-dashed border-ink"
           style={{ left: "calc(" + (position * 100) + "% - 1px)", height: 18 }}/>}
+        {/* Extremos marcados: o menor e o maior valor do resultado (o domínio da cor). */}
+        <span aria-hidden data-testid="legend-extreme" className="absolute -bottom-1 left-0 h-1.5 border-l-2 border-ink"/>
+        <span aria-hidden data-testid="legend-extreme" className="absolute -bottom-1 right-0 h-1.5 border-r-2 border-ink"/>
+        {ticks.map(tick => <span key={tick.value} aria-hidden data-testid="legend-tick" className="absolute -bottom-1 h-1.5 border-l border-slate-500"
+          style={{ left: (tick.at * 100) + "%" }}/>)}
       </div>
-      <div className="mt-1 flex justify-between"><span>{low}</span><span>{high}</span></div>
-      <p className="text-slate-500">Escala contínua linear entre o menor e o maior valor do resultado; a cor não é classe nem limiar.</p>
+      {ticks.length > 0 && <div aria-hidden className="relative mt-1 h-3.5">
+        {ticks.map(tick => <span key={tick.value} className="absolute -translate-x-1/2 text-[10px] leading-3 text-slate-500"
+          style={{ left: (tick.at * 100) + "%" }}>{tickText(tick.value)}</span>)}
+      </div>}
+      <div className="mt-1 flex justify-between gap-2"><span>mín. {low}</span><span>máx. {high}</span></div>
+      <p data-testid="legend-scale" data-scale={scale || "linear"} className="text-slate-500">{single
+        ? "Um só valor no resultado: a cor fica no meio da rampa; a cor não é classe nem limiar."
+        : logarithmic
+        ? "Escala contínua logarítmica entre o menor e o maior valor do resultado: a cor avança em passos iguais a cada multiplicação do valor (de 1 a 10, de 10 a 100), e os valores baixos ficam mais distintos; a cor não é classe nem limiar."
+        : "Escala contínua linear entre o menor e o maior valor do resultado; a cor não é classe nem limiar."}
+        {!single && !logarithmic && choice === "logaritmica" && " A logarítmica só se aplica a valores todos positivos."}</p>
+      {/* Com um só valor, as duas escalas dão a mesma cor: a escolha não aparece. */}
+      {!single && <div role="radiogroup" aria-label="Escala de cor do mapa" className="no-print mt-1 flex flex-wrap gap-1.5">
+        {(["logaritmica", "linear"] as const).map(option => <label key={option} className={"flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 " +
+          (choice === option ? "border-violet-500 bg-violet-50" : "border-line bg-white")}>
+          <input type="radio" className="sr-only" name={"escala-cor-" + resultId} checked={choice === option} onChange={() => onScale(option)}/>
+          {option === "logaritmica" ? "Logarítmica" : "Linear"}</label>)}
+      </div>}
       {reference && <p data-testid="national-reference" className="mt-2 flex items-start gap-2 text-slate-700">
         <svg aria-hidden width="14" height="16" className="mt-0.5 shrink-0"><line x1="7" y1="1" x2="7" y2="15" stroke={INK.primary} strokeWidth="2" strokeDasharray="3 2"/></svg>
         <span>{reference.valorTexto}{outside ? " (fora da escala dos municípios)" : ""} · {reference.contexto}

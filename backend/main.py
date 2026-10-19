@@ -25,7 +25,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
 from data_contract import (ChoiceRequired, validate_operation, rotation_data, period_positions, resolve_convention, scoped,
-                           text_values, count_unit_label, canonical_crs)
+                           text_values, count_unit_label, canonical_crs, comparison_window as comparison_window_periods)
+import comparison_window
 from temporal_change import evolution, evolution_notes
 from trend import METHOD_VERSION as TREND_METHOD
 from dataset_normalization import compose_period
@@ -166,6 +167,22 @@ def _records(data: pd.DataFrame) -> list[dict]:
     return data.replace({np.nan: None}).to_dict(orient="records")
 
 
+def temporal_metrics(rows: list[dict], mudanca: dict) -> list[dict]:
+    """Contagens do motor na evolução temporal (séries e direção da mudança entre os extremos, CAP-TMP-01)."""
+    directions = mudanca["direcoes"]
+    return [{"label": "Séries territoriais", "value": len(rows)},
+            {"label": "Aumento entre os extremos", "value": directions["AUMENTO"]},
+            {"label": "Redução entre os extremos", "value": directions["REDUCAO"]},
+            {"label": "Sem mudança entre os extremos", "value": directions["SEM_MUDANCA"]},
+            {"label": "Mudança não avaliável", "value": sum(mudanca["nao_avaliaveis"].values())}]
+
+
+def ranking_metrics(rows: list[dict]) -> list[dict]:
+    """Territórios com posição calculada (CAP-SUB-02) e não avaliáveis, contados pelo motor."""
+    ordered = sum(row.get("Posição") is not None for row in rows)
+    return [{"label": "Territórios ordenados", "value": ordered}, {"label": "Não avaliáveis", "value": len(rows) - ordered}]
+
+
 def compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any]) -> dict:
     if operation in ("spatial", "nearest", "criteria") and canonical_crs(options.get("crs")):
         options = {**options, "crs": canonical_crs(options["crs"])}
@@ -184,9 +201,13 @@ def _finish(result: dict, df: pd.DataFrame, mapping: dict[str, str], operation: 
     nearest = result.pop("_nearest", None)
     criteria = result.pop("_criteria", None)
     trend = result.pop("_tendencia", None)
+    comparison = result.pop("_comparacao", None)
     result["metadata"] = {"method_version": "deterministic-0.4", "operation": operation,
                           "mapping": mapping, "options": options, "input_rows": len(df),
                           "derived_fields": df.attrs.get("derived_fields", [])}
+    if comparison:
+        # Comparação com competência dos valores (D6): janela, grupos de relação e objetos sem relação.
+        result["metadata"]["comparacao"] = comparison
     if trend:
         # Tendência (CAP-TEN-01) e mudança (CAP-TMP-01) estruturadas; a versão do método entra na chave de execução.
         result["metadata"]["tendencia"] = trend["tendencia"]
@@ -209,8 +230,10 @@ def _finish(result: dict, df: pd.DataFrame, mapping: dict[str, str], operation: 
         options.get(operation + "_indicator") if operation in ("temporal", "report", "distribution") else
         "quantity" if operation=="counts" else "density" if operation in ("density", "aggregate", "ranking") else operation)
     limits = list(dict.fromkeys([*limitations(options, operation), *((levels or {}).get("limitacoes") or [])]))
+    # Na comparação com janela, a mudança e a tendência de cada território estão em detail_rows.
+    inspected = result["rows"] + (result.get("detail_rows") or [] if comparison else [])
     result["metadata"]["evaluability"] = {"status": "AVALIAVEL_COM_LIMITACOES" if limits or any(
-        "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in result["rows"] for value in row.values()) else "AVALIAVEL",
+        "Não avaliável" in str(value) or "possível dupla contagem" in str(value) for row in inspected for value in row.values()) else "AVALIAVEL",
         "policy": "Ausências não são convertidas em zero; condições por elemento preservadas nas linhas."}
     if limits:
         result["metadata"]["evaluability"]["limitacoes"] = limits
@@ -248,7 +271,12 @@ def _finish(result: dict, df: pd.DataFrame, mapping: dict[str, str], operation: 
     if options.get("rows_additive_confirmed") and "rows_additive_confirmed" not in (options.get("analysis_premises") or []):
         result["notes"].append("Componentes somados nas colunas escolhidas como partes da mesma unidade; população territorial utilizada uma vez.")
     # Origem das premissas: perfil da base oficial e premissas da análise aplicadas pelo backend (sem confirmação).
-    result["notes"][:0] = premise_notes(options, operation, mapping)
+    premises = premise_notes(options, operation, mapping)
+    if comparison and comparison.get("mudanca_e_tendencia"):
+        # A janela usa as mesmas premissas temporais da evolução (comparabilidade e identidade territorial).
+        premises += [note for note in premise_notes(options, "temporal", mapping) if note not in premises and
+                     note.startswith(("Comparabilidade temporal", "Identidade territorial"))]
+    result["notes"][:0] = premises
     result["metadata"]["representacao"] = _representation(df, mapping, operation, options, result, nearest, criteria,
                                                           (trend or {}).get("quebras"), levels)
     return result
@@ -287,7 +315,10 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                          "Rotatividade (%)": 100 * (len(c0) - ongoing) / len(c0) if observed else None,
                          "Condição": "Avaliável" if observed else
                                      "Não avaliável: sem registro observado em um dos períodos (SEM_REGISTRO_OBSERVADO)"})
+        observed = sum(row["Condição"] == "Avaliável" for row in rows)
         return _result("Rotatividade e permanência", "Coorte inicial de pessoas distintas; identificadores não são retornados.", rows,
+                       [{"label": "Coortes avaliáveis", "value": observed},
+                        {"label": "Coortes não avaliáveis (sem registro em um dos períodos)", "value": len(rows) - observed}],
                        notes=["A coorte reúne as pessoas distintas do período inicial pelo identificador individual associado; "
                               "a permanência é conferida no período final."])
     if operation == "nearest":
@@ -363,7 +394,8 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                  "Densidade por 1.000": summed_quantity / summed_population * 1000}]
         notes = ["Densidade agregada = soma dos quantitativos / soma das populações × 1.000.",
                  "A ausência de sobreposição não é inferida. Sem premissa/deduplicação, o resultado é apenas soma dos componentes."]
-        return _result("Agregação territorial", "População territorial compartilhada contabilizada uma vez.", rows, notes=notes)
+        return _result("Agregação territorial", "População territorial compartilhada contabilizada uma vez.", rows,
+                       [{"label": "Territórios agregados", "value": int(data.territory.nunique())}], notes=notes)
     if operation == "distribution":
         # A escolha do indicador e do universo é obrigatória no contrato compartilhado.
         indicator = options["distribution_indicator"]
@@ -406,10 +438,11 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                     "Quantidade": float(record["quantity"]),
                     "População": float(record["population"]) if pd.notna(record["population"]) else None,
                 })
+        # Total do motor (o frontend não soma as classes): unidades classificadas e número de classes.
         result = _result(
             "Distribuição territorial",
             "Unidades territoriais classificadas do menor para o maior valor do indicador escolhido. Cada período e categoria compõem um universo próprio.",
-            rows, notes=["Indicador escolhido: " + label,
+            rows, [{"label": "Unidades classificadas", "value": len(detail_rows)}, {"label": "Classes", "value": k}], notes=["Indicador escolhido: " + label,
                          "Distribuição com pontos de corte Hyndman–Fan tipo 7. Valores iguais permanecem na classe inferior, portanto as contagens podem ser diferentes.",
                          "Posições crescentes por período e categoria; empates preservados (1, 1, 3).",
                          "Os pontos de corte são usados internamente; os resultados individuais estão no detalhamento territorial."]
@@ -428,43 +461,22 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         # As premissas de comparação (perfil oficial ou da análise) entram nas notas por compute; nenhuma é declarada aqui.
         result = _result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if metric == "density" else "quantitativos") +
                          " entre períodos; tendência (CAP-TEN-01) somente com quatro ou mais observações válidas.",
-                         rows, notes=["Cada competência é independente; não se somam pessoas de períodos diferentes.",
+                         rows, temporal_metrics(rows, mudanca), notes=["Cada competência é independente; não se somam pessoas de períodos diferentes.",
                                       *evolution_notes(tendencia, mudanca, convention)])
         result["detail_rows"] = detail_rows
         result["_tendencia"] = {"tendencia": tendencia, "mudanca": mudanca, "quebras": breaks}
         return result
     if operation == "comparisons":
-        rows = []
         metric = options.get("comparison_indicator", "density")
-        metric_label = "Densidade por 1.000" if metric == "density" else "Quantidade"
+        unit = count_unit_label(mapping, options)
+        objects = int(data.territory.nunique())
+        if comparison_window.requested_period(options) is not None:
+            return _comparison_with_window(data, mapping, options, metric, unit)
         # AT-84: a cardinalidade é a do conjunto solicitado, não a dos objetos que restarem por recorte.
-        pair = data.territory.nunique() == 2
-        for (period, category), group in data.groupby(["period", "category"], sort=True):
-            group = group.sort_values("territory")
-            common = {"Período": period, "Categoria": category,
-                      "Indicador": metric_label, "Unidade de contagem": count_unit_label(mapping, options)}
-            if pair and len(group) == 2:
-                a, b = group.iloc[0], group.iloc[1]
-                rows.append({**common, "Objeto A": a.territory, "Valor A": a[metric],
-                    "Objeto B": b.territory, "Valor B": b[metric],
-                    "Relação A/B": "IGUALDADE" if a[metric] == b[metric] else "MAIOR" if a[metric] > b[metric] else "MENOR",
-                    "Diferença A − B": a[metric] - b[metric], "Condição": "Comparável"})
-            else:
-                values = sorted(group[metric].unique())
-                following = dict(zip(values, [*values[1:], None]))
-                equal_counts = group[metric].value_counts()
-                for item in group.itertuples():
-                    value = getattr(item, metric)
-                    rows.append({**common, "Território": item.territory, metric_label: value,
-                        "Próximo valor maior": following[value],
-                        "Unidades com mesmo valor": int(equal_counts[value]),
-                        "Condição": "Comparável" if len(group) > 1 else "Não avaliável: menos de dois territórios neste recorte"})
-        # Períodos com cardinalidades diferentes mantêm todas as colunas no CSV.
-        columns = dict.fromkeys(key for row in rows for key in row)
-        rows = [{key: row.get(key) for key in columns} for row in rows]
+        rows = comparison_window.relation_rows(data, metric, unit)
         return _result("Comparação territorial", "Valores e relações comparativas por período e categoria, sem posições de ranking.", rows,
-            notes=["Entre dois objetos: A e B em ordem de nome, relação A/B e diferença assinada A − B.",
-                   "Entre três ou mais: valores iguais e próximo valor estritamente maior descrevem a ordem do conjunto; sem diferenças automáticas entre pares."])
+            [{"label": "Territórios comparados", "value": objects}],
+            notes=[comparison_window.NOTE_PAIRS, comparison_window.NOTE_SET])
     if operation == "ranking":
         if not data["density"].notna().any():
             raise ValueError("Estas análises requerem densidades avaliáveis.")
@@ -476,12 +488,13 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         rows = _records(data[["position", "territory", "period", "category", "density", "Condição"]].rename(columns={
             "position": "Posição", **cols}))
         return _result("Recortes e rankings" if operation == "ranking" else "Comparação territorial",
-                       "Ordem relativa descritiva; não constitui julgamento normativo.", rows,
+                       "Ordem relativa descritiva; não constitui julgamento normativo.", rows, ranking_metrics(rows),
                        notes=["Resultados exibidos por período e categoria. A comparação exige equivalência metodológica das unidades."])
     # densidade e relatório de quantitativos (sem denominador, não fingir densidade)
     if operation == "report" and options["report_indicator"] == "quantity":
         rows = _records(data[keys + ["quantity"]].rename(columns=cols))
         return _result("Relatório de quantitativos", "Quantitativos da força de trabalho na base analisada.", rows,
+                       [{"label": "Registros territoriais", "value": len(rows)}],
                        notes=["Indicador escolhido: quantidade. Nenhuma densidade foi calculada."])
     rows = _records(data[keys + ["quantity", "population", "density"]].rename(columns=cols))
     valid = int(data["density"].notna().sum())
@@ -489,9 +502,55 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
              "Valores ausentes e denominadores nulos não são transformados em zero.",
              "Para exportar um relatório, utilize o recurso de impressão/PDF do navegador."]
     return _result("Relatório analítico" if operation == "report" else "Densidade de profissionais",
-                   count_unit_label(mapping, options) + " por 1.000 habitantes.",
+                   "Densidade de " + count_unit_label(mapping, options) + " por 1.000 habitantes.",
                    rows, [{"label": "Unidades avaliáveis", "value": valid},
                           {"label": "Não avaliáveis", "value": int(len(data)-valid)}], notes)
+
+
+def _comparison_with_window(data: pd.DataFrame, mapping: dict, options: dict, metric: str, unit: str) -> dict:
+    """Comparação com competência dos valores (D6): relações só nessa competência, no formato de sempre, e um registro
+    por território com valores, mudança e tendência na janela (comparison_window.py)."""
+    period = comparison_window.requested_period(options)
+    ordered, positions = comparison_window_periods(data.period.unique(), mapping, options)
+    current = data[data.period == period]
+    objects = int(data.territory.nunique())
+    rows = comparison_window.relation_rows(current, metric, unit, requested=objects)
+    density = metric == "density"
+    evolved, tendencia, mudanca, breaks = {}, None, None, []
+    convention = resolve_convention(list(positions), options.get("period_convention", "auto"))
+    if len(ordered) >= 2:
+        evolved, tendencia, mudanca, breaks = comparison_window.evolve(
+            data, metric, positions, convention, "por 1.000 habitantes" if density else unit)
+    records = {(item["territory"], item["category"]): item for item in current.to_dict("records")}
+    keys = sorted({(ter, cat) for ter, cat in zip(data.territory, data.category)}, key=lambda key: (str(key[0]), str(key[1])))
+    detail = []
+    for territory, category in keys:
+        record = records.get((territory, category))
+        row = {"Território": territory, "Categoria": category, "Período": period,
+               **comparison_window.value_columns(record, metric, density), "Unidade de contagem": unit,
+               "Condição": "Avaliável" if record is not None else comparison_window.MISSING_VALUES}
+        if len(ordered) >= 2:
+            row.update(comparison_window.window_columns(evolved.get((territory, category))))
+        detail.append(row)
+    comparacao = comparison_window.window_meta(period, ordered, metric)
+    present = sorted(set(current.territory))
+    comparacao["grupos"] = [{"nivel": None, "unidade_contagem": unit, "objetos": present, "relacoes": len(present) >= 2}]
+    comparacao["sem_relacao"] = [{"objeto": key[0], "motivo": comparison_window.MISSING_VALUES}
+                                 for key in keys if key not in records] + (
+        [{"objeto": name, "motivo": "Não avaliável: menos de dois territórios neste recorte"} for name in present]
+        if len(present) < 2 else [])
+    metrics = [{"label": "Territórios comparados", "value": objects},
+               {"label": "Competências na janela", "value": len(ordered)}]
+    result = _result("Comparação territorial", "Valores e relações comparativas na competência " + str(period) +
+                     (", com mudança e tendência de cada território na janela" if len(ordered) >= 2 else "") +
+                     "; sem posições de ranking.", rows, metrics,
+                     notes=comparison_window.notes(period, ordered, tendencia, mudanca, convention, [
+                         comparison_window.NOTE_PAIRS if objects == 2 else comparison_window.NOTE_SET]))
+    result["detail_rows"] = detail
+    result["_comparacao"] = comparacao
+    if tendencia is not None:
+        result["_tendencia"] = {"tendencia": tendencia, "mudanca": mudanca, "quebras": breaks}
+    return result
 
 
 async def _read_upload(file: UploadFile) -> bytes:
@@ -1074,6 +1133,23 @@ def _analyze_levels(route, sources, operation, x_adt_session, context_revision):
     return _seal(result, municipal, fields, settings, operation, x_adt_session, context_revision, capture, None)
 
 
+def _attach_summary(result: dict) -> None:
+    """Frase-resumo, indicadores e procedência (result_summary.py) em metadata.representacao.resumo, depois do
+    result_id. Como a representação, uma falha nunca invalida o resultado: o resumo apenas não é anexado. Só para a
+    interface; não entra em llm_context nem em provider_snapshot."""
+    representation = result["metadata"].get("representacao")
+    if not isinstance(representation, dict):
+        return
+    try:
+        from result_summary import summary
+        resumo = summary(result)
+    except Exception:  # noqa: BLE001 — registrada no log; tabela, gráficos e exportações seguem disponíveis
+        logging.getLogger(__name__).exception("Falha ao compor a frase-resumo do resultado")
+        resumo = None
+    if resumo:
+        representation["resumo"] = resumo
+
+
 def _seal(result, frame, fields, settings, operation, x_adt_session, context_revision, capture, geo):
     """Identidade do resultado: hash dos dados, chave de execução reproduzível e registro na sessão."""
     result["metadata"]["data_sha256"] = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
@@ -1089,6 +1165,7 @@ def _seal(result, frame, fields, settings, operation, x_adt_session, context_rev
     result["metadata"]["execution_key"] = hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     result["metadata"]["validity"] = "VALIDO"
     result["metadata"]["presentations"] = ["table", "csv", "metadata_json", "print"]
+    _attach_summary(result)
     if capture:
         result["conversation_reference"] = {"available": sessions.record_result(
             x_adt_session, context_revision, result, capture["context"])}

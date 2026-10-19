@@ -39,16 +39,20 @@ def resolve(value, path):
     return value
 
 
+TABLES = ("rows", "detail_rows")  # tabelas do resultado; detail_rows só na frase-resumo (result_summary.py)
+ROOTS = ("title", "rows", "notes", "metrics", "metadata", "total_rows", "detail_rows")
+
+
 def value_text(result, path):
     value = resolve(result, path)
-    if not isinstance(value, float) or path[0] != "rows":
+    if not isinstance(value, float) or path[0] not in TABLES:
         return display(value)
     column = path[-1]
     if column in ("Quantidade", "População") or (column in ("Valor A", "Valor B", "Diferença A − B") and
                                                result["metadata"].get("indicator") == "quantity"):
         return display(int(value)) if value.is_integer() else display(value)
     columns = ("Valor A", "Valor B") if column in ("Valor A", "Valor B") else (column,)
-    peers = {r.get(key) for r in result["rows"] for key in columns if isinstance(r.get(key), (int, float))}
+    peers = {r.get(key) for r in result[path[0]] for key in columns if isinstance(r.get(key), (int, float))}
     digits = 2
     while digits < 18 and any(other != value and display(float(other), digits) == display(value, digits) for other in peers):
         digits += 1
@@ -56,41 +60,49 @@ def value_text(result, path):
 
 
 def relation_text(row):
-    relation = {"MAIOR": "maior que", "MENOR": "menor que", "IGUAL": "igual ao"}.get(row.get("Relação A/B"))
+    # O motor emite IGUALDADE (CAP-CMP-01, DA-13); "IGUAL" fica aceito por compatibilidade.
+    relation = {"MAIOR": "maior que", "MENOR": "menor que", "IGUALDADE": "igual ao",
+                "IGUAL": "igual ao"}.get(row.get("Relação A/B"))
     if not relation or row.get("Condição") != "Comparável":
         return None
     return "O valor de " + row["Objeto A"] + " é " + relation + " o de " + row["Objeto B"] + "." if relation != "igual ao" else (
         "O valor de " + row["Objeto A"] + " é igual ao de " + row["Objeto B"] + ".")
 
 
-def verify_segments(segments, result):
-    """Domínio fechado: cada fragmento é cópia literal ou forma documental materializada."""
+def segment_type(path):
+    return "LIMITACAO" if path[0] == "notes" else "PARAMETRO" if path[0] == "metadata" else "VALOR"
+
+
+def verify_segment(segment, result):
+    """Um fragmento: cópia literal de um caminho do resultado (ou relação do motor) ou forma documental."""
     try:
-        for segment in segments:
-            if segment["type"] == "EXPLICACAO_METODOLOGICA":
-                if (segment["function"] != "METODOLOGICO_OPERACIONAL" or
-                        set(segment) != {"type", "function", "text", "documentation"}) or not verify_documentation(
-                        segment["text"], [segment["documentation"]]):
-                    return False
-            else:
-                if set(segment) != {"type", "function", "text", "path", "result_id"}:
-                    return False
-                if segment["result_id"] != result["result_id"]:
-                    return False
-                path = segment["path"]
-                if not path or path[0] not in ("title", "rows", "notes", "metrics", "metadata", "total_rows"):
-                    return False
-                value = resolve(result, path)
-                if segment["type"] == "RELACAO":
-                    if (len(path) != 2 or path[0] != "rows" or segment["function"] != "AFIRMACAO_ANALITICA" or
-                            segment["text"] != relation_text(value) or segment["text"] is None):
-                        return False
-                    continue
-                if segment["text"] != value_text(result, path):
-                    return False
-                expected = "LIMITACAO" if path[0] == "notes" else "PARAMETRO" if path[0] == "metadata" else "VALOR"
-                if segment["type"] != expected or segment["function"] != "AFIRMACAO_ANALITICA":
-                    return False
+        if segment["type"] == "EXPLICACAO_METODOLOGICA":
+            return (segment["function"] == "METODOLOGICO_OPERACIONAL" and
+                    set(segment) == {"type", "function", "text", "documentation"} and
+                    bool(verify_documentation(segment["text"], [segment["documentation"]])))
+        if set(segment) != {"type", "function", "text", "path", "result_id"}:
+            return False
+        if segment["result_id"] != result["result_id"]:
+            return False
+        path = segment["path"]
+        if not path or path[0] not in ROOTS:
+            return False
+        value = resolve(result, path)
+        if segment["type"] == "RELACAO":
+            return (len(path) == 2 and path[0] == "rows" and segment["function"] == "AFIRMACAO_ANALITICA" and
+                    segment["text"] is not None and segment["text"] == relation_text(value))
+        if segment["text"] != value_text(result, path):
+            return False
+        return segment["type"] == segment_type(path) and segment["function"] == "AFIRMACAO_ANALITICA"
+    except (KeyError, IndexError, TypeError, ValueError):
+        return False
+
+
+def verify_segments(segments, result):
+    """Domínio fechado: cada fragmento é cópia literal ou forma documental materializada; todas as notas presentes."""
+    try:
+        if not all(verify_segment(segment, result) for segment in segments):
+            return False
         paths = [s.get("path") for s in segments]
         return all(["notes", i] in paths for i in range(len(result.get("notes", []))))
     except (KeyError, IndexError, TypeError, ValueError):

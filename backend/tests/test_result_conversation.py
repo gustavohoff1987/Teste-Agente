@@ -37,6 +37,24 @@ def test_existing_comparison_is_read_without_calculation_or_provider(monkeypatch
         assert note in reply["reply"]
 
 
+def test_equal_values_keep_the_engine_relation_in_the_reply():
+    # O motor emite IGUALDADE (CAP-CMP-01); antes, o chat só reconhecia "IGUAL" e a relação sumia da resposta.
+    import json
+    from test_conversation_session import MAP
+    h = session()
+    raw = RAW.replace(b"Outra Vila;002;202406;MEDICINA;20;1000", b"Outra Vila;002;202406;MEDICINA;10;1000")
+    form = {"mapping": json.dumps(MAP), "options": json.dumps(OPTIONS)}
+    result = client.post("/api/analyze", headers=h, files={"file": ("private.csv", raw)},
+                         data={**form, "operation": "comparisons"}).json()
+    assert result["rows"][0]["Relação A/B"] == "IGUALDADE"
+    reply = client.post("/api/llm/interpret-context", headers=h, files={"file": ("private.csv", raw)},
+                        data={**form, "message": "O que esse resultado significa?",
+                              "displayed_result_id": result["result_id"]}).json()
+    assert "O valor de Outra Vila [002] é igual ao de Vila Secreta [001]." in reply["reply"]
+    assert [s["path"] for s in reply["segments"] if s["type"] == "RELACAO"] == [["rows", 0]]
+    assert verify_segments(reply["segments"], result)
+
+
 def test_density_does_not_infer_a_ranking_or_new_comparison():
     h = session()
     result = compute(h, "density")

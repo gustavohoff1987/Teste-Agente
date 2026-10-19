@@ -160,6 +160,25 @@ def test_operations_without_map_explain_why_and_series_stay_available():
     assert aggregate["geometria"]["estado"] == "NAO_APLICAVEL"
 
 
+def test_pair_comparison_with_values_period_has_a_map_of_its_two_territories():
+    # Antes, o par só tinha "Valor A"/"Valor B" e o mapa ficava indisponível. Com a competência dos valores, um registro
+    # por território (detail_rows) leva indicadores e geometria numa competência só; a tabela de relações não muda.
+    pair = ["code:130260", "code:130420"]
+    before = analyze(frame(), "comparisons", territory_ids=pair, **GEO)["metadata"]["representacao"]
+    assert before["tabela"] == "rows" and before["indicadores"] == []
+    body = analyze(frame(), "comparisons", territory_ids=pair, period_filter="", period_filters=["2023", "2024"],
+                   comparison_values_period="2024", temporal_comparability_confirmed=True,
+                   territory_longitudinal_confirmed=True, **GEO)
+    contract = body["metadata"]["representacao"]
+    assert contract["tabela"] == "detail_rows" and contract["serie"] is None
+    assert [item["coluna"] for item in contract["indicadores"]] == ["Densidade por 1.000", "Quantidade", "População"]
+    geometry = contract["geometria"]
+    assert geometry["estado"] == "DISPONIVEL" and geometry["competencia"] == "2024"
+    assert points(geometry) == {key: value for key, value in expected("2024").items() if key in pair}
+    assert sorted(linked_ids({**body, "rows": body["detail_rows"]})) == pair
+    assert len(body["rows"]) == 1 and body["rows"][0]["Relação A/B"] == "MAIOR"
+
+
 def test_indicators_are_columns_of_the_result_with_units_and_capability_classes():
     density = analyze(frame(), **GEO)
     by_column = {item["coluna"]: item for item in density["metadata"]["representacao"]["indicadores"]}

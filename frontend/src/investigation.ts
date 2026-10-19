@@ -13,12 +13,22 @@ function normalize(value: unknown): unknown {
 }
 const sameSet = (a: unknown, b: unknown) => canonical([...strings(a)].sort()) === canonical([...strings(b)].sort());
 
+// Situação do resultado (avaliabilidade do motor) em português, com acentos.
+const STATUS_LABELS: Record<string, string> = {
+  AVALIAVEL: "avaliável", AVALIAVEL_COM_LIMITACOES: "avaliável com limitações", NAO_AVALIAVEL: "não avaliável",
+  PARCIALMENTE_AVALIAVEL: "parcialmente avaliável",
+};
+export function statusLabel(status: unknown): string {
+  const code = String(status || "");
+  if (!code) return "Situação não informada";
+  return STATUS_LABELS[code] || code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
+}
+
 // O histórico resumido não precisa materializar os membros de cada universo.
 export function resultSummary(entry: InvestigationEntry) {
   return {
     scope: String(object(entry.result.metadata.universe).classification_scope || "Recorte não informado"),
-    status: entry.invalidReason ? "Invalidado" : String(object(entry.result.metadata.evaluability).status || "Situação não informada")
-      .replaceAll("_", " ").toLocaleLowerCase("pt-BR"),
+    status: entry.invalidReason ? "Invalidado" : statusLabel(object(entry.result.metadata.evaluability).status),
   };
 }
 
@@ -29,7 +39,9 @@ export function identity(entry: InvestigationEntry) {
   const indicators = Array.isArray(rep.indicadores) ? rep.indicadores as Bag[] : [];
   return {
     operation: String(m.operation || "Operação não informada"),
-    source: String(source.label || m.input_file || "Fonte não identificada"),
+    // Arquivo importado: o motor guarda {name, sha256, sheet}; o nome do arquivo identifica a fonte (antes: "[object Object]").
+    source: String(source.label || (typeof m.input_file === "object" && m.input_file ? object(m.input_file).name || "Arquivo importado"
+      : m.input_file) || "Fonte não identificada"),
     version: String(source.version || m.data_sha256 || "Versão não informada"),
     periods: strings(m.periods), categories: strings(m.categories),
     indicators: indicators.map(i => String(i.rotulo) + (i.unidade ? " (" + i.unidade + ")" : "")),

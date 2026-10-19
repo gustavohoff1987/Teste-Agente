@@ -24,15 +24,17 @@ function TrendIcon({ code, motive }: { code: string; motive?: string | null }) {
 }
 
 /** Selo da classe de tendência: o texto é o rótulo do motor; o código vem de `metadata.tendencia.classes`. */
-export function TrendBadge({ label, meta, motive, text }: { label: unknown; meta: TrendMeta; motive?: string | null; text?: string }) {
+export function TrendBadge({ label, meta, motive, text, wrap = false }: { label: unknown; meta: TrendMeta; motive?: string | null; text?: string;
+  /** Texto inteiro em mais de uma linha (contagem por classe); sem isso, uma linha com reticências e o texto no title. */
+  wrap?: boolean }) {
   const code = classOfLabel(label, meta);
   if (!code) return <span>{label == null ? "Não avaliável" : String(label)}</span>;
   const family = familyOfClass(code, meta) || "NAO_AVALIAVEL";
   const tone = TONE[family];
   return <span data-testid="trend-badge" data-class={code} data-family={family}
-    className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold"
+    className={"inline-flex max-w-full items-center gap-1 border px-2 py-0.5 text-xs font-semibold " + (wrap ? "rounded-xl" : "rounded-full")}
     style={{ color: tone.text, background: tone.background, borderColor: tone.border, borderStyle: family === "NAO_AVALIAVEL" ? "dashed" : "solid" }}>
-    <TrendIcon code={code} motive={motive}/><span className="truncate" title={text ?? String(label)}>{text ?? String(label)}</span>
+    <TrendIcon code={code} motive={motive}/><span className={wrap ? "min-w-0 break-words" : "truncate"} title={text ?? String(label)}>{text ?? String(label)}</span>
   </span>;
 }
 
@@ -45,9 +47,9 @@ export function TrendCounts({ meta }: { meta: TrendMeta }) {
       {groups.map(group => <div key={group.family} className="min-w-0">
         <p className="mb-1 text-xs font-semibold text-slate-600">{group.title}: {formatNumber(group.total, "CONTAGEM")}</p>
         {group.entries.map(entry => <div key={entry.key} data-testid="trend-count" data-key={entry.key} data-value={entry.value}
-          className="my-1 grid grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_3.5rem]">
+          className="my-1 grid grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_3.5rem]">
           <span className="min-w-0"><TrendBadge label={entry.code === NOT_EVALUABLE_CLASS ? entry.label : meta.classes.find(item => item.codigo === entry.code)?.rotulo}
-            meta={meta} motive={entry.motive} text={entry.label}/></span>
+            meta={meta} motive={entry.motive} text={entry.label} wrap/></span>
           <span aria-hidden className="order-3 col-span-2 h-2.5 overflow-hidden rounded bg-slate-100 sm:order-none sm:col-span-1">
             <span className="block h-full rounded-r" style={{ width: (entry.value ? Math.max(0.8, entry.value / largest * 100) : 0) + "%",
               background: TREND_COLORS[entry.family] }}/></span>

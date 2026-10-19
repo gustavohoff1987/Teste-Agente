@@ -155,7 +155,7 @@ distâncias usam as coordenadas da competência escolhida; em algumas competênc
 coordenadas diferentes para o mesmo município."; os motivos do pré-exame dessa análise (coordenadas,
 competência, referência) aparecem abaixo das caixas com o texto do backend. Na rotatividade, a caixa
 Período abre o período inicial e o final da coorte (sem escolha, valem a primeira e a última
-competência). Na mesma grade entram o Agrupamento da distribuição, o
+competência). Na mesma grade entram a Competência dos valores da comparação, o Agrupamento da distribuição, o
 Território de referência da análise espacial e, fora da versão governada, o Referencial geodésico
 das análises de distância; as referências da referência mais próxima e os critérios do usuário
 continuam em quadros próprios logo abaixo. Não há caixa de fonte: a abrangência territorial já diz
@@ -164,8 +164,8 @@ só é liberado depois dela. Valores longos aparecem por inteiro, com quebra de 
 
 A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
 Numa análise de período único, escolher a competência recolhe a lista. Vários períodos só existem
-em quantitativos, evolução temporal (que começa com todas as competências) e relatórios, por
-"Selecionar vários períodos"; "Concluir" recolhe a lista. Não há etapa separada de escolha do
+em quantitativos, evolução temporal (que começa com todas as competências), comparações (desde
+19/10/2026; ver adiante) e relatórios, por "Selecionar vários períodos"; "Concluir" recolhe a lista. Não há etapa separada de escolha do
 período. A caixa mostra os períodos em ordem cronológica e resumidos por intervalo, com as lacunas
 nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de 2024, exceto junho de 2015");
 até três competências fora de sequência aparecem pelo nome ("janeiro de 2014 e junho de 2015").
@@ -223,3 +223,26 @@ A comparação de dois municípios apresenta um registro para cada objeto A/B, s
 diferença e condição retornadas pelo motor. Conjuntos maiores mantêm um registro por território.
 Filtros e ordenação continuam disponíveis em “Filtrar e ordenar a comparação”. O CSV preserva
 as colunas e valores originais; a separação é apenas visual.
+
+**Comparação com janela (desde 19/10/2026, decisão D6).** A comparação aceita um período ou uma janela
+de períodos ("Qual período (ou janela de períodos) você deseja usar na comparação?"). Sem período
+escolhido, ela começa na **série anual de junho** (na base versionada, 11 competências, de junho de 2014 a
+junho de 2024), com os valores na última; um período único já escolhido (vindo de outra análise ou da
+conversa) é mantido. A caixa **"Competência dos valores"** (`comparison-values-period`, rótulo acessível
+"Competência dos valores da comparação"; na base importada, um seletor na frase quando há janela) escolhe a
+competência dos valores lado a lado e das relações, e a nota `comparison-window-note` explica: "Os valores
+lado a lado e as relações (maior, menor, diferença) usam só a competência da caixa “Competência dos
+valores”. Com dois ou mais períodos, cada território ganha também a mudança entre o primeiro e o último e a
+classe de tendência na janela; sem variação percentual nem razão automáticas.". A interface envia
+`comparison_values_period` (a competência única, a escolhida ou a última da janela); sem competência
+escolhida, não envia e vale o comportamento anterior. **A conversa não recebe essa opção**: o contexto
+enviado ao interpretador continua sem ela, e o agrupamento das competências calculadas a ignora. No
+resultado, antes das abas, aparecem os valores lado a lado por nível, a relação e a diferença do par, os
+halteres do primeiro ao último período e o selo da tendência de cada território; os cartões da tabela ganham
+a quantidade, a população, a mudança e a tendência do território (ver
+[Bloco 3](BLOCO3_MAPAS_VISUALIZACOES.md)).
+
+**Perguntas sobre o resultado da comparação.** Quando os dois valores são iguais, o motor emite a relação
+`IGUALDADE` e a resposta diz "O valor de A é igual ao de B."; antes, a conversa só reconhecia "IGUAL" e a
+relação sumia da resposta. A frase-resumo do cabeçalho usa o mesmo texto da relação e os mesmos
+verificadores; ela fica só na interface e não vai ao provedor de IA.

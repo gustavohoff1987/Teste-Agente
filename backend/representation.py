@@ -43,7 +43,9 @@ def payload(frame, mapping, operation, options, result, nearest=None, criteria=N
     as desenha só como pontos, sem linha entre competências (RQ-REP-15, AT-69). `levels` (rota de níveis)
     traz a coluna e a ordem dos níveis e os painéis da série."""
     rows, detail = result.get("rows") or [], result.get("detail_rows") or []
-    table = "detail_rows" if operation == "distribution" and detail else "rows"
+    # Distribuição e comparação com competência dos valores: um registro por território em detail_rows (indicadores e
+    # mapa); a tabela principal da comparação continua sendo `rows`, com as relações.
+    table = "detail_rows" if operation in ("distribution", "comparisons") and detail else "rows"
     data = detail if table == "detail_rows" else rows
     indicators = _indicators(operation, data, mapping, options, criteria)
     geometry = _geometry(frame, mapping, operation, options, result, nearest, criteria)
@@ -175,6 +177,9 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
         period = nearest["structured"].get("periodo_geometria")
     elif criteria is not None:
         period = criteria["structured"].get("periodo")
+    elif operation == "comparisons" and ((result.get("metadata") or {}).get("comparacao") or {}).get("competencia_valores"):
+        # Comparação com janela: o mapa usa as coordenadas da competência dos valores (uma só).
+        period = result["metadata"]["comparacao"]["competencia_valores"]
     else:
         periods = (result.get("metadata") or {}).get("periods") or []
         if mapping.get("period") and len(periods) != 1:

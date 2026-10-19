@@ -7,7 +7,8 @@ async function source(name) {
     {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 }
-const {annualSeries, clickPeriod, compactPeriods, describePeriods, isAnnualSeries, periodRange, rotationPeriods} = await source('periods');
+const {annualSeries, clickPeriod, comparisonWindow, compactPeriods, describePeriods, isAnnualSeries, periodRange, rotationPeriods,
+  valuesPeriodOf} = await source('periods');
 // Ordem do arquivo da base Brasil: não cronológica.
 const all = ['201401', '201406', '201501', '201506', '201606', '201701', '201601', '202406', '202401'];
 
@@ -72,4 +73,15 @@ test('série anual de junho: competências de junho em ordem, reconhecida no res
   assert.deepEqual(annualSeries(['2021', '2022', '2023-06']), []);
   // Na lista de exemplo (sem competências de 2017 a 2023), as quatro de junho também formam a série anual disponível.
   assert.deepEqual(annualSeries(all), ['201406', '201506', '201606', '202406']);
+});
+
+test('comparação com janela: competência dos valores é a única, a escolhida na janela ou a última; janela padrão de junho', () => {
+  assert.equal(valuesPeriodOf('202401', [], ''), '202401');
+  assert.equal(valuesPeriodOf('', ['202406', '201406', '202306'], ''), '202406');
+  assert.equal(valuesPeriodOf('', ['202406', '201406', '202306'], '202306'), '202306');
+  assert.equal(valuesPeriodOf('', ['202406', '201406'], '202306'), '202406');  // escolha fora da janela: a última
+  assert.equal(valuesPeriodOf('', [], '202306'), '');  // sem período escolhido: caminho anterior (relações em cada competência)
+  assert.deepEqual(comparisonWindow(all), ['201406', '201506', '201606', '202406']);
+  assert.deepEqual(comparisonWindow(['202401', '202406']), []);  // uma competência de junho não forma janela
+  assert.deepEqual(comparisonWindow(['2023', '2024']), []);
 });

@@ -113,7 +113,13 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - **Quantitativos, densidade e relatórios:** linhas por nível, na ordem Brasil → estados (por código)
   → municípios, com a coluna "Nível" e "Tipo de contagem". Competência pedida que não existe na fonte
   de um nível vira linha "Não avaliável: sem registro nesta competência na fonte {nacional|municipal}".
-  As métricas de avaliáveis continuam só sobre as linhas de municípios.
+  Desde o visual completo (19/10/2026), as métricas são **por nível**, com a chave extra `nivel` (BR, UF ou
+  MUN): "Brasil (total nacional): registros avaliáveis" e "…: registros não avaliáveis", "Estados (soma dos
+  municípios): …" e "Municípios: …"; os números de níveis diferentes nunca são somados (antes, "Unidades
+  avaliáveis" e "Não avaliáveis" contavam só os municípios). A descrição diz o que é cada bloco: "Densidade de
+  pessoas por 1.000 habitantes por nível territorial (Brasil (total nacional), estados (soma dos municípios) e
+  municípios), em blocos separados; nenhum nível é somado a outro." e "Quantitativos de pessoas por nível
+  territorial (…)" (antes, "pessoas por 1.000 habitantes.").
 - **Evolução temporal:** uma única chamada de `evolution` para todos os objetos. O estado cujo conjunto
   de municípios presentes muda na janela recebe a INCOMPARABILIDADE pela entrada (`incomparable`):
   "Membros efetivos diferentes entre competências (201501: 353286 ausente)"; se os membros dos dois
@@ -127,11 +133,26 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   lado: o Brasil é outro nível e não entra em maior, menor nem diferença com estados ou municípios.",
   "Lado a lado: único estado; a soma dos municípios não é comparada com municípios nem com o Brasil." e
   "Lado a lado: único município; não é comparado com outros níveis.". Estado parcial fica fora da
-  relação: "Não avaliável: agregado parcial (…)".
+  relação: "Não avaliável: agregado parcial (…)". Métrica: "Territórios comparados".
+- **Comparações com competência dos valores e janela (desde 19/10/2026, D6):** com `comparison_values_period`,
+  as relações usam só essa competência, sempre dentro do mesmo nível (o Brasil lado a lado, sem relação; estado e
+  município nunca relacionados), e `detail_rows` traz um registro por objeto, com o "Nível", quantidade, população,
+  densidade, "Tipo de contagem", "Cobertura", "Competência da população" (Brasil na densidade), a condição e, com
+  duas ou mais competências, a mudança e a tendência na janela. Estado parcial na competência dos valores fica fora
+  das relações ("Não avaliável: agregado parcial (…)"), mas o registro dele guarda o valor ("Avaliável com
+  limitações: soma parcial (AGREGADO_PARCIAL)"); o estado cujo suporte muda na janela recebe INCOMPARABILIDADE pela
+  entrada de `evolution`, com a nota "A tendência de {Estado} não foi avaliada…". Municípios de `detail_rows` na
+  ordem do código (RQ-REP-03). `metadata.comparacao.grupos` traz, por nível, o rótulo, o tipo de contagem, os
+  objetos pedidos e se houve relação; `sem_relacao`, os objetos sem relação e o motivo. Métricas: "Territórios
+  comparados" e "Competências na janela". Na série anual de junho com valores em 06/2024: Brasil 2,3638
+  (Crescimento), SP 5,2032 (Crescimento), RS não comparável (430607 ausente em 06/2015) e AM, Manaus, Tefé e
+  Parintins sem classificação (mudança de direção); ver `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`, seção 8.
 - **Ranking e distribuição de estados:** universo "estados selecionados (soma dos municípios)"; estado
   parcial fica sem posição (ranking) ou fora das classes (distribuição, com nota), e com menos de dois
   estados avaliáveis o pedido é recusado ("Menos de dois estados avaliáveis em …"). Nota: "A dupla
-  contagem varia entre os estados; a ordem e as classes podem refletir isso."
+  contagem varia entre os estados; a ordem e as classes podem refletir isso.". Métricas (19/10/2026): no
+  ranking, "Territórios ordenados" e "Não avaliáveis" (estado parcial conta como não avaliável); na
+  distribuição, "Unidades classificadas", "Classes" e "Estados fora da distribuição"
 - **Notas de nível:** procedência do Brasil ("Brasil (total nacional): contagem nacional de médicos da
   base Brasil, não a soma dos municípios. População: soma das populações estimadas dos {N} municípios em
   junho de {Y}, usada também em janeiro de {Y} (regra BR-POP-JUNHO-1). Densidade = contagem ÷ população
@@ -159,7 +180,16 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   calcula, não classifica e não colore municípios acima ou abaixo da taxa.
 - Falha no cálculo: `{"estado": "INDISPONIVEL", "motivo": …}`; a análise nunca falha por isso.
 - Não entra em ranking, distribuição, comparação, agregação nem evolução, nem nas linhas, nas métricas
-  ou na avaliabilidade do resultado municipal.
+  ou na avaliabilidade do resultado municipal. Desde o visual completo (19/10/2026), aparece também como
+  indicador de contexto do resumo do resultado (`metadata.representacao.resumo.indicadores`, papel
+  `REFERENCIA_DE_CONTEXTO`) e na frase-resumo ("Referência de contexto: taxa nacional de 2,36 por 1.000
+  habitantes (Brasil, total nacional); não classifica nem colore os territórios."), nunca como "acima" ou
+  "abaixo"; com o Brasil como bloco do resultado, a frase não repete o valor.
+- `serie` (19/10/2026), em `metadata.referencia_nacional` e em `representacao.referencias[]`: a taxa de **todas**
+  as competências da fonte nacional (`competencia`, `categoria`, `valor`, `avaliabilidade`, `motivo`,
+  `competencia_populacao`), para o minigráfico do cartão de contexto; competência sem população de junho fica com
+  `valor` nulo (lacuna), e um ano inconsistente fora do resultado vira `NAO_AVALIAVEL`/`POPULACAO_NACIONAL_INCONSISTENTE`
+  só na série, sem derrubar a referência.
 
 ### 4.1 Na tela
 
@@ -179,8 +209,18 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
 - Com vários níveis no resultado, as barras dos municípios (`level-panel-mun`) e as dos estados
   (`level-panel-uf`, "· Estados (soma dos municípios)", com o aviso de possível dupla contagem) ficam
   em figuras separadas; nunca há barra do Brasil entre municípios. A série temporal com vários painéis
-  (`serie.paineis`) desenha um gráfico por painel (`level-panel-{id}`). O cartão do resultado e o
-  restante do visual dos níveis ficam para a entrada do visual completo.
+  (`serie.paineis`) desenha um gráfico por painel (`level-panel-{id}`).
+- **Visual completo (19/10/2026):** o cabeçalho do resultado traz o cartão de contexto da taxa nacional (borda
+  tracejada, selo "contexto", minigráfico da `serie`) ou, quando o Brasil é um bloco do resultado, o cartão do
+  Brasil com o mesmo minigráfico; a dica do ponto no mapa e o detalhe do território mostram "Brasil (contexto)"
+  ao lado do valor do município. Os cartões de destaque trazem o nível; o do estado tem textura, o aviso
+  "possível dupla contagem · não comparável com a contagem nacional", "na soma das contagens dos municípios" e
+  "por 1.000 habitantes (soma dos municípios)" (RQ-REP-14). Na aba Gráficos, o contêiner `levels-panel` reúne o
+  bloco do Brasil (`level-panel-br`: valor, tipo de contagem e "Lado a lado: não entra em maior, menor nem
+  diferença com estados ou municípios."), os estados (`level-panel-uf`, textura listrada e `uf-warning`, sem
+  linha nacional) e os municípios (`level-panel-mun`, com a linha nacional e um separador por estado,
+  `bar-group-separator`, lido de `universe.members[].state`, sem reordenar nem contar). Na comparação, um bloco por
+  nível, cada um no seu eixo, e os halteres por nível (ver `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`).
 
 ## 5. Contrato da API
 
@@ -239,7 +279,8 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   continua recusando (422) com esse texto.
 - A conversa (`/api/exploration/interpret`, `/api/llm/interpret-context`) continua recebendo só ids de
   município; "municípios da Paraíba" passa a incluir o 251365 (223 municípios na base atual).
-  Abrangência, níveis, população nacional e taxa nacional nunca vão ao provedor de IA.
+  Abrangência, níveis, população nacional e taxa nacional nunca vão ao provedor de IA; desde 19/10/2026, nem
+  o resumo do resultado, a comparação com janela (`metadata.comparacao`) ou a opção `comparison_values_period`.
 
 ### 5.4 Chave de execução
 
@@ -248,6 +289,9 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   (`BR-POP-JUNHO-1`) e `estado` (`brasil-cod-uf-prefix-1`), além de `tendencia` na evolução.
 - Mudam de propósito as chaves das densidades e dos relatórios com densidade da base oficial (D5) e as
   da rota de níveis. As demais chamadas antigas mantêm a chave.
+- Desde 19/10/2026, a comparação com `comparison_values_period` tem chave própria (a opção entra em `options` e,
+  com a janela, `metodos.tendencia`); a interface sempre envia a opção quando há competência escolhida, então as
+  comparações feitas pela tela mudam de chave. A comparação sem a opção mantém a chave.
 
 ## 6. A lista vertical na tela
 
@@ -352,7 +396,9 @@ conferido no backend ("… precisa de pelo menos dois territórios do mesmo tipo
   Brasil sempre menor que a soma municipal, os seis agregados parciais, SP em 2015/1, PB em 2016/6,
   ranking dos estados, agregação de todos os municípios, 251365 na PB (223 municípios), análise
   espacial com todos os municípios e as âncoras da tendência (Brasil 22 e 11 observações em
-  Crescimento; SP e RS não comparáveis na série completa; RS na série de junho).
+  Crescimento; SP e RS não comparáveis na série completa; RS na série de junho); desde 19/10/2026, a comparação
+  com a série anual de junho e valores em 06/2024 (Brasil, AM, SP, RS e três municípios do AM, conferida por leitura
+  independente) e o resumo com a série nacional.
 - `backend/tests/test_spatial_por_territorio.py` (CI): território com coordenada inválida, não numérica ou
   ausente não avaliável, referência inválida recusada, coordenadas que mudam entre competências e erro de
   formato. `test_territorial_levels.py` confere a escolha pendente no pré-exame. Com a base real

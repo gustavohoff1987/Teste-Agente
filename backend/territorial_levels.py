@@ -27,8 +27,9 @@ import pandas as pd
 
 from analysis_catalog import ENGINE_OPERATION_LABELS
 from brazil_catalog_profile import FIELDS, curated_profile, source_identity
-from data_contract import (ChoiceRequired, count_unit_label, numbers, period_positions, prepare, resolve_convention,
-                           scoped, text_values)
+import comparison_window
+from data_contract import (ChoiceRequired, comparison_window as comparison_window_periods, count_unit_label, numbers,
+                           period_positions, prepare, resolve_convention, scoped, text_values)
 from territorial_selection import STATES, territory_catalog
 
 BR, UF, MUN = "BR", "UF", "MUN"
@@ -939,6 +940,75 @@ def _support_of(parts: Parts):
     return out
 
 
+LEVEL_PLURAL = {BR: "Brasil (total nacional)", UF: "Estados (soma dos municípios)", MUN: "Municípios"}
+
+
+def _levels_phrase(levels_present: list) -> str:
+    names = [{BR: "Brasil (total nacional)", UF: "estados (soma dos municípios)", MUN: "municípios"}[level]
+             for level in levels_present]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " e " + names[-1]
+
+
+def _level_metrics(rows: list[dict], column: str) -> list[dict]:
+    """Registros avaliáveis e não avaliáveis de cada nível (o valor da coluna existe ou é lacuna); "nivel" indica o
+    bloco. Os números de níveis diferentes nunca são somados."""
+    out = []
+    for level in ORDER:
+        mine = [row for row in rows if row.get("Nível") == LEVEL_LABELS[level]]
+        if not mine:
+            continue
+        valid = sum(row.get(column) is not None for row in mine)
+        out.append({"label": LEVEL_PLURAL[level] + ": registros avaliáveis", "value": valid, "nivel": level})
+        out.append({"label": LEVEL_PLURAL[level] + ": registros não avaliáveis", "value": len(mine) - valid, "nivel": level})
+    return out
+
+
+def _window_support(parts: Parts, positions: dict):
+    """Estados cujo suporte (municípios presentes) muda na janela: tendência com INCOMPARABILIDADE, informada na
+    entrada de evolution (nunca reescrita depois), e mudança não avaliada quando os extremos diferem."""
+    ordered = sorted(positions, key=positions.get)
+    incomparable, unchangeable, breaks_periods = {}, {}, {}
+    for key, by_period in _support_of(parts).items():
+        window = {period: members for period, members in by_period.items() if period in positions}
+        if not window:
+            continue
+        union = frozenset().union(*window.values())
+        varying = {period: sorted(union - members) for period, members in window.items() if members != union}
+        if varying:
+            incomparable[key] = "Membros efetivos diferentes entre competências (" + "; ".join(
+                period + ": " + _codes_text(codes, 3) + " ausente" + ("s" if len(codes) > 1 else "")
+                for period, codes in sorted(varying.items(), key=lambda item: positions[item[0]])) + ")"
+            breaks_periods[key] = sorted(varying, key=positions.get)
+        first, last = window.get(ordered[0]), window.get(ordered[-1])
+        if first is not None and last is not None and first != last:
+            unchangeable[key] = "municípios incluídos diferentes nos extremos"
+    return incomparable, unchangeable, breaks_periods
+
+
+def _support_notes(breaks_periods: dict, unchangeable: dict) -> list[str]:
+    notes = []
+    for key, periods in breaks_periods.items():
+        both = key in unchangeable
+        notes.append(("A mudança e a tendência de " if both else "A tendência de ") + key[0] + (
+            " não foram avaliadas" if both else " não foi avaliada") + ": o número de municípios incluídos muda em " +
+            ", ".join(human_period(period) for period in periods) + ". Escolha um intervalo sem essas competências "
+            "para avaliá-" + ("las." if both else "la."))
+    return notes
+
+
+def _window_frame(parts: Parts, levels_present: list, density: bool) -> pd.DataFrame:
+    """Valores de todos os níveis na janela, para evolution: observação ausente fica fora (nunca zero)."""
+    frames = [parts.data[level][EMPTY].assign(level=level) for level in levels_present
+              if parts.data[level] is not None and not parts.data[level].empty]
+    if not frames:
+        raise ValueError("Nenhum registro corresponde aos filtros selecionados.")
+    data = pd.concat(frames, ignore_index=True)
+    data = data[data.quantity.notna()]
+    if density:
+        data = data.assign(density=data.density.where(data.population.notna()))
+    return data
+
+
 def compute_levels(sources, route: Route, operation: str, options: dict) -> dict:
     """Resultado da rota de níveis: cada universo calculado separadamente pelo mesmo motor e apresentado em blocos."""
     import main as engine  # importação tardia: main usa este módulo
@@ -962,53 +1032,28 @@ def compute_levels(sources, route: Route, operation: str, options: dict) -> dict
     breaks_periods: dict = {}
     if operation in ("counts", "density", "report"):
         rows = _value_rows(parts, a, density, unit, categories)
+        # Métricas e descrição por nível (K12/K13): cada nível conta os próprios registros; nada é somado entre níveis.
+        metrics = _level_metrics(rows, "Densidade por 1.000" if density else "Quantidade")
+        blocks = " por nível territorial (" + _levels_phrase(levels_present) + "), em blocos separados; nenhum nível é " \
+                 "somado a outro."
         if operation == "counts" or (operation == "report" and not density):
             result = engine._result("Quantitativos absolutos" if operation == "counts" else "Relatório de quantitativos",
-                                    "Contagem conforme a unidade de observação e o significado autorizados."
-                                    if operation == "counts" else "Quantitativos da força de trabalho na base analisada.",
-                                    rows, [{"label": "Registros territoriais", "value": len(rows)}] if operation == "counts"
-                                    else None, None if operation == "counts" else
+                                    "Quantitativos de " + unit + blocks, rows, metrics,
+                                    None if operation == "counts" else
                                     ["Indicador escolhido: quantidade. Nenhuma densidade foi calculada."])
         else:
-            mun_rows = [row for row in rows if row["Nível"] == LEVEL_LABELS[MUN]]
-            valid = sum(row["Densidade por 1.000"] is not None for row in mun_rows)
             result = engine._result("Relatório analítico" if operation == "report" else "Densidade de profissionais",
-                                    unit + " por 1.000 habitantes.", rows,
-                                    [{"label": "Unidades avaliáveis", "value": valid},
-                                     {"label": "Não avaliáveis", "value": len(mun_rows) - valid}],
+                                    "Densidade de " + unit + " por 1.000 habitantes" + blocks, rows, metrics,
                                     ["Densidade = quantitativo / população × 1.000.",
                                      "Valores ausentes e denominadores nulos não são transformados em zero.",
                                      "Para exportar um relatório, utilize o recurso de impressão/PDF do navegador."])
     elif operation == "temporal":
-        frames = [parts.data[level][EMPTY].assign(level=level) for level in levels_present
-                  if parts.data[level] is not None and not parts.data[level].empty]
-        if not frames:
-            raise ValueError("Nenhum registro corresponde aos filtros selecionados.")
-        data = pd.concat(frames, ignore_index=True)
-        data = data[data.quantity.notna()]
-        if density:
-            data = data.assign(density=data.density.where(data.population.notna()))
+        data = _window_frame(parts, levels_present, density)
         convention = resolve_convention(data.period.unique(), options.get("period_convention", "auto"))
         positions = period_positions(data.period.unique(), convention)
         if len(positions) < 2:
             raise ValueError("Evolução temporal exige pelo menos dois períodos no recorte.")
-        ordered = sorted(positions, key=positions.get)
-        support = _support_of(parts)
-        incomparable, unchangeable = {}, {}
-        for key, by_period in support.items():
-            window = {period: members for period, members in by_period.items() if period in positions}
-            if not window:
-                continue
-            union = frozenset().union(*window.values())
-            varying = {period: sorted(union - members) for period, members in window.items() if members != union}
-            if varying:
-                incomparable[key] = "Membros efetivos diferentes entre competências (" + "; ".join(
-                    period + ": " + _codes_text(codes, 3) + " ausente" + ("s" if len(codes) > 1 else "")
-                    for period, codes in sorted(varying.items(), key=lambda item: positions[item[0]])) + ")"
-                breaks_periods[key] = sorted(varying, key=positions.get)
-            first, last = window.get(ordered[0]), window.get(ordered[-1])
-            if first is not None and last is not None and first != last:
-                unchangeable[key] = "municípios incluídos diferentes nos extremos"
+        incomparable, unchangeable, breaks_periods = _window_support(parts, positions)
         rows, detail_rows, tendencia, mudanca, breaks = evolution(
             data, metric, positions, convention=convention, incomparable=incomparable, change_incomparable=unchangeable,
             value_unit="por 1.000 habitantes" if density else unit)
@@ -1026,16 +1071,10 @@ def compute_levels(sources, route: Route, operation: str, options: dict) -> dict
             item["nivel"] = level_of.get(item["territorio"])
             item["periodos"] = breaks_periods.get(key, [])
         notes = ["Cada competência é independente; não se somam pessoas de períodos diferentes.",
-                 *evolution_notes(tendencia, mudanca, convention)]
-        for key, periods in breaks_periods.items():
-            both = key in unchangeable
-            notes.append(("A mudança e a tendência de " if both else "A tendência de ") + key[0] + (
-                " não foram avaliadas" if both else " não foi avaliada") + ": o número de municípios incluídos muda em " +
-                ", ".join(human_period(period) for period in periods) + ". Escolha um intervalo sem essas competências "
-                "para avaliá-" + ("las." if both else "la."))
+                 *evolution_notes(tendencia, mudanca, convention), *_support_notes(breaks_periods, unchangeable)]
         result = engine._result("Evolução temporal", "Variação de " + ("densidade por 1.000 habitantes" if density else
                                 "quantitativos") + " entre períodos; tendência (CAP-TEN-01) somente com quatro ou mais "
-                                "observações válidas.", rows, notes=notes)
+                                "observações válidas.", rows, engine.temporal_metrics(rows, mudanca), notes=notes)
         result["detail_rows"] = detail_rows
         result["_tendencia"] = {"tendencia": tendencia, "mudanca": mudanca, "quebras": breaks}
     elif operation == "comparisons":
@@ -1110,8 +1149,21 @@ SIDE_BY_SIDE = {
 }
 
 
+def _objects(parts: Parts, a: Abrangencia, level: str) -> list[str]:
+    """Objetos pedidos de um nível (cardinalidade do pedido, AT-84)."""
+    if level == BR:
+        return ["Brasil"]
+    if level == UF:
+        return [uf_label(prefix) for prefix in a.estados]
+    frame = parts.data.get(level)
+    return list(dict.fromkeys(frame.territory)) if frame is not None else []
+
+
 def _comparisons(engine, parts: Parts, a: Abrangencia, municipal, mapping, options, metric, unit, categories) -> dict:
     """Relações (maior, menor, igual e diferença) só dentro do mesmo nível; o Brasil e objetos isolados lado a lado."""
+    period = comparison_window.requested_period(options)
+    if period is not None:
+        return _comparisons_window(engine, parts, a, mapping, options, metric, unit, categories, period)
     metric_label = "Densidade por 1.000" if metric == "density" else "Quantidade"
     out_rows, out_notes = [], []
     for level in ORDER:
@@ -1162,9 +1214,116 @@ def _comparisons(engine, parts: Parts, a: Abrangencia, municipal, mapping, optio
         "Entre dois objetos: A e B em ordem de nome, relação A/B e diferença assinada A − B.",
         "Entre três ou mais: valores iguais e próximo valor estritamente maior descrevem a ordem do conjunto; sem "
         "diferenças automáticas entre pares."]))
-    notes.append("Relações só entre territórios do mesmo nível; Brasil, estados e municípios não são comparados entre si.")
+    notes.append(NOTE_SAME_LEVEL)
+    objects = sum(len(_objects(parts, a, level)) for level in ORDER if parts.data.get(level) is not None)
     return engine._result("Comparação territorial", "Valores e relações comparativas por período e categoria, sem "
-                          "posições de ranking.", _harmonize(out_rows), notes=notes)
+                          "posições de ranking.", _harmonize(out_rows),
+                          [{"label": "Territórios comparados", "value": objects}], notes=notes)
+
+
+NOTE_SAME_LEVEL = "Relações só entre territórios do mesmo nível; Brasil, estados e municípios não são comparados entre si."
+
+
+def _comparisons_window(engine, parts: Parts, a: Abrangencia, mapping, options, metric, unit, categories, period) -> dict:
+    """Comparação com competência dos valores e janela (D6): relações só na competência dos valores e só dentro do mesmo
+    nível; o Brasil lado a lado, sem relação; estado e município nunca relacionados. Um registro por objeto com valores,
+    mudança e tendência na janela (a tendência do estado com suporte variável fica não comparável, pela entrada)."""
+    density = metric == "density"
+    metric_label = comparison_window.METRIC_LABELS[metric]
+    levels_present = [level for level in ORDER if parts.data.get(level) is not None]
+    requested = _requested_periods(options)
+    available = sorted({str(p) for level in levels_present for p in parts.data[level].period})
+    ordered, positions = comparison_window_periods(requested if requested is not None else available, mapping, options)
+    convention = resolve_convention(list(positions), options.get("period_convention", "auto"))
+    evolved, tendencia, mudanca, breaks, unchangeable, breaks_periods = {}, None, None, [], {}, {}
+    if len(ordered) >= 2:
+        data = _window_frame(parts, levels_present, density)
+        data = data[data.period.isin(list(positions))]
+        incomparable, unchangeable, breaks_periods = _window_support(parts, positions)
+        evolved, tendencia, mudanca, breaks = comparison_window.evolve(
+            data, metric, positions, convention, "por 1.000 habitantes" if density else unit, incomparable, unchangeable)
+        levels_of = {row["territory"]: row["level"] for row in data[["territory", "level"]].drop_duplicates().to_dict("records")}
+        for item in breaks:
+            item["nivel"] = levels_of.get(item["territorio"])
+            item["periodos"] = breaks_periods.get((item["territorio"], item["categoria"]), [])
+    missing = [item for item in _missing_rows(parts, a, categories) if item["period"] == period]
+    rows, detail, groups, unrelated, relation_notes = [], [], [], [], []
+    for level in levels_present:
+        frame = parts.data[level]
+        values = frame[frame.period == period]
+        objects = _objects(parts, a, level)
+        complete, partial = values, values.iloc[0:0]
+        if level == UF:
+            complete, partial = values[values.condition == "Avaliável"], values[values.condition != "Avaliável"]
+        related = level != BR and len(objects) >= 2 and not complete.empty and \
+            complete.groupby(["period", "category"]).territory.nunique().ge(2).any()
+        if related:
+            computed = comparison_window.relation_rows(complete[EMPTY].reset_index(drop=True), metric, unit,
+                                                       requested=len(objects))
+            rows += [{"Nível": LEVEL_LABELS[level], **row} for row in computed]
+            relation_notes.append(comparison_window.NOTE_PAIRS if len(objects) == 2 else comparison_window.NOTE_SET)
+        for item in ([] if related else complete.to_dict("records")):
+            condition = SIDE_BY_SIDE[level] if level == BR or len(objects) == 1 else \
+                "Não avaliável: menos de dois territórios do mesmo nível avaliáveis nesta competência"
+            if level == BR and item.get("condition", "Avaliável") != "Avaliável":
+                condition = SIDE_BY_SIDE[BR] + " " + item["condition"] + "."
+            value = item[metric]
+            rows.append({"Nível": LEVEL_LABELS[level], **_isolated_row(
+                {"Período": item["period"], "Categoria": item["category"], "Indicador": metric_label,
+                 "Unidade de contagem": unit}, item["territory"], metric_label, None if pd.isna(value) else float(value),
+                condition)})
+            unrelated.append({"objeto": item["territory"], "nivel": level, "motivo": condition})
+        for item in partial.to_dict("records"):
+            condition = "Não avaliável: agregado parcial (" + item["coverage"] + ")" if item["members"] else item["condition"]
+            rows.append({"Nível": LEVEL_LABELS[level], **_isolated_row(
+                {"Período": item["period"], "Categoria": item["category"], "Indicador": metric_label,
+                 "Unidade de contagem": unit}, item["territory"], metric_label, None, condition)})
+            unrelated.append({"objeto": item["territory"], "nivel": level, "motivo": condition})
+        groups.append({"nivel": level, "rotulo": LEVEL_LABELS[level],
+                       "tipo_contagem": COUNT_TYPES[level] if level != MUN else "Unidades distintas: " + unit,
+                       "objetos": objects, "relacoes": bool(related)})
+        records = {(item["territory"], item["category"]): item for item in values.to_dict("records")}
+        gaps = {(item["territory"], item["category"]): item for item in missing if item["level"] == level}
+        keys = list(dict.fromkeys([*zip(frame.territory, frame.category), *gaps]))
+        if level == MUN and "code" in frame:  # ordem padrão pelo código territorial (RQ-REP-03)
+            codes = dict(zip(frame.territory, frame.code))
+            keys.sort(key=lambda key: (str(codes.get(key[0], "")), str(key[1])))
+        for key in keys:
+            record = records.get(key)
+            row = {"Nível": LEVEL_LABELS[level], "Território": key[0], "Categoria": key[1], "Período": period,
+                   **comparison_window.value_columns(record, metric, density),
+                   "Tipo de contagem": COUNT_TYPES[level] if level != MUN else "Unidades distintas: " + unit,
+                   "Cobertura": (record or {}).get("coverage")}
+            if density and level == BR:
+                row["Competência da população"] = (record or {}).get("population_period")
+            row["Condição"] = (record.get("condition") or "Avaliável") if record is not None else \
+                gaps[key]["condition"] if key in gaps else comparison_window.MISSING_VALUES
+            if record is None and key not in gaps:
+                unrelated.append({"objeto": key[0], "nivel": level, "motivo": comparison_window.MISSING_VALUES})
+            if len(ordered) >= 2:
+                row.update(comparison_window.window_columns(evolved.get(key)))
+            detail.append(row)
+    for item in missing:
+        rows.append({"Nível": LEVEL_LABELS[item["level"]], "Período": item["period"], "Categoria": item["category"],
+                     "Indicador": metric_label, "Unidade de contagem": unit, "Território": item["territory"],
+                     metric_label: None, "Condição": item["condition"]})
+        unrelated.append({"objeto": item["territory"], "nivel": item["level"], "motivo": item["condition"]})
+    comparacao = comparison_window.window_meta(period, ordered, metric)
+    comparacao.update(grupos=groups, sem_relacao=unrelated)
+    notes = [*comparison_window.notes(period, ordered, tendencia, mudanca, convention,
+                                      list(dict.fromkeys(relation_notes))),
+             *_support_notes(breaks_periods, unchangeable), NOTE_SAME_LEVEL]
+    objects = sum(len(group["objetos"]) for group in groups)
+    result = engine._result("Comparação territorial", "Valores e relações comparativas na competência " + str(period) +
+                            (", com mudança e tendência de cada território na janela" if len(ordered) >= 2 else "") +
+                            "; relações só dentro do mesmo nível, sem posições de ranking.", _harmonize(rows),
+                            [{"label": "Territórios comparados", "value": objects},
+                             {"label": "Competências na janela", "value": len(ordered)}], notes=notes)
+    result["detail_rows"] = _harmonize(detail)
+    result["_comparacao"] = comparacao
+    if tendencia is not None:
+        result["_tendencia"] = {"tendencia": tendencia, "mudanca": mudanca, "quebras": breaks}
+    return result
 
 
 def _ordering(engine, parts: Parts, municipal, mapping, operation, options) -> dict:
@@ -1191,9 +1350,11 @@ def _ordering(engine, parts: Parts, municipal, mapping, operation, options) -> d
                          "Condição": "Não avaliável: agregado parcial (" + item["coverage"] + ")" if item["members"]
                          else item["condition"], "Tipo de contagem": tipo})
         computed["rows"] = _harmonize(rows)
+        computed["metrics"] = engine.ranking_metrics(computed["rows"])  # estados parciais contam como não avaliáveis
     else:
         computed["detail_rows"] = [{"Nível": LEVEL_LABELS[UF], **row, "Tipo de contagem": tipo}
                                    for row in computed["detail_rows"]]
+        computed["metrics"].append({"label": "Estados fora da distribuição", "value": len(partial)})
         for item in partial.to_dict("records"):
             computed["notes"].append("Fora da distribuição: " + item["territory"] + " em " + human_period(item["period"]) +
                                      " (" + ("agregado parcial, " + item["coverage"] if item["members"] else
@@ -1216,34 +1377,47 @@ def national_reference(sources, periods: list, categories: list) -> dict:
         settings = apply_premises(national, mapping, {}, spatial=False)
         data = prepare(national, mapping, settings, "counts")
         counts = {(str(p), str(c)): q for p, c, q in zip(data.period, data.category, data.quantity)}
-        values = []
-        for period in periods:
-            for category in categories:
-                quantity = counts.get((str(period), str(category)))
-                entry = {"competencia": str(period), "categoria": category, "numerador": _number(quantity),
-                         "denominador": None, "competencia_populacao": None, "valor": None,
-                         "avaliabilidade": "NAO_AVALIAVEL", "motivo": None, "ausentes": []}
-                if quantity is None:
-                    entry["motivo"] = "SEM_REGISTRO_NA_FONTE_NACIONAL"
-                    values.append(entry)
-                    continue
-                info = population_for(index, period)
-                entry.update(denominador=info.get("populacao"), competencia_populacao=info.get("competencia_populacao"),
-                             avaliabilidade=info["avaliabilidade"], motivo=info.get("motivo"),
-                             ausentes=list(info.get("ausentes") or []))
-                if info.get("nota") and info["avaliabilidade"] != "AVALIAVEL":
-                    entry["nota"] = info["nota"]
-                if info.get("populacao"):
-                    value = info["populacao"]
-                    entry["valor"] = float(Fraction(int(quantity)) * 1000 / Fraction(value)) if \
-                        float(quantity).is_integer() and isinstance(value, int) else float(quantity) / float(value) * 1000
-                values.append(entry)
+
+        def entry(period, category):
+            quantity = counts.get((str(period), str(category)))
+            item = {"competencia": str(period), "categoria": category, "numerador": _number(quantity),
+                    "denominador": None, "competencia_populacao": None, "valor": None,
+                    "avaliabilidade": "NAO_AVALIAVEL", "motivo": None, "ausentes": []}
+            if quantity is None:
+                item["motivo"] = "SEM_REGISTRO_NA_FONTE_NACIONAL"
+                return item
+            info = population_for(index, period)
+            item.update(denominador=info.get("populacao"), competencia_populacao=info.get("competencia_populacao"),
+                        avaliabilidade=info["avaliabilidade"], motivo=info.get("motivo"),
+                        ausentes=list(info.get("ausentes") or []))
+            if info.get("nota") and info["avaliabilidade"] != "AVALIAVEL":
+                item["nota"] = info["nota"]
+            if info.get("populacao"):
+                value = info["populacao"]
+                item["valor"] = float(Fraction(int(quantity)) * 1000 / Fraction(value)) if \
+                    float(quantity).is_integer() and isinstance(value, int) else float(quantity) / float(value) * 1000
+            return item
+
+        values = [entry(period, category) for period in periods for category in categories]
+        # Série nacional de todas as competências da fonte nacional (cartão de contexto com minigráfico): os mesmos
+        # valores por competência, sem ligar competências não avaliáveis (lacuna) e sem entrar em nenhum cálculo.
+        def safe(period, category):
+            try:
+                return entry(period, category)
+            except ValueError:  # um ano inconsistente fora do resultado não derruba a referência das competências pedidas
+                return {"competencia": str(period), "categoria": category, "valor": None,
+                        "avaliabilidade": "NAO_AVALIAVEL", "motivo": "POPULACAO_NACIONAL_INCONSISTENTE"}
+
+        national_periods = sorted({str(p) for p in data.period})
+        serie = [{key: item.get(key) for key in ("competencia", "categoria", "valor", "avaliabilidade", "motivo",
+                                                  "competencia_populacao")}
+                 for item in (safe(period, category) for period in national_periods for category in categories)]
         return {"rotulo": LEVEL_LABELS[BR], "papel": "REFERENCIA_DE_CONTEXTO", "unidade": "por 1.000 habitantes",
                 "regra_populacao": METODOS["populacao_nacional"], "tipo_contagem": "UNIDADES_DISTINTAS",
                 "fontes": {"numerador": "Dados_Brasil.xlsx · contagem",
                            "denominador": "Dados_Municipios_Brasil.csv · população_estimada (junho)"},
                 "versao_base": index.version, "limitacoes": ["NIVEIS_TERRITORIAIS_DIFERENTES", "DENOMINADOR_ALTERNATIVO"],
-                "valores": values, "nota": NOTE_REFERENCE}
+                "valores": values, "serie": serie, "nota": NOTE_REFERENCE}
     except Exception as exc:  # noqa: BLE001 — a referência de contexto nunca invalida a análise
         import logging
         logging.getLogger(__name__).warning("Taxa nacional de referência indisponível: %s", exc)
@@ -1257,7 +1431,7 @@ def reference_drawing(reference: dict) -> list[dict]:
     return [{"rotulo": reference["rotulo"], "papel": reference["papel"], "unidade": reference["unidade"],
              "nota": reference["nota"], "valores": [{key: item.get(key) for key in (
                  "competencia", "categoria", "valor", "avaliabilidade", "competencia_populacao")}
-                 for item in reference["valores"]]}]
+                 for item in reference["valores"]], "serie": list(reference.get("serie") or [])}]
 
 
 def attach_reference(result: dict, sources, periods: list, categories: list) -> dict:

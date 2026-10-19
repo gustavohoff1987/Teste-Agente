@@ -186,6 +186,27 @@ def needs_population(mapping, options, operation):
     return operation in ("density", "comparisons", "ranking", "aggregate")
 
 
+def comparison_window(periods, mapping, options):
+    """Janela da comparação com competência dos valores (D6, 19/10/2026), em ordem temporal.
+
+    A competência dos valores precisa estar na janela; com duas ou mais competências, a mudança e a tendência por
+    território exigem as mesmas premissas temporais da evolução: comparabilidade temporal e identidade territorial
+    ao longo do tempo (aplicadas pelo backend; um valor falso explícito continua recusando-as)."""
+    value = options.get("comparison_values_period")
+    if not isinstance(value, str) or not value.strip() or len(value) > 64:
+        raise ValueError("Competência dos valores inválida: escolha uma das competências da janela.")
+    positions = period_positions(list(periods), options.get("period_convention", "auto"))
+    ordered = sorted(positions, key=positions.get)
+    if value.strip() not in positions:
+        raise ValueError("A competência dos valores precisa estar entre os períodos escolhidos para a comparação.")
+    if len(ordered) >= 2:
+        if not options.get("temporal_comparability_confirmed"):
+            raise ChoiceRequired(_premise(options, "temporal_comparability_confirmed"))
+        if mapping.get("territory") and not options.get("territory_longitudinal_confirmed"):
+            raise ChoiceRequired(_premise(options, "territory_longitudinal_confirmed"))
+    return ordered, positions
+
+
 def prepare(frame, mapping, options, operation):
     df = scoped(frame, mapping, options)
     if options.get("duplicate_policy") == "remove_exact":
@@ -387,6 +408,8 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
             raise ValueError("São necessários pelo menos dois territórios no mesmo período e categoria.")
     if operation in ("comparisons", "ranking") and not options.get("comparison_confirmed"):
         raise ChoiceRequired(_premise(options, "comparison_confirmed"))
+    if operation == "comparisons" and options.get("comparison_values_period") not in (None, ""):
+        comparison_window(data.period.unique(), mapping, options)
     if operation == "distribution":
         indicator = options.get("distribution_indicator")
         if indicator not in ("quantity", "density"):

@@ -1,13 +1,13 @@
 import { useMemo } from "react";
-import { BarChart3, Search } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+import { Search } from "lucide-react";
 
 import { useInvestigationState } from "./InvestigationViewState";
 import ResultTable, { type TablePresentation } from "./ResultTable";
 
 type SummaryRow = Record<string, unknown>;
 type DetailRow = Record<string, unknown>;
-type Props = { summary: SummaryRow[]; detail: DetailRow[]; onExport: (rows: DetailRow[]) => void;
+// `total`: unidades classificadas, contadas pelo motor (metrics); a tela não soma as classes (BLOCO3, pendência resolvida).
+type Props = { summary: SummaryRow[]; detail: DetailRow[]; total?: number | null; onExport: (rows: DetailRow[]) => void;
   // Seleção visual compartilhada com o mapa e os gráficos (opcional; sem ela, o comportamento é o anterior).
   highlight?: Set<string>; idOf?: (row: DetailRow) => string | null; onToggle?: (id: string) => void; onlyHighlighted?: boolean;
   onTablePresentation?: (state: TablePresentation) => void };
@@ -23,20 +23,20 @@ export const displayPeriod = (value: string): string => {
   }
   return value;
 };
+/** Nome do grupo pelo número de classes do motor (4 quartis, 5 quintis, 10 decis; demais, faixas). */
+export const groupNoun = (classes: number) => classes === 4 ? "quartil" : classes === 10 ? "decil" : classes === 5 ? "quintil" : "faixa";
 const classNumber = (label: unknown) => {
   const match = String(label ?? "").match(/\d+/);
   return match ? Number(match[0]) : 0;
 };
 
-export default function DistributionResults({ summary, detail, onExport, highlight, idOf, onToggle, onlyHighlighted, onTablePresentation }: Props) {
+export default function DistributionResults({ summary, detail, total, onExport, highlight, idOf, onToggle, onlyHighlighted, onTablePresentation }: Props) {
   const [chosenGroup, setChosenGroup] = useInvestigationState("distribution.group", "");
   const [search, setSearch] = useInvestigationState("distribution.search", "");
   const metric = String(summary[0]?.Indicador || "Indicador selecionado");
   const period = String(summary[0]?.["Período"] ?? "");
   const category = String(summary[0]?.Categoria ?? "");
-  const count = summary.reduce((sum, row) => sum + Number(row.Unidades || 0), 0);
-  const groupLabel = summary.length === 4 ? "quartil" : summary.length === 10 ? "decil" :
-    summary.length === 5 ? "quintil" : "faixa";
+  const groupLabel = groupNoun(summary.length);
   const pluralLabel = groupLabel === "quartil" ? "quartis" : groupLabel === "quintil" ? "quintis" :
     groupLabel === "decil" ? "decis" : "faixas";
   const positionColumn = groupLabel === "faixa" ? "Posição na faixa" : "Posição no " + groupLabel;
@@ -48,10 +48,6 @@ export default function DistributionResults({ summary, detail, onExport, highlig
     String(a.Território).localeCompare(String(b.Território), "pt-BR")), [detail, chosenGroup, search, onlyHighlighted, highlight, idOf]);
   const labels = ["Menores valores", "Valores baixos", "Valores intermediários", "Valores altos", "Maiores valores"];
   const ordered = [...summary].sort((a, b) => classNumber(a.Classe) - classNumber(b.Classe));
-  const chartData = ordered.map(row => ({
-    name: (groupLabel === "decil" ? "D" : groupLabel === "faixa" ? "F" : "Q") + classNumber(row.Classe),
-    count: Number(row.Unidades || 0),
-  }));
 
   return <div className="mt-7 space-y-6">
     <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-5">
@@ -62,9 +58,9 @@ export default function DistributionResults({ summary, detail, onExport, highlig
             {metric} · {category || "Categoria selecionada"} · {displayPeriod(period)}
           </p>
         </div>
-        <span className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-teal">
-          {fmt(count)} unidades territoriais avaliadas
-        </span>
+        {typeof total === "number" && <span data-testid="distribution-total" className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-teal">
+          {fmt(total)} unidades territoriais classificadas (total do motor)
+        </span>}
       </div>
       <p className="mt-3 text-xs leading-6 text-slate-600">
         As unidades foram ordenadas pelo indicador escolhido e divididas em {ordered.length} {pluralLabel}.
@@ -86,20 +82,6 @@ export default function DistributionResults({ summary, detail, onExport, highlig
           <span className="mt-2 block text-xs font-semibold leading-4 text-slate-700">{groupLabel === "quintil" ? labels[number - 1] : number === 1 ? "Menores valores" : number === ordered.length ? "Maiores valores" : "Valores intermediários"}</span>
         </button>;
       })}
-    </div>
-    <div className="rounded-2xl border border-line p-4 sm:p-6">
-      <div className="mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-teal"/>
-        <h4 className="text-sm font-bold text-ink">Quantas unidades pertencem a cada {groupLabel}?</h4>
-      </div>
-      <div className="h-[245px] w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{top:5,right:10,bottom:5,left:2}}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e9eff4" vertical={false}/>
-          <XAxis dataKey="name" tick={{fontSize:12,fill:"#668094"}}/>
-          <YAxis allowDecimals={false} tick={{fontSize:11,fill:"#668094"}} width={58}/>
-          <Tooltip formatter={(v: number) => [fmt(v), "Unidades territoriais"]} wrapperStyle={{maxWidth: "calc(100% - 72px)"}} contentStyle={{whiteSpace: "normal"}}/>
-          <Bar dataKey="count" name="Unidades territoriais" fill="#15919b" radius={[5,5,0,0]}/>
-        </BarChart>
-      </ResponsiveContainer></div>
     </div>
     <div id="tabela-resultado" className="overflow-hidden rounded-2xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">

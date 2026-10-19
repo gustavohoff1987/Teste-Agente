@@ -8,8 +8,18 @@ export type TablePresentation = { filtros: Record<string, string>; ordenacao: { 
   pagina: number; tamanho_pagina: number; total_filtrado: number };
 type Props = { stateKey?: string; rows: Row[]; columns: Column[]; idOf?: (row: Row) => string | null; selected?: Set<string>;
   onToggle?: (id: string) => void; onExport?: (rows: Row[]) => void; exportLabel?: string;
-  onPresentation?: (state: TablePresentation) => void; stacked?: boolean };
+  onPresentation?: (state: TablePresentation) => void; stacked?: boolean;
+  /** Comparação: bloco extra de cada cartão (valores lado a lado, mudança e tendência do território), sem repetir o "Valor". */
+  cardExtra?: (territory: string) => ReactNode };
 const PAGE_SIZE = 150;
+// Colunas do par na comparação (linha A/B do motor). Nos cartões empilhados, cada formato de linha mostra só as suas
+// colunas: o cartão de um território não lista as colunas vazias do par, e o resumo do par não lista as colunas vazias
+// do território (ex.: "Território" e o valor de cada território). Vazio por formato não é "Não avaliável"; a tabela,
+// o CSV e os filtros continuam com todas as colunas.
+const PAIR_KEYS = new Set(["Objeto A", "Objeto B", "Valor A", "Valor B", "Relação A/B", "Diferença A − B"]);
+// Relações de um território com os demais do mesmo nível (CAP-CMP-01 com três ou mais objetos): vazias quando não há
+// próximo valor maior (o maior do nível) ou quando o território fica lado a lado sem relação (o Brasil).
+const NEIGHBOR_KEYS = new Set(["Próximo valor maior", "Unidades com mesmo valor"]);
 const plain = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 const show = (value: unknown) => value == null ? "Não avaliável" : typeof value === "number"
   ? new Intl.NumberFormat("pt-BR", value !== 0 && Math.abs(value) < 1e-6
@@ -31,7 +41,7 @@ function matches(value: unknown, query: string, display?: (value: unknown) => st
 }
 
 export default function ResultTable({ rows, columns, idOf, selected, onToggle, onExport,
-  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation, stateKey = "main", stacked = false }: Props) {
+  exportLabel = "Exportar tabela filtrada (CSV)", onPresentation, stateKey = "main", stacked = false, cardExtra }: Props) {
   const [filters, setFilters] = useInvestigationState<Record<string, string>>(stateKey + ".filters", {});
   const [sort, setSort] = useInvestigationState<{ key: string; ascending: boolean } | null>(stateKey + ".sort", null);
   const [page, setPage] = useInvestigationState(stateKey + ".page", 0);
@@ -89,9 +99,11 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
                 <dd className="break-words text-sm" title={typeof row[key] === "number" ? "Valor integral: " + String(row[key]) : undefined}>{text(key, row[key])}</dd>
               </div>)}
             </dl>
+            {cardExtra?.(String(row["Objeto " + side] ?? ""))}
           </article>)}
           <dl data-testid="comparison-pair-summary" className="grid gap-2 px-1 sm:grid-cols-2">
-            {columns.filter(column => !["Objeto A", "Objeto B", "Valor A", "Valor B", "Período", "Categoria", "Indicador", "Unidade de contagem"].includes(column.key)).map(column =>
+            {columns.filter(column => !["Objeto A", "Objeto B", "Valor A", "Valor B", "Período", "Categoria", "Indicador", "Unidade de contagem"].includes(column.key)
+              && !(row[column.key] == null && !PAIR_KEYS.has(column.key) && column.key !== "Condição")).map(column =>
               <div key={column.key}><dt className="text-xs text-slate-500">{column.label || column.key}</dt>
                 <dd className="break-words text-sm" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>{text(column.key, row[column.key])}</dd></div>)}
           </dl>
@@ -104,13 +116,14 @@ export default function ResultTable({ rows, columns, idOf, selected, onToggle, o
               aria-pressed={chosen} className="text-xs font-semibold text-teal underline">{chosen ? "Retirar da seleção" : "Selecionar território"}</button>}
           </div>
           <dl className="grid gap-2 sm:grid-cols-2">
-            {columns.map(column=><div key={column.key} className="min-w-0 border-b border-slate-100 pb-2">
+            {columns.filter(column => !((PAIR_KEYS.has(column.key) || NEIGHBOR_KEYS.has(column.key)) && row[column.key] == null)).map(column=><div key={column.key} className="min-w-0 border-b border-slate-100 pb-2">
               <dt className="text-xs font-medium text-slate-500">{column.label || column.key}</dt>
               <dd className="break-words text-sm text-ink" title={typeof row[column.key] === "number" ? "Valor integral: " + String(row[column.key]) : undefined}>
                 {column.render ? column.render(row[column.key]) : text(column.key, row[column.key])}
               </dd>
             </div>)}
           </dl>
+          {row["Território"] != null && cardExtra?.(String(row["Território"]))}
         </article>;
       })}
     </div>}

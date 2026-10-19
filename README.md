@@ -65,7 +65,9 @@ estado é a soma dos seus municípios pelo prefixo do código IBGE, com possíve
 densidades da base oficial, o resultado traz a taxa nacional como referência de contexto
 (`metadata.referencia_nacional`), que não classifica nem colore os municípios: na tela, ela é uma
 marca na legenda do mapa ("Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
-contexto") e uma linha tracejada "Brasil 2,36" nas barras dos municípios. Detalhes:
+contexto"), uma linha tracejada "Brasil 2,36" nas barras dos municípios e, desde o visual completo
+(19/10/2026), o cartão de contexto do cabeçalho, com o minigráfico da série nacional
+(`metadata.referencia_nacional.serie`), a dica do ponto e o detalhe do território. Detalhes:
 [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md). Na agregação
 municipal da base oficial, o total é a soma dos componentes, sempre rotulada como possível
 dupla contagem; em bases importadas, a soma dos componentes também é a premissa padrão da
@@ -501,8 +503,35 @@ transcorrido entre elas; com menos de quatro competências a etapa recebe BLQ-ME
 catálogo, e a mudança continua disponível. Contagens por classe, velocidades e janela ficam em
 `metadata.tendencia` e `metadata.mudanca`, fora do contexto enviado à IA. Na tela: selos por classe,
 contagem por classe na ordem da SPEC, filtro por família, minigráfico de velocidades e o atalho
-**"Série anual (junho)"** na caixa Período (o padrão continua "todas as competências"). Detalhes,
+**"Série anual (junho)"** na caixa Período (o padrão continua "todas as competências"). Desde o visual
+completo (19/10/2026), a aba Gráficos traz também pequenos múltiplos na mesma escala (12 por página) e
+halteres do primeiro ao último período, com a variação e o selo do motor. Detalhes,
 contagens com os dados reais e testes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md).
+
+## Comparação territorial com competência dos valores (CAP-CMP-01 com CAP-TMP-01 e CAP-TEN-01)
+
+Desde 19/10/2026 (decisão D6), a comparação aceita um período ou uma janela de períodos. A opção
+`comparison_values_period` da API (a **competência dos valores**, que precisa estar na janela de
+`period_filters` ou ser o `period_filter`) faz as relações da CAP-CMP-01 (par A/B com relação e diferença
+assinada A − B; três ou mais com valores iguais e próximo valor maior, sem diferenças entre pares, AT-84) usarem
+só essa competência, no formato de sempre em `rows`, com a cardinalidade do conjunto pedido. Em `detail_rows`
+vem um registro por território: quantidade, população e densidade na competência dos valores, a condição e,
+com duas ou mais competências, a mudança entre a primeira e a última (CAP-TMP-01: inicial, final, variação
+absoluta, direção e condição) e a tendência (CAP-TEN-01: classe, motivo e observações), pela mesma
+`temporal_change.evolution` da evolução temporal; **sem variação percentual, razão nem diferença percentual
+automáticas**. A janela exige as premissas temporais da evolução (aplicadas pelo backend). O resultado traz
+`metadata.comparacao` (competência dos valores, janela, grupos de relação por nível e objetos sem relação),
+`metadata.tendencia` e `metadata.mudanca` (com a janela), e as métricas "Territórios comparados" e
+"Competências na janela". Com os níveis da base oficial, as relações ficam só dentro do mesmo nível; o Brasil
+fica lado a lado, sem relação, e o estado com suporte variável na janela não recebe tendência
+(INCOMPARABILIDADE). Sem a opção, a comparação segue o caminho anterior (relações em cada competência). A
+chave de execução muda com a opção e com a versão do método de tendência. Na tela, a comparação começa na
+**série anual de junho** (valores em 06/2024 na base versionada), com a caixa **"Competência dos valores"**
+(padrão: a última competência da janela), valores lado a lado por nível (quantidade, população e densidade),
+halteres do primeiro ao último período e o selo da tendência; o par passa a ter mapa. Na conversa, a
+relação de valores iguais (IGUALDADE) aparece na resposta ("O valor de A é igual ao de B."); antes, sumia.
+Detalhes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md) e
+[abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md).
 
 ## Mapas e exploração visual integrada (Bloco 3)
 
@@ -515,7 +544,25 @@ pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, selecion
 tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
 (não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem
 executá-la. Barras e linhas usam só valores e classes do motor, sem quantis, tendências ou posições
-criadas na tela; na evolução temporal, selos, contagens e velocidades da tendência vêm de `metadata.tendencia`. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final, variação, selo da tendência do motor e minigráfico das velocidades). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
+criadas na tela; na evolução temporal, selos, contagens e velocidades da tendência vêm de `metadata.tendencia`. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final, variação, selo da tendência do motor e minigráfico das velocidades). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. **Visual completo (19/10/2026, decisão D7):** o
+cabeçalho do resultado (`result-header`) substitui a grade de métricas por uma frase-resumo determinística do motor
+(`metadata.representacao.resumo`: só cópias verificadas de caminhos do resultado, sem LEX-DES, LEX-NORM nem LEX-CAU, sem
+"acima" ou "abaixo" da taxa nacional e fora do contexto da IA), até quatro indicadores (a taxa nacional como cartão de
+contexto, com minigráfico) e a procedência (fonte e versão, fórmula, população do Brasil, tendência, níveis, tipo de
+contagem e chave de execução); resultados antigos mantêm a grade. A API ganhou métricas do motor por análise: evolução
+temporal (séries, aumento, redução, sem mudança e mudança não avaliável entre os extremos), comparações (territórios
+comparados e competências na janela), agregação (territórios agregados), distribuição ("Unidades classificadas" e
+classes), ranking (ordenados e não avaliáveis), rotatividade (coortes avaliáveis e sem registro em um dos períodos),
+relatório de quantidade (registros territoriais) e, na rota de níveis, registros avaliáveis e não avaliáveis de cada nível
+(antes, "Unidades avaliáveis" contava só os municípios); a descrição da densidade passou a "Densidade de pessoas por
+1.000 habitantes." (antes, a frase solta "pessoas por 1.000 habitantes."). Na tela, Brasil, estados e municípios ficam
+em blocos (`levels-panel`; o estado com textura, aviso de possível dupla contagem e "na soma das contagens dos
+municípios"); a comparação tem valores lado a lado, halteres e selos de tendência; o ranking é um gráfico de pirulito
+com a posição do motor; a distribuição ganha a faixa de pontos por classe (eixo logarítmico com valores positivos, só
+desenho) e usa o total do motor, sem somar classes na tela; a agregação tem um cartão com o tipo de contagem; a rotatividade, a barra da coorte. No mapa, a escala de cor
+contínua é **logarítmica por padrão** quando todos os valores são positivos (linear à escolha, ou com zero e negativos),
+com os extremos e marcas de leitura na legenda; o domínio continua o mínimo e o máximo, e nenhuma classe, quebra ou quantil
+é criada na tela. A "Situação do resultado" aparece com acentos. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
 ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
 
 ## Escopo e limitações do protótipo

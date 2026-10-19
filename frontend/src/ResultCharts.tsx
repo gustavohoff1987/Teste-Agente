@@ -1,11 +1,12 @@
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CATEGORICAL, INK, NOT_EVALUABLE, displayPeriod, formatNumber, fullPrecision, niceDomain, type IndicatorKind } from "./representation";
 
 // Gráficos de barras e de linhas (CAP-REP-02) sobre valores já calculados pelo motor. A ordem padrão
 // é a do código territorial ou a do resultado de ordenação (RQ-REP-03); reordenar pelo valor é estado
 // visual e não exibe posições. Ausências ficam como lacunas, sem interpolação nem linhas de tendência.
 
-export type BarDatum = { id: string; label: string; value: number | null; highlighted: boolean };
+/** `group`: estado do município (members[].state), só para separadores visuais na ordem do código; nada é reordenado. */
+export type BarDatum = { id: string; label: string; value: number | null; highlighted: boolean; group?: string };
 /** Taxa nacional de contexto (D5) desenhada como linha tracejada sobre as barras dos municípios; não colore as barras. */
 export type BarReference = { value: number; label: string; text: string };
 export type CountDatum = { label: string; value: number; color: string };
@@ -27,24 +28,51 @@ function ReferenceCaption({ reference }: { reference?: BarReference }) {
     <span>{reference.text}</span></figcaption> : null;
 }
 
-export function TerritoryBars({ data, unit, kind, title, onSelect, reference }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
-  onSelect: (id: string) => void; reference?: BarReference }) {
+/** Começo de um novo grupo (estado) na sequência das barras: separador visual, sem contagem por grupo. */
+const groupStarts = (data: BarDatum[]) => {
+  const groups = new Set(data.map(item => item.group || ""));
+  return groups.size > 1 ? data.map((item, index) => index > 0 && item.group !== data[index - 1].group) : data.map(() => false);
+};
+
+export function TerritoryBars({ data, unit, kind, title, onSelect, reference, texture = false }: { data: BarDatum[]; unit: string; kind: IndicatorKind;
+  title: string; onSelect: (id: string) => void; reference?: BarReference; texture?: boolean }) {
   if (data.length > 40) return <ScrollableBars key={title} data={data} unit={unit} kind={kind} title={title} onSelect={onSelect} reference={reference}/>;
   const height = Math.max(220, 46 + data.length * 26) + (reference ? 16 : 0);
+  const starts = groupStarts(data);
+  // Soma dos componentes (estados): textura própria, além do rótulo "possível dupla contagem" (RQ-REP-14).
+  const fill = (item: BarDatum) => texture ? (item.highlighted ? "url(#adt-uf-hatch)" : "url(#adt-uf-hatch-light)") : item.highlighted ? CATEGORICAL[0] : "#9ec5f4";
   return <figure aria-label={title} className="w-full">
     <div style={{ height }} className="w-full overflow-hidden"><ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout="vertical" margin={{ top: reference ? 20 : 4, right: 18, bottom: 4, left: 4 }} barCategoryGap={4}>
+      <BarChart data={data} layout="vertical" margin={{ top: reference ? 20 : 4, right: 52, bottom: 4, left: 4 }} barCategoryGap={4}>
+        {texture && <defs>
+          <pattern id="adt-uf-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="#cfe1f7"/><rect width="3" height="6" fill={CATEGORICAL[0]}/></pattern>
+          <pattern id="adt-uf-hatch-light" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="#eef4fc"/><rect width="3" height="6" fill="#9ec5f4"/></pattern>
+        </defs>}
         <CartesianGrid horizontal={false} stroke={INK.grid}/>
         <XAxis type="number" tick={axis} tickFormatter={(value: number) => formatNumber(value, kind)} stroke={INK.grid}/>
-        <YAxis type="category" dataKey="label" width={170} tick={{ ...axis, fill: INK.secondary }} interval={0} stroke={INK.grid}
-          tickFormatter={(value: string) => value.length > 26 ? value.slice(0, 25) + "…" : value}/>
+        <YAxis type="category" dataKey="label" width={170} interval={0} stroke={INK.grid}
+          tick={(props: { x: number; y: number; index?: number; payload: { value: string; index?: number } }) => {
+            const value = props.payload.value, index = props.index ?? props.payload.index ?? 0;
+            const step = (height - (reference ? 40 : 24)) / Math.max(1, data.length);
+            return <g>
+              {starts[index] && <g data-testid="bar-group-separator"><line x1={4} x2={2000} y1={props.y - step / 2} y2={props.y - step / 2}
+                stroke={INK.muted} strokeDasharray="2 3"/><text x={6} y={props.y - step / 2 + 9} fontSize={9} fill={INK.muted}>{data[index].group}</text></g>}
+              <text x={props.x} y={props.y} dy={4} textAnchor="end" fontSize={11} fill={INK.secondary}>
+                {value.length > 26 ? value.slice(0, 25) + "…" : value}</text>
+            </g>;
+          }}/>
         <Tooltip cursor={{ fill: "rgba(42,120,214,0.06)" }} wrapperStyle={{ maxWidth: "calc(100% - 40px)" }} content={({ active, payload }) => {
           const item = active && payload?.[0]?.payload as BarDatum | undefined;
           return item ? <TooltipBox title={item.label} lines={[item.value === null ? { text: "Não avaliável (sem valor no resultado)" } :
             { strong: formatNumber(item.value, kind), text: " " + unit + " · valor integral " + fullPrecision(item.value) }]}/> : null;
         }}/>
         <Bar dataKey="value" name={title} radius={[0, 4, 4, 0]} maxBarSize={18} onClick={(entry: BarDatum) => onSelect(entry.id)} cursor="pointer">
-          {data.map(item => <Cell key={item.id} fill={item.highlighted ? CATEGORICAL[0] : "#9ec5f4"}/>)}
+          {data.map(item => <Cell key={item.id} fill={fill(item)}/>)}
+          {/* Valor do motor no fim de cada barra (RQ-REP-05); sem valor, nada (a ausência é dita abaixo do gráfico). */}
+          <LabelList dataKey="value" position="right" fontSize={10} fill={INK.secondary}
+            formatter={(value: unknown) => typeof value === "number" ? formatNumber(value, kind) : ""}/>
         </Bar>
         {/* A referência entra no eixo (ifOverflow), mas nunca na cor das barras. */}
         {reference && <ReferenceLine x={reference.value} stroke={INK.primary} strokeWidth={1.5} strokeDasharray="4 3" ifOverflow="extendDomain"
@@ -63,7 +91,8 @@ export function TerritoryBars({ data, unit, kind, title, onSelect, reference }: 
 function ScrollableBars({ data, unit, kind, title, onSelect, reference }: { data: BarDatum[]; unit: string; kind: IndicatorKind; title: string;
   onSelect: (id: string) => void; reference?: BarReference }) {
   const [start, setStart] = useState(0);
-  const rowHeight = 34, windowSize = 20;
+  const narrow = useNarrow();
+  const rowHeight = narrow ? 46 : 34, windowSize = 20;
   const [min, max] = useMemo(() => {
     let low = 0, high = 0;
     for (const item of data) if (item.value !== null) { low = Math.min(low, item.value); high = Math.max(high, item.value); }
@@ -73,12 +102,13 @@ function ScrollableBars({ data, unit, kind, title, onSelect, reference }: { data
   const span = max - min || 1, zero = -min / span * 100;
   const mark = reference ? (reference.value - min) / span * 100 : null;
   const offset = Math.min(start, Math.max(0, data.length - 1));
+  const starts = useMemo(() => groupStarts(data), [data]);
   return <figure aria-label={title} className="w-full" data-testid="scrollable-bars" data-total={data.length}>
     <figcaption className="mb-2 text-xs text-slate-600">{data.length.toLocaleString("pt-BR")} territórios.
       Role o gráfico para percorrer todos ou selecione territórios na tabela para comparar.</figcaption>
-    <div className="mb-1 flex justify-between pl-[42%] text-[11px] text-slate-500"><span>{formatNumber(min, kind)}</span>
+    <div className={"mb-1 flex justify-between text-[11px] text-slate-500 " + (narrow ? "" : "pl-[42%]")}><span>{formatNumber(min, kind)}</span>
       <span>{formatNumber(max, kind)} {unit}</span></div>
-    {mark !== null && <div aria-hidden className="relative mb-1 h-4 pl-[42%] text-[11px] font-semibold text-ink">
+    {mark !== null && <div aria-hidden className={"relative mb-1 h-4 text-[11px] font-semibold text-ink " + (narrow ? "" : "pl-[42%]")}>
       <span className="relative block h-full"><span className="absolute -translate-x-1/2 whitespace-nowrap" style={{left: mark + "%"}}>
         {reference!.label}</span></span></div>}
     <div role="region" aria-label="Barras por território" tabIndex={0} className="max-h-[440px] overflow-y-auto rounded-lg border border-line"
@@ -93,8 +123,11 @@ function ScrollableBars({ data, unit, kind, title, onSelect, reference }: { data
             aria-label={item.label + ": " + (value === null ? "Não avaliável" : formatNumber(value, kind) + " " + unit)}
             title={item.label + ": " + (value === null ? "Não avaliável" : fullPrecision(value) + " " + unit)}
             style={{position:"absolute", top: (offset + index) * rowHeight, height: rowHeight}}
-            className="grid w-full grid-cols-[42%_minmax(0,1fr)] items-center gap-2 border-b border-slate-100 px-2 text-left text-xs hover:bg-blue-50 focus-visible:bg-blue-50">
-            <span className="truncate">{item.label}</span>
+            className={"grid w-full items-center gap-x-2 border-b border-slate-100 px-2 text-left text-xs hover:bg-blue-50 focus-visible:bg-blue-50 " +
+              (narrow ? "grid-cols-1 content-center" : "grid-cols-[42%_minmax(0,1fr)]")}>
+            <span className="relative truncate">{starts[offset + index] && <span data-testid="bar-group-separator" aria-hidden
+              className="absolute -top-1.5 left-0 rounded bg-slate-100 px-1 text-[9px] font-semibold leading-3 text-slate-600">{item.group}</span>}
+              {item.label}</span>
             <span className="relative h-6 min-w-0">
               <span aria-hidden className="absolute inset-y-0 border-l border-slate-300" style={{left: zero + "%"}}/>
               {mark !== null && <span aria-hidden data-testid="bar-reference-mark" className="absolute inset-y-0 border-l-[1.5px] border-dashed border-ink"
@@ -102,7 +135,7 @@ function ScrollableBars({ data, unit, kind, title, onSelect, reference }: { data
               {value !== null && <span aria-hidden data-testid="bar-fill" className="absolute top-1 h-4 rounded-sm"
                 style={{left: Math.min(zero, end) + "%", width: Math.abs(end - zero) + "%", background: item.highlighted ? CATEGORICAL[0] : "#9ec5f4"}}/>}
               <span data-testid="bar-value" className={"absolute top-1 z-[1] whitespace-nowrap rounded-sm px-1 text-[10px] leading-4 " +
-                (inside ? (item.highlighted ? "text-white" : "text-ink") : "bg-white/90 text-slate-800")}
+                (inside ? (item.highlighted ? "text-white" : "text-ink") : "bg-white text-slate-800")}
                 style={inside ? { right: (100 - tip) + "%" } : { left: "calc(" + tip + "% + 2px)" }}>
                 {value === null ? "Não avaliável" : formatNumber(value, kind)}</span>
             </span>
@@ -135,7 +168,7 @@ export function CountBars({ data, title, note }: { data: CountDatum[]; title: st
 }
 
 export function SeriesLines({ points, series, unit, kind, title }: { points: LinePoint[];
-  series: { key: string; label: string; color: string; pointsOnly?: boolean }[]; unit: string; kind: IndicatorKind; title: string }) {
+  series: { key: string; label: string; color: string; pointsOnly?: boolean; dashed?: boolean }[]; unit: string; kind: IndicatorKind; title: string }) {
   // Eixo em números redondos ao redor dos valores: uma série de densidade entre 1,6 e 1,9 deixa de virar uma
   // linha achatada sobre o zero. O começo do eixo é informado na legenda quando não é zero.
   const domain = niceDomain(points.flatMap(point => series.map(item => point[item.key])).filter((value): value is number => typeof value === "number"));
@@ -158,7 +191,7 @@ export function SeriesLines({ points, series, unit, kind, title }: { points: Lin
         {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: INK.secondary }} iconType="plainline"/>}
         {/* Sem trajetória (tendência não comparável, `serie.quebras`): só os pontos de cada competência, sem linha entre eles. */}
         {series.map(item => <Line key={item.key} type="linear" dataKey={item.key} name={item.label} stroke={item.pointsOnly ? "none" : item.color}
-          strokeWidth={item.pointsOnly ? 0 : 2}
+          strokeWidth={item.pointsOnly ? 0 : 2} strokeDasharray={item.dashed ? "6 4" : undefined}
           dot={{ r: 4, fill: item.color, stroke: INK.surface, strokeWidth: 2 }} activeDot={{ r: 6, stroke: INK.surface, strokeWidth: 2 }}
           connectNulls={false} isAnimationActive={false}
           label={labeled ? (props: { x?: number; y?: number; index?: number; value?: number }) =>
@@ -170,9 +203,12 @@ export function SeriesLines({ points, series, unit, kind, title }: { points: Lin
     <figcaption className="mt-1 text-xs text-slate-600">{series.length === 1 ? series[0].label + ". " : ""}Competências sem valor aparecem
       como lacunas; não há interpolação, linha de tendência ou taxa calculada pela representação.
       {series.some(item => item.pointsOnly) ? " Territórios com série não comparável aparecem só como pontos, sem linha de trajetória." : ""}
+      {series.some(item => item.dashed) ? " Linha tracejada: " + series.filter(item => item.dashed).map(item => item.label).join(", ") +
+        " (Brasil, total nacional): contexto lado a lado; não classifica os territórios nem entra em relação com eles." : ""}
       {domain[0] > 0 ? " O eixo vertical começa em " + formatNumber(domain[0], kind) + " para mostrar a variação; os valores são os do motor." : ""}</figcaption>
   </figure>;
 }
 
 export const stateColor = (state: string) => state === "NAO_AVALIAVEL" || state === "Não avaliável" ? NOT_EVALUABLE : undefined;
 import { useMemo, useState } from "react";
+import { useNarrow } from "./useNarrow";

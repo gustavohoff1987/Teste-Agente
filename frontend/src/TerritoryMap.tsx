@@ -151,15 +151,38 @@ const TerritoryMap = forwardRef<MapHandle, MapProps>(function TerritoryMap(props
     }
     // 7. Poucos territórios: nome (e, até três, o valor) junto ao ponto, com halo da superfície; um ponto
     //    isolado sem nome não diz onde nem o quê.
+    //    Rótulos que se sobreporiam a outro já desenhado, aos botões do mapa (canto superior direito) ou às coordenadas
+    //    da borda de baixo vão para o outro lado do ponto ou um pouco acima ou abaixo (pontos próximos, como Manaus e
+    //    Tefé num mapa pequeno); só a posição do texto muda, nunca a do ponto.
     if (n <= 12) {
       ctx.lineJoin = "round";
+      type Box = [number, number, number, number];
+      const placed: Box[] = [[w - 52, 0, w, 132]];  // botões de zoom e extensão
+      // Os próprios pontos rotulados também são obstáculos: um nome nunca cobre outro ponto.
+      const dots = new Map<number, Box>();
+      for (let i = 0; i < n; i++) if (p.passes[i] && inside(i)) {
+        const dot: Box = [sx[i] - r - 2, sy[i] - r - 2, sx[i] + r + 2, sy[i] + r + 2];
+        dots.set(i, dot); placed.push(dot);
+      }
+      const free = (box: Box, own: Box) => box[0] >= 2 && box[2] <= w - 2 && box[1] >= 2 && box[3] <= h - 16 &&
+        !placed.some(other => other !== own && box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]);
       for (let i = 0; i < n; i++) {
         if (!p.passes[i] || !inside(i)) continue;
         const lines = [[p.labelOf(p.ids[i]), "600 12px system-ui, sans-serif", INK.primary],
           ...(n <= 3 ? [[p.detailOf(p.ids[i]), "11px system-ui, sans-serif", INK.secondary]] : [])];
+        const widths = lines.map(([text, font]) => { ctx.font = font; return ctx.measureText(text).width; });
+        const width = Math.max(...widths), tall = lines.length * 15;
+        const own = dots.get(i)!;
+        const right = sx[i] + r + 6, left = sx[i] - r - 6 - width, centered = Math.min(Math.max(4, sx[i] - width / 2), w - width - 4);
+        const candidates: [number, number][] = [[right, sy[i] + 4], [left, sy[i] + 4], [right, sy[i] + 4 + tall], [right, sy[i] + 4 - tall],
+          [left, sy[i] + 4 + tall], [left, sy[i] + 4 - tall], [centered, sy[i] + r + 16], [centered, sy[i] - r - 4 - tall + 12]];
+        const boxOf = ([x, y]: [number, number]): Box => [x - 2, y - 12, x + width + 2, y - 12 + tall];
+        const spot = candidates.find(candidate => free(boxOf(candidate), own)) ||
+          [Math.min(right, w - width - 4), sy[i] + 4] as [number, number];
+        placed.push(boxOf(spot));
         lines.forEach(([text, font, color], line) => {
           ctx.font = font; ctx.lineWidth = 3; ctx.strokeStyle = INK.surface;
-          const x = Math.min(sx[i] + r + 6, w - ctx.measureText(text).width - 4), y = sy[i] + 4 + line * 15;
+          const x = spot[0], y = spot[1] + line * 15;
           ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y);
         });
       }

@@ -133,7 +133,7 @@ def test_a08_declared_unit_in_aggregate_label_density_description_and_notes(unit
     assert aggregate.json()["rows"][0]["Tipo"] == "Unidades distintas: " + label
     density = post(frame, "density", options)
     assert density.status_code == 200, density.text
-    assert density.json()["description"] == label + " por 1.000 habitantes."
+    assert density.json()["description"] == "Densidade de " + label + " por 1.000 habitantes."
     for body in (aggregate.json(), density.json()):
         assert "Unidade de contagem: " + label + "." in " ".join(body["notes"])
 

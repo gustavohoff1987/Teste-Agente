@@ -371,6 +371,68 @@ def test_comparisons_relate_only_objects_of_the_same_level(catalog):
     assert len(three["rows"]) == 3 and all(row.get("Diferença A − B") is None for row in three["rows"])  # AT-84
 
 
+def test_comparison_window_relates_in_the_values_period_and_trends_each_object_by_level(catalog):
+    """D6: relações só na competência dos valores e só no mesmo nível; mudança e tendência de cada objeto na janela."""
+    info = inspected()
+    request = {"brasil": True, "estados": ["13", "15"], "municipios": {"ids": ["code:130260", "code:150140"]}}
+    body = ok(analyze(info, "comparisons", request, period_filters=PERIODS, comparison_values_period="202306",
+                      crs="SIRGAS2000"))
+    rows = body["rows"]
+    assert {row["Período"] for row in rows} == {"202306"}  # relações só na competência dos valores
+    assert [row["Nível"] for row in rows] == ["Brasil (total nacional)", "Estado (soma dos municípios)", "Município"]
+    assert rows[0]["Condição"] == levels.SIDE_BY_SIDE["BR"] and rows[0]["Relação A/B"] is None
+    assert (rows[1]["Objeto A"], rows[1]["Objeto B"], rows[1]["Relação A/B"]) == ("Amazonas (AM)", "Pará (PA)", "MENOR")
+    assert rows[1]["Diferença A − B"] == pytest.approx(60 / 7010 * 1000 - 52 / 3000 * 1000)
+    assert (rows[2]["Objeto A"], rows[2]["Objeto B"], rows[2]["Relação A/B"]) == ("BELEM [150140]", "MANAUS [130260]", "MENOR")
+    # Um registro por objeto: valores na competência, mudança e tendência na janela; nenhuma razão ou percentual (AT-84).
+    detail = {row["Território"]: row for row in body["detail_rows"]}
+    assert list(detail) == ["Brasil", "Amazonas (AM)", "Pará (PA)", "MANAUS [130260]", "BELEM [150140]"]
+    assert not any("%" in key or "Razão" in key or "razão" in key for row in rows + body["detail_rows"] for key in row)
+    brazil = detail["Brasil"]
+    assert (brazil["Quantidade"], brazil["População"], brazil["Competência da população"]) == (110, 10510, "202306")
+    assert brazil["Densidade por 1.000"] == pytest.approx(110 / 10510 * 1000)
+    assert (brazil["Tendência"], brazil["Observações da tendência"]) == ("Crescimento", 4)
+    amazonas = detail["Amazonas (AM)"]
+    assert amazonas["Tipo de contagem"] == "Soma dos componentes (possível dupla contagem)"
+    assert amazonas["Tendência"] == "Não avaliável: série não comparável"
+    assert amazonas["Motivo da tendência"] == "Membros efetivos diferentes entre competências (202406: 130420 ausente)"
+    assert amazonas["Direção da mudança"] is None and "INCOMPARABILIDADE" in amazonas["Condição da mudança"]
+    assert (amazonas["Quantidade"], amazonas["População"]) == (60, 7010)  # na competência dos valores o suporte é completo
+    manaus = detail["MANAUS [130260]"]
+    assert (manaus["Período inicial"], manaus["Período final"], manaus["Direção da mudança"]) == ("202301", "202406", "Aumento")
+    assert manaus["Variação absoluta"] == pytest.approx(46 / 1020 * 1000 - 40)
+    comparacao = body["metadata"]["comparacao"]
+    assert comparacao["competencia_valores"] == "202306" and comparacao["janela"]["periodos"] == PERIODS
+    assert [(group["nivel"], group["relacoes"]) for group in comparacao["grupos"]] == [("BR", False), ("UF", True), ("MUN", True)]
+    assert comparacao["sem_relacao"] == [{"objeto": "Brasil", "nivel": "BR", "motivo": levels.SIDE_BY_SIDE["BR"]}]
+    tendencia = body["metadata"]["tendencia"]
+    assert tendencia["nao_avaliaveis_por_motivo"]["INCOMPARABILIDADE"] == 1 and tendencia["desfecho"] == "RES-LIM"
+    assert body["metadata"]["metodos"]["tendencia"] == "CAP-TEN-01/DA-15/1" and body["metadata"]["metodos"]["niveis"]
+    assert ("A mudança e a tendência de Amazonas (AM) não foram avaliadas: o número de municípios incluídos muda em junho "
+            "de 2024. Escolha um intervalo sem essas competências para avaliá-las.") in body["notes"]
+    assert [item["label"] for item in body["metrics"]] == ["Territórios comparados", "Competências na janela"]
+    assert [item["value"] for item in body["metrics"]] == [5, 4]
+    # O mapa do par: municípios da competência dos valores, um registro por território (detail_rows).
+    representacao = body["metadata"]["representacao"]
+    assert representacao["tabela"] == "detail_rows"
+    assert representacao["geometria"]["estado"] == "DISPONIVEL" and representacao["geometria"]["competencia"] == "202306"
+    assert sorted(representacao["geometria"]["ids"]) == ["code:130260", "code:150140"]
+    # Estado e município nunca se relacionam: um de cada fica lado a lado, sem relação.
+    single = ok(analyze(info, "comparisons", {"estados": ["13"], "municipios": {"ids": ["code:150140"]}},
+                        period_filters=PERIODS, comparison_values_period="202406"))
+    assert [row["Condição"] for row in single["rows"]] == [
+        "Não avaliável: agregado parcial (2 de 3 municípios; sem registro: 130420)", levels.SIDE_BY_SIDE["MUN"]]
+    partial = {row["Território"]: row for row in single["detail_rows"]}["Amazonas (AM)"]
+    assert partial["Condição"] == "Avaliável com limitações: soma parcial (AGREGADO_PARCIAL)"
+    assert partial["Quantidade"] == 46 + 8  # valor preservado no registro do objeto, com a condição
+    refused(analyze(info, "comparisons", request, period_filters=PERIODS[:2], comparison_values_period="202406"),
+            "A competência dos valores precisa estar entre os períodos escolhidos para a comparação.")
+    # Sem a opção, o caminho anterior: relações em cada competência.
+    before = ok(analyze(info, "comparisons", request, period_filters=PERIODS[:2]))
+    assert {row["Período"] for row in before["rows"]} == {"202301", "202306"} and "detail_rows" not in before
+    assert "comparacao" not in before["metadata"] and "tendencia" not in before["metadata"]
+
+
 # 10. Evolução temporal --------------------------------------------------------------------------------------------
 def test_temporal_state_with_changing_members_is_incomparable_and_brazil_gaps_stay_empty(catalog):
     info = inspected()

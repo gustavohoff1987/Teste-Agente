@@ -4,12 +4,15 @@ import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
 import { displayPeriod } from "./DistributionResults";
 import ResultWorkspace, { type RepresentationRecord, type Sibling } from "./ResultWorkspace";
+import ResultHeader from "./ResultHeader";
+import { periodsInText } from "./headerModel";
 import PreviousAnalyses from "./PreviousAnalyses";
 import InvestigationOverview, { ResultIdentity } from "./InvestigationOverview";
 import { resultSummary, selectionCompatibility } from "./investigation";
 import { InvestigationViewState, type ViewMemory } from "./InvestigationViewState";
 import ResultTable from "./ResultTable";
 import { tableColumns } from "./representation";
+import { comparisonWindow, valuesPeriodOf } from "./periods";
 import { scrollAnalysisTo, type NavigationTarget, type WorkspaceStage } from "./workspaceNavigation";
 import { governedRoles } from "./curatedPreparation";
 import { fieldOptions } from "./fieldChoices";
@@ -153,11 +156,6 @@ const ROLES: { key: Role; label: string; help: string }[] = [
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((value, index) => value === b[index]);
 const shortNum = (n: number) => new Intl.NumberFormat("pt-BR", n !== 0 && Math.abs(n) < 1e-6
   ? { notation: "scientific", maximumSignificantDigits: 8 } : { maximumFractionDigits: 6 }).format(n);
-function pretty(value: unknown): string {
-  if (value === null || value === undefined) return "Não avaliável";
-  if (typeof value === "number") return shortNum(value);
-  return String(value);
-}
 function downloadText(name: string, body: string, mime: string) {
   const url = URL.createObjectURL(new Blob([body], { type: mime }));
   const link = document.createElement("a");
@@ -253,6 +251,8 @@ function App() {
   const [sourceDiagnostic, setSourceDiagnostic] = useState<Record<string, unknown> | null>(null);
   const [periodFilter, setPeriodFilter] = useState("");
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  // Comparação com janela (D6): competência dos valores escolhida na caixa "Competência dos valores"; sem escolha, a última.
+  const [comparisonValuesPeriod, setComparisonValuesPeriod] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [reference, setReference] = useState("");
   const [crs, setCrs] = useState("");
@@ -289,6 +289,7 @@ function App() {
   function snapshotPreparation() {
     return { mapping: {...mapping}, options: semanticOptions(), resolutions: {...resolutions},
       objectDraft, quantiles, distributionIndicator, selectedPeriods, multiplePeriods, territoryIds, territoryScope, comparisonIndicator,
+      comparisonValuesPeriod,
       referenceMode, referenceIds, criterionOperator, criterionValue,
       criteriaTree, criteriaRanking, criteriaBands, distanceScope, eligibilityScope, criteriaComparison };
   }
@@ -307,6 +308,7 @@ function App() {
     setTemporalIndicator(o.temporal_indicator); setReportIndicator(o.report_indicator);
     setTerritoryIds(saved.territoryIds); setTerritoryScope(saved.territoryScope || EMPTY_SCOPE);
     setComparisonIndicator(saved.comparisonIndicator);
+    setComparisonValuesPeriod(saved.comparisonValuesPeriod || "");
     setReferenceMode(saved.referenceMode); setReferenceIds(saved.referenceIds);
     setCriterionOperator(saved.criterionOperator); setCriterionValue(saved.criterionValue);
     setCriteriaTree(saved.criteriaTree); setCriteriaRanking(saved.criteriaRanking); setCriteriaBands(saved.criteriaBands);
@@ -385,7 +387,8 @@ function App() {
       try {
         const parsed = JSON.parse(item.contextKey);
         const options = Object.entries(parsed.options || {}).filter(([key, value]) =>
-          key !== "period_filter" && key !== "period_filters" && !empty(value)).sort(([a], [b]) => a.localeCompare(b));
+          key !== "period_filter" && key !== "period_filters" && key !== "comparison_values_period" && !empty(value))
+          .sort(([a], [b]) => a.localeCompare(b));
         return JSON.stringify({...parsed, options});
       } catch { return item.contextKey; }
     };
@@ -447,8 +450,11 @@ function App() {
       setPreflightError("");
       setServerStatus("online");
       setPeriodFilter("");
-      setSelectedPeriods(operation === "temporal" ? scopePeriodsOf(details, operation, scope, []) : []);
-      setMultiplePeriods(operation === "temporal");
+      // Comparação: a janela padrão é a série anual de junho (D6), com os valores na última competência dela.
+      const window = operation === "comparisons" ? comparisonWindow(scopePeriodsOf(details, operation, scope, [])) : [];
+      setSelectedPeriods(operation === "temporal" ? scopePeriodsOf(details, operation, scope, []) : window);
+      setMultiplePeriods(operation === "temporal" || window.length > 0);
+      setComparisonValuesPeriod("");
       setWorkspaceStage("preparation");
       setCategoryFilter(details.curated_defaults?.category || "");
       setReference("");
@@ -532,6 +538,11 @@ function App() {
       if (!selectedPeriods.length) setSelectedPeriods(scopePeriodsOf(inspection, operation, scope, ids));
       if (!temporalIndicator) setTemporalIndicator(active === "counts" ? "quantity" : "density");
     }
+    if (operation === "comparisons" && !periodFilter && !(multiplePeriods && selectedPeriods.length)) {
+      // Sem período escolhido, a comparação começa na série anual de junho (D6), com os valores na última competência.
+      const window = comparisonWindow(scopePeriodsOf(inspection, operation, scope, ids));
+      if (window.length) { setMultiplePeriods(true); setSelectedPeriods(window); setComparisonValuesPeriod(""); }
+    }
   }
   useEffect(() => {
     if (!requestedIndicator) return;
@@ -555,6 +566,11 @@ function App() {
     if (matches.length === 1) setCategoryFilter(matches[0]);
   }, [requestedCategory, inspection, inspecting, categoryFilter]);
 
+  // Competência dos valores da comparação: período único, ou a escolhida (ou a última) da janela de vários períodos. Função
+  // (e não constante): semanticOptions é chamada antes deste ponto do componente.
+  function comparisonPeriod() {
+    return valuesPeriodOf(multiplePeriods ? "" : periodFilter, multiplePeriods ? selectedPeriods : [], comparisonValuesPeriod);
+  }
   function semanticOptions() {
     // Base oficial: a abrangência territorial (Brasil, estados e municípios) segue em "abrangencia", só com a parte que a
     // análise aceita (ou o padrão dela); o backend resolve a rota e confere o pedido. Nas demais, os territórios marcados.
@@ -566,6 +582,8 @@ function App() {
       ...(governedPremises.has("number_format") ? {number_format: undefined} : {}),
       ...territorial,
       comparison_indicator: comparisonIndicator,
+      // Comparação com competência dos valores (D6): a competência única ou a escolhida na janela (padrão: a última).
+      ...(active === "comparisons" && comparisonPeriod() ? {comparison_values_period: comparisonPeriod()} : {}),
       hierarchy_columns: hierarchyColumns,
       period_filter: periodFilter, period_filters: selectedPeriods,
       category_filter: categoryFilter,
@@ -674,7 +692,8 @@ function App() {
     const pending = pendingTerritories.current;
     // A conversa recebe só os municípios marcados (como antes), nunca a abrangência: Brasil e estados não vão ao
     // interpretador nem ao provedor de IA.
-    const {abrangencia: _scope, ...options} = semanticOptions();
+    const {abrangencia: _scope, comparison_values_period: _values, ...options} = semanticOptions() as ReturnType<typeof semanticOptions> &
+      {comparison_values_period?: string};
     return {...options, ...(usingBrazil && territoryIds.length ? {territory_ids: territoryIds} : {}),
       exploration_operation: active || "", exploration_indicator:
       active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
@@ -788,7 +807,7 @@ function App() {
     setActive(op);  setError("");
     // Uma seleção múltipla esvaziada não autoriza usar todas as competências.
     // O mesmo bloqueio vale para o botão das opções avançadas.
-    if (multiplePeriods && ["counts", "temporal", "report"].includes(op) && !selectedPeriods.length &&
+    if (multiplePeriods && ["counts", "temporal", "report", "comparisons"].includes(op) && !selectedPeriods.length &&
         (inspection?.periods.length || 0) > 1) {
       setPeriodEditor(value => value + 1); scrollAnalysisTo("preparacao-conversacional"); return;
     }
@@ -1341,6 +1360,8 @@ function App() {
         if(active==="report")setReportIndicator(v);
       }}
       periodFilter={periodFilter}
+      valuesPeriod={comparisonPeriod()}
+      onValuesPeriod={setComparisonValuesPeriod}
       periods={scopePeriods}
       onPeriod={v=>{setMultiplePeriods(false);setPeriodFilter(v);setSelectedPeriods([]);}}
       categoryFilter={categoryFilter}
@@ -1515,10 +1536,9 @@ function App() {
                   className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-teal disabled:opacity-40">Usar como municípios-alvo</button>
               </div>
             </details>}
-            <p className="mt-2 text-sm leading-6 text-slate-500">{result.description}</p>
-            {result.metrics.length > 0 && <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {result.metrics.map(metric => <div key={metric.label} className="rounded-2xl border border-line bg-slate-50 px-5 py-5"><p className="text-xs font-medium text-slate-500">{metric.label}</p><p className="mt-2 text-2xl font-bold text-ink">{pretty(metric.value)}</p></div>)}
-            </div>}
+            <p className="mt-2 text-sm leading-6 text-slate-500">{periodsInText(result.description, {number: String, period: displayPeriod})}</p>
+            {/* Frase-resumo, indicadores e procedência do motor (D7); sem resumo (resultado antigo), a grade de métricas. */}
+            <ResultHeader result={result}/>
             <ResultWorkspace key={result.result_id} result={result} operation={resultOperation || ""}
               reusable={!!historical && compatible(historical) && !historical.invalidReason} disabled={running || inspecting}
               status={resultStatus} siblings={siblings} onExport={exportCsv} onRepresentation={keepRepresentation}
@@ -1611,7 +1631,7 @@ function App() {
         territoriesOpen={territoriesOpen}
         onTerritoriesOpen={setTerritoriesOpen}
         onMultiplePeriods={() => {
-          if (!active || !["counts", "temporal", "report"].includes(active)) return false;
+          if (!active || !["counts", "temporal", "report", "comparisons"].includes(active)) return false;
           if (!multiplePeriods) {setSelectedPeriods(periodFilter ? [periodFilter] : scopePeriodsOf(inspection, active, territoryScope, territoryIds));setPeriodFilter("");}
           setMultiplePeriods(true);setPeriodEditor(value => value + 1);
           scrollAnalysisTo("preparacao-conversacional"); return true;

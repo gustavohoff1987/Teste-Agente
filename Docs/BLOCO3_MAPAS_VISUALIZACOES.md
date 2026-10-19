@@ -49,14 +49,15 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
 
 | Campo | Conteúdo |
 |---|---|
-| `tabela` | `rows` ou `detail_rows` (distribuição) |
+| `tabela` | `rows` ou `detail_rows` (distribuição e, desde 19/10/2026, comparação com competência dos valores: um registro por território, com densidade, quantidade e população, que leva os indicadores e o mapa do par; a tabela principal da comparação continua sendo `rows`, com as relações) |
 | `vinculo` | coluna que identifica o território e a chave estável (`rotulo`, `codigo` ou `nome`) |
 | `indicadores` | colunas representáveis do resultado: `coluna`, `rotulo`, `tipo` (`CONTINUO`, `CONTAGEM`, `POSICAO`, `CLASSE`, `ESTADO`), `unidade`, `origem` (capacidade), `classes` produzidas por capacidade, `nota` (TPL-11 para distâncias) |
 | `serie` | descritor de série já calculada (competência, território, categoria, valor, unidade); só com duas ou mais competências. `quebras` (desde 19/10/2026) lista as unidades sem trajetória — tendência não avaliável por série não comparável —, desenhadas só como pontos (nos estados com municípios presentes diferentes, também o `nivel` e as competências da mudança). Nos resultados com níveis territoriais, `paineis` separa a série por tipo de contagem: na quantidade, um painel por nível; na densidade, municípios com o Brasil como referência e estados (soma dos municípios) à parte ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)) |
 | `geometria` | `DISPONIVEL`: `ids`, `lat`, `lon` (arrays paralelos), `competencia`, `referencial`, `fonte`, `configuracao_apresentacao` (origem e premissa contextual, quando usada), `premissa_referencial` (quando o referencial é premissa interna da base oficial numa análise de distância), `complementados`, `sem_geometria` [{id, condição, motivo, texto}] e identidade da camada complementar (arquivo, SHA-256, identificador, versão, premissa, proveniência). `INDISPONIVEL`: desfecho `BLQ-DAD`, motivo e pendência (`REFERENCIAL_GEODESICO`, `REFERENCIAL_NAO_SUPORTADO`, `SEPARADOR_DECIMAL`, `PAPEIS_COORDENADAS`, `COMPETENCIA_UNICA`, `COORDENADAS_NAO_ASSOCIADAS`, `ESCOLHA_PENDENTE`; até 19/10/2026 este último se chamava `CONFIRMACAO`). `NAO_APLICAVEL`: agregação, rotatividade, evolução temporal (várias competências) e resultados só com Brasil e estados ("Mapa não aplicável: Brasil e estados são agregados sem ponto; marque municípios para ver o mapa."). Só municípios entram no mapa e em `sem_geometria`: Brasil e estados nunca têm ponto |
 | `notas` | coordenadas complementadas, territórios fora do mapa, TPL-11 |
 | `niveis` | só na rota de níveis (desde 19/10/2026): coluna "Nível", ordem dos níveis presentes, tipo de contagem de cada um e o nível desenhado no mapa ("Município") |
-| `referencias` | só na densidade e no relatório com densidade da base oficial (desde 19/10/2026, D5): a taxa nacional de referência (rótulo, papel `REFERENCIA_DE_CONTEXTO`, unidade, nota e valores por competência), calculada no backend; a tela a desenha sem classificar nem colorir os municípios em relação a ela: marca e texto na legenda do mapa e linha tracejada nas barras dos municípios (seções 5 e 7) |
+| `referencias` | só na densidade e no relatório com densidade da base oficial (desde 19/10/2026, D5): a taxa nacional de referência (rótulo, papel `REFERENCIA_DE_CONTEXTO`, unidade, nota e valores por competência), calculada no backend; a tela a desenha sem classificar nem colorir os municípios em relação a ela: marca e texto na legenda do mapa e linha tracejada nas barras dos municípios (seções 5 e 7); desde o visual completo (19/10/2026), também `serie`, a taxa de todas as competências da fonte nacional (competência sem população de junho fica com `valor` nulo, como lacuna), para o minigráfico do cartão de contexto |
+| `resumo` | desde 19/10/2026 (decisão D7): frase-resumo, indicadores (KPIs) e procedência do resultado, compostos no backend (`backend/result_summary.py`) só com cópias de caminhos do próprio resultado, verificadas pelos mesmos verificadores da conversa sobre resultados: `versao`, `modelo` (análise), `texto`, `partes` (texto fixo do modelo e segmentos com `caminho`), `segmentos` (`tipo` VALOR, PARAMETRO ou RELACAO, `caminho`, `texto`), `indicadores` (até quatro: `rotulo`, `caminho`, `valor`, `texto`, `tipo`, `unidade`, `nivel`, `papel` `REFERENCIA_DE_CONTEXTO` na taxa nacional e `serie` com o caminho de uma lista do resultado para o minigráfico), `procedencia` (fonte e versão, fórmula, população do Brasil, tendência, níveis, tipo de contagem e chave de execução) e `nota`. Sem LEX-DES, LEX-NORM e LEX-CAU; LEX-CMP só nas relações do motor; LEX-TEN só com `metadata.tendencia`; a taxa nacional é "referência de contexto", nunca "acima" ou "abaixo". Fica fora de `llm_context` e de `provider_snapshot`; uma falha ao compô-lo só deixa o resultado sem resumo |
 
 - **Autorização da geometria informada** pela regra das análises espaciais: referencial suportado
   (SIRGAS2000, sem transformação), papéis de latitude e longitude estabelecidos (regra, perfil
@@ -108,15 +109,45 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   alcance de CAP-ESP-02, quintis de CAP-DIS-02, faixas de CAP-DIS-03 ou de CAP-ESP-03). CAP-ESP-03
   (faixas de distância, com a convenção de CAP-DIS-03) não aparece na lista de RQ-REP-02; exibir suas
   pertenças é interpretação a confirmar. Indicador contínuo: escala
-  linear entre o menor e o maior valor do resultado, com unidade e intervalo na legenda e o aviso “a
+  contínua entre o menor e o maior valor do resultado, com unidade e intervalo na legenda e o aviso “a
   cor não é classe nem limiar”; **nenhum quantil, faixa ou classe criada no frontend.**
+- **Escala de cor contínua (desde 19/10/2026):** com todos os valores do resultado positivos, a escala é
+  **logarítmica por padrão**: posição da cor = ln(valor ÷ mínimo) ÷ ln(máximo ÷ mínimo). Com zero ou
+  valores negativos, só a linear, (valor − mínimo) ÷ (máximo − mínimo). A escolha "Escala de cor do mapa"
+  (Logarítmica | Linear, fora da impressão) fica na legenda e é estado visual. O domínio continua o
+  mínimo e o máximo do resultado (`__adtMapModel.domain`), e a escolha depende só do sinal dos valores e
+  do usuário, nunca da magnitude. Na densidade dos 5.570 municípios (0,23 a 81,07 por 1.000 habitantes em
+  06/2024), a escala linear deixava quase todos os pontos claros; a logarítmica distingue os valores
+  baixos sem criar classe. A legenda marca os extremos (`legend-extreme`, "mín. 0,23" e "máx. 81,07"),
+  traz marcas de leitura em 1, 2 e 5 × 10ⁿ (`legend-tick`, escritas sem zeros à direita: 0,5; 2; 50; são
+  marcas do eixo, não limites de classe) e o texto `legend-scale` (`data-scale`): "Escala contínua logarítmica entre o menor e o maior valor do
+  resultado: a cor avança em passos iguais a cada multiplicação do valor (de 1 a 10, de 10 a 100), e os
+  valores baixos ficam mais distintos; a cor não é classe nem limiar." (na linear, "Escala contínua
+  linear entre o menor e o maior valor do resultado; a cor não é classe nem limiar."). Com um só valor no
+  resultado (mínimo igual ao máximo), o texto é "Um só valor no resultado: a cor fica no meio da rampa; a cor
+  não é classe nem limiar." e a escolha da escala não aparece (as duas dariam a mesma cor). A marca da taxa
+  nacional usa a mesma posição de cor. Com poucos territórios (até 12), o nome de cada ponto aparece junto
+  dele; um nome que cobriria outro nome, outro ponto, os botões do mapa ou as coordenadas da borda de baixo vai para o
+  outro lado do ponto ou um pouco acima ou abaixo (só o texto se move, nunca o ponto). `representacao_aplicada.escala` registra `tipo` ("mapeamento
+  visual contínuo logarítmico" ou "… linear"), `transformacao`, `escolha`, `dominio`, `rampa` e
+  `classificacao: false`; o gancho de teste `__adtMapModel.scale` traz a escala aplicada, e
+  `__adtMapModel.fills` só é nulo para valor nulo. É transformação formal da apresentação (RQ-REP-02:
+  "Escala visual contínua é transformação formal e não constitui classificação"); não muda a escala do
+  indicador (por 1.000 habitantes, RQ-REP-11). Não é divergência da SPEC.
 - **Taxa nacional de contexto (D5, desde 19/10/2026):** na densidade da base oficial de uma
   competência, a legenda mostra uma marca tracejada sobre a escala, na posição do valor (na borda quando
   fica fora dela), e o texto “Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
   contexto; a cor dos municípios não é classificada em relação a ela.” (com “(fora da escala dos
   municípios)” quando cabe). O domínio de cor continua o mínimo e o máximo dos municípios e as cores não
   mudam (sem cor de juízo acima ou abaixo da taxa). O gancho de teste `__adtMapModel.reference` traz o
-  valor desenhado. O mapa só tem municípios: Brasil e estados nunca têm ponto.
+  valor desenhado. O mapa só tem municípios: Brasil e estados nunca têm ponto. Desde o visual completo
+  (19/10/2026), a dica do ponto traz também "· Brasil (contexto): x,xx por 1.000 habitantes", e o
+  detalhe do território selecionado, a linha "Brasil (contexto)" (`detail-national-reference`, "… · taxa
+  nacional em 06/2024; referência de contexto, não classifica o território."), com casas suficientes para
+  os dois valores não parecerem iguais (RQ-REP-05).
+- **Mapa do par de comparação (desde 19/10/2026):** a comparação com competência dos valores desenha os
+  territórios comparados na coordenada dessa competência (`tabela = detail_rows`); antes, o par aparecia
+  como "Mapa indisponível", porque `rows` só tinha "Valor A" e "Valor B".
 - **Não avaliável:** anel vazado cinza, nunca preenchido como zero, com legenda.
 - **Referências:** losangos; esmaecidas quando fora do filtro e sem ligação.
 - **Ligações:** tracejadas, só para até 30 territórios selecionados, rotuladas “ligação ilustrativa
@@ -167,9 +198,14 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - “valor, decrescente (apenas visual)” traz o aviso “Ordenação apenas visual: não constitui posição
     de ranking nem resultado”;
   - territórios sem valor são identificados como não avaliáveis, sem converter ausência em zero;
+  - cada barra traz o valor do motor no fim (até 40 barras, no gráfico com eixo; acima, na lista com rolagem),
+    num fundo opaco que passa por cima da linha da taxa nacional, sem barra nem número para quem não tem valor;
   - quantitativos com unidade pessoas e objeto estabelecido como força de trabalho em saúde (`fts_scope_confirmed`: perfil oficial, categorias reconhecidas pelo catálogo da força de trabalho em saúde ou premissa do objeto informado) usam “profissionais” apenas no rótulo de apresentação; a unidade metodológica original é preservada;
   - resultados com série temporal usam linhas, evitando representar a primeira competência como se fosse todo o resultado;
-  - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor;
+  - a distribuição inclui na aba Gráficos as frequências dos grupos calculados pelo motor, num gráfico só,
+    com o título "Quantas unidades pertencem a cada quintil?" (quartil, decil ou faixa pelo número de
+    classes) e a figura "Territórios por grupo da distribuição"; desde 19/10/2026 sai o gráfico repetido
+    que `DistributionResults` desenhava abaixo dos grupos;
   - na densidade da base oficial de uma competência, a taxa nacional (D5) é uma linha tracejada
     vertical com o rótulo “Brasil 2,36” e a legenda “Brasil (total nacional): 2,36 por 1.000 habitantes,
     referência de contexto; a linha não classifica os municípios.” (`bars-reference-line`); ela entra no
@@ -178,7 +214,14 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
     dentro da barra), num fundo claro por cima da linha tracejada da referência;
   - com níveis territoriais (desde 19/10/2026), os municípios (`level-panel-mun`) e os estados
     (`level-panel-uf`, “· Estados (soma dos municípios)”) ficam em figuras separadas; nunca há barra do
-    Brasil nem de um estado entre os municípios.
+    Brasil nem de um estado entre os municípios. Desde o visual completo, os blocos ficam no contêiner
+    `levels-panel` ("Brasil, estados e municípios em blocos separados, cada um no seu eixo: nenhum nível é
+    somado a outro nem comparado com outro."): o bloco do Brasil (`level-panel-br`) mostra o valor da linha
+    do motor, o tipo de contagem e "Lado a lado: não entra em maior, menor nem diferença com estados ou
+    municípios."; as barras dos estados têm textura listrada e o aviso `uf-warning` ("Soma dos municípios:
+    possível dupla contagem · não comparável com a contagem nacional."), sem a linha nacional; nas barras dos
+    municípios em ordem de código, um separador por estado (`bar-group-separator`, lido de
+    `universe.members[].state`), sem reordenar nem contar.
 - **Linhas:**
   - só para séries já calculadas pelo motor (evolução temporal; competências da própria série, sem
     presumir 22 períodos);
@@ -192,7 +235,64 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
     para que a variação fique visível; quando o eixo não começa em zero, a legenda do gráfico informa
     onde começa. A unidade e a escala de apresentação (por 1.000 habitantes, CAP-IND-02) não mudam;
   - linhas de 2 px e marcadores de 8 px com anel da superfície; série única sem caixa de legenda (o
-    território fica na legenda do gráfico); até quatro séries, rótulo direto só no último valor.
+    território fica na legenda do gráfico); até quatro séries, rótulo direto só no último valor;
+  - desde 19/10/2026, o Brasil marcado na abrangência (referência do painel da série de níveis) é uma linha
+    tracejada em tinta; na densidade e no relatório com densidade (K10), a taxa nacional de cada competência
+    entra como linha tracejada "Brasil (total nacional) · taxa nacional (contexto)", sem ligar lacunas, nunca
+    no painel dos estados nem quando o Brasil já é uma série.
+- **Evolução temporal (desde 19/10/2026):** além das linhas, pequenos múltiplos (`trend-small-multiples`,
+  com `data-domain`; um `trend-small-multiple` por território, com `data-territory`), em SVG, 12 por página
+  (navegação "Páginas dos pequenos múltiplos"), na **mesma escala em todas as páginas**, lacunas sem ligação,
+  série de `serie.quebras` só com pontos, o Brasil marcado tracejado e o selo da classe do motor em cada um;
+  e halteres do primeiro ao último período (`temporal-dumbbells`, `data-total`; `dumbbell-row`, círculo
+  vazado no inicial e cheio no final, `dumbbell-delta` com a "Variação absoluta" do motor e o selo), na ordem
+  do resultado, eixo a partir do zero, lista com rolagem acima de 40. Um bloco por painel de contagem na rota
+  de níveis. Nada é interpolado nem ajustado.
+- **Comparação (desde 19/10/2026), acima das abas:** `comparison-panel` com a legenda
+  `comparison-values-caption` ("Competência dos valores: 06/2024 · janela de 06/2014 a 06/2024 (11
+  competências): mudança e tendência de cada território. Relações (maior, menor, diferença) só dentro do mesmo
+  nível."); a figura `comparison-side-by-side` com um bloco por nível (`comparison-group-br|uf|mun`, ou
+  `comparison-group-todos` sem níveis), na ordem do motor, cada um no seu eixo a partir do zero; até seis
+  objetos por nível em cartões `comparison-object` (`data-territory`) com densidade, quantidade e população da
+  competência dos valores (só a quantidade no indicador quantidade), a condição e o selo de tendência do motor;
+  abaixo, os valores, com a unidade escrita sobre a lista ("Valores por 1.000 habitantes, no eixo deste nível,
+  a partir do zero"; lista com rolagem acima de 40). O par de cada nível (`comparison-pair-relation`) mostra a
+  relação A/B e a "Diferença A − B" **do motor**. O Brasil fica "Lado a lado, sem relação"; os estados, com
+  textura e `uf-warning`; não há linha nacional (K10). Com a janela, `comparison-dumbbell` (um grupo
+  `comparison-dumbbell-group-*` por nível) com os halteres do primeiro ao último período, a variação e o selo
+  `trend-badge` iguais aos de `detail_rows`, e a nota "Classes de tendência lado a lado: entre territórios, só se
+  lê se a classe é a mesma; as classes não têm ordem entre si." Nos cartões da tabela
+  (`comparison-territory-row`, mesma contagem de antes), o bloco `comparison-card-extra` acrescenta quantidade e
+  população na competência dos valores, a mudança e o selo com o motivo, sem atributo `title` (o "Valor
+  integral" continua um por cartão). Cada cartão mostra só as colunas do seu formato de linha: o de um território
+  não lista as colunas vazias do par (Objeto A e B, Valor A e B, Relação A/B, Diferença A − B) nem as relações vazias
+  com os vizinhos ("Próximo valor maior" e "Unidades com mesmo valor": o maior do nível não tem próximo valor maior, e
+  o Brasil fica lado a lado, sem relação), e o resumo do par
+  (`comparison-pair-summary`) não lista as colunas vazias do território (Território e o valor de cada território);
+  vazio por formato não é "Não avaliável". A tabela, o CSV e os filtros continuam com todas as colunas. Sem razão nem diferença percentual automáticas (AT-84). Resultado sem
+  `detail_rows` (chamada antiga) só vira painel quando tem um recorte (uma competência e uma categoria).
+- **Ranking em pirulito (desde 19/10/2026):** `ranking-lollipop` (`data-total`; `lollipop-row` com
+  `data-rank`) no lugar das barras do ranking: "Posição N" do motor, na ordem pedida (padrão: a do resultado),
+  haste do zero ao valor, território sem valor sem haste e sem posição, sem linha nacional; estados no bloco
+  `level-panel-uf`. Quando o arredondamento igualaria dois vizinhos de valores diferentes (por exemplo, 1,9810
+  e 1,9783 nas posições 21 e 22 dos estados em 06/2024), o valor ganha as casas que os distinguem (RQ-REP-05).
+- **Faixa da distribuição (desde 19/10/2026):** `distribution-strip` (`data-total`): um ponto por território
+  na raia da classe do motor (ordem das classes do resumo), na posição do seu valor, cor ordinal pela classe,
+  selecionados maiores; nenhum ponto de corte desenhado. O SVG é desenhado na largura do contêiner (o texto não
+  estica) e, com todos os valores positivos, num **eixo logarítmico** entre o menor e o maior valor (a mesma
+  transformação contínua da escala de cor do mapa; `data-scale`), com os extremos ("mín." e "máx.") e marcas
+  1, 2 e 5 × 10ⁿ do eixo, que não são pontos de corte; com zero ou negativos, linear. Na densidade dos 5.570
+  municípios (0,23 a 81,07), o eixo linear espremia os quatro primeiros quintis junto ao mínimo. O total do cabeçalho da distribuição
+  (`distribution-total`, "N unidades territoriais classificadas (total do motor)") é a métrica "Unidades
+  classificadas" do motor: a tela **não soma** mais as unidades das classes.
+- **Cartão da agregação (desde 19/10/2026):** `aggregate-card`, fora de `result-highlights`: quantidade,
+  população e densidade do motor; o `Tipo` do motor como selo obrigatório (`aggregate-type`, com textura na
+  soma dos componentes e "soma das contagens dos componentes" sob a quantidade, RQ-REP-14); os membros
+  (`aggregate-members`) e, quando o motor os declara em `selecao_territorial.expansoes`, os ausentes por
+  competência (`aggregate-missing`). Sem linha nacional.
+- **Rotatividade (desde 19/10/2026):** `rotation-cohort-bars` com uma `cohort-bar` (`data-territory`) por
+  coorte: barra da coorte inicial dividida em "permanecem" e "saíram" com os percentuais do motor (% da coorte
+  inicial); coorte não avaliável com contorno tracejado e o motivo. As cores só separam os grupos, sem juízo.
 - **Cartões de destaque (painel simples, RQ-REP-10):** densidade, quantitativos, relatório e evolução
   com até três registros mostram, acima das abas, um cartão por registro com os valores do próprio
   motor, formatados por RQ-REP-05: território, categoria, valor principal, unidade e competência; na
@@ -200,7 +300,10 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   percentual e a tendência do motor. A seta indica só o sinal da variação, sem cor de juízo, porque
   não há limiar normativo. Nenhum total, média, posição ou classe é criado. Desde 19/10/2026, a
   tendência aparece como selo da classe (`trend-badge`, com `data-class`), com o motivo, o número de
-  observações e o minigráfico das velocidades do motor (`trend-velocities`).
+  observações e o minigráfico das velocidades do motor (`trend-velocities`). Com níveis (desde o visual
+  completo), cada cartão traz o nível (`data-level`); o do estado tem textura, o aviso "possível dupla
+  contagem · não comparável com a contagem nacional", a quantidade "na soma das contagens dos municípios" e
+  a densidade "por 1.000 habitantes (soma dos municípios)" (RQ-REP-14; antes, "profissionais").
 - **Tendência na evolução temporal (CAP-TEN-01):** a coluna Tendência da tabela mostra o selo; a aba
   Gráficos traz a contagem por classe do motor (`trend-counts`), na ordem da SPEC e com os não
   avaliáveis à parte; o filtro visual ganha as famílias (`trend-family-filter`); o aviso da etapa
@@ -245,6 +348,35 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
 
 ## 9. Painel integrado, histórico e competências (U4)
 
+- **Cabeçalho do resultado (desde 19/10/2026, decisão D7):** entre a descrição e as abas, o cabeçalho
+  `result-header` (`ResultHeader.tsx`, funções puras em `headerModel.ts`) substitui a grade de métricas:
+  - `result-summary`: a frase do motor (`metadata.representacao.resumo`), montada pelas partes; cada valor
+    só é formatado para leitura (competência AAAAMM como mês/ano, inteiro com milhar, sinal tipográfico,
+    decimais com as casas escritas pelo motor), em negrito; a relação e o texto fixo ficam como o motor
+    escreveu. Exemplos com a base versionada: "Na competência 06/2024, densidade por 1.000 habitantes: 5.570
+    registros avaliáveis e 0 não avaliáveis. Referência de contexto: taxa nacional de 2,36 por 1.000
+    habitantes (Brasil, total nacional); não classifica nem colore os territórios." e, com níveis, "…, em
+    blocos por nível, sem somar níveis: Brasil (total nacional), 2,36 por 1.000 habitantes; Estados (soma
+    dos municípios), 1 registro avaliável e 0 não avaliáveis; Municípios, …";
+  - `result-kpis` (lista) com até quatro `result-kpi` (`data-nivel` BR, UF ou MUN): valores do motor; a taxa
+    nacional (só densidade e relatório com densidade, K10) é um cartão tracejado com o selo "contexto"
+    (`data-papel="REFERENCIA_DE_CONTEXTO"`) e "Referência de contexto: não classifica nem colore os
+    territórios."; sem valor único (várias competências), o último ponto avaliável da série do motor, com
+    "em MM/AAAA (última competência avaliável da série)". O minigráfico (`kpi-sparkline`, `data-points`) desenha
+    a lista apontada pelo motor (`serie.caminho`: a série nacional, ou as linhas do Brasil nos quantitativos
+    nacionais), uma categoria só, em ordem cronológica, com lacunas sem ligação e só com duas ou mais
+    competências; o rótulo acessível traz o intervalo, os extremos e as lacunas;
+  - `result-provenance`: os itens de procedência do motor ("Fonte: Dados do Brasil, fonte municipal · versão
+    …", "Fórmula: Densidade = quantidade ÷ população × 1.000 (CAP-IND-02)", "População do Brasil: regra
+    BR-POP-JUNHO-1 (junho, soma dos municípios)", "Tendência: versão …", "Níveis", "Tipo de contagem",
+    "Chave de execução").
+  `result-title` e `result-status` não mudam. Resultados sem `resumo` (anteriores) mostram a grade de antes
+  (`result-metrics`). A descrição do motor continua acima do cabeçalho, com as competências AAAAMM como
+  mês/ano. A identidade do resultado mostra a "Situação do resultado" com acentos ("avaliável com
+  limitações"; antes "avaliavel com limitacoes") e, em arquivo importado, o nome do arquivo (antes
+  "[object Object]").
+- **Painel próprio da análise (desde 19/10/2026):** antes das abas, a comparação (`comparison-panel`), o cartão
+  da agregação (`aggregate-card`) e as barras da coorte (`rotation-cohort-bars`), descritos na seção 7.
 - **Abas:** Mapa, Gráficos e Tabela, dentro do resultado no painel de análise, ao lado da conversa no computador. A aba
   Mapa indica “(indisponível)” ou “(não aplicável)” quando não há geometria, e o motivo fica a um
   clique, sem esconder tabela e gráficos. “Mapa não aplicável a este resultado” tem título próprio;
@@ -286,8 +418,13 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
   - linhas de tabela selecionáveis por Enter ou espaço;
   - legenda como região.
 - **Alternativa textual:** tabela sempre disponível, gráficos com `figure` rotulada e territórios sem
-  valor listados.
-- **Celular:** sem rolagem horizontal da página a 390 px, mapa com 360 px de altura, seletores em
+  valor listados. Os visuais de 19/10/2026 usam `figure`/`figcaption`, SVG com `role="img"` e rótulo,
+  listas com `role="list"`/`listitem`, listas longas com rolagem focável (`tabIndex`) e selos sempre com
+  texto; os controles novos (escala de cor, páginas dos pequenos múltiplos) ficam fora da impressão, e o
+  cabeçalho e os visuais aparecem nela.
+- **Celular:** sem rolagem horizontal da página a 390 px (e a 768 px, conferido também nos visuais de
+  19/10/2026); abaixo de 640 px, as barras com rolagem, as listas de valores da comparação, os halteres e o pirulito põem o nome do
+  território numa linha própria, inteiro, e o desenho e o valor na linha de baixo; mapa com 360 px de altura, seletores em
   largura total e dica contida na área. O chat e a preparação conversacional seguem cobertos pelas
   jornadas existentes.
 
@@ -327,6 +464,27 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
 - **Dados reais:** `bench_ui_map.py` confere que o modelo desenhado é a geometria da resposta
   (5.570 pontos), que o filtro inicial mostra exatamente os ATENDE desenhados e que as referências
   desenhadas são as do motor.
+- **Visual completo (19/10/2026):**
+  - `backend/tests/test_result_summary.py`: em todas as análises, cada segmento do resumo passa no
+    verificador da conversa e o texto fixo não usa LEX-DES, LEX-NORM nem LEX-CAU; LEX-CMP só nas relações do
+    motor; LEX-TEN só com `metadata.tendencia`; nunca "acima" ou "abaixo"; níveis sem soma e taxa nacional como
+    contexto; o resumo e as entradas dele não chegam ao provedor; uma falha ao compô-lo não derruba a análise;
+    segmento que não confere é recusado.
+  - `backend/tests/test_comparison_window.py` e `test_representation.py` (mapa do par DISPONIVEL, com
+    `tabela = detail_rows`); `test_territorial_levels.py` e `test_levels_real_data.py` (comparação com janela por
+    nível, métricas por nível, série nacional).
+  - Node: `frontend/tests/headerModel.test.mjs` (frase pelas partes, formatação, KPIs, minigráfico com lacunas) e
+    `visualModels.test.mjs` (escala de cor sem classes, marcas, comparação por nível, halteres, pequenos
+    múltiplos na mesma escala, faixa, coorte, agregação).
+  - Navegador: `ui_result_visuals.py`, nas suítes `bloco1` e `base-versionada`: cabeçalho igual ao resumo do
+    motor, níveis em blocos, comparação (relação e diferença do par, selo igual a `Tendência` de `detail_rows`,
+    caixa "Competência dos valores" e envio de `comparison_values_period`), evolução (pequenos múltiplos e
+    halteres), ranking (posição do motor), distribuição (total do motor, um só gráfico de contagens e classe de
+    cada ponto), agregação (tipo de contagem), rotatividade (percentuais da coorte), escala logarítmica e linear
+    do mapa com o domínio igual, taxa nacional só como contexto (cartão com o minigráfico da série do motor,
+    linha nas barras dos municípios e nenhuma nos estados), nenhuma "Unidades avaliáveis" contando só
+    municípios, 390 e 768 px sem rolagem horizontal e impressão; na base versionada, a série anual de junho
+    com 11 competências e o mapa do par na competência 06/2024.
 
 ### Validação dos ajustes de 15/10/2026
 
@@ -502,7 +660,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
 | RQ-REP-11 Escala e unidade da densidade | Atendido nas representações novas | unidade “por 1.000 habitantes” na legenda, nos eixos e nos detalhes |
 | RQ-REP-12 Conteúdo de HTML, PDF e CSV | Parcial | ver CAP-REP-05; CSV sem mudança |
 | RQ-REP-13 Visualizador da base | Não tratado neste bloco | — |
-| RQ-REP-14 Tipo de contagem agregada nos rótulos | Sem mudança | agregação não tem mapa; rótulos herdados |
+| RQ-REP-14 Tipo de contagem agregada nos rótulos | Atendido nas representações de 19/10/2026 | cartão da agregação com o `Tipo` do motor e "soma das contagens dos componentes"; estado "na soma das contagens dos municípios", com textura e aviso de possível dupla contagem (seção 7); a agregação continua sem mapa |
 | RQ-REP-15 Qualificadores obrigatórios | Atendido para alcance e vigência nas representações novas | seções 6 e 9 |
 
 ## 16. Limitações científicas, pendências e decisões abertas
@@ -533,7 +691,8 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
   - EV-REPRESENTACAO como evento persistido;
   - relatório consolidado HTML e PDF de servidor;
   - SVG.
-- **Observação anterior ao bloco:** `DistributionResults` (Bloco 1) soma no frontend o número de
-  unidades por quintil para o total exibido. Não foi alterado; fica registrado para revisão diante de
-  RQ-REP-08.
+- **Observação anterior ao bloco (resolvida em 19/10/2026):** `DistributionResults` (Bloco 1) somava no
+  frontend o número de unidades por quintil para o total exibido ("N unidades territoriais avaliadas"). A
+  soma saiu: o total é a métrica "Unidades classificadas" do motor ("N unidades territoriais classificadas
+  (total do motor)", `distribution-total`), conforme RQ-REP-08. Saiu também o gráfico de contagens repetido.
 - O Bloco 3 não criou novos blocos incrementais.

@@ -74,3 +74,20 @@ export function rotationPeriods(all: string[], initial: string, final: string): 
   if (!first || !last) return "Escolher períodos";
   return first === last ? readablePeriod(first) : "de " + readablePeriod(first) + " a " + readablePeriod(last);
 }
+
+/** Comparação com janela (D6): competência dos valores. Com uma competência só, é ela; com a janela, a escolhida (se estiver
+ * na janela) ou a última em ordem cronológica. Sem competência escolhida, vazia: a comparação segue o caminho anterior
+ * (relações em cada competência). É uma seleção entre as competências escolhidas; nada é calculado. */
+export function valuesPeriodOf(single: string, window: string[], chosen: string): string {
+  if (single) return single;
+  const ordered = chronological(window);
+  if (!ordered.length) return "";
+  return chosen && ordered.includes(chosen) ? chosen : ordered[ordered.length - 1];
+}
+
+/** Janela padrão da comparação: a série anual de junho (12 meses entre as competências, o mês da população do Brasil),
+ * quando há ao menos duas competências de junho; sem ela, nenhuma janela padrão. */
+export function comparisonWindow(periods: string[]): string[] {
+  const annual = annualSeries(periods);
+  return annual.length >= 2 ? annual : [];
+}

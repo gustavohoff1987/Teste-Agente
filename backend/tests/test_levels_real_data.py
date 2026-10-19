@@ -253,3 +253,100 @@ def test_real_trend_anchors_for_brazil_and_states(real):
     assert rows["Rio Grande do Sul (RS)"]["Motivo da tendência"] == (
         "Membros efetivos diferentes entre competências (201506: 430607 ausente)")
     assert annual["metadata"]["tendencia"]["janela"]["serie_anual"] == "06"
+
+
+def _june_density(municipal, codes, period):
+    rows = municipal[(municipal.period == period) & municipal.cod_ibge.isin(codes)]
+    return Fraction(int(rows.q.sum()) * 1000, int(rows.p.sum())), set(rows.cod_ibge)
+
+
+def _classify(values):
+    """Leitura independente da DA-15 para uma série anual (12 meses entre competências), com Fraction."""
+    speeds = [(b - a) / 12 for a, b in zip(values, values[1:])]
+    if all(v == 0 for v in speeds):
+        return "Sem classificação"
+    if any(v > 0 for v in speeds) and any(v < 0 for v in speeds):
+        return "Sem classificação"
+    base = "Crescimento" if all(v >= 0 for v in speeds) else "Declínio"
+    if any(v == 0 for v in speeds):
+        return base
+    size = [abs(v) for v in speeds]
+    steps = list(zip(size, size[1:]))
+    if all(b >= a for a, b in steps) and any(b > a for a, b in steps):
+        return {"Crescimento": "Aceleração do crescimento", "Declínio": "Aceleração do declínio"}[base]
+    if all(b <= a for a, b in steps) and any(b < a for a, b in steps):
+        return {"Crescimento": "Desaceleração do crescimento", "Declínio": "Desaceleração do declínio"}[base]
+    return base
+
+
+@pytest.fixture(scope="module")
+def june_comparison(real):
+    """Ten §5: densidade, série anual de junho, valores em 06/2024; Brasil, AM, SP, RS e três municípios do AM."""
+    june = sorted(period for period in real["info"]["periods"] if period.endswith("06"))
+    request = {"brasil": True, "estados": ["13", "35", "43"],
+               "municipios": {"ids": ["code:130260", "code:130420", "code:130340"]}}
+    return june, analyze(real, "comparisons", request, period_filters=june, comparison_values_period="202406",
+                         comparison_indicator="density")
+
+
+def test_real_comparison_window_relates_in_june_2024_and_trends_each_object(real, june_comparison):
+    june, body = june_comparison
+    municipal, counts = real["municipal"], real["national"]
+    assert len(june) == 11 and {row["Período"] for row in body["rows"]} == {"202406"}
+    assert not any("%" in key or "Razão" in key for row in body["rows"] + body["detail_rows"] for key in row)
+    detail = {row["Território"]: row for row in body["detail_rows"]}
+    assert list(detail) == ["Brasil", "Amazonas (AM)", "São Paulo (SP)", "Rio Grande do Sul (RS)", "MANAUS [130260]",
+                            "PARINTINS [130340]", "TEFE [130420]"]  # municípios na ordem do código (RQ-REP-03)
+    # Brasil: contagem nacional ÷ população de junho (BR-POP-JUNHO-1), lado a lado e sem relação com outros níveis.
+    brazil = detail["Brasil"]
+    assert (brazil["Quantidade"], brazil["População"]) == (502495, 212583750) and round(brazil["Densidade por 1.000"], 4) == 2.3638
+    populations = [june_population(municipal, period[:4])[0] for period in june]
+    expected = [Fraction(counts[period] * 1000, population) for period, population in zip(june, populations)]
+    assert (brazil["Tendência"], brazil["Observações da tendência"]) == (_classify(expected), 11) == ("Crescimento", 11)
+    assert body["rows"][0]["Condição"].startswith("Lado a lado: o Brasil é outro nível")
+    # Estados: soma dos municípios; SP com o mesmo suporte em todos os junhos; RS não comparável (430607 em 2015/6).
+    sp_codes = set(municipal[municipal.cod_ibge.str[:2] == "35"].cod_ibge)
+    sp_series = [_june_density(municipal, sp_codes, period)[0] for period in june]
+    sp = detail["São Paulo (SP)"]
+    assert round(sp["Densidade por 1.000"], 4) == 5.2032 == round(float(sp_series[-1]), 4)
+    assert sp["Tendência"] == _classify(sp_series) == "Crescimento"
+    rs = detail["Rio Grande do Sul (RS)"]
+    assert rs["Tendência"] == "Não avaliável: série não comparável"
+    assert rs["Motivo da tendência"] == "Membros efetivos diferentes entre competências (201506: 430607 ausente)"
+    assert round(detail["Amazonas (AM)"]["Densidade por 1.000"], 4) == 1.5365
+    for name in ("Amazonas (AM)", "MANAUS [130260]", "TEFE [130420]", "PARINTINS [130340]"):
+        assert detail[name]["Tendência"] == "Sem classificação", name
+        assert detail[name]["Motivo da tendência"] == "Mudança de direção", name
+    for name, code, value in (("MANAUS [130260]", "130260", 2.0748), ("TEFE [130420]", "130420", 0.8704),
+                              ("PARINTINS [130340]", "130340", 1.1574)):
+        own = [_june_density(municipal, {code}, period)[0] for period in june]
+        assert round(detail[name]["Densidade por 1.000"], 4) == value == round(float(own[-1]), 4)
+        assert _classify(own) == "Sem classificação"
+    # Relações só dentro do mesmo nível: estados entre si e municípios entre si (três de cada: sem diferenças de par).
+    levels = [row["Nível"] for row in body["rows"]]
+    assert levels == ["Brasil (total nacional)"] + ["Estado (soma dos municípios)"] * 3 + ["Município"] * 3
+    assert all(row.get("Diferença A − B") is None for row in body["rows"])
+    groups = {group["nivel"]: group for group in body["metadata"]["comparacao"]["grupos"]}
+    assert (groups["BR"]["relacoes"], groups["UF"]["relacoes"], groups["MUN"]["relacoes"]) == (False, True, True)
+    tendencia = body["metadata"]["tendencia"]
+    assert tendencia["desfecho"] == "RES-LIM" and tendencia["nao_avaliaveis_por_motivo"]["INCOMPARABILIDADE"] == 1
+    assert tendencia["janela"]["serie_anual"] == "06"
+    resumo = body["metadata"]["representacao"]["resumo"]
+    assert resumo["texto"].startswith("Na competência dos valores 202406: ")
+    assert "Brasil (total nacional) lado a lado, sem relação: 2,36 por 1.000 habitantes." in resumo["texto"]
+    assert body["metadata"]["representacao"]["geometria"]["estado"] == "DISPONIVEL"
+    assert sorted(body["metadata"]["representacao"]["geometria"]["ids"]) == ["code:130260", "code:130340", "code:130420"]
+
+
+def test_real_density_summary_and_national_series_for_the_card(real):
+    body = analyze(real, "density", period_filter="202406")
+    resumo = body["metadata"]["representacao"]["resumo"]
+    assert resumo["texto"] == ("Na competência 202406, densidade por 1.000 habitantes: 5570 registros avaliáveis e 0 não "
+                               "avaliáveis. Referência de contexto: taxa nacional de 2,36 por 1.000 habitantes (Brasil, "
+                               "total nacional); não classifica nem colore os territórios.")
+    serie = {item["competencia"]: item for item in body["metadata"]["referencia_nacional"]["serie"]}
+    assert len(serie) == 22 and round(serie["202406"]["valor"], 4) == 2.3638
+    assert serie["201506"]["avaliabilidade"] == "AVALIAVEL_COM_LIMITACOES"  # 2015: população de 5.569 municípios
+    population, _ = june_population(real["municipal"], "2016")
+    assert serie["201601"]["valor"] == pytest.approx(float(Fraction(real["national"]["201601"] * 1000, population)), rel=1e-12)
+    assert resumo["indicadores"][-1]["papel"] == "REFERENCIA_DE_CONTEXTO"

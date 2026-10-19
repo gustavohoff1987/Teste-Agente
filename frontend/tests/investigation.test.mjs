@@ -6,7 +6,7 @@ import ts from 'typescript';
 // Executa o módulo real, sem reimplementar a política e sem dependência de um runner adicional.
 const code = ts.transpileModule(readFileSync(new URL('../src/investigation.ts', import.meta.url), 'utf8'),
   {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
-const {identity, selectionCompatibility} = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const {identity, selectionCompatibility, statusLabel} = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const entry = () => ({sourceKey: 'brazil-v1-municipal', request: 'Densidade', invalidReason: '', result: {
   result_id: 'one', title: 'Densidade', rows: [{Quantidade: 10}], metadata: {
     validity: 'VALIDO', data_sha256: 'hash', source: {label: 'Brasil', version: 'v1', scope: 'municipal'},
@@ -67,4 +67,16 @@ test('ordem de membros e propriedades não altera identidade', () => {
 test('camada geográfica não é intercambiável', () => {
   const a = entry(), b = entry(); a.result.metadata.complemento_geografico = {sha256: '1'}; b.result.metadata.complemento_geografico = {sha256: '2'};
   assert.equal(selectionCompatibility(a,b).allowed, false);
+});
+
+test('situação do resultado em português, com acentos; arquivo importado identificado pelo nome', () => {
+  assert.equal(statusLabel('AVALIAVEL_COM_LIMITACOES'), 'avaliável com limitações');
+  assert.equal(statusLabel('AVALIAVEL'), 'avaliável');
+  assert.equal(statusLabel('NAO_AVALIAVEL'), 'não avaliável');
+  assert.equal(statusLabel('OUTRO_ESTADO'), 'outro estado');
+  assert.equal(statusLabel(undefined), 'Situação não informada');
+  const a = entry(); a.result.metadata.evaluability.status = 'AVALIAVEL_COM_LIMITACOES';
+  assert.equal(identity(a).status, 'avaliável com limitações');
+  delete a.result.metadata.source; a.result.metadata.input_file = {name: 'coorte.csv', sha256: 'x'};
+  assert.equal(identity(a).source, 'coorte.csv');
 });
