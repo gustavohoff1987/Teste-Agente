@@ -351,6 +351,15 @@ formas governadas do catálogo PT, como densidade, distância e agregação. Ten
 contagem, ranking, critérios e rotatividade continuam sem explicação metodológica na conversa: suas formas descrevem
 etapas que o protótipo não implementa.
 
+**Biblioteca de Inteligência Conversacional** (20/10/2026): a cada mensagem que chega ao provedor, o intérprete
+recebe até cinco turnos de trajetórias sintéticas da biblioteca (`backend/biblioteca_conversacional/`), escolhidos
+localmente pela mensagem, pela mensagem anterior e pelo estado verificado da conversa, e mascarados pelas mesmas
+regras das mensagens do usuário (nenhum valor, campo ou arquivo da base). Os exemplos só mostram como mensagens
+parecidas se mapeiam no contrato; não trazem fatos, métodos nem respostas, e a resposta do provedor passa pelas mesmas
+validações. A resposta da API identifica os exemplos usados (`biblioteca`). `ADT_BIBLIOTECA_CONVERSACIONAL=0` desliga
+a biblioteca e restaura o pedido anterior. Formato, manutenção e avaliação:
+[Biblioteca conversacional](Docs/BIBLIOTECA_CONVERSACIONAL.md).
+
 ### Chave Gemini permanente no Windows (configuração única)
 
 A aplicação aceita `GEMINI_API_KEY` de duas fontes, por esta ordem:

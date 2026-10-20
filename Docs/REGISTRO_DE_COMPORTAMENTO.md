@@ -35,6 +35,38 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-20 · Biblioteca de Inteligência Conversacional consumida pelo intérprete
+- **Antes:** o Gemini recebia só as regras fixas (`_SYSTEM`), a mensagem minimizada, até quatro mensagens
+  anteriores e os estados técnicos, sem nenhum exemplo de interpretação.
+- **Agora:** a cada mensagem que chega ao provedor, `backend/llm_bridge.py` acrescenta à instrução de sistema um
+  bloco com até cinco turnos de trajetórias da biblioteca (`backend/biblioteca_conversacional/trajetorias/`),
+  escolhidos por `backend/conversation_library.py` (recuperação lexical local pela mensagem, pela mensagem anterior
+  e pelo estado verificado) e mascarados pela mesma minimização das mensagens do usuário naquele pedido (valores,
+  campos e arquivo da base em uso, números e nomes). A resposta de `/api/llm/interpret` e
+  `/api/llm/interpret-context` traz `biblioteca: {versao, exemplos}` quando houve exemplos.
+  `ADT_BIBLIOTECA_CONVERSACIONAL=0` desliga a biblioteca e restaura o pedido anterior; `ADT_BIBLIOTECA_EXEMPLOS`
+  (1 a 8, padrão 5) limita os exemplos.
+- **Permanece:** a conversa não calcula; a resposta do provedor passa pelas mesmas validações (enumerações, âncoras
+  literais, cortesia da lista fechada, pré-exame) e nenhum valor da base vai ao provedor (a minimização foi separada
+  em funções, com o mesmo resultado); referência mais próxima e critérios combinados continuam só no canal
+  determinístico; EN continua não autorizado (mensagens em inglês e espanhol são interpretadas e a apresentação segue
+  em português). Os testes existentes não mudaram de expectativa.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026): biblioteca de trajetórias conversacionais integrada e
+  consumida pelo intérprete, para reconhecer intenções, continuidade e alterações de parâmetros sem perguntas
+  desnecessárias. Classificação (regra 1): mudança prevista. Escopo: o pedido. Compatibilidade: a SPEC não regula
+  exemplos ao intérprete; os exemplos não levam dado da base ao provedor (RQ-ARQ-06, RQ-DAD-20) nem autoridade
+  factual (INV-02), e não têm texto de resposta (as explicações continuam no catálogo governado).
+- **Documentação e testes:** [Biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md) (novo) e README (conversa com
+  Gemini). Testes novos: `backend/tests/test_conversation_library.py` (biblioteca íntegra e abrangente, consumo
+  mascarado pelo provedor, pedido idêntico ao anterior com a biblioteca desligada, pertinência em trajetórias
+  inéditas de `backend/tests/biblioteca_ineditas/` contra exemplos fixos e aleatórios, desempenho e, com a base
+  versionada, nenhum valor da base nos exemplos), `backend/tests/test_conversation_library_readings.py` (as formas
+  governadas esperadas na leitura do resultado são as que o sistema apresenta) e exemplos registrados pelo Gemini
+  simulado em `ui_block1_integration.py`. Ferramenta de manutenção: `scripts/biblioteca_conversacional.py`. A
+  comparação com um modelo real (`comparar`, Gemini ou servidor compatível) não foi executada: o ambiente de
+  desenvolvimento não tinha `GEMINI_API_KEY` nem acesso a modelos abertos; a melhoria medida é a pertinência dos
+  exemplos.
+
 ### 2026-10-20 · Competência por extenso e ano reconhecidos na proposta do intérprete
 - **Antes:** no caminho do intérprete, o Python só reconhecia competências escritas como na base (AAAAMM) e anos
   soltos: "densidade em junho de 2024" virava o ano "2024", que não é uma competência literal da base, e a conversa

@@ -42,7 +42,8 @@ Com um resultado apresentado, a conversa também muda a apresentação sem recal
 tabela" e "ver no mapa" abrem a aba do resultado, e "volte ao resultado anterior" reabre o resultado calculado antes
 do apresentado ("Resultado anterior reaberto, sem recalcular."; sem resultado anterior, a conversa avisa). Formas
 diretas são reconhecidas na interface (`viewCommand` e `previousResultCommand` em `workspaceNavigation.ts`); as demais
-chegam ao intérprete como atos de diálogo.
+chegam ao intérprete como atos de diálogo. A interpretação conta com exemplos da
+[biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md), internos e invisíveis na tela.
 
 Os resultados indicam que os cálculos pertencem ao motor determinístico. O agente não altera
 valores e o canal LLM continua recebendo apenas o conteúdo autorizado pelos contratos existentes.
