@@ -35,6 +35,24 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-20 · Competência por extenso e ano reconhecidos na proposta do intérprete
+- **Antes:** no caminho do intérprete, o Python só reconhecia competências escritas como na base (AAAAMM) e anos
+  soltos: "densidade em junho de 2024" virava o ano "2024", que não é uma competência literal da base, e a conversa
+  respondia "O período mencionado não foi encontrado na base. Deseja revisar o período na preparação?", mesmo com
+  junho de 2024 na base; "em 2023" recebia a mesma resposta.
+- **Agora:** o mês por extenso com ano vira a competência AAAAMM ("junho de 2024" → 202406), como na gramática local;
+  o ano sozinho vira as competências da base nesse ano: uma só é usada, e várias ficam em escolha ("Há mais de um
+  período ou categoria no pedido; escolha o recorte na preparação."), sem a pergunta de período inexistente. Com mês
+  sem ano ("de janeiro a junho de 2024"), nada é convertido, como antes.
+- **Permanece:** competência que não existe na base continua com a pergunta ("junho de 2030", 203001); nenhuma
+  competência é escolhida em silêncio entre várias; categorias continuam com correspondência literal; nada é
+  calculado.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026) para a biblioteca conversacional: reduzir perguntas e
+  confirmações desnecessárias e reconhecer alterações de parâmetros. Classificação (regra 1): mudança prevista.
+  Escopo: o pedido. Compatibilidade: não perguntar quando há valor único ancorado (RQ-GOV-14), com a mesma conversão
+  determinística que a gramática local já fazia; sem equivalência semântica.
+- **Documentação e testes:** README (conversa com Gemini); `backend/tests/test_conversation_periods.py` (novo).
+
 ### 2026-10-20 · Abas do resultado e resultado anterior pela conversa; métodos da distribuição e da referência mais próxima pelo catálogo
 - **Antes:** o contrato do intérprete não tinha atos para ver o resultado em mapa, gráfico ou tabela nem para voltar
   ao resultado anterior: "mostra num gráfico" e "volta pro resultado anterior" recebiam orientação genérica ou a
