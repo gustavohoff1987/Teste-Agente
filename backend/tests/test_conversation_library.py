@@ -192,7 +192,8 @@ def test_examples_without_a_base_follow_the_same_sanitization(monkeypatch, colle
 
 def test_session_context_selects_examples_of_the_same_moment(monkeypatch, collection):
     token = client.post("/api/session").json()["token"]
-    answer, body = ask(monkeypatch, "quero ver esse resultado num gráfico de barras, por favor", headers={"X-ADT-Session": token},
+    # A mensagem precisa chegar ao provedor: "quero ver esse resultado…" é lida antes, pelo canal determinístico.
+    answer, body = ask(monkeypatch, "dá pra ver isso num gráfico de barras?", headers={"X-ADT-Session": token},
                        answer={**NONE, "intent": "CONVERSACIONAL", "dialogue": "show_chart"})
     assert body["contents"][0]["parts"][0]["text"].startswith("CONTINUIDADE_VERIFICADA: ")
     assert "CONTINUIDADE_VERIFICADA: {" in block_of(body)
