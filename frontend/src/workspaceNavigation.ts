@@ -41,7 +41,7 @@ export function viewCommand(message: string): ResultView | null {
 export function previousResultCommand(message: string): boolean {
   const words = normalizeCommand(message).split(" ").filter(Boolean);
   const target = words.filter(word => ["resultado", "analise", "selecao", "recorte"].includes(word));
-  const marker = words.filter(word => word === "anterior" || word === "antes");
+  const marker: string[] = words.filter(word => word === "anterior" || word === "antes");
   return target.length === 1 && marker.length === 1 &&
     words.every(word => target.includes(word) || marker.includes(word) || PREVIOUS_FILLER.has(word));
 }
