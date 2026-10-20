@@ -92,6 +92,15 @@ export default function ResultWorkspace(p: Props) {
     if (mappable.some(item => item.coluna === column)) setIndicatorColumn(column);
   };
   const [view, setView] = useInvestigationState<View>("view", () => points ? "mapa" : (rep?.serie || numeric.length) ? "graficos" : "tabela");
+  // Pedido da conversa ("mostre no gráfico"): abre a aba do resultado apresentado, sem recalcular.
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<View>).detail;
+      if (detail === "mapa" || detail === "graficos" || detail === "tabela") setView(detail);
+    };
+    window.addEventListener("adt:view", open);
+    return () => window.removeEventListener("adt:view", open);
+  }, [setView]);
   const [selected, setSelected] = useInvestigationState<string[]>("selected", []);
   const [focusId, setFocusId] = useInvestigationState<string | null>("focusId", null);
   const [multi, setMulti] = useInvestigationState("multi", false);

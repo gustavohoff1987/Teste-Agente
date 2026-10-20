@@ -35,6 +35,36 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-20 · Abas do resultado e resultado anterior pela conversa; métodos da distribuição e da referência mais próxima pelo catálogo
+- **Antes:** o contrato do intérprete não tinha atos para ver o resultado em mapa, gráfico ou tabela nem para voltar
+  ao resultado anterior: "mostra num gráfico" e "volta pro resultado anterior" recebiam orientação genérica ou a
+  pergunta "A qual parte da investigação você se refere?". Perguntas conceituais sobre os pontos de corte e as classes
+  da distribuição e sobre a referência mais próxima terminavam em "Não identifiquei uma análise inequívoca"; só
+  densidade, distância e agregação tinham formas governadas na conversa.
+- **Agora:** o contrato do intérprete ganhou os atos `show_map`, `show_chart`, `show_table` e `previous_result`
+  (resposta com `dialogue_action`, sem proposta e sem cálculo), descritos na instrução de sistema, e os tópicos
+  `distribution` (DOC:CAP-DIS-02.metodo) e `nearest` (DOC:CAP-ESP-02.metodo, .saida e .avaliabilidade), respondidos
+  com as formas PT do catálogo. Na interface, com resultado apresentado, as formas diretas ("mostre no gráfico",
+  "agora a tabela", "ver no mapa", "volte ao resultado anterior"; `viewCommand` e `previousResultCommand` em
+  `workspaceNavigation.ts`) e os atos devolvidos pelo intérprete abrem a aba ("Resultado aberto na aba Gráficos. Nada
+  foi recalculado.") ou reabrem o resultado anterior da sessão ("Resultado anterior reaberto, sem recalcular.");
+  sem resultado, a conversa avisa ("Ainda não há resultado calculado…" e "Ainda não há resultado anterior nesta
+  sessão.").
+- **Permanece:** a conversa não calcula; a resposta do provedor passa pelas mesmas validações; formas que não são
+  ditas exatamente não mudam a tela. Tendência, mudança temporal, comparação, contagem, ranking, critérios e
+  rotatividade continuam sem explicação metodológica na conversa: na conferência de 20/10/2026, suas formas descrevem
+  etapas que o protótipo não implementa (a tendência depende de decisão do responsável sobre
+  CAP-TEN-01.avaliabilidade). Os testes existentes não mudaram de expectativa.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026) para a biblioteca conversacional: o intérprete precisa
+  de atos para as ferramentas que já existem, e as explicações só podem vir do catálogo governado. Classificação
+  (regra 1): mudança prevista. Escopo: o pedido. Compatibilidade: voltar ao resultado anterior sem recalcular segue
+  RQ-LIN-20; as explicações são formas PT existentes, sem paráfrase (CFG-DOC, FN-META-01, APT-20261016), conferidas
+  contra o motor.
+- **Documentação e testes:** README (conversa com Gemini) e
+  [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md). Testes novos:
+  `backend/tests/test_conversation_actions.py`, casos Node em `frontend/tests/workspace.test.mjs` e passos de conversa
+  em `ui_result_visuals.py` (abas e resultado anterior, sem recalcular).
+
 ### 2026-10-19 · Estados pela fonte estadual de médicos únicos, com a população dos seus municípios na competência; agregação de estados; conversa com estados, regiões e anos
 
 - **Antes:** a base tinha duas fontes (nacional e municipal), e o estado era a soma dos seus municípios pelo prefixo do código IBGE: nível "Estado (soma dos municípios)", tipo "Soma dos componentes (possível dupla contagem)", AGREGADO_PARCIAL com o valor dos municípios presentes quando faltava algum, `metadata.suporte_agregado`, INCOMPARABILIDADE na evolução quando os municípios presentes mudavam, `metodos.estado` = `brasil-cod-uf-prefix-1` e a nota de que a dupla contagem variava entre os estados no ranking; na agregação, o estado marcado entrava pelos seus municípios (rota municipal). A lista da tela mostrava cada estado como "soma de N municípios", com o aviso de que o mesmo médico podia ser contado em mais de um município, e os gráficos e cartões do estado tinham textura listrada, "possível dupla contagem" e "na soma das contagens dos municípios". A conversa só marcava municípios ("no Amazonas" virava os municípios do estado), não entendia anos soltos ("em 2024") nem intervalos de anos, não reconhecia "quantos médicos …" como quantitativos e respondia "Recorte identificado com 1 territórios". Na comparação com janela, o extremo sem densidade podia levar NaN às colunas da janela.

@@ -760,6 +760,15 @@ function App() {
     setResult(item.result); setHistoryNotice("Análise anterior aberta, sem recalcular."); setError("");
     scrollAnalysisTo("resultados");
   }
+  /** "Volte ao resultado anterior" na conversa: reabre o resultado calculado antes do apresentado, sem recalcular. */
+  function previousResult(): string {
+    if (running || inspecting || preflighting) return "Aguarde o fim do processamento para reabrir o resultado anterior.";
+    const until = historical ? history.indexOf(historical) : history.length;
+    const target = history.slice(0, until).reverse().find(item => !item.invalidReason);
+    if (!target) return "Ainda não há resultado anterior nesta sessão.";
+    openHistorical(target);
+    return "Resultado anterior reaberto, sem recalcular.";
+  }
   function transferVisualSelection(id: string) {
     if (running || inspecting || preflighting) return;
     const target = history.find(item => item.result.result_id === id);
@@ -1646,6 +1655,7 @@ function App() {
         investigationContent={investigationContent}
         hasResult={!!result || running}
         onStarted={() => setConversationStarted(true)}
+        onPreviousResult={previousResult}
         apiBase={API}
         privacyAccepted={privacy.accepted}
         displayedResultId={result?.conversation_reference?.available ? result.result_id : ""}

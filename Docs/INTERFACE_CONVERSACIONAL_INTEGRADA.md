@@ -38,6 +38,12 @@ resposta do agente permanece junto ao campo de digitação, em uma faixa context
 pode continuar perguntando durante a exploração de gráficos, mapas e tabelas. Alternativas de
 interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável.
 
+Com um resultado apresentado, a conversa também muda a apresentação sem recalcular: "mostre no gráfico", "agora a
+tabela" e "ver no mapa" abrem a aba do resultado, e "volte ao resultado anterior" reabre o resultado calculado antes
+do apresentado ("Resultado anterior reaberto, sem recalcular."; sem resultado anterior, a conversa avisa). Formas
+diretas são reconhecidas na interface (`viewCommand` e `previousResultCommand` em `workspaceNavigation.ts`); as demais
+chegam ao intérprete como atos de diálogo.
+
 Os resultados indicam que os cálculos pertencem ao motor determinístico. O agente não altera
 valores e o canal LLM continua recebendo apenas o conteúdo autorizado pelos contratos existentes.
 Métodos, fontes e limitações permanecem nos componentes analíticos e no registro técnico avançado.

@@ -7,7 +7,7 @@ async function source(name) {
     {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 }
-const {normalizeCommand, navigationCommand} = await source('workspaceNavigation');
+const {normalizeCommand, navigationCommand, viewCommand, previousResultCommand} = await source('workspaceNavigation');
 const {governedRoles} = await source('curatedPreparation');
 test('comandos de navegação aceitam acentos, pontuação e espaços sem interpretar pedidos analíticos', () => {
   assert.equal(normalizeCommand('  Usar  dados do Brasil. '), 'usar dados do brasil');
@@ -17,6 +17,21 @@ test('comandos de navegação aceitam acentos, pontuação e espaços sem interp
   assert.equal(navigationCommand('Voltar à preparação.', 'results', true), 'preparation');
   assert.equal(navigationCommand('Compare Manaus e Tefé.', 'preparation', true), null);
   assert.equal(navigationCommand('Não volte para a seleção de territórios.', 'results', true), null);
+});
+test('pedidos de aba do resultado e de resultado anterior só valem quando a mensagem não diz mais do que isso', () => {
+  assert.equal(viewCommand('Mostra isso num gráfico'), 'graficos');
+  assert.equal(viewCommand('agora a tabela, por favor'), 'tabela');
+  assert.equal(viewCommand('Quero ver no mapa.'), 'mapa');
+  assert.equal(viewCommand('mapa'), 'mapa');
+  assert.equal(viewCommand('Não mostre o mapa'), null);
+  assert.equal(viewCommand('Mostre o mapa da densidade de 2024'), null);
+  assert.equal(viewCommand('Compare a tabela e o mapa'), null);
+  assert.equal(previousResultCommand('Volta pro resultado anterior'), true);
+  assert.equal(previousResultCommand('volte para a seleção anterior.'), true);
+  assert.equal(previousResultCommand('Reabra a análise de antes'), true);
+  assert.equal(previousResultCommand('O resultado anterior era maior?'), false);
+  assert.equal(previousResultCommand('Compare com o resultado anterior'), false);
+  assert.equal(previousResultCommand('Volte para a preparação'), false);
 });
 test('perfil oficial vale campo a campo: mudar uma coluna tira só aquele papel e importações não têm perfil', () => {
   const defaults = {mapping: {count:'quantidade', period:'competencia', territory:'municipio', population:'populacao'}};

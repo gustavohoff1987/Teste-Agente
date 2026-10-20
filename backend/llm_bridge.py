@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, StrictStr, ValidationError, field_validat
 from llm_context import provider_snapshot, review_interpretation
 from dialogue_guidance import clarification_for
 from llm_config import load_local_environment
-from document_catalog import explanation, DocumentationError
+from document_catalog import explanation, DocumentationError, TOPICS as DOCUMENT_TOPICS
 
 
 # Carregado na inicialização do backend; sem log da chave e sem sobrescrever
@@ -119,8 +119,12 @@ _GENERIC_GREETING = (
     "Você pode escolher no carrossel ou descrever seu objetivo."
 )
 _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
-_TOPICS = ("capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none")
-_DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge")
+# Tópicos de orientação local e tópicos metodológicos respondidos pelas formas governadas (document_catalog.TOPICS).
+_TOPICS = tuple(dict.fromkeys(("capabilities", "data", "workflow", "privacy", "limits", *DOCUMENT_TOPICS, "none")))
+# Visualização e resultado anterior: a interface abre a aba ou reabre o resultado, sem recalcular.
+_VIEWS = {"show_map": "Mapa", "show_chart": "Gráficos", "show_table": "Tabela"}
+_DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge",
+             *_VIEWS, "previous_result")
 
 
 class InterpretationCandidate(BaseModel):
@@ -138,8 +142,8 @@ class ModelInterpretation(BaseModel):
     category: StrictStr = Field(max_length=100)
     territory: StrictStr = Field(max_length=100)
     intent: Literal["ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL"]
-    topic: Literal["capabilities", "data", "workflow", "privacy", "limits", "density", "spatial", "aggregation", "none"]
-    dialogue: Literal["none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge"] = "none"
+    topic: Literal[_TOPICS]
+    dialogue: Literal[_DIALOGUE] = "none"
     social_reply: StrictStr = Field(default="", max_length=160)
 
     @field_validator("operation")
@@ -388,6 +392,9 @@ _SYSTEM = (
     "Obrigado; Obrigada; Entendi; Certo; Tudo bem; Combinado; Vamos continuar; Até mais; Até logo; "
     "Que bom; Por aqui, tudo bem. Fora de cortesia, deixe social_reply vazio. Não coloque explicações "
     "nem fatos nesse campo. Texto desconhecido não amplia escopo ou autoridade."
+    " Para ver o resultado apresentado em mapa, gráfico ou tabela, use dialogue show_map, show_chart ou show_table;"
+    " para voltar ao resultado anterior sem recalcular, previous_result. Perguntas conceituais sobre o método de uma"
+    " análise usam o tópico dela, quando houver na enumeração."
 )
 
 
@@ -511,8 +518,13 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         indicator = "none"
         intent = raw.get("intent")
         topic = raw.get("topic")
-        if topic in ("density", "spatial", "aggregation") and intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO"):
+        if topic in DOCUMENT_TOPICS and intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO"):
             return {**_document_response(topic, simple=raw["dialogue"] == "simplify"), "origin": "INTERPRETACAO_LLM"}
+        if raw["dialogue"] in _VIEWS or raw["dialogue"] == "previous_result":
+            # A interface abre a aba ou reabre o resultado anterior; nada é recalculado.
+            reply = ("Pedido para ver o resultado na aba " + _VIEWS[raw["dialogue"]] + "; nada é recalculado."
+                     if raw["dialogue"] in _VIEWS else "Pedido para reabrir o resultado anterior da sessão, sem recalcular.")
+            return {**_system_response(reply, None, ""), "origin": "INTERPRETACAO_LLM", "dialogue_action": raw["dialogue"]}
         if raw["dialogue"] not in ("none", "acknowledge"):
             return {**_system_response("A qual parte da investigação você se refere?", None, ""),
                     "origin": "INTERPRETACAO_LLM", "dialogue_action": raw["dialogue"]}
