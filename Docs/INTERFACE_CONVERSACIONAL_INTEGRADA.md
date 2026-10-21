@@ -38,6 +38,23 @@ resposta do agente permanece junto ao campo de digitação, em uma faixa context
 pode continuar perguntando durante a exploração de gráficos, mapas e tabelas. Alternativas de
 interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável.
 
+**Continuidade da conversa (desde 21/10/2026).** O estado estruturado da conversa é a própria preparação: a análise,
+os territórios da abrangência, os períodos, o indicador e a categoria. Cada mensagem os envia ao intérprete local, e a
+sessão do backend guarda o contexto verificado. Um pedido que não cita territórios usa os já escolhidos, e a resposta
+diz quais ("Mantive os 3 territórios já escolhidos na conversa: …"). Um pedido só com o período ("E nos últimos 5
+anos?") continua a análise ativa. "Últimos N anos" e "último ano" (AT-34) são contados até o último período da base e
+até hoje, pela data local do navegador:
+- quando as duas contagens dão as mesmas competências, o período é aplicado e dito na resposta;
+- quando divergem, a conversa apresenta as duas leituras como alternativas, sem escolher, e cada alternativa envia o
+  pedido com os anos explícitos ("Comparação de 2020 a 2024");
+- sem o número ("últimos anos"), a conversa pergunta quantos;
+- na virada do ano, sem a data local, ela pede os anos.
+
+Verbos comuns ("fazer", "faça", "veja", "saber") não impedem a interpretação local. O pedido feito antes da escolha dos
+dados é interpretado de novo quando a base fica pronta, e os municípios citados nele vão para a abrangência, sem que
+o usuário precise repeti-los. Essas continuações são resolvidas no backend, sem o provedor de IA. Antes, "quero fazer a
+comparação dos últimos 5 anos" fazia a conversa perguntar de novo pelos municípios e descartava o período.
+
 Com um resultado apresentado, a conversa também muda a apresentação sem recalcular: "mostre no gráfico", "agora a
 tabela" e "ver no mapa" abrem a aba do resultado, e "volte ao resultado anterior" reabre o resultado calculado antes
 do apresentado ("Resultado anterior reaberto, sem recalcular."; sem resultado anterior, a conversa avisa). Formas

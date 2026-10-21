@@ -19,7 +19,7 @@ import { fieldOptions } from "./fieldChoices";
 import { EMPTY_SCOPE, describeScope, effectiveScope, fromMembers, municipalOnly, periodsForScope,
   type Abrangencia, type Levels, type ScopeSelection } from "./territorialScope";
 import TerritorialScopeSelector from "./TerritorialScopeSelector";
-import AnalysisAssistant, {type TerritorialProposal} from "./AnalysisAssistant";
+import AnalysisAssistant, {type LocalAnswer, type TerritorialProposal} from "./AnalysisAssistant";
 import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
 import WorkspaceDialog from "./WorkspaceDialog";
@@ -105,6 +105,11 @@ type Feature = { id: Operation; title: string; detail: string; icon: LucideIcon;
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
 const SPATIAL_OPERATIONS: Operation[] = ["spatial", "nearest"];
+
+/** Data local do navegador (AAAA-MM-DD): o "hoje" do usuário, com o fuso dele. */
+function localDate(now = new Date()): string {
+  return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+}
 
 async function readApiResponse(response: Response): Promise<any> {
   const raw = await response.text();
@@ -698,6 +703,8 @@ function App() {
     const {abrangencia: _scope, comparison_values_period: _values, ...options} = semanticOptions() as ReturnType<typeof semanticOptions> &
       {comparison_values_period?: string};
     return {...options, ...(usingBrazil && territoryIds.length ? {territory_ids: territoryIds} : {}),
+      // Data local do usuário: âncora de "hoje" em "últimos N anos" (RQ-GOV-23); chaves conversation_ não entram na assinatura.
+      conversation_today: localDate(),
       exploration_operation: active || "", exploration_indicator:
       active === "counts" ? "quantity" : active === "temporal" ? temporalIndicator || "quantity" : comparisonIndicator,
       ...(pending?.source === conversationSourceKey ? {conversation_pending_operation:pending.operation,
@@ -715,7 +722,7 @@ function App() {
     else if (proposal.operation) selectAnalysis(proposal.operation);
     return proposal.clarification || proposal.reply || "Análise preparada. Confira os parâmetros na preparação.";
   }
-  async function exploreMessage(message: string, choice?: {operation:Operation; indicator?:"quantity" | "density" | null}): Promise<string | null> {
+  async function exploreMessage(message: string, choice?: {operation:Operation; indicator?:"quantity" | "density" | null}): Promise<LocalAnswer | null> {
     if (!inspection || inspecting) return null;
     const currentRevision = revision.current;
     const form = new FormData(); appendSource(form);
@@ -725,7 +732,7 @@ function App() {
       ...(pendingRanking.current ? {criteria_pending_ranking: pendingRanking.current} : {})}));
     const response = await fetch(API + "/api/exploration/interpret", {method:"POST", body:form});
     const proposal = await readApiResponse(response) as Exploration;
-    if (currentRevision !== revision.current) return "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual.";
+    if (currentRevision !== revision.current) return {text: "O contexto mudou durante a interpretação. Envie novamente o pedido com a seleção atual."};
     // Pedido explícito pelo país inteiro marca o Brasil (total nacional): a contagem vem do arquivo nacional governado,
     // nunca de um agregado produzido a partir das linhas municipais.
     const normalizedRequest = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -736,13 +743,13 @@ function App() {
       // A escolha de capacidade também vale antes de haver uma seleção territorial.
       const territory = /\b(?:municipios?|municipal|cidades?)\b/.test(message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()) ? "municípios" : "";
       selectAnalysis(choice.operation, {category:"", period:"", territory, indicator:choice.indicator || null});
-      return "Análise escolhida. Confira o recorte, o indicador e as condições na preparação.";
+      return {text: "Análise escolhida. Confira o recorte, o indicador e as condições na preparação."};
     }
     const responseText = acceptExploration(proposal);
     if (usingBrazil && levels && wholeBrazil && !proposal.territory_ids?.length && !proposal.estados?.length &&
       !proposal.criteria_patch)
       replaceSelection({...EMPTY_SCOPE, brasil: true}, []);
-    return responseText;
+    return {text: responseText, ...(proposal.choices?.length ? {choices: proposal.choices} : {})};
   }
   function exploreSelection(operation: Operation) {
     setRequestText(ANALYSIS_LABELS[operation] + " dos territórios selecionados");

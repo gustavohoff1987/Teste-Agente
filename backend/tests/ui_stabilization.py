@@ -136,6 +136,27 @@ def main():
         triple = calculate()
         assert triple['total_rows'] == 3
         expect(cards).to_have_count(3)
+        # Continuidade (21/10/2026): "últimos 5 anos", sem citar territórios, usa os três municípios da conversa, e a
+        # resposta diz quais, sem o provedor de IA. Na base sintética (2023 e 2024), as leituras até o último período da
+        # base e até hoje (AT-34) dão os mesmos anos até 2027; depois disso, a conversa pergunta e a leitura até o último
+        # período da base é escolhida pela alternativa.
+        llm_before = len(llm)
+        send('Quero fazer a comparação dos últimos 5 anos.')
+        reply = page.get_by_test_id('latest-reply')
+        expect(reply).to_contain_text('Mantive os 3 territórios já escolhidos na conversa')
+        expect(reply).not_to_contain_text('Quais estados ou municípios')
+        alternatives = page.locator('[aria-label="Alternativas de esclarecimento"]').get_by_role(
+            'button', name='até o último período da base')
+        if alternatives.count():
+            alternatives.first.click()
+            expect(page.locator('#assistant-input')).to_be_enabled(timeout=90000)
+        else:
+            expect(reply).to_contain_text('“Últimos 5 anos”: de 2023 a 2024')
+        assert len(llm) == llm_before, 'a continuação é resolvida localmente, sem o provedor de IA'
+        recent = calculate()
+        assert recent['metadata']['operation'] == 'comparisons'
+        assert sorted(recent['metadata']['options']['period_filters']) == ['202301', '202306', '202401', '202406']
+        assert len(recent['detail_rows']) == 3
         send('Mostre a evolução dos municípios selecionados.')
         prepared()
         # Base oficial: as premissas de comparabilidade são internas; nenhuma declaração é pedida.

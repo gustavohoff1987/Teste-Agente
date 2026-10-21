@@ -351,6 +351,18 @@ Para pedidos analíticos, o contrato admite uma proposta única ou até cinco ca
 
 A evolução autorizada do diálogo está registrada em [Evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md). A interface usa contexto temporário verificado no backend para seleção, parâmetros, possibilidades do pré-exame e referências a resultados. “Esses municípios”, correções de indicador e inclusão de município reaproveitam a preparação. “E agora?” informa o contexto sem calcular. Densidade, quantitativos e comparação territorial já admitem perguntas sobre o resultado apresentado, com origem verificada, preservação das notas e explicações metodológicas pelo catálogo PT. “Explique de maneira mais simples” reduz a expansão metodológica, conservando fatos e limitações. Relação não calculada oferece preparação de comparação. As demais leituras analíticas conversacionais permanecem limitadas; os respectivos resultados e controles da interface continuam disponíveis. EN não está autorizado nesta integração.
 
+**Continuidade da conversa (21/10/2026).**
+- Um pedido sem territórios usa os já escolhidos, e a resposta diz quais.
+- Um pedido só com o período ("E nos últimos 5 anos?") continua a análise ativa.
+- "Últimos N anos" é contado até o último período da base e até hoje, pela data local do navegador (AT-34). Se as
+  duas contagens dão as mesmas competências, o período é aplicado; se divergem, a conversa oferece as duas leituras,
+  sem escolher.
+- O pedido feito antes da escolha dos dados é reinterpretado quando a base fica pronta, e os municípios citados nele
+  vão para a abrangência.
+
+Essas continuações não chamam o provedor de IA. Detalhes em
+[interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+
 Com um resultado apresentado, "mostre no gráfico", "agora a tabela" ou "ver no mapa" abrem a aba correspondente, e
 "volte ao resultado anterior" (ou "à seleção anterior") reabre o resultado anterior da sessão, sem recalcular
 (RQ-LIN-20). A interface reconhece as formas diretas; as demais chegam ao intérprete, que as devolve como atos

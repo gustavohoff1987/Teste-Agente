@@ -13,13 +13,21 @@ type Proposal = {
   territory: string; period: string; category: string;
 };
 type Verification = { source: "BACKEND_PREFLIGHT"; capability_status: "available" | "needs_confirmation" | "unavailable" | "not_selected"; slots: Record<"period" | "category" | "territory", string>; blockers: string[]; ready_to_execute: false; next_action: "confirm_in_interface" };
+/** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
+ * mensagem do usuário (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
+type ClarificationChoice = {label: string; draft: string; operation?: Operation; indicator?: "quantity" | "density" | null;
+  send?: boolean};
 type Clarification = {code: string; prompt: string; reason: string; source: "CATALOGO_LOCAL";
-  choices: {label: string; draft: string; operation?: Operation; indicator?: "quantity" | "density" | null}[]; answered: false};
+  choices: ClarificationChoice[]; answered: false};
+/** Resposta da interpretação local (sem o provedor de IA), com as alternativas quando a conversa pergunta. */
+export type LocalAnswer = {text: string; choices?: ClarificationChoice[]};
 export type TerritorialProposal = {handled: boolean; reply?: string; clarification?: string; operation?: Operation;
   /** Estados citados como objeto (prefixo IBGE), na base oficial: vão para a abrangência territorial. */
   territory_ids?: string[]; estados?: string[]; pending_operation?: Operation; requested_count?: number | null;
   options_patch?: {period_filter?: string; period_filters?: string[]; temporal_indicator?: "quantity" | "density";
-    comparison_indicator?: "quantity" | "density"}; selection_changed?: boolean; reset_selection?: boolean};
+    comparison_indicator?: "quantity" | "density"}; selection_changed?: boolean; reset_selection?: boolean;
+  /** Leituras de "últimos N anos" (AT-34): a conversa pergunta, com uma alternativa para cada leitura. */
+  choices?: ClarificationChoice[]};
 type Reply = { exploration?: TerritorialProposal; dialogue_action?: string; reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;
   executed: boolean; origin: string; note: string; model: string; privacy: string };
 type Status = { configured: boolean; model: string; requests_used_today: number;
@@ -28,7 +36,7 @@ type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Propos
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
 type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: NavigationTarget) => void; onMultiplePeriods: () => boolean;
   territorySummary?: {label: string; text: string; selected: boolean; selectable: boolean}; territoriesOpen: boolean; onTerritoriesOpen: (open: boolean) => void; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
-  onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null>;
+  onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<LocalAnswer | null>;
   /** Reabre o resultado anterior da sessão, sem recalcular, e devolve a resposta da conversa. */
   onPreviousResult: () => string };
 const VIEW_LABEL: Record<ResultView, string> = {mapa: "Mapa", graficos: "Gráficos", tabela: "Tabela"};
@@ -64,6 +72,12 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
   const ready = useRef(contextReady);
   ready.current = contextReady;
   const pendingProposal = useRef<Proposal | null>(null);
+  // Pedido feito antes da escolha dos dados: com a base pronta, é interpretado de novo (os territórios citados valem).
+  const pendingRequest = useRef("");
+  const explore = useRef(onExplore);
+  explore.current = onExplore;
+  const selectAnalysis = useRef(onSelectAnalysis);
+  selectAnalysis.current = onSelectAnalysis;
 
   async function refreshStatus() {
     setLoadingStatus(true);
@@ -91,12 +105,29 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     revision.current += 1;
   }, [validationVersion, displayedResultId]);
   useEffect(() => {
-    if (sourceReady && pendingProposal.current?.operation) {
-      const proposal = pendingProposal.current;
-      pendingProposal.current = null;
-      onSelectAnalysis(proposal.operation!, proposal);
-    }
+    if (!sourceReady || !pendingProposal.current?.operation) return;
+    const proposal = pendingProposal.current, request = pendingRequest.current;
+    pendingProposal.current = null;
+    pendingRequest.current = "";
+    if (!request) { onSelectAnalysis(proposal.operation!, proposal); return; }
+    // Com a base pronta, o pedido inicial passa pela interpretação local: os municípios citados nele vão para a
+    // abrangência, sem que o usuário precise repeti-los. Sem interpretação local, vale a análise proposta, como antes.
+    void (async () => {
+      const deadline = Date.now() + 20000;
+      while (!ready.current && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+      let local: LocalAnswer | null = null;
+      try { if (ready.current) local = await explore.current(request); } catch { local = null; }
+      if (local) answer(local, request);
+      else selectAnalysis.current(proposal.operation!, proposal);
+    })();
   }, [sourceReady]);
+
+  /** Resposta local na conversa; com alternativas, elas ficam junto à resposta, como os demais esclarecimentos. */
+  function answer(local: LocalAnswer, request: string) {
+    setTurns(previous => [...previous, {role:"assistant", content:local.text, request, context:contextVersion,
+      ...(local.choices?.length ? {clarification:{code:"ESCOLHA_DE_LEITURA", prompt:local.text, reason:"", source:"CATALOGO_LOCAL" as const,
+        choices:local.choices, answered:false as const}} : {})}]);
+  }
 
   function openView(view: ResultView): string {
     if (!hasResult) return "Ainda não há resultado calculado. Depois do cálculo, ele aparece nas abas Mapa, Gráficos e Tabela.";
@@ -107,7 +138,10 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    const message = draft.trim();
+    await submit(draft.trim());
+  }
+
+  async function submit(message: string) {
     if (sending || !privacyAccepted || message.length < 2 || message.length > 800) return;
     setStarted(true);
     onStarted();
@@ -206,7 +240,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     try {
       if (sourceReady) {
         const local = await onExplore(message);
-        if (local !== null) {append(local); return;}
+        if (local !== null) {answer(local, message); return;}
       }
       // O pré-exame da última seleção pode estar terminando; a mensagem aguarda sem
       // perder o pedido nem pedir ao usuário que o repita.
@@ -255,12 +289,15 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
         ? "Entendi. Podemos fazer essa análise de " + ANALYSIS[suggested].toLowerCase() +
           ". Para começar, prefere usar os dados do Brasil atualmente disponibilizados nesta plataforma ou importar os seus? Depois seguiremos diretamente com a análise."
         : validated.reply;
+      // Leituras pendentes da interpretação local (por exemplo, "últimos 5 anos") ficam como alternativas da resposta.
+      const readings: Clarification | undefined = resolved?.choices?.length ? {code:"ESCOLHA_DE_LEITURA", prompt:responseText,
+        reason:"", source:"CATALOGO_LOCAL", choices:resolved.choices, answered:false} : undefined;
       setTurns(previous => [...previous,
-        {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:validated.clarification, request:message, context:contextVersion}]);
+        {role:"assistant", content:responseText, proposal:validated.proposal, verification:validated.verification, clarification:readings || validated.clarification, request:message, context:contextVersion}]);
       // A interpretação escolhe a capacidade, não executa a análise.
       // O usuário ainda escolhe os recortes e executa a análise.
       if (suggested && !resolved) {
-        if (!sourceReady) pendingProposal.current = validated.proposal;
+        if (!sourceReady) { pendingProposal.current = validated.proposal; pendingRequest.current = message; }
         onSelectAnalysis(suggested, validated.proposal);
       }
       void refreshStatus();
@@ -296,6 +333,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
           <button key={choice.label} type="button" disabled={sending || selecting || turns.at(-1)?.context !== contextVersion}
             onClick={async () => {
               const current = turns.at(-1)!;
+              if (choice.send && sourceReady) { void submit(choice.draft); return; }
               if (!choice.operation || !current.request || !sourceReady) {
                 setDraft(choice.draft); document.getElementById("assistant-input")?.focus(); return;
               }
@@ -304,7 +342,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
               onRequest(current.request);
               try {
                 const reply = await onExplore(current.request, {operation:choice.operation,indicator:choice.indicator});
-                setTurns(previous => [...previous,{role:"assistant",content:reply || "Análise escolhida. Revise a preparação abaixo."}]);
+                setTurns(previous => [...previous,{role:"assistant",content:reply?.text || "Análise escolhida. Revise a preparação abaixo."}]);
               } catch (exc) { setError(exc instanceof Error ? exc.message : "Não foi possível preparar a escolha."); }
               finally { setSending(false); }
             }}

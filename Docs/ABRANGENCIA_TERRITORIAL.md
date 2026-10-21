@@ -347,7 +347,10 @@ supera o total do Brasil em todas as competências).
   essa indicação, a conversa pergunta ("“São Paulo” identifica um estado e também um município. Diga
   “estado de São Paulo” ou “município de São Paulo”."), com a análise pendente para a resposta; sem
   preposição ("Compare São Paulo e Campinas"), continua o município. "Pará" só é o estado com acento
-  ("para" é preposição). Anos ("em 2024") e intervalos ("entre 2014 e 2024") viram as competências da base
+  ("para" é preposição). Desde 21/10/2026, "últimos N anos" e "último ano" seguem a AT-34: com as mesmas
+  competências contadas até o último período da base e até hoje, o período é aplicado e dito na resposta; com
+  contagens diferentes, a conversa oferece as duas leituras, e os territórios já escolhidos continuam (a resposta diz
+  quais). Anos ("em 2024") e intervalos ("entre 2014 e 2024") viram as competências da base
   nesses anos; numa análise de uma competência, com mais de uma no ano, a conversa pede a escolha
   ("Em 2024, a base tem 2 competências (janeiro de 2024 e junho de 2024). Esta análise usa uma competência:
   …"). "Mostre a evolução do número de médicos …" prepara a evolução por quantidade. Na referência mais

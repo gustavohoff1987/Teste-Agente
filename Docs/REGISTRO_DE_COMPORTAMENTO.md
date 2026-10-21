@@ -35,6 +35,69 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Continuidade da conversa: territórios mantidos e "últimos N anos" com as duas âncoras
+- **Antes:**
+  - "Quero fazer a comparação dos últimos 5 anos", depois de citar municípios, caía na gramática local, que reconhecia
+    a comparação mas recusava o resto da frase. As palavras "fazer", "últimos", "5" e "anos" não eram conhecidas, e
+    nenhum código tratava períodos relativos. A conversa respondia "Identifiquei o tipo de análise, mas não consegui
+    confirmar todo o recorte. Quais estados ou municípios você quer usar? …", mesmo com os municípios na abrangência,
+    e o período se perdia.
+  - "E nos últimos 5 anos?", sem palavra de análise, ia ao provedor de IA.
+  - Os municípios citados antes da escolha dos dados não chegavam à abrangência.
+  - A resposta de uma continuação dizia só "Recorte identificado com N territórios.".
+- **Agora:**
+  - **Territórios mantidos:** um pedido sem territórios usa os já escolhidos, e a resposta diz quais ("Mantive os 3
+    territórios já escolhidos na conversa: …").
+  - **Período sozinho:** um pedido só com o período ("E nos últimos 5 anos?") continua a análise ativa, na gramática
+    local, sem o provedor de IA.
+  - **"Últimos N anos" e "último ano":** são contados até o último ano da base e até o ano corrente, pela data local
+    do navegador (`options.conversation_today`, fora da assinatura do contexto).
+    - Mesmas competências da base nas duas contagens: o período é aplicado e dito na resposta ("“Últimos 3 anos”: de
+      2022 a 2024 …").
+    - Contagens diferentes (AMB-04): a conversa apresenta as duas leituras ("até o último período da base (de 2020 a
+      2024) ou até hoje (de 2022 a 2026; a base vai até 2024, então ficariam de 2022 a 2024)"), sem escolher nem
+      trocar os períodos. Cada leitura com competências na base vira uma alternativa clicável, que envia o pedido com os
+      anos explícitos ("Comparação de 2020 a 2024").
+    - Sem o número ("últimos anos"), a conversa pergunta quantos anos.
+    - Na virada do ano, sem a data local, a conversa pede os anos (AMBIGUIDADE_MATERIAL).
+  - **Verbos comuns:** "fazer", "faça", "façamos", "veja", "vejamos" e "saber" não impedem a interpretação local.
+  - **Pedido anterior à escolha dos dados:** é interpretado de novo quando a base fica pronta, e os municípios citados
+    nele vão para a abrangência. Sem interpretação local, vale a análise proposta, como antes.
+  - **Leituras pendentes pelo canal do provedor:** as alternativas também aparecem quando as leituras chegam pela
+    interpretação local refeita no canal do provedor.
+- **Permanece:**
+  - nada é calculado na conversa;
+  - nomes citados no pedido substituem a seleção, como antes;
+  - a conversa continua recebendo só os municípios marcados (`territory_ids`), sem a abrangência, e nada vai ao provedor
+    de IA além do que já ia;
+  - anos e intervalos explícitos, competências e as perguntas de homônimos, de estados e de municípios faltantes não
+    mudam;
+  - os outros marcadores relativos ("este ano", "ano passado", "recente") seguem o caminho anterior.
+- **Motivo:** pedido do responsável pelo produto de 21/10/2026. Ao longo da conversa, o agente não associava "quero
+  fazer a comparação dos últimos 5 anos" aos municípios citados no início, e a preservação do estado estruturado da
+  conversa devia ser verificada. A causa foi conferida no código: a gramática recusava a frase e os períodos relativos
+  não eram tratados. Classificação: mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade: segue a AT-34, a RQ-GOV-23 e a RQ-GOV-18. AMB-04 só se aplica quando as âncoras produzem leituras
+    materialmente diferentes (L1014 e L1631); por isso, contagens com as mesmas competências da base prosseguem com a
+    interpretação explicitada. O território mantido é dito na resposta, sem escolha silenciosa, e nenhuma divergência
+    aprovada é contrariada.
+- **Documentação e testes:**
+  - **Documentação:** README (continuidade da conversa), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (seção nova) e
+    `Docs/ABRANGENCIA_TERRITORIAL.md` (gramática da conversa).
+  - **Pytest novo:** `test_conversation_followup.py`, com:
+    - leituras divergentes com as alternativas e os territórios mantidos;
+    - leituras coincidentes com a nota;
+    - período sozinho continuando a análise ativa, sem trocar os períodos com a leitura em aberto;
+    - pergunta do número de anos;
+    - ano corrente pela data local e virada do ano (AMBIGUIDADE_MATERIAL);
+    - leitura sem anos na base;
+    - verbos comuns;
+    - a rota `/api/exploration/interpret`.
+  - **Roteiro ampliado:** `ui_stabilization.py` ganha "Quero fazer a comparação dos últimos 5 anos." depois de "Inclua
+    Parintins.". O roteiro confere os três municípios mantidos, nenhuma chamada ao provedor e a comparação com as
+    competências de 2023 e 2024. Nenhum teste existente foi alterado.
+
 ### 2026-10-21 · Base oficial: o cálculo só fica retido pelas escolhas da análise; competência dos valores explicada
 - **Antes:** na base oficial, o botão "Calcular e mostrar resultado" ficava desabilitado até o pré-exame liberar a
   análise. Abaixo dele aparecia "Ainda faltam condições específicas para esta análise. Você pode ajustá-las acima ou

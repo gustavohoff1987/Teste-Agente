@@ -6,7 +6,12 @@ Gerais" continua marcando os municípios do estado. O nome de estado que também
 só vira o estado com "estado de" ou com a palavra "estado" no pedido; com preposição e sem essa indicação, a conversa
 pergunta; sem preposição, continua sendo o município. Anos ("em 2024") e intervalos ("entre 2014 e 2024") viram as
 competências da base nesses anos; nada é escolhido entre elas quando a análise usa uma competência só.
+
+"Últimos N anos" (AT-34, RQ-GOV-23) tem duas âncoras: o último ano da base e o ano corrente (pela data local do
+navegador). Quando as leituras coincidem, o período é aplicado e dito na resposta; quando divergem, a conversa
+apresenta as duas, sem escolher. Um pedido que não cita territórios usa os já escolhidos, e a resposta diz quais.
 """
+from datetime import datetime, timezone
 import functools
 import re
 import unicodedata
@@ -24,6 +29,13 @@ QUANTITY = r"\b(?:quantidade|quantitativos|quant[oa]s|numero\s+de)\b"
 WORDS = {"para"}
 # "estados da Região Norte", "estados do Nordeste", "UFs da região Sul" (Grandes Regiões pelo código IBGE da UF).
 REGION = re.compile(r"\b(?:(?:os|as)\s+)?(?:estados|ufs)\s+(?:da\s+regiao|do|da)\s+(norte|nordeste|sudeste|sul|centro[\s-]oeste)\b")
+NUMBER_WORDS = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5, "seis": 6, "sete": 7,
+                "oito": 8, "nove": 9, "dez": 10}
+# "últimos 5 anos", "nos últimos cinco anos", "último ano"; "últimos anos", sem o número, é perguntado.
+RELATIVE_YEARS = re.compile(r"\bultim[oa]s?\s+(?:(\d{1,2}|" + "|".join(NUMBER_WORDS) + r")\s+)?(anos?)\b")
+# Palavras das alternativas de leitura: a mesma análise, com o intervalo de anos explícito.
+ANALYSIS_WORDS = {"comparisons": "Comparação", "temporal": "Evolução", "density": "Densidade", "counts": "Quantitativos",
+                  "aggregate": "Agregação"}
 
 
 @functools.lru_cache(maxsize=65536)  # os nomes do catálogo territorial se repetem a cada mensagem
@@ -44,6 +56,67 @@ def operation_for(message):
         if re.search(pattern, text):
             return operation
     return None
+
+
+def current_year(options, now=None):
+    """Ano corrente (RQ-GOV-23): o da data local informada pelo navegador; sem ela, o da data UTC do servidor, que nos
+    dias da virada do ano não decide (o fuso do usuário pode mudar o ano): None."""
+    local = str(options.get("conversation_today") or "")
+    if re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])", local):
+        return int(local[:4])
+    now = now or datetime.now(timezone.utc)
+    return None if (now.month, now.day) in ((12, 31), (1, 1)) else now.year
+
+
+def relative_years(match, available, options, operation):
+    """Leituras de "últimos N anos" (AT-34): até o último ano da base e até o ano corrente. Devolve (anos, nota) quando
+    elas levam às mesmas competências da base, ou (None, esclarecimento), com as alternativas, quando divergem ou
+    quando falta o número ou o ano corrente."""
+    count = int(match[1]) if match[1] and match[1].isdigit() else NUMBER_WORDS.get(match[1] or "", 1 if match[2] == "ano" else 0)
+    years = sorted({int(value[:4]) for value in available if re.fullmatch(r"\d{6}|\d{4}", value)})
+    if not 1 <= count <= 50 or not years:
+        return None, {"clarification": "Quantos anos você quer considerar? Diga, por exemplo, “últimos 5 anos” ou “de " +
+                      (str(years[-5]) if len(years) >= 5 else "2020") + " a " + (str(years[-1]) if years else "2024") + "”."}
+    label = "último ano" if count == 1 else "últimos " + str(count) + " anos"
+    title = "“" + label[0].upper() + label[1:] + "”"
+    span = lambda first, final: str(first) if first == final else "de " + str(first) + " a " + str(final)
+    last = years[-1]
+    base = (last - count + 1, last)
+    current = current_year(options)
+    if current is None:  # AMBIGUIDADE_MATERIAL: a virada do ano muda a leitura e o fuso do usuário não é conhecido
+        return None, {"clarification": "Não consigo saber com segurança em que ano você está agora (virada do ano). Diga os "
+                      "anos do período, por exemplo, “" + span(*base) + "”.", "ambiguity": "AMBIGUIDADE_MATERIAL"}
+    today = (current - count + 1, current)
+    by_base = [year for year in years if base[0] <= year <= base[1]]
+    by_today = [year for year in years if today[0] <= year <= today[1]]
+
+    def described(reading, covered):
+        if covered and (covered[0], covered[-1]) == reading:
+            return span(*reading)
+        if not covered:
+            return span(*reading) + "; a base não tem competências nesse intervalo"
+        limits = (["a base começa em " + str(years[0])] if covered[0] > reading[0] else []) + (
+            ["a base vai até " + str(last)] if covered[-1] < reading[1] else [])
+        return span(*reading) + "; " + " e ".join(limits) + ", então ficariam " + span(covered[0], covered[-1])
+
+    if by_base == by_today:  # as duas leituras dão as mesmas competências: segue, com a leitura dita na resposta
+        return [by_base[0], by_base[-1]], title + ": " + span(by_base[0], by_base[-1]) + (
+            " (até o último período da base, que é também o ano atual)." if base == today else
+            " (contando até o último período da base ou até hoje, a base tem os mesmos anos).")
+    words = ANALYSIS_WORDS.get(operation, "Análise")
+    choices = [{"label": span(covered[0], covered[-1]).capitalize() + ": até " + anchor + (
+                    "" if (covered[0], covered[-1]) == reading else ", com os anos que a base tem"),
+                "draft": words + " " + span(covered[0], covered[-1]), "send": True}
+               for reading, covered, anchor in ((base, by_base, "o último período da base"), (today, by_today, "hoje"))
+               if covered]
+    return None, {"clarification": title + " pode ser contado de duas formas: até o último período da base (" +
+                  described(base, by_base) + ") ou até hoje (" + described(today, by_today) + "). Qual você prefere? "
+                  "Nada foi calculado.", "choices": choices, "ambiguity": "AMB-04"}
+
+
+def _listed(labels, limit=5):
+    shown = labels[:limit] + (["mais " + str(len(labels) - limit)] if len(labels) > limit else [])
+    return shown[0] if len(shown) == 1 else ", ".join(shown[:-1]) + " e " + shown[-1]
 
 
 def prepare_nearest(step):
@@ -84,6 +157,9 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                 operation = "density" if "densidade" in normalize(message) else "counts"
     if not operation and pending in ("comparisons", "density", "counts", "temporal", "aggregate"):
         operation = pending
+    if not operation and RELATIVE_YEARS.search(normalize(message)) and \
+            options.get("exploration_operation") in ("comparisons", "density", "counts", "temporal", "aggregate"):
+        operation = options["exploration_operation"]  # "e nos últimos 5 anos?": a análise ativa, com outro período
     if not operation and re.search(r"\b(?:dois|duas|tres|2|3)\s+(?:municipios|cidades|territorios)\b", normalize(message)) and re.search(r"\b(?:analise|analisar)\b", normalize(message)):
         operation = options.get("exploration_operation")
     if not operation:
@@ -132,12 +208,15 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
     period, years = None, None
     month = re.search(r"\b(" + "|".join(MONTHS) + r")\s+(?:de\s+)?(\d{4})\b", text)
     numeric = re.search(r"\b(\d{4})-?(0[1-9]|1[0-2])\b", text)
+    relative = None
     if month:
         period = month[2] + str(MONTHS.index(month[1]) + 1).zfill(2)
         text = text[:month.start()] + text[month.end():]
     elif numeric:
         period = numeric[1] + numeric[2]
         text = text[:numeric.start()] + text[numeric.end():]
+    elif relative := RELATIVE_YEARS.search(text):  # "últimos 5 anos": as leituras dependem das competências da base
+        text = text[:relative.start()] + " " + text[relative.end():]
     else:  # um ano ("em 2024") ou um intervalo de anos ("entre 2014 e 2024", "de 2014 a 2024")
         span = re.search(r"\b(?:entre|de)\s+(\d{4})\s+(?:e|a|ate)\s+(\d{4})\b", text)
         found = span or re.search(r"\b(?:em|de|no ano de|do ano de)\s+(\d{4})\b", text)
@@ -145,6 +224,10 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
             years = sorted((int(found[1]), int(found[2] if span else found[1])))
             text = text[:found.start()] + " " + text[found.end():]
     available = sorted(set(frame[mapping["period"]].astype(str).str.strip())) if mapping.get("period") else []
+    relative_note, relative_pending = None, None
+    if relative:
+        years, relative_found = relative_years(relative, available, options, operation)
+        relative_note, relative_pending = (relative_found, None) if years else (None, relative_found)
     if period and period not in available:
         return {"handled": True, "clarification": "A competência solicitada não está disponível. Escolha uma das competências da base."}
     year_periods = None
@@ -222,7 +305,8 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                "ponha bote lado lados a ao junto juntos duas dois tres 2 3 mesmo mesma mesmos mesmas "
                "periodo indicador categorias categoria analises ultima anterior com perfil "
                "esses estes essas estas nao prefiro use acrescente adicione inclua "
-               "quantos quantas havia haviam existia existiam tinha tinham era eram numero estado estados uf ufs")
+               "quantos quantas havia haviam existia existiam tinha tinham era eram numero estado estados uf ufs "
+               "fazer faca facamos veja vejamos saber")
     residue = re.sub(r"\b(?:" + "|".join(allowed.split()) + r")\b|[,;:]", " ", remaining)
     if residue.strip():
         return {"handled": True, "operation": operation, "pending_operation": operation,
@@ -265,6 +349,10 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
             clarification = "Identifiquei " + label + ". Com qual outro município você deseja comparar? Pode informar dois ou mais municípios."
     elif requested_count and len(ids) != requested_count:
         clarification = "Você pediu " + str(requested_count) + " municípios, mas identificamos " + str(len(ids)) + ". Quais nomes devem compor a análise?"
+    choices, ambiguity, period_asked = None, None, False
+    if relative_pending and clarification is None:  # leituras de "últimos N anos": o período fica com o usuário
+        clarification, pending_choice, period_asked = relative_pending["clarification"], False, True
+        choices, ambiguity = relative_pending.get("choices"), relative_pending.get("ambiguity")
     patch = {}
     if period:
         patch.update(period_filter=period, period_filters=[])
@@ -283,22 +371,33 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
                                              _human(year_periods[-1]) + "”."), False
     quantity = bool(re.search(QUANTITY, text))
     if operation == "temporal":
-        patch.update(period_filter="", period_filters=year_periods or [], temporal_indicator=(
-            "density" if "densidade" in text else "quantity" if quantity else
-            options.get("temporal_indicator") or options.get("exploration_indicator", "quantity")))
+        if not period_asked:  # com as leituras de "últimos N anos" em aberto, os períodos atuais ficam como estão
+            patch.update(period_filter="", period_filters=year_periods or [])
+        patch["temporal_indicator"] = ("density" if "densidade" in text else "quantity" if quantity else
+                                       options.get("temporal_indicator") or options.get("exploration_indicator", "quantity"))
     if operation == "comparisons":
         patch["comparison_indicator"] = "quantity" if quantity else "density" if "densidade" in text else \
             options.get("exploration_indicator", "density")
     if correction and "densidade" in text:
         patch["comparison_indicator"] = "density"
     total = len(ids) + len(objects)
+    # Sem territórios citados no pedido, valem os já escolhidos: a resposta diz quais, para a associação ficar visível.
+    kept = bool(ids) and not explicit and not state_ids and not objects and set(ids) <= set(selected)
+    labels = {item["id"]: item["label"] for item in catalog} if kept else {}
+    kept_text = ("Mantive " + ("o território já escolhido" if len(ids) == 1 else "os " + str(len(ids)) +
+                 " territórios já escolhidos") + " na conversa: " + _listed([labels.get(i, i) for i in ids]) + ". ") if kept else ""
+    if period_asked and kept:
+        clarification = kept_text + clarification
     return {"handled": True, "operation": operation, "territory_ids": ids, **({"estados": objects} if objects else {}),
             "options_patch": patch,
             **({"clarification": clarification} if clarification else {}),
+            **({"choices": choices} if choices else {}),
+            **({"ambiguity": ambiguity} if ambiguity else {}),
             **({"pending_operation": operation, "requested_count": requested_count} if clarification and pending_choice else {}),
             "reply": ("Alvos identificados: " + str(len(ids)) + " territórios. Defina as referências pela lista ou pelo critério e "
                       "escolha o período e o referencial na preparação; nenhuma referência foi escolhida e nada foi calculado."
                       if operation == "nearest" else
-                      "Recorte identificado com " + str(total) + (" território" if total == 1 else " territórios") +
-                      ". Confira os parâmetros e as condições metodológicas e execute a análise na preparação."),
+                      (kept_text if kept else "Recorte identificado com " + str(total) +
+                       (" território" if total == 1 else " territórios") + ". ") + (relative_note + " " if relative_note else "") +
+                      "Confira os parâmetros e as condições metodológicas e execute a análise na preparação."),
             "selection_changed": bool(selected and set(ids) != set(selected)), "executed": False}

@@ -47,7 +47,7 @@ from document_catalog import TOPICS
 from conversation_session import sessions, lifespan
 from result_conversation import answer_result
 from territorial_selection import universe_metadata
-from exploration import interpret_exploration, operation_for, normalize as normalize_exploration
+from exploration import interpret_exploration, operation_for, normalize as normalize_exploration, RELATIVE_YEARS
 from request_memo import RequestMemoMiddleware, mark_source, per_source
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
@@ -1104,7 +1104,8 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         adding = bool(re.search(r"\b(?:acrescente|adicione|inclua)\b", normalize_exploration(message)))
         if not choice and not operation_for(message) and not requested.get("conversation_pending_operation") and not (
                 requested.get("exploration_operation") and (correction or adding)) and not (
-                requested.get("exploration_operation") and re.search(r"\b(?:analise|analisar)\b", normalize_exploration(message))):
+                requested.get("exploration_operation") and re.search(r"\b(?:analise|analisar)\b", normalize_exploration(message))) and not (
+                requested.get("exploration_operation") and RELATIVE_YEARS.search(normalize_exploration(message))):
             return {"handled": False}
         frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
                                           dataset_version=dataset_version)
