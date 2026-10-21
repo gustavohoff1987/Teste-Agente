@@ -35,6 +35,66 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Painel integrado: rotas do motor e gráfico de bolhas admitido na SPEC (Adendo BOL-20261021)
+- **Antes:**
+  - não havia rota que servisse um gráfico de bolhas;
+  - RQ-REP-10 não admitia bolhas, e `Docs/BLOCO3_MAPAS_VISUALIZACOES.md` (seção 7) dizia "Dispersão e bolhas: não
+    implementados", com a proposta "pendente de aprovação".
+- **Agora:**
+  - **SPEC:** o Adendo BOL-20261021, no fim de `IMPLEMENTATION_SPEC.md`, traz:
+    - a redação vigente de RQ-REP-10, com o gráfico de bolhas e as suas regras;
+    - o nome vigente de CAP-REP-02: "Gráfico de barras, gráfico de linhas, série temporal e gráfico de bolhas";
+    - o registro da decisão como complemento de DA-23 (Parte 22).
+
+    A versão continua 1.2.4.
+  - **`POST /api/painel`:** só com a base Brasil oficial (fonte municipal), numa competência e numa categoria. Devolve
+    população, quantidade e densidade de cada município base e dos membros da referência, na ordem do código IBGE.
+    - **Conjuntos:** cada um vira um item agregado (`SOMA_DOS_COMPONENTES`; agregado parcial com `AGREGADO_PARCIAL`).
+    - **Distância:** até a referência ou até o membro mais próximo do conjunto de referência, pelo mínimo do conjunto
+      completo. Nos conjuntos base, a do membro mais próximo e a do mais distante (`distancia_km_max`).
+    - **Variação percentual:** desde a `competencia_inicial` (CAP-TMP-01; base zero e falta de registro ficam nulas,
+      com o motivo).
+    - **Também na resposta:** `inicial`, `avaliavel`, `motivos`, `dominios`, `notas`, `limitacoes`, `versao_base` e
+      `chave_execucao`. Os não avaliáveis seguem com o motivo, nunca como zero.
+  - **`POST /api/painel/referencias`:** candidatos do universo na ordem do critério (densidade, quantidade ou população;
+    maior para menor ou o inverso), com empates na mesma posição (1, 2, 2, 4) e os não avaliáveis numa lista separada,
+    sem posição.
+  - **Recusas (422, em português):** base importada; versão divergente; competência ou categoria inexistente;
+    competência inicial que não é anterior; ids inexistentes; conjunto sem membros ou com um só; chave desconhecida em
+    `options`.
+  - **Sessão:** o resultado do painel não entra na sessão da conversa. Com o cabeçalho de sessão, só se registra o
+    evento `CONFIRMACAO`, como em `/api/analyze`; a gravação do resultado fica como próximo passo.
+- **Permanece:**
+  - as análises existentes, `/api/analyze`, as suas chaves de execução e a tela atual (a tela do painel chega em entrega
+    própria);
+  - o corpo v1.2.4 da SPEC e o Anexo A, literais. O catálogo CFG-DOC confere o corpo pelo SHA-256
+    (`document_catalog.SPEC_SHA`) e pelos localizadores (RQ-REP-10 em L2010; o nome de CAP-REP-02 em L1723). Por isso o
+    ajuste foi feito por adendo, como o APT-20261016. O snapshot das sessões continua `SPEC-1.2.4/APT-20261016`, e as
+    formas literais PT/EN do catálogo não mudam;
+  - nada vai ao provedor de IA; os dados não mudam.
+- **Motivo:** decisões do responsável pelo produto de 21/10/2026 ("Autorizo a inserção de gráfico de bolhas, pode
+  ajustar a Spec nesse sentido.") e o contrato do painel entre o motor e a tela. Classificação: mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade: prevista na SPEC ajustada pelo Adendo BOL-20261021. Os valores seguem os contratos existentes
+    (CAP-IND-01/02, CAP-AGR-01, CAP-ESP-01/02, CAP-TMP-01, CAP-REF-01 e CAP-SUB-02), pelas mesmas funções do motor, sem
+    fórmula nova.
+  - Extensões compatíveis ao contrato, descritas em `Docs/PAINEL_INTEGRADO.md`:
+    - `referencia.criterio.universo`, opcional;
+    - `dominios.variacao_quantidade` e `dominios.variacao_populacao`;
+    - na rota 2, `categoria` e o nome `nao_avaliaveis`;
+    - `referencia` (booleano) em todos os itens.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (novo, seção "Motor e rotas"), README,
+    `Docs/BLOCO3_MAPAS_VISUALIZACOES.md` (seções 7, 15 e 16) e o adendo da SPEC.
+  - **Testes:** `backend/tests/test_painel.py`.
+    - Dez testes com catálogo sintético: chaves exatas do contrato; coerência com a análise de densidade e com a
+      agregação; distância até a referência e até o conjunto de referência, coerente com `compute_nearest`; mínimo e
+      máximo do conjunto base; ausência de coordenada; variação com base zero e `INCOMPARABILIDADE`; ordem com empates
+      1, 2, 2, 4; recusas; nenhuma chamada ao provedor.
+    - Dois testes com a base versionada, no job `dados-reais`.
+
+    Nenhum teste existente foi alterado.
+
 ### 2026-10-21 · Abrangência territorial: municípios do estado escolhido à vista, sem grupo recolhível
 - **Antes:** na base oficial, a seção Municípios da lista vertical tinha um grupo recolhível por estado, no fim da lista
   (depois de Brasil e dos 27 estados), com a caixa do grupo e o botão do estado. Os municípios só apareciam ao abrir o

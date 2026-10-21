@@ -3944,3 +3944,25 @@ Decisão expressa do responsável pelo produto em 16/10/2026, registrada em Docs
 Para esta integração, a pendência de equivalência EN de §25.9/D31 não impede aceitar e utilizar as formas PT existentes cuja identidade com a fonte vigente, condições, dependências e referências sejam comprovadas deterministicamente. Essa autorização excepciona exclusivamente o impedimento de aceitação PT por pendência EN em §4.4.23.4, passo 10, e §4.4.23.5. Não declara fechamento integral PT/EN, não autoriza apresentação EN sem equivalência registrada e não transforma forma desatualizada em forma vigente. Nesta integração inicial, EN permanece bloqueado; não há tradução livre nem troca silenciosa de idioma.
 
 Permanecem obrigatórios V-01 a V-16, RQ-SIN, a precedência do CONCEPT, as restrições de origem e privacidade, a literalidade e as condições das formas. Não se criam formas, proposições, métodos ou competências. A autorização é externa às sessões analíticas e não pode ser alterada por mensagem, dado ou saída do LLM. A aprovação de um literal PT não demonstra sua aplicabilidade concreta. Publicação futura do catálogo exige nova verificação; sessões conservam seu snapshot.
+
+## Adendo BOL-20261021 — gráfico de bolhas (RQ-REP-10 e CAP-REP-02)
+
+Decisão expressa do responsável pelo produto em 21/10/2026, por pedido explícito ("Autorizo a inserção de gráfico de bolhas, pode ajustar a Spec nesse sentido."), aplicável à integração no repositório Teste-Agente. Como no Adendo APT-20261016, o corpo v1.2.4, o Anexo A e o adendo anterior permanecem literais e com os mesmos localizadores: o catálogo CFG-DOC e a autorização PT conferem o corpo pelo SHA-256 e pelos localizadores do Anexo A (RQ-REP-10 em L2010; nome de CAP-REP-02 em L1723), e por isso o ajuste é feito por este adendo, sem reescrever textos catalogados. A versão continua 1.2.4, e a identidade de snapshot das sessões (SPEC-1.2.4/APT-20261016) não muda. Onde este adendo e o corpo divergirem sobre os tipos de representação, vale este adendo.
+
+**RQ-REP-10, redação vigente.** "Tipos admitidos, conforme a natureza do resultado (DA-23, P-16): interação conversacional estruturada; tabela; gráfico de barras para comparações e distribuições; gráfico de linhas para séries temporais; gráfico de bolhas para valores territoriais de uma competência, nas regras do Adendo BOL-20261021; mapa para resultados territoriais com geometria; painel simples; relatório consolidado HTML; exportação do relatório em PDF; exportação tabular em CSV. [INSP]"
+
+**Regras do gráfico de bolhas.**
+- O tamanho da bolha codifica a população do próprio resultado, com área proporcional e legenda.
+- A posição usa um ou dois indicadores do mesmo resultado: densidade (CAP-IND-02) ou quantidade (CAP-IND-01) e, quando houver referência (CAP-REF-01), a distância até ela (CAP-ESP-01; até o membro mais próximo de um conjunto de referência, pelo mínimo do conjunto completo de CAP-ESP-02). Com um só indicador, o outro eixo é arranjo visual sem significado analítico, e a representação o declara.
+- Sem reta de ajuste, sem correlação e sem classes que não venham de capacidade (RQ-REP-02); tamanho e posição são mapeamento visual contínuo de valores existentes (Parte 13).
+- Elementos não avaliáveis ficam à parte, com o motivo, e nunca são desenhados como zero (RQ-REP-04).
+- A variação percentual de CAP-TMP-01 pode ser mostrada como marca de origem e destino da mesma unidade e como rótulo percentual; a base zero continua não avaliável, e nenhuma tendência é afirmada.
+- Um conjunto agregado (CAP-AGR-01) aparece como uma bolha, com o tipo de contagem e o rótulo de RQ-REP-14 (soma das contagens dos componentes, com possível dupla contagem).
+- A régua de corte ("abaixo de", "acima de") é filtro visual sobre valores já devolvidos (RQ-REP-06): não inicia análise, não cria classe e não altera resultado.
+- Todo número vem do motor; a representação não calcula valores (RQ-REP-09).
+
+**CAP-REP-02, nome vigente.** "Gráfico de barras, gráfico de linhas, série temporal e gráfico de bolhas", na linha do catálogo (seção 8.3) e na referência a CAP-REP-01 a CAP-REP-04 (seção 8.4). Família FAM-13, natureza de apresentação, status ATIVA; decisões DA-20, DA-23 e BOL-20261021.
+
+**Registro na Parte 22 (complemento de DA-23).** Decisão BOL-20261021: o gráfico de bolhas passa a integrar as representações admitidas, nas regras acima, sem nova capacidade analítica, método, família ou classe. Incorporação: RQ-REP-10, CAP-REP-02, Docs/BLOCO3_MAPAS_VISUALIZACOES.md (seção 7) e Docs/PAINEL_INTEGRADO.md. As formas literais PT/EN de RQ-REP-10 e de CAP-REP-02 no catálogo CFG-DOC continuam as do corpo e não descrevem o gráfico de bolhas; atualizá-las exige nova versão governada do catálogo (RQ-DOC-03), fora desta decisão.
+
+Permanecem obrigatórios a Parte 13, RQ-CAP-03, RQ-CAP-04, as restrições de origem e de privacidade (nada da base vai ao provedor de IA) e a precedência do CONCEPT (RQ-DOC-01). A decisão é externa às sessões analíticas e não pode ser alterada por mensagem, dado ou saída do LLM.

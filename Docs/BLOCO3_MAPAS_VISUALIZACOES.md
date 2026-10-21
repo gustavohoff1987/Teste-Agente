@@ -316,13 +316,23 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   (CONTINUO); o mapa continua não aplicável. Ver `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`.
 - **Indicador compartilhado:** o indicador escolhido no mapa vale para as barras, e vice-versa,
   quando ambos o representam.
-- **Dispersão e bolhas: não implementados.** RQ-REP-10 não os lista entre os tipos admitidos. Proposta
-  de extensão de CFG-REP para decisão humana, sem alteração da SPEC:
-  - “diagrama de dispersão de dois indicadores contínuos já presentes no mesmo resultado, mesma
-    competência e mesmo universo, sem reta de ajuste, sem correlação e sem classes; não avaliáveis
-    listados à parte”;
-  - “bolhas” só se o tamanho codificar uma contagem do próprio resultado.
-  - Pendente de aprovação.
+- **Bolhas: aprovadas em 21/10/2026.** O responsável pelo produto autorizou o gráfico de bolhas e o ajuste
+  da SPEC ("Autorizo a inserção de gráfico de bolhas, pode ajustar a Spec nesse sentido."). O Adendo
+  BOL-20261021, no fim de `IMPLEMENTATION_SPEC.md`, dá a redação vigente de RQ-REP-10 e o nome vigente de
+  CAP-REP-02. O corpo v1.2.4 continua literal, porque o catálogo CFG-DOC o confere pelo SHA-256 e pelos
+  localizadores do Anexo A. As regras:
+  - o tamanho codifica a população do próprio resultado;
+  - a posição usa a densidade ou a quantidade e, com a referência, a distância até ela;
+  - sem reta de ajuste, sem correlação e sem classes que não venham de capacidade;
+  - não avaliáveis à parte;
+  - a variação percentual como marca de origem e destino e como rótulo;
+  - conjunto agregado como uma bolha, com o tipo de contagem;
+  - a régua de corte como filtro visual.
+
+  O motor do painel integrado serve os valores em `POST /api/painel` e `POST /api/painel/referencias`
+  ([painel integrado](PAINEL_INTEGRADO.md)); a tela do painel tem documento próprio.
+- **Dispersão sem bolhas: não implementada.** O diagrama de dois indicadores sem o tamanho da população
+  continua fora do escopo aprovado e pendente de decisão humana.
 
 ## 8. Sincronização, filtros e reutilização (U4)
 
@@ -646,7 +656,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
 | Requisito | Situação | Evidência ou lacuna |
 |---|---|---|
 | CAP-REP-01 Tabela | Atendido no escopo do protótipo | tabelas existentes preservadas e sincronizadas |
-| CAP-REP-02 Barras, linhas e série temporal | Atendido no escopo do protótipo | seção 7 |
+| CAP-REP-02 Barras, linhas, série temporal e bolhas (nome vigente pelo Adendo BOL-20261021) | Barras, linhas e série: atendido no escopo do protótipo; bolhas: valores servidos pelo motor do painel integrado (21/10/2026) | seção 7 e [painel integrado](PAINEL_INTEGRADO.md) |
 | CAP-REP-03 Mapa | **Parcial** | pontos com geometria autorizada; sem polígonos nem limites oficiais |
 | CAP-REP-04 Painel simples | Atendido no escopo do protótipo | justaposição na página de resultados, sem cálculo entre representações |
 | CAP-REP-05 Relatório HTML e PDF | **Parcial** | página de resultados imprimível; sem relatório consolidado próprio nem PDF de servidor |
@@ -660,7 +670,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
 | RQ-REP-07 Mapa exige geometria; senão BLQ-DAD | Atendido | seção 3 |
 | RQ-REP-08 Painel sem cálculo entre representações | Atendido | inspeção do código |
 | RQ-REP-09 Referências, parâmetros e limitações | Parcial | JSON traz origem e limitações; PNG removido da interface; o modo degradado da síntese não foi exercitado neste bloco |
-| RQ-REP-10 Tipos admitidos | Atendido; dispersão e bolhas fora | seção 7 |
+| RQ-REP-10 Tipos admitidos | Atendido; bolhas admitidas pelo Adendo BOL-20261021 (21/10/2026), com o motor do painel integrado; dispersão sem bolhas fora | seção 7 e [painel integrado](PAINEL_INTEGRADO.md) |
 | RQ-REP-11 Escala e unidade da densidade | Atendido nas representações novas | unidade “por 1.000 habitantes” na legenda, nos eixos e nos detalhes |
 | RQ-REP-12 Conteúdo de HTML, PDF e CSV | Parcial | ver CAP-REP-05; CSV sem mudança |
 | RQ-REP-13 Visualizador da base | Não tratado neste bloco | — |
@@ -691,7 +701,7 @@ Nenhum valor, linha, contagem, classe, motivo ou status mudou: o Bloco 3 só acr
   usuário.
 - **Pendências:**
   - limites oficiais de UF e do Brasil e qualquer mapa coroplético (seção 4);
-  - dispersão e bolhas, aguardando aprovação humana (seção 7);
+  - dispersão sem bolhas, aguardando aprovação humana (seção 7; as bolhas foram aprovadas em 21/10/2026);
   - EV-REPRESENTACAO como evento persistido;
   - relatório consolidado HTML e PDF de servidor;
   - SVG.

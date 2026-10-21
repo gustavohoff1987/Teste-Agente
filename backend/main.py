@@ -24,6 +24,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Response
+from fastapi.responses import JSONResponse
 import httpx
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
@@ -52,6 +53,7 @@ from request_memo import RequestMemoMiddleware, mark_source, per_source
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
 import conversation_library
+import painel
 
 
 # Aquecimento em curso: a primeira requisição à base Brasil espera por ele em vez de repetir o mesmo cálculo em paralelo.
@@ -1230,3 +1232,55 @@ def _seal(result, frame, fields, settings, operation, x_adt_session, context_rev
         result["conversation_reference"] = {"available": sessions.record_result(
             x_adt_session, context_revision, result, capture["context"])}
     return result
+
+
+async def _panel_request(file, dataset, scope, dataset_version, mapping, options):
+    """Pedido do painel integrado: só a base Brasil oficial (fonte municipal), lida e verificada como em /api/analyze
+    (integridade pelo manifesto; versão divergente recusada)."""
+    if file is not None or dataset != "brazil":
+        raise ValueError(painel.OFFICIAL_ONLY)
+    if scope not in ("municipal", "auto"):
+        raise ValueError("O painel usa a fonte municipal da base Brasil: envie scope=municipal.")
+    fields, requested = json.loads(mapping), json.loads(options)
+    if not isinstance(fields, dict) or not isinstance(requested, dict):
+        raise ValueError("Parâmetros do painel inválidos.")
+    frame, _, sources = await _request_dataset(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
+    return frame, sources, fields, requested
+
+
+@app.post("/api/painel")
+async def integrated_panel(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                           sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                           dataset_version: str = Form(""), geo_version: str = Form(""), context_revision: int = Form(0),
+                           x_adt_session: str | None = Header(None)):
+    """Painel integrado de bolhas (Docs/PAINEL_INTEGRADO.md): população, quantidade, densidade, distância até a
+    referência e variação de cada município e conjunto, calculadas pelo motor; a tela só posiciona, filtra e desenha.
+    Nada vai ao provedor de IA. O resultado ainda não entra na sessão da conversa (próximo passo do painel)."""
+    try:
+        if x_adt_session:
+            sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
+        frame, sources, fields, requested = await _panel_request(file, dataset, scope, dataset_version, mapping, options)
+        if geo_version and requested.get("referencia"):
+            geo = _geo_identity(frame, "nearest", {})
+            if geo is not None and geo_version != _geo_token(geo):
+                raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base "
+                                 "antes de analisar.")
+        # Resposta já em tipos JSON nativos (sem NaN): serializada direto, sem a conversão genérica do FastAPI, que
+        # pesaria com milhares de municípios.
+        return JSONResponse(painel.compute(sources, fields, requested))
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/painel/referencias")
+async def integrated_panel_references(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                                      options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
+                                      scope: str = Form("municipal"), dataset_version: str = Form(""),
+                                      context_revision: int = Form(0)):
+    """Candidatos à referência do painel, na ordem do critério (CAP-SUB-02), com empates na mesma posição e não
+    avaliáveis à parte. Só lista: não inicia análise nem escolhe a referência."""
+    try:
+        _, sources, fields, requested = await _panel_request(file, dataset, scope, dataset_version, mapping, options)
+        return JSONResponse(painel.references(sources, fields, requested))
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

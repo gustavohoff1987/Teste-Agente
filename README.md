@@ -642,6 +642,8 @@ com os extremos e marcas de leitura na legenda; o domínio continua o mínimo e 
 é criada na tela. A "Situação do resultado" aparece com acentos. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
 ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
 
+**Painel integrado de bolhas (21/10/2026):** o gráfico de bolhas é admitido pelo Adendo BOL-20261021 da SPEC. O motor serve `POST /api/painel` e `POST /api/painel/referencias`, só com a base Brasil oficial: população, quantidade e densidade de cada município e de conjuntos agregados, distância até a referência e variação percentual. Rotas, campos e regras em [painel integrado](Docs/PAINEL_INTEGRADO.md).
+
 ## Escopo e limitações do protótipo
 
 Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e representação integrada em mapa de pontos, barras, linhas e tabela.
