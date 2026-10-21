@@ -70,15 +70,23 @@ def workspace(page, stage):
 
 
 def municipality(region, code):
-    """Base oficial: caixa de marcar de um município na lista vertical da abrangência territorial. Abre o grupo do estado
-    (prefixo do código IBGE) quando a lista agrupa os municípios por estado."""
+    """Base oficial: caixa de marcar de um município na abrangência territorial. Quando a lista do estado (prefixo do
+    código IBGE) ainda não está à vista, escolhe o estado no seletor "Estado dos municípios"."""
     option = region.get_by_test_id("territory-option-code-" + code)
     if not option.count():
-        group = region.get_by_test_id("territory-group-toggle-" + code[:2])
-        if group.count() and group.get_attribute("aria-expanded") != "true":
-            group.click()
+        state = region.get_by_test_id("territory-municipal-state")
+        if state.count():
+            state.select_option(code[:2])
     expect(option).to_have_count(1)
     return option
+
+
+def municipal_group(region, prefix):
+    """Base oficial: caixa "Todos os municípios" de um estado, à vista depois de escolher o estado no seletor."""
+    region.get_by_test_id("territory-municipal-state").select_option(prefix)
+    group = region.get_by_test_id("territory-group-check-" + prefix)
+    expect(group).to_have_count(1)
+    return group
 
 
 def choose(inline, label, column):

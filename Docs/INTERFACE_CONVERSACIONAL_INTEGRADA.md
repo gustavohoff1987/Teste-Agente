@@ -217,12 +217,16 @@ constantes e há ao menos quatro competências de junho na janela, o botão "Usa
 competências (ver `EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
 
 A caixa **Abrangência territorial** abre uma lista vertical com caixas de marcar nativas (Tab entre
-os controles, Espaço marca, o botão de cada estado abre o grupo): **Brasil (total nacional)**;
+os controles, Espaço marca): **Brasil (total nacional)**;
 **Estados** (selo "médicos únicos"), com o aviso de que cada estado conta os médicos diferentes do estado
 (fonte estadual: quem atua em mais de um município do estado conta uma vez; quem atua em mais de um estado
 conta em cada um, e a soma dos estados não é o total do Brasil), "Todos os estados" e cada estado com a
-"população de N municípios"; e **Municípios**, com "Todos os municípios" e um grupo
-recolhível por estado (caixa do grupo, "k de N municípios" e os municípios dentro). Ao lado, "{n}
+"população de N municípios" (a seção avisa que cada caixa marca o estado inteiro); e **Municípios**, com "Todos os
+municípios" e, desde 21/10/2026, o seletor "Estado dos municípios". O estado escolhido mostra à vista a sua lista, com
+"Todos os N municípios de …" e cada município; sem escolha, vale o estado do primeiro município marcado, e "Marcados
+em: AM (2) · …" leva a cada estado com municípios marcados. Antes, os municípios ficavam num grupo recolhível dentro de
+cada estado, no fim da lista. Os estados e os municípios do estado escolhido rolam por dentro, e os títulos das seções
+ficam à vista. Ao lado, "{n}
 selecionados", a composição ou o padrão da análise, a escolha pendente e "Limpar seleção". Sem nada
 marcado vale o padrão da análise, com o selo "padrão desta análise": o Brasil em quantitativos,
 evolução temporal e relatórios; todos os municípios nas demais. A primeira marcação substitui o

@@ -45,8 +45,9 @@ fonte. A caixa **Abrangência territorial** das configurações abre uma lista v
 marcar: **Brasil (total nacional)**; **Estados** ("Todos os estados" e cada estado com o selo "médicos
 únicos" e a "população de N municípios", com o aviso de que quem atua em mais de um município do estado
 conta uma vez, de que quem atua em mais de um estado conta em cada um e de que a soma dos estados não
-é o total do Brasil); e **Municípios** ("Todos os municípios" e um grupo
-recolhível por estado, com a caixa do grupo e os municípios dentro). Sem nada marcado vale o padrão
+é o total do Brasil); e **Municípios** ("Todos os municípios" e, desde 21/10/2026, o seletor "Estado dos
+municípios", que mostra à vista a lista do estado escolhido, com "Todos os N municípios de …" e cada município). Sem
+nada marcado vale o padrão
 da análise, com o selo "padrão desta análise": o Brasil em quantitativos, evolução temporal e
 relatórios; todos os municípios nas demais. A primeira marcação substitui o padrão, e "Limpar
 seleção" volta a ele. Os municípios marcados continuam valendo ao trocar de análise (como na

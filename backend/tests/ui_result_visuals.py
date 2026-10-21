@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, choose, execute_analysis, expand, municipality, offline, select, workspace
+from ui_support import URL, choose, execute_analysis, expand, municipality, municipal_group, offline, select, workspace
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 AM = [("MANAUS", "130260"), ("TEFE", "130420"), ("PARINTINS", "130340")]
@@ -272,7 +272,7 @@ def main():
         select(page, "Evolução temporal")
         settled()
         open_scope()
-        region.get_by_test_id("territory-group-check-13").check()
+        municipal_group(region, "13").check()
         temporal, _ = calculate()
         check_header(temporal)
         board.get_by_role("tab", name="Gráficos", exact=True).click()
@@ -297,7 +297,7 @@ def main():
         select(page, "Recortes e rankings")
         settled()
         open_scope()
-        region.get_by_test_id("territory-group-check-13").check()
+        municipal_group(region, "13").check()
         choose_period()
         ranking, _ = calculate()
         check_header(ranking)

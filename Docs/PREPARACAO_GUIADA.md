@@ -36,8 +36,8 @@ As antigas caixas "Confirmo…/Declaro…/Autorizo…" não existem mais: as pre
   municipal, com o bloco dos níveis (Brasil, estados e regras de cada análise). Trocar de análise não
   chama `/api/inspect`, não bloqueia a preparação e não troca de fonte; a opção "Abrangência da
   análise" das condições avançadas e a memória da preparação de cada recorte deixaram de existir.
-- A caixa "Abrangência territorial" é uma lista vertical (Brasil, estados e municípios agrupados por
-  estado). Os municípios marcados continuam valendo entre as análises; o Brasil e os estados só valem
+- A caixa "Abrangência territorial" é uma lista vertical (Brasil, estados e municípios; desde 21/10/2026, os municípios
+  do estado escolhido em "Estado dos municípios" ficam à vista, sem grupo recolhível). Os municípios marcados continuam valendo entre as análises; o Brasil e os estados só valem
   nas análises que os aceitam; sem nada aplicável, vale o padrão da análise. A interface envia a parte
   que vale em `options.abrangencia`, e o backend escolhe a rota e confere o pedido
   ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)).

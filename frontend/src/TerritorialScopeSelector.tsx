@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { Territory } from "./TerritorialSelection";
 import {
   breakdown, countSelected, groupState, type Effective, type LevelRule, type Levels, type ScopeSelection, type Toggle, toggle,
 } from "./territorialScope";
 
-// Lista vertical da abrangência territorial da base oficial (D3): Brasil, estados e municípios agrupados por estado,
-// com caixas de marcar nativas (Tab entre os controles, Espaço marca, botão abre cada grupo). Só organiza a escolha:
+// Lista vertical da abrangência territorial da base oficial (D3): Brasil, estados e municípios, com caixas de marcar
+// nativas (Tab entre os controles, Espaço marca). Na seção Municípios, o seletor "Estado dos municípios" mostra a lista
+// do estado escolhido, à vista, em vez de um grupo recolhível dentro de cada estado (21/10/2026). Só organiza a escolha:
 // o que cada análise aceita, o padrão e os motivos vêm do backend (bloco "niveis" da inspeção), que confere o pedido.
 
 type Props = {
@@ -32,6 +32,7 @@ const ROW = "flex min-h-10 items-start gap-2 px-3 py-2";
 const CHECK = "mt-0.5 h-4 w-4 shrink-0 accent-teal";
 const REASON = "px-3 pb-2 text-xs leading-5 text-amber-900";
 const LEGEND = "w-full border-b border-line bg-slate-50 px-3 py-1.5 text-xs font-bold text-ink";
+const HINT = "px-3 pt-2 text-[11px] leading-4 text-slate-600";
 
 function Badge() {
   return <span data-testid="territory-badge-padrao" className="ml-1 shrink-0 rounded-full bg-cyan-100 px-2 text-[11px] font-semibold text-cyan-900">
@@ -39,7 +40,6 @@ function Badge() {
 }
 
 export default function TerritorialScopeSelector(p: Props) {
-  const [open, setOpen] = useState<string[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const accepts = (level: "brasil" | "estado" | "municipio") => !!p.rule?.disponivel && !!p.rule?.aceita.includes(level);
   const groups = useMemo(() => {
@@ -70,6 +70,14 @@ export default function TerritorialScopeSelector(p: Props) {
   const stateGroups = p.levels.estados;
   const allStates = stateObjects.map(item => item.prefixo);
   const statesMarked = allStates.filter(prefix => p.scope.estados.includes(prefix)).length;
+  // Municípios marcados por estado (o grupo inteiro conta todos): mostrados no seletor e na linha "Marcados em".
+  const markedIn = (prefix: string) => p.scope.grupos.includes(prefix) ? members(prefix).length
+    : members(prefix).filter(id => idSet.has(id)).length;
+  const withMarks = p.scope.todos ? [] : stateGroups.filter(state => markedIn(state.prefixo) > 0);
+  // Estado cujos municípios ficam à vista: o escolhido no seletor; sem escolha, o primeiro com municípios marcados.
+  const [focus, setFocus] = useState(() => withMarks[0]?.prefixo || "");
+  useEffect(() => { if (!focus && withMarks[0]) setFocus(withMarks[0].prefixo); }, [focus, withMarks[0]?.prefixo]);
+  const focused = stateGroups.find(state => state.prefixo === focus);
 
   function municipality(item: Territory, group?: string) {
     const checked = p.scope.todos || (!!group && p.scope.grupos.includes(group)) || idSet.has(item.id);
@@ -117,7 +125,9 @@ export default function TerritorialScopeSelector(p: Props) {
             Cada estado conta os médicos diferentes do estado (fonte estadual): quem atua em mais de um município do estado
             conta uma vez. Quem atua em mais de um estado conta em cada um; por isso, a soma dos estados não é o total do
             Brasil. A população do estado é a soma dos seus municípios na competência.</p>}
-          {allStates.length ? <ul>
+          {allStates.length > 0 && <p className={HINT}>Cada caixa marca o estado inteiro. Para escolher municípios de um estado,
+            use a seção Municípios, logo abaixo.</p>}
+          {allStates.length ? <ul data-testid="territory-states" className="territory-states overflow-y-auto">
             <li className={ROW}>
               <input id="territorio-todos-estados" type="checkbox" data-testid="territory-all-states" className={CHECK}
                 checked={accepts("estado") && statesMarked === allStates.length}
@@ -157,36 +167,47 @@ export default function TerritorialScopeSelector(p: Props) {
           </div>
           {p.scope.todos && accepts("municipio") && <p className="px-3 pb-2 text-[11px] leading-4 text-slate-600">
             Todos os municípios estão incluídos. Para escolher municípios, desmarque “Todos os municípios”.</p>}
-          {stateGroups.length > 0 && <ul aria-label="Municípios por estado">
-            {stateGroups.map(state => {
-              const ids = members(state.prefixo);
-              const status = groupState(state.prefixo, p.scope, p.ids, ids);
-              const marked = status === "checked" ? ids.length : ids.filter(id => idSet.has(id)).length;
-              const expanded = open.includes(state.prefixo);
-              return <li key={state.prefixo} data-testid={"territory-group-" + state.prefixo} className="border-t border-slate-100">
-                <div className={ROW}>
-                  <input type="checkbox" data-testid={"territory-group-check-" + state.prefixo} className={CHECK}
-                    aria-label={state.rotulo_grupo + " (" + state.municipios.toLocaleString("pt-BR") + ")"}
-                    checked={status === "checked"} disabled={p.disabled || p.scope.todos || !ids.length}
-                    ref={element => { if (element) element.indeterminate = status === "mixed"; }}
-                    onChange={() => change({ kind: "grupo", prefix: state.prefixo, members: ids }, state.rotulo_grupo +
-                      (status === "checked" ? " desmarcados." : " marcados (" + state.municipios.toLocaleString("pt-BR") + ")."))}/>
-                  <button type="button" data-testid={"territory-group-toggle-" + state.prefixo} aria-expanded={expanded}
-                    aria-controls={"territorio-grupo-" + state.prefixo}
-                    onClick={() => setOpen(current => current.includes(state.prefixo) ? current.filter(item => item !== state.prefixo)
-                      : [...current, state.prefixo])}
-                    className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-2 text-left text-xs leading-5 text-ink">
-                    <span>{state.nome} ({state.sigla})</span>
-                    <span className="flex items-center gap-1 text-[11px] text-slate-600">{marked.toLocaleString("pt-BR")} de {
-                      state.municipios.toLocaleString("pt-BR")} municípios
-                      <ChevronDown size={13} aria-hidden="true" className={"text-teal transition " + (expanded ? "rotate-180" : "")}/></span>
-                  </button>
-                </div>
-                {expanded && <ul id={"territorio-grupo-" + state.prefixo} aria-label={state.rotulo_grupo}>
-                  {(groups.byState.get(state.prefixo) || []).map(item => municipality(item, state.prefixo))}</ul>}
-              </li>;
-            })}
-          </ul>}
+          {stateGroups.length > 0 && !p.scope.todos && <div className="space-y-2 border-t border-slate-100 px-3 py-2">
+            <label htmlFor="territorio-estado-municipios" className="block text-xs font-semibold text-ink">Estado dos municípios</label>
+            <select id="territorio-estado-municipios" data-testid="territory-municipal-state" value={focus}
+              onChange={event => setFocus(event.target.value)}
+              className="w-full min-w-0 rounded-md border border-line bg-white px-2 py-1.5 text-xs text-ink">
+              <option value="">Escolha um estado para ver os municípios dele</option>
+              {stateGroups.map(state => <option key={state.prefixo} value={state.prefixo}>{state.nome} ({state.sigla}) · {
+                markedIn(state.prefixo).toLocaleString("pt-BR")} de {state.municipios.toLocaleString("pt-BR")} marcados</option>)}
+            </select>
+            {withMarks.length > 0 && <p data-testid="territory-marked-states" className="flex flex-wrap items-center gap-1 text-[11px] text-slate-600">
+              Marcados em:{withMarks.map(state => <button key={state.prefixo} type="button" data-testid={"territory-marked-state-" + state.prefixo}
+                aria-pressed={state.prefixo === focus} onClick={() => setFocus(state.prefixo)}
+                className={"rounded-full border px-2 py-0.5 font-semibold " + (state.prefixo === focus
+                  ? "border-teal bg-cyan-50 text-teal" : "border-line bg-white text-ink hover:border-teal")}>
+                {state.sigla} ({markedIn(state.prefixo).toLocaleString("pt-BR")})</button>)}</p>}
+            {!focused && <p className="text-[11px] leading-4 text-slate-600">Os municípios do estado escolhido aparecem aqui, para
+              marcar um a um ou todos de uma vez.</p>}
+          </div>}
+          {focused && !p.scope.todos && (() => {
+            const ids = members(focused.prefixo);
+            const status = groupState(focused.prefixo, p.scope, p.ids, ids);
+            return <div data-testid={"territory-group-" + focused.prefixo} className="border-t border-slate-100">
+              <div className={ROW + " bg-slate-50"}>
+                <input id={"territorio-grupo-todos-" + focused.prefixo} type="checkbox" data-testid={"territory-group-check-" + focused.prefixo}
+                  className={CHECK} aria-label={focused.rotulo_grupo + " (" + focused.municipios.toLocaleString("pt-BR") + ")"}
+                  checked={status === "checked"} disabled={p.disabled || !ids.length}
+                  ref={element => { if (element) element.indeterminate = status === "mixed"; }}
+                  onChange={() => change({ kind: "grupo", prefix: focused.prefixo, members: ids }, focused.rotulo_grupo +
+                    (status === "checked" ? " desmarcados." : " marcados (" + focused.municipios.toLocaleString("pt-BR") + ")."))}/>
+                <label htmlFor={"territorio-grupo-todos-" + focused.prefixo}
+                  className="flex min-w-0 flex-1 cursor-pointer flex-wrap justify-between gap-x-2 text-xs font-semibold leading-5 text-ink">
+                  <span>Todos os {focused.municipios.toLocaleString("pt-BR")} municípios de {focused.nome}</span>
+                  <span className="text-[11px] font-normal text-slate-600">{markedIn(focused.prefixo).toLocaleString("pt-BR")} de {
+                    focused.municipios.toLocaleString("pt-BR")} marcados</span>
+                </label>
+              </div>
+              <ul id={"territorio-grupo-" + focused.prefixo} aria-label={focused.rotulo_grupo}
+                className="territory-municipalities overflow-y-auto">
+                {(groups.byState.get(focused.prefixo) || []).map(item => municipality(item, focused.prefixo))}</ul>
+            </div>;
+          })()}
           {groups.loose.length > 0 && <>
             {stateGroups.length > 0 && <p className="border-t border-slate-100 px-3 pt-2 text-[11px] font-semibold text-slate-600">
               Sem estado identificado pelo código</p>}

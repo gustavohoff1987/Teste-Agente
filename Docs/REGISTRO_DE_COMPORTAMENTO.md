@@ -35,6 +35,46 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Abrangência territorial: municípios do estado escolhido à vista, sem grupo recolhível
+- **Antes:** na base oficial, a seção Municípios da lista vertical tinha um grupo recolhível por estado, no fim da lista
+  (depois de Brasil e dos 27 estados), com a caixa do grupo e o botão do estado. Os municípios só apareciam ao abrir o
+  grupo, numa caixa dentro do estado, e a lista inteira rolava dentro de uma caixa de até 460 px.
+- **Agora:**
+  - **Seção Municípios:** traz "Todos os municípios" e o seletor nativo **"Estado dos municípios"**
+    (`territory-municipal-state`; cada estado com "k de N marcados"). A lista do estado escolhido fica à vista, logo
+    abaixo, com a caixa "Todos os N municípios de …" e cada município.
+  - **Estado sem escolha:** vale o do primeiro município marcado.
+  - **"Marcados em: AM (2) · …":** leva a cada estado com municípios marcados.
+  - **Seção Estados:** avisa que cada caixa marca o estado inteiro e que os municípios ficam na seção Municípios.
+  - **Rolagem:** os estados e os municípios do estado escolhido rolam por dentro, e os títulos das seções ficam à vista.
+  - **Com "Todos os municípios" marcado:** o seletor e a lista saem, e a seção diz como voltar a escolher municípios.
+- **Permanece:**
+  - a ordem vertical Brasil, estados, todos os municípios e municípios;
+  - as caixas de marcar nativas, com os mesmos identificadores (`territory-option-code-…`, `territory-group-check-NN`,
+    com o rótulo acessível "Municípios de … (N)");
+  - as regras de cada análise, o padrão, a escolha pendente, "Limpar seleção", o resumo ao lado e o que é enviado em
+    `options.abrangencia`;
+  - nenhum filtro de texto e nenhum item "fora desta análise";
+  - nada é calculado na tela.
+- **Motivo:** pedido do responsável pelo produto de 21/10/2026. Não ficava claro que, ao clicar num estado, os
+  municípios ficavam numa caixa dentro dele; o desenho não devia esconder os municípios do usuário. Classificação:
+  mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade: a decisão D3 (abrangência vertical) e a lista enxuta de 19/10/2026 continuam valendo. O seletor do
+    estado é um controle de formulário comum, não a navegação avançada nem o filtro de texto deixados de fora da
+    lista, e a SPEC não trata da forma da lista.
+- **Documentação e testes:**
+  - **Documentação:** README (abrangência), `Docs/ABRANGENCIA_TERRITORIAL.md` (tela), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`
+    e `Docs/PREPARACAO_GUIADA.md`.
+  - **Roteiros mudados de propósito:** o comportamento mudou, e o defeito não está no produto nem no teste. O botão do
+    grupo deixa de existir e o estado passa a ser escolhido no seletor.
+    - `ui_support.py`: `municipality()` escolhe o estado no seletor, e o novo `municipal_group()` devolve a caixa do grupo
+      do estado.
+    - `ui_territorial_scope.py` (MG com os 853 municípios à vista, "Todos os 853 municípios de Minas Gerais" e seletor
+      vazio sem marcação), `ui_result_visuals.py` e `ui_block1_smoke.py` (teclado no seletor nativo).
+    - `scripts/capturar_telas.py` (os municípios do Amazonas à vista).
+  - Nenhuma verificação foi removida.
+
 ### 2026-10-21 · Continuidade da conversa: territórios mantidos e "últimos N anos" com as duas âncoras
 - **Antes:**
   - "Quero fazer a comparação dos últimos 5 anos", depois de citar municípios, caía na gramática local, que reconhecia

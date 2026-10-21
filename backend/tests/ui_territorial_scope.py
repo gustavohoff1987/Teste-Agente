@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import URL, execute_analysis, expand, municipality, offline, select, workspace
+from ui_support import URL, execute_analysis, expand, municipality, municipal_group, offline, select, workspace
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 # Barras com rolagem: o número de cada barra fica inteiro fora dela (logo depois do fim) ou inteiro dentro dela (perto da
@@ -126,11 +126,13 @@ def main():
         expect(states).to_have_count(27 if real else 2)
         assert inspections and len(inspections) == 1, inspections
         if real:
-            group = region.get_by_test_id("territory-group-check-31")
+            # Os municípios ficam à vista ao escolher o estado no seletor "Estado dos municípios" (21/10/2026), sem
+            # grupo recolhível; a seção Estados continua com todos os estados.
+            expect(region.get_by_test_id("territory-municipal-state")).to_have_value("")
+            group = municipal_group(region, "31")
             expect(group).to_have_attribute("aria-label", "Municípios de Minas Gerais (853)")
-            region.get_by_test_id("territory-group-toggle-31").click()
             expect(region.locator("#territorio-grupo-31").get_by_role("checkbox")).to_have_count(853)
-            region.get_by_test_id("territory-group-toggle-31").click()
+            expect(region.get_by_test_id("territory-group-31")).to_contain_text("Todos os 853 municípios de Minas Gerais")
             expect(region.get_by_test_id("territory-option-uf-25")).to_be_visible()
         page.screenshot(path=str(OUTPUT / ("territorial-01-lista" + ("-real" if real else "") + ".png")), full_page=True)
 
@@ -146,7 +148,7 @@ def main():
         expect(region.get_by_test_id("territory-section-brasil")).to_contain_text(
             "Não se aplica: as distâncias e os critérios usam a localização de cada município.")
         expect(region.get_by_test_id("territory-section-estados")).to_contain_text("Não se aplica: estados não têm um ponto único.")
-        region.get_by_test_id("territory-group-check-13").check()
+        municipal_group(region, "13").check()
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Municípios do Amazonas (" + ("62" if real else "3") + ")")
         # Sem período e sem território de referência, o botão continua clicável: o clique nomeia as escolhas que faltam
         # (o referencial só fora da versão governada) e abre a lista de competências; nada é calculado.

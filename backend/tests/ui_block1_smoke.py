@@ -312,12 +312,12 @@ def main():
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
             shot(f"block1-07-largura-{width}.png")
         workspace(page, "territories")
-        # Teclado: o botão do grupo abre a lista do estado e a Espaço marca e desmarca a caixa nativa do município.
-        toggle = selection.get_by_test_id("territory-group-toggle-13")
-        toggle.focus()
-        expect(toggle).to_be_focused()
-        if toggle.get_attribute("aria-expanded") != "true":
-            toggle.press("Enter")
+        # Teclado: o seletor nativo "Estado dos municípios" mostra a lista do estado, e a Espaço marca e desmarca a caixa
+        # nativa do município.
+        state = selection.get_by_test_id("territory-municipal-state")
+        state.focus()
+        expect(state).to_be_focused()
+        state.select_option("13")
         checkbox = municipality(selection, "130420")
         checkbox.focus()
         checkbox.press("Space")

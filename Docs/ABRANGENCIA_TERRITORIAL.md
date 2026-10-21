@@ -390,11 +390,18 @@ supera o total do Brasil em todas as competências).
     na fonte estadual ("Amazonas (AM)", "população de 62 municípios"). Sem estados identificados pelos
     códigos (bases sintéticas), a seção informa "Nenhum estado identificado pelos códigos desta base.";
     sem a fonte estadual, a seção fica desabilitada com o motivo.
-  - **Municípios:** "Todos os municípios" ("Um valor para cada um dos 5.570 municípios.") e um grupo
-    recolhível por estado: caixa do grupo ("Municípios do Amazonas (62)", tri-estado), botão "Amazonas
-    (AM)" com "k de N municípios" e, aberto, os municípios ("MANAUS [130260]"; no 251365, a nota da UF
-    declarada divergente). Com "Todos os municípios" marcado, grupos e municípios aparecem incluídos e
-    desabilitados. Municípios sem estado identificado ficam numa lista simples.
+  - **Municípios:** "Todos os municípios" ("Um valor para cada um dos 5.570 municípios.") e, desde
+    21/10/2026, o seletor nativo **"Estado dos municípios"** (`territory-municipal-state`; cada estado com "k de N
+    marcados"). Escolhido o estado, a lista dele fica à vista, logo abaixo, com rolagem própria:
+    - a caixa "Todos os N municípios de …" (`territory-group-check-NN`, rótulo acessível "Municípios do Amazonas (62)",
+      tri-estado) e "k de N marcados";
+    - os municípios ("MANAUS [130260]"; no 251365, a nota da UF declarada divergente).
+
+    Sem estado escolhido, vale o do primeiro município marcado. A linha "Marcados em: AM (2) · PA (1)" leva a cada
+    estado com municípios marcados. A seção Estados avisa que cada caixa marca o estado inteiro e que os municípios
+    ficam na seção Municípios. Com "Todos os municípios" marcado, o seletor e a lista saem, e a seção diz como voltar a
+    escolher municípios. Municípios sem estado identificado ficam numa lista simples. Antes, cada estado era um grupo
+    recolhível no fim da lista, e os municípios só apareciam ao abrir o grupo.
 - Resumo ao lado: "{n} selecionados", a composição ("Brasil · 1 estado · 3 municípios") ou "Padrão desta
   análise: …", a escolha pendente (`territory-rule-message`) e "Limpar seleção".
 - **Padrão:** sem nada marcado vale o padrão da análise (§2: Brasil em quantitativos, evolução temporal

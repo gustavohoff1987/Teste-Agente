@@ -117,12 +117,10 @@ def capturar(url, saida, canal):
         def abrangencia():
             preparacao.get_by_test_id("period-done").click()
             expand(preparacao.get_by_test_id("territory-toggle"))
-            # Lista vertical da abrangência (Brasil, estados e municípios), com o grupo do Amazonas aberto.
+            # Lista vertical da abrangência (Brasil, estados e municípios), com os municípios do Amazonas à vista.
             lista = page.get_by_role("region", name="Seleção territorial compartilhada")
             expect(lista.get_by_test_id("territory-option-todos-municipios")).to_be_enabled(timeout=90000)
-            grupo = lista.get_by_test_id("territory-group-toggle-13")
-            if grupo.count() and grupo.get_attribute("aria-expanded") != "true":
-                grupo.click()
+            lista.get_by_test_id("territory-municipal-state").select_option("13")
 
         def distancias():
             select(page, "Análise espacial")
