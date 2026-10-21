@@ -755,6 +755,12 @@ def session_result(result_id: str, x_adt_session: str = Header(...)):
     return sessions.result(x_adt_session, result_id)
 
 
+def protected_values(frame: pd.DataFrame, sheet: str) -> list:
+    """Tudo o que identifica a base no texto (colunas, arquivo, planilha e valores): sai antes do provedor de IA."""
+    return [*frame.columns, frame.attrs.get("input_file", {}).get("name", ""), sheet,
+            *(value for column in frame.columns for value in frame[column].dropna().unique())]
+
+
 @app.post("/api/llm/interpret-context")
 async def llm_interpretation_with_dataset(
     file: UploadFile | None = File(None),
@@ -839,8 +845,7 @@ async def llm_interpretation_with_dataset(
             request, eligibility=eligibility, category_constant=declared_category,
             proposal_reviewer=review_local,
             conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
-            protected_values=([*frame.columns, frame.attrs.get("input_file", {}).get("name", ""), sheet,
-                               *(value for column in frame.columns for value in frame[column].dropna().unique())]),
+            protected_values=protected_values(frame, sheet),
         )
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
-import {navigationCommand, normalizeCommand, type NavigationTarget, type WorkspaceStage} from "./workspaceNavigation";
+import {navigationCommand, normalizeCommand, previousResultCommand, viewCommand, type NavigationTarget, type ResultView,
+  type WorkspaceStage} from "./workspaceNavigation";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import { AlertCircle, ArrowRight, LoaderCircle, MapPin,
@@ -19,7 +20,7 @@ export type TerritorialProposal = {handled: boolean; reply?: string; clarificati
   territory_ids?: string[]; estados?: string[]; pending_operation?: Operation; requested_count?: number | null;
   options_patch?: {period_filter?: string; period_filters?: string[]; temporal_indicator?: "quantity" | "density";
     comparison_indicator?: "quantity" | "density"}; selection_changed?: boolean; reset_selection?: boolean};
-type Reply = { exploration?: TerritorialProposal; reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;
+type Reply = { exploration?: TerritorialProposal; dialogue_action?: string; reply: string; proposal: Proposal; verification?: Verification; clarification?: Clarification; requires_confirmation: boolean;
   executed: boolean; origin: string; note: string; model: string; privacy: string };
 type Status = { configured: boolean; model: string; requests_used_today: number;
   local_daily_limit: number; provider_quota_verified: boolean; executes_analyses: boolean };
@@ -27,7 +28,11 @@ type ChatTurn = { role: "user" | "assistant"; content: string; proposal?: Propos
   verification?: Verification; clarification?: Clarification; request?: string; context?: string };
 type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: NavigationTarget) => void; onMultiplePeriods: () => boolean;
   territorySummary?: {label: string; text: string; selected: boolean; selectable: boolean}; territoriesOpen: boolean; onTerritoriesOpen: (open: boolean) => void; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
-  onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null> };
+  onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<string | null>;
+  /** Reabre o resultado anterior da sessão, sem recalcular, e devolve a resposta da conversa. */
+  onPreviousResult: () => string };
+const VIEW_LABEL: Record<ResultView, string> = {mapa: "Mapa", graficos: "Gráficos", tabela: "Tabela"};
+const VIEW_ACTION = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
   available: "Requisitos técnicos atendidos no pré-exame; ainda depende da sua execução na preparação",
   needs_confirmation: "Há escolhas pendentes",
@@ -43,7 +48,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, onPreviousResult, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
   const hasSource = !!file || !!dataset;
   const staged = sourceReady && !!active;
   const [status, setStatus] = useState<Status | null>(null);
@@ -93,6 +98,13 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     }
   }, [sourceReady]);
 
+  function openView(view: ResultView): string {
+    if (!hasResult) return "Ainda não há resultado calculado. Depois do cálculo, ele aparece nas abas Mapa, Gráficos e Tabela.";
+    setWorkspaceStage("results");
+    window.dispatchEvent(new CustomEvent("adt:view", {detail: view}));
+    return "Resultado aberto na aba " + VIEW_LABEL[view] + ". Nada foi recalculado.";
+  }
+
   async function send(event: FormEvent) {
     event.preventDefault();
     const message = draft.trim();
@@ -141,6 +153,12 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     const append = (content: string) => setTurns(previous => [
       ...previous, {role:"assistant", content}
     ]);
+    // Abas do resultado e resultado anterior: só a apresentação muda, nada é recalculado.
+    if (sourceReady && hasResult) {
+      const view = viewCommand(message);
+      if (view) { append(openView(view)); return; }
+      if (previousResultCommand(message)) { append(onPreviousResult()); return; }
+    }
     // Não reinterpretar o mesmo pedido quando a base ou alguma escolha
     // necessária ainda não foi feita. O próximo passo já é conhecido.
     if (!sourceReady && active && followup) {
@@ -230,7 +248,10 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
         throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
       const suggested = validated.proposal.operation;
       const resolved = sourceReady && validated.exploration?.handled ? validated.exploration : null;
-      const responseText = resolved ? onResolved(resolved) : !sourceReady && suggested
+      const action = validated.dialogue_action || "";
+      const viewAction = VIEW_ACTION.get(action);
+      const responseText = resolved ? onResolved(resolved) : viewAction ? openView(viewAction)
+        : action === "previous_result" ? onPreviousResult() : !sourceReady && suggested
         ? "Entendi. Podemos fazer essa análise de " + ANALYSIS[suggested].toLowerCase() +
           ". Para começar, prefere usar os dados do Brasil atualmente disponibilizados nesta plataforma ou importar os seus? Depois seguiremos diretamente com a análise."
         : validated.reply;

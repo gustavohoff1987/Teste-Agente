@@ -8,7 +8,8 @@ entregou (frase em partes, KPIs, procedência, relação e diferença do par, va
 ranking, classe de cada ponto da distribuição, tipo de contagem da agregação, percentuais da coorte), que nada é calculado
 na tela (o total da distribuição é a métrica do motor; não há segundo gráfico de contagens), que a taxa nacional fica só como
 contexto (legenda, barras dos municípios e cartão) e que a escala de cor do mapa não cria classes. Larguras de 390 px sem
-rolagem horizontal e impressão. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
+rolagem horizontal e impressão. Pela conversa, a aba do resultado e o resultado anterior abrem sem recalcular.
+Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
 import os
@@ -52,6 +53,8 @@ def main():
         failures, llm_calls = [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
+        analyze_calls = []
+        page.on("request", lambda request: analyze_calls.append(request.url) if request.url.endswith("/api/analyze") else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         page.get_by_role("button", name="Usar dados do Brasil").click()
@@ -210,6 +213,22 @@ def main():
         if overview.count():
             expect(overview).not_to_contain_text("avaliavel com limitacoes")
         assert density["metadata"]["evaluability"]["status"] == "AVALIAVEL_COM_LIMITACOES"
+        # Conversa sobre o resultado apresentado: a aba pedida e o resultado anterior abrem sem recalcular e sem o provedor.
+        prompt = page.locator("#assistant-input")
+
+        def say(message, reply):
+            prompt.fill(message)
+            page.get_by_role("button", name="Enviar mensagem").click()
+            expect(page.get_by_test_id("latest-reply")).to_contain_text(reply, timeout=30000)
+
+        calculated = len(analyze_calls)
+        say("agora a tabela, por favor", "Resultado aberto na aba Tabela")
+        expect(board.get_by_role("tab", name="Tabela", exact=True)).to_have_attribute("aria-selected", "true")
+        say("mostra isso num gráfico", "Resultado aberto na aba Gráficos")
+        expect(board.get_by_role("tab", name="Gráficos", exact=True)).to_have_attribute("aria-selected", "true")
+        say("volta pro resultado anterior", "Resultado anterior reaberto, sem recalcular")
+        expect(board.get_by_test_id("result-title")).to_have_text(compared["title"])
+        assert len(analyze_calls) == calculated, analyze_calls
 
         # 3. Todos os municípios: escala de cor logarítmica (padrão) e linear, sempre contínuas, com os extremos marcados.
         if not real:  # catálogo sintético: o referencial das coordenadas é escolhido pelo usuário (na base oficial, é premissa)

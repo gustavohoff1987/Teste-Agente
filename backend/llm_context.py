@@ -114,11 +114,30 @@ def _slot_status(value: str, possibilities: list[str]) -> str:
             else "not_confirmed_in_dataset")
 
 
+def _period_mentions(text, periods):
+    """Competências citadas no texto normalizado, como na gramática local: mês por extenso com ano vira AAAAMM, e o
+    ano sozinho, as competências AAAAMM da base nesse ano. Com mês sem ano ("de janeiro a junho de 2024"), nada é
+    convertido e vale só o ano, para não escolher uma parte do intervalo."""
+    from exploration import MONTHS
+    years = r"(?<!\w)(?:19|20)\d{2}(?:\d{2})?(?!\w)"
+    dated = list(re.finditer(r"\b(" + "|".join(MONTHS) + r")\s+(?:de\s+)?((?:19|20)\d{2})\b", text))
+    if len(dated) != len(re.findall(r"\b(?:" + "|".join(MONTHS) + r")\b", text)):
+        return re.findall(years, text)
+    mentions, rest = [match[2] + str(MONTHS.index(match[1]) + 1).zfill(2) for match in dated], text
+    for match in dated:
+        rest = rest.replace(match[0], " ")
+    available = [str(value) for value in periods]
+    for year in re.findall(years, rest):
+        within = [value for value in available if len(year) == 4 and re.fullmatch(r"\d{6}", value) and value[:4] == year]
+        mentions.extend(within or [year])
+    return mentions
+
+
 def bind_local_parameters(proposal, message, eligibility):
     """Recupera literais do pedido original apenas no Python, após minimização externa.
 
-    Não cria equivalências nem escolhe entre valores concorrentes. O pré-exame da
-    proposta continua responsável por decidir se cada literal é admissível.
+    Não cria equivalências nem escolhe entre valores concorrentes: um ano com várias competências fica em escolha. O
+    pré-exame da proposta continua responsável por decidir se cada literal é admissível.
     """
     if not proposal.get("operation"):
         return []
@@ -127,7 +146,7 @@ def bind_local_parameters(proposal, message, eligibility):
         found = [str(value) for value in eligibility["values"][key]
                  if re.search(r"(?<!\w)" + re.escape(_norm(value)) + r"(?!\w)", text)]
         if role == "period":
-            found = list(dict.fromkeys([*found, *re.findall(r"(?<!\w)(?:19|20)\d{2}(?:\d{2})?(?!\w)", text)]))
+            found = list(dict.fromkeys([*found, *_period_mentions(text, eligibility["values"][key])]))
         if len(found) == 1:
             proposal[role] = found[0]
         elif len(found) > 1:

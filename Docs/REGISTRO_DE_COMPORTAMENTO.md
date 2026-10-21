@@ -35,6 +35,86 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-20 · Biblioteca de Inteligência Conversacional consumida pelo intérprete
+- **Antes:** o Gemini recebia só as regras fixas (`_SYSTEM`), a mensagem minimizada, até quatro mensagens
+  anteriores e os estados técnicos, sem nenhum exemplo de interpretação.
+- **Agora:** a cada mensagem que chega ao provedor, `backend/llm_bridge.py` acrescenta à instrução de sistema um
+  bloco com até cinco turnos de trajetórias da biblioteca (`backend/biblioteca_conversacional/trajetorias/`),
+  escolhidos por `backend/conversation_library.py` (recuperação lexical local pela mensagem, pela mensagem anterior
+  e pelo estado verificado) e mascarados pela mesma minimização das mensagens do usuário naquele pedido (valores,
+  campos e arquivo da base em uso, números e nomes). A resposta de `/api/llm/interpret` e
+  `/api/llm/interpret-context` traz `biblioteca: {versao, exemplos}` quando houve exemplos.
+  `ADT_BIBLIOTECA_CONVERSACIONAL=0` desliga a biblioteca e restaura o pedido anterior; `ADT_BIBLIOTECA_EXEMPLOS`
+  (1 a 8, padrão 5) limita os exemplos.
+- **Permanece:** a conversa não calcula; a resposta do provedor passa pelas mesmas validações (enumerações, âncoras
+  literais, cortesia da lista fechada, pré-exame) e nenhum valor da base vai ao provedor (a minimização foi separada
+  em funções, com o mesmo resultado); referência mais próxima e critérios combinados continuam só no canal
+  determinístico; EN continua não autorizado (mensagens em inglês e espanhol são interpretadas e a apresentação segue
+  em português). Os testes existentes não mudaram de expectativa.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026): biblioteca de trajetórias conversacionais integrada e
+  consumida pelo intérprete, para reconhecer intenções, continuidade e alterações de parâmetros sem perguntas
+  desnecessárias. Classificação (regra 1): mudança prevista. Escopo: o pedido. Compatibilidade: a SPEC não regula
+  exemplos ao intérprete; os exemplos não levam dado da base ao provedor (RQ-ARQ-06, RQ-DAD-20) nem autoridade
+  factual (INV-02), e não têm texto de resposta (as explicações continuam no catálogo governado).
+- **Documentação e testes:** [Biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md) (novo) e README (conversa com
+  Gemini). Testes novos: `backend/tests/test_conversation_library.py` (biblioteca íntegra e abrangente, consumo
+  mascarado pelo provedor, pedido idêntico ao anterior com a biblioteca desligada, pertinência em trajetórias
+  inéditas de `backend/tests/biblioteca_ineditas/` contra exemplos fixos e aleatórios, desempenho e, com a base
+  versionada, nenhum valor da base nos exemplos), `backend/tests/test_conversation_library_readings.py` (as formas
+  governadas esperadas na leitura do resultado são as que o sistema apresenta) e exemplos registrados pelo Gemini
+  simulado em `ui_block1_integration.py`. Ferramenta de manutenção: `scripts/biblioteca_conversacional.py`. A
+  comparação com um modelo real (`comparar`, Gemini ou servidor compatível) não foi executada: o ambiente de
+  desenvolvimento não tinha `GEMINI_API_KEY` nem acesso a modelos abertos; a melhoria medida é a pertinência dos
+  exemplos.
+
+### 2026-10-20 · Competência por extenso e ano reconhecidos na proposta do intérprete
+- **Antes:** no caminho do intérprete, o Python só reconhecia competências escritas como na base (AAAAMM) e anos
+  soltos: "densidade em junho de 2024" virava o ano "2024", que não é uma competência literal da base, e a conversa
+  respondia "O período mencionado não foi encontrado na base. Deseja revisar o período na preparação?", mesmo com
+  junho de 2024 na base; "em 2023" recebia a mesma resposta.
+- **Agora:** o mês por extenso com ano vira a competência AAAAMM ("junho de 2024" → 202406), como na gramática local;
+  o ano sozinho vira as competências da base nesse ano: uma só é usada, e várias ficam em escolha ("Há mais de um
+  período ou categoria no pedido; escolha o recorte na preparação."), sem a pergunta de período inexistente. Com mês
+  sem ano ("de janeiro a junho de 2024"), nada é convertido, como antes.
+- **Permanece:** competência que não existe na base continua com a pergunta ("junho de 2030", 203001); nenhuma
+  competência é escolhida em silêncio entre várias; categorias continuam com correspondência literal; nada é
+  calculado.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026) para a biblioteca conversacional: reduzir perguntas e
+  confirmações desnecessárias e reconhecer alterações de parâmetros. Classificação (regra 1): mudança prevista.
+  Escopo: o pedido. Compatibilidade: não perguntar quando há valor único ancorado (RQ-GOV-14), com a mesma conversão
+  determinística que a gramática local já fazia; sem equivalência semântica.
+- **Documentação e testes:** README (conversa com Gemini); `backend/tests/test_conversation_periods.py` (novo).
+
+### 2026-10-20 · Abas do resultado e resultado anterior pela conversa; métodos da distribuição e da referência mais próxima pelo catálogo
+- **Antes:** o contrato do intérprete não tinha atos para ver o resultado em mapa, gráfico ou tabela nem para voltar
+  ao resultado anterior: "mostra num gráfico" e "volta pro resultado anterior" recebiam orientação genérica ou a
+  pergunta "A qual parte da investigação você se refere?". Perguntas conceituais sobre os pontos de corte e as classes
+  da distribuição e sobre a referência mais próxima terminavam em "Não identifiquei uma análise inequívoca"; só
+  densidade, distância e agregação tinham formas governadas na conversa.
+- **Agora:** o contrato do intérprete ganhou os atos `show_map`, `show_chart`, `show_table` e `previous_result`
+  (resposta com `dialogue_action`, sem proposta e sem cálculo), descritos na instrução de sistema, e os tópicos
+  `distribution` (DOC:CAP-DIS-02.metodo) e `nearest` (DOC:CAP-ESP-02.metodo, .saida e .avaliabilidade), respondidos
+  com as formas PT do catálogo. Na interface, com resultado apresentado, as formas diretas ("mostre no gráfico",
+  "agora a tabela", "ver no mapa", "volte ao resultado anterior"; `viewCommand` e `previousResultCommand` em
+  `workspaceNavigation.ts`) e os atos devolvidos pelo intérprete abrem a aba ("Resultado aberto na aba Gráficos. Nada
+  foi recalculado.") ou reabrem o resultado anterior da sessão ("Resultado anterior reaberto, sem recalcular.");
+  sem resultado, a conversa avisa ("Ainda não há resultado calculado…" e "Ainda não há resultado anterior nesta
+  sessão.").
+- **Permanece:** a conversa não calcula; a resposta do provedor passa pelas mesmas validações; formas que não são
+  ditas exatamente não mudam a tela. Tendência, mudança temporal, comparação, contagem, ranking, critérios e
+  rotatividade continuam sem explicação metodológica na conversa: na conferência de 20/10/2026, suas formas descrevem
+  etapas que o protótipo não implementa (a tendência depende de decisão do responsável sobre
+  CAP-TEN-01.avaliabilidade). Os testes existentes não mudaram de expectativa.
+- **Motivo:** pedido do responsável pelo produto (20/10/2026) para a biblioteca conversacional: o intérprete precisa
+  de atos para as ferramentas que já existem, e as explicações só podem vir do catálogo governado. Classificação
+  (regra 1): mudança prevista. Escopo: o pedido. Compatibilidade: voltar ao resultado anterior sem recalcular segue
+  RQ-LIN-20; as explicações são formas PT existentes, sem paráfrase (CFG-DOC, FN-META-01, APT-20261016), conferidas
+  contra o motor.
+- **Documentação e testes:** README (conversa com Gemini) e
+  [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md). Testes novos:
+  `backend/tests/test_conversation_actions.py`, casos Node em `frontend/tests/workspace.test.mjs` e passos de conversa
+  em `ui_result_visuals.py` (abas e resultado anterior, sem recalcular).
+
 ### 2026-10-19 · Estados pela fonte estadual de médicos únicos, com a população dos seus municípios na competência; agregação de estados; conversa com estados, regiões e anos
 
 - **Antes:** a base tinha duas fontes (nacional e municipal), e o estado era a soma dos seus municípios pelo prefixo do código IBGE: nível "Estado (soma dos municípios)", tipo "Soma dos componentes (possível dupla contagem)", AGREGADO_PARCIAL com o valor dos municípios presentes quando faltava algum, `metadata.suporte_agregado`, INCOMPARABILIDADE na evolução quando os municípios presentes mudavam, `metodos.estado` = `brasil-cod-uf-prefix-1` e a nota de que a dupla contagem variava entre os estados no ranking; na agregação, o estado marcado entrava pelos seus municípios (rota municipal). A lista da tela mostrava cada estado como "soma de N municípios", com o aviso de que o mesmo médico podia ser contado em mais de um município, e os gráficos e cartões do estado tinham textura listrada, "possível dupla contagem" e "na soma das contagens dos municípios". A conversa só marcava municípios ("no Amazonas" virava os municípios do estado), não entendia anos soltos ("em 2024") nem intervalos de anos, não reconhecia "quantos médicos …" como quantitativos e respondia "Recorte identificado com 1 territórios". Na comparação com janela, o extremo sem densidade podia levar NaN às colunas da janela.

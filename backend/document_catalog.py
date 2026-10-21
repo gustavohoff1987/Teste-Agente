@@ -95,6 +95,11 @@ TOPICS = {
     "spatial": ("DOC:CAP-ESP-01.metodo",),
     "aggregation": ("DOC:CAP-AGR-01.entradas", "DOC:CAP-AGR-01.metodo", "DOC:CAP-AGR-01.precondicoes",
                     "DOC:CAP-AGR-01.avaliabilidade"),
+    # Só formas cujas frases coincidem com o que o motor faz (conferência de 20/10/2026): pontos de corte e classes
+    # da distribuição e a referência mais próxima. Tendência, mudança, comparação, contagem, ranking, critérios e
+    # rotatividade não entram: suas formas descrevem etapas que o protótipo não implementa.
+    "distribution": ("DOC:CAP-DIS-02.metodo",),
+    "nearest": ("DOC:CAP-ESP-02.metodo", "DOC:CAP-ESP-02.saida", "DOC:CAP-ESP-02.avaliabilidade"),
 }
 
 

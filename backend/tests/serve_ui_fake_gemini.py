@@ -3,8 +3,9 @@
 Executar na raiz, um novo processo a cada execução de ui_integration_smoke.py
 (o limite local é de 20 solicitações por processo):
     python backend/tests/serve_ui_fake_gemini.py
-Nenhuma rede externa. Cada payload que seria enviado ao provedor é registrado em JSONL
-(ADT_FAKE_GEMINI_LOG) para conferir a minimização: sem arquivos, colunas, valores ou linhas.
+Nenhuma rede externa. Cada payload que seria enviado ao provedor (mensagens e exemplos da biblioteca
+conversacional) é registrado em JSONL (ADT_FAKE_GEMINI_LOG) para conferir a minimização: sem arquivos, colunas,
+valores ou linhas.
 """
 import asyncio
 import json
@@ -46,7 +47,9 @@ async def fake_gemini(sanitized, model, api_key):
     """Imita um intérprete que 'carrega' contexto: devolve período/categoria de mensagens
     anteriores, para que o backend prove que só aceita valores ancorados."""
     with LOG.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"model": model, "messages": sanitized}, ensure_ascii=False) + "\n")
+        # Os exemplos da biblioteca conversacional entram na instrução de sistema do pedido real.
+        fh.write(json.dumps({"model": model, "messages": sanitized, "exemplos": llm_bridge._EXAMPLES.get()},
+                            ensure_ascii=False) + "\n")
     users = [m for m in sanitized if not m.startswith("CONTEXTO_VERIFICADO_PELO_BACKEND")]
     current = users[-1].casefold()
     if "lento" in current:

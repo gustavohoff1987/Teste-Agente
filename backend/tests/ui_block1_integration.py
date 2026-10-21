@@ -66,9 +66,16 @@ def main():
         assert len(records) >= 4
         for protected in ("Dados_Municipios_Brasil.csv", "Dados_Brasil.xlsx", "cod_ibge", "população_estimada"):
             assert protected not in payload
+        # Biblioteca conversacional: exemplos pertinentes acompanham os pedidos, mascarados como as mensagens.
+        examples = [record["exemplos"] for record in records if record.get("exemplos")]
+        assert len(examples) >= 3, records
+        assert all(block.startswith("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL") for block in examples)
+        assert all(json.loads(line.split("Saída: ", 1)[1])["operation"] in (
+            "none", "density", "counts", "distribution", "comparisons", "temporal", "aggregate", "spatial", "ranking",
+            "rotation", "report") for block in examples for line in block.splitlines() if line.startswith("Saída: "))
         assert not errors, errors
         browser.close()
-        print("BLOCK1 INTEGRATION PASS: preliminary/contextual interpretation, deterministic calculation, rejected invalid proposal, recovery and minimized fake-provider payload.")
+        print("BLOCK1 INTEGRATION PASS: preliminary/contextual interpretation, deterministic calculation, rejected invalid proposal, recovery, conversation-library examples and minimized fake-provider payload.")
 
 
 if __name__ == "__main__":
