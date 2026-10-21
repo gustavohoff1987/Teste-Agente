@@ -7,6 +7,7 @@ só vira o estado com "estado de" ou com a palavra "estado" no pedido; com prepo
 pergunta; sem preposição, continua sendo o município. Anos ("em 2024") e intervalos ("entre 2014 e 2024") viram as
 competências da base nesses anos; nada é escolhido entre elas quando a análise usa uma competência só.
 """
+import functools
 import re
 import unicodedata
 
@@ -25,6 +26,7 @@ WORDS = {"para"}
 REGION = re.compile(r"\b(?:(?:os|as)\s+)?(?:estados|ufs)\s+(?:da\s+regiao|do|da)\s+(norte|nordeste|sudeste|sul|centro[\s-]oeste)\b")
 
 
+@functools.lru_cache(maxsize=65536)  # os nomes do catálogo territorial se repetem a cada mensagem
 def normalize(value):
     return "".join(c for c in unicodedata.normalize("NFD", value.lower()) if not unicodedata.combining(c)).strip()
 
@@ -102,10 +104,12 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
         requested_count = None
     uses_selection = bool(re.search(r"\b(?:selecionad[oa]s?|esses|estes|essas|estas)\b", text)) or correction or adding
     def named(item):
-        # Uma unidade chamada A não transforma todo artigo "a" em recorte.
+        # Uma unidade chamada A não transforma todo artigo "a" em recorte. O trecho precisa estar no texto para a
+        # expressão casar: testá-lo antes evita compilar uma expressão por unidade do catálogo a cada mensagem.
         if len(item["name"]) <= 2:
-            return bool(re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
-        return bool(re.search(r"(?<!\w)" + re.escape(normalize(item["name"])) + r"(?!\w)", text))
+            return item["name"] in message and bool(re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
+        name = normalize(item["name"])
+        return name in text and bool(re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text))
     # Estados da base oficial (código IBGE no catálogo): nome normalizado → (prefixo, nome). A região usa todos; o nome
     # citado, só os que não são palavras comuns sem acento.
     known = {}
@@ -167,7 +171,8 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
         objects += found
         remaining = remaining[:match.start()] + " " + remaining[match.end():]
     names = set(normalize(item["name"]) for item in catalog
-                if len(item["name"]) > 2 or re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message))
+                if len(item["name"]) > 2 or (item["name"] in message and
+                                             re.search(r"(?<!\w)" + re.escape(item["name"]) + r"(?!\w)", message)))
     statewide = bool(re.search(r"\bestados?\b", text)) and not re.search(r"\b(?:municipios?|cidades?)\b", text)
     # Pedido que já cita estados (nome só de estado ou região): o nome também de município não é escolhido em silêncio.
     with_states = bool(region) or any(name not in names and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text)
@@ -176,6 +181,8 @@ def interpret_exploration(message, frame, mapping, options, *, operation_hint=No
     # Maior expressão primeiro, entre municípios e estados: Rio não é reconhecido dentro de
     # Rio de Janeiro, nem o município Rio Grande dentro do estado Rio Grande do Sul.
     for expression in sorted(names | set(states), key=lambda value: (-len(value), value)):
+        if expression not in remaining:
+            continue  # condição necessária da expressão abaixo, sem compilá-la
         pattern = r"(?<!\w)" + re.escape(expression) + r"(?!\w)"
         found = re.search(pattern, remaining)
         if not found:

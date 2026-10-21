@@ -5,6 +5,9 @@ A integração conversacional não implementa a governança integral da SPEC.
 Uploads não são persistidos. A base Brasil usa armazenamento privado configurável.
 Nenhum arquivo ou registro é enviado ao LLM.
 """
+import asyncio
+from contextlib import asynccontextmanager
+import contextvars
 import csv
 import hashlib
 import io
@@ -21,6 +24,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Response
+import httpx
 from fastapi.middleware.cors import CORSMiddleware
 from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
@@ -38,17 +42,57 @@ import territorial_levels
 from analysis_premises import apply_premises, limitations, premise_notes
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
-from llm_bridge import dialogue_action, _system_response, _document_response
+from llm_bridge import dialogue_action, _system_response, _document_response, _protected
 from document_catalog import TOPICS
 from conversation_session import sessions, lifespan
 from result_conversation import answer_result
 from territorial_selection import universe_metadata
 from exploration import interpret_exploration, operation_for, normalize as normalize_exploration
-from request_memo import RequestMemoMiddleware
+from request_memo import RequestMemoMiddleware, mark_source, per_source
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
+import conversation_library
 
-app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0", lifespan=lifespan)
+
+# Aquecimento em curso: a primeira requisição à base Brasil espera por ele em vez de repetir o mesmo cálculo em paralelo.
+_WARM_DONE = threading.Event()
+_WARM_DONE.set()  # sem a partida do servidor (testes, scripts), nada espera
+_WARMING = contextvars.ContextVar("adt_aquecimento", default=False)
+
+
+def _warm_up():
+    """Aquecimento na partida, em segundo plano: a biblioteca conversacional e a mesma inspeção da base Brasil que a
+    interface pede primeiro, pelo próprio app (mesmas regras e memória da versão). Nada é exibido nem registrado na
+    sessão; uma falha equivale a não aquecer, e a primeira requisição calcula como antes."""
+    token = _WARMING.set(True)
+    try:
+        async def inspect_brazil():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://aquecimento") as client:
+                await client.post("/api/inspect", data={"dataset": "brazil", "scope": "auto", "operation": "", "sheet": ""})
+        asyncio.run(inspect_brazil())
+    except Exception:  # noqa: BLE001 - aquecimento opcional; o pedido real relata qualquer erro
+        pass
+    finally:
+        _WARMING.reset(token)
+        _WARM_DONE.set()
+    try:
+        if conversation_library.enabled():
+            conversation_library.library()  # só as mensagens ao provedor usam a biblioteca: depois da base
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # o pedido ao provedor segue sem exemplos, como em _library_examples
+
+
+@asynccontextmanager
+async def _lifespan(application):
+    # ADT_AQUECIMENTO=0 desliga (partida sem cálculo antecipado).
+    if os.getenv("ADT_AQUECIMENTO", "1").strip() != "0":
+        _WARM_DONE.clear()
+        threading.Thread(target=_warm_up, name="aquecimento", daemon=True).start()
+    async with lifespan(application):
+        yield
+
+
+app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("ADT_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
@@ -582,6 +626,7 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
         if key in _BRAZIL_FRAMES:
             # O quadro guardado nunca sai daqui: cada requisição recebe cópia própria.
             frame = _BRAZIL_FRAMES[key].copy()
+    reused = frame is not None
     if frame is None:
         parsed, _ = read_dataset(raw, filename)
         if parsed is None:
@@ -593,9 +638,13 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
                     del _BRAZIL_FRAMES[stale]  # uma versão por fonte: nacional e municipal separadas
                 _BRAZIL_FRAMES[key] = parsed
                 frame = parsed.copy()
+                reused = True
         else:
             frame = parsed
     frame.attrs["source"] = source
+    if reused:
+        # Cópia íntegra da versão guardada: as derivações puras dela valem entre requisições (request_memo).
+        mark_source(frame, key)
     return frame
 
 
@@ -667,6 +716,8 @@ async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_ve
     if dataset:
         if dataset != "brazil":
             raise ValueError("Base de dados não reconhecida.")
+        if not _WARM_DONE.is_set() and not _WARMING.get():
+            await asyncio.to_thread(_WARM_DONE.wait, 60)  # o aquecimento já calcula o mesmo; no limite, segue sem ele
         selected = selected_scope(scope, operation)
         sources = _brazil_sources(dataset_version)
         frame = sources.frame(selected)
@@ -761,6 +812,12 @@ def protected_values(frame: pd.DataFrame, sheet: str) -> list:
             *(value for column in frame.columns for value in frame[column].dropna().unique())]
 
 
+@per_source()  # base Brasil: os mesmos valores em toda requisição da versão (cerca de 0,5 s por mensagem)
+def protected_set(frame: pd.DataFrame, sheet: str) -> frozenset:
+    """Os valores protegidos já normalizados para a comparação local da minimização."""
+    return frozenset(_protected(protected_values(frame, sheet)))
+
+
 @app.post("/api/llm/interpret-context")
 async def llm_interpretation_with_dataset(
     file: UploadFile | None = File(None),
@@ -845,7 +902,7 @@ async def llm_interpretation_with_dataset(
             request, eligibility=eligibility, category_constant=declared_category,
             proposal_reviewer=review_local,
             conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
-            protected_values=protected_values(frame, sheet),
+            protected_values=protected_set(frame, sheet),
         )
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.

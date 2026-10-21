@@ -26,6 +26,7 @@ ROLE_NAMES = {
     "territory_id": "Código identificador territorial",
 }
 from analysis_catalog import ENGINE_OPERATION_LABELS
+from request_memo import per_source
 OPERATIONS = tuple(ENGINE_OPERATION_LABELS)
 # Baseados nos grupos de cabeçalhos da CFG-VOC §4.4.9; os complementos
 # operacionais ficam explícitos e NÃO alteram a configuração normativa.
@@ -203,6 +204,7 @@ def _proposals(frame: pd.DataFrame, col: str, roles: tuple[str, ...] = ROLES) ->
     return proposed
 
 
+@per_source()  # perfis das colunas da base Brasil: os mesmos em toda requisição da versão
 def candidates(frame: pd.DataFrame) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Mapeamento só com o reconhecido por regra conclusiva; sugestões ficam nos perfis das colunas."""
     mapping: dict[str, str] = {}
@@ -366,6 +368,14 @@ def requirement_meta(status: str, message: str) -> dict[str, Any]:
     return {"kind": kind, "step": 0 if STEP_ZERO.search(message.lower()) else 1}
 
 
+def _coordinate_layer():
+    """Identidade da camada de coordenadas lida pela análise espacial: compõe a chave do pré-exame memorizado."""
+    from geo_complement import state  # importação tardia: o módulo usa o contrato de dados
+    current = state()
+    return current.get("sha256") or current.get("estado")
+
+
+@per_source(extra=_coordinate_layer)  # base Brasil: mesma versão, mesmo pedido, mesmo pré-exame
 def preflight(frame: pd.DataFrame, mapping: dict[str, str],
               options: dict[str, Any] | None = None) -> dict[str, Any]:
     """Matriz potencial de aplicabilidade por contrato, sem cálculo substantivo."""

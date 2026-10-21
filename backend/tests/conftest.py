@@ -2,6 +2,8 @@
 import socket
 import pytest
 
+import request_memo
+
 
 @pytest.fixture(autouse=True)
 def forbid_external_network(monkeypatch):
@@ -23,3 +25,11 @@ def forbid_external_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", connect)
     monkeypatch.setattr(socket, "getaddrinfo", lookup)
+
+
+@pytest.fixture(autouse=True)
+def fresh_source_memory():
+    # Resultados da base Brasil guardados entre requisições não passam de um teste a outro.
+    request_memo.clear_shared()
+    yield
+    request_memo.clear_shared()

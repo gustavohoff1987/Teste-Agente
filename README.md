@@ -187,6 +187,15 @@ estrutura (título e subtítulo que declaram a contagem distinta dentro da UF, a
 AAAAMM únicas e contagens inteiras positivas) e grava os mesmos valores, sem somar nem estimar, no
 formato das demais fontes; qualquer divergência recusa a conversão sem gravar.
 
+Para responder mais rápido, o backend guarda por processo o quadro interpretado de cada versão verificada
+e, sobre ele, os resultados que dependem só da versão: perfis das colunas, pré-exame, perfil da fonte e
+catálogo territorial. A integridade continua conferida a cada requisição, antes de qualquer reaproveitamento.
+Cada requisição recebe a sua cópia. Uma versão nova nunca reaproveita a anterior, e uploads nunca são guardados.
+`ADT_BRASIL_CACHE_MAX_MB=0` desliga tudo isso. Ao iniciar, o servidor também faz em segundo plano a primeira
+inspeção da base e carrega a biblioteca conversacional; a primeira requisição à base espera esse
+aquecimento em curso. `ADT_AQUECIMENTO=0` desliga o aquecimento. Medições e salvaguardas:
+[otimização de latência](Docs/OTIMIZACAO_LATENCIA.md).
+
 Uma instalação externa continua possível para outra infraestrutura: `ADT_BRASIL_DATA_DIR`
 aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
 --destination <pasta nova>` (o instalador copia apenas a versão governada e recusa sobrescrever).

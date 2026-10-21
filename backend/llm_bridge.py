@@ -593,7 +593,9 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     if any(not isinstance(x, str) or not 2 <= len(x) <= 800 for x in messages):
         raise LLMError(422, "Histórico de conversa inválido.")
     # A base só participa desta comparação local, nunca do corpo enviado.
-    protected = _protected(protected_values) if protected_values is not None else None
+    # Conjunto já normalizado (frozenset, memorizado pela versão da base) ou os valores brutos do quadro.
+    protected = (protected_values if isinstance(protected_values, frozenset) else _protected(protected_values)
+                 if protected_values is not None else None)
     sanitized = [_sanitize(m) if protected is None else _minimize(m, protected) for m in messages]
     if not any(re.search(r"[a-zá-ú]{2}", x, re.I) for x in sanitized):
         raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.")

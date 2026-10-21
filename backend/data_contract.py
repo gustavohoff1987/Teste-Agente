@@ -337,9 +337,11 @@ def spatial_data(frame, mapping, options):
                                  "no período da análise.")
         raise ValueError("Coordenadas conflitantes para o mesmo território na mesma competência. Verifique o identificador "
                          "territorial.")
-    # O território é avaliável só quando todas as suas linhas trazem a coordenada válida.
-    state = geo.groupby("territory")["condicao"].agg(lambda values: "VALIDA" if (values == "VALIDA").all()
-                                                     else "AUSENTE" if (values == "AUSENTE").all() else "INVALIDA")
+    # O território é avaliável só quando todas as suas linhas trazem a coordenada válida (vetorizado: uma função por
+    # território custava cerca de 1 s na base municipal a cada pré-exame).
+    valid_all = geo.condicao.eq("VALIDA").groupby(geo.territory).all()
+    absent_all = geo.condicao.eq("AUSENTE").groupby(geo.territory).all()
+    state = pd.Series(np.where(valid_all, "VALIDA", np.where(absent_all, "AUSENTE", "INVALIDA")), index=valid_all.index)
     geo["complementada"] = applied.to_numpy()
     result = geo.sort_values("condicao", key=lambda col: col.ne("VALIDA")).drop_duplicates("territory").copy()
     result["condicao"] = result.territory.map(state)

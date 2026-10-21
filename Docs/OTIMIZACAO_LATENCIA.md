@@ -21,6 +21,12 @@ todas as unidades; todos os testes que passavam continuam passando; o CI aprovou
 Implementadas: U1, U2, U3, U4 e U6 (backend) e U7 (frontend). Descartadas com evidência: U5 e
 outras sete alternativas (seção 7).
 
+**Atualização de 21/10/2026 (U8–U11).** Com o servidor já aquecido, o exame da base caiu de 3,5–4,7 s para
+0,3 s, o pré-exame repetido para 0,2–0,6 s e a parte local de uma mensagem do chat de 2–4 s para 0,3–0,5 s
+(seção 4.9). A espera pelo Gemini (7,5–13 s por chamada, uma de 47 s; ver o
+[diagnóstico de 21/10/2026](DIAGNOSTICO_LATENCIA_GEMINI_20261021.md)) não depende deste código e passou a
+ser a maior parte do tempo de uma mensagem interpretada pelo provedor.
+
 ## 1. Baseline e ambiente de medição
 
 - **Código de referência**: `a202be1`, extraído com `git archive` para uma pasta temporária
@@ -79,6 +85,10 @@ equivalência, comparação antes/depois na mesma sessão e casos válidos, inv�
 | U4 — cada coluna normalizada uma vez por requisição | `0b90f39` | `text_values()`/`texts()` memorizadas pela identidade da coluna | o pandas devolve o mesmo objeto `Series` para a mesma coluna do mesmo quadro; os chamadores só leem o resultado (inserir num quadro copia os valores) |
 | U6 — normalização por valores distintos | `ec60a09` | `text_values()` normaliza cada valor distinto e reconstrói a coluna | só para colunas `object` cujos valores não nulos são todos textos; demais tipos seguem o caminho original; teste compara valor a valor (tipo inclusive) com a normalização linha a linha |
 | U7 — seleção reaplicada sem novo pré-exame (frontend) | `176ccb2` | Reaplicar a mesma seleção (por exemplo, ao interpretar "Compare os selecionados.") não cria estado novo, e o navegador deixa de reenviar um pré-exame idêntico ao vigente | as confirmações continuam zeradas exatamente como antes; qualquer mudança de valor (IDs, ordem, confirmações, períodos) continua disparando o pré-exame; nenhuma decisão passa ao navegador |
+| U8 — memória da versão da base Brasil | 21/10/2026 | Perfis das colunas (`candidates`), pré-exame (`preflight`), identidade e perfil da fonte (`source_identity`, `curated_profile`), catálogo territorial e valores protegidos da minimização (`protected_set`) calculados uma vez por versão, não por requisição | `request_memo.per_source`: vale só para o **objeto** da cópia íntegra entregue por `_brazil_frame` (marcado com `mark_source` quando o reaproveitamento de U1 está ligado); recortes e cópias derivadas não são marcados, ainda que herdem `attrs` (o risco da seção 7); chave = função, (arquivo, versão verificada), JSON dos argumentos e, no pré-exame, o SHA-256 da camada de coordenadas; integridade conferida antes, a cada requisição (U1); cada chamada recebe cópia própria (serialização), salvo o catálogo, compartilhado dentro da requisição como em U2; orçamento de 96 MB com descarte dos menos usados; uploads nunca; `ADT_BRASIL_CACHE_MAX_MB=0` desliga; os testes limpam a memória a cada caso |
+| U9 — condição das coordenadas vetorizada | 21/10/2026 | `spatial_data` resume VALIDA/AUSENTE/INVALIDA por território com operações vetorizadas, sem uma função Python por território (~1 s por pré-exame na base municipal) | mesma regra: VALIDA só com todas as linhas válidas, AUSENTE só com todas ausentes; equivalência conferida em 300 casos sintéticos, inclusive território ausente |
+| U10 — nomes do catálogo na conversa | 21/10/2026 | `exploration.normalize` memorizada; antes de cada expressão regular de nome, o trecho é procurado no texto | o trecho é condição necessária da expressão, que continua decidindo; com 5.570 nomes, o cache de expressões do Python (512) se esgotava e cada mensagem recompilava milhares delas |
+| U11 — aquecimento na partida | 21/10/2026 | O servidor faz em segundo plano a mesma inspeção da base Brasil que a interface pede primeiro (pelo próprio app) e carrega a biblioteca conversacional; a primeira requisição à base espera o aquecimento em curso, em vez de repetir o cálculo em paralelo | só com a partida do servidor (o `TestClient` sem contexto não aquece); falha equivale a não aquecer; espera de no máximo 60 s; `ADT_AQUECIMENTO=0` desliga |
 
 Ferramentas versionadas: `backend/tests/bench_latency.py` (`21e4f94`, `25ae44c`),
 `backend/tests/bench_ui_journey.py` (`c21d903`) e os testes `test_brazil_cache.py`,
@@ -252,6 +262,40 @@ pré-exames terminam antes do clique seguinte em vez de serem abortados no meio 
 (9 concluídos contra 7). O pré-exame idêntico ao vigente desaparece (U7). O pré-exame "repetido"
 restante é legítimo: a retomada reaplica os parâmetros da comparação depois de outros pedidos.
 
+### 4.9 Memória da versão e aquecimento (21/10/2026; dados reais; Gemini simulado)
+
+Mesma sessão e mesma máquina, código `695070b` (antes) e final (depois). `TestClient` no próprio processo,
+28 pedidos das rotas da interface, duas repetições cada, depois de um primeiro exame. A repetição 1
+mostra a primeira vez que cada combinação de opções aparece; a 2, a mesma combinação de novo. Os
+arquivos da base foram só lidos, com SHA-256 conferido antes e depois. O Gemini foi simulado, de modo
+que as linhas de mensagem medem só a parte local.
+
+| Pedido | Antes (rep. 1 / 2) | Depois (rep. 1 / 2) |
+|---|---|---|
+| Exame da base (`/api/inspect`) | 3,53 / 4,28 s | 0,28 / 0,35 s |
+| Exame para a análise espacial | 3,77 / 4,72 s | 0,32 / 0,27 s |
+| Pré-exame, 10 combinações (faixa) | 0,94–1,86 / 0,92–2,31 s | 0,28–1,55 / 0,20–0,56 s |
+| Análise, 10 combinações (faixa) | 0,77–2,92 / 0,74–3,13 s | 0,19–1,86 / 0,20–1,94 s |
+| Densidade, todos os municípios (análise) | 2,56 / 2,54 s | 1,52 / 1,42 s |
+| Interpretação local de duas mensagens (`/api/exploration/interpret`) | 2,09–2,19 / 1,96–2,06 s | 0,27–0,39 / 0,24–0,31 s |
+| Três mensagens pelo provedor (`/api/llm/interpret-context`, sem a espera remota) | 2,76–3,98 / 2,68–2,95 s | 0,44–2,57 / 0,34–0,40 s |
+| **Total dos 28 pedidos** | **49,3 / 50,9 s** | **22,2 / 14,2 s** |
+
+As 56 respostas (28 pedidos × 2 repetições) são idênticas às do código anterior, com os mesmos status
+HTTP. Foram desconsiderados só os campos voláteis: identificador e data do resultado, token, validade,
+tempo decorrido e revisão.
+
+Aquecimento (U11), num servidor `uvicorn` real:
+
+| Situação | 1ª inspeção | 2ª inspeção |
+|---|---|---|
+| Sem aquecimento (`ADT_AQUECIMENTO=0`) | 6,77–6,94 s | 0,33–0,34 s |
+| Com aquecimento, 12 s depois da partida | 0,39–0,46 s | 0,32–0,37 s |
+| Com aquecimento, clique imediato | 6,56–7,52 s | 0,32–0,70 s |
+
+No clique imediato, a primeira inspeção espera o aquecimento em curso. Antes dessa espera, as duas
+inspeções disputavam o processador e a primeira levava 14,2 s.
+
 ## 5. Equivalência de resultados
 
 Antes de cada unidade, um capturador fora do Git gravou as respostas completas da API do código
@@ -270,6 +314,7 @@ UUID) e `created_at` (validado como data ISO) são normalizados antes da compara
 | U4 | 229/229 |
 | U6 | 229/229 (+ 18 entradas sintéticas extremas e todas as colunas reais e nacionais, valor a valor) |
 | U7 | não altera a API nem o cálculo: build, smoke, regressão e integração do Bloco 1 e roteiro conversacional aprovados; na jornada real, pré-exames idênticos ao vigente caem de 1 para 0 |
+| U8–U11 (21/10/2026) | 56/56 respostas das rotas da interface com dados reais, contra `695070b` (seção 4.9); U9 também em 300 casos sintéticos, inclusive território ausente |
 
 Status do baseline nos três catálogos: 200 em 162 casos, 422 em 64 e 503 em 3 (Gemini
 desligado), reproduzidos igualmente.
@@ -282,6 +327,8 @@ desligado), reproduzidos igualmente.
 |---|---|---|
 | `test_brazil_cache.py` (6) | cópia própria por requisição (atributos copiados; o quadro guardado não leva `source`); integridade verificada a cada requisição (arquivo alterado → 422 "integridade"; removido → 422); versão nova nunca reaproveita conteúdo anterior (uma entrada por fonte); uploads nunca guardados; respostas idênticas com e sem reaproveitamento (`ADT_BRASIL_CACHE_MAX_MB=0`); 8 threads simultâneas | cada teste falha quando a proteção correspondente é retirada |
 | `test_request_memo.py` (4) | nada memorizado fora de requisição; mesmas entradas compartilham resultado e entradas diferentes não; exceções não memorizadas; requisições não compartilham resultados; o middleware memoriza dentro de uma requisição HTTP (TestClient) | — |
+| `test_brazil_cache.py` (+3, 21/10/2026) | resultados derivados reaproveitados só para a mesma versão verificada, e recalculados com `ADT_BRASIL_CACHE_MAX_MB=0`; uploads nunca entram na memória da versão; o aquecimento prepara a primeira inspeção sem mudar a resposta, e `ADT_AQUECIMENTO=0` não aquece | — |
+| `test_request_memo.py` (+4, 21/10/2026) | fonte marcada reaproveita entre requisições com cópia própria por chamada; quadros não marcados ou derivados nunca reaproveitam; resultados compartilhados seguem o contrato da requisição; orçamento de bytes limitado | — |
 | `test_territorial_selection.py` (+2) | códigos 130260 e 130260.0 continuam textos distintos no catálogo e no motor; `text_values()` igual, valor a valor e com o mesmo tipo, à normalização linha a linha | o primeiro falha no código anterior a `edf3c27`; o segundo, sem a condição "somente textos" |
 
 Nenhum teste existente foi alterado, enfraquecido ou removido nesta tarefa.
@@ -314,9 +361,9 @@ execuções com dados reais foram geradas em cópias temporárias fora do reposi
 | Contornar `jsonable_encoder` com JSON pré-serializado | Ganho máximo de ~0,18 s por pré-exame, com risco de alterar bytes, tratamento de NaN e tipos numpy |
 | Reaproveitar no navegador o pré-exame embutido no exame (`/api/inspect`) | Não é equivalente: o exame usa só as opções curadas do servidor; o navegador envia filtro de categoria, `require_object_confirmation` e outras opções. Omitir o pré-exame do exame mudaria o contrato da API (decisão separada, seção 10) |
 | Fila de um pré-exame por vez no navegador | Evitaria calcular intermediários quando várias mudanças ocorrem durante um pré-exame, mas exige baixar a resposta superada antes de enviar a vigente e, sem tempo-limite, travaria diante de uma requisição pendurada. Ganho real só com cliques muito rápidos (roteiros automáticos). Não implementada sem decisão |
-| Cache global de respostas de pré-exame para o catálogo Brasil | Saltaria repetições idênticas, mas é infraestrutura nova com invalidação e compartilhamento entre usuários a demonstrar; fora do escopo |
+| Cache global de respostas de pré-exame para o catálogo Brasil | Saltaria repetições idênticas, mas é infraestrutura nova com invalidação e compartilhamento entre usuários a demonstrar; fora do escopo. **Retomado em 21/10/2026 como U8**, por função e não por resposta HTTP: invalidação pela versão verificada (e pela camada de coordenadas), resultados só de dados públicos da base oficial e dos parâmetros do pedido, cópia própria a cada chamada |
 | Memorizar `candidates()` por requisição | Sem ganho: as duas chamadas do exame recebem quadros diferentes (completo e recortado) |
-| Cache entre requisições de `candidates()`/catálogo por versão | Inseguro: recortes herdam `attrs["source"]` do quadro completo e receberiam o perfil errado |
+| Cache entre requisições de `candidates()`/catálogo por versão | Inseguro: recortes herdam `attrs["source"]` do quadro completo e receberiam o perfil errado. **Resolvido em 21/10/2026 (U8)**: a marca é a identidade do objeto entregue por `_brazil_frame`, não `attrs`; um recorte é outro objeto e nunca é marcado (teste `test_unmarked_and_derived_frames_never_reuse_between_requests`) |
 | Virtualização, paginação ou compressão da lista territorial | Sem evidência de ganho: a renderização no navegador não aparece como gargalo (tarefas longas somam até 189 ms na jornada inteira; marcar ou desmarcar um membro leva 32–69 ms) |
 
 ## 8. Memória
@@ -340,7 +387,9 @@ execuções com dados reais foram geradas em cópias temporárias fora do reposi
 - **Isolamento**: cada requisição recebe cópia própria, feita sob trava; o quadro guardado não
   carrega `attrs["source"]` e nunca é entregue diretamente.
 - **Memória por requisição** (U2, U4): o espaço de memorização nasce e morre com a requisição
-  HTTP; nada sobrevive a ela nem passa a outra requisição.
+  HTTP; nada sobrevive a ela nem passa a outra requisição, com uma exceção: a memória da versão
+  (U8), só para derivações da cópia íntegra da base Brasil, até 96 MB por processo (descarte dos
+  menos usados), desligada com `ADT_BRASIL_CACHE_MAX_MB=0`. Uploads nunca entram nela.
 
 ## 9. CI
 
@@ -454,6 +503,12 @@ Nenhuma credencial, script de ambiente ou alteração de histórico foi configur
 - **Memória**: U1 mantém um quadro municipal por processo (~90 MiB); `ADT_BRASIL_CACHE_MAX_MB=0`
   desliga o reaproveitamento. A primeira requisição de cada processo ou versão paga ~0,8 s fixos
   (medição exata de memória e cópia) antes de passar a economizar ~2,4 s por requisição.
+- **Espera pelo Gemini (21/10/2026)**: a chamada ao provedor levou 7,5–13 s nas medições do
+  [diagnóstico](DIAGNOSTICO_LATENCIA_GEMINI_20261021.md), uma delas 47 s. Ela domina o tempo das mensagens
+  interpretadas pelo provedor e não muda com estas otimizações. Exemplos, modelo e parâmetros seguem a
+  decisão daquele diagnóstico.
+- **Memória da versão (U8)**: até 96 MB a mais por processo; a primeira vez de cada combinação de opções
+  ainda calcula tudo (pré-exame de 0,3–1,6 s nesta máquina).
 - **Perfil de custo de U6**: em colunas com quase todos os valores distintos (identificadores
   individuais em uploads), a normalização da coluna fica ~30% mais lenta (~13 ms por 122 mil
   linhas); em colunas minúsculas, ~0,3 ms por chamada. Nenhuma operação medida ficou mais lenta.

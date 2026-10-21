@@ -22,6 +22,7 @@ from typing import Any
 
 from brazil_data import FILES
 from territorial_hierarchy import distinct_raw
+from request_memo import per_source
 
 
 FIELDS = {
@@ -143,6 +144,7 @@ def governed_version(frame) -> bool:
                 catalog.get("versao") == catalog.get("versao_governada"))
 
 
+@per_source()
 def source_identity(frame) -> str | None:
     """Identidade da fonte oficial ("national", "state" ou "municipal"), independente do mapeamento: base Brasil, colunas
     esperadas presentes no quadro e categoria única MEDICINA. None para importações e estruturas diferentes."""
@@ -168,6 +170,7 @@ def suggested_mapping(frame) -> dict[str, str]:
     return {**mapping, **FIELDS[scope]} if scope else mapping
 
 
+@per_source()
 def curated_profile(frame, mapping: dict[str, str]) -> dict[str, Any] | None:
     scope = source_identity(frame)
     if not scope:

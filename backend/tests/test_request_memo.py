@@ -77,3 +77,78 @@ def test_middleware_memoizes_within_one_http_request(monkeypatch):
                                          data={"operation": "density", "mapping": json.dumps(MAP), "options": json.dumps(options)})
     assert response.status_code == 200, response.text
     assert len(invocations) > 5 and len(computations) < len(invocations) / 2
+
+
+calls = []
+
+
+@request_memo.per_source()
+def summary(data, scale):
+    calls.append(scale)
+    return {"total": int(data.quantidade.astype(int).sum()) * scale, "names": list(data.municipio)}
+
+
+@request_memo.per_source(shared=True)
+def shared_summary(data):
+    calls.append("shared")
+    return {"names": list(data.municipio)}
+
+
+def in_request(function, *args, mark=None):
+    """Executa como uma requisição; mark marca o quadro como cópia íntegra de uma fonte (arquivo e versão)."""
+    token = request_memo._MEMO.set({})
+    try:
+        if mark is not None:
+            request_memo.mark_source(args[0], mark)
+        return function(*args)
+    finally:
+        request_memo._MEMO.reset(token)
+
+
+def test_marked_source_reuses_results_between_requests_with_private_copies():
+    calls.clear()
+    first = in_request(summary, frame(), 2, mark=("base.csv", "v1"))
+    first["names"].append("ALTERADO")  # quem recebe pode alterar a própria cópia
+    second = in_request(summary, frame(), 2, mark=("base.csv", "v1"))  # outra cópia da mesma versão
+    assert second == {"total": 120, "names": ["Alfa", "Beta", "Gama"]} and calls == [2]
+    assert in_request(summary, frame(), 3, mark=("base.csv", "v1"))["total"] == 180 and calls == [2, 3]
+    assert in_request(summary, frame(offset=5), 2, mark=("base.csv", "v2"))["total"] == 150 and calls == [2, 3, 2]
+
+
+def test_unmarked_and_derived_frames_never_reuse_between_requests():
+    calls.clear()
+    data = frame()
+    in_request(summary, data, 2)
+    in_request(summary, data, 2)  # sem marca (ex.: arquivo importado): cada requisição calcula
+    token = request_memo._MEMO.set({})
+    try:
+        request_memo.mark_source(data, ("base.csv", "v1"))
+        assert summary(data.head(2), 2)["total"] == 60  # recorte derivado não é a fonte marcada
+        assert summary(data, 2)["total"] == 120
+    finally:
+        request_memo._MEMO.reset(token)
+    assert summary(data, 2)["total"] == 120  # fora de uma requisição, nada é memorizado
+    assert calls == [2, 2, 2, 2, 2]
+
+
+def test_shared_results_follow_the_request_contract():
+    calls.clear()
+    data = frame()
+    token = request_memo._MEMO.set({})
+    try:
+        request_memo.mark_source(data, ("base.csv", "v1"))
+        assert shared_summary(data) is shared_summary(data)  # na mesma requisição, o mesmo objeto
+    finally:
+        request_memo._MEMO.reset(token)
+    copy = in_request(shared_summary, frame(), mark=("base.csv", "v1"))
+    assert copy == {"names": ["Alfa", "Beta", "Gama"]} and calls == ["shared"]
+
+
+def test_shared_memory_is_bounded(monkeypatch):
+    calls.clear()
+    monkeypatch.setattr(request_memo, "SHARED_LIMIT_BYTES", 150)  # cerca de duas entradas de 60 bytes
+    for scale in range(1, 9):
+        in_request(summary, frame(), scale, mark=("base.csv", "v1"))
+    assert request_memo._shared_bytes <= 150 and 0 < len(request_memo._SHARED) < 8
+    in_request(summary, frame(), 8, mark=("base.csv", "v1"))  # a mais recente continua guardada
+    assert calls == list(range(1, 9))

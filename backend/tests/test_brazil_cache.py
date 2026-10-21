@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+import request_memo
 from brazil_catalog_profile import FIELDS
 from brazil_data import FILES, load_brazil
 from prepare_block1_catalog import prepare
@@ -124,3 +125,49 @@ def test_concurrent_requests_share_nothing_mutable(catalog):
     with ThreadPoolExecutor(max_workers=8) as pool:
         assert set(pool.map(worker, range(64))) == {source["version"]}
     pd.testing.assert_frame_equal(main._brazil_frame(raw, name, source), expected)
+
+
+INSPECT = {"dataset": "brazil", "scope": "auto", "operation": "", "sheet": ""}
+
+
+def test_derived_results_are_reused_only_for_the_same_verified_version(catalog, monkeypatch):
+    import semantic_bridge
+    computed, original = [], semantic_bridge._proposals
+    monkeypatch.setattr(semantic_bridge, "_proposals", lambda *a, **k: computed.append(1) or original(*a, **k))
+    client = TestClient(main.app)
+    first = client.post("/api/inspect", data=INSPECT)
+    assert first.status_code == 200, first.text
+    count = len(computed)
+    assert count  # perfis das colunas calculados na primeira inspeção
+    assert client.post("/api/inspect", data=INSPECT).json() == first.json() and len(computed) == count
+    monkeypatch.setenv("ADT_BRASIL_CACHE_MAX_MB", "0")  # sem reaproveitamento, tudo é calculado de novo
+    main._BRAZIL_FRAMES.clear()
+    assert client.post("/api/inspect", data=INSPECT).json() == first.json() and len(computed) > count
+
+
+def test_uploads_never_enter_the_shared_memory(catalog):
+    client = TestClient(main.app)
+    csv = b"territorio_analise;periodo;categoria_profissional;quantidade\nAlfa;2024;MEDICINA;10\n"
+    for _ in range(2):
+        assert client.post("/api/inspect", files={"file": ("local.csv", csv, "text/csv")}).status_code == 200
+    assert not request_memo._SHARED
+
+
+def test_warm_up_prepares_the_first_inspection_without_changing_it(catalog, monkeypatch):
+    expected = TestClient(main.app).post("/api/inspect", data=INSPECT).json()
+    request_memo.clear_shared()
+    main._BRAZIL_FRAMES.clear()
+    monkeypatch.setenv("ADT_AQUECIMENTO", "1")
+    try:
+        with TestClient(main.app) as client:  # a partida do servidor dispara o aquecimento em segundo plano
+            body = client.post("/api/inspect", data=INSPECT).json()  # espera o aquecimento em curso
+            assert main._WARM_DONE.is_set()
+        assert body == expected and request_memo._SHARED
+        called = []
+        monkeypatch.setattr(main, "_warm_up", lambda: called.append(1))
+        monkeypatch.setenv("ADT_AQUECIMENTO", "0")
+        with TestClient(main.app):
+            pass
+        assert called == []
+    finally:
+        main._WARM_DONE.set()
