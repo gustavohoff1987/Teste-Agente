@@ -35,6 +35,58 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Base oficial: o cálculo só fica retido pelas escolhas da análise; competência dos valores explicada
+- **Antes:** na base oficial, o botão "Calcular e mostrar resultado" ficava desabilitado até o pré-exame liberar a
+  análise. Abaixo dele aparecia "Ainda faltam condições específicas para esta análise. Você pode ajustá-las acima ou
+  consultar as opções adicionais.", sem dizer o que faltava. "Ver outras condições da análise" abria as três etapas da
+  preparação guiada: associação de colunas, código IBGE, resoluções e revisão. Uma falha do pré-exame só aparecia
+  ali dentro. Na comparação, a caixa "Competência dos valores" ficava na grade em qualquer caso, inclusive com um
+  período só, e repetia os períodos já escolhidos.
+- **Agora:** o botão fica disponível o tempo todo, menos durante a conferência da análise e o cálculo.
+  - **Clique com escolhas faltando:** a tela diz quais faltam, pelo título das caixas e na ordem delas (`missing-choices`,
+    por exemplo "Falta escolher: Período e Indicador."). Ela abre a lista do Período ou da Abrangência territorial quando
+    é essa a primeira que falta, e nada é calculado.
+  - **O que retém o cálculo:** só a Categoria, o Período, a Abrangência territorial (escolha pendente), o Indicador e,
+    quando a análise os usa, o Território de referência e o Referencial geodésico. Com essas escolhas feitas, o que ainda
+    impedir o cálculo aparece com o texto do pré-exame.
+  - **O que saiu:** "Ver outras condições da análise" e o aviso genérico. A falha do pré-exame aparece na própria
+    preparação, com "Verificar novamente".
+  - **Comparação:** com um período só, não há escolha de competência. Com dois ou mais, a frase "Valores lado a lado em
+    [competência] (a última competência do período). As demais competências do período mostram a mudança e a tendência de
+    cada território." fica abaixo das configurações (`comparison-values-period`). O seletor dela (`comparison-values-choice`)
+    traz só as competências do período, e a nota da lista do Período foi reescrita.
+- **Permanece:**
+  - o backend decide a disponibilidade e confere o pedido;
+  - as opções enviadas não mudam, inclusive `comparison_values_period` (a competência única, a escolhida ou a última da
+    janela);
+  - as premissas internas seguem em "Método e limitações";
+  - a escolha pendente da abrangência e os motivos da análise espacial seguem com os textos do backend;
+  - nas bases importadas ficam "Ajustar condições específicas ou situações excepcionais", "Executar análise"
+    desabilitado até a análise ficar pronta e o seletor na frase da janela.
+- **Motivo:** pedido do responsável pelo produto de 21/10/2026. A base oficial já dá todas as condições da análise, e o
+  usuário não precisa conhecê-la. A etapa só fica retida por falta de categoria, período, abrangência ou indicador,
+  informada ao clicar, sem pedir código IBGE nem confirmação de informação da base. A "competência dos valores"
+  repetia os períodos sem explicar o que era. Classificação: mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade: a SPEC não exige o botão desabilitado nem o painel de condições avançadas na base oficial; ela
+    pede não executar o que está retido e apresentar os motivos, o que continua. D1 (sem confirmações) e D6 (competência
+    dos valores na comparação com janela, escolhida pelo usuário) continuam valendo.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (escolhas que retêm o cálculo; comparação com janela),
+    `Docs/PREPARACAO_GUIADA.md` (etapas só nas bases importadas), README (comparação e capturas) e
+    `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`.
+  - **Node:** `preparationReadiness.test.mjs` (escolhas nomeadas na ordem das caixas, parâmetros da análise espacial,
+    mensagem sem pedido sobre a base).
+  - **Roteiros mudados de propósito:** o comportamento mudou, e o defeito não está no produto nem no teste.
+    - `ui_conversational_smoke.py`, `ui_nearest_smoke.py` e `ui_territorial_scope.py`: "botão desabilitado" passa a
+      "clique nomeia o que falta e nada é calculado".
+    - `ui_sem_confirmacoes.py`, `ui_block1_smoke.py` e `ui_stabilization.py`: as condições avançadas da base oficial
+      passam de "visíveis, sem confirmação" a "inexistentes", e a Distribuição sem indicador diz "Indicador" no clique.
+    - `ui_result_visuals.py`: a competência dos valores passa a ser conferida pelo valor do seletor (202406) e pela
+      indicação da última competência.
+    - `scripts/capturar_telas.py`: a tela 09 passa a ser o aviso das escolhas que faltam.
+  - Nenhuma verificação foi removida sem a equivalente do comportamento novo.
+
 ### 2026-10-21 · Timeout do Gemini de 75 segundos e mensagem específica de tempo limite
 - **Antes:** o cliente HTTP aguardava 22 segundos por operação. Tempo limite e demais falhas de transporte
   retornavam HTTP 503 com a mesma mensagem: "Não foi possível alcançar a API Gemini. Tente novamente.".

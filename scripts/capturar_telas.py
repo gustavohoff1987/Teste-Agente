@@ -129,12 +129,10 @@ def capturar(url, saida, canal):
             expect(preparacao.get_by_test_id("analysis-summary")).to_be_visible(timeout=90000)
             expect(preparacao.get_by_test_id("scope-loading")).to_have_count(0, timeout=90000)
 
-        def condicoes_avancadas():
-            resumo = preparacao.locator("summary", has_text="Ver outras condições da análise")
-            if not resumo.evaluate("el => el.parentElement.open"):
-                resumo.click()
-            page.get_by_role("region", name="Preparação da análise").get_by_role(
-                "button", name="2. Parâmetros").click()
+        def escolhas_faltantes():
+            # Base oficial: sem condições avançadas; o clique em "Calcular" nomeia as escolhas que faltam.
+            preparacao.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+            expect(preparacao.get_by_test_id("missing-choices")).to_be_visible(timeout=90000)
 
         tela("01-inicio", inicio)
         tela("02-densidade-preparacao", densidade)
@@ -145,7 +143,7 @@ def capturar(url, saida, canal):
         tela("07-evolucao-escolha-de-periodos", evolucao)
         tela("07b-evolucao-abrangencia-territorial", abrangencia)
         tela("08-analise-espacial-preparacao", distancias)
-        tela("09-condicoes-avancadas", condicoes_avancadas)
+        tela("09-escolhas-faltantes", escolhas_faltantes)
         browser.close()
     if erros:
         falhas.append("erros de JavaScript na página: " + "; ".join(erros[:3]))

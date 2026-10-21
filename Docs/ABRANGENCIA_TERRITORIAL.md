@@ -410,8 +410,9 @@ supera o total do Brasil em todas as competências).
   1", e as combinações ("Brasil (total nacional), Amazonas (estado) e MANAUS (AM)").
 - A interface envia em `options.abrangencia` só a parte que vale na análise (ou o padrão dela) e manda a
   análise no pré-exame; o backend escolhe a rota e confere aceitação, mínimo e mistura. Escolha pendente
-  deixa a caixa em destaque, mostra "Ajuste a abrangência territorial para continuar." e mantém o
-  cálculo desabilitado. Nada é calculado na tela. A rotatividade, indisponível na base Brasil, segue sem
+  deixa a caixa em destaque, mostra "Ajuste a abrangência territorial para continuar." e retém o
+  cálculo: desde 21/10/2026, o clique em "Calcular e mostrar resultado" diz "Falta escolher: Abrangência territorial." e abre
+  a lista, sem calcular. Nada é calculado na tela. A rotatividade, indisponível na base Brasil, segue sem
   abrangência.
 - A conversa continua recebendo só os municípios marcados (`territory_ids`). Um pedido explícito pelo
   país inteiro marca só o Brasil; "nos municípios", sem municípios marcados, marca "Todos os municípios";

@@ -127,7 +127,9 @@ def main():
         # Sem período escolhido, a janela padrão é a série anual de junho e os valores ficam em junho de 2024.
         expect(inline.get_by_test_id("period-summary")).to_contain_text("série anual de junho: " + ("11" if real else "2") + " competências",
                                                                        timeout=90000)
-        expect(inline.get_by_test_id("comparison-values-period")).to_contain_text("junho de 2024")
+        # Com a janela, a frase abaixo das configurações diz em que competência ficam os valores lado a lado (padrão: a última).
+        expect(inline.get_by_test_id("comparison-values-choice")).to_have_value("202406")
+        expect(inline.get_by_test_id("comparison-values-period")).to_contain_text("(a última competência do período)")
         open_scope()
         region.get_by_test_id("territory-option-brasil").check()
         region.get_by_test_id("territory-option-uf-13").check()

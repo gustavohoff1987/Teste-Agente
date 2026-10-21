@@ -1388,6 +1388,8 @@ function App() {
       onCrs={setCrs}
       governedCrs={governedPremises.has("crs")}
       preparing={preflighting || inspecting}
+      preflightError={preflightError}
+      onRetry={() => setPreflightAttempt(n => n + 1)}
       capability={preflight?.capabilities[active]}
       onExecute={()=>{void run(active);}}
       executing={running}

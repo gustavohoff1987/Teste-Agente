@@ -63,14 +63,24 @@ def main():
             assert not found, (label, found)
 
         def visit(title, official):
-            """Percorre a preparação da análise e as três etapas das condições avançadas, sem nada para confirmar."""
+            """Base importada: percorre a preparação e as três etapas das condições avançadas, sem nada para confirmar.
+            Base oficial: não há condições avançadas; só as escolhas da análise retêm o cálculo, nomeadas no clique."""
             print("Análise: " + title + (" (base oficial)" if official else " (base importada)"), flush=True)
             select(page, title)
             settled()
             no_confirmation_text(title)
             expect(inline.get_by_role("button", name="Confirmar correspondências")).to_have_count(0)
-            summary = inline.locator("summary", has_text="Ver outras condições da análise" if official
-                                     else "Ajustar condições específicas ou situações excepcionais")
+            if official:
+                expect(inline.locator("summary", has_text="Ver outras condições da análise")).to_have_count(0)
+                expect(panel).to_have_count(0)
+                expect(inline.get_by_text("Ainda faltam condições específicas", exact=False)).to_have_count(0)
+                if title == "Distribuição":
+                    # Falta escolher o indicador: o clique em Calcular nomeia a caixa, sem pedir confirmação.
+                    inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+                    expect(inline.get_by_test_id("missing-choices")).to_contain_text("Indicador")
+                    no_confirmation_text(title + " / calcular")
+                return
+            summary = inline.locator("summary", has_text="Ajustar condições específicas ou situações excepcionais")
             if not summary.evaluate("element => element.parentElement.open"):
                 summary.click()
             expect(panel).to_be_visible()

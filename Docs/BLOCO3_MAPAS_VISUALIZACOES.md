@@ -481,7 +481,8 @@ Cada coluna permite busca por texto sem distinguir acentos e comparações numé
     múltiplos na mesma escala, faixa, coorte, agregação).
   - Navegador: `ui_result_visuals.py`, nas suítes `bloco1` e `base-versionada`: cabeçalho igual ao resumo do
     motor, níveis em blocos, comparação (relação e diferença do par, selo igual a `Tendência` de `detail_rows`,
-    caixa "Competência dos valores" e envio de `comparison_values_period`), evolução (pequenos múltiplos e
+    competência dos valores lado a lado, desde 21/10/2026 na frase abaixo das configurações, e envio de
+    `comparison_values_period`), evolução (pequenos múltiplos e
     halteres), ranking (posição do motor), distribuição (total do motor, um só gráfico de contagens e classe de
     cada ponto), agregação (tipo de contagem), rotatividade (percentuais da coorte), escala logarítmica e linear
     do mapa com o domínio igual, taxa nacional só como contexto (cartão com o minigráfico da série do motor,

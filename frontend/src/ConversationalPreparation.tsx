@@ -6,6 +6,7 @@ import {chronological, describePeriods, readablePeriod, rotationPeriods} from ".
 import {ownIndicator} from "./analysisCatalog";
 import {fieldOptions, periodValue, SINGLE_PERIOD, type FieldChoice} from "./fieldChoices";
 import type {ObjectState} from "./ContextConfig";
+import {missingChoices, missingMessage} from "./preparationReadiness";
 
 export type AnalysisKind = "density" | "counts" | "distribution" | "comparisons" |
   "temporal" | "aggregate" | "spatial" | "ranking" | "rotation" | "report" | "nearest" | "criteria";
@@ -76,6 +77,9 @@ type Props = {
   /** Base oficial: o referencial é premissa interna (SIRGAS 2000) e não é pedido ao usuário. */
   governedCrs: boolean;
   preparing: boolean;
+  /** Falha do pré-exame (base oficial: aparece na própria preparação, com "Verificar novamente"). */
+  preflightError?: string;
+  onRetry?: () => void;
   capability?: Capability;
   onExecute: () => void;
   executing: boolean;
@@ -162,7 +166,9 @@ const countUnits: Choice[] = [{label:"pessoas",value:"pessoas"},{label:"vínculo
 export default function ConversationalPreparation(p: Props) {
   // Lista de competências da caixa "Período" (base oficial); a da abrangência é controlada pelo App.
   const [periodOpen, setPeriodOpen] = useState(false);
-  useEffect(() => { setPeriodOpen(false); }, [p.operation]);
+  // Base oficial: depois de um clique em "Calcular" sem as escolhas completas, a tela diz o que falta.
+  const [attempted, setAttempted] = useState(false);
+  useEffect(() => { setPeriodOpen(false); setAttempted(false); }, [p.operation]);
   useEffect(() => { setPeriodOpen(p.periodEditor > 0); }, [p.periodEditor]);
   // Critérios combinados: os papéis seguem as condições, a ordenação e as referências definidas.
   const needs = p.operation === "criteria" ? p.criteriaNeeds || {count: false, population: false, spatial: false} : null;
@@ -212,6 +218,23 @@ export default function ConversationalPreparation(p: Props) {
     // Motivos do pré-exame da análise espacial (coordenadas, competência, referência): os mesmos textos do backend.
     const spatialReasons = p.operation === "spatial" && periodReady && status && status !== "available" && !p.preparing
       ? (p.capability?.reasons || []).slice(0, 2) : [];
+    // Só as escolhas da análise retêm o cálculo; nada sobre a estrutura da base é pedido. Com todas feitas, o que ainda
+    // impedir o cálculo vem do pré-exame, com o texto do backend.
+    const missing = missingChoices({category: p.categoryFilter, categoryChoiceRequired, periodReady,
+      territoryPending: !!p.territoryPending, indicator: p.indicator, requiresIndicator,
+      reference: p.reference, requiresReference: p.operation === "spatial", crs: p.crs, requiresCrs: spatial && !p.governedCrs});
+    const blockedBy = missing.length ? missingMessage(missing) : p.preflightError ? ""
+      : status !== "available" ? (p.capability?.reasons || []).slice(0, 2).join(" ") || "Esta análise ainda não pode ser calculada." : "";
+    const calculate = () => {
+      if (blockedBy || p.preflightError || !analysisReady) {
+        setAttempted(true);
+        if (missing[0] === "Período" && usesPeriods) setPeriodOpen(true);
+        else if (missing[0] === "Abrangência territorial") p.onTerritoriesOpen(true);
+        return;
+      }
+      setAttempted(false);
+      p.onExecute();
+    };
     return <section aria-label="Preparação na conversa" className="mt-2 space-y-3 text-sm leading-7 text-slate-700">
       <h3 className="text-base font-bold text-ink">Configurações</h3>
       <div data-testid="analysis-summary" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -229,9 +252,6 @@ export default function ConversationalPreparation(p: Props) {
         {requiresIndicator ? <ConfigSelect label="Indicador" value={p.indicator} options={indicatorChoices}
             onChange={value => p.onIndicator(value as "quantity" | "density")} placeholder="Escolher indicador" pending={!p.indicator}/>
           : <ConfigSelect label="Indicador" value={own} options={[{label: own, value: own}]} onChange={() => {}}/>}
-        {comparing && <ConfigSelect label="Competência dos valores" ariaLabel="Competência dos valores da comparação"
-          testId="comparison-values-period" value={p.valuesPeriod || ""} options={valuesChoices}
-          onChange={value => p.onValuesPeriod?.(value)} placeholder="Escolha o período" pending={!p.valuesPeriod}/>}
         {p.operation === "distribution" && <ConfigSelect label="Agrupamento" ariaLabel="Agrupamento da distribuição" value={String(p.quantiles)}
           options={groupChoices} onChange={value => p.onQuantiles(Number(value))}/>}
         {p.operation === "spatial" && <ConfigSelect label="Território de referência" value={p.reference} options={named(p.territories)}
@@ -241,6 +261,11 @@ export default function ConversationalPreparation(p: Props) {
       </div>
       {spatial && p.governedCrs && <p className="text-xs text-slate-600">Referencial das distâncias: <strong data-testid="crs-summary"
         className="font-semibold text-ink">{GOVERNED_CRS}</strong></p>}
+      {comparing && windowPeriods.length > 1 && <p data-testid="comparison-values-period" className="text-xs leading-7 text-slate-700">
+        Valores lado a lado em <InlineChoice label="Competência dos valores lado a lado" testId="comparison-values-choice"
+          value={p.valuesPeriod || ""} options={valuesChoices} onChange={value => p.onValuesPeriod?.(value)} placeholder="escolher"/>
+        {p.valuesPeriod === windowPeriods[windowPeriods.length - 1] ? " (a última competência do período)" : ""}. As demais
+        competências do período mostram a mudança e a tendência de cada território.</p>}
       {usesPeriods && periodOpen && <div id="configuracao-periodo" role="group" aria-label="Período da análise" className={PANEL}>
         <p className="font-medium text-ink">{isTemporal ? "Quais períodos você deseja comparar?" : comparing
           ? "Qual período (ou janela de períodos) você deseja usar na comparação?" : "Qual período você deseja analisar?"}</p>
@@ -248,9 +273,10 @@ export default function ConversationalPreparation(p: Props) {
           multiple={multiple} allowMultiple={allowMultiple} modeToggle disabled={p.executing} trendNote={isTemporal || comparing}
           onSingle={p.onPeriod} onChosen={() => setPeriodOpen(false)} onMultiple={p.onSelectedPeriods}/>
         {comparing && <p data-testid="comparison-window-note" className="text-xs leading-5 text-slate-600">
-          Os valores lado a lado e as relações (maior, menor, diferença) usam só a competência da caixa “Competência dos valores”.
-          Com dois ou mais períodos, cada território ganha também a mudança entre o primeiro e o último e a classe de tendência
-          na janela; sem variação percentual nem razão automáticas.</p>}
+          Com um período, os valores lado a lado e as relações (maior, menor, diferença) são os dele. Com dois ou mais, eles
+          usam uma competência só, indicada abaixo das configurações (sem outra escolha, a última), e cada território ganha
+          também a mudança entre o primeiro e o último período e a classe de tendência; sem variação percentual nem razão
+          automáticas.</p>}
         {p.operation === "distribution" && <p className="text-xs leading-5 text-slate-600">
           Para comparar territórios nesta distribuição, escolha um período. Para comparar períodos, utilize Evolução temporal.</p>}
         {p.operation === "spatial" && <p data-testid="spatial-period-note" className="text-xs leading-5 text-slate-600">
@@ -284,24 +310,22 @@ export default function ConversationalPreparation(p: Props) {
           onClick={() => p.onTerritoriesOpen(false)} className={DONE}>Concluir</button>
       </div>}
       {p.extra}
-      {!periodReady && <p className="text-xs text-slate-600">Escolha o período para continuar.</p>}
-      {p.territoryPending && <p data-testid="territory-pending" className="text-xs text-amber-900">Ajuste a abrangência territorial para continuar.</p>}
+      {!attempted && !periodReady && <p className="text-xs text-slate-600">Escolha o período para continuar.</p>}
+      {!attempted && p.territoryPending && <p data-testid="territory-pending" className="text-xs text-amber-900">Ajuste a abrangência territorial para continuar.</p>}
       {spatialReasons.length > 0 && <p role="status" data-testid="spatial-reasons" className="text-xs leading-5 text-amber-900">
         {spatialReasons.join(" ")}</p>}
       {p.preparing && <p role="status" className="text-xs text-slate-500">Preparando a análise...</p>}
-      {status !== "available" && !p.preparing &&
-        <p role="status" className="text-xs text-slate-600">Ainda faltam condições específicas para esta análise.
-          Você pode ajustá-las acima ou consultar as opções adicionais.</p>}
+      {p.preflightError && !p.preparing && <p role="alert" data-testid="preflight-error" className="text-xs text-rose-800">
+        {p.preflightError} {p.onRetry && <button type="button" className="ml-1 font-bold underline" onClick={p.onRetry}>
+          Verificar novamente</button>}</p>}
+      {attempted && blockedBy && !p.preparing && <p role="alert" data-testid="missing-choices"
+        className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs leading-5 text-amber-900">{blockedBy}</p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={!analysisReady} onClick={p.onExecute}
+        <button type="button" disabled={p.preparing || p.executing} onClick={calculate}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
           <Play size={14}/>{p.executing ? "Calculando..." : "Calcular e mostrar resultado"}
         </button>
       </div>
-      {p.advanced && <details className="text-xs text-teal">
-        <summary className="cursor-pointer">Ver outras condições da análise</summary>
-        <div className="mt-2">{p.advanced}</div>
-      </details>}
     </section>;
   }
   return <section aria-label="Preparação na conversa" className="mt-4 space-y-3 text-sm leading-7 text-slate-700">

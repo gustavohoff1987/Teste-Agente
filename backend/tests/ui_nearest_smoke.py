@@ -112,8 +112,12 @@ def main():
         setup.get_by_label("Critério simples de densidade").check()
         setup.get_by_label("Operador do critério").select_option(">=")
         setup.get_by_label("Valor do critério").fill("10")
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)).to_be_disabled()
+        # Sem o referencial (catálogo sintético, fora da versão governada), o clique diz o que falta e nada é calculado.
+        inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+        expect(inline.get_by_test_id("missing-choices")).to_have_text("Falta escolher: Referencial geodésico.")
+        assert not analyses, analyses
         inline.get_by_label("Referencial geodésico").select_option("SIRGAS2000")
+        expect(inline.get_by_test_id("missing-choices")).to_have_count(0, timeout=60000)
         # 6-7. Execução única, mesmo com clique duplo; resultado com referência, distância e cobertura.
         criterion = execute(double=True)
         structured = criterion["metadata"]["nearest_reference"]

@@ -179,15 +179,21 @@ def main():
         inline = assistant.locator("#preparacao-conversacional")
         expect(inline).to_be_visible(timeout=30000)
         # Base oficial: configurações em caixas seletoras, sem associação de campos; o período ainda não escolhido
-        # fica pendente e bloqueia o cálculo.
+        # fica pendente e retém o cálculo. O botão continua clicável: o clique diz qual escolha falta, abre a lista de
+        # competências e nada é calculado. Nenhuma condição sobre a base é pedida.
         expect(inline.get_by_role("heading", name="Configurações", exact=True)).to_be_visible()
         assert inline.get_by_role("combobox", name="Categoria profissional").count() == 0
         assert inline.get_by_role("combobox", name="Unidade de contagem").count() == 0
         assert inline.get_by_role("button", name="Confirmar correspondências").count() == 0
         expect(inline.get_by_test_id("period-summary")).to_have_text("Escolher período")
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado")).to_be_disabled()
-        inline.get_by_label("Escolher períodos da análise").click()
+        analyzed = []
+        page.on("request", lambda request: analyzed.append(request.url) if request.url.endswith("/api/analyze") else None)
+        inline.get_by_role("button", name="Calcular e mostrar resultado").click()
+        expect(inline.get_by_test_id("missing-choices")).to_have_text("Falta escolher: Período.")
         expect(inline.get_by_text("Qual período você deseja analisar?")).to_be_visible()
+        assert inline.get_by_text("Ainda faltam condições específicas", exact=False).count() == 0
+        assert inline.locator("summary", has_text="Ver outras condições da análise").count() == 0
+        assert not analyzed, analyzed
         inline.get_by_role("button", name="junho de 2024", exact=True).click()
         expect(inline.get_by_test_id("analysis-summary")).to_contain_text("MEDICINA")
         expect(inline.get_by_test_id("period-summary")).to_have_text("junho de 2024")

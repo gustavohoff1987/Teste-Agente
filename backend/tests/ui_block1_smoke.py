@@ -351,26 +351,21 @@ def main():
             expect(board.get_by_text("Referencial SIRGAS 2000: premissa da base oficial", exact=False)).to_be_visible()
             shot("block1-08-distancias-base-oficial.png")
 
-        def advanced_parameters():
-            """Abre "Ver outras condições da análise" na etapa de parâmetros, onde ficam as escolhas sobre a estrutura."""
-            # Só escolhe a competência quando a caixa "Período" ainda a pede.
-            pending = inline.get_by_test_id("period-summary")
-            if pending.count() and pending.inner_text().startswith("Escolher"):
-                inline.get_by_label("Escolher períodos da análise").click()
-                inline.get_by_role("button", name="junho de 2024", exact=True).click()
-            summary = inline.locator("summary", has_text="Ver outras condições da análise")
-            if not summary.evaluate("element => element.parentElement.open"):
-                summary.click()
-            page.get_by_role("region", name="Preparação da análise").get_by_role("button", name="2. Parâmetros").click()
-            expect(page.get_by_role("heading", name="Conferir a estrutura dos dados", exact=True)).to_be_visible(timeout=60000)
+        def no_advanced_conditions():
+            """Base oficial: a preparação não tem condições avançadas nem pede nada sobre a estrutura da base."""
+            expect(inline.get_by_text("Preparando a análise...", exact=True)).to_have_count(0, timeout=60000)
+            expect(inline.locator("summary", has_text="Ver outras condições da análise")).to_have_count(0)
+            expect(page.get_by_role("region", name="Preparação da análise")).to_have_count(0)
+            expect(inline.get_by_text("Ainda faltam condições específicas", exact=False)).to_have_count(0)
+            expect(page.get_by_role("heading", name="Conferir a estrutura dos dados", exact=True)).to_have_count(0)
 
-        # Condições avançadas: premissas internas não voltam como caixas nem como seletores.
+        # Sem condições avançadas na base oficial: premissas internas não voltam como caixas, seletores nem painel.
         workspace(page, "preparation")
-        advanced_parameters()
-        expect(page.get_by_test_id("governed-number-format")).to_have_count(1 if real else 0)
-        expect(page.get_by_text("Referencial geodésico informado para a base")).to_have_count(0 if real else 1)
+        no_advanced_conditions()
+        expect(page.get_by_test_id("governed-number-format")).to_have_count(0)
+        expect(page.get_by_text("Referencial geodésico informado para a base")).to_have_count(0)
         select(page, "Agregações")
-        advanced_parameters()
+        no_advanced_conditions()
         for label in ("Declaro que as populações territoriais são partes sem sobreposição do conjunto agregado.",
                       "Autorizo a soma das contagens dos componentes, ciente de que pode contar a mesma unidade mais de uma vez; "
                       "o total não será apresentado como pessoas únicas."):

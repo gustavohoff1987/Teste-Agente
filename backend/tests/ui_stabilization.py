@@ -107,8 +107,9 @@ def main():
         inline.get_by_role('button', name='Escolher apenas um', exact=True).click()
         expect(inline.get_by_test_id('period-summary')).to_contain_text('janeiro de 2024')
         expect(inline.get_by_test_id('period-summary')).not_to_contain_text('junho de 2024')
-        # Condições avançadas continuam disponíveis mesmo com a preparação validada.
-        expect(inline.get_by_text('Ver outras condições da análise', exact=True)).to_be_visible()
+        # Base oficial: sem condições avançadas nem pedido de condições sobre a base, com a preparação validada ou não.
+        expect(inline.get_by_text('Ver outras condições da análise', exact=True)).to_have_count(0)
+        expect(inline.get_by_text('Ainda faltam condições específicas', exact=False)).to_have_count(0)
 
         send('Mostre a densidade médica dos municípios do Amazonas em junho de 2024.')
         density = calculate()

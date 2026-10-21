@@ -144,8 +144,9 @@ contorno tracejado). O usuário também escolhe um intervalo contínuo ("de jane
 de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de concluir. Durante o
 cálculo, a lista fica bloqueada. Uma linha
 abaixo descreve a escolha ("4 competências, de janeiro de 2014 a junho de 2015"). Ao voltar para
-período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Condições avançadas
-permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo.
+período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Nas bases
+importadas, as condições avançadas permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo; na base oficial, não
+há condições avançadas (ver abaixo).
 
 Na base oficial, a preparação reúne as **Configurações** em caixas seletoras, no lugar do texto
 corrido dos parâmetros. Todas as análises mostram as mesmas quatro caixas, nesta ordem: **Categoria**
@@ -162,12 +163,24 @@ distâncias usam as coordenadas da competência escolhida; em algumas competênc
 coordenadas diferentes para o mesmo município."; os motivos do pré-exame dessa análise (coordenadas,
 competência, referência) aparecem abaixo das caixas com o texto do backend. Na rotatividade, a caixa
 Período abre o período inicial e o final da coorte (sem escolha, valem a primeira e a última
-competência). Na mesma grade entram a Competência dos valores da comparação, o Agrupamento da distribuição, o
+competência). Na mesma grade entram o Agrupamento da distribuição, o
 Território de referência da análise espacial e, fora da versão governada, o Referencial geodésico
 das análises de distância; as referências da referência mais próxima e os critérios do usuário
 continuam em quadros próprios logo abaixo. Não há caixa de fonte: a abrangência territorial já diz
-se a análise usa o Brasil, os estados ou os municípios. Uma caixa ainda sem escolha fica destacada, e o cálculo
-só é liberado depois dela. Valores longos aparecem por inteiro, com quebra de linha.
+se a análise usa o Brasil, os estados ou os municípios. Uma caixa ainda sem escolha fica destacada. Valores longos
+aparecem por inteiro, com quebra de linha.
+
+**Só as escolhas da análise retêm o cálculo (desde 21/10/2026).** Na base oficial, o botão "Calcular e mostrar
+resultado" fica disponível o tempo todo, menos durante a conferência da análise ("Preparando a análise...") e o
+cálculo. Ao clicar, se faltar alguma escolha, a tela diz quais faltam, pelo título das caixas e na ordem delas, em
+`missing-choices` (por exemplo, "Falta escolher: Período e Indicador."). Ela também abre a lista do Período ou da
+Abrangência territorial quando é essa a primeira que falta, e nada é calculado. Retêm o cálculo apenas a Categoria, o
+Período, a Abrangência territorial (escolha pendente: mistura de níveis ou territórios de menos), o Indicador (quando a
+análise pede a escolha entre quantidade e densidade) e, quando a análise os usa, o Território de referência e o
+Referencial geodésico. Nada sobre a estrutura da base é pedido: não há "Ver outras condições da análise" (associação de
+colunas, código IBGE, resoluções e conferências) nem o aviso "Ainda faltam condições específicas para esta análise". Com
+as escolhas feitas, o que ainda impedir o cálculo aparece com o texto do pré-exame do backend. Uma falha do pré-exame
+aparece na própria preparação, com "Verificar novamente".
 
 A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
 Numa análise de período único, escolher a competência recolhe a lista. Vários períodos só existem
@@ -208,12 +221,12 @@ Brasil fica disponível na caixa Indicador. Detalhes em
 Os padrões oficiais vêm do perfil validado no backend, campo a campo: mudar uma coluna tira só
 aquele papel do perfil, e a base oficial nunca cai no fluxo das bases importadas. As premissas de
 comparabilidade são internas: evolução temporal, comparações, rankings e agregação
-não exibem caixas de confirmação, nem nas condições avançadas, e a origem de cada premissa aparece
+não exibem caixas de confirmação, e a origem de cada premissa aparece
 em "Método e limitações"
 (ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
 Na versão governada, as análises de distância também não pedem o referencial nem o separador
 decimal: as configurações mostram "Referencial das distâncias: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
-informa essa origem, e as condições avançadas informam o formato numérico em vez de pedi-lo.
+informa essa origem, e o formato numérico, também premissa interna, não é pedido.
 
 **Bases importadas** seguem a mesma regra, sem confirmações: o parágrafo da preparação diz
 "Preenchi os campos reconhecidos com segurança; escolha os demais nos termos destacados". Cada termo
@@ -236,12 +249,18 @@ as colunas e valores originais; a separação é apenas visual.
 de períodos ("Qual período (ou janela de períodos) você deseja usar na comparação?"). Sem período
 escolhido, ela começa na **série anual de junho** (na base versionada, 11 competências, de junho de 2014 a
 junho de 2024), com os valores na última; um período único já escolhido (vindo de outra análise ou da
-conversa) é mantido. A caixa **"Competência dos valores"** (`comparison-values-period`, rótulo acessível
-"Competência dos valores da comparação"; na base importada, um seletor na frase quando há janela) escolhe a
-competência dos valores lado a lado e das relações, e a nota `comparison-window-note` explica: "Os valores
-lado a lado e as relações (maior, menor, diferença) usam só a competência da caixa “Competência dos
-valores”. Com dois ou mais períodos, cada território ganha também a mudança entre o primeiro e o último e a
-classe de tendência na janela; sem variação percentual nem razão automáticas.". A interface envia
+conversa) é mantido. Com um período só, os valores lado a lado e as relações são os dele, e não há outra escolha.
+Com dois ou mais períodos (desde 21/10/2026), a frase **"Valores lado a lado em [competência]"**
+(`comparison-values-period`), logo abaixo das configurações, diz em que competência ficam os valores lado a lado e as
+relações. Sem outra escolha, vale a última do período, com a indicação "(a última competência do período)". O
+seletor da frase (`comparison-values-choice`, rótulo acessível "Competência dos valores lado a lado") oferece só as
+competências do período escolhido, e a frase termina com "As demais competências do período mostram a mudança e a
+tendência de cada território.". Até 21/10/2026, essa escolha era a caixa "Competência dos valores" na grade, que
+aparecia também com um período só e repetia os períodos já escolhidos. Na base importada, continua o seletor na frase
+quando há janela. A nota `comparison-window-note`, na lista do Período, explica: "Com um período, os valores lado a
+lado e as relações (maior, menor, diferença) são os dele. Com dois ou mais, eles usam uma competência só, indicada
+abaixo das configurações (sem outra escolha, a última), e cada território ganha também a mudança entre o primeiro e o
+último período e a classe de tendência; sem variação percentual nem razão automáticas.". A interface envia
 `comparison_values_period` (a competência única, a escolhida ou a última da janela); sem competência
 escolhida, não envia e vale o comportamento anterior. **A conversa não recebe essa opção**: o contexto
 enviado ao interpretador continua sem ela, e o agrupamento das competências calculadas a ignora. No

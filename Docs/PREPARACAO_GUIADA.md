@@ -7,7 +7,10 @@ em um painel de largura integral e com rolagem própria. A seleção não execut
 cálculos nem altera a matriz de aplicabilidade.
 
 As etapas são **1. Identificar os dados**, **2. Parâmetros** e **3. Revisar e executar**.
-Só a etapa ativa é exibida. Não há confirmação de colunas e campos (decisão D1 do responsável
+Desde 21/10/2026, elas existem só nas bases importadas, em "Ajustar condições específicas ou situações excepcionais".
+Na base oficial, a preparação tem apenas as Configurações. Nada sobre a estrutura da base é pedido, e o clique em
+"Calcular e mostrar resultado" nomeia as escolhas da análise que faltam
+([interface conversacional](INTERFACE_CONVERSACIONAL_INTEGRADA.md)). Só a etapa ativa é exibida. Não há confirmação de colunas e campos (decisão D1 do responsável
 pelo produto, 19/10/2026): o usuário só escolhe. Cada campo mostra a origem do papel ("Reconhecida
 pelo perfil oficial", "Reconhecida por regra" ou "Escolhida por você"); sem coluna, "Escolher
 coluna"; com uma coluna indicada e não escolhida, "Escolha pendente". Os seletores trazem as

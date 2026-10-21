@@ -148,7 +148,13 @@ def main():
         expect(region.get_by_test_id("territory-section-estados")).to_contain_text("Não se aplica: estados não têm um ponto único.")
         region.get_by_test_id("territory-group-check-13").check()
         expect(inline.get_by_test_id("scope-summary")).to_have_text("Municípios do Amazonas (" + ("62" if real else "3") + ")")
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)).to_be_disabled()
+        # Sem período e sem território de referência, o botão continua clicável: o clique nomeia as escolhas que faltam
+        # (o referencial só fora da versão governada) e abre a lista de competências; nada é calculado.
+        inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+        expect(inline.get_by_test_id("missing-choices")).to_have_text(
+            "Falta escolher: Período e Território de referência." if real
+            else "Falta escolher: Período, Território de referência e Referencial geodésico.")
+        expect(inline.get_by_label("Escolher períodos da análise")).to_have_attribute("aria-expanded", "true")
         expand(inline.get_by_label("Escolher períodos da análise"))
         expect(inline.get_by_test_id("spatial-period-note")).to_have_text(
             "As distâncias usam as coordenadas da competência escolhida; em algumas competências, a fonte traz coordenadas "
@@ -264,9 +270,12 @@ def main():
         expect(message).to_have_text("Você marcou estados e municípios. Recortes e rankings usa territórios do mesmo tipo: "
                                      "escolha qual manter.", timeout=60000)
         expect(inline.get_by_test_id("territory-pending")).to_be_visible()
-        expect(inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)).to_be_disabled()
+        # A escolha pendente da abrangência retém o cálculo: o clique nomeia a caixa e nada é calculado.
+        inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
+        expect(inline.get_by_test_id("missing-choices")).to_have_text("Falta escolher: Abrangência territorial.")
         municipality(region, "130260").uncheck()
         expect(message).to_have_count(0, timeout=60000)
+        expect(inline.get_by_test_id("missing-choices")).to_have_count(0, timeout=60000)
         expect(inline.get_by_role("button", name="Calcular e mostrar resultado", exact=True)).to_be_enabled(timeout=60000)
 
         # 6. Limpar seleção: nada marcado, vale o padrão da análise.

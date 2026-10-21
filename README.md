@@ -455,7 +455,7 @@ desde o último `npm ci` bem-sucedido; basta o `npm run build`. O CI sempre roda
 Para a conferência visual, `python scripts/capturar_telas.py` sobe o servidor de testes com a base
 versionada e percorre as telas principais: início, preparação e resultado da densidade (mapa,
 gráficos, tabela e celular), escolha de períodos da evolução temporal, preparação da análise espacial
-e condições avançadas. As capturas ficam em `.local/capturas/`. Rode depois do `npm run build`; nada
+e o aviso das escolhas que faltam. As capturas ficam em `.local/capturas/`. Rode depois do `npm run build`; nada
 vai para o provedor de IA e nenhum dado é alterado.
 
 No Windows (PowerShell), defina `$env:ADT_REAL_DATA_DIR` com o caminho completo da raiz do
@@ -590,8 +590,8 @@ automáticas**. A janela exige as premissas temporais da evolução (aplicadas p
 fica lado a lado, sem relação, e o estado com suporte variável na janela não recebe tendência
 (INCOMPARABILIDADE). Sem a opção, a comparação segue o caminho anterior (relações em cada competência). A
 chave de execução muda com a opção e com a versão do método de tendência. Na tela, a comparação começa na
-**série anual de junho** (valores em 06/2024 na base versionada), com a caixa **"Competência dos valores"**
-(padrão: a última competência da janela), valores lado a lado por nível (quantidade, população e densidade),
+**série anual de junho** (valores em 06/2024 na base versionada), com a frase **"Valores lado a lado em …"**
+abaixo das configurações (padrão: a última competência da janela; com um período só, não aparece), valores lado a lado por nível (quantidade, população e densidade),
 halteres do primeiro ao último período e o selo da tendência; o par passa a ter mapa. Na conversa, a
 relação de valores iguais (IGUALDADE) aparece na resposta ("O valor de A é igual ao de B."); antes, sumia.
 Detalhes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md) e
