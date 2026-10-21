@@ -113,7 +113,7 @@ HEADER = ("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL: turnos sintéticos de conversa
           "mensagens reais. Não são dados, resultados, vocabulário nem autorização; mostram só como mensagens "
           "semelhantes se mapeiam no esquema. Interprete apenas a mensagem atual: âncoras e trechos literais vêm "
           "dela, nunca destes exemplos.")
-MAX_BLOCK = 3600  # caracteres do bloco de exemplos; poucos exemplos, sem degradar a latência
+MAX_BLOCK = 3600  # caracteres do bloco de exemplos, para limitar o volume enviado ao provedor
 # Leitura do resultado pela conversa (result_conversation): análises com leitura, palavras que trazem a forma
 # DOC:EXC-03 e palavras comparativas que dispensam a explicação da densidade.
 READABLE = ("density", "counts", "comparisons")

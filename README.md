@@ -399,6 +399,16 @@ Se `configured: False` persistir, confirme se o arquivo está precisamente em `b
 
 O backend utiliza por padrão `gemini-3.5-flash-lite`. Os limites e o faturamento do Google variam e não são verificados pelo protótipo. O contador local de 20 solicitações por processo **não é um controle de custo ou segurança contra abuso**.
 
+O timeout técnico do cliente HTTP do Gemini é de **75 segundos** (desde 21/10/2026; antes, 22).
+Esse prazo vale por operação de conexão, leitura, escrita e espera por conexão do HTTPX, não como limite
+global de duração da conversa. Quando ele expira, a API mantém HTTP 503 e a tela apresenta
+"Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente.".
+Demais falhas de transporte mantêm HTTP 503 e "Não foi possível alcançar a API Gemini. Tente novamente.".
+Erros HTTP retornados pelo provedor mantêm o tratamento próprio de cota, autorização e falha da API;
+não há nova tentativa automática. O prazo da sessão continua sendo 1.800 segundos.
+Medições de recuperação local, tamanho do pedido e espera remota, com e sem exemplos:
+[diagnóstico de latência do Gemini](Docs/DIAGNOSTICO_LATENCIA_GEMINI_20261021.md).
+
 Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/llm/interpret` (sem base) e `POST /api/llm/interpret-context` (multipart, com base validada apenas pelo Python). A transcrição permanece na memória da aba. O backend mantém contexto técnico e referências a resultados em sessão temporária, sem banco ou gravação em disco, isolada por token opaco. Encerrar sessão ou completar 1.800 segundos sem interação efetiva elimina o contexto; polling não renova o prazo. Reiniciar o backend também elimina as sessões. Testes offline utilizam respostas simuladas do provedor; a CI **não faz chamadas reais e não precisa de chave**. Falhas de conexão ou cota são mostradas sem alterar o motor analítico. Ver [evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md).
 
 ### Fronteira da SPEC

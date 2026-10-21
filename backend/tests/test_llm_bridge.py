@@ -1,5 +1,6 @@
 """Testes offline da primeira iteração Gemini: nenhuma chamada externa real."""
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 
 import llm_bridge
@@ -185,8 +186,46 @@ def test_http_transport_uses_json_schema_header_and_no_dataset(monkeypatch):
     assert response["operation"] == "distribution"
     assert captured["url"].startswith("https://generativelanguage.googleapis.com/")
     assert captured["headers"]["x-goog-api-key"] == "test-secret"
-    assert captured["timeout"] <= 30
+    assert captured["timeout"] == 75.0
     assert captured["body"]["generationConfig"]["responseMimeType"] == "application/json"
     assert "responseSchema" in captured["body"]["generationConfig"]
     assert all(k not in captured["body"] for k in ("file", "mapping", "rows", "data"))
     assert "test-secret" not in str(captured["body"])
+
+
+@pytest.mark.parametrize("failure", [
+    httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout,
+    httpx.ConnectError, httpx.ReadError, httpx.WriteError, httpx.RemoteProtocolError,
+])
+def test_api_distinguishes_timeout_from_other_transport_errors(monkeypatch, failure):
+    """A API preserva 503, distingue a causa e não expõe o detalhe privado do transporte."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-private-key")
+    calls = []
+
+    class FailingClient:
+        def __init__(self, **kwargs):
+            assert kwargs["timeout"] == 75.0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            raise failure("detalhe privado do transporte: test-private-key")
+
+    monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", FailingClient)
+    response = client.post("/api/llm/interpret", json={"message": "Comparar médicos"})
+    assert response.status_code == 503
+    expected = (
+        "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente."
+        if issubclass(failure, httpx.TimeoutException)
+        else "Não foi possível alcançar a API Gemini. Tente novamente."
+    )
+    assert response.json() == {"detail": expected}
+    assert "privado" not in response.text and "test-private-key" not in response.text
+    assert calls == [1]  # Sem nova tentativa automática ou consumo duplicado.
+    assert llm_bridge._EXAMPLES.get() == ""
+    assert client.get("/api/health").status_code == 200

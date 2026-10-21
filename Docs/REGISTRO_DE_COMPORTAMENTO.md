@@ -35,6 +35,30 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Timeout do Gemini de 75 segundos e mensagem específica de tempo limite
+- **Antes:** o cliente HTTP aguardava 22 segundos por operação. Tempo limite e demais falhas de transporte
+  retornavam HTTP 503 com a mesma mensagem: "Não foi possível alcançar a API Gemini. Tente novamente.".
+- **Agora:** o timeout técnico é de 75 segundos. `httpx.TimeoutException` e suas subclasses retornam HTTP 503
+  com "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente."; os demais
+  `httpx.RequestError` mantêm a mensagem de conexão. A interface já apresenta o detalhe devolvido pela API.
+- **Permanece:** códigos HTTP, tratamento de cota/autorização/erros HTTP do provedor, nenhuma nova tentativa
+  automática, modelo, limite local de chamadas, biblioteca e seus exemplos, minimização, motor e prazo da sessão.
+  Nenhuma base foi alterada ou enviada ao provedor. A SPEC e o workflow de CI não foram alterados.
+- **Motivo:** pedido explícito do responsável em 21/10/2026 após reprodução de `ReadTimeout` em 22,74 s e
+  conclusão de uma chamada com espera ampliada em 47,27 s. Classificação prévia: mudança prevista nos dois
+  itens (prazo e mensagem). Escopo: o pedido; compatibilidade: CFG-OPR, seção 4.4.24 e RQ-DEG-10 deixam o
+  prazo técnico a cargo do componente, separado da sessão; não há divergência aprovada contrariada.
+  A investigação de latência, com frase sintética e sem base, não muda o comportamento da biblioteca.
+- **Documentação e testes:** README, [diagnóstico de latência](DIAGNOSTICO_LATENCIA_GEMINI_20261021.md) e
+  [biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md). `test_http_transport_uses_json_schema_header_and_no_dataset`
+  em `backend/tests/test_llm_bridge.py` passa de `timeout <= 30` para `timeout == 75.0`: a expectativa anterior
+  ficou incompatível com a mudança intencional, não se trata de falha a contornar. O novo teste parametrizado
+  cobre os quatro tipos de timeout e quatro outros erros de transporte através da API, mensagens exatas,
+  status 503, ausência de detalhes privados, uma única tentativa, limpeza dos exemplos e saúde do backend.
+  Os testes de erros HTTP também cobrem 503 e 504 do provedor, que não são confundidos com timeout local.
+  A ferramenta manual `scripts/diagnosticar_latencia_gemini.py` mede seis chamadas reais somente quando
+  solicitada; não é teste do CI. As suítes de verificação rodam exclusivamente no GitHub Actions.
+
 ### 2026-10-20 · Biblioteca de Inteligência Conversacional consumida pelo intérprete
 - **Antes:** o Gemini recebia só as regras fixas (`_SYSTEM`), a mensagem minimizada, até quatro mensagens
   anteriores e os estados técnicos, sem nenhum exemplo de interpretação.

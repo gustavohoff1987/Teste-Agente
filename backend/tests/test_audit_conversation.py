@@ -137,7 +137,7 @@ def test_a13_indicator_choice_preserves_explicit_scope(provider):
         assert r.json()["proposal"][slot] == proposal[slot]
 
 
-@pytest.mark.parametrize("status,expected", [(401, 503), (403, 503), (429, 429), (500, 502)])
+@pytest.mark.parametrize("status,expected", [(401, 503), (403, 503), (429, 429), (500, 502), (503, 502), (504, 502)])
 def test_provider_http_errors_are_controlled_without_network(monkeypatch, status, expected):
     import asyncio
     import httpx
@@ -155,6 +155,7 @@ def test_provider_http_errors_are_controlled_without_network(monkeypatch, status
         asyncio.run(llm_bridge._call_gemini(["Quero quantitativos"], "gemini-3.5-flash-lite", "synthetic"))
     assert error.value.status == expected
     assert "sensitive" not in str(error.value)
+    assert "Tempo limite" not in str(error.value)  # HTTP 504 do provedor não é timeout do cliente.
 
 
 @pytest.mark.parametrize("failure", ["timeout", "connection", "invalid_json", "empty_candidates"])

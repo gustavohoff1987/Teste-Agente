@@ -36,6 +36,13 @@ alterações de parâmetros. Não aparece na interface e não é uma ferramenta 
 `ADT_BIBLIOTECA_CONVERSACIONAL=0` desliga a biblioteca: o pedido ao provedor volta a ser exatamente o anterior
 (conferido em teste). A biblioteca é lida uma vez por processo, na primeira mensagem que chega ao provedor.
 
+Na medição de 21/10/2026, carga, seleção e máscara iniciais levaram 0,83 s; com o índice carregado,
+a mediana de seleção e máscara foi 4,89 ms. Cinco exemplos adicionaram 546 tokens de entrada ao pedido
+sintético medido (708 → 1.254). A comparação de seis chamadas não isolou uma piora consistente de latência
+causada pelos exemplos; houve variação na espera remota e um HTTP 503 do provedor. Isso não demonstra
+ausência de impacto em outros pedidos. Método, resultados, limitações e ferramenta de reprodução em
+[diagnóstico de latência do Gemini](DIAGNOSTICO_LATENCIA_GEMINI_20261021.md).
+
 ## Formato de uma trajetória
 
 ```json

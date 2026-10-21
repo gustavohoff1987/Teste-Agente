@@ -417,13 +417,15 @@ async def _call_gemini(sanitized: list[str], model: str, api_key: str) -> dict:
         },
     }
     try:
-        async with httpx.AsyncClient(timeout=22.0) as client:
+        async with httpx.AsyncClient(timeout=75.0) as client:
             response = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
                 json=body,
             )
-    except (httpx.TimeoutException, httpx.RequestError) as exc:
+    except httpx.TimeoutException as exc:
+        raise LLMError(503, "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente.") from exc
+    except httpx.RequestError as exc:
         raise LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.") from exc
     if response.status_code == 429:
         raise LLMError(429, "Cota ou limite de requisições da API Gemini atingido.")
