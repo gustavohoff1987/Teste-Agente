@@ -35,6 +35,70 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-21 · Painel integrado de bolhas: a tela, com a conversa numa caixa arrastável
+- **Antes:**
+  - com a base do Brasil pronta, havia só o fluxo clássico: conversa, preparação em abas e resultados;
+  - a navegação principal tinha quatro botões e o Histórico (Início, Nova sessão, Nova análise, Histórico e Resultados);
+  - as rotas `/api/painel` e `/api/painel/referencias` não tinham tela;
+  - a conversa ficava sempre na faixa ancorada da investigação, sem janela arrastável.
+- **Agora:**
+  - **Acesso:** só com a base do Brasil pronta (abrangência oficial).
+    - "Abrir o painel integrado" aparece junto da fonte atual na conversa, e "Painel integrado" entra na navegação principal.
+    - "Voltar à preparação clássica" fecha o painel. Início, Resultados, Nova análise, o Histórico e os pedidos da conversa
+      que preparam uma análise também fecham.
+    - Reabrir não recalcula: o painel conserva o universo, os conjuntos, a referência e o crescimento.
+  - **Gráfico:** bolhas com os valores de `/api/painel`; o tamanho é a população (área proporcional), com legenda de três
+    tamanhos.
+    - Sem distância, eixo único do indicador, com a nota de que a altura é só arranjo. Com a distância, X em km e Y no
+      indicador.
+    - Embaixo, a tabela equivalente e os não avaliáveis à parte, com o motivo do motor.
+    - A dica aparece ao passar o mouse e ao focar.
+  - **Barra das análises:**
+    - Densidade e Quantidade trocam o indicador, sem novo pedido.
+    - Distância escolhe a referência por critério (`/api/painel/referencias`, "Usar o primeiro" e a escolha no empate).
+    - Crescimento pede a competência inicial e mostra a variação percentual do motor como cometa.
+    - Comparar / Conjuntos destaca até três itens e agrega os selecionados num conjunto: uma bolha com a soma das
+      contagens dos componentes, com possível dupla contagem.
+    - Distribuição, Rankings, Critérios combinados, Rotatividade e Relatórios abrem a preparação clássica.
+  - **Municípios base:**
+    - o universo: todos os municípios, estados inteiros e municípios acrescentados pela busca, pela lista ou arrastando
+      para o gráfico;
+    - o universo inicial é o da abrangência clássica. Sem escolha, ficam todos os municípios até 300; acima disso, o
+      painel espera a escolha, sem pedido ao motor;
+    - a régua "acima de / abaixo de", com dois cursores, é filtro visual.
+  - **Recusa do motor (422):** a mensagem aparece como veio, com "Voltar ao último painel calculado" e "Tentar novamente".
+  - **Conversa no painel:** caixa flutuante com o rosto do agente.
+    - Arrastável pelo cabeçalho (mouse, toque e teclado) e minimizável; fica sempre dentro da janela.
+    - A posição fica no `localStorage`. No celular, a caixa fica ancorada embaixo.
+    - É a mesma conversa, com os mesmos identificadores e textos.
+  - **Sessão:** os pedidos do painel levam o cabeçalho da sessão, que só registra o evento de confirmação. O resultado do
+    painel não entra na sessão da conversa.
+- **Permanece:**
+  - a tela inicial, a preparação clássica e os resultados; com um arquivo importado, nada muda;
+  - fora do painel, o layout da conversa é o de sempre;
+  - nada é calculado na tela: valores, variações, distâncias, domínios, posições dos candidatos e motivos vêm do motor;
+  - não há totais, médias, rankings nem destaque automático de quem mais cresceu (RQ-REP-01), nem classes inventadas
+    (RQ-REP-02);
+  - nada vai ao provedor de IA, e os dados não mudam.
+- **Motivo:** decisões do responsável pelo produto de 21/10/2026: a análise acontece dentro de um gráfico grande, ao qual o
+  usuário acrescenta municípios; a população fica sempre no tamanho da bolha; os eixos dependem das análises escolhidas; a
+  taxa de crescimento se integra ao desenho; e o chat vira uma caixa arrastável com o rosto do agente. Classificação:
+  mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade:
+    - o gráfico de bolhas é admitido pelo Adendo BOL-20261021 (RQ-REP-10);
+    - a tela segue a Parte 13 (RQ-REP-01 a 06, 11, 14 e 15) e o contrato das rotas em `Docs/PAINEL_INTEGRADO.md`;
+    - nenhuma divergência aprovada é contrariada.
+  - Tornar o painel a tela inicial fica para a validação do responsável.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (novo), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (navegação e
+    caixa da conversa no painel) e `Docs/BLOCO1_RESULTADOS_EXPLORAVEIS.md` (navegação).
+  - **Testes novos:**
+    - `frontend/tests/painel.test.mjs`, do modelo puro;
+    - `backend/tests/ui_painel_integrado.py`, registrado nas suítes `bloco1` e `base-versionada` (`ADT_BLOCK1_REAL=1`).
+  - **Roteiro mudado de propósito:** `ui_block1_smoke.py` passa a contar cinco botões na navegação e confere "Painel
+    integrado". O comportamento mudou; o defeito não está no produto nem no teste. Nenhuma verificação foi removida.
+
 ### 2026-10-21 · Painel integrado: rotas do motor e gráfico de bolhas admitido na SPEC (Adendo BOL-20261021)
 - **Antes:**
   - não havia rota que servisse um gráfico de bolhas;

@@ -307,7 +307,9 @@ def main():
         for width in (390, 768):
             page.set_viewport_size({"width": width, "height": 844})
             expect(page.get_by_test_id("main-navigation")).to_be_visible()
-            expect(page.get_by_test_id("main-navigation").locator(':scope > button')).to_have_count(4)
+            # Com a base do Brasil pronta, a navegação ganha "Painel integrado" (21/10/2026): cinco botões e o Histórico.
+            expect(page.get_by_test_id("main-navigation").locator(':scope > button')).to_have_count(5)
+            expect(page.get_by_test_id("nav-painel")).to_be_visible()
             expect(page.get_by_test_id("analysis-history-menu").locator('summary')).to_be_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
             shot(f"block1-07-largura-{width}.png")

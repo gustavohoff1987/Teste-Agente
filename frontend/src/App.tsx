@@ -20,6 +20,7 @@ import { EMPTY_SCOPE, describeScope, effectiveScope, fromMembers, municipalOnly,
   type Abrangencia, type Levels, type ScopeSelection } from "./territorialScope";
 import TerritorialScopeSelector from "./TerritorialScopeSelector";
 import AnalysisAssistant, {type LocalAnswer, type TerritorialProposal} from "./AnalysisAssistant";
+import PainelIntegrado from "./PainelIntegrado";
 import ConversationalPreparation, {GOVERNED_CRS, type FieldRole} from "./ConversationalPreparation";
 import BrandAvatar from "./BrandAvatar";
 import WorkspaceDialog from "./WorkspaceDialog";
@@ -40,7 +41,7 @@ import {
   ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2, Filter,
   Home, Menu, X, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
-  FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
+  FileUp, FolderUp, Bot, Info, Layers3, LayoutDashboard, ListFilter,
   LoaderCircle, LocateFixed, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
@@ -205,6 +206,10 @@ function App() {
   const [multiplePeriods, setMultiplePeriods] = useState(false);
   const [periodEditor, setPeriodEditor] = useState(0);
   const [page, setPage] = useState<"home" | "results">("home");
+  // Painel integrado de bolhas (21/10/2026): aberto por um botão com a base do Brasil pronta. Depois de aberto uma vez, fica
+  // montado (oculto ao voltar), para conservar o universo, os conjuntos e a referência escolhidos nele.
+  const [painelAberto, setPainelAberto] = useState(false);
+  const [painelMontado, setPainelMontado] = useState(false);
   const [confirmNewAnalysis, setConfirmNewAnalysis] = useState(false);
   const [confirmNewSession, setConfirmNewSession] = useState(false);
   const [closingSession, setClosingSession] = useState(false);
@@ -516,7 +521,7 @@ function App() {
   function selectAnalysis(operation: Operation, proposal?: {
     category: string; period: string; territory: string; indicator: "density" | "quantity" | null
   }) {
-    setCatalogOpen(false); setPeriodEditor(0);
+    setCatalogOpen(false); setPeriodEditor(0); setPainelAberto(false);
     setPage("home"); setWorkspaceStage("preparation"); setTerritoriesOpen(false);
     setRequestedIndicator(proposal?.indicator ? {operation, indicator:proposal.indicator, generation:sourceGeneration} : null);
     if (pendingTerritories.current?.operation !== operation) pendingTerritories.current = null;
@@ -929,12 +934,13 @@ function App() {
   }
   /** Botões, comandos e atalhos usam o mesmo destino; territórios abrem dentro da preparação. */
   function openStage(target: NavigationTarget) {
+    setPainelAberto(false);  // preparação, territórios e resultados são do fluxo clássico
     if (target === "territories") setTerritoriesOpen(true);
     const stage = target === "results" ? "results" : "preparation";
     setWorkspaceStage(stage); setPage(stage === "results" ? "results" : "home");
   }
   function navigate(view: "home" | "results", target?: string) {
-    setPage(view);
+    setPage(view); setPainelAberto(false);
     if (view === "results") { setResultExpanded(true); setWorkspaceStage("results"); }
     const fragment = target || (view === "results" ? "resultados" : "inicio");
     // A alteração nativa do hash também rolaria a página antes da navegação do painel.
@@ -1130,6 +1136,30 @@ function App() {
   })() : usingBrazil && inspection?.source?.scope === "national" ? {label: "Territórios", selected: false, selectable: false,
     text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
     : undefined;
+
+  // Painel integrado: só com a base do Brasil pronta (abrangência oficial); nas bases importadas, o fluxo clássico continua.
+  const painelDisponivel = usingBrazil && officialScope && !!inspection && !inspection.requires_sheet && !inspecting;
+  useEffect(() => { if (!painelDisponivel) setPainelAberto(false); }, [painelDisponivel]);
+  function abrirPainel() {
+    if (!painelDisponivel) return;
+    setPainelMontado(true); setPainelAberto(true);
+    requestAnimationFrame(() => {
+      document.getElementById("painel-integrado")?.scrollIntoView({block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+      document.getElementById("painel-titulo")?.focus({preventScroll: true});
+    });
+  }
+  /** "Voltar à preparação clássica" ou uma análise sem lugar no painel (Distribuição, Rankings…): o fluxo de sempre. */
+  function fecharPainel(operation?: Operation) {
+    setPainelAberto(false);
+    if (operation) {
+      setRequestText("Análise de " + ANALYSIS_LABELS[operation]);
+      selectAnalysis(operation);
+      scrollAnalysisTo("preparacao-conversacional");
+      return;
+    }
+    requestAnimationFrame(() => document.getElementById("assistente")?.scrollIntoView({block: "start"}));
+  }
 
   // Competências oferecidas: com o Brasil e outros níveis, a união das fontes; nos demais casos, as do pré-exame.
   const scopePeriods = officialScope && effective?.abrangencia.brasil
@@ -1637,14 +1667,22 @@ function App() {
       {serverStatus === "offline" && <div role="status" className="no-print m-4 rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">Serviço de análise temporariamente indisponível.</div>}
       <main id="inicio" className="workspace-main mx-auto px-4 pb-4 pt-4 sm:px-5">
       <div>
-      <div className="no-print"><WelcomeHero/></div>
+      <div className="no-print" hidden={painelAberto}><WelcomeHero/></div>
       <nav aria-label="Navegação principal" data-testid="main-navigation" className="main-navigation no-print">
-        <button type="button" data-testid="nav-home" onClick={() => navigate("home", "inicio")} aria-current={page === "home" ? "page" : undefined}><Home size={18}/>Início</button>
+        <button type="button" data-testid="nav-home" onClick={() => navigate("home", "inicio")} aria-current={page === "home" && !painelAberto ? "page" : undefined}><Home size={18}/>Início</button>
         <button type="button" data-testid="nav-new-session" onClick={() => {setSessionError(""); setConfirmNewSession(true);}}><RefreshCw size={18}/>Nova sessão</button>
         <button type="button" data-testid="nav-new-analysis" disabled={running || inspecting || preflighting} onClick={requestNewAnalysis}><FileBarChart2 size={18}/>Nova análise</button>
         {historyContent}
-        <button type="button" data-testid="nav-results" onClick={() => navigate("results")} aria-current={page === "results" ? "page" : undefined}><BarChart3 size={18}/>Resultados</button>
+        <button type="button" data-testid="nav-results" onClick={() => navigate("results")} aria-current={page === "results" && !painelAberto ? "page" : undefined}><BarChart3 size={18}/>Resultados</button>
+        {painelDisponivel && <button type="button" data-testid="nav-painel" onClick={abrirPainel} aria-current={painelAberto ? "page" : undefined}>
+          <LayoutDashboard size={18}/>Painel integrado</button>}
       </nav>
+      {painelMontado && painelDisponivel && <div hidden={!painelAberto}>
+        <PainelIntegrado key={sourceKey} fonte={{apiBase: API, datasetVersion: inspection?.source?.version || "", sheet}}
+          periodos={inspection?.periods || []} categoria={categoryFilter || inspection?.curated_defaults?.category || inspection?.categories[0] || ""}
+          categorias={inspection?.categories || []} niveis={levels!} municipios={territoryItems}
+          escopoInicial={{todos: territoryScope.todos, grupos: territoryScope.grupos, ids: territoryIds}} onClassica={fecharPainel}/>
+      </div>}
       <AnalysisAssistant
         notice={historyNotice}
         workspaceStage={workspaceStage}
@@ -1700,7 +1738,9 @@ function App() {
           : file ? inspection && !inspecting ? "Recebi sua base. Escolha o tipo de análise que deseja realizar." : "Estou preparando sua base."
           : ""}
         preparation={inlinePreparation}
-        resultContent={resultContent}/>
+        resultContent={resultContent}
+        layout={painelAberto ? "painel" : "classico"}
+        onOpenPainel={painelDisponivel ? abrirPainel : undefined}/>
 
 
       </div>

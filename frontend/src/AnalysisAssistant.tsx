@@ -3,7 +3,8 @@ import {navigationCommand, normalizeCommand, previousResultCommand, viewCommand,
   type WorkspaceStage} from "./workspaceNavigation";
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
-import { AlertCircle, ArrowRight, LoaderCircle, MapPin,
+import ChatFloatingBox from "./ChatFloatingBox";
+import { AlertCircle, ArrowRight, LayoutDashboard, LoaderCircle, MapPin,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
@@ -38,7 +39,13 @@ type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: 
   territorySummary?: {label: string; text: string; selected: boolean; selectable: boolean}; territoriesOpen: boolean; onTerritoriesOpen: (open: boolean) => void; displayedResultId?: string; apiBase: string; privacyAccepted: boolean; file: File | null; sheet: string; mapping: object; options: object; contextReady: boolean; contextVersion: string; validationVersion: string; features: ChatFeature<Operation>[]; active: Operation | null; selecting: boolean; onSelectAnalysis: (operation: Operation, proposal?: Proposal) => void; sourceChoice: ReactNode; sourceReady: boolean; sourceSummary: string; preparation: ReactNode; resultContent: ReactNode; resultsOnly?: boolean; dataset?: string; scope?: string; datasetVersion?: string;
   onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<LocalAnswer | null>;
   /** Reabre o resultado anterior da sessão, sem recalcular, e devolve a resposta da conversa. */
-  onPreviousResult: () => string };
+  onPreviousResult: () => string;
+  /** "painel": só no painel integrado, a conversa (alternativas, última resposta e campo de envio) vai para uma caixa
+   * flutuante arrastável, com os mesmos ids e textos; a preparação e os resultados clássicos ficam montados e ocultos.
+   * Sem a propriedade, o layout do chat é o de sempre. */
+  layout?: "classico" | "painel";
+  /** Com a base do Brasil pronta: botão "Abrir o painel integrado" junto da fonte atual. */
+  onOpenPainel?: () => void };
 const VIEW_LABEL: Record<ResultView, string> = {mapa: "Mapa", graficos: "Gráficos", tabela: "Tabela"};
 const VIEW_ACTION = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
@@ -56,7 +63,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, onPreviousResult, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "" }: Props) {
+export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, onPreviousResult, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "", layout = "classico", onOpenPainel }: Props) {
   const hasSource = !!file || !!dataset;
   const staged = sourceReady && !!active;
   const [status, setStatus] = useState<Status | null>(null);
@@ -309,25 +316,10 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     }
   }
 
-  return <section id="assistente" aria-label="Assistente de análise territorial"
-    className="assistant-panel section-anchor conversation-workspace rounded-[24px] border border-line bg-white shadow-sm">
-    <div className="integrated-investigation" data-results-focus={resultsOnly}>
-    <div className="conversation-pane no-print" data-testid="conversation-pane">
-    <div className="agent-guidance">
-      <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
-      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as escolhas para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
-    </div>
-    {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
-      <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
-      {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
-        className="mt-2 inline-flex items-center gap-1 font-semibold underline">
-        <RefreshCw size={13}/> Tentar novamente
-      </button>}
-    </div>}
-
-    {/* As mensagens continuam em memória para contexto, sem histórico visual.
-        As alternativas de esclarecimento permanecem disponíveis junto à resposta atual. */}
-    {turns.at(-1)?.role === "assistant" && turns.at(-1)?.clarification?.source === "CATALOGO_LOCAL" &&
+  // Painel integrado: a conversa vai para a caixa flutuante (mesmos ids e textos); a preparação e os resultados clássicos
+  // continuam montados, ocultos, e voltam como estavam. No layout clássico, a marcação é a de sempre.
+  const floating = layout === "painel";
+  const alternatives = turns.at(-1)?.role === "assistant" && turns.at(-1)?.clarification?.source === "CATALOGO_LOCAL" &&
       <div className="mx-4 mb-3 flex flex-wrap gap-2" aria-label="Alternativas de esclarecimento">
         {turns.at(-1)!.clarification!.choices.map(choice =>
           <button key={choice.label} type="button" disabled={sending || selecting || turns.at(-1)?.context !== contextVersion}
@@ -347,11 +339,66 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
               finally { setSending(false); }
             }}
             className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100">{choice.label}</button>)}
+      </div>;
+  const dock = <div className="conversation-dock no-print" data-testid="conversation-dock">
+      {latestReply && <div className="latest-reply" role="status" data-testid="latest-reply">
+        <BrandAvatar size={30}/><div><p className="whitespace-pre-wrap">{latestReply.content}</p></div>
       </div>}
+      {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
+    <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
+      <div className="conversation-input-shell rounded-2xl border-2 bg-white shadow-sm transition">
+        <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
+        <textarea id="assistant-input" rows={2} maxLength={800} value={draft}
+          onChange={e => setDraft(e.target.value)} disabled={sending || !privacyAccepted}
+          onKeyDown={e => { if(e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault(); e.currentTarget.form?.requestSubmit();
+          }}}
+          placeholder="Descreva sua análise ou faça uma pergunta..."
+          className="block min-h-[64px] w-full resize-none rounded-t-2xl border-0 bg-transparent px-4 py-4 text-sm leading-6 text-ink focus:outline-none"/>
+        <div className="flex items-center justify-between gap-3 px-3 pb-3">
+          <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
+          <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
+            disabled={!privacyAccepted || draft.trim().length < 2 || sending}
+            className="conversation-send inline-flex h-10 w-10 items-center justify-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-40">
+            {sending ? <LoaderCircle size={18} className="animate-spin"/> : <Send size={19}/>}
+          </button>
+        </div>
+      </div>
+      {error && <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+        <AlertCircle size={16} className="shrink-0"/>{error}
+      </p>}
+      <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
+        <p className="mt-1">As mensagens passam por proteção de identificadores. Arquivos e registros individuais não são enviados ao serviço de IA.</p>
+      </details>
+    </form>
+    </div>;
+
+  return <section id={floating ? undefined : "assistente"} aria-label={floating ? undefined : "Assistente de análise territorial"}
+    className={floating ? "painel-chat-host" : "assistant-panel section-anchor conversation-workspace rounded-[24px] border border-line bg-white shadow-sm"}>
+    <div className="integrated-investigation" data-results-focus={resultsOnly} hidden={floating}>
+    <div className="conversation-pane no-print" data-testid="conversation-pane">
+    <div className="agent-guidance">
+      <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
+      <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as escolhas para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
+    </div>
+    {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
+      <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
+      {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
+        className="mt-2 inline-flex items-center gap-1 font-semibold underline">
+        <RefreshCw size={13}/> Tentar novamente
+      </button>}
+    </div>}
+
+    {/* As mensagens continuam em memória para contexto, sem histórico visual.
+        As alternativas de esclarecimento permanecem disponíveis junto à resposta atual. */}
+    {!floating && alternatives}
     {!sourceReady && <div className="px-4 pb-4">{sourceChoice}</div>}
     {sourceReady && <div className="px-4 pb-4">
       <details className="no-print text-xs text-teal"><summary className="cursor-pointer">Trocar fonte de dados</summary>{sourceChoice}</details>
       <p data-testid="current-source" className="mt-2 text-xs text-slate-500">Fonte atual: {dataset ? "Dados do Brasil" : file?.name || "Dados importados"}</p>
+      {onOpenPainel && dataset && <button type="button" data-testid="open-painel" onClick={onOpenPainel}
+        className="no-print mt-2 inline-flex items-center gap-2 rounded-lg border border-teal bg-white px-3 py-2 text-xs font-semibold text-teal hover:bg-cyan-50">
+        <LayoutDashboard size={15} aria-hidden="true"/>Abrir o painel integrado</button>}
     </div>}
     {(catalogOpen || sourceReady && !active) && <div className="px-4 pb-4" data-testid="analysis-catalog">
       <ChatAnalysisCarousel features={features} selected={active} disabled={selecting} onSelect={onSelectAnalysis}/>
@@ -403,39 +450,9 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
       </div>
       </div>
     </section>
-    <div className="conversation-dock no-print" data-testid="conversation-dock">
-      {latestReply && <div className="latest-reply" role="status" data-testid="latest-reply">
-        <BrandAvatar size={30}/><div><p className="whitespace-pre-wrap">{latestReply.content}</p></div>
-      </div>}
-      {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal"><LoaderCircle size={16} className="animate-spin"/>Interpretando o pedido…</p>}
-    <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
-      <div className="conversation-input-shell rounded-2xl border-2 bg-white shadow-sm transition">
-        <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
-        <textarea id="assistant-input" rows={2} maxLength={800} value={draft}
-          onChange={e => setDraft(e.target.value)} disabled={sending || !privacyAccepted}
-          onKeyDown={e => { if(e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault(); e.currentTarget.form?.requestSubmit();
-          }}}
-          placeholder="Descreva sua análise ou faça uma pergunta..."
-          className="block min-h-[64px] w-full resize-none rounded-t-2xl border-0 bg-transparent px-4 py-4 text-sm leading-6 text-ink focus:outline-none"/>
-        <div className="flex items-center justify-between gap-3 px-3 pb-3">
-          <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
-          <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
-            disabled={!privacyAccepted || draft.trim().length < 2 || sending}
-            className="conversation-send inline-flex h-10 w-10 items-center justify-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-40">
-            {sending ? <LoaderCircle size={18} className="animate-spin"/> : <Send size={19}/>}
-          </button>
-        </div>
-      </div>
-      {error && <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
-        <AlertCircle size={16} className="shrink-0"/>{error}
-      </p>}
-      <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
-        <p className="mt-1">As mensagens passam por proteção de identificadores. Arquivos e registros individuais não são enviados ao serviço de IA.</p>
-      </details>
-    </form>
-    </div>
+    {!floating && dock}
 
     </div>
+    {floating && <ChatFloatingBox ocupado={sending}>{alternatives}{dock}</ChatFloatingBox>}
   </section>;
 }

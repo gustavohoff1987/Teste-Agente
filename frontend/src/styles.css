@@ -204,3 +204,58 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
   .preparation-context { display:none !important; }
   .stage-frame { padding:0 !important; border:0 !important; }
 }
+
+/* Painel integrado de bolhas (21/10/2026). Marcas finas, anel de 2 px na cor da superfície, grade recessiva; transições
+   suaves entre estados, desligadas por prefers-reduced-motion (regra global acima, com !important). */
+.integrated-investigation[hidden] { display:none; }
+.painel { display:flex; flex-direction:column; gap:14px; margin-bottom:16px; padding:18px; border:1px solid #c2d3e0; border-radius:24px; background:#fff; box-shadow:0 10px 35px #113e5610; }
+.painel-barra { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:10px 12px; border:1px solid #dfe7ed; border-radius:16px; background:#f6f9fb; }
+.painel-gaveta { padding:14px 16px; border:2px solid #0e2840; border-radius:18px; background:#fff; }
+.painel-corpo { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; align-items:start; }
+@media (min-width:1180px) { .painel-corpo { grid-template-columns:300px minmax(0,1fr); } }
+.painel-quadro { min-width:0; padding:10px 12px 12px; border:1px solid #dfe7ed; border-radius:18px; background:#fcfcfb; }
+.painel-grafico { min-width:0; }
+.painel-svg { display:block; overflow:visible; font-family:inherit; }
+.painel-carregando .painel-svg { opacity:.55; transition:opacity .2s ease; }
+.painel-bubble { outline:none; cursor:pointer; transition:transform .6s cubic-bezier(.22,.8,.24,1), opacity .3s ease; }
+.painel-marca { transition:r .6s cubic-bezier(.22,.8,.24,1), fill .35s ease; }
+.painel-bubble:focus-visible .painel-alvo { stroke:#3bb5be; stroke-width:3px; }
+.painel-rotulo-grupo { transition:transform .6s cubic-bezier(.22,.8,.24,1), opacity .3s ease; }
+.painel-reproduzindo .painel-bubble, .painel-reproduzindo .painel-marca, .painel-reproduzindo .painel-rotulo-grupo { transition-duration:1.4s; }
+.painel-sem-transicao .painel-bubble, .painel-sem-transicao .painel-marca, .painel-sem-transicao .painel-rotulo-grupo { transition:none !important; }
+.painel-rastro { animation:painel-rastro .5s ease .55s both; }
+.painel-reproduzindo .painel-rastro { animation-delay:1.35s; }
+@keyframes painel-rastro { from { opacity:0; } to { opacity:1; } }
+.painel-rotulo { font-size:12px; font-weight:600; fill:#0b0b0b; paint-order:stroke; stroke:#fcfcfb; stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
+.painel-marca-texto { font-size:11px; fill:#52514e; font-variant-numeric:tabular-nums; }
+.painel-eixo-titulo { font-size:12px; font-weight:600; fill:#52514e; }
+.painel-dica { position:absolute; z-index:10; pointer-events:none; padding:8px 10px; border:1px solid #dfe7ed; border-radius:12px; background:#fff; box-shadow:0 14px 45px rgba(9,37,60,.12); }
+.painel-soltar { position:absolute; inset:6px; display:flex; align-items:center; justify-content:center; border:2px dashed #008b9e; border-radius:14px; background:#e9f7f8cc; color:#0e2840; font-size:13px; font-weight:650; pointer-events:none; }
+.painel-legenda { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 24px; margin-top:6px; font-size:11px; line-height:1.45; color:#52514e; }
+.painel-trilho { position:relative; height:36px; margin-top:4px; touch-action:none; cursor:pointer; }
+.painel-trilho::before { content:""; position:absolute; left:0; right:0; top:17px; height:2px; border-radius:2px; background:#d9d8d1; }
+.painel-faixa-corte { position:absolute; top:16px; height:4px; border-radius:2px; background:#008b9e; }
+.painel-cursor { position:absolute; top:6px; width:24px; height:24px; margin-left:-12px; border-radius:9999px; cursor:grab; touch-action:none; }
+.painel-cursor::after { content:""; position:absolute; inset:4px; border:2px solid #0e2840; border-radius:9999px; background:#fff; box-shadow:0 1px 3px #10274033; }
+.painel-cursor:focus-visible { outline:3px solid #3bb5be; outline-offset:1px; }
+.painel-cursor:active { cursor:grabbing; }
+.painel-tabela td, .painel-tabela th { padding:9px 12px; }
+.painel-tabela th button { letter-spacing:.05em; }
+/* Conversa no painel: caixa flutuante com o rosto do agente; no celular, ancorada embaixo. */
+.painel-chat { position:fixed; right:24px; bottom:24px; z-index:45; display:flex; flex-direction:column; width:min(400px, calc(100vw - 32px)); max-height:min(72dvh, 640px); border:1px solid #bed1df; border-radius:18px; background:#fff; box-shadow:0 18px 48px #10274033; }
+.painel-chat-cabecalho { display:flex; align-items:center; gap:10px; padding:8px 10px 8px 12px; border-bottom:1px solid #e5edf2; border-radius:18px 18px 0 0; background:#f3f8fb; cursor:grab; touch-action:none; user-select:none; }
+.painel-chat-cabecalho:active { cursor:grabbing; }
+.painel-chat-cabecalho:focus-visible { outline:3px solid #3bb5be; outline-offset:2px; }
+.painel-chat[data-minimizada="true"] .painel-chat-cabecalho { border-bottom:0; border-radius:18px; }
+.painel-chat-corpo { min-height:0; overflow:auto; }
+.painel-chat .conversation-dock { position:static; border-top:0; border-radius:0 0 18px 18px; box-shadow:none; }
+.painel-chat .latest-reply > div { max-height:180px; }
+@media (max-width:639px) {
+  .painel { padding:12px 12px 230px; border-radius:18px; }
+  .painel-chat { left:8px; right:8px; bottom:8px; width:auto; max-height:56dvh; }
+  .painel-chat-cabecalho { cursor:default; }
+  .painel-chat .latest-reply > div { max-height:96px; }
+}
+@media print {
+  .painel-chat, .painel-barra, .painel-gaveta, [data-testid="painel-base"], [data-testid="painel-ruler"] { display:none !important; }
+}

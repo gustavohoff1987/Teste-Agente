@@ -39,7 +39,9 @@ export function updateContextRevision() {
 }
 
 export async function sessionFetch(url: string, init?: RequestInit) {
-  if (!/\/api\/(?:llm\/interpret|exploration\/interpret|analyze)/.test(url)) return fetch(url, init);
+  // O painel integrado (/api/painel) também leva a sessão, que registra o evento de confirmação do pedido; o resultado do
+  // painel ainda não entra na sessão da conversa.
+  if (!/\/api\/(?:llm\/interpret|exploration\/interpret|analyze|painel)/.test(url)) return fetch(url, init);
   const session = await ensureSession();
   if (closing || ending) throw new Error("A sessão está sendo encerrada.");
   const headers = new Headers(init?.headers);
