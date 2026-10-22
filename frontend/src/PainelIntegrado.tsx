@@ -321,7 +321,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
             {grupo.itens.map(item => <li key={grupo.aspecto + item.id} data-testid="painel-nao-avaliavel" data-id={item.id} data-aspecto={item.aspecto}>
               <strong className="font-semibold text-ink">{item.rotulo}</strong>: {item.motivo}</li>)}
           </ul>
-        </div>) : <p className="mt-2 text-xs text-slate-600">Nenhum item sem valor no estado atual do painel.</p>}
+        </div>) : <p className="mt-2 text-xs text-slate-600">Nenhum item sem valor no estado atual do gráfico.</p>}
       </section>
 
       <section data-testid="painel-table" aria-label="Tabela equivalente ao gráfico" className="rounded-2xl border border-line bg-white p-4">

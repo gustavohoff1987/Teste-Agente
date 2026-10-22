@@ -53,7 +53,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     - No alto do gráfico, "Todas as análises" (no lugar de "Voltar à preparação clássica") leva ao fluxo clássico, e "Outras
       análises" (no lugar de "Na preparação clássica") abre a preparação de Distribuição, Rankings, Critérios combinados,
       Rotatividade e Relatórios.
-    - Os textos da tela falam em "gráfico" no lugar de "painel".
+    - Os textos da tela falam em "gráfico" no lugar de "painel". No commit seguinte ao `11ee152`, o mesmo vale para os últimos
+      textos que ainda diziam "painel": a lista de não avaliáveis, o limite de conjuntos, os rótulos de acessibilidade dos
+      conjuntos e dos estados e o subtítulo da caixa da conversa no celular.
   - **Conversa na página principal:** a caixa arrastável traz também a orientação inicial ("Os dados do Brasil já estão
     disponíveis. Explore os municípios no gráfico, use os botões das análises ou converse comigo.") e a fonte atual, com "Trocar
     fonte de dados". Ela abre compacta no canto inferior direito, com 380 px de largura, e a última resposta rola acima de

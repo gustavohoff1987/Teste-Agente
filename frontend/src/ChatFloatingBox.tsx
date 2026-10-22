@@ -113,7 +113,7 @@ export default function ChatFloatingBox({ children, ocupado = false }: Props) {
       <BrandAvatar size={34}/>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-ink">Agente Diagnóstico Territorial</p>
-        <p className="truncate text-[11px] text-slate-500">{ocupado ? "Interpretando o pedido…" : narrow ? "Conversa sobre o painel" : "Arraste pelo cabeçalho para mover"}</p>
+        <p className="truncate text-[11px] text-slate-500">{ocupado ? "Interpretando o pedido…" : narrow ? "Conversa sobre o gráfico" : "Arraste pelo cabeçalho para mover"}</p>
       </div>
       {!narrow && <GripHorizontal size={16} aria-hidden="true" className="shrink-0 text-slate-400"/>}
       <button type="button" data-testid="painel-chat-minimizar" aria-expanded={!minimizada} aria-controls="painel-chat-corpo"

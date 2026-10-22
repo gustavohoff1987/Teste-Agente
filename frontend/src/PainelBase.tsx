@@ -62,7 +62,7 @@ export default function PainelBase({ niveis, municipios, base, nomes, onBase, on
         {estados.filter(item => !base.estados.includes(item.prefixo)).map(item =>
           <option key={item.prefixo} value={item.prefixo}>{item.nome} ({item.sigla}) · {item.municipios.toLocaleString("pt-BR")} municípios</option>)}
       </select>
-      {base.estados.length > 0 && <ul className="flex flex-wrap gap-1.5" aria-label="Estados inteiros no painel">
+      {base.estados.length > 0 && <ul className="flex flex-wrap gap-1.5" aria-label="Estados inteiros no gráfico">
         {base.estados.map(prefixo => <li key={prefixo} data-testid="painel-base-chip" data-id={"uf:" + prefixo}
           className="inline-flex items-center gap-1 rounded-full border border-teal bg-cyan-50 py-0.5 pl-2.5 pr-1 text-xs font-semibold text-ink">
           {nomeDoEstado(prefixo)}

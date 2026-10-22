@@ -271,9 +271,9 @@ export function GavetaComparar({ itens, selecionados, conjuntos, indicador, dist
         onClick={() => { onAgregar(nome); setNome(""); }} className={PRIMARIO}>Agregar selecionados</button>
     </div>
     {municipios.length < 2 && <p className="text-[11px] text-slate-600">Selecione pelo menos dois municípios para agregar.</p>}
-    {conjuntos.length >= MAX_CONJUNTOS && <p className="text-[11px] text-amber-900">O painel aceita até {MAX_CONJUNTOS} conjuntos. Desfaça
+    {conjuntos.length >= MAX_CONJUNTOS && <p className="text-[11px] text-amber-900">O gráfico aceita até {MAX_CONJUNTOS} conjuntos. Desfaça
       um conjunto para criar outro.</p>}
-    {conjuntos.length > 0 && <ul className="space-y-1" aria-label="Conjuntos do painel">
+    {conjuntos.length > 0 && <ul className="space-y-1" aria-label="Conjuntos do gráfico">
       {conjuntos.map(conjunto => <li key={conjunto.id} data-testid="painel-conjunto" data-id={conjunto.id}
         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs">
         <span className="min-w-0"><strong className="text-ink">{conjunto.rotulo}</strong> · soma das contagens dos componentes, com possível dupla contagem</span>
