@@ -35,6 +35,22 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única: a planilha enviada abre com todas as unidades no gráfico
+- **Antes** (commit `ef58a33`, ainda não aprovado no CI): depois de "Começar a análise", a área de uma planilha abria sem
+  nenhuma unidade marcada ("Marque os distritos na lista de territórios para ver o gráfico."), e nada era pedido ao motor.
+- **Agora:** a planilha abre com todas as unidades marcadas, e o gráfico aparece logo depois de "Começar a análise"; a lista
+  das unidades (e dos grupos, com a coluna-mãe) continua à vista para restringir. Na base do Brasil, a porta de entrada
+  continua os 27 estados.
+- **Permanece:** sem nenhuma unidade marcada, nada é pedido ao motor; as planilhas não têm bolhas de grupo; o modo leve vale
+  para planilhas grandes.
+- **Motivo:** a segunda execução do CI (roteiro `ui_conversa_grafico.py`, passo da planilha "condados.csv") mostrou a
+  diferença entre as frentes: a estrutura da página (roteiros `ui_pagina_unica.py` e `ui_conversa_grafico.py`) espera o gráfico
+  logo após "Começar a análise", e a área esperava a escolha das unidades. Sem estados nem bolhas de grupo, a visão geral da
+  planilha são todas as unidades, como os estados na base do Brasil ("a mesma lógica", decisão do responsável de 22/10/2026).
+  Classificação: correção dentro do escopo da página única, compatível com a SPEC.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (abertura da planilha); `painel.test.mjs` (a planilha abre
+  com todas as unidades e a base do Brasil sem nenhuma); os roteiros de navegador não mudam.
+
 ### 2026-10-22 · Página única: a comparação pendente volta na conversa, e o Histórico reabre sem recalcular
 - **Antes** (commits `22e0e28` e `ef58a33`, ainda não aprovados no CI):
   - "compare Manaus" (um nome só) respondia "Identifiquei MANAUS (AM). Para comparar, diga dois ou três nomes no mesmo

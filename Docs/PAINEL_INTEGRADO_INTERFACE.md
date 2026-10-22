@@ -80,6 +80,8 @@ abaixo dele.
   estados; sem coluna-mãe, a lista das unidades em ordem alfabética, com as caixas. Não há bolhas de grupo nas planilhas
   (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo e `ids`, `code:<código>` ou
   `name:<nome>`.
+- **Abertura da planilha:** sem estados nem bolhas de grupo, a planilha abre com todas as unidades marcadas, e a lista fica à
+  vista para restringir (na base do Brasil, a porta de entrada são os estados).
 - **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico pede a escolha.
 
 ## Famílias e opções

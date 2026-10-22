@@ -504,6 +504,10 @@ test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedi
   assert.deepEqual(inicial.janela, []);  // a janela da tendência é escolha da pessoa (decisão 5a)
   assert.deepEqual(M.montarOpcoes(inicial, 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade'});
   assert.equal(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).nivel, 'municipios');
+  // A planilha abre com todas as unidades (não há estados nem bolhas de grupo); a base do Brasil, sem nenhuma (os estados).
+  assert.deepEqual(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).base,
+    {todos: true, estados: [], ids: []});
+  assert.deepEqual(inicial.base, {todos: false, estados: [], ids: []});
   const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
   const base = {nivel: 'municipios', indicador: 'densidade', base: {municipios: {todos: false, estados: ['13'], ids: []}}};
   assert.deepEqual(M.montarOpcoes(definicao(am), 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', ...base});

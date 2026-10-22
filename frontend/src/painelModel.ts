@@ -1185,13 +1185,15 @@ export type DefinicaoAnalise = {
   comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Record<string, string>;
 };
 /** Abertura: base do Brasil com os grupos à vista (E1, os estados em bolhas); planilha com o gráfico limpo, à espera da escolha. */
-/** Estado inicial da análise. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
- * população), e as premissas escolhidas no painel Colunas vão em todo pedido. */
+/** Estado inicial da análise. Na base do Brasil, a porta de entrada são os estados; na planilha, que não tem bolhas de
+ * grupo, todas as unidades (a lista continua à vista para restringir). Na planilha sem população, o indicador começa na
+ * quantidade (o motor recusa a densidade sem população), e as premissas escolhidas no painel Colunas vão em todo pedido. */
 export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodos: string[]; categoria: string; familia?: Familia;
   temGrupos: boolean; temPopulacao?: boolean; premissas?: Record<string, string> }): DefinicaoAnalise {
   return { familia: p.familia ?? "distribuicao", indicador: p.temPopulacao === false ? "quantidade" : "densidade",
     nivel: p.tipo === "brasil" && p.temGrupos ? "estados" : "municipios",
-    base: { ...BASE_VAZIA }, competencia: maisRecente(p.periodos), categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
+    base: p.tipo === "arquivo" ? { todos: true, estados: [], ids: [] } : { ...BASE_VAZIA }, competencia: maisRecente(p.periodos),
+    categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
     premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {} };
 }
