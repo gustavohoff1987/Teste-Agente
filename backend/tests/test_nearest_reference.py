@@ -6,12 +6,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+from pyproj import Geod
 
 import main
 from brazil_catalog_profile import FIELDS
 from llm_bridge import OPERATIONS as LLM_OPERATIONS
 from llm_context import provider_snapshot
-from nearest_reference import GEOD, GRS80_A, GRS80_RF, nearest_exact, nearest_exhaustive
+from nearest_reference import GEOD, GEODS, GRS80_A, GRS80_RF, nearest_exact, nearest_exhaustive
 from prepare_block1_catalog import prepare
 from catalog_support import use_external_catalog
 
@@ -49,9 +50,9 @@ def ok(df, **options):
                                                            body["metadata"]["nearest_reference"]["cobertura_referencias"]}
 
 
-def geodesic_km(a, b):
+def geodesic_km(a, b, geod=GEOD):
     units = {c: (lat, lon) for _, c, lat, lon, _, _ in UNITS}
-    return GEOD.inv(units[a][1], units[a][0], units[b][1], units[b][0])[2] / 1000
+    return geod.inv(units[a][1], units[a][0], units[b][1], units[b][0])[2] / 1000
 
 
 def vincenty(lat1, lon1, lat2, lon2, a=GRS80_A, f=1 / GRS80_RF):
@@ -80,7 +81,7 @@ def vincenty(lat1, lon1, lat2, lon2, a=GRS80_A, f=1 / GRS80_RF):
 
 def test_geodesic_method_is_grs80_and_agrees_with_independent_vincenty():
     assert (GEOD.a, GEOD.f) == (6378137.0, 1 / 298.257222101)
-    reference = main.Geod(ellps="GRS80")
+    reference = Geod(ellps="GRS80")
     assert (GEOD.a, GEOD.f) == (reference.a, reference.f)
     rng = np.random.default_rng(11)
     for lat1, lon1, lat2, lon2 in rng.uniform([-34, -74, -34, -74], [5, -35, 5, -35], size=(200, 4)):
@@ -88,6 +89,18 @@ def test_geodesic_method_is_grs80_and_agrees_with_independent_vincenty():
         assert abs(karney - vincenty(lat1, lon1, lat2, lon2)) < 1e-3  # metros
     # Meio meridiano do GRS80 (polo a polo), valor de referência do elipsoide.
     assert abs(GEOD.inv(0, 90, 0, -90)[2] - 20003931.4586) < 1e-3
+
+
+def test_wgs84_uses_its_own_ellipsoid_and_agrees_with_independent_vincenty():
+    """Adendo REF-20261022: o WGS84 usa o elipsoide WGS 84 (1/f = 298,257223563), sem transformação de coordenadas."""
+    wgs84 = GEODS["WGS84"]
+    assert (wgs84.a, wgs84.f) == (6378137.0, 1 / 298.257223563)
+    reference = Geod(ellps="WGS84")
+    assert (wgs84.a, wgs84.f) == (reference.a, reference.f) and wgs84.f != GEOD.f
+    rng = np.random.default_rng(12)
+    for lat1, lon1, lat2, lon2 in rng.uniform([-55, -80, -55, -80], [60, 40, 60, 40], size=(200, 4)):
+        karney = wgs84.inv(lon1, lat1, lon2, lat2)[2]
+        assert abs(karney - vincenty(lat1, lon1, lat2, lon2, f=1 / 298.257223563)) < 1e-3  # metros
 
 
 def ring(rng):
@@ -99,8 +112,9 @@ def ring(rng):
     return np.array([-10.0]), np.array([-50.0]), lat, lon
 
 
+@pytest.mark.parametrize("crs", ["SIRGAS2000", "WGS84"])
 @pytest.mark.parametrize("seed", [1, 2, 3])
-def test_exact_search_equals_exhaustive_search(seed):
+def test_exact_search_equals_exhaustive_search(seed, crs):
     rng = np.random.default_rng(seed)
     scenarios = [
         (rng.uniform(-33.7, 5.2, 150), rng.uniform(-73.9, -34.8, 150), rng.uniform(-33.7, 5.2, 400), rng.uniform(-73.9, -34.8, 400)),
@@ -115,13 +129,13 @@ def test_exact_search_equals_exhaustive_search(seed):
         ring(rng),
     ]
     for t_lat, t_lon, r_lat, r_lon in scenarios:
-        best, ties, evaluated = nearest_exact(t_lat, t_lon, r_lat, r_lon)
-        expected_best, expected_ties = nearest_exhaustive(t_lat, t_lon, r_lat, r_lon)
+        best, ties, evaluated = nearest_exact(t_lat, t_lon, r_lat, r_lon, crs=crs)
+        expected_best, expected_ties = nearest_exhaustive(t_lat, t_lon, r_lat, r_lon, crs=crs)
         assert np.array_equal(best, expected_best)
         assert [sorted(x) for x in ties] == [sorted(x) for x in expected_ties]
         assert evaluated <= len(t_lat) * len(r_lat)
-    assert all(len(x) == 2 for x in nearest_exact(*scenarios[3])[1])
-    assert len(nearest_exact(*scenarios[4])[1][0]) == 6
+    assert all(len(x) == 2 for x in nearest_exact(*scenarios[3], crs=crs)[1])
+    assert len(nearest_exact(*scenarios[4], crs=crs)[1][0]) == 6
 
 
 def test_explicit_list_with_references_in_other_state_and_target_also_reference():
@@ -230,7 +244,8 @@ def test_references_all_without_coordinates_produce_no_analytical_result():
     assert all(r["minimo_avaliaveis"]["avaliabilidade"] == "NAO_AVALIAVEL" for r in units.values())
 
 
-@pytest.mark.parametrize("value", ["WGS84", "EPSG:4674", "SIRGAS 2000 UTM", "SIRGAS-2000/geo", "4674"])
+@pytest.mark.parametrize("value", ["SAD69", "EPSG:4674", "SIRGAS 2000 UTM", "SIRGAS-2000/geo", "4674", "WGS 1984",
+                                   "EPSG:4326", "WGS84/geo"])
 def test_unsupported_reference_systems_are_never_transformed(value):
     response = run(frame(), reference_mode="list", reference_ids=["code:130260"], crs=value)
     assert response.status_code == 422 and "não suportado" in response.json()["detail"]
@@ -240,6 +255,17 @@ def test_unsupported_reference_systems_are_never_transformed(value):
 def test_governed_aliases_are_canonicalized(value):
     body, structured, _ = ok(frame(), reference_mode="list", reference_ids=["code:130260"], crs=value)
     assert body["metadata"]["options"]["crs"] == "SIRGAS2000" and structured["metodo"]["referencial"] == "SIRGAS2000"
+
+
+@pytest.mark.parametrize("value", [" wgs 84 ", "WGS_84", "Wgs-84", "WGS84"])
+def test_wgs84_aliases_are_canonicalized_and_use_the_wgs84_ellipsoid(value):
+    body, structured, units = ok(frame(), reference_mode="list", reference_ids=["code:130260"], crs=value)
+    assert body["metadata"]["options"]["crs"] == "WGS84" and structured["metodo"]["referencial"] == "WGS84"
+    assert structured["metodo"]["elipsoide"] == {"nome": "WGS 84", "a_m": 6378137.0, "inverso_achatamento": 298.257223563}
+    distance = units["code:130420"]["minimo_completo"]["distancia_km"]
+    assert distance == geodesic_km("130420", "130260", GEODS["WGS84"]) and distance != geodesic_km("130420", "130260")
+    assert any(note.startswith("Referencial geodésico WGS84 (elipsoide WGS 84, a = 6.378.137 m, 1/f = 298,257223563)")
+               for note in body["notes"])
 
 
 def test_reference_system_is_never_presumed():
@@ -321,11 +347,11 @@ def test_preflight_capability_states_follow_the_contract():
     states = {label: run(df, path="/api/preflight", **{"reference_mode": "list", "reference_ids": ["code:130260"], **extra})
               .json()["capabilities"]["nearest"] for label, extra in
               (("sem modo", {"reference_mode": ""}), ("sem referencial", {"crs": ""}),
-               ("não suportado", {"crs": "WGS84"}), ("completo", {}))}
+               ("não suportado", {"crs": "SAD69"}), ("completo", {}), ("WGS84", {"crs": "WGS84"}))}
     assert states["sem modo"]["status"] == "needs_confirmation"
     assert states["sem referencial"]["status"] == "needs_confirmation"
     assert states["não suportado"]["status"] == "unavailable"
-    assert states["completo"]["status"] == "available"
+    assert states["completo"]["status"] == "available" and states["WGS84"]["status"] == "available"
     assert any(r["title"] == "Referências territoriais" for r in states["sem modo"]["requirements"])
 
 

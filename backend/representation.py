@@ -17,7 +17,7 @@ import re
 
 from brazil_catalog_profile import curated_profile, governed_version
 from combined_criteria import needs as criteria_needs
-from data_contract import ChoiceRequired, canonical_crs, count_unit_label, scoped
+from data_contract import ChoiceRequired, SUPPORTED_CRS, canonical_crs, count_unit_label, scoped, source_crs_conflict
 from nearest_reference import (CONDITION_TEXT, MOTIVES, TPL_11, _coordinate_roles_established, _in_period,
                                nearest_inputs, territory_coordinates)
 from temporal_change import DIRECTIONS
@@ -208,10 +208,13 @@ def _geometry(frame, mapping, operation, options, result, nearest, criteria):
     crs = canonical_crs(options.get("crs"))
     if not crs:
         if options.get("crs"):
-            return _unavailable("Referencial geodésico informado não suportado nesta versão (somente SIRGAS2000); nenhuma "
-                                "transformação é aplicada.", "REFERENCIAL_NAO_SUPORTADO", period)
+            return _unavailable("Referencial geodésico informado não suportado nesta versão (somente " + SUPPORTED_CRS +
+                                "); nenhuma transformação é aplicada.", "REFERENCIAL_NAO_SUPORTADO", period)
         return _unavailable("Informe o referencial geodésico das coordenadas para habilitar o mapa; nenhum referencial é "
                             "presumido.", "REFERENCIAL_GEODESICO", period)
+    conflict = source_crs_conflict(frame, crs)
+    if conflict:
+        return _unavailable(conflict, "REFERENCIAL_INCOMPATIVEL", period)
     if not _coordinate_roles_established(frame, mapping, options):
         return _unavailable("Escolha as colunas de latitude e longitude na preparação para ver o mapa.", "PAPEIS_COORDENADAS", period)
     ids = [item["id"] for item in members]

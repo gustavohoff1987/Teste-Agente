@@ -104,7 +104,12 @@ test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no
   assert.deepEqual(P.mapeamentoDaPlanilha(escolhas.mapeamento), {territory: 'distrito', grupo_territorial: 'provincia', period: 'ano',
     count: 'quantidade', latitude: 'lat', longitude: 'lon'});
   assert.deepEqual(P.premissasDaPlanilha(escolhas), {count_unit: 'pessoas', crs: 'SIRGAS2000'});
-  // A SPEC só admite SIRGAS 2000: outro referencial, ou nenhum, não vira premissa.
+  // Só SIRGAS 2000 e WGS 84 (aprovado em 22/10/2026) viram premissa, como informados, sem conversão; outro referencial, ou
+  // nenhum, não vira premissa.
+  assert.deepEqual(P.REFERENCIAIS, [['SIRGAS2000', 'SIRGAS 2000'], ['WGS84', 'WGS 84'], ['outro', 'Outro referencial'],
+    ['desconhecido', 'Não sei']]);
+  assert.deepEqual(P.premissasDaPlanilha({...escolhas, referencial: 'WGS84'}), {count_unit: 'pessoas', crs: 'WGS84'});
+  assert.equal(P.contextoDaPlanilha({...escolhas, referencial: 'WGS84'}).options.crs, 'WGS84');
   assert.deepEqual(P.premissasDaPlanilha({...escolhas, referencial: 'outro'}), {count_unit: 'pessoas'});
   assert.equal(P.contextoDaPlanilha({...escolhas, referencial: 'desconhecido'}).options.crs, undefined);
   // Sem latitude e longitude, nem o referencial nem o separador seguem.
@@ -117,7 +122,7 @@ test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no
     {count_unit: 'outro', custom_count_unit: 'equipes', crs: 'SIRGAS2000'});
 });
 
-test('o que a planilha permite: indisponível com o motivo, inclusive o referencial que não é SIRGAS 2000', () => {
+test('o que a planilha permite: indisponível com o motivo, inclusive o referencial que não é SIRGAS 2000 nem WGS 84', () => {
   const capacidades = {counts: {status: 'available', reasons: []}, density: {status: 'unavailable', reasons: ['Sem população.']},
     spatial: {status: 'needs_confirmation', reasons: ['Selecione o território de referência.']},
     temporal: {status: 'unavailable', reasons: ['Evolução temporal exige ao menos dois períodos reconhecidos.']},
@@ -133,10 +138,12 @@ test('o que a planilha permite: indisponível com o motivo, inclusive o referenc
   const coordenadas = {...escolhas, mapeamento: {...escolhas.mapeamento, latitude: 'lat', longitude: 'lon'}};
   const espacial = referencial => P.disponibilidadeDaPlanilha(capacidades, {...coordenadas, referencial}, false)[1];
   assert.equal(espacial('').motivo, 'Escolha o referencial das coordenadas.');
-  assert.match(espacial('outro').motivo, /Só o referencial SIRGAS 2000 é admitido/);
+  assert.equal(espacial('outro').motivo,
+    'Só os referenciais SIRGAS 2000 e WGS 84 são admitidos; com outro, ou sem saber qual é, nada é presumido.');
   assert.equal(espacial('desconhecido').disponivel, false);
   // A escolha pendente da referência é feita no gráfico: não torna a análise espacial indisponível.
   assert.equal(espacial('SIRGAS2000').disponivel, true);
+  assert.equal(espacial('WGS84').disponivel, true);
   const misto = P.disponibilidadeDaPlanilha(capacidades, {...coordenadas, referencial: 'SIRGAS2000'}, true)[1];
   assert.deepEqual([misto.disponivel, misto.motivo], [false, 'Escolha o separador decimal das coordenadas.']);
   const semMedida = P.disponibilidadeDaPlanilha({...capacidades, counts: {status: 'unavailable', reasons: ['Escolha a coluna de quantitativos.']}},

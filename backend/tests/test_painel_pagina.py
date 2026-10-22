@@ -620,10 +620,10 @@ def test_uploaded_choices_return_structured_pendencies(repo):
     refused(districts(premissas={"count_unit": "pessoas", "crs": "SIRGAS2000", "extra": 1}), "Premissa não reconhecida")
 
 
-def test_uploaded_distance_needs_the_confirmed_sirgas_2000_reference(repo):
+def test_uploaded_distance_needs_a_confirmed_supported_reference(repo):
     reference = {"membros": [ALTO]}
     missing = refused(districts(referencia=reference), "Confirme o referencial geodésico")
-    assert missing["pendencia"]["chave"] == "crs" and missing["pendencia"]["opcoes"] == ["SIRGAS2000"]
+    assert missing["pendencia"]["chave"] == "crs" and missing["pendencia"]["opcoes"] == ["SIRGAS2000", "WGS84"]
     assert ok(districts())["disponibilidade"]["espacial"]["pendencia"]["chave"] == "crs"
     # Referencial fora dos aceitos (SAD69): indisponível com o motivo, sem presumir nem transformar.
     other = ok(districts(premissas={"count_unit": "pessoas", "crs": "SAD69"}))["disponibilidade"]["espacial"]
@@ -641,6 +641,14 @@ def test_uploaded_distance_needs_the_confirmed_sirgas_2000_reference(repo):
     assert items[ALTO]["distancia_km"] == 0 and items[SERRA]["distancia_km"] is None
     assert any("(SEM_INFORMACAO_ESPACIAL)" in text for text in items[SERRA]["motivos"])
     assert body["disponibilidade"]["espacial"] == {"disponivel": True, "motivo": "", "pendencia": None}
+    # WGS 84 (Adendo REF-20261022): mesma distância de /api/analyze no elipsoide WGS 84, sem converter coordenadas.
+    wgs84 = by_id(ok(districts(premissas={"count_unit": "pessoas", "crs": "WGS 84"}, referencia=reference)))
+    nearest_wgs84 = ok(analyze_upload("nearest", period_filter="2024", reference_mode="list", reference_ids=[ALTO],
+                                      crs="WGS84"))
+    records = {record["unidade"]: record
+               for record in nearest_wgs84["metadata"]["nearest_reference"]["cobertura_referencias"]}
+    for key in (BAIXO, CAMPINA):
+        assert wgs84[key]["distancia_km"] == records[key]["minimo_completo"]["distancia_km"]
     # Coordenadas com vírgula e ponto misturados: o separador fica com a pessoa (sem presumir).
     mixed = {**DISTRICTS, "Baixo Rio": ("Província Norte", "-3,5", "-61,0", [5] * 4, [500] * 4)}
     contents = districts_csv(mixed)

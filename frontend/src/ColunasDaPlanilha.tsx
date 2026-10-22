@@ -7,8 +7,9 @@ import { PAPEIS, REFERENCIAIS, SEPARADORES, UNIDADES_DE_CONTAGEM, editarRotulo, 
 // (distrito, condado, província…): unidade territorial, código, grupo territorial (a coluna-mãe), período, categoria,
 // quantidade, população, latitude, longitude e identificador individual. As colunas reconhecidas por regra já vêm escolhidas;
 // as sugestões aparecem no topo de cada lista, com "(sugerida)", e nunca são usadas sem a escolha da pessoa (D1). A pessoa
-// também diz o que a quantidade conta, o referencial das coordenadas (só SIRGAS 2000 é admitido) e como se chamam as unidades
-// e os grupos. Abaixo, o que a planilha permite, pelo pré-exame do backend. Nada é calculado aqui.
+// também diz o que a quantidade conta, o referencial em que as coordenadas foram coletadas (SIRGAS 2000 ou WGS 84, sem
+// conversão de um no outro) e como se chamam as unidades e os grupos. Abaixo, o que a planilha permite, pelo pré-exame do
+// backend. Nada é calculado aqui.
 
 type Props = {
   colunas: string[];
@@ -88,8 +89,9 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
           </select>
         </label>}
       </div>
-      <p className="mt-1 text-[11px] leading-4 text-slate-600">Só o referencial SIRGAS 2000 é admitido. Com outro, ou sem saber qual é,
-        a análise espacial fica indisponível: nada é presumido.</p>
+      <p className="mt-1 text-[11px] leading-4 text-slate-600" data-testid="colunas-referencial-ajuda">Informe o referencial em que
+        as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84. O sistema não converte um no outro. Com outro referencial, ou sem
+        saber qual é, a análise espacial fica indisponível: nada é presumido.</p>
     </fieldset>}
     <fieldset className="colunas-bloco" data-testid="colunas-nomes">
       <legend>Nomes</legend>

@@ -16,7 +16,8 @@ import numpy as np
 import pandas as pd
 from territorial_hierarchy import describe_hierarchy
 from data_contract import (ChoiceRequired, multiplicity, scoped, text_values,
-                           validate_operation, period_positions, prepare, needs_population, dimensions, count_unit_label, canonical_crs)
+                           validate_operation, period_positions, prepare, needs_population, dimensions, count_unit_label, canonical_crs,
+                           SUPPORTED_CRS, source_crs_conflict)
 
 ROLES = ("territory", "territory_id", "period", "category", "count", "population", "latitude", "longitude", "identity")
 ROLE_NAMES = {
@@ -583,7 +584,9 @@ def preflight(frame: pd.DataFrame, mapping: dict[str, str],
             if not options.get("crs"):
                 pending.append("Escolha o referencial geodésico das coordenadas; nenhum referencial é presumido.")
             elif not canonical_crs(options.get("crs")):
-                missing.append("O referencial indicado não é suportado nesta versão.")
+                missing.append("O referencial indicado não é suportado nesta versão (somente " + SUPPORTED_CRS + ").")
+            elif source_crs_conflict(frame, canonical_crs(options["crs"])):
+                missing.append(source_crs_conflict(frame, canonical_crs(options["crs"])))
             if not options.get("reference_territory"):
                 pending.append("Selecione o território de referência.")
         if op == "nearest" or (op == "criteria" and uses["spatial"]):

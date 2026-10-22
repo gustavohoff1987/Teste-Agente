@@ -5,8 +5,8 @@ aplicado aos dados (densidade comparada a um valor, critério atômico de CAP-SU
 vazio nesta versão; nenhuma referência é escolhida por conhecimento externo.
 
 Distância: geodésica direta pelo problema inverso de Karney (GeographicLib, via pyproj), no
-elipsoide GRS80 do referencial SIRGAS2000, em precisão integral; arredondar é tarefa da
-apresentação. A busca da mais próxima é exata: a corda 3D entre os pontos nunca excede a
+elipsoide do referencial confirmado (GRS80 no SIRGAS2000; WGS 84 no WGS84, Adendo REF-20261022),
+em precisão integral; arredondar é tarefa da apresentação. A busca da mais próxima é exata: a corda 3D entre os pontos nunca excede a
 geodésica, então só se calculam geodésicas de referências cuja corda não supere a menor
 geodésica já obtida. Mínimo e empates são decididos pelas distâncias geodésicas calculadas.
 """
@@ -19,23 +19,40 @@ import pandas as pd
 import pyproj
 from pyproj import Geod
 
-from data_contract import ChoiceRequired, canonical_crs, numbers, scoped, text_values
+from data_contract import ChoiceRequired, SUPPORTED_CRS, canonical_crs, numbers, scoped, source_crs_conflict, text_values
 from geo_complement import overlay
 from request_memo import request_value
 from territorial_selection import territory_catalog, texts
 
-REFERENCIAL = "SIRGAS2000"
-GRS80_A = 6378137.0
-GRS80_RF = 298.257222101
-GEOD = Geod(a=GRS80_A, rf=GRS80_RF)
+# Elipsoide de cada referencial do conjunto governado (nome, semieixo maior em m, inverso do achatamento).
+# Não há referencial padrão nem transformação entre referenciais (RQ-DAD-26/27).
+ELLIPSOIDS = {"SIRGAS2000": ("GRS80", 6378137.0, 298.257222101),
+              "WGS84": ("WGS 84", 6378137.0, 298.257223563)}
+GEODS = {crs: Geod(a=a, rf=rf) for crs, (_, a, rf) in ELLIPSOIDS.items()}
+_, GRS80_A, GRS80_RF = ELLIPSOIDS["SIRGAS2000"]
+GEOD = GEODS["SIRGAS2000"]
 METHOD = {
     "capacidades": ["CAP-REF-01", "CAP-ESP-01", "CAP-ESP-02"], "versao": "1.0",
     "algoritmo": "problema geodésico inverso de Karney (GeographicLib)",
     "implementacao": "pyproj " + pyproj.__version__ + " / PROJ " + pyproj.proj_version_str,
-    "referencial": REFERENCIAL, "elipsoide": {"nome": "GRS80", "a_m": GRS80_A, "inverso_achatamento": GRS80_RF},
     "unidade": "km", "precisao": "integral; arredondamento somente na apresentação",
     "busca": "exata; corda 3D como limite inferior da geodésica, sem aproximação",
 }
+
+
+def method(crs):
+    """Método com o referencial confirmado e o elipsoide dele."""
+    name, a, rf = ELLIPSOIDS[crs]
+    return {**METHOD, "referencial": crs, "elipsoide": {"nome": name, "a_m": a, "inverso_achatamento": rf}}
+
+
+def ellipsoid_note(crs):
+    """Início da nota do resultado: referencial, elipsoide e parâmetros, em formato brasileiro."""
+    name, a, rf = ELLIPSOIDS[crs]
+    return (f"Referencial geodésico {crs} (elipsoide {name}, a = " + f"{a:,.0f}".replace(",", ".") + " m, 1/f = "
+            + str(rf).replace(".", ",") + "); ")
+
+
 TPL_11 = ("A distância apresentada é geográfica direta. Não representa distância viária, "
           "tempo de deslocamento ou acessibilidade real.")
 OPERATORS = {"<": "<", "<=": "≤", ">": ">", ">=": "≥", "=": "=", "!=": "≠"}
@@ -257,9 +274,12 @@ def _nearest_inputs(frame, mapping, options):
     crs = options.get("crs")
     if not canonical_crs(crs):
         if crs:
-            raise ValueError("Referencial geodésico informado não suportado nesta versão (somente SIRGAS2000). "
+            raise ValueError("Referencial geodésico informado não suportado nesta versão (somente " + SUPPORTED_CRS + "). "
                              "Nenhuma transformação, aproximação ou substituição é aplicada.")
         raise ChoiceRequired("Escolha o referencial geodésico das coordenadas; nenhum referencial é presumido.")
+    conflict = source_crs_conflict(frame, canonical_crs(crs))
+    if conflict:
+        raise ValueError(conflict)
     for role, label in (("territory", "o território"), ("latitude", "a latitude"), ("longitude", "a longitude")):
         if not mapping.get(role):
             raise ValueError("Associe " + label + " para calcular a referência mais próxima.")
@@ -297,17 +317,19 @@ def _coordinate_roles_established(frame, mapping, options):
     return coordinate_roles(frame, mapping, options) == {"latitude", "longitude"}
 
 
-def _ecef(lat, lon):
-    f = 1 / GRS80_RF
+def _ecef(lat, lon, crs):
+    _, a, rf = ELLIPSOIDS[crs]
+    f = 1 / rf
     e2 = f * (2 - f)
     phi, lam = np.radians(lat), np.radians(lon)
     sin_phi = np.sin(phi)
-    n = GRS80_A / np.sqrt(1 - e2 * sin_phi * sin_phi)
+    n = a / np.sqrt(1 - e2 * sin_phi * sin_phi)
     return np.column_stack([n * np.cos(phi) * np.cos(lam), n * np.cos(phi) * np.sin(lam), n * (1 - e2) * sin_phi])
 
 
-def nearest_exact(t_lat, t_lon, r_lat, r_lon):
-    """Para cada alvo: menor geodésica (m) e índices de todas as referências com esse valor exato.
+def nearest_exact(t_lat, t_lon, r_lat, r_lon, *, crs):
+    """Para cada alvo: menor geodésica (m), no elipsoide do referencial crs, e índices de todas as referências com
+    esse valor exato.
 
     Corda ≤ geodésica para qualquer par; logo uma referência com corda maior que a menor geodésica
     calculada não pode ser a mais próxima nem empatar. A margem (1e-12 relativa + 1 µm) só amplia o
@@ -321,8 +343,9 @@ def nearest_exact(t_lat, t_lon, r_lat, r_lon):
     evaluated = 0
     if not count or not total:
         return best, ties, evaluated
-    rx = _ecef(r_lat, r_lon)
-    tx = _ecef(t_lat, t_lon)
+    geod = GEODS[crs]
+    rx = _ecef(r_lat, r_lon, crs)
+    tx = _ecef(t_lat, t_lon, crs)
     for start in range(0, count, CHUNK):
         stop = min(count, start + CHUNK)
         diff = tx[start:stop, None, :] - rx[None, :, :]
@@ -334,7 +357,7 @@ def nearest_exact(t_lat, t_lon, r_lat, r_lon):
         rows = np.repeat(np.arange(size), k)
         cols = np.argpartition(chord, k - 1, axis=1)[:, :k].ravel()
         while len(rows):
-            _, _, meters = GEOD.inv(t_lon[start + rows], t_lat[start + rows], r_lon[cols], r_lat[cols])
+            _, _, meters = geod.inv(t_lon[start + rows], t_lat[start + rows], r_lon[cols], r_lat[cols])
             distance[rows, cols] = meters
             done[rows, cols] = True
             evaluated += len(rows)
@@ -348,11 +371,11 @@ def nearest_exact(t_lat, t_lon, r_lat, r_lon):
     return best, ties, evaluated
 
 
-def nearest_exhaustive(t_lat, t_lon, r_lat, r_lon):
+def nearest_exhaustive(t_lat, t_lon, r_lat, r_lon, *, crs):
     """Referência de teste: todas as geodésicas, mesmo critério de mínimo e empate."""
     best, ties = [], []
     for lat, lon in zip(t_lat, t_lon):
-        _, _, meters = GEOD.inv(np.full(len(r_lat), lon), np.full(len(r_lat), lat), np.asarray(r_lon), np.asarray(r_lat))
+        _, _, meters = GEODS[crs].inv(np.full(len(r_lat), lon), np.full(len(r_lat), lat), np.asarray(r_lon), np.asarray(r_lat))
         best.append(meters.min() if len(meters) else np.nan)
         ties.append(np.flatnonzero(meters == meters.min()).tolist() if len(meters) else [])
     return np.array(best), ties
@@ -370,6 +393,7 @@ def compute_nearest(frame, mapping, options):
     inputs = nearest_inputs(frame, mapping, options)
     refs, coords, period = inputs["references"], inputs["coordinates"], inputs["period"]
     catalog = refs["catalogo"]
+    crs = canonical_crs(options["crs"])  # conferido em nearest_inputs
 
     def condition(key):
         return coords.at[key, "condicao"] if key in coords.index else "SEM_REGISTRO"
@@ -385,7 +409,7 @@ def compute_nearest(frame, mapping, options):
     target_state = {key: condition(key) for key in targets}
     valid_targets = [key for key in targets if target_state[key] == "VALIDA"]
     best, ties, evaluated = nearest_exact(coords.loc[valid_targets, "lat"], coords.loc[valid_targets, "lon"],
-                                          coords.loc[valid_refs, "lat"], coords.loc[valid_refs, "lon"])
+                                          coords.loc[valid_refs, "lat"], coords.loc[valid_refs, "lon"], crs=crs)
     position = {key: i for i, key in enumerate(valid_targets)}
     members = set(ref_ids)
     scope_partial, scope_full = "entre as referências avaliáveis", "conjunto completo de referências"
@@ -493,8 +517,8 @@ def compute_nearest(frame, mapping, options):
     notes = []
     if complete or partial_only:
         notes.append(TPL_11)
-    notes.append("Referencial geodésico " + REFERENCIAL + " (elipsoide GRS80, a = 6.378.137 m, 1/f = 298,257222101); "
-                 "distância pelo problema geodésico inverso de Karney, em quilômetros e sem arredondamento no cálculo.")
+    notes.append(ellipsoid_note(crs) + "distância pelo problema geodésico inverso de Karney, em quilômetros e sem "
+                 "arredondamento no cálculo.")
     if period is not None:
         notes.append("Coordenadas e critério da competência " + period + "; coordenadas de outras competências não são "
                      "tratadas como equivalentes.")
@@ -546,7 +570,7 @@ def compute_nearest(frame, mapping, options):
                {"label": "Somente entre as referências avaliáveis", "value": partial_only},
                {"label": "Não avaliáveis", "value": without}]
     structured = {
-        "metodo": METHOD, "periodo_geometria": period,
+        "metodo": method(crs), "periodo_geometria": period,
         "universo_alvos": {"definicao": "subconjunto selecionado" if "territory_ids" in options else "universo observado no período",
                            "n": len(targets), "n_coordenadas_avaliaveis": len(valid_targets)},
         "conjunto_referencias": {

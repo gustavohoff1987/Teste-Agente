@@ -15,9 +15,10 @@ Nada aqui é fórmula nova; cada número vem do motor das análises:
 - conjunto: main._compute(..., "aggregate"), a agregação municipal (CAP-AGR-01), soma dos componentes com possível
   dupla contagem (SOMA_DOS_COMPONENTES) e agregado parcial sobre os membros com registro (AGREGADO_PARCIAL);
 - distância e membro mais próximo: nearest_reference.territory_coordinates e nearest_exact (CAP-ESP-01 e CAP-ESP-02),
-  geodésica no GRS80 (SIRGAS 2000) até a referência ou até o membro mais próximo do conjunto de referência, pelo mínimo do
-  conjunto completo, com os empates exatos (uma referência sem coordenada válida deixa a distância não avaliável), com a
-  camada complementar de coordenadas como na análise espacial;
+  geodésica no elipsoide do referencial confirmado (GRS80 no SIRGAS 2000; WGS 84 no WGS 84) até a referência ou até o
+  membro mais próximo do conjunto de referência, pelo mínimo do conjunto completo, com os empates exatos (uma referência
+  sem coordenada válida deixa a distância não avaliável), com a camada complementar de coordenadas como na análise
+  espacial;
 - variação percentual: temporal_change.change (CAP-TMP-01, DA-14), em aritmética exata; base zero não é avaliável;
 - tendência: trend.classify_frame e trend.summarize (CAP-TEN-01, DA-15), as funções da evolução temporal;
 - grupos por posição: main._compute(..., "distribution") e main.distribution_cuts (CAP-DIS-02, Hyndman–Fan tipo 7);
@@ -49,10 +50,10 @@ from brazil_catalog_profile import FIELDS, curated_profile, source_identity
 from combined_criteria import band_edges, bands_of, describe, evaluate, parse_tree, ranking_of, select_top
 from comparison_window import NOTE_PAIRS, NOTE_SET
 from conversation_session import fingerprint
-from data_contract import (ChoiceRequired, canonical_crs, count_unit_label, period_positions, prepare, resolve_convention,
-                           text_values)
+from data_contract import (CRS_ALIASES, SUPPORTED_CRS, ChoiceRequired, canonical_crs, count_unit_label, period_positions,
+                           prepare, resolve_convention, text_values)
 from geo_complement import frame_identity
-from nearest_reference import (CONDITION_TEXT, METHOD as DISTANCE_METHOD, MOTIVES, REFERENCIAL, TPL_11, _in_period,
+from nearest_reference import (CONDITION_TEXT, METHOD as DISTANCE_METHOD, MOTIVES, TPL_11, _in_period, ellipsoid_note,
                                nearest_exact, row_ids, territory_coordinates)
 from request_memo import per_source
 from semantic_bridge import (ROLE_NAMES, ROLES, coordinate_roles, premise_reason, role_established, territories_stable,
@@ -72,14 +73,13 @@ GOVERNED = ("O painel usa as colunas do perfil oficial da base Brasil: código I
             "quantidade e população e, com a referência, latitude e longitude.")
 NO_CRS = ("A distância do painel precisa do referencial geodésico SIRGAS 2000, premissa governada da versão oficial da "
           "base Brasil; nesta versão da base ele não está estabelecido, e nenhum referencial é presumido.")
-CRS_PENDING = ("Confirme o referencial geodésico das coordenadas da planilha: a distância só é calculada no SIRGAS 2000, e "
-               "nenhum referencial é presumido.")
-CRS_UNSUPPORTED = ("Referencial geodésico informado não suportado nesta versão (somente SIRGAS2000). Nenhuma "
+CRS_PENDING = ("Confirme o referencial geodésico em que as coordenadas da planilha foram coletadas: a distância é "
+               "calculada no SIRGAS 2000 ou no WGS 84, sem converter um no outro, e nenhum referencial é presumido.")
+CRS_UNSUPPORTED = ("Referencial geodésico informado não suportado nesta versão (somente " + SUPPORTED_CRS + "). Nenhuma "
                    "transformação, aproximação ou substituição é aplicada.")
-# Referenciais em que o gráfico calcula a distância (nomes canônicos de data_contract.canonical_crs) e o elipsoide de
-# cada um, citado na nota. Toda conferência de referencial passa por _referencial_suportado.
-REFERENCIAIS_ACEITOS = (REFERENCIAL,)
-ELIPSOIDES = {REFERENCIAL: "elipsoide GRS80, a = 6.378.137 m, 1/f = 298,257222101"}
+# Referenciais em que o gráfico calcula a distância (nomes canônicos de data_contract.canonical_crs, Adendo REF-20261022);
+# o elipsoide de cada um vem de nearest_reference. Toda conferência de referencial passa por _referencial_suportado.
+REFERENCIAIS_ACEITOS = tuple(CRS_ALIASES)
 REQUIRED_ROLES = frozenset(("territory", "territory_id", "period", "category", "count", "population"))
 SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
@@ -254,8 +254,8 @@ class Spatial:
     references: list
     invalid: list
     values: dict
+    referencial: str  # o referencial confirmado (canônico), o das premissas e da chave de execução
     nearest: dict = field(default_factory=dict)
-    referencial: str = REFERENCIAL  # o referencial confirmado (canônico), o das premissas e da chave de execução
 
     def condition(self, key):
         return self.coords.at[key, "condicao"] if key in self.coords.index else "SEM_REGISTRO"
@@ -840,8 +840,8 @@ def _ranking(ctx, measures, members, criterion):
 
 
 def _upload_spatial_settings(ctx):
-    """Planilha: latitude e longitude escolhidas ou reconhecidas, o referencial confirmado pela pessoa (só SIRGAS 2000,
-    nenhum presumido) e o separador decimal verificado nos dados ou escolhido."""
+    """Planilha: latitude e longitude escolhidas ou reconhecidas, o referencial confirmado pela pessoa (SIRGAS 2000 ou
+    WGS 84, nenhum presumido) e o separador decimal verificado nos dados ou escolhido."""
     unit = ctx.labels.unidade
     settings = apply_premises(ctx.frame, ctx.mapping, {**ctx.premissas, **(
         {"hierarchy_columns": {"territorio_superior_1": ctx.group_column}} if ctx.group_column else {})}, spatial=True)
@@ -903,7 +903,7 @@ def _spatial(ctx, references, targets) -> Spatial:
     if not spatial.invalid and valid:
         members = list(references)
         best, ties, _ = nearest_exact(coords.loc[valid, "lat"], coords.loc[valid, "lon"],
-                                      coords.loc[members, "lat"], coords.loc[members, "lon"])
+                                      coords.loc[members, "lat"], coords.loc[members, "lon"], crs=spatial.referencial)
         spatial.values = {key: float(best[i]) / 1000 for i, key in enumerate(valid)}
         spatial.nearest = {key: [members[j] for j in ties[i]] for i, key in enumerate(valid)}
     return spatial
@@ -1146,9 +1146,8 @@ def _notes(ctx, base, sets, items, final, initial, spatial, reference):
     if spatial is not None:
         if spatial.values:
             notes.append(TPL_11)
-        notes.append("Referencial geodésico " + spatial.referencial + " (" + ELIPSOIDES[spatial.referencial] + "); "
-                     "distância pelo problema geodésico inverso de Karney, em quilômetros e sem arredondamento no "
-                     "cálculo.")
+        notes.append(ellipsoid_note(spatial.referencial) + "distância pelo problema geodésico inverso de Karney, em "
+                     "quilômetros e sem arredondamento no cálculo.")
         notes.append("Coordenadas da competência " + ctx.period + "; coordenadas de outras competências não são "
                      "tratadas como equivalentes.")
         members = reference["membros"]

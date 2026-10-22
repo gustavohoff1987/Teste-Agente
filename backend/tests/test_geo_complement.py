@@ -434,7 +434,10 @@ def test_governed_version_resolves_crs_and_decimal_separator_only_in_distance_an
     assert reply.json()["result_reference"]["same_preparation"] is True
     # O que o usuário informa explicitamente prevalece, inclusive quando é incompatível ou não suportado.
     assert analyze("nearest", info=info, period_filter="202406", **runs["nearest"], number_format="decimal_point").status_code == 422
-    assert analyze("nearest", info=info, period_filter="202406", **runs["nearest"], crs="WGS84").status_code == 422
+    assert analyze("nearest", info=info, period_filter="202406", **runs["nearest"], crs="SAD69").status_code == 422
+    # WGS84 é suportado (Adendo REF-20261022), mas a base do Brasil está em SIRGAS 2000 e não há conversão.
+    incompatible = analyze("nearest", info=info, period_filter="202406", **runs["nearest"], crs="WGS84")
+    assert incompatible.status_code == 422 and "SIRGAS 2000" in incompatible.json()["detail"]
 
 
 def test_decimal_separator_premise_requires_evidence_and_only_reaches_the_governed_version():

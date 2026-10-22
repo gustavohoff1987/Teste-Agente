@@ -102,8 +102,8 @@ Regras dos campos:
   `SOMA_DOS_COMPONENTES`, com possível dupla contagem (RQ-REP-14). Se algum membro não tem registro, o agregado é parcial
   sobre os demais, com o motivo `AGREGADO_PARCIAL` e a lista dos de fora; sem nenhum membro com registro, os valores
   ficam `null`.
-- **`distancia_km` (CAP-ESP-01 e CAP-ESP-02):** distância geodésica no GRS80 (SIRGAS 2000, premissa governada da base
-  oficial), por `nearest_reference.territory_coordinates` e `nearest_exact`, como em `compute_nearest`, com as
+- **`distancia_km` (CAP-ESP-01 e CAP-ESP-02):** distância geodésica no elipsoide do referencial: GRS80 no SIRGAS 2000
+  (premissa governada da base oficial) e, numa planilha, também WGS 84 no WGS 84 (desde 22/10/2026, Adendo REF-20261022), por `nearest_reference.territory_coordinates` e `nearest_exact`, como em `compute_nearest`, com as
   coordenadas da `competencia` e a camada complementar como na análise espacial.
   - Com um conjunto de referência, vale a distância até o membro mais próximo, pelo mínimo do conjunto completo
     (`minimo_completo`).
@@ -394,8 +394,9 @@ região…). Só no formato com `nivel`, e só no nível municípios.
 - **Sem população:** `disponibilidade.densidade` indisponível, densidade e população `null`; só o indicador `quantidade`.
 - **Grupo:** sem um valor próprio de cada grupo, não há bolha de grupo (somar as unidades seria CAP-AGR-01, com possível
   dupla contagem); `disponibilidade.grupos` explica. O nível `estados` é só da base do Brasil.
-- **Distância:** exige latitude e longitude e o referencial confirmado em `premissas.crs`. Só SIRGAS 2000 (`SIRGAS2000`,
-  `SIRGAS 2000`…): sem `crs`, pendência `crs`; com outro referencial, `disponibilidade.espacial` indisponível com o motivo
+- **Distância:** exige latitude e longitude e o referencial confirmado em `premissas.crs`: SIRGAS 2000 (`SIRGAS2000`,
+  `SIRGAS 2000`…) ou, desde 22/10/2026, WGS 84 (`WGS84`, `WGS 84`…), cada um no seu elipsoide e sem converter um no outro;
+  sem `crs`, pendência `crs` (opções `SIRGAS2000` e `WGS84`); com outro referencial, `disponibilidade.espacial` indisponível com o motivo
   e o pedido com `referencia` recusado (422 "Referencial geodésico informado não suportado …"), sem presumir nem
   transformar. O separador decimal é verificado nos dados (vírgula aplicada só com evidência); misto → pendência
   `number_format`.
@@ -432,7 +433,7 @@ escolha e repetir o pedido com `options.premissas`:
 | `chave` | Quando | `opcoes` |
 |---|---|---|
 | `count_unit` | Planilha com quantidade, sem a unidade de contagem. | `pessoas`, `vinculos`, `postos`, `outro` |
-| `crs` | Distância numa planilha sem o referencial confirmado. | `SIRGAS2000` |
+| `crs` | Distância numa planilha sem o referencial confirmado. | `SIRGAS2000`, `WGS84` |
 | `number_format` | Coordenadas com separador decimal não verificável nos dados. | `decimal_comma`, `decimal_point` |
 | `confirmed_roles` | Coluna mapeada só sugerida (sem regra nem escolha). | os papéis a escolher, como `["territory_id"]` |
 | `object_declaration` ou `category_constant` | Objeto de análise não reconhecido (com ou sem coluna de categoria). | `[]` (texto livre) |

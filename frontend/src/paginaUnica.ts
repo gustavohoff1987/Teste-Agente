@@ -189,9 +189,12 @@ const PAPEIS_DO_PREEXAME: Papel[] = ["territory", "territory_id", "period", "cat
   "longitude", "identity"];
 export const UNIDADES_DE_CONTAGEM: [string, string][] = [["pessoas", "Pessoas"], ["vinculos", "Vínculos de trabalho"],
   ["postos", "Postos de trabalho"], ["outro", "Outra unidade"]];
-/** Referencial das coordenadas: a SPEC só admite SIRGAS 2000; os outros valores deixam a análise espacial indisponível. */
-export const REFERENCIAIS: [string, string][] = [["SIRGAS2000", "SIRGAS 2000"], ["outro", "Outro referencial"],
-  ["desconhecido", "Não sei"]];
+/** Referenciais das coordenadas admitidos: SIRGAS 2000 (SPEC) e WGS 84 (aprovado pelo responsável pelo produto em
+ * 22/10/2026). A pessoa informa o referencial em que as coordenadas foram coletadas, e o sistema não converte um no outro.
+ * "Outro referencial" e "Não sei" deixam a análise espacial indisponível: nada é presumido. */
+export const REFERENCIAIS_ACEITOS: readonly string[] = ["SIRGAS2000", "WGS84"];
+export const REFERENCIAIS: [string, string][] = [["SIRGAS2000", "SIRGAS 2000"], ["WGS84", "WGS 84"],
+  ["outro", "Outro referencial"], ["desconhecido", "Não sei"]];
 export const SEPARADORES: [string, string][] = [["decimal_comma", "Vírgula"], ["decimal_point", "Ponto"]];
 
 export type EscolhasDaPlanilha = {
@@ -268,6 +271,9 @@ const unidadeDaContagem = (escolhas: EscolhasDaPlanilha): Record<string, string>
     ? { custom_count_unit: escolhas.textoDaUnidade.trim() } : {}),
 });
 const comCoordenadas = (escolhas: EscolhasDaPlanilha) => !!escolhas.mapeamento.latitude && !!escolhas.mapeamento.longitude;
+/** O referencial informado vira a premissa `crs` só com latitude e longitude e só se for um dos admitidos. */
+const referencialDaPlanilha = (escolhas: EscolhasDaPlanilha): Record<string, string> =>
+  comCoordenadas(escolhas) && REFERENCIAIS_ACEITOS.includes(escolhas.referencial) ? { crs: escolhas.referencial } : {};
 
 /** Mapeamento e opções da planilha para o pré-exame e para a conversa (rotas atuais do backend): o grupo territorial segue
  * em `hierarchy_columns` (nível superior 1), porque o pré-exame só aceita os papéis de semantic_bridge.ROLES. */
@@ -277,7 +283,7 @@ export function contextoDaPlanilha(escolhas: EscolhasDaPlanilha): { mapping: Rec
   const options: Record<string, unknown> = {
     confirmed_roles: escolhas.escolhidos.filter(papel => PAPEIS_DO_PREEXAME.includes(papel) && escolhas.mapeamento[papel]),
     ...unidadeDaContagem(escolhas),
-    ...(comCoordenadas(escolhas) && escolhas.referencial === "SIRGAS2000" ? { crs: "SIRGAS2000" } : {}),
+    ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
     ...(escolhas.mapeamento.grupo_territorial
       ? { hierarchy_columns: { territorio_superior_1: escolhas.mapeamento.grupo_territorial } } : {}),
@@ -292,12 +298,12 @@ export function mapeamentoDaPlanilha(mapeamento: Mapeamento): Record<string, str
   return resultado;
 }
 
-/** Premissas da planilha para o motor do gráfico (`FonteDados.premissas`). Só SIRGAS 2000 vale como referencial (a SPEC
- * não admite outro): sem ele, nada é presumido, e a análise espacial fica indisponível, com o motivo. */
+/** Premissas da planilha para o motor do gráfico (`FonteDados.premissas`). Só SIRGAS 2000 e WGS 84 valem como referencial:
+ * com outro, ou sem saber qual é, nada é presumido, e a análise espacial fica indisponível, com o motivo. */
 export function premissasDaPlanilha(escolhas: EscolhasDaPlanilha): Record<string, string> {
   return {
     ...unidadeDaContagem(escolhas),
-    ...(comCoordenadas(escolhas) && escolhas.referencial === "SIRGAS2000" ? { crs: "SIRGAS2000" } : {}),
+    ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
   };
 }
@@ -317,8 +323,9 @@ export function disponibilidadeDaPlanilha(capacidades: Record<string, Capacidade
     ({ familia, rotulo, disponivel: !falta, motivo: falta });
   const { mapeamento } = escolhas;
   const espacial = !mapeamento.latitude || !mapeamento.longitude ? "Faltam as colunas de latitude e longitude."
-    : escolhas.referencial !== "SIRGAS2000"
-      ? (escolhas.referencial ? "Só o referencial SIRGAS 2000 é admitido; com outro, ou sem saber qual é, nada é presumido."
+    : !REFERENCIAIS_ACEITOS.includes(escolhas.referencial)
+      ? (escolhas.referencial
+        ? "Só os referenciais SIRGAS 2000 e WGS 84 são admitidos; com outro, ou sem saber qual é, nada é presumido."
         : "Escolha o referencial das coordenadas.")
       : separadorMisto && !escolhas.separador ? "Escolha o separador decimal das coordenadas."
         : livre("spatial") ? "" : motivo("spatial");

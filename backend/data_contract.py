@@ -170,11 +170,24 @@ def count_unit_label(mapping, options):
             else {"pessoas": "pessoas", "vinculos": "vínculos", "postos": "postos"}.get(unit, "unidades declaradas"))
 
 
+# Conjunto governado de CFG-MET (D24; WGS84 pelo Adendo REF-20261022): valor canônico e apelidos enumerados.
+CRS_ALIASES = {"SIRGAS2000": ("SIRGAS2000", "SIRGAS 2000", "SIRGAS-2000", "SIRGAS_2000"),
+               "WGS84": ("WGS84", "WGS 84", "WGS-84", "WGS_84")}
+SUPPORTED_CRS = " ou ".join(CRS_ALIASES)
+
+
 def canonical_crs(value):
     """CFG-MET D24: somente aliases enumerados, sem inferir EPSG ou separadores."""
-    if isinstance(value, str) and value.strip().upper() in (
-            "SIRGAS2000", "SIRGAS 2000", "SIRGAS-2000", "SIRGAS_2000"):
-        return "SIRGAS2000"
+    text = value.strip().upper() if isinstance(value, str) else None
+    return next((name for name, aliases in CRS_ALIASES.items() if text in aliases), None)
+
+
+def source_crs_conflict(frame, crs):
+    """RQ-DAD-27: a base do Brasil tem as coordenadas em SIRGAS2000 (premissa da base oficial, camada complementar no
+    mesmo referencial); outro referencial informado não é usado, sem transformação. Devolve o motivo ou None."""
+    if crs and crs != "SIRGAS2000" and (frame.attrs.get("source") or {}).get("dataset") == "brazil":
+        return ("As coordenadas da base do Brasil estão no referencial SIRGAS 2000, e o sistema não converte um "
+                "referencial em outro. Use SIRGAS 2000 nesta base.")
     return None
 
 
@@ -386,7 +399,10 @@ def validate_operation(frame, mapping, options, operation, prepared=None):
     if operation == "spatial":
         geo = spatial_data(frame, mapping, options)
         if not canonical_crs(options.get("crs")):
-            raise ChoiceRequired("Escolha um referencial suportado: SIRGAS2000.")
+            raise ChoiceRequired("Escolha um referencial suportado: " + SUPPORTED_CRS + ".")
+        conflict = source_crs_conflict(frame, canonical_crs(options["crs"]))
+        if conflict:
+            raise ValueError(conflict)
         if options.get("reference_territory") not in set(geo.territory):
             raise ChoiceRequired("Selecione um território de referência existente, com seu código quando associado.")
         if not geo.loc[geo.territory == options["reference_territory"], "valida"].iloc[0]:

@@ -3972,3 +3972,20 @@ Permanecem obrigatórios a Parte 13, RQ-CAP-03, RQ-CAP-04, as restrições de or
 - A rotatividade de CAP-ROT-01 é desenhada em barras de 100% por unidade, com a permanência e a saída da coorte inicial calculadas pelo motor. A unidade sem coorte observável fica à parte, com o motivo, e nunca é desenhada como 0% ou 100%.
 
 Registro na Parte 22 (complemento de DA-23): a decisão não cria capacidade, método, família ou classe; só admite essas duas formas de representação de resultados já existentes. Incorporação: Docs/PAINEL_INTEGRADO.md e Docs/BLOCO3_MAPAS_VISUALIZACOES.md (seção 7).
+
+## Adendo REF-20261022 — referencial geodésico WGS 84 (CFG-MET, RQ-DAD-26 e CAP-ESP-01)
+
+Decisão expressa do responsável pelo produto em 22/10/2026, na reestruturação da página única de análise, para planilhas de outros países: à pergunta "quer que eu inclua o WGS 84 como referencial aceito no adendo da SPEC?", respondeu "certo. aceito wgs 84". Aplicável à integração no repositório Teste-Agente. Como nos adendos anteriores, o corpo v1.2.4, o Anexo A e os adendos anteriores permanecem literais e com os mesmos localizadores, e a versão continua 1.2.4. Onde este adendo e o corpo divergirem sobre o conjunto de referenciais suportados, vale este adendo.
+
+**Conjunto governado de referenciais (CFG-MET, seção 4.4.5).** Passa a ser {SIRGAS2000, WGS84}.
+- SIRGAS2000 continua como no corpo: apelidos de D24, elipsoide GRS80, a = 6378137 m, 1/f = 298.257222101.
+- WGS84: valor canônico WGS84; apelidos WGS84, WGS 84, WGS-84 e WGS_84, com a regra de D24 (só variação de caixa e espaços externos, sem converter separadores internos adicionais); elipsoide WGS 84, a = 6378137 m, 1/f = 298.257223563, f = 1 / 298.257223563.
+- Continua sem referencial padrão, global ou por contexto: sem referencial informado, a análise espacial aguarda a pendência REFERENCIAL_GEODESICO (RQ-DAD-26, DA-17). Acrescentar o WGS84 ao conjunto não cria padrão nem sugere o referencial dos dados.
+- Continua sem transformação entre referenciais (RQ-DAD-27): o método de CAP-ESP-01 (problema geodésico inverso de Karney) é calculado no elipsoide do referencial informado, sem converter coordenadas de um referencial em outro.
+- Continua sem inferência de EPSG: nomes fora dos apelidos enumerados, como "WGS 1984" ou "EPSG:4326", não são suportados e geram BLQ-MET com METODO_NAO_INCORPORADO, sem aproximação, substituição ou transformação.
+
+**Base do Brasil.** As coordenadas da base oficial continuam no referencial SIRGAS 2000: premissa governada do perfil, com a camada geográfica complementar no mesmo referencial. Outro referencial informado para essa base exigiria transformação (RQ-DAD-27) e não é usado. A análise espacial informa o motivo, e as capacidades independentes continuam disponíveis.
+
+**Registro na Parte 22 (complemento de DA-17).** Decisão REF-20261022: o WGS84 entra no conjunto suportado de CFG-MET, com o elipsoide WGS 84, nas regras acima, sem novo método, capacidade, família ou referencial padrão. Incorporação: CFG-MET (seção 4.4.5), RQ-DAD-26, CAP-ESP-01, AT-51, AT-108 e AT-143 (as variantes aprovadas de WGS84 convergem ao mesmo valor canônico, elipsoide e parâmetros). As formas literais PT/EN do catálogo CFG-DOC que enumeram o conjunto {SIRGAS2000} continuam as do corpo; atualizá-las exige nova versão governada do catálogo (RQ-DOC-03), fora desta decisão.
+
+Permanecem obrigatórios RQ-DAD-25, RQ-DAD-27, a limitação DISTANCIA_GEODESICA_DIRETA (TPL-11), as restrições de origem e de privacidade (nada da base vai ao provedor de IA) e a precedência do CONCEPT (RQ-DOC-01). A decisão é externa às sessões analíticas e não pode ser alterada por mensagem, dado ou saída do LLM.

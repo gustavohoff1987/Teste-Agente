@@ -97,7 +97,7 @@ def test_homonyms_with_different_codes_are_distinct_points_and_labels():
 
 @pytest.mark.parametrize("change, pending", [
     ({}, "REFERENCIAL_GEODESICO"),
-    ({"crs": "WGS84"}, "REFERENCIAL_NAO_SUPORTADO"),
+    ({"crs": "SAD69"}, "REFERENCIAL_NAO_SUPORTADO"),
     ({"crs": "SIRGAS2000", "period_filter": ""}, "COMPETENCIA_UNICA"),
 ])
 def test_map_without_authorized_geometry_is_blocked_with_reason_and_table_intact(change, pending):
@@ -108,6 +108,15 @@ def test_map_without_authorized_geometry_is_blocked_with_reason_and_table_intact
     assert geometry["motivo"] and "ids" not in geometry
     if change.get("period_filter") != "":
         assert body["rows"] == reference["rows"]  # a representação não altera o resultado analítico
+
+
+def test_wgs84_upload_draws_the_same_points_under_its_own_referencial():
+    """Adendo REF-20261022: planilha com coordenadas em WGS 84 desenha os pontos da própria base, sem transformação."""
+    sirgas = analyze(frame(), period_filter="2024", **GEO)["metadata"]["representacao"]["geometria"]
+    wgs84 = analyze(frame(), period_filter="2024", crs="wgs 84")["metadata"]["representacao"]["geometria"]
+    assert wgs84["estado"] == "DISPONIVEL" and wgs84["referencial"] == "WGS84"
+    assert points(wgs84) == points(sirgas) == {key: point for key, point in expected("2024").items()
+                                               if point[0] is not None and abs(point[0]) <= 90}
 
 
 def test_coordinate_format_and_roles_must_be_established():
@@ -285,8 +294,12 @@ def test_brazil_automatic_map_is_contextual_and_does_not_change_calculations(rep
 
 
 def test_brazil_map_configuration_does_not_override_explicit_crs_or_external_version(repo, monkeypatch):
-    unsupported = brazil(period_filter="202406", crs="WGS84")
+    unsupported = brazil(period_filter="202406", crs="SAD69")
     assert unsupported["metadata"]["representacao"]["geometria"]["pendencia"] == "REFERENCIAL_NAO_SUPORTADO"
+    # WGS84 é suportado, mas a base do Brasil está em SIRGAS 2000: sem conversão, o mapa fica indisponível com o motivo.
+    other = brazil(period_filter="202406", crs="WGS84")["metadata"]["representacao"]["geometria"]
+    assert other["estado"] == "INDISPONIVEL" and other["pendencia"] == "REFERENCIAL_INCOMPATIVEL"
+    assert "SIRGAS 2000" in other["motivo"] and "ids" not in other
     import hashlib
     import brazil_data
     external = repo.parent / "externa"

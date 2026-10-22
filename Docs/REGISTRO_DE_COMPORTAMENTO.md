@@ -35,6 +35,52 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · WGS 84 como segundo referencial das coordenadas, além do SIRGAS 2000 (Adendo REF-20261022 da SPEC)
+- **Antes:**
+  - o motor só aceitava o SIRGAS 2000 (`SIRGAS2000` e os apelidos de D24); `WGS84` era "não suportado" (422 na distância e na
+    referência mais próxima; mapa com a pendência `REFERENCIAL_NAO_SUPORTADO`; pendência do gráfico com as opções
+    `["SIRGAS2000"]`);
+  - no painel "Colunas", o referencial das coordenadas tinha "SIRGAS 2000", "Outro referencial" e "Não sei"; só o SIRGAS 2000
+    virava a premissa `crs`.
+- **Agora:**
+  - **Motor:** o conjunto de referenciais aceitos é {SIRGAS2000, WGS84}. `WGS84`, `WGS 84`, `WGS-84` e `WGS_84` (só variação
+    de caixa e espaços nas pontas) viram `WGS84`; "WGS 1984", "EPSG:4326" e outros nomes continuam não suportados. A distância
+    (análise espacial, referência mais próxima, critérios com distância e o gráfico) é calculada no elipsoide do referencial
+    informado: GRS80 no SIRGAS 2000 e WGS 84 no WGS 84 (a = 6.378.137 m, 1/f = 298,257223563), sem converter coordenadas de
+    um no outro. O método e a nota do resultado citam o referencial e o elipsoide usados. As mensagens de referencial não
+    suportado e a pendência do gráfico passam a citar os dois (`opcoes: ["SIRGAS2000", "WGS84"]`).
+  - **Base do Brasil:** continua em SIRGAS 2000 (premissa do perfil oficial, com a camada complementar no mesmo
+    referencial). Outro referencial informado para ela não é usado, pois exigiria transformação: 422 com "As coordenadas da
+    base do Brasil estão no referencial SIRGAS 2000, e o sistema não converte um referencial em outro. Use SIRGAS 2000 nesta
+    base."; no mapa, a pendência nova `REFERENCIAL_INCOMPATIVEL`.
+  - **Painel "Colunas":** o seletor oferece "SIRGAS 2000" (`SIRGAS2000`) e "WGS 84" (`WGS84`), além de "Outro referencial" e
+    "Não sei", com a explicação: "Informe o referencial em que as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84. O
+    sistema não converte um no outro. Com outro referencial, ou sem saber qual é, a análise espacial fica indisponível: nada é
+    presumido."; o referencial informado segue como está na premissa `crs`; com outro, ou "Não sei", o motivo passa a "Só os
+    referenciais SIRGAS 2000 e WGS 84 são admitidos; com outro, ou sem saber qual é, nada é presumido.".
+- **Permanece:** nenhum referencial é presumido (sem referencial, a pendência `REFERENCIAL_GEODESICO`); nenhuma transformação
+  entre referenciais (RQ-DAD-27); a limitação DISTANCIA_GEODESICA_DIRETA; a camada geográfica complementar só em SIRGAS 2000;
+  nada vai ao provedor de IA. Para o SIRGAS 2000, distâncias, notas e chaves de execução não mudam.
+- **Motivo:** decisão do responsável pelo produto em 22/10/2026, para planilhas de outros países: à pergunta "quer que eu
+  inclua o WGS 84 como referencial aceito no adendo da SPEC?", respondeu "certo. aceito wgs 84". Classificação: mudança
+  prevista, incorporada à SPEC pelo Adendo REF-20261022 (CFG-MET, seção 4.4.5; RQ-DAD-26; CAP-ESP-01; AT-51, AT-108 e AT-143),
+  no fim de `IMPLEMENTATION_SPEC.md`, sem mexer no corpo (conferido pelo catálogo CFG-DOC). As formas literais do catálogo
+  CFG-DOC que enumeram {SIRGAS2000} continuam as do corpo, como no Adendo BOL-20261021.
+- **Documentação e testes:**
+  - **Documentação:** README, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`, `Docs/BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md`,
+    `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`, `Docs/DADOS_BRASIL_VALIDACAO.md`, `Docs/PAINEL_INTEGRADO.md` e
+    `Docs/PAINEL_INTEGRADO_INTERFACE.md`.
+  - **Testes mudados de propósito** (o comportamento mudou; o defeito não está no produto nem no teste): nos testes que usavam
+    `WGS84` como exemplo de referencial não suportado, o exemplo passa a `SAD69`, que continua recusado com a mesma verificação
+    (`test_audit_integrity.py`, `test_nearest_reference.py`, `test_representation.py`, `test_geo_complement.py` e
+    `test_painel_pagina.py`, que também espera as duas opções na pendência); `nearest_exact` e `nearest_exhaustive` recebem o
+    referencial (`crs`), e a busca exata é conferida contra a exaustiva nos dois elipsoides.
+  - **Testes novos:** elipsoide WGS 84 conferido com Vincenty independente; apelidos de `WGS84` na referência mais próxima e na
+    análise espacial, com a distância do elipsoide WGS 84; mapa de planilha em WGS 84; base do Brasil com `WGS84` recusada (422
+    e `REFERENCIAL_INCOMPATIVEL`); gráfico de planilha em WGS 84 igual a `/api/analyze`; nomes fora dos apelidos ("WGS 1984",
+    "EPSG:4326") recusados. Frontend: `paginaUnica.test.mjs` (os quatro valores do seletor, a premissa `crs: "WGS84"`, a análise
+    espacial disponível com o WGS 84 e o motivo novo) e o roteiro `ui_pagina_unica.py`.
+
 ### 2026-10-22 · Página única: a tela, o motor e a conversa ligados (integração das quatro frentes)
 - **Antes:** as quatro partes da página única (motor do gráfico, área de análise, estrutura da página e conversa) foram feitas
   em paralelo, cada uma sobre o contrato comum, e não se falavam em alguns pontos.

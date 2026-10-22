@@ -180,4 +180,15 @@ def test_a06_crs_aliases_are_canonical_in_result_and_metadata(crs):
     result = post(frame, "spatial", {"crs": crs, "reference_territory": "A"}, mapping)
     assert result.status_code == 200, result.text
     assert result.json()["metadata"]["options"]["crs"] == "SIRGAS2000"
-    assert post(frame, "spatial", {"crs": "WGS84", "reference_territory": "A"}, mapping).status_code == 422
+    assert post(frame, "spatial", {"crs": "SAD69", "reference_territory": "A"}, mapping).status_code == 422
+
+
+@pytest.mark.parametrize("crs", ["WGS84", "WGS 84", "WGS-84", "wgs_84"])
+def test_a06_wgs84_aliases_are_canonical_and_use_the_wgs84_ellipsoid(crs):
+    """Adendo REF-20261022: WGS84 é o segundo referencial do conjunto governado, com o elipsoide WGS 84."""
+    frame = pd.DataFrame({"Municipality": ["A", "B"], "Latitude": [0, 10], "Longitude": [0, 1]})
+    mapping = {"territory": "Municipality", "latitude": "Latitude", "longitude": "Longitude"}
+    result = post(frame, "spatial", {"crs": crs, "reference_territory": "A"}, mapping)
+    assert result.status_code == 200, result.text
+    assert result.json()["metadata"]["options"]["crs"] == "WGS84"
+    assert result.json()["rows"][1]["Distância (km)"] == Geod(ellps="WGS84").inv(0, 0, 1, 10)[2] / 1000

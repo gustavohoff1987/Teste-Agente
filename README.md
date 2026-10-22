@@ -146,8 +146,10 @@ página, mostra o que foi reconhecido e pede só as escolhas que faltam:
 - os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e
   "distritos", "província" e "províncias"). Eles valem nos textos da página e da conversa: com uma planilha, nenhum
   texto da estrutura diz "município";
-- com latitude e longitude, o referencial das coordenadas: só o SIRGAS 2000 é admitido; com outro, ou sem saber
-  qual é, a análise espacial fica indisponível, com o motivo, e nada é presumido.
+- com latitude e longitude, o referencial em que as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84 (este desde
+  22/10/2026, pelo Adendo REF-20261022 da SPEC), e o sistema não converte um no outro: a distância é calculada no
+  elipsoide do referencial informado (GRS80 ou WGS 84); com outro, ou sem saber qual é, a análise espacial fica
+  indisponível, com o motivo, e nada é presumido. A base do Brasil continua em SIRGAS 2000.
 
 O painel mostra também cada análise que a planilha permite ou não, com o motivo (sem as coordenadas não há
 análise espacial; sem o identificador individual não há rotatividade). As duas fontes usam o mesmo motor, as mesmas
@@ -539,8 +541,8 @@ O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipa
 ## Referência geográfica mais próxima (Bloco 2, Etapa 1)
 
 Para cada município-alvo, indica a referência autorizada geograficamente mais próxima, com
-código, distância geodésica direta em quilômetros (Karney, elipsoide GRS80/SIRGAS2000, sem
-arredondamento no cálculo) e cobertura das referências. A capacidade continua na API
+código, distância geodésica direta em quilômetros (Karney, no elipsoide do referencial: GRS80 no
+SIRGAS 2000 ou WGS 84 no WGS 84, sem arredondamento no cálculo) e cobertura das referências. A capacidade continua na API
 (`/api/analyze`); o cartão **Referência mais próxima** saiu da interface com as telas clássicas em
 22/10/2026. Na página única, a análise espacial com um conjunto de referência mostra a distância até o
 membro mais próximo ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)).
@@ -548,9 +550,10 @@ Na API, as referências são definidas pelo usuário, por lista de municípios (
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
 O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial
 SIRGAS 2000 e a vírgula decimal das coordenadas são premissas internas, registradas nas notas do
-resultado; em bases importadas e em outras versões, o referencial é escolhido explicitamente (nenhum
-referencial é presumido) e o separador decimal das coordenadas é verificado nos dados, com nota (só vira
-escolha quando o formato é misto). Nenhum referencial é transformado.
+resultado; em bases importadas e em outras versões, o referencial é escolhido explicitamente, SIRGAS 2000
+ou WGS 84 (nenhum referencial é presumido), e o separador decimal das coordenadas é verificado nos dados, com
+nota (só vira escolha quando o formato é misto). Nenhum referencial é transformado: na base do Brasil, outro
+referencial informado é recusado, com o motivo.
 Referências ou alvos sem coordenada válida
 ficam registrados como não avaliáveis, com `minimo_completo` e `minimo_avaliaveis`
 distintos, empates preservados e ausência nunca convertida em zero. A distância não

@@ -27,7 +27,6 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Resp
 from fastapi.responses import JSONResponse
 import httpx
 from fastapi.middleware.cors import CORSMiddleware
-from pyproj import Geod
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
 from data_contract import (ChoiceRequired, validate_operation, rotation_data, period_positions, resolve_convention, scoped,
                            text_values, count_unit_label, canonical_crs, comparison_window as comparison_window_periods)
@@ -393,7 +392,8 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
         if match.empty:
             raise ValueError("Selecione um território de referência existente na base.")
         reference = match.iloc[0]
-        geod = Geod(ellps="GRS80")
+        from nearest_reference import GEODS
+        geod = GEODS[options["crs"]]  # elipsoide do referencial confirmado (canônico em compute)
         rows = []
         complemented = set(geo.territory[geo.complementada & geo.valida]) if "complementada" in geo else set()
         invalid = geo[~geo.valida] if "valida" in geo else geo.iloc[0:0]

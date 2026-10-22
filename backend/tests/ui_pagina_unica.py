@@ -11,7 +11,8 @@ Percorre:
 - o diálogo de Nova sessão, com o foco preso nele e o CSV da análise em exibição (valores do motor, em precisão integral);
 - a caixa da conversa, que o mouse e o teclado movem, guarda a posição e se minimiza;
 - uma planilha de outro país, com distritos e províncias e sem código IBGE, pelo painel "Colunas": papéis sugeridos e
-  escolhidos, nomes das unidades e dos grupos, referencial das coordenadas (só SIRGAS 2000) e o que a planilha permite;
+  escolhidos, nomes das unidades e dos grupos, referencial das coordenadas (SIRGAS 2000 ou WGS 84, sem conversão) e o que a
+  planilha permite;
   a área recebe o arquivo, o mapeamento e as premissas; nenhum texto da estrutura diz "município";
 - uma planilha com duas abas (a escolha da aba), um formato recusado e "Cancelar", que mantém a fonte em uso;
 - o celular (390 px) sem rolagem horizontal, com a conversa ancorada embaixo;
@@ -238,7 +239,7 @@ def main():
         assert chat.bounding_box()["x"] > movida["x"], "Home devolve a caixa ao canto inferior direito"
 
         # 5. Planilha de outro país (distritos e províncias, sem código IBGE). A troca só vale quando ela fica pronta; o painel
-        # "Colunas" sugere sem escolher em silêncio, pede o que falta, os nomes e o referencial (só SIRGAS 2000).
+        # "Colunas" sugere sem escolher em silêncio, pede o que falta, os nomes e o referencial (SIRGAS 2000 ou WGS 84).
         escolher_arquivo(planilha_de_distritos(pasta))
         colunas = fonte.get_by_test_id("colunas-painel")
         expect(colunas).to_be_visible(timeout=60000)
@@ -270,10 +271,17 @@ def main():
         expect(pendencias).to_have_count(0)
         disponibilidade = colunas.get_by_test_id("colunas-disponibilidade")
         espacial = disponibilidade.get_by_test_id("colunas-disponibilidade-espacial")
-        colunas.get_by_test_id("colunas-referencial").select_option("outro")
+        referencial = colunas.get_by_test_id("colunas-referencial")
+        assert referencial.locator("option").all_text_contents() == [
+            "Escolher", "SIRGAS 2000", "WGS 84", "Outro referencial", "Não sei"], referencial.locator("option").all_text_contents()
+        expect(colunas.get_by_test_id("colunas-referencial-ajuda")).to_contain_text(
+            "Informe o referencial em que as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84. O sistema não converte um no outro.")
+        referencial.select_option("outro")
         expect(espacial).to_have_attribute("data-disponivel", "false", timeout=30000)
-        expect(espacial).to_contain_text("Só o referencial SIRGAS 2000 é admitido")
-        colunas.get_by_test_id("colunas-referencial").select_option("SIRGAS2000")
+        expect(espacial).to_contain_text("Só os referenciais SIRGAS 2000 e WGS 84 são admitidos")
+        referencial.select_option("WGS84")
+        expect(espacial).to_have_attribute("data-disponivel", "true", timeout=30000)
+        referencial.select_option("SIRGAS2000")
         expect(espacial).to_have_attribute("data-disponivel", "true", timeout=30000)
         expect(disponibilidade.get_by_test_id("colunas-disponibilidade-distribuicao")).to_have_attribute("data-disponivel", "true")
         rotatividade = disponibilidade.get_by_test_id("colunas-disponibilidade-rotatividade")

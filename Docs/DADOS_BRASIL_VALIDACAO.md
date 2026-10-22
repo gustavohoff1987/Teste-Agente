@@ -167,7 +167,9 @@ do estado conta uma vez no estado, e quem atua em mais de um estado conta em cad
 
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
 fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
-referencial SIRGAS 2000, que não certifica o datum original. As duas premissas de distância só
+referencial SIRGAS 2000, que não certifica o datum original. Outro referencial informado para esta base, inclusive o
+WGS 84 (aceito nas planilhas desde 22/10/2026), é recusado com o motivo: usá-lo exigiria transformação, que não existe
+(RQ-DAD-27). As duas premissas de distância só
 entram nas análises que usam coordenadas: nas demais, as opções do cálculo não mudam (a configuração só
 de apresentação servia ao mapa das telas clássicas, que saiu em 22/10/2026). A opção explícita de ausência de sobreposição
 (`no_overlap_confirmed`), aceita só pela API desde 19/10/2026 (a tela não a oferece mais), continua

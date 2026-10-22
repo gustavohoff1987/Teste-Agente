@@ -63,9 +63,11 @@ O painel **Colunas** mostra a coluna de cada papel:
   departamento) depois da escolha da unidade;
 - uma coluna representa um papel só: escolhida num papel, ela sai do anterior;
 - **O que a quantidade conta?** (pessoas, vínculos de trabalho, postos de trabalho ou outra unidade, descrita);
-- **Referencial das coordenadas**, com latitude e longitude: só SIRGAS 2000 é admitido. "Outro referencial" ou "Não sei"
-  deixam a análise espacial indisponível, com o motivo; nada é presumido. O separador decimal das coordenadas só é pedido
-  quando o formato é misto;
+- **Referencial das coordenadas**, com latitude e longitude: a pessoa informa o referencial em que as coordenadas foram
+  coletadas, **SIRGAS 2000** ou **WGS 84** (o WGS 84 desde 22/10/2026, pelo Adendo REF-20261022 da SPEC), e o sistema não
+  converte um no outro. "Outro referencial" ou "Não sei" deixam a análise espacial indisponível, com o motivo ("Só os
+  referenciais SIRGAS 2000 e WGS 84 são admitidos; com outro, ou sem saber qual é, nada é presumido."). O separador decimal
+  das coordenadas só é pedido quando o formato é misto;
 - **Nomes**: como se chamam as unidades e os grupos, no singular e no plural, com a sugestão a partir do nome da coluna
   ("distrito" sugere distrito e distritos; "provincia", província e províncias). Os nomes aparecem nos textos da página e da
   conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha;
@@ -76,8 +78,8 @@ O painel **Colunas** mostra a coluna de cada papel:
 **Começar a análise** (ou **Aplicar as colunas**, ao reabrir o painel de uma planilha em uso) passa a planilha à área. Sem a
 unidade territorial, o período, a quantidade, o que ela conta ou os nomes, o clique lista o que falta, e nada é pedido ao
 motor. A área recebe `FonteDados` com o arquivo (reenviado só ao backend local), o mapeamento confirmado na tela (com o papel
-`grupo_territorial`), as premissas escolhidas (`count_unit`, `custom_count_unit`, `crs` só com SIRGAS 2000 e
-`number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
+`grupo_territorial`), as premissas escolhidas (`count_unit`, `custom_count_unit`, `crs` só com `SIRGAS2000` ou `WGS84`, como
+informado, e `number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
 backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas escolhidas pela pessoa seguem em
 `confirmed_roles`.
 
