@@ -293,10 +293,12 @@ function misturar(de: string, para: string, t: number): string {
   return "#" + a.map((canal, i) => Math.round(canal + (b[i] - canal) * t).toString(16).padStart(2, "0")).join("");
 }
 
-/** Cor da variação: azul para crescimento, laranja para queda, intensidade contínua por |variação| ÷ limite. */
+/** Cor da variação: azul para crescimento, laranja para queda. A intensidade é contínua pela raiz quadrada de
+ * |variação| ÷ limite: uma variação comum, bem menor que a maior do painel, ainda ganha cor visível (o meio de cada braço
+ * corresponde a um quarto do limite). Escala contínua, sem classes. */
 export function corDaVariacao(valor: number, limite: number): string {
   if (valor === 0 || !Number.isFinite(valor)) return COR_NEUTRA;
-  const t = limite > 0 ? Math.min(1, Math.abs(valor) / limite) : 1;
+  const t = limite > 0 ? Math.sqrt(Math.min(1, Math.abs(valor) / limite)) : 1;
   const rampa = valor > 0 ? RAMPA_CRESCIMENTO : RAMPA_QUEDA;
   const posicao = t * (rampa.length - 1), indice = Math.min(rampa.length - 2, Math.floor(posicao));
   return misturar(rampa[indice], rampa[indice + 1], posicao - indice);
@@ -362,9 +364,13 @@ export type Capsula = { id: string; x0: number; x1: number; r: number };
 export function arranjar(capsulas: Capsula[], folga = 1.5): Map<string, number> {
   const ordem = capsulas.map(capsula => ({ id: capsula.id, r: capsula.r, a: Math.min(capsula.x0, capsula.x1), b: Math.max(capsula.x0, capsula.x1) }))
     .sort((p, q) => p.a - q.a || q.r - p.r || comparar(p.id, q.id));
-  const colocadas: { a: number; b: number; r: number; y: number }[] = [];
+  const raioMaior = ordem.reduce((maior, item) => Math.max(maior, item.r), 0);
+  let colocadas: { a: number; b: number; r: number; y: number }[] = [];
   const saida = new Map<string, number>();
   ordem.forEach((atual, indice) => {
+    // Na ordem da posição, uma bolha já colocada que não alcança esta não alcança as seguintes: sai da conta. O resultado é o
+    // mesmo de comparar com todas, sem o custo quadrático.
+    colocadas = colocadas.filter(outra => atual.a - outra.b < raioMaior + outra.r + folga);
     const lacuna = (outra: { a: number; b: number }) => Math.max(0, outra.a - atual.b, atual.a - outra.b);
     const vizinhas = colocadas.filter(outra => lacuna(outra) < atual.r + outra.r + folga);
     const candidatos = [0];
@@ -381,6 +387,57 @@ export function arranjar(capsulas: Capsula[], folga = 1.5): Map<string, number> 
     const y = livre ?? 0;
     colocadas.push({ a: atual.a, b: atual.b, r: atual.r, y });
     saida.set(atual.id, y);
+  });
+  return saida;
+}
+
+/** Acima deste número de bolhas, o painel usa o modo leve: arranjo numa faixa de altura limitada e desenho simplificado. */
+export const LIMITE_LEVE = 400;
+
+/** Arranjo do eixo único com muitas bolhas (modo leve). A ideia é a mesma de `arranjar`, mas numa faixa de altura limitada:
+ * uma grade de ocupação (células de 2 px) acha, para cada bolha ou cometa, a altura livre mais próxima da linha central; sem
+ * altura livre na faixa, fica a de menor sobreposição (as bolhas são semitransparentes). As maiores entram primeiro, perto do
+ * centro. A altura não carrega valor. Determinístico: ordem pelo raio, pela posição e pelo id. */
+export function arranjarDenso(capsulas: Capsula[], meiaAltura: number, folga = 1): Map<string, number> {
+  const CELULA = 2;
+  const saida = new Map<string, number>();
+  if (!capsulas.length) return saida;
+  const ordem = capsulas.map(capsula => ({ id: capsula.id, r: capsula.r, a: Math.min(capsula.x0, capsula.x1), b: Math.max(capsula.x0, capsula.x1) }))
+    .sort((p, q) => q.r - p.r || p.a - q.a || comparar(p.id, q.id));
+  let menorX = Infinity, maiorX = -Infinity, raioMaior = 0;
+  for (const item of ordem) {
+    menorX = Math.min(menorX, item.a - item.r); maiorX = Math.max(maiorX, item.b + item.r); raioMaior = Math.max(raioMaior, item.r);
+  }
+  const origem = menorX - 2 * CELULA - folga;
+  const colunas = Math.ceil((maiorX + 2 * CELULA + folga - origem) / CELULA) + 1;
+  const centro = Math.max(Math.round(meiaAltura / CELULA), Math.ceil((raioMaior + folga) / CELULA));
+  const linhas = 2 * centro + 1;
+  const grade = new Uint16Array(colunas * linhas);
+  ordem.forEach((item, indice) => {
+    // Pegada em células, relativa à linha da bolha: as células cujo centro fica a até `meio` do segmento [a, b] (a bolha, ou o
+    // cometa do valor inicial ao atual).
+    const meio = item.r + folga / 2, alcance = Math.ceil(meio / CELULA);
+    const pegada: number[] = [];
+    const c0 = Math.floor((item.a - meio - origem) / CELULA), c1 = Math.ceil((item.b + meio - origem) / CELULA);
+    for (let coluna = c0; coluna <= c1; coluna++) {
+      const xc = origem + (coluna + 0.5) * CELULA;
+      const dx = xc < item.a ? item.a - xc : xc > item.b ? xc - item.b : 0;
+      for (let linha = -alcance; linha <= alcance; linha++) {
+        const dy = linha * CELULA;
+        if (dx * dx + dy * dy <= meio * meio) pegada.push(coluna, linha);
+      }
+    }
+    // Alturas candidatas: a linha central e, alternando os lados (como em `arranjar`), cada vez mais longe dela.
+    const limite = Math.max(0, centro - alcance), lado = indice % 2 === 0 ? 1 : -1;
+    let melhor = 0, menor = Infinity;
+    for (let passo = 0; passo <= 2 * limite; passo++) {
+      const k = passo === 0 ? 0 : (passo % 2 === 1 ? lado : -lado) * Math.ceil(passo / 2);
+      let ocupadas = 0;
+      for (let i = 0; i < pegada.length && ocupadas < menor; i += 2) ocupadas += grade[(centro + k + pegada[i + 1]) * colunas + pegada[i]];
+      if (ocupadas < menor) { menor = ocupadas; melhor = k; if (ocupadas === 0) break; }
+    }
+    for (let i = 0; i < pegada.length; i += 2) grade[(centro + melhor + pegada[i + 1]) * colunas + pegada[i]]++;
+    saida.set(item.id, melhor * CELULA);
   });
   return saida;
 }
@@ -406,6 +463,8 @@ export type Grafico = { largura: number; altura: number; topo: number; base: num
 export type ParametrosGrafico = {
   itens: PainelItem[]; dominios: PainelResposta["dominios"]; indicador: PainelIndicador; escala: Escala;
   distancia: boolean; crescimento: boolean; vista: Vista; largura: number; limiteVariacao: number; rotuloDistancia: string;
+  /** Modo leve (muitas bolhas): no eixo único, o arranjo fica numa faixa de altura limitada (`arranjarDenso`). */
+  denso?: boolean;
 };
 
 /** Desenho do painel no estado escolhido. Sem distância: eixo único horizontal do indicador, com as bolhas arrumadas sem
@@ -452,8 +511,9 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
 
   if (!p.distancia) {
     const x = (valor: number) => entre(fracao(valor, dominioIndicador, escala), de, ateX);
-    const arranjo = arranjar(base.map(d => ({ id: d.item.id, x0: d.inicial !== null ? x(d.inicial) : x(d.valor), x1: x(d.valor),
-      r: Math.max(d.rFinal, d.rInicial) })));
+    const capsulas = base.map(d => ({ id: d.item.id, x0: d.inicial !== null ? x(d.inicial) : x(d.valor), x1: x(d.valor),
+      r: Math.max(d.rFinal, d.rInicial) }));
+    const arranjo = p.denso ? arranjarDenso(capsulas, Math.round(Math.min(230, Math.max(110, largura * 0.2)))) : arranjar(capsulas);
     let acima = 0, abaixo = 0;
     for (const d of base) {
       const y = arranjo.get(d.item.id) ?? 0, r = Math.max(d.rFinal, d.rInicial);
@@ -629,11 +689,11 @@ export const semPedido = (base: PainelMunicipios, conjuntos: PainelConjuntoPedid
 export const MAX_CONJUNTOS = 50;
 
 /** Universo inicial: o da abrangência clássica (todos, estados inteiros e municípios marcados); sem escolha, todos os
- * municípios quando a base é pequena (até `limite`), senão nenhum, à espera da escolha. */
-export function baseInicial(escopo: { todos: boolean; grupos: string[] }, ids: string[], total: number, limite = 300): PainelMunicipios {
+ * municípios da base (a página principal abre com o Brasil inteiro; o modo leve do gráfico aguenta os milhares). */
+export function baseInicial(escopo: { todos: boolean; grupos: string[] }, ids: string[], total: number): PainelMunicipios {
   if (escopo.todos) return { todos: true, estados: [], ids: [] };
   if (escopo.grupos.length || ids.length) return normalizarBase({ todos: false, estados: escopo.grupos, ids });
-  return { todos: total > 0 && total <= limite, estados: [], ids: [] };
+  return { todos: total > 0, estados: [], ids: [] };
 }
 
 export type DefinicaoPainel = { competencia: string; competenciaInicial: string; categoria: string; base: PainelMunicipios;

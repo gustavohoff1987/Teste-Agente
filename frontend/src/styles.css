@@ -242,14 +242,14 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
 .painel-tabela td, .painel-tabela th { padding:9px 12px; }
 .painel-tabela th button { letter-spacing:.05em; }
 /* Conversa no painel: caixa flutuante com o rosto do agente; no celular, ancorada embaixo. */
-.painel-chat { position:fixed; right:24px; bottom:24px; z-index:45; display:flex; flex-direction:column; width:min(400px, calc(100vw - 32px)); max-height:min(72dvh, 640px); border:1px solid #bed1df; border-radius:18px; background:#fff; box-shadow:0 18px 48px #10274033; }
+.painel-chat { position:fixed; right:24px; bottom:24px; z-index:45; display:flex; flex-direction:column; width:min(380px, calc(100vw - 32px)); max-height:min(64dvh, 560px); border:1px solid #bed1df; border-radius:18px; background:#fff; box-shadow:0 18px 48px #10274033; }
 .painel-chat-cabecalho { display:flex; align-items:center; gap:10px; padding:8px 10px 8px 12px; border-bottom:1px solid #e5edf2; border-radius:18px 18px 0 0; background:#f3f8fb; cursor:grab; touch-action:none; user-select:none; }
 .painel-chat-cabecalho:active { cursor:grabbing; }
 .painel-chat-cabecalho:focus-visible { outline:3px solid #3bb5be; outline-offset:2px; }
 .painel-chat[data-minimizada="true"] .painel-chat-cabecalho { border-bottom:0; border-radius:18px; }
 .painel-chat-corpo { min-height:0; overflow:auto; }
 .painel-chat .conversation-dock { position:static; border-top:0; border-radius:0 0 18px 18px; box-shadow:none; }
-.painel-chat .latest-reply > div { max-height:180px; }
+.painel-chat .latest-reply > div { max-height:120px; }
 @media (max-width:639px) {
   .painel { padding:12px 12px 230px; border-radius:18px; }
   .painel-chat { left:8px; right:8px; bottom:8px; width:auto; max-height:56dvh; }
@@ -259,3 +259,6 @@ summary:focus-visible,textarea:focus-visible { outline:3px solid #3bb5be; outlin
 @media print {
   .painel-chat, .painel-barra, .painel-gaveta, [data-testid="painel-base"], [data-testid="painel-ruler"] { display:none !important; }
 }
+/* Painel no modo leve (muitas bolhas): sem animação, círculos simples com o cursor de clique. */
+.painel-leve-svg .painel-bubble, .painel-leve-svg .painel-marca, .painel-leve-svg .painel-rotulo-grupo { transition:none !important; }
+.painel-camada-leve circle { cursor:pointer; }

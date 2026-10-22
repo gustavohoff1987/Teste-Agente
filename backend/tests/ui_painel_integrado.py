@@ -70,8 +70,6 @@ def main():
         page.on("request", lambda request: painel_calls.append(request.url) if request.url.endswith("/api/painel") else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
-        page.get_by_role("button", name="Usar dados do Brasil").click()
-        expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=90000)
         painel = page.get_by_test_id("painel-integrado")
         axis_x, axis_y = painel.get_by_test_id("painel-axis-x"), painel.get_by_test_id("painel-axis-y")
 
@@ -100,34 +98,84 @@ def main():
                 "els => els.map(e => ({id: e.dataset.id, tipo: e.dataset.tipo, valor: e.dataset.valor, populacao: e.dataset.populacao, "
                 "distancia: e.dataset.distancia ?? null, variacao: e.dataset.variacao ?? null, referencia: e.dataset.referencia ?? null}))")}
 
-        # 1. Abrir o painel: botão junto da fonte atual e na navegação principal. Sem escolha na abrangência clássica, o universo
-        # inicial é o de todos os municípios numa base pequena; com milhares (base versionada), o painel espera a escolha.
-        expect(page.get_by_test_id("main-navigation").locator(':scope > button')).to_have_count(5)
-        expect(page.get_by_test_id("nav-painel")).to_have_text("Painel integrado")
-        base = painel.get_by_test_id("painel-base")
-        if real:
-            page.get_by_test_id("open-painel").click()
-            expect(painel.get_by_test_id("painel-vazio")).to_be_visible()
-            page.wait_for_timeout(600)
-            assert not painel_calls, "universo vazio: nenhum pedido ao motor"
-            universo = {"municipios": {"todos": False, "estados": [AM], "ids": []}}
-            body, sent = ok(lambda: base.get_by_test_id("painel-base-estado").select_option(AM))
-            expect(base.locator('[data-testid="painel-base-chip"][data-id="uf:' + AM + '"]')).to_be_visible()
-        else:
-            universo = {"municipios": {"todos": True, "estados": [], "ids": []}}
-            body, sent = ok(lambda: page.get_by_test_id("open-painel").click())
+        # 1. Página principal (22/10/2026): com a base do Brasil pronta, o gráfico abre sozinho, sem botão nem nome próprio, com
+        # todos os municípios (sem escolha na abrangência clássica). Início é a página atual; a conversa fica na caixa flutuante,
+        # com a orientação e a fonte atual.
+        body, sent = ok(lambda: page.get_by_role("button", name="Usar dados do Brasil").click())
+        expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=90000)
         expect(painel).to_be_visible()
-        expect(page.get_by_test_id("nav-painel")).to_have_attribute("aria-current", "page")
-        assert sent["base"] == universo, sent
+        expect(page.get_by_test_id("main-navigation").locator(':scope > button')).to_have_count(4)
+        expect(page.get_by_test_id("nav-painel")).to_have_count(0)
+        expect(page.get_by_test_id("open-painel")).to_have_count(0)
+        expect(page.get_by_test_id("nav-home")).to_have_attribute("aria-current", "page")
+        expect(painel).not_to_contain_text("Painel integrado")
+        expect(page.get_by_test_id("analysis-catalog")).to_be_hidden()
+        todos = {"municipios": {"todos": True, "estados": [], "ids": []}}
+        assert sent["base"] == todos, sent
         assert set(sent) == {"competencia", "categoria", "base"}, sent  # opções estritas do contrato, nada além
         assert body["competencia"] == sent["competencia"] and body["competencia_inicial"] is None
         expect(painel.get_by_test_id("painel-competencia")).to_have_value(sent["competencia"])
-        # A caixa da conversa fica minimizada enquanto o roteiro usa o gráfico (no canto, aberta, ela cobriria bolhas e a
-        # régua); o passo 9 a abre de novo.
         chat = page.get_by_test_id("painel-chat")
+        expect(chat.get_by_test_id("painel-chat-guia")).to_contain_text("Os dados do Brasil já estão disponíveis.")
+        expect(chat.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
+        # A caixa da conversa fica minimizada enquanto o roteiro usa o gráfico; o passo 9 a abre de novo.
         chat.get_by_test_id("painel-chat-minimizar").click()
         expect(chat).to_have_attribute("data-minimizada", "true")
         expect(chat.locator("#assistant-input")).to_be_hidden()
+        base = painel.get_by_test_id("painel-base")
+        if real:
+            # Brasil inteiro (5.570 municípios): modo leve. Desenho sem travar a página, tabela em páginas de 100 linhas, escala
+            # logarítmica automática com valores muito desiguais, régua que só esconde (sem pedido novo) e dica no mouse.
+            chart = painel.get_by_test_id("painel-chart")
+            plotaveis = [item for item in body["itens"] if item["densidade"] is not None]
+            assert len(body["itens"]) > 5000, len(body["itens"])
+            expect(chart).to_have_attribute("data-modo", "leve", timeout=30000)
+            expect(chart).to_have_attribute("data-desenhadas", str(len(plotaveis)), timeout=30000)
+            expect(painel.locator('[data-testid="painel-camada-leve"] [data-testid="painel-bubble"]')).to_have_count(len(plotaveis))
+            table = painel.get_by_test_id("painel-table")
+            expect(table.get_by_test_id("painel-row")).to_have_count(100)
+            paginas = painel.get_by_test_id("painel-tabela-paginas")
+            expect(paginas).to_contain_text("Linhas 1 a 100 de " + f"{len(plotaveis):,}".replace(",", "."))
+            paginas.get_by_test_id("painel-tabela-proxima").click()
+            expect(paginas).to_contain_text("Linhas 101 a 200")
+            expect(table.get_by_test_id("painel-row")).to_have_count(100)
+            minimo, maximo = body["dominios"]["densidade"]
+            escala = "logaritmica" if minimo > 0 and maximo >= 100 * minimo else "linear"
+            expect(painel.get_by_test_id("painel-escala")).to_have_value(escala)
+            expect(axis_x).to_have_attribute("data-escala", escala)
+            if escala == "logaritmica":
+                expect(painel.get_by_test_id("painel-escala-automatica")).to_be_visible()
+            calls = len(painel_calls)
+            ruler = painel.get_by_test_id("painel-ruler")
+            lower = ruler.get_by_test_id("painel-ruler-min")
+            lower.focus()
+            for _ in range(3):
+                lower.press("PageUp")
+            # Antes da correção, cada passo da régua travava a página por quase um minuto: aqui o desenho muda em segundos.
+            expect(chart).not_to_have_attribute("data-desenhadas", str(len(plotaveis)), timeout=10000)
+            assert int(chart.get_attribute("data-desenhadas")) < len(plotaveis)
+            assert len(painel_calls) == calls, "a régua é filtro visual: nada é recalculado"
+            ruler.get_by_test_id("painel-ruler-limpar").click()
+            expect(chart).to_have_attribute("data-desenhadas", str(len(plotaveis)), timeout=10000)
+            chart.evaluate("e => e.scrollIntoView({block: 'start'})")
+            visivel = painel.locator('[data-testid="painel-camada-leve"] [data-testid="painel-bubble"][data-visivel="true"]')
+            alvo = visivel.nth(len(plotaveis) // 2)
+            caixa = alvo.bounding_box()
+            page.mouse.move(caixa["x"] + caixa["width"] / 2, caixa["y"] + caixa["height"] / 2)
+            expect(painel.get_by_test_id("painel-tooltip")).to_be_visible(timeout=5000)
+            page.mouse.move(2, 2)
+            shot("00-brasil")
+            # Os passos seguintes usam o Amazonas: sem "Todos", o universo fica vazio (nenhum pedido), e o estado inteiro entra.
+            base.get_by_test_id("painel-base-todos").uncheck()
+            expect(painel.get_by_test_id("painel-vazio")).to_be_visible()
+            universo = {"municipios": {"todos": False, "estados": [AM], "ids": []}}
+            body, sent = ok(lambda: base.get_by_test_id("painel-base-estado").select_option(AM))
+            expect(base.locator('[data-testid="painel-base-chip"][data-id="uf:' + AM + '"]')).to_be_visible()
+            assert sent["base"] == universo, sent
+            expect(chart).to_have_attribute("data-modo", "completo")
+        else:
+            universo = todos
+            expect(painel.get_by_test_id("painel-chart")).to_have_attribute("data-modo", "completo")
 
         # 2. Densidade: eixo único, bolhas iguais às da resposta (valor, tipo e população do motor) e a altura como arranjo.
         expect(axis_x).to_have_attribute("data-eixo", "densidade")
@@ -391,8 +439,9 @@ def main():
         page.screenshot(path=str(OUTPUT / ("painel-07-celular" + suffix + ".png")), full_page=True)
         page.set_viewport_size({"width": 1280, "height": 900})
 
-        # 11. Voltar à preparação clássica: o chat volta ao lugar de sempre, com a mesma conversa; reabrir não recalcula; as
-        # análises sem lugar no painel abrem a preparação clássica delas.
+        # 11. "Todas as análises": o fluxo clássico, com o chat no lugar de sempre e a mesma conversa. "Início" volta à página
+        # principal sem recalcular; as análises sem lugar no gráfico abrem a preparação clássica delas.
+        expect(painel.get_by_test_id("painel-voltar")).to_have_text("Todas as análises")
         painel.get_by_test_id("painel-voltar").click()
         expect(painel).to_be_hidden()
         expect(page.get_by_test_id("conversation-dock")).to_be_visible()
@@ -400,8 +449,10 @@ def main():
         expect(page.get_by_test_id("latest-reply")).to_contain_text("Os dados do Brasil disponíveis nesta plataforma")
         expect(page.get_by_test_id("analysis-catalog")).to_be_visible()
         calls = len(painel_calls)
-        page.get_by_test_id("nav-painel").click()
+        expect(page.get_by_test_id("nav-home")).not_to_have_attribute("aria-current", "page")
+        page.get_by_test_id("nav-home").click()
         expect(painel).to_be_visible()
+        expect(page.get_by_test_id("nav-home")).to_have_attribute("aria-current", "page")
         expect(painel.locator('[data-testid="painel-bubble"][data-id="c1"]')).to_have_count(1)
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "reabrir o painel não recalcula"

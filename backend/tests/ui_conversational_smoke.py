@@ -6,7 +6,7 @@ Não utiliza a API Gemini nem dados pessoais.
 import os
 
 from playwright.sync_api import sync_playwright, expect
-from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose, municipality
+from ui_support import workspace, execute_analysis, URL, offline, select, expand, choose, municipality, todas_as_analises
 
 CSV = (
     "municipio;cod_ibge;periodo_ano;periodo_mes;categoria_profissional;quantidade;população_estimada\n"
@@ -98,6 +98,7 @@ def main():
         expect(assistant.locator("#dados")).to_be_visible()
         assistant.get_by_role("button", name="Usar dados do Brasil").click()
         expect(assistant.get_by_text("Os dados do Brasil já estão disponíveis.", exact=False)).to_be_visible(timeout=30000)
+        todas_as_analises(page)  # com a base do Brasil, a página principal é o gráfico (22/10/2026)
         assistant.get_by_role("button", name="Selecionar análise: Densidade").click()
         inline = assistant.locator("#preparacao-conversacional")
         # Densidade: padrão "Todos os municípios"; o Brasil também pode ser marcado (população de junho do backend).

@@ -19,8 +19,21 @@ def card(page):
     return page.get_by_role("group", name="Carrossel de tipos de análise").locator('button[aria-pressed]')
 
 
+def todas_as_analises(page):
+    """Com a base do Brasil, a página principal é o gráfico de bolhas (22/10/2026), aberto quando a fonte fica pronta e
+    nenhuma análise foi pedida antes: "Todas as análises" leva ao fluxo clássico. Sem o gráfico (base importada ou análise já
+    pedida), nada muda."""
+    expect(page.get_by_test_id("current-source")).to_have_count(1, timeout=90000)
+    principal = page.get_by_test_id("painel-integrado")
+    if principal.is_visible():
+        principal.get_by_test_id("painel-voltar").click()
+        expect(principal).to_be_hidden()
+
+
 def select(page, title):
     choices = page.get_by_role("group", name="Carrossel de tipos de análise")
+    if page.get_by_test_id("painel-integrado").is_visible():
+        todas_as_analises(page)
     if not choices.is_visible():
         page.get_by_text("Escolher outra análise", exact=True).click()
     card(page).press("Home")

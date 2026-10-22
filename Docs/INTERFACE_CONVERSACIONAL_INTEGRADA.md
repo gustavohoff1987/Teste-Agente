@@ -8,12 +8,11 @@ alterar rosto, vestimentas, proporções ou cores. Não há personagem novo nem 
 
 | Ação | Comportamento |
 |---|---|
-| Início | Volta ao banner e à apresentação do agente. Preserva sessão, conversa, preparação e resultados. |
+| Início | Com a base do Brasil pronta, abre a página principal: o gráfico de bolhas dos municípios, com os botões das análises e a conversa numa caixa arrastável (desde 22/10/2026; ver [Página principal: o gráfico de bolhas](PAINEL_INTEGRADO_INTERFACE.md)). Nas bases importadas, volta ao banner e à apresentação do agente. Preserva sessão, conversa, preparação e resultados. |
 | Nova sessão | Abre diálogo com exportação CSV, Imprimir / PDF, Continuar nesta sessão e Iniciar nova sessão. A confirmação revoga a sessão no servidor e recarrega a aplicação. |
 | Nova análise | Abre o catálogo diretamente no primeiro uso; com análise em andamento, oferece análise independente ou acréscimo ao diagnóstico. |
 | Histórico | Reabre resultados existentes, sem recálculo e sem restaurar parâmetros implicitamente. Identifica análise independente e componentes. Fecha por clique externo ou Escape. |
 | Resultados | Oculta a preparação, expande e navega diretamente para o conteúdo calculado. Mantém conversa acessível e não altera dados nem executa análises. |
-| Painel integrado | Só com a base do Brasil pronta: abre o painel integrado de bolhas em tela grande, o mesmo do botão "Abrir o painel integrado" junto da fonte atual. Ver [Painel integrado: a tela](PAINEL_INTEGRADO_INTERFACE.md). |
 
 “Alterar a preparação” e “Voltar às opções” tornam os controles visíveis novamente. Os controles
 se distribuem em mais de uma linha em telas pequenas, sem menu lateral.
@@ -37,9 +36,11 @@ informada pelo pré-exame; requisitos ausentes podem ser examinados e resolvidos
 A transcrição permanece em memória para continuidade, sem histórico visual acumulado. A última
 resposta do agente permanece junto ao campo de digitação, em uma faixa contextual ancorada à base da janela dentro da investigação. O usuário
 pode continuar perguntando durante a exploração de gráficos, mapas e tabelas. Alternativas de
-interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável fora do painel integrado; nele,
-a mesma conversa (última resposta, alternativas e campo de envio, com os mesmos identificadores) fica numa caixa flutuante com o
-rosto do agente, arrastável e minimizável ([Painel integrado: a tela](PAINEL_INTEGRADO_INTERFACE.md)).
+interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável fora da página principal com a base do Brasil;
+nela, a mesma conversa (orientação, fonte atual, última resposta, alternativas e campo de envio, com os mesmos identificadores)
+fica numa caixa flutuante com o rosto do agente, arrastável e minimizável ([Página principal: o gráfico de
+bolhas](PAINEL_INTEGRADO_INTERFACE.md)). "Todas as análises", no alto do gráfico, leva ao fluxo clássico, com a conversa no lugar
+de sempre.
 
 **Continuidade da conversa (desde 21/10/2026).** O estado estruturado da conversa é a própria preparação: a análise,
 os territórios da abrangência, os períodos, o indicador e a categoria. Cada mensagem os envia ao intérprete local, e a

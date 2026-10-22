@@ -66,7 +66,7 @@ export default function PainelBase({ niveis, municipios, base, nomes, onBase, on
         {base.estados.map(prefixo => <li key={prefixo} data-testid="painel-base-chip" data-id={"uf:" + prefixo}
           className="inline-flex items-center gap-1 rounded-full border border-teal bg-cyan-50 py-0.5 pl-2.5 pr-1 text-xs font-semibold text-ink">
           {nomeDoEstado(prefixo)}
-          <button type="button" aria-label={"Retirar " + nomeDoEstado(prefixo) + " do painel"} disabled={desabilitado}
+          <button type="button" aria-label={"Retirar " + nomeDoEstado(prefixo) + " do gráfico"} disabled={desabilitado}
             onClick={() => onBase({ ...base, estados: base.estados.filter(item => item !== prefixo) })}
             className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-white"><X size={13} aria-hidden="true"/></button>
         </li>)}
@@ -94,7 +94,7 @@ export default function PainelBase({ niveis, municipios, base, nomes, onBase, on
           const nome = nomeDoMunicipio(item);
           return <li key={item.id} draggable={!desabilitado} onDragStart={event => arrastar(event, item.id)} data-testid="painel-lista-item"
             data-id={item.id} title="Clique para acrescentar ou arraste para dentro do gráfico" className="cursor-grab">
-            <button type="button" disabled={desabilitado} onClick={() => onAcrescentar(item.id)} aria-label={"Acrescentar " + nome + " ao painel"}
+            <button type="button" disabled={desabilitado} onClick={() => onAcrescentar(item.id)} aria-label={"Acrescentar " + nome + " ao gráfico"}
               className="flex min-h-9 w-full items-center gap-2 rounded-md bg-white px-2 py-1.5 text-left text-xs text-ink hover:bg-cyan-50 disabled:opacity-40">
               <Plus size={14} aria-hidden="true" className="shrink-0 text-teal"/><span className="min-w-0 flex-1 truncate">{nome}</span>
               <span className="shrink-0 text-[11px] text-slate-500">{item.code}</span>
@@ -107,7 +107,7 @@ export default function PainelBase({ niveis, municipios, base, nomes, onBase, on
         {base.ids.map(id => <li key={id} data-testid="painel-base-chip" data-id={id}
           className="inline-flex items-center gap-1 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-xs text-ink">
           {nomes.get(id) || id}
-          <button type="button" aria-label={"Retirar " + (nomes.get(id) || id) + " do painel"} disabled={desabilitado}
+          <button type="button" aria-label={"Retirar " + (nomes.get(id) || id) + " do gráfico"} disabled={desabilitado}
             onClick={() => onBase({ ...base, ids: base.ids.filter(item => item !== id) })}
             className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-slate-100"><X size={13} aria-hidden="true"/></button>
         </li>)}

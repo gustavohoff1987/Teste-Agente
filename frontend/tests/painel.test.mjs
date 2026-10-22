@@ -161,6 +161,33 @@ test('arranjo do eixo único: sem sobreposição, determinístico e independente
   }
 });
 
+test('modo leve: arranjo numa faixa de altura limitada, determinístico e sem custo quadrático', () => {
+  assert.equal(M.LIMITE_LEVE, 400);
+  // Com espaço na faixa, nenhuma bolha se sobrepõe (tolerância de uma célula da grade de 2 px).
+  const poucas = Array.from({length: 30}, (_, i) => ({id: 'code:' + (200 + i), x0: 100 + (i % 6) * 4, x1: 100 + (i % 6) * 4, r: 4 + (i % 3)}));
+  const a = M.arranjarDenso(poucas, 120), b = M.arranjarDenso([...poucas].reverse(), 120);
+  assert.deepEqual([...a.entries()].sort(), [...b.entries()].sort());
+  for (let i = 0; i < poucas.length; i++) for (let j = i + 1; j < poucas.length; j++) {
+    const p = poucas[i], q = poucas[j];
+    assert.ok(Math.hypot(p.x0 - q.x0, a.get(p.id) - a.get(q.id)) >= p.r + q.r - 3, p.id + ' x ' + q.id);
+  }
+  assert.ok([...a.values()].every(y => Math.abs(y) <= 120 && Math.abs(y % 2) === 0));
+  // Milhares de bolhas: a altura não sai da faixa (com a faixa cheia, elas se sobrepõem, semitransparentes) e o cálculo
+  // leva bem menos de 5 s (o arranjo exato levava mais de um minuto com 5.570 municípios).
+  const muitas = Array.from({length: 5570}, (_, i) => ({id: 'code:' + (100000 + i), x0: 300 + (i % 250), x1: 300 + (i % 250) + (i % 7), r: 4 + (i % 4)}));
+  const inicio = performance.now();
+  const y = M.arranjarDenso(muitas, 150);
+  assert.ok(performance.now() - inicio < 5000);
+  assert.equal(y.size, muitas.length);
+  assert.ok([...y.values()].every(valor => Math.abs(valor) <= 150));
+  // No gráfico, o modo leve limita a altura do eixo único.
+  const itens = Array.from({length: 600}, (_, i) => ({...ITENS[0], id: 'code:' + (300000 + i), densidade: (i % 50) / 10 + 0.1, populacao: 1000 + i}));
+  const leve = M.montarGrafico({itens, dominios: {...DOMINIOS, densidade: [0.1, 5.1], populacao: [1000, 1600]}, indicador: 'densidade',
+    escala: 'linear', distancia: false, crescimento: false, vista: 'final', largura: 860, limiteVariacao: 0, rotuloDistancia: '', denso: true});
+  assert.ok(leve.altura <= 16 + 2 * 230 + 24 + 50 + 2 * 30, leve.altura);
+  assert.equal(leve.bolhas.length, 600);
+});
+
 test('eixo único do indicador: X pelo valor do motor, altura só arranjo, raio pela população', () => {
   const itens = ITENS.slice(0, 4);
   const g = M.montarGrafico({itens, dominios: DOMINIOS, indicador: 'densidade', escala: 'linear', distancia: false, crescimento: false,
@@ -217,8 +244,10 @@ test('crescimento: cometa só entre os dois valores observados, cor divergente e
   assert.equal(antes('code:130260').y, bolha('code:130260').y);  // a faixa do cometa não muda entre as vistas
   assert.equal(antes('code:130340').visivel, false);  // sem variação avaliável, sem posição na competência inicial
   assert.equal(M.corDaVariacao(0, 40), M.COR_NEUTRA);
-  assert.equal(M.corDaVariacao(20, 40), M.RAMPA_CRESCIMENTO[1]);
-  assert.equal(M.corDaVariacao(-20, 40), M.RAMPA_QUEDA[1]);
+  // Escala pela raiz quadrada (22/10/2026): o meio de cada braço vale um quarto do limite.
+  assert.equal(M.corDaVariacao(10, 40), M.RAMPA_CRESCIMENTO[1]);
+  assert.equal(M.corDaVariacao(-10, 40), M.RAMPA_QUEDA[1]);
+  assert.notEqual(M.corDaVariacao(2, 40), M.RAMPA_CRESCIMENTO[0]);  // pequena, mas já com mais cor que o tom claro inicial
   assert.equal(M.corDaVariacao(40, 40), M.RAMPA_CRESCIMENTO[2]);
   assert.equal(M.corDaVariacao(-80, 40), M.RAMPA_QUEDA[2]);
   assert.equal(M.caudaDoCometa(-100, 0, 10), '-100,0 0,-6 0,6');
@@ -257,7 +286,9 @@ test('pedido ao motor com os nomes do contrato; universo normalizado e competên
     {todos: false, estados: ['13', '35'], ids: ['code:290070']});
   assert.deepEqual(M.normalizarBase({todos: true, estados: ['13'], ids: ['code:1']}), {todos: true, estados: [], ids: []});
   assert.deepEqual(M.baseInicial({todos: false, grupos: []}, [], 62), {todos: true, estados: [], ids: []});
-  assert.deepEqual(M.baseInicial({todos: false, grupos: []}, [], 5570), {todos: false, estados: [], ids: []});
+  // Sem escolha, todos os municípios, também na base com milhares (22/10/2026: página principal com o Brasil inteiro).
+  assert.deepEqual(M.baseInicial({todos: false, grupos: []}, [], 5570), {todos: true, estados: [], ids: []});
+  assert.deepEqual(M.baseInicial({todos: false, grupos: []}, [], 0), {todos: false, estados: [], ids: []});
   assert.deepEqual(M.baseInicial({todos: false, grupos: ['13']}, ['code:130260', 'code:350010'], 5570),
     {todos: false, estados: ['13'], ids: ['code:350010']});
   const completo = M.montarOpcoes({competencia: '202406', competenciaInicial: '202006', categoria: 'MEDICINA',

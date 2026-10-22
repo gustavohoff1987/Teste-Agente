@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ContextConfig from "./ContextConfig";
 import RequirementChecklist from "./RequirementChecklist";
 import DataResolution from "./DataResolution";
@@ -41,7 +41,7 @@ import {
   ArrowDownToLine, ArrowRight, BarChart3, Calculator, CheckCircle2, Filter,
   Home, Menu, X, Grid2X2,
   ChevronDown, ClipboardList, Clock3, Database, Download, FileBarChart2, FileSpreadsheet,
-  FileUp, FolderUp, Bot, Info, Layers3, LayoutDashboard, ListFilter,
+  FileUp, FolderUp, Bot, Info, Layers3, ListFilter,
   LoaderCircle, LocateFixed, MapPinned, MoveRight, RefreshCw, SearchCheck, Settings2, ShieldCheck,
   Sparkles, TrendingUp, UploadCloud, UsersRound, XCircle
 } from "lucide-react";
@@ -1137,9 +1137,25 @@ function App() {
     text: "Brasil (total nacional). A fonte nacional tem um único território; a escolha de municípios vale para a abrangência Municípios."}
     : undefined;
 
-  // Painel integrado: só com a base do Brasil pronta (abrangência oficial); nas bases importadas, o fluxo clássico continua.
+  // Página principal com a base do Brasil (22/10/2026): o gráfico de bolhas com os botões das análises, só com a base oficial
+  // pronta (abrangência oficial); nas bases importadas, o fluxo clássico continua.
   const painelDisponivel = usingBrazil && officialScope && !!inspection && !inspection.requires_sheet && !inspecting;
   useEffect(() => { if (!painelDisponivel) setPainelAberto(false); }, [painelDisponivel]);
+  // Abre sozinho quando a base fica pronta, uma vez por fonte, se nenhuma análise foi pedida antes (com uma análise pedida na
+  // conversa ou no catálogo, segue a preparação dela, como antes). "Início" volta a ele; "Todas as análises" leva ao fluxo clássico.
+  // Efeito de layout: decide antes da pintura, sem mostrar a tela clássica por um instante.
+  const principalAberta = useRef("");
+  useLayoutEffect(() => {
+    if (!painelDisponivel) { principalAberta.current = ""; return; }
+    if (principalAberta.current === sourceKey) return;
+    principalAberta.current = sourceKey;
+    if (active) return;
+    setPainelMontado(true); setPainelAberto(true);
+    requestAnimationFrame(() => {
+      if (!document.activeElement || document.activeElement === document.body)
+        document.getElementById("painel-titulo")?.focus({preventScroll: true});
+    });
+  }, [painelDisponivel, sourceKey]);
   function abrirPainel() {
     if (!painelDisponivel) return;
     setPainelMontado(true); setPainelAberto(true);
@@ -1149,7 +1165,14 @@ function App() {
       document.getElementById("painel-titulo")?.focus({preventScroll: true});
     });
   }
-  /** "Voltar à preparação clássica" ou uma análise sem lugar no painel (Distribuição, Rankings…): o fluxo de sempre. */
+  /** "Início": com a base do Brasil pronta, a página principal é o gráfico; nas demais bases, o início de sempre. */
+  function irParaInicio() {
+    if (!painelDisponivel) { navigate("home", "inicio"); return; }
+    setPage("home");
+    if (window.location.hash !== "#inicio") window.history.pushState(null, "", "#inicio");
+    abrirPainel();
+  }
+  /** "Todas as análises" ou uma análise sem lugar no gráfico (Distribuição, Rankings…): o fluxo de sempre. */
   function fecharPainel(operation?: Operation) {
     setPainelAberto(false);
     if (operation) {
@@ -1669,13 +1692,11 @@ function App() {
       <div>
       <div className="no-print" hidden={painelAberto}><WelcomeHero/></div>
       <nav aria-label="Navegação principal" data-testid="main-navigation" className="main-navigation no-print">
-        <button type="button" data-testid="nav-home" onClick={() => navigate("home", "inicio")} aria-current={page === "home" && !painelAberto ? "page" : undefined}><Home size={18}/>Início</button>
+        <button type="button" data-testid="nav-home" onClick={irParaInicio} aria-current={page === "home" && painelAberto === painelDisponivel ? "page" : undefined}><Home size={18}/>Início</button>
         <button type="button" data-testid="nav-new-session" onClick={() => {setSessionError(""); setConfirmNewSession(true);}}><RefreshCw size={18}/>Nova sessão</button>
         <button type="button" data-testid="nav-new-analysis" disabled={running || inspecting || preflighting} onClick={requestNewAnalysis}><FileBarChart2 size={18}/>Nova análise</button>
         {historyContent}
         <button type="button" data-testid="nav-results" onClick={() => navigate("results")} aria-current={page === "results" && !painelAberto ? "page" : undefined}><BarChart3 size={18}/>Resultados</button>
-        {painelDisponivel && <button type="button" data-testid="nav-painel" onClick={abrirPainel} aria-current={painelAberto ? "page" : undefined}>
-          <LayoutDashboard size={18}/>Painel integrado</button>}
       </nav>
       {painelMontado && painelDisponivel && <div hidden={!painelAberto}>
         <PainelIntegrado key={sourceKey} fonte={{apiBase: API, datasetVersion: inspection?.source?.version || "", sheet}}
@@ -1739,8 +1760,7 @@ function App() {
           : ""}
         preparation={inlinePreparation}
         resultContent={resultContent}
-        layout={painelAberto ? "painel" : "classico"}
-        onOpenPainel={painelDisponivel ? abrirPainel : undefined}/>
+        layout={painelAberto ? "painel" : "classico"}/>
 
 
       </div>

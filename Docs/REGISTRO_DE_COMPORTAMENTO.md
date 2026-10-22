@@ -35,6 +35,78 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página principal com a base do Brasil: o gráfico de bolhas, sem travar com milhares de municípios
+- **Antes:**
+  - o gráfico de bolhas abria por um botão ("Abrir o painel integrado", junto da fonte atual, e "Painel integrado", na
+    navegação); a abertura com a base do Brasil mostrava o catálogo de análises;
+  - sem escolha na abrangência, o universo inicial era "todos" só até 300 municípios; acima disso, o gráfico esperava a escolha;
+  - com muitos municípios, a página travava: com os 5.570, 193 s sem responder ao marcar "Todos os municípios" e 54 s a cada
+    passo da régua; o arranjo do eixo único empilhava as bolhas numa faixa de mais de 21.000 px, e a tabela desenhava todas as
+    linhas;
+  - a cor do crescimento era proporcional à variação: com uma variação extrema, as comuns ficavam quase sem cor;
+  - a caixa da conversa tinha 400 px de largura e a última resposta ia até 180 px de altura.
+- **Agora:**
+  - **Página principal:** com a base do Brasil pronta, o gráfico abre sozinho no lugar do catálogo, uma vez por fonte, se
+    nenhuma análise foi pedida antes (com uma análise pedida, segue a preparação dela, como antes).
+    - Sem botão nem nome próprio: saem "Painel integrado" da navegação, "Abrir o painel integrado" e o rótulo "Painel integrado"
+      do cabeçalho do gráfico. "Início" leva à página principal.
+    - No alto do gráfico, "Todas as análises" (no lugar de "Voltar à preparação clássica") leva ao fluxo clássico, e "Outras
+      análises" (no lugar de "Na preparação clássica") abre a preparação de Distribuição, Rankings, Critérios combinados,
+      Rotatividade e Relatórios.
+    - Os textos da tela falam em "gráfico" no lugar de "painel".
+  - **Conversa na página principal:** a caixa arrastável traz também a orientação inicial ("Os dados do Brasil já estão
+    disponíveis. Explore os municípios no gráfico, use os botões das análises ou converse comigo.") e a fonte atual, com "Trocar
+    fonte de dados". Ela abre compacta no canto inferior direito, com 380 px de largura, e a última resposta rola acima de
+    120 px.
+  - **Universo inicial:** sem escolha na abrangência, todos os municípios da base, também com milhares.
+  - **Modo leve, acima de 400 bolhas:**
+    - Arranjo do eixo único numa faixa de altura limitada, com sobreposição semitransparente quando a faixa enche, e a nota
+      dizendo isso.
+    - Posições estáveis: a régua só esconde.
+    - Desenho simplificado, sem animação; "Reproduzir" vira "Ir para a competência final".
+    - Escala logarítmica automática quando os valores são todos positivos e um é ao menos 100 vezes maior que outro; a escolha
+      da pessoa prevalece.
+    - Medição local com os 5.570 municípios: a maior trava da página passou a 0,26 s, um passo da régua a 0,3 s e a dica a
+      0,06 s.
+  - **Tabela equivalente:** 100 linhas por vez, com "Anteriores" e "Próximas".
+  - **Arranjo exato, até 400 bolhas:** compara cada bolha só com as que podem alcançá-la; o resultado é idêntico ao anterior,
+    conferido com os dados reais em 62, 200 e 400 municípios.
+  - **Cor do crescimento:** a intensidade segue a raiz quadrada da proporção da maior variação; o tom do meio de cada braço vale
+    um quarto da maior. A legenda marca as pontas, os meios e o zero. Continua contínua, sem classes.
+- **Permanece:**
+  - o motor e as rotas (`/api/painel` e `/api/painel/referencias`) e todos os números, que vêm do motor;
+  - as telas clássicas (preparação, resultados, histórico) e o fluxo com arquivos importados;
+  - o arranjo exato e as animações até 400 bolhas;
+  - nada vai ao provedor de IA; os dados não mudam.
+- **Motivo:** pedido do responsável pelo produto em 22/10/2026: "promova todos os ajustes, então, né, corrigindo o desempenho e
+  [reestruture] a abertura, como nós tínhamos orientado já. Com os botões das análises, sem o painel integrado, [...] na página
+  principal, com o chat assim arrastando". Também havia o diagnóstico do travamento com "Todos os municípios" e a ideia de
+  21/10/2026: "a tela abrir em um gráfico grande e com botões das análises". Classificação: mudança prevista.
+  - Escopo: o pedido.
+  - Compatibilidade:
+    - a interface é independente das diretrizes de UX da SPEC (README);
+    - o gráfico segue o Adendo BOL-20261021 e a Parte 13: a régua continua filtro visual (RQ-REP-06), a tabela equivalente
+      continua com todos os itens, em páginas, e a cor continua contínua, sem classes (RQ-REP-02);
+    - nenhuma divergência aprovada é contrariada.
+  - A escala logarítmica automática e a abertura com todos os municípios decorrem da correção do desempenho; o responsável pode
+    revertê-las.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (página principal, modo leve, cores, tabela e conversa), README,
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` e `Docs/BLOCO1_RESULTADOS_EXPLORAVEIS.md` (navegação).
+  - **Testes de navegador mudados de propósito**, porque o comportamento mudou; o defeito não está no produto nem no teste, e
+    nenhuma verificação de comportamento mantido foi retirada:
+    - `ui_painel_integrado.py`: a abertura sozinha, sem botão, com todos os municípios. Na base versionada, o modo leve com os
+      5.570 municípios: desenho, tabela em páginas, escala automática, régua sem travar e sem pedido, dica. Depois, "Todas as
+      análises" e a volta pelo "Início".
+    - `ui_block1_smoke.py`: quatro botões na navegação, sem "Painel integrado".
+    - `ui_integrated_workspace.py`: "Início" leva ao gráfico, e o resultado continua em Resultados, sem recálculo.
+    - `ui_conversational_smoke.py`: "Todas as análises" antes do catálogo.
+    - `ui_support.select`: passa por "Todas as análises" quando o gráfico está à vista.
+  - **Testes do modelo** (`frontend/tests/painel.test.mjs`):
+    - novos: o arranjo do modo leve;
+    - mudados de propósito: a cor pela raiz quadrada e o universo inicial com milhares.
+  - **Capturas:** `scripts/capturar_telas.py` ganhou a captura da página principal.
+
 ### 2026-10-21 · Painel integrado de bolhas: a tela, com a conversa numa caixa arrastável
 - **Antes:**
   - com a base do Brasil pronta, havia só o fluxo clássico: conversa, preparação em abas e resultados;

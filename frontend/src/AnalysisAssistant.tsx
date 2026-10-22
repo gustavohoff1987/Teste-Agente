@@ -4,7 +4,7 @@ import {navigationCommand, normalizeCommand, previousResultCommand, viewCommand,
 import BrandAvatar from "./BrandAvatar";
 import ChatAnalysisCarousel, {type ChatFeature} from "./ChatAnalysisCarousel";
 import ChatFloatingBox from "./ChatFloatingBox";
-import { AlertCircle, ArrowRight, LayoutDashboard, LoaderCircle, MapPin,
+import { AlertCircle, ArrowRight, LoaderCircle, MapPin,
   MessageSquare, RefreshCw, Send, ShieldCheck, UserRound } from "lucide-react";
 
 import { ANALYSIS_LABELS, type Operation } from "./analysisCatalog";
@@ -40,12 +40,10 @@ type Props = { notice: string; workspaceStage: WorkspaceStage; onStage: (stage: 
   onChooseBrazil: () => void; onChooseImport: () => void; onResolved: (proposal: TerritorialProposal) => string; catalogOpen: boolean; running: boolean; investigationContent: ReactNode; onStarted: () => void; hasResult: boolean; selection: ReactNode; onRequest: (message: string) => void; onExplore: (message: string, choice?: {operation: Operation; indicator?: "quantity" | "density" | null}) => Promise<LocalAnswer | null>;
   /** Reabre o resultado anterior da sessão, sem recalcular, e devolve a resposta da conversa. */
   onPreviousResult: () => string;
-  /** "painel": só no painel integrado, a conversa (alternativas, última resposta e campo de envio) vai para uma caixa
-   * flutuante arrastável, com os mesmos ids e textos; a preparação e os resultados clássicos ficam montados e ocultos.
-   * Sem a propriedade, o layout do chat é o de sempre. */
-  layout?: "classico" | "painel";
-  /** Com a base do Brasil pronta: botão "Abrir o painel integrado" junto da fonte atual. */
-  onOpenPainel?: () => void };
+  /** "painel": na página principal com a base do Brasil (o gráfico de bolhas), a conversa (orientação, fonte atual,
+   * alternativas, última resposta e campo de envio) vai para uma caixa flutuante arrastável, com os mesmos ids e textos; a
+   * preparação e os resultados clássicos ficam montados e ocultos. Sem a propriedade, o layout do chat é o de sempre. */
+  layout?: "classico" | "painel" };
 const VIEW_LABEL: Record<ResultView, string> = {mapa: "Mapa", graficos: "Gráficos", tabela: "Tabela"};
 const VIEW_ACTION = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
 const STATUS_LABEL: Record<Verification["capability_status"], string> = {
@@ -63,7 +61,7 @@ const SLOT_LABEL: Record<string, string> = {
 
 const ANALYSIS = ANALYSIS_LABELS;
 
-export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, onPreviousResult, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "", layout = "classico", onOpenPainel }: Props) {
+export default function AnalysisAssistant({ notice, workspaceStage, onStage: setWorkspaceStage, onMultiplePeriods, territorySummary, territoriesOpen, onTerritoriesOpen, displayedResultId = "", apiBase, privacyAccepted, file, sheet, mapping, options, contextReady, contextVersion, validationVersion, features, active, selecting, onSelectAnalysis, sourceChoice, sourceReady, sourceSummary, preparation, resultContent, selection, onRequest, onExplore, catalogOpen, running, investigationContent, onStarted, hasResult, onChooseBrazil, onChooseImport, onResolved, onPreviousResult, resultsOnly = false, dataset = "", scope = "auto", datasetVersion = "", layout = "classico" }: Props) {
   const hasSource = !!file || !!dataset;
   const staged = sourceReady && !!active;
   const [status, setStatus] = useState<Status | null>(null);
@@ -373,14 +371,20 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     </form>
     </div>;
 
+  // Fonte atual e troca de fonte: no painel lateral da conversa ou, na página principal, dentro da caixa flutuante (um só lugar).
+  const sourceLine = <>
+    <details className="no-print text-xs text-teal"><summary className="cursor-pointer">Trocar fonte de dados</summary>{sourceChoice}</details>
+    <p data-testid="current-source" className="mt-2 text-xs text-slate-500">Fonte atual: {dataset ? "Dados do Brasil" : file?.name || "Dados importados"}</p>
+  </>;
+  // Na página principal, o id "assistente" e o rótulo ficam na caixa flutuante (ChatFloatingBox), um só elemento.
   return <section id={floating ? undefined : "assistente"} aria-label={floating ? undefined : "Assistente de análise territorial"}
     className={floating ? "painel-chat-host" : "assistant-panel section-anchor conversation-workspace rounded-[24px] border border-line bg-white shadow-sm"}>
     <div className="integrated-investigation" data-results-focus={resultsOnly} hidden={floating}>
     <div className="conversation-pane no-print" data-testid="conversation-pane">
-    <div className="agent-guidance">
+    {!floating && <div className="agent-guidance">
       <BrandAvatar size={46}/><div><h2 className="font-bold text-ink">Agente Diagnóstico Territorial</h2>
       <p>{running ? "Estou acompanhando a execução pelo motor determinístico." : hasResult ? "Vamos explorar os resultados e continuar a investigação." : sourceReady ? active ? "Confira os recortes e as escolhas para calcular." : sourceSummary : "Olá! Conte o que deseja analisar ou escolha seus dados para começar."}</p></div>
-    </div>
+    </div>}
     {!status?.configured && <div role="status" className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-900">
       <p>{loadingStatus ? "Preparando a conversa..." : "Perguntas livres estão temporariamente indisponíveis. A exploração dos municípios selecionados e os controles de análise continuam disponíveis."}</p>
       {!loadingStatus && <button type="button" onClick={() => {void refreshStatus();}}
@@ -393,13 +397,7 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
         As alternativas de esclarecimento permanecem disponíveis junto à resposta atual. */}
     {!floating && alternatives}
     {!sourceReady && <div className="px-4 pb-4">{sourceChoice}</div>}
-    {sourceReady && <div className="px-4 pb-4">
-      <details className="no-print text-xs text-teal"><summary className="cursor-pointer">Trocar fonte de dados</summary>{sourceChoice}</details>
-      <p data-testid="current-source" className="mt-2 text-xs text-slate-500">Fonte atual: {dataset ? "Dados do Brasil" : file?.name || "Dados importados"}</p>
-      {onOpenPainel && dataset && <button type="button" data-testid="open-painel" onClick={onOpenPainel}
-        className="no-print mt-2 inline-flex items-center gap-2 rounded-lg border border-teal bg-white px-3 py-2 text-xs font-semibold text-teal hover:bg-cyan-50">
-        <LayoutDashboard size={15} aria-hidden="true"/>Abrir o painel integrado</button>}
-    </div>}
+    {sourceReady && !floating && <div className="px-4 pb-4">{sourceLine}</div>}
     {(catalogOpen || sourceReady && !active) && <div className="px-4 pb-4" data-testid="analysis-catalog">
       <ChatAnalysisCarousel features={features} selected={active} disabled={selecting} onSelect={onSelectAnalysis}/>
     </div>}
@@ -453,6 +451,12 @@ export default function AnalysisAssistant({ notice, workspaceStage, onStage: set
     {!floating && dock}
 
     </div>
-    {floating && <ChatFloatingBox ocupado={sending}>{alternatives}{dock}</ChatFloatingBox>}
+    {floating && <ChatFloatingBox ocupado={sending}>
+      <div className="px-4 pt-3" data-testid="painel-chat-guia">
+        <p className="text-sm leading-5 text-slate-700">Os dados do Brasil já estão disponíveis. Explore os municípios no gráfico, use os
+          botões das análises ou converse comigo.</p>
+        <div className="mt-1">{sourceLine}</div>
+      </div>
+      {alternatives}{dock}</ChatFloatingBox>}
   </section>;
 }

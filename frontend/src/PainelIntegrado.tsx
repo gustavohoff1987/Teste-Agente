@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Calculator, Layers3, LoaderCircle, MapPinned, RefreshCw, TrendingUp, UsersRound } from "lucide-react";
+import { Calculator, Layers3, LayoutGrid, LoaderCircle, MapPinned, RefreshCw, TrendingUp, UsersRound } from "lucide-react";
 import type { Operation } from "./analysisCatalog";
 import {
   pedirPainel, type PainelConjuntoPedido, type PainelFonte, type PainelIndicador, type PainelMunicipios, type PainelReferenciaPedido,
   type PainelResposta,
 } from "./painelApi";
 import {
-  INDICADORES, MAX_CONJUNTOS, avisosDe, baseInicial, cronologica, exibirCompetencia, formatarIndicador, formatarNumero,
+  INDICADORES, LIMITE_LEVE, MAX_CONJUNTOS, avisosDe, baseInicial, cronologica, exibirCompetencia, formatarIndicador, formatarNumero,
   formatarVariacao, inicialDe, limiteDaVariacao, maisRecente, montarOpcoes, noCorte, normalizarBase, novoConjunto, numero, ordenarTabela, prefixoDe,
   semPedido, separarItens, textoDaContagem, textoDaLimitacao, variacaoDe, type ColunaTabela, type Corte, type DefinicaoPainel, type Escala,
   type NaoAvaliavel, type Ordenacao, type Vista,
@@ -43,6 +43,8 @@ const CLASSICAS: [Operation, string][] = [["distribution", "Distribuição"], ["
 const ASPECTOS: Record<NaoAvaliavel["aspecto"], string> = {
   indicador: "Sem valor do indicador na competência", distancia: "Sem distância até a referência", variacao: "Variação não avaliável",
 };
+/** Linhas da tabela equivalente por página: com milhares de municípios, a tabela inteira pesaria na tela. */
+const POR_PAGINA = 100;
 const BOTAO = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-40";
 
 function useMovimentoReduzido(): boolean {
@@ -61,7 +63,8 @@ function useMovimentoReduzido(): boolean {
 
 export default function PainelIntegrado({ fonte, periodos, categoria: categoriaInicial, categorias, niveis, municipios, escopoInicial, onClassica }: Props) {
   const [indicador, setIndicador] = useState<PainelIndicador>("densidade");
-  const [escala, setEscala] = useState<Escala>("linear");
+  // null: escala automática (linear, ou logarítmica com milhares de municípios e valores muito desiguais); a escolha da pessoa vale depois.
+  const [escala, setEscala] = useState<Escala | null>(null);
   const [competencia, setCompetencia] = useState(() => maisRecente(periodos));
   const [categoria, setCategoria] = useState(categoriaInicial);
   const [base, setBase] = useState<PainelMunicipios>(() => baseInicial({ todos: escopoInicial.todos, grupos: escopoInicial.grupos },
@@ -75,6 +78,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [gaveta, setGaveta] = useState<Gaveta | null>(null);
   const [ordenacao, setOrdenacao] = useState<Ordenacao>(null);
+  const [pagina, setPagina] = useState(0);
   const [resposta, setResposta] = useState<PainelResposta | null>(null);
   // Definição que produziu a resposta em exibição: depois de uma recusa do motor, dá para voltar a ela sem novo pedido.
   const [calculado, setCalculado] = useState<{ chave: string; definicao: DefinicaoPainel } | null>(null);
@@ -99,7 +103,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
     const timer = window.setTimeout(() => {
       pedirPainel(fonte, opcoes, controle.signal)
         .then(corpo => { if (!controle.signal.aborted) { setResposta(corpo); setCalculado({ chave, definicao: pedido }); } })
-        .catch((exc: unknown) => { if (!controle.signal.aborted) setErro(exc instanceof Error ? exc.message : "Não foi possível montar o painel."); })
+        .catch((exc: unknown) => { if (!controle.signal.aborted) setErro(exc instanceof Error ? exc.message : "Não foi possível montar o gráfico."); })
         .finally(() => { if (!controle.signal.aborted) setCarregando(false); });
     }, 120);
     return () => { controle.abort(); window.clearTimeout(timer); };
@@ -110,7 +114,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
     const anterior = calculado.definicao;
     setCompetencia(anterior.competencia); setCompetenciaInicial(anterior.competenciaInicial); setCategoria(anterior.categoria);
     setBase(anterior.base); setConjuntos(anterior.conjuntos); setReferencia(anterior.referencia);
-    setAviso("De volta ao último painel calculado.");
+    setAviso("De volta ao último gráfico calculado.");
   }
 
   // Reproduzir do inicial ao final: um quadro na competência inicial sem transição, depois o movimento até a final.
@@ -134,14 +138,23 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
     [itens, indicador, comDistancia, comCrescimento]);
   const dominio = resposta?.dominios[indicador] ?? null;
   const logPossivel = !!dominio && dominio[0] > 0;
-  const escalaEfetiva: Escala = logPossivel ? escala : "linear";
+  // Com milhares de municípios e um valor 100 vezes maior que outro, o eixo linear espremeria quase todos num canto: o eixo
+  // começa na escala logarítmica, que a pessoa pode trocar.
+  const escalaAutomatica: Escala = plotaveis.length > LIMITE_LEVE && logPossivel && dominio![1] >= 100 * dominio![0] ? "logaritmica" : "linear";
+  const escalaEfetiva: Escala = logPossivel ? escala ?? escalaAutomatica : "linear";
   const visiveis = useMemo(() => plotaveis.filter(item => noCorte(item, indicador, corte)), [plotaveis, indicador, corte]);
+  // Com muitas bolhas (modo leve do gráfico), não há animação: "Reproduzir" vira "Ir para a competência final".
+  const semAnimacao = movimentoReduzido || plotaveis.length > LIMITE_LEVE;
   const limiares = useMemo(() => corte ? [corte.minimo, corte.maximo] : [], [corte]);
   const nomes = useMemo(() => new Map<string, string>([...municipios.map(item => [item.id, nomeDoMunicipio(item)] as [string, string]),
     ...itens.map(item => [item.id, item.rotulo] as [string, string])]), [municipios, itens]);
   const selecao = useMemo(() => selecionados.filter(id => itens.some(item => item.id === id)), [selecionados, itens]);
   const limite = useMemo(() => resposta ? limiteDaVariacao(resposta, indicador, plotaveis) : 0, [resposta, indicador, plotaveis]);
   const linhas = useMemo(() => ordenarTabela(visiveis, ordenacao, indicador), [visiveis, ordenacao, indicador]);
+  // Outra ordem ou outro corte: a tabela volta à primeira página.
+  useEffect(() => setPagina(0), [linhas]);
+  const paginas = Math.max(1, Math.ceil(linhas.length / POR_PAGINA)), paginaAtual = Math.min(pagina, paginas - 1);
+  const linhasDaPagina = linhas.slice(paginaAtual * POR_PAGINA, (paginaAtual + 1) * POR_PAGINA);
   const rotuloDistancia = (referencia?.membros.length ?? 0) > 1 ? "Distância até o membro mais próximo da referência (km)"
     : "Distância até a referência (km)";
 
@@ -154,7 +167,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
     if (base.todos || base.estados.includes(prefixoDe(id))) { setAviso(nome + " já está entre os municípios base."); return; }
     if (base.ids.includes(id)) { setAviso(nome + " já foi acrescentado."); return; }
     setBase(atual => ({ ...atual, ids: [...atual.ids, id] }));
-    setAviso(nome + " acrescentado ao painel.");
+    setAviso(nome + " acrescentado ao gráfico.");
   }
   function agregar(rotulo: string) {
     const membros = selecao.filter(id => itens.find(item => item.id === id)?.tipo === "municipio");
@@ -176,7 +189,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
   }
   function reproduzir() {
     if (!comCrescimento) return;
-    if (movimentoReduzido) { setVista("final"); return; }
+    if (semAnimacao) { setVista("final"); return; }
     setVista("inicial");
     setFase("preparar");
   }
@@ -197,17 +210,16 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
   return <section id="painel-integrado" data-testid="painel-integrado" aria-labelledby="painel-titulo" className="painel section-anchor">
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-[11px] font-bold uppercase tracking-[.2em] text-teal">Painel integrado</p>
         <h2 id="painel-titulo" tabIndex={-1} className="text-xl font-semibold tracking-tight text-ink outline-none sm:text-2xl">Municípios em bolhas</h2>
         <p className="mt-1 text-xs leading-5 text-slate-600">Dados do Brasil · {categoria} · {exibirCompetencia(competencia)}. Cada bolha é um
           município ou conjunto: o tamanho é a população, e a posição, os valores do motor. Acrescente municípios, escolha o indicador e
           use as análises acima do gráfico.</p>
       </div>
       <button type="button" data-testid="painel-voltar" onClick={() => onClassica()}
-        className={BOTAO + " border border-teal bg-white text-teal hover:bg-cyan-50"}><ArrowLeft size={16} aria-hidden="true"/>Voltar à preparação clássica</button>
+        className={BOTAO + " border border-teal bg-white text-teal hover:bg-cyan-50"}><LayoutGrid size={16} aria-hidden="true"/>Todas as análises</button>
     </header>
 
-    <div className="painel-barra" role="group" aria-label="Análises do painel">
+    <div className="painel-barra" role="group" aria-label="Análises">
       <div className="flex flex-wrap gap-2" role="group" aria-label="Indicador do eixo">
         <button type="button" data-testid="painel-indicador-densidade" aria-pressed={indicador === "densidade"}
           onClick={() => { setIndicador("densidade"); setCorte(null); }} className={botaoAcao(false, indicador === "densidade")}>
@@ -227,8 +239,8 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
           onClick={() => setGaveta(atual => atual === "comparar" ? null : "comparar")} className={botaoAcao(selecao.length > 0 || conjuntos.length > 0, gaveta === "comparar")}>
           <Layers3 size={16} aria-hidden="true"/>Comparar / Conjuntos</button>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Análises na preparação clássica">
-        <span className="text-slate-600">Na preparação clássica:</span>
+      <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Outras análises">
+        <span className="text-slate-600">Outras análises:</span>
         {CLASSICAS.map(([operacao, rotulo]) => <button key={operacao} type="button" data-testid={"painel-classica-" + operacao}
           onClick={() => onClassica(operacao)} className="min-h-9 rounded-lg border border-line bg-white px-2.5 py-1.5 font-semibold text-teal hover:bg-cyan-50">
           {rotulo}</button>)}
@@ -253,9 +265,11 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
           <option value="linear">Linear (a partir do zero)</option>
           <option value="logaritmica" disabled={!logPossivel}>Logarítmica{logPossivel ? "" : " (exige valores positivos)"}</option>
         </select>
+        {escala === null && escalaEfetiva === "logaritmica" && <span data-testid="painel-escala-automatica" className="mt-1 block max-w-xs text-[11px] leading-4 text-slate-500">
+          Logarítmica porque há milhares de municípios com valores muito desiguais; troque se preferir.</span>}
       </label>
       <p role="status" className="flex min-h-9 items-center gap-2 text-teal">{carregando && <><LoaderCircle size={15} className="animate-spin" aria-hidden="true"/>
-        Atualizando o painel no motor…</>}</p>
+        Atualizando o gráfico no motor…</>}</p>
     </div>
 
     {gaveta && <div id="painel-gaveta" className="painel-gaveta">
@@ -263,7 +277,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
         pedida={referencia} ativa={comDistancia ? resposta?.referencia ?? null : null} nomes={nomes} onAplicar={aplicarReferencia}
         onRemover={() => { setReferencia(null); setAviso("Distância removida: volta o eixo único."); }}/>
       : gaveta === "crescimento" ? <GavetaCrescimento periodos={periodos} competencia={competencia} ativa={competenciaInicial} vista={vista}
-        reproduzindo={fase !== "parado"} movimentoReduzido={movimentoReduzido} indicador={indicador} limite={limite}
+        reproduzindo={fase !== "parado"} movimentoReduzido={semAnimacao} indicador={indicador} limite={limite}
         onMostrar={inicial => { setCompetenciaInicial(inicial); setVista("final"); }}
         onRemover={() => { setCompetenciaInicial(""); setVista("final"); }} onVista={setVista} onReproduzir={reproduzir}/>
       : <GavetaComparar itens={itens} selecionados={selecao} conjuntos={conjuntos} indicador={indicador} distancia={comDistancia}
@@ -277,10 +291,10 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
         {resposta && <PainelRuler indicador={indicador} dominio={dominio} escala={escalaEfetiva} corte={corte} onCorte={setCorte}/>}
         <div className="painel-quadro">
           {erro && <div role="alert" data-testid="painel-erro" className="mb-3 space-y-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-            <p>O motor não calculou o painel com a última mudança: {erro}</p>
+            <p>O motor não calculou o gráfico com a última mudança: {erro}</p>
             <div className="flex flex-wrap gap-3">
               {calculado && <button type="button" data-testid="painel-desfazer" onClick={voltarAoCalculado}
-                className="font-semibold underline">Voltar ao último painel calculado</button>}
+                className="font-semibold underline">Voltar ao último gráfico calculado</button>}
               <button type="button" onClick={() => setTentativa(valor => valor + 1)} className="inline-flex items-center gap-1 font-semibold underline">
                 <RefreshCw size={13} aria-hidden="true"/>Tentar novamente</button>
             </div>
@@ -289,7 +303,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
             municípios base: marque Todos os municípios, acrescente um estado inteiro ou procure municípios ao lado e arraste-os para cá.</p>
           : !resposta ? <p role="status" className="flex items-center justify-center gap-2 px-2 py-16 text-sm text-teal">
             {!erro && <><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>Pedindo os valores ao motor…</>}</p>
-          : <PainelChart resposta={resposta} itens={visiveis} indicador={indicador} escala={escalaEfetiva} distancia={comDistancia}
+          : <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escalaEfetiva} distancia={comDistancia}
             crescimento={comCrescimento} vista={vista} fase={fase} selecionados={selecao} limiares={limiares} nomes={nomes}
             carregando={carregando} rotuloDistancia={rotuloDistancia} onAlternar={alternar} onSoltar={acrescentar}/>}
         </div>
@@ -313,7 +327,8 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
       <section data-testid="painel-table" aria-label="Tabela equivalente ao gráfico" className="rounded-2xl border border-line bg-white p-4">
         <h3 className="text-sm font-bold text-ink">Tabela equivalente</h3>
         <p className="mt-1 text-xs leading-5 text-slate-600">Os mesmos itens do gráfico, com os valores do motor em {exibirCompetencia(resposta.competencia)}.
-          A ordem padrão é a do código territorial; clicar num cabeçalho só reordena a tabela, sem criar posições.{corte ? " Itens fora do corte da régua não aparecem." : ""}</p>
+          A ordem padrão é a do código territorial; clicar num cabeçalho só reordena a tabela, sem criar posições.{corte ? " Itens fora do corte da régua não aparecem." : ""}
+          {paginas > 1 ? " Com muitos itens, a tabela mostra " + POR_PAGINA + " linhas por vez." : ""}</p>
         <div className="mt-2 overflow-x-auto">
           <table className="data-table painel-tabela min-w-full">
             <thead><tr>
@@ -326,7 +341,7 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
               {comCrescimento && cabecalho("variacao", "Variação (" + especie.rotulo.toLowerCase() + ")")}
               <th scope="col">Observação</th>
             </tr></thead>
-            <tbody>{linhas.map(item => {
+            <tbody>{linhasDaPagina.map(item => {
               const variacao = variacaoDe(item, indicador), inicial = inicialDe(item, indicador);
               const observacao = [item.tipo === "conjunto" ? textoDaContagem(item.contagem) : "",
                 item.referencia ? (item.tipo === "conjunto" ? "Conjunto igual à referência" : "Membro da referência") : "",
@@ -349,6 +364,14 @@ export default function PainelIntegrado({ fonte, periodos, categoria: categoriaI
             })}</tbody>
           </table>
         </div>
+        {paginas > 1 && <div data-testid="painel-tabela-paginas" className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <span role="status">Linhas {formatarNumero(paginaAtual * POR_PAGINA + 1, true)} a {formatarNumero(Math.min(linhas.length,
+            (paginaAtual + 1) * POR_PAGINA), true)} de {formatarNumero(linhas.length, true)}</span>
+          <button type="button" data-testid="painel-tabela-anterior" disabled={paginaAtual === 0} onClick={() => setPagina(paginaAtual - 1)}
+            className="rounded-lg border border-line bg-white px-3 py-1.5 font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">Anteriores</button>
+          <button type="button" data-testid="painel-tabela-proxima" disabled={paginaAtual >= paginas - 1} onClick={() => setPagina(paginaAtual + 1)}
+            className="rounded-lg border border-line bg-white px-3 py-1.5 font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">Próximas</button>
+        </div>}
       </section>
 
       <section data-testid="painel-procedencia" aria-label="Notas, limitações e procedência" className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4 text-xs leading-5 text-slate-700">

@@ -85,9 +85,13 @@ def capturar(url, saida, canal):
             page.add_style_tag(content=DOCA_SOLTA)
             page.get_by_role("button", name="Li e concordo", exact=True).click()
 
-        def densidade():
+        def principal():
+            # Página principal com a base do Brasil (22/10/2026): o gráfico de bolhas com todos os municípios (modo leve).
             page.get_by_role("button", name="Usar dados do Brasil").click()
             expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=90000)
+            expect(page.get_by_test_id("painel-chart")).to_have_attribute("data-modo", "leve", timeout=90000)
+
+        def densidade():
             select(page, "Densidade")
             expect(preparacao.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=90000)
             escolher_periodo("junho de 2024")
@@ -133,6 +137,7 @@ def capturar(url, saida, canal):
             expect(preparacao.get_by_test_id("missing-choices")).to_be_visible(timeout=90000)
 
         tela("01-inicio", inicio)
+        tela("01b-pagina-principal", principal)
         tela("02-densidade-preparacao", densidade)
         tela("03-densidade-resultado-mapa", resultado_mapa)
         tela("04-densidade-resultado-graficos", aba("Gráficos"))

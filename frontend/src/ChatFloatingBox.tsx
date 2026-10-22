@@ -3,10 +3,11 @@ import { ChevronUp, GripHorizontal, Minus } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import { useNarrow } from "./useNarrow";
 
-// Caixa flutuante da conversa, usada só no painel integrado: o rosto do agente no cabeçalho, arrastável pelo cabeçalho
+// Caixa flutuante da conversa, usada na página principal com a base do Brasil (o gráfico de bolhas): o rosto do agente no
+// cabeçalho, compacta no canto inferior direito ao abrir, arrastável pelo cabeçalho
 // (pointer events) e pelo teclado (setas com o cabeçalho focado; Shift acelera; Home volta ao canto), minimizável e sempre
 // dentro da janela. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular,
-// a caixa fica ancorada embaixo. Mantém o id "assistente" da conversa; fora do painel, o chat não usa esta caixa.
+// a caixa fica ancorada embaixo. A conversa mantém o id "assistente"; fora da página principal, o chat não usa esta caixa.
 
 const CHAVE = "adt:painel-chat:v1";
 const PASSO = 16, PASSO_LONGO = 64;

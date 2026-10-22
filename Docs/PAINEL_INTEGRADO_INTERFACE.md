@@ -1,13 +1,15 @@
-# Painel integrado de bolhas: a tela
+# Página principal com a base do Brasil: o gráfico de bolhas
 
-Decisões do responsável pelo produto de 21/10/2026: a experiência analítica acontece dentro de um gráfico grande, ao qual o
+Decisões do responsável pelo produto de 21 e 22/10/2026: a experiência analítica acontece dentro de um gráfico grande, ao qual o
 usuário acrescenta municípios; a população aparece sempre no tamanho da bolha; os eixos dependem das análises escolhidas; a
 taxa de crescimento em percentuais se integra ao desenho; o chat vira uma caixa com o rosto do agente que pode ser arrastada.
 Este documento descreve a tela. O motor e as rotas (`/api/painel` e `/api/painel/referencias`) estão em
 [Painel integrado de bolhas](PAINEL_INTEGRADO.md).
 
-Nesta primeira entrega, o painel é aberto por um botão. A tela inicial e os fluxos atuais continuam como estavam; tornar o
-painel a tela inicial fica para quando o responsável validar, porque mexe em todos os fluxos testados.
+Desde 22/10/2026, com a base do Brasil pronta, este gráfico é a página principal do agente ("Início"), com os botões das
+análises e a conversa na caixa arrastável, sem botão nem nome próprio. Na entrega de 21/10/2026, ele abria por um botão
+("Painel integrado"), que saiu. No código e nos testes, o nome interno continua "painel" (`PainelIntegrado.tsx`,
+`data-testid="painel-…"`).
 
 Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `PainelChart.tsx` (gráfico, dica e legendas),
 `PainelRuler.tsx` (régua), `PainelBase.tsx` (municípios base), `PainelGavetas.tsx` (distância, crescimento e conjuntos),
@@ -15,23 +17,27 @@ Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `Pai
 
 ## Acesso
 
-- **Botões:** "Abrir o painel integrado", junto da fonte atual na conversa, e "Painel integrado", na navegação principal.
-  Os dois só aparecem com a base do Brasil pronta (abrangência oficial). Com um arquivo importado, vale o fluxo clássico.
-- **Tela grande:** o painel ocupa a área principal, e o banner sai de cena enquanto ele está aberto.
-- **Voltar:** "Voltar à preparação clássica" fecha o painel; a preparação, os resultados e a conversa estão como estavam.
-  Início, Resultados, Nova análise, o Histórico e os pedidos da conversa que preparam uma análise clássica também fecham o
-  painel.
-- **Reabrir:** depois de aberto uma vez, o painel fica montado. Reabrir não recalcula e conserva o universo, os conjuntos,
-  a referência e o crescimento.
-- **Universo inicial:** o da abrangência clássica (todos os municípios, estados inteiros e municípios marcados). Sem
-  escolha, todos os municípios quando a base tem até 300; acima disso, o painel pede a escolha.
+- **Página principal:** com a base do Brasil pronta (abrangência oficial), o gráfico abre sozinho no lugar do catálogo de
+  análises, uma vez por fonte, se nenhuma análise foi pedida antes. Com uma análise já pedida (na conversa ou no catálogo, antes
+  de a base ficar pronta), segue a preparação dela, como antes. Com um arquivo importado, vale o fluxo clássico.
+- **Navegação:** Início, Nova sessão, Nova análise, Histórico e Resultados, sem botão próprio do gráfico. "Início" volta à
+  página principal.
+- **Tela grande:** o gráfico ocupa a área principal, e o banner sai de cena enquanto ele está à vista.
+- **Todas as análises:** o botão no alto do gráfico leva ao fluxo clássico: o catálogo de análises (ou a preparação da análise
+  em curso), os resultados e a conversa no lugar de sempre. Resultados, Nova análise, o Histórico, "Outras análises" e os
+  pedidos da conversa que preparam uma análise também levam a ele.
+- **Voltar ao gráfico:** ele fica montado. Voltar pelo "Início" não recalcula e conserva o universo, os conjuntos, a
+  referência e o crescimento.
+- **Universo inicial:** o da abrangência clássica (todos os municípios, estados inteiros e municípios marcados). Sem escolha,
+  todos os municípios da base; com a base versionada, os 5.570 municípios, no modo leve.
 
 ## O que pede ao motor e o que é só estado visual
 
 | Controle | Efeito |
 |---|---|
 | Densidade, Quantidade | Troca o indicador do eixo. Os dois valores já vieram do motor: nenhum pedido. |
-| Escala do eixo (linear ou logarítmica) | Estado visual. A logarítmica só existe com todos os valores positivos, como no mapa. |
+| Escala do eixo (linear ou logarítmica) | Estado visual. A logarítmica só existe com todos os valores positivos, como no mapa. Com milhares de municípios e um valor ao menos 100 vezes maior que outro, o eixo começa na logarítmica (a escolha da pessoa vale depois). |
+| Páginas da tabela | Estado visual: 100 linhas por vez. |
 | Régua "acima de / abaixo de" | Filtro visual (RQ-REP-06). |
 | Destacar (clique, Enter ou caixa na tabela) | Estado visual: os demais itens esmaecem. |
 | Vista da competência inicial ou final, Reproduzir | Estado visual. |
@@ -58,8 +64,8 @@ Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `Pai
 - **Distância:** abre a escolha da referência por critério e acrescenta o eixo da distância.
 - **Crescimento:** pede a competência inicial e mostra a variação em percentual.
 - **Comparar / Conjuntos:** destaca dois ou três itens e cria conjuntos agregados.
-- **Na preparação clássica:** Distribuição, Rankings, Critérios combinados, Rotatividade e Relatórios fecham o painel e abrem a
-  preparação clássica daquela análise.
+- **Outras análises:** Distribuição, Rankings, Critérios combinados, Rotatividade e Relatórios levam ao fluxo clássico, na
+  preparação daquela análise.
 
 ## Eixos e marcas
 
@@ -83,7 +89,27 @@ Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `Pai
 - **Rótulos diretos seletivos:** só nos itens destacados, nos conjuntos, na referência e na bolha sob o mouse ou em foco.
   O texto fica em tinta, nunca na cor da série, com contorno da superfície e afastado na vertical quando dois colidem, numa
   camada por cima de todas as bolhas.
-- **Transições:** posição, raio e cor mudam em 0,6 s; com `prefers-reduced-motion`, nada se move.
+- **Transições:** posição, raio e cor mudam em 0,6 s; com `prefers-reduced-motion` ou no modo leve, nada se move.
+
+## Modo leve (muitos municípios)
+
+Acima de 400 bolhas (por exemplo, todos os municípios do Brasil ou um estado grande), o gráfico muda de desenho para não travar
+a página. Medição local de 22/10/2026 com a base versionada e os 5.570 municípios: antes, a página ficava 193 s sem responder e
+cada passo da régua levava 54 s. Depois, o desenho fica pronto em menos de 1 s depois da resposta do motor, a maior trava da
+página é de 0,26 s, um passo da régua leva 0,3 s e a dica aparece em 0,06 s.
+
+- **Arranjo:** no eixo único, as bolhas ficam numa faixa de altura limitada (até cerca de 230 px de cada lado da linha
+  central), na altura livre mais próxima do centro; sem altura livre, na de menor sobreposição. As maiores entram primeiro.
+  Com a faixa cheia, as bolhas se sobrepõem, semitransparentes, e a nota abaixo do gráfico diz isso. A altura continua sem
+  valor. Até 400 bolhas, vale o arranjo exato, sem sobreposição.
+- **Posições estáveis:** as posições valem para todos os itens desenháveis; a régua só esconde o que está fora do corte, sem
+  recalcular nem mover as bolhas.
+- **Desenho:** um círculo simples por bolha (e uma linha fina por rastro), numa camada que não muda ao passar o mouse; as bolhas
+  em destaque (selecionadas, conjuntos, referência, a bolha em foco e a que está sob o mouse) ganham o desenho completo por
+  cima. Sem animação: a troca de vista só reposiciona, e "Reproduzir" vira "Ir para a competência final".
+- **Escala:** com valores muito desiguais (um ao menos 100 vezes maior que outro, todos positivos), o eixo começa na
+  logarítmica, com o aviso ao lado da escolha. Na linear, quase todos os municípios ficariam espremidos num canto.
+- **Tabela:** 100 linhas por vez, com "Anteriores" e "Próximas".
 
 ## Régua dos municípios base
 
@@ -95,6 +121,7 @@ Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `Pai
   contínuas. Assim, o limite exibido com duas casas é o limite exato. Nas pontas, o cursor fica no valor exato do domínio.
 - **Valores perto de um limite:** na dica e na tabela, ganham casas até não parecerem iguais a ele (RQ-REP-05).
 - **"Mostrar todos":** desfaz o corte. Trocar o indicador, a competência ou o universo também desfaz.
+- **Modo leve:** a régua só esconde; as bolhas que ficam não mudam de lugar.
 
 ## Municípios base
 
@@ -142,7 +169,9 @@ destaque automático.
   horizontal.
 - **Cor:** divergente contínua pela variação do motor, azul para crescimento e laranja para queda (as cores das tendências; sem
   verde para "bom" nem vermelho para "ruim").
-  - A intensidade é |variação| ÷ maior |variação| do domínio do motor.
+  - A intensidade cresce com a raiz quadrada de |variação| ÷ maior |variação| do domínio do motor (22/10/2026). Assim, as
+    variações comuns ganham cor visível mesmo quando um município tem uma variação extrema: o tom do meio de cada braço vale um
+    quarto da maior variação. A legenda marca as pontas, os meios e o zero.
   - Cada braço começa num tom claro já com matiz, para que o sinal de uma variação pequena continue visível (RQ-REP-05); só o
     zero é cinza.
   - É mapeamento contínuo, não classe (RQ-REP-02). A legenda mostra a escala do menor ao maior valor, simétrica no zero.
@@ -152,7 +181,8 @@ destaque automático.
   - Sinal de menos tipográfico ("−3,00%"); um valor não nulo nunca aparece como zero.
 - **Alternância:** "Competência inicial" põe cada bolha no valor observado na competência inicial, com o raio pela população de
   então. Os itens sem variação avaliável somem nessa vista, porque não têm posição observada a mostrar.
-  - "Reproduzir do inicial ao final" desliza tudo em 1,4 s, e os rastros aparecem na chegada.
+  - "Reproduzir do inicial ao final" desliza tudo em 1,4 s, e os rastros aparecem na chegada. No modo leve, sem animação, o
+    botão vai direto à competência final.
   - Com movimento reduzido, o botão vai direto à competência final.
 - **Sem destaque automático:** apontar quem mais cresceu seria uma posição criada na tela (RQ-REP-01 proíbe rankings e destaques
   não estruturados). O usuário pode ordenar a tabela pela variação, que é estado visual sem posições (RQ-REP-03).
@@ -166,7 +196,8 @@ destaque automático.
   motor, como o agregado parcial.
 - **Comparar:** com até três itens destacados, cartões lado a lado mostram só os valores do motor, sem diferenças nem razões.
 - **Tabela equivalente:** abaixo do gráfico, com os mesmos itens e os valores do motor. A ordem padrão é a do código
-  territorial, e o clique no cabeçalho só reordena, sem criar posições. Cada linha tem a caixa de destacar.
+  territorial, e o clique no cabeçalho só reordena, sem criar posições. Cada linha tem a caixa de destacar. Com mais de 100
+  itens, a tabela mostra 100 linhas por vez ("Anteriores" e "Próximas"); ordenar ou mudar o corte volta à primeira página.
 - **Não avaliáveis:** lista à parte, por aspecto (indicador, distância, variação), com o motivo do motor. Os motivos são
   classificados pelo começo do texto, nunca pela posição na lista. "Sem registro em …" e "Nenhum membro do conjunto …" valem
   para todos os aspectos; o agregado parcial é aviso, porque o valor existe.
@@ -176,10 +207,12 @@ destaque automático.
 
 ## Conversa em caixa arrastável
 
-- **Mesma conversa:** só no painel, a conversa fica numa caixa flutuante com o rosto do agente (`BrandAvatar`) no cabeçalho:
-  última resposta, alternativas de esclarecimento e campo de envio. São o mesmo estado e os mesmos identificadores (`#assistente`,
+- **Mesma conversa:** na página principal, a conversa fica numa caixa flutuante com o rosto do agente (`BrandAvatar`) no
+  cabeçalho: a orientação inicial ("Os dados do Brasil já estão disponíveis…"), a fonte atual com "Trocar fonte de dados",
+  a última resposta, as alternativas de esclarecimento e o campo de envio. São o mesmo estado e os mesmos identificadores (`#assistente`,
   `#assistant-input`, "Enviar mensagem", `latest-reply`).
-- **Fora do painel:** o layout do chat não muda.
+- **Abertura:** compacta, no canto inferior direito (380 px de largura; a última resposta rola acima de 120 px de altura).
+- **Fora da página principal:** o layout do chat não muda.
 - **Mover:** pelo cabeçalho, com o mouse ou o toque (pointer events), ou pelo teclado com o cabeçalho focado: setas movem
   16 px, Shift + setas 64 px e Home volta ao canto.
 - **Limites:** a caixa fica sempre dentro da janela, também depois de redimensionar ou minimizar.
@@ -208,9 +241,9 @@ destaque automático.
 
 - **Base:** só a base Brasil oficial.
 - **Sessão:** o resultado do painel ainda não entra na sessão da conversa (próximo passo do motor).
-- **Tela inicial:** tornar o painel a tela inicial depende da validação do responsável.
 - **Conversa:** passar à conversa o estado do painel (universo, conjuntos e referência), sem dados da base ao provedor de IA.
-- **Desempenho:** não foi medido com milhares de bolhas. O universo inicial só é "todos" até 300 municípios.
+- **Desempenho:** medido localmente com os 5.570 municípios (seção "Modo leve"); a primeira resposta do motor depende do
+  servidor e da rede (cerca de 2,5 MB).
 - **Tema:** a aplicação é toda clara; não há modo escuro.
 
 ## Testes
@@ -220,17 +253,20 @@ destaque automático.
   - raio pela raiz da população e a legenda de tamanho;
   - régua com passos redondos e teclado;
   - arranjo sem sobreposição, inclusive dos cometas;
+  - arranjo do modo leve: faixa de altura limitada, determinístico e milhares de bolhas em bem menos de 5 s;
   - eixos por estado, distância e faixa do conjunto;
   - cometa e vista da competência inicial;
-  - cor divergente;
+  - cor divergente pela raiz quadrada da proporção;
   - não avaliáveis e motivos classificados pelo texto, com o agregado parcial como aviso;
   - rótulo da soma das contagens dos componentes;
   - "Usar o primeiro" com empate;
   - opções do pedido com os nomes do contrato e a tabela.
 - **Navegador:** `backend/tests/ui_painel_integrado.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
   (`ADT_BLOCK1_REAL=1`). Confere:
-  - abrir o painel: com todos os municípios no catálogo sintético (quatro) e, na base versionada, sem universo e sem pedido ao
-    motor até a escolha do Amazonas inteiro;
+  - página principal: ao escolher a base, o gráfico abre sozinho, sem botão próprio, com todos os municípios, a orientação e a
+    fonte atual na caixa da conversa;
+  - na base versionada, o modo leve com os 5.570 municípios (desenho completo, tabela em páginas, escala logarítmica
+    automática, régua sem travar e sem pedido novo, dica no mouse) e, em seguida, o Amazonas inteiro;
   - densidade com eixo único e bolhas iguais às da resposta;
   - dica no mouse e no foco;
   - Quantidade sem novo pedido;
@@ -242,4 +278,4 @@ destaque automático.
   - Crescimento com os percentuais;
   - caixa da conversa movida com o mouse e o teclado, com o envio de mensagem funcionando;
   - 390 px sem rolagem horizontal;
-  - a volta à preparação clássica.
+  - "Todas as análises" (o fluxo clássico) e a volta pelo "Início", sem recalcular.

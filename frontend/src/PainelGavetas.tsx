@@ -93,7 +93,7 @@ export function GavetaReferencia({ fonte, competencia, categoria, base, conjunto
           {ativa.tipo === "conjunto" ? " (conjunto de referência)" : ""}.</p>
         {ativa.origem && <p>{ativa.origem}.</p>}
       </> : <p><strong className="text-ink">Referência pedida:</strong> {pedida.membros.map(id => nomes.get(id) || id).join(", ")}. O
-        painel com a distância ainda não foi calculado (veja a mensagem acima do gráfico).</p>}
+        gráfico com a distância ainda não foi calculado (veja a mensagem acima do gráfico).</p>}
       <button type="button" data-testid="painel-remover-referencia" onClick={onRemover} className={SECUNDARIO + " mt-2"}>Remover a distância</button>
     </div>}
     <div className="grid gap-2 sm:grid-cols-3">
@@ -196,11 +196,16 @@ export function GavetaCrescimento({ periodos, competencia, ativa, vista, reprodu
       </div>
       <figure data-testid="painel-growth-legend" aria-label={"Escala de cor da variação percentual da " + especie} className="m-0 max-w-md">
         <div className="h-2.5 rounded-full" style={{ background: gradiente }} aria-hidden="true"/>
-        <div className="mt-1 flex justify-between text-[11px] tabular-nums text-slate-600">
-          <span>{formatarVariacao(-limite)}</span><span>0,00%</span><span>{formatarVariacao(limite)}</span>
+        {/* Marcas nas posições da escala de cor: as pontas, os meios dos braços (um quarto do limite) e o zero. */}
+        <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-600" data-testid="painel-growth-ticks">
+          {([[0, -limite], [24, -limite / 4], [50, 0], [76, limite / 4], [100, limite]] as const).map(([posicao, valor]) =>
+            <span key={posicao} className="absolute whitespace-nowrap" style={{ left: posicao + "%",
+              transform: posicao === 0 ? "none" : posicao === 100 ? "translateX(-100%)" : "translateX(-50%)" }}>
+              {valor === 0 ? "0,00%" : formatarVariacao(valor)}</span>)}
         </div>
         <figcaption className="mt-1 text-[11px] leading-4 text-slate-600">Cor: variação da {especie} entre {exibirCompetencia(ativa)} e{" "}
-          {exibirCompetencia(competencia)}, do motor. Azul é crescimento; laranja, queda; cinza, sem variação. Bolha vazada com contorno
+          {exibirCompetencia(competencia)}, do motor. Azul é crescimento; laranja, queda; cinza, sem variação. A cor fica mais forte devagar (raiz quadrada da proporção), para que as
+          variações comuns também apareçam: o tom do meio de cada lado vale um quarto da maior variação. Bolha vazada com contorno
           tracejado: variação não avaliável (o motivo fica na lista de não avaliáveis). O percentual aparece nos itens destacados, na dica e na
           tabela.</figcaption>
       </figure>

@@ -67,8 +67,13 @@ def main():
         first = calculate()
         old_token = requests[0].headers['x-adt-session']
         expect(page.get_by_test_id('investigation-overview')).to_contain_text('Análise independente 1')
+        # Início leva à página principal; com a base do Brasil, ela é o gráfico de bolhas (22/10/2026). O resultado continua em
+        # Resultados, sem recálculo.
         page.get_by_test_id('nav-home').click()
-        expect(page.locator('#welcome-title')).to_be_visible()
+        expect(page.get_by_test_id('painel-integrado')).to_be_visible()
+        expect(page.get_by_test_id('nav-home')).to_have_attribute('aria-current', 'page')
+        page.get_by_test_id('nav-results').click()
+        expect(page.get_by_test_id('painel-integrado')).to_be_hidden()
         expect(page.get_by_test_id('result-title')).to_have_text(first['title'])
         assert len(requests) == 1
 
