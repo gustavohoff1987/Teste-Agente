@@ -68,6 +68,13 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
           className={CAMPO + " mt-1"} placeholder="Por exemplo: equipes" value={escolhas.textoDaUnidade}
           onChange={event => onEscolhas({ ...escolhas, textoDaUnidade: event.target.value })}/>}
       </label>}
+      {!mapeamento.category && <label className="colunas-campo" data-testid="colunas-campo-objeto">
+        <span>Quem são os trabalhadores contados? *</span>
+        <input aria-label="Quem são os trabalhadores contados?" data-testid="colunas-objeto" className={CAMPO}
+          placeholder="Por exemplo: médicos" value={escolhas.objeto}
+          onChange={event => onEscolhas({ ...escolhas, objeto: event.target.value })}/>
+        <small>Sem coluna de categoria, diga a profissão ou o conjunto de trabalhadores que a planilha conta.</small>
+      </label>}
     </div>
     {coordenadas && <fieldset className="colunas-bloco" data-testid="colunas-coordenadas">
       <legend>Coordenadas</legend>

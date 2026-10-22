@@ -1271,13 +1271,16 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   return opcoes;
 }
 
-/** Chave do pedido na memória da tela. Sem grupos, faixas, tendência, comparação ou ordenação pela variação, o indicador não
- * muda a resposta (cada item traz população, quantidade e densidade): a troca do indicador não pede nada ao motor. O pedido
- * enviado continua com o indicador em exibição. */
+/** O indicador muda a resposta do motor? Só com grupos, faixas, tendência, comparação ou ordenação pela variação; nos demais
+ * pedidos, cada item traz população, quantidade e densidade, e o indicador é só estado visual. */
+export const pedidoDependeDoIndicador = (opcoes: PainelOpcoes) =>
+  !!(opcoes.grupos || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
+
+/** Chave do pedido na memória da tela: sem dependência do indicador, ele fica de fora, e a troca não pede nada ao motor. O
+ * pedido enviado continua com o indicador em exibição. */
 export function chaveDoPedido(opcoes: PainelOpcoes): string {
-  const depende = !!(opcoes.grupos || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
   const { indicador, ...resto } = opcoes;
-  return JSON.stringify(depende ? opcoes : resto);
+  return JSON.stringify(pedidoDependeDoIndicador(opcoes) ? opcoes : resto);
 }
 
 /** Camada de cor em uso (uma de cada vez): condições, depois ordenação, depois a da família. */

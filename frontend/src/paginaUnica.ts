@@ -202,6 +202,8 @@ export type EscolhasDaPlanilha = {
   /** Papéis cuja coluna a pessoa escolheu no seletor (os demais vêm do reconhecimento por regra do backend). */
   escolhidos: Papel[];
   unidadeDeContagem: string; textoDaUnidade: string; referencial: string; separador: string;
+  /** Sem coluna de categoria: quem são os trabalhadores contados (o objeto da análise), escrito pela pessoa. */
+  objeto: string;
   rotulos: Rotulos;
   /** Nomes editados pela pessoa: deixam de acompanhar a sugestão quando a coluna muda. */
   rotulosEditados: { unidade: boolean; grupo: boolean };
@@ -212,7 +214,7 @@ export type EscolhasDaPlanilha = {
 export function escolhasIniciais(sugerido: Record<string, string> | undefined): EscolhasDaPlanilha {
   const mapeamento: Mapeamento = {};
   for (const { papel } of PAPEIS) if (sugerido?.[papel]) mapeamento[papel] = sugerido[papel];
-  return { mapeamento, escolhidos: [], unidadeDeContagem: "", textoDaUnidade: "", referencial: "", separador: "",
+  return { mapeamento, escolhidos: [], unidadeDeContagem: "", textoDaUnidade: "", referencial: "", separador: "", objeto: "",
     rotulos: rotulosSugeridos(mapeamento.territory, mapeamento.grupo_territorial),
     rotulosEditados: { unidade: false, grupo: false } };
 }
@@ -258,6 +260,8 @@ export function pendenciasDasColunas(escolhas: EscolhasDaPlanilha): string[] {
   if (!mapeamento.count) faltam.push("Escolha a coluna da quantidade.");
   else if (!escolhas.unidadeDeContagem) faltam.push("Diga o que a quantidade conta: pessoas, vínculos, postos ou outra unidade.");
   else if (escolhas.unidadeDeContagem === "outro" && !escolhas.textoDaUnidade.trim()) faltam.push("Descreva a unidade de contagem.");
+  if (!mapeamento.category && !escolhas.objeto.trim())
+    faltam.push("Diga quem são os trabalhadores contados, por exemplo, médicos ou enfermeiros.");
   if (!rotulos.unidade.singular.trim() || !rotulos.unidade.plural.trim())
     faltam.push("Diga como se chamam as unidades, no singular e no plural.");
   if (mapeamento.grupo_territorial && (!rotulos.grupo?.singular.trim() || !rotulos.grupo?.plural.trim()))
@@ -270,6 +274,10 @@ const unidadeDaContagem = (escolhas: EscolhasDaPlanilha): Record<string, string>
   ...(escolhas.unidadeDeContagem === "outro" && escolhas.textoDaUnidade.trim()
     ? { custom_count_unit: escolhas.textoDaUnidade.trim() } : {}),
 });
+/** Sem coluna de categoria, o objeto da análise escrito pela pessoa vira a premissa `category_constant` (como na preparação
+ * de antes): o motor exige saber quem são os trabalhadores contados. */
+const objetoDaPlanilha = (escolhas: EscolhasDaPlanilha): Record<string, string> =>
+  !escolhas.mapeamento.category && escolhas.objeto.trim() ? { category_constant: escolhas.objeto.trim() } : {};
 const comCoordenadas = (escolhas: EscolhasDaPlanilha) => !!escolhas.mapeamento.latitude && !!escolhas.mapeamento.longitude;
 /** O referencial informado vira a premissa `crs` só com latitude e longitude e só se for um dos admitidos. */
 const referencialDaPlanilha = (escolhas: EscolhasDaPlanilha): Record<string, string> =>
@@ -287,6 +295,7 @@ export function contextoDaPlanilha(escolhas: EscolhasDaPlanilha): { mapping: Rec
   const options: Record<string, unknown> = {
     confirmed_roles: papeisEscolhidos(escolhas),
     ...unidadeDaContagem(escolhas),
+    ...objetoDaPlanilha(escolhas),
     ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
     ...(escolhas.mapeamento.grupo_territorial
@@ -310,6 +319,7 @@ export function premissasDaPlanilha(escolhas: EscolhasDaPlanilha): Record<string
     // As colunas escolhidas pela pessoa valem como papéis estabelecidos no motor do gráfico, como no pré-exame (D1).
     ...(escolhidos.length ? { confirmed_roles: escolhidos } : {}),
     ...unidadeDaContagem(escolhas),
+    ...objetoDaPlanilha(escolhas),
     ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
   };

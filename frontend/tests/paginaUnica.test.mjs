@@ -79,11 +79,22 @@ test('colunas: só o reconhecido por regra vem escolhido; escolher uma coluna ti
   assert.deepEqual(P.escolherColuna(escolhas, 'territory', '').escolhidos, ['grupo_territorial']);
 });
 
-test('pendências: unidade territorial, período, quantidade e o que ela conta, e os nomes', () => {
+test('pendências: unidade territorial, período, quantidade e o que ela conta, quem são os trabalhadores e os nomes', () => {
+  const OBJETO = 'Diga quem são os trabalhadores contados, por exemplo, médicos ou enfermeiros.';
   const vazio = P.escolhasIniciais({});
   assert.deepEqual(P.pendenciasDasColunas(vazio), ['Escolha a coluna da unidade territorial.', 'Escolha a coluna do período.',
-    'Escolha a coluna da quantidade.']);
-  let escolhas = P.escolhasIniciais({territory: 'distrito', period: 'ano', count: 'quantidade'});
+    'Escolha a coluna da quantidade.', OBJETO]);
+  // Sem coluna de categoria, o objeto da análise é escrito pela pessoa e vira category_constant; com a coluna, não é pedido.
+  const semObjeto = P.escolhasIniciais({territory: 'distrito', period: 'ano', count: 'quantidade'});
+  assert.deepEqual(P.pendenciasDasColunas({...semObjeto, unidadeDeContagem: 'pessoas'}), [OBJETO]);
+  assert.deepEqual(P.pendenciasDasColunas({...semObjeto, unidadeDeContagem: 'pessoas', objeto: '  '}), [OBJETO]);
+  const comCategoria = P.escolhasIniciais({territory: 'distrito', period: 'ano', count: 'quantidade', category: 'categoria'});
+  assert.deepEqual(P.pendenciasDasColunas({...comCategoria, unidadeDeContagem: 'pessoas'}), []);
+  const comObjeto = {...semObjeto, unidadeDeContagem: 'pessoas', objeto: ' médicos '};
+  assert.deepEqual(P.premissasDaPlanilha(comObjeto), {count_unit: 'pessoas', category_constant: 'médicos'});
+  assert.equal(P.contextoDaPlanilha(comObjeto).options.category_constant, 'médicos');
+  assert.equal(P.premissasDaPlanilha({...comCategoria, unidadeDeContagem: 'pessoas', objeto: 'médicos'}).category_constant, undefined);
+  let escolhas = {...semObjeto, objeto: 'médicos'};
   assert.deepEqual(P.pendenciasDasColunas(escolhas), ['Diga o que a quantidade conta: pessoas, vínculos, postos ou outra unidade.']);
   escolhas = {...escolhas, unidadeDeContagem: 'outro'};
   assert.deepEqual(P.pendenciasDasColunas(escolhas), ['Descreva a unidade de contagem.']);

@@ -906,6 +906,9 @@ test('cliente do motor: a resposta no formato do motor (empate, condições por 
 test('memória da tela: sem análise que dependa do indicador, trocar densidade e quantidade não pede de novo ao motor', () => {
   const base = {competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', base: {municipios: {todos: true, estados: [], ids: []}}};
   assert.equal(M.chaveDoPedido({...base, indicador: 'densidade'}), M.chaveDoPedido({...base, indicador: 'quantidade'}));
+  // O indicador desenhado segue a escolha atual quando o pedido não depende dele.
+  assert.equal(M.pedidoDependeDoIndicador({...base, indicador: 'densidade'}), false);
+  assert.equal(M.pedidoDependeDoIndicador({...base, indicador: 'densidade', grupos: {tipo: 'quartis'}}), true);
   for (const extra of [{grupos: {tipo: 'quartis'}}, {faixas: [0, 1]}, {tendencia: {competencias: ['202106', '202206', '202306', '202406']}},
     {comparar: ['code:1', 'code:2']}, {ordenar: {atributo: 'variacao', ordem: 'desc'}}])
     assert.notEqual(M.chaveDoPedido({...base, ...extra, indicador: 'densidade'}), M.chaveDoPedido({...base, ...extra, indicador: 'quantidade'}));

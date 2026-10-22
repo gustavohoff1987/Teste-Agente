@@ -35,6 +35,34 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única: o painel Colunas pergunta quem são os trabalhadores, e a troca do indicador redesenha o eixo
+- **Antes** (commits `ef58a33` e `6ec1ef4`, ainda não aprovados no CI):
+  - o painel Colunas não tinha o objeto da análise (ele saiu com a preparação): numa planilha sem coluna de categoria, o
+    gráfico recusava com "Informe o objeto de análise: a profissão ou o conjunto de trabalhadores da força de trabalho em
+    saúde.", sem campo para responder;
+  - com a memória da tela sem o indicador, trocar densidade e quantidade não pedia nada ao motor, mas o eixo Y continuava no
+    indicador do último pedido.
+- **Agora:**
+  - sem coluna de categoria, o painel Colunas pergunta "Quem são os trabalhadores contados?" (por exemplo, médicos); o texto
+    vai como objeto da análise (`category_constant`) ao pré-exame, à conversa e ao gráfico, como na preparação de antes, e
+    dá nome à categoria no título; sem ele, "Começar a análise" lista "Diga quem são os trabalhadores contados, por exemplo,
+    médicos ou enfermeiros.";
+  - o eixo e as bolhas seguem o indicador escolhido, salvo quando o pedido depende dele (grupos, faixas, tendência,
+    comparação ou ordenação pela variação), em que o novo indicador pede o gráfico de novo.
+- **Permanece:** com coluna de categoria, nada é perguntado; o objeto reconhecido pelo catálogo (médicos, enfermagem…)
+  continua registrado como `fts_scope_recognized`; nada vai ao provedor de IA.
+- **Motivo:** a quarta execução do CI (roteiros `ui_conversa_grafico.py`, planilha "condados.csv", e `ui_area_de_analise.py`,
+  troca do indicador) mostrou os dois pontos. O defeito estava no produto: faltava o campo que o motor exige, e o desenho
+  usava a presença do indicador no pedido, que agora vai sempre. Classificação: correção dentro do escopo da página única,
+  compatível com a SPEC (o objeto da análise é sempre informado, nunca presumido).
+- **Documentação e testes:**
+  - **Documentação:** README e `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (painel Colunas).
+  - **Testes:**
+    - `paginaUnica.test.mjs`: a pendência e a premissa do objeto, com e sem coluna de categoria; o teste das pendências muda
+      de propósito (a planilha sem categoria passa a pedir o objeto);
+    - `painel.test.mjs`: quando o pedido depende do indicador;
+    - `ui_conversa_grafico.py` muda de propósito: a planilha de condados, sem categoria, informa "médicos" antes de começar.
+
 ### 2026-10-22 · Página única: as colunas escolhidas da planilha chegam ao gráfico, e trocar o indicador não recalcula
 - **Antes** (commits `ef58a33` e `75a893c`, ainda não aprovados no CI):
   - numa planilha, as colunas escolhidas pela pessoa no painel Colunas iam ao pré-exame (`confirmed_roles`), mas não ao gráfico:

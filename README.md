@@ -91,8 +91,8 @@ longitude com nome do vocabulário e valores num formato decimal único), pelo p
 escolha no seletor do painel "Colunas" (planilhas enviadas). Sugestões não conclusivas (código territorial,
 UF, região, padrão de contagem, categoria sugerida pelo cabeçalho) deixam o seletor vazio, com a sugestão
 no topo marcada "(sugerida)"; escolher a coluna a estabelece, e uma sugestão nunca é usada sem escolha. Na
-API, o objeto de análise é o texto informado e o período único é uma opção de período (a página única não
-pede nenhum dos dois); o separador decimal das coordenadas é verificado nos dados (só vira escolha quando
+API, o objeto de análise é o texto informado e o período único é uma opção de período (a página única pede o
+objeto só quando a planilha não tem coluna de categoria, e não oferece o período único); o separador decimal das coordenadas é verificado nos dados (só vira escolha quando
 o formato é misto); o referencial continua um parâmetro. As antigas declarações viram **premissas** aplicadas pelo backend
 (`backend/analysis_premises.py`), com origem (`PERFIL_GOVERNADO`, `VERIFICADA_NOS_DADOS`,
 `PREMISSA_DA_ANALISE`, `DECLARADA_PELO_USUARIO`), nota em "Método e limitações" e limitação
@@ -143,6 +143,7 @@ latitude e longitude, e o identificador individual para a rotatividade. O painel
 página, mostra o que foi reconhecido e pede só as escolhas que faltam:
 - as colunas ambíguas, com a sugestão no topo, marcada "(sugerida)", nunca usada sem escolha;
 - o que a quantidade conta (pessoas, vínculos, postos ou outra unidade, descrita);
+- sem coluna de categoria, quem são os trabalhadores contados (por exemplo, médicos), que vira o objeto da análise;
 - os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e
   "distritos", "província" e "províncias"). Eles valem nos textos da página e da conversa: com uma planilha, nenhum
   texto da estrutura diz "município";

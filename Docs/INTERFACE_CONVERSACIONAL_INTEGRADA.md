@@ -63,6 +63,9 @@ O painel **Colunas** mostra a coluna de cada papel:
   departamento) depois da escolha da unidade;
 - uma coluna representa um papel só: escolhida num papel, ela sai do anterior;
 - **O que a quantidade conta?** (pessoas, vínculos de trabalho, postos de trabalho ou outra unidade, descrita);
+- **Quem são os trabalhadores contados?**, só sem coluna de categoria: a profissão ou o conjunto de trabalhadores (por
+  exemplo, médicos), que vai como objeto da análise (`category_constant`) ao pré-exame, à conversa e ao gráfico, e dá nome à
+  categoria no título; sem ele, "Começar a análise" lista o que falta;
 - **Referencial das coordenadas**, com latitude e longitude: a pessoa informa o referencial em que as coordenadas foram
   coletadas, **SIRGAS 2000** ou **WGS 84** (o WGS 84 desde 22/10/2026, pelo Adendo REF-20261022 da SPEC), e o sistema não
   converte um no outro. "Outro referencial" ou "Não sei" deixam a análise espacial indisponível, com o motivo ("Só os

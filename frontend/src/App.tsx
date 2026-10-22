@@ -91,8 +91,10 @@ function fonteDoBrasil(inspecao: Inspecao): FonteAtiva {
 function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, escolhas: EscolhasDaPlanilha): FonteAtiva {
   const preExame = preparo.preExame ?? inspecao.preflight;
   const periodos = preExame?.values?.periods?.length ? preExame.values.periods : inspecao.periods || [];
+  // Sem coluna de categoria, a categoria é o objeto da análise escrito pela pessoa (o mesmo que vai em category_constant).
   const categorias = escolhas.mapeamento.category
-    ? preExame?.values?.categories?.length ? preExame.values.categories : inspecao.categories || [] : [];
+    ? preExame?.values?.categories?.length ? preExame.values.categories : inspecao.categories || []
+    : escolhas.objeto.trim() ? [escolhas.objeto.trim()] : [];
   const dados: FonteDados = { tipo: "arquivo", apiBase: API, datasetVersion: "", sheet: preparo.aba,
     mapping: mapeamentoDaPlanilha(escolhas.mapeamento), arquivo, nome: arquivo.name, premissas: premissasDaPlanilha(escolhas),
     rotulos: escolhas.rotulos };

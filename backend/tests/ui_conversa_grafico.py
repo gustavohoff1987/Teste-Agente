@@ -241,6 +241,8 @@ def main():
         unidade.select_option("condado")
         expect(colunas.get_by_test_id("colunas-unidade-plural")).to_have_value("condados")
         colunas.get_by_test_id("colunas-unidade-de-contagem").select_option("pessoas")
+        # Sem coluna de categoria, a pessoa diz quem são os trabalhadores contados (o objeto da análise).
+        colunas.get_by_test_id("colunas-objeto").fill("médicos")
         with page.expect_response(lambda r: is_post(r, "/api/painel") and uploaded_filename(r.request) == "condados.csv",
                                   timeout=120000) as primeiro:
             colunas.get_by_test_id("colunas-comecar").click()

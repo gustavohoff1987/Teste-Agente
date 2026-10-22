@@ -11,7 +11,7 @@ import {
   artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corOrdinal, corteAtivo, cronologica, definicaoInicial,
   disponibilidadeDaFamilia, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, janelaDoAtalho, lerEstadoSalvo, lerLimites, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv,
-  chaveDoPedido, montarOpcoes, noCorte, nomeDaUnidade, novoConjunto, ordemNeutra, pintar, prefixoDe, rotulosEfetivos, salvarEstado, separarItens,
+  chaveDoPedido, montarOpcoes, noCorte, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto, ordemNeutra, pintar, prefixoDe, rotulosEfetivos, salvarEstado, separarItens,
   maiuscula, textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
   type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala, type EstadoSalvo,
   type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat, type UnidadeDoCatalogo,
@@ -296,7 +296,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const defDesenho = calculado?.def ?? def;
   const familiaDesenho: Familia = calculado?.familia ?? "distribuicao";
   const visaoDesenho = visaoEfetiva(defDesenho);
-  const indicadorNoPedido = !!calculado?.opcoes.indicador;
+  // O indicador desenhado é o do pedido só quando ele muda a resposta (grupos, faixas, tendência...); senão, o escolhido agora.
+  const indicadorNoPedido = !!calculado && pedidoDependeDoIndicador(calculado.opcoes);
   const indicador = indicadorNoPedido ? defDesenho.indicador : def.indicador;
   const distanciaNaTela = familiaDesenho === "espacial" && !!resposta?.referencia;
   const tendenciaNaTela = familiaDesenho === "tendencia" && !!resposta?.competencia_inicial;
