@@ -35,6 +35,67 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Conversa no gráfico: o pedido vira o comando `painel` da página única
+- **Antes:**
+  - a conversa só preparava análises da preparação clássica: `/api/exploration/interpret` devolvia `operation`,
+    `territory_ids` e `options_patch`; `/api/llm/interpret-context`, a proposta do intérprete (com a interpretação local
+    em `exploration`); `/api/llm/interpret`, a proposta;
+  - nenhuma resposta dizia ao gráfico de bolhas o que mostrar, e o gráfico só mudava pelos controles;
+  - pedidos como "mostre o Pará", "use Belém como referência", "os 5 municípios com maior densidade" e "volte aos
+    estados" não eram comandos locais: iam ao provedor ou recebiam "não consegui confirmar todo o recorte".
+- **Agora:**
+  - **Página única:** a tela envia em `options` a chave `painel_familia` (mesmo nula) e o estado do gráfico. Quando o
+    pedido toca o gráfico, as três rotas devolvem `painel`, com família, indicador, nível, municípios, competência,
+    janela, visão da tendência, referência, função, seleção, ordenação, condições e grupos. Chave nula mantém o que o
+    gráfico tem.
+    - A resposta diz o que muda no gráfico, sem valores da base: "Mostrei a densidade nos 144 municípios do Pará.".
+    - A conversa só interpreta: os números vêm do motor quando a tela aplica o comando.
+  - **Frases:** estado inteiro; referência por nome, por conjunto ou por critério; os N com maior ou menor; condições
+    combinadas com "e" (com a distância até um município citado); comparar e juntar; janela da tendência com os "últimos
+    N anos" (AT-34); volte aos estados; acrescentar e tirar municípios; competência, indicador, grupos e visões.
+  - **Contexto:** o pedido seguinte parte do que está no gráfico (municípios, competência, indicador, referência e
+    condições). Entre homônimos, vale o único que já está no gráfico, e a resposta diz qual, com a sigla.
+  - **Ambiguidades:** estado e município com o mesmo nome, homônimos, densidade ou quantidade, direção da ordenação,
+    competência de um ano com várias e as leituras AMB-04 viram pergunta com alternativas em botões do catálogo local.
+    Cada botão envia o pedido completo. Nada muda no gráfico até a escolha.
+  - **Planilhas de outros países:** as respostas usam os rótulos da tela (`options.rotulos`): "Mostrei a densidade nos 12
+    distritos da província X". O grupo é o valor da coluna-mãe (papel `grupo_territorial` do mapeamento, que vale só para
+    a conversa): "mostre a província X" vira `municipios.estados: ["X"]`. As unidades citadas pelo nome se resolvem pelo
+    catálogo da planilha (`name:` ou `code:`), sem código IBGE.
+  - **Rota com o provedor, na página única:** a operação proposta vira o comando do gráfico. Nomes e competências do
+    pedido original são resolvidos localmente, `painel` e `reply` entram no lugar da proposta textual (sem `exploration`),
+    e uma escolha pendente vem em `clarification`, com `source: "CATALOGO_LOCAL"`.
+  - **Fora da página única:** as respostas anteriores ganham o `painel` equivalente, pelo mapeamento das operações atuais
+    (por exemplo, `comparisons` → `funcao: "comparar"`). Pedidos de explicação do resultado não o trazem.
+- **Permanece:**
+  - nada é calculado na conversa;
+  - o caminho local vem primeiro, nada da base vai ao provedor e os identificadores continuam protegidos;
+  - fora da página única, os campos e os textos das respostas não mudam (só ganham `painel`);
+  - os critérios combinados fora da página única ("uma condição por mensagem"), as leituras AT-34 e as perguntas de
+    homônimos e de estados continuam como antes;
+  - o motor, as rotas do painel, a interface e os dados não mudam neste commit.
+- **Motivo:** pedido do responsável pelo produto em 22/10/2026: "A conversa mexendo no gráfico, eu já quero para agora
+  também [...] o chat, ele tem que ser cada vez mais integrado ao contexto da tela e das análises". No mesmo dia, ele
+  pediu que planilhas de outros países, com outra nomenclatura territorial (distrito, condado, província), tenham os
+  nomes adaptados. Classificação: mudança prevista.
+  - Escopo: o pedido (seção 4 do contrato da reestruturação da página única).
+  - Compatibilidade:
+    - a conversa interpreta e não calcula (Parte 6), e a ambiguidade material vira escolha explícita (CFG-AMB e AMB-04);
+    - comparar 2 ou 3 itens (CAP-CMP-01), juntar pela soma dos componentes (CAP-AGR-01), condições e ordenação com empates
+      (CAP-SUB-01 a CAP-SUB-03) e a tendência (CAP-TEN-01) seguem a SPEC, e o gráfico segue o Adendo BOL-20261021;
+    - nenhuma divergência aprovada é contrariada.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/CONVERSACAO_INCREMENTO_FN.md` (seção nova "Conversa no gráfico": formato do `painel`, contexto,
+    frases, ambiguidades, planilhas e rotas) e README (conversação).
+  - **Pytest novo:** `test_conversa_grafico.py`, com:
+    - o mapeamento das operações atuais;
+    - cada frase do contrato, as respostas e o contexto do gráfico;
+    - as ambiguidades com os botões e o pedido de cada botão;
+    - uma planilha sintética de distritos e províncias, sem código IBGE;
+    - as três rotas, com o provedor de IA proibido no caminho local e sem dados da base no caminho com o provedor;
+    - no job `dados-reais`, as frases com a base versionada (144 municípios do Pará, três Belém, dois Paraná).
+  - Nenhum teste existente foi alterado.
+
 ### 2026-10-22 · Página única de análise: o motor do gráfico com estados, planilhas e as análises integradas
 - **Antes:**
   - `POST /api/painel` e `POST /api/painel/referencias` aceitavam só a base Brasil oficial; uma planilha enviada era

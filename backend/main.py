@@ -53,6 +53,7 @@ from request_memo import RequestMemoMiddleware, mark_source, per_source
 from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
 import conversation_library
+import conversa_grafico
 import painel
 
 
@@ -775,6 +776,13 @@ async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = H
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
             capture = sessions.capture(x_adt_session, request.context_revision, {})
         answer = await llm_interpret(request)
+        # Sem base, o comando do gráfico vem só da operação proposta (família, indicador e função); a tela o aplica
+        # quando a base fica pronta. Nomes e competências são resolvidos depois, pela conversa local.
+        proposal = answer.get("proposal") or {}
+        painel_proposto = conversa_grafico.painel_da_operacao(proposal.get("operation"), proposal.get("indicator"),
+                                                              request.message)
+        if painel_proposto:
+            answer["painel"] = painel_proposto
         if x_adt_session:
             sessions.remember(x_adt_session, capture["revision"], answer)
         return answer
@@ -853,6 +861,13 @@ async def llm_interpretation_with_dataset(
         settings = json.loads(options)
         if not isinstance(fields, dict) or not isinstance(settings, dict):
             raise ValueError("Contexto de análise inválido.")
+        # Página única: o estado do gráfico chega em options; o pré-exame recebe só as opções do intérprete, e o papel
+        # grupo_territorial (coluna-mãe das planilhas) fica com a conversa no gráfico.
+        grafico = conversa_grafico.contexto(settings)
+        grupo_territorial = None
+        if grafico is not None:
+            settings = conversa_grafico.opcoes_do_interprete(settings, grafico)
+            fields, grupo_territorial = conversa_grafico.campos_do_mapeamento(fields)
         # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
         # O canal local não solicita, valida ou executa análise da base.
         quick = llm_local_response(request)
@@ -868,6 +883,8 @@ async def llm_interpretation_with_dataset(
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
         if frame is None or frame.empty:
             raise ValueError("Selecione uma planilha com dados antes de utilizar o contexto.")
+        if grafico is not None and dataset != "brazil":
+            settings = conversa_grafico.papeis_escolhidos(settings, fields)
         settings = apply_premises(frame, fields, settings)
         eligibility = preflight(frame, fields, settings)
         capture = None
@@ -916,7 +933,18 @@ async def llm_interpretation_with_dataset(
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
         proposed_operation = answer.get("proposal", {}).get("operation")
         slots = answer.get("verification", {}).get("slots", {})
-        if proposed_operation in ("comparisons", "density", "counts", "temporal", "aggregate") and not any(
+        if grafico is not None:
+            # Página única: a operação proposta vira o comando do gráfico, com nomes e competências do pedido original.
+            if proposed_operation:
+                local_frame, local_fields = frame, fields
+                if dataset == "brazil" and frame.attrs.get("source", {}).get("scope") != "municipal":
+                    local_frame, _ = await _request_dataset(None, "", "brazil", "municipal", dataset_version=dataset_version)
+                    local_fields = suggested_mapping(local_frame)
+                conversa_grafico.aplicar(answer, conversa_grafico.interpretar(
+                    message, local_frame, local_fields, apply_premises(local_frame, local_fields, settings), grafico,
+                    brasil=dataset == "brazil", opcoes=settings, grupo=grupo_territorial, dica=proposed_operation,
+                    dica_indicador=answer["proposal"].get("indicator")))
+        elif proposed_operation in ("comparisons", "density", "counts", "temporal", "aggregate") and not any(
                 slots.get(key) == "not_confirmed_in_dataset" for key in ("period", "category")):
             local_frame, local_fields = frame, fields
             if dataset == "brazil" and frame.attrs.get("source", {}).get("scope") != "municipal":
@@ -932,14 +960,21 @@ async def llm_interpretation_with_dataset(
                 answer["exploration"] = resolved
                 answer["reply"] = resolved.get("clarification") or resolved.get("reply") or answer["reply"]
                 answer.pop("clarification", None)
+        if grafico is None:
+            # Fora da página única, o mesmo pedido também vem como comando do gráfico (mapeamento das operações atuais).
+            painel_proposto = conversa_grafico.painel_do_legado(answer["exploration"]) if "exploration" in answer else \
+                conversa_grafico.painel_da_operacao(proposed_operation, answer["proposal"].get("indicator"), message)
+            if painel_proposto:
+                answer["painel"] = painel_proposto
         if x_adt_session:
             if answer.get("dialogue_action") in ("next_steps", "change_selection", "change_period"):
                 answer.update(screen_reply(answer["dialogue_action"], capture))
             elif answer.get("dialogue_action") in ("explain_result", "simplify"):
                 answer.update(answer_result(message, answer["dialogue_action"], result_record, capture))
-                # Uma intenção de explicação não muda a operação em preparação.
+                # Uma intenção de explicação não muda a operação em preparação nem o gráfico.
                 answer["proposal"] = _system_response("", None, "")["proposal"]
                 answer.pop("exploration", None)
+                answer.pop("painel", None)
             sessions.remember(x_adt_session, context_revision, answer)
         return answer
     except LLMError as exc:
@@ -1088,14 +1123,20 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         requested = json.loads(options)
         if not isinstance(requested, dict):
             raise ValueError("Parâmetros inválidos.")
-        if dialogue_action(message):
+        # Página única (Docs/CONVERSACAO_INCREMENTO_FN.md, "Conversa no gráfico"): o estado do gráfico chega em options,
+        # e o pedido volta como o comando `painel`. Nas demais telas, o caminho anterior continua.
+        grafico = conversa_grafico.contexto(requested)
+        if grafico is not None:
+            requested = conversa_grafico.opcoes_do_interprete(requested, grafico)
+        if dialogue_action(message) and not (grafico is not None and conversa_grafico.comando_do_grafico(message)):
             if requested.get("conversation_operation_choice") == "comparisons":
                 message = "Compare esses municípios"  # escolha explícita na alternativa; ainda sem cálculo
             else:
                 return {"handled": False}  # o canal contextual distingue explicação de execução
-        command = criteria_command(message, requested)  # critérios combinados: só estrutura, sem dados nem cálculo
-        if command is not None:
-            return command
+        if grafico is None:
+            command = criteria_command(message, requested)  # critérios combinados: só estrutura, sem dados nem cálculo
+            if command is not None:
+                return conversa_grafico.com_painel(command)
         # Uma pergunta de orientação não responde à pendência territorial anterior.
         # Atendê-la aqui evita que o resolvedor de nomes a transforme em novo pedido de municípios.
         quick = llm_local_response(ChatRequest(message=message, history=[]))
@@ -1108,6 +1149,9 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
             from analysis_catalog import OPERATION_LABELS
             if choice not in OPERATION_LABELS:
                 raise ValueError("Tipo de análise escolhido não reconhecido.")
+        if grafico is not None:
+            return await _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, dataset_version, requested,
+                                              grafico, choice, x_adt_session, context_revision)
         correction = bool(re.fullmatch(r"(?:nao[, ]+)?(?:quero |prefiro |use )?(?:quantidade|quantitativos|densidade)[.!?]*", normalize_exploration(message)))
         adding = bool(re.search(r"\b(?:acrescente|adicione|inclua)\b", normalize_exploration(message)))
         if not choice and not operation_for(message) and not requested.get("conversation_pending_operation") and not (
@@ -1128,9 +1172,35 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         if x_adt_session:
             sessions.capture(x_adt_session, context_revision, investigation_context(frame, fields, settings,
                                                                                    preflight(frame, fields, settings)))
-        return interpret_exploration(message, frame, fields, settings, operation_hint=choice)
+        return conversa_grafico.com_painel(interpret_exploration(message, frame, fields, settings, operation_hint=choice))
     except (ValueError, TypeError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+async def _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, dataset_version, requested, grafico, choice,
+                               x_adt_session, context_revision):
+    """Pedido da página única: a base é lida como na interpretação local e o pedido volta como o comando `painel`
+    (conversa_grafico.py), sem cálculo e sem o provedor de IA. Sem comando reconhecido, {"handled": False} leva o pedido
+    ao intérprete com o provedor, como antes."""
+    frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
+                                      dataset_version=dataset_version)
+    if frame is None:
+        raise ValueError("Escolha a planilha antes de explorar os territórios.")
+    fields = json.loads(mapping)
+    if not isinstance(fields, dict):
+        raise ValueError("Parâmetros inválidos.")
+    fields, grupo_territorial = conversa_grafico.campos_do_mapeamento(fields)
+    if dataset == "brazil":
+        fields, grupo_territorial = suggested_mapping(frame), None
+    else:
+        requested = conversa_grafico.papeis_escolhidos(requested, fields)
+    settings = apply_premises(frame, fields, requested)
+    if x_adt_session:
+        sessions.capture(x_adt_session, context_revision, investigation_context(frame, fields, settings,
+                                                                               preflight(frame, fields, settings)))
+    return conversa_grafico.interpretar(message, frame, fields, settings, grafico, brasil=dataset == "brazil",
+                                        opcoes=requested, grupo=grupo_territorial, dica=choice,
+                                        dica_indicador=requested.get("exploration_indicator") if choice else None)
 
 
 @app.post("/api/analyze")
