@@ -1,5 +1,9 @@
 # Análise exploratória integrada — execução de 17/10/2026
 
+> **Registro datado.** A interface descrita aqui (preparação, resultados em abas, mapa, investigação e os
+> roteiros de navegador citados) saiu do produto em 22/10/2026, com a página única de análise: ver a
+> [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 ## Objetivo e fronteiras
 
 Incrementar a investigação territorial contínua por composição da apresentação existente,

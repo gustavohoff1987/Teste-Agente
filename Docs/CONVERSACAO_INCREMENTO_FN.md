@@ -45,10 +45,9 @@ o aplicativo não escolhe uma silenciosamente. Isso implementa parte de FN-INT-0
 CFG-AMB e CFG-OPC, sem declarar cobertura integral desses contratos.
 
 A escolha também funciona antes da primeira análise, sem seleção territorial
-prévia. O indicador proposto ou escolhido é levado à preparação após concluir
-uma eventual mudança de recorte; não é perdido durante a inspeção da fonte.
-Escolher outra capacidade pelos controles descarta uma pendência municipal de
-capacidade diferente.
+prévia. Na página única (22/10/2026), o indicador proposto ou escolhido vira um
+pedido ao gráfico; antes dos dados, fica guardado até a escolha da fonte e não é
+perdido durante a inspeção dela.
 
 Após validar a capacidade, o Python cruza a mensagem original com o catálogo
 territorial local. Os nomes e IDs resolvidos não são obtidos do provedor nem
@@ -227,7 +226,7 @@ estado do gráfico (`painel_*`, `rotulos`) não entra no resumo técnico.
 
 ## Espaço de trabalho
 
-A interface atual tem um único fluxo de investigação: última resposta conversacional, preparação, resultados e campo de mensagem contextual. A barra horizontal reúne as cinco ações principais, sem navegação lateral permanente. Os contratos de interpretação descritos aqui permanecem iguais. A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+Desde 22/10/2026, a interface é a página única de análise: no alto, o nome do agente, Nova sessão, Nova análise e Histórico e a fonte dos dados; abaixo, a área de análise com o gráfico; a conversa, numa caixa flutuante sempre na página, com a última resposta junto ao campo de mensagem. Não há preparação nem tela de resultados. Os contratos de interpretação descritos aqui permanecem iguais; a resposta passou a levar também o pedido ao gráfico (campo `painel`). A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
 ## Testes
 
@@ -243,11 +242,13 @@ offline durante pendências, resolução local, ausência de dados da base no pa
 do provedor, nenhuma execução e recuperação contextual ancorada.
 
 O workflow `.github/workflows/ci.yml` executa backend, build e jornadas de navegador
-registradas em `backend/tests/run_ui_checks.py`. A jornada
-`ui_semantic_continuity.py` usa provedor simulado para verificar paráfrases,
-escolha de interpretação antes do primeiro cálculo e após resultados, nomes
-pendentes, histórico sem recálculo e compositor visível em 1.280, 768 e 390 px.
-Também confere a barra do histórico dentro da janela e a ausência de rolagem externa.
+registradas em `backend/tests/run_ui_checks.py`. Desde 22/10/2026, a jornada
+`ui_conversa_grafico.py` usa provedor simulado (suíte `gemini-simulado`) para verificar
+o pedido feito antes dos dados, a proposta fora do contrato e a recuperação, a escolha de
+interpretação em botões, nomes pendentes e a análise anterior reaberta sem recálculo;
+`ui_pagina_unica.py` confere a página em 390 px sem rolagem horizontal. A jornada
+`ui_semantic_continuity.py`, que fazia essas verificações nas telas clássicas, saiu
+(ver [`backend/tests/legado/README.md`](../backend/tests/legado/README.md)).
 Nenhum desses testes faz chamada ao Gemini real; a qualidade e a disponibilidade
 do provedor real exigem validação distinta.
 

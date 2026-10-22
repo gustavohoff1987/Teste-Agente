@@ -920,7 +920,7 @@ async def llm_interpretation_with_dataset(
                                                frame=frame, mapping=fields, options=settings)
             if ambiguous:
                 reviewed["capability_status"] = "needs_confirmation"
-                reviewed["blockers"].append("Há mais de um período ou categoria no pedido; escolha o recorte na preparação.")
+                reviewed["blockers"].append("Há mais de um período ou categoria no pedido; escolha o recorte.")
                 reviewed["ambiguous_parameters"] = ambiguous
             return reviewed
         answer = await llm_interpret(

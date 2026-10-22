@@ -2,8 +2,8 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind em uma área de investigação horizontal, com banner e cinco ações: Início, Nova sessão, Nova análise, Histórico e Resultados. Com a base do Brasil pronta, a página principal (Início) é o gráfico de bolhas dos municípios, com os botões das análises e a conversa numa caixa arrastável; "Todas as análises" leva ao fluxo clássico. Cada análise tem duas áreas em abas, Preparação e Resultados, com um contorno que desce da aba ativa e envolve o conteúdo da etapa. Na base oficial, a preparação de todas as análises reúne as configurações nas mesmas caixas seletoras (Categoria, Período, Abrangência territorial e Indicador); nas bases importadas, a seleção de territórios é um bloco recolhível da preparação. O personagem original acompanha dados, preparação e resultados. A conversa preserva o contexto em memória e mostra a última resposta do agente junto ao campo de mensagem, inclusive durante a exploração de resultados.
-- **Investigação progressiva:** análises independentes e diagnósticos compostos têm identificação própria. Cada componente mantém resultados, recortes, parâmetros e métodos; a composição não calcula valores conjuntos. Filtros e seleções visuais são lembrados por resultado. Veja [Interface conversacional integrada](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [Análise exploratória integrada](Docs/ANALISE_EXPLORATORIA_INTEGRADA.md).
+- **Interface:** React + TypeScript + Tailwind numa **página única de análise** (desde 22/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do agente e três ações: Nova sessão, Nova análise e Histórico. Logo abaixo, a fonte dos dados: "Dados do Brasil" ou "Enviar meus dados", com o resumo da fonte em uso e "Trocar". Depois, a área de análise: o gráfico de bolhas com as análises, as funções e os Detalhes ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). A conversa fica numa caixa flutuante com o rosto do agente, sempre na página, e muda o gráfico ("mostre o Pará", "compare Manaus e Tefé"). Não há catálogo de análises, preparação, tela de resultados nem mapa: as telas clássicas saíram do produto em 22/10/2026, e o motor (`/api/analyze` e as capacidades) continua. Veja [Interface conversacional integrada](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+- **Histórico:** "Nova análise" guarda a análise em exibição no Histórico e volta ao começo do gráfico com os mesmos dados; o Histórico reabre a análise guardada como estava, sem recalcular. A investigação progressiva com diagnósticos compostos saiu em 22/10/2026 (histórico em [investigação territorial progressiva](Docs/ANALISE_EXPLORATORIA_INTEGRADA.md)).
 - **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional, a referência geográfica mais próxima (Bloco 2, Etapa 1) e os critérios combinados com réguas, rankings e recortes (Bloco 2, Etapa 2) são determinísticos.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
 - **Documento de referência:** IMPLEMENTATION_SPEC.md v1.2.4, **apenas para os contratos metodológicos e semânticos**. A interface e a arquitetura física são novas, independentes das diretrizes de UX daquele projeto.
@@ -35,27 +35,19 @@ Documentação da API: `http://localhost:8000/docs`.
 
 ## Duas formas de carregar dados
 
-**Usar dados do Brasil** verifica e disponibiliza as três fontes conjuntamente em
+**Dados do Brasil** verifica e disponibiliza as três fontes conjuntamente em
 uma sessão lógica: `Dados_Brasil.xlsx` (nacional), `Dados_Estados_Brasil.csv` (estadual: médicos
 únicos por UF, desde 19/10/2026) e `Dados_Municipios_Brasil.csv` (municipal). O usuário não precisa
-escolher os arquivos separadamente. São oferecidos como fontes independentes no chat,
-sem concatenar seus registros. A base é examinada uma vez, no recorte municipal, com o bloco dos
-níveis (Brasil, estados e regras de cada análise); trocar de análise não recarrega a base nem troca de
-fonte. A caixa **Abrangência territorial** das configurações abre uma lista vertical com caixas de
-marcar: **Brasil (total nacional)**; **Estados** ("Todos os estados" e cada estado com o selo "médicos
-únicos" e a "população de N municípios", com o aviso de que quem atua em mais de um município do estado
-conta uma vez, de que quem atua em mais de um estado conta em cada um e de que a soma dos estados não
-é o total do Brasil); e **Municípios** ("Todos os municípios" e, desde 21/10/2026, o seletor "Estado dos
-municípios", que mostra à vista a lista do estado escolhido, com "Todos os N municípios de …" e cada município). Sem
-nada marcado vale o padrão
-da análise, com o selo "padrão desta análise": o Brasil em quantitativos, evolução temporal e
-relatórios; todos os municípios nas demais. A primeira marcação substitui o padrão, e "Limpar
-seleção" volta a ele. Os municípios marcados continuam valendo ao trocar de análise (como na
-conversa, nas transferências e em "Usar como municípios-alvo"); o Brasil e os estados só valem nas
-análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha. Mistura
-de estados e municípios em distribuição, ranking e agregação, ou territórios de menos, aparece como
-escolha pendente, com o motivo do backend. A interface envia a seleção em `options.abrangencia`, e o backend
-resolve a rota e confere o pedido; nada é calculado na tela. A densidade do Brasil fica disponível.
+escolher os arquivos separadamente, e os registros das fontes não são concatenados. A base é examinada
+uma vez, no recorte municipal, com o bloco dos níveis (Brasil, estados e regras de cada análise); uma nova
+análise não recarrega a base. Na página única, o gráfico começa pelos 27 estados, e um clique num estado
+abre os municípios dele; nunca os 5.570 municípios de início ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)).
+A API de análise (`/api/analyze`) continua aceitando a seleção de níveis em `options.abrangencia` (Brasil,
+estados e municípios): sem seleção vale o padrão de cada análise (o Brasil em quantitativos, evolução
+temporal e relatórios; todos os municípios nas demais), mistura de estados e municípios em distribuição,
+ranking e agregação, ou territórios de menos, volta como escolha pendente, com o motivo, e o backend
+resolve a rota e confere o pedido; nada é calculado na tela. A caixa **Abrangência territorial** das telas
+clássicas, que montava essa seleção numa lista vertical, saiu em 22/10/2026.
 
 As fontes mantêm suas granularidades: não há junção de linhas nem soma automática de pessoas
 entre municípios, e o total do Brasil nunca é a soma municipal. **Brasil, estados e municípios**
@@ -73,12 +65,10 @@ cada um: a soma dos estados (539.090 em junho de 2024) não é o total do Brasil
 agregação de estados é sempre a soma dos componentes, com possível dupla contagem. A conversa marca
 estados ("Quantos médicos havia em Minas Gerais em junho de 2024?", "estados da Região Norte") e
 pergunta quando o nome também é de município ("São Paulo"). Nas
-densidades da base oficial, o resultado traz a taxa nacional como referência de contexto
-(`metadata.referencia_nacional`), que não classifica nem colore os municípios: na tela, ela é uma
-marca na legenda do mapa ("Brasil (total nacional): 2,36 por 1.000 habitantes · referência de
-contexto"), uma linha tracejada "Brasil 2,36" nas barras dos municípios e, desde o visual completo
-(19/10/2026), o cartão de contexto do cabeçalho, com o minigráfico da série nacional
-(`metadata.referencia_nacional.serie`), a dica do ponto e o detalhe do território. Detalhes:
+densidades da base oficial, o resultado de `/api/analyze` traz a taxa nacional como referência de contexto
+(`metadata.referencia_nacional`, com a série nacional em `metadata.referencia_nacional.serie`), que não
+classifica nem colore os municípios. A marca dessa referência na legenda do mapa, nas barras e no cabeçalho
+do resultado saiu com as telas clássicas em 22/10/2026. Detalhes:
 [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md). Na agregação
 municipal da base oficial, o total é a soma dos componentes, sempre rotulada como possível
 dupla contagem; em bases importadas, a soma dos componentes também é a premissa padrão da
@@ -98,12 +88,12 @@ estruturas desconhecidas ou a categorias inesperadas.
 nenhuma análise e em nenhuma base. O usuário só **escolhe** colunas e parâmetros. Um papel fica
 estabelecido por regra conclusiva (alias governado; período AAAAMM composto e validado; latitude e
 longitude com nome do vocabulário e valores num formato decimal único), pelo perfil oficial ou pela
-escolha no seletor. Sugestões não conclusivas (código territorial, UF, região, padrão de contagem,
-categoria sugerida pelo cabeçalho) deixam o seletor vazio, com a sugestão no topo marcada
-"(sugerida)"; escolher a coluna a estabelece, e uma sugestão nunca é usada sem escolha. O objeto de
-análise é o texto informado; o período único é uma opção do seletor de período; o separador decimal
-das coordenadas é verificado nos dados (só vira escolha quando o formato é misto); o referencial
-continua um parâmetro. As antigas declarações viram **premissas** aplicadas pelo backend
+escolha no seletor do painel "Colunas" (planilhas enviadas). Sugestões não conclusivas (código territorial,
+UF, região, padrão de contagem, categoria sugerida pelo cabeçalho) deixam o seletor vazio, com a sugestão
+no topo marcada "(sugerida)"; escolher a coluna a estabelece, e uma sugestão nunca é usada sem escolha. Na
+API, o objeto de análise é o texto informado e o período único é uma opção de período (a página única não
+pede nenhum dos dois); o separador decimal das coordenadas é verificado nos dados (só vira escolha quando
+o formato é misto); o referencial continua um parâmetro. As antigas declarações viram **premissas** aplicadas pelo backend
 (`backend/analysis_premises.py`), com origem (`PERFIL_GOVERNADO`, `VERIFICADA_NOS_DADOS`,
 `PREMISSA_DA_ANALISE`, `DECLARADA_PELO_USUARIO`), nota em "Método e limitações" e limitação
 quando cabível; um valor `false` explícito na API continua recusando a premissa. Na rotatividade,
@@ -112,11 +102,10 @@ API mantém `confirmed_roles` (papéis escolhidos), `needs_confirmation` (escolh
 `confirmed`; cada requisito traz `kind` (`escolha` ou `dados`) e `step`. Valor fora da faixa não
 impede o reconhecimento da coluna de coordenada. Na análise espacial, coordenada ausente, não
 numérica ou fora dos intervalos deixa só aquele território não avaliável (RQ-DAD-25: linha com
-"Distância (km)" vazia e "Condição" "Não avaliável: coordenada inválida" ou "… ausente", fora do
-mapa); um território de referência sem coordenada válida é recusado com "O território de referência
+"Distância (km)" vazia e "Condição" "Não avaliável: coordenada inválida" ou "… ausente"); um território de referência sem coordenada válida é recusado com "O território de referência
 não tem coordenada válida na competência escolhida. Escolha outro território de referência.", e
 coordenadas válidas diferentes para o mesmo território pedem "Escolha uma competência no período da
-análise.". Na base oficial, a caixa Período da análise espacial pede uma competência.
+análise.". Na base oficial, a análise espacial pede uma competência.
 
 **Premissas internas da base oficial.** Com o perfil governado reconhecido, a interface não
 pede ao usuário as confirmações de comparabilidade. O backend as resolve e registra a origem de
@@ -132,12 +121,13 @@ coordenadas, verificada nos dados. Em bases importadas e nos papéis que saíram
 condições são premissas da análise (`analysis_premises`), com nota, sem caixas de declaração.
 Detalhes em [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial).
 
-No chat, a escolha da fonte só aparece depois da primeira mensagem. A pergunta
-sobre o conteúdo dos dados brasileiros consulta `/api/brazil/description`, que
-verifica as fontes e devolve apenas informações agregadas sobre período, categorias
-e recortes, sem enviar registros ao Gemini. O agente associa pedidos explícitos
-sobre municípios aos municípios marcados e pedidos pelo país inteiro ao Brasil (total nacional) da
-abrangência territorial, sem solicitar detalhes sobre os arquivos internos.
+Na abertura, a caixa da conversa pergunta o que a pessoa quer analisar e se prefere começar com os
+dados do Brasil ou enviar os seus, com os dois botões; a escolha também vale por mensagem ("usar dados
+do Brasil", "enviar meus dados"). A pergunta sobre o conteúdo dos dados brasileiros consulta
+`/api/brazil/description`, que verifica as fontes e devolve apenas informações agregadas sobre período,
+categorias e recortes, sem enviar registros ao Gemini. Pedidos explícitos sobre estados e municípios
+mudam o gráfico ("mostre o Amazonas", "compare Manaus e Tefé"), sem solicitar detalhes sobre os
+arquivos internos.
 
 Períodos são apresentados em português (por exemplo, junho de 2024).
 Quantitativos e relatórios podem mostrar vários períodos **separadamente**; análises
@@ -146,9 +136,23 @@ continua restrita a uma competência, para não tratar pessoas observadas em mes
 diferentes como pessoas únicas. Fora do perfil governado, as premissas metodológicas são aplicadas
 pelo backend e registradas no resultado; nenhuma confirmação é pedida.
 
-**Importar seus dados** mantém CSV, XLS e XLSX de qualquer país, inclusive escolha de
-aba. As duas modalidades usam os mesmos contratos, filtros, motor, exportações e
-verificação contextual do agente. Nenhum registro é enviado ao provedor de IA.
+**Enviar meus dados** aceita CSV, XLS e XLSX de qualquer país, até 30 MB, com a escolha da aba quando o
+arquivo tem mais de uma. A planilha é lida com a estrutura da base do Brasil: unidade territorial (município,
+distrito, condado…), código, grupo territorial (estado, província…), período, categoria, quantidade, população,
+latitude e longitude, e o identificador individual para a rotatividade. O painel curto **"Colunas"**, no alto da
+página, mostra o que foi reconhecido e pede só as escolhas que faltam:
+- as colunas ambíguas, com a sugestão no topo, marcada "(sugerida)", nunca usada sem escolha;
+- o que a quantidade conta (pessoas, vínculos, postos ou outra unidade, descrita);
+- os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e
+  "distritos", "província" e "províncias"). Eles valem nos textos da página e da conversa: com uma planilha, nenhum
+  texto da estrutura diz "município";
+- com latitude e longitude, o referencial das coordenadas: só o SIRGAS 2000 é admitido; com outro, ou sem saber
+  qual é, a análise espacial fica indisponível, com o motivo, e nada é presumido.
+
+O painel mostra também cada análise que a planilha permite ou não, com o motivo (sem as coordenadas não há
+análise espacial; sem o identificador individual não há rotatividade). As duas fontes usam o mesmo motor, as mesmas
+exportações e a mesma verificação contextual do agente. Nenhum registro é enviado ao provedor de IA. Detalhes em
+[interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md#fonte-de-dados).
 
 ### Teste de navegação conversacional
 
@@ -159,10 +163,11 @@ em `frontend/`, execute na raiz:
 python backend/tests/run_ui_checks.py --suite conversa
 ```
 
-O executor sobe o servidor local com um catálogo sintético de duas fontes, roda o roteiro
-`ui_conversational_smoke.py` e encerra o servidor. O teste bloqueia requisições externas e
-verifica escolha de fonte, seletor inline, execução determinística e exportação dentro do chat.
-Também é executado no job `ui-conversational` do CI. As bases brasileiras reais não participam
+O executor sobe o servidor local com o catálogo sintético do Bloco 1, roda o roteiro
+`ui_conversa_grafico.py` e encerra o servidor. O teste bloqueia requisições externas e verifica as
+respostas locais, a escolha da fonte pela conversa, os pedidos que mudam o gráfico com o contexto do
+gráfico, os esclarecimentos pendentes e uma planilha enviada pela conversa, sem nada calculado pela
+conversa. Também é executado no job `ui-conversational` do CI. As bases brasileiras reais não participam
 desse teste: elas são verificadas pelos jobs `dados-reais` e `ui-block1` (suíte
 `base-versionada`). Ver [Testes](#testes) e [Política dos dados do Brasil](#política-dos-dados-do-brasil).
 
@@ -334,13 +339,13 @@ arquivos fora deste repositório privado.
 
 ## Conversação com Gemini — iteração 2 contextual (opcional)
 
-O banner permanece acima da navegação horizontal. Dados, escolhas, preparação e resultados seguem um único fluxo, sem coluna fixa de chat. A transcrição não ocupa a área principal; a última resposta do agente e o campo de mensagem permanecem juntos durante a exploração. “Resultados” concentra a visualização e “Alterar a preparação” retorna aos controles, sem executar cálculos. “Nova análise” abre as modalidades ou oferece análise independente/composição quando existe trabalho em andamento. Pedidos explícitos de apresentação em linguagem natural dispensam essa escolha; pedidos ambíguos aguardam a decisão antes de calcular outro componente.
+A página única (22/10/2026) tem, no alto, o nome do agente, a navegação (Nova sessão, Nova análise e Histórico) e a fonte dos dados; abaixo, a área de análise. A conversa fica numa caixa flutuante com o rosto do agente, sempre na página: arrasta-se com o mouse ou o teclado, guarda a posição e se minimiza; no celular, fica ancorada embaixo. A transcrição não ocupa a área principal; a última resposta do agente e o campo de mensagem permanecem juntos. A conversa age sobre o gráfico: o campo `painel` da resposta do intérprete vira um pedido para a área de análise, que pede os números ao motor. Não há "Início", "Resultados", preparação nem escolha entre análise independente e composição.
 
-“Histórico” reabre resultados da sessão sem recalcular. “Nova sessão” sempre pede confirmação, oferece CSV e impressão do resultado em exibição e informa que cada componente precisa ser exportado separadamente. Confirmar encerra a sessão no servidor e recarrega a interface, descartando arquivos, referências, conversa, resultados e grupos em memória. Se o encerramento falhar, a tela mantém o conteúdo e informa o erro. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade. O pop-up de início traz só essa declaração ("Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.") e o botão "Li e concordo"; depois de uma sessão encerrada, o aviso de descarte aparece acima dela. O prazo da sessão não é exibido. O aceite vale para a sessão da aba; após o encerramento, o aceite é solicitado novamente. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
+“Histórico” reabre as análises da sessão como estavam, sem recalcular. “Nova análise” guarda a análise em exibição no Histórico e volta ao começo do gráfico com os mesmos dados. “Nova sessão” sempre pede confirmação, oferece o CSV (valores do motor, em precisão integral) e a impressão da análise em exibição e lembra que outra análise precisa ser reaberta pelo Histórico para ser exportada. Confirmar encerra a sessão no servidor e recarrega a interface, descartando arquivos, referências, conversa e análises em memória. Se o encerramento falhar, a tela mantém o conteúdo e informa o erro. Antes de importar arquivos ou enviar mensagens, o usuário confirma a declaração de privacidade. O pop-up de início traz só essa declaração ("Declaro que não compartilharei dados pessoais ou sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.") e o botão "Li e concordo"; depois de uma sessão encerrada, o aviso de descarte aparece acima dela. O prazo da sessão não é exibido. O aceite vale para a sessão da aba; após o encerramento, o aceite é solicitado novamente. Se o navegador bloquear o armazenamento de sessão, o aceite permanece em memória até recarregar a página.
 
-**Com base carregada:** pedidos reconhecidos pela gramática local seguem para `POST /api/exploration/interpret`; os demais seguem para `POST /api/llm/interpret-context`. Orientações de catálogo são atendidas localmente, inclusive durante uma pergunta pendente sobre municípios. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as escolhas, as premissas e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/escolhidos e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
+**Com base carregada:** pedidos reconhecidos pela gramática local seguem para `POST /api/exploration/interpret`; os demais seguem para `POST /api/llm/interpret-context`. Os dois levam em `options` o contexto do gráfico em exibição: os territórios na tela (`territory_ids`), a família, o indicador e a competência; esses valores ficam no backend local. Orientações de catálogo são atendidas localmente, inclusive durante uma pergunta pendente sobre municípios. No modo de importação, o arquivo é reenviado **somente ao backend Python local**; no modo Brasil, o navegador envia apenas a referência ao catálogo, recorte e versão. O backend revalida a estrutura, os mapeamentos, as escolhas, as premissas e a matriz de aplicabilidade. O Gemini recebe apenas o pedido sanitizado e um resumo controlado de estados técnicos (papéis reconhecidos/escolhidos e disponibilidade das capacidades). Nomes de campos, nomes de arquivo, territórios, categorias, períodos e linhas presentes no arquivo não são incluídos nesse resumo.
 
-O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos, e o mês por extenso com ano e o ano sozinho viram as competências AAAAMM da base, como na gramática local ("junho de 2024" é 202406; um ano com várias competências fica em escolha, sem a pergunta de período inexistente); o nível territorial solicitado é o da abrangência territorial (base oficial) ou da coluna territorial escolhida (base importada), registrado como "Definido na abrangência territorial", sem pedido de confirmação. Uma interpretação apenas prepara a análise; o cálculo depende de ação explícita na preparação. Trocar a fonte invalida interpretações e pendências daquela fonte; a conversa e os resultados já calculados permanecem consultáveis na memória da aba. Alterações de parâmetros e recorte invalidam respostas ainda em trânsito e exigem nova revalidação no backend.
+O Python também confronta deterministamente os períodos e categorias explicitamente propostos com os valores da base. Isso **não cria equivalências semânticas**: correspondência é literal após normalização básica de caixa e acentos, e o mês por extenso com ano e o ano sozinho viram as competências AAAAMM da base, como na gramática local ("junho de 2024" é 202406; um ano com várias competências fica em escolha, sem a pergunta de período inexistente); o nível territorial solicitado é o da abrangência territorial (base oficial) ou da coluna territorial escolhida (base importada), registrado como "Definido na abrangência territorial", sem pedido de confirmação. Uma interpretação não calcula nada: vira um pedido ao gráfico, e os números vêm do motor. Trocar a fonte invalida interpretações e pendências daquela fonte; a conversa e as análises do Histórico permanecem na memória da aba (as de outra fonte ficam listadas e reabrem com a fonte delas). Alterações de parâmetros e recorte invalidam respostas ainda em trânsito e exigem nova revalidação no backend.
 
 **Sem base carregada:** o comportamento de primeira iteração continua disponível em `POST /api/llm/interpret`, mas a proposta é explicitamente preliminar e não verifica a existência dos valores sugeridos.
 
@@ -348,11 +353,11 @@ O Python também confronta deterministamente os períodos e categorias explicita
 
 A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
 
-O LLM classifica também intenções conversacionais e perguntas sobre o agente; o backend responde com textos de catálogo local. Saudações, agradecimentos, ajuda, importação, privacidade, limites e explicação de densidade contam com tratamento determinístico sem consumo de franquia. Perguntas como “O que é possível fazer nessa página?” recebem a orientação correspondente, sem substituir a resposta pela apresentação inicial. A fonte atual aparece em uma identificação compacta; trocar dados continua disponível.
+O LLM classifica também intenções conversacionais e perguntas sobre o agente; o backend responde com textos de catálogo local. Saudações, agradecimentos, ajuda, importação, privacidade, limites e explicação de densidade contam com tratamento determinístico sem consumo de franquia. Perguntas como “O que é possível fazer nessa página?” recebem a orientação correspondente, sem substituir a resposta pela apresentação inicial. A fonte atual aparece no alto da página, num resumo de uma linha, com "Trocar".
 
-Para pedidos analíticos, o contrato admite uma proposta única ou até cinco candidatas de operação/indicador, cada alternativa ancorada em trecho literal do pedido sanitizado atual. Leituras materialmente diferentes geram escolhas, sem selecionar uma automaticamente. Com base disponível, a escolha explícita prepara a operação no backend; sem base, prepara o rascunho da conversa. Depois de validar a capacidade, o Python resolve os nomes municipais da manifestação original contra o catálogo **somente localmente**, incluindo paráfrases como “coloque Manaus e Tefé lado a lado”. Se só um município for informado numa comparação, pergunta qual outro; “analise dois municípios também” pede os nomes e aproveita a mensagem seguinte, sem escolher os primeiros municípios da base. Homônimos e trechos de recorte não reconhecidos continuam exigindo esclarecimento. O texto exibido vem de templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. Essa ampliação é parcial: ver [conversação incremental](Docs/CONVERSACAO_INCREMENTO_FN.md).
+Para pedidos analíticos, o contrato admite uma proposta única ou até cinco candidatas de operação/indicador, cada alternativa ancorada em trecho literal do pedido sanitizado atual. Leituras materialmente diferentes geram escolhas em botões na conversa, sem selecionar uma automaticamente. Com base disponível, a escolha explícita prepara a operação no backend e muda o gráfico; sem base, fica guardada até a escolha dos dados. Depois de validar a capacidade, o Python resolve os nomes municipais da manifestação original contra o catálogo **somente localmente**, incluindo paráfrases como “coloque Manaus e Tefé lado a lado”. Se só um município for informado numa comparação, pergunta qual outro; “analise dois municípios também” pede os nomes e aproveita a mensagem seguinte, sem escolher os primeiros municípios da base. Homônimos e trechos de recorte não reconhecidos continuam exigindo esclarecimento. O texto exibido vem de templates locais; **nenhum resultado factual, limiar ou cálculo vem do LLM**. Essa ampliação é parcial: ver [conversação incremental](Docs/CONVERSACAO_INCREMENTO_FN.md).
 
-A evolução autorizada do diálogo está registrada em [Evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md). A interface usa contexto temporário verificado no backend para seleção, parâmetros, possibilidades do pré-exame e referências a resultados. “Esses municípios”, correções de indicador e inclusão de município reaproveitam a preparação. “E agora?” informa o contexto sem calcular. Densidade, quantitativos e comparação territorial já admitem perguntas sobre o resultado apresentado, com origem verificada, preservação das notas e explicações metodológicas pelo catálogo PT. “Explique de maneira mais simples” reduz a expansão metodológica, conservando fatos e limitações. Relação não calculada oferece preparação de comparação. As demais leituras analíticas conversacionais permanecem limitadas; os respectivos resultados e controles da interface continuam disponíveis. EN não está autorizado nesta integração.
+A evolução autorizada do diálogo está registrada em [Evolução conversacional](Docs/EVOLUCAO_CONVERSACIONAL_20261016.md). A interface usa contexto temporário verificado no backend para seleção, parâmetros, possibilidades do pré-exame e referências a resultados. “Esses municípios”, correções de indicador e inclusão de município reaproveitam o contexto do gráfico. “E agora?” informa o contexto sem calcular. Densidade, quantitativos e comparação territorial já admitem perguntas sobre o resultado apresentado, com origem verificada, preservação das notas e explicações metodológicas pelo catálogo PT. “Explique de maneira mais simples” reduz a expansão metodológica, conservando fatos e limitações. Relação não calculada oferece preparação de comparação. As demais leituras analíticas conversacionais permanecem limitadas; os controles da área de análise continuam disponíveis. EN não está autorizado nesta integração.
 
 **Continuidade da conversa (21/10/2026).**
 - Um pedido sem territórios usa os já escolhidos, e a resposta diz quais.
@@ -361,15 +366,17 @@ A evolução autorizada do diálogo está registrada em [Evolução conversacion
   duas contagens dão as mesmas competências, o período é aplicado; se divergem, a conversa oferece as duas leituras,
   sem escolher.
 - O pedido feito antes da escolha dos dados é reinterpretado quando a base fica pronta, e os municípios citados nele
-  vão para a abrangência.
+  vão para o gráfico.
 
 Essas continuações não chamam o provedor de IA. Detalhes em
 [interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
-Com um resultado apresentado, "mostre no gráfico", "agora a tabela" ou "ver no mapa" abrem a aba correspondente, e
-"volte ao resultado anterior" (ou "à seleção anterior") reabre o resultado anterior da sessão, sem recalcular
-(RQ-LIN-20). A interface reconhece as formas diretas; as demais chegam ao intérprete, que as devolve como atos
-`show_map`, `show_chart`, `show_table` e `previous_result`. Perguntas conceituais sobre os pontos de corte e as
+Com o gráfico na tela, "agora a tabela" responde que a tabela fica em Detalhes, logo abaixo do gráfico, com os mesmos
+valores do motor; "ver no mapa" explica que o mapa não faz parte da página única e que a distância até uma referência
+fica na análise espacial; "mostre no gráfico" lembra que o gráfico já está na tela. "Volte ao resultado anterior" (ou
+"à seleção anterior") reabre a análise anterior do Histórico, com os mesmos dados, sem recalcular (RQ-LIN-20). A
+interface reconhece as formas diretas; as demais chegam ao intérprete, que as devolve como atos `show_map`,
+`show_chart`, `show_table` e `previous_result`, com as mesmas respostas. Perguntas conceituais sobre os pontos de corte e as
 classes da distribuição (CAP-DIS-02) e sobre a referência mais próxima (CAP-ESP-02) passam a ser respondidas com as
 formas governadas do catálogo PT, como densidade, distância e agregação. Tendência, mudança temporal, comparação,
 contagem, ranking, critérios e rotatividade continuam sem explicação metodológica na conversa: suas formas descrevem
@@ -453,7 +460,7 @@ para diagnosticar uma falha que o log do CI não explica, só o teste que falhou
 (cd backend && ADT_REAL_DATA_DIR="$(cd .. && pwd)" python -m pytest -q -rs)  # com a base versionada: nada pulado
 (cd frontend && npm ci && npm run build)                              # TypeScript e build
 python backend/tests/run_ui_checks.py                                 # todas as jornadas de navegador
-python backend/tests/run_ui_checks.py --roteiro ui_stabilization.py   # só os roteiros indicados
+python backend/tests/run_ui_checks.py --roteiro ui_pagina_unica.py    # só os roteiros indicados
 python .github/scripts/verificar_governanca.py                        # registro de comportamento e jornadas no CI
 ```
 
@@ -468,10 +475,10 @@ Localmente, o `npm ci` pode ser dispensado quando `package.json` e `package-lock
 desde o último `npm ci` bem-sucedido; basta o `npm run build`. O CI sempre roda o `npm ci`.
 
 Para a conferência visual, `python scripts/capturar_telas.py` sobe o servidor de testes com a base
-versionada e percorre as telas principais: início, preparação e resultado da densidade (mapa,
-gráficos, tabela e celular), escolha de períodos da evolução temporal, preparação da análise espacial
-e o aviso das escolhas que faltam. As capturas ficam em `.local/capturas/`. Rode depois do `npm run build`; nada
-vai para o provedor de IA e nenhum dado é alterado.
+versionada e percorre a página única: a abertura, os estados, o Amazonas e a comparação pedidos pela
+conversa, o Histórico, o diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e o
+celular. As capturas ficam em `.local/capturas/`. Rode depois do `npm run build`; nada vai para o
+provedor de IA e nenhum dado é alterado.
 
 No Windows (PowerShell), defina `$env:ADT_REAL_DATA_DIR` com o caminho completo da raiz do
 repositório. Sem o Google Chrome instalado, defina `ADT_BROWSER_CHANNEL=chromium` para as jornadas.
@@ -484,8 +491,8 @@ provedor real de IA.
 | `backend` | Suíte pytest. Os testes de dados reais são pulados aqui e rodam em `dados-reais`. |
 | `dados-reais` | Integridade da base Brasil versionada (tamanho e SHA-256 contra `dados/brasil/manifesto.json`) e a suíte completa com os dados reais. Falha se algum teste for pulado. |
 | `frontend` | TypeScript e build de produção. |
-| `ui-conversational` | Jornada conversacional (suíte `conversa`). |
-| `ui-block1` | Blocos 1 a 3 (suíte `bloco1`), interpretação com Gemini simulado (`gemini-simulado`) e jornada do Bloco 1 com a base versionada (`base-versionada`). |
+| `ui-conversational` | A conversa agindo no gráfico, sem provedor de IA (suíte `conversa`). |
+| `ui-block1` | A página única com o catálogo sintético do Bloco 1 (suíte `bloco1`), a conversa com Gemini simulado (`gemini-simulado`) e a página com a base versionada (`base-versionada`). |
 | `governanca` | Toda mudança de comportamento está em [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md) ou foi declarada sem alteração, e todo roteiro de navegador roda no CI. |
 | `resumo` | Quadro único com o resultado de todos os jobs. Falha se qualquer um falhar. |
 
@@ -495,26 +502,27 @@ o resultado de todos. Uma falha não esconde as seguintes. Um push novo no mesmo
 execução anterior do CI, e o resultado exibido é sempre o do estado mais recente. Medições de
 tempo (`backend/tests/bench_*.py`) ficam fora do CI.
 
-Os roteiros de navegador anteriores à interface conversacional foram movidos para
-[`backend/tests/legado/`](backend/tests/legado/README.md). Lá estão o motivo, o mapa do que
-cobriam e as lacunas que ainda precisam de roteiros novos. A preparação em três etapas continua
-descrita em [preparação guiada](Docs/PREPARACAO_GUIADA.md).
+Os roteiros de navegador que saíram estão registrados em
+[`backend/tests/legado/`](backend/tests/legado/README.md): os anteriores à interface conversacional
+(15/10/2026) e os 16 do fluxo clássico (22/10/2026). Lá estão o motivo, o mapa do que cobriam, onde a
+cobertura está hoje e as lacunas que ainda precisam de roteiros novos. A preparação em três etapas saiu
+da interface com as telas clássicas; [preparação guiada](Docs/PREPARACAO_GUIADA.md) fica como histórico.
 
 ## Ponte semântica e habilitação de análises
 
 O motor `backend/semantic_bridge.py` reutiliza regras de reconhecimento governado da SPEC para propor a associação entre **nomes originais das colunas** e papéis analíticos internos, sem exigir renomeação pelo usuário. Correspondências não conclusivas (por exemplo, "Total de médicos únicos") ficam como sugestão no topo do seletor, que permanece vazio até a escolha do usuário, e não autorizam deduções de unicidade. O exame automático `/api/inspect` fornece candidatos, perfis de colunas e uma matriz inicial; `/api/preflight` a recalcula após esclarecimentos. O endpoint `/api/analyze` **revalida** a habilitação antes da execução.
 
-**Experimento híbrido:** os cartões clicáveis para solicitar análises ainda diferem do canal conversacional normativo da SPEC; a interpretação com LLM não substitui os gates nem autoriza execução. Ver `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md` para rastreabilidade, divergências e limitações.
+**Experimento híbrido:** os botões das análises na área de análise ainda diferem do canal conversacional normativo da SPEC; a interpretação com LLM não substitui os gates nem autoriza execução. Ver `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md` para rastreabilidade, divergências e limitações.
 
-Exemplo de CSV com `0`, `Competência`, `Total de médicos únicos`: a coluna `Competência` é reconhecida como período, `Total de médicos únicos` é **sugerido** como quantitativo (sem entrar no mapeamento); o cabeçalho `0` não é presumido território. Depois de escolher a coluna de contagem e a unidade e de informar o objeto de análise (a sugestão "Médicos" do cabeçalho é um botão, nunca aplicada sozinha), quantitativos e série temporal podem ficar disponíveis **sem inventar território nem população**; a comparabilidade temporal é premissa da análise, registrada no resultado. Densidade continuará indisponível sem o denominador e recorte apropriados.
+Exemplo de CSV com `0`, `Competência`, `Total de médicos únicos`: a coluna `Competência` é reconhecida como período, `Total de médicos únicos` é **sugerido** como quantitativo (sem entrar no mapeamento); o cabeçalho `0` não é presumido território. Na API (`/api/preflight` e `/api/analyze`), depois de escolher a coluna de contagem e a unidade e de informar o objeto de análise, quantitativos e série temporal podem ficar disponíveis **sem inventar território nem população**; a comparabilidade temporal é premissa da análise, registrada no resultado. Densidade continuará indisponível sem o denominador e recorte apropriados. A página única desenha unidades territoriais: no painel "Colunas", as colunas da unidade territorial, do período e da quantidade são obrigatórias, e uma planilha sem elas não chega ao gráfico.
 
 ## Validação local e resolução de registros múltiplos
 
-Municípios ou outras unidades com o mesmo nome podem representar lugares distintos. Selecione a coluna territorial desejada e escolha no seletor o código que distingue essas unidades (a coluna de código aparece como sugestão no topo, mas só vale depois de escolhida). O nome continua sendo apresentado junto ao código. O aplicativo não confere códigos em cadastros externos.
+Municípios ou outras unidades com o mesmo nome podem representar lugares distintos. No painel "Colunas", escolha a coluna da unidade territorial e, no seletor do código, a coluna que distingue essas unidades (a coluna de código aparece como sugestão no topo, mas só vale depois de escolhida). O nome continua sendo apresentado junto ao código. O aplicativo não confere códigos em cadastros externos.
 
-A unidade da contagem deve ser escolhida. Profissionais distintos em um município, categoria e período não implicam aditividade entre recortes. Cópias idênticas só são removidas por escolha explícita em «Linhas idênticas»; componentes desagregados exigem a escolha das dimensões que os distinguem, e a soma das partes vira premissa com nota (e a limitação de possível dupla contagem quando a unidade é pessoas). População repetida no mesmo território e período é utilizada uma vez; conflitos impedem o cálculo.
+A unidade da contagem deve ser escolhida. Profissionais distintos em um município, categoria e período não implicam aditividade entre recortes. Na API, cópias idênticas só são removidas por escolha explícita (`duplicate_policy`); componentes desagregados exigem a escolha das dimensões que os distinguem (`component_columns`), e a soma das partes vira premissa com nota (e a limitação de possível dupla contagem quando a unidade é pessoas). Essas duas escolhas ficavam na preparação das telas clássicas, que saiu em 22/10/2026; o painel "Colunas" não as oferece. População repetida no mesmo território e período é utilizada uma vez; conflitos impedem o cálculo.
 
-O CSV contém todos os resultados, com precisão numérica preservada; a tabela mostra até 150 linhas. “Método e parâmetros” exporta as associações, escolhas, premissas aplicadas, filtros, versão do método e identificação do conteúdo analisado. PDF usa a impressão do navegador e abrange a apresentação visível.
+O CSV contém todos os resultados, com precisão numérica preservada. “Método e parâmetros” exporta as associações, escolhas, premissas aplicadas, filtros, versão do método e identificação do conteúdo analisado. PDF usa a impressão do navegador e abrange a apresentação visível.
 
 Na raiz do repositório, em PowerShell:
 
@@ -526,16 +534,17 @@ py -m pytest -q
 
 Os testes reais leem os arquivos somente em leitura e verificam seus hashes antes e depois. Sem a variável, eles são omitidos. Como a base Brasil está versionada na raiz do repositório, `ADT_REAL_DATA_DIR` pode apontar para a própria raiz. É assim que o job `dados-reais` do CI executa os 33 testes reais em todo push, sem nenhum teste pulado (ver [Testes](#testes)).
 
-O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a jornada pelo navegador com a base versionada roda na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
+O antigo gate de Densidade pelo navegador (`ui_smoke.py`, upload do CSV municipal com conferência linha a linha) usa a interface anterior à conversacional e foi movido para [`backend/tests/legado/`](backend/tests/legado/README.md). Hoje, a conferência de todas as linhas contra aritmética independente roda no job `dados-reais`, e a página única com a base versionada roda pelo navegador na suíte `base-versionada` (job `ui-block1`). Capturas das jornadas ficam em `.local/ui-validation/`, ignorada pelo Git.
 
 ## Referência geográfica mais próxima (Bloco 2, Etapa 1)
 
 Para cada município-alvo, indica a referência autorizada geograficamente mais próxima, com
 código, distância geodésica direta em quilômetros (Karney, elipsoide GRS80/SIRGAS2000, sem
-arredondamento no cálculo) e cobertura das referências. Escolha o cartão **Referência mais
-próxima** ou peça, por exemplo, "Calcule a referência mais próxima de Manaus, Tefé e
-Parintins": o comando prepara só a operação e os alvos, sem criar referências nem executar.
-As referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
+arredondamento no cálculo) e cobertura das referências. A capacidade continua na API
+(`/api/analyze`); o cartão **Referência mais próxima** saiu da interface com as telas clássicas em
+22/10/2026. Na página única, a análise espacial com um conjunto de referência mostra a distância até o
+membro mais próximo ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)).
+Na API, as referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
 O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial
 SIRGAS 2000 e a vírgula decimal das coordenadas são premissas internas, registradas nas notas do
@@ -551,21 +560,23 @@ referências nem recebe esta capacidade. Detalhes, testes e desempenho:
 
 ## Critérios combinados, réguas e rankings (Bloco 2, Etapa 2)
 
-O cartão **Critérios combinados** aplica condições simultâneas sobre densidade por 1.000
+A capacidade de critérios combinados (API `/api/analyze`) aplica condições simultâneas sobre densidade por 1.000
 habitantes, quantidade, população, distância à referência mais próxima, pertença a uma lista de
 territórios e UF, com `<`, `≤`, `>`, `≥`, `=`, `≠` combinados por E, OU e NÃO em três estados
 (`ATENDE`, `NAO_ATENDE`, `NAO_AVALIAVEL`; indeterminação nunca vira “não atende”). Cada condição
 tem uma régua com indicador, unidade, operador, valor, universo, competência/categoria e origem
 “escolha do usuário”; não há pontos de corte padrão nem caráter legal, sanitário ou científico.
 O resultado separa quem atende, não atende e não é avaliável (com motivos por condição),
-permite ordenar (posições 1, 2, 2, 4), selecionar os N primeiros com os empatados no corte,
-definir faixas `[a, b)` com o último intervalo fechado, comparar com o conjunto anterior,
-exportar CSV/JSON e reutilizar o conjunto como seleção territorial ou referências. A distância
+permite ordenar (posições 1, 2, 2, 4), selecionar os N primeiros com os empatados no corte e
+definir faixas `[a, b)` com o último intervalo fechado. A distância
 usa o mínimo do conjunto completo de referências; o mínimo entre as avaliáveis e a restrição às
-referências de elegibilidade confirmada exigem aceitação explícita e ficam rotulados. Na conversa,
+referências de elegibilidade confirmada exigem aceitação explícita e ficam rotulados. Na página única,
+as condições e a ordenação ficam nas funções Condições e Ordenar da área de análise; o cartão
+**Critérios combinados**, a comparação com o conjunto anterior, o JSON técnico e a reutilização do
+conjunto como seleção territorial ou referências saíram com as telas clássicas em 22/10/2026. Na conversa,
 pedidos como “Mostre os municípios com menos de 2 médicos por mil habitantes”, “Agora considere
-também distância superior a 150 km”, “Ordene esses municípios pela distância”, “Mostre os 20
-primeiros” e “Compare esse conjunto com o anterior” são estruturados por um canal determinístico
+também distância superior a 150 km”, “Ordene esses municípios pela distância” e “Mostre os 20
+primeiros” são estruturados por um canal determinístico
 (o LLM não recebe a capacidade), com perguntas quando há ambiguidade material. Detalhes, testes e
 desempenho: [Bloco 2, Etapa 2](Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md).
 
@@ -580,11 +591,11 @@ estável), com o motivo e o número de observações. A classificação usa arit
 é recalculada como quantidade × 1.000 / população), sem imputar competências ausentes e com o tempo
 transcorrido entre elas; com menos de quatro competências a etapa recebe BLQ-MET com os textos do
 catálogo, e a mudança continua disponível. Contagens por classe, velocidades e janela ficam em
-`metadata.tendencia` e `metadata.mudanca`, fora do contexto enviado à IA. Na tela: selos por classe,
-contagem por classe na ordem da SPEC, filtro por família, minigráfico de velocidades e o atalho
-**"Série anual (junho)"** na caixa Período (o padrão continua "todas as competências"). Desde o visual
-completo (19/10/2026), a aba Gráficos traz também pequenos múltiplos na mesma escala (12 por página) e
-halteres do primeiro ao último período, com a variação e o selo do motor. Detalhes,
+`metadata.tendencia` e `metadata.mudanca`, fora do contexto enviado à IA. Na página única, a análise
+Tendência mostra a mudança, as classes e as séries, com a janela escolhida pela pessoa
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Os selos, o filtro por família, a caixa Período
+com o atalho "Série anual (junho)", os pequenos múltiplos e os halteres da aba Gráficos saíram com as
+telas clássicas em 22/10/2026. Detalhes,
 contagens com os dados reais e testes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md).
 
 ## Comparação territorial com competência dos valores (CAP-CMP-01 com CAP-TMP-01 e CAP-TEN-01)
@@ -604,53 +615,60 @@ automáticas**. A janela exige as premissas temporais da evolução (aplicadas p
 "Competências na janela". Com os níveis da base oficial, as relações ficam só dentro do mesmo nível; o Brasil
 fica lado a lado, sem relação, e o estado com suporte variável na janela não recebe tendência
 (INCOMPARABILIDADE). Sem a opção, a comparação segue o caminho anterior (relações em cada competência). A
-chave de execução muda com a opção e com a versão do método de tendência. Na tela, a comparação começa na
-**série anual de junho** (valores em 06/2024 na base versionada), com a frase **"Valores lado a lado em …"**
-abaixo das configurações (padrão: a última competência da janela; com um período só, não aparece), valores lado a lado por nível (quantidade, população e densidade),
-halteres do primeiro ao último período e o selo da tendência; o par passa a ter mapa. Na conversa, a
-relação de valores iguais (IGUALDADE) aparece na resposta ("O valor de A é igual ao de B."); antes, sumia.
+chave de execução muda com a opção e com a versão do método de tendência. Na página única, a função
+Comparar põe 2 ou 3 itens lado a lado, com maior, menor e diferença vindos do motor
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)); a tela clássica da comparação (série anual de
+junho, a frase "Valores lado a lado em …", os halteres, os selos e o mapa do par) saiu em 22/10/2026. Na
+conversa, a relação de valores iguais (IGUALDADE) aparece na resposta ("O valor de A é igual ao de B."); antes, sumia.
 Detalhes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md) e
 [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md).
 
 ## Mapas e exploração visual integrada (Bloco 3)
 
-Na própria página de resultados, as abas **Mapa**, **Gráficos** e **Tabela** representam o mesmo
-resultado, sem nova análise. O backend anexa a cada resultado um contrato de apresentação
-(`metadata.representacao`) com as colunas representáveis (rótulo, unidade, natureza e capacidade de
-origem) e as coordenadas autorizadas de cada território na competência do resultado, pela mesma regra
-das análises espaciais, respeitando a competência e a camada complementar governada. Na versão Brasil íntegra e correspondente ao manifesto governado, o mapa de uma única competência aparece automaticamente: uma configuração contextual adota SIRGAS2000 **somente para apresentação** e o formato decimal conhecido da fonte. O datum original não é declarado pela fonte; essa premissa ilustrativa fica identificada na tela e no JSON, sem mudar as opções analíticas ou calcular distâncias. Nas análises de distância dessa versão, o referencial já é premissa interna do cálculo: a legenda do mapa informa essa origem e o JSON a registra em `premissa_referencial`. Não há padrão para uploads ou outras versões externas. Sem localização completa e escolhida, a interface explica a indisponibilidade e mantém tabela e gráficos; a configuração da origem de um upload fica nas opções avançadas da preparação, fora da aba Mapa. O mapa de
-pontos (canvas, sem serviço externo nem chave de API) amplia, desloca, seleciona por clique, busca ou
-tabela, mostra estados do motor, não avaliáveis em anel vazado, referências e ligações ilustrativas
-(não trajeto); a seleção é compartilhada com tabela e gráficos e pode ser levada à próxima análise sem
-executá-la. Barras e linhas usam só valores e classes do motor, sem quantis, tendências ou posições
-criadas na tela; na evolução temporal, selos, contagens e velocidades da tendência vêm de `metadata.tendencia`. As barras incluem todos os territórios, com rolagem e montagem das linhas visíveis quando há mais de 40; séries com mais de oito territórios têm páginas de oito, sem excluir os demais. Quantitativos de pessoas com objeto reconhecido como força de trabalho em saúde (perfil oficial ou premissa do objeto informado) usam o rótulo “profissionais”. As tabelas têm filtros por coluna (texto e comparações numéricas como `>= 2`), ordenação visual, páginas de 150 registros e exportação CSV de todo o filtro. Competências aparecem como mês/ano (06/2024), sem alterar o CSV. Resultados de densidade, quantitativos, relatório e evolução com até três registros mostram cartões de destaque com os valores do motor (na evolução, inicial → final, variação, selo da tendência do motor e minigráfico das velocidades). No mapa, até 12 pontos levam o nome do território. O gráfico de linhas enquadra o eixo vertical nos valores observados, informa quando ele não começa em zero e rotula só o último valor de cada série. O CSV superior continua integral. A consulta técnica fica no download “Método e parâmetros”; não há JSON embutido na tela, checklist territorial duplicado ou botões de imagem PNG. A impressão inclui a visualização e a página da tabela em exibição. **Visual completo (19/10/2026, decisão D7):** o
-cabeçalho do resultado (`result-header`) substitui a grade de métricas por uma frase-resumo determinística do motor
-(`metadata.representacao.resumo`: só cópias verificadas de caminhos do resultado, sem LEX-DES, LEX-NORM nem LEX-CAU, sem
-"acima" ou "abaixo" da taxa nacional e fora do contexto da IA), até quatro indicadores (a taxa nacional como cartão de
-contexto, com minigráfico) e a procedência (fonte e versão, fórmula, população do Brasil, tendência, níveis, tipo de
-contagem e chave de execução); resultados antigos mantêm a grade. A API ganhou métricas do motor por análise: evolução
-temporal (séries, aumento, redução, sem mudança e mudança não avaliável entre os extremos), comparações (territórios
-comparados e competências na janela), agregação (territórios agregados), distribuição ("Unidades classificadas" e
-classes), ranking (ordenados e não avaliáveis), rotatividade (coortes avaliáveis e sem registro em um dos períodos),
-relatório de quantidade (registros territoriais) e, na rota de níveis, registros avaliáveis e não avaliáveis de cada nível
-(antes, "Unidades avaliáveis" contava só os municípios); a descrição da densidade passou a "Densidade de pessoas por
-1.000 habitantes." (antes, a frase solta "pessoas por 1.000 habitantes."). Na tela, Brasil, estados e municípios ficam
-em blocos (`levels-panel`; o estado com textura, aviso de possível dupla contagem e "na soma das contagens dos
-municípios"); a comparação tem valores lado a lado, halteres e selos de tendência; o ranking é um gráfico de pirulito
-com a posição do motor; a distribuição ganha a faixa de pontos por classe (eixo logarítmico com valores positivos, só
-desenho) e usa o total do motor, sem somar classes na tela; a agregação tem um cartão com o tipo de contagem; a rotatividade, a barra da coorte. No mapa, a escala de cor
-contínua é **logarítmica por padrão** quando todos os valores são positivos (linear à escolha, ou com zero e negativos),
-com os extremos e marcas de leitura na legenda; o domínio continua o mínimo e o máximo, e nenhuma classe, quebra ou quantil
-é criada na tela. A "Situação do resultado" aparece com acentos. Não há limites de UF nem mapas coropléticos (malha oficial indisponível neste
-ambiente). Detalhes, testes, desempenho e conformidade: [Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
+**Até 22/10/2026**, a tela de resultados tinha as abas **Mapa**, **Gráficos** e **Tabela**, que
+representavam o mesmo resultado: o mapa de pontos (canvas, com seleção, zoom e escala de cor), barras,
+linhas, o pirulito do ranking, a faixa da distribuição, os blocos dos níveis e o cabeçalho do resultado
+com a frase-resumo, os indicadores e a procedência. Essas visualizações saíram do produto com as telas
+clássicas; a análise na tela é o gráfico de bolhas da página única
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)), sem mapa.
 
-**Gráfico de bolhas: motor (21/10/2026) e página principal (22/10/2026):** o gráfico de bolhas é admitido pelo Adendo BOL-20261021 da SPEC. O motor serve `POST /api/painel` e `POST /api/painel/referencias` com a base Brasil oficial: população, quantidade e densidade de cada município e de conjuntos agregados, distância até a referência e variação percentual. Desde 22/10/2026, o pedido com `nivel` (página única de análise) aceita também planilhas enviadas, com rótulos próprios (distritos, províncias…), e traz os estados, a tendência, os grupos por posição, as faixas, as condições, a ordenação, a comparação, a rotatividade (só com identificador individual), a disponibilidade de cada análise, a linha de contexto do Brasil e o registro do resultado na sessão; sem `nivel`, vale o contrato de 21/10. Rotas, campos e regras em [painel integrado](Docs/PAINEL_INTEGRADO.md). Na tela, desde 22/10/2026, esse gráfico é a página principal com a base do Brasil pronta, sem botão nem nome próprio: abre sozinho com todos os municípios (se nenhuma análise foi pedida antes), com a barra das análises (Densidade, Quantidade, Distância, Crescimento, Comparar / Conjuntos e Outras análises), a régua dos municípios base, o crescimento desenhado como cometa e a conversa numa caixa arrastável; "Todas as análises" leva às telas clássicas, que continuam iguais. Com mais de 400 bolhas, o gráfico usa um modo leve (faixa de altura limitada, régua que só esconde, tabela em páginas de 100 linhas e, com valores muito desiguais, escala logarítmica automática): com os 5.570 municípios, a página deixou de travar (de 193 s para menos de 1 s). Detalhes em [página principal: o gráfico de bolhas](Docs/PAINEL_INTEGRADO_INTERFACE.md).
+O que continua na API (`/api/analyze`):
+- o contrato de apresentação (`metadata.representacao`) com as colunas representáveis (rótulo, unidade,
+  natureza e capacidade de origem) e as coordenadas autorizadas de cada território na competência do
+  resultado, pela mesma regra das análises espaciais, respeitando a competência e a camada complementar
+  governada;
+- a frase-resumo determinística do motor (`metadata.representacao.resumo`: só cópias verificadas de caminhos
+  do resultado, sem LEX-DES, LEX-NORM nem LEX-CAU, sem "acima" ou "abaixo" da taxa nacional e fora do
+  contexto da IA);
+- as métricas do motor por análise (desde 19/10/2026, decisão D7): evolução temporal (séries, aumento,
+  redução, sem mudança e mudança não avaliável entre os extremos), comparações (territórios comparados e
+  competências na janela), agregação (territórios agregados), distribuição ("Unidades classificadas" e
+  classes), ranking (ordenados e não avaliáveis), rotatividade (coortes avaliáveis e sem registro em um dos
+  períodos), relatório de quantidade (registros territoriais) e, na rota de níveis, registros avaliáveis e
+  não avaliáveis de cada nível; a descrição da densidade é "Densidade de pessoas por 1.000 habitantes.";
+- na evolução temporal, selos, contagens e velocidades da tendência em `metadata.tendencia`.
+
+Nenhuma classe, quebra ou quantil é criada na tela. Não há limites de UF nem mapas coropléticos (malha
+oficial indisponível neste ambiente). Histórico do Bloco 3, testes do contrato e desempenho:
+[Bloco 3](Docs/BLOCO3_MAPAS_VISUALIZACOES.md).
+
+**Gráfico de bolhas: motor (21/10/2026) e página única (22/10/2026):** o gráfico de bolhas é admitido pelo
+Adendo BOL-20261021 da SPEC. O motor serve `POST /api/painel` e `POST /api/painel/referencias`: população,
+quantidade e densidade de cada município e de conjuntos agregados, distância até a referência e variação
+percentual. Desde 22/10/2026, o pedido com `nivel` (página única de análise) aceita também planilhas enviadas,
+com rótulos próprios (distritos, províncias…), e traz os estados, a tendência, os grupos por posição, as faixas,
+as condições, a ordenação, a comparação, a rotatividade (só com identificador individual), a disponibilidade de
+cada análise, a linha de contexto do Brasil e o registro do resultado na sessão; sem `nivel`, vale o contrato de
+21/10. Rotas, campos e regras em [painel integrado](Docs/PAINEL_INTEGRADO.md). Na tela, desde 22/10/2026,
+esse gráfico é a área de análise da página única, a única forma de análise da interface: as telas clássicas
+("Todas as análises" e "Outras análises") saíram do produto. Detalhes em
+[área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md).
 
 ## Escopo e limitações do protótipo
 
-Os doze cartões apresentam a navegação e acionam rotas do motor. A versão implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e representação integrada em mapa de pontos, barras, linhas e tabela.
+A interface é a página única de análise (22/10/2026): o gráfico de bolhas com Distribuição, Análise espacial, Tendência e Rotatividade e as funções da área de análise, guiado também pela conversa. O motor implementa percursos iniciais para densidade, quantitativos, distribuição por quantis, comparação, mudança temporal, agregação, distância geodésica, ordenação, coortes, tabelas/relatório básico, referência geográfica mais próxima, critérios combinados com rankings e faixas, e o contrato de representação (`metadata.representacao`).
 
-**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada (parcialmente atendida: Brasil, estados e municípios na base oficial, na lista vertical da caixa Abrangência territorial; nas bases importadas e nas referências, a seleção por pesquisa; ver [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md)); regras de comparabilidade longitudinal; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. Os cartões de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
+**Não declara conformidade integral com a SPEC.** Ainda são necessários, entre outros: suporte a várias bases e planilhas auxiliares simultâneas; normalização completa de tabelas largas e dados individualizados; versão integral do catálogo de significados e vocabulário governado; todos os tratamentos de ambiguidade e estados de autorização; seleção territorial avançada (parcialmente atendida: estados e municípios no gráfico da página única; Brasil, estados e municípios na API de análise; ver [abrangência territorial](Docs/ABRANGENCIA_TERRITORIAL.md)); regras de comparabilidade longitudinal; PDF gerado diretamente por servidor e relatório consolidado HTML; limites territoriais oficiais e mapas coropléticos; cobertura exaustiva dos cenários de aceite; escala de grandes bases. As análises de comparação, tendência e rotatividade produzem resultados preliminares que exigem significados semânticos autorizados antes de uso substantivo.
 
 **Divergências da SPEC decididas pelo responsável pelo produto** (registradas em [Docs/REGISTRO_DE_COMPORTAMENTO.md](Docs/REGISTRO_DE_COMPORTAMENTO.md); a SPEC não foi alterada):
 - o aviso de prazo da sessão (RQ-FLX-19, TPL-09, AT-44) não é exibido no início da sessão; o pop-up traz só a declaração de privacidade (19/10/2026);

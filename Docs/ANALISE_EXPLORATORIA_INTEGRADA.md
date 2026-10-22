@@ -1,5 +1,15 @@
 # Investigação territorial progressiva
 
+> **Página única (22/10/2026).** A investigação progressiva descrita aqui (diagnósticos compostos, cartões de
+> componentes, "Destacar seleção nesta análise", "Usar seleção na próxima análise", controles lembrados por
+> resultado e os componentes `InvestigationOverview`, `InvestigationViewState`, `ResultWorkspace`, `ResultTable`,
+> `DistributionResults`, `CriteriaResults` e `TerritoryMap`, com `investigation.ts` e o roteiro
+> `ui_investigation.py`) saiu do produto e fica como histórico. Continuam: o Histórico da sessão, que reabre cada
+> análise guardada como estava, sem recalcular ([interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md)); a referência da análise em
+> exibição enviada à conversa; os limites do servidor (64 referências ou 32 MiB por sessão, teto global de 256 MiB e
+> 128 sessões); e o aviso de descarte depois do encerramento ou da perda da sessão. A cobertura do roteiro que saiu
+> está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 A investigação reúne as análises concluídas **somente na memória da aba e da sessão atual**.
 A visão do diagnóstico atual apresenta uma sequência de componentes, com seis cartões por página. “Nova análise” permite criar uma análise independente ou acrescentar um componente ao diagnóstico. O Histórico da barra horizontal reúne todas as análises da sessão, identificando os diagnósticos aos quais pertencem. Cada etapa identifica
 operação, período, categoria, recorte e situação informada pelo motor. “Ver contexto” expande os

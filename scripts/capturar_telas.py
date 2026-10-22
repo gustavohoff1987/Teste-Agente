@@ -1,19 +1,21 @@
-"""Capturas das telas principais com a base versionada, para a conferência visual (somente leitura).
+"""Capturas das telas principais da página única com a base versionada, para a conferência visual (somente leitura).
 
 Uso, de qualquer pasta do repositório, depois de "npm run build" em frontend/:
     python scripts/capturar_telas.py [--saida PASTA] [--canal chrome|chromium]
 
-Sobe o servidor de testes (backend/tests/serve_ui_offline.py, sem transporte de IA) com a base versionada
-da raiz, percorre as telas principais e salva as capturas em .local/capturas/<data-hora>/, pasta ignorada
-pelo Git. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é encerrado no fim. Só nas
-capturas, a caixa de mensagem deixa de ficar presa ao rodapé, para não cobrir o conteúdo. Uma tela que
-falhar é informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
+Sobe o servidor de testes (backend/tests/serve_ui_offline.py, sem transporte de IA) com a base versionada da raiz, percorre
+as telas principais da página única (22/10/2026) e salva as capturas em .local/capturas/<data-hora>/, pasta ignorada pelo Git:
+a abertura, os estados com a base do Brasil, os municípios do Amazonas e a comparação pedidos pela conversa, o Histórico, o
+diálogo de Nova sessão, o painel "Colunas" de uma planilha de distritos e províncias (criada numa pasta temporária) e o
+celular. Nada vai para o provedor de IA, nenhum dado é alterado e o servidor é encerrado no fim. Uma tela que falhar é
+informada no fim, sem impedir as seguintes. Saída: 0 se todas as capturas foram feitas.
 """
 import argparse
 import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from datetime import datetime
@@ -22,7 +24,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist" / "index.html"
 sys.path.insert(0, str(ROOT / "backend" / "tests"))
-DOCA_SOLTA = ".conversation-dock { position: static !important; }"
 
 
 def porta_livre():
@@ -50,24 +51,22 @@ def build_desatualizado():
 
 def capturar(url, saida, canal):
     from playwright.sync_api import expect, sync_playwright
-    from ui_support import execute_analysis, expand, offline, select, workspace
+    from ui_support import accept_privacy, is_post, offline, open_chat, options_of, send
 
     feitas, falhas = [], []
-    with sync_playwright() as p:
+    with tempfile.TemporaryDirectory(prefix="adt-capturas-") as temporaria, sync_playwright() as p:
         browser = p.chromium.launch(headless=True, channel=canal)
         context = browser.new_context(viewport={"width": 1366, "height": 900}, reduced_motion="reduce")
         offline(context)
         page = context.new_page()
         erros = []
         page.on("pageerror", lambda erro: erros.append(str(erro)))
-        preparacao = page.locator("#preparacao-conversacional")
-        resultados = page.locator("#resultados")
 
         def tela(nome, acao):
             """Executa os passos da tela e salva a captura da página inteira."""
             try:
                 acao()
-                page.wait_for_timeout(700)  # animações curtas de gráficos e mapa
+                page.wait_for_timeout(900)  # transições curtas do gráfico
                 caminho = saida / (nome + ".png")
                 page.screenshot(path=str(caminho), full_page=True)
                 feitas.append(caminho.name)
@@ -76,77 +75,74 @@ def capturar(url, saida, canal):
                 falhas.append(f"{nome}: {str(erro).splitlines()[0]}")
                 print("   FALHOU:", falhas[-1], flush=True)
 
-        def escolher_periodo(rotulo):
-            expand(preparacao.get_by_label("Escolher períodos da análise"))
-            preparacao.get_by_role("button", name=rotulo, exact=True).click()
+        def grafico(acao, condicao=lambda opcoes: True):
+            """Executa a ação e espera o gráfico com o pedido correspondente ao motor (/api/painel)."""
+            with page.expect_response(lambda r: is_post(r, "/api/painel") and condicao(options_of(r.request)), timeout=180000):
+                acao()
 
-        def inicio():
+        def minimizar_conversa():
+            chat = page.get_by_test_id("painel-chat")
+            if chat.get_attribute("data-minimizada") == "false":
+                chat.get_by_test_id("painel-chat-minimizar").click()
+
+        def abertura():
             page.goto(url)
-            page.add_style_tag(content=DOCA_SOLTA)
-            page.get_by_role("button", name="Li e concordo", exact=True).click()
+            accept_privacy(page)
+            expect(page.get_by_test_id("painel-chat")).to_have_attribute("data-ampla", "true")
 
-        def principal():
-            # Página principal com a base do Brasil (22/10/2026): o gráfico de bolhas com todos os municípios (modo leve).
-            page.get_by_role("button", name="Usar dados do Brasil").click()
+        def estados():
+            grafico(lambda: page.get_by_test_id("fonte-brasil").click(), lambda opcoes: opcoes.get("nivel") == "estados")
             expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=90000)
-            expect(page.get_by_test_id("painel-chart")).to_have_attribute("data-modo", "leve", timeout=90000)
 
-        def densidade():
-            select(page, "Densidade")
-            expect(preparacao.get_by_test_id("scope-summary")).to_have_text("Todos os municípios", timeout=90000)
-            escolher_periodo("junho de 2024")
-            expect(preparacao.get_by_test_id("analysis-summary")).to_be_visible(timeout=90000)
+        def amazonas():
+            grafico(lambda: send(page, "Mostre o Amazonas"),
+                    lambda opcoes: opcoes.get("base", {}).get("municipios", {}).get("estados") == ["13"])
 
-        def resultado_mapa():
-            botao = preparacao.get_by_role("button", name="Calcular e mostrar resultado", exact=True)
-            expect(botao).to_be_enabled(timeout=90000)
-            execute_analysis(page, botao)
-            expect(resultados.get_by_test_id("result-title")).to_be_visible(timeout=90000)
-            resultados.get_by_role("tab", name="Mapa", exact=True).click()
+        def comparacao():
+            grafico(lambda: send(page, "Compare Manaus e Tefé"), lambda opcoes: bool(opcoes.get("comparar")))
 
-        def aba(nome):
-            return lambda: resultados.get_by_role("tab", name=nome, exact=True).click()
+        def historico():
+            minimizar_conversa()
+            grafico(lambda: page.get_by_test_id("nav-new-analysis").click(), lambda opcoes: opcoes.get("nivel") == "estados")
+            page.get_by_test_id("nav-history").click()
+            expect(page.get_by_test_id("historico-item")).to_have_count(2, timeout=30000)
+
+        def nova_sessao():
+            page.keyboard.press("Escape")
+            page.get_by_test_id("nav-new-session").click()
+            expect(page.get_by_test_id("new-session-confirmation")).to_be_visible()
+
+        def colunas():
+            page.get_by_test_id("cancel-new-session").click()
+            planilha = Path(temporaria) / "distritos.csv"
+            planilha.write_text("distrito;provincia;ano;categoria;quantidade;populacao;latitude;longitude\n"
+                                "Alfa;Norte;2023;MEDICINA;10;1000;-10.1;-40.2\nBeta;Sul;2023;MEDICINA;20;2500;-12.0;-42.1\n"
+                                "Alfa;Norte;2024;MEDICINA;11;1000;-10.1;-40.2\nBeta;Sul;2024;MEDICINA;22;2500;-12.0;-42.1\n",
+                                encoding="utf-8")
+            page.get_by_test_id("fonte-trocar").click()
+            with page.expect_file_chooser() as escolha:
+                page.get_by_test_id("fonte-arquivo").click()
+            escolha.value.set_files(str(planilha))
+            painel = page.get_by_test_id("colunas-painel")
+            expect(painel).to_be_visible(timeout=60000)
+            painel.get_by_test_id("colunas-territory").select_option("distrito")
+            expect(painel.get_by_test_id("colunas-grupo_territorial").locator("option").nth(1)).to_have_text(
+                "provincia (sugerida)", timeout=30000)
+            painel.get_by_test_id("colunas-grupo_territorial").select_option("provincia")
 
         def celular():
+            page.get_by_test_id("fonte-cancelar-preparo").click()
+            open_chat(page)
             page.set_viewport_size({"width": 390, "height": 844})
 
-        def evolucao():
-            page.set_viewport_size({"width": 1366, "height": 900})
-            workspace(page, "preparation")
-            select(page, "Evolução temporal")
-            expect(preparacao.get_by_test_id("scope-summary")).to_have_text("Brasil (total nacional)", timeout=90000)
-            expect(preparacao.get_by_test_id("scope-loading")).to_have_count(0, timeout=90000)
-            expand(preparacao.get_by_label("Escolher períodos da análise"))
-
-        def abrangencia():
-            preparacao.get_by_test_id("period-done").click()
-            expand(preparacao.get_by_test_id("territory-toggle"))
-            # Lista vertical da abrangência (Brasil, estados e municípios), com os municípios do Amazonas à vista.
-            lista = page.get_by_role("region", name="Seleção territorial compartilhada")
-            expect(lista.get_by_test_id("territory-option-todos-municipios")).to_be_enabled(timeout=90000)
-            lista.get_by_test_id("territory-municipal-state").select_option("13")
-
-        def distancias():
-            select(page, "Análise espacial")
-            expect(preparacao.get_by_test_id("analysis-summary")).to_be_visible(timeout=90000)
-            expect(preparacao.get_by_test_id("scope-loading")).to_have_count(0, timeout=90000)
-
-        def escolhas_faltantes():
-            # Base oficial: sem condições avançadas; o clique em "Calcular" nomeia as escolhas que faltam.
-            preparacao.get_by_role("button", name="Calcular e mostrar resultado", exact=True).click()
-            expect(preparacao.get_by_test_id("missing-choices")).to_be_visible(timeout=90000)
-
-        tela("01-inicio", inicio)
-        tela("01b-pagina-principal", principal)
-        tela("02-densidade-preparacao", densidade)
-        tela("03-densidade-resultado-mapa", resultado_mapa)
-        tela("04-densidade-resultado-graficos", aba("Gráficos"))
-        tela("05-densidade-resultado-tabela", aba("Tabela"))
-        tela("06-densidade-resultado-celular", celular)
-        tela("07-evolucao-escolha-de-periodos", evolucao)
-        tela("07b-evolucao-abrangencia-territorial", abrangencia)
-        tela("08-analise-espacial-preparacao", distancias)
-        tela("09-escolhas-faltantes", escolhas_faltantes)
+        tela("01-abertura", abertura)
+        tela("02-estados", estados)
+        tela("03-amazonas-pela-conversa", amazonas)
+        tela("04-comparacao-pela-conversa", comparacao)
+        tela("05-historico", historico)
+        tela("06-nova-sessao", nova_sessao)
+        tela("07-planilha-colunas", colunas)
+        tela("08-celular", celular)
         browser.close()
     if erros:
         falhas.append("erros de JavaScript na página: " + "; ".join(erros[:3]))

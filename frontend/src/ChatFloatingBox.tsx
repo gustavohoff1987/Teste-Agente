@@ -3,11 +3,11 @@ import { ChevronUp, GripHorizontal, Minus } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import { useNarrow } from "./useNarrow";
 
-// Caixa flutuante da conversa, usada na página principal com a base do Brasil (o gráfico de bolhas): o rosto do agente no
-// cabeçalho, compacta no canto inferior direito ao abrir, arrastável pelo cabeçalho
-// (pointer events) e pelo teclado (setas com o cabeçalho focado; Shift acelera; Home volta ao canto), minimizável e sempre
-// dentro da janela. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular,
-// a caixa fica ancorada embaixo. A conversa mantém o id "assistente"; fora da página principal, o chat não usa esta caixa.
+// Caixa flutuante da conversa, sempre na página única (22/10/2026): o rosto do agente no cabeçalho, no canto inferior
+// direito, arrastável pelo cabeçalho (pointer events) e pelo teclado (setas com o cabeçalho focado; Shift acelera; Home volta
+// ao canto), minimizável e sempre dentro da janela. Na abertura, antes dos dados, ela fica aberta e mais larga ("ampla"); depois,
+// compacta. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular, a caixa
+// fica ancorada embaixo. A conversa mantém o id "assistente".
 
 const CHAVE = "adt:painel-chat:v1";
 const PASSO = 16, PASSO_LONGO = 64;
@@ -31,14 +31,15 @@ function gravar(valor: Guardado) {
   catch { /* sem armazenamento: a posição vale só nesta tela */ }
 }
 
-type Props = { children: ReactNode; ocupado?: boolean };
+/** ampla: a abertura, antes dos dados — a caixa começa aberta (mesmo que tenha sido minimizada antes) e mais larga. */
+type Props = { children: ReactNode; ocupado?: boolean; ampla?: boolean };
 
-export default function ChatFloatingBox({ children, ocupado = false }: Props) {
+export default function ChatFloatingBox({ children, ocupado = false, ampla = false }: Props) {
   const narrow = useNarrow();
   const caixa = useRef<HTMLElement>(null);
   const [guardado] = useState(ler);
   const [posicao, setPosicao] = useState<Posicao | null>(guardado.x !== null && guardado.y !== null ? { x: guardado.x, y: guardado.y } : null);
-  const [minimizada, setMinimizada] = useState(guardado.minimizada);
+  const [minimizada, setMinimizada] = useState(ampla ? false : guardado.minimizada);
   const [anuncio, setAnuncio] = useState("");
   const arrasto = useRef<{ id: number; dx: number; dy: number } | null>(null);
 
@@ -50,12 +51,12 @@ export default function ChatFloatingBox({ children, ocupado = false }: Props) {
       y: Math.round(Math.min(Math.max(0, y), Math.max(0, window.innerHeight - altura))) };
   }, []);
 
-  // Abrir, minimizar ou trocar de largura muda o tamanho da caixa: a posição volta para dentro da janela.
+  // Abrir, minimizar ou trocar de largura (da janela ou da caixa) muda o tamanho: a posição volta para dentro da janela.
   useLayoutEffect(() => {
     if (narrow || !posicao) return;
     const presa = prender(posicao.x, posicao.y);
     if (presa.x !== posicao.x || presa.y !== posicao.y) setPosicao(presa);
-  }, [narrow, minimizada, posicao, prender]);
+  }, [narrow, minimizada, ampla, posicao, prender]);
   useEffect(() => {
     const ajustar = () => setPosicao(atual => atual ? prender(atual.x, atual.y) : atual);
     window.addEventListener("resize", ajustar);
@@ -105,7 +106,7 @@ export default function ChatFloatingBox({ children, ocupado = false }: Props) {
 
   const estilo = !narrow && posicao ? { left: posicao.x, top: posicao.y, right: "auto", bottom: "auto" } : undefined;
   return <section id="assistente" ref={caixa} aria-label="Assistente de análise territorial" data-testid="painel-chat"
-    data-minimizada={minimizada ? "true" : "false"} data-ancorada={narrow ? "true" : "false"}
+    data-minimizada={minimizada ? "true" : "false"} data-ancorada={narrow ? "true" : "false"} data-ampla={ampla ? "true" : "false"}
     className={"painel-chat no-print" + (narrow ? " painel-chat-ancorada" : "")} style={estilo}>
     <div className="painel-chat-cabecalho" data-testid="painel-chat-handle" tabIndex={0} role="group"
       aria-label={narrow ? "Conversa com o agente" : "Conversa com o agente. Para mover a caixa, arraste o cabeçalho ou, com ele focado, use as setas; Shift acelera e Home volta ao canto."}

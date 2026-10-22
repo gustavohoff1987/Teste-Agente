@@ -1,5 +1,9 @@
 # Rastreabilidade da interface integrada — 17/10/2026
 
+> **Registro datado.** A interface descrita aqui (preparação, resultados em abas, mapa, investigação e os
+> roteiros de navegador citados) saiu do produto em 22/10/2026, com a página única de análise: ver a
+> [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 ## Reconhecimento e limites
 
 Branch exclusiva: `feat/novos-blocos-incrementais`. HEAD inicial:

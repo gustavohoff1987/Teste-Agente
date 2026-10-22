@@ -1,5 +1,11 @@
 # Preparação guiada — Teste-Agente
 
+> **Página única (22/10/2026).** A preparação guiada descrita aqui (carrossel e catálogo de análises, etapas,
+> Configurações e "Calcular e mostrar resultado") saiu do produto com as telas clássicas; este documento fica como
+> histórico, com os roteiros citados. Na página única, as escolhas de uma planilha enviada ficam no painel "Colunas"
+> ([interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md#fonte-de-dados)), e o pré-exame
+> (`/api/preflight`) continua no backend. A cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Na branch `feat/portal-uma-pagina-v1`, o chat é a área central do início.
 O agente apresenta um carrossel compacto das dez análises, com setas de navegação.
 Ao selecionar uma análise, a preparação guiada é aberta abaixo da conversa,

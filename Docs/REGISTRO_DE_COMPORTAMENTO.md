@@ -35,6 +35,246 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única: a tela, o motor e a conversa ligados (integração das quatro frentes)
+- **Antes:** as quatro partes da página única (motor do gráfico, área de análise, estrutura da página e conversa) foram feitas
+  em paralelo, cada uma sobre o contrato comum, e não se falavam em alguns pontos.
+- **Agora:**
+  - **Pedido ao motor:** a área manda `nivel` e `indicador` em todo pedido (sem `nivel`, o motor responde no formato de 21/10,
+    que não conhece as chaves da página única). Nas planilhas, as premissas do painel Colunas vão em todo pedido; sem população
+    associada, o indicador começa na quantidade. Na base do Brasil, nenhuma premissa vai ao motor.
+  - **Leitura da resposta:** o membro mais próximo com empate (`empate`), o estado de cada condição com o texto da definição do
+    topo, os limites das faixas em texto decimal, a comparação com `maior` e `menor` em ids e a diferença `{a, b, relacao,
+    diferenca}`, e o motivo da tendência em texto com o código entre parênteses.
+  - **Conversa:** cada pedido leva o estado do gráfico (`painel_indicador`, `painel_nivel`, `painel_municipios`,
+    `painel_competencia`, `painel_janela` e `painel_referencia`); antes de o gráfico informar o contexto, `painel_familia` vai
+    nulo, e a conversa responde no formato do gráfico. Numa planilha, os nomes da unidade e do grupo (`rotulos`) vão à conversa,
+    não ao pré-exame. Os comandos de grupos ("divida em quintis") e de referência por critério ("a de maior densidade como
+    referência", que abre a lista de candidatos nessa ordem, com a escolha da pessoa) passam a mudar o gráfico.
+  - **Textos que citavam telas que saíram:** a pergunta do período não confirmado ("Deseja revisar o período?", antes "…na
+    preparação?"); as linhas idênticas ("Escolha remover as cópias nesta análise ou corrija a base.", antes "Em «Linhas
+    idênticas», escolha…"); a leitura de resultado ("Recorte do resultado diferente da análise atual.", antes "…da preparação
+    atual."); a pendência de recorte da conversa ("…escolha o recorte.", antes "…escolha o recorte na preparação."); e a recusa
+    de planilha no formato de 21/10 do gráfico, que passa a indicar o formato da página única, com `nivel`.
+  - **Saem, sem uso:** o invólucro de transição `PainelIntegrado.tsx` e o catálogo das 12 análises (`analysisCatalog.ts`), com o
+    seu teste unitário.
+- **Permanece:** todo número vem do motor; nada da base nem as chaves do contexto do gráfico vão ao provedor de IA; o formato de
+  21/10 de `/api/painel` continua para quem o usa.
+- **Motivo:** integração da página única de análise, decidida pelo responsável pelo produto em 22/10/2026. Classificação:
+  mudança prevista, no escopo do contrato da página única e compatível com a SPEC e com as divergências aprovadas.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (opções enviadas, planilhas e campos da resposta),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (contexto da conversa e comandos novos) e `backend/tests/legado/README.md`.
+  - **Testes unitários:** `painel.test.mjs` (`nivel` e `indicador` em todo pedido, mudados de propósito porque o pedido mudou;
+    planilha sem população; premissas da fonte; grupos e referência por critério vindos da conversa; resposta no formato do
+    motor), `conversaGrafico.test.mjs` (o estado do gráfico nas opções da conversa e `painel_familia` nulo, mudados de propósito;
+    grupos no comando) e `paginaUnica.test.mjs`. Sai `analysisCatalog.test.mjs`, com o módulo, sem uso na página única.
+  - **Roteiros de navegador:** `ui_pagina_unica.py`, `ui_area_de_analise.py` e `ui_conversa_grafico.py`, nas suítes de sempre.
+
+### 2026-10-22 · Página única de análise: estrutura, fonte dos dados e conversa; saem as telas clássicas
+- **Antes:**
+  - a navegação tinha cinco ações (Início, Nova sessão, Nova análise, Histórico e Resultados). Com a base do Brasil, a página
+    principal era o gráfico de bolhas, e "Todas as análises" e "Outras análises" levavam ao fluxo clássico: o catálogo de 12
+    análises, a preparação (Categoria, Período, Abrangência territorial, Indicador e condições), os resultados em abas (Mapa,
+    Gráficos e Tabela), a investigação progressiva e os diagnósticos compostos;
+  - a escolha dos dados ficava no início ("Usar dados do Brasil" e "Importar seus dados"), e no chat só depois da primeira
+    mensagem; as colunas de uma planilha eram escolhidas na preparação de cada análise;
+  - "Nova análise" abria as modalidades ou a escolha entre análise independente e composição;
+  - a conversa preparava a análise, e o cálculo dependia de uma ação na preparação; "agora a tabela" e "ver no mapa" abriam as
+    abas do resultado.
+- **Agora:**
+  - **Página única.** Primeiro, o aceite de privacidade. No alto, o nome do agente e a navegação: Nova sessão, Nova análise e
+    Histórico (saem "Início" e "Resultados"). Logo abaixo, a fonte dos dados: "Dados do Brasil" ou "Enviar meus dados", com o
+    resumo da fonte em uso (por exemplo, "Dados do Brasil · Medicina · jan/2014 a jun/2024") e "Trocar". Depois, a área de
+    análise, registrada à parte com o motor do gráfico e a conversa no motor (mesmo pedido).
+  - **Fonte dos dados.** A base do Brasil e as planilhas passam por `/api/inspect`; com a base pronta, o gráfico começa pelos
+    estados. Arquivo com várias abas: a escolha da aba. Planilha: o painel curto "Colunas" pede só o que falta, com a sugestão
+    no topo, marcada "(sugerida)", nunca usada sem escolha (D1):
+    - papéis: unidade territorial, código, grupo territorial (`grupo_territorial` no `mapping` da área; ao pré-exame e à
+      conversa, em `hierarchy_columns`), período, categoria, quantidade, população, latitude, longitude e identificador
+      individual; unidade territorial, período e quantidade são obrigatórios;
+    - o que a quantidade conta (pessoas, vínculos, postos ou outra unidade, descrita);
+    - os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e "distritos",
+      "província" e "províncias"; `FonteDados.rotulos`). Com uma planilha, nenhum texto da estrutura e da conversa diz
+      "município"; na base do Brasil, município/municípios e estado/estados;
+    - com coordenadas, o referencial: só o SIRGAS 2000 é admitido; outro, ou "Não sei", deixa a análise espacial
+      indisponível, com o motivo, sem presumir;
+    - o que a planilha permite: cada análise sem os dados de que precisa fica indisponível, com o motivo.
+  - **Histórico e sessão.** "Nova análise" guarda a análise em exibição no Histórico e volta ao começo do gráfico com os
+    mesmos dados. O Histórico lista as análises da sessão e reabre cada uma como estava, sem recalcular; as de outra fonte
+    ficam listadas, desabilitadas, com o motivo. "Nova sessão" pede confirmação e oferece o CSV (valores do motor, em
+    precisão integral) e a impressão da análise em exibição.
+  - **Conversa.** A caixa flutuante com o rosto do agente fica sempre na página. Na abertura, aberta e mais larga, ela pergunta
+    o que analisar e mostra "Dados do Brasil" e "Enviar meus dados"; a escolha também vale por mensagem. Cada pedido leva em
+    `options` o contexto do gráfico (territórios na tela, família, indicador e competência). O campo `painel` da resposta vira
+    um pedido para a área, com um identificador novo a cada comando; antes dos dados, o pedido fica guardado e segue quando o
+    gráfico fica pronto. Ambiguidades: alternativas em botões. "Agora a tabela" aponta os Detalhes, abaixo do gráfico; "ver no
+    mapa" explica que o mapa não faz parte da página; "volte ao resultado anterior" reabre a análise anterior do Histórico, sem
+    recalcular.
+  - **Saem do produto** (remoções de funções):
+    - o catálogo de 12 análises, "Todas as análises" e "Outras análises";
+    - a preparação: as caixas Categoria, Período, Abrangência territorial e Indicador, as condições específicas, o construtor
+      de critérios, a Hierarquia territorial, "Linhas idênticas", os componentes desagregados, o objeto de análise, "Retomar
+      parâmetros" e "Usar como municípios-alvo";
+    - os resultados em abas (Mapa, Gráficos e Tabela): o cabeçalho do resultado, os cartões de destaque, o mapa de pontos, as
+      barras e linhas, o pirulito do ranking, a faixa da distribuição, os halteres, os pequenos múltiplos, os selos e o filtro
+      por família da tendência e "Baixar registro técnico (JSON)";
+    - a investigação progressiva: diagnósticos compostos, análise independente e composição, "Destacar seleção nesta análise",
+      "Usar seleção na próxima análise" e os controles lembrados por resultado;
+    - os componentes e modelos usados só por essas telas: `ChatAnalysisCarousel`, `ContextConfig`,
+      `ConversationalPreparation`, `CriteriaBuilder`, `CriteriaResults`, `DataResolution`, `DistributionResults`,
+      `InvestigationOverview`, `InvestigationViewState`, `PeriodSelection`, `PreparationPanel`, `PreviousAnalyses`,
+      `ReferenceSetup`, `RequirementChecklist`, `ResultCharts`, `ResultHeader`, `ResultTable`, `ResultVisuals`,
+      `ResultWorkspace`, `TerritorialScopeSelector`, `TerritoryMap`, `TrendVisuals` e `WelcomeHero` (`.tsx`); `criteriaTree`,
+      `curatedPreparation`, `diagnostics`, `headerModel`, `investigation`, `preparationReadiness`, `representation`, `trend`,
+      `visualModels`, `workspaceNavigation` e `analysisCatalog` (o catálogo das 12 análises) (`.ts`).
+- **Permanece:**
+  - o motor e a API: `/api/analyze` e as capacidades, `/api/inspect`, `/api/preflight`, `options.abrangencia` e
+    `metadata.representacao`; todos os números vêm do motor;
+  - a conversa local e com o Gemini (`/api/exploration/interpret`, `/api/llm/interpret-context`, `/api/llm/interpret` e
+    `/api/brazil/description`), os esclarecimentos, a sessão de 1.800 s e a privacidade; nada da base vai ao provedor de IA;
+  - o aceite de privacidade, "Nova sessão" com confirmação, a falha ao encerrar, que mantém a tela, e a revogação da sessão;
+  - a caixa da conversa arrastável (mouse, teclado, posição guardada e minimizar), agora com a abertura mais larga;
+  - `territorialScope.ts`, `TerritorialSelection.tsx`, `useNarrow.ts`, `conversationSession.ts`, `BrandAvatar.tsx`,
+    `periods.ts` e `fieldChoices.ts`, com os seus testes;
+  - os dados versionados.
+- **Motivo:** decisão do responsável pelo produto em 22/10/2026: "Eu só quero entrar por aquela linha, por aquele gráfico" e
+  "Aproveitar a tela, funcionalidades antigas, se elas não vão contribuir para esse tipo de processo de análise e de
+  visualização, eu não quero. Aí a gente precisa reestruturar." No mesmo dia, ele pediu que as planilhas de outros países
+  (distritos, condados, províncias) funcionem com os nomes delas e com a pergunta do referencial das coordenadas.
+  Classificação: mudança grande e prevista, aprovada pelo responsável em 22/10/2026, com as remoções listadas acima.
+  - Escopo: o pedido.
+  - Compatibilidade:
+    - a interface é independente das diretrizes de UX da SPEC (README), e o gráfico segue o Adendo BOL-20261021;
+    - a SPEC só admite o SIRGAS 2000: outro referencial deixa a análise espacial indisponível, sem presumir;
+    - a decisão D1 (nenhuma confirmação de colunas) continua valendo no painel "Colunas";
+    - nenhuma divergência aprovada é contrariada.
+- **Documentação e testes:**
+  - **Documentação:** README (interface, fonte dos dados, planilhas, conversa, testes e os trechos das capacidades que
+    descreviam a tela clássica), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (reescrito para a página única),
+    `Docs/SEMANTIC_BRIDGE_ADAPTACOES.md`, `Docs/CONVERSACAO_INCREMENTO_FN.md`, `Docs/DADOS_BRASIL_VALIDACAO.md`,
+    `Docs/MODELO_TERRITORIAL.md`, `Docs/OTIMIZACAO_LATENCIA.md` e a nota da página única nos documentos que descreviam as
+    telas clássicas (`ABRANGENCIA_TERRITORIAL`, `ANALISE_EXPLORATORIA_INTEGRADA`, `BLOCO1_RESULTADOS_EXPLORAVEIS`,
+    `BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE`, `BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO`, `BLOCO3_MAPAS_VISUALIZACOES`,
+    `EVOLUCAO_TEMPORAL_E_TENDENCIA`, `PREPARACAO_GUIADA` e os relatórios datados de 15 a 18/10/2026).
+  - **Roteiros de navegador novos**, registrados em `run_ui_checks.py`, sem mudar os nomes das suítes nem o `ci.yml`:
+    - `ui_pagina_unica.py` (suítes `bloco1` e `base-versionada`): a estrutura da página, a base do Brasil, o Histórico, Nova
+      análise, Nova sessão, a caixa da conversa, uma planilha de distritos e províncias sem código IBGE pelo painel "Colunas"
+      (criada no próprio roteiro, numa pasta temporária), duas abas, formato recusado, 390 px e o fim da sessão;
+    - `ui_conversa_grafico.py` (suítes `conversa` e `gemini-simulado`): a conversa mudando o gráfico, com o contexto do
+      gráfico nos pedidos, esclarecimentos, botões de ambiguidade, pedidos de apresentação, análise anterior, uma planilha de
+      condados pela conversa e nada da base ao provedor. A suíte `conversa` passou ao catálogo sintético do Bloco 1.
+  - **Roteiros que saíram com o fluxo clássico (16):** `ui_block1_smoke.py`, `ui_block1_regression.py`,
+    `ui_nearest_smoke.py`, `ui_criteria_smoke.py`, `ui_map_smoke.py`, `ui_visibility_diagnostic.py`, `ui_investigation.py`,
+    `ui_integrated_workspace.py`, `ui_sem_confirmacoes.py`, `ui_territorial_scope.py`, `ui_result_visuals.py`,
+    `ui_conversational_smoke.py`, `ui_block1_integration.py`, `ui_semantic_continuity.py`, `ui_stabilization.py` e
+    `ui_painel_integrado.py`; também `bench_ui_criteria.py`, `bench_ui_journey.py`, `bench_ui_map.py`,
+    `bench_ui_nearest.py` e `prepare_ui_brazil_catalog.py`. O que cada um cobria, onde a cobertura está hoje e as lacunas:
+    `backend/tests/legado/README.md`. `ui_support.py` foi reescrito para a página única (saem `select`, `stage` e `card`).
+  - **Testes unitários do frontend:** novos `paginaUnica.test.mjs` e `conversaGrafico.test.mjs`. Saíram com os seus módulos
+    `diagnostics`, `headerModel`, `investigation`, `preparationReadiness`, `representation`, `trend`, `visualModels` e
+    `workspace` (`.test.mjs`); de `workspace.test.mjs`, os testes de `normalizeCommand`, `viewCommand` e
+    `previousResultCommand` foram para `conversaGrafico.test.mjs`. Nenhuma verificação de comportamento mantido foi afrouxada.
+  - **Capturas:** `scripts/capturar_telas.py` percorre a página única.
+
+### 2026-10-22 · Área de análise da página única: famílias de análise, eixo Y do indicador e territórios em lista à vista
+- **Antes:**
+  - o gráfico de bolhas da página principal tinha a barra das análises: Densidade, Quantidade, Distância, Crescimento,
+    Comparar / Conjuntos e "Outras análises", que abria a preparação clássica de Distribuição, Rankings, Critérios combinados,
+    Rotatividade e Relatórios;
+  - abria com todos os municípios da base; o universo se montava em "Municípios base": todos, estados inteiros, a busca, a
+    lista ou municípios arrastados para o gráfico;
+  - sem distância, o eixo único do indicador era horizontal, e a altura era só arranjo;
+  - acima de 400 bolhas, com um valor ao menos 100 vezes maior que outro, o eixo começava na escala logarítmica automática;
+  - "Crescimento" pedia a competência inicial e desenhava a variação percentual do motor como cometa;
+  - só com a base do Brasil, sem título dinâmico nem exportação.
+- **Agora:** a área de análise da página única (`frontend/src/AreaDeAnalise.tsx`), que a estrutura da página monta com a fonte,
+  o pedido da conversa, o estado a restaurar e os avisos de contexto e de cálculo.
+  - **Estados da tela:**
+    - E0, antes dos dados: a moldura limpa, "Escolha os dados para começar", com "Dados do Brasil" e "Enviar meus dados", sem
+      números; a família clicada vira intenção;
+    - E1, com a base do Brasil: os 27 estados em bolhas (`nivel: "estados"`), com a linha de contexto do Brasil e a instrução
+      "Clique num estado para ver os municípios dele"; nunca os 5.570 municípios de início;
+    - E2 a E4: as unidades escolhidas, outra família e uma função em uso.
+  - **Territórios sempre à vista, em lista** (pedido do responsável):
+    - "Todos os estados (27)" e "Todos os municípios do Brasil (5.570)";
+    - os 27 estados, cada um com a caixa "Todos os municípios de <estado>" e a ação "Ver os N municípios";
+    - os municípios do estado aberto em caixas de marcar, com "Marcar todos" e "Desmarcar todos";
+    - a busca só como complemento ("Procurar pelo nome ou código (opcional)");
+    - clicar (ou Enter) na bolha de um estado abre os municípios dele, e a dica mostra "Ver os N municípios";
+    - a trilha ("Brasil › Amazonas › 3 municípios") leva de volta;
+    - **sai o arrastar municípios para o gráfico.**
+  - **Famílias de análise,** com um só seletor de indicador (Densidade ou Quantidade):
+    - Distribuição: grupos por quartis, quintis ou decis e faixas digitadas, com grupos, cortes e contagens do motor;
+    - Análise espacial (no lugar de "Distância"): X = distância até a referência (por critério, nome ou conjunto), faixas de
+      distância e a nota TPL-11;
+    - Tendência: a janela escolhida pela pessoa, com atalhos, e as visões Mudança (no lugar de "Crescimento"), Classes e
+      Séries, com as classes e as velocidades do motor (pelo menos quatro competências);
+    - Rotatividade: barras de 100% da coorte inicial; com a base do Brasil, desabilitada, com o motivo e "Enviar meus dados".
+  - **Eixos:** Y é o indicador em todas as famílias. No eixo único, as bolhas se espalham na horizontal só como arranjo, com a
+    nota "a posição horizontal é só arranjo"; na Análise espacial, X = distância.
+  - **Escala:** linear, a partir do zero; a logarítmica só por escolha da pessoa. **Sai a escala logarítmica automática.**
+  - **Funções comuns** em painéis laterais: Territórios, Régua, Condições, Ordenar, Comparar, Juntar e Exportar (no celular,
+    no botão "Ferramentas"). Condições, Ordenar e Comparar pedem ao motor e mostram as situações, as posições e as diferenças
+    dele.
+  - **Título dinâmico** ("Densidade de médicos nos municípios do Amazonas · junho de 2024") e **Detalhes** em abas: Tabela
+    (100 linhas por página), Não avaliáveis e Método e procedência.
+  - **Exportar:** CSV com todos os itens, em precisão integral, com a avaliabilidade e o motivo; Imprimir / PDF; o método em
+    texto.
+  - **Nomenclatura territorial:** os textos saem dos rótulos da fonte ou do motor (`rotulos`). Na base do Brasil, os de sempre
+    (municípios e estados); numa planilha, os confirmados (distritos, províncias…), com concordância simples. Nas planilhas,
+    não há bolhas de grupo: a lista dos grupos ou a das unidades.
+  - **Pedido ao motor** (`frontend/src/painelApi.ts`, o único lugar com os nomes dos campos):
+    - as opções do contrato de 22/10/2026: `nivel`, `grupos`, `faixas`, `faixas_distancia`, `tendencia`, `condicoes`,
+      `ordenar`, `comparar`, `rotatividade` e `premissas`; e `indicador`, só com grupos, faixas ou tendência;
+    - a disponibilidade das famílias e as pendências de premissa vêm do motor (`disponibilidade` e `pendencia`), com as
+      opções que ele mandar (por exemplo, o referencial: SIRGAS 2000 ou WGS 84);
+    - 150 ms de espera, o pedido anterior cancelado e as últimas seis respostas na memória da tela.
+  - **Conversa e Histórico:** a área aplica o pedido da conversa (cada `id` uma vez), avisa o que está na tela a cada mudança
+    e entrega o estado salvo a cada cálculo; o estado restaurado reabre sem recalcular.
+  - **Montagem:** a estrutura da página monta a área direto; "Todas as análises" e "Outras análises" saem com as telas
+    clássicas.
+- **Permanece:**
+  - todos os números vêm do motor: valores, grupos, faixas, classes, contagens, posições, comparações, distâncias, variações e
+    motivos; a tela não soma, não ordena nem classifica nada por conta própria (RQ-REP-01 e RQ-REP-02);
+  - estados e municípios nunca no mesmo eixo nem somados; o conjunto é a soma das contagens dos componentes, com possível
+    dupla contagem (RQ-REP-14);
+  - a régua só esconde (RQ-REP-06); a tabela equivalente tem todos os itens, em páginas de 100;
+  - o modo leve acima de 400 bolhas e o arranjo exato até 400; o cometa só com a variação do motor (RQ-REP-15);
+  - as cores da bolha e da mudança (azul e laranja, contínuas, com o zero cinza);
+  - as telas clássicas, por "Todas as análises", enquanto a estrutura da página não as retirar;
+  - nada vai ao provedor de IA; os dados não mudam.
+- **Motivo:** decisões do responsável pelo produto de 22/10/2026 para a página única: uma análise integrada, sem duas telas; o
+  eixo Y é o indicador; a escala logarítmica só por escolha; a escolha dos territórios visível e didática ("ele não pode ter
+  que adivinhar que ele precisa clicar num estado para poder abrir a caixa de municípios. E não pode ser só por digitar");
+  as planilhas de outros países com a nomenclatura delas. Classificação: mudança prevista e aprovada pelo responsável em
+  22/10/2026.
+  - Escopo: o pedido.
+  - Compatibilidade:
+    - o gráfico de bolhas segue o Adendo BOL-20261021 e a Parte 13 (RQ-REP-01 a 06, 11, 14 e 15; nenhuma mudança automática
+      de escala);
+    - as famílias seguem as capacidades da SPEC: CAP-DIS-02 e 03, CAP-ESP-01 a 03 (com TPL-11), CAP-TMP-01, CAP-TEN-01 (com
+      os rótulos de DA-15), CAP-ROT-01, CAP-SUB-01 a 03, CAP-CMP-01 e CAP-AGR-01;
+    - nenhuma divergência aprovada é contrariada.
+  - A escala logarítmica automática da entrada anterior podia ser revertida pelo responsável; a página única a retira.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` passa a descrever a área de análise da página única: estados da
+    tela, escolha dos territórios, famílias, eixos e cores, funções, Detalhes, pedido ao motor, acessibilidade e testes.
+  - **Roteiro novo:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` e `base-versionada` (`ADT_BLOCK1_REAL=1`),
+    registrado em `run_ui_checks.py`. Confere E0 e E1, a lista de territórios sem digitar, abrir um estado pela bolha e pela
+    lista, marcar e desmarcar, a busca, a trilha de volta, Quantidade sem pedido, a régua, quartis, a análise espacial conforme
+    a disponibilidade do motor, a tendência nas três visões, a rotatividade desabilitada, Condições, Ordenar, Comparar, Juntar,
+    o CSV, os Detalhes, os 5.570 municípios no modo leve (base versionada) e o celular.
+  - **Roteiro apagado:** `backend/tests/ui_painel_integrado.py`, porque a tela que ele percorria mudou. Onde cada verificação
+    passou a existir está em `backend/tests/legado/README.md`. Saem, com o comportamento, as verificações da escala
+    automática, do arrastar e da abertura com todos os municípios.
+  - **Testes do modelo** (`frontend/tests/painel.test.mjs`), reescritos com o modelo; cada teste anterior tem o seu
+    correspondente.
+    - Mudados de propósito, porque o comportamento mudou (o defeito não está no produto nem no teste): o eixo Y do indicador
+      com o arranjo horizontal, a ausência de escala automática, o cometa vertical e a abertura nos estados.
+    - Novos: nomenclatura (distritos, províncias, comunas), escolha dos territórios, trilha, título, opções do pedido,
+      disponibilidade das famílias, comando da conversa, janela e séries, camadas de cor, tabela, CSV, estado salvo, contexto
+      e leitura da resposta.
+
 ### 2026-10-22 · Conversa no gráfico: o pedido vira o comando `painel` da página única
 - **Antes:**
   - a conversa só preparava análises da preparação clássica: `/api/exploration/interpret` devolvia `operation`,

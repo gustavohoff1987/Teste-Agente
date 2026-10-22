@@ -1,5 +1,9 @@
 # Verificação dirigida da visibilidade de gráficos e mapas — 15/10/2026
 
+> **Registro datado.** A interface descrita aqui (preparação, resultados em abas, mapa, investigação e os
+> roteiros de navegador citados) saiu do produto em 22/10/2026, com a página única de análise: ver a
+> [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Escopo: auditoria funcional em `feat/novos-blocos-incrementais`, sem alteração de algoritmo, arquivos de dados ou componentes de produção. Não confundir código implementado com acessibilidade imediata no fluxo padrão.
 
 ## Achados de inspeção estática (pré-teste)

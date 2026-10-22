@@ -1,300 +1,202 @@
-# Interface conversacional integrada
+# Interface conversacional integrada: a página única de análise
 
-A investigação ocupa toda a largura disponível, até 1.920 px. O banner conserva o texto, as cores
-e as proporções compactas. O personagem é o SVG original de `BrandAvatar.tsx`, reutilizado sem
-alterar rosto, vestimentas, proporções ou cores. Não há personagem novo nem imagem gerada.
+Desde 22/10/2026, a interface é uma página única: uma análise integrada, sem duas telas (decisão do responsável pelo produto
+em 22/10/2026: "Eu só quero entrar por aquela linha, por aquele gráfico"). Este documento descreve a estrutura da página, a
+fonte de dados, o Histórico, a sessão e a conversa. A área de análise (o gráfico, as famílias, as funções e os Detalhes) é
+descrita no documento da área ([página principal: o gráfico de bolhas](PAINEL_INTEGRADO_INTERFACE.md)); o motor do gráfico,
+em [painel integrado](PAINEL_INTEGRADO.md).
 
-## Navegação e sessão
+As telas clássicas saíram do produto: o catálogo de 12 análises, a preparação (categoria, período, abrangência e condições),
+os resultados em abas (mapa, gráficos e tabelas), a investigação progressiva e os diagnósticos compostos. O motor
+(`/api/analyze` e as capacidades) continua; a página usa `/api/painel`. A seção [O que saiu](#o-que-saiu-em-22102026)
+resume a mudança.
 
-| Ação | Comportamento |
-|---|---|
-| Início | Com a base do Brasil pronta, abre a página principal: o gráfico de bolhas dos municípios, com os botões das análises e a conversa numa caixa arrastável (desde 22/10/2026; ver [Página principal: o gráfico de bolhas](PAINEL_INTEGRADO_INTERFACE.md)). Nas bases importadas, volta ao banner e à apresentação do agente. Preserva sessão, conversa, preparação e resultados. |
-| Nova sessão | Abre diálogo com exportação CSV, Imprimir / PDF, Continuar nesta sessão e Iniciar nova sessão. A confirmação revoga a sessão no servidor e recarrega a aplicação. |
-| Nova análise | Abre o catálogo diretamente no primeiro uso; com análise em andamento, oferece análise independente ou acréscimo ao diagnóstico. |
-| Histórico | Reabre resultados existentes, sem recálculo e sem restaurar parâmetros implicitamente. Identifica análise independente e componentes. Fecha por clique externo ou Escape. |
-| Resultados | Oculta a preparação, expande e navega diretamente para o conteúdo calculado. Mantém conversa acessível e não altera dados nem executa análises. |
+## Estrutura da página
 
-“Alterar a preparação” e “Voltar às opções” tornam os controles visíveis novamente. Os controles
-se distribuem em mais de uma linha em telas pequenas, sem menu lateral.
-Diálogos nativos contêm o foco e devolvem-no ao controle acionador; Escape cancela. O encerramento
-em andamento bloqueia novas confirmações. Falha de rede no encerramento mantém o diálogo e o
-conteúdo da sessão, permitindo nova tentativa ou cancelamento.
+1. **Aceite de privacidade primeiro.** O pop-up traz só a declaração ("Declaro que não compartilharei dados pessoais ou
+   sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.") e "Li e concordo"; depois de uma
+   sessão encerrada, o aviso do descarte aparece acima dela. Até o aceite, os botões da fonte e o envio de arquivos ficam
+   desabilitados.
+2. **Cabeçalho.** O nome do agente ("Agente Diagnóstico Territorial", com o rosto do agente) volta ao topo da página. Ao
+   lado, a navegação: **Nova sessão**, **Nova análise** e **Histórico**. Não há "Início" nem "Resultados": a página é
+   sempre o gráfico.
+3. **Fonte dos dados**, logo abaixo:
+   - antes dos dados: **Dados do Brasil** e **Enviar meus dados**, com o modelo de planilha (.xlsx) para baixar;
+   - depois: o resumo da fonte, por exemplo "Dados do Brasil · Medicina · jan/2014 a jun/2024" ou, numa planilha,
+     "distritos.csv · distritos e províncias · Medicina · 2021 a 2024", com **Trocar** (e **Colunas**, na planilha);
+   - "Trocar" mostra de novo as duas fontes. A troca só vale quando a nova fonte fica pronta: até lá, o gráfico continua com
+     a fonte em uso, e "Cancelar" desiste;
+   - na base do Brasil, "Diagnóstico técnico da fonte" mostra a origem, a versão e a integridade (sem conteúdo).
+4. **Área de análise**: o gráfico com os valores do motor, nos estados E0 (antes dos dados) a E4 (funções em uso). Ver o
+   documento da área.
+5. **Conversa**: a caixa flutuante com o rosto do agente, sempre na página (ver [Conversa](#conversa)).
 
-Uma sessão pode conter diversas análises e diagnósticos. A transcrição, os arquivos importados,
-as seleções, os parâmetros e os resultados ficam na memória da aba. Recarregar descarta o
-histórico local. Encerramento e expiração continuam usando os limites e mecanismos existentes.
-Nenhum grupo ou resultado é salvo no armazenamento persistente do navegador.
+Uma linha de aviso abaixo da fonte confirma as ações da página ("Dados do Brasil prontos.", "Análise guardada no Histórico.
+Nova análise com os mesmos dados.", "Análise reaberta como estava, sem recalcular: …") e some depois de alguns segundos.
+No celular (abaixo de 640 px), o cabeçalho e a navegação quebram em linhas, a lista do Histórico ocupa a largura da tela e
+a conversa fica ancorada embaixo, sem rolagem horizontal.
 
-## Condução da investigação
+## Fonte de dados
 
-O agente apresenta a escolha da fonte desde a entrada. Depois acompanha o reconhecimento,
-as escolhas de colunas e parâmetros (sem confirmações de campo, decisão D1 de 19/10/2026), a escolha
-de modalidade, recortes, períodos e execução. A preparação
-existente continua verificando requisitos no backend. O catálogo apresenta a disponibilidade
-informada pelo pré-exame; requisitos ausentes podem ser examinados e resolvidos na preparação.
+### Base do Brasil
 
-A transcrição permanece em memória para continuidade, sem histórico visual acumulado. A última
-resposta do agente permanece junto ao campo de digitação, em uma faixa contextual ancorada à base da janela dentro da investigação. O usuário
-pode continuar perguntando durante a exploração de gráficos, mapas e tabelas. Alternativas de
-interpretação permanecem acessíveis na conversa. Não há coluna reservada nem janela arrastável fora da página principal com a base do Brasil;
-nela, a mesma conversa (orientação, fonte atual, última resposta, alternativas e campo de envio, com os mesmos identificadores)
-fica numa caixa flutuante com o rosto do agente, arrastável e minimizável ([Página principal: o gráfico de
-bolhas](PAINEL_INTEGRADO_INTERFACE.md)). "Todas as análises", no alto do gráfico, leva ao fluxo clássico, com a conversa no lugar
-de sempre.
+"Dados do Brasil" examina a base versionada uma vez, no recorte municipal, com o bloco dos níveis (Brasil e estados), por
+`/api/inspect`, como antes. A área recebe a fonte (`FonteDados`: `tipo: "brasil"`, a versão da base, o token da camada
+geográfica complementar e os rótulos fixos município/municípios e estado/estados), as competências, a categoria, os níveis e
+o catálogo de municípios para a busca. Depois de escolher a base, o gráfico abre nos **27 estados** (E1); nunca nos 5.570
+municípios de início.
 
-**Continuidade da conversa (desde 21/10/2026).** O estado estruturado da conversa é a própria preparação: a análise,
-os territórios da abrangência, os períodos, o indicador e a categoria. Cada mensagem os envia ao intérprete local, e a
-sessão do backend guarda o contexto verificado. Um pedido que não cita territórios usa os já escolhidos, e a resposta
-diz quais ("Mantive os 3 territórios já escolhidos na conversa: …"). Um pedido só com o período ("E nos últimos 5
-anos?") continua a análise ativa. "Últimos N anos" e "último ano" (AT-34) são contados até o último período da base e
-até hoje, pela data local do navegador:
-- quando as duas contagens dão as mesmas competências, o período é aplicado e dito na resposta;
-- quando divergem, a conversa apresenta as duas leituras como alternativas, sem escolher, e cada alternativa envia o
-  pedido com os anos explícitos ("Comparação de 2020 a 2024");
-- sem o número ("últimos anos"), a conversa pergunta quantos;
-- na virada do ano, sem a data local, ela pede os anos.
+### Planilha enviada: o painel "Colunas"
 
-Verbos comuns ("fazer", "faça", "veja", "saber") não impedem a interpretação local. O pedido feito antes da escolha dos
-dados é interpretado de novo quando a base fica pronta, e os municípios citados nele vão para a abrangência, sem que
-o usuário precise repeti-los. Essas continuações são resolvidas no backend, sem o provedor de IA. Antes, "quero fazer a
-comparação dos últimos 5 anos" fazia a conversa perguntar de novo pelos municípios e descartava o período.
+"Enviar meus dados" aceita CSV, XLS e XLSX de até 30 MB, de qualquer país. Outro formato é recusado com "Formato não
+reconhecido. Selecione um arquivo CSV, XLS ou XLSX.". Um arquivo Excel com várias abas pergunta "Qual aba deseja
+utilizar?" antes das colunas. A estrutura é a mesma da base do Brasil; só os nomes se adaptam (distrito, condado, província).
 
-Com um resultado apresentado, a conversa também muda a apresentação sem recalcular: "mostre no gráfico", "agora a
-tabela" e "ver no mapa" abrem a aba do resultado, e "volte ao resultado anterior" reabre o resultado calculado antes
-do apresentado ("Resultado anterior reaberto, sem recalcular."; sem resultado anterior, a conversa avisa). Formas
-diretas são reconhecidas na interface (`viewCommand` e `previousResultCommand` em `workspaceNavigation.ts`); as demais
-chegam ao intérprete como atos de diálogo. A interpretação conta com exemplos da
+O painel **Colunas** mostra a coluna de cada papel:
+- **unidade territorial** (necessária), **código da unidade**, **grupo territorial** (a coluna-mãe: estado, província,
+  região), **período** (necessário), **categoria**, **quantidade** (necessária), **população** (para a densidade),
+  **latitude** e **longitude** (para a análise espacial) e **identificador individual** (para a rotatividade);
+- as colunas reconhecidas por regra conclusiva já vêm escolhidas; as sugestões do `/api/inspect` aparecem no topo de cada
+  lista, marcadas "(sugerida)", e nunca são usadas sem a escolha da pessoa (decisão D1 de 19/10/2026). Duas candidatas para a
+  unidade (por exemplo, "distrito" e "provincia") deixam a lista vazia até a escolha;
+- o grupo territorial é sugerido pelas colunas que o backend reconhece como nível superior (estado, província,
+  departamento) depois da escolha da unidade;
+- uma coluna representa um papel só: escolhida num papel, ela sai do anterior;
+- **O que a quantidade conta?** (pessoas, vínculos de trabalho, postos de trabalho ou outra unidade, descrita);
+- **Referencial das coordenadas**, com latitude e longitude: só SIRGAS 2000 é admitido. "Outro referencial" ou "Não sei"
+  deixam a análise espacial indisponível, com o motivo; nada é presumido. O separador decimal das coordenadas só é pedido
+  quando o formato é misto;
+- **Nomes**: como se chamam as unidades e os grupos, no singular e no plural, com a sugestão a partir do nome da coluna
+  ("distrito" sugere distrito e distritos; "provincia", província e províncias). Os nomes aparecem nos textos da página e da
+  conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha;
+- **O que esta planilha permite**: Distribuição, Análise espacial, Tendência e Rotatividade, cada uma disponível ou
+  indisponível com o motivo, pelo pré-exame do backend (`/api/preflight`), refeito a cada escolha. A escolha que se faz no
+  gráfico (por exemplo, a referência da análise espacial) não torna a análise indisponível.
+
+**Começar a análise** (ou **Aplicar as colunas**, ao reabrir o painel de uma planilha em uso) passa a planilha à área. Sem a
+unidade territorial, o período, a quantidade, o que ela conta ou os nomes, o clique lista o que falta, e nada é pedido ao
+motor. A área recebe `FonteDados` com o arquivo (reenviado só ao backend local), o mapeamento confirmado na tela (com o papel
+`grupo_territorial`), as premissas escolhidas (`count_unit`, `custom_count_unit`, `crs` só com SIRGAS 2000 e
+`number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
+backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas escolhidas pela pessoa seguem em
+`confirmed_roles`.
+
+## Histórico e sessão
+
+- **Histórico.** Cada análise da sessão guarda o último estado informado pela área ao calcular (`EstadoSalvo`: título,
+  definição, resposta do motor e hora). A lista mostra a mais recente primeiro, com "Em exibição" na atual. Reabrir uma
+  análise devolve o gráfico como estava, **sem recalcular** (a área recebe o estado em `restaurar`). Uma análise feita com
+  outra fonte de dados fica na lista, desabilitada, até a pessoa voltar àquela fonte. O menu fecha com clique fora ou
+  Escape, devolvendo o foco ao botão.
+- **Nova análise** guarda a análise atual no Histórico e volta a E1 com os mesmos dados. Fica desabilitada antes dos dados.
+- **Trocar de fonte** também guarda a análise atual; a área recomeça com a nova fonte.
+- **Nova sessão** pede confirmação num diálogo com: **Exportar CSV** (a análise em exibição: um registro por item da resposta
+  do motor, com todos os campos em precisão integral; objetos viram colunas "campo.subcampo", e texto que começaria uma
+  fórmula leva um apóstrofo), **Imprimir / PDF**, **Continuar nesta sessão** e **Iniciar nova sessão**. Confirmar encerra a
+  sessão no servidor e recarrega a página, descartando arquivos, conversa, Histórico e resultados em memória; se o
+  encerramento falhar, o diálogo mostra o erro e mantém tudo. Para guardar outra análise, reabra-a pelo Histórico e exporte.
+  Nada fica salvo entre sessões.
+
+A sessão temporária, os limites e a revogação continuam como antes (`conversationSession.ts`). O resultado de cada gráfico
+entra na sessão do backend (`/api/painel`), para o Histórico e para a conversa saberem o que está na tela. A revisão de
+contexto da sessão muda com a fonte em uso.
+
+## Conversa
+
+A conversa fica na caixa flutuante com o rosto do agente, sempre na página: arrastável pelo cabeçalho (mouse, toque e
+teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dentro da janela; no celular, ancorada embaixo.
+Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `latest-reply`). A transcrição fica em memória,
+e a última resposta aparece junto do campo de mensagem.
+
+**Abertura.** Antes dos dados, a caixa fica aberta e mais larga, perguntando "O que você quer analisar? Prefere começar com
+os dados do Brasil ou enviar os seus?", com os botões **Dados do Brasil** e **Enviar meus dados**. Depois, ela fica compacta,
+com uma orientação curta para cada etapa: "Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver."
+(na planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"), e, com as unidades na
+tela, exemplos de pedidos ("mostre o Pará", "use Belém como referência", "compare Manaus e Tefé").
+
+**Escolha da fonte pela conversa.** "Usar dados do Brasil" e "enviar meus dados" fazem o mesmo que os botões, sem o provedor
+de IA.
+
+**Antes dos dados.** Perguntas sobre o agente, a privacidade e os conceitos ("Como se calcula a densidade?") e sobre o
+conteúdo da base do Brasil continuam respondidas localmente. Um pedido analítico feito antes da escolha fica guardado: quando
+a base fica pronta, ele é interpretado de novo, já com a base, e os municípios citados nele vão para o gráfico.
+
+**Com os dados.** Cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem resposta local, ao
+intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calcula nada:
+- quando a resposta traz o campo **`painel`** (família, indicador, nível, municípios, competência, janela, visão da tendência,
+  referência, função, seleção, ordenação e condições), ele vira um **pedido para a área**, com um id novo a cada comando. Só os
+  campos válidos entram, e os não citados (`null`) ficam de fora;
+- "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
+  gráfico; os números vêm do motor, pedidos pela área;
+- o **contexto** de cada pedido sai do que está no gráfico (`ContextoDoGrafico`): em `options` vão `territory_ids` (as
+  unidades na tela, só as do catálogo territorial; com todos os municípios ou nos estados, nenhuma), `exploration_operation`
+  (a família: distribuição → `density` ou `counts`, conforme o indicador; espacial → `spatial`; tendência → `temporal`;
+  rotatividade → `rotation`), `exploration_indicator`, `comparison_indicator` e `temporal_indicator` (o indicador),
+  `period_filter` (a competência) ou `period_filters` (a janela da tendência), `painel_familia` e a data local do navegador
+  (`conversation_today`, para "últimos N anos"). O estado do gráfico vai também como está: `painel_indicador`,
+  `painel_nivel`, `painel_municipios` (a escolha das unidades, inclusive "Todos"), `painel_competencia`, `painel_janela` e
+  `painel_referencia`. Antes de o gráfico informar o contexto, `painel_familia` vai nulo: a conversa responde no formato
+  do gráfico, nunca com orientações das telas que saíram. Numa planilha, vão também as escolhas das colunas e os nomes da
+  unidade e do grupo (`rotulos`); essas chaves ficam fora do que vai ao provedor de IA;
+- os comandos da conversa incluem os grupos da distribuição ("divida em quintis", "sem os grupos") e a referência por
+  critério ("a de maior densidade como referência"): a lista de candidatos abre nessa ordem, e usar o primeiro ou outro é
+  escolha da pessoa;
+- **ambiguidades** continuam com alternativas em botões (`CATALOGO_LOCAL`), e nada é calculado. Escolher uma alternativa
+  reinterpreta o pedido com a escolha; se a resposta não trouxer o campo `painel`, a operação escolhida vira a família ou a
+  função equivalente (densidade e quantitativos → Distribuição com o indicador; evolução → Tendência; espacial e referência
+  mais próxima → Análise espacial; comparação → Comparar; agregação → Juntar; ranking → Ordenar; critérios → Condições;
+  relatório → Exportar);
+- pendências da conversa continuam: "Compare Manaus" pergunta o outro município, e a resposta seguinte completa o pedido;
+  a direção de uma ordenação é perguntada, nunca presumida;
+- "agora a tabela" responde que a tabela fica em Detalhes, abaixo do gráfico; "mostre no mapa" responde que o mapa não faz
+  parte da página; nada é recalculado;
+- "volte ao resultado anterior" reabre a análise anterior do Histórico, da mesma fonte, sem recalcular;
+- perguntas sobre o que está na tela usam o resultado do gráfico guardado na sessão (`displayed_result_id`).
+
+**Continuidade (desde 21/10/2026).** Um pedido sem territórios usa os que estão no gráfico, e a resposta diz quais. Um
+pedido só com o período ("E nos últimos 5 anos?") continua a análise. "Últimos N anos" e "último ano" (AT-34) são contados
+até o último período da base e até hoje, pela data local do navegador: quando as duas contagens dão as mesmas competências,
+o período é aplicado; quando divergem, a conversa oferece as duas leituras como alternativas, sem escolher. Essas
+continuações são resolvidas no backend, sem o provedor de IA. A interpretação conta com exemplos da
 [biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md), internos e invisíveis na tela.
 
-Os resultados indicam que os cálculos pertencem ao motor determinístico. O agente não altera
-valores e o canal LLM continua recebendo apenas o conteúdo autorizado pelos contratos existentes.
-Métodos, fontes e limitações permanecem nos componentes analíticos e no registro técnico avançado.
-As preferências de movimento reduzido desativam transições, animações e rolagem suave.
-
-## Análises independentes e diagnósticos
-
-1. Executar a primeira análise cria uma análise independente identificada.
-2. Nova análise → Iniciar uma análise independente preserva o resultado anterior no Histórico
-   e abre uma preparação para outro grupo.
-3. Nova análise → Acrescentar ao diagnóstico atual mantém o grupo atual; a próxima execução
-   acrescenta um componente identificado, em ordem, com resultados e parâmetros próprios.
-4. Abrir um componente conserva filtros e seleção visual desse resultado; o Histórico permite
-   voltar a outro diagnóstico. O destaque territorial entre componentes continua condicionado à
-   política já existente em `investigation.ts`.
-5. Uma solicitação idêntica recupera o resultado existente. A organização pode referenciar esse
-   resultado em outro grupo sem novo cálculo, sem duplicar linhas e sem mudar a identidade original.
-
-Pedidos explícitos como “análise independente” ou “acrescente ao diagnóstico” definem somente a
-intenção de apresentação no navegador. Prefixos explícitos como “Faça uma análise independente da”
-e “Acrescente ao diagnóstico atual” são separados do pedido enviado ao interpretador local;
-territórios, períodos e demais termos permanecem sujeitos às validações existentes. A mensagem
-original permanece na conversa e no registro do pedido. A interpretação analítica mantém seus contratos. Se outra
-execução puder modificar um diagnóstico e a intenção estiver indefinida, o diálogo pede apenas
-essa escolha antes de calcular. Nenhuma interpretação executa cálculos automaticamente.
-
-Compor não soma, combina, interpola, deduplica nem harmoniza valores. Cada componente conserva
-fonte, recorte, categorias, períodos, unidades, método, limitações e parâmetros. Diferenças que
-bloqueiam a coordenação territorial são indicadas nos cartões. Mesmo quando o destaque é
-compatível, isso não certifica comparabilidade de valores. Resultados de fontes diferentes
-continuam consultáveis individualmente; não há reinterpretação de unidades ou denominadores.
+**Privacidade.** Nenhum dado, arquivo, nome de campo ou valor da base vai ao provedor de IA. A planilha é reenviada só ao
+backend local; o contexto do gráfico vai ao intérprete local, e o provedor recebe apenas o pedido sanitizado e estados
+enumerados. Sem o provedor, os pedidos sobre o gráfico, a escolha dos dados e as respostas locais continuam disponíveis; a
+caixa avisa que as perguntas livres estão indisponíveis.
 
 ## Exportação
 
-CSV exporta a tabela principal da análise em exibição. As tabelas de detalhe e as séries mantêm
-seus controles próprios. O CSV filtrado continua exportando todo o filtro, conforme a tabela.
-Imprimir / PDF usa a impressão do navegador e inclui a representação e a página da tabela em
-exibição, mesmo quando o resultado está recolhido. O diálogo de Nova sessão não integra a impressão.
+As exportações da análise ficam na função **Exportar** da área (CSV com precisão integral, avaliabilidade e motivo;
+Imprimir/PDF; método e parâmetros). O diálogo de Nova sessão oferece o CSV da análise em exibição e Imprimir / PDF. Não há
+exportação consolidada de todas as análises da sessão.
 
-**Não existe exportação consolidada de todos os componentes por esses botões.** Para conservar
-um diagnóstico ou sessão, reabra e exporte cada análise pelo Histórico. O diálogo explica essa
-limitação antes do descarte. O JSON técnico mantém identidade, método, parâmetros e registro de
-representação da análise e associação aos diagnósticos; fica somente em Opções técnicas avançadas.
+## O que saiu em 22/10/2026
+
+| Saiu | Onde fica agora |
+|---|---|
+| Catálogo de 12 análises (carrossel) | Famílias e funções da área; a conversa continua aceitando os pedidos |
+| Preparação (categoria, período, abrangência territorial, condições, "Calcular e mostrar resultado") | Escolhas dentro da área (indicador, competência, municípios, funções); colunas da planilha no painel "Colunas" |
+| Resultados em abas (Mapa, Gráficos, Tabela), cabeçalho do resultado e visuais por análise | Gráfico de bolhas e Detalhes (Tabela, Não avaliáveis, Método e procedência) da área |
+| Mapa de pontos | Não faz parte da página; a distância fica na Análise espacial |
+| Investigação progressiva e diagnósticos compostos ("Acrescentar ao diagnóstico") | Histórico de análises |
+| Navegação "Início" e "Resultados"; abas "1. Preparação" e "2. Resultados" | A página é sempre o gráfico |
+| Comandos "volte para a seleção de territórios", "voltar à preparação", "mostre os resultados" e "quero analisar vários períodos" | Pedidos ao gráfico pela conversa |
+
+A API não mudou com essa saída: `/api/analyze`, `/api/preflight` e as capacidades continuam, com os mesmos contratos.
 
 ## Componentes e fronteiras
 
-- `App.tsx`: navegação, preparação existente, histórico e associação a diagnósticos.
-- `diagnostics.ts`: referências ordenadas a resultados e intenção explícita de apresentação.
-- `AnalysisAssistant.tsx`: contexto conversacional em memória, última resposta visível, escolhas e compositor contextual.
-- `WorkspaceDialog.tsx`: confirmação acessível de análises e sessões.
-- `PreviousAnalyses.tsx` e `InvestigationOverview.tsx`: consulta do histórico e componentes.
-- `conversationSession.ts`: fechamento no servidor, incluindo criação de sessão ainda pendente.
-- `workspaceNavigation.ts` e `styles.css`: fluxo único, responsividade, impressão e movimento reduzido.
+- `App.tsx`: estrutura da página, fonte de dados, Histórico, Nova análise e Nova sessão; monta a área de análise.
+- `BarraDaFonte.tsx`, `ColunasDaPlanilha.tsx` e `HistoricoDeAnalises.tsx`: fonte, painel "Colunas" e Histórico.
+- `AnalysisAssistant.tsx` e `ChatFloatingBox.tsx`: a conversa e a caixa flutuante.
+- `conversaGrafico.ts` e `paginaUnica.ts`: funções puras da conversa (campo `painel` → pedido, contexto → opções, comandos) e
+  da estrutura (resumo da fonte, rótulos, colunas, Histórico, CSV da sessão), com os tipos do contrato da área.
+- `conversationSession.ts`, `SessionPrivacy.tsx` e `WorkspaceDialog.tsx`: sessão, aceite e diálogos acessíveis.
+- `AreaDeAnalise.tsx` e os `Painel*`: a área de análise.
 
-Motor, API analítica, manifesto, dados originais, SPEC e SVG do personagem não são alterados.
-A estabilização preserva “Quantos/Quantas” na proteção nominal da ponte de interpretação, sem
-enviar identificadores ou dados da base ao provedor. Testes e evidências estão no
-[relatório da interface](RASTREABILIDADE_INTERFACE_INTEGRADA_20261017.md) e na
-[auditoria de estabilização](AUDITORIA_ESTABILIZACAO_20261018.md).
-
-## Etapas operacionais, períodos e comparação
-
-Somente uma área principal fica visível: **1. Preparação** ou **2. Resultados**. As duas aparecem
-como abas: um contorno desce da aba ativa e envolve todo o conteúdo da etapa, para deixar claro o que
-pertence à preparação (ou aos resultados); a aba Resultados fica esmaecida até haver um resultado. A
-preparação começa com a orientação "Realize as configurações conforme a sua escolha.".
-
-A seleção territorial faz parte da preparação. Na base oficial, ela fica na caixa **Abrangência
-territorial** das configurações (descrita adiante). Nas bases importadas, e na base oficial com
-significados alterados, um bloco de uma linha resume a seleção atual (por exemplo, “Territórios:
-1 selecionado: ABREU E LIMA (PE)”) e só expande a busca quando o usuário escolhe “Escolher
-territórios” ou “Alterar territórios”; “Concluir seleção” recolhe o bloco. Assim, a preparação
-continua curta, sem a etapa própria de territórios nem a rolagem longa anterior. Em referência mais
-próxima e critérios, a lista se chama “Municípios-alvo” e “Universo dos critérios”. Fora da
-base oficial, no recorte nacional, o bloco só informa que há um único território (Brasil) e que a
-escolha de municípios vale para a abrangência Municípios.
-Voltar preserva seleção, opções e edição de períodos. “Retomar parâmetros” restaura a preparação
-e a revalida. “Usar seleção na próxima análise” abre a preparação com a seleção territorial
-expandida (na base oficial, a caixa Abrangência territorial); reutilizar referências abre a preparação. O Histórico e a navegação Resultados abrem
-inclusive o mesmo resultado já selecionado.
-Uma resposta assíncrona não agenda uma navegação posterior capaz de desfazer a escolha do usuário.
-O carrossel de análises mantém a opção em exploração quando o pré-exame apenas atualiza sua
-disponibilidade; selecionar outra análise continua abrindo a preparação correspondente.
-
-“Usar dados do Brasil.” aciona a mesma seleção de fonte dos botões. “Volte para a seleção de
-territórios.” abre a preparação com a seleção territorial expandida; os demais comandos de
-navegação mudam somente a área visível. “Quero analisar vários
-períodos.” abre a edição quando a modalidade admite múltiplas competências; nas demais, explica
-que a operação exige uma competência e indica as modalidades apropriadas. Não altera o método.
-
-No seletor múltiplo, a competência única já escolhida é preservada. Quando todas as competências
-vêm incluídas por padrão (por exemplo, na evolução temporal), elas aparecem sem marca, com o aviso
-"Todos os períodos estão incluídos. Para analisar só alguns, clique neles:", e o primeiro clique
-escolhe só a competência clicada. Depois dessa escolha, ou de "Todos os períodos disponíveis", cada
-clique acrescenta ou retira uma competência (as marcadas têm ✓ e fundo preenchido; as retiradas,
-contorno tracejado). O usuário também escolhe um intervalo contínuo ("de janeiro de 2014 até junho
-de 2015") ou limpa a escolha; sem nenhuma competência, precisa selecionar antes de concluir. Durante o
-cálculo, a lista fica bloqueada. Uma linha
-abaixo descreve a escolha ("4 competências, de janeiro de 2014 a junho de 2015"). Ao voltar para
-período único, a primeira competência selecionada permanece. As competências não são somadas como pessoas únicas. Nas bases
-importadas, as condições avançadas permanecem acessíveis mesmo depois de o pré-exame habilitar o cálculo; na base oficial, não
-há condições avançadas (ver abaixo).
-
-Na base oficial, a preparação reúne as **Configurações** em caixas seletoras, no lugar do texto
-corrido dos parâmetros. Todas as análises mostram as mesmas quatro caixas, nesta ordem: **Categoria**
-(a base oficial tem só MEDICINA), **Período**, **Abrangência territorial** e **Indicador**. Em
-distribuição, comparações, evolução temporal e relatórios, o Indicador é a escolha entre Quantidade e
-Densidade por 1.000 habitantes. Nas demais análises, a caixa mostra, numa opção só (como a
-categoria), o indicador que o motor calcula: Densidade por 1.000 habitantes (densidade e recortes e
-rankings), Quantidade (quantitativos), Quantidade e densidade por 1.000 habitantes (agregações),
-Distância geodésica (km) (análise espacial), Permanência e rotatividade da coorte (%) (rotatividade),
-Distância à referência mais próxima (km) (referência mais próxima) e, nos critérios combinados, os
-atributos usados nas condições, na ordenação e nas faixas ("Definido nos critérios" enquanto não há
-nenhum). Na análise espacial, o Período pede uma competência ("Escolher período"), com a nota "As
-distâncias usam as coordenadas da competência escolhida; em algumas competências, a fonte traz
-coordenadas diferentes para o mesmo município."; os motivos do pré-exame dessa análise (coordenadas,
-competência, referência) aparecem abaixo das caixas com o texto do backend. Na rotatividade, a caixa
-Período abre o período inicial e o final da coorte (sem escolha, valem a primeira e a última
-competência). Na mesma grade entram o Agrupamento da distribuição, o
-Território de referência da análise espacial e, fora da versão governada, o Referencial geodésico
-das análises de distância; as referências da referência mais próxima e os critérios do usuário
-continuam em quadros próprios logo abaixo. Não há caixa de fonte: a abrangência territorial já diz
-se a análise usa o Brasil, os estados ou os municípios. Uma caixa ainda sem escolha fica destacada. Valores longos
-aparecem por inteiro, com quebra de linha.
-
-**Só as escolhas da análise retêm o cálculo (desde 21/10/2026).** Na base oficial, o botão "Calcular e mostrar
-resultado" fica disponível o tempo todo, menos durante a conferência da análise ("Preparando a análise...") e o
-cálculo. Ao clicar, se faltar alguma escolha, a tela diz quais faltam, pelo título das caixas e na ordem delas, em
-`missing-choices` (por exemplo, "Falta escolher: Período e Indicador."). Ela também abre a lista do Período ou da
-Abrangência territorial quando é essa a primeira que falta, e nada é calculado. Retêm o cálculo apenas a Categoria, o
-Período, a Abrangência territorial (escolha pendente: mistura de níveis ou territórios de menos), o Indicador (quando a
-análise pede a escolha entre quantidade e densidade) e, quando a análise os usa, o Território de referência e o
-Referencial geodésico. Nada sobre a estrutura da base é pedido: não há "Ver outras condições da análise" (associação de
-colunas, código IBGE, resoluções e conferências) nem o aviso "Ainda faltam condições específicas para esta análise". Com
-as escolhas feitas, o que ainda impedir o cálculo aparece com o texto do pré-exame do backend. Uma falha do pré-exame
-aparece na própria preparação, com "Verificar novamente".
-
-A caixa **Período** abre, logo abaixo das configurações, a lista de competências descrita acima.
-Numa análise de período único, escolher a competência recolhe a lista. Vários períodos só existem
-em quantitativos, evolução temporal (que começa com todas as competências), comparações (desde
-19/10/2026; ver adiante) e relatórios, por "Selecionar vários períodos"; "Concluir" recolhe a lista. Não há etapa separada de escolha do
-período. A caixa mostra os períodos em ordem cronológica e resumidos por intervalo, com as lacunas
-nomeadas (por exemplo, "20 competências, de junho de 2014 a junho de 2024, exceto junho de 2015");
-até três competências fora de sequência aparecem pelo nome ("janeiro de 2014 e junho de 2015").
-Quando a lista tem outros meses além de junho, o atalho **"Série anual (junho) · N competências"**
-(ao lado de "Todos os períodos disponíveis") escolhe só as competências de junho, uma por ano, e o
-resumo passa a "série anual de junho: 11 competências, de junho de 2014 a junho de 2024". Na
-evolução temporal da base oficial, um texto explica por que a série anual muda a tendência
-(janeiro e junho alternam intervalos de 5 e 7 meses, e qualquer queda entre duas vizinhas leva a
-"Sem classificação (mudança de direção)"). No resultado da evolução, quando os intervalos não são
-constantes e há ao menos quatro competências de junho na janela, o botão "Usar a série anual
-(junho)" leva essas competências à caixa Período, sem calcular. O padrão continua sendo todas as
-competências (ver `EVOLUCAO_TEMPORAL_E_TENDENCIA.md`).
-
-A caixa **Abrangência territorial** abre uma lista vertical com caixas de marcar nativas (Tab entre
-os controles, Espaço marca): **Brasil (total nacional)**;
-**Estados** (selo "médicos únicos"), com o aviso de que cada estado conta os médicos diferentes do estado
-(fonte estadual: quem atua em mais de um município do estado conta uma vez; quem atua em mais de um estado
-conta em cada um, e a soma dos estados não é o total do Brasil), "Todos os estados" e cada estado com a
-"população de N municípios" (a seção avisa que cada caixa marca o estado inteiro); e **Municípios**, com "Todos os
-municípios" e, desde 21/10/2026, o seletor "Estado dos municípios". O estado escolhido mostra à vista a sua lista, com
-"Todos os N municípios de …" e cada município; sem escolha, vale o estado do primeiro município marcado, e "Marcados
-em: AM (2) · …" leva a cada estado com municípios marcados. Antes, os municípios ficavam num grupo recolhível dentro de
-cada estado, no fim da lista. Os estados e os municípios do estado escolhido rolam por dentro, e os títulos das seções
-ficam à vista. Ao lado, "{n}
-selecionados", a composição ou o padrão da análise, a escolha pendente e "Limpar seleção". Sem nada
-marcado vale o padrão da análise, com o selo "padrão desta análise": o Brasil em quantitativos,
-evolução temporal e relatórios; todos os municípios nas demais. A primeira marcação substitui o
-padrão. Os municípios marcados continuam valendo ao trocar de análise; o Brasil e os estados só
-valem nas análises que os aceitam, e nas demais a seção fica desabilitada com o motivo em uma linha
-(por exemplo, "Não se aplica: o ranking ordena vários territórios, e o Brasil é um só."). Estados e
-municípios juntos na distribuição, no ranking ou na agregação, ou territórios de menos, deixam a caixa em destaque,
-com o motivo do backend e "Ajuste a abrangência territorial para continuar.", e o cálculo bloqueado.
-A base é examinada uma vez: trocar de análise não recarrega a base nem troca de fonte. A densidade do
-Brasil fica disponível na caixa Indicador. Detalhes em
-[abrangência territorial](ABRANGENCIA_TERRITORIAL.md).
-
-Os padrões oficiais vêm do perfil validado no backend, campo a campo: mudar uma coluna tira só
-aquele papel do perfil, e a base oficial nunca cai no fluxo das bases importadas. As premissas de
-comparabilidade são internas: evolução temporal, comparações, rankings e agregação
-não exibem caixas de confirmação, e a origem de cada premissa aparece
-em "Método e limitações"
-(ver [premissas internas da base oficial](DADOS_BRASIL_VALIDACAO.md#premissas-internas-da-base-oficial)).
-Na versão governada, as análises de distância também não pedem o referencial nem o separador
-decimal: as configurações mostram "Referencial das distâncias: SIRGAS 2000 (premissa da base oficial)", a legenda do mapa
-informa essa origem, e o formato numérico, também premissa interna, não é pedido.
-
-**Bases importadas** seguem a mesma regra, sem confirmações: o parágrafo da preparação diz
-"Preenchi os campos reconhecidos com segurança; escolha os demais nos termos destacados". Cada termo
-é um seletor; as sugestões do backend aparecem no topo, com "(sugerida)", e o seletor fica vazio até a
-escolha (por exemplo, o código territorial, opcional, com "Sem código"). O período tem a opção "A base
-tem um único período". Sem objeto reconhecido, aparece "O objeto da análise é [campo]", com o botão
-"Usar sugestão" quando o cabeçalho sugere uma categoria. O botão "Executar análise" fica sempre
-visível, desabilitado até a análise estar pronta, e os motivos pendentes aparecem logo abaixo. As
-condições avançadas ficam em "Ajustar condições específicas ou situações excepcionais". O
-separador decimal das coordenadas é verificado nos dados e só vira escolha quando o formato é misto;
-o referencial continua um parâmetro. Na conversa, o território citado num pedido é registrado como
-"Definido na abrangência territorial", sem pedido de confirmação.
-
-A comparação de dois municípios apresenta um registro para cada objeto A/B, seguido pela relação,
-diferença e condição retornadas pelo motor. Conjuntos maiores mantêm um registro por território.
-Filtros e ordenação continuam disponíveis em “Filtrar e ordenar a comparação”. O CSV preserva
-as colunas e valores originais; a separação é apenas visual.
-
-**Comparação com janela (desde 19/10/2026, decisão D6).** A comparação aceita um período ou uma janela
-de períodos ("Qual período (ou janela de períodos) você deseja usar na comparação?"). Sem período
-escolhido, ela começa na **série anual de junho** (na base versionada, 11 competências, de junho de 2014 a
-junho de 2024), com os valores na última; um período único já escolhido (vindo de outra análise ou da
-conversa) é mantido. Com um período só, os valores lado a lado e as relações são os dele, e não há outra escolha.
-Com dois ou mais períodos (desde 21/10/2026), a frase **"Valores lado a lado em [competência]"**
-(`comparison-values-period`), logo abaixo das configurações, diz em que competência ficam os valores lado a lado e as
-relações. Sem outra escolha, vale a última do período, com a indicação "(a última competência do período)". O
-seletor da frase (`comparison-values-choice`, rótulo acessível "Competência dos valores lado a lado") oferece só as
-competências do período escolhido, e a frase termina com "As demais competências do período mostram a mudança e a
-tendência de cada território.". Até 21/10/2026, essa escolha era a caixa "Competência dos valores" na grade, que
-aparecia também com um período só e repetia os períodos já escolhidos. Na base importada, continua o seletor na frase
-quando há janela. A nota `comparison-window-note`, na lista do Período, explica: "Com um período, os valores lado a
-lado e as relações (maior, menor, diferença) são os dele. Com dois ou mais, eles usam uma competência só, indicada
-abaixo das configurações (sem outra escolha, a última), e cada território ganha também a mudança entre o primeiro e o
-último período e a classe de tendência; sem variação percentual nem razão automáticas.". A interface envia
-`comparison_values_period` (a competência única, a escolhida ou a última da janela); sem competência
-escolhida, não envia e vale o comportamento anterior. **A conversa não recebe essa opção**: o contexto
-enviado ao interpretador continua sem ela, e o agrupamento das competências calculadas a ignora. No
-resultado, antes das abas, aparecem os valores lado a lado por nível, a relação e a diferença do par, os
-halteres do primeiro ao último período e o selo da tendência de cada território; os cartões da tabela ganham
-a quantidade, a população, a mudança e a tendência do território (ver
-[Bloco 3](BLOCO3_MAPAS_VISUALIZACOES.md)).
-
-**Perguntas sobre o resultado da comparação.** Quando os dois valores são iguais, o motor emite a relação
-`IGUALDADE` e a resposta diz "O valor de A é igual ao de B."; antes, a conversa só reconhecia "IGUAL" e a
-relação sumia da resposta. A frase-resumo do cabeçalho usa o mesmo texto da relação e os mesmos
-verificadores; ela fica só na interface e não vai ao provedor de IA.
+Testes: `frontend/tests/paginaUnica.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (unitários); os roteiros de
+navegador `backend/tests/ui_pagina_unica.py` (suítes `bloco1` e `base-versionada`) e `backend/tests/ui_conversa_grafico.py`
+(suítes `conversa`, só com os canais locais, e `gemini-simulado`, com o provedor simulado e a conferência de que nada da base
+chega a ele). O que cobriam os roteiros do fluxo clássico, e onde essa cobertura está agora, fica em
+[`backend/tests/legado/README.md`](../backend/tests/legado/README.md).

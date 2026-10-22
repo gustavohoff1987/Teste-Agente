@@ -222,7 +222,7 @@ def prepare(frame, mapping, options, operation):
             raise ValueError("Contagens de pessoas, vínculos e postos devem ser inteiras; confira a unidade e o formato numérico.")
         if data.duplicated(KEYS).any():
             if df.duplicated().any():
-                raise ChoiceRequired("Há várias linhas idênticas em todas as colunas. Em «Linhas idênticas», escolha remover as cópias nesta análise ou corrija a base.")
+                raise ChoiceRequired("Há várias linhas idênticas em todas as colunas. Escolha remover as cópias nesta análise ou corrija a base.")
             parts = options.get("component_columns") or []
             if not isinstance(parts, list) or any(c not in df.columns for c in parts):
                 raise ValueError("As colunas que distinguem os componentes não são válidas.")

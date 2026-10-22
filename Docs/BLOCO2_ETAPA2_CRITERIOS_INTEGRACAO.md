@@ -1,5 +1,13 @@
 # Bloco 2, Etapa 2 — Critérios combinados, réguas, integração e correção geográfica
 
+> **Página única (22/10/2026).** O cartão "Critérios combinados", o construtor de critérios e a tela de
+> resultados da seção 6 saíram do produto com as telas clássicas e ficam como histórico, assim como os roteiros e
+> as medições de navegador citados nas seções 7 e 8 (`ui_criteria_smoke.py`, `bench_ui_criteria.py` e
+> `bench_ui_journey.py`). Continuam a capacidade na API, o canal determinístico da conversa e os testes do backend
+> (`test_combined_criteria.py` e `test_criteria_conversation.py`). Na página única, as condições e a ordenação
+> ficam nas funções Condições e Ordenar ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram
+> está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Branch `feat/novos-blocos-incrementais`, a partir de `efafa01`. Referência metodológica:
 `IMPLEMENTATION_SPEC.md` v1.2.4 (CAP-SUB-01/02/03, CAP-ESP-02/03, CAP-DIS-03, RQ-CAP-08,
 RQ-RES-06). A integração não declara conformidade integral com a SPEC: o que ficou fora está
@@ -233,6 +241,9 @@ código IBGE; em bases importadas fica `NAO_AVALIAVEL`/`SIGNIFICADO_NAO_ESTABELE
   do Bloco 1 e alvos do Bloco 2) ou lista de referências.
 
 ## 6. Interface e conversa (U5)
+
+> Histórico quanto à tela: o cartão, o construtor de critérios e a tela de resultados saíram do produto em
+> 22/10/2026; o canal determinístico da conversa continua (ver a nota no início do documento).
 
 - **Cartão “Critérios combinados”** na mesma página e no mesmo fluxo da conversa. O construtor
   mostra a combinação atual e, para cada condição, uma régua com indicador, unidade, operador,

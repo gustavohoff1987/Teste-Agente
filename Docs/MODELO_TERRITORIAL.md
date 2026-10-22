@@ -1,6 +1,7 @@
 # Estrutura recomendada dos dados territoriais
 
-A opção **Importar seus dados** oferece o download de um XLSX com uma única aba
+A escolha da fonte, no alto da página (antes dos dados ou em **Trocar**), oferece
+**Modelo de planilha (.xlsx)**: o download de um XLSX com uma única aba
 `Dados`. A tabela editável ocupa **A:K**; a legenda explicativa permanece à
 direita, em **M:O**, e é excluída da leitura pelo backend quando o arquivo
 contém a identificação exata da legenda gerada pelo sistema.
@@ -26,9 +27,12 @@ O carregamento identifica também equivalências determinísticas, por exemplo:
 `codigo_identificador` / `cod_ibge`. O código territorial fica como sugestão no topo do seletor, que
 permanece vazio até a escolha do usuário (o nome do campo não basta para estabelecê-lo).
 
-Outros nomes de colunas são permitidos. O território analisado pode ser
-associado na preparação; as colunas superiores desconhecidas podem ser
-selecionadas em **Hierarquia territorial**, na mesma etapa.
+Outros nomes de colunas são permitidos. Na página única (22/10/2026), o painel
+**"Colunas"** associa a unidade territorial e o grupo territorial (a coluna que agrupa
+as unidades, como o estado ou a província); as colunas superiores reconhecidas no
+pré-exame aparecem como sugestão no seletor do grupo, que vai ao backend em
+`hierarchy_columns`. A caixa **Hierarquia territorial** da preparação saiu com as
+telas clássicas.
 
 O backend verifica relações observadas nos registros e devolve sua descrição
 em `territorial_hierarchy` no pré-exame, bem como nos metadados dos cálculos.
@@ -62,10 +66,10 @@ tipo de análise e suas respectivas regras de habilitação.
 
 ## Uso
 
-1. Clique **Importar seus dados → Estrutura recomendada (.xlsx)**.
+1. No alto da página, clique **Trocar** (se já houver uma fonte em uso) e **Modelo de planilha (.xlsx)**.
 2. Abra o arquivo Excel e consulte a legenda à direita.
 3. Preencha as colunas A:K. Pode alterar cabeçalhos para equivalentes conhecidos.
-4. Salve em XLSX e escolha **Importar arquivo**.
-5. Confira as associações detectadas e escolha nos seletores as colunas que ficaram como
-   sugestão (por exemplo, `codigo_identificador`) antes de executar cálculos; não há confirmação
-   de significados.
+4. Salve em XLSX e escolha **Enviar meus dados**.
+5. No painel **"Colunas"**, confira as associações detectadas e escolha nos seletores as colunas que
+   ficaram como sugestão (por exemplo, `codigo_identificador`); depois, **Começar a análise**. Não há
+   confirmação de significados.

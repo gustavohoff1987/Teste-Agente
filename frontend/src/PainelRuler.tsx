@@ -3,22 +3,21 @@ import { RotateCcw } from "lucide-react";
 import type { PainelDominio, PainelIndicador } from "./painelApi";
 import { INDICADORES, ajustarValor, formatarNumero, fracao, moverCursor, valorNaFracao, type Corte, type Escala } from "./painelModel";
 
-// Régua "acima de / abaixo de" dos municípios base: dois cursores arrastáveis (pointer events) e com teclado (setas, Page Up/Down,
-// Home e End) sobre o indicador ativo, no domínio devolvido pelo motor. É filtro visual (RQ-REP-06): nada é recalculado, e os
-// limites ficam incluídos. Conjuntos e membros da referência continuam à vista.
+// Régua "acima de / abaixo de": dois cursores arrastáveis (pointer events) e com teclado (setas, Page Up/Down, Home e End) sobre o
+// indicador ativo, no domínio devolvido pelo motor. Só esconde (RQ-REP-06): nada é recalculado, e os limites ficam incluídos.
+// Conjuntos e membros da referência continuam à vista.
 
 type Cursor = "minimo" | "maximo";
 type Props = { indicador: PainelIndicador; dominio: PainelDominio | null; escala: Escala; corte: Corte | null;
-  onCorte: (corte: Corte | null) => void; desabilitado?: boolean };
+  onCorte: (corte: Corte | null) => void; desabilitado?: boolean; plural: string };
 
-export default function PainelRuler({ indicador, dominio, escala, corte, onCorte, desabilitado = false }: Props) {
+export default function PainelRuler({ indicador, dominio, escala, corte, onCorte, desabilitado = false, plural }: Props) {
   const trilho = useRef<HTMLDivElement>(null);
   const arrasto = useRef<{ cursor: Cursor; id: number } | null>(null);
   const especie = INDICADORES[indicador];
   if (!dominio || !(dominio[1] >= dominio[0])) {
-    return <section data-testid="painel-ruler" data-indicador={indicador} aria-label="Régua dos municípios base"
-      className="rounded-2xl border border-line bg-white px-4 py-3 text-xs text-slate-600">
-      Régua indisponível: o motor não devolveu valores avaliáveis de {especie.rotulo.toLowerCase()} para estes municípios.
+    return <section data-testid="analise-regua" data-indicador={indicador} aria-label="Régua" className="text-xs text-slate-600">
+      Régua indisponível: o motor não devolveu valores avaliáveis de {especie.rotulo.toLowerCase()} para estes itens.
     </section>;
   }
   const [inicio, fim] = dominio;
@@ -78,27 +77,26 @@ export default function PainelRuler({ indicador, dominio, escala, corte, onCorte
   const cursor = (qual: Cursor) => {
     const valor = qual === "minimo" ? atual.minimo : atual.maximo;
     const rotulo = qual === "minimo" ? "Acima de" : "Abaixo de";
-    return <div role="slider" tabIndex={desabilitado ? -1 : 0} data-testid={qual === "minimo" ? "painel-ruler-min" : "painel-ruler-max"}
-      aria-label={rotulo + " (" + (qual === "minimo" ? "limite inferior" : "limite superior") + " do corte de " + especie.rotulo.toLowerCase() + ")"}
+    return <div role="slider" tabIndex={desabilitado ? -1 : 0} data-testid={qual === "minimo" ? "analise-regua-min" : "analise-regua-max"}
+      aria-label={rotulo + " (" + (qual === "minimo" ? "limite inferior" : "limite superior") + " da régua de " + especie.rotulo.toLowerCase() + ")"}
       aria-valuemin={qual === "minimo" ? inicio : atual.minimo} aria-valuemax={qual === "minimo" ? atual.maximo : fim} aria-valuenow={valor}
       aria-valuetext={rotulo.toLowerCase() + " " + texto(valor) + " " + especie.unidade} aria-orientation="horizontal"
-      aria-disabled={desabilitado || undefined} className="painel-cursor" style={{ left: percentual(valor) + "%" }}
+      aria-disabled={desabilitado || undefined} className="analise-cursor" style={{ left: percentual(valor) + "%" }}
       onPointerDown={event => agarrar(qual, event)} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}
       onKeyDown={event => teclado(qual, event)}/>;
   };
 
-  return <section data-testid="painel-ruler" aria-label={"Régua dos municípios base: " + especie.rotulo.toLowerCase()} data-indicador={indicador}
+  return <section data-testid="analise-regua" aria-label={"Régua: " + especie.rotulo.toLowerCase()} data-indicador={indicador}
     data-dominio-min={inicio} data-dominio-max={fim} data-minimo={atual.minimo} data-maximo={atual.maximo} data-ativo={ativo ? "true" : "false"}
-    className="rounded-2xl border border-line bg-white px-4 pb-3 pt-3">
+    className="space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-xs font-semibold text-ink">Régua dos municípios base · {especie.rotulo}{especie.contagem ? "" : " (" + especie.unidade + ")"}</p>
-      <button type="button" data-testid="painel-ruler-limpar" disabled={!ativo || desabilitado} onClick={() => onCorte(null)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold text-teal disabled:opacity-40">
+      <p className="text-xs font-semibold text-ink">{especie.rotulo}{especie.contagem ? "" : " (" + especie.unidade + ")"}</p>
+      <button type="button" data-testid="analise-regua-limpar" disabled={!ativo || desabilitado} onClick={() => onCorte(null)} className="analise-botao-secundario">
         <RotateCcw size={13} aria-hidden="true"/>Mostrar todos</button>
     </div>
     <div className="px-3">
-      <div ref={trilho} className="painel-trilho" onPointerDown={tocarTrilho}>
-        <span className="painel-faixa-corte" aria-hidden="true"
+      <div ref={trilho} className="analise-trilho" onPointerDown={tocarTrilho}>
+        <span className="analise-faixa-corte" aria-hidden="true"
           style={{ left: percentual(atual.minimo) + "%", width: Math.max(0, percentual(atual.maximo) - percentual(atual.minimo)) + "%" }}/>
         {cursor("minimo")}
         {cursor("maximo")}
@@ -107,11 +105,11 @@ export default function PainelRuler({ indicador, dominio, escala, corte, onCorte
         <span>{texto(inicio)}</span><span>{texto(fim)}</span>
       </div>
     </div>
-    <p className="mt-1 text-xs leading-5 text-slate-600" data-testid="painel-ruler-texto">{ativo
-      ? <>Aparecem só os municípios base com {especie.rotulo.toLowerCase()} acima de <strong className="text-ink">{texto(atual.minimo)}</strong> e
+    <p className="text-xs leading-5 text-slate-600" data-testid="analise-regua-texto">{ativo
+      ? <>Aparecem só {plural} com {especie.rotulo.toLowerCase()} acima de <strong className="text-ink">{texto(atual.minimo)}</strong> e
         abaixo de <strong className="text-ink">{texto(atual.maximo)}</strong> {especie.unidade} (limites incluídos). Conjuntos e a referência
-        continuam à vista. É só um filtro visual: nada é recalculado.</>
-      : <>Arraste os cursores (ou use as setas com um cursor focado) para mostrar só os municípios acima de um valor, abaixo de outro
-        ou entre os dois. É só um filtro visual: nada é recalculado.</>}</p>
+        continuam à vista. A régua só esconde: nada é recalculado.</>
+      : <>Arraste os cursores (ou use as setas com um cursor focado) para mostrar só o que fica acima de um valor, abaixo de outro
+        ou entre os dois. A régua só esconde: nada é recalculado.</>}</p>
   </section>;
 }

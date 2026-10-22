@@ -1,5 +1,9 @@
 # Microiteração — distribuição territorial e clareza da interface
 
+> **Registro datado.** A interface descrita aqui (preparação, resultados em abas, mapa, investigação e os
+> roteiros de navegador citados) saiu do produto em 22/10/2026, com a página única de análise: ver a
+> [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Data: 15/10/2026. Branch existente: `feat/novos-blocos-incrementais`. Escopo: refinamento incremental de interface, distribuição e posições. Sem nova branch e sem merge na `main`.
 
 ## Decisões

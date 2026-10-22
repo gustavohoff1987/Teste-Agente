@@ -50,7 +50,10 @@ ser a maior parte do tempo de uma mensagem interpretada pelo provedor.
   analisados e serialização da resposta.
 - **Navegador** (`backend/tests/bench_ui_journey.py`): jornada do Bloco 1 com dados reais,
   servidor local sem rede externa e sem Gemini; mede duração por etapa, requisições, abortadas,
-  KiB, tarefas longas (> 50 ms) e pré-exames repetidos ou idênticos ao vigente.
+  KiB, tarefas longas (> 50 ms) e pré-exames repetidos ou idênticos ao vigente. Essa medição
+  percorria as telas clássicas e saiu com elas em 22/10/2026 (página única; ver
+  [`backend/tests/legado/README.md`](../backend/tests/legado/README.md)); os números da seção 4.8 ficam
+  como registro. As medições do motor (`bench_latency.py`) continuam.
 - **Perfis de execução**: cProfile das corrotinas dos endpoints (só nomes de funções e tempos).
 - **Variação da máquina**: esta máquina mostrou-se ~3× mais lenta que a da sessão anterior
   (mesmo micro-benchmark: 2,23 s × 0,73 s) e oscilou até ~20% entre rodadas. Por isso só se

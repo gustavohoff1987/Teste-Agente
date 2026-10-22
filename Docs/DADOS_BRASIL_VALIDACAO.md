@@ -54,13 +54,15 @@ exportação registram a regra, os campos de origem, o recorte e a versão lógi
 ## Uma base lógica, sem misturar granularidades
 
 O catálogo `brazil_data.py` administra três fontes privadas (nacional, estadual e municipal). A interface
-mostra somente Dados do Brasil e a abrangência analítica. A base é examinada uma vez, no recorte municipal,
-com o bloco dos níveis; a caixa "Abrangência territorial" é uma lista vertical com o Brasil (total
-nacional), os estados (médicos únicos da fonte estadual) e os municípios agrupados por estado
-([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)). Sem nada marcado vale o padrão da análise: o
-Brasil em contagens, evolução temporal e relatórios; todos os municípios nas outras operações. A
-interface envia a seleção em `options.abrangencia`, e o backend escolhe a fonte (rota municipal,
-nacional ou de níveis) e refaz o pré-exame; trocar de análise não recarrega a base.
+mostra somente "Dados do Brasil". A base é examinada uma vez, no recorte municipal, com o bloco dos níveis.
+Na página única (22/10/2026), o gráfico começa pelos 27 estados e abre os municípios de um estado
+([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); até essa data, a caixa "Abrangência territorial" das
+telas clássicas era uma lista vertical com o Brasil (total nacional), os estados (médicos únicos da fonte
+estadual) e os municípios agrupados por estado ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)). Na
+API de análise, sem seleção vale o padrão da análise: o Brasil em contagens, evolução temporal e
+relatórios; todos os municípios nas outras operações. A seleção vai em `options.abrangencia`, e o backend
+escolhe a fonte (rota municipal, nacional ou de níveis) e refaz o pré-exame; uma nova análise não recarrega
+a base.
 
 Não há união nem preenchimento de linhas entre fontes, e nenhuma fonte é somada à outra. Quantitativos
 nacionais são lidos da fonte nacional; não são obtidos pela soma das contagens municipais. Desde
@@ -166,8 +168,8 @@ do estado conta uma vez no estado, e quem atua em mais de um estado conta em cad
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
 fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
 referencial SIRGAS 2000, que não certifica o datum original. As duas premissas de distância só
-entram nas análises que usam coordenadas: nas demais, o mapa continua com a configuração só de
-apresentação e as opções do cálculo não mudam. A opção explícita de ausência de sobreposição
+entram nas análises que usam coordenadas: nas demais, as opções do cálculo não mudam (a configuração só
+de apresentação servia ao mapa das telas clássicas, que saiu em 22/10/2026). A opção explícita de ausência de sobreposição
 (`no_overlap_confirmed`), aceita só pela API desde 19/10/2026 (a tela não a oferece mais), continua
 prevalecendo sobre a soma dos componentes, e um
 referencial ou separador informado explicitamente pela API também prevalece (um referencial não

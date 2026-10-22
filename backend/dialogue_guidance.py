@@ -95,7 +95,7 @@ def clarification_for(
     if slots.get("period") == "not_confirmed_in_dataset":
         return _make(
             "PERIODO_NAO_CONFIRMADO",
-            "O período mencionado não foi encontrado na base. Deseja revisar o período na preparação?",
+            "O período mencionado não foi encontrado na base. Deseja revisar o período?",
             [], "O pré-exame não encontrou correspondência para o período informado.",
         )
     if slots.get("category") == "not_confirmed_in_dataset":

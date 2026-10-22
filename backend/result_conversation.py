@@ -144,7 +144,7 @@ def answer_result(message, action, record, capture):
 
     lines = ["Resultado apresentado: " + copy(["title"])]
     if not reference["same_preparation"]:
-        lines.append("Recorte do resultado diferente da preparação atual.")
+        lines.append("Recorte do resultado diferente da análise atual.")
     for key, label in (("periods", "Períodos"), ("categories", "Categorias"), ("indicator", "Indicador")):
         if key in result["metadata"]:
             lines.append(label + ": " + copy(["metadata", key]))

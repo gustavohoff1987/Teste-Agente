@@ -1,12 +1,20 @@
 # Abrangência territorial: Brasil, estados e municípios
 
+> **Página única (22/10/2026).** A tela descrita nas seções 4.1 (a taxa nacional no mapa, nas barras e no
+> cabeçalho do resultado), 6 (a lista vertical da caixa "Abrangência territorial") e 7 (a caixa Período e os
+> motivos da análise espacial na tela) saiu do produto com as telas clássicas e fica como histórico, assim como o
+> roteiro de navegador citado na seção 9. Continuam o motor e a API (`options.abrangencia`), com os testes do
+> backend. Na página única, o gráfico começa pelos 27 estados e abre os municípios de um estado, sem somar níveis
+> ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura do roteiro que saiu está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Decisões do responsável pelo produto de 19/10/2026: **D3** (abrangência vertical com Brasil, estados,
 todos os municípios e municípios), **D4** (população do Brasil pela soma municipal de junho) e **D5**
 (taxa nacional como referência de contexto na densidade). Na mesma data, o responsável pelo produto
 entregou a contagem de médicos únicos por estado, que virou a fonte estadual da base
 (`Dados_Estados_Brasil.csv`): desde então, o estado é essa contagem, e não mais a soma dos municípios.
-Este documento descreve o motor e a API (`backend/territorial_levels.py`) e a tela: a lista vertical da
-caixa "Abrangência territorial" (§6) e a taxa nacional no mapa e nas barras (§4.1). As mudanças estão no
+Este documento descreve o motor e a API (`backend/territorial_levels.py`) e, como histórico, a tela das
+telas clássicas: a lista vertical da caixa "Abrangência territorial" (§6) e a taxa nacional no mapa e nas
+barras (§4.1). As mudanças estão no
 [registro](REGISTRO_DE_COMPORTAMENTO.md).
 
 ## 1. Princípios
@@ -244,6 +252,8 @@ supera o total do Brasil em todas as competências).
 
 ### 4.1 Na tela
 
+> Histórico: esta tela saiu do produto com as telas clássicas em 22/10/2026 (ver a nota no início do documento).
+
 - **Legenda do mapa** (densidade de uma competência e uma categoria): uma marca tracejada sobre a escala,
   na posição do valor (na borda quando fica fora da escala), e o texto (`national-reference`) "Brasil
   (total nacional): 2,36 por 1.000 habitantes · referência de contexto; a cor dos municípios não é
@@ -373,6 +383,8 @@ supera o total do Brasil em todas as competências).
   comparações feitas pela tela mudam de chave. A comparação sem a opção mantém a chave.
 
 ## 6. A lista vertical na tela
+
+> Histórico: esta tela saiu do produto com as telas clássicas em 22/10/2026 (ver a nota no início do documento).
 
 - Só na caixa **Abrangência territorial** da base oficial (`TerritorialScopeSelector.tsx`, região
   "Seleção territorial compartilhada"). Os uploads e a "Seleção de referências" continuam com a seleção

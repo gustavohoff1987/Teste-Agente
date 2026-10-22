@@ -67,7 +67,7 @@ from trend import METHOD_VERSION as TREND_METHOD, classify, classify_frame, stag
 METHOD = "PAINEL-BOLHAS-1"
 OPERATION = "painel"
 OFFICIAL_ONLY = ("O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; um arquivo importado "
-                 "segue pelas análises da preparação.")
+                 "segue pelo formato da página única, com nivel (\"municipios\").")
 GOVERNED = ("O painel usa as colunas do perfil oficial da base Brasil: código IBGE, município, período, categoria, "
             "quantidade e população e, com a referência, latitude e longitude.")
 NO_CRS = ("A distância do painel precisa do referencial geodésico SIRGAS 2000, premissa governada da versão oficial da "

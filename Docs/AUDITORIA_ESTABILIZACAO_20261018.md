@@ -1,5 +1,9 @@
 # Auditoria e estabilização da aplicação — 18/10/2026
 
+> **Registro datado.** A interface descrita aqui (preparação, resultados em abas, mapa, investigação e os
+> roteiros de navegador citados) saiu do produto em 22/10/2026, com a página única de análise: ver a
+> [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 ## Escopo e ponto de partida
 
 Branch: `feat/novos-blocos-incrementais`. Base auditada: `7dd5d2cedfa77550d512932ff0ef6c866454c9cc`.

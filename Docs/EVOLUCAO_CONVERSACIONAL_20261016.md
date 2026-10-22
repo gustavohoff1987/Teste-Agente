@@ -1,5 +1,9 @@
 # Evolução conversacional — execução autorizada em 16/10/2026
 
+> **Registro datado.** Desde 22/10/2026 (página única), a interface não tem preparação nem tela de resultados: a
+> conversa age sobre o gráfico e envia a referência da análise em exibição. Os roteiros de navegador citados aqui
+> saíram; a cobertura deles está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md). A interface atual: [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+
 ## Incremento 1 — fluidez e catálogo PT
 
 A integração passa a materializar explicações de densidade, distância e agregação diretamente do catálogo PT, com identidade, versão, uso e autorização APT-20261016 retornados na resposta. O carregador verifica o catálogo íntegro e as 703 formas-base contra o Anexo A. EN está bloqueado; as formas não foram alteradas. Ver `DECISAO_CATALOGO_PT_20261016.md` e o adendo restrito ao final da SPEC.

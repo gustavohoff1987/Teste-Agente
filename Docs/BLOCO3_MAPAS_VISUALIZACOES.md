@@ -1,5 +1,13 @@
 # Bloco 3 — Mapas, visualizações avançadas e exploração visual integrada
 
+> **Página única (22/10/2026).** O mapa territorial, os gráficos, a tabela sincronizada, o painel de resultados,
+> as exportações e a acessibilidade da tela de resultados (seções 5 a 11) saíram do produto com as telas clássicas
+> e ficam como histórico, assim como as medições de navegador (`bench_ui_map.py`, seção 13.1) e os roteiros de
+> navegador citados nas seções 1, 12 e 14. Continua na API o contrato de apresentação (`metadata.representacao`,
+> seções 3 e 4), com os testes do backend (`test_representation.py` e `test_representation_real.py`). A análise na
+> tela é o gráfico de bolhas da página única, sem mapa ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram
+> está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Branch `feat/novos-blocos-incrementais`, a partir de `2d8f7a0` (fim da integração das coordenadas
 oficiais do Bloco 2). Referências: Parte 13 da SPEC v1.2.4 (CAP-REP-01 a CAP-REP-06, CFG-REP,
 RQ-REP-01 a RQ-REP-15) e os contratos de avaliabilidade, precisão, linhagem, privacidade e vigência
@@ -97,6 +105,9 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   distância é calculada no frontend; todas vêm do motor (geodésica de Karney, GRS80).
 
 ## 5. Mapa territorial interativo (U2)
+
+> Histórico: as seções 5 a 11 descrevem a tela de resultados, que saiu do produto em 22/10/2026 (ver a nota no
+> início do documento).
 
 - Pontos em canvas, redesenhados por `requestAnimationFrame` em lotes por cor, com anel de superfície
   de 2 px; 5.570 pontos em 11 a 18 ms no primeiro desenho (seção 13).

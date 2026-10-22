@@ -1,5 +1,14 @@
 # Evolução temporal: mudança (CAP-TMP-01) e tendência (CAP-TEN-01)
 
+> **Página única (22/10/2026).** A tela descrita aqui (a caixa Período com o atalho da série anual de junho, na
+> seção 4; os selos, os cartões, a contagem por classe, o filtro por família, os pequenos múltiplos e os halteres
+> da seção 5; a tela da comparação com janela, na seção 8) saiu do produto com as telas clássicas e fica como
+> histórico, assim como `trend.ts`, `TrendVisuals.tsx`, `ResultWorkspace.tsx`, `PeriodSelection.tsx`, os testes
+> `trend.test.mjs` e `visualModels.test.mjs` e os roteiros de navegador citados na seção 7. Continuam o método e os
+> metadados na API (`metadata.tendencia` e `metadata.mudanca`), com os testes do backend (`test_trend.py`). Na
+> página única, a análise Tendência mostra a mudança, as classes e as séries, com a janela escolhida pela pessoa
+> ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Vigência: 19/10/2026 (decisão D6 do responsável pelo produto). Código: `backend/trend.py`,
 `backend/temporal_change.py`, o ramo `temporal` de `backend/main.py` e `backend/representation.py`; na
 tela, `frontend/src/trend.ts`, `frontend/src/TrendVisuals.tsx`, `ResultWorkspace.tsx` e a caixa Período
@@ -106,6 +115,8 @@ junho: uma competência por ano, 12 meses entre elas, no mesmo mês da populaç�
   muda a seleção; o cálculo continua sendo ação do usuário.
 
 ## 5. Na tela
+
+> Histórico: esta tela saiu do produto com as telas clássicas em 22/10/2026 (ver a nota no início do documento).
 
 - **Selo** (`trend-badge`, com `data-class` = código da classe ou `NAO_AVALIAVEL`): texto, cor e
   ícone, sem cor de juízo. Família do crescimento em azul (#2a78d6), do declínio em laranja

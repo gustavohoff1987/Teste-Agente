@@ -1,5 +1,12 @@
 # Bloco 2, Etapa 1 — Referências territoriais elegíveis e referência geográfica mais próxima
 
+> **Página única (22/10/2026).** O cartão "Referência mais próxima" e a interface da seção 9 saíram do produto
+> com as telas clássicas e ficam como histórico, assim como os roteiros e as medições de navegador citados nas
+> seções 10 e 11 (`ui_nearest_smoke.py` e `bench_ui_nearest.py`). Continua a capacidade na API (`/api/analyze`),
+> com os testes do backend (`test_nearest_reference.py` e `test_nearest_real_data.py`). Na página única, a
+> análise espacial mostra a distância até o membro mais próximo de um conjunto de referência
+> ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Branch `feat/novos-blocos-incrementais`, a partir de `15aa3c8` (13/10/2026). Esta etapa reúne
 as antigas etapas 2A (referências territoriais) e 2B (referência mais próxima) e a atualização
 do README sobre a política dos dados do Brasil. A Etapa 2 não foi iniciada.
@@ -181,6 +188,8 @@ vez de repeti-la, o que reduziu a resposta de 5.570 alvos de 9,6 MB para 6,5 MB.
   antes e depois.
 
 ## 9. Interface
+
+> Histórico: esta tela saiu do produto com as telas clássicas em 22/10/2026 (ver a nota no início do documento).
 
 A jornada completa ocorre na conversa:
 

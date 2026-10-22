@@ -1,5 +1,12 @@
 # Bloco 1 — resultados exploráveis e seleção territorial
 
+> **Página única (22/10/2026).** A interface descrita neste documento (preparação conversacional, controles de
+> competência, resultados em abas, "Análises anteriores", seleção territorial na preparação e os componentes
+> `ConversationalPreparation` e `DistributionResults`) saiu do produto com as telas clássicas e fica como histórico,
+> assim como os roteiros de navegador citados (`ui_block1_*` e os demais). Continuam o motor (`compute` e
+> `preflight`) e o contrato territorial da API. A tela atual está na [interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md) e na [área de análise](PAINEL_INTEGRADO_INTERFACE.md);
+> a cobertura dos roteiros que saíram, em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+
 Origem: `feat/portal-uma-pagina-v1`, commit `d214ab73a52e7cd33f1fc3e8488b216d83a19571`.
 Implementação exclusivamente em `feat/novos-blocos-incrementais`.
 

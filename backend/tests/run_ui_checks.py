@@ -7,7 +7,7 @@ código de saída é 1 se algum roteiro falhou.
 Uso, na raiz do repositório, depois de `npm run build` em frontend/:
     python backend/tests/run_ui_checks.py                        # todas as suítes
     python backend/tests/run_ui_checks.py --suite bloco1         # só uma suíte (pode repetir)
-    python backend/tests/run_ui_checks.py --roteiro ui_stabilization.py   # só os roteiros indicados (pode repetir)
+    python backend/tests/run_ui_checks.py --roteiro ui_pagina_unica.py    # só os roteiros indicados (pode repetir)
     python backend/tests/run_ui_checks.py --listar               # suítes e roteiros registrados
 
 Navegador: ADT_BROWSER_CHANNEL (o padrão dos roteiros é "chrome"; sem o Google Chrome
@@ -31,37 +31,35 @@ ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / "backend" / "tests"
 TIMEOUT = 20 * 60  # segundos por roteiro; os passos internos têm esperas próprias
 
-# catalogo: "bloco1" e "duas-fontes" são fixtures sintéticas; "repositorio" é a base versionada.
+# Página única (22/10/2026): os roteiros do fluxo clássico saíram (ver backend/tests/legado/README.md). Os nomes das suítes
+# continuam os mesmos, porque o .github/workflows/ci.yml os chama.
+# catalogo: "bloco1" é a fixture sintética; "repositorio" é a base versionada.
 # servidor: "offline" (sem transporte de IA) ou "gemini-simulado" (só o transporte é simulado).
 SUITES = {
     "conversa": {
-        "descricao": "Jornada conversacional com catálogo sintético de duas fontes",
-        "catalogo": "duas-fontes", "servidor": "offline",
-        "roteiros": [("ui_conversational_smoke.py", {})],
+        "descricao": "Conversa agindo no gráfico só pelos canais locais (catálogo sintético do Bloco 1, sem provedor de IA)",
+        "catalogo": "bloco1", "servidor": "offline",
+        "roteiros": [("ui_conversa_grafico.py", {})],
     },
     "bloco1": {
-        "descricao": "Bloco 1 a 3 com catálogo sintético: seleção, regressão, referência, critérios, mapas, visibilidade, painel",
+        "descricao": "Página única com catálogo sintético: abertura, estados, Histórico, Nova análise, planilha enviada, "
+                     "celular e a área de análise (famílias, territórios em lista, funções e detalhes)",
         "catalogo": "bloco1", "servidor": "offline",
-        "roteiros": [("ui_block1_smoke.py", {}), ("ui_block1_regression.py", {}), ("ui_nearest_smoke.py", {}),
-                     ("ui_criteria_smoke.py", {}), ("ui_map_smoke.py", {}), ("ui_visibility_diagnostic.py", {}),
-                     ("ui_investigation.py", {}), ("ui_integrated_workspace.py", {}), ("ui_sem_confirmacoes.py", {}),
-                     ("ui_territorial_scope.py", {}), ("ui_result_visuals.py", {}), ("ui_painel_integrado.py", {})],
+        "roteiros": [("ui_pagina_unica.py", {}), ("ui_area_de_analise.py", {})],
     },
     "gemini-simulado": {
-        "descricao": "Interpretação por um transporte Gemini simulado (sem chamadas ao provedor)",
+        "descricao": "Conversa agindo no gráfico com um transporte Gemini simulado: ambiguidade em botões e nada da base ao provedor",
         "catalogo": "bloco1", "servidor": "gemini-simulado",
-        "roteiros": [("ui_block1_integration.py", {}), ("ui_semantic_continuity.py", {}), ("ui_stabilization.py", {})],
+        "roteiros": [("ui_conversa_grafico.py", {})],
     },
     "base-versionada": {
-        "descricao": "Jornada do Bloco 1 com a base Brasil versionada (62 municípios do AM, 22 competências)",
+        "descricao": "Página única com a base Brasil versionada (27 estados, 5.570 municípios, 22 competências)",
         "catalogo": "repositorio", "servidor": "offline",
-        "roteiros": [("ui_block1_smoke.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_investigation.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_territorial_scope.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_result_visuals.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_painel_integrado.py", {"ADT_BLOCK1_REAL": "1"})],
+        "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"})],
     },
 }
 SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py"}
-FIXTURES = {"bloco1": "prepare_block1_catalog.py", "duas-fontes": "prepare_ui_brazil_catalog.py"}
+FIXTURES = {"bloco1": "prepare_block1_catalog.py"}
 GITHUB = os.environ.get("GITHUB_ACTIONS") == "true"
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 127.0.0.1 nunca passa por proxy
 
