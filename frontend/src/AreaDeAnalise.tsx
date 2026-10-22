@@ -11,7 +11,7 @@ import {
   artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corOrdinal, corteAtivo, cronologica, definicaoInicial,
   disponibilidadeDaFamilia, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, janelaDoAtalho, lerEstadoSalvo, lerLimites, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv,
-  montarOpcoes, noCorte, nomeDaUnidade, novoConjunto, ordemNeutra, pintar, prefixoDe, rotulosEfetivos, salvarEstado, separarItens,
+  chaveDoPedido, montarOpcoes, noCorte, nomeDaUnidade, novoConjunto, ordemNeutra, pintar, prefixoDe, rotulosEfetivos, salvarEstado, separarItens,
   maiuscula, textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
   type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala, type EstadoSalvo,
   type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat, type UnidadeDoCatalogo,
@@ -191,7 +191,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const familiaPedida = familiaCalculada(def, dispAtual.disponivel && !dispAtual.pendente);
   const bloqueio = pronto ? bloqueioDoPedido(def, { fonte: tipo, rotulos }) : "Preparando os dados…";
   const opcoes = useMemo(() => bloqueio ? null : montarOpcoes(def, familiaPedida, grupoDe), [def, familiaPedida, bloqueio, grupoDe]);
-  const chave = opcoes ? chaveFonte + "::" + JSON.stringify(opcoes) : "";
+  const chave = opcoes ? chaveFonte + "::" + chaveDoPedido(opcoes) : "";
   const fonteMotor: FonteDoMotor | null = useMemo(() => fonte ? { tipo: fonte.tipo, apiBase: fonte.apiBase, datasetVersion: fonte.datasetVersion,
     sheet: fonte.sheet, mapping: fonte.mapping, arquivo: fonte.arquivo, geoVersion: fonte.geoVersion } : null, [fonte]);
   const lugarDe = useCallback((d: DefinicaoAnalise) => lugarDoUniverso({ nivel: d.nivel, base: d.base, conjuntos: d.conjuntos.length, grupos,
@@ -436,7 +436,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setFase("preparar");
   }
   function escolherPendencia(chavePendencia: string, valor: string) {
-    mudar({ premissas: { ...def.premissas, [chavePendencia]: valor } });
+    // Os papéis confirmados formam uma lista (confirmed_roles); as demais premissas são um valor só.
+    const atuais = def.premissas[chavePendencia];
+    const novo = chavePendencia === "confirmed_roles"
+      ? [...new Set([...(Array.isArray(atuais) ? atuais : typeof atuais === "string" ? [atuais] : []), valor])] : valor;
+    mudar({ premissas: { ...def.premissas, [chavePendencia]: novo } });
     setAviso("Premissa confirmada: " + chavePendencia + " = " + valor + ".");
   }
   function exportarCsv() {

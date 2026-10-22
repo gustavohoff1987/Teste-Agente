@@ -118,6 +118,8 @@ test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no
   // Papéis escolhidos pela pessoa (o grupo não é papel do pré-exame).
   const escolhida = P.escolherColuna(escolhas, 'population', 'pop');
   assert.deepEqual(P.contextoDaPlanilha(escolhida).options.confirmed_roles, ['population']);
+  // No motor do gráfico também: a coluna escolhida vai em confirmed_roles (D1); o grupo não é papel do motor comum.
+  assert.deepEqual(P.premissasDaPlanilha(escolhida), {confirmed_roles: ['population'], count_unit: 'pessoas', crs: 'SIRGAS2000'});
   assert.deepEqual(P.premissasDaPlanilha({...escolhas, unidadeDeContagem: 'outro', textoDaUnidade: ' equipes '}),
     {count_unit: 'outro', custom_count_unit: 'equipes', crs: 'SIRGAS2000'});
 });

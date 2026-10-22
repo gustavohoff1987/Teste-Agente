@@ -8,7 +8,8 @@
 import type {
   AtributoCondicao, AtributoOrdenacao, CondicaoPedido, FamiliaTendencia, OperadorCondicao, OrdenarPedido, PainelAtributo,
   PainelConjuntoPedido, PainelCriterio, PainelDominio, PainelIndicador, PainelItem, PainelMunicipios, PainelNivel, PainelOpcoes, PainelOrdem,
-  PainelReferenciaPedido, PainelResposta, Posicao, ReferenciaCandidato, Rotulo, RotulosTerritoriais, SituacaoCondicao, TipoGrupos,
+  PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaCandidato, Rotulo, RotulosTerritoriais, SituacaoCondicao,
+  TipoGrupos,
 } from "./painelApi";
 
 export type { Rotulo, RotulosTerritoriais } from "./painelApi";
@@ -25,7 +26,7 @@ export type Visao = "mudanca" | "classes" | "series";
 /** Fonte de dados da área: a base do Brasil ou a planilha enviada, com a nomenclatura territorial confirmada. */
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string; mapping: Record<string, string>;
-  arquivo: File | null; nome: string; geoVersion?: string; premissas?: Record<string, string>; rotulos?: RotulosTerritoriais;
+  arquivo: File | null; nome: string; geoVersion?: string; premissas?: Premissas; rotulos?: RotulosTerritoriais;
 };
 /** Comando da conversa para o gráfico (campo `painel` das rotas da conversa). Cada id novo é aplicado uma vez. */
 export type PedidoDoChat = {
@@ -1182,14 +1183,14 @@ export type DefinicaoAnalise = {
   familia: Familia; indicador: PainelIndicador; nivel: PainelNivel; base: PainelMunicipios; competencia: string; categoria: string;
   conjuntos: PainelConjuntoPedido[]; referencia: PainelReferenciaPedido | null; faixasDistancia: number[];
   janela: string[]; visao: Visao; agrupar: Agrupar; condicoes: CondicaoPedido[]; ordenar: OrdenarPedido | null;
-  comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Record<string, string>;
+  comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Premissas;
 };
 /** Abertura: base do Brasil com os grupos à vista (E1, os estados em bolhas); planilha com o gráfico limpo, à espera da escolha. */
 /** Estado inicial da análise. Na base do Brasil, a porta de entrada são os estados; na planilha, que não tem bolhas de
  * grupo, todas as unidades (a lista continua à vista para restringir). Na planilha sem população, o indicador começa na
  * quantidade (o motor recusa a densidade sem população), e as premissas escolhidas no painel Colunas vão em todo pedido. */
 export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodos: string[]; categoria: string; familia?: Familia;
-  temGrupos: boolean; temPopulacao?: boolean; premissas?: Record<string, string> }): DefinicaoAnalise {
+  temGrupos: boolean; temPopulacao?: boolean; premissas?: Premissas }): DefinicaoAnalise {
   return { familia: p.familia ?? "distribuicao", indicador: p.temPopulacao === false ? "quantidade" : "densidade",
     nivel: p.tipo === "brasil" && p.temGrupos ? "estados" : "municipios",
     base: p.tipo === "arquivo" ? { todos: true, estados: [], ids: [] } : { ...BASE_VAZIA }, competencia: maisRecente(p.periodos),
@@ -1268,6 +1269,15 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   }
   if (Object.keys(def.premissas).length) opcoes.premissas = def.premissas;
   return opcoes;
+}
+
+/** Chave do pedido na memória da tela. Sem grupos, faixas, tendência, comparação ou ordenação pela variação, o indicador não
+ * muda a resposta (cada item traz população, quantidade e densidade): a troca do indicador não pede nada ao motor. O pedido
+ * enviado continua com o indicador em exibição. */
+export function chaveDoPedido(opcoes: PainelOpcoes): string {
+  const depende = !!(opcoes.grupos || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
+  const { indicador, ...resto } = opcoes;
+  return JSON.stringify(depende ? opcoes : resto);
 }
 
 /** Camada de cor em uso (uma de cada vez): condições, depois ordenação, depois a da família. */

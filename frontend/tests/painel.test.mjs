@@ -902,3 +902,13 @@ test('cliente do motor: a resposta no formato do motor (empate, condições por 
     textos: ['Entre dois objetos: A e B em ordem de nome, relação A/B e diferença assinada A − B.']});
   assert.deepEqual(r.tendencia.janela, ['202306', '202406']);
 });
+
+test('memória da tela: sem análise que dependa do indicador, trocar densidade e quantidade não pede de novo ao motor', () => {
+  const base = {competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', base: {municipios: {todos: true, estados: [], ids: []}}};
+  assert.equal(M.chaveDoPedido({...base, indicador: 'densidade'}), M.chaveDoPedido({...base, indicador: 'quantidade'}));
+  for (const extra of [{grupos: {tipo: 'quartis'}}, {faixas: [0, 1]}, {tendencia: {competencias: ['202106', '202206', '202306', '202406']}},
+    {comparar: ['code:1', 'code:2']}, {ordenar: {atributo: 'variacao', ordem: 'desc'}}])
+    assert.notEqual(M.chaveDoPedido({...base, ...extra, indicador: 'densidade'}), M.chaveDoPedido({...base, ...extra, indicador: 'quantidade'}));
+  assert.equal(M.chaveDoPedido({...base, indicador: 'densidade', ordenar: {atributo: 'densidade', ordem: 'desc'}}),
+    M.chaveDoPedido({...base, indicador: 'quantidade', ordenar: {atributo: 'densidade', ordem: 'desc'}}));
+});

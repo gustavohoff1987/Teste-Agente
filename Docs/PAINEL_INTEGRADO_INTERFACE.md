@@ -178,8 +178,9 @@ O cliente (`painelApi.ts`) monta o formulário de `/api/painel` (base do Brasil 
 e o mapeamento confirmado), envia as opções com as chaves do contrato e normaliza a resposta. Mudar universo, competência,
 categoria, referência, janela, grupos, faixas, condições, ordenação, comparação, conjuntos ou premissas pede de novo
 (com 150 ms de espera e o pedido anterior cancelado); o gráfico anterior fica à vista, mais claro, enquanto o motor responde. As
-últimas seis respostas ficam na memória da tela: voltar a um estado já calculado não pede de novo. Indicador (sem grupos, faixas
-ou tendência), escala, régua, seleção, visão da tendência, primeira ou última competência, filtros e páginas são só estado
+últimas seis respostas ficam na memória da tela: voltar a um estado já calculado não pede de novo. Indicador (sem grupos, faixas,
+tendência, comparação ou ordenação pela variação: a resposta traz população, quantidade e densidade de cada item, e a troca não
+pede nada ao motor), escala, régua, seleção, visão da tendência, primeira ou última competência, filtros e páginas são só estado
 visual.
 
 - **Opções enviadas:** `nivel` (`"estados"` ou `"municipios"`) e `indicador` (`"densidade"` ou `"quantidade"`) em todo
@@ -187,8 +188,9 @@ visual.
   `conjuntos`, `referencia`, `faixas_distancia`, `competencia_inicial` e `tendencia: {competencias}` (com quatro competências
   ou mais) conforme a família; `grupos` ou `faixas` na Distribuição; `condicoes`, `ordenar` e `comparar` quando pedidos;
   `rotatividade: {inicial, final}`; `premissas`, só nas planilhas (na base do Brasil, o motor recusa).
-- **Planilhas:** as premissas escolhidas no painel Colunas (unidade de contagem, referencial, separador decimal) vão em todo
-  pedido, somadas às que a pessoa confirma numa pendência. Sem população associada, o indicador começa na quantidade: o motor
+- **Planilhas:** as premissas escolhidas no painel Colunas (unidade de contagem, referencial, separador decimal e, em
+  `confirmed_roles`, as colunas que a pessoa escolheu no seletor, como no pré-exame, D1) vão em todo pedido, somadas às que a
+  pessoa confirma numa pendência (um papel confirmado entra na lista `confirmed_roles`). Sem população associada, o indicador começa na quantidade: o motor
   recusa a densidade sem população.
 - **Recusa (422):** a mensagem do motor aparece acima do gráfico, com "Voltar ao último gráfico calculado" e "Tentar
   novamente". Com uma pendência de premissa (`pendencia: {chave, opcoes, texto}`), a tela oferece as opções do motor, sem lista fixa;

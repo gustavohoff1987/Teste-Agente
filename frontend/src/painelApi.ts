@@ -12,6 +12,8 @@ export type AtributoOrdenacao = PainelAtributo | "distancia_km" | "variacao";
 export type AtributoCondicao = PainelAtributo | "distancia_km";
 export type PainelOrdem = "desc" | "asc";
 export type PainelNivel = "estados" | "municipios";
+/** Premissas de uma planilha, com os nomes de /api/analyze: textos e, em `confirmed_roles`, os papéis escolhidos pela pessoa. */
+export type Premissas = Record<string, string | string[]>;
 /** Universo das unidades, na forma de `options.abrangencia.municipios`. Em planilhas, `estados` leva os valores do grupo
  * (coluna-mãe) e `ids` leva `code:<código>` ou `name:<nome>`. */
 export type PainelMunicipios = { todos: boolean; estados: string[]; ids: string[] };
@@ -48,12 +50,12 @@ export type PainelOpcoes = {
   ordenar?: OrdenarPedido;
   comparar?: string[];
   rotatividade?: { inicial: string; final: string };
-  premissas?: Record<string, string>;
+  premissas?: Premissas;
 };
 
 /** Opções de /api/painel/referencias (o critério aqui não leva universo). */
 export type ReferenciasOpcoes = { competencia: string; categoria: string; universo: PainelUniverso; criterio: PainelCriterio;
-  premissas?: Record<string, string> };
+  premissas?: Premissas };
 
 // ------------------------------------------------------------------------------------------------ resposta (normalizada)
 /** Nomenclatura territorial: na base do Brasil, município e estado; nas planilhas, o que a pessoa confirmou ("distrito",

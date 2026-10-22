@@ -35,6 +35,32 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única: as colunas escolhidas da planilha chegam ao gráfico, e trocar o indicador não recalcula
+- **Antes** (commits `ef58a33` e `75a893c`, ainda não aprovados no CI):
+  - numa planilha, as colunas escolhidas pela pessoa no painel Colunas iam ao pré-exame (`confirmed_roles`), mas não ao gráfico:
+    com uma coluna que o motor não reconhece pelo nome ("condado"), o gráfico recusava com "Escolha a coluna de Território no
+    seletor…";
+  - com `indicador` em todo pedido, trocar densidade e quantidade pedia o gráfico de novo, mesmo quando a resposta já trazia os
+    dois valores; uma pendência de papel confirmado gravava um texto em `confirmed_roles`, que é uma lista.
+- **Agora:**
+  - as colunas escolhidas no seletor vão em `premissas.confirmed_roles` em todo pedido da planilha, como no pré-exame (D1: a
+    escolha no seletor substitui a confirmação); o papel confirmado numa pendência entra nessa lista;
+  - sem grupos, faixas, tendência, comparação ou ordenação pela variação, trocar o indicador usa a resposta já recebida, sem
+    pedir nada ao motor; o pedido enviado continua com o indicador em exibição.
+- **Permanece:** o grupo territorial não é papel do motor comum (vai no mapeamento do gráfico e, no pré-exame, em
+  `hierarchy_columns`); nada vai ao provedor de IA.
+- **Motivo:** a terceira execução do CI (roteiros `ui_conversa_grafico.py`, planilha "condados.csv", e `ui_area_de_analise.py`,
+  troca do indicador) mostrou os dois pontos. O defeito estava no produto: a tela não mandava as escolhas da pessoa ao gráfico,
+  e a memória da tela tratava o indicador como parte de todo pedido. Classificação: correção dentro do escopo da página única,
+  compatível com a SPEC e com a divergência aprovada D1.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` e `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`.
+  - **Testes:**
+    - `ui_pagina_unica.py` muda de propósito: as premissas da planilha de distritos passam a trazer `confirmed_roles:
+      ["territory"]`, a coluna escolhida pela pessoa;
+    - `paginaUnica.test.mjs` ganha as colunas escolhidas nas premissas;
+    - `painel.test.mjs` ganha a chave da memória sem o indicador quando ele não muda a resposta.
+
 ### 2026-10-22 · Página única: a planilha enviada abre com todas as unidades no gráfico
 - **Antes** (commit `ef58a33`, ainda não aprovado no CI): depois de "Começar a análise", a área de uma planilha abria sem
   nenhuma unidade marcada ("Marque os distritos na lista de territórios para ver o gráfico."), e nada era pedido ao motor.

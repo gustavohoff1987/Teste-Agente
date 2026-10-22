@@ -292,7 +292,8 @@ def main():
         assert uploaded_filename(pedido) == "distritos.csv", uploaded_filename(pedido)
         assert not form_field(pedido, "dataset"), "planilha enviada: vai o arquivo, não a base do Brasil"
         assert json.loads(form_field(pedido, "mapping")) == MAPEAMENTO_DOS_DISTRITOS, form_field(pedido, "mapping")
-        assert sent.get("premissas") == {"count_unit": "pessoas", "crs": "SIRGAS2000"}, sent
+        # A coluna escolhida pela pessoa no seletor vai como papel estabelecido (confirmed_roles, D1), como no pré-exame.
+        assert sent.get("premissas") == {"confirmed_roles": ["territory"], "count_unit": "pessoas", "crs": "SIRGAS2000"}, sent
         expect(colunas).to_have_count(0)
         expect(page.get_by_test_id("current-source")).to_contain_text("distritos.csv · distritos e províncias")
         expect(fonte.get_by_test_id("colunas-abrir")).to_be_visible()

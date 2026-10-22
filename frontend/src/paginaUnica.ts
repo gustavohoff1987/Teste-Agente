@@ -17,7 +17,7 @@ export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null };
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string;
   mapping: Record<string, string>; arquivo: File | null; nome: string;
-  geoVersion?: string; premissas?: Record<string, string>;
+  geoVersion?: string; premissas?: Record<string, string | string[]>;
   /** Nomes das unidades e dos grupos: fixos na base do Brasil (município, estado); na planilha, os que a pessoa escolheu. */
   rotulos: Rotulos;
 };
@@ -277,11 +277,15 @@ const referencialDaPlanilha = (escolhas: EscolhasDaPlanilha): Record<string, str
 
 /** Mapeamento e opções da planilha para o pré-exame e para a conversa (rotas atuais do backend): o grupo territorial segue
  * em `hierarchy_columns` (nível superior 1), porque o pré-exame só aceita os papéis de semantic_bridge.ROLES. */
+/** Papéis escolhidos pela pessoa no seletor (a escolha substitui a confirmação, D1), só os do pré-exame e com coluna. */
+const papeisEscolhidos = (escolhas: EscolhasDaPlanilha) =>
+  escolhas.escolhidos.filter(papel => PAPEIS_DO_PREEXAME.includes(papel) && escolhas.mapeamento[papel]);
+
 export function contextoDaPlanilha(escolhas: EscolhasDaPlanilha): { mapping: Record<string, string>; options: Record<string, unknown> } {
   const mapping: Record<string, string> = {};
   for (const papel of PAPEIS_DO_PREEXAME) if (escolhas.mapeamento[papel]) mapping[papel] = escolhas.mapeamento[papel]!;
   const options: Record<string, unknown> = {
-    confirmed_roles: escolhas.escolhidos.filter(papel => PAPEIS_DO_PREEXAME.includes(papel) && escolhas.mapeamento[papel]),
+    confirmed_roles: papeisEscolhidos(escolhas),
     ...unidadeDaContagem(escolhas),
     ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
@@ -300,8 +304,11 @@ export function mapeamentoDaPlanilha(mapeamento: Mapeamento): Record<string, str
 
 /** Premissas da planilha para o motor do gráfico (`FonteDados.premissas`). Só SIRGAS 2000 e WGS 84 valem como referencial:
  * com outro, ou sem saber qual é, nada é presumido, e a análise espacial fica indisponível, com o motivo. */
-export function premissasDaPlanilha(escolhas: EscolhasDaPlanilha): Record<string, string> {
+export function premissasDaPlanilha(escolhas: EscolhasDaPlanilha): Record<string, string | string[]> {
+  const escolhidos = papeisEscolhidos(escolhas);
   return {
+    // As colunas escolhidas pela pessoa valem como papéis estabelecidos no motor do gráfico, como no pré-exame (D1).
+    ...(escolhidos.length ? { confirmed_roles: escolhidos } : {}),
     ...unidadeDaContagem(escolhas),
     ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),

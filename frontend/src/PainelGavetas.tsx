@@ -4,7 +4,7 @@ import {
   pedirReferencias, type AtributoCondicao, type AtributoOrdenacao, type CondicaoPedido, type FonteDoMotor, type OperadorCondicao,
   type OrdenarPedido, type PainelAtributo, type PainelConjuntoPedido, type PainelCriterio, type PainelIndicador, type PainelItem,
   type PainelMunicipios,
-  type PainelOrdem, type PainelReferenciaPedido, type PainelResposta, type PainelUniverso, type ReferenciaCandidato,
+  type PainelOrdem, type PainelReferenciaPedido, type PainelResposta, type PainelUniverso, type Premissas, type ReferenciaCandidato,
   type ReferenciasResposta, type SituacaoCondicao,
 } from "./painelApi";
 import {
@@ -29,7 +29,7 @@ function valorDoCandidato(valor: number | null, atributo: PainelAtributo): strin
 type ReferenciaProps = {
   fonte: FonteDoMotor; competencia: string; categoria: string; base: PainelMunicipios; conjuntos: PainelConjuntoPedido[];
   pedida: PainelReferenciaPedido | null; ativa: PainelResposta["referencia"]; nomes: Map<string, string>; rotulos: RotulosTerritoriais;
-  catalogo: UnidadeDoCatalogo[]; premissas: Record<string, string>; faixas: number[];
+  catalogo: UnidadeDoCatalogo[]; premissas: Premissas; faixas: number[];
   /** Critério pedido na conversa ("a de maior densidade como referência"): a lista abre nessa ordem, e a escolha é da pessoa. */
   criterioInicial?: PainelCriterio | null;
   onAplicar: (referencia: PainelReferenciaPedido) => void; onRemover: () => void; onFaixas: (limites: number[]) => void;

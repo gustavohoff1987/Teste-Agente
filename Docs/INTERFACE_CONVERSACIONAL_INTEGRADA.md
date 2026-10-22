@@ -78,8 +78,8 @@ O painel **Colunas** mostra a coluna de cada papel:
 **Começar a análise** (ou **Aplicar as colunas**, ao reabrir o painel de uma planilha em uso) passa a planilha à área. Sem a
 unidade territorial, o período, a quantidade, o que ela conta ou os nomes, o clique lista o que falta, e nada é pedido ao
 motor. A área recebe `FonteDados` com o arquivo (reenviado só ao backend local), o mapeamento confirmado na tela (com o papel
-`grupo_territorial`), as premissas escolhidas (`count_unit`, `custom_count_unit`, `crs` só com `SIRGAS2000` ou `WGS84`, como
-informado, e `number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
+`grupo_territorial`), as premissas escolhidas (`confirmed_roles` com as colunas escolhidas no seletor, `count_unit`,
+`custom_count_unit`, `crs` só com `SIRGAS2000` ou `WGS84`, como informado, e `number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
 backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas escolhidas pela pessoa seguem em
 `confirmed_roles`.
 
