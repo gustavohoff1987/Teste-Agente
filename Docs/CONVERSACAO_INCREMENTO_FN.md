@@ -166,7 +166,11 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
 - **Comparar e juntar:** "compare Manaus e Tefé", "coloque … lado a lado" (2 ou 3 itens; o município fora do gráfico
   entra nele); "compare o Pará e o Amazonas" (estados, no nível dos estados); "compare esses municípios" (os do
   gráfico); "junte Manaus, Iranduba e Manacapuru", "junte os municípios do Amazonas" (soma dos componentes, com
-  possível dupla contagem).
+  possível dupla contagem). Com um nome só ("compare Manaus"), a conversa pergunta o outro ("Com qual outro município
+  você quer comparar?") e devolve `pending_operation: "comparisons"` e `pending_ids` com a unidade identificada; a tela
+  manda os dois de volta (`conversation_pending_operation` e `conversation_pending_ids`, que não vão ao provedor), e a
+  mensagem seguinte só com nomes ("Tefé e Parintins") completa a comparação. Outro comando ou uma pergunta seguem o seu
+  próprio sentido.
 - **Exportar:** "exporte em CSV", "imprimir", "relatório".
 
 ### Ambiguidades e perguntas

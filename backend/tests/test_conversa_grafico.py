@@ -216,7 +216,18 @@ def test_comparar_e_juntar_municipios_nomeados():
     assert estados["reply"].startswith("Mostrei os estados e abri a comparação lado a lado de Pará (PA) e Amazonas (AM)")
     assert "não ficam no mesmo gráfico" in pedir("compare Manaus e o Pará")["clarification"]
     assert "o pedido tem 4" in pedir("compare Manaus, Tefé, Parintins e Iranduba")["clarification"]
-    assert pedir("compare Manaus")["clarification"].startswith("Identifiquei MANAUS (AM). Para comparar, diga dois ou três")
+    # Um nome só: a conversa pergunta o outro e guarda a pendência; a mensagem seguinte, só com nomes, completa o pedido.
+    pendente = pedir("compare Manaus")
+    assert pendente["clarification"] == ("Identifiquei MANAUS (AM). Com qual outro município você quer comparar? Diga um ou "
+                                         "dois nomes. Nada mudou no gráfico.")
+    assert pendente["pending_operation"] == "comparisons" and pendente["pending_ids"] == ["code:130260"]
+    assert "painel" not in pendente
+    seguinte = {"conversation_pending_operation": "comparisons", "conversation_pending_ids": ["code:130260"]}
+    completa = pedir("Tefé e Parintins", **seguinte)
+    assert completa["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420", "code:130340"])
+    # Outro comando ou uma pergunta não completam a pendência: a mensagem segue o seu próprio sentido.
+    assert pedir("mostre Tefé", **seguinte)["painel"]["funcao"] is None
+    assert pedir("compare Tefé e Parintins", **seguinte)["painel"]["selecao"] == ["code:130420", "code:130340"]
 
 
 def test_janela_da_tendencia_com_os_ultimos_anos_e_os_atalhos():

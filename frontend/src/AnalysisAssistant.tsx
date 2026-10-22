@@ -21,7 +21,7 @@ type Choice = { label: string; draft: string; operation?: string; indicator?: "q
 type Clarification = { code: string; prompt: string; reason: string; source: "CATALOGO_LOCAL"; choices: Choice[]; answered: false };
 type Proposal = { operation: string | null; indicator: "density" | "quantity" | null; territory: string; period: string; category: string };
 type Exploration = { handled: boolean; reply?: string; clarification?: string; operation?: string; pending_operation?: string;
-  requested_count?: number | null; choices?: Choice[]; criteria_pending_ranking?: string; painel?: unknown };
+  pending_ids?: string[]; requested_count?: number | null; choices?: Choice[]; criteria_pending_ranking?: string; painel?: unknown };
 type Reply = { exploration?: Exploration; dialogue_action?: string; reply: string; proposal: Proposal;
   verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown };
 type Status = { configured: boolean };
@@ -87,7 +87,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const revision = useRef(0);
   // Pendências da conversa: municípios que faltam ("Com qual outro município?"), direção da ordenação e o pedido feito antes
   // dos dados, que segue quando a fonte fica pronta (interpretado de novo, com os municípios citados nele).
-  const pendingTerritories = useRef<{ operation: string; requestedCount?: number | null; fonte: string } | null>(null);
+  const pendingTerritories = useRef<{ operation: string; requestedCount?: number | null; ids?: string[]; fonte: string } | null>(null);
   const pendingRanking = useRef<string | null>(null);
   const pendingRequest = useRef("");
   const pendingPedido = useRef<PedidoDoChat | null>(null);
@@ -157,15 +157,19 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     const pendente = pendingTerritories.current;
     return { ...(origem?.opcoes || {}), ...opcoesDaConversa(grafico, dataLocal()),
       ...(pendente && pendente.fonte === chave ? { conversation_pending_operation: pendente.operation,
-        conversation_requested_count: pendente.requestedCount ?? null } : {}),
+        conversation_requested_count: pendente.requestedCount ?? null,
+        ...(pendente.ids?.length ? { conversation_pending_ids: pendente.ids } : {}) } : {}),
       ...(pendingRanking.current ? { criteria_pending_ranking: pendingRanking.current } : {}) };
   }
 
   /** Resposta do intérprete local: guarda as pendências e entrega o campo `painel` à área. */
   function aceitar(proposal: Exploration): Local {
+    // A pendência (por exemplo, "compare Manaus" → "com qual outro?") guarda a unidade já identificada para a mensagem
+    // seguinte; um pedido aplicado ao gráfico a encerra.
     if (proposal.pending_operation) pendingTerritories.current = { operation: proposal.pending_operation,
-      requestedCount: proposal.requested_count, fonte: atual.current.fonteChave };
-    else if (proposal.operation && !proposal.clarification) pendingTerritories.current = null;
+      requestedCount: proposal.requested_count, ids: Array.isArray(proposal.pending_ids) ? proposal.pending_ids : undefined,
+      fonte: atual.current.fonteChave };
+    else if ((proposal.operation || proposal.painel) && !proposal.clarification) pendingTerritories.current = null;
     pendingRanking.current = proposal.criteria_pending_ranking || null;
     const pedido = pedidoDoPainel(proposal.painel);
     if (pedido) pedir.current(pedido);

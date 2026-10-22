@@ -202,6 +202,25 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     referencia: d.referencia ? (r?.referencia?.membros.map(m => m.rotulo).join(" e ") || d.referencia.membros.map(id => nomes.get(id) || id).join(" e ")) : null }),
   [tipo, lugarDe, rotulos, nomes]);
 
+  // Histórico: a restauração roda antes do pedido ao motor, para a resposta guardada entrar no cache antes; assim, reabrir
+  // uma análise igual ao estado inicial (os estados) não pede de novo.
+  const ultimoRestaurado = useRef<EstadoSalvo | null>(null);
+  useEffect(() => {
+    if (!restaurar || restaurar === ultimoRestaurado.current || !pronto || iniciado.current !== chaveFonte) return;
+    ultimoRestaurado.current = restaurar;
+    const lido = lerEstadoSalvo(restaurar);
+    if (!lido) { setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada."); return; }
+    reiniciarVisual();
+    setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
+    setDef(lido.definicao);
+    if (lido.resposta && lido.opcoes) {
+      cache.current.set(lido.chave, lido.resposta);
+      setResposta(lido.resposta);
+      setCalculado({ chave: lido.chave, def: lido.definicao, familia: lido.familia, opcoes: lido.opcoes });
+    }
+    setAviso("Análise reaberta do Histórico, sem recalcular.");
+  }, [restaurar, pronto, chaveFonte]);
+
   useEffect(() => {
     if (!fonteMotor || !opcoes) { setCarregando(false); return; }
     if (calculado?.chave === chave) { setCarregando(false); setErro(null); return; }
@@ -258,22 +277,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
   }, [pedido, pronto, chaveFonte]);
 
-  const ultimoRestaurado = useRef<EstadoSalvo | null>(null);
-  useEffect(() => {
-    if (!restaurar || restaurar === ultimoRestaurado.current || !pronto || iniciado.current !== chaveFonte) return;
-    ultimoRestaurado.current = restaurar;
-    const lido = lerEstadoSalvo(restaurar);
-    if (!lido) { setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada."); return; }
-    reiniciarVisual();
-    setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
-    setDef(lido.definicao);
-    if (lido.resposta && lido.opcoes) {
-      cache.current.set(lido.chave, lido.resposta);
-      setResposta(lido.resposta);
-      setCalculado({ chave: lido.chave, def: lido.definicao, familia: lido.familia, opcoes: lido.opcoes });
-    }
-    setAviso("Análise reaberta do Histórico, sem recalcular.");
-  }, [restaurar, pronto, chaveFonte]);
 
   // ------------------------------------------------------------------------------------------ reproduzir (Mudança e Classes)
   useEffect(() => {

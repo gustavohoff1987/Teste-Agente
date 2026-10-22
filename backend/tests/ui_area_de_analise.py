@@ -147,7 +147,9 @@ def main():
         # 2. E1: Dados do Brasil pela própria área. Os estados em bolhas, sem municípios; a lista de territórios à vista, sem
         # digitar; a instrução de clicar num estado; o eixo vertical do indicador; a linha de contexto do Brasil.
         estados, sent = ok(lambda: area.get_by_test_id("analise-fonte-brasil").click())
-        assert sent.get("nivel") == "estados" and set(sent) == {"competencia", "categoria", "nivel"}, sent
+        # nivel e indicador vão em todo pedido (sem nivel, o motor responde no formato de 21/10).
+        assert sent.get("nivel") == "estados" and set(sent) == {"competencia", "categoria", "nivel", "indicador"}, sent
+        assert sent.get("indicador") == "densidade", sent
         expect(area).to_have_attribute("data-estado", "E1")
         itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
         assert itens_estado and all(item["tipo"] == "estado" for item in estados["itens"]), "estados e municípios nunca juntos"
@@ -189,7 +191,7 @@ def main():
         # 3. Enter na bolha do estado abre os municípios dele (E2): a lista do estado aparece, marcada; a trilha leva de volta.
         am, sent = ok(lambda: bolha_am.press("Enter"))
         universo_am = {"municipios": {"todos": False, "estados": [AM], "ids": []}}
-        assert sent["base"] == universo_am and "nivel" not in sent, sent
+        assert sent["base"] == universo_am and sent.get("nivel") == "municipios", sent
         expect(area).to_have_attribute("data-estado", "E2")
         assert all(item["tipo"] == "municipio" for item in am["itens"]), "estados e municípios nunca no mesmo eixo"
         ids_am = esperados(am)

@@ -35,6 +35,31 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única: a comparação pendente volta na conversa, e o Histórico reabre sem recalcular
+- **Antes** (commits `22e0e28` e `ef58a33`, ainda não aprovados no CI):
+  - "compare Manaus" (um nome só) respondia "Identifiquei MANAUS (AM). Para comparar, diga dois ou três nomes no mesmo
+    pedido…", sem guardar a pendência: a mensagem seguinte ("Tefé e Parintins") só mostrava esses municípios;
+  - reabrir pelo Histórico uma análise igual ao estado inicial da área (os estados) pedia o gráfico de novo ao motor.
+- **Agora:**
+  - "compare Manaus" pergunta "Identifiquei MANAUS (AM). Com qual outro município você quer comparar? Diga um ou dois nomes.
+    Nada mudou no gráfico.", com `pending_operation: "comparisons"` e `pending_ids`; a tela devolve a pendência na mensagem
+    seguinte (`conversation_pending_ids`, que não vai ao provedor de IA), e "Tefé e Parintins" completa a comparação com
+    Manaus. Outro comando ou uma pergunta não completam a pendência, e um pedido aplicado ao gráfico a encerra;
+  - o Histórico reabre a análise como estava, sem pedir nada ao motor, também quando ela é igual ao estado inicial.
+- **Permanece:** a comparação de 2 ou 3 itens; nada da base vai ao provedor de IA; o Histórico guarda a resposta do motor.
+- **Motivo:** a primeira execução do CI da página única (roteiros `ui_conversa_grafico.py` e `ui_pagina_unica.py`) mostrou que
+  a continuação da conversa, que já existia antes da página única ("pendências da conversa continuam",
+  `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`), e a reabertura sem recálculo não funcionavam. O defeito estava no produto: a
+  conversa nova não guardava a pendência, e a área agendava o pedido inicial antes de restaurar o estado salvo. Classificação:
+  correção dentro do escopo da página única, compatível com a SPEC.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/CONVERSACAO_INCREMENTO_FN.md` (comparar com um nome só).
+  - **Testes:**
+    - `test_conversa_grafico.py` muda de propósito (a resposta de "compare Manaus" passou a ser a pergunta com a pendência) e
+      ganha a continuação, a recusa da pendência com outro comando e a comparação explícita que a substitui;
+    - `ui_area_de_analise.py` passa a esperar `nivel` e `indicador` em todo pedido (mudança de propósito da integração);
+    - os roteiros `ui_conversa_grafico.py` e `ui_pagina_unica.py` não mudam.
+
 ### 2026-10-22 · WGS 84 como segundo referencial das coordenadas, além do SIRGAS 2000 (Adendo REF-20261022 da SPEC)
 - **Antes:**
   - o motor só aceitava o SIRGAS 2000 (`SIRGAS2000` e os apelidos de D24); `WGS84` era "não suportado" (422 na distância e na

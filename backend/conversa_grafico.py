@@ -25,7 +25,7 @@ CHAVES = ("familia", "indicador", "nivel", "municipios", "competencia", "janela"
 FAMILIAS = ("distribuicao", "espacial", "tendencia", "rotatividade")
 # Estado do gráfico enviado pela tela (contrato, seção 4, e extensões documentadas); sai das opções do intérprete.
 CONTEXTO = ("painel_familia", "painel_indicador", "painel_nivel", "painel_municipios", "painel_competencia",
-            "painel_janela", "painel_referencia", "painel_condicoes", "rotulos")
+            "painel_janela", "painel_referencia", "painel_condicoes", "rotulos", "conversation_pending_ids")
 # Operações atuais → família, indicador e função do gráfico (contrato, seção 4).
 OPERACOES = {
     "density": {"familia": "distribuicao", "indicador": "densidade"},
@@ -338,7 +338,10 @@ def contexto(options):
             "municipios": _base_valida(options.get("painel_municipios")), "ids": ids, "competencia": competencia,
             "janela": janela, "referencia": _textos(options.get("painel_referencia")),
             "condicoes": [item for item in condicoes if isinstance(item, dict)] if isinstance(condicoes, list) else [],
-            "rotulos": rotulos if isinstance(rotulos, dict) else {}}
+            "rotulos": rotulos if isinstance(rotulos, dict) else {},
+            # Unidade já identificada numa comparação pendente ("compare Manaus" → "com qual outro?").
+            "pendentes": [item for item in _textos(options.get("conversation_pending_ids"))
+                          if item.startswith(("code:", "name:"))]}
 
 
 def opcoes_do_interprete(options, ctx):
@@ -1390,13 +1393,18 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     juntar = JUNTAR.search(pedido.resto)
     if juntar and not comparar and GRUPOS_VISTA.search(pedido.resto):
         juntar = None  # "agrupe em quintis": grupos por posição da distribuição
-    if not (comparar or juntar or dica in ("comparisons", "aggregate")):
+    # Comparação pendente ("compare Manaus" → "com qual outro?"): a mensagem seguinte, só com nomes (sem outro comando nem
+    # pergunta), completa o pedido com a unidade já identificada, que a tela devolve em conversation_pending_ids.
+    pendentes = list(conv.ctx.get("pendentes") or [])
+    pendente = bool(pendentes) and conv.opcoes.get("conversation_pending_operation") == "comparisons" and not (
+        comparar or juntar or dica or VERBO_VISTA.search(pedido.texto) or PERGUNTA.match(pedido.texto))
+    if not (comparar or juntar or dica in ("comparisons", "aggregate") or pendente):
         return None
     if comparar and juntar:
         return _pergunta("Uma função por vez: comparar lado a lado ou juntar num conjunto?" + NADA_MUDOU,
                          [_escolha("Comparar", pedido.reescreve(juntar.start(), juntar.end(), "").strip() or "compare"),
                           _escolha("Juntar", pedido.reescreve(comparar.start(), comparar.end(), "").strip() or "junte")])
-    funcao = "comparar" if comparar or (not juntar and dica == "comparisons") else "juntar"
+    funcao = "comparar" if comparar or pendente or (not juntar and dica == "comparisons") else "juntar"
     for encontrado in list(COMPARAR.finditer(pedido.resto)) + list(JUNTAR.finditer(pedido.resto)):
         pedido.consome(*encontrado.span())
     periodo, pergunta = _periodo(conv, False)
@@ -1429,12 +1437,20 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
                          verbo + "." + NADA_MUDOU)
     if not objetos and not ids and deixis:
         ids = list(conv.ctx["ids"])
+    if pendente and not objetos:
+        ids = list(dict.fromkeys(pendentes + ids))
     selecao = ["uf:" + chave for chave in objetos] if objetos else ids
     rotulos = [conv.rotulo_do_estado(chave) for chave in objetos] if objetos else [conv.cat.rotulo(i) for i in ids] \
         if conv.cat is not None else ids
     exemplo = "“compare MANAUS (AM) e TEFE (AM)”" if conv.brasil and funcao == "comparar" else \
         "“junte MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM)”" if conv.brasil else "os nomes no mesmo pedido"
     if len(selecao) < 2:
+        if funcao == "comparar" and selecao and not objetos:
+            # Uma unidade só: a conversa pergunta a outra e guarda a pendência para a mensagem seguinte.
+            resposta = _pergunta("Identifiquei " + rotulos[0] + ". Com qual " + ("outra " if rot.feminino else "outro ") +
+                                 rot.singular + " você quer comparar? Diga um ou dois nomes." + NADA_MUDOU)
+            resposta.update(pending_operation="comparisons", pending_ids=list(selecao))
+            return resposta
         inicio = ("Identifiquei " + rotulos[0] + ". ") if selecao else ""
         return _pergunta(inicio + "Para " + verbo + ", diga " + ("dois ou três nomes" if funcao == "comparar" else
                                                                 "dois ou mais nomes") + " no mesmo pedido, por exemplo, " +
