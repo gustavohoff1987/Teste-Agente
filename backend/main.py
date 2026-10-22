@@ -339,6 +339,12 @@ def _representation(df, mapping, operation, options, result, nearest, criteria, 
                                                  "representação; a tabela e as exportações continuam disponíveis."}}
 
 
+def distribution_cuts(series, k: int) -> list[float]:
+    """Pontos de corte da distribuição (CAP-DIS-02): Hyndman–Fan tipo 7 (interpolação linear), os mesmos usados por
+    _compute na classificação e devolvidos pelo gráfico (painel.py), sem fórmula paralela."""
+    return [float(np.quantile(series, j / k, method="linear")) for j in range(1, k)]
+
+
 def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options: dict[str, Any],
              prepared: pd.DataFrame | None = None) -> dict:
     """Linhas da análise. `prepared` (quadro já preparado por data_contract.prepare, mesmas colunas) é usado no lugar
@@ -457,7 +463,7 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
             series = group[metric]
             if len(group) < 2 or series.isna().any():
                 raise ValueError("A distribuição exige ao menos dois territórios avaliáveis por período e categoria.")
-            cuts = [float(np.quantile(series, j / k, method="linear")) for j in range(1, k)]
+            cuts = distribution_cuts(series, k)
             classes = np.searchsorted(cuts, series.to_numpy(), side="left") + 1
             # Posições crescentes por período/categoria. Empates recebem a menor
             # posição, sem desempate artificial (por exemplo: 1, 1, 3).
@@ -1234,10 +1240,21 @@ def _seal(result, frame, fields, settings, operation, x_adt_session, context_rev
     return result
 
 
-async def _panel_request(file, dataset, scope, dataset_version, mapping, options):
-    """Pedido do painel integrado: só a base Brasil oficial (fonte municipal), lida e verificada como em /api/analyze
-    (integridade pelo manifesto; versão divergente recusada)."""
-    if file is not None or dataset != "brazil":
+async def _panel_request(file, sheet, dataset, scope, dataset_version, mapping, options, uploads_allowed):
+    """Pedido do painel integrado. A base Brasil oficial (fonte municipal) é lida e verificada como em /api/analyze
+    (integridade pelo manifesto; versão divergente recusada). A planilha enviada é lida como em /api/analyze (limite de
+    30 MB, planilha escolhida, nada persistido); só vale quando `uploads_allowed` aceita o pedido (página única)."""
+    if file is not None:
+        fields, requested = json.loads(mapping), json.loads(options)
+        if not isinstance(fields, dict) or not isinstance(requested, dict) or not uploads_allowed(requested):
+            raise ValueError(painel.OFFICIAL_ONLY)
+        if dataset:
+            raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
+        frame, _ = await _request_dataset(file, sheet, "", "auto")
+        if frame is None:
+            raise ValueError("Escolha a planilha (aba) do arquivo antes de pedir o gráfico.")
+        return frame, None, fields, requested
+    if dataset != "brazil":
         raise ValueError(painel.OFFICIAL_ONLY)
     if scope not in ("municipal", "auto"):
         raise ValueError("O painel usa a fonte municipal da base Brasil: envie scope=municipal.")
@@ -1248,6 +1265,30 @@ async def _panel_request(file, dataset, scope, dataset_version, mapping, options
     return frame, sources, fields, requested
 
 
+def _panel_pending(exc: ChoiceRequired) -> JSONResponse:
+    """Escolha pendente (422): o texto em `detail` e a pendência estruturada, para a tela oferecer a escolha."""
+    return JSONResponse(status_code=422, content={"detail": str(exc), "pendencia": painel.pendencia(exc)})
+
+
+def _panel_session(x_adt_session, context_revision, body, frame, fields, requested) -> None:
+    """Página única: grava o resultado do gráfico na sessão (Histórico e conversa), com um contexto próprio que não
+    substitui o da conversa. Uma falha só deixa `sessao.registrado` falso; o cálculo é devolvido do mesmo jeito."""
+    if not x_adt_session:
+        body["sessao"] = {"registrado": False, "result_id": None,
+                          "motivo": "Sem sessão: o pedido não trouxe o cabeçalho X-ADT-Session."}
+        return
+    result_id = str(uuid.uuid4())
+    body["sessao"] = {"registrado": True, "result_id": result_id, "motivo": None}
+    try:
+        recorded = sessions.record_panel(x_adt_session, context_revision, painel.session_record(body, result_id),
+                                         painel.session_context(frame, fields, requested, body))
+        reason = None if recorded else "Limite de resultados da sessão atingido; o gráfico foi calculado e não foi gravado."
+    except HTTPException as exc:
+        recorded, reason = False, str(exc.detail)
+    if not recorded:
+        body["sessao"] = {"registrado": False, "result_id": None, "motivo": reason}
+
+
 @app.post("/api/painel")
 async def integrated_panel(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
                            sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
@@ -1255,19 +1296,26 @@ async def integrated_panel(file: UploadFile | None = File(None), mapping: str = 
                            x_adt_session: str | None = Header(None)):
     """Painel integrado de bolhas (Docs/PAINEL_INTEGRADO.md): população, quantidade, densidade, distância até a
     referência e variação de cada município e conjunto, calculadas pelo motor; a tela só posiciona, filtra e desenha.
-    Nada vai ao provedor de IA. O resultado ainda não entra na sessão da conversa (próximo passo do painel)."""
+    Com `nivel` (página única): estados, planilhas enviadas, tendência, grupos, faixas, condições, ordenação, comparação,
+    rotatividade, disponibilidade, contexto do Brasil e o registro do resultado na sessão. Nada vai ao provedor de IA."""
     try:
         if x_adt_session:
             sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
-        frame, sources, fields, requested = await _panel_request(file, dataset, scope, dataset_version, mapping, options)
-        if geo_version and requested.get("referencia"):
+        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                                 options, painel.is_page)
+        if sources is not None and geo_version and requested.get("referencia"):
             geo = _geo_identity(frame, "nearest", {})
             if geo is not None and geo_version != _geo_token(geo):
                 raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base "
                                  "antes de analisar.")
+        body = painel.compute(sources, fields, requested, frame=None if sources is not None else frame)
+        if painel.is_page(requested):
+            _panel_session(x_adt_session, context_revision, body, frame, fields, requested)
         # Resposta já em tipos JSON nativos (sem NaN): serializada direto, sem a conversão genérica do FastAPI, que
         # pesaria com milhares de municípios.
-        return JSONResponse(painel.compute(sources, fields, requested))
+        return JSONResponse(body)
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -1278,9 +1326,12 @@ async def integrated_panel_references(file: UploadFile | None = File(None), mapp
                                       scope: str = Form("municipal"), dataset_version: str = Form(""),
                                       context_revision: int = Form(0)):
     """Candidatos à referência do painel, na ordem do critério (CAP-SUB-02), com empates na mesma posição e não
-    avaliáveis à parte. Só lista: não inicia análise nem escolhe a referência."""
+    avaliáveis à parte, na base Brasil ou numa planilha enviada. Só lista: não inicia análise nem escolhe a referência."""
     try:
-        _, sources, fields, requested = await _panel_request(file, dataset, scope, dataset_version, mapping, options)
-        return JSONResponse(painel.references(sources, fields, requested))
+        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                                 options, lambda requested: True)
+        return JSONResponse(painel.references(sources, fields, requested, frame=None if sources is not None else frame))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -35,6 +35,62 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-22 · Página única de análise: o motor do gráfico com estados, planilhas e as análises integradas
+- **Antes:**
+  - `POST /api/painel` e `POST /api/painel/referencias` aceitavam só a base Brasil oficial; uma planilha enviada era
+    recusada;
+  - o gráfico trazia só municípios e conjuntos: quantidade, população, densidade, distância até a referência e variação;
+  - o resultado do gráfico não entrava na sessão;
+  - a escolha pendente (422) vinha só com o texto em `detail`.
+- **Agora:**
+  - **Dois formatos de pedido em `POST /api/painel`:**
+    - sem `nivel`, o contrato de 21/10, com as mesmas chaves e a mesma resposta (conferido item a item com a versão
+      anterior em 27 pedidos); a chave da página única nesse formato continua desconhecida, e a mensagem ganha a dica
+      "As chaves da página única valem com nivel (\"municipios\" ou \"estados\").";
+    - com `nivel` (`"municipios"` ou `"estados"`) e `indicador` (`"densidade"` ou `"quantidade"`), a página única.
+  - **Página única:**
+    - **nível estados**, só na base do Brasil: os estados da fonte estadual, com a população do estado, como na
+      abrangência por estados;
+    - **planilhas enviadas** nas duas rotas, de qualquer país: o mapeamento de `/api/inspect`, o papel `grupo_territorial`
+      (coluna-mãe opcional), `options.premissas` com os nomes das opções de `/api/analyze`, o mesmo portão do pré-exame
+      (D1, sem afrouxar) e `options.rotulos` (distrito, província…) em todas as mensagens. A distância exige latitude,
+      longitude e o SIRGAS 2000 confirmado; outro referencial fica indisponível, com o motivo. Sem população, só a
+      quantidade. As planilhas não têm bolha de grupo nem nível estados;
+    - **análises**, pelas funções do motor de `/api/analyze`: tendência CAP-TEN-01 por item na janela escolhida, grupos
+      por posição (CAP-DIS-02), faixas (CAP-DIS-03) e faixas de distância (CAP-ESP-03), condições (CAP-SUB-01),
+      ordenação e N primeiros (CAP-SUB-02 e CAP-SUB-03), comparação de 2 ou 3 itens (CAP-CMP-01), membro mais próximo da
+      referência com os empates exatos e rotatividade (CAP-ROT-01, só na planilha com identificador individual);
+    - **sempre no topo:** `rotulos`, `disponibilidade` (cada análise com o motivo e a pendência), `contexto` (a linha do
+      Brasil, taxa nacional da decisão D5) e `sessao`;
+    - **sessão:** com o cabeçalho `X-ADT-Session`, o resultado entra na sessão para o Histórico e a conversa, com contexto
+      próprio, sem substituir o contexto da conversa; ficam os 8 resultados mais recentes do gráfico.
+  - **Escolha pendente nas duas rotas e nos dois formatos:** o 422 traz também `pendencia: {chave, opcoes, texto}`; o
+    `detail` não muda.
+- **Permanece:**
+  - todo número vem do motor, sem fórmula nova; `/api/analyze`, os resultados das análises e o contexto da conversa;
+  - a tela atual, que usa o formato de 21/10, até a tela da página única;
+  - nada vai ao provedor de IA; os dados não mudam.
+- **Motivo:** decisões do responsável pelo produto de 22/10/2026 (página única de análise; item 1.12 aprovado: a cor da
+  bolha pela família da classe de tendência de CAP-TEN-01 e a rotatividade em barras de 100%) e o requisito de 22/10 sobre
+  planilhas de outros países (rótulos, grupo territorial, referencial confirmado). Classificação: mudança prevista e
+  aprovada.
+  - Escopo: o contrato da página única (motor, seção 3) e o requisito das planilhas.
+  - Compatibilidade:
+    - as capacidades são as da SPEC, pelas mesmas funções de `/api/analyze`;
+    - a cor por família e as barras de 100% entram pelo complemento de 22/10/2026 do Adendo BOL-20261021, aprovado pelo
+      responsável; o corpo da SPEC não muda;
+    - nenhuma divergência aprovada é contrariada.
+  - Refatoração sem efeito: `main.distribution_cuts` reúne os pontos de corte que `_compute` já usava, para o gráfico
+    devolver os mesmos.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (contrato real, desvios do contrato entre as frentes, pendências,
+    sessão e desempenho), README, `Docs/BLOCO3_MAPAS_VISUALIZACOES.md` (seção 7), `Docs/PAINEL_INTEGRADO_INTERFACE.md`
+    (a tela atual usa o formato de 21/10) e o complemento do Adendo BOL-20261021 no fim de `IMPLEMENTATION_SPEC.md` (corpo
+    conferido pelo catálogo CFG-DOC).
+  - **Testes novos:** `backend/tests/test_painel_pagina.py`, com cada extensão conferida contra `/api/analyze` no catálogo
+    sintético, uma planilha de distritos e províncias sem código IBGE e os testes com a base versionada (job
+    `dados-reais`). Nenhum teste existente foi alterado.
+
 ### 2026-10-22 · Página principal com a base do Brasil: o gráfico de bolhas, sem travar com milhares de municípios
 - **Antes:**
   - o gráfico de bolhas abria por um botão ("Abrir o painel integrado", junto da fonte atual, e "Painel integrado", na

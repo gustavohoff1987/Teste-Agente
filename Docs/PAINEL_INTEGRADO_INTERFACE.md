@@ -50,8 +50,9 @@ Código: `frontend/src/PainelIntegrado.tsx` (painel e barra das análises), `Pai
 
 - **Formulário:** o da base oficial (`dataset=brazil`, `scope=municipal`, `dataset_version`), com o mapeamento do perfil
   oficial (`mapping` vazio). As opções seguem o contrato à risca; o motor recusa chave desconhecida.
-- **Sessão:** o pedido leva o cabeçalho da sessão, que registra o evento de confirmação. O resultado do painel ainda não
-  entra na sessão da conversa.
+- **Sessão:** o pedido leva o cabeçalho da sessão, que registra o evento de confirmação. Esta tela usa o formato de
+  21/10 (sem `nivel`), em que o resultado do painel não entra na sessão da conversa; o registro na sessão vem com o pedido
+  da página única ([painel integrado](PAINEL_INTEGRADO.md)).
 - **Recusa do motor (422):** a mensagem aparece como veio, acima do gráfico, com "Voltar ao último painel calculado" (volta
   ao universo, aos conjuntos, à referência e às competências do painel em exibição, sem novo pedido) e "Tentar novamente".
   Exemplo: numa versão da base sem o referencial SIRGAS 2000 como premissa, o motor recusa a distância.
@@ -239,8 +240,10 @@ destaque automático.
 
 ## Limitações desta entrega e próximos passos
 
-- **Base:** só a base Brasil oficial.
-- **Sessão:** o resultado do painel ainda não entra na sessão da conversa (próximo passo do motor).
+- **Base:** só a base Brasil oficial nesta tela; o motor já aceita planilhas enviadas no pedido da página única (com
+  `nivel`).
+- **Sessão:** nesta tela, o resultado do painel ainda não entra na sessão da conversa; o motor já o grava no pedido da
+  página única.
 - **Conversa:** passar à conversa o estado do painel (universo, conjuntos e referência), sem dados da base ao provedor de IA.
 - **Desempenho:** medido localmente com os 5.570 municípios (seção "Modo leve"); a primeira resposta do motor depende do
   servidor e da rede (cerca de 2,5 MB).

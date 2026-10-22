@@ -12,6 +12,7 @@ import time
 from fastapi import HTTPException
 
 TIMEOUT = 1800
+PANEL_KEEP = 8  # resultados do gráfico (POST /api/painel) guardados por sessão: os mais recentes
 INTERACTIONS = frozenset(("ENVIO_MENSAGEM", "UPLOAD", "ESCOLHA_ARQUIVO", "ESCOLHA_PLANILHA", "CONFIRMACAO",
     "ALTERACAO_FILTRO_ANALITICO", "ALTERACAO_SELECAO_ANALITICA", "MUDANCA_PARAMETRO", "NAVEGACAO_CONTROLE_EFETIVO",
     "REVELACAO_EXPLICITA", "SOLICITACAO_RELATORIO", "EXPORTACAO"))
@@ -140,6 +141,34 @@ class SessionStore:
                 return False
             session.results[result["result_id"]] = {"result": deepcopy(result), "context": deepcopy(context),
                                                    "integrity": fingerprint(result)}
+            session.size += size
+            self._audit(session, "RESULTADO_CALCULADO")
+            return True
+
+    def record_panel(self, token, revision, result, context, keep=PANEL_KEEP):
+        """Resultado do gráfico (POST /api/painel, página única) com a mesma conferência de revisão e os mesmos limites de
+        record_result. Cada pedido do gráfico grava um resultado: só os `keep` mais recentes do gráfico ficam na sessão
+        (os mais antigos saem primeiro, também para abrir espaço), e os resultados de /api/analyze nunca são descartados
+        aqui. Sem cópia profunda do resultado (milhares de municípios): quem chama entrega um objeto novo e não o altera
+        depois; a integridade é conferida na leitura, como em record_result."""
+        with self.lock:
+            self.current(token, revision)
+            session = self._get(token)
+            encoded = json.dumps(result, sort_keys=True, ensure_ascii=False, default=str).encode()
+            size = len(encoded)
+            panels = [key for key, record in session.results.items() if record.get("painel")]
+
+            def full():
+                return (len(session.results) >= 64 or session.size + size > 32 * 1024 * 1024 or
+                        sum(s.size for s in self.sessions.values()) + size > 256 * 1024 * 1024)
+
+            while panels and (len(panels) >= keep or full()):
+                session.size -= session.results.pop(panels.pop(0))["tamanho"]
+            if full():
+                return False
+            session.results[result["result_id"]] = {"result": result, "context": deepcopy(context),
+                                                   "integrity": hashlib.sha256(encoded).hexdigest(),
+                                                   "painel": True, "tamanho": size}
             session.size += size
             self._audit(session, "RESULTADO_CALCULADO")
             return True

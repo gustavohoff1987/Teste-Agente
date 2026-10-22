@@ -327,7 +327,10 @@ ResultWorkspace (estado visual: aba, seleção, filtro, indicador) ──► Ter
   - não avaliáveis à parte;
   - a variação percentual como marca de origem e destino e como rótulo;
   - conjunto agregado como uma bolha, com o tipo de contagem;
-  - a régua de corte como filtro visual.
+  - a régua de corte como filtro visual;
+  - desde 22/10/2026 (complemento do adendo, item 1.12 da página única): a cor da bolha pela família da classe de
+    tendência de CAP-TEN-01, calculada pelo motor na janela escolhida (não avaliável à parte, sem cor de classe), e a
+    rotatividade de CAP-ROT-01 em barras de 100% (permanência e saída da coorte inicial).
 
   O motor do painel integrado serve os valores em `POST /api/painel` e `POST /api/painel/referencias`
   ([painel integrado](PAINEL_INTEGRADO.md)); a tela do painel tem documento próprio.

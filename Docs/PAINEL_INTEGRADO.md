@@ -8,7 +8,25 @@ variação percentual entre duas competências se integra ao desenho. A SPEC adm
 CAP-REP-02. O corpo v1.2.4 continua literal, porque o catálogo CFG-DOC o confere pelo SHA-256 e pelos localizadores do
 Anexo A.
 
-Este documento descreve o motor e as rotas. A tela do painel tem documento próprio.
+Decisões de 22/10/2026 (página única de análise): uma análise integrada, sem as telas clássicas, sobre a base do Brasil
+(estados ou municípios) ou sobre planilhas enviadas, com tendência, grupos por posição, faixas, condições, ordenação,
+comparação e rotatividade. O complemento de 22/10/2026 do Adendo BOL-20261021 admite a cor da bolha pela família da
+classe de tendência de CAP-TEN-01 e a rotatividade em barras de 100%.
+
+Este documento descreve o motor e as rotas. A tela tem documento próprio.
+
+## Dois formatos de pedido
+
+`POST /api/painel` aceita dois formatos, decididos pela presença de `nivel` em `options`:
+
+- **Sem `nivel`: contrato de 21/10/2026** (seção "Motor e rotas"). Só a base Brasil oficial, com as chaves e a resposta
+  de então, sem mudança. Uma chave da página única nesse formato é desconhecida (422 "Parâmetro não reconhecido no
+  painel: … As chaves da página única valem com nivel …"), e uma planilha enviada é recusada com o texto de sempre.
+- **Com `nivel`: página única, 22/10/2026** (seção "Página única"). Base Brasil (municípios ou estados) ou planilha
+  enviada, as análises novas e os campos fixos de topo (`nivel`, `indicador`, `rotulos`, `disponibilidade`, `contexto`,
+  `sessao`). A tela da página única envia sempre `nivel`.
+
+`POST /api/painel/referencias` tem um formato só, com a base Brasil ou uma planilha enviada.
 
 ## Motor e rotas
 
@@ -16,8 +34,9 @@ Este documento descreve o motor e as rotas. A tela do painel tem documento próp
 
 - **Rotas:** `POST /api/painel` e `POST /api/painel/referencias` (`backend/main.py`). O motor fica em
   `backend/painel.py`.
-- **Base:** só a base Brasil oficial (fonte municipal), numa competência e numa categoria. Arquivo importado recebe 422:
-  "O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; …".
+- **Base (sem `nivel`):** só a base Brasil oficial (fonte municipal), numa competência e numa categoria. Arquivo importado
+  recebe 422: "O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; …". Com `nivel`, ver
+  "Planilhas enviadas".
 - **Números:** todo número vem do motor, pelas mesmas funções das análises, sem fórmula paralela. A tela só posiciona,
   filtra e desenha (RQ-REP-09). A régua "abaixo de / acima de" é filtro visual sobre os valores devolvidos e não inicia
   análise (RQ-REP-06).
@@ -29,17 +48,18 @@ Multipart, no padrão de `/api/analyze`:
 
 | Campo | Uso |
 |---|---|
-| `dataset` | `brazil` (obrigatório). |
-| `scope` | `municipal` (ou `auto`, que no painel é municipal). |
+| `dataset` | `brazil` para a base do Brasil. Vazio com `file` (planilha enviada, só com `nivel` na rota 1). |
+| `file` | Planilha enviada (CSV, XLSX ou XLS, até 30 MB), lida como em `/api/analyze`; nada é guardado. |
+| `sheet` | Aba da planilha, quando o arquivo tem mais de uma (sem ela, 422 "Escolha a planilha (aba) do arquivo …"). |
+| `scope` | `municipal` (ou `auto`, que no painel é municipal). Ignorado com planilha. |
 | `dataset_version` | Versão da inspeção. Integridade conferida pelo manifesto a cada pedido; versão divergente → 422 "A base Brasil foi atualizada. …". |
-| `mapping` | Mapeamento da inspeção (`suggested_mapping`). Precisa ser o do perfil oficial: código IBGE, município, período, categoria, quantidade e população e, com a referência, latitude e longitude. Vazio vale o perfil oficial; papel sem coluna é ignorado. |
+| `mapping` | Mapeamento da inspeção. Na base Brasil, o do perfil oficial: código IBGE, município, período, categoria, quantidade e população e, com a referência, latitude e longitude; vazio vale o perfil oficial; papel sem coluna é ignorado. Nas planilhas, ver "Planilhas enviadas". |
 | `options` | JSON descrito em cada rota. Chave desconhecida → 422 "Parâmetro não reconhecido no painel: …". |
-| `geo_version` | Opcional, só na rota 1 com referência: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
-| `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`. |
+| `geo_version` | Opcional, só na rota 1 com referência na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
+| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão. |
+| `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`; na página única, grava também o resultado (seção "Sessão"). |
 
-`sheet` e `context_revision` são aceitos e não mudam o cálculo.
-
-### Rota 1: `POST /api/painel`
+### Rota 1: `POST /api/painel` (contrato de 21/10/2026)
 
 `options`:
 
@@ -130,12 +150,12 @@ Regras dos campos:
 
 ### Rota 2: `POST /api/painel/referencias`
 
-`options`: `{competencia, categoria, universo: {"municipios": {...}}, criterio: {atributo, ordem}}`. `universo` tem a
-forma de `base`. `atributo` é `densidade`, `quantidade` ou `populacao`; `ordem` é `desc` ou `asc`, sempre escolhida pelo
-usuário (CAP-SUB-02).
+`options`: `{competencia, categoria, universo: {"municipios": {...}}, criterio: {atributo, ordem}}` e, com planilha,
+`premissas` e `rotulos` (seção "Planilhas enviadas"). `universo` tem a forma de `base`. `atributo` é `densidade`,
+`quantidade` ou `populacao`; `ordem` é `desc` ou `asc`, sempre escolhida pelo usuário (CAP-SUB-02).
 
 Resposta 200: `{criterio, competencia, categoria, candidatos: [{id, rotulo, uf, valor, posicao}], nao_avaliaveis:
-[{id, rotulo, uf, motivos}]}`.
+[{id, rotulo, uf, motivos}]}`. Nas planilhas, `uf` é `null`.
 
 - A ordem e as posições são as de `combined_criteria.ranking_of` (CAP-SUB-02): valores exatos, empates na mesma posição
   (1, 2, 2, 4) e, dentro do empate, ordem alfabética só para exibir.
@@ -147,7 +167,7 @@ Resposta 200: `{criterio, competencia, categoria, candidatos: [{id, rotulo, uf, 
 
 Respostas 422 com mensagem em português para:
 
-- base que não é a oficial;
+- base que não é a oficial (sem `nivel`);
 - mapeamento fora do perfil oficial;
 - versão divergente;
 - competência ou categoria inexistente;
@@ -160,7 +180,8 @@ Respostas 422 com mensagem em português para:
 - pedido sem municípios base e sem conjuntos.
 
 Erros de dados da preparação (população ausente ou conflitante, linhas repetidas) recusam o pedido com o mesmo texto da
-análise de densidade. A sessão expirada responde 410, como em `/api/analyze`.
+análise de densidade. A sessão expirada responde 410, como em `/api/analyze`. Escolha pendente (por exemplo, o referencial
+que a versão da base não estabelece) traz também `pendencia` no corpo do 422 (seção "Pendências").
 
 ### Extensões compatíveis em relação ao contrato de 21/10/2026
 
@@ -170,21 +191,347 @@ análise de densidade. A sessão expirada responde 410, como em `/api/analyze`.
 - Rota 2: `categoria` e a lista `nao_avaliaveis` (o contrato pede a lista separada sem nomeá-la).
 - `referencia` (booleano) em todos os itens: `true` só nos membros da referência e no conjunto igual a ela.
 
+## Página única (com `nivel`, 22/10/2026)
+
+O pedido com `nivel` vale o que está acima e mais o que segue. As análises novas usam as mesmas funções do motor que
+`/api/analyze` usa para cada capacidade; nenhuma fórmula é nova:
+
+| Análise | Capacidade | Função do motor |
+|---|---|---|
+| Estados | UF-CONTAGEM-ESTADUAL-1 e UF-POP-MUNICIPIOS-1 | `territorial_levels.state_part`, como a abrangência por estados |
+| Tendência | CAP-TEN-01 (DA-15) | `trend.classify_frame` e `trend.summarize`, como a evolução temporal |
+| Grupos por posição | CAP-DIS-02 | `main._compute(..., "distribution")` e `main.distribution_cuts` (Hyndman–Fan tipo 7) |
+| Faixas e faixas de distância | CAP-DIS-03 e CAP-ESP-03 | `combined_criteria.band_edges` e `bands_of` |
+| Condições | CAP-SUB-01 | `combined_criteria.parse_tree` e `evaluate` (três estados, combinação E) |
+| Ordenação e N primeiros | CAP-SUB-02 e CAP-SUB-03 | `combined_criteria.ranking_of` e `select_top` |
+| Comparação | CAP-CMP-01 | `main._compute(..., "comparisons")` |
+| Membro mais próximo | CAP-ESP-02 | `nearest_reference.nearest_exact`, com os empates exatos |
+| Rotatividade | CAP-ROT-01 | `main._compute(..., "rotation")` |
+| Linha de contexto do Brasil | D5 (19/10/2026) | `territorial_levels.national_reference` |
+
+### `options` da página única
+
+Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422 "Parâmetro não reconhecido no painel: …").
+
+| Chave | Regra |
+|---|---|
+| `nivel` | Obrigatória: `"municipios"` ou `"estados"`. `estados` só na base do Brasil (planilha → 422 "O nível estados existe só na base do Brasil, …"). |
+| `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
+| `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
+| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. |
+| `competencia_inicial` | Como no contrato de 21/10 (visão Mudança, CAP-TMP-01), nos dois níveis. |
+| `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
+| `grupos` | `{"tipo": "quartis" \| "quintis" \| "decis"}`. |
+| `faixas` | Lista de 2 a 21 limites crescentes e distintos, não negativos, do `indicador` (números ou textos com vírgula ou ponto decimal, como `[0, 1, 2, 5]` ou `["0", "1,5"]`). Intervalos [a, b) e o último fechado. |
+| `faixas_distancia` | A mesma forma, em km. Exige `referencia`. |
+| `condicoes` | Lista de 1 a 12 `{"atributo", "operador", "valor"}` combinados por E. `atributo`: `densidade`, `quantidade`, `populacao` ou `distancia_km` (este exige `referencia`). `operador`: `<`, `<=`, `>`, `>=`, `=` ou `!=`. `valor`: número não negativo ou texto com vírgula ou ponto decimal; densidade por 1.000 habitantes, distância em km. |
+| `ordenar` | `{"atributo", "ordem", "primeiros"}`. `atributo`: `densidade`, `quantidade`, `populacao`, `distancia_km` (exige `referencia`) ou `variacao` (a variação percentual do `indicador`, exige `competencia_inicial`). `ordem`: `desc` ou `asc`. `primeiros` (opcional): inteiro de 1 a 10.000. |
+| `comparar` | Lista de 2 ou 3 ids distintos de itens da resposta (municípios, unidades, estados ou conjuntos), no `indicador`. Id que não está na resposta → 422 "Itens da comparação fora do gráfico: …". Itens relacionados (um conjunto e um membro dele, ou conjuntos com membros em comum) → 422 "Itens relacionados não são comparados: …". |
+| `rotatividade` | `{"inicial", "final"}`: duas competências existentes, a final depois da inicial. Só na planilha com identificador individual; na base do Brasil → 422 com o motivo da indisponibilidade. |
+| `premissas` | Só nas planilhas (seção "Planilhas enviadas"); na base do Brasil → 422 "Na base do Brasil, as premissas vêm do perfil oficial: …". |
+| `rotulos` | Só nas planilhas; na base do Brasil → 422 "Na base do Brasil, os rótulos são fixos …". |
+
+No nível `estados`, `base`, `conjuntos`, `referencia`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
+`distancia_km` são recusados com o motivo (estados não têm um ponto único; a base vale só para municípios).
+
+### Universo das análises
+
+`grupos`, `faixas`, `faixas_distancia`, `condicoes` e `ordenar`, e as contagens de `tendencia`, valem no **universo**:
+os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados. Conjuntos e membros da referência
+fora da base não entram no universo: os campos por item deles vêm `null`. A `tendencia` por item é calculada para todos
+os itens, inclusive conjuntos (CAP-AGR-01 por competência; membros com registro diferentes na janela →
+`INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita qualquer item da resposta.
+
+### Resposta 200 da página única
+
+Topo: as chaves do contrato de 21/10 e, sempre:
+
+| Campo | Conteúdo |
+|---|---|
+| `nivel`, `indicador` | Os do pedido. |
+| `rotulos` | `{"unidade": {singular, plural, genero}, "grupo": {singular, plural, genero}}`. Base do Brasil: município/municípios e estado/estados. Planilha: os recebidos ou, sem eles, unidade/unidades e grupo/grupos. `genero` é `"m"` ou `"f"`. |
+| `disponibilidade` | O que a fonte permite, com o motivo: `{"distribuicao", "densidade", "espacial", "tendencia", "rotatividade", "estados", "grupos"}`, cada um `{"disponivel": bool, "motivo": texto, "pendencia": null \| {chave, opcoes, texto}}`. `motivo` é vazio quando nada limita; pode vir preenchido com `disponivel: true` (por exemplo, menos de quatro competências: só a mudança). `grupos` é a bolha do nível de cima (estados no Brasil; nas planilhas, sempre indisponível). |
+| `contexto` | `{"brasil": {rotulo, competencia, densidade, quantidade, populacao, competencia_populacao, avaliabilidade, motivo, nota, regra_populacao}}` na base do Brasil: a taxa nacional da competência (`territorial_levels.national_reference`, a mesma de `metadata.referencia_nacional` da análise de densidade), sem classificar nada. Indisponível: os valores `null`, `avaliabilidade` `"NAO_AVALIAVEL"` e o `motivo`. Nas planilhas, `{"brasil": null}`. |
+| `sessao` | `{"registrado": bool, "result_id": texto \| null, "motivo": texto \| null}` (seção "Sessão"). |
+| `versao_base` | Base do Brasil: a versão verificada; planilha: o SHA-256 do arquivo enviado. |
+| `dominios.tendencia` | Com `tendencia`: `[mínimo, máximo]` das observações devolvidas (ou `null`). |
+
+Quando pedidos:
+
+| Campo | Conteúdo |
+|---|---|
+| `tendencia` | O resumo do motor (`trend.summarize`): `capacidade`, `versao_metodo`, `desfecho` (`RES-VAL`, `RES-LIM`, `RES-SCL` ou `BLQ-MET`), `bloqueio`, `unidades_total`, `avaliaveis`, `nao_avaliaveis`, `contagens` (por classe), `sem_classificacao_por_motivo`, `nao_avaliaveis_por_motivo`, `familias`, `classes` ([{codigo, rotulo, familia}], a ordem da legenda), `rotulos_familia`, `rotulos_nao_avaliavel`, `rotulos_motivo`; e `indicador`, `unidade_valor`, `unidade_tempo`, `janela` ({periodos, inicio, fim, intervalos, intervalo_constante, serie_anual, serie_anual_disponivel, competencias_serie_anual}) e `universo`. As contagens são do universo. |
+| `grupos` | `{tipo, k, atributo, cortes, rotulos, contagens, universo, classificados, nao_avaliaveis}`. `cortes` são os k − 1 pontos de corte do motor; `rotulos` e `contagens` vão do 1º ao k-ésimo grupo. |
+| `faixas`, `faixas_distancia` | `{atributo, capacidade, limites, convencao, rotulos, contagens, fora, nao_avaliaveis, universo}`. `atributo` é o `indicador` ou `distancia_km`; `capacidade`, `CAP-DIS-03` ou `CAP-ESP-03`; `limites` em texto decimal com ponto, sem arredondar (`["0", "100.5", "1000"]`); `rotulos` com vírgula, como na análise ("0 a <100,5", "100,5 a 1000"); `fora` e `nao_avaliaveis` são contagens. |
+| `condicoes` | `{contagens: {ATENDE, NAO_ATENDE, NAO_AVALIAVEL}, universo, combinacao: "E", descricao, definicao: [{atributo, operador, valor, texto}]}`. |
+| `ordenacao` | `{atributo, ordem, primeiros, universo, ordenados, nao_avaliaveis, selecionados, empates_no_corte, ids_selecionados}`; sem `primeiros`, `selecionados` e `ids_selecionados` são `null`. |
+| `comparacao` | `{indicador, itens: [{id, rotulo, tipo, valor, avaliavel, motivos}], maior, menor, diferencas, relacoes, notas}`. Dois itens: `diferencas` = [{a, b, relacao, diferenca}], A e B em ordem de nome, relação A/B (`MAIOR`, `MENOR` ou `IGUALDADE`) e diferença assinada A − B. Três: `relacoes` = [{id, valor, proximo_valor_maior, mesmo_valor}] e `diferencas` vazia (sem diferenças automáticas entre pares, AT-84). `maior` e `menor` são listas de ids (empate: mais de um). Com menos de dois itens com valor, as listas ficam vazias, com a nota. |
+| `rotatividade` | `{inicial, final, universo, avaliaveis, nao_avaliaveis}`. |
+
+Itens: os campos do contrato de 21/10 e, sempre, `grupo_territorial` (base do Brasil: o prefixo IBGE do estado, como
+`"13"`; planilha: o valor da coluna `grupo_territorial` ou `null`; estados e conjuntos: `null`). No nível estados, o item
+é `tipo: "estado"`, `id: "uf:13"`, `rotulo: "Amazonas (AM)"`, `uf: "AM"`, sem `membros`, com `distancia_km` nulo. Nas
+planilhas, o item da unidade continua `tipo: "municipio"` (o código do nível; o nome vem de `rotulos`), com `uf: null`.
+
+Por item, quando pedidos (o campo vem em todos os itens; `null` fora do universo ou quando não se aplica):
+
+| Campo | Forma |
+|---|---|
+| `referencia_mais_proxima` | Com `referencia`: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável e nos conjuntos. |
+| `tendencia` | `{classe, familia, rotulo, motivo, motivo_texto, avaliavel, observacoes, velocidades}`. `classe`: CategoriaTendencia (`CRESCIMENTO`, `CRESCIMENTO_ACELERADO`, `CRESCIMENTO_DESACELERADO`, `DECLINIO`, `DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`, `SEM_CLASSIFICACAO`) ou `null`; `familia`: `CRESCIMENTO`, `DECLINIO`, `NENHUMA` ou `null` (não avaliável); `rotulo`: o rótulo DA-15 ("Desaceleração do crescimento", "Não avaliável: série insuficiente"); `motivo`: `SERIE_ESTAVEL`, `MUDANCA_DE_DIRECAO`, `SERIE_INSUFICIENTE`, `INCOMPARABILIDADE` ou `null`; `motivo_texto`: o texto do motivo ("3 de 4 observações necessárias"); `observacoes`: [{competencia, valor}] do indicador nas competências com valor (também nos não avaliáveis, para a visão Séries); `velocidades`: as velocidades do motor (variação do indicador por `unidade_tempo`, o mês nas competências AAAAMM) entre observações consecutivas, na ordem de `observacoes`; vazia quando não avaliável. |
+| `grupo` | `{indice, rotulo}` (`indice` de 1 a k, "2º quartil"). |
+| `faixa`, `faixa_distancia` | `{indice, rotulo}` (`indice` a partir de 1), `"fora"` (fora de todas as faixas) ou `null` (não avaliável). |
+| `condicoes` | `{situacao, por_condicao}`. `situacao`: `ATENDE`, `NAO_ATENDE` ou `NAO_AVALIAVEL` (nunca tratado como não atende). `por_condicao`: [{estado, valor, motivos}], na ordem de `condicoes.definicao`; `motivos` em códigos (`SEM_REGISTRO_OBSERVADO`, `SEM_INFORMACAO_ESPACIAL`, `DEPENDENCIA_NAO_AVALIAVEL`…). |
+| `ordem` | `{posicao, selecionado}`: posição com empates na mesma posição (1, 1, 3), `null` quando não avaliável; `selecionado` é `null` sem `primeiros`. Com empate no corte, todos os empatados entram (`empates_no_corte`, `EMPATE_NO_CORTE`). |
+| `rotatividade` | Unidades: `{inicial, final, coorte_inicial, permanencia, saida, permanencia_percentual, saida_percentual, avaliavel, motivo}`; unidade sem registro numa das competências fica não avaliável, com o motivo, nunca 0% ou 100%. Conjuntos: `null`. |
+
+`notas` e `limitacoes` ganham as notas de cada análise pedida (método da tendência, pontos de corte, faixas, condições,
+ordenação, comparação, coorte, estados e a linha de contexto) e `EMPATE_NO_CORTE`.
+
+Exemplo de pedido (base do Brasil, municípios do Amazonas, Manaus como referência, tendência nos junhos de 2021 a 2024):
+
+```json
+{"nivel": "municipios", "indicador": "densidade", "competencia": "202406", "base": {"municipios": {"estados": ["13"]}},
+ "referencia": {"membros": ["code:130260"]}, "tendencia": {"competencias": ["202106", "202206", "202306", "202406"]},
+ "grupos": {"tipo": "quartis"}, "condicoes": [{"atributo": "densidade", "operador": "<", "valor": 1},
+ {"atributo": "distancia_km", "operador": ">", "valor": 150}], "ordenar": {"atributo": "densidade", "ordem": "desc",
+ "primeiros": 10}, "comparar": ["code:130260", "code:130420"]}
+```
+
+Um item da resposta, com a base versionada de 22/10/2026 (Tefé; valores em precisão integral, como saem do motor):
+
+```json
+{"id": "code:130420", "tipo": "municipio", "rotulo": "TEFE (AM)", "uf": "AM", "populacao": 79278, "quantidade": 69,
+ "densidade": 0.8703549534549307, "distancia_km": 521.2473967291248,
+ "inicial": {"populacao": null, "quantidade": null, "densidade": null},
+ "variacao_percentual": {"populacao": null, "quantidade": null, "densidade": null},
+ "avaliavel": {"densidade": true, "distancia": true, "variacao": null}, "motivos": [], "referencia": false,
+ "grupo_territorial": "13",
+ "referencia_mais_proxima": {"id": "code:130260", "rotulo": "MANAUS (AM)", "empate": []},
+ "tendencia": {"classe": "SEM_CLASSIFICACAO", "familia": "NENHUMA", "rotulo": "Sem classificação",
+   "motivo": "MUDANCA_DE_DIRECAO", "motivo_texto": "Mudança de direção", "avaliavel": true,
+   "observacoes": [{"competencia": "202106", "valor": 0.9451476793248945},
+                   {"competencia": "202206", "valor": 0.9620253164556962},
+                   {"competencia": "202306", "valor": 0.9113924050632911},
+                   {"competencia": "202406", "valor": 0.8703549534549307}],
+   "velocidades": [0.0014064697609001407, -0.004219409282700422, -0.0034197876340300326]},
+ "grupo": {"indice": 3, "rotulo": "3º quartil"},
+ "condicoes": {"situacao": "ATENDE", "por_condicao": [
+   {"estado": "ATENDE", "valor": 0.8703549534549307, "motivos": []},
+   {"estado": "ATENDE", "valor": 521.2473967291248, "motivos": []}]},
+ "ordem": {"posicao": 28, "selecionado": false}}
+```
+
+E os blocos do topo do mesmo pedido (trechos):
+
+```json
+{"grupos": {"tipo": "quartis", "k": 4, "atributo": "densidade",
+            "cortes": [0.6706122929221101, 0.8547902785270952, 1.0599827223506684],
+            "rotulos": ["1º quartil", "2º quartil", "3º quartil", "4º quartil"], "contagens": [16, 15, 15, 16],
+            "universo": 62, "classificados": 62, "nao_avaliaveis": 0},
+ "condicoes": {"contagens": {"ATENDE": 37, "NAO_ATENDE": 25, "NAO_AVALIAVEL": 0}, "universo": 62, "combinacao": "E",
+               "descricao": "(densidade < 1 por 1.000 habitantes E distância à referência mais próxima > 150 km)",
+               "definicao": [{"atributo": "densidade", "operador": "<", "valor": 1,
+                              "texto": "densidade < 1 por 1.000 habitantes"},
+                             {"atributo": "distancia_km", "operador": ">", "valor": 150,
+                              "texto": "distância à referência mais próxima > 150 km"}]},
+ "ordenacao": {"atributo": "densidade", "ordem": "desc", "primeiros": 10, "universo": 62, "ordenados": 62,
+               "nao_avaliaveis": 0, "selecionados": 10, "empates_no_corte": false,
+               "ids_selecionados": ["code:130353", "code:130260", "…"]},
+ "comparacao": {"indicador": "densidade",
+                "itens": [{"id": "code:130260", "rotulo": "MANAUS (AM)", "tipo": "municipio",
+                           "valor": 2.074847150002237, "avaliavel": true, "motivos": []},
+                          {"id": "code:130420", "rotulo": "TEFE (AM)", "tipo": "municipio",
+                           "valor": 0.8703549534549307, "avaliavel": true, "motivos": []}],
+                "maior": ["code:130260"], "menor": ["code:130420"],
+                "diferencas": [{"a": "code:130260", "b": "code:130420", "relacao": "MAIOR",
+                                "diferenca": 1.204492196547306}],
+                "relacoes": [], "notas": ["Entre dois objetos: A e B em ordem de nome, relação A/B e diferença assinada A − B."]},
+ "tendencia": {"capacidade": "CAP-TEN-01", "versao_metodo": "CAP-TEN-01/DA-15/1", "desfecho": "RES-VAL", "bloqueio": null,
+               "unidades_total": 62, "avaliaveis": 62, "nao_avaliaveis": 0,
+               "contagens": {"CRESCIMENTO": 17, "CRESCIMENTO_ACELERADO": 4, "CRESCIMENTO_DESACELERADO": 1, "DECLINIO": 0,
+                             "DECLINIO_ACELERADO": 2, "DECLINIO_DESACELERADO": 0, "SEM_CLASSIFICACAO": 38},
+               "familias": {"CRESCIMENTO": 22, "DECLINIO": 2, "NENHUMA": 38}, "indicador": "densidade",
+               "unidade_valor": "por 1.000 habitantes", "unidade_tempo": "mês",
+               "janela": {"periodos": ["202106", "202206", "202306", "202406"], "inicio": "202106", "fim": "202406",
+                          "intervalos": [12], "intervalo_constante": true, "…": "…"},
+               "universo": 62, "…": "…"},
+ "contexto": {"brasil": {"rotulo": "Brasil (total nacional)", "competencia": "202406", "densidade": 2.363750757054573,
+                         "quantidade": 502495, "populacao": 212583750, "competencia_populacao": "202406",
+                         "avaliabilidade": "AVALIAVEL", "motivo": null, "nota": "…", "regra_populacao": "BR-POP-JUNHO-1"}},
+ "sessao": {"registrado": false, "result_id": null, "motivo": "Sem sessão: o pedido não trouxe o cabeçalho X-ADT-Session."}}
+```
+
+### Planilhas enviadas
+
+Planilhas de qualquer país, com a estrutura da base do Brasil e a nomenclatura própria (distrito, condado, província,
+região…). Só no formato com `nivel`, e só no nível municípios.
+
+- **`mapping`:** o de `/api/inspect`, confirmado na tela (painel "Colunas"). Papéis: `territory` e `period` obrigatórios;
+  `territory_id`, `category`, `count`, `population`, `latitude`, `longitude` e `identity` (identificador individual, que
+  conta pessoas distintas quando não há `count` e permite a rotatividade) quando existem; e o papel próprio do gráfico
+  **`grupo_territorial`**, a coluna-mãe opcional (província, estado, região), lida como o nível superior 1 de
+  `describe_hierarchy` e `territory_catalog`, como no fluxo clássico: o motor o recebe em `hierarchy_columns`, não como
+  papel da análise. Na base do Brasil, `grupo_territorial` é recusado (o grupo é o estado do código IBGE).
+  - Ids das unidades: `code:<código>` quando o código está escolhido; senão `name:<nome>` (a identidade de `row_ids`).
+  - Em `base.municipios`, `estados` traz os valores do grupo (`"Província Norte"`), e `ids` os ids das unidades. Unidade com
+    mais de um valor de grupo na planilha não entra na escolha pelo grupo.
+  - Papel desconhecido → 422; coluna inexistente → 422 "A coluna associada não existe nesta base: …".
+- **D1, sem afrouxar:** um papel só vale reconhecido por regra conclusiva ou escolhido pela pessoa
+  (`premissas.confirmed_roles`, como `confirmed_roles` em `/api/analyze`); coluna só sugerida → pendência `confirmed_roles`.
+  O pedido passa pelo mesmo portão de `/api/analyze` (o pré-exame `preflight` da análise de densidade, ou de quantitativos
+  sem população), com as mesmas mensagens.
+- **`premissas`:** as escolhas da pessoa sobre a planilha, com os nomes das opções de `/api/analyze`: `confirmed_roles`
+  (lista de papéis), `count_unit` (`pessoas`, `vinculos`, `postos` ou `outro`), `custom_count_unit`, `crs`,
+  `number_format` (`decimal_comma` ou `decimal_point`), `object_declaration` (com coluna de categoria) ou
+  `category_constant` (sem ela), `duplicate_policy` (`remove_exact`) e `component_columns`. Chave desconhecida → 422
+  "Premissa não reconhecida no gráfico: …". As premissas da análise (`*_confirmed`) continuam aplicadas pelo backend
+  (`analysis_premises`), nunca enviadas pela tela.
+- **`rotulos`:** `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} | null}`, textos de até 40 caracteres.
+  Sem `genero`, o motor o deduz da primeira palavra só para a concordância dos artigos (feminino em -a, -ade, -ção, -são e
+  -gião). Todas as mensagens, notas e motivos que citariam "município" ou "estado" usam esses rótulos
+  ("Distritos base (2024): 2 de 2 com registro", "Províncias inexistentes na planilha …").
+- **Sem população:** `disponibilidade.densidade` indisponível, densidade e população `null`; só o indicador `quantidade`.
+- **Grupo:** sem um valor próprio de cada grupo, não há bolha de grupo (somar as unidades seria CAP-AGR-01, com possível
+  dupla contagem); `disponibilidade.grupos` explica. O nível `estados` é só da base do Brasil.
+- **Distância:** exige latitude e longitude e o referencial confirmado em `premissas.crs`. Só SIRGAS 2000 (`SIRGAS2000`,
+  `SIRGAS 2000`…): sem `crs`, pendência `crs`; com outro referencial, `disponibilidade.espacial` indisponível com o motivo
+  e o pedido com `referencia` recusado (422 "Referencial geodésico informado não suportado …"), sem presumir nem
+  transformar. O separador decimal é verificado nos dados (vírgula aplicada só com evidência); misto → pendência
+  `number_format`.
+- **Rotatividade:** só com `identity` (identificador individual); sem ele, `disponibilidade.rotatividade` indisponível.
+  Os identificadores nunca voltam na resposta.
+- **Contexto do Brasil:** não se aplica (`contexto.brasil` nulo).
+
+Exemplo (`mapping` e `options`):
+
+```json
+{"territory": "distrito", "period": "ano", "category": "categoria", "count": "quantidade", "population": "populacao",
+ "latitude": "latitude", "longitude": "longitude", "grupo_territorial": "provincia"}
+```
+
+```json
+{"nivel": "municipios", "indicador": "densidade", "competencia": "2024",
+ "rotulos": {"unidade": {"singular": "distrito", "plural": "distritos"},
+             "grupo": {"singular": "província", "plural": "províncias"}},
+ "premissas": {"count_unit": "pessoas", "crs": "SIRGAS2000"},
+ "base": {"municipios": {"estados": ["Província Norte"]}}, "referencia": {"membros": ["name:Alto Rio"]}}
+```
+
+### Pendências
+
+Escolha pendente (ChoiceRequired) responde 422 com o texto em `detail` e a pendência estruturada, para a tela oferecer a
+escolha e repetir o pedido com `options.premissas`:
+
+```json
+{"detail": "Escolha a unidade de contagem: pessoas, vínculos, postos ou outra.",
+ "pendencia": {"chave": "count_unit", "opcoes": ["pessoas", "vinculos", "postos", "outro"],
+               "texto": "Escolha a unidade de contagem: pessoas, vínculos, postos ou outra."}}
+```
+
+| `chave` | Quando | `opcoes` |
+|---|---|---|
+| `count_unit` | Planilha com quantidade, sem a unidade de contagem. | `pessoas`, `vinculos`, `postos`, `outro` |
+| `crs` | Distância numa planilha sem o referencial confirmado. | `SIRGAS2000` |
+| `number_format` | Coordenadas com separador decimal não verificável nos dados. | `decimal_comma`, `decimal_point` |
+| `confirmed_roles` | Coluna mapeada só sugerida (sem regra nem escolha). | os papéis a escolher, como `["territory_id"]` |
+| `object_declaration` ou `category_constant` | Objeto de análise não reconhecido (com ou sem coluna de categoria). | `[]` (texto livre) |
+| `duplicate_policy` | Linhas idênticas em todas as colunas. | `remove_exact` |
+| `component_columns` | Várias linhas por território, período e categoria. | `[]` (a tela oferece as colunas da planilha) |
+| `null` | Escolha que a tela não resolve (por exemplo, o referencial que a versão da base do Brasil não estabelece, ou a ordem de um critério). | `[]` |
+
+Com mais de uma escolha pendente, `detail` traz todas, e `pendencia`, a primeira. O formato de 21/10 também devolve
+`pendencia` nos seus 422 de escolha pendente (o `detail` não muda).
+
+### Sessão
+
+Com o cabeçalho `X-ADT-Session`, a página única grava o resultado do gráfico na sessão para o Histórico e para a
+conversa (`conversation_session.record_panel`), com um contexto próprio (`origem: "painel"`), sem chamar
+`sessions.capture`: o contexto da conversa não é substituído.
+
+- `sessao.result_id` lê o resultado em `GET /api/session/result/{result_id}`: a resposta inteira, com `result_id` e
+  `metadata` (`operation: "painel"`, `validity`, `execution_key`, `method_version`, `created_at`). A conversa reconhece a
+  mesma base e responde que a leitura conversacional do gráfico ainda não está implementada, sem calcular nem chamar o
+  provedor.
+- A revisão (`context_revision`) precisa ser a atual da sessão; com revisão antiga, o cálculo volta inteiro e
+  `sessao.registrado` é falso, com o motivo ("O contexto mudou durante a resposta. …").
+- Cada pedido do gráfico grava um resultado; ficam os 8 mais recentes do gráfico (`PANEL_KEEP`), e os mais antigos saem
+  primeiro, também para abrir espaço nos limites da sessão (64 resultados, 32 MB). Os resultados de `/api/analyze` nunca
+  saem por isso.
+- Sem o cabeçalho: `{"registrado": false, "result_id": null, "motivo": "Sem sessão: …"}`. Sem `nivel` (contrato de
+  21/10), nada é gravado e a resposta não traz `sessao`.
+
+### Desvios em relação ao contrato de 22/10/2026
+
+O contrato entre as frentes (seção 3) descreve os campos em parte; o que vale é o descrito acima. As diferenças e as
+precisões:
+
+- **Pedido:**
+  - **formato decidido por `nivel`:** sem `nivel`, o contrato de 21/10, sem mudança; a página única envia sempre `nivel`;
+  - **`indicador`** (obrigatória) entra em `options`: o contrato não diz a que indicador valem `grupos`, `faixas`,
+    `tendencia`, `comparar` e `ordenar.atributo = "variacao"`;
+  - **`premissas` e `rotulos` só nas planilhas:** na base do Brasil, 422 (o referencial e as demais premissas vêm do
+    perfil oficial; o exemplo `premissas: {"crs": "SIRGAS2000"}` do contrato vale para a planilha). Os nomes são os das
+    opções de `/api/analyze`, com `confirmed_roles`, `count_unit`, `custom_count_unit`, `object_declaration`,
+    `category_constant`, `duplicate_policy` e `component_columns` além de `crs` e `number_format`;
+  - **`comparar`** aceita só ids presentes na resposta e recusa itens relacionados;
+  - **nível estados** recusa `base`, `conjuntos` (sem agregação de estados no gráfico), `referencia`, `faixas_distancia`,
+    `rotatividade` e a distância em condições e ordenação.
+- **Por item:**
+  - `tendencia` traz também `familia` e `motivo_texto`; `velocidades` é a lista de números alinhada às observações;
+  - `grupo.indice` vai de 1 a k; `faixa` e `faixa_distancia` são `{indice, rotulo}` (`indice` a partir de 1), `"fora"`
+    ou `null` (não avaliável ou fora do universo);
+  - `referencia_mais_proxima` traz `empate`, a lista dos membros à mesma menor distância (vazia sem empate);
+  - `condicoes.por_condicao` é `[{estado, valor, motivos}]`, na ordem de `condicoes.definicao` do topo;
+  - `ordem` é `{posicao, selecionado}`;
+  - `rotatividade` tem os nomes `inicial`, `final`, `coorte_inicial`, `permanencia`, `saida`, `permanencia_percentual`,
+    `saida_percentual`, `avaliavel` e `motivo`;
+  - novo, sempre: `grupo_territorial`; nas planilhas, a unidade continua `tipo: "municipio"`.
+- **No topo:**
+  - `tendencia` é o resumo inteiro do motor (`janela` é um objeto; `contagens` é por classe), mais `indicador`,
+    `unidade_valor`, `unidade_tempo` e `universo`;
+  - `grupos`, `faixas`, `faixas_distancia`, `condicoes` e `ordenacao` trazem os campos a mais listados acima (universo,
+    rótulos, limites, definição, selecionados); `fora` e `nao_avaliaveis` das faixas são contagens;
+  - `comparacao` traz `indicador`, `relacoes` e `notas`; `maior` e `menor` são listas (empate); entre três itens, sem
+    `diferencas` (AT-84);
+  - `contexto.brasil` traz também `rotulo`, `competencia_populacao`, `avaliabilidade`, `motivo`, `nota` e
+    `regra_populacao`, e é `null` nas planilhas;
+  - `disponibilidade` ganha `distribuicao`, `densidade` e `grupos` (pedido de 22/10 sobre as planilhas) e o campo
+    `pendencia` em cada entrada;
+  - `sessao` ganha `motivo`;
+  - novos: `nivel`, `indicador`, `rotulos` e `dominios.tendencia`.
+- **Pendência:** a forma do contrato; `chave` pode ser `null` (escolha que a tela não resolve), e o formato de 21/10
+  também a devolve.
+- **Sessão:** `record_panel` em vez de `record_result`: a mesma conferência de revisão e os mesmos limites, mas o
+  gráfico, que grava a cada pedido, guarda só os 8 resultados mais recentes, sem descartar os de `/api/analyze`.
+- **Universo:** grupos, faixas, condições, ordenação e as contagens da tendência valem só nos itens base do nível.
+- **Planilhas:** `versao_base` é o SHA-256 do arquivo enviado; `rotulos` aceita `genero`.
+
 ### Desempenho
 
-- Uma preparação por competência pedida (cerca de 5.570 linhas na base real), sobre as linhas da competência e da
-  categoria.
-- Distâncias vetorizadas (`nearest_exact`), sem uma função Python por par.
-- Índice municipal, perfil e catálogo territorial reaproveitados pela memória da versão: `municipal_index` e
-  `request_memo.per_source`, nas condições de U8 em `Docs/OTIMIZACAO_LATENCIA.md`, só sobre a cópia íntegra marcada.
+- Uma preparação por competência pedida, sobre as linhas da competência e da categoria; na base Brasil verificada, a
+  preparação da competência, as coordenadas da competência e as séries da tendência dos municípios (por janela e itens)
+  ficam na memória da versão (`request_memo.per_source`, nas condições de U8 em `Docs/OTIMIZACAO_LATENCIA.md`, só sobre a
+  cópia íntegra marcada).
+- A tendência prepara numa só passagem as linhas da janela, só dos itens pedidos; distâncias vetorizadas
+  (`nearest_exact`).
 - A resposta já sai em tipos JSON nativos e é serializada direto, sem a conversão genérica do FastAPI.
-- A latência com todos os municípios não foi medida nesta entrega; ver os próximos passos.
+- Medição local de 22/10/2026 com a base versionada, por um script de medição (não é teste): mediana de três pedidos
+  depois do primeiro, no servidor de teste (`TestClient`), sem o aquecimento da base (`ADT_AQUECIMENTO=0`):
 
-### Sessão e próximos passos
+  | Pedido | Tempo (primeiro pedido) | Resposta |
+  |---|---|---|
+  | Contrato de 21/10: todos os municípios, variação e referência | 0,70 s (1,12 s) | 2,6 MB |
+  | Página única: todos os municípios, distribuição | 0,28 s (0,27 s) | 2,4 MB |
+  | Página única: 27 estados (E1) | 0,17 s (0,16 s) | < 0,1 MB |
+  | Página única: 27 estados, tendência de 11 junhos e quartis | 0,19 s (0,19 s) | < 0,1 MB |
+  | Página única: Amazonas (62), tendência de 11 junhos e condições | 0,21 s (0,35 s) | 0,1 MB |
+  | Página única: todos, tendência de 11 junhos e condições | 0,77 s (1,73 s) | 9,4 MB |
+  | Página única: todos, tendência de 22 competências e condições | 0,96 s (2,43 s) | 13,4 MB |
+  | Página única: todos, com tudo (variação, tendência, quintis, faixas, faixas de distância, condições, ordenação e comparação) | 1,58 s (1,50 s) | 10,7 MB |
+  | Página única: todos, tendência de 11 junhos e condições, com sessão | 1,09 s (1,14 s) | 9,4 MB |
 
-- **Sessão:** o resultado do painel ainda não entra na sessão da conversa (`record_result`). Hoje a sessão guarda
-  resultados no formato de `/api/analyze` e captura o contexto da seleção da conversa, que o painel substituiria. Fica
-  registrado como próximo passo, com o desenho de um contexto próprio do painel.
-- **Medição de latência:** medir com a base real e todos os municípios (`backend/tests/bench_latency.py`, a estender
-  para as rotas do painel).
-- **Arquivos importados com coordenadas:** fora desta entrega.
+  Com todos os municípios e a tendência, a resposta pesa por causa das observações por item; a gravação na sessão
+  acrescenta cerca de 0,3 s nesse caso. No pedido "com tudo", o tempo é o das funções do motor somadas: grupos por
+  posição cerca de 0,3 s (a distribuição de `main._compute` percorre os municípios um a um), variação exata cerca de
+  0,3 s e ordenação cerca de 0,2 s.
