@@ -61,6 +61,24 @@ NADA_MUDOU = " Nada mudou no gráfico."
 SEM_PONTO_UNICO = ("A referência é um município ou um conjunto de municípios: estados não têm um ponto único. Diga os "
                    "municípios, por exemplo, “use Manaus como referência”." + NADA_MUDOU)
 
+
+def _exemplo(conv):
+    """Nome de exemplo nas orientações: Manaus na base do Brasil; numa planilha, as reticências (os nomes são os dela)."""
+    return "Manaus" if conv.brasil else "…"
+
+
+def _sem_ponto_unico(conv, base_inteira=False):
+    """A referência é uma unidade ou um conjunto delas: o estado (na base do Brasil) não tem um ponto único, e a base inteira
+    não serve de referência. Na base do Brasil, o texto de sempre; numa planilha, os rótulos dela (23/10/2026)."""
+    if conv.brasil:
+        return SEM_PONTO_UNICO.replace("estados não têm um ponto único", "a referência não pode ser a base inteira") \
+            if base_inteira else SEM_PONTO_UNICO
+    rot = conv.rot
+    motivo = "a referência não pode ser a base inteira" if base_inteira else \
+        ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural + " não têm um ponto único"
+    return ("A referência é " + rot.um() + " ou um conjunto de " + rot.plural + ": " + motivo + ". Diga " + rot.os() +
+            " pelo nome, por exemplo, “use … como referência”." + NADA_MUDOU)
+
 # Palavras que acompanham os pedidos sem mudar o que eles pedem.
 NEUTRAS = frozenset("""
 a o as os um uma uns umas de do da dos das em no na nos nas ao aos por pelo pela pelos pelas para pra pro pros pras com
@@ -868,7 +886,9 @@ def _nova_base(conv, achado, modo):
                 "ids": sorted(set(atual["ids"]) | set(ids))}, citados, None
     if atual is None:
         return None, citados, _pergunta("Não sei quais " + rot.plural + " estão no gráfico agora. Diga quais mostrar, por "
-                                        "exemplo, “mostre o Pará”." + NADA_MUDOU)
+                                        "exemplo, " + ("“mostre o Pará”" if conv.brasil else "“mostre " +
+                                                       ("todas as " if rot.feminino else "todos os ") + rot.plural + "”") +
+                                        "." + NADA_MUDOU)
     if achado["todos"]:
         return None, citados, _pergunta("O gráfico precisa de pelo menos " + rot.um() + "." + NADA_MUDOU)
     tirar = set(ids) | {membro for chave in grupos for membro in conv.membros_do_grupo(chave)}
@@ -1078,7 +1098,7 @@ def _clausula(conv, encontrado, inicio_local):
                 "alvo": alvo.end() if alvo else None}
     if UNIDADE_METROS.match(resto, depois):
         return {"pergunta": _pergunta("No gráfico, a distância é em km. Diga o valor em quilômetros, por exemplo, “a mais "
-                                      "de 150 km de Manaus”." + NADA_MUDOU)}
+                                      "de 150 km de " + _exemplo(conv) + "”." + NADA_MUDOU)}
     unidade = UNIDADE_MIL_HABITANTES.match(resto, depois)
     if unidade or (re.search(r"\bpopulacao\b", antes) and re.match(r"\s*mil\b", resto[depois:])):
         if "." in valor:
@@ -1132,12 +1152,12 @@ def _condicoes(conv, dica, dica_indicador):
         inicio_local = clausula["fim"]
     if not achadas:
         if dica == "criteria":
-            return _resposta(_painel(funcao="condicoes"), "Abri Condições: diga a condição, por exemplo, “municípios com "
-                                                          "menos de 1 médico por mil habitantes”.")
+            return _resposta(_painel(funcao="condicoes"), "Abri Condições: diga a condição, por exemplo, “" +
+                             conv.rot.plural + " com menos de 1 médico por mil habitantes”.")
         return None
     if re.search(r"\bou\b", pedido.resto[achadas[0][0].start():achadas[-1][1]["fim"]]):
-        return _pergunta("No gráfico, as condições se combinam com “e”: cada município precisa atender a todas. Peça só com "
-                         "“e” ou uma condição de cada vez." + NADA_MUDOU)
+        return _pergunta("No gráfico, as condições se combinam com “e”: cada " + conv.rot.singular + " precisa atender a "
+                         "todas. Peça só com “e” ou uma condição de cada vez." + NADA_MUDOU)
     for encontrado, clausula in achadas:
         pedido.consome(encontrado.start(), clausula["fim"])
     alvos = [(indice, clausula["alvo"], achadas[indice + 1][0].start() if indice + 1 < len(achadas) else len(pedido.texto))
@@ -1152,15 +1172,16 @@ def _condicoes(conv, dica, dica_indicador):
             return achado["pergunta"]
         ids, objeto = _membros(conv, achado)
         if objeto:
-            return _pergunta(SEM_PONTO_UNICO)
+            return _pergunta(_sem_ponto_unico(conv))
         if ids:
             achadas[indice][1]["texto"] += " até " + _listed([conv.cat.rotulo(i) for i in ids])
         membros += ids
     membros = list(dict.fromkeys(membros))
     distancia = any(clausula["item"]["atributo"] == "distancia_km" for _, clausula in achadas)
     if distancia and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
-        return _pergunta("A distância é medida até a referência. Diga até onde, por exemplo, “a mais de 150 km de Manaus”, "
-                         "ou escolha a referência antes (por exemplo, “use Manaus como referência”)." + NADA_MUDOU)
+        return _pergunta("A distância é medida até a referência. Diga até onde, por exemplo, “a mais de 150 km de " +
+                         _exemplo(conv) + "”, ou escolha a referência antes (por exemplo, “use " + _exemplo(conv) +
+                         " como referência”)." + NADA_MUDOU)
     achado = _resolve(conv)
     if "pergunta" in achado:
         return achado["pergunta"]
@@ -1281,10 +1302,10 @@ def _ordenar(conv, dica, dica_indicador):
             return achado_alvo["pergunta"]
         membros, objeto = _membros(conv, achado_alvo)
         if objeto:
-            return _pergunta(SEM_PONTO_UNICO)
+            return _pergunta(_sem_ponto_unico(conv))
     if atributo == "distancia_km" and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
-        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use Manaus como "
-                         "referência”." + NADA_MUDOU)
+        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use " + _exemplo(conv) +
+                         " como referência”." + NADA_MUDOU)
     if atributo == "variacao" and conv.ctx["familia"] != "tendencia":
         return _pergunta("A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança "
                          "entre junho de 2023 e junho de 2024”." + NADA_MUDOU)
@@ -1342,11 +1363,10 @@ def _referencia(conv, dica, dica_indicador):
     if "pergunta" in achado:
         return achado["pergunta"]
     if achado["todos"]:
-        return _pergunta(SEM_PONTO_UNICO.replace("estados não têm um ponto único", "a referência não pode ser a base "
-                                                 "inteira"))
+        return _pergunta(_sem_ponto_unico(conv, base_inteira=True))
     membros, objeto = _membros(conv, achado)
     if objeto:
-        return _pergunta(SEM_PONTO_UNICO)
+        return _pergunta(_sem_ponto_unico(conv))
     criterio = None
     if not membros:
         encontrado = CRITERIO.search(pedido.resto)

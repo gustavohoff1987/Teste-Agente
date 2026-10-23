@@ -17,6 +17,7 @@ rodam no job dados-reais (ADT_REAL_DATA_DIR), somente em leitura.
 import hashlib
 import json
 import os
+import re
 from fractions import Fraction
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from openpyxl import Workbook
 import brazil_data
 import llm_bridge
 import main
+import painel
 from brazil_data import FILES, GOVERNED_MANIFEST, manifest_from_repository
 from catalog_support import write_state_source
 from conversation_session import PANEL_KEEP, sessions
@@ -212,7 +214,10 @@ def test_availability_explains_what_the_brazil_base_allows(repo):
     assert {key for key, entry in available.items() if not entry["disponivel"]} == {"rotatividade"}
     assert available["rotatividade"]["motivo"] == ROTATION
     states = ok(post(info, nivel="estados", indicador="densidade", competencia="202406"))["disponibilidade"]
-    assert states["espacial"]["disponivel"] is False and "estados não têm um ponto único" in states["espacial"]["motivo"]
+    # O motivo segue a estrutura reconhecida (rótulos da fonte, 23/10/2026): na base do Brasil, estados e municípios.
+    assert states["espacial"] == {"disponivel": False, "pendencia": None, "motivo": (
+        "No nível dos estados, a distância não se aplica: os estados não têm um ponto único. Abra os municípios de um "
+        "estado para usar a análise espacial.")}
     refused(page(info, rotatividade={"inicial": "202306", "final": "202406"}), ROTATION)
 
 
@@ -598,6 +603,49 @@ def test_uploaded_districts_follow_the_received_labels_and_the_province_column(r
                        "premissas": {"count_unit": "pessoas"}, "base": {"municipios": {"estados": ["Província Sul"]}}},
                       mapping={key: value for key, value in DISTRICT_MAPPING.items() if key != "grupo_territorial"})
     refused(no_group, "não tem a coluna de grupo escolhida (papel grupo_territorial)")
+
+
+def test_territorial_messages_follow_the_structure_of_the_spreadsheet(repo):
+    """Textos territoriais pela estrutura reconhecida (23/10/2026): numa planilha de distritos e províncias, as mensagens,
+    as notas, os motivos e a disponibilidade usam os nomes da planilha, com o gênero de cada um, e nenhum cita município,
+    UF, IBGE ou a base do Brasil, salvo o motivo do nível estados, que existe só nela (com a fonte estadual)."""
+    # O nível de cima não tem ponto único: na base do Brasil, os estados; nas planilhas, o grupo com o nome recebido.
+    assert painel._sem_ponto_unico(painel._labels(LABELS, brazil=False)) == (
+        "No nível das províncias, a distância não se aplica: as províncias não têm um ponto único. Abra os distritos de "
+        "uma província para usar a análise espacial.")
+    communes = {"unidade": {"singular": "comuna", "plural": "comunas"}, "grupo": {"singular": "região", "plural": "regiões"}}
+    assert painel._sem_ponto_unico(painel._labels(communes, brazil=False)) == (
+        "No nível das regiões, a distância não se aplica: as regiões não têm um ponto único. Abra as comunas de uma região "
+        "para usar a análise espacial.")
+    assert painel._sem_ponto_unico(painel.BRASIL) == (
+        "No nível dos estados, a distância não se aplica: os estados não têm um ponto único. Abra os municípios de um "
+        "estado para usar a análise espacial.")
+    # A coluna do grupo igual à das unidades: o nome da planilha, com a concordância (antes, "A coluna do província").
+    options = {"nivel": "municipios", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+               "premissas": {"count_unit": "pessoas"}, "base": {"municipios": {"todos": True}}}
+    refused(upload(options, mapping={**DISTRICT_MAPPING, "grupo_territorial": "distrito"}),
+            "A coluna da província (grupo_territorial) precisa ser diferente da coluna de distritos e do código.")
+    # Uma resposta com distância, conjunto, mudança, tendência e grupos: todos os textos com os nomes da planilha.
+    body = ok(districts(premissas={"count_unit": "pessoas", "crs": "SIRGAS2000"}, referencia={"membros": [ALTO]},
+                        conjuntos=[{"id": "norte", "rotulo": "Norte", "membros": [ALTO, BAIXO]}],
+                        competencia_inicial="2021", tendencia={"competencias": YEARS}, grupos={"tipo": "quartis"}))
+    notes = body["notas"]
+    assert "Distritos base (2024): 4 de 4 com registro." in notes
+    assert "Distritos base na competência inicial (2021): 4 de 4 com registro." in notes
+    assert any(note.startswith("Conjuntos (CAP-AGR-01)") and "quem atua em mais de um distrito é contado em cada um" in note
+               and "cada população de distrito uma vez" in note for note in notes)
+    assert any("Grupos por posição (CAP-DIS-02) entre os 4 distritos do universo" in note for note in notes)
+    available = body["disponibilidade"]
+    assert available["grupos"]["motivo"] == (
+        "Sem um valor próprio de cada província na planilha, não há bolha de província: somar os distritos seria uma "
+        "agregação (CAP-AGR-01), com possível dupla contagem. A província serve para navegar e escolher os distritos.")
+    # O nível estados é o da base do Brasil, com a fonte estadual: o motivo o cita pelo nome, sem trocá-lo pela província.
+    assert available["estados"]["motivo"] == ("O nível estados existe só na base do Brasil, com a fonte estadual de médicos "
+                                              "únicos.")
+    texts = notes + [text for item in body["itens"] for text in item["motivos"]] + [
+        entry["motivo"] for key, entry in available.items() if key != "estados"]
+    brazilian = re.compile(r"munic[íi]pi|\bIBGE\b|\bUF\b|\bBrasil\b|\bestad(?:o|os|ual|uais)\b", re.IGNORECASE)
+    assert not [text for text in texts if brazilian.search(text)]
 
 
 def test_uploaded_choices_return_structured_pendencies(repo):

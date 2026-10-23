@@ -35,6 +35,60 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Página única: textos territoriais pela estrutura reconhecida (motor e conversa)
+- **Antes:**
+  - no nível estados, `disponibilidade.espacial.motivo` era fixo: "No nível estados, a distância não se aplica: estados não
+    têm um ponto único. Abra os municípios de um estado para usar a análise espacial.";
+  - numa planilha com a coluna do grupo igual à das unidades, a recusa dizia "A coluna do província (grupo_territorial)…";
+  - na conversa, com uma planilha, algumas orientações citavam a base do Brasil: "“municípios com menos de 1 médico por mil
+    habitantes”", "cada município precisa atender a todas", "“a mais de 150 km de Manaus”", "“use Manaus como
+    referência”", "“mostre o Pará”" e, na referência que pede a base inteira, "A referência é um município ou um conjunto
+    de municípios…".
+- **Agora:**
+  - o motivo usa os rótulos e o gênero da fonte: "No nível dos estados, a distância não se aplica: os estados não têm um
+    ponto único. Abra os municípios de um estado para usar a análise espacial." (numa planilha: "No nível das províncias,
+    … Abra os distritos de uma província …");
+  - a recusa diz "A coluna da província (grupo_territorial) precisa ser diferente da coluna de distritos e do código.";
+  - na conversa, com uma planilha, as orientações usam os nomes dela ("“distritos com menos de 1 médico por mil
+    habitantes”", "cada distrito precisa atender a todas", "A referência é um distrito ou um conjunto de distritos: a
+    referência não pode ser a base inteira. Diga os distritos pelo nome, por exemplo, “use … como referência”."), e os
+    exemplos com nomes da base do Brasil dão lugar às reticências ou a "“mostre todos os distritos”".
+- **Permanece:** as regras e as condições de aplicabilidade; na base do Brasil, os textos da conversa são os de sempre; os
+  textos do nível `estados`, que nomeiam o nível que só existe na base do Brasil; nada vai ao provedor de IA.
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (item 2: os textos acompanham a estrutura territorial
+  reconhecida, sem texto fixo do Brasil).
+- **Classificação:** mudança prevista, só de texto. Escopo: decorre do pedido. Compatibilidade: a SPEC não fixa esses
+  textos.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO.md` ("Planilhas enviadas", `rotulos`) e
+  `Docs/CONVERSACAO_INCREMENTO_FN.md` ("Planilhas de outros países"); em `test_painel_pagina.py`, a disponibilidade no
+  nível estados confere o texto novo (mudou de propósito) e há o teste com distritos, províncias e comunas; em
+  `test_conversa_grafico.py`, o teste das orientações com os rótulos da planilha e "todos os estados" (o exemplo da
+  orientação da base sem seleção) pondo os estados no gráfico.
+
+### 2026-10-23 · Página única: grupos do mapa (`grupos_mapa`) pedidos junto com a análise
+- **Antes:** os grupos por posição (CAP-DIS-02) só vinham com `grupos`, que entram nas notas e na frase-resumo. Não havia como
+  pedir os grupos que pintam o mapa sem mudar o que o gráfico e a frase mostram.
+- **Agora:** `POST /api/painel` (com `nivel`) aceita `grupos_mapa: {"tipo": "quartis" | "quintis" | "decis"}`, nos dois
+  níveis e junto com qualquer chave, inclusive `grupos`:
+  - a resposta traz `grupos_mapa` no topo, com a estrutura de `grupos`, e `grupo_mapa` em cada item, com a forma de `grupo`;
+  - o cálculo e a memória são os de `grupos` (com as mesmas entradas, um só cálculo);
+  - tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {…}.";
+  - com menos de duas unidades com valor do indicador, `grupos_mapa` vem `null`, sem recusar o pedido;
+  - a chave de execução muda com a opção.
+- **Permanece:** sem a opção, a resposta é a de antes (corpos iguais aos do código anterior, conferidos com a base
+  versionada); com ela, as notas, as limitações, os domínios, a frase-resumo e a sessão não mudam; `grupos` mantém as regras
+  e as mensagens, inclusive a recusa com menos de duas unidades; sem `nivel`, a chave é recusada como as demais da página
+  única; nada vai ao provedor de IA.
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026: o mapa pinta, sem pergunta, os 5 grupos iguais (quintis), e
+  a troca de vista continua sem pedir cálculo novo (RQ-REP-06), por isso os grupos do mapa vêm com a análise.
+- **Classificação:** mudança prevista. Escopo: decorre do pedido. Compatibilidade: é o método de CAP-DIS-02, sem método
+  novo (Hyndman–Fan tipo 7, mesmos empates e não avaliáveis); o nulo com menos de duas unidades evita derrubar a análise por
+  causa da cor do mapa.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO.md` (options, resposta, "Grupos do mapa", frase-resumo, desvios,
+  desempenho e "Tendência na janela", com o diagnóstico da tendência); `backend/tests/test_painel_grupos_mapa.py` (novo, com
+  a base versionada no job `dados-reais`) e `backend/tests/test_painel_tendencia.py` (novo: cada desfecho de AT-53 conferido
+  contra DA-15 e o diagnóstico com a base versionada; o método não muda).
+
 ### 2026-10-23 · Página única: modo escuro que segue o aparelho, com a impressão sempre clara
 - **Antes:** a página era só clara, em qualquer esquema de cor do aparelho (o documento da interface dizia "A aplicação é
   toda clara; não há modo escuro.").

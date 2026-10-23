@@ -231,7 +231,11 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   só para a conversa: sai do mapeamento antes do pré-exame;
 - as unidades citadas pelo nome se resolvem pelo catálogo da planilha (`name:` ou `code:`), sem código IBGE;
 - grupo e unidade com o mesmo nome viram pergunta ("Província Nampula" ou "Distrito Nampula");
-- não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …".
+- não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …";
+- as orientações também usam os nomes da planilha (23/10/2026): "“distritos com menos de 1 médico por mil habitantes”",
+  "cada distrito precisa atender a todas", "A referência é um distrito ou um conjunto de distritos: a referência não pode
+  ser a base inteira. …". Os exemplos com nomes da base do Brasil ("Manaus", "o Pará") ficam só nela; numa planilha, dão
+  lugar às reticências ("“use … como referência”") ou a "“mostre todos os distritos”".
 
 ### Rotas com o provedor
 

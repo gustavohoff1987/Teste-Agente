@@ -23,7 +23,8 @@ Nada aqui é fórmula nova; cada número vem do motor das análises:
 - variação percentual: a de temporal_change.change (CAP-TMP-01, DA-14), em aritmética exata com inteiros (_percent);
   base zero não é avaliável;
 - tendência: trend.classify_frame e trend.summarize (CAP-TEN-01, DA-15), as funções da evolução temporal;
-- grupos por posição: main._compute(..., "distribution") e main.distribution_cuts (CAP-DIS-02, Hyndman–Fan tipo 7);
+- grupos por posição: main._compute(..., "distribution") e main.distribution_cuts (CAP-DIS-02, Hyndman–Fan tipo 7),
+  também os grupos que pintam o mapa (`grupos_mapa`, 23/10/2026: o mesmo cálculo, pedido junto com a análise);
 - faixas do usuário e faixas de distância: combined_criteria.band_edges e bands_of (CAP-DIS-03 e CAP-ESP-03);
 - condições: combined_criteria.parse_tree e evaluate (CAP-SUB-01, três estados, combinação E);
 - ordenação e N primeiros: combined_criteria.ranking_of e select_top (CAP-SUB-02 e CAP-SUB-03), empates na mesma posição;
@@ -90,8 +91,8 @@ REFERENCIAIS_ACEITOS = tuple(CRS_ALIASES)
 REQUIRED_ROLES = frozenset(("territory", "territory_id", "period", "category", "count", "population"))
 SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
-PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "faixas", "condicoes", "ordenar",
-                       "comparar", "rotatividade", "premissas", "rotulos"))
+PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "grupos_mapa", "faixas",
+                       "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos"))
 PAGE_KEYS = PANEL_KEYS | PAGE_ONLY
 REFERENCE_KEYS = frozenset(("competencia", "categoria", "universo", "criterio", "premissas", "rotulos"))
 ATTRIBUTES = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
@@ -561,8 +562,8 @@ def _upload_context(frame, mapping, options, page) -> Context:
     labels = _labels(options.get("rotulos"), brazil=False)
     unit, group = labels.unidade, labels.grupo
     if group_column and group_column in (mapping.get("territory"), mapping.get("territory_id")):
-        raise ValueError("A coluna do " + group.singular + " (grupo_territorial) precisa ser diferente da coluna de " +
-                         unit.plural + " e do código.")
+        raise ValueError("A coluna d" + group.g("o", "a") + " " + group.singular + " (grupo_territorial) precisa ser "
+                         "diferente da coluna de " + unit.plural + " e do código.")
     premissas = _premissas(options.get("premissas"))
     if not mapping.get("territory"):
         raise ValueError("Escolha a coluna territorial: o gráfico mostra cada " + unit.singular + " da planilha.")
@@ -1395,7 +1396,9 @@ def _page_spec(ctx, options) -> dict:
         raise ValueError(_no_population(ctx))
     ctx.nivel, ctx.indicador = nivel, indicador
     spec = {"nivel": nivel, "indicador": indicador, "tendencia": _window(ctx, options.get("tendencia")),
-            "grupos": _group_type(options.get("grupos")), "faixas": _limits(options.get("faixas"), "faixas"),
+            "grupos": _group_type(options.get("grupos")),
+            "grupos_mapa": _group_type(options.get("grupos_mapa"), "grupos_mapa"),
+            "faixas": _limits(options.get("faixas"), "faixas"),
             "faixas_distancia": _limits(options.get("faixas_distancia"), "faixas_distancia"),
             "condicoes": _conditions_spec(ctx, options.get("condicoes")), "ordenar": _order_spec(ctx, options.get("ordenar")),
             "comparar": _compare_spec(options.get("comparar")),
@@ -1421,11 +1424,14 @@ def _window(ctx, raw):
     return sorted(values, key=ctx.positions.get)
 
 
-def _group_type(raw):
+def _group_type(raw, chave="grupos"):
+    """Número de grupos por posição (CAP-DIS-02) pedido em `grupos` ou em `grupos_mapa` (os grupos que pintam o mapa),
+    com a mesma validação; a mensagem de `grupos_mapa` diz o nome da chave."""
     if raw is None:
         return None
     if not isinstance(raw, dict) or set(raw) != {"tipo"} or raw["tipo"] not in GROUP_TYPES:
-        raise ValueError("Grupos por posição inválidos: use {\"tipo\": \"quartis\", \"quintis\" ou \"decis\"}.")
+        raise ValueError("Grupos por posição inválidos" + ("" if chave == "grupos" else " (" + chave + ")") +
+                         ": use {\"tipo\": \"quartis\", \"quintis\" ou \"decis\"}.")
     return GROUP_TYPES[raw["tipo"]]
 
 
@@ -1584,15 +1590,17 @@ class _Evaluator:
         return self.table[attribute]
 
 
-def _apply(res, by_id, field_name, out):
+def _apply(res, by_id, field_name, out, notas=True):
     """Leva aos itens o que uma análise calculou (_reaproveitar): o campo de cada item do universo (null nos demais
-    itens), as notas e as limitações, na mesma ordem do cálculo; devolve o bloco do topo."""
+    itens), as notas e as limitações, na mesma ordem do cálculo; devolve o bloco do topo. Com `notas` falso (os grupos
+    do mapa), só o campo e o bloco: as notas e as limitações da resposta ficam como estão."""
     for item in res.items:
         item[field_name] = None
     for key, value in out["itens"].items():
         by_id[key][field_name] = value
-    res.notes += out["notas"]
-    res.limitations += out["limitacoes"]
+    if notas:
+        res.notes += out["notas"]
+        res.limitations += out["limitacoes"]
     return out["topo"]
 
 
@@ -1709,14 +1717,25 @@ def _rows_frame(ctx, res, keys):
     return frame, key_of
 
 
-def _groups(ctx, res, k, by_id):
+def _groups(ctx, res, k, by_id, campo="grupo"):
     """CAP-DIS-02 pelo motor da distribuição (main._compute, operação distribution) entre os itens do universo com valor
-    do indicador; os pontos de corte são os mesmos de main.distribution_cuts (Hyndman–Fan tipo 7)."""
+    do indicador; os pontos de corte são os mesmos de main.distribution_cuts (Hyndman–Fan tipo 7).
+
+    `campo` é o campo por item: "grupo" (options.grupos) ou "grupo_mapa" (options.grupos_mapa, os grupos que pintam o
+    mapa, 23/10/2026). Os dois são o mesmo cálculo, com as mesmas regras de empate e de não avaliáveis, e leem a mesma
+    memória (_reaproveitar(ctx, "grupos", ...)): com as mesmas entradas, um vem do outro, sem recalcular. Os do mapa não
+    acrescentam notas nem limitações (o gráfico, a frase-resumo, a tabela e o CSV não mudam com eles) e, com menos de
+    duas unidades com valor, ficam nulos em vez de recusar o pedido: a tela os pede junto com toda análise."""
     import main as engine  # importação tardia: main usa este módulo
     unit = ctx.labels.unidade if ctx.nivel == "municipios" else ctx.labels.grupo
     metric = INDICATORS[ctx.indicador]
     evaluable = [key for key in res.universe if by_id[key][ctx.indicador] is not None]
+    mapa = campo == "grupo_mapa"
     if len(evaluable) < 2:
+        if mapa:
+            for item in res.items:
+                item[campo] = None
+            return None
         raise ValueError("Os grupos por posição (CAP-DIS-02) exigem pelo menos " + unit.g("dois", "duas") + " " +
                          unit.plural + " com " + ctx.indicador + " em " + human_period(ctx.period) + ".")
 
@@ -1739,7 +1758,7 @@ def _groups(ctx, res, k, by_id):
         return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": []}
 
     entradas = {"universo": _ids_key(res.universe), "indicador": ctx.indicador, "k": k}
-    return _apply(res, by_id, "grupo", _reaproveitar(ctx, "grupos", entradas, calcular))
+    return _apply(res, by_id, campo, _reaproveitar(ctx, "grupos", entradas, calcular), notas=not mapa)
 
 
 def _comparison(ctx, res, ids, by_id):
@@ -2024,8 +2043,7 @@ def _availability(ctx) -> dict:
 
     out = {"distribuicao": entry(True), "densidade": entry(ctx.density, "" if ctx.density else _no_population(ctx))}
     if ctx.nivel == "estados":
-        out["espacial"] = entry(False, "No nível estados, a distância não se aplica: estados não têm um ponto único. "
-                                       "Abra os municípios de um estado para usar a análise espacial.")
+        out["espacial"] = entry(False, _sem_ponto_unico(ctx.labels))
     elif ctx.brazil:
         settings = _official_settings(ctx.frame, ctx.mapping, True)
         if not SPATIAL_ROLES <= set(settings.get("governed_roles") or []):
@@ -2075,6 +2093,17 @@ def _availability(ctx) -> dict:
                               "(CAP-AGR-01), com possível dupla contagem. " + group.g("O", "A") + " " + group.singular +
                               " serve para navegar e escolher " + unit.g("os", "as") + " " + unit.plural + ".")
     return out
+
+
+def _sem_ponto_unico(rotulos: Rotulos) -> str:
+    """Por que a distância não se aplica no nível de cima (os estados, na base do Brasil): o grupo não tem um ponto
+    único. Pelos rótulos da fonte, com o gênero de cada um: "No nível dos estados, a distância não se aplica: os estados
+    não têm um ponto único. Abra os municípios de um estado …"; numa estrutura de distritos e províncias, "No nível das
+    províncias, … Abra os distritos de uma província …"."""
+    unit, group = rotulos.unidade, rotulos.grupo
+    return ("No nível d" + group.g("os", "as") + " " + group.plural + ", a distância não se aplica: " +
+            group.g("os", "as") + " " + group.plural + " não têm um ponto único. Abra " + unit.g("os", "as") + " " +
+            unit.plural + " de " + group.g("um", "uma") + " " + group.singular + " para usar a análise espacial.")
 
 
 def _upload_spatial_availability(ctx, entry):
@@ -2143,6 +2172,8 @@ def _page_extras(ctx, spec, body, res):
         body["dominios"]["tendencia"] = list(span) if span else None
     if spec["grupos"] is not None:
         body["grupos"] = _groups(ctx, res, spec["grupos"], by_id)
+    if spec["grupos_mapa"] is not None:  # os grupos que pintam o mapa: à parte de `grupos`, sem notas nem frase
+        body["grupos_mapa"] = _groups(ctx, res, spec["grupos_mapa"], by_id, "grupo_mapa")
     if spec["faixas"] is not None:
         body["faixas"] = _bands(ctx, res, spec["faixas"], ctx.indicador, "faixa", "CAP-DIS-03", by_id)
     if spec["faixas_distancia"] is not None:
@@ -2165,6 +2196,8 @@ def _page_extras(ctx, spec, body, res):
 
 def _page_normalized(ctx, spec, normalized):
     page = {key: spec[key] for key in ("nivel", "indicador", "tendencia", "grupos", "ordenar", "comparar")}
+    if spec["grupos_mapa"] is not None:  # só com o pedido: sem ele, a chave de execução é a de antes
+        page["grupos_mapa"] = spec["grupos_mapa"]
     page["faixas"] = None if spec["faixas"] is None else [format(value, "f") for value in spec["faixas"]]
     page["faixas_distancia"] = (None if spec["faixas_distancia"] is None else
                                 [format(value, "f") for value in spec["faixas_distancia"]])

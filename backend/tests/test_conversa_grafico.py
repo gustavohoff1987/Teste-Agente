@@ -438,6 +438,8 @@ def test_rota_local_com_a_base_do_brasil(base_do_brasil, sem_provedor):
     assert local("compare Manaus e Tefé", dataset="brazil")["painel"] == painel(
         funcao="comparar", selecao=["code:130260", "code:130420"])
     assert local("volte aos estados", dataset="brazil")["painel"] == painel(nivel="estados")
+    # O exemplo da orientação da base sem seleção (23/10/2026): "todos os estados" põe os estados no gráfico.
+    assert local("todos os estados", dataset="brazil")["painel"] == painel(nivel="estados")
     # Ordenação perguntada ("qual ... maior densidade") é comando do gráfico, não explicação de resultado.
     assert local("qual município tem a maior densidade?", dataset="brazil")["painel"]["ordenar"] == {
         "atributo": "densidade", "ordem": "desc", "primeiros": 1}
@@ -492,6 +494,30 @@ def test_planilha_de_distritos_e_provincias_usa_os_rotulos_e_o_grupo(sem_provedo
     assert sem_mapa["painel"] == painel(nivel="municipios", municipios={"todos": False, "estados": ["Zambézia"], "ids": []})
     assert sem_mapa["reply"] == ("Mostrei a densidade nos 2 distritos da província Zambézia. Sem latitude e longitude na "
                                  "planilha, não há mapa; a análise fica no gráfico.")
+
+
+def test_orientacoes_da_conversa_seguem_os_rotulos_da_planilha():
+    """Numa planilha, as orientações da conversa (referência, distância, condições) usam os nomes da estrutura reconhecida,
+    sem "município" nem exemplos da base do Brasil; na base do Brasil, o texto de sempre (23/10/2026)."""
+    from types import SimpleNamespace
+    planilha_ = SimpleNamespace(brasil=False, rot=conversa_grafico._Rotulos("distrito", "distritos", False, "província",
+                                                                            "províncias", True))
+    brasil = SimpleNamespace(brasil=True, rot=conversa_grafico._Rotulos("município", "municípios", False, "estado", "estados",
+                                                                        False))
+    assert conversa_grafico._sem_ponto_unico(brasil) == conversa_grafico.SEM_PONTO_UNICO
+    assert conversa_grafico._sem_ponto_unico(brasil, base_inteira=True) == (
+        "A referência é um município ou um conjunto de municípios: a referência não pode ser a base inteira. Diga os "
+        "municípios, por exemplo, “use Manaus como referência”." + conversa_grafico.NADA_MUDOU)
+    assert conversa_grafico._sem_ponto_unico(planilha_) == (
+        "A referência é um distrito ou um conjunto de distritos: as províncias não têm um ponto único. Diga os distritos pelo "
+        "nome, por exemplo, “use … como referência”." + conversa_grafico.NADA_MUDOU)
+    assert conversa_grafico._sem_ponto_unico(planilha_, base_inteira=True) == (
+        "A referência é um distrito ou um conjunto de distritos: a referência não pode ser a base inteira. Diga os distritos "
+        "pelo nome, por exemplo, “use … como referência”." + conversa_grafico.NADA_MUDOU)
+    assert (conversa_grafico._exemplo(brasil), conversa_grafico._exemplo(planilha_)) == ("Manaus", "…")
+    # Nenhuma orientação da planilha cita município, estado ou Manaus.
+    for texto in (conversa_grafico._sem_ponto_unico(planilha_), conversa_grafico._sem_ponto_unico(planilha_, True)):
+        assert not any(palavra in texto for palavra in ("munic", "estado", "Manaus")), texto
 
 
 def test_contexto_completo_com_sessao_nao_quebra_o_pre_exame(sem_provedor):

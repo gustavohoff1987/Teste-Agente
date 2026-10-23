@@ -253,12 +253,13 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 | Chave | Regra |
 |---|---|
 | `nivel` | Obrigatória: `"municipios"` ou `"estados"`. `estados` só na base do Brasil (planilha → 422 "O nível estados existe só na base do Brasil, …"). |
-| `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
+| `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
 | `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. |
 | `competencia_inicial` | Como no contrato de 21/10 (visão Mudança, CAP-TMP-01), nos dois níveis. |
 | `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
 | `grupos` | `{"tipo": "quartis" \| "quintis" \| "decis"}`. |
+| `grupos_mapa` | `{"tipo": "quartis" \| "quintis" \| "decis"}`: os grupos por posição que pintam o mapa (23/10/2026; seção "Grupos do mapa"). A mesma validação de `grupos` (tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."), nos dois níveis e com qualquer outra chave; pode vir junto com `grupos`, e cada um é calculado à parte. |
 | `faixas` | Lista de 2 a 21 limites crescentes e distintos, não negativos, do `indicador` (números ou textos com vírgula ou ponto decimal, como `[0, 1, 2, 5]` ou `["0", "1,5"]`). Intervalos [a, b) e o último fechado. |
 | `faixas_distancia` | A mesma forma, em km. Exige `referencia`. |
 | `condicoes` | Lista de 1 a 12 `{"atributo", "operador", "valor"}` combinados por E. `atributo`: `densidade`, `quantidade`, `populacao` ou `distancia_km` (este exige `referencia`). `operador`: `<`, `<=`, `>`, `>=`, `=` ou `!=`. `valor`: número não negativo ou texto com vírgula ou ponto decimal; densidade por 1.000 habitantes, distância em km. |
@@ -273,11 +274,11 @@ No nível `estados`, `base`, `conjuntos`, `referencia`, `faixas_distancia`, `rot
 
 ### Universo das análises
 
-`grupos`, `faixas`, `faixas_distancia`, `condicoes` e `ordenar`, e as contagens de `tendencia`, valem no **universo**:
-os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados. Conjuntos e membros da referência
-fora da base não entram no universo: os campos por item deles vêm `null`. A `tendencia` por item é calculada para todos
-os itens, inclusive conjuntos (CAP-AGR-01 por competência; membros com registro diferentes na janela →
-`INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita qualquer item da resposta.
+`grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`, `condicoes` e `ordenar`, e as contagens de `tendencia`, valem no
+**universo**: os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados. Conjuntos e membros
+da referência fora da base não entram no universo: os campos por item deles vêm `null`. A `tendencia` por item é
+calculada para todos os itens, inclusive conjuntos (CAP-AGR-01 por competência; membros com registro diferentes na
+janela → `INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita qualquer item da resposta.
 
 ### Resposta 200 da página única
 
@@ -300,6 +301,7 @@ Quando pedidos:
 |---|---|
 | `tendencia` | O resumo do motor (`trend.summarize`): `capacidade`, `versao_metodo`, `desfecho` (`RES-VAL`, `RES-LIM`, `RES-SCL` ou `BLQ-MET`), `bloqueio`, `unidades_total`, `avaliaveis`, `nao_avaliaveis`, `contagens` (por classe), `sem_classificacao_por_motivo`, `nao_avaliaveis_por_motivo`, `familias`, `classes` ([{codigo, rotulo, familia}], a ordem da legenda), `rotulos_familia`, `rotulos_nao_avaliavel`, `rotulos_motivo`; e `indicador`, `unidade_valor`, `unidade_tempo`, `janela` ({periodos, inicio, fim, intervalos, intervalo_constante, serie_anual, serie_anual_disponivel, competencias_serie_anual}) e `universo`. As contagens são do universo. |
 | `grupos` | `{tipo, k, atributo, cortes, rotulos, contagens, universo, classificados, nao_avaliaveis}`. `cortes` são os k − 1 pontos de corte do motor; `rotulos` e `contagens` vão do 1º ao k-ésimo grupo. |
+| `grupos_mapa` | A mesma estrutura de `grupos`, com o mesmo cálculo (seção "Grupos do mapa"); `null` quando menos de duas unidades do universo têm valor do `indicador`. |
 | `faixas`, `faixas_distancia` | `{atributo, capacidade, limites, convencao, rotulos, contagens, fora, nao_avaliaveis, universo}`. `atributo` é o `indicador` ou `distancia_km`; `capacidade`, `CAP-DIS-03` ou `CAP-ESP-03`; `limites` em texto decimal com ponto, sem arredondar (`["0", "100.5", "1000"]`); `rotulos` com vírgula, como na análise ("0 a <100,5", "100,5 a 1000"); `fora` e `nao_avaliaveis` são contagens. |
 | `condicoes` | `{contagens: {ATENDE, NAO_ATENDE, NAO_AVALIAVEL}, universo, combinacao: "E", descricao, definicao: [{atributo, operador, valor, texto}]}`. |
 | `ordenacao` | `{atributo, ordem, primeiros, universo, ordenados, nao_avaliaveis, selecionados, empates_no_corte, ids_selecionados}`; sem `primeiros`, `selecionados` e `ids_selecionados` são `null`. |
@@ -318,6 +320,7 @@ Por item, quando pedidos (o campo vem em todos os itens; `null` fora do universo
 | `referencia_mais_proxima` | Com `referencia`: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável e nos conjuntos. |
 | `tendencia` | `{classe, familia, rotulo, motivo, motivo_texto, avaliavel, observacoes, velocidades}`. `classe`: CategoriaTendencia (`CRESCIMENTO`, `CRESCIMENTO_ACELERADO`, `CRESCIMENTO_DESACELERADO`, `DECLINIO`, `DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`, `SEM_CLASSIFICACAO`) ou `null`; `familia`: `CRESCIMENTO`, `DECLINIO`, `NENHUMA` ou `null` (não avaliável); `rotulo`: o rótulo DA-15 ("Desaceleração do crescimento", "Não avaliável: série insuficiente"); `motivo`: `SERIE_ESTAVEL`, `MUDANCA_DE_DIRECAO`, `SERIE_INSUFICIENTE`, `INCOMPARABILIDADE` ou `null`; `motivo_texto`: o texto do motivo ("3 de 4 observações necessárias"); `observacoes`: [{competencia, valor}] do indicador nas competências com valor (também nos não avaliáveis, para a visão Séries); `velocidades`: as velocidades do motor (variação do indicador por `unidade_tempo`, o mês nas competências AAAAMM) entre observações consecutivas, na ordem de `observacoes`; vazia quando não avaliável. |
 | `grupo` | `{indice, rotulo}` (`indice` de 1 a k, "2º quartil"). |
+| `grupo_mapa` | Com `grupos_mapa`: a mesma forma de `grupo` (`{indice, rotulo}`); `null` fora do universo, sem valor do `indicador` ou com `grupos_mapa` nulo. |
 | `faixa`, `faixa_distancia` | `{indice, rotulo}` (`indice` a partir de 1), `"fora"` (fora de todas as faixas) ou `null` (não avaliável). |
 | `condicoes` | `{situacao, por_condicao}`. `situacao`: `ATENDE`, `NAO_ATENDE` ou `NAO_AVALIAVEL` (nunca tratado como não atende). `por_condicao`: [{estado, valor, motivos}], na ordem de `condicoes.definicao`; `motivos` em códigos (`SEM_REGISTRO_OBSERVADO`, `SEM_INFORMACAO_ESPACIAL`, `DEPENDENCIA_NAO_AVALIAVEL`…). |
 | `ordem` | `{posicao, selecionado}`: posição com empates na mesma posição (1, 1, 3), `null` quando não avaliável; `selecionado` é `null` sem `primeiros`. Com empate no corte, todos os empatados entram (`empates_no_corte`, `EMPATE_NO_CORTE`). |
@@ -400,6 +403,65 @@ E os blocos do topo do mesmo pedido (trechos):
  "sessao": {"registrado": false, "result_id": null, "motivo": "Sem sessão: o pedido não trouxe o cabeçalho X-ADT-Session."}}
 ```
 
+### Grupos do mapa (`grupos_mapa`, 23/10/2026)
+
+O mapa da página única deixa de perguntar "Como pintar o mapa?" e pinta, por padrão, os 5 grupos iguais (quintis) de
+CAP-DIS-02. Para a troca de vista entre o gráfico e o mapa continuar sem pedir cálculo (RQ-REP-06), a tela pede os grupos
+do mapa junto com a análise, numa chave própria, `grupos_mapa`, sem mudar o que o gráfico, a frase-resumo, a tabela e o
+CSV mostram.
+
+- **Pedido:** `"grupos_mapa": {"tipo": "quartis" | "quintis" | "decis"}`, validado como `grupos` (tipo inválido → 422
+  "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."). Vale nos dois níveis
+  (municípios ou unidades da planilha, e estados), com qualquer outra chave, e pode vir junto com `grupos`: cada um é
+  calculado à parte. Sem `nivel` (contrato de 21/10), é chave desconhecida, como as demais da página única.
+- **Resposta:** no topo, `grupos_mapa`, com a mesma estrutura de `grupos` (`{tipo, k, atributo, cortes, rotulos,
+  contagens, universo, classificados, nao_avaliaveis}`); em cada item, `grupo_mapa`, com a mesma forma de `grupo`
+  (`{indice, rotulo}` ou `null`).
+- **Cálculo:** o de `grupos`, sem método novo: a mesma função (`painel._groups`, pela distribuição de `main._compute` e os
+  cortes de `main.distribution_cuts`, Hyndman–Fan tipo 7), as mesmas regras de empate (valores iguais no mesmo grupo) e de
+  não avaliáveis (fora dos grupos) e a mesma memória da versão (`_reaproveitar(ctx, "grupos", …)`): com o mesmo tipo,
+  universo e indicador, um vem do outro, sem recalcular, e `grupos_mapa` é igual a `grupos` do mesmo pedido.
+- **Com menos de duas unidades com valor do `indicador` no universo:** `grupos_mapa` vem `null`, e `grupo_mapa` também, em
+  todos os itens; o pedido não falha. `grupos`, nesse caso, continua recusado (422 "Os grupos por posição (CAP-DIS-02)
+  exigem pelo menos dois municípios …"), porque foi pedido pela pessoa; `grupos_mapa` é pedido pela tela em todo pedido.
+- **O resto da resposta não muda:** sem `grupos_mapa`, a resposta é a de antes (nem chave nova no topo, nem campo novo nos
+  itens, e a mesma `chave_execucao`). Com ele, só se somam `grupos_mapa` e `grupo_mapa`, e a `chave_execucao` muda (o tipo
+  pedido entra no pedido normalizado): as notas, as limitações, os domínios, a frase-resumo (`resumo` e as contagens que
+  ela copia, `painel.summary_facts`) e a sessão continuam os mesmos. O CSV da tela é montado com todos os campos dos itens
+  (`csvDaResposta`): para ele não mudar, a tela precisa deixar `grupo_mapa` de fora quando pedir os grupos do mapa.
+
+Exemplo (Amazonas, junho de 2024, com a base versionada de 22/10/2026):
+
+```json
+{"nivel": "municipios", "indicador": "densidade", "competencia": "202406", "base": {"municipios": {"estados": ["13"]}},
+ "grupos_mapa": {"tipo": "quintis"}}
+```
+
+```json
+{"grupos_mapa": {"tipo": "quintis", "k": 5, "atributo": "densidade",
+                 "cortes": [0.6535938011172193, 0.7713405825684332, 0.942585407617734, 1.138824760941643],
+                 "rotulos": ["1º quintil", "2º quintil", "3º quintil", "4º quintil", "5º quintil"],
+                 "contagens": [13, 12, 12, 12, 13], "universo": 62, "classificados": 62, "nao_avaliaveis": 0},
+ "itens": [{"id": "code:130420", "rotulo": "TEFE (AM)", "…": "…", "grupo_mapa": {"indice": 3, "rotulo": "3º quintil"}},
+           "…"]}
+```
+
+### Tendência na janela: a classe segue DA-15 (diagnóstico de 23/10/2026)
+
+A classe de cada item é a de CAP-TEN-01 com os rótulos de DA-15, sem mudança (SPEC, CAP-TEN-01 e AT-53): as velocidades
+são a variação do indicador por unidade de tempo (o mês nas competências AAAAMM) entre observações consecutivas, e
+**basta uma velocidade positiva e uma negativa na janela** para a série ficar sem classificação por mudança de direção
+(`SEM_CLASSIFICACAO`, `MUDANCA_DE_DIRECAO`). Janelas longas reúnem mais oscilações e, por isso, quase não têm classe.
+Diagnóstico de 23/10/2026 com a base versionada (somente leitura), na densidade: com as 22 competências (janeiro e junho
+de 2014 a 2024), os 62 municípios do Amazonas ficam todos sem classificação por mudança de direção (desfecho `RES-SCL`;
+Manaus tem 17 subidas e 4 descidas); com os últimos 4 junhos (2021 a 2024), 17 `CRESCIMENTO`, 4
+`CRESCIMENTO_ACELERADO`, 1 `CRESCIMENTO_DESACELERADO`, 2 `DECLINIO_ACELERADO` e 38 `SEM_CLASSIFICACAO`; o Brasil
+inteiro, com as 22, 5.563 `SEM_CLASSIFICACAO` e 7 `CRESCIMENTO`; os 27 estados, com as 22, 22 `SEM_CLASSIFICACAO` e 5
+`CRESCIMENTO`. Em todos esses casos, quem fica sem classificação fica por mudança de direção. A ausência generalizada de
+classe em janelas longas vem da regra, não de falha no cálculo, e o método não muda.
+`backend/tests/test_painel_tendencia.py` confere cada desfecho de AT-53 num catálogo sintético e esse diagnóstico com a
+base versionada (job `dados-reais`).
+
 ### Planilhas enviadas
 
 Planilhas de qualquer país, com a estrutura da base do Brasil e a nomenclatura própria (distrito, condado, província,
@@ -427,8 +489,14 @@ região…). Só no formato com `nivel`, e só no nível municípios.
   (`analysis_premises`), nunca enviadas pela tela.
 - **`rotulos`:** `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} | null}`, textos de até 40 caracteres.
   Sem `genero`, o motor o deduz da primeira palavra só para a concordância dos artigos (feminino em -a, -ade, -ção, -são e
-  -gião). Todas as mensagens, notas e motivos que citariam "município" ou "estado" usam esses rótulos
-  ("Distritos base (2024): 2 de 2 com registro", "Províncias inexistentes na planilha …").
+  -gião). Todas as mensagens, notas e motivos que citariam "município" ou "estado" usam esses rótulos, com o gênero de
+  cada um ("Distritos base (2024): 2 de 2 com registro", "Províncias inexistentes na planilha …", "A coluna da província
+  (grupo_territorial) precisa ser diferente da coluna de distritos e do código."). Desde 23/10/2026, também o motivo da
+  distância indisponível no nível de cima segue a estrutura reconhecida: na base do Brasil, "No nível dos estados, a
+  distância não se aplica: os estados não têm um ponto único. Abra os municípios de um estado para usar a análise
+  espacial."; numa estrutura de distritos e províncias, "No nível das províncias, … Abra os distritos de uma província …".
+  Só os textos do nível `estados`, que existe apenas na base do Brasil (com a fonte estadual), citam o nível por esse nome
+  ("O nível estados existe só na base do Brasil, …").
 - **Sem população:** `disponibilidade.densidade` indisponível, densidade e população `null`; só o indicador `quantidade`.
 - **Grupo:** sem um valor próprio de cada grupo, não há bolha de grupo (somar as unidades seria CAP-AGR-01, com possível
   dupla contagem); `disponibilidade.grupos` explica. O nível `estados` é só da base do Brasil.
@@ -522,7 +590,7 @@ comparação).
   relação A/B e a diferença A − B; entre três, o maior e o menor valor, sem diferenças entre pares); de quanto a quanto
   vai a permanência da coorte inicial, em % (rotatividade); "soma das contagens dos componentes, com possível dupla
   contagem" (conjuntos); a nota da fonte estadual (estados); e, com a densidade na base do Brasil, a taxa nacional como
-  referência de contexto.
+  referência de contexto. Os grupos que pintam o mapa (`grupos_mapa`) não entram: a frase é a mesma com ou sem eles.
 - **Redação (as regras de `tests/test_result_summary.py`):** o texto fixo não usa LEX-DES, LEX-NORM nem LEX-CAU; LEX-CMP
   só nas relações copiadas do motor; LEX-TEN só com a tendência; a taxa do Brasil nunca é "acima" ou "abaixo", nem
   classifica ou colore os itens. Nomes das unidades pelos rótulos da fonte ("distritos", "províncias").
@@ -607,6 +675,9 @@ O contrato entre as frentes (`frontend/src/mapaContrato.ts`, `DadosDoMapa`) vale
   em texto com o código entre parênteses, como os motivos dos itens.
 - **Frase-resumo:** além de `texto`, o resumo traz `partes`, `segmentos`, `contagens`, `versao` e `nota` (seção
   "Frase-resumo"); no contrato de 21/10 (sem `nivel`), a resposta não muda.
+- **Grupos do mapa:** com menos de duas unidades com valor do indicador, `grupos_mapa` vem `null` (e `grupo_mapa` nulo nos
+  itens), sem recusar o pedido, porque a tela pede os grupos do mapa em todo pedido; `grupos` continua recusado nesse
+  caso (seção "Grupos do mapa").
 
 ### Desempenho
 
@@ -622,12 +693,12 @@ O contrato entre as frentes (`frontend/src/mapaContrato.ts`, `DadosDoMapa`) vale
 Desde 23/10/2026 (meta de 0,4 a 0,8 s no servidor), sem mudar número nenhum:
 
 - **Reaproveitamento entre pedidos** (`painel._reaproveitar`, sobre a mesma memória da versão, nas condições de U8): as
-  distâncias até a referência, as condições, os grupos por posição, as faixas, a ordenação, a tendência por item (nível
-  municípios) e a linha de contexto do Brasil ficam guardadas por versão da base e da camada de coordenadas, com a chave
-  de tudo de que cada cálculo depende (nível, mapeamento, competência, categoria, universo, itens, referência, janela,
-  indicador, competência inicial e a definição da análise). Quando só a ordenação muda, o resto vem do pedido anterior;
-  mudar o universo, a competência ou a referência recalcula o que depende deles. Cada pedido recebe cópia própria;
-  planilhas enviadas nunca ficam guardadas.
+  distâncias até a referência, as condições, os grupos por posição (os de `grupos` e os do mapa, `grupos_mapa`, leem a
+  mesma memória), as faixas, a ordenação, a tendência por item (nível municípios) e a linha de contexto do Brasil ficam
+  guardadas por versão da base e da camada de coordenadas, com a chave de tudo de que cada cálculo depende (nível,
+  mapeamento, competência, categoria, universo, itens, referência, janela, indicador, competência inicial e a definição da
+  análise). Quando só a ordenação muda, o resto vem do pedido anterior; mudar o universo, a competência ou a referência
+  recalcula o que depende deles. Cada pedido recebe cópia própria; planilhas enviadas nunca ficam guardadas.
 - **Grupos por posição em bloco:** a distribuição de `main._compute` monta o detalhamento pelas colunas, sem uma
   `Series` por município (`iterrows`), com os mesmos valores, na mesma ordem (também em `/api/analyze`).
 - **Variação exata em inteiros:** a variação percentual de `temporal_change.change` sobre pares de inteiros

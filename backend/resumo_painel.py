@@ -293,7 +293,8 @@ def _context(c: Composer, body: dict):
 def compose(body: dict, facts: dict) -> Composer:
     """A frase de uma resposta da página única, na ordem das análises: itens e indicador (distribuição), grupos e faixas,
     mudança, análise espacial, tendência, condições, comparação, rotatividade, ressalvas (conjuntos e estados) e a linha de
-    contexto do Brasil."""
+    contexto do Brasil. Os grupos que pintam o mapa (`grupos_mapa`, pedidos pela tela junto com toda análise) não entram:
+    a frase descreve o que o gráfico mostra, e é a mesma com ou sem eles."""
     view = {**body, "resumo": {"contagens": facts["contagens"]}}  # os caminhos como ficam na resposta
     c = Composer(view)
     _lead(c, view, facts)
