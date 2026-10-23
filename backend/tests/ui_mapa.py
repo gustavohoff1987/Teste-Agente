@@ -22,7 +22,7 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 AM = "13"  # prefixo IBGE do Amazonas
 GANCHO = """() => { const m = window.__adtMapa; if (!m) return null;
   return { pintura: m.pintura, escala: m.escala, dominio: m.dominio, contexto: m.contexto, esmaecidos: m.esmaecidos,
-           brasil: m.brasil, largura: m.largura, altura: m.altura, vista: m.vista, pontos: m.pontos }; }"""
+           brasil: m.brasil, largura: m.largura, altura: m.altura, vista: m.vista, desenhos: m.desenhos, pontos: m.pontos }; }"""
 
 
 def options_of(request):
@@ -37,10 +37,12 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
         offline(context)
         page = context.new_page()
-        failures, llm_calls, painel_calls, mapa_calls = [], [], [], []
+        failures, llm_calls, painel_calls, mapa_calls, pedidos = [], [], [], [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
         page.on("request", lambda request: painel_calls.append(request.url) if request.url.endswith("/api/painel") else None)
+        page.on("request", lambda request: pedidos.append(request)
+                if request.url.endswith("/api/painel") and request.method == "POST" else None)
         page.on("request", lambda request: mapa_calls.append(request) if request.url.endswith("/api/painel/mapa") else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
@@ -53,7 +55,12 @@ def main():
             page.screenshot(path=str(OUTPUT / ("mapa-" + name + "-real.png")), full_page=True)
 
         def respond(action, timeout=180000):
-            with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST", timeout=timeout) as event:
+            """A resposta de /api/painel e as opções do pedido feito pela ação. Só vale um pedido feito depois do início da ação: a
+            resposta de um pedido anterior ainda em curso (o "Limpar" das Condições pede ao motor sem que o roteiro espere) pode
+            chegar depois e não é a desta ação."""
+            antes = len(pedidos)
+            with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST"
+                                      and any(r.request is pedido for pedido in pedidos[antes:]), timeout=timeout) as event:
                 action()
             return event.value, options_of(event.value.request)
 
@@ -104,9 +111,30 @@ def main():
             return [item for item in body["itens"] if item["tipo"] == "municipio" and item.get("densidade") is not None
                     and item["id"] in dados]
 
-        def ponto_isolado(pontos, evitar=()):
-            """O ponto à vista mais longe dos vizinhos (o clique e o mouse acertam só ele)."""
-            candidatos = [p for p in pontos if p["naTela"] and not p["esmaecido"] and p["id"] not in evitar]
+        def estavel():
+            """O gancho depois de o desenho assentar. Fechar um painel devolve a largura ao desenho (com a janela larga, o painel
+            ocupa uma coluna ao lado): o canvas cresce e o mapa se reenquadra logo depois. Vale quando duas leituras seguidas
+            têm o mesmo tamanho, a mesma vista e o mesmo número de desenhos."""
+            anterior = None
+            for _ in range(40):
+                atual = gancho()
+                chave = atual and json.dumps([atual["largura"], atual["altura"], atual["vista"], atual["desenhos"]], sort_keys=True)
+                if chave and chave == anterior:
+                    return atual
+                anterior = chave
+                page.wait_for_timeout(250)
+            raise AssertionError("o desenho do mapa não assentou")
+
+        def alcancaveis(pontos):
+            """Ids dos pontos em que o clique cai no próprio canvas (sem legenda, controle, pergunta ou conversa por cima)."""
+            return set(mapa.get_by_test_id("mapa-canvas").evaluate(
+                "(c, pontos) => { const caixa = c.getBoundingClientRect(); return pontos.filter(p => "
+                "document.elementFromPoint(caixa.left + p.x, caixa.top + p.y) === c).map(p => p.id); }", pontos))
+
+        def ponto_isolado(pontos, evitar=(), livres=None):
+            """O ponto à vista mais longe dos vizinhos (o clique e o mouse acertam só ele), entre os `livres` quando dados."""
+            candidatos = [p for p in pontos if p["naTela"] and not p["esmaecido"] and p["id"] not in evitar
+                          and (livres is None or p["id"] in livres)]
             assert candidatos, "há pontos à vista no mapa"
 
             def folga(p):
@@ -234,9 +262,11 @@ def main():
         expect(mapa).to_have_attribute("data-esmaecidos", "0", timeout=10000)
         fecha()
 
-        # 7. Clique no ponto: marca, como na bolha; o mouse mostra a mesma dica do gráfico.
-        estado = gancho()
-        alvo = ponto_isolado(estado["pontos"])
+        # 7. Clique no ponto: marca, como na bolha; o mouse mostra a mesma dica do gráfico. O painel da régua acabou de fechar:
+        # o ponto é escolhido com o desenho já assentado e entre os que o clique alcança.
+        mapa.get_by_test_id("mapa-canvas").evaluate("e => e.scrollIntoView({block: 'center', behavior: 'instant'})")
+        estado = estavel()
+        alvo = ponto_isolado(estado["pontos"], livres=alcancaveis(estado["pontos"]))
         x, y = no_canvas(alvo)
         page.mouse.click(x, y)
         page.wait_for_function("id => (window.__adtMapa?.pontos || []).some(p => p.id === id && p.selecionado)", arg=alvo["id"], timeout=10000)

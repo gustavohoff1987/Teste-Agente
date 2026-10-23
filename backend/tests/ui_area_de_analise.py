@@ -74,10 +74,12 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
         offline(context)
         page = context.new_page()
-        failures, llm_calls, painel_calls = [], [], []
+        failures, llm_calls, painel_calls, pedidos = [], [], [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
         page.on("request", lambda request: painel_calls.append(request.url) if request.url.endswith("/api/painel") else None)
+        page.on("request", lambda request: pedidos.append(request)
+                if request.url.endswith("/api/painel") and request.method == "POST" else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         area = page.get_by_test_id("area-de-analise")
@@ -89,8 +91,12 @@ def main():
             page.screenshot(path=str(OUTPUT / ("area-" + name + suffix + ".png")), full_page=True)
 
         def respond(action, timeout=180000):
-            """Executa a ação e devolve a resposta de /api/painel e as opções do mesmo pedido."""
-            with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST", timeout=timeout) as event:
+            """Executa a ação e devolve a resposta de /api/painel e as opções do mesmo pedido. Só vale um pedido feito depois do
+            início da ação: a resposta de um pedido anterior ainda em curso (o "Limpar" das Condições pede ao motor sem que o
+            roteiro espere) pode chegar depois e não é a desta ação."""
+            antes = len(pedidos)
+            with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST"
+                                      and any(r.request is pedido for pedido in pedidos[antes:]), timeout=timeout) as event:
                 action()
             response = event.value
             return response, options_of(response.request)
