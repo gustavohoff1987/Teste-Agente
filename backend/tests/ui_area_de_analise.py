@@ -101,7 +101,11 @@ def main():
         def respond(action, timeout=180000):
             """Executa a ação e devolve a resposta de /api/painel e as opções do mesmo pedido. Só vale um pedido feito depois do
             início da ação: a resposta de um pedido anterior ainda em curso (o "Limpar" das Condições pede ao motor sem que o
-            roteiro espere) pode chegar depois e não é a desta ação."""
+            roteiro espere) pode chegar depois e não é a desta ação. A tela só pede 150 ms depois da mudança (e só quando a
+            resposta não está na memória dela, que guarda as seis últimas); por isso, antes da ação, o cálculo que a ação anterior
+            tenha disparado termina ("Atualizando o gráfico no motor…" sai), para esse pedido não sair já dentro desta ação."""
+            page.wait_for_timeout(200)
+            expect(area.get_by_test_id("analise-atualizando")).to_have_count(0, timeout=timeout)
             antes = len(pedidos)
             with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST"
                                       and any(r.request is pedido for pedido in pedidos[antes:]), timeout=timeout) as event:
