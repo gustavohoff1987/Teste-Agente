@@ -352,6 +352,8 @@ def main():
         expect(area.get_by_test_id("analise-vazio")).to_contain_text("A planilha foi carregada e está pronta para a análise.")
         expect(area).to_have_attribute("data-aba", "territorios")
         expect(area.get_by_test_id("analise-apresentacao")).to_contain_text("os distritos de uma província de uma vez")
+        # As províncias da planilha (a coluna-mãe) agrupam os distritos na Seleção, como os estados na base do Brasil.
+        assert area.get_by_test_id("analise-grupo").evaluate_all("els => els.map(e => e.dataset.id)") == ["Norte", "Sul"]
         expect(area.get_by_test_id("analise-aba-painel")).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "sem territórios escolhidos, nada é pedido ao motor"

@@ -514,7 +514,7 @@ def test_orientacoes_da_conversa_seguem_os_rotulos_da_planilha():
     assert conversa_grafico._sem_ponto_unico(planilha_, base_inteira=True) == (
         "A referência é um distrito ou um conjunto de distritos: a referência não pode ser a base inteira. Diga os distritos "
         "pelo nome, por exemplo, “use … como referência”." + conversa_grafico.NADA_MUDOU)
-    assert (conversa_grafico._exemplo(brasil), conversa_grafico._exemplo(planilha_)) == ("Manaus", "…")
+    assert (conversa_grafico._nome_de_exemplo(brasil), conversa_grafico._nome_de_exemplo(planilha_)) == ("Manaus", "…")
     # Nenhuma orientação da planilha cita município, estado ou Manaus.
     for texto in (conversa_grafico._sem_ponto_unico(planilha_), conversa_grafico._sem_ponto_unico(planilha_, True)):
         assert not any(palavra in texto for palavra in ("munic", "estado", "Manaus")), texto

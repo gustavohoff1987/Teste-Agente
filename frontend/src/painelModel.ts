@@ -59,7 +59,10 @@ export type NiveisDaBase = { estados: NivelEstado[]; municipios: { total: number
   fonte_estadual?: { disponivel: boolean; motivo: string; periodos?: string[] } };
 /** Unidade do catálogo para a escolha (forma de TerritorialSelection.Territory). */
 export type UnidadeDoCatalogo = { id: string; name: string; code: string; label: string; state: string; state_name: string;
-  state_code?: string; selection_reason?: string };
+  state_code?: string; selection_reason?: string;
+  /** Numa planilha com a coluna-mãe (grupo_territorial), o valor do grupo de cada unidade (a província de um distrito), do
+   * catálogo do pré-exame. */
+  parents?: string[] };
 
 // ================================================================================================ números e textos
 const casas = (digitos: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: digitos, maximumFractionDigits: digitos });
@@ -384,7 +387,7 @@ export function gruposDaFonte(niveis: NiveisDaBase | null | undefined, catalogo:
   const contagem = new Map<string, { nome: string; unidades: number }>();
   for (const item of catalogo) {
     if (item.selection_reason) continue;
-    const id = item.state_code || item.state || "";
+    const id = grupoDaUnidade(item);
     if (!id) continue;
     const atual = contagem.get(id) || { nome: item.state_name || item.state || id, unidades: 0 };
     atual.unidades += 1;
@@ -403,7 +406,8 @@ export function grupoDoItem(item: Pick<PainelItem, "id" | "uf" | "rotulo">, grup
   return grupos.find(grupo => sem(item.rotulo).startsWith(sem(grupo.nome)))?.id ?? null;
 }
 /** Grupo de uma unidade do catálogo (prefixo IBGE na base do Brasil; valor da coluna-mãe na planilha). */
-export const grupoDaUnidade = (item: UnidadeDoCatalogo) => item.state_code || item.state || "";
+/** Grupo da unidade: o estado (pelo código IBGE) na base do Brasil; numa planilha com a coluna-mãe, o valor dela (23/10/2026). */
+export const grupoDaUnidade = (item: UnidadeDoCatalogo) => item.state_code || item.state || item.parents?.[0] || "";
 /** Nome para listas: "MANAUS (AM)". */
 export const nomeDaUnidade = (item: UnidadeDoCatalogo) => item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label;
 
@@ -1830,13 +1834,17 @@ export function explicacaoDaTendencia(t: TendenciaItem | null | undefined): stri
       return "Não avaliável: série insuficiente na janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
     if (t.motivoCodigo === "INCOMPARABILIDADE")
       return "Não avaliável: a série não é comparável ao longo da janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
-    return "Não avaliável" + (t.motivoTexto ? ": " + t.motivoTexto : "") + ".";
+    if (t.motivoTexto) return "Não avaliável: " + t.motivoTexto + ".";
+    // Sem o código nem o texto do motivo (uma resposta de antes), o rótulo do motor, que já diz o motivo.
+    return t.rotulo && t.rotulo !== "Não avaliável" ? t.rotulo : "Não avaliável.";
   }
   if (t.classe === "SEM_CLASSIFICACAO") {
     if (t.motivoCodigo === "MUDANCA_DE_DIRECAO")
       return "Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção).";
     if (t.motivoCodigo === "SERIE_ESTAVEL") return "Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).";
-    return "Sem classificação" + (t.motivoTexto ? ": " + minuscula(t.motivoTexto) : "") + ".";
+    // Sem o código (uma resposta de antes), o texto do motivo, sem o código entre parênteses.
+    const motivo = t.motivoTexto || (t.motivo ? t.motivo.replace(/\s*\([A-Z_]+\)\s*$/, "").trim() : "");
+    return "Sem classificação" + (motivo ? ": " + minuscula(motivo) : "") + ".";
   }
   const descricao = t.classe ? DESCRICAO_DAS_CLASSES[t.classe] : undefined;
   return descricao ? t.rotulo + ": " + descricao : null;

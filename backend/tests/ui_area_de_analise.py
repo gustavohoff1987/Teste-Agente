@@ -190,8 +190,9 @@ def main():
                              ("analise-familia-espacial", "Análise Espacial"), ("analise-familia-tendencia", "Análise de Tendência"),
                              ("analise-familia-rotatividade", "Análise de Rotatividade")):
             expect(area.get_by_test_id(testid)).to_contain_text(nome)
-        topos = {round(caixa["y"]) for caixa in (area.get_by_test_id(testid).bounding_box() for testid in ordem)}
-        assert len(topos) == 1, ("as cinco abas na mesma linha", topos)
+        caixas = [area.get_by_test_id(testid).bounding_box() for testid in ordem]
+        bases = [caixa["y"] + caixa["height"] for caixa in caixas]
+        assert max(bases) - min(bases) <= 1 and all(caixa["y"] < min(bases) for caixa in caixas), ("as cinco abas na mesma linha", caixas)
         apresentacao = area.get_by_test_id("analise-apresentacao")
         expect(area).to_have_attribute("data-aba", "territorios")
         expect(apresentacao).to_contain_text("Selecione os territórios que deseja incluir em suas análises.")
@@ -226,7 +227,7 @@ def main():
         expect(territorios).to_be_visible()
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
-        expect(area.get_by_test_id("analise-resumo")).to_have_count(0)
+        expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
         page.wait_for_timeout(800)
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
         # A aba de uma análise sem territórios: a apresentação, os ajustes e o convite a selecionar; a referência e a janela só
@@ -390,7 +391,7 @@ def main():
         expect(area.get_by_test_id("analise-vazio")).to_contain_text("Selecione os territórios que deseja analisar.")
         # Sem seleção, nenhum resultado anterior fica à vista: nem bolhas, nem a frase-resumo.
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
-        expect(area.get_by_test_id("analise-resumo")).to_have_count(0)
+        expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
         expect(area.get_by_test_id("analise-trilha-atual")).to_have_text("Nenhum município marcado")
         assert all(not caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
         page.wait_for_timeout(400)
@@ -642,12 +643,12 @@ def main():
             sem_direcao = next((item for item in tendencia["itens"] if item["id"] in desenhadas and
                                 (item.get("tendencia") or {}).get("motivo") == "MUDANCA_DE_DIRECAO"), None)
             if sem_direcao:
-                area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
-                area.locator('[data-testid="analise-bolha"][data-id="' + sem_direcao["id"] + '"]').hover()
+                # A dica no foco (a mesma do mouse), sem depender de onde a bolha está.
+                area.locator('[data-testid="analise-bolha"][data-id="' + sem_direcao["id"] + '"]').focus()
                 dica = area.get_by_test_id("analise-dica")
                 expect(dica).to_contain_text("o indicador subiu em alguns trechos e caiu em outros (mudança de direção)")
                 expect(dica).not_to_contain_text("MUDANCA_DE_DIRECAO")
-                page.mouse.move(2, 2)
+                page.keyboard.press("Escape")
         else:
             expect(nota_sem).to_have_count(0)
         shot("07-classes")

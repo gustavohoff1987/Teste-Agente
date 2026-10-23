@@ -62,7 +62,7 @@ SEM_PONTO_UNICO = ("A referência é um município ou um conjunto de municípios
                    "municípios, por exemplo, “use Manaus como referência”." + NADA_MUDOU)
 
 
-def _exemplo(conv):
+def _nome_de_exemplo(conv):
     """Nome de exemplo nas orientações: Manaus na base do Brasil; numa planilha, as reticências (os nomes são os dela)."""
     return "Manaus" if conv.brasil else "…"
 
@@ -1098,7 +1098,7 @@ def _clausula(conv, encontrado, inicio_local):
                 "alvo": alvo.end() if alvo else None}
     if UNIDADE_METROS.match(resto, depois):
         return {"pergunta": _pergunta("No gráfico, a distância é em km. Diga o valor em quilômetros, por exemplo, “a mais "
-                                      "de 150 km de " + _exemplo(conv) + "”." + NADA_MUDOU)}
+                                      "de 150 km de " + _nome_de_exemplo(conv) + "”." + NADA_MUDOU)}
     unidade = UNIDADE_MIL_HABITANTES.match(resto, depois)
     if unidade or (re.search(r"\bpopulacao\b", antes) and re.match(r"\s*mil\b", resto[depois:])):
         if "." in valor:
@@ -1180,7 +1180,7 @@ def _condicoes(conv, dica, dica_indicador):
     distancia = any(clausula["item"]["atributo"] == "distancia_km" for _, clausula in achadas)
     if distancia and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
         return _pergunta("A distância é medida até a referência. Diga até onde, por exemplo, “a mais de 150 km de " +
-                         _exemplo(conv) + "”, ou escolha a referência antes (por exemplo, “use " + _exemplo(conv) +
+                         _nome_de_exemplo(conv) + "”, ou escolha a referência antes (por exemplo, “use " + _nome_de_exemplo(conv) +
                          " como referência”)." + NADA_MUDOU)
     achado = _resolve(conv)
     if "pergunta" in achado:
@@ -1304,7 +1304,7 @@ def _ordenar(conv, dica, dica_indicador):
         if objeto:
             return _pergunta(_sem_ponto_unico(conv))
     if atributo == "distancia_km" and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
-        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use " + _exemplo(conv) +
+        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use " + _nome_de_exemplo(conv) +
                          " como referência”." + NADA_MUDOU)
     if atributo == "variacao" and conv.ctx["familia"] != "tendencia":
         return _pergunta("A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança "

@@ -291,6 +291,11 @@ test('tendência: o motivo de cada unidade em palavras, sem o código; a nota da
     'Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).');
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: null, motivoCodigo: 'SERIE_INSUFICIENTE',
     motivoTexto: '3 de 4 observações necessárias'})), 'Não avaliável: série insuficiente na janela (3 de 4 observações necessárias).');
+  // Sem o código nem o texto do motivo (uma resposta de antes), vale o rótulo do motor, que já diz o motivo.
+  assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: 'Não avaliável: série insuficiente'})),
+    'Não avaliável: série insuficiente');
+  assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: 'Não avaliável'})), 'Não avaliável.');
+  assert.equal(M.explicacaoDaTendencia(t({motivo: 'Mudança de direção (MUDANCA_DE_DIRECAO)'})), 'Sem classificação: mudança de direção.');
   assert.equal(M.explicacaoDaTendencia(t({classe: 'CRESCIMENTO_ACELERADO', familia: 'CRESCIMENTO', rotulo: 'Aceleração do crescimento'})),
     'Aceleração do crescimento: ' + M.DESCRICAO_DAS_CLASSES.CRESCIMENTO_ACELERADO);
   assert.equal(M.explicacaoDaTendencia(null), null);
@@ -319,4 +324,20 @@ test('tendência: o motivo de cada unidade em palavras, sem o código; a nota da
     tendencia: {competencias: ['202306', '202406'], contagens: {SEM_CLASSIFICACAO: 1}, sem_classificacao_por_motivo: {MUDANCA_DE_DIRECAO: 1}}});
   assert.equal(r.itens[0].tendencia.motivoCodigo, 'MUDANCA_DE_DIRECAO');
   assert.equal(r.tendencia.semClassificacaoPorMotivo.MUDANCA_DE_DIRECAO, 1);
+});
+
+test('planilha com a coluna-mãe: os grupos da Seleção vêm do catálogo do pré-exame (a província de cada distrito)', () => {
+  const unidade = (id, nome, provincia) => ({id, name: nome, code: '', label: nome, state: '', state_name: '', state_code: '',
+    parents: provincia ? [provincia] : []});
+  const catalogo = [unidade('name:Alfa', 'Alfa', 'Norte'), unidade('name:Beta', 'Beta', 'Norte'), unidade('name:Gama', 'Gama', 'Sul'),
+    unidade('name:Delta', 'Delta', 'Sul')];
+  assert.deepEqual(M.gruposDaFonte(undefined, catalogo).map(grupo => [grupo.id, grupo.nome, grupo.unidades]), [['Norte', 'Norte', 2],
+    ['Sul', 'Sul', 2]]);
+  assert.equal(M.grupoDaUnidade(catalogo[2]), 'Sul');
+  // Sem a coluna-mãe, a lista fica sem grupos; na base do Brasil, o estado pelo código IBGE continua valendo.
+  assert.deepEqual(M.gruposDaFonte(undefined, catalogo.map(item => ({...item, parents: []}))), []);
+  assert.equal(M.grupoDaUnidade({...catalogo[0], state: 'AM', state_code: '13', parents: ['Amazonas']}), '13');
+  // A província marcada inteira vai ao motor pelo valor dela, e os distritos dela saem da lista solta.
+  assert.deepEqual(M.normalizarBase({todos: false, estados: ['Sul'], ids: ['name:Gama', 'name:Alfa']}, id =>
+    M.grupoDaUnidade(catalogo.find(item => item.id === id))), {todos: false, estados: ['Sul'], ids: ['name:Alfa']});
 });

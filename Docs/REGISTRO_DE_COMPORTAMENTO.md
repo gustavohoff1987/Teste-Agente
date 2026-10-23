@@ -35,6 +35,21 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Página única: as províncias (ou outros grupos) da planilha na Seleção de Territórios
+- **Antes:** numa planilha com a coluna-mãe (papel `grupo_territorial`, por exemplo a província de cada distrito), a lista de
+  territórios mostrava só as unidades, sem os grupos: o catálogo da planilha trazia o grupo de cada unidade em `parents`, mas a
+  tela só lia o estado da base do Brasil. A documentação já dizia que os grupos apareciam.
+- **Agora:** a Seleção de Territórios lista os grupos da planilha (as províncias), cada um com "Ver os N distritos" e a caixa
+  do grupo inteiro, como os estados na base do Brasil; o grupo marcado inteiro vai ao motor pelo valor dele
+  (`base.municipios.estados`), como a conversa já fazia.
+- **Permanece:** na base do Brasil, o estado pelo código IBGE; numa planilha sem a coluna-mãe, a lista das unidades; as regras
+  do motor para os grupos da planilha.
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (itens 2 e 4: a seleção segue a estrutura territorial
+  reconhecida).
+- **Classificação:** mudança prevista. Escopo: decorre do pedido. Compatibilidade: o motor já aceitava os grupos da planilha.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` ("Escolha dos territórios"); `frontend/tests/areaDeAnalise.test.mjs`
+  e `backend/tests/ui_pagina_unica.py` (as províncias Norte e Sul na Seleção).
+
 ### 2026-10-23 · Página única: mapa com os quintis do motor, sem a pergunta, e enquadramento inicial com contexto
 - **Antes:** sem cor própria da análise, o mapa mostrava os pontos na cor única e perguntava "Como pintar o mapa?" (5 grupos
   iguais, faixas, cor contínua ou condições); a cor contínua do indicador era escolha visual, com a escala linear ou

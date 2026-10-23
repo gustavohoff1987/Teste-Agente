@@ -101,8 +101,9 @@ continuam dentro de cada análise, separadas dos territórios analisados.
   mouse ou em foco mostra a ação "Ver os N municípios".
 - **Trilha de volta,** em qualquer estado: "Brasil › Amazonas (62 municípios)", "Brasil › Amazonas › 3 municípios", "Brasil ›
   Todos os municípios (5.570)". "Brasil" volta aos estados; o nome do estado volta ao estado inteiro.
-- **Planilhas:** com coluna-mãe, a lista dos grupos, cada um com "Ver as N <unidades>" e as caixas das unidades, como os
-  estados; sem coluna-mãe, a lista das unidades em ordem alfabética, com as caixas. Não há bolhas de grupo nas planilhas
+- **Planilhas:** com coluna-mãe (o papel `grupo_territorial`), a lista dos grupos, cada um com "Ver as N <unidades>" e as
+  caixas das unidades, como os estados; o grupo de cada unidade vem do catálogo do pré-exame (`parents`, desde 23/10/2026;
+  antes, a lista ficava sem os grupos). Sem coluna-mãe, a lista das unidades em ordem alfabética, com as caixas. Não há bolhas de grupo nas planilhas
   (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo e `ids`, `code:<código>` ou
   `name:<nome>`.
 - **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área avisa que os dados estão
