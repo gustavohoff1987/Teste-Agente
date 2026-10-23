@@ -30,11 +30,17 @@ export type PedidoDoChat = {
   ordenar?: object | null; condicoes?: object[] | null;
   /** Grupos por posição da distribuição (quartis, quintis, decis) ou "nenhum" para tirá-los. */
   grupos?: { tipo: string } | null;
+  /** Vista do desenho pedida na conversa ("ver no mapa", "volte ao gráfico"): estado visual, não recalcula. */
+  vista?: "grafico" | "mapa" | null;
 };
 /** O que está no gráfico, informado pela área a cada mudança: é o contexto da conversa. */
 export type ContextoDoGrafico = {
   familia: Familia; indicador: Indicador; nivel: Nivel; municipios: MunicipiosDoGrafico; idsNaTela: string[];
   competencia: string; janela: string[]; referencia: string[]; titulo: string;
+  /** Vista em exibição e a frase-resumo do motor (verificada), para a conversa responder "o que o gráfico mostra?". */
+  vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
+  /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */
+  mapaDisponivel?: boolean; motivoSemMapa?: string | null;
 };
 /** Estado de uma análise, guardado pela área ao calcular: o Histórico o reabre sem recalcular. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };
