@@ -464,8 +464,10 @@ def main():
         shot("09-series")
         area.get_by_test_id("analise-visao-classes").click()
 
-        # 11. Rotatividade com a base do Brasil: desabilitada, com o motivo e "Enviar meus dados".
-        area.get_by_test_id("analise-familia-rotatividade").click()
+        # 11. Rotatividade com a base do Brasil: desabilitada, com o motivo e "Enviar meus dados". A aba é aria-disabled (continua
+        # focável para mostrar o motivo); o Playwright não clica em elemento aria-disabled, então ela é acionada pelo teclado, como
+        # a análise espacial indisponível no passo 9.
+        aperta(area.get_by_test_id("analise-familia-rotatividade"))
         expect(area.get_by_test_id("analise-familia-motivo")).to_be_visible()
         expect(area.get_by_test_id("analise-enviar-dados")).to_be_visible()
         expect(area).to_have_attribute("data-familia", "tendencia")
@@ -504,13 +506,14 @@ def main():
         ordenar.get_by_test_id("analise-ordenar-primeiros").fill("2")
         ordem, sent = ok(lambda: aperta(ordenar.get_by_test_id("analise-ordenar-aplicar")))
         assert sent["ordenar"] == {"atributo": "densidade", "ordem": "desc", "primeiros": 2}, sent
-        desenhadas = bubbles()
         posicionados = [item for item in ordem["itens"] if (item.get("ordem") or {}).get("posicao") is not None]
+        no_corte = [item for item in posicionados if item["ordem"]["posicao"] <= 2]
+        # A lista do painel aparece com a resposta desenhada; só então as bolhas são lidas.
+        expect(ordenar.get_by_test_id("analise-ordenar-lista").locator("li")).to_have_count(len(no_corte))
+        desenhadas = bubbles()
         for item in posicionados:
             if item["id"] in desenhadas:
                 assert desenhadas[item["id"]]["posicao"] == str(item["ordem"]["posicao"]), (desenhadas[item["id"]], item)
-        no_corte = [item for item in posicionados if item["ordem"]["posicao"] <= 2]
-        expect(ordenar.get_by_test_id("analise-ordenar-lista").locator("li")).to_have_count(len(no_corte))
         aperta(ordenar.get_by_test_id("analise-ordenar-limpar"))
         drawn(ids_am)
         fecha()
@@ -579,6 +582,8 @@ def main():
             expect(eixo_y).to_have_attribute("data-escala", "linear")
             expect(area.get_by_test_id("analise-arranjo-nota")).to_contain_text("faixa limitada")
             expect(area.get_by_test_id("analise-trilha-atual")).to_contain_text("Todos os municípios")
+            # Os Detalhes ficaram em "Não avaliáveis" no passo 13: a tabela volta à vista para as páginas.
+            aperta(area.get_by_test_id("analise-detalhes-tabela"))
             paginas = area.get_by_test_id("analise-paginas")
             expect(area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")).to_have_count(100)
             expect(paginas).to_contain_text("Linhas 1 a 100 de " + f"{len(plotaveis):,}".replace(",", "."))
