@@ -4,6 +4,7 @@
 // classifica, cria quantil, faixa, contagem, posição ou distância (SPEC, Parte 13; RQ-REP-02 e RQ-REP-09): as classes e os
 // valores chegam prontos do motor, pelas funções da área. Sem importações em tempo de execução (os testes em Node transpilam
 // este arquivo sozinho): só tipos.
+import type { EsquemaDeCor } from "./esquemaDeCor";
 import type { PinturaDoMapa, Posicoes } from "./mapaContrato";
 import type { PainelItem } from "./painelApi";
 import type { Pintura } from "./painelModel";
@@ -15,7 +16,8 @@ const entre01 = (t: number) => Math.min(1, Math.max(0, t));
 // ================================================================================================ cores e medidas
 /** Cores e superfícies do mapa e do mapinha (modo claro), da paleta validada pela skill de visualização (superfície #fcfcfb,
  * tintas #0b0b0b e #52514e, grade #e1e0d9, eixo #c3c2b7) e da identidade da aplicação nos controles. O componente passa estas
- * cores ao canvas e, como variáveis CSS (--mapa-*), a mapa.css: o modo escuro troca só este objeto. */
+ * cores ao canvas e, como variáveis CSS (--mapa-*), a mapa.css: o modo escuro troca só este objeto (MAPA_CORES_ESCURO, pela
+ * coresDoMapa). */
 export const MAPA_CORES = {
   /** Superfície do desenho (a mesma do gráfico) e anel fino dos pontos. */
   superficie: "#fcfcfb",
@@ -53,10 +55,47 @@ export const MAPA_CORES = {
 } as const;
 export type CoresDoMapa = { [chave in keyof typeof MAPA_CORES]: string };
 
+/** Modo escuro (23/10/2026): as mesmas chaves, para a superfície escura do gráfico (#1a1a19). Superfície e tintas da tabela
+ * "Chart chrome & ink" da skill (#f0efec a 15,2:1, #c3c2b7 a 9,7:1, muda #898781 a 4,85:1, eixo #383835); o ponto neutro é a
+ * série única do escuro (#1ba3b5, PASS no validador); fundo (#383835, 1,48:1), esmaecidos (#2c2c2a com borda #383835) e pontos do
+ * mapinha (#45443f, 1,78:1) ficam tão recessivos quanto no claro (1,39:1, 1,29:1 e 1,75:1); controles, cartões e dica nas
+ * superfícies elevadas e nas tintas da página (styles.css), com os textos acima de 4,5:1. */
+export const MAPA_CORES_ESCURO: CoresDoMapa = {
+  superficie: "#1a1a19",
+  tinta: "#f0efec",
+  tinta2: "#c3c2b7",
+  muda: "#898781",
+  naoAvaliavel: "#898781",
+  neutro: "#1ba3b5",
+  fundo: "#383835",
+  esmaecido: "#2c2c2a",
+  esmaecidoBorda: "#383835",
+  miniPontos: "#45443f",
+  foco: "#3bb5be",
+  eixo: "#383835",
+  borda: "#2e2e2b",
+  painel: "#232321",
+  controleTexto: "#e6e5df",
+  controleBorda: "#45453f",
+  controleRealce: "#142d2e",
+  destaqueTexto: "#6fcbd2",
+  destaqueFundo: "#142d2e",
+  textoApoio: "#c3c2b7",
+  sombra: "rgba(0, 0, 0, 0.5)",
+};
+/** As cores do mapa no esquema de cor em uso (useEsquemaDeCor). */
+export const coresDoMapa = (esquema: EsquemaDeCor): CoresDoMapa => esquema === "escuro" ? MAPA_CORES_ESCURO : MAPA_CORES;
+
 /** Rampa sequencial de um tom (azul, claro → escuro; passos 250, 350, 450, 550 e 650 da paleta), conferida pelo validador da
  * skill (`--ordinal`, modo claro: L monótono, passos ≥ 0,06, ponta clara a 2,06:1 da superfície, um só matiz). Com pontos
  * pequenos sobre a superfície, a ponta clara não pode sumir. É a mesma família dos grupos e faixas do gráfico. */
 export const RAMPA_CONTINUA = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"] as const;
+/** No escuro, a âncora vira: do escuro (menor valor) ao claro (maior), passos 600, 500, 400, 300 e 200, sem ir além do 600 na
+ * ponta junto da superfície. Validador (`--ordinal --mode dark --surface "#1a1a19"`): L monótono, passos ≥ 0,06, ponta escura a
+ * 2,15:1 da superfície e um só matiz (3°): PASS. É a rampa dos grupos e faixas do escuro, com 5 tons. */
+export const RAMPA_CONTINUA_ESCURA = ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"] as const;
+/** A rampa contínua no esquema de cor em uso. */
+export const rampaContinua = (esquema: EsquemaDeCor): readonly string[] => esquema === "escuro" ? RAMPA_CONTINUA_ESCURA : RAMPA_CONTINUA;
 
 /** Raio máximo (área proporcional) na vista inicial: menor que o do gráfico, para os pontos não cobrirem o território. */
 export const RAIO_MAXIMO_MAPA = 16;

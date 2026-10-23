@@ -127,7 +127,7 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
       <ul className="mt-1 list-disc pl-5">{pendencias.map(item => <li key={item}>{item}</li>)}</ul>
     </div>}
     <button type="button" data-testid="colunas-comecar" onClick={onComecar}
-      className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4d71]">
+      className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-ink-realce">
       <Play size={15} aria-hidden="true"/>{emUso ? "Aplicar as colunas" : "Começar a análise"}</button>
   </section>;
 }

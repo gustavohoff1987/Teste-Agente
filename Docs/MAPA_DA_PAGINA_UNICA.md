@@ -146,16 +146,47 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
 
 ## Cores
 
-As cores do mapa e do mapinha estão em `MAPA_CORES` (`mapaModel.ts`) e chegam a `mapa.css` como variáveis `--mapa-*`: o modo
-escuro troca só esse objeto. A superfície e as tintas são as da paleta do gráfico. A rampa contínua (`RAMPA_CONTINUA`,
+As cores do mapa e do mapinha estão em `MAPA_CORES` (`mapaModel.ts`, modo claro) e `MAPA_CORES_ESCURO` (modo escuro), com as
+mesmas chaves; `coresDoMapa(esquema)` escolhe o objeto pelo esquema em uso, e o componente o passa ao canvas e a `mapa.css`
+como variáveis `--mapa-*`. A superfície e as tintas são as da paleta do gráfico. A rampa contínua do claro (`RAMPA_CONTINUA`,
 `#86b6ef` → `#104281`, os passos 250 a 650 do azul) foi conferida no validador da skill de visualização
 (`validate_palette.js --mode light --ordinal`): L monótono, passos de pelo menos 0,06, ponta clara a 2,06:1 da superfície e um
-só matiz. As cores das camadas são as do gráfico.
+só matiz. As cores das camadas são as do gráfico, no mesmo esquema.
+
+## Modo escuro
+
+O mapa segue o esquema de cor do aparelho, como a página (decisão de 23/10/2026; sem botão), e a impressão é sempre clara. A
+troca de esquema redesenha o canvas na hora; no começo da impressão, o mapa é redesenhado no claro antes de a página ir para a
+impressão. O mapinha e a camada da transição usam as mesmas cores.
+
+| Chave | Claro | Escuro | Por quê |
+|---|---|---|---|
+| `superficie` | `#fcfcfb` | `#1a1a19` | a superfície do gráfico no escuro (tabela "Chart chrome & ink" da skill) |
+| `tinta`, `tinta2`, `muda` | `#0b0b0b`, `#52514e`, `#898781` | `#f0efec`, `#c3c2b7`, `#898781` | 15,2:1, 9,7:1 e 4,85:1 da superfície |
+| `neutro` (pontos sem cor escolhida) | `#008b9e` | `#1ba3b5` | a série única do escuro (validador: PASS) |
+| `naoAvaliavel` (anel tracejado) | `#898781` | `#898781` | 4,85:1 da superfície escura |
+| `fundo` (demais unidades) | `#d9d8d1` (1,39:1) | `#383835` (1,48:1) | recessivo como no claro |
+| `esmaecido` e borda | `#e1e0d9` e `#d9d8d1` | `#2c2c2a` e `#383835` | fora da régua: bem perto da superfície, sem sumir |
+| `miniPontos` | `#c3c2b7` (1,75:1) | `#45443f` (1,78:1) | o formato do Brasil no mapinha |
+| `eixo`, `borda` | `#c3c2b7`, `#dfe7ed` | `#383835`, `#2e2e2b` | linhas finas da legenda e moldura |
+| `painel` (controles, pergunta, dica) | `#ffffff` | `#232321` | a superfície elevada da página no escuro |
+| `controleTexto`, `textoApoio` | `#0e2840`, `#52606d` | `#e6e5df`, `#c3c2b7` | 12,5:1 e 8,8:1 sobre o painel |
+| `controleBorda`, `controleRealce` | `#c9d8e2`, `#eef7f8` | `#45453f`, `#142d2e` | bordas e passagem do mouse |
+| `destaqueTexto`, `destaqueFundo` | `#0c6b74`, `#effafb` | `#6fcbd2`, `#142d2e` | opção recomendada (7,7:1); o selo "recomendado" a 8,4:1 |
+| `foco` | `#3bb5be` | `#3bb5be` | 7,1:1 da superfície escura |
+| `sombra` | `rgba(9, 37, 60, 0.12)` | `rgba(0, 0, 0, 0.5)` | sombras visíveis no escuro |
+
+**Rampa contínua no escuro** (`RAMPA_CONTINUA_ESCURA`, por `rampaContinua(esquema)`): a âncora vira, do escuro (menor valor) ao
+claro (maior): `#184f95`, `#256abf`, `#3987e5`, `#6da7ec` e `#9ec5f4` (passos 600 a 200, sem ir além do 600 na ponta junto da
+superfície). Validador (`--ordinal --mode dark --surface "#1a1a19"`): L monótono, passos de pelo menos 0,06, ponta escura a
+2,15:1 da superfície e um só matiz (3°): PASS. É a mesma rampa dos grupos e faixas do gráfico no escuro, com 5 tons. A legenda
+contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 ## Gancho de teste e seletores
 
 - `mapa-analise`, com `data-pintura`, `data-pontos` (pontos do resultado desenhados, inclusive os esmaecidos), `data-contexto`
-  (pontos de fundo), `data-esmaecidos` e `data-escala` (`linear` ou `logaritmica` na cor contínua; `nenhuma` nas demais pinturas).
+  (pontos de fundo), `data-esmaecidos`, `data-escala` (`linear` ou `logaritmica` na cor contínua; `nenhuma` nas demais pinturas)
+  e `data-esquema` (`claro` ou `escuro`).
 - `mapa-canvas`, `mapa-dica` (com `data-id`), `mapa-foco`, `mapa-pergunta` e `mapa-pergunta-<escolha>` (a recomendada com
   `data-recomendado="true"`), `mapa-pergunta-abrir`, `mapa-legenda` (`data-tipo` = camada | continua | pergunta),
   `mapa-legenda-min`, `mapa-legenda-max`, `mapa-legenda-marca`, `mapa-legenda-brasil`, `mapa-legenda-aviso`,
@@ -163,7 +194,7 @@ só matiz. As cores das camadas são as do gráfico.
   `mapa-nota`, `mapa-simbolos`, `mapa-ligacoes`, `mapa-vazio`; `minimapa` (com `minimapa-destaque` e `minimapa-moldura`);
   `transicao-vistas` (a camada da transição, enquanto existe).
 - `window.__adtMapa`, atualizado a cada desenho: `{ pintura, escala, dominio, contexto, esmaecidos, brasil, vista, largura,
-  altura, desenhos, ms, pontos }`. `pontos` traz `{ id, x, y, r, cor, esmaecido, selecionado, vazada, apagada, naTela }` de cada
+  altura, desenhos, ms, esquema, superficie, pontos }` (`esquema`: `claro` ou `escuro`; `superficie`: a cor pintada no canvas). `pontos` traz `{ id, x, y, r, cor, esmaecido, selecionado, vazada, apagada, naTela }` de cada
   ponto do resultado, com `x` e `y` em pixels relativos ao canvas. `ms` é o tempo do último desenho. Sai quando o mapa sai da
   tela.
 
@@ -172,7 +203,10 @@ só matiz. As cores das camadas são as do gráfico.
 - Node: `frontend/tests/mapa.test.mjs` (modelo puro): projeção e enquadramento, zoom, tamanho com área proporcional, cor
   contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo,
   membros, sem coordenada), esmaecidos que nunca somem, vazados nunca como zero, alvo do clique, vizinho pelo teclado, nomes sem
-  sobreposição, ligações, mapinha, transição e cores.
+  sobreposição, ligações, mapinha, transição e cores. `frontend/tests/modoEscuro.test.mjs`: as cores do mapa por esquema (as
+  mesmas chaves, a superfície, as tintas e o neutro do gráfico no escuro, os textos a 4,5:1 ou mais, o fundo e os esmaecidos
+  recessivos), a rampa contínua do escuro (do escuro ao claro) e a cena no escuro (vazado na superfície escura, pergunta no
+  neutro do escuro).
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
   `/api/painel` e de `/api/painel/mapa`: nos estados, o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil,
   com os pontos do motor e o fundo; a pergunta "Como pintar o mapa?"; a cor contínua linear e a logarítmica só por escolha, sem
@@ -182,10 +216,12 @@ só matiz. As cores das camadas são as do gráfico.
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
   (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
   convites.
+  O roteiro do modo escuro (`backend/tests/ui_modo_escuro.py`, suíte `bloco1`) abre o mapa com o navegador no escuro e confere a
+  superfície escura no canvas (`getImageData`), `data-esquema`, o gancho de teste e a pergunta legível; se o motor não entregar
+  os pontos no catálogo sintético, confere só a área do mapa e registra isso na saída.
 
 ## Limitações e pendências
 
 - Sem limites oficiais de estados nem do Brasil: o formato vem dos próprios pontos (seção 4 de
   [Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md)).
 - Estados em ladrilhos e a rotatividade no mapa ficam para a etapa 2.
-- Modo escuro: depende de trocar `MAPA_CORES` e de validar as cores para a superfície escura.

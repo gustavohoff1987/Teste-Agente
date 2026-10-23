@@ -45,7 +45,7 @@ export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
   // declaração também dá nome ao diálogo para o leitor de tela.
   return <dialog ref={dialogRef} aria-labelledby="privacy-declaration"
     onCancel={event => event.preventDefault()}
-    className="privacy-dialog no-print m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-3xl border border-line bg-white p-6 text-ink shadow-2xl sm:p-8">
+    className="privacy-dialog no-print m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-3xl border border-line p-6 text-ink shadow-2xl sm:p-8">
     {endedReason && <p role="status" data-testid="session-ended-notice" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
       {endedReason === "closed" ? "A sessão anterior foi encerrada." : "A sessão anterior expirou ou ficou indisponível no servidor."}
       {" "}Os resultados e a investigação temporária foram descartados. Eles não podem ser reabertos nesta nova sessão.

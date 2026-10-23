@@ -34,7 +34,7 @@ export default function HistoricoDeAnalises({ itens, desabilitado, onAbrir }: Pr
         <span className="sr-only">{total} {total === 1 ? "análise" : "análises"} nesta sessão</span>
         <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true"/>
       </summary>
-      <div className="history-list bg-white px-4 py-3">
+      <div className="history-list px-4 py-3">
         <p className="mb-3 text-xs leading-5 text-slate-600" data-testid="historico-orientacao">
           {total ? "Reabra uma análise desta sessão como estava, sem refazer os cálculos."
             : "O Histórico guarda as análises desta sessão. Ele começa quando o gráfico mostra os primeiros valores."}

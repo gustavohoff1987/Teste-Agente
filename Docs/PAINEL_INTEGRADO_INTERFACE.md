@@ -205,7 +205,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   visualização: série única em azul-petróleo `#008b9e`; famílias da tendência `#2a78d6`, `#eb6834` e `#1baf7a` (conferidas em
   todos os pares); grupos e faixas na rampa ordinal azul (de 2 a 5 tons, `--ordinal`); mudança no divergente azul e laranja com
   o zero cinza. Texto sempre em tinta, nunca na cor da série. O verde-água fica abaixo de 3:1 na superfície clara: a legenda, a
-  contagem e a tabela dão o valor por outro caminho.
+  contagem e a tabela dão o valor por outro caminho. Esses são os valores do modo claro; no escuro, os mesmos matizes em passos
+  escolhidos para a superfície escura (seção "Modo escuro").
 - **Símbolos:** anel escuro no conjunto ("soma das contagens dos componentes, com possível dupla contagem"), mira na referência,
   bolha vazada tracejada quando a camada de cor não tem valor (o motivo vai para Não avaliáveis).
 - **Rótulos diretos seletivos:** siglas dos estados, itens destacados, conjuntos, referência, os N primeiros da ordenação (até 12)
@@ -302,6 +303,57 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
 - **Movimento:** com `prefers-reduced-motion`, nenhuma transição nem animação; a troca entre o gráfico e o mapa é direta.
 - **Celular:** famílias em abas roláveis, com o painel dos ajustes na largura toda; funções no botão "Ferramentas"; escala e
   vista sempre à vista; painel das funções na base da tela e nenhuma rolagem horizontal.
+- **Modo escuro:** textos, links, avisos e botões a 4,5:1 ou mais nas superfícies escuras; o foco visível a 3:1 ou mais (seção
+  seguinte).
+
+## Modo escuro
+
+Decisão do responsável pelo produto de 23/10/2026: a página segue o esquema de cor do aparelho (`prefers-color-scheme`), sem
+botão. Com o aparelho no escuro, a página inteira fica escura: a estrutura (cabeçalho, fonte dos dados, painel Colunas), a área
+de análise (abas, ajustes, territórios, funções, painéis, avisos, Detalhes), o gráfico, o mapa e o mapinha, a dica, a conversa
+flutuante e os diálogos (privacidade e Nova sessão). **A impressão é sempre clara**, com o aparelho no escuro ou não. Nada muda
+nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste continuam os mesmos: é só a cor.
+
+**Como funciona**
+
+- **Variáveis de cor** em `frontend/src/styles.css`: o claro em `:root`, com os valores de antes; o escuro num bloco
+  `@media screen and (prefers-color-scheme: dark)`, que vale só na tela (por isso a impressão fica clara). `analise.css` e
+  `mapa.css` não têm cor fixa: usam as variáveis. Os `--tom-*` são os canais RGB das cores das classes do Tailwind; em
+  `tailwind.config.js`, `white`, `ink`, `teal`, `canvas`, `line` e os tons usados de `slate`, `amber`, `rose`, `blue` e `cyan`
+  leem essas variáveis (com `<alpha-value>`), e as classes existentes (`bg-white`, `text-slate-600`, `border-line`…) mudam
+  sozinhas. `color-scheme` acompanha (campos, listas e barras de rolagem nativas no escuro).
+- **O gráfico e o mapa** escolhem a paleta em JavaScript pelo esquema em uso (`useEsquemaDeCor`, sobre a loja de
+  `esquemaDeCor.ts`): `paletaDoGrafico` (`PALETA_CLARA` e `PALETA_ESCURA`, em `painelModel.ts`) para as bolhas, as linhas, a
+  grade, os eixos, as legendas, as séries e a rotatividade; `coresDoMapa` e `rampaContinua` (em `mapaModel.ts`) para o mapa, o
+  mapinha e a camada da transição. A troca de esquema redesenha na hora, também o canvas do mapa. No começo da impressão
+  (`beforeprint`), a troca para o claro é síncrona (`flushSync`), e o desenho vai claro para a página impressa; no fim
+  (`afterprint`), volta o escuro.
+- **Superfícies do escuro** (da tabela "Chart chrome & ink" da skill de visualização): página `#0d0d0d`; cartões `#171716`;
+  superfície do gráfico e do mapa `#1a1a19`; elevados `#232321` (dica, painel das funções, conversa, diálogos, menu do
+  Histórico, controles e cartões do mapa). Quanto mais alto, mais claro.
+- **Tintas e identidade:** texto principal `#e6e5df`, corpo `#dddcd5`, secundário `#c3c2b7`, apoio `#a5a49b`; destaque
+  (azul-petróleo) `#4fbdc6` e links `#6fcbd2`. Os preenchimentos com texto branco no claro (aba e segmento escolhidos, botão
+  primário, "Começar a análise", "Li e concordo", enviar) viram claros com texto escuro, a 7:1 ou mais. Avisos em âmbar
+  (`#f6d28a` sobre `#2a2312`, 10,8:1) e erros em rosa (`#fda4af` sobre `#2e1719`, 8,9:1).
+
+**Cores do desenho no escuro**, conferidas no validador da skill (`validate_palette.js --mode dark --surface "#1a1a19"`):
+
+| Uso | Claro | Escuro | Validador |
+|---|---|---|---|
+| Série única (sem camada, "atendem", "os primeiros", permanência) | `#008b9e` | `#1ba3b5` | PASS (5,77:1) |
+| Famílias da tendência | `#2a78d6`, `#eb6834`, `#1baf7a` | `#3987e5`, `#d95926`, `#199e70` | PASS em todos os pares: CVD ΔE 9,4; visão normal 20,9 |
+| Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior) | do escuro (menor) ao claro (maior): 5 tons `#184f95` → `#9ec5f4` | `--ordinal` PASS (ponta escura a 2,15:1) |
+| Mudança: aumento | `#9cc2ee` → `#184f95` | `#1c5cab` → `#3987e5` → `#9ec5f4` | `--ordinal` PASS |
+| Mudança: redução | `#f2ad8c` → `#a8431b` | `#a8431b` → `#d95926` → `#f2ad8c` | `--ordinal` PASS; entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas |
+| Mudança: zero | `#c9c7bf` | `#45443f` (1,78:1; ΔL ≥ 0,09 abaixo dos começos) | — |
+| Neutro ("não atendem", "demais", "fora das faixas", "saíram") | `#c9c7bf` | `#5f5e5a` (2,68:1) | ao lado da série única: CVD ΔE 18,1, visão normal 20,8 |
+| Anel do não avaliável | `#898781` | `#898781` (4,85:1) | — |
+| Tinta, tinta secundária, muda | `#0b0b0b`, `#52514e`, `#898781` | `#f0efec`, `#c3c2b7`, `#898781` | 15,2:1, 9,7:1 e 4,85:1 |
+| Grade e eixo | `#e1e0d9`, `#c3c2b7` | `#2c2c2a`, `#383835` | recessivos, como no claro |
+
+No escuro, a magnitude fica na luminosidade ao contrário do claro: o maior grupo, o maior aumento e a maior redução são os tons
+mais claros. Como no claro, o neutro é cinza de propósito (fica abaixo de 3:1 da superfície), com o alívio da legenda com as
+contagens e da tabela; o que é vazado continua tracejado, e nenhum significado depende só da cor.
 
 ## Limitações desta entrega e próximos passos
 
@@ -310,7 +362,7 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
 - Tendência e Análise espacial na visão dos estados esperam a escolha de municípios (os estados ficam para depois).
 - Não há mapa no nível dos estados: os ladrilhos dos estados não foram aprovados.
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
-- A aplicação é toda clara; não há modo escuro.
+- O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
 ## Testes
 
@@ -325,7 +377,12 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
   distribuição), a disponibilidade do mapa com o motivo e o atalho, a pintura do mapa (camada, contínua ou pergunta) e as
   opções de cada análise, a cor contínua e o tamanho, as ligações (até 30), o estado salvo com a vista e a cor contínua (e o
   estado antigo sem elas), o aspecto "mapa" dos não avaliáveis, a vista pedida na conversa, a frase-resumo no cliente e no
-  arquivo de método e os dados do mapa normalizados.
+  arquivo de método e os dados do mapa normalizados. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
+  (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
+  esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
+  contraste), a pintura de cada camada no escuro, as variáveis de `styles.css` contra as paletas e contra as classes do
+  Tailwind, o contraste dos textos, avisos, links e botões nas superfícies escuras e a ausência de cor fixa nas folhas de
+  estilo.
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
   (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido; E1 com os estados em bolhas, a lista sem digitar, a instrução e a
   ação na dica; os ajustes dentro de cada análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e
@@ -339,3 +396,9 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
   bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor
   (detalhes em [MAPA_DA_PAGINA_UNICA.md](MAPA_DA_PAGINA_UNICA.md#testes)).
+- **Navegador, modo escuro:** `backend/tests/ui_modo_escuro.py`, na suíte `bloco1`, com o navegador no escuro
+  (`color_scheme="dark"`): o aviso de privacidade, a página, a conversa, os estados e o Amazonas com fundo escuro e textos a
+  4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a
+  dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; o mapa (a superfície escura no canvas e as cores do
+  escuro, ou, se o motor não entregar os pontos no catálogo sintético, só a área do mapa, com o registro na saída); e a
+  impressão de volta ao claro. Tira capturas (`escuro-*.png`) para a conferência visual.

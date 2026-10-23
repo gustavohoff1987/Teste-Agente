@@ -6,18 +6,18 @@ import {
   type PainelItem, type PainelMunicipios, type PainelOpcoes, type PainelReferenciaPedido, type PainelResposta,
 } from "./painelApi";
 import {
-  ATALHOS_JANELA, CLASSES_TENDENCIA, CORES_TENDENCIA, COR_BOLHA, COR_NEUTRA, FAMILIAS, INDICADORES, LARGURA_LADO_A_LADO, LIMITE_LEVE,
-  MINIMO_TENDENCIA, NOMES_FAMILIAS, NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, RAMPA_AUMENTO, RAMPA_REDUCAO, ROTULOS_GENERICOS,
-  TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido, apoioDaFamilia, artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor,
-  contextoDoGrafico, corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa,
-  escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, grupoDaUnidade, grupoDoItem, gruposDaFonte,
+  ATALHOS_JANELA, CLASSES_TENDENCIA, FAMILIAS, INDICADORES, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
+  NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
+  apoioDaFamilia, artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corContinuaDoMapa, corOrdinal,
+  corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, escreverLimites, exibirCompetencia,
+  familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade, grupoDoItem, gruposDaFonte,
   janelaDoAtalho, lerEstadoSalvo, lerLimites, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
-  chaveDoPedido, montarOpcoes, noCorte, opcoesDePintura, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto, ordemNeutra, pintar,
-  pinturaDoMapa, prefixoDe, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula, textoDaMarca, textoDoMetodo,
-  textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
-  type Ajuste, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala, type EstadoSalvo,
-  type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat, type UnidadeDoCatalogo,
-  type Visao, type Vista,
+  chaveDoPedido, montarOpcoes, noCorte, opcoesDePintura, paletaDoGrafico, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto,
+  ordemNeutra, pintar, pinturaDoMapa, prefixoDe, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula,
+  textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
+  type Ajuste, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
+  type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat,
+  type UnidadeDoCatalogo, type Visao, type Vista,
 } from "./painelModel";
 import type { DadosDoMapa, EscolhaDePintura, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
 import PainelChart, { type FaseAnimacao, type LinhaDeReferencia } from "./PainelChart";
@@ -29,6 +29,7 @@ import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
 import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJanela, GavetaJuntar, GavetaOrdenar, GavetaReferencia } from "./PainelGavetas";
+import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import "./analise.css";
 
 // Área de análise da página única (22/10/2026): famílias (Distribuição, Análise espacial, Tendência, Rotatividade) em abas, com
@@ -119,6 +120,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const temCoordenadas = tipo === "brasil" || (!!fonte?.mapping?.latitude && !!fonte?.mapping?.longitude);
   const movimentoReduzido = useMidia("(prefers-reduced-motion: reduce)");
   const largo = useMidia("(min-width: " + LARGURA_LADO_A_LADO + "px)");
+  // Modo escuro (23/10/2026): a paleta das bolhas e das legendas segue o esquema de cor do aparelho; a impressão é sempre clara.
+  const paleta = paletaDoGrafico(useEsquemaDeCor());
 
   const [def, setDef] = useState<DefinicaoAnalise>(() => definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: !!niveis,
     temPopulacao, premissas: premissasDaFonte }));
@@ -408,9 +411,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const totalFaixas = resposta?.faixas ? Math.max(resposta.faixas.rotulos.length, resposta.faixas.contagens.length) : 0;
   const primeiros = resposta?.ordenacao?.primeiros ?? null;
   const pintura = useMemo(() => {
-    const parametros = { camada: camadaFinal, indicador, limiteVariacao, totalGrupos, totalFaixas, primeiros };
+    const parametros = { camada: camadaFinal, indicador, limiteVariacao, totalGrupos, totalFaixas, primeiros, paleta };
     return (item: PainelItem) => pintar(item, parametros);
-  }, [camadaFinal, indicador, limiteVariacao, totalGrupos, totalFaixas, primeiros]);
+  }, [camadaFinal, indicador, limiteVariacao, totalGrupos, totalFaixas, primeiros, paleta]);
   const limiares = useMemo(() => corte ? [corte.minimo, corte.maximo] : [], [corte]);
   const dominio = resposta?.dominios[indicador] ?? null;
   const idsNaTela = useMemo(() => visiveis.map(item => item.id), [visiveis]);
@@ -667,16 +670,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const extraDoRotulo = camadaFinal === "ordem" ? (item: PainelItem) => item.ordem?.posicao !== null && item.ordem && (primeiros === null ||
     item.ordem.posicao <= primeiros) && (primeiros ?? 99) <= 12 ? item.ordem.posicao + "º" : null : undefined;
 
+  /** Amostra do não avaliável: a bolha vazada, com o anel tracejado, nas cores do esquema em uso. */
+  const amostraVazada = { background: paleta.vazia, border: "1.5px dashed " + paleta.naoAvaliavel };
   // Legenda da camada de cor: a do gráfico, com os seletores de teste; a cópia que vai ao mapa (a mesma legenda) sai sem eles, para
   // o lado a lado e o mapa montado e oculto não repetirem os data-testid do gráfico.
   const legendaDaCor = (comIds: boolean): ReactNode => {
     const id = (valor: string) => comIds ? valor : undefined;
     if (!resposta) return null;
     if (camadaFinal === "variacao") {
-      const gradiente = "linear-gradient(to right, " + [...RAMPA_REDUCAO].reverse().join(", ") + " 48%, " + COR_NEUTRA + " 48% 52%, " +
-        RAMPA_AUMENTO.map((cor, indice) => cor + (indice === 0 ? " 52%" : "")).join(", ") + ")";
       return <div data-testid={id("analise-legenda-cor")} data-camada="variacao" className="max-w-xs">
-        <div className="h-2.5 rounded-full" style={{ background: gradiente }} aria-hidden="true"/>
+        <div className="h-2.5 rounded-full" style={{ background: gradienteDaVariacao(paleta) }} aria-hidden="true"/>
         <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-600" aria-hidden="true">
           {([[0, -limiteVariacao], [50, 0], [100, limiteVariacao]] as const).map(([posicao, valor]) =>
             <span key={posicao} className="absolute whitespace-nowrap" style={{ left: posicao + "%", transform: posicao === 0 ? "none" : posicao === 100 ? "translateX(-100%)" : "translateX(-50%)" }}>
@@ -688,30 +691,30 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     }
     const itensLegenda: { chave: string; cor: string | null; texto: string; contagem: number | null; vazada?: boolean }[] = [];
     if (camadaFinal === "classes") {
-      (["CRESCIMENTO", "DECLINIO", "NENHUMA"] as const).forEach(familia => itensLegenda.push({ chave: familia, cor: CORES_TENDENCIA[familia],
+      (["CRESCIMENTO", "DECLINIO", "NENHUMA"] as const).forEach(familia => itensLegenda.push({ chave: familia, cor: paleta.tendencia[familia],
         texto: NOMES_FAMILIA_TENDENCIA[familia], contagem: resposta.tendencia?.familias[familia] ?? null }));
       itensLegenda.push({ chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Não avaliável", contagem: resposta.tendencia?.naoAvaliaveis ?? resposta.tendencia?.contagens.NAO_AVALIAVEL ?? null });
     } else if (camadaFinal === "grupos" && resposta.grupos) {
-      for (let i = 1; i <= totalGrupos; i++) itensLegenda.push({ chave: String(i), cor: corOrdinal(i, totalGrupos),
+      for (let i = 1; i <= totalGrupos; i++) itensLegenda.push({ chave: String(i), cor: corOrdinal(i, totalGrupos, paleta),
         texto: resposta.grupos.rotulos[i - 1] || i + "º grupo", contagem: resposta.grupos.contagens[i - 1] ?? null });
     } else if (camadaFinal === "faixas" && resposta.faixas) {
-      resposta.faixas.rotulos.forEach((rotulo, i) => itensLegenda.push({ chave: String(i + 1), cor: corOrdinal(i + 1, totalFaixas), texto: rotulo,
+      resposta.faixas.rotulos.forEach((rotulo, i) => itensLegenda.push({ chave: String(i + 1), cor: corOrdinal(i + 1, totalFaixas, paleta), texto: rotulo,
         contagem: resposta.faixas!.contagens[i] ?? null }));
-      if (resposta.faixas.fora !== null) itensLegenda.push({ chave: "fora", cor: COR_NEUTRA, texto: "Fora das faixas", contagem: resposta.faixas.fora });
+      if (resposta.faixas.fora !== null) itensLegenda.push({ chave: "fora", cor: paleta.neutra, texto: "Fora das faixas", contagem: resposta.faixas.fora });
     } else if (camadaFinal === "condicoes" && resposta.condicoes) {
-      itensLegenda.push({ chave: "ATENDE", cor: COR_BOLHA, texto: "Atendem a todas as condições", contagem: resposta.condicoes.contagens.ATENDE ?? null },
-        { chave: "NAO_ATENDE", cor: COR_NEUTRA, texto: "Não atendem", contagem: resposta.condicoes.contagens.NAO_ATENDE ?? null },
+      itensLegenda.push({ chave: "ATENDE", cor: paleta.bolha, texto: "Atendem a todas as condições", contagem: resposta.condicoes.contagens.ATENDE ?? null },
+        { chave: "NAO_ATENDE", cor: paleta.neutra, texto: "Não atendem", contagem: resposta.condicoes.contagens.NAO_ATENDE ?? null },
         { chave: "NAO_AVALIAVEL", cor: null, vazada: true, texto: "Sem dado para avaliar", contagem: resposta.condicoes.contagens.NAO_AVALIAVEL ?? null });
     } else if (camadaFinal === "ordem" && resposta.ordenacao) {
-      itensLegenda.push({ chave: "primeiros", cor: COR_BOLHA, texto: primeiros !== null ? "Os " + primeiros + " primeiros (posições do motor" +
+      itensLegenda.push({ chave: "primeiros", cor: paleta.bolha, texto: primeiros !== null ? "Os " + primeiros + " primeiros (posições do motor" +
         (resposta.ordenacao.empatesNoCorte ? ", com os empatados no corte)" : ")") : "Com posição na ordenação", contagem: null },
-        { chave: "demais", cor: COR_NEUTRA, texto: "Demais", contagem: null });
+        { chave: "demais", cor: paleta.neutra, texto: "Demais", contagem: null });
     }
     if (!itensLegenda.length) return null;
     return <ul data-testid={id("analise-legenda-cor")} data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
       {itensLegenda.map(item => <li key={item.chave} data-testid={id("analise-legenda-cor-item")} data-chave={item.chave} data-contagem={item.contagem ?? ""}
         className="flex items-center gap-1.5">
-        <span className="analise-amostra-bolha" style={item.vazada ? { background: "#fff", border: "1.5px dashed #898781" } : { background: item.cor ?? COR_BOLHA }} aria-hidden="true"/>
+        <span className="analise-amostra-bolha" style={item.vazada ? amostraVazada : { background: item.cor ?? paleta.bolha }} aria-hidden="true"/>
         <span>{item.texto}{item.contagem !== null ? <> · <strong className="tabular-nums text-ink">{formatarNumero(item.contagem, true)}</strong></> : ""}</span>
       </li>)}
       {camadaFinal === "grupos" && totalGrupos > 5 && <li className="leading-4">Nos decis, só as linhas de corte: mais de cinco tons não se distinguem.</li>}
@@ -733,14 +736,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       if (n === undefined) return null;
       return <button key={classe.codigo} type="button" data-testid="analise-contagem-classe" data-classe={classe.codigo} data-contagem={n}
         aria-pressed={filtroClasse === classe.codigo} className="analise-contagem" onClick={() => setFiltroClasse(atual => atual === classe.codigo ? null : classe.codigo)}>
-        <span className="analise-amostra-bolha" style={{ background: CORES_TENDENCIA[classe.familia] }} aria-hidden="true"/>
+        <span className="analise-amostra-bolha" style={{ background: paleta.tendencia[classe.familia] }} aria-hidden="true"/>
         {classe.rotulo} <strong className="tabular-nums text-ink">{formatarNumero(n, true)}</strong></button>;
     })}
     {(resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL) !== undefined && (resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL) !== null &&
       <button type="button" data-testid="analise-contagem-classe" data-classe="NAO_AVALIAVEL"
         data-contagem={resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL} aria-pressed={filtroClasse === "NAO_AVALIAVEL"}
         className="analise-contagem" onClick={() => setFiltroClasse(atual => atual === "NAO_AVALIAVEL" ? null : "NAO_AVALIAVEL")}>
-        <span className="analise-amostra-bolha" style={{ background: "#fff", border: "1.5px dashed #898781" }} aria-hidden="true"/>
+        <span className="analise-amostra-bolha" style={amostraVazada} aria-hidden="true"/>
         Não avaliável <strong className="tabular-nums text-ink">{formatarNumero((resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL) as number, true)}</strong></button>}
     {resposta.tendencia.bloqueio && <p className="w-full text-xs text-amber-900">{resposta.tendencia.bloqueio}</p>}
   </div> : null;

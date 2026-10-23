@@ -1,15 +1,18 @@
 import type { AnimarTransicao, PosicaoNaTela, Posicoes, PosicoesDoGrafico } from "./mapaContrato";
-import { LIMITE_TRANSICAO, MAPA_CORES, quadroDaTransicao, suavizar } from "./mapaModel";
+import { LIMITE_TRANSICAO, coresDoMapa, quadroDaTransicao, suavizar } from "./mapaModel";
+import { esquemaAtual } from "./useEsquemaDeCor";
 
 // Transição entre o gráfico e o mapa (23/10/2026): as bolhas se deslocam do lugar no gráfico até o lugar de cada unidade no
 // mapa (ou o contrário), numa camada de canvas por cima da área do desenho. É só estado visual: não pede nada ao motor nem
-// muda valor (RQ-REP-06). Com movimento reduzido, ou com milhares de pontos, a troca é direta.
+// muda valor (RQ-REP-06). Com movimento reduzido, ou com milhares de pontos, a troca é direta. As cores da camada são as do
+// mapa no esquema de cor em uso quando a troca começa (modo escuro, 23/10/2026).
 
 /** Posições das bolhas do gráfico na janela (centro e raio de getBoundingClientRect, cor do preenchimento), a partir do elemento
  * que contém o gráfico. Bolhas ocultas (fora da régua no modo leve, sem valor na vista inicial) ficam de fora. A bolha vazada
  * (não avaliável) leva a cor do anel tracejado. */
 export const posicoesDoGrafico: PosicoesDoGrafico = raiz => {
   const saida: Posicoes = new Map();
+  const neutro = coresDoMapa(esquemaAtual()).neutro;
   raiz.querySelectorAll<SVGElement>('[data-testid="analise-bolha"]').forEach(elemento => {
     const id = elemento.getAttribute("data-id");
     if (!id || saida.has(id) || elemento.getAttribute("data-visivel") === "false") return;
@@ -18,7 +21,7 @@ export const posicoesDoGrafico: PosicoesDoGrafico = raiz => {
     const caixa = circulo.getBoundingClientRect();
     if (!(caixa.width > 0 && caixa.height > 0)) return;
     const tracejada = circulo.hasAttribute("stroke-dasharray");
-    const cor = (tracejada ? circulo.getAttribute("stroke") : circulo.getAttribute("fill")) || MAPA_CORES.neutro;
+    const cor = (tracejada ? circulo.getAttribute("stroke") : circulo.getAttribute("fill")) || neutro;
     const posicao: PosicaoNaTela = { x: caixa.left + caixa.width / 2, y: caixa.top + caixa.height / 2, r: caixa.width / 2, cor };
     saida.set(id, posicao);
   });
@@ -39,6 +42,7 @@ export const animarTransicao: AnimarTransicao = (raiz, origem, destino, duracaoM
   const caixa = raiz.getBoundingClientRect();
   if (!(caixa.width > 0 && caixa.height > 0)) { resolver(); return; }
   const largura = caixa.width, altura = caixa.height, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const superficie = coresDoMapa(esquemaAtual()).superficie;
   const camada = document.createElement("canvas");
   camada.width = Math.round(largura * dpr); camada.height = Math.round(altura * dpr);
   camada.setAttribute("aria-hidden", "true");
@@ -64,7 +68,7 @@ export const animarTransicao: AnimarTransicao = (raiz, origem, destino, duracaoM
     ctx.clearRect(0, 0, largura, altura);
     // A superfície cobre a vista nova durante o deslocamento e se desfaz no último quinto.
     ctx.globalAlpha = bruto < 0.8 ? 1 : Math.max(0, 1 - (bruto - 0.8) / 0.2);
-    ctx.fillStyle = MAPA_CORES.superficie;
+    ctx.fillStyle = superficie;
     ctx.fillRect(0, 0, largura, altura);
     // Pontos em lotes pela cor e pela opacidade, com o anel fino da superfície.
     const lotes = new Map<string, { cor: string; alfa: number; pontos: { x: number; y: number; r: number }[] }>();
@@ -76,7 +80,7 @@ export const animarTransicao: AnimarTransicao = (raiz, origem, destino, duracaoM
       lote.pontos.push({ x: ponto.x - caixa.left, y: ponto.y - caixa.top, r: ponto.r });
     }
     ctx.lineWidth = 1;
-    ctx.strokeStyle = MAPA_CORES.superficie;
+    ctx.strokeStyle = superficie;
     for (const lote of lotes.values()) {
       ctx.globalAlpha = lote.alfa;
       ctx.fillStyle = lote.cor;

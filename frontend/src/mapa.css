@@ -1,7 +1,7 @@
 /* Mapa da página única (23/10/2026). As cores vêm de MAPA_CORES (mapaModel.ts), que o componente põe no elemento .mapa como
-   variáveis --mapa-*: o canvas e estes estilos usam a mesma fonte, e o modo escuro troca só aquele objeto. Superfície e tinta
-   seguem a paleta validada pela skill de visualização; controles, a identidade da aplicação. Só apresentação: nada aqui muda
-   valores. */
+   variáveis --mapa-*: o canvas e estes estilos usam a mesma fonte. No modo escuro (o aparelho no escuro, fora da impressão), o
+   componente põe MAPA_CORES_ESCURO no lugar, e nada aqui muda. Superfície e tinta seguem a paleta validada pela skill de
+   visualização; controles, a identidade da aplicação. Só apresentação: nada aqui muda valores. */
 
 .mapa { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: var(--mapa-tinta2); }
 .mapa button { font: inherit; }

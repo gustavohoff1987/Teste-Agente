@@ -6,11 +6,12 @@ import type { PainelIndicador } from "./painelApi";
 import { artigo, compacto, formatarNumero, generoDe, maiuscula, textoDaMarca, umA, type Dica, type RotulosTerritoriais } from "./painelModel";
 import MiniMapa from "./MiniMapa";
 import { useNarrow } from "./useNarrow";
+import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
-  ALVO_MOUSE, ALVO_TOQUE, LIMITE_NOMES_TODOS, MAPA_CORES, OPACIDADE_APAGADA, RAIO_FUNDO, alvoMaisProximo, areaVisivel, baseDoMapa,
+  ALVO_MOUSE, ALVO_TOQUE, LIMITE_NOMES_TODOS, OPACIDADE_APAGADA, RAIO_FUNDO, alvoMaisProximo, areaVisivel, baseDoMapa, coresDoMapa,
   deslocar, enquadrar, escalaEfetiva, gradienteDaRampa, limitesDe, marcasDaLegenda, marcasDeTamanho, montarCena, paraTela,
-  posicaoDoContexto, posicionarNomes, projetar, segmentosDasLigacoes, vizinhoNaDirecao, zoomEm, type Caixa, type Cena, type Direcao,
-  type EscalaDeCor, type PedidoDeNome, type PontoDaCena, type Vista,
+  posicaoDoContexto, posicionarNomes, projetar, rampaContinua, segmentosDasLigacoes, vizinhoNaDirecao, zoomEm, type Caixa, type Cena,
+  type CoresDoMapa, type Direcao, type EscalaDeCor, type PedidoDeNome, type PontoDaCena, type Vista,
 } from "./mapaModel";
 import "./mapa.css";
 
@@ -21,7 +22,9 @@ import "./mapa.css";
 // distância. Tamanho com área proporcional, cor da camada do gráfico, contínua (linear; logarítmica só por escolha) ou
 // neutra com a pergunta "Como pintar o mapa?". A régua e os filtros esmaecem, nunca escondem. Arrasto, zoom e o ponto sob o
 // mouse redesenham sob requestAnimationFrame, sem estado React a cada movimento; a dica e o mapinha do canto são filhos com
-// estado próprio. Trocar de vista, navegar e marcar são estado visual (RQ-REP-06).
+// estado próprio. Trocar de vista, navegar e marcar são estado visual (RQ-REP-06). Modo escuro (23/10/2026): as cores vêm do
+// esquema do aparelho (coresDoMapa e rampaContinua); na troca de esquema e no começo da impressão (sempre clara), o canvas é
+// redesenhado na hora.
 
 type Tamanho = { w: number; h: number; dpr: number };
 type Tela = { sx: Float32Array; sy: Float32Array; r: Float32Array };
@@ -43,11 +46,12 @@ function lembrarVista(chave: string, vista: Vista) {
   if (memoriaDeVistas.size > 16) memoriaDeVistas.delete(memoriaDeVistas.keys().next().value as string);
 }
 
-/** As cores do mapa como variáveis CSS (--mapa-superficie, --mapa-tinta…), para mapa.css: uma só fonte, MAPA_CORES. */
-const VARIAVEIS_CSS = Object.fromEntries(Object.entries(MAPA_CORES).map(([chave, valor]) =>
+/** As cores do mapa como variáveis CSS (--mapa-superficie, --mapa-tinta…), para mapa.css: uma só fonte, as cores do esquema em
+ * uso (MAPA_CORES no claro, MAPA_CORES_ESCURO no escuro). */
+const variaveisCss = (cores: CoresDoMapa) => Object.fromEntries(Object.entries(cores).map(([chave, valor]) =>
   ["--mapa-" + chave.replace(/[A-Z]/g, letra => "-" + letra.toLowerCase()), valor])) as unknown as CSSProperties;
 
-const corDesenhada = (ponto: PontoDaCena) => ponto.esmaecido ? MAPA_CORES.esmaecido : ponto.vazada ? MAPA_CORES.naoAvaliavel : ponto.cor;
+const corDesenhada = (ponto: PontoDaCena, cores: CoresDoMapa) => ponto.esmaecido ? cores.esmaecido : ponto.vazada ? cores.naoAvaliavel : ponto.cor;
 const minusculaInicial = (texto: string) => texto.length > 1 && texto.charAt(1) === texto.charAt(1).toLocaleLowerCase("pt-BR")
   ? texto.charAt(0).toLocaleLowerCase("pt-BR") + texto.slice(1) : texto;
 const semAcento = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -67,14 +71,20 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   const cantoRef = useRef<CantoHandle>(null);
   const atual = useRef(p);
   atual.current = p;
+  // Esquema de cor do aparelho (a impressão é sempre clara): as cores do canvas, das legendas e das variáveis de mapa.css.
+  const esquema = useEsquemaDeCor();
+  const cores = coresDoMapa(esquema), rampa = rampaContinua(esquema);
+  const variaveis = useMemo(() => variaveisCss(cores), [cores]);
+  const coresRef = useRef(cores), esquemaRef = useRef(esquema);
+  coresRef.current = cores; esquemaRef.current = esquema;
 
   // ------------------------------------------------------------------------------------------ o que desenhar
   const projecao = useMemo(() => projetar(p.dados.pontos), [p.dados.pontos]);
   const limitesTodos = useMemo(() => limitesDe(projecao, projecao.ids.map((_, i) => i)), [projecao]);
   const base = useMemo(() => baseDoMapa(p.itens, projecao), [p.itens, projecao]);
   const cena = useMemo(() => montarCena(base, { dentro: p.dentro, pintura: p.pintura, pintar: p.pintar, valorContinuo: p.valorContinuo,
-    dominio: p.dominio, escala: p.escala, tamanho: p.tamanho.valor, maximoTamanho: p.tamanho.maximo }),
-  [base, p.dentro, p.pintura, p.pintar, p.valorContinuo, p.dominio, p.escala, p.tamanho.valor, p.tamanho.maximo]);
+    dominio: p.dominio, escala: p.escala, tamanho: p.tamanho.valor, maximoTamanho: p.tamanho.maximo, cores, rampa }),
+  [base, p.dentro, p.pintura, p.pintar, p.valorContinuo, p.dominio, p.escala, p.tamanho.valor, p.tamanho.maximo, cores, rampa]);
   const selecionados = useMemo(() => new Set(p.selecionados), [p.selecionados]);
   const segmentos = useMemo(() => segmentosDasLigacoes(p.ligacoes, id => projecao.indice.has(id)), [p.ligacoes, projecao]);
 
@@ -130,16 +140,17 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     if (!ctx) return;
     const inicio = performance.now();
     const props = atual.current, c = cenaRef.current, pr = projRef.current, b = baseRef.current, sel = selRef.current;
+    const paleta = coresRef.current;
     const e = v.escala, ox = w / 2 - v.cx * e, oy = h / 2 - v.cy * e;
     const zoom = v.escala / vistaInicial().escala;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalAlpha = 1;
     ctx.setLineDash([]);
-    ctx.fillStyle = MAPA_CORES.superficie;
+    ctx.fillStyle = paleta.superficie;
     ctx.fillRect(0, 0, w, h);
 
     // 1. Fundo: as demais unidades da fonte, em quadradinhos cinza bem claros (o formato do Brasil), sem interação.
-    ctx.fillStyle = MAPA_CORES.fundo;
+    ctx.fillStyle = paleta.fundo;
     ctx.beginPath();
     for (const i of b.fundo) {
       const x = pr.x[i] * e + ox, y = pr.y[i] * e + oy;
@@ -157,8 +168,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     const naTela = (i: number) => sx[i] > -rs[i] - 8 && sy[i] > -rs[i] - 8 && sx[i] < w + rs[i] + 8 && sy[i] < h + rs[i] + 8;
 
     // 2. Fora da régua ou dos filtros: no lugar e no tamanho, bem claros, sem interação (nunca somem).
-    ctx.fillStyle = MAPA_CORES.esmaecido;
-    ctx.strokeStyle = MAPA_CORES.esmaecidoBorda;
+    ctx.fillStyle = paleta.esmaecido;
+    ctx.strokeStyle = paleta.esmaecidoBorda;
     ctx.lineWidth = 0.75;
     ctx.beginPath();
     for (let i = 0; i < n; i++) if (c.pontos[i].esmaecido && naTela(i)) circulo(ctx, sx[i], sy[i], rs[i]);
@@ -182,11 +193,11 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
         ctx.beginPath();
         for (const k of membros) circulo(ctx, sx[k], sy[k], rs[k]);
         if (chave === "v") {
-          ctx.fillStyle = MAPA_CORES.superficie;
+          ctx.fillStyle = paleta.superficie;
           ctx.fill();
           ctx.setLineDash([3, 2]);
           ctx.lineWidth = 1.25;
-          ctx.strokeStyle = MAPA_CORES.naoAvaliavel;
+          ctx.strokeStyle = paleta.naoAvaliavel;
           ctx.stroke();
           ctx.setLineDash([]);
         } else {
@@ -195,7 +206,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           ctx.fill();
           ctx.globalAlpha = 1;
           ctx.lineWidth = 0.8;
-          ctx.strokeStyle = MAPA_CORES.superficie;
+          ctx.strokeStyle = paleta.superficie;
           ctx.stroke();
         }
       }
@@ -212,7 +223,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     // 4. Ligações ilustrativas (não são trajeto): dos selecionados até a referência mais próxima indicada pelo motor.
     if (segRef.current.length) {
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = MAPA_CORES.tinta2;
+      ctx.strokeStyle = paleta.tinta2;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       for (const segmento of segRef.current) {
@@ -228,7 +239,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     // 5. Membros de conjuntos: anel escuro (o conjunto não tem ponto).
     if (b.aneis.length) {
       ctx.globalAlpha = 0.7;
-      ctx.strokeStyle = MAPA_CORES.tinta;
+      ctx.strokeStyle = paleta.tinta;
       ctx.lineWidth = 1.25;
       ctx.beginPath();
       for (const anel of b.aneis) {
@@ -241,7 +252,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
 
     // 6. Referência: a mesma mira do gráfico.
     if (props.referencias.length) {
-      ctx.strokeStyle = MAPA_CORES.tinta;
+      ctx.strokeStyle = paleta.tinta;
       ctx.lineWidth = 1.5;
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -257,7 +268,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     }
 
     // 7. Selecionados: anel escuro, como a bolha marcada.
-    ctx.strokeStyle = MAPA_CORES.tinta;
+    ctx.strokeStyle = paleta.tinta;
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (const id of sel) {
@@ -277,7 +288,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     ctx.stroke();
     const focado = ativo.current?.origem === "teclado" && focoTeclado.current ? c.porId.get(ativo.current.id) : undefined;
     if (focado !== undefined && naTela(focado)) {
-      ctx.strokeStyle = MAPA_CORES.foco;
+      ctx.strokeStyle = paleta.foco;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       circulo(ctx, sx[focado], sy[focado], rs[focado] + 8);
@@ -315,8 +326,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     if (pedidos.length) {
       ctx.lineJoin = "round";
       ctx.lineWidth = 3;
-      ctx.strokeStyle = MAPA_CORES.superficie;
-      ctx.fillStyle = MAPA_CORES.tinta;
+      ctx.strokeStyle = paleta.superficie;
+      ctx.fillStyle = paleta.tinta;
       for (const nome of posicionarNomes(pedidos, w, h, obstaculos)) {
         const texto = textos.get(nome.id)!;
         ctx.strokeText(texto, nome.x, nome.y);
@@ -333,9 +344,11 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       contexto: b.fundo.length, esmaecidos: c.esmaecidos, brasil: props.contextoBrasil?.valor ?? null,
       vista: { cx: v.cx, cy: v.cy, escala: v.escala, zoom }, largura: w, altura: h, desenhos: desenhos.current,
       ms: performance.now() - inicio,
+      /** Esquema de cor do desenho ("claro" ou "escuro") e a superfície pintada no canvas. */
+      esquema: esquemaRef.current, superficie: paleta.superficie,
       /** x e y em pixels CSS, relativos ao canvas (`mapa-canvas`). */
       get pontos() {
-        return pontosDoGancho.map((ponto, i) => ({ id: ponto.id, x: sx[i], y: sy[i], r: ponto.r, cor: corDesenhada(ponto),
+        return pontosDoGancho.map((ponto, i) => ({ id: ponto.id, x: sx[i], y: sy[i], r: ponto.r, cor: corDesenhada(ponto, paleta),
           esmaecido: ponto.esmaecido, selecionado: sel.has(ponto.id), vazada: ponto.vazada, apagada: ponto.apagada, naTela: naTela(i) }));
       },
     };
@@ -490,6 +503,10 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     }
     agendar();
   }, [cena, selecionados, segmentos, p.referencias, p.ativoExterno, p.extraDoRotulo, p.contextoBrasil, p.dicaDe, agendar, definirAtivo]);
+
+  // Troca do esquema de cor: o canvas é redesenhado já no commit, sem esperar o próximo quadro. No começo da impressão, a troca
+  // para o claro chega síncrona (flushSync, em useEsquemaDeCor), e o mapa vai claro para a página impressa.
+  useLayoutEffect(() => { desenhar(); }, [esquema, desenhar]);
 
   // Ao sair: cancela o quadro pendente, avisa que nada está ativo e retira o gancho de teste.
   useEffect(() => () => {
@@ -668,7 +685,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       const { w, h } = tamanho.current, pr = projRef.current;
       for (const ponto of cenaRef.current.pontos) {
         const [x, y] = paraTela(pr.x[ponto.indice], pr.y[ponto.indice], v, w, h);
-        saida.set(ponto.id, { x: caixa.left + x, y: caixa.top + y, r: ponto.r, cor: corDesenhada(ponto) });
+        saida.set(ponto.id, { x: caixa.left + x, y: caixa.top + y, r: ponto.r, cor: corDesenhada(ponto, coresRef.current) });
       }
       return saida;
     },
@@ -699,9 +716,9 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   const pontosDaBusca = useMemo(() => base.pontos.map(ponto => ({ id: ponto.item.id, rotulo: ponto.item.rotulo }))
     .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR")), [base.pontos]);
 
-  return <div data-testid="mapa-analise" className={"mapa" + (p.carregando ? " mapa-carregando" : "")} style={VARIAVEIS_CSS}
+  return <div data-testid="mapa-analise" className={"mapa" + (p.carregando ? " mapa-carregando" : "")} style={variaveis}
     data-pintura={p.pintura} data-pontos={cena.pontos.length} data-contexto={base.fundo.length} data-esmaecidos={cena.esmaecidos}
-    data-escala={p.pintura === "continua" ? escalaCor : "nenhuma"} aria-busy={p.carregando || undefined}>
+    data-escala={p.pintura === "continua" ? escalaCor : "nenhuma"} data-esquema={esquema} aria-busy={p.carregando || undefined}>
     <div className="mapa-barra mapa-nao-imprimir">
       <BuscaNoMapa pontos={pontosDaBusca} rotulos={rotulos} onAchar={centrar}/>
     </div>
@@ -725,14 +742,15 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
         avaliáveis (Detalhes).</p>}
     </div>
     <div className="mapa-legendas">
-      <LegendaDeTamanho maximo={cena.maximoTamanho} rotulo={p.tamanho.rotulo}/>
+      <LegendaDeTamanho maximo={cena.maximoTamanho} rotulo={p.tamanho.rotulo} cores={cores}/>
       {p.pintura === "continua"
-        ? <LegendaContinua rotulo={p.rotuloContinuo} dominio={p.dominio} escala={p.escala} indicador={p.indicador} contexto={p.contextoBrasil}/>
+        ? <LegendaContinua rotulo={p.rotuloContinuo} dominio={p.dominio} escala={p.escala} indicador={p.indicador} contexto={p.contextoBrasil}
+          cores={cores} rampa={rampa}/>
         : p.pintura === "camada"
         ? <div data-testid="mapa-legenda" data-tipo="camada" className="mapa-legenda" role="group" aria-label="Legenda da cor">
           {p.legendaCor ?? <p>Cor única: nenhuma camada de cor em uso.</p>}</div>
         : <div data-testid="mapa-legenda" data-tipo="pergunta" className="mapa-legenda">
-          <p className="mapa-legenda-linha"><span className="mapa-amostra" style={{ background: MAPA_CORES.neutro }} aria-hidden="true"/>
+          <p className="mapa-legenda-linha"><span className="mapa-amostra" style={{ background: cores.neutro }} aria-hidden="true"/>
             Cor neutra: o mapa ainda não tem cor escolhida.</p></div>}
       <div className="mapa-notas">
         <p data-testid="mapa-nota">Cada ponto é a sede do município (IBGE) na base do Brasil, ou a coordenada da planilha. A posição é só
@@ -870,7 +888,7 @@ function PerguntaDePintura({ opcoes, rotulos, onEscolher }: { opcoes: EscolhaDeP
 
 // ================================================================================================ legendas
 /** Legenda de tamanho: três valores de referência com o mesmo raio do desenho (área proporcional). */
-function LegendaDeTamanho({ maximo, rotulo }: { maximo: number | null; rotulo: string }) {
+function LegendaDeTamanho({ maximo, rotulo, cores }: { maximo: number | null; rotulo: string; cores: CoresDoMapa }) {
   const marcas = marcasDeTamanho(maximo);
   const nome = minusculaInicial(rotulo);
   if (!marcas.length) return <div data-testid="mapa-legenda-tamanho" className="mapa-legenda-tamanho">
@@ -889,8 +907,8 @@ function LegendaDeTamanho({ maximo, rotulo }: { maximo: number | null; rotulo: s
     <svg width={2 * maior + 10 + larguraTexto} height={altura} aria-hidden="true" className="overflow-visible">
       {posicoes.map(({ marca, cy, topo, y }) => <g key={marca.valor} data-testid="mapa-legenda-tamanho-item" data-valor={marca.valor}
         data-raio={marca.raio.toFixed(2)}>
-        <circle cx={maior + 2} cy={cy} r={marca.raio} fill="none" stroke={MAPA_CORES.tinta2} strokeWidth={1}/>
-        <line x1={maior + 2} x2={2 * maior + 8} y1={topo} y2={y - 4} stroke={MAPA_CORES.eixo} strokeWidth={1}/>
+        <circle cx={maior + 2} cy={cy} r={marca.raio} fill="none" stroke={cores.tinta2} strokeWidth={1}/>
+        <line x1={maior + 2} x2={2 * maior + 8} y1={topo} y2={y - 4} stroke={cores.eixo} strokeWidth={1}/>
         <text x={2 * maior + 11} y={y} className="mapa-legenda-texto">{compacto(marca.valor)}</text>
       </g>)}
     </svg>
@@ -900,8 +918,9 @@ function LegendaDeTamanho({ maximo, rotulo }: { maximo: number | null; rotulo: s
 
 /** Legenda da cor contínua: a rampa com o mínimo e o máximo do domínio (do motor), marcas de leitura, a marca do Brasil (só
  * contexto) e o aviso de que a cor não é classe nem limiar. */
-function LegendaContinua({ rotulo, dominio, escala, indicador, contexto }: { rotulo: string; dominio: [number, number] | null;
-  escala: EscalaDeCor; indicador: PainelIndicador; contexto: { valor: number; rotulo: string } | null }) {
+function LegendaContinua({ rotulo, dominio, escala, indicador, contexto, cores, rampa }: { rotulo: string; dominio: [number, number] | null;
+  escala: EscalaDeCor; indicador: PainelIndicador; contexto: { valor: number; rotulo: string } | null; cores: CoresDoMapa;
+  rampa: readonly string[] }) {
   if (!dominio || !Number.isFinite(dominio[0]) || !Number.isFinite(dominio[1]))
     return <div data-testid="mapa-legenda" data-tipo="continua" className="mapa-legenda mapa-legenda-continua">
       <p className="mapa-legenda-titulo">{rotulo}</p>
@@ -923,7 +942,7 @@ function LegendaContinua({ rotulo, dominio, escala, indicador, contexto }: { rot
     className="mapa-legenda mapa-legenda-continua" role="group" aria-label={"Legenda da cor: " + rotulo}>
     <p className="mapa-legenda-titulo">{rotulo}</p>
     <div className="mapa-rampa-area">
-      <div className="mapa-rampa" style={{ background: gradienteDaRampa() }} aria-hidden="true"/>
+      <div className="mapa-rampa" style={{ background: gradienteDaRampa(rampa) }} aria-hidden="true"/>
       <span className="mapa-rampa-extremo" style={{ left: 0 }} aria-hidden="true"/>
       <span className="mapa-rampa-extremo" style={{ left: "calc(100% - 2px)" }} aria-hidden="true"/>
       {leitura.map(marca => <span key={marca.valor} data-testid="mapa-legenda-marca" data-valor={marca.valor} className="mapa-rampa-marca"
@@ -940,7 +959,7 @@ function LegendaContinua({ rotulo, dominio, escala, indicador, contexto }: { rot
     </div>
     {contexto && brasil && <p data-testid="mapa-legenda-brasil" className="mapa-legenda-brasil">
       <svg aria-hidden="true" width="12" height="14" className="mapa-legenda-brasil-icone"><line x1="6" y1="1" x2="6" y2="13"
-        stroke={MAPA_CORES.tinta} strokeWidth="2" strokeDasharray="3 2"/></svg>
+        stroke={cores.tinta} strokeWidth="2" strokeDasharray="3 2"/></svg>
       <span>{contexto.rotulo}{brasil.fora ? " (fora da escala)" : ""} · referência de contexto; não classifica.</span></p>}
     <p data-testid="mapa-legenda-aviso" className="mapa-legenda-aviso">{aviso}</p>
   </div>;

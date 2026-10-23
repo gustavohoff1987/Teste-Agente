@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
 import type { PainelItem } from "./painelApi";
-import { COR_BOLHA, COR_NEUTRA, exibirCompetencia, formatarNumero, formatarPercentual, paginar, umA, type RotulosTerritoriais } from "./painelModel";
+import { exibirCompetencia, formatarNumero, formatarPercentual, paginar, paletaDoGrafico, umA, type RotulosTerritoriais } from "./painelModel";
+import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
 // Rotatividade (CAP-ROT-01) em barras de 100% (Adendo BOL aprovado em 22/10/2026): uma barra por unidade, com a permanência
 // e a saída da coorte inicial. Os percentuais e as contagens vêm do motor; a tela não divide nada. "Da coorte inicial" vai em
-// todo rótulo (RQ-REP-11). Sem linha nem série (L1794). As coortes não avaliáveis ficam em Não avaliáveis, com o motivo.
+// todo rótulo (RQ-REP-11). Sem linha nem série (L1794). As coortes não avaliáveis ficam em Não avaliáveis, com o motivo. As cores
+// (permanência na série única, saída no neutro) são as da paleta do esquema de cor do aparelho (modo escuro, 23/10/2026).
 
 const POR_PAGINA = 30;
 type Props = { itens: PainelItem[]; rotulos: RotulosTerritoriais; inicial: string; final: string };
 
 export default function PainelRotatividade({ itens, rotulos, inicial, final }: Props) {
   const [pagina, setPagina] = useState(0);
+  const paleta = paletaDoGrafico(useEsquemaDeCor());
   useEffect(() => setPagina(0), [itens]);
   const atual = paginar(itens, pagina, POR_PAGINA);
   return <figure data-testid="analise-rotatividade" className="analise-grafico m-0">
@@ -23,9 +26,9 @@ export default function PainelRotatividade({ itens, rotulos, inicial, final }: P
           <span className="analise-rot-nome" title={item.rotulo}>{item.rotulo}</span>
           <span className="analise-rot-barra" aria-hidden="true">
             {temBarra && <>
-              {r.permanencia! > 0 && <span style={{ width: `calc(${r.permanencia}% - ${r.saida! > 0 ? 1 : 0}px)`, background: COR_BOLHA }}
+              {r.permanencia! > 0 && <span style={{ width: `calc(${r.permanencia}% - ${r.saida! > 0 ? 1 : 0}px)`, background: paleta.bolha }}
                 className="analise-rot-segmento analise-rot-inicio"/>}
-              {r.saida! > 0 && <span style={{ width: `calc(${r.saida}% - ${r.permanencia! > 0 ? 1 : 0}px)`, background: COR_NEUTRA }}
+              {r.saida! > 0 && <span style={{ width: `calc(${r.saida}% - ${r.permanencia! > 0 ? 1 : 0}px)`, background: paleta.neutra }}
                 className="analise-rot-segmento analise-rot-fim"/>}
             </>}
           </span>
@@ -47,8 +50,8 @@ export default function PainelRotatividade({ itens, rotulos, inicial, final }: P
     </div>}
     <figcaption className="analise-legenda">
       <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Partes da barra">
-        <li className="flex items-center gap-1.5"><span className="analise-amostra" style={{ background: COR_BOLHA }} aria-hidden="true"/>Permaneceram (da coorte inicial)</li>
-        <li className="flex items-center gap-1.5"><span className="analise-amostra" style={{ background: COR_NEUTRA }} aria-hidden="true"/>Saíram (da coorte inicial)</li>
+        <li className="flex items-center gap-1.5"><span className="analise-amostra" style={{ background: paleta.bolha }} aria-hidden="true"/>Permaneceram (da coorte inicial)</li>
+        <li className="flex items-center gap-1.5"><span className="analise-amostra" style={{ background: paleta.neutra }} aria-hidden="true"/>Saíram (da coorte inicial)</li>
       </ul>
       <p className="max-w-xl">Cada barra é {umA(rotulos.unidade)}: a coorte inicial reúne as pessoas distintas
         de {exibirCompetencia(inicial)}, e a permanência é conferida em {exibirCompetencia(final)}. Percentuais e contagens do motor.</p>

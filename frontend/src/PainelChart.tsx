@@ -4,10 +4,11 @@ import type { GraficoComMapaProps } from "./mapaContrato";
 import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
 import {
-  COR_NAO_AVALIAVEL, INDICADORES, LIMITE_LEVE, caudaDoCometa, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
-  legendaDeTamanhos, montarDica, montarGrafico, posicaoNoEixo, posicionarRotulos, type BolhaDesenho, type Corte, type Escala, type Pintura,
-  type RotulosTerritoriais, type Vista,
+  INDICADORES, LIMITE_LEVE, caudaDoCometa, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto, legendaDeTamanhos,
+  montarDica, montarGrafico, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, type BolhaDesenho, type Corte, type Escala,
+  type PaletaDoGrafico, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
+import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
 // Gráfico de bolhas da área de análise. O eixo Y é sempre o indicador (decisão do responsável, 22/10/2026). Sem a análise
 // espacial, as bolhas se espalham na horizontal só como arranjo; com ela, X é a distância até a referência. Só desenha o que o
@@ -16,9 +17,9 @@ import {
 // setas. Com muitas bolhas (modo leve, acima de LIMITE_LEVE), as posições valem para todos os itens, numa faixa limitada; a
 // régua só esconde. Uma camada de círculos simples desenha a massa; só as bolhas em destaque ganham o desenho completo.
 // Com o mapa (23/10/2026): com `pontosDoMapa`, a dica da unidade com ponto mostra o mapinha ("onde fica?"); `ativoExterno` dá o
-// anel à bolha do item sob o mouse no mapa (lado a lado), e `onAtivo` avisa a área quando a bolha ativa muda.
-
-const SUPERFICIE = "#fcfcfb", TINTA = "#0b0b0b", TINTA_2 = "#52514e", GRADE = "#e1e0d9", EIXO = "#c3c2b7";
+// anel à bolha do item sob o mouse no mapa (lado a lado), e `onAtivo` avisa a área quando a bolha ativa muda. Modo escuro
+// (23/10/2026): superfície, tintas, grade e eixo vêm da paleta do esquema de cor do aparelho (paletaDoGrafico); a impressão é
+// sempre clara.
 
 /** Largura do contêiner em pixels (ignora larguras nulas de uma área oculta). */
 export function useLargura(inicial = 900): [RefObject<HTMLElement>, number] {
@@ -79,6 +80,7 @@ const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.r
 
 export default function PainelChart(p: Props) {
   const [ref, largura] = useLargura();
+  const paleta = paletaDoGrafico(useEsquemaDeCor());
   const [ativo, setAtivo] = useState<string | null>(null);
   const [foco, setFoco] = useState<string | null>(null);
   // A bolha ativa (mouse ou foco) é avisada à área só quando muda; ao sair da tela, o aviso de que nada está ativo.
@@ -226,23 +228,23 @@ export default function PainelChart(p: Props) {
       {bolha.rastro && <g key={bolha.rastro.dx.toFixed(1) + ":" + bolha.rastro.dy.toFixed(1)} className="analise-rastro" data-testid="analise-rastro" aria-hidden="true">
         <defs>
           <linearGradient id={gradiente} gradientUnits="userSpaceOnUse" x1={bolha.rastro.dx} y1={bolha.rastro.dy} x2={0} y2={0}>
-            <stop offset="0" stopColor={bolha.vazada ? COR_NAO_AVALIAVEL : bolha.cor} stopOpacity={0}/>
-            <stop offset="1" stopColor={bolha.vazada ? COR_NAO_AVALIAVEL : bolha.cor} stopOpacity={0.6}/>
+            <stop offset="0" stopColor={bolha.vazada ? paleta.naoAvaliavel : bolha.cor} stopOpacity={0}/>
+            <stop offset="1" stopColor={bolha.vazada ? paleta.naoAvaliavel : bolha.cor} stopOpacity={0.6}/>
           </linearGradient>
         </defs>
         <polygon points={caudaDoCometa(bolha.rastro.dx, bolha.rastro.dy, bolha.r)} fill={`url(#${gradiente})`}/>
-        <circle cx={bolha.rastro.dx} cy={bolha.rastro.dy} r={3.5} fill={SUPERFICIE} stroke={bolha.vazada ? COR_NAO_AVALIAVEL : bolha.cor} strokeWidth={1.5}/>
+        <circle cx={bolha.rastro.dx} cy={bolha.rastro.dy} r={3.5} fill={paleta.superficie} stroke={bolha.vazada ? paleta.naoAvaliavel : bolha.cor} strokeWidth={1.5}/>
       </g>}
       {bolha.faixa && <g aria-hidden="true">
-        <line x1={0} x2={bolha.faixa.dx} y1={0} y2={0} stroke={TINTA_2} strokeWidth={1.5} strokeLinecap="round"/>
-        <line x1={bolha.faixa.dx} x2={bolha.faixa.dx} y1={-5} y2={5} stroke={TINTA_2} strokeWidth={1.5} strokeLinecap="round"/>
+        <line x1={0} x2={bolha.faixa.dx} y1={0} y2={0} stroke={paleta.tinta2} strokeWidth={1.5} strokeLinecap="round"/>
+        <line x1={bolha.faixa.dx} x2={bolha.faixa.dx} y1={-5} y2={5} stroke={paleta.tinta2} strokeWidth={1.5} strokeLinecap="round"/>
       </g>}
       <circle className="analise-marca" r={bolha.r} fill={bolha.cor} fillOpacity={bolha.vazada ? 1 : 0.88}
-        stroke={bolha.vazada ? COR_NAO_AVALIAVEL : SUPERFICIE} strokeWidth={bolha.vazada ? 1.5 : 2} strokeDasharray={bolha.vazada ? "3 2" : undefined}/>
-      {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={TINTA} strokeOpacity={0.7} strokeWidth={1.25}/>}
+        stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1.5 : 2} strokeDasharray={bolha.vazada ? "3 2" : undefined}/>
+      {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={paleta.tinta} strokeOpacity={0.7} strokeWidth={1.25}/>}
       {bolha.referencia && <path d={`M${-(bolha.r + 9)} 0H${-(bolha.r + 3)}M${bolha.r + 3} 0H${bolha.r + 9}M0 ${-(bolha.r + 9)}V${-(bolha.r + 3)}M0 ${bolha.r + 3}V${bolha.r + 9}`}
-        stroke={TINTA} strokeWidth={1.5} strokeLinecap="round"/>}
-      {(selecionado || ativo === bolha.id || externo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={TINTA} strokeWidth={2}/>}
+        stroke={paleta.tinta} strokeWidth={1.5} strokeLinecap="round"/>}
+      {(selecionado || ativo === bolha.id || externo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
       <circle className="analise-alvo" r={Math.max(bolha.r + 2, 12)} fill="transparent"/>
     </g>;
   };
@@ -259,38 +261,38 @@ export default function PainelChart(p: Props) {
         : especie.rotulo.toLowerCase() + " no eixo vertical; a posição horizontal é só arranjo") + ". Tamanho: população. Use as setas para percorrer as bolhas e Enter para " +
         (grafico.bolhas.some(bolha => bolha.tipo === "estado") ? "ver " + p.rotulos.unidade.plural + "." : "destacar.")}>
       {/* Grade recessiva: linhas finas, sólidas, um tom acima da superfície. */}
-      {eixoY.marcas.map(marca => <line key={"gy" + marca.valor} x1={esquerdaPlot} x2={direitaPlot} y1={marca.pos} y2={marca.pos} stroke={GRADE} strokeWidth={1}/>)}
-      {eixoX?.marcas.map(marca => <line key={"gx" + marca.valor} x1={marca.pos} x2={marca.pos} y1={grafico.topo} y2={grafico.base} stroke={GRADE} strokeWidth={1}/>)}
+      {eixoY.marcas.map(marca => <line key={"gy" + marca.valor} x1={esquerdaPlot} x2={direitaPlot} y1={marca.pos} y2={marca.pos} stroke={paleta.grade} strokeWidth={1}/>)}
+      {eixoX?.marcas.map(marca => <line key={"gx" + marca.valor} x1={marca.pos} x2={marca.pos} y1={grafico.topo} y2={grafico.base} stroke={paleta.grade} strokeWidth={1}/>)}
       <g data-testid="analise-eixo-y" data-eixo={eixoY.tipo} data-escala={eixoY.escala} data-dominio={eixoY.dominio.join(",")} aria-hidden="true">
-        <line x1={esquerdaPlot} x2={esquerdaPlot} y1={grafico.topo} y2={grafico.base} stroke={EIXO} strokeWidth={1}/>
+        <line x1={esquerdaPlot} x2={esquerdaPlot} y1={grafico.topo} y2={grafico.base} stroke={paleta.eixo} strokeWidth={1}/>
         {eixoY.marcas.map(marca => <text key={marca.valor} x={esquerdaPlot - 6} y={marca.pos + 4} textAnchor="end" className="analise-marca-texto">{marca.texto}</text>)}
         <text transform={`translate(14 ${(grafico.topo + grafico.base) / 2}) rotate(-90)`} textAnchor="middle" className="analise-eixo-titulo">
           {eixoY.rotulo}{eixoY.escala === "logaritmica" ? " · escala logarítmica" : ""}</text>
       </g>
       {eixoX && <g data-testid="analise-eixo-x" data-eixo={eixoX.tipo} data-escala={eixoX.escala} data-dominio={eixoX.dominio.join(",")} aria-hidden="true">
-        <line x1={esquerdaPlot} x2={direitaPlot} y1={grafico.base} y2={grafico.base} stroke={EIXO} strokeWidth={1}/>
+        <line x1={esquerdaPlot} x2={direitaPlot} y1={grafico.base} y2={grafico.base} stroke={paleta.eixo} strokeWidth={1}/>
         {eixoX.marcas.map(marca => <text key={marca.valor} x={marca.pos} y={grafico.base + 16} textAnchor="middle" className="analise-marca-texto">{marca.texto}</text>)}
         <text x={(esquerdaPlot + direitaPlot) / 2} y={grafico.base + 38} textAnchor="middle" className="analise-eixo-titulo">{eixoX.rotulo}</text>
       </g>}
       {/* Linhas de referência: o contexto do Brasil (não classifica), os cortes dos grupos ou os limites das faixas, a régua e
           as faixas de distância. Todas finas e sólidas, com o texto em tinta. */}
       {p.contextoBrasil && dentroDoEixo(p.contextoBrasil.valor) && <g data-testid="analise-contexto-brasil" data-valor={p.contextoBrasil.valor} aria-hidden="true">
-        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(p.contextoBrasil.valor)} y2={linhaH(p.contextoBrasil.valor)} stroke={TINTA_2} strokeWidth={1}/>
+        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(p.contextoBrasil.valor)} y2={linhaH(p.contextoBrasil.valor)} stroke={paleta.tinta2} strokeWidth={1}/>
         <text x={direitaPlot - 2} y={linhaH(p.contextoBrasil.valor) - 5} textAnchor="end" className="analise-linha-texto">{p.contextoBrasil.rotulo}</text>
       </g>}
       {p.cortes.filter(item => dentroDoEixo(item.valor)).map((item, indice) => <g key={"c" + indice} data-testid="analise-corte" data-valor={item.valor} aria-hidden="true">
-        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(item.valor)} y2={linhaH(item.valor)} stroke={EIXO} strokeWidth={1}/>
+        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(item.valor)} y2={linhaH(item.valor)} stroke={paleta.eixo} strokeWidth={1}/>
         <text x={esquerdaPlot + 4} y={linhaH(item.valor) - 4} className="analise-linha-texto analise-linha-texto-leve">{item.rotulo}</text>
       </g>)}
       {p.corte && [p.corte.minimo, p.corte.maximo].filter(dentroDoEixo).map((valor, indice) => <line key={"r" + indice} data-testid="analise-corte-regua"
-        x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(valor)} y2={linhaH(valor)} stroke={TINTA} strokeOpacity={0.55} strokeWidth={1} aria-hidden="true"/>)}
+        x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(valor)} y2={linhaH(valor)} stroke={paleta.tinta} strokeOpacity={0.55} strokeWidth={1} aria-hidden="true"/>)}
       {eixoX && p.faixasDistancia.filter(item => item.valor >= eixoX.dominio[0] && item.valor <= eixoX.dominio[1]).map((item, indice) =>
         <g key={"fd" + indice} data-testid="analise-faixa-distancia" aria-hidden="true">
-          <line x1={posicaoNoEixo(eixoX, item.valor)} x2={posicaoNoEixo(eixoX, item.valor)} y1={grafico.topo} y2={grafico.base} stroke={EIXO} strokeWidth={1}/>
+          <line x1={posicaoNoEixo(eixoX, item.valor)} x2={posicaoNoEixo(eixoX, item.valor)} y1={grafico.topo} y2={grafico.base} stroke={paleta.eixo} strokeWidth={1}/>
           <text x={posicaoNoEixo(eixoX, item.valor) + 4} y={grafico.topo + 12} className="analise-linha-texto analise-linha-texto-leve">{item.rotulo}</text>
         </g>)}
       {leve ? <>
-        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} esmaecida={destaque}
+        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} esmaecida={destaque} paleta={paleta}
           onAtivar={ativarLeve} onAcionar={id => { const bolha = grafico.bolhas.find(item => item.id === id); if (bolha) acionar(bolha); }}/>
         {especiais.map(bolha => desenharBolha(bolha, "analise-bolha-destaque",
           selecionados.has(bolha.id) || bolha.tipo === "conjunto" || bolha.referencia || bolha.id === focoEfetivo))}
@@ -323,7 +325,7 @@ export default function PainelChart(p: Props) {
       {miniNaDica && <div className="mt-1.5"><MiniMapa pontos={p.pontosDoMapa!} destaque={bolhaAtiva!.id} tamanho={96}/></div>}
     </div>}
     <figcaption className="analise-legenda">
-      <LegendaDeTamanho maxima={grafico.populacaoMaxima} raioMax={grafico.raioMax}/>
+      <LegendaDeTamanho maxima={grafico.populacaoMaxima} raioMax={grafico.raioMax} paleta={paleta}/>
       {p.legendaCor}
       <div className="min-w-0 max-w-xl space-y-1">
         {notaArranjo && <p data-testid="analise-arranjo-nota">{notaArranjo}</p>}
@@ -337,7 +339,7 @@ export default function PainelChart(p: Props) {
 }
 
 /** Legenda de tamanho: três populações de referência com o mesmo raio do gráfico (área proporcional à população). */
-function LegendaDeTamanho({ maxima, raioMax }: { maxima: number; raioMax: number }) {
+function LegendaDeTamanho({ maxima, raioMax, paleta }: { maxima: number; raioMax: number; paleta: PaletaDoGrafico }) {
   const tamanhos = legendaDeTamanhos(maxima, raioMax);
   if (!tamanhos.length) return null;
   const maior = Math.max(...tamanhos.map(item => item.raio));
@@ -353,8 +355,8 @@ function LegendaDeTamanho({ maxima, raioMax }: { maxima: number; raioMax: number
     className="flex items-end gap-2">
     <svg width={2 * maior + 10 + larguraTexto} height={altura} aria-hidden="true" className="overflow-visible">
       {posicoes.map(({ item, cy, topo, y }) => <g key={item.valor} data-testid="analise-legenda-tamanho-item" data-valor={item.valor} data-raio={item.raio.toFixed(2)}>
-        <circle cx={maior + 2} cy={cy} r={item.raio} fill="none" stroke={TINTA_2} strokeWidth={1}/>
-        <line x1={maior + 2} x2={2 * maior + 8} y1={topo} y2={y - 4} stroke={EIXO} strokeWidth={1}/>
+        <circle cx={maior + 2} cy={cy} r={item.raio} fill="none" stroke={paleta.tinta2} strokeWidth={1}/>
+        <line x1={maior + 2} x2={2 * maior + 8} y1={topo} y2={y - 4} stroke={paleta.eixo} strokeWidth={1}/>
         <text x={2 * maior + 11} y={y} className="analise-marca-texto">{item.texto}</text>
       </g>)}
     </svg>
@@ -363,21 +365,21 @@ function LegendaDeTamanho({ maxima, raioMax }: { maxima: number; raioMax: number
 }
 
 type CamadaProps = {
-  bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; esmaecida: boolean;
+  bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; esmaecida: boolean; paleta: PaletaDoGrafico;
   onAtivar: (id: string | null) => void; onAcionar: (id: string) => void;
 };
 
 /** Modo leve: um círculo simples por bolha (e uma linha fina por rastro), com os mesmos atributos de dados e um único conjunto de
  * eventos no grupo. Não depende do mouse, do foco nem da seleção: passar o mouse não redesenha os milhares de círculos. Fora da
  * régua, o círculo só fica oculto. */
-const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, esmaecida, onAtivar, onAcionar }: CamadaProps) {
+const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, esmaecida, paleta, onAtivar, onAcionar }: CamadaProps) {
   const alvo = (event: EventoPonteiro<SVGGElement> | EventoMouse<SVGGElement>) =>
     (event.target as Element).closest?.("[data-id]")?.getAttribute("data-id") ?? null;
   return <g data-testid="analise-camada-leve" className="analise-camada-leve" style={{ opacity: esmaecida ? 0.3 : 1 }}
     onPointerMove={event => onAtivar(alvo(event))} onPointerLeave={() => onAtivar(null)}
     onClick={event => { const id = alvo(event); if (id) onAcionar(id); }}>
     {cometa && bolhas.map(bolha => bolha.rastro && <line key={"r" + bolha.id} x1={bolha.x + bolha.rastro.dx} y1={bolha.y + bolha.rastro.dy}
-      x2={bolha.x} y2={bolha.y} stroke={bolha.vazada ? COR_NAO_AVALIAVEL : bolha.cor} strokeOpacity={0.5} strokeWidth={1.5} strokeLinecap="round" aria-hidden="true"
+      x2={bolha.x} y2={bolha.y} stroke={bolha.vazada ? paleta.naoAvaliavel : bolha.cor} strokeOpacity={0.5} strokeWidth={1.5} strokeLinecap="round" aria-hidden="true"
       display={bolha.visivel && dentro.has(bolha.id) ? undefined : "none"}/>)}
     {bolhas.map(bolha => {
       const visivel = bolha.visivel && dentro.has(bolha.id);
@@ -388,7 +390,7 @@ const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia,
         data-grupo={bolha.item.grupo ? String(bolha.item.grupo.indice) : undefined}
         data-condicao={bolha.item.condicoes?.situacao} data-visivel={visivel ? "true" : "false"}
         cx={bolha.x} cy={bolha.y} r={bolha.r} fill={bolha.cor} fillOpacity={bolha.vazada ? 1 : bolha.apagada ? 0.35 : 0.62}
-        stroke={bolha.vazada ? COR_NAO_AVALIAVEL : SUPERFICIE} strokeWidth={bolha.vazada ? 1 : 0.75} strokeDasharray={bolha.vazada ? "2 1.5" : undefined}
+        stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1 : 0.75} strokeDasharray={bolha.vazada ? "2 1.5" : undefined}
         display={visivel ? undefined : "none"} aria-hidden="true"/>;
     })}
   </g>;

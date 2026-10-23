@@ -12,6 +12,7 @@ import type {
   TipoGrupos,
 } from "./painelApi";
 import type { EscolhaDePintura, PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
+import type { EsquemaDeCor } from "./esquemaDeCor";
 
 export type { Rotulo, RotulosTerritoriais } from "./painelApi";
 
@@ -608,7 +609,8 @@ export function legendaDeTamanhos(maxima: number | null | undefined, raioMax: nu
 }
 
 // ================================================================================================ cor
-/** Série única: azul-petróleo da identidade, com croma e contraste validados. */
+/** Série única: azul-petróleo da identidade, com croma e contraste validados. As constantes desta seção são as do modo claro;
+ * o modo escuro usa PALETA_ESCURA (abaixo), pela paletaDoGrafico. */
 export const COR_BOLHA = "#008b9e";
 export const COR_NEUTRA = "#c9c7bf";
 export const COR_NAO_AVALIAVEL = "#898781";
@@ -635,11 +637,78 @@ export const RAMPAS_ORDINAIS: Record<number, string[]> = {
   1: ["#2a78d6"], 2: ["#86b6ef", "#1c5cab"], 3: ["#86b6ef", "#2a78d6", "#104281"],
   4: ["#86b6ef", "#3987e5", "#256abf", "#104281"], 5: ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
 };
-/** Cor do grupo ou faixa (índice a partir de 1) entre `total`; null com mais de 5 (só linhas de corte). */
-export const corOrdinal = (indice: number, total: number): string | null => RAMPAS_ORDINAIS[total]?.[indice - 1] ?? null;
 /** Mudança entre duas competências (CAP-TMP-01): divergente contínuo, aumento em azul, redução em laranja, zero em cinza. */
 export const RAMPA_AUMENTO = ["#9cc2ee", "#2a78d6", "#184f95"];
 export const RAMPA_REDUCAO = ["#f2ad8c", "#eb6834", "#a8431b"];
+
+/** Paleta do gráfico num esquema de cor: superfície e tintas do desenho, cores de dado e rampas. Os nomes valem nos dois
+ * esquemas; só os valores mudam. */
+export type PaletaDoGrafico = {
+  /** Superfície do desenho, anel de 2 px das bolhas e halo dos rótulos. */
+  superficie: string;
+  /** Tinta: rótulos, anel da seleção, do conjunto, mira da referência e limites da régua. */
+  tinta: string;
+  /** Tinta secundária: linha do Brasil, traço do conjunto, círculos da legenda de tamanho. */
+  tinta2: string;
+  /** Textos leves (rótulos das linhas de corte). */
+  muda: string;
+  /** Grade recessiva e linha de base dos eixos. */
+  grade: string;
+  eixo: string;
+  /** Série única (sem camada de cor), "atendem", "os primeiros". */
+  bolha: string;
+  /** Neutro: "não atendem", "demais", "fora das faixas" e "saíram" (rotatividade). */
+  neutra: string;
+  /** Ponto médio do divergente da variação (sem mudança). */
+  zero: string;
+  /** Anel tracejado do valor não avaliável (bolha vazada). */
+  naoAvaliavel: string;
+  /** Preenchimento da bolha vazada. */
+  vazia: string;
+  /** Fundo da dica desenhada dentro do SVG (visão Séries). */
+  dica: string;
+  tendencia: Record<FamiliaTendencia, string>;
+  /** Grupos e faixas (de 1 a 5 tons): do menor ao maior grupo. */
+  ordinais: Record<number, string[]>;
+  /** Braços do divergente da variação: do perto de zero ao limite. */
+  aumento: string[];
+  reducao: string[];
+};
+/** Modo claro: as constantes acima, conferidas no validador da skill de visualização (superfície #fcfcfb). */
+export const PALETA_CLARA: PaletaDoGrafico = {
+  superficie: "#fcfcfb", tinta: "#0b0b0b", tinta2: "#52514e", muda: "#898781", grade: "#e1e0d9", eixo: "#c3c2b7",
+  bolha: COR_BOLHA, neutra: COR_NEUTRA, zero: COR_NEUTRA, naoAvaliavel: COR_NAO_AVALIAVEL, vazia: "#ffffff", dica: "#ffffff",
+  tendencia: CORES_TENDENCIA, ordinais: RAMPAS_ORDINAIS, aumento: RAMPA_AUMENTO, reducao: RAMPA_REDUCAO,
+};
+/** Modo escuro (23/10/2026): os mesmos matizes, em passos escolhidos para a superfície escura #1a1a19 (não é inversão
+ * automática), conferidos no validador da skill (validate_palette.js --mode dark --surface "#1a1a19"):
+ * - tendência #3987e5, #d95926 e #199e70: todos os pares (--pairs all), pior CVD ΔE 9,4, visão normal 20,9, todas ≥ 3:1;
+ * - série única #1ba3b5: PASS (5,77:1);
+ * - grupos e faixas (--ordinal) do escuro (menor) ao claro (maior), sem ir além do passo 600 (#184f95, 2,15:1): PASS de 2 a 5;
+ * - divergente: cada braço (--ordinal) PASS, do perto de zero (#1c5cab, 2,63:1; #a8431b, 2,89:1) ao limite (#9ec5f4, #f2ad8c);
+ *   entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas; o zero (#45443f, 1,78:1, como o #c9c7bf no claro, 1,65:1) fica
+ *   abaixo dos dois começos em luminosidade (ΔL OKLCH ≥ 0,09);
+ * - neutro #5f5e5a (2,68:1): ao lado da série única, CVD ΔE 18,1 e visão normal 20,8 (no claro, 21,4 e 26,7); cinza de
+ *   propósito, como no claro, com o alívio da legenda com as contagens e da tabela;
+ * - tintas da tabela "Chart chrome & ink" da skill: #f0efec (15,2:1), #c3c2b7 (9,7:1), muda #898781 (4,85:1), grade #2c2c2a e
+ *   eixo #383835; o anel do não avaliável é o mesmo #898781 nos dois esquemas. */
+export const PALETA_ESCURA: PaletaDoGrafico = {
+  superficie: "#1a1a19", tinta: "#f0efec", tinta2: "#c3c2b7", muda: "#898781", grade: "#2c2c2a", eixo: "#383835",
+  bolha: "#1ba3b5", neutra: "#5f5e5a", zero: "#45443f", naoAvaliavel: "#898781", vazia: "#1a1a19", dica: "#232321",
+  tendencia: { CRESCIMENTO: "#3987e5", DECLINIO: "#d95926", NENHUMA: "#199e70" },
+  ordinais: {
+    1: ["#3987e5"], 2: ["#1c5cab", "#86b6ef"], 3: ["#1c5cab", "#3987e5", "#9ec5f4"],
+    4: ["#184f95", "#2a78d6", "#5598e7", "#9ec5f4"], 5: ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"],
+  },
+  aumento: ["#1c5cab", "#3987e5", "#9ec5f4"],
+  reducao: ["#a8431b", "#d95926", "#f2ad8c"],
+};
+/** A paleta do esquema de cor em uso (useEsquemaDeCor). */
+export const paletaDoGrafico = (esquema: EsquemaDeCor): PaletaDoGrafico => esquema === "escuro" ? PALETA_ESCURA : PALETA_CLARA;
+
+/** Cor do grupo ou faixa (índice a partir de 1) entre `total`; null com mais de 5 (só linhas de corte). */
+export const corOrdinal = (indice: number, total: number, paleta: PaletaDoGrafico = PALETA_CLARA): string | null =>
+  paleta.ordinais[total]?.[indice - 1] ?? null;
 
 function rgb(hex: string): [number, number, number] {
   const valor = parseInt(hex.slice(1), 16);
@@ -651,13 +720,17 @@ function misturar(de: string, para: string, t: number): string {
 }
 /** Cor da variação: azul para aumento, laranja para redução. Intensidade contínua pela raiz quadrada de |variação| ÷ limite
  * (o meio de cada braço vale um quarto do limite). Escala contínua, sem classes (RQ-REP-02). */
-export function corDaVariacao(valor: number, limite: number): string {
-  if (valor === 0 || !Number.isFinite(valor)) return COR_NEUTRA;
+export function corDaVariacao(valor: number, limite: number, paleta: PaletaDoGrafico = PALETA_CLARA): string {
+  if (valor === 0 || !Number.isFinite(valor)) return paleta.zero;
   const t = limite > 0 ? Math.sqrt(Math.min(1, Math.abs(valor) / limite)) : 1;
-  const rampa = valor > 0 ? RAMPA_AUMENTO : RAMPA_REDUCAO;
+  const rampa = valor > 0 ? paleta.aumento : paleta.reducao;
   const posicao = t * (rampa.length - 1), indice = Math.min(rampa.length - 2, Math.floor(posicao));
   return misturar(rampa[indice], rampa[indice + 1], posicao - indice);
 }
+/** Gradiente da legenda da variação (a mesma rampa do desenho): redução à esquerda, o zero no meio, aumento à direita. */
+export const gradienteDaVariacao = (paleta: PaletaDoGrafico = PALETA_CLARA) => "linear-gradient(to right, " +
+  [...paleta.reducao].reverse().join(", ") + " 48%, " + paleta.zero + " 48% 52%, " +
+  paleta.aumento.map((cor, indice) => cor + (indice === 0 ? " 52%" : "")).join(", ") + ")";
 /** Limite simétrico da escala de cor: o maior |valor| do domínio de variação do motor (ou dos valores, só para enquadrar). */
 export function limiteDaVariacao(resposta: Pick<PainelResposta, "dominios">, indicador: PainelIndicador, itens: PainelItem[]): number {
   const dominio = resposta.dominios["variacao_" + indicador];
@@ -670,40 +743,43 @@ export const direcaoDaVariacao = (valor: number | null) => valor === null ? "nã
 export type CamadaDeCor = "unica" | "variacao" | "classes" | "grupos" | "faixas" | "condicoes" | "ordem";
 export type Pintura = { cor: string; vazada: boolean; apagada: boolean };
 export type ParametrosPintura = { camada: CamadaDeCor; indicador: PainelIndicador; limiteVariacao: number; totalGrupos: number;
-  totalFaixas: number; primeiros: number | null };
+  totalFaixas: number; primeiros: number | null;
+  /** Paleta do esquema de cor em uso; sem ela, a do modo claro. */
+  paleta?: PaletaDoGrafico };
 /** Cor de cada bolha pela camada em uso. Só traduz o que o motor devolveu (variação, classe, grupo, faixa, situação, posição). */
 export function pintar(item: PainelItem, p: ParametrosPintura): Pintura {
-  const vazia: Pintura = { cor: "#ffffff", vazada: true, apagada: false };
+  const paleta = p.paleta ?? PALETA_CLARA;
+  const vazia: Pintura = { cor: paleta.vazia, vazada: true, apagada: false };
   switch (p.camada) {
     case "variacao": {
       const valor = variacaoDe(item, p.indicador);
-      return valor === null ? vazia : { cor: corDaVariacao(valor, p.limiteVariacao), vazada: false, apagada: false };
+      return valor === null ? vazia : { cor: corDaVariacao(valor, p.limiteVariacao, paleta), vazada: false, apagada: false };
     }
     case "classes": {
       const familia = item.tendencia?.avaliavel ? item.tendencia.familia ?? familiaDaClasse(item.tendencia.classe) : null;
-      return familia ? { cor: CORES_TENDENCIA[familia], vazada: false, apagada: false } : vazia;
+      return familia ? { cor: paleta.tendencia[familia], vazada: false, apagada: false } : vazia;
     }
     case "grupos": {
       if (!item.grupo) return vazia;
-      return { cor: corOrdinal(item.grupo.indice, p.totalGrupos) ?? COR_BOLHA, vazada: false, apagada: false };
+      return { cor: corOrdinal(item.grupo.indice, p.totalGrupos, paleta) ?? paleta.bolha, vazada: false, apagada: false };
     }
     case "faixas": {
       if (!item.faixa) return vazia;
-      if (item.faixa === "fora") return { cor: COR_NEUTRA, vazada: false, apagada: false };
-      return { cor: corOrdinal(item.faixa.indice, p.totalFaixas) ?? COR_BOLHA, vazada: false, apagada: false };
+      if (item.faixa === "fora") return { cor: paleta.neutra, vazada: false, apagada: false };
+      return { cor: corOrdinal(item.faixa.indice, p.totalFaixas, paleta) ?? paleta.bolha, vazada: false, apagada: false };
     }
     case "condicoes": {
       const situacao = item.condicoes?.situacao;
       if (!situacao || situacao === "NAO_AVALIAVEL") return vazia;
-      return situacao === "ATENDE" ? { cor: COR_BOLHA, vazada: false, apagada: false } : { cor: COR_NEUTRA, vazada: false, apagada: true };
+      return situacao === "ATENDE" ? { cor: paleta.bolha, vazada: false, apagada: false } : { cor: paleta.neutra, vazada: false, apagada: true };
     }
     case "ordem": {
       const posicao = item.ordem?.posicao ?? null;
       const dentro = posicao !== null && (p.primeiros === null || posicao <= p.primeiros);
-      return dentro ? { cor: COR_BOLHA, vazada: false, apagada: false } : posicao === null ? vazia : { cor: COR_NEUTRA, vazada: false, apagada: true };
+      return dentro ? { cor: paleta.bolha, vazada: false, apagada: false } : posicao === null ? vazia : { cor: paleta.neutra, vazada: false, apagada: true };
     }
     default:
-      return { cor: COR_BOLHA, vazada: false, apagada: false };
+      return { cor: paleta.bolha, vazada: false, apagada: false };
   }
 }
 
@@ -1007,8 +1083,9 @@ export type PontoSerie = { competencia: string; x: number; y: number; valor: num
 export type SerieDesenho = { id: string; rotulo: string; cor: string; familia: FamiliaTendencia | null; classe: string;
   pontos: PontoSerie[]; caminhos: string[]; fim: PontoSerie | null };
 /** Linhas por competência: um ponto por observação; lacunas não são ligadas (sem imputar), sem reta ajustada. */
-export function montarSeries(p: { itens: PainelItem[]; janela: string[]; dominio: PainelDominio; x0: number; x1: number; y0: number; y1: number }):
-  { series: SerieDesenho[]; marcasX: { competencia: string; x: number }[] } {
+export function montarSeries(p: { itens: PainelItem[]; janela: string[]; dominio: PainelDominio; x0: number; x1: number; y0: number; y1: number;
+  paleta?: PaletaDoGrafico }): { series: SerieDesenho[]; marcasX: { competencia: string; x: number }[] } {
+  const paleta = p.paleta ?? PALETA_CLARA;
   const tempos = posicoesTemporais(p.janela);
   const maximo = Math.max(1, ...tempos.values());
   const x = (c: string) => p.x0 + (p.x1 - p.x0) * ((tempos.get(c) ?? 0) / maximo);
@@ -1026,7 +1103,7 @@ export function montarSeries(p: { itens: PainelItem[]; janela: string[]; dominio
       pontos.push(ponto); atual.push(ponto);
     }
     if (atual.length > 1) caminhos.push(caminho(atual));
-    return { id: item.id, rotulo: item.rotulo, cor: familia ? CORES_TENDENCIA[familia] : COR_NAO_AVALIAVEL, familia,
+    return { id: item.id, rotulo: item.rotulo, cor: familia ? paleta.tendencia[familia] : paleta.naoAvaliavel, familia,
       classe: tendencia?.rotulo || "Não avaliável", pontos, caminhos, fim: pontos.at(-1) ?? null };
   });
   return { series, marcasX: [...tempos.keys()].map(c => ({ competencia: c, x: x(c) })) };

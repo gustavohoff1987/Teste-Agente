@@ -35,6 +35,35 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Página única: modo escuro que segue o aparelho, com a impressão sempre clara
+- **Antes:** a página era só clara, em qualquer esquema de cor do aparelho (o documento da interface dizia "A aplicação é
+  toda clara; não há modo escuro.").
+- **Agora:**
+  - com o aparelho no escuro (`prefers-color-scheme: dark`), sem botão, a página inteira fica escura: o aviso de
+    privacidade, a estrutura, a fonte dos dados, a área de análise, o gráfico, o mapa e o mapinha, a dica, os painéis, os
+    Detalhes, a conversa flutuante, o Histórico e os diálogos; os campos, as listas e as barras de rolagem nativas acompanham
+    (`color-scheme`). A troca do esquema no aparelho vale na hora, sem recarregar;
+  - superfícies do escuro: página #0d0d0d, cartões #171716, gráfico e mapa #1a1a19 e elevados #232321 (dica, painel das
+    funções, conversa, diálogos, menu do Histórico, controles do mapa). Textos, links, avisos (âmbar e rosa) e botões ficam a
+    4,5:1 ou mais nas superfícies em que aparecem; o foco visível, a 3:1 ou mais. Os preenchimentos que no claro levam texto
+    branco (aba e segmento escolhidos, botões primários, "Li e concordo") ficam claros, com texto escuro;
+  - o desenho usa a paleta do escuro, conferida no validador de paletas: série única #1ba3b5; tendência #3987e5, #d95926 e
+    #199e70; grupos, faixas e a cor contínua do mapa do escuro (menor) ao claro (maior), de #184f95 a #9ec5f4; a variação com
+    o aumento de #1c5cab a #9ec5f4, a redução de #a8431b a #f2ad8c e o zero #45443f; o neutro #5f5e5a nas condições; o anel do
+    não avaliável #898781;
+  - a impressão é sempre clara, também o gráfico e o mapa, que voltam ao claro no começo da impressão.
+- **Permanece:** o modo claro com as cores de antes (alguns tons quase iguais passaram a dividir uma variável, e as sombras
+  ficaram em 3 níveis, sem diferença visível); os valores, os pedidos ao motor, os textos, o CSV e todos os `data-testid`; as
+  cores continuam só mapeamento visual dos valores do motor; nada vai ao provedor de IA.
+- **Motivo:** bloco 5 do plano da rodada de 23/10/2026, com a decisão do responsável pelo produto de 23/10: o modo escuro
+  segue o aparelho, sem botão.
+- **Classificação:** mudança prevista, só visual. Escopo: decorre do pedido. Compatibilidade: a SPEC não trata do esquema de
+  cor, e nenhuma divergência aprovada é contrariada.
+- **Documentação e testes:** README (interface e o job `ui-block1`); `Docs/PAINEL_INTEGRADO_INTERFACE.md` e
+  `Docs/MAPA_DA_PAGINA_UNICA.md` (seções "Modo escuro"); `frontend/tests/modoEscuro.test.mjs` (novo);
+  `backend/tests/ui_modo_escuro.py` (novo, suíte `bloco1`, com o navegador no escuro); ganchos de teste novos: `data-esquema`
+  em `mapa-analise` e `esquema` e `superficie` em `window.__adtMapa`.
+
 ### 2026-10-23 · Conversa: "ver no mapa" troca a vista do desenho, e "o que esse gráfico mostra?" responde com a frase-resumo do motor
 - **Antes:**
   - "ver no mapa" (e o ato `show_map` do intérprete) respondia "Nesta página, a análise acontece no gráfico; o mapa não faz
