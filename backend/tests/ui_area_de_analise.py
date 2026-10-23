@@ -190,9 +190,11 @@ def main():
                              ("analise-familia-espacial", "Análise Espacial"), ("analise-familia-tendencia", "Análise de Tendência"),
                              ("analise-familia-rotatividade", "Análise de Rotatividade")):
             expect(area.get_by_test_id(testid)).to_contain_text(nome)
+        # Na mesma linha: uma linha horizontal atravessa as cinco abas (as alturas podem variar com o texto de apoio), da
+        # esquerda para a direita, na ordem acima.
         caixas = [area.get_by_test_id(testid).bounding_box() for testid in ordem]
-        bases = [caixa["y"] + caixa["height"] for caixa in caixas]
-        assert max(bases) - min(bases) <= 1 and all(caixa["y"] < min(bases) for caixa in caixas), ("as cinco abas na mesma linha", caixas)
+        assert max(caixa["y"] for caixa in caixas) < min(caixa["y"] + caixa["height"] for caixa in caixas), ("as cinco abas na mesma linha", caixas)
+        assert [caixa["x"] for caixa in caixas] == sorted(caixa["x"] for caixa in caixas), ("da esquerda para a direita", caixas)
         apresentacao = area.get_by_test_id("analise-apresentacao")
         expect(area).to_have_attribute("data-aba", "territorios")
         expect(apresentacao).to_contain_text("Selecione os territórios que deseja incluir em suas análises.")
