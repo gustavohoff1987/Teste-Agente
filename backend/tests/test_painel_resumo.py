@@ -219,16 +219,18 @@ def test_a_failing_summary_never_breaks_the_chart(repo, monkeypatch, caplog):
     def broken(*_args):
         raise RuntimeError("falha simulada")
 
-    monkeypatch.setattr(resumo_painel, "summary", broken)
-    with caplog.at_level(logging.ERROR):
-        failed = ok(page(info))
+    # Cada remendo vale só no seu bloco: monkeypatch.undo() desfaria também os da fixture repo (a base temporária).
+    with monkeypatch.context() as patch:
+        patch.setattr(resumo_painel, "summary", broken)
+        with caplog.at_level(logging.ERROR):
+            failed = ok(page(info))
     assert "resumo" not in failed
     assert failed["itens"] == first["itens"] and failed["chave_execucao"] == first["chave_execucao"]
     assert "Falha ao compor a frase-resumo do gráfico" in caplog.text
     # Um segmento que não confere tira a frase da resposta (nunca uma frase com número não conferido).
-    monkeypatch.undo()
-    monkeypatch.setattr(resumo_painel, "verify", lambda body: False)
-    assert "resumo" not in ok(page(info))
+    with monkeypatch.context() as patch:
+        patch.setattr(resumo_painel, "verify", lambda body: False)
+        assert "resumo" not in ok(page(info))
 
 
 def test_the_summary_never_reaches_the_provider(repo, monkeypatch):

@@ -135,9 +135,12 @@ def test_real_map_covers_the_municipalities_of_the_competence_inside_brazil(real
     ids = [point["id"] for point in body["pontos"]] + [entry["id"] for entry in body["sem_coordenada"]]
     assert len(ids) == len(set(ids)) and set(ids) == expected and len(expected) == 5570
     assert body["referencial"] == "SIRGAS2000"
-    assert all(-34 <= point["lat"] <= 6 and -74 <= point["lon"] <= -34 for point in body["pontos"])
+    # O Brasil com as ilhas oceânicas: a sede de Fernando de Noronha (PE) fica a 32,4° W, a leste do continente (34,8° W).
+    fora = [point for point in body["pontos"] if not (-34 <= point["lat"] <= 6 and -74 <= point["lon"] <= -28)]
+    assert not fora, fora[:5]
     points = {point["id"]: (point["lat"], point["lon"]) for point in body["pontos"]}
     assert points["code:130260"] == (-3.134691491, -60.02333518)  # MANAUS, sede municipal da fonte
+    assert points["code:260545"] == (-3.852021401, -32.43518633)  # FERNANDO DE NORONHA, ilha oceânica, como na fonte
     assert points["code:170100"] == (-6.374096, -48.07024)  # ANANAS, pela camada complementar governada
     items = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406",
                     base={"municipios": {"todos": True}}))["itens"]
