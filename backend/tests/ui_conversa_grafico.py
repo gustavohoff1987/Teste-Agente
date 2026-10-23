@@ -5,10 +5,14 @@ Percorre:
 - a escolha da base pela conversa ("usar dados do Brasil"), sem o provedor;
 - comandos que mudam o gráfico: o campo `painel` da resposta do intérprete local vira um pedido para a área, que pede ao
   motor (/api/painel) o novo recorte: "Mostre o Amazonas", "Compare Manaus e Tefé" e "Volte aos estados";
-- o contexto que vai ao intérprete saindo do gráfico: os municípios na tela, a família, o indicador e a competência;
+- a vista do desenho pela conversa (23/10/2026), na tela e sem o intérprete: com os municípios na tela, "ver no mapa" troca
+  o gráfico pelo mapa (`area-de-analise` com data-desenho="mapa") e "volte ao gráfico" desfaz; "o que esse gráfico mostra?"
+  responde com a frase-resumo do motor (`analise-resumo`), como veio;
+- o contexto que vai ao intérprete saindo do gráfico: os municípios na tela, a família, o indicador, a competência, a vista
+  e a frase-resumo (esta nunca chega ao provedor);
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
-- pedidos de apresentação (tabela, mapa) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem
-  recalcular;
+- pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
+  continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular;
 - uma planilha enviada pela conversa ("enviar meus dados"), com condados e sem grupo: a orientação usa o nome das unidades,
   nunca "município", e "Compare Alfa e Beta" muda o gráfico da planilha.
 Nada é calculado pela conversa.
@@ -39,7 +43,8 @@ AMAZONAS = sorted([MANAUS, TEFE, PARINTINS])
 SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
 # Nada disto pode chegar ao provedor: arquivos, colunas, códigos e as chaves do contexto do gráfico.
 PROTEGIDOS = ("Dados_Municipios_Brasil.csv", "Dados_Brasil.xlsx", "Dados_Estados_Brasil.csv", "cod_ibge", "população_estimada",
-              "130260", "130420", "130340", "code:", "condados.csv", "territory_ids", "painel_familia")
+              "130260", "130420", "130340", "code:", "condados.csv", "territory_ids", "painel_familia", "painel_vista",
+              "painel_resumo", "painel_mapa_disponivel")
 
 
 def provider_log():
@@ -57,9 +62,11 @@ def main():
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         offline(context)
         page = context.new_page()
-        failures, llm_calls, analyze_calls, exploracoes, painel = [], [], [], [], []
+        failures, llm_calls, analyze_calls, exploracoes, painel, contextuais = [], [], [], [], [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
+        page.on("request", lambda request: contextuais.append(request)
+                if request.url.endswith("/api/llm/interpret-context") else None)
         page.on("request", lambda request: analyze_calls.append(request.url) if request.url.endswith("/api/analyze") else None)
         page.on("request", lambda request: exploracoes.append(request) if request.url.endswith("/api/exploration/interpret") else None)
         page.on("request", lambda request: painel.append(request) if request.url.endswith("/api/painel") else None)
@@ -82,7 +89,8 @@ def main():
 
         page.goto(URL)
         accept_privacy(page)
-        expect(page.get_by_test_id(AREA["raiz"])).to_be_visible()
+        area = page.get_by_test_id(AREA["raiz"])
+        expect(area).to_be_visible()
         chat = open_chat(page)
         guia = chat.get_by_test_id("painel-chat-guia")
         latest = chat.get_by_test_id("latest-reply")
@@ -148,16 +156,38 @@ def main():
         page.wait_for_timeout(1000)
         shot("01-amazonas")
 
-        # 5. "Compare Manaus e Tefé": o contexto leva os municípios na tela; a comparação (maior, menor, diferença) vem do motor.
+        # 5. A vista do desenho pela conversa (o mapa como segunda vista do gráfico, 23/10/2026), na tela e sem o intérprete:
+        # com os municípios na tela, "ver no mapa" troca o gráfico pelo mapa, e "volte ao gráfico" desfaz; "o que esse gráfico
+        # mostra?" responde com a frase-resumo do motor (analise-resumo), como veio.
+        interpretacoes = len(exploracoes) + len(llm_calls)
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        send(page, "ver no mapa")
+        expect(latest).to_contain_text("Mostrei o mapa no lugar do gráfico")
+        expect(area).to_have_attribute("data-desenho", "mapa", timeout=60000)
+        shot("01b-mapa")
+        send(page, "volte ao gráfico")
+        expect(latest).to_contain_text("Voltei ao gráfico")
+        expect(area).to_have_attribute("data-desenho", "grafico", timeout=60000)
+        resumo = page.get_by_test_id("analise-resumo").first
+        expect(resumo).to_have_text(re.compile(r"\S"), timeout=60000)
+        frase = " ".join((resumo.text_content() or "").split())
+        send(page, "O que esse gráfico mostra?")
+        expect(latest).to_contain_text(frase)
+        assert len(exploracoes) + len(llm_calls) == interpretacoes, "a vista e o resumo são respondidos na tela"
+
+        # 6. "Compare Manaus e Tefé": o contexto leva os municípios na tela, a vista e a frase-resumo; a comparação (maior,
+        # menor, diferença) vem do motor.
         resposta, conversa, _, grafico = chat_to_chart("Compare Manaus e Tefé", lambda o: bool(o.get("comparar")))
         assert sorted(conversa.get("territory_ids", [])) == AMAZONAS, conversa
+        assert conversa.get("painel_vista") == "grafico" and conversa.get("painel_mapa_disponivel", True) is True, conversa
+        assert frase in " ".join(str(conversa.get("painel_resumo") or "").split()), conversa
         assert resposta["painel"].get("funcao") == "comparar", resposta["painel"]
         assert set(resposta["painel"].get("selecao") or []) == {MANAUS, TEFE}, resposta["painel"]
         assert set(grafico["comparar"]) == {MANAUS, TEFE}, grafico
         page.wait_for_timeout(1000)
         shot("02-comparacao")
 
-        # 6. Esclarecimento: a conversa pergunta o outro município e guarda a pendência para a mensagem seguinte.
+        # 7. Esclarecimento: a conversa pergunta o outro município e guarda a pendência para a mensagem seguinte.
         with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
             send(page, "Compare Manaus")
         assert event.value.json().get("pending_operation") == "comparisons", event.value.json()
@@ -167,7 +197,7 @@ def main():
         assert options_of(event.value.request).get("conversation_pending_operation") == "comparisons", options_of(event.value.request)
         page.wait_for_timeout(1500)
 
-        # 7. Gemini simulado: ambiguidade material com alternativas em botões; a escolha muda o indicador do gráfico, e a
+        # 8. Gemini simulado: ambiguidade material com alternativas em botões; a escolha muda o indicador do gráfico, e a
         # mensagem seguinte leva o novo indicador no contexto.
         indicador = "density"
         if simulado:
@@ -195,23 +225,30 @@ def main():
             page.wait_for_timeout(1000)
             indicador = "quantity"
 
-        # 8. "Volte aos estados": de volta à porta de entrada, com o indicador do gráfico no contexto.
+        # 9. "Volte aos estados": de volta à porta de entrada, com o indicador do gráfico no contexto.
         resposta, conversa, _, _ = chat_to_chart("Volte aos estados", lambda o: o.get("nivel") == "estados")
         assert resposta["painel"].get("nivel") == "estados", resposta["painel"]
         assert conversa.get("exploration_indicator") == indicador, conversa
         page.wait_for_timeout(1000)
 
-        # 9. Pedidos de apresentação: respondidos na tela, sem recalcular nem chamar o intérprete.
+        # 10. Pedidos de apresentação: respondidos na tela, sem recalcular nem chamar o intérprete. Nos estados, o mapa não
+        # está disponível (os estados não têm um ponto): a resposta é o motivo informado pela área, e a vista continua o
+        # gráfico.
         chamadas, interpretacoes = len(painel), len(exploracoes) + len(llm_calls)
         send(page, "agora a tabela")
         expect(latest).to_contain_text("A tabela fica em Detalhes")
         send(page, "Quero ver no mapa.")
-        expect(latest).to_contain_text("o mapa não faz parte dela")
+        expect(latest).to_contain_text("Nada mudou no gráfico")
+        expect(latest).not_to_contain_text("Mostrei o mapa")
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        motivo = page.get_by_test_id("analise-desenho-motivo")
+        if motivo.count() == 1 and motivo.is_visible():
+            expect(latest).to_contain_text(" ".join((motivo.text_content() or "").split()))
         send(page, "Volte para o resultado anterior")
         expect(latest).to_contain_text("Ainda não há análise anterior nesta sessão")
         assert len(painel) == chamadas and len(exploracoes) + len(llm_calls) == interpretacoes
 
-        # 10. Nova análise e "volte ao resultado anterior": a conversa reabre a análise anterior do Histórico, sem recalcular.
+        # 11. Nova análise e "volte ao resultado anterior": a conversa reabre a análise anterior do Histórico, sem recalcular.
         with page.expect_response(lambda r: is_post(r, "/api/painel") and options_of(r.request).get("nivel") == "estados",
                                   timeout=180000):
             page.get_by_test_id("nav-new-analysis").click()
@@ -223,7 +260,7 @@ def main():
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "reabrir a análise anterior não recalcula"
 
-        # 11. Planilha pela conversa: "enviar meus dados" abre a escolha do arquivo; a orientação usa o nome das unidades
+        # 12. Planilha pela conversa: "enviar meus dados" abre a escolha do arquivo; a orientação usa o nome das unidades
         # (condados), nunca "município"; e a conversa muda o gráfico da planilha.
         caminho = pasta / "condados.csv"
         caminho.write_text("condado;ano;quantidade;populacao\nAlfa;2023;10;1000\nBeta;2023;20;4000\nGama;2023;5;2500\n"
@@ -258,22 +295,26 @@ def main():
         assert set(grafico["comparar"]) == {"name:Alfa", "name:Beta"}, grafico
         shot("03-planilha")
 
-        # 12. Nada da base chega ao provedor simulado: nem arquivos, colunas e códigos, nem o contexto do gráfico.
+        # 13. Nada da base chega ao provedor simulado: nem arquivos, colunas e códigos, nem o contexto do gráfico, nem a
+        # frase-resumo do motor, que a tela manda ao backend local (painel_resumo) e ele tira antes do intérprete.
         if simulado:
             registros = [json.loads(linha) for linha in provider_log().splitlines() if linha.strip()]
             assert len(registros) >= 3, registros
             payload = provider_log()
             for protegido in PROTEGIDOS:
                 assert protegido not in payload, protegido
+            assert contextuais, "o roteiro passa pelo intérprete contextual"
+            for texto in filter(None, [frase, *(options_of(pedido).get("painel_resumo") for pedido in contextuais)]):
+                assert texto not in payload, texto
             # Exemplos da biblioteca conversacional acompanham os pedidos, mascarados como as mensagens.
             exemplos = [registro["exemplos"] for registro in registros if registro.get("exemplos")]
             assert exemplos and all(bloco.startswith("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL") for bloco in exemplos), registros
         assert not analyze_calls, "a conversa não aciona as telas clássicas de /api/analyze"
         assert not failures, failures
         browser.close()
-    print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa, Amazonas, comparação, esclarecimento, estados, "
-          "apresentação, análise anterior e planilha de condados" + (", ambiguidade e minimização (Gemini simulado)."
-                                                                      if simulado else " (sem provedor)."))
+    print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa, Amazonas, mapa e gráfico, resumo, comparação, "
+          "esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
+          (", ambiguidade e minimização (Gemini simulado)." if simulado else " (sem provedor)."))
 
 
 if __name__ == "__main__":

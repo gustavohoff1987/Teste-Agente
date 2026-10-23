@@ -35,6 +35,47 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Conversa: "ver no mapa" troca a vista do desenho, e "o que esse gráfico mostra?" responde com a frase-resumo do motor
+- **Antes:**
+  - "ver no mapa" (e o ato `show_map` do intérprete) respondia "Nesta página, a análise acontece no gráfico; o mapa não faz
+    parte dela. A distância até uma referência fica na Análise espacial."; "volte ao gráfico" não era reconhecido na tela;
+  - o comando `painel` não tinha vista: "mostre o Pará no mapa" mostrava o Pará e ignorava "no mapa";
+  - "o que esse gráfico mostra?", "resuma o gráfico", "explique o resultado" e "o que estou vendo?" seguiam para o intérprete
+    (local, contextual e, sem resposta local, o provedor de IA); "explique o resultado" usava a explicação do resultado do
+    backend;
+  - o contexto da conversa não levava a vista, a disponibilidade do mapa nem a frase-resumo.
+- **Agora:**
+  - "ver no mapa", "mostre no mapa", "abra o mapa" e "agora o mapa" mandam à área o pedido `{ vista: "mapa" }` ("Mostrei o
+    mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."); "volte ao gráfico", "mostre no gráfico" e "agora o
+    gráfico", `{ vista: "grafico" }` ("Voltei ao gráfico. …"). Com o mapa indisponível segundo a área (estados, planilha sem
+    coordenadas, visão Séries), nenhum pedido sai, e a resposta é o motivo da área seguido de "Nada mudou no gráfico.";
+    `show_map` e `show_chart` têm o mesmo tratamento; "agora a tabela" aponta os Detalhes, abaixo do gráfico ou do mapa;
+  - o comando `painel` ganha `vista` (`mapa` ou `grafico`; nula quando não citada): "mostre o Pará no mapa", "onde ficam os
+    municípios com menos de 1 médico por mil?", "volte aos municípios no mapa", "a quantidade no gráfico"; a resposta
+    acrescenta "Passei para o mapa." (ou "O mapa continua na tela.", "Deixei só o mapa.", "Voltei ao gráfico.", "Deixei só o
+    gráfico."). Onde o pedido já decide que o mapa não mostra a análise (estados ou grupos, planilha sem latitude e
+    longitude, rotatividade sem coordenadas, visão Séries, ou mapa indisponível segundo a área sem mudança de nível,
+    unidades, análise ou visão), a vista não entra, e a resposta diz por quê;
+  - "o que esse gráfico mostra?", "resuma o gráfico", "explique o resultado", "o que estou vendo?" e variações próximas, sem
+    outro pedido junto, são respondidos na tela com a frase-resumo verificada do motor, como veio; sem ela, "Ainda não há um
+    gráfico calculado para resumir."; nada vai ao intérprete nem ao provedor. "Por que…", perguntas de método e "explique de
+    forma mais simples" seguem para o backend como antes;
+  - o contexto leva `painel_vista`, `painel_mapa_disponivel` e `painel_resumo`; o backend os tira das opções antes do
+    pré-exame, do intérprete e do provedor (`CONTEXTO`).
+- **Permanece:** trocar de vista é estado visual e não recalcula (RQ-REP-06); a conversa não calcula nada; "volte ao
+  resultado anterior" segue como antes; nada da base vai ao provedor de IA.
+- **Motivo:** plano da rodada de 23/10/2026, blocos 2 (mapa como segunda vista do gráfico) e 3 (explicação do resultado
+  em palavras).
+- **Classificação:** mudança prevista. Escopo: decorre do pedido e dos itens do plano. Compatibilidade: a SPEC prevê o mapa
+  com coordenadas autorizadas e a síntese ancorada; a frase repetida é a do motor, ancorada no resultado (RQ-QUA-07,
+  RQ-REP-09); a troca de vista é estado visual (RQ-REP-06). Desfaz em parte a resposta de 22/10/2026 ("o mapa não faz parte
+  da página").
+- **Documentação e testes:** README (conversa); `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` e
+  `Docs/CONVERSACAO_INCREMENTO_FN.md`; `frontend/tests/conversaGrafico.test.mjs` (a asserção "o mapa não faz parte dela" muda
+  de propósito); `backend/tests/test_conversa_grafico.py` (vista nos comandos compostos, sem mapa, chaves fora do pré-exame,
+  do intérprete e do provedor nas duas rotas); `backend/tests/ui_conversa_grafico.py` (suítes `conversa` e
+  `gemini-simulado`; o passo "Quero ver no mapa." nos estados muda de propósito).
+
 ### 2026-10-23 · Área de análise: ajustes dentro de cada análise, o mapa como segunda vista do gráfico (com o lado a lado e o mapinha) e a frase-resumo do motor
 - **Antes:**
   - indicador, competência, categoria, as opções da família e a escala ficavam numa linha solta abaixo das abas, igual para

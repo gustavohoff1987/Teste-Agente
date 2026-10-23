@@ -99,12 +99,16 @@ O estado do gráfico chega em `options`, e o pedido seguinte parte dele:
 | `painel_janela` / `period_filters` | a janela da tendência |
 | `painel_referencia` | ids da referência da análise espacial |
 | `painel_condicoes` | condições em vigor, no formato de `painel.condicoes` |
+| `painel_vista` | vista do desenho em exibição: `grafico`, `mapa` ou `lado` (desde 23/10/2026) |
+| `painel_mapa_disponivel` | `true` ou `false`: se o mapa pode mostrar a análise agora, como a área informou (desde 23/10/2026) |
+| `painel_resumo` | a frase-resumo verificada do motor, como a área a mostra (desde 23/10/2026); traz valores da base e não entra nem no contexto da conversa |
 | `rotulos` | nomes das unidades nas planilhas: `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} ou null}` |
 | `territory_ids`, `exploration_operation`, `conversation_today` | como antes |
 
-Antes do pré-exame e do intérprete, as chaves `painel_*` e `rotulos` saem das opções; `territory_ids` fica só com
-municípios (`code:`/`name:`); com competência e janela juntas, vale a da família à vista; a família vira a operação
-ativa (`distribuicao` → `density` ou `counts`, `tendencia` → `temporal`, `espacial` → `spatial`).
+Antes do pré-exame e do intérprete, as chaves `painel_*` e `rotulos` saem das opções (`CONTEXTO` em
+`conversa_grafico.py`), e nada delas vai ao provedor de IA; `territory_ids` fica só com municípios (`code:`/`name:`); com
+competência e janela juntas, vale a da família à vista; a família vira a operação ativa (`distribuicao` → `density` ou
+`counts`, `tendencia` → `temporal`, `espacial` → `spatial`).
 
 ### Resposta
 
@@ -134,6 +138,7 @@ Todas as chaves vêm sempre; **nula quer dizer "o gráfico mantém o que tem"**.
 | `ordenar` | `{"atributo": densidade, quantidade, populacao, distancia_km ou variacao, "ordem": desc ou asc, "primeiros": N ou null}` |
 | `condicoes` | a lista inteira, combinada com "e": `[{"atributo": densidade, distancia_km, populacao ou quantidade, "operador": <, <=, >, >=, = ou !=, "valor": número}]` |
 | `grupos` | `{"tipo": quartis, quintis, decis ou nenhum}` (extensão do contrato: os grupos por posição da distribuição) |
+| `vista` | `mapa` ou `grafico` (desde 23/10/2026): a vista do desenho citada junto com o comando; estado visual, que a área aplica sem recalcular (RQ-REP-06) |
 
 Mapeamento das operações atuais: `density` → distribuição com densidade; `counts` → distribuição com quantidade;
 `distribution` → distribuição (com `grupos` quando o pedido diz quartis, quintis ou decis); `temporal` → tendência;
@@ -172,6 +177,16 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   mensagem seguinte só com nomes ("Tefé e Parintins") completa a comparação. Outro comando ou uma pergunta seguem o seu
   próprio sentido.
 - **Exportar:** "exporte em CSV", "imprimir", "relatório".
+- **Vista do desenho** (desde 23/10/2026), junto com outro pedido: "mostre o Pará no mapa", "onde ficam os municípios
+  com menos de 1 médico por mil?", "o mapa da quantidade" e "volte aos municípios no mapa" levam `vista: "mapa"`; "a
+  quantidade no gráfico" e "volte ao gráfico com …", `vista: "grafico"`. Com negação ("não no mapa", "sem o mapa") ou
+  com as duas vistas no mesmo pedido, a vista não muda. A vista sozinha ("ver no mapa", "volte ao gráfico") é atendida na
+  tela, com o motivo da área quando o mapa não está disponível; aqui ela não vira comando, e o pedido segue para o
+  intérprete com o provedor, que a devolve como `show_map` ou `show_chart`. "Amapá" não é o mapa.
+- **Onde o mapa não mostra a análise** pedida, o comando segue sem a vista, e a resposta diz por quê: nos estados (ou nos
+  grupos de uma planilha), que não têm um ponto; numa planilha sem latitude e longitude; na rotatividade e na visão
+  Séries, que ficam no gráfico; e quando a área já informou que o mapa não está disponível (`painel_mapa_disponivel:
+  false`) e o pedido não muda o nível, as unidades, a análise nem a visão. A área confere de novo e mostra o motivo dela.
 
 ### Ambiguidades e perguntas
 
@@ -198,6 +213,12 @@ As respostas dizem o que muda no gráfico, sem valores da base: "Mostrei a densi
 municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros; empates na posição de corte também
 entram.", "Voltei aos estados: cada bolha é um estado, com a densidade.". Na base do Brasil, a rotatividade não está
 disponível (não há identificador individual), e a resposta diz isso sem mudar o gráfico.
+
+Com a vista citada, a resposta ganha uma frase, conforme a vista em exibição (`painel_vista`): "Passei para o mapa." (ou
+"O mapa continua na tela."; lado a lado, "Deixei só o mapa."); "Voltei ao gráfico." quando o mapa estava na tela (lado a
+lado, "Deixei só o gráfico."; já no gráfico, nada é acrescentado); sem o mapa, o motivo, por exemplo "Os estados não têm
+um ponto no mapa; a análise fica no gráfico. Para ver no mapa, abra os municípios de um estado.", "Sem latitude e
+longitude na planilha, não há mapa; a análise fica no gráfico." ou "A visão Séries fica só no gráfico.".
 
 ### Planilhas de outros países
 
@@ -236,8 +257,9 @@ Desde 22/10/2026, a interface é a página única de análise: no alto, o nome d
 
 `test_conversa_grafico.py` cobre a conversa no gráfico: o mapeamento das operações atuais, cada frase do contrato,
 o contexto do gráfico, as ambiguidades com os botões (e o pedido de cada botão), uma planilha sintética de distritos
-e províncias sem código IBGE, as três rotas e o provedor de IA sem dados da base; no job `dados-reais`, as frases com
-a base versionada.
+e províncias sem código IBGE, as três rotas e o provedor de IA sem dados da base; a vista do desenho nos comandos
+compostos e onde o mapa não mostra a análise; e as chaves `painel_vista`, `painel_mapa_disponivel` e `painel_resumo`
+fora do pré-exame, do intérprete e do provedor, nas duas rotas; no job `dados-reais`, as frases com a base versionada.
 
 Os testes `test_dialogue_guidance.py`, `test_conversation_guidance.py`,
 `test_llm_context.py` e `test_territorial_selection.py` verificam capacidades

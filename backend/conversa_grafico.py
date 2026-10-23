@@ -2,10 +2,13 @@
 
 Interpreta, nunca calcula. Na página única, a tela envia o estado do gráfico em `options` (a chave `painel_familia`,
 mesmo nula, identifica a página única) e recebe, quando o pedido mexe no gráfico, o campo `painel`: família, indicador,
-nível, municípios, competência, janela, visão da tendência, referência, função, seleção, ordenação, condições e grupos.
-Chave nula: o gráfico mantém o que tem. Nomes e códigos são resolvidos só aqui, pelo catálogo territorial local; nada
-da base vai ao provedor de IA. Ambiguidade vira pergunta com alternativas em botões, sem mudar o gráfico. As respostas
-dizem o que muda no gráfico, sem valores da base: os números vêm do motor depois (/api/painel).
+nível, municípios, competência, janela, visão da tendência, referência, função, seleção, ordenação, condições, grupos e,
+desde 23/10/2026, a vista do desenho ("mostre o Pará no mapa", "onde ficam …?": `vista: "mapa"`; "… no gráfico":
+`vista: "grafico"`), que a área aplica como estado visual, sem recalcular. Chave nula: o gráfico mantém o que tem. Nomes e
+códigos são resolvidos só aqui, pelo catálogo territorial local; nada da base vai ao provedor de IA (o estado da tela,
+inclusive a frase-resumo do motor em `painel_resumo`, sai das opções antes do intérprete: CONTEXTO). Ambiguidade vira
+pergunta com alternativas em botões, sem mudar o gráfico. As respostas dizem o que muda no gráfico, sem valores da base:
+os números vêm do motor depois (/api/painel).
 
 Planilhas enviadas usam os rótulos da tela (`options.rotulos`: distrito, província...) e o grupo da coluna-mãe (papel
 `grupo_territorial` do mapeamento). Detalhes em Docs/CONVERSACAO_INCREMENTO_FN.md, seção "Conversa no gráfico".
@@ -21,11 +24,14 @@ from semantic_bridge import ROLES
 from territorial_selection import REGIONS, STATES, territory_catalog, texts
 
 CHAVES = ("familia", "indicador", "nivel", "municipios", "competencia", "janela", "visao_tendencia", "referencia",
-          "funcao", "selecao", "ordenar", "condicoes", "grupos")
+          "funcao", "selecao", "ordenar", "condicoes", "grupos", "vista")
 FAMILIAS = ("distribuicao", "espacial", "tendencia", "rotatividade")
-# Estado do gráfico enviado pela tela (contrato, seção 4, e extensões documentadas); sai das opções do intérprete.
+# Estado do gráfico enviado pela tela (contrato, seção 4, e extensões documentadas); sai das opções do intérprete, do
+# pré-exame e do provedor. painel_resumo é a frase-resumo do motor, com valores da base: fica só na conversa local.
 CONTEXTO = ("painel_familia", "painel_indicador", "painel_nivel", "painel_municipios", "painel_competencia",
-            "painel_janela", "painel_referencia", "painel_condicoes", "rotulos", "conversation_pending_ids")
+            "painel_janela", "painel_referencia", "painel_condicoes", "painel_vista", "painel_resumo",
+            "painel_mapa_disponivel", "rotulos", "conversation_pending_ids")
+VISTAS = ("grafico", "mapa", "lado")
 # Operações atuais → família, indicador e função do gráfico (contrato, seção 4).
 OPERACOES = {
     "density": {"familia": "distribuicao", "indicador": "densidade"},
@@ -137,6 +143,12 @@ EXPLICACAO = re.compile(r"\b(?:entender|explique|explica|explicar|significa|sign
                         r"calculada|calculado|calculo|metodo|formula)\b")
 TAMBEM = re.compile(r"\b(?:tambem|alem\s+disso|adicionalmente|mais\s+uma\s+condicao)\b")
 PERGUNTA = re.compile(r"\s*(?:o\s+que|por\s*que|porque|como|qual|quais|quanto|quantos|quantas|onde|quando)\b")
+# Vista do desenho citada junto com outro comando (23/10/2026): "no mapa", "o mapa", "onde ficam …?" → mapa; "no gráfico",
+# "volte ao gráfico …" → gráfico. Com negação ("não no mapa", "sem o mapa") ou com as duas vistas, a vista não muda.
+VISTA_MAPA = re.compile(r"\b(?:(?:n[oa]|num|numa|em|pel[oa]|para\s+o|pro|ao|o|um)\s+)?mapas?\b|"
+                        r"\bonde\s+(?:e\s+que\s+)?(?:ficam|fica|estao|esta|se\s+localizam|se\s+localiza)\b")
+VISTA_GRAFICO = re.compile(r"\b(?:n[oa]|num|em|pelo|para\s+o|pro|ao)\s+graficos?\b")
+SEM_VISTA = re.compile(r"\b(?:nao|nem|nunca)\b|\bsem\s+(?:o\s+)?mapa\b")
 
 MESES = MONTHS + [mes[:3] for mes in MONTHS]
 MES = re.compile(r"\b(" + "|".join(MESES) + r")\.?\s*(?:de\s+|/|-)?\s*((?:19|20)\d{2})\b")
@@ -334,11 +346,15 @@ def contexto(options):
     janela = _textos(options.get("painel_janela")) or _textos(options.get("period_filters"))
     condicoes = options.get("painel_condicoes")
     rotulos = options.get("rotulos")
+    disponivel = options.get("painel_mapa_disponivel")
     return {"familia": familia, "indicador": indicador, "nivel": nivel,
             "municipios": _base_valida(options.get("painel_municipios")), "ids": ids, "competencia": competencia,
             "janela": janela, "referencia": _textos(options.get("painel_referencia")),
             "condicoes": [item for item in condicoes if isinstance(item, dict)] if isinstance(condicoes, list) else [],
             "rotulos": rotulos if isinstance(rotulos, dict) else {},
+            # Vista em exibição e se o mapa está disponível, como a área informou (a frase-resumo não entra aqui).
+            "vista": options.get("painel_vista") if options.get("painel_vista") in VISTAS else None,
+            "mapa_disponivel": disponivel if isinstance(disponivel, bool) else None,
             # Unidade já identificada numa comparação pendente ("compare Manaus" → "com qual outro?").
             "pendentes": [item for item in _textos(options.get("conversation_pending_ids"))
                           if item.startswith(("code:", "name:"))]}
@@ -1003,8 +1019,8 @@ def _frase_de_base(conv, painel, base, quando=""):
 
 # --------------------------------------------------------------------------------------------- comandos
 def _voltar(conv, dica, dica_indicador):
-    """"Volte aos estados" e "volte aos municípios": só o nível muda."""
-    texto = " ".join(re.findall(r"[a-z0-9]+", conv.pedido.texto))
+    """"Volte aos estados" e "volte aos municípios": só o nível muda (a vista citada, "… no mapa", já saiu do pedido)."""
+    texto = " ".join(re.findall(r"[a-z0-9]+", conv.pedido.resto))
     rot = conv.rot
     if conv.voltar_estados.fullmatch(texto):
         if not conv.brasil:
@@ -1672,21 +1688,79 @@ def _vista(conv, dica, dica_indicador, funcao=None):
     return _resposta(painel, _texto_da_vista(conv, painel, base, modo, citados, periodo))
 
 
+# --------------------------------------------------------------------------------------------- vista do desenho
+def _pedido_de_vista(conv):
+    """A vista do desenho citada no pedido, antes dos comandos (o trecho é consumido): "mapa", "grafico" ou None."""
+    resto = conv.pedido.resto
+    if SEM_VISTA.search(resto):
+        return None
+    mapa, grafico = list(VISTA_MAPA.finditer(resto)), list(VISTA_GRAFICO.finditer(resto))
+    if bool(mapa) == bool(grafico):
+        return None
+    for encontrado in mapa or grafico:
+        conv.pedido.consome(*encontrado.span())
+    return "mapa" if mapa else "grafico"
+
+
+def _sem_mapa(conv, painel):
+    """Por que o mapa não mostra a análise pedida, quando o pedido já decide isso; senão, None. A área confere de novo
+    (coordenadas autorizadas, visão em uso) e mostra o motivo dela."""
+    ctx, rot = conv.ctx, conv.rot
+    if not conv.brasil and not (conv.fields.get("latitude") and conv.fields.get("longitude")):
+        return "Sem latitude e longitude na planilha, não há mapa; a análise fica no gráfico."
+    if (painel["nivel"] or ctx["nivel"]) == "estados":
+        grupos = "os estados" if conv.brasil else ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural
+        um_grupo = "um estado" if conv.brasil else ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular
+        return (_maiuscula(grupos) + " não têm um ponto no mapa; a análise fica no gráfico. Para ver no mapa, abra " +
+                rot.os() + " de " + um_grupo + ".")
+    if (painel["familia"] or ctx["familia"]) == "rotatividade":
+        return "A rotatividade ainda não aparece no mapa; a análise fica no gráfico."
+    if painel["visao_tendencia"] == "series":
+        return "A visão Séries fica só no gráfico."
+    muda = any(painel[chave] is not None for chave in ("nivel", "municipios", "familia", "visao_tendencia"))
+    if ctx.get("mapa_disponivel") is False and not muda:
+        return "O mapa não está disponível nesta análise; ela fica no gráfico."
+    return None
+
+
+def _com_vista(conv, resposta, vista):
+    """A vista citada entra no comando do gráfico (estado visual, sem recálculo: RQ-REP-06), e a resposta diz o que muda
+    nela. Pergunta e resposta sem comando ficam como estão: cada alternativa reescreve o pedido com a vista citada."""
+    painel = resposta.get("painel")
+    if vista is None or not isinstance(painel, dict):
+        return resposta
+    atual = conv.ctx.get("vista")
+    if vista == "grafico":
+        painel["vista"] = "grafico"
+        frase = {"mapa": "Voltei ao gráfico.", "lado": "Deixei só o gráfico."}.get(atual)
+    else:
+        frase = _sem_mapa(conv, painel)
+        if frase is None:
+            painel["vista"] = "mapa"
+            frase = {"mapa": "O mapa continua na tela.", "lado": "Deixei só o mapa."}.get(atual, "Passei para o mapa.")
+    if frase:
+        resposta["reply"] = " ".join(filter(None, (resposta.get("reply"), frase)))
+    return resposta
+
+
 # --------------------------------------------------------------------------------------------- entrada
 def interpretar(mensagem, frame, fields, settings, ctx, *, brasil, opcoes=None, grupo=None, dica=None,
                 dica_indicador=None):
     """Pedido da página única → {"painel", "reply"}, pergunta com alternativas ou {"handled": False}. Nunca calcula.
 
     dica: operação já interpretada (proposta do intérprete ou alternativa escolhida em botão); sem palavra do gráfico no
-    pedido, ela decide o comando."""
+    pedido, ela decide o comando. A vista citada ("no mapa", "onde ficam …?", "no gráfico") acompanha o comando; sozinha
+    ("ver no mapa"), é atendida na tela, e aqui segue sem comando."""
     conv = _Conversa(mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo)
     dica = dica if isinstance(dica, str) and dica in OPERACOES else None
+    vista = _pedido_de_vista(conv)
     for comando in (_voltar, _condicoes, _ordenar, _referencia, _comparar_ou_juntar, _exportar, _vista):
         resposta = comando(conv, dica, dica_indicador)
         if resposta is not None:
-            return resposta
+            return _com_vista(conv, resposta, vista)
     if dica is not None:
-        return _resposta(painel_da_operacao(dica, dica_indicador, mensagem), "Abri " + {
+        return _com_vista(conv, _resposta(painel_da_operacao(dica, dica_indicador, mensagem), "Abri " + {
             "distribuicao": "a distribuição", "espacial": "a análise espacial", "tendencia": "a tendência",
-            "rotatividade": "a rotatividade"}.get(OPERACOES[dica].get("familia"), "a função pedida") + " no gráfico.")
+            "rotatividade": "a rotatividade"}.get(OPERACOES[dica].get("familia"), "a função pedida") + " no gráfico."),
+            vista)
     return {"handled": False}

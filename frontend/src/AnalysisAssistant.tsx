@@ -3,8 +3,8 @@ import { AlertCircle, Database, FileUp, LoaderCircle, RefreshCw, Send } from "lu
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
-import { comandoDeFonte, guiaDaConversa, normalizeCommand, opcoesDaConversa, pedidoDaOperacao, pedidoDoPainel,
-  previousResultCommand, respostaDaVista, rotuloDoPedido, viewCommand, type ResultView } from "./conversaGrafico";
+import { comandoDeFonte, guiaDaConversa, normalizeCommand, opcoesDaConversa, pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel,
+  previousResultCommand, respostaDaVista, respostaDoResumo, rotuloDoPedido, viewCommand, type ResultView } from "./conversaGrafico";
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
 
 // Conversa da página única (22/10/2026), sempre na caixa flutuante com o rosto do agente. Antes dos dados, ela pergunta o que
@@ -12,8 +12,10 @@ import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } fr
 // ao intérprete local (/api/exploration/interpret) e, sem resposta local, ao intérprete contextual
 // (/api/llm/interpret-context); sem dados, ao intérprete preliminar (/api/llm/interpret). Quando a resposta traz o campo
 // `painel`, ele vira um pedido para a área de análise, que muda o gráfico; a conversa não calcula nada. O contexto de cada
-// pedido sai do que está no gráfico (ContextoDoGrafico). Nenhum dado, arquivo, nome de campo ou valor da base vai ao provedor
-// de IA: o backend só lhe entrega o pedido sanitizado e estados enumerados.
+// pedido sai do que está no gráfico (ContextoDoGrafico). Respondidos na própria tela, sem o intérprete: a vista do desenho
+// ("ver no mapa", "volte ao gráfico", que viram um pedido `{ vista }` para a área), "agora a tabela" e o pedido de resumo ("o
+// que esse gráfico mostra?", com a frase-resumo do motor). Nenhum dado, arquivo, nome de campo ou valor da base vai ao
+// provedor de IA: o backend só lhe entrega o pedido sanitizado e estados enumerados.
 
 /** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
  * mensagem (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
@@ -69,8 +71,9 @@ async function lerResposta(response: Response): Promise<any> {
 }
 
 function textoDoPedido(pedido: PedidoDoChat | null): string {
-  const rotulo = rotuloDoPedido(pedido);
-  return rotulo ? "Pronto: " + rotulo + " no gráfico." : "Gráfico atualizado com o seu pedido.";
+  const rotulo = rotuloDoPedido(pedido), desenho = pedido?.vista === "mapa" ? "mapa" : "gráfico";
+  return rotulo ? "Pronto: " + rotulo + " no " + desenho + "." : desenho === "mapa" ? "Mapa atualizado com o seu pedido."
+    : "Gráfico atualizado com o seu pedido.";
 }
 
 export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscolhida, fonte, fonteChave, colunasPendentes,
@@ -140,6 +143,12 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         source: "CATALOGO_LOCAL" as const, choices: local.choices, answered: false as const } } : {}) }]);
   }
   const append = (content: string) => setTurns(previous => [...previous, { role: "assistant", content }]);
+  /** Pedido de apresentação: a resposta e, quando a vista muda, o pedido `{ vista }` para a área (sem recalcular). */
+  function aplicarVista(vista: ResultView): string {
+    const resposta = respostaDaVista(vista, atual.current.fonte ? atual.current.contexto : null);
+    if (resposta.pedido) pedir.current(resposta.pedido);
+    return resposta.texto;
+  }
 
   function formulario(origem: FonteDaConversa): FormData {
     const form = new FormData();
@@ -249,6 +258,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       }
       return;
     }
+    // "O que esse gráfico mostra?": a frase-resumo verificada do motor, como veio, sem o intérprete nem o provedor de IA.
+    if (pedidoDeResumo(message)) { append(respostaDoResumo(pronta ? atual.current.contexto : null)); return; }
     if (fonteEscolhida && !pronta) {
       pendingRequest.current = message;
       append(fonteEscolhida === "arquivo" && colunasPendentes
@@ -256,11 +267,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         : "Estou preparando os dados; assim que o gráfico estiver pronto, sigo com o seu pedido.");
       return;
     }
-    // Pedidos de apresentação e a análise anterior: nada é recalculado.
+    // Pedidos de apresentação (a vista do desenho e a tabela) e a análise anterior: nada é recalculado.
     if (pronta) {
       if (previousResultCommand(message)) { append(onAnaliseAnterior()); return; }
       const vista = viewCommand(message);
-      if (vista) { append(respostaDaVista(vista)); return; }
+      if (vista) { append(aplicarVista(vista)); return; }
     }
     const requestRevision = revision.current;
     const history = turns.filter(turn => turn.role === "user").slice(-4).map(turn => turn.content);
@@ -298,7 +309,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         const local = aceitar({ ...resolved, painel: resolved.painel ?? validated.painel });
         texto = local.text;
         choices = local.choices;
-      } else if (vista) texto = respostaDaVista(vista);
+      } else if (vista) texto = aplicarVista(vista);
       else if (validated.dialogue_action === "previous_result" && origem) texto = onAnaliseAnterior();
       else {
         const pedido = pedidoDoPainel(validated.painel) ??

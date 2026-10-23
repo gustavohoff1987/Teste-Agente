@@ -126,11 +126,12 @@ de IA.
 conteúdo da base do Brasil continuam respondidas localmente. Um pedido analítico feito antes da escolha fica guardado: quando
 a base fica pronta, ele é interpretado de novo, já com a base, e os municípios citados nele vão para o gráfico.
 
-**Com os dados.** Cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem resposta local, ao
-intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calcula nada:
+**Com os dados.** Fora os pedidos atendidos na própria tela (a vista do desenho, a tabela, o resumo do que está na tela e a
+análise anterior, descritos abaixo), cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem
+resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calcula nada:
 - quando a resposta traz o campo **`painel`** (família, indicador, nível, municípios, competência, janela, visão da tendência,
-  referência, função, seleção, ordenação e condições), ele vira um **pedido para a área**, com um id novo a cada comando. Só os
-  campos válidos entram, e os não citados (`null`) ficam de fora;
+  referência, função, seleção, ordenação, condições, grupos e vista do desenho), ele vira um **pedido para a área**, com um
+  id novo a cada comando. Só os campos válidos entram, e os não citados (`null`) ficam de fora;
 - "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
   gráfico; os números vêm do motor, pedidos pela área;
 - o **contexto** de cada pedido sai do que está no gráfico (`ContextoDoGrafico`): em `options` vão `territory_ids` (as
@@ -139,10 +140,13 @@ intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calc
   rotatividade → `rotation`), `exploration_indicator`, `comparison_indicator` e `temporal_indicator` (o indicador),
   `period_filter` (a competência) ou `period_filters` (a janela da tendência), `painel_familia` e a data local do navegador
   (`conversation_today`, para "últimos N anos"). O estado do gráfico vai também como está: `painel_indicador`,
-  `painel_nivel`, `painel_municipios` (a escolha das unidades, inclusive "Todos"), `painel_competencia`, `painel_janela` e
-  `painel_referencia`. Antes de o gráfico informar o contexto, `painel_familia` vai nulo: a conversa responde no formato
-  do gráfico, nunca com orientações das telas que saíram. Numa planilha, vão também as escolhas das colunas e os nomes da
-  unidade e do grupo (`rotulos`); essas chaves ficam fora do que vai ao provedor de IA;
+  `painel_nivel`, `painel_municipios` (a escolha das unidades, inclusive "Todos"), `painel_competencia`, `painel_janela`,
+  `painel_referencia` e, desde 23/10/2026, `painel_vista` (`grafico`, `mapa` ou `lado`), `painel_mapa_disponivel` (se o
+  mapa pode mostrar a análise agora) e `painel_resumo` (a frase-resumo do motor). Antes de o gráfico informar o contexto,
+  `painel_familia` vai nulo: a conversa responde no formato do gráfico, nunca com orientações das telas que saíram. Numa
+  planilha, vão também as escolhas das colunas e os nomes da unidade e do grupo (`rotulos`). O backend tira as chaves
+  `painel_*` e `rotulos` das opções antes do pré-exame e do intérprete: nada delas vai ao provedor de IA, e a frase-resumo,
+  que traz valores da base, fica só no backend local;
 - os comandos da conversa incluem os grupos da distribuição ("divida em quintis", "sem os grupos") e a referência por
   critério ("a de maior densidade como referência"): a lista de candidatos abre nessa ordem, e usar o primeiro ou outro é
   escolha da pessoa;
@@ -153,10 +157,25 @@ intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calc
   relatório → Exportar);
 - pendências da conversa continuam: "Compare Manaus" pergunta o outro município, e a resposta seguinte completa o pedido;
   a direção de uma ordenação é perguntada, nunca presumida;
-- "agora a tabela" responde que a tabela fica em Detalhes, abaixo do gráfico; "mostre no mapa" responde que o mapa não faz
-  parte da página; nada é recalculado;
+- **vista do desenho** (desde 23/10/2026, com o mapa como segunda vista do gráfico): "ver no mapa", "mostre no mapa", "abra
+  o mapa" e "agora o mapa" mandam à área o pedido `{ vista: "mapa" }`, pelo mesmo caminho dos demais comandos, e a conversa
+  responde "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."; "volte ao gráfico", "mostre no
+  gráfico" e "agora o gráfico" mandam `{ vista: "grafico" }` ("Voltei ao gráfico. …"). Quando a área informa que o mapa não
+  está disponível (`mapaDisponivel: false`: nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na
+  visão Séries), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
+  gráfico.". Já na vista pedida, a conversa só diz isso. Essas formas diretas são reconhecidas na tela, sem o intérprete;
+  trocar de vista é estado visual e não recalcula (RQ-REP-06). Pedidos com mais do que a vista ("mostre o Pará no mapa",
+  "onde ficam os municípios com menos de 1 médico por mil?", "a quantidade no gráfico") vão ao intérprete local, que devolve
+  o comando com `vista` (ver [conversação incremental](CONVERSACAO_INCREMENTO_FN.md), "Conversa no gráfico"). Pelo
+  intérprete com o provedor, os atos `show_map` e `show_chart` têm o mesmo tratamento;
+- "agora a tabela" responde que a tabela fica em Detalhes, abaixo do gráfico (ou do mapa); nada é recalculado;
+- **resumo do que está na tela** (desde 23/10/2026): "o que esse gráfico mostra?", "resuma o gráfico", "explique o
+  resultado", "o que estou vendo?" e variações próximas, sem outro pedido junto, são respondidos na tela com a frase-resumo
+  verificada do motor (`ContextoDoGrafico.resumo`, a mesma da área), como veio, sem paráfrase; sem gráfico calculado, "Ainda
+  não há um gráfico calculado para resumir.". Nada vai ao intérprete nem ao provedor de IA. Um pedido que muda a análise
+  ("o que esse gráfico mostra em 2023?") ou pede outra forma ("explique de forma mais simples") segue para a interpretação;
 - "volte ao resultado anterior" reabre a análise anterior do Histórico, da mesma fonte, sem recalcular;
-- perguntas sobre o que está na tela usam o resultado do gráfico guardado na sessão (`displayed_result_id`).
+- outras perguntas sobre o que está na tela usam o resultado do gráfico guardado na sessão (`displayed_result_id`).
 
 **Continuidade (desde 21/10/2026).** Um pedido sem territórios usa os que estão no gráfico, e a resposta diz quais. Um
 pedido só com o período ("E nos últimos 5 anos?") continua a análise. "Últimos N anos" e "último ano" (AT-34) são contados
@@ -183,7 +202,7 @@ exportação consolidada de todas as análises da sessão.
 | Catálogo de 12 análises (carrossel) | Famílias e funções da área; a conversa continua aceitando os pedidos |
 | Preparação (categoria, período, abrangência territorial, condições, "Calcular e mostrar resultado") | Escolhas dentro da área (indicador, competência, municípios, funções); colunas da planilha no painel "Colunas" |
 | Resultados em abas (Mapa, Gráficos, Tabela), cabeçalho do resultado e visuais por análise | Gráfico de bolhas e Detalhes (Tabela, Não avaliáveis, Método e procedência) da área |
-| Mapa de pontos | Não faz parte da página; a distância fica na Análise espacial |
+| Mapa de pontos | Ficou fora da página de 22 a 23/10/2026; desde então, volta como segunda vista do gráfico (Gráfico, Mapa e Lado a lado, na área), e a conversa troca a vista ("ver no mapa", "volte ao gráfico") |
 | Investigação progressiva e diagnósticos compostos ("Acrescentar ao diagnóstico") | Histórico de análises |
 | Navegação "Início" e "Resultados"; abas "1. Preparação" e "2. Resultados" | A página é sempre o gráfico |
 | Comandos "volte para a seleção de territórios", "voltar à preparação", "mostre os resultados" e "quero analisar vários períodos" | Pedidos ao gráfico pela conversa |
@@ -200,8 +219,11 @@ A API não mudou com essa saída: `/api/analyze`, `/api/preflight` e as capacida
 - `conversationSession.ts`, `SessionPrivacy.tsx` e `WorkspaceDialog.tsx`: sessão, aceite e diálogos acessíveis.
 - `AreaDeAnalise.tsx` e os `Painel*`: a área de análise.
 
-Testes: `frontend/tests/paginaUnica.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (unitários); os roteiros de
-navegador `backend/tests/ui_pagina_unica.py` (suítes `bloco1` e `base-versionada`) e `backend/tests/ui_conversa_grafico.py`
-(suítes `conversa`, só com os canais locais, e `gemini-simulado`, com o provedor simulado e a conferência de que nada da base
-chega a ele). O que cobriam os roteiros do fluxo clássico, e onde essa cobertura está agora, fica em
-[`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+Testes: `frontend/tests/paginaUnica.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (unitários; este também cobre a
+vista do desenho, o pedido de resumo e as chaves novas do contexto); os roteiros de navegador `backend/tests/ui_pagina_unica.py`
+(suítes `bloco1` e `base-versionada`) e `backend/tests/ui_conversa_grafico.py` (suítes `conversa`, só com os canais locais,
+e `gemini-simulado`, com o provedor simulado e a conferência de que nada da base chega a ele, nem a frase-resumo). Este
+roteiro confere, com os municípios na tela, "ver no mapa" (`area-de-analise` com `data-desenho="mapa"`), "volte ao gráfico"
+(`data-desenho="grafico"`) e "o que esse gráfico mostra?" (a resposta traz o texto de `analise-resumo`) e, nos estados, "ver
+no mapa" respondido com o motivo, sem mudar a vista. O que cobriam os roteiros do fluxo clássico, e onde essa cobertura
+está agora, fica em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).

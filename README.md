@@ -374,12 +374,17 @@ A evolução autorizada do diálogo está registrada em [Evolução conversacion
 Essas continuações não chamam o provedor de IA. Detalhes em
 [interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
-Com o gráfico na tela, "agora a tabela" responde que a tabela fica em Detalhes, logo abaixo do gráfico, com os mesmos
-valores do motor; "ver no mapa" explica que o mapa não faz parte da página única e que a distância até uma referência
-fica na análise espacial; "mostre no gráfico" lembra que o gráfico já está na tela. "Volte ao resultado anterior" (ou
-"à seleção anterior") reabre a análise anterior do Histórico, com os mesmos dados, sem recalcular (RQ-LIN-20). A
-interface reconhece as formas diretas; as demais chegam ao intérprete, que as devolve como atos `show_map`,
-`show_chart`, `show_table` e `previous_result`, com as mesmas respostas. Perguntas conceituais sobre os pontos de corte e as
+Com o gráfico na tela, "agora a tabela" responde que a tabela fica em Detalhes, logo abaixo do gráfico (ou do mapa), com
+os mesmos valores do motor. Desde 23/10/2026, "ver no mapa" troca o gráfico pelo mapa, a segunda vista do gráfico, e
+"volte ao gráfico" desfaz: a conversa manda à área o pedido `{ vista }`, sem recalcular (RQ-REP-06). Onde o mapa não está
+disponível (nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na visão Séries), a resposta é o
+motivo informado pela área, e nada muda. Pedidos com a vista junto ("mostre o Pará no mapa", "onde ficam os municípios com
+menos de 1 médico por mil?") mudam o recorte e a vista de uma vez. "O que esse gráfico mostra?", "resuma o gráfico",
+"explique o resultado" e "o que estou vendo?" são respondidos na tela com a frase-resumo verificada do motor, como veio,
+sem o intérprete nem o provedor de IA. "Volte ao resultado anterior" (ou "à seleção anterior") reabre a análise anterior
+do Histórico, com os mesmos dados, sem recalcular (RQ-LIN-20). A interface reconhece as formas diretas; as demais chegam
+ao intérprete, que as devolve como atos `show_map`, `show_chart`, `show_table` e `previous_result`, com as mesmas
+respostas. Perguntas conceituais sobre os pontos de corte e as
 classes da distribuição (CAP-DIS-02) e sobre a referência mais próxima (CAP-ESP-02) passam a ser respondidas com as
 formas governadas do catálogo PT, como densidade, distância e agregação. Tendência, mudança temporal, comparação,
 contagem, ranking, critérios e rotatividade continuam sem explicação metodológica na conversa: suas formas descrevem

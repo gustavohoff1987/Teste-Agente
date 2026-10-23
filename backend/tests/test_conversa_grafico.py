@@ -314,6 +314,76 @@ def test_rotatividade_exportar_e_pedidos_que_seguem_para_o_interprete():
         assert pedir(mensagem) == {"handled": False}, mensagem
 
 
+# ----------------------------------------------------------------------------------- vista do desenho (23/10/2026)
+def test_no_mapa_e_onde_ficam_acompanham_o_comando_com_a_vista_do_mapa():
+    """"No mapa" e "onde ficam …?" junto com outro pedido: o comando leva `vista: "mapa"`, estado visual que a área aplica
+    sem recalcular (RQ-REP-06), e a resposta diz que a vista mudou. Sozinho ("ver no mapa"), o pedido é atendido na tela."""
+    para = pedir("mostre o Pará no mapa")
+    assert para == {"handled": True, "executed": False,
+                    "painel": painel(nivel="municipios", municipios={"todos": False, "estados": ["15"], "ids": []},
+                                     vista="mapa"),
+                    "reply": "Mostrei a densidade nos 2 municípios do Pará. Passei para o mapa."}
+    onde = pedir("onde ficam os municípios com menos de 1 médico por mil?")
+    assert onde["painel"] == painel(funcao="condicoes", condicoes=[{"atributo": "densidade", "operador": "<", "valor": 1}],
+                                    vista="mapa")
+    assert onde["reply"] == ("Apliquei a condição densidade < 1 por mil habitantes: o gráfico separa quem atende a ela, quem "
+                             "não atende e quem não tem dado. Passei para o mapa.")
+    # Dos estados, "o Pará no mapa" abre os municípios, que têm ponto: a vista muda.
+    assert pedir("mostre o Pará no mapa", painel_nivel="estados", painel_mapa_disponivel=False)["painel"]["vista"] == "mapa"
+    # Já no mapa, ele continua; "no gráfico" volta ao gráfico.
+    no_mapa = pedir("mostre a quantidade no mapa", painel_vista="mapa")
+    assert no_mapa["painel"] == painel(indicador="quantidade", vista="mapa")
+    assert no_mapa["reply"] == "Troquei o indicador para a quantidade. O mapa continua na tela."
+    grafico = pedir("mostre a quantidade no gráfico", painel_vista="mapa")
+    assert grafico["painel"] == painel(indicador="quantidade", vista="grafico")
+    assert grafico["reply"] == "Troquei o indicador para a quantidade. Voltei ao gráfico."
+    assert pedir("mostre a quantidade no gráfico")["reply"] == "Troquei o indicador para a quantidade."
+    # Sem a vista no pedido, ou com ela negada, a vista não muda; "Amapá" não é o mapa.
+    assert pedir("mostre o Pará")["painel"]["vista"] is None
+    negada = pedir("mostre o Pará, não no mapa")
+    assert negada["painel"]["vista"] is None and negada["reply"] == "Mostrei a densidade nos 2 municípios do Pará."
+    assert pedir("mostre o Amapá")["clarification"].startswith("Não encontrei “Amapá”")
+    # Sozinha, a vista não é comando do gráfico aqui: a tela já a atendeu, e o resto segue para a interpretação.
+    assert pedir("quero ver isso no mapa agora mesmo") == {"handled": False}
+
+
+def test_onde_o_mapa_nao_mostra_a_analise_a_vista_fica_no_grafico():
+    """Os estados não têm um ponto; a visão Séries fica só no gráfico; a área já disse que o mapa não está disponível:
+    o comando segue sem a vista, e a resposta diz por quê."""
+    estados = pedir("volte aos estados no mapa")
+    assert estados["painel"] == painel(nivel="estados")
+    assert estados["reply"] == ("Voltei aos estados: cada bolha é um estado, com a densidade. Os estados não têm um ponto no "
+                                "mapa; a análise fica no gráfico. Para ver no mapa, abra os municípios de um estado.")
+    nos_estados = pedir("mostre a quantidade no mapa", painel_nivel="estados", painel_mapa_disponivel=False)
+    assert nos_estados["painel"] == painel(indicador="quantidade")
+    assert nos_estados["reply"].endswith("Os estados não têm um ponto no mapa; a análise fica no gráfico. Para ver no mapa, "
+                                         "abra os municípios de um estado.")
+    series = pedir("mostre a visão séries no mapa")
+    assert series["painel"] == painel(familia="tendencia", visao_tendencia="series")
+    assert series["reply"] == ("Abri a tendência da densidade. Visão da tendência: Séries. A visão Séries fica só no "
+                               "gráfico.")
+    indisponivel = pedir("mostre a quantidade no mapa", painel_mapa_disponivel=False)
+    assert indisponivel["painel"] == painel(indicador="quantidade")
+    assert indisponivel["reply"] == ("Troquei o indicador para a quantidade. O mapa não está disponível nesta análise; ela "
+                                     "fica no gráfico.")
+
+
+def test_vista_e_resumo_da_tela_ficam_so_na_conversa_local():
+    """painel_vista, painel_mapa_disponivel e painel_resumo (a frase-resumo do motor, com valores da base) entram no
+    contexto da conversa e saem das opções do intérprete; a frase não entra nem no contexto."""
+    frase = "Nos 5 municípios do Amazonas, em junho de 2024, a densidade vai de 4,321 a 9,876 por 1.000 habitantes."
+    opcoes = {**CONTEXTO, "painel_vista": "mapa", "painel_mapa_disponivel": True, "painel_resumo": frase}
+    ctx = conversa_grafico.contexto(opcoes)
+    assert (ctx["vista"], ctx["mapa_disponivel"]) == ("mapa", True)
+    assert frase not in json.dumps(ctx, ensure_ascii=False)
+    limpas = conversa_grafico.opcoes_do_interprete(opcoes, ctx)
+    assert not {"painel_vista", "painel_mapa_disponivel", "painel_resumo"} & set(limpas)
+    assert frase not in json.dumps(limpas, ensure_ascii=False)
+    # Valores fora do contrato ficam de fora.
+    estranho = conversa_grafico.contexto({**CONTEXTO, "painel_vista": "satelite", "painel_mapa_disponivel": "sim"})
+    assert (estranho["vista"], estranho["mapa_disponivel"]) == (None, None)
+
+
 # ----------------------------------------------------------------------------------- rotas
 HEADER = ("regiao_geografica;uf;municipio;cod_ibge;latitude;longitude;categoria_profissional;periodo_ano;periodo_mes;"
           "quantidade;população_estimada")
@@ -371,6 +441,11 @@ def test_rota_local_com_a_base_do_brasil(base_do_brasil, sem_provedor):
     # Ordenação perguntada ("qual ... maior densidade") é comando do gráfico, não explicação de resultado.
     assert local("qual município tem a maior densidade?", dataset="brazil")["painel"]["ordenar"] == {
         "atributo": "densidade", "ordem": "desc", "primeiros": 1}
+    # A vista citada vai no comando também pela rota (estado visual: a área não recalcula por ela).
+    mapa = local("mostre o Pará no mapa", dataset="brazil")
+    assert mapa["painel"] == painel(nivel="municipios", municipios={"todos": False, "estados": ["15"], "ids": []},
+                                    vista="mapa")
+    assert mapa["reply"] == "Mostrei a densidade nos 2 municípios do Pará. Passei para o mapa."
 
 
 DISTRITOS = {"Nampula": "Nampula", "Angoche": "Nampula", "Mogovolas": "Nampula", "Quelimane": "Zambézia",
@@ -412,6 +487,11 @@ def test_planilha_de_distritos_e_provincias_usa_os_rotulos_e_o_grupo(sem_provedo
     assert todos["reply"] == "Mostrei a densidade em todos os 5 distritos."
     assert planilha("qual distrito tem a maior densidade?")["reply"].startswith("Ordenei os distritos pela densidade")
     assert planilha("volte aos estados")["clarification"].startswith("Esta base não tem um nível acima dos distritos")
+    # Sem latitude e longitude na planilha, não há mapa: o comando segue sem a vista, e a resposta diz por quê.
+    sem_mapa = planilha("mostre a província de Zambézia no mapa")
+    assert sem_mapa["painel"] == painel(nivel="municipios", municipios={"todos": False, "estados": ["Zambézia"], "ids": []})
+    assert sem_mapa["reply"] == ("Mostrei a densidade nos 2 distritos da província Zambézia. Sem latitude e longitude na "
+                                 "planilha, não há mapa; a análise fica no gráfico.")
 
 
 def test_contexto_completo_com_sessao_nao_quebra_o_pre_exame(sem_provedor):
@@ -463,6 +543,52 @@ def test_rota_com_o_provedor_devolve_o_painel_sem_enviar_dados_da_base(monkeypat
     conteudo = " ".join(enviado)
     assert enviado and "CONTEXTO_VERIFICADO_PELO_BACKEND" in conteudo
     for proibido in ("Angoche", "Mocuba", "Nampula", "Zambézia", "name:", "painel", "distritos.csv"):
+        assert proibido not in conteudo, proibido
+
+
+def test_vista_e_resumo_nunca_chegam_ao_interprete_nem_ao_provedor(monkeypatch):
+    """Nas duas rotas, a vista em exibição, a disponibilidade do mapa e a frase-resumo do motor (com valores da base) saem
+    das opções antes do pré-exame e do intérprete, e nada delas chega ao provedor de IA."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-real")
+    monkeypatch.setattr(llm_bridge, "_counter", 0)
+    monkeypatch.setattr(llm_bridge, "_counter_day", "")
+    enviado, recebidas = [], []
+
+    async def provedor(mensagens, *_args):
+        enviado.extend(mensagens)
+        return {"operation": "comparisons", "indicator": "density", "period": "", "category": "", "territory": "",
+                "intent": "ANALITICO", "topic": "none"}
+
+    pre_exame, interpretar = main.preflight, conversa_grafico.interpretar
+
+    def pre_exame_registrado(frame, fields, settings):
+        recebidas.append(dict(settings))
+        return pre_exame(frame, fields, settings)
+
+    def interpretar_registrado(mensagem, frame, fields, settings, ctx, **extra):
+        recebidas.extend([dict(settings), dict(extra.get("opcoes") or {})])
+        return interpretar(mensagem, frame, fields, settings, ctx, **extra)
+
+    monkeypatch.setattr(llm_bridge, "_call_gemini", provedor)
+    monkeypatch.setattr(main, "preflight", pre_exame_registrado)
+    monkeypatch.setattr(conversa_grafico, "interpretar", interpretar_registrado)
+    frase = "Nos 5 distritos, em 2024, a densidade vai de 4,321 a 9,876 por 1.000 habitantes."
+    opcoes = {**CONTEXTO_PLANILHA, "painel_vista": "mapa", "painel_mapa_disponivel": True, "painel_resumo": frase}
+    caminho_local = planilha("mostre a quantidade no mapa", opcoes)
+    assert caminho_local["painel"] == painel(indicador="quantidade")
+    assert caminho_local["reply"] == ("Troquei o indicador para a quantidade. Sem latitude e longitude na planilha, não há "
+                                      "mapa; a análise fica no gráfico.")
+    resposta = client.post("/api/llm/interpret-context", files={"file": ("distritos.csv", PLANILHA)}, data={
+        "message": "Coloque Angoche e Mocuba lado a lado", "history": "[]", "mapping": json.dumps(MAPA),
+        "options": json.dumps(opcoes)})
+    assert resposta.status_code == 200, resposta.text
+    assert resposta.json()["painel"]["funcao"] == "comparar"
+    assert enviado and len(recebidas) >= 4, recebidas
+    for registro in recebidas:
+        assert not {"painel_vista", "painel_mapa_disponivel", "painel_resumo"} & set(registro), sorted(registro)
+        assert frase not in json.dumps(registro, ensure_ascii=False, default=str)
+    conteudo = " ".join(enviado)
+    for proibido in (frase, "4,321", "9,876", "painel_resumo", "painel_vista", "painel_mapa_disponivel"):
         assert proibido not in conteudo, proibido
 
 

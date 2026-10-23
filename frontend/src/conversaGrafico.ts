@@ -1,8 +1,9 @@
-// Conversa agindo no gráfico (22/10/2026): funções puras da conversa da página única. Reconhecem a escolha da fonte e os
-// pedidos de apresentação, transformam o campo `painel` da resposta do intérprete num pedido para a área de análise e
-// montam, a partir do contexto do gráfico, as opções que vão ao intérprete local. Nada daqui vai ao provedor de IA: o
-// backend só lhe entrega o pedido sanitizado e estados enumerados. Só importações de tipos: os testes unitários
-// (frontend/tests/conversaGrafico.test.mjs) transpilam este arquivo sozinho.
+// Conversa agindo no gráfico (22/10/2026): funções puras da conversa da página única. Reconhecem a escolha da fonte, os
+// pedidos de apresentação (a vista do desenho, gráfico ou mapa, desde 23/10/2026) e o pedido de resumo, transformam o
+// campo `painel` da resposta do intérprete num pedido para a área de análise e montam, a partir do contexto do gráfico, as
+// opções que vão ao intérprete local. Nada daqui vai ao provedor de IA: o backend só lhe entrega o pedido sanitizado e
+// estados enumerados. Só importações de tipos: os testes unitários (frontend/tests/conversaGrafico.test.mjs) transpilam
+// este arquivo sozinho.
 import type { ContextoDoGrafico, Familia, Indicador, PedidoDoChat, Rotulos } from "./paginaUnica";
 
 export function normalizeCommand(message: string): string {
@@ -20,23 +21,29 @@ export function comandoDeFonte(message: string): "brasil" | "arquivo" | null {
   return null;
 }
 
-/** Pedidos de apresentação que a interface reconhece sozinha. O mapa e as abas de resultados saíram da página (22/10/2026):
- * a conversa responde onde está o que foi pedido, sem recalcular. */
+/** Pedidos de apresentação que a interface reconhece sozinha, sem recalcular: a vista do desenho (o mapa voltou em
+ * 23/10/2026 como segunda vista do gráfico) e a tabela, que fica nos Detalhes. */
 export type ResultView = "mapa" | "graficos" | "tabela";
 const VIEW_WORDS = new Map<string, ResultView>([["mapa", "mapa"], ["grafico", "graficos"], ["graficos", "graficos"], ["tabela", "tabela"]]);
 // Palavras que acompanham o pedido sem mudar o sentido; qualquer outra (inclusive "não") deixa a mensagem para a
-// interpretação, que também conhece esses pedidos.
+// interpretação, que também conhece esses pedidos ("mostre o Pará no mapa" muda o recorte e a vista juntos).
 const VIEW_FILLER = new Set(("me mostre mostra mostrar ver veja abra abre abrir exiba exibe exibir quero queria gostaria " +
   "pode poderia de do da no na em num numa um uma o a os as isso isto esse essa resultado resultados aba agora entao " +
-  "tambem por favor la ai e pra para").split(" "));
+  "tambem por favor la ai e pra para volte volta voltar retorne retorna retornar ao pro vamos va ir passe passa passar " +
+  "mude muda mudar").split(" "));
 const PREVIOUS_FILLER = new Set(("volta volte voltar retorna retorne retornar reabra reabre reabrir abra abre abrir mostra " +
   "mostre mostrar ver quero queria me de do da para pra pro ao a o as os no na por favor aquele aquela e agora").split(" "));
+// "Para" depois de artigo ("mostre o Para no mapa") ou escrito "Pará" é o estado, não a preposição.
+const ANTES_DO_ESTADO = new Set(["o", "do", "no", "ao", "pelo"]);
 
-/** "Mostre no gráfico", "agora a tabela": o pedido, ou null quando a mensagem diz mais do que isso. */
+/** "Ver no mapa", "volte ao gráfico", "agora a tabela": o pedido, ou null quando a mensagem diz mais do que isso. */
 export function viewCommand(message: string): ResultView | null {
+  if (/(?:^|[^\p{L}])pará(?!\p{L})/iu.test(message.normalize("NFC"))) return null;
   const words = normalizeCommand(message).split(" ").filter(Boolean);
   const views = words.filter(word => VIEW_WORDS.has(word));
-  if (views.length !== 1 || words.some(word => !VIEW_WORDS.has(word) && !VIEW_FILLER.has(word))) return null;
+  const filler = (word: string, index: number) =>
+    VIEW_FILLER.has(word) && !(word === "para" && ANTES_DO_ESTADO.has(words[index - 1] ?? ""));
+  if (views.length !== 1 || words.some((word, index) => !VIEW_WORDS.has(word) && !filler(word, index))) return null;
   return VIEW_WORDS.get(views[0]) ?? null;
 }
 
@@ -49,11 +56,59 @@ export function previousResultCommand(message: string): boolean {
     words.every(word => target.includes(word) || marker.includes(word) || PREVIOUS_FILLER.has(word));
 }
 
-/** Resposta aos pedidos de apresentação: nada é recalculado. */
-export function respostaDaVista(vista: ResultView): string {
-  return vista === "tabela" ? "A tabela fica em Detalhes, logo abaixo do gráfico, com os mesmos valores do motor."
-    : vista === "mapa" ? "Nesta página, a análise acontece no gráfico; o mapa não faz parte dela. A distância até uma referência fica na Análise espacial."
-      : "O gráfico já está na tela. Peça uma mudança, por exemplo outra competência ou outro recorte, e eu a aplico.";
+/** Resposta a um pedido de apresentação e, quando a vista muda, o pedido para a área (`{ vista }`, pelo mesmo caminho dos
+ * demais comandos do gráfico). Trocar de vista é estado visual: nada é recalculado (RQ-REP-06). */
+export type RespostaDaVista = { texto: string; pedido: PedidoDoChat | null };
+const NADA_MUDOU = "Nada mudou no gráfico.";
+const comPonto = (texto: string) => /[.!?…]$/.test(texto) ? texto : texto + ".";
+
+/** "Ver no mapa" troca o gráfico pelo mapa quando a área diz que ele está disponível; senão, a resposta é o motivo da área
+ * (por exemplo, nos estados, que não têm um ponto), e nada muda. "Volte ao gráfico" desfaz. "Agora a tabela" aponta os
+ * Detalhes. */
+export function respostaDaVista(vista: ResultView, contexto: ContextoDoGrafico | null): RespostaDaVista {
+  if (vista === "tabela")
+    return { texto: "A tabela fica em Detalhes, logo abaixo do " + (contexto?.vista === "mapa" ? "mapa" : "gráfico") +
+      ", com os mesmos valores do motor.", pedido: null };
+  if (vista === "mapa") {
+    if (!contexto) return { texto: "Ainda não há uma análise na tela para mostrar no mapa.", pedido: null };
+    if (contexto.mapaDisponivel === false)
+      return { texto: comPonto(contexto.motivoSemMapa?.trim() || "O mapa não está disponível nesta análise") + " " + NADA_MUDOU,
+        pedido: null };
+    if (contexto.vista === "mapa") return { texto: "O mapa já está na tela. Para voltar, peça “volte ao gráfico”.", pedido: null };
+    return { texto: "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”.", pedido: { vista: "mapa" } };
+  }
+  const jaNoGrafico = "O gráfico já está na tela. Peça uma mudança, por exemplo outra competência ou outro recorte, e eu a aplico.";
+  if (!contexto || contexto.vista === "grafico") return { texto: jaNoGrafico, pedido: null };
+  // No mapa ou lado a lado, volta ao gráfico; sem a vista no contexto, o pedido vai assim mesmo (a área o aplica sem mudar nada).
+  return { texto: contexto.vista ? "Voltei ao gráfico. Para ver de novo no mapa, peça “ver no mapa”." : jaNoGrafico,
+    pedido: { vista: "grafico" } };
+}
+
+// Pedido de resumo do que está na tela ("o que esse gráfico mostra?", "resuma o gráfico", "explique o resultado", "o que
+// estou vendo?"), com palavras que não mudam o pedido antes e depois. Qualquer outra palavra (um período, um nome, "de
+// forma simples") deixa a mensagem para a interpretação.
+const RESUMO_ALVO = "(?:(?:esse|este|essa|esta|esses|estes|o|a|os|as|nesse|neste|nessa|nesta|no|na|do|da|desse|deste|dessa|desta) )?" +
+  "(?:grafico|mapa|resultado|resultados|desenho|analise|tela)";
+const RESUMO_VERBO = "(?:mostra|mostram|esta mostrando|estao mostrando|significa|significam|quer dizer|querem dizer|diz|dizem|" +
+  "representa|representam)";
+const RESUMO = new RegExp("^(?:(?:e|entao|agora|afinal|me|pode|poderia|voce pode|voce poderia|por favor) )*(?:" + [
+  "o que " + RESUMO_ALVO + " " + RESUMO_VERBO,
+  "o que " + RESUMO_VERBO + " " + RESUMO_ALVO,
+  "o que (?:eu )?(?:estou|to|tou|estamos) vendo",
+  "(?:resuma|resume|resumir|resumo|sintetize|sintetiza)(?: " + RESUMO_ALVO + ")?",
+  "(?:faca|faz|de|da) (?:um |uma )?(?:resumo|sintese)(?: " + RESUMO_ALVO + ")?",
+  "(?:explique|explica|explicar|descreva|descreve|descrever) " + RESUMO_ALVO,
+].join("|") + ")(?: (?:aqui|ai|agora|na tela|por favor|pra mim|para mim))*$");
+
+/** "O que esse gráfico mostra?": o pedido de resumo, respondido na tela com a frase do motor, sem o intérprete. */
+export function pedidoDeResumo(message: string): boolean {
+  return RESUMO.test(normalizeCommand(message));
+}
+
+/** A frase-resumo verificada do motor, como veio (sem paráfrase), ou o aviso de que ainda não há o que resumir. */
+export function respostaDoResumo(contexto: ContextoDoGrafico | null): string {
+  const resumo = typeof contexto?.resumo === "string" ? contexto.resumo.trim() : "";
+  return resumo || "Ainda não há um gráfico calculado para resumir.";
 }
 
 const FAMILIAS: Familia[] = ["distribuicao", "espacial", "tendencia", "rotatividade"];
@@ -99,6 +154,8 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   }
   const grupos = objeto(p.grupos);
   if (grupos && ["quartis", "quintis", "decis", "nenhum"].includes(grupos.tipo as string)) pedido.grupos = { tipo: grupos.tipo as string };
+  // Vista do desenho pedida junto com o comando ("mostre o Pará no mapa"): estado visual, que a área aplica sem recalcular.
+  if (p.vista === "grafico" || p.vista === "mapa") pedido.vista = p.vista;
   return Object.keys(pedido).length ? pedido : null;
 }
 
@@ -145,8 +202,9 @@ const ID_TERRITORIAL = /^(?:code|name):/;
 
 /** Opções da conversa a partir do contexto do gráfico: as unidades na tela (só as do catálogo territorial; com "Todos",
  * nenhuma, porque o universo é a base inteira), a família, o indicador e a competência ou a janela. As chaves `painel_*`
- * levam o estado do gráfico como ele está (nível, indicador, escolha das unidades, competência, janela e referência), para a
- * conversa completar o pedido sem perder o que já está na tela. */
+ * levam o estado do gráfico como ele está (nível, indicador, escolha das unidades, competência, janela, referência, vista do
+ * desenho, se o mapa está disponível e a frase-resumo do motor), para a conversa completar o pedido sem perder o que já está
+ * na tela. O backend as tira das opções antes do pré-exame, do intérprete e do provedor de IA (conversa_grafico.CONTEXTO). */
 export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: string): Record<string, unknown> {
   const opcoes: Record<string, unknown> = { conversation_today: hoje };
   // Sem gráfico ainda (a base acabou de ficar pronta), a página única segue reconhecida: painel_familia vai nulo, e a
@@ -165,7 +223,10 @@ export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: strin
     painel_familia: contexto.familia, painel_indicador: contexto.indicador, painel_nivel: contexto.nivel,
     painel_municipios: contexto.municipios, ...(contexto.competencia ? { painel_competencia: contexto.competencia } : {}),
     ...(contexto.janela.length ? { painel_janela: [...contexto.janela] } : {}),
-    ...(contexto.referencia.length ? { painel_referencia: [...contexto.referencia] } : {}) };
+    ...(contexto.referencia.length ? { painel_referencia: [...contexto.referencia] } : {}),
+    ...(contexto.vista ? { painel_vista: contexto.vista } : {}),
+    ...(typeof contexto.mapaDisponivel === "boolean" ? { painel_mapa_disponivel: contexto.mapaDisponivel } : {}),
+    ...(typeof contexto.resumo === "string" && contexto.resumo ? { painel_resumo: contexto.resumo } : {}) };
 }
 
 export type EtapaDaFonte = { tipo: "brasil" | "arquivo" | null; pronta: boolean; colunasPendentes: boolean };
