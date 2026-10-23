@@ -7,8 +7,8 @@ import {
   type GrupoInfo, type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
 
-// Escolha dos territórios, sempre à vista e em lista (pedido do responsável, 22/10/2026): não depende de digitação nem de
-// adivinhar onde clicar. Brasil: "Todos os estados" (os estados em bolhas) ou "Todos os municípios do Brasil" (modo leve).
+// Escolha dos territórios em lista (pedido do responsável, 22/10/2026), na aba Seleção de Territórios desde 23/10/2026: a mesma
+// seleção vale para todas as análises, e a pessoa volta a ela quando quiser. Não depende de digitação nem de adivinhar onde clicar. Brasil: "Todos os estados" (os estados em bolhas) ou "Todos os municípios do Brasil" (modo leve).
 // Estados: a lista inteira, cada um com "Ver os N municípios" (abre a lista dele e põe o estado no gráfico) e a caixa "Todos os
 // municípios de <estado>". Municípios do estado aberto: caixas de marcar, sem rolagem escondida, com "Marcar todos" e
 // "Desmarcar todos". A busca é só um complemento. Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades).
@@ -109,8 +109,8 @@ export default function PainelTerritorios(p: Props) {
   return <section data-testid="analise-territorios" aria-labelledby="analise-territorios-titulo" className="analise-territorios">
     <div>
       <h3 id="analise-territorios-titulo" tabIndex={-1} className="flex items-center gap-1.5 text-sm font-bold text-ink outline-none">
-        <MapaIcone size={15} aria-hidden="true"/>Territórios</h3>
-      <p className="mt-1 text-xs leading-5 text-slate-600">Escolha o que entra no gráfico. Tudo aparece nesta lista; procurar pelo nome é opcional.</p>
+        <MapaIcone size={15} aria-hidden="true"/>Territórios disponíveis</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-600">Tudo aparece nesta lista; procurar pelo nome é opcional.</p>
     </div>
 
     <div className="space-y-1.5" role="group" aria-label={p.brasil ? "Brasil" : "Planilha"}>

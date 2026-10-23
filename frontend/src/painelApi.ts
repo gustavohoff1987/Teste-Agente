@@ -47,6 +47,9 @@ export type PainelOpcoes = {
   competencia_inicial?: string;
   tendencia?: { competencias: string[] };
   grupos?: { tipo: TipoGrupos };
+  /** Grupos por posição só para a cor do mapa (23/10/2026): os quintis do motor (CAP-DIS-02, a mesma conta de `grupos`) quando a
+   * análise não tem cor própria. Não mudam o gráfico, a frase-resumo, a tabela nem o CSV. */
+  grupos_mapa?: { tipo: TipoGrupos };
   faixas?: number[];
   condicoes?: CondicaoPedido[];
   ordenar?: OrdenarPedido;
@@ -77,6 +80,9 @@ export type FamiliaTendencia = "CRESCIMENTO" | "DECLINIO" | "NENHUMA";
 /** Tendência de um item (CAP-TEN-01, DA-15): classe e rótulo oficiais, motivo, observações e velocidades do motor. */
 export type TendenciaItem = {
   classe: string | null; rotulo: string; motivo: string | null; familia: FamiliaTendencia | null; avaliavel: boolean;
+  /** Código do motivo (MUDANCA_DE_DIRECAO, SERIE_ESTAVEL, SERIE_INSUFICIENTE, INCOMPARABILIDADE) e o texto do motor, à parte: a
+   * tela explica o motivo em palavras, sem o código (23/10/2026); `motivo`, com o código entre parênteses, segue no CSV. */
+  motivoCodigo: string | null; motivoTexto: string | null;
   observacoes: { competencia: string; valor: number | null }[];
   /** Velocidade entre duas observações vizinhas, na unidade do indicador por unidade de tempo (mês nas competências AAAAMM). */
   velocidades: { de: string; ate: string; valor: number }[];
@@ -114,6 +120,8 @@ export type PainelItem = {
   referencia: boolean;
   tendencia: TendenciaItem | null;
   grupo: Posicao | null;
+  /** Grupo do item nos grupos do mapa (`grupos_mapa`), só para a cor do mapa. */
+  grupoMapa: Posicao | null;
   faixa: Posicao | "fora" | null;
   faixa_distancia: Posicao | "fora" | null;
   /** Membro da referência mais próximo; mais de um quando há empate (explícito). */
@@ -125,7 +133,9 @@ export type PainelItem = {
 export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto"; membros: { id: string; rotulo: string }[]; origem: string };
 export type Contagens = Record<string, number>;
 export type TendenciaTopo = { janela: string[]; contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null;
-  bloqueio: string | null; unidadeTempo: string | null };
+  bloqueio: string | null; unidadeTempo: string | null;
+  /** Unidades sem classificação por motivo, do motor (MUDANCA_DE_DIRECAO e SERIE_ESTAVEL). */
+  semClassificacaoPorMotivo: Contagens };
 export type GruposTopo = { tipo: string; cortes: number[]; contagens: number[]; rotulos: string[] };
 export type FaixasTopo = { limites: number[]; rotulos: string[]; contagens: number[]; fora: number | null; naoAvaliaveis: number | null };
 export type CondicoesTopo = { contagens: Partial<Record<SituacaoCondicao, number>>; textos: string[] };
@@ -154,6 +164,8 @@ export type PainelResposta = {
   limitacoes: string[];
   tendencia: TendenciaTopo | null;
   grupos: GruposTopo | null;
+  /** Os grupos do mapa (`grupos_mapa`), na mesma forma de `grupos`. */
+  gruposMapa: GruposTopo | null;
   faixas: FaixasTopo | null;
   faixasDistancia: FaixasTopo | null;
   condicoes: CondicoesTopo | null;
@@ -295,7 +307,7 @@ function tendenciaDe(bruto: unknown): TendenciaItem | null {
   const codigo = texto(o.motivo), explicacao = texto(o.motivo_texto);
   const motivo = explicacao && codigo && explicacao !== codigo ? explicacao + " (" + codigo + ")" : explicacao ?? codigo;
   return { classe: avaliavel ? classe : null, rotulo: texto(o.rotulo) ?? (classe ? classe : "Não avaliável"), motivo,
-    familia: avaliavel ? familia : null, avaliavel, observacoes, velocidades };
+    motivoCodigo: codigo, motivoTexto: explicacao, familia: avaliavel ? familia : null, avaliavel, observacoes, velocidades };
 }
 
 const SITUACOES: SituacaoCondicao[] = ["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"];
@@ -357,7 +369,7 @@ function itemDe(bruto: unknown): PainelItem | null {
       variacao: typeof avaliavel?.variacao === "boolean" ? avaliavel.variacao : null },
     motivos: lista(o.motivos).filter((m): m is string => typeof m === "string"),
     referencia: o.referencia === true,
-    tendencia: tendenciaDe(o.tendencia), grupo: posicao(o.grupo), faixa: faixaDe(o.faixa), faixa_distancia: faixaDe(o.faixa_distancia),
+    tendencia: tendenciaDe(o.tendencia), grupo: posicao(o.grupo), grupoMapa: posicao(o.grupo_mapa), faixa: faixaDe(o.faixa), faixa_distancia: faixaDe(o.faixa_distancia),
     referencia_mais_proxima: referenciaProximaDe(o.referencia_mais_proxima), condicoes: condicoesDe(o.condicoes),
     ordem: ordem ? { posicao: num(ordem.posicao) } : null, rotatividade: rotatividadeDe(o.rotatividade),
   };
@@ -473,6 +485,19 @@ export function resumoDe(bruto: unknown): { texto: string } | null {
 }
 
 /** Resposta do motor nos tipos da tela. Campos ausentes viram null (o motor de antes, sem as extensões, continua legível). */
+/** Grupos por posição do topo (`grupos` ou `grupos_mapa`): tipo, cortes, contagens por índice e rótulos (do topo ou, sem eles,
+ * os dos itens). */
+function gruposTopoDe(bruto: unknown, posicoes: (Posicao | null)[]): GruposTopo | null {
+  const grupos = objeto(bruto);
+  if (!grupos) return null;
+  const contagens = contagensPorIndice(grupos.contagens, ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[String(grupos.tipo)] ?? 0);
+  const dosItens: string[] = [];
+  for (const posicaoDoItem of posicoes) if (posicaoDoItem && !dosItens[posicaoDoItem.indice - 1]) dosItens[posicaoDoItem.indice - 1] = posicaoDoItem.rotulo;
+  const doTopo = lista(grupos.rotulos).filter((r): r is string => typeof r === "string");
+  return { tipo: texto(grupos.tipo) ?? "", cortes: lista(grupos.cortes).filter((c): c is number => typeof c === "number"), contagens,
+    rotulos: doTopo.length ? doTopo : dosItens };
+}
+
 export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "municipios"): PainelResposta {
   const o = objeto(bruto);
   if (!o || !Array.isArray(o.itens)) throw new ErroDoMotor("A resposta do motor não segue o contrato (itens ausentes).", 200, null);
@@ -481,7 +506,6 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   const tendencia = objeto(o.tendencia);
   const janelaBruta = tendencia ? (Array.isArray(tendencia.janela) ? tendencia.janela : lista(objeto(tendencia.janela)?.competencias)
     .concat(lista(objeto(tendencia.janela)?.periodos))) : [];
-  const grupos = objeto(o.grupos);
   const condicoes = objeto(o.condicoes);
   // O texto de cada condição de um item vem da definição do topo, na mesma ordem.
   const definicaoDasCondicoes = lista(condicoes?.definicao).map(t => texto(objeto(t)?.texto) ?? "");
@@ -494,9 +518,6 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     if (d && typeof d.disponivel === "boolean") disponibilidade[chave as ChaveDisponibilidade] = { disponivel: d.disponivel, motivo: texto(d.motivo) ?? "" };
   }
   const sessao = objeto(o.sessao);
-  const contagensGrupo = grupos ? contagensPorIndice(grupos.contagens, ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[String(grupos.tipo)] ?? 0) : [];
-  const rotulosGrupos: string[] = [];
-  for (const item of itens) if (item.grupo && !rotulosGrupos[item.grupo.indice - 1]) rotulosGrupos[item.grupo.indice - 1] = item.grupo.rotulo;
   const dominios: PainelResposta["dominios"] = {};
   for (const [chave, valor] of Object.entries(objeto(o.dominios) || {}))
     dominios[chave] = Array.isArray(valor) && valor.length === 2 && valor.every(v => typeof v === "number" && Number.isFinite(v))
@@ -515,10 +536,11 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
       contagens: Object.fromEntries(Object.entries(objeto(tendencia.contagens) || {}).filter(([, v]) => typeof v === "number")) as Contagens,
       familias: Object.fromEntries(Object.entries(objeto(tendencia.familias) || {}).filter(([, v]) => typeof v === "number")) as Contagens,
       naoAvaliaveis: num(tendencia.nao_avaliaveis), bloqueio: texto(tendencia.bloqueio) ?? texto(objeto(tendencia.bloqueio)?.texto),
-      unidadeTempo: texto(tendencia.unidade_tempo) } : null,
-    grupos: grupos ? { tipo: texto(grupos.tipo) ?? "", cortes: lista(grupos.cortes).filter((c): c is number => typeof c === "number"),
-      contagens: contagensGrupo, rotulos: lista(grupos.rotulos).filter((r): r is string => typeof r === "string").length
-        ? lista(grupos.rotulos).filter((r): r is string => typeof r === "string") : rotulosGrupos } : null,
+      unidadeTempo: texto(tendencia.unidade_tempo),
+      semClassificacaoPorMotivo: Object.fromEntries(Object.entries(objeto(tendencia.sem_classificacao_por_motivo) || {})
+        .filter(([, v]) => typeof v === "number")) as Contagens } : null,
+    grupos: gruposTopoDe(o.grupos, itens.map(item => item.grupo)),
+    gruposMapa: gruposTopoDe(o.grupos_mapa, itens.map(item => item.grupoMapa)),
     faixas: faixasTopoDe(o.faixas, []),
     faixasDistancia: faixasTopoDe(o.faixas_distancia, []),
     condicoes: condicoes ? { contagens: Object.fromEntries(SITUACOES.map(s => [s, num(objeto(condicoes.contagens)?.[s])])

@@ -35,6 +35,120 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Página única: mapa com os quintis do motor, sem a pergunta, e enquadramento inicial com contexto
+- **Antes:** sem cor própria da análise, o mapa mostrava os pontos na cor única e perguntava "Como pintar o mapa?" (5 grupos
+  iguais, faixas, cor contínua ou condições); a cor contínua do indicador era escolha visual, com a escala linear ou
+  logarítmica na barra; o enquadramento inicial era justo nos pontos dos itens; o CSV da sessão trazia todos os campos dos
+  itens.
+- **Agora:**
+  - sem cor própria da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), o
+    mapa pinta os 5 grupos iguais (quintis) do indicador, pelo método existente (CAP-DIS-02): o pedido leva
+    `grupos_mapa: {tipo: "quintis"}` junto com a análise, e a legenda mostra cada grupo com o rótulo e a contagem do motor;
+    sem os grupos na resposta, a cor única;
+  - a pergunta e a cor contínua escolhida saíram; a cor contínua fica só na rotatividade (permanência de 0 a 100%), e o mapa
+    não tem escala própria;
+  - com os quintis no pedido, trocar o indicador pede de novo ao motor (os quintis seguem o indicador); a volta a um indicador
+    já calculado vem da memória da tela;
+  - o enquadramento inicial ganha contexto: margem de 25% do vão de cada lado, ao menos um quarto da extensão de todos os
+    pontos da fonte e nunca mais que ela, sem escala fixa do Brasil; "Ver tudo" volta a ele, e o zoom continua livre;
+  - a nota do mapa diz a origem pela fonte: "Cada ponto é a sede do município (IBGE) na base do Brasil." ou "Cada ponto é a
+    coordenada do distrito informada na planilha.";
+  - o CSV da sessão (Nova sessão → Exportar CSV) deixa de fora os grupos do mapa, que não são valores da análise.
+- **Permanece:** as camadas do gráfico (grupos, faixas, condições, ordem, classes, variação) pintam o mapa como antes; a
+  troca de vista não pede nada ao motor (RQ-REP-06); o gráfico, a frase-resumo, a tabela e o CSV da área não mudam com os
+  quintis; as legendas de tamanho e de cor; as faixas de distância continuam fora da cor (RQ-REP-02).
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (itens 10 e 11: retirar o painel "Como pintar o mapa?",
+  aplicar os quintis automaticamente e abrir o mapa mais afastado, com geografia reconhecível).
+- **Classificação:** mudança prevista. Escopo: decorre do pedido. Compatibilidade: os quintis são classes de CAP-DIS-02
+  (RQ-REP-02), calculadas pelo motor com a análise (RQ-REP-06); o enquadramento é só visual.
+- **Documentação e testes:** `Docs/MAPA_DA_PAGINA_UNICA.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md` e `README.md`;
+  `frontend/tests/areaDeAnalise.test.mjs`, `mapa.test.mjs`, `modoEscuro.test.mjs` e `paginaUnica.test.mjs`;
+  `backend/tests/ui_mapa.py` (os quintis do motor sem pergunta, com a mesma contagem por cor, o enquadramento com contexto e
+  os quintis do gráfico iguais aos do mapa), `ui_area_de_analise.py` e `ui_modo_escuro.py`.
+
+### 2026-10-23 · Página única: Análise de Tendência com as classes explicadas e o motivo das sem classificação
+- **Antes:** a aba mostrava as classes só pelo rótulo; a dica e os Não avaliáveis traziam o motivo com o código ("Mudança de
+  direção (MUDANCA_DE_DIRECAO)"); com janelas longas, quase todas as unidades ficavam "Sem classificação", sem explicação.
+- **Agora:**
+  - a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento, aceleração e desaceleração do
+    crescimento, declínio, aceleração e desaceleração do declínio, sem classificação e não avaliável), com a âncora do método
+    (CAP-TEN-01, DA-15) exigida pela SPEC (V-05) para descrever as classes; as contagens trazem a descrição no `title`;
+  - a dica e os Não avaliáveis dizem o motivo em palavras, sem o código ("Sem classificação: na janela, o indicador subiu em
+    alguns trechos e caiu em outros (mudança de direção).");
+  - abaixo das contagens, uma nota conta as unidades sem classificação por motivo, com os números do motor
+    (`sem_classificacao_por_motivo`) e, quando nenhuma unidade recebeu classe, explica que uma única mudança de direção basta,
+    que janelas com menos competências (como os últimos 4 junhos) têm mais chance de classe e que isso é o resultado do
+    método, não falta de dados.
+- **Permanece:** o método (CAP-TEN-01, DA-15), as classes, as contagens e as velocidades, todas do motor; nenhuma classe,
+  regra ou critério novo; a cor da bolha pela família; o código do motivo no CSV.
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (item 9). Diagnóstico da cadeia inteira (dados, janela,
+  motor, resposta e tela), com a base versionada: o motor aplica DA-15 sem defeito, e a tela mostra as classes do motor; nas
+  22 competências (janeiro e junho de 2014 a 2024), as 62 séries do Amazonas sobem e descem na janela, e todas ficam sem
+  classificação por mudança de direção, como a regra manda (no Brasil, 5.563 sem classificação e 7 em crescimento; nos
+  últimos 4 junhos, no Amazonas, 24 classificadas e 38 sem classificação). O defeito real era a comunicação: a tela não dizia
+  por quê. A correção explica o resultado sem mexer no método.
+- **Classificação:** mudança prevista, de texto e de apresentação. Escopo: decorre do pedido. Compatibilidade: V-05 (menção
+  metodológica com âncora, sem afirmar tendência) e CAP-TEN-01 ("tratar SEM_CLASSIFICACAO como falta de dados" é proibido: a
+  nota diz o contrário).
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` e `README.md` (o diagnóstico está em
+  `Docs/PAINEL_INTEGRADO.md`); `frontend/tests/areaDeAnalise.test.mjs` (as classes, o motivo em palavras e a nota, com o
+  cenário real das 22 competências); `backend/tests/ui_area_de_analise.py` (a nota com as contagens do motor e a dica sem
+  código); `backend/tests/test_painel_tendencia.py`, no commit anterior (séries controladas de AT-53 e a base versionada).
+
+### 2026-10-23 · Página única: Seleção de Territórios, abertura sem seleção automática, abas com apresentação e nomes padronizados
+- **Antes:** a base do Brasil abria nos 27 estados (um pedido ao motor logo de início) e a planilha, com todas as unidades
+  marcadas; a lista de territórios ficava numa coluna ao lado do gráfico, com o botão "Territórios" na barra de funções; as
+  abas eram "Distribuição", "Análise espacial", "Tendência" e "Rotatividade"; a aba de uma análise que não se executava com os
+  dados ficava desabilitada; a Nova análise voltava aos estados; o motivo da rotatividade trazia o código (CAP-ROT-01).
+- **Agora:**
+  - a base carregada, do Brasil ou de uma planilha, abre sem territórios escolhidos: a área diz "Os dados do Brasil foram
+    carregados e estão prontos para a análise." (ou "A planilha foi carregada…") e "Selecione os territórios que deseja
+    analisar.", abre a Seleção de Territórios e espera; nada é pedido ao motor até a escolha. A conversa orienta do mesmo jeito
+    ("Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver, por exemplo “mostre o
+    Pará” ou “todos os estados”."). A Nova análise recomeça assim, com os mesmos dados;
+  - sem territórios escolhidos (também depois de desmarcar tudo), o gráfico, o mapa e a frase-resumo da seleção anterior saem
+    da tela;
+  - uma linha de abas reúne a "Seleção de Territórios" (primeira) e as análises com os nomes padronizados: "Análise de
+    Distribuição", "Análise Espacial", "Análise de Tendência" e "Análise de Rotatividade" (os mesmos nomes no painel Colunas e
+    nos avisos). A Seleção traz o texto "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar
+    ou retirar territórios a qualquer momento, e as análises serão atualizadas conforme a seleção realizada." e a lista; cada
+    análise mostra o resumo da seleção, com "Alterar a seleção"; o botão "Territórios" saiu da barra de funções;
+  - toda aba abre com a apresentação do que faz, em linguagem simples, com os nomes territoriais da fonte; a aba de uma
+    análise que não se executa com os dados abre também, com a apresentação e o motivo ("Indisponível com estes dados: …"), sem
+    os ajustes, e o desenho continua com a última análise (sem pedido ao motor);
+  - o motivo da rotatividade sai sem o código: "A base do Brasil tem contagens, não pessoas: a rotatividade exige dados
+    enviados com o identificador individual.".
+- **Permanece:** a seleção é uma só para todas as análises; a referência da Análise Espacial e a janela da Análise de
+  Tendência continuam escolhas de cada análise, separadas dos territórios analisados; os métodos, os pedidos de cada análise e
+  as condições de execução; a trilha, a busca e a lista em grupos; os `data-testid` das análises (`analise-familia-<família>`).
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (itens 3 a 8 e 12).
+- **Classificação:** mudança prevista. Escopo: decorre do pedido. Compatibilidade: a SPEC não fixa a abertura nem os nomes da
+  interface (README: a interface é independente das diretrizes de UX da SPEC); a separação entre os territórios analisados
+  (as unidades-alvo) e a referência é a de CAP-ESP-02 e CAP-REF-01.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md`, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` e
+  `README.md`; `frontend/tests/areaDeAnalise.test.mjs`, `painel.test.mjs`, `conversaGrafico.test.mjs` e
+  `paginaUnica.test.mjs`; os roteiros `ui_pagina_unica.py`, `ui_area_de_analise.py`, `ui_mapa.py`, `ui_conversa_grafico.py` e
+  `ui_modo_escuro.py`.
+
+### 2026-10-23 · Página única: banner de volta e entradas dos dados na área central e na conversa
+- **Antes:** no alto, o nome do agente com Nova sessão, Nova análise e Histórico ao lado, e a barra da fonte com "Dados do
+  Brasil", "Enviar meus dados" e o modelo de planilha; a área central tinha só "Dados do Brasil" e "Enviar meus dados"; a
+  conversa, os dois botões.
+- **Agora:** o banner de apresentação volta ao cabeçalho ("FORÇA DE TRABALHO NA SAÚDE", "Transforme dados em diagnósticos
+  territoriais." e "Um novo olhar sobre seus dados. Explore territórios, conecte informações e compreenda cenários."), com
+  Nova sessão, Nova análise e Histórico abaixo dele, à esquerda. As entradas saíram do alto: "Dados do Brasil", "Enviar meus
+  dados" e "Modelo de planilha XLSX" ficam na área central e na conversa, com as mesmas ações; a barra da fonte aparece só com
+  dados em uso ou em preparo, com o resumo e "Trocar", que traz as três entradas de volta à área central, com "Cancelar". A
+  conversa pergunta "O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de
+  planilha?".
+- **Permanece:** o aceite de privacidade antes de tudo; a preparação, o painel Colunas, a escolha da aba e os erros da
+  leitura na barra da fonte; a troca só vale quando a nova fonte fica pronta; o Diagnóstico técnico da fonte.
+- **Motivo:** pedido do responsável pelo produto de 23/10/2026 (item 1).
+- **Classificação:** mudança prevista, de interface. Escopo: decorre do pedido. Compatibilidade: a SPEC não fixa o leiaute.
+- **Documentação e testes:** `README.md`, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` e `Docs/PAINEL_INTEGRADO_INTERFACE.md`;
+  `frontend/tests/conversaGrafico.test.mjs`; `backend/tests/ui_pagina_unica.py` (o banner, a navegação abaixo dele, as
+  entradas na área e na conversa e o download do modelo) e `ui_modo_escuro.py`.
+
 ### 2026-10-23 · Página única: textos territoriais pela estrutura reconhecida (motor e conversa)
 - **Antes:**
   - no nível estados, `disponibilidade.espacial.motivo` era fixo: "No nível estados, a distância não se aplica: estados não

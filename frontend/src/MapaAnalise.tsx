@@ -1,7 +1,7 @@
 import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState,
   type CSSProperties, type KeyboardEvent } from "react";
-import { Expand, Minus, Plus, Search, X } from "lucide-react";
-import type { DadosDoMapa, EscolhaDePintura, MapaHandle, MapaProps, Posicoes } from "./mapaContrato";
+import { Expand, Minus, Plus, Search } from "lucide-react";
+import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes } from "./mapaContrato";
 import type { PainelIndicador } from "./painelApi";
 import { artigo, compacto, formatarNumero, generoDe, maiuscula, textoDaMarca, umA, type Dica, type RotulosTerritoriais } from "./painelModel";
 import MiniMapa from "./MiniMapa";
@@ -9,7 +9,7 @@ import { useNarrow } from "./useNarrow";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
   ALVO_MOUSE, ALVO_TOQUE, LIMITE_NOMES_TODOS, OPACIDADE_APAGADA, RAIO_FUNDO, alvoMaisProximo, areaVisivel, baseDoMapa, coresDoMapa,
-  deslocar, enquadrar, escalaEfetiva, gradienteDaRampa, limitesDe, marcasDaLegenda, marcasDeTamanho, montarCena, paraTela,
+  deslocar, enquadrar, escalaEfetiva, gradienteDaRampa, limitesComContexto, limitesDe, marcasDaLegenda, marcasDeTamanho, montarCena, paraTela,
   posicaoDoContexto, posicionarNomes, projetar, rampaContinua, segmentosDasLigacoes, vizinhoNaDirecao, zoomEm, type Caixa, type Cena,
   type CoresDoMapa, type Direcao, type EscalaDeCor, type PedidoDeNome, type PontoDaCena, type Vista,
 } from "./mapaModel";
@@ -19,8 +19,9 @@ import "./mapa.css";
 // (TerritoryMap, até 22/10/2026): canvas sem serviço externo, projeção equirretangular só para desenhar, pontos em lotes,
 // zoom, arrasto, pinça, duplo clique, teclado, alvo ampliado e nomes que não se cobrem. Cada ponto é a sede do município
 // (IBGE) na base do Brasil, ou a coordenada da planilha; o mapa só desenha o que o motor devolveu (RQ-REP-09) e não mede
-// distância. Tamanho com área proporcional, cor da camada do gráfico, contínua (linear; logarítmica só por escolha) ou
-// neutra com a pergunta "Como pintar o mapa?". A régua e os filtros esmaecem, nunca escondem. Arrasto, zoom e o ponto sob o
+// distância. Tamanho com área proporcional; cor da camada do gráfico, dos 5 grupos iguais (quintis) do motor quando a análise
+// não tem cor própria (23/10/2026, sem a pergunta "Como pintar o mapa?") ou, na rotatividade, contínua. O enquadramento inicial
+// tem contexto em volta dos pontos (limitesComContexto). A régua e os filtros esmaecem, nunca escondem. Arrasto, zoom e o ponto sob o
 // mouse redesenham sob requestAnimationFrame, sem estado React a cada movimento; a dica e o mapinha do canto são filhos com
 // estado próprio. Trocar de vista, navegar e marcar são estado visual (RQ-REP-06). Modo escuro (23/10/2026): as cores vêm do
 // esquema do aparelho (coresDoMapa e rampaContinua); na troca de esquema e no começo da impressão (sempre clara), o canvas é
@@ -122,7 +123,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
 
   const vistaInicial = useCallback((): Vista => {
     const { w, h } = tamanho.current;
-    return enquadrar(baseRef.current.limites ?? limitesTodosRef.current, w, h);
+    return enquadrar(limitesComContexto(baseRef.current.limites, limitesTodosRef.current), w, h);
   }, []);
   const limitesDeZoom = useCallback(() => {
     const { w, h } = tamanho.current;
@@ -733,8 +734,6 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
         <button type="button" data-testid="mapa-ver-tudo" className="mapa-controle" aria-label="Ver tudo: volta ao enquadramento inicial"
           title="Ver tudo" onClick={verTudo}><Expand size={15} aria-hidden="true"/></button>
       </div>
-      {p.pintura === "pergunta" && p.opcoesDePintura.length > 0 &&
-        <PerguntaDePintura opcoes={p.opcoesDePintura} rotulos={rotulos} onEscolher={p.onEscolherPintura}/>}
       <CantoMiniMapa ref={cantoRef} pontos={p.dados.pontos} tamanho={estreito ? 88 : 120}/>
       <DicaDoMapa ref={dicaRef}/>
       {!cena.pontos.length && <p role="status" data-testid="mapa-vazio" className="mapa-vazio">
@@ -746,14 +745,14 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       {p.pintura === "continua"
         ? <LegendaContinua rotulo={p.rotuloContinuo} dominio={p.dominio} escala={p.escala} indicador={p.indicador} contexto={p.contextoBrasil}
           cores={cores} rampa={rampa}/>
-        : p.pintura === "camada"
-        ? <div data-testid="mapa-legenda" data-tipo="camada" className="mapa-legenda" role="group" aria-label="Legenda da cor">
-          {p.legendaCor ?? <p>Cor única: nenhuma camada de cor em uso.</p>}</div>
-        : <div data-testid="mapa-legenda" data-tipo="pergunta" className="mapa-legenda">
-          <p className="mapa-legenda-linha"><span className="mapa-amostra" style={{ background: cores.neutro }} aria-hidden="true"/>
-            Cor neutra: o mapa ainda não tem cor escolhida.</p></div>}
+        : <div data-testid="mapa-legenda" data-tipo={p.pintura} className="mapa-legenda" role="group" aria-label="Legenda da cor">
+          {p.pintura === "quintis" && <p data-testid="mapa-legenda-quintis" className="mapa-legenda-linha">Cores do mapa: 5 grupos
+            iguais (quintis) {INDICADORES_DO_MAPA[p.indicador]}, calculados pelo motor com {artigo(unidade, true)} {unidade.plural} da
+            análise.</p>}
+          {p.legendaCor ?? <p>Cor única: nenhuma camada de cor em uso.</p>}</div>}
       <div className="mapa-notas">
-        <p data-testid="mapa-nota">Cada ponto é a sede do município (IBGE) na base do Brasil, ou a coordenada da planilha. A posição é só
+        <p data-testid="mapa-nota">{p.brasil === false ? "Cada ponto é a coordenada " + (feminino ? "da " : "do ") + unidade.singular +
+          " informada na planilha." : "Cada ponto é a sede do município (IBGE) na base do Brasil."} A posição é só
           para o desenho: o mapa não mede distância.{p.dados.referencial ? " Referencial das coordenadas: " +
           textoDoReferencial(p.dados.referencial) + "." : ""}{semPontoNoResultado ? " Sem coordenada válida, " + umaUnidade(rotulos) +
           " fica fora do mapa e aparece em Não avaliáveis." : ""}</p>
@@ -854,37 +853,8 @@ const OpcoesDaBusca = memo(function OpcoesDaBusca({ id, pontos }: { id: string; 
   return <datalist id={id}>{pontos.map(ponto => <option key={ponto.id} value={ponto.rotulo}/>)}</datalist>;
 });
 
-// ================================================================================================ pergunta "Como pintar o mapa?"
-const OPCOES_DE_PINTURA: Record<EscolhaDePintura, { nome: string; linha: (rotulos: RotulosTerritoriais) => string }> = {
-  quintis: { nome: "5 grupos iguais (quintis)", linha: rotulos => "5 grupos com o mesmo número de " + rotulos.unidade.plural + ", calculados pelo motor." },
-  faixas: { nome: "Faixas", linha: () => "Limites que você define." },
-  continua: { nome: "Cor contínua", linha: () => "Do menor ao maior valor; a maioria pode ficar parecida." },
-  condicoes: { nome: "Condições", linha: () => "Separa quem atende às condições que você escolher." },
-};
-/** Decisão de 23/10/2026: sem cor escolhida, o mapa pergunta. A primeira opção é a recomendada. Recolher é só estado visual. */
-function PerguntaDePintura({ opcoes, rotulos, onEscolher }: { opcoes: EscolhaDePintura[]; rotulos: RotulosTerritoriais;
-  onEscolher: (escolha: EscolhaDePintura) => void }) {
-  const titulo = useId();
-  const [recolhida, setRecolhida] = useState(false);
-  if (recolhida) return <button type="button" data-testid="mapa-pergunta-abrir" className="mapa-pergunta-abrir mapa-nao-imprimir"
-    onClick={() => setRecolhida(false)}>Como pintar o mapa?</button>;
-  return <div data-testid="mapa-pergunta" role="group" aria-labelledby={titulo} className="mapa-pergunta mapa-nao-imprimir">
-    <div className="mapa-pergunta-cabecalho">
-      <p id={titulo} className="mapa-pergunta-titulo">Como pintar o mapa?</p>
-      <button type="button" className="mapa-icone" aria-label="Recolher a pergunta" title="Recolher" onClick={() => setRecolhida(true)}>
-        <X size={14} aria-hidden="true"/></button>
-    </div>
-    <p className="mapa-pergunta-apoio">Por enquanto, os pontos estão numa cor neutra.</p>
-    <div className="mapa-pergunta-opcoes">
-      {opcoes.map((opcao, indice) => <button key={opcao} type="button" data-testid={"mapa-pergunta-" + opcao}
-        data-recomendado={indice === 0 ? "true" : undefined} className="mapa-pergunta-opcao" onClick={() => onEscolher(opcao)}>
-        <span className="mapa-pergunta-nome">{OPCOES_DE_PINTURA[opcao].nome}
-          {indice === 0 && <span className="mapa-recomendado">recomendado</span>}</span>
-        <span className="mapa-pergunta-linha">{OPCOES_DE_PINTURA[opcao].linha(rotulos)}</span>
-      </button>)}
-    </div>
-  </div>;
-}
+/** O indicador dos quintis do mapa, na legenda. */
+const INDICADORES_DO_MAPA: Record<string, string> = { densidade: "da densidade", quantidade: "da quantidade" };
 
 // ================================================================================================ legendas
 /** Legenda de tamanho: três valores de referência com o mesmo raio do desenho (área proporcional). */

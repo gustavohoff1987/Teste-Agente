@@ -220,9 +220,18 @@ test('contexto do gráfico → opções da conversa: unidades na tela, família,
 test('orientação da conversa: pergunta na abertura e, na planilha, usa os nomes escolhidos, nunca "município" fixo', () => {
   const DISTRITOS = {unidade: {singular: 'distrito', plural: 'distritos'}, grupo: {singular: 'província', plural: 'províncias'}};
   const BRASIL = {unidade: {singular: 'município', plural: 'municípios'}, grupo: {singular: 'estado', plural: 'estados'}};
+  // Na abertura, as três entradas dos dados (23/10/2026: também o modelo de planilha).
   assert.equal(C.guiaDaConversa({tipo: null, pronta: false, colunasPendentes: false}, null, null),
-    'O que você quer analisar? Prefere começar com os dados do Brasil ou enviar os seus?');
-  assert.match(C.guiaDaConversa({tipo: 'brasil', pronta: false, colunasPendentes: false}, null, null), /preparando os dados do Brasil/);
+    'O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de planilha?');
+  assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: false, colunasPendentes: false}, null, null),
+    'Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar.');
+  // A base carregada abre sem seleção (23/10/2026): a conversa orienta a escolher os territórios, com os nomes da fonte.
+  const semSelecao = {...CONTEXTO, municipios: {todos: false, estados: [], ids: []}};
+  assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, semSelecao, BRASIL),
+    'Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará” ' +
+    'ou “todos os estados”.');
+  assert.equal(C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, semSelecao, DISTRITOS),
+    'Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver.');
   assert.match(C.guiaDaConversa({tipo: 'arquivo', pronta: false, colunasPendentes: true}, null, null), /painel Colunas/);
   assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, null, BRASIL),
     'Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver.');

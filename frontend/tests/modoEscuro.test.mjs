@@ -230,7 +230,7 @@ test('cores do mapa por esquema: as mesmas chaves, a rampa contínua do escuro d
   assert.equal(MP.corContinua(100, [0, 100], 'linear', escura), '#9ec5f4');
   assert.equal(MP.corContinua(50, [0, 100], 'linear', escura), '#3987e5');
   assert.equal(MP.gradienteDaRampa(escura), 'linear-gradient(to right, #184f95 0%, #256abf 25%, #3987e5 50%, #6da7ec 75%, #9ec5f4 100%)');
-  // Cena no escuro: a vazada mostra a superfície escura; a pergunta pinta com o neutro do escuro.
+  // Cena no escuro: a vazada mostra a superfície escura; os quintis pintam com a cor que a área entrega (a do grupo).
   const ponto = (id, densidade) => ({item: {id, tipo: 'municipio', rotulo: id, uf: 'AM', populacao: 10, quantidade: 1, densidade, distancia_km: null,
     motivos: [], referencia: false}, indice: 0});
   const base = {pontos: [ponto('a', 1), ponto('b', null)]};
@@ -239,8 +239,8 @@ test('cores do mapa por esquema: as mesmas chaves, a rampa contínua do escuro d
   const continua = MP.montarCena(base, {...entrada, pintura: 'continua'});
   assert.equal(continua.pontos.find(p => p.id === 'b').cor, C.superficie);
   assert.equal(continua.pontos.find(p => p.id === 'a').cor, '#3987e5');
-  const pergunta = MP.montarCena(base, {...entrada, pintura: 'pergunta'});
-  assert.ok(pergunta.pontos.every(p => p.cor === C.neutro));
+  const quintis = MP.montarCena(base, {...entrada, pintar: () => ({cor: C.neutro, vazada: false, apagada: false}), pintura: 'quintis'});
+  assert.ok(quintis.pontos.every(p => p.cor === C.neutro));
 });
 
 test('styles.css: o claro em :root e o escuro só na tela; as variáveis do desenho são as paletas do gráfico e do mapa', () => {

@@ -8,9 +8,10 @@ async function source(name, ajustar = code => code) {
   return import('data:text/javascript;base64,' + Buffer.from(ajustar(code)).toString('base64'));
 }
 // Área de análise (23/10/2026): os ajustes dentro de cada análise, a vista do desenho (gráfico, mapa ou lado a lado), as decisões
-// puras do mapa (disponibilidade com o motivo, pintura, opções da pergunta, cor contínua, tamanho e ligações), o estado salvo com
-// a vista, o aspecto "mapa" dos não avaliáveis, a frase-resumo do motor e os dados do mapa no cliente (painelModel.ts e
-// painelApi.ts, com a sessão substituída por um esboço: os testes não fazem pedidos).
+// puras do mapa (disponibilidade com o motivo, pintura com os quintis do motor, cor contínua, tamanho e ligações), o estado salvo
+// com a vista, o aspecto "mapa" dos não avaliáveis, a frase-resumo do motor, os dados do mapa no cliente, os nomes das abas, a
+// apresentação de cada aba e as explicações da tendência (painelModel.ts e painelApi.ts, com a sessão substituída por um esboço:
+// os testes não fazem pedidos).
 const M = await source('painelModel');
 const A = await source('painelApi', code => code.replace(/import\s*\{[^}]*\}\s*from\s*["']\.\/conversationSession["'];?/,
   'const contextRevision = () => 0; const fetch = globalThis.fetch;'));
@@ -72,19 +73,38 @@ test('vista do desenho: o mapa nos municípios; desligado nos estados (com o ata
   assert.equal(M.LARGURA_LADO_A_LADO, 1600);
 });
 
-test('pintura do mapa: a camada do gráfico, a cor contínua (rotatividade ou escolha da pessoa) ou a pergunta; as opções de cada análise', () => {
-  const p = extra => M.pinturaDoMapa({camada: 'unica', rotatividade: false, corContinua: false, ...extra});
-  assert.equal(p({}), 'pergunta');  // sem cor escolhida, o mapa pergunta (decisão de 23/10)
-  assert.equal(p({corContinua: true}), 'continua');
+test('pintura do mapa: a camada do gráfico, a cor contínua da rotatividade ou os 5 grupos iguais (quintis) do motor, sem pergunta', () => {
+  const p = extra => M.pinturaDoMapa({camada: 'unica', rotatividade: false, gruposDoMapa: true, ...extra});
+  assert.equal(p({}), 'quintis');  // sem cor própria da análise, os quintis que o motor devolveu em grupos_mapa
+  assert.equal(p({gruposDoMapa: false}), 'camada');  // sem eles (uma análise guardada antes), a cor única do gráfico
   for (const camada of ['grupos', 'faixas', 'condicoes', 'ordem', 'classes', 'variacao']) {
-    assert.equal(p({camada}), 'camada');
-    assert.equal(p({camada, corContinua: true}), 'camada');  // a camada em uso no gráfico vale também no mapa
+    assert.equal(p({camada}), 'camada');  // a camada em uso no gráfico vale também no mapa
+    assert.equal(p({camada, gruposDoMapa: false}), 'camada');
   }
   assert.equal(p({rotatividade: true}), 'continua');
-  assert.deepEqual(M.opcoesDePintura('distribuicao'), ['quintis', 'faixas', 'continua']);
-  assert.deepEqual(M.opcoesDePintura('espacial'), ['continua', 'condicoes']);
-  assert.deepEqual(M.opcoesDePintura('tendencia'), []);
-  assert.deepEqual(M.opcoesDePintura('rotatividade'), []);
+  assert.equal(M.opcoesDePintura, undefined);  // a pergunta "Como pintar o mapa?" saiu (23/10/2026)
+  // O pedido leva os quintis do mapa só quando a análise não tem cor própria e o mapa está disponível.
+  const d = extra => definicao({base: {todos: false, estados: ['13'], ids: []}, ...extra});
+  const q = (def, familia = 'distribuicao', mapa = true) => M.precisaQuintisDoMapa(def, familia, mapa);
+  assert.equal(q(d()), true);
+  assert.equal(q(d(), 'espacial'), true);  // a distância nunca pinta o mapa (RQ-REP-02): os quintis do indicador
+  assert.equal(q(d(), 'tendencia'), false);  // as classes já pintam
+  assert.equal(q(d(), 'rotatividade'), false);  // a permanência já pinta
+  assert.equal(q(d(), 'distribuicao', false), false);  // sem mapa (planilha sem coordenadas, visão Séries)
+  assert.equal(q(d({nivel: 'estados'})), false);
+  assert.equal(q(d({agrupar: {tipo: 'quartis', faixas: []}})), false);
+  assert.equal(q(d({agrupar: {tipo: 'faixas', faixas: [1, 2]}})), false);
+  assert.equal(q(d({agrupar: {tipo: 'faixas', faixas: [1]}})), true);  // faixas incompletas não pintam o gráfico
+  assert.equal(q(d({condicoes: [{atributo: 'densidade', operador: '>', valor: 1}]})), false);
+  assert.equal(q(d({ordenar: {atributo: 'densidade', ordem: 'desc'}})), false);
+  const opcoes = M.montarOpcoes(d(), 'distribuicao', undefined, {quintisDoMapa: true});
+  assert.deepEqual(opcoes.grupos_mapa, {tipo: 'quintis'});
+  assert.equal(opcoes.grupos, undefined);  // o gráfico continua sem grupos
+  assert.equal(M.montarOpcoes(d(), 'distribuicao').grupos_mapa, undefined);
+  // Com os quintis do mapa, o indicador muda a resposta: a troca do indicador pede de novo; a troca da vista, não.
+  assert.equal(M.pedidoDependeDoIndicador(opcoes), true);
+  assert.equal(M.pedidoDependeDoIndicador(M.montarOpcoes(d(), 'distribuicao')), false);
+  assert.notEqual(M.chaveDoPedido(opcoes), M.chaveDoPedido({...opcoes, indicador: 'quantidade'}));
   // Cor contínua: o indicador no domínio do motor, ou a permanência da coorte inicial de 0 a 100%.
   const dominios = {densidade: [0.5, 15], quantidade: [1, 105], populacao: [1000, 9000]};
   const cor = M.corContinuaDoMapa({rotatividade: false, indicador: 'densidade', dominios});
@@ -131,7 +151,7 @@ test('Histórico: a vista do desenho e a cor contínua entram no estado salvo; o
   assert.deepEqual(lido, {...salvo.definicao, resposta: corpo});
   const lado = M.salvarEstado('T', {...salvo.definicao, visual: {...salvo.definicao.visual, vista: 'lado'}}, corpo);
   assert.equal(M.lerEstadoSalvo(lado).visual.vista, 'lado');  // numa janela estreita, a área troca pelo mapa
-  // Estado de antes de 23/10, sem vista nem cor: reabre sem os campos (a área mostra o gráfico, e o mapa pergunta como pintar).
+  // Estado de antes de 23/10, sem vista nem cor: reabre sem os campos (a área mostra o gráfico).
   const antigo = {titulo: 'T', quando: '', resposta: corpo, definicao: {versao: 1, chave: 'k', familia: 'distribuicao', opcoes: null, definicao: def,
     visual: {escala: 'logaritmica', corte: null, selecionados: ['code:130260']}}};
   assert.deepEqual(M.lerEstadoSalvo(antigo).visual, {escala: 'logaritmica', corte: null, selecionados: ['code:130260']});
@@ -172,7 +192,7 @@ test('conversa: "ver no mapa" e "volte ao gráfico" são estado visual; o mapa v
   const c = {periodos: ['202306', '202406'], nomes: new Map(), temGrupos: true,
     disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR}),
     mapa: d => M.disponibilidadeDoMapa({fonte: 'brasil', temCoordenadas: true, nivel: d.nivel, series: false, rotatividade: false, rotulos: BR})};
-  const estados = definicao();
+  const estados = definicao({nivel: 'estados'});
   const noMapa = M.aplicarPedido(estados, {vista: 'mapa'}, c);
   assert.equal(noMapa.vista, null);
   assert.deepEqual(noMapa.mensagens, ['Mapa: Os estados não têm um ponto no mapa: cada ponto do mapa é um município.']);
@@ -210,4 +230,93 @@ test('frase-resumo do motor no cliente e no arquivo de método; dados do mapa no
   assert.deepEqual([...dados.pontos.entries()], [['code:130260', [-3.1019, -60.025]]]);
   assert.deepEqual(dados.semCoordenada, [{id: 'code:130185', rotulo: 'IRANDUBA (AM)', motivo: SEM_PONTO}]);
   assert.throws(() => A.normalizarMapa({competencia: '202406'}), erro => erro instanceof A.ErroDoMotor);
+});
+
+test('nomes padronizados: a Seleção de Territórios primeiro, e as quatro análises com o nome completo', () => {
+  assert.deepEqual(M.ABAS, ['territorios', 'distribuicao', 'espacial', 'tendencia', 'rotatividade']);
+  assert.deepEqual(M.ABAS.map(M.nomeDaAba), ['Seleção de Territórios', 'Análise de Distribuição', 'Análise Espacial',
+    'Análise de Tendência', 'Análise de Rotatividade']);
+  assert.equal(M.NOME_SELECAO, 'Seleção de Territórios');  // a seleção não é uma análise
+  assert.equal(M.TEXTO_DA_SELECAO, 'Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar ' +
+    'territórios a qualquer momento, e as análises serão atualizadas conforme a seleção realizada.');
+  // A abertura não marca territórios: nada é pedido ao motor até a escolha.
+  for (const tipo of ['brasil', 'arquivo']) {
+    const inicial = M.definicaoInicial({tipo, periodos: ['202406'], categoria: '', temGrupos: tipo === 'brasil'});
+    assert.equal(inicial.nivel, 'municipios');
+    assert.deepEqual(inicial.base, {todos: false, estados: [], ids: []});
+    assert.equal(M.bloqueioDoPedido(inicial, {fonte: tipo, rotulos: BR}), M.TEXTO_SEM_SELECAO);
+  }
+});
+
+test('apresentação de cada aba: o que a aba faz, com os nomes territoriais da fonte e sem códigos internos', () => {
+  const brasil = aba => M.apresentacaoDaAba(aba, {rotulos: BR, brasil: true, comGrupos: true});
+  const planilha = aba => M.apresentacaoDaAba(aba, {rotulos: DISTRITOS, brasil: false, comGrupos: true});
+  const tudo = a => [a.titulo, ...a.paragrafos, ...(a.itens || []).flatMap(item => [item.termo, item.texto]), a.nota || ''].join(' ');
+  for (const aba of M.ABAS) {
+    assert.equal(brasil(aba).titulo, M.nomeDaAba(aba));
+    assert.ok(brasil(aba).paragrafos.length >= 1);
+    const texto = tudo(planilha(aba));
+    assert.ok(!/município|estado|Brasil/i.test(texto), aba + ': ' + texto);  // a planilha fala de distritos e províncias
+    // Sem códigos do motor na tela, a não ser a âncora do método na nota da tendência.
+    assert.ok(!/[A-Z]{3,}_[A-Z]/.test(texto.replace('CAP-TEN-01 (DA-15)', '')), aba + ': ' + texto);
+  }
+  assert.equal(brasil('territorios').paragrafos[0], M.TEXTO_DA_SELECAO);
+  assert.ok(brasil('territorios').paragrafos[1].includes('os municípios de um estado de uma vez'));
+  assert.ok(planilha('territorios').paragrafos[1].includes('os distritos de uma província de uma vez'));
+  // Antes dos dados, sem falar de planilha nem do Brasil.
+  const antes = M.apresentacaoDaAba('territorios', {rotulos: M.ROTULOS_GENERICOS, brasil: false, comGrupos: false, semDados: true});
+  assert.ok(antes.paragrafos[1].startsWith('Depois de escolher os dados, a lista de territórios aparece aqui.'), antes.paragrafos[1]);
+  assert.ok(brasil('distribuicao').paragrafos[1].includes('5 grupos iguais (quintis)'));
+  assert.ok(brasil('espacial').paragrafos[1].includes('(a sede municipal)'));
+  assert.ok(!planilha('espacial').paragrafos[1].includes('sede'));
+  assert.ok(brasil('rotatividade').paragrafos[1].includes('envie uma planilha com o identificador individual'));
+  assert.ok(!planilha('rotatividade').paragrafos[1].includes('envie'));
+  // As classes da tendência, na ordem da SPEC, com o que cada uma quer dizer, e o não avaliável.
+  const tendencia = brasil('tendencia');
+  assert.deepEqual(tendencia.itens.map(item => item.termo), ['Crescimento', 'Aceleração do crescimento', 'Desaceleração do crescimento',
+    'Declínio', 'Aceleração do declínio', 'Desaceleração do declínio', 'Sem classificação', 'Não avaliável']);
+  assert.ok(tendencia.itens.every(item => item.texto && item.texto.endsWith('.')));
+  assert.ok(tendencia.paragrafos[0].includes('pelo menos quatro observações válidas'));
+  assert.ok(tendencia.nota.includes('Basta um trecho na direção contrária'));
+  assert.ok(tendencia.nota.endsWith('Método de classificação: CAP-TEN-01 (DA-15).'));
+  assert.deepEqual(Object.keys(M.DESCRICAO_DAS_CLASSES), M.CLASSES_TENDENCIA.map(classe => classe.codigo));
+});
+
+test('tendência: o motivo de cada unidade em palavras, sem o código; a nota das sem classificação conta pelo motor e explica a regra', () => {
+  const t = extra => ({classe: 'SEM_CLASSIFICACAO', familia: 'NENHUMA', rotulo: 'Sem classificação', motivo: null, motivoCodigo: null,
+    motivoTexto: null, avaliavel: true, observacoes: 22, velocidades: [], ...extra});
+  assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'MUDANCA_DE_DIRECAO', motivoTexto: 'Mudança de direção'})),
+    'Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção).');
+  assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'SERIE_ESTAVEL'})),
+    'Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).');
+  assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: null, motivoCodigo: 'SERIE_INSUFICIENTE',
+    motivoTexto: '3 de 4 observações necessárias'})), 'Não avaliável: série insuficiente na janela (3 de 4 observações necessárias).');
+  assert.equal(M.explicacaoDaTendencia(t({classe: 'CRESCIMENTO_ACELERADO', familia: 'CRESCIMENTO', rotulo: 'Aceleração do crescimento'})),
+    'Aceleração do crescimento: ' + M.DESCRICAO_DAS_CLASSES.CRESCIMENTO_ACELERADO);
+  assert.equal(M.explicacaoDaTendencia(null), null);
+  for (const caso of [t({motivoCodigo: 'MUDANCA_DE_DIRECAO'}), t({motivoCodigo: 'SERIE_ESTAVEL'})])
+    assert.ok(!/MUDANCA_DE_DIRECAO|SERIE_ESTAVEL/.test(M.explicacaoDaTendencia(caso)));
+  const topo = (contagens, porMotivo) => ({contagens, semClassificacaoPorMotivo: porMotivo});
+  // Todas as unidades sem classe (o cenário real das 22 competências): a contagem por motivo e a explicação da regra.
+  const real = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 62}, {MUDANCA_DE_DIRECAO: 62}), {rotulos: BR, brasil: true});
+  assert.ok(real.startsWith('Sem classificação: 62 municípios por mudança de direção'), real);
+  assert.ok(real.includes('Nenhum município recebeu classe nesta janela'));
+  assert.ok(real.includes('uma única mudança de direção basta'));
+  assert.ok(real.includes('como os últimos 4 junhos'));
+  assert.ok(real.endsWith('Isso é o resultado do método, não falta de dados.'));
+  // Com unidades classificadas, só a contagem por motivo.
+  assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 17, SEM_CLASSIFICACAO: 38}, {MUDANCA_DE_DIRECAO: 37, SERIE_ESTAVEL: 1}),
+    {rotulos: BR, brasil: true}), 'Sem classificação: 37 municípios por mudança de direção (o indicador subiu em alguns trechos e ' +
+    'caiu em outros); 1 município por série estável (o indicador não variou).');
+  assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 5}, {}), {rotulos: BR, brasil: true}), null);
+  assert.equal(M.notaSemClassificacao(null, {rotulos: BR, brasil: true}), null);
+  const distritos = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 3}, {MUDANCA_DE_DIRECAO: 3}), {rotulos: DISTRITOS, brasil: false});
+  assert.ok(distritos.includes('Nenhum distrito recebeu classe') && !distritos.includes('junhos'), distritos);
+  // A resposta do motor chega com o motivo separado do código e a contagem por motivo.
+  const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', itens: [{id: 'code:1', tipo: 'municipio', rotulo: 'A (AM)',
+    tendencia: {classe: 'SEM_CLASSIFICACAO', familia: 'NENHUMA', rotulo: 'Sem classificação', motivo: 'MUDANCA_DE_DIRECAO',
+      motivo_texto: 'Mudança de direção', avaliavel: true, observacoes: 22, velocidades: []}}],
+    tendencia: {competencias: ['202306', '202406'], contagens: {SEM_CLASSIFICACAO: 1}, sem_classificacao_por_motivo: {MUDANCA_DE_DIRECAO: 1}}});
+  assert.equal(r.itens[0].tendencia.motivoCodigo, 'MUDANCA_DE_DIRECAO');
+  assert.equal(r.tendencia.semClassificacaoPorMotivo.MUDANCA_DE_DIRECAO, 1);
 });

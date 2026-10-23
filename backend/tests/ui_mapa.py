@@ -1,13 +1,14 @@
 """Mapa da página única (23/10/2026), com a base versionada (somente leitura): a segunda vista do gráfico.
 
-Confere, contra as respostas de /api/painel e de /api/painel/mapa: nos estados, o mapa desligado, com o motivo e o atalho para os
-municípios (os ladrilhos dos estados não foram aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais
-unidades; a pergunta "Como pintar o mapa?" (decisão de 23/10), a cor contínua linear por padrão (logarítmica só por escolha), os
-quintis do motor com a mesma contagem por cor, a régua que esmaece sem esconder (decisão de 23/10), a seleção e a dica iguais às do
-gráfico, o zoom com o mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da
-análise espacial, o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e
-o celular. Nenhuma cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o
-provedor de IA.
+Confere, contra as respostas de /api/painel e de /api/painel/mapa: nos estados (escolhidos na Seleção de Territórios, porque a
+base abre sem seleção), o mapa desligado, com o motivo e o atalho para os municípios (os ladrilhos dos estados não foram
+aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais unidades; sem a pergunta "Como pintar o mapa?"
+(retirada em 23/10/2026): sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolve junto com a análise
+(`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
+gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
+mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial, o
+lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
+cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
 import os
@@ -142,6 +143,24 @@ def main():
                            for q in pontos if q["id"] != p["id"] and q["naTela"])
             return max(candidatos, key=folga)
 
+        def confere_quintis(body, ids, estado):
+            """A cor de cada ponto é o grupo do mapa que o motor devolveu (grupo_mapa): a mesma contagem por cor, e a legenda
+            com as contagens do motor."""
+            por_grupo = Counter(item["grupo_mapa"]["indice"] for item in body["itens"] if item["id"] in ids and item.get("grupo_mapa"))
+            por_cor = Counter(ponto["cor"] for ponto in estado["pontos"] if not ponto["vazada"])
+            assert por_grupo and sorted(por_cor.values()) == sorted(por_grupo.values()), (por_cor, por_grupo)
+            legenda = mapa.get_by_test_id("mapa-legenda")
+            expect(legenda).to_have_attribute("data-tipo", "quintis")
+            expect(legenda.get_by_test_id("mapa-legenda-quintis")).to_contain_text("5 grupos iguais (quintis)")
+            quintis = legenda.get_by_test_id("mapa-quintil")
+            expect(quintis).to_have_count(5)
+            contagens = body["grupos_mapa"]["contagens"]
+            valores = list(contagens.values()) if isinstance(contagens, dict) else contagens
+            for indice, valor in enumerate(valores, start=1):
+                expect(legenda.locator('[data-testid="mapa-quintil"][data-chave="' + str(indice) + '"]')).to_have_attribute(
+                    "data-contagem", str(valor))
+            expect(mapa.get_by_test_id("mapa-pergunta")).to_have_count(0)
+
         def no_canvas(ponto):
             canvas = mapa.get_by_test_id("mapa-canvas")
             canvas.evaluate("e => e.scrollIntoView({block: 'center', behavior: 'instant'})")
@@ -153,8 +172,15 @@ def main():
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. Estados (E1): o mapa desligado, com o motivo (os estados não têm um ponto) e o atalho; nada é pedido ao motor.
-        estados, _ = ok(lambda: area.get_by_test_id("analise-fonte-brasil").click())
+        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios. O mapa fica desligado, com o motivo
+        # (os estados não têm um ponto) e o atalho; nada é pedido ao endpoint do mapa.
+        area.get_by_test_id("analise-fonte-brasil").click()
+        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados", timeout=120000)
+        expect(area).to_have_attribute("data-aba", "territorios")
+        page.wait_for_timeout(500)
+        assert not painel_calls and not mapa_calls, "sem territórios escolhidos, nada é pedido ao motor"
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-territorios-estados")))
+        assert sent.get("nivel") == "estados" and "grupos_mapa" not in sent, sent
         expect(area).to_have_attribute("data-estado", "E1")
         expect(area).to_have_attribute("data-desenho", "grafico")
         botao_mapa = area.get_by_test_id("analise-desenho-mapa")
@@ -165,10 +191,12 @@ def main():
         expect(area).to_have_attribute("data-desenho", "grafico")
         assert not mapa_calls, "nos estados, nada é pedido ao endpoint do mapa"
 
-        # 2. O atalho leva a todos os municípios do Brasil, já no mapa: os pontos do motor (sede municipal), o fundo, a pergunta.
+        # 2. O atalho leva a todos os municípios do Brasil, já no mapa: os pontos do motor (sede municipal), o fundo e, sem cor
+        # própria da análise, os 5 grupos iguais (quintis) que o motor devolveu com a análise, sem pergunta.
         with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
             brasil, sent = ok(lambda: aperta(motivo.get_by_test_id("analise-desenho-atalho")))
         assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
+        assert sent.get("grupos_mapa") == {"tipo": "quintis"} and "grupos" not in sent, sent
         resposta_mapa = evento.value
         assert resposta_mapa.status == 200, resposta_mapa.text()[:2000]
         dados_mapa = resposta_mapa.json()
@@ -185,62 +213,57 @@ def main():
         expect(area.get_by_test_id("analise-vista-mapa")).to_be_visible()
         expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("aria-pressed", "true")
         desenhaveis = com_ponto(brasil, pontos_motor)
-        estado = desenhado(len(desenhaveis), "pergunta")
-        assert estado["contexto"] == len(set(pontos_motor) - {item["id"] for item in desenhaveis}), estado["contexto"]
+        ids_brasil = {item["id"] for item in desenhaveis}
+        estado = desenhado(len(desenhaveis), "quintis")
+        assert estado["contexto"] == len(set(pontos_motor) - ids_brasil), estado["contexto"]
         expect(mapa).to_have_attribute("data-escala", "nenhuma")
         expect(mapa.get_by_test_id("mapa-nota")).to_contain_text("sede do município")
-        pergunta = mapa.get_by_test_id("mapa-pergunta")
-        expect(pergunta).to_be_visible()
-        expect(pergunta.get_by_test_id("mapa-pergunta-quintis")).to_have_attribute("data-recomendado", "true")
-        for opcao in ("faixas", "continua"):
-            expect(pergunta.get_by_test_id("mapa-pergunta-" + opcao)).to_be_visible()
-        expect(mapa.get_by_test_id("mapa-legenda")).to_have_attribute("data-tipo", "pergunta")
-        shot("01-brasil-pergunta")
+        confere_quintis(brasil, ids_brasil, estado)
+        # O mapa não tem escala própria: a escala é só do gráfico.
+        expect(area.get_by_test_id("analise-escala")).to_have_count(0)
+        shot("01-brasil-quintis")
 
-        # 3. Cor contínua: estado visual (nada é pedido ao motor), linear por padrão; logarítmica só por escolha.
-        calls = len(painel_calls)
-        aperta(pergunta.get_by_test_id("mapa-pergunta-continua"))
-        estado = desenhado(len(desenhaveis), "continua")
-        expect(mapa).to_have_attribute("data-escala", "linear")
-        legenda = mapa.get_by_test_id("mapa-legenda")
-        expect(legenda).to_have_attribute("data-tipo", "continua")
-        expect(legenda.get_by_test_id("mapa-legenda-aviso")).to_contain_text("não é classe nem limiar")
-        assert estado["dominio"] == brasil["dominios"]["densidade"], (estado["dominio"], brasil["dominios"]["densidade"])
-        assert len({ponto["cor"] for ponto in estado["pontos"]}) > 3, "a cor contínua varia com o valor"
-        escala = area.get_by_test_id("analise-escala")
-        expect(escala).to_have_value("linear")
-        escala.select_option("logaritmica")
-        expect(mapa).to_have_attribute("data-escala", "logaritmica")
-        escala.select_option("linear")
-        expect(mapa).to_have_attribute("data-escala", "linear")
-        page.wait_for_timeout(300)
-        assert len(painel_calls) == calls, "a cor contínua e a escala da cor não pedem nada ao motor"
-        shot("02-brasil-continua")
-
-        # 4. Amazonas pela lista: o mapa enquadra o estado, com o restante do Brasil ao fundo; os mesmos pontos (sem novo pedido).
+        # 3. Amazonas pela Seleção de Territórios: o mapa abre afastado, com contexto em volta do estado e o restante do Brasil ao
+        # fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para os municípios do estado.
         pedidos_mapa = len(mapa_calls)
+        aperta(area.get_by_test_id("analise-aba-territorios"))
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         am, sent = ok(lambda: aperta(linha_am.get_by_test_id("analise-grupo-ver")))
         assert sent["base"] == {"municipios": {"todos": False, "estados": [AM], "ids": []}}, sent
+        assert sent.get("grupos_mapa") == {"tipo": "quintis"}, sent
         desenhaveis_am = com_ponto(am, pontos_motor)
-        estado = desenhado(len(desenhaveis_am), "continua")
+        estado = desenhado(len(desenhaveis_am), "quintis")
         assert estado["contexto"] == len(set(pontos_motor) - {item["id"] for item in desenhaveis_am}), estado["contexto"]
         assert len(mapa_calls) == pedidos_mapa, "os pontos da mesma competência vêm da memória"
         ids_am = {item["id"] for item in desenhaveis_am}
         assert {ponto["id"] for ponto in estado["pontos"]} == ids_am
+        confere_quintis(am, ids_am, estado)
+        # Enquadramento inicial com contexto: os pontos do estado ocupam só a parte central do mapa (com o enquadramento justo,
+        # iriam de uma borda à outra), e a margem em volta mostra o restante do Brasil ao fundo; o zoom continua livre (passo 8).
+        estado = estavel()
+        xs, ys = [ponto["x"] for ponto in estado["pontos"]], [ponto["y"] for ponto in estado["pontos"]]
+        assert max(xs) - min(xs) <= 0.8 * estado["largura"] and max(ys) - min(ys) <= 0.8 * estado["altura"], \
+            (min(xs), max(xs), min(ys), max(ys), estado["largura"], estado["altura"])
+        assert abs(estado["vista"]["zoom"] - 1) < 0.01, estado["vista"]
+        shot("02-am-contexto")
 
-        # 5. Quintis do motor: o mapa pinta como o gráfico, com a mesma contagem por cor que o motor devolveu por grupo.
+        # 4. Os quintis do gráfico (Grupos, na Análise de Distribuição): o mapa pinta como o gráfico, com a mesma contagem por cor
+        # que o motor devolveu por grupo; voltando a "Sem grupos", os quintis do mapa voltam (da memória da tela).
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
         quintis, sent = ok(lambda: area.get_by_test_id("analise-ajustes").get_by_test_id("analise-agrupar").select_option("quintis"))
-        assert sent["grupos"] == {"tipo": "quintis"}, sent
+        assert sent["grupos"] == {"tipo": "quintis"} and "grupos_mapa" not in sent, sent
         estado = desenhado(len(desenhaveis_am), "camada")
         expect(mapa.get_by_test_id("mapa-legenda")).to_have_attribute("data-tipo", "camada")
         por_grupo = Counter(item["grupo"]["indice"] for item in quintis["itens"] if item["id"] in ids_am and item.get("grupo"))
         por_cor = Counter(ponto["cor"] for ponto in estado["pontos"] if not ponto["vazada"])
         assert sorted(por_cor.values()) == sorted(por_grupo.values()), (por_cor, por_grupo)
+        # O mesmo cálculo (CAP-DIS-02) nos dois: os quintis do gráfico e os do mapa separam os municípios do mesmo jeito.
+        assert {item["id"]: item["grupo"]["indice"] for item in quintis["itens"] if item.get("grupo")} == \
+            {item["id"]: item["grupo_mapa"]["indice"] for item in am["itens"] if item.get("grupo_mapa")}
         assert area.get_by_test_id("analise-legenda-cor").count() <= 1, "a legenda das cores não se repete"
         shot("03-am-quintis")
         area.get_by_test_id("analise-ajustes").get_by_test_id("analise-agrupar").select_option("nenhum")
-        estado = desenhado(len(desenhaveis_am), "continua")
+        estado = desenhado(len(desenhaveis_am), "quintis")
 
         # 6. Régua no mapa: esmaece o que fica fora do corte, sem esconder (decisão de 23/10); nada é recalculado.
         calls = len(painel_calls)
@@ -321,7 +344,7 @@ def main():
         shot("05-am-condicoes")
         aperta(abre("condicoes").get_by_test_id("analise-condicoes").get_by_test_id("analise-condicoes-limpar"))
         fecha()
-        estado = desenhado(len(desenhaveis_am), "continua")
+        estado = desenhado(len(desenhaveis_am), "quintis")
 
         # 11. Análise espacial no mapa: a referência do motor e as ligações ilustrativas dos marcados (até 30).
         aperta(area.get_by_test_id("analise-familia-espacial"))
@@ -363,11 +386,14 @@ def main():
         expect(area).to_have_attribute("data-desenho", "mapa")
         expect(area.get_by_test_id("analise-desenho-lado")).to_have_count(0)
 
-        # 13. Nova análise volta aos estados (sem mapa); o Histórico reabre a análise espacial no mapa, sem recalcular.
+        # 13. Nova análise recomeça sem territórios (nada à vista, nem o mapa); o Histórico reabre a análise espacial no mapa, sem
+        # recalcular.
         navegacao = page.get_by_test_id("main-navigation")
-        navegacao.get_by_test_id("nav-new-analysis").click()  # os estados podem vir da memória: nem sempre há pedido novo
+        navegacao.get_by_test_id("nav-new-analysis").click()
         expect(area).to_have_attribute("data-estado", "E1", timeout=60000)
+        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Selecione os territórios que deseja analisar.")
         expect(area).to_have_attribute("data-desenho", "grafico")
+        expect(mapa).to_have_count(0)
         historico = page.get_by_test_id("nav-history")
         historico.click()
         itens = page.get_by_test_id("analysis-history-menu").get_by_test_id("historico-item")
@@ -390,9 +416,9 @@ def main():
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
-    print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, pergunta, cor contínua linear, quintis, régua que "
-          "esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das Condições, ligações da análise espacial, "
-          "lado a lado, Histórico e celular (base versionada).")
+    print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
+          "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
+          "Condições, ligações da análise espacial, lado a lado, Histórico e celular (base versionada).")
 
 
 if __name__ == "__main__":

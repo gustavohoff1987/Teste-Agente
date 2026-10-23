@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 
 // Mapa da página única (23/10/2026): modelo puro do desenho (mapaModel.ts). Projeção só para desenhar, enquadramento nos
-// itens, tamanho com área proporcional, cor contínua linear e logarítmica (nunca automática), marcas da legenda, esmaecidos
-// (fora da régua, nunca somem), alvo do clique, nomes sem sobreposição, ligações, mapinha e transição entre as vistas.
+// itens e o inicial com contexto, tamanho com área proporcional, cor contínua linear e logarítmica (nunca automática), pintura
+// pela camada ou pelos quintis do motor, marcas da legenda, esmaecidos (fora da régua, nunca somem), alvo do clique, nomes sem
+// sobreposição, ligações, mapinha e transição entre as vistas.
 async function source(name) {
   const code = ts.transpileModule(readFileSync(new URL('../src/' + name + '.ts', import.meta.url), 'utf8'),
     {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
@@ -48,6 +49,30 @@ test('enquadramento nos pontos dos itens, com folga; um ponto só não vira zoom
   assert.ok(perto(unico.escala, Math.min(336 / M.VAO_MINIMO, 236 / M.VAO_MINIMO)), 'vão mínimo de ' + M.VAO_MINIMO + '°');
   assert.equal(M.limitesDe(p, []), null);
   assert.deepEqual(M.enquadrar(null, 400, 300), {cx: 0, cy: 0, escala: 1});
+});
+
+test('enquadramento inicial com contexto: margem em volta dos itens, ao menos um quarto da fonte e nunca mais que ela; sem escala fixa', () => {
+  const todos = {minX: 0, maxX: 100, minY: 0, maxY: 80};
+  // Um ponto só (um município): um quarto da extensão da fonte em cada direção, centrado nele.
+  assert.deepEqual(M.limitesComContexto({minX: 50, maxX: 50, minY: 40, maxY: 40}, todos), {minX: 37.5, maxX: 62.5, minY: 30, maxY: 50});
+  // Uma região maior: 25% do vão de margem de cada lado.
+  assert.deepEqual(M.limitesComContexto({minX: 10, maxX: 50, minY: 10, maxY: 50}, todos), {minX: 0, maxX: 60, minY: 0, maxY: 60});
+  // Toda a fonte: a vista de sempre, a fonte inteira.
+  assert.deepEqual(M.limitesComContexto(todos, todos), todos);
+  // Sem os itens ou sem a fonte, o que houver.
+  assert.deepEqual(M.limitesComContexto(null, todos), todos);
+  const itens = {minX: 1, maxX: 2, minY: 1, maxY: 2};
+  assert.deepEqual(M.limitesComContexto(itens, null), itens);
+  assert.equal(M.limitesComContexto(null, null), null);
+  // Proporcional à extensão da fonte, qualquer que seja (uma planilha de outra região dá a mesma vista relativa).
+  const k = 0.01, r = M.limitesComContexto({minX: 50 * k, maxX: 50 * k, minY: 40 * k, maxY: 40 * k}, {minX: 0, maxX: 100 * k, minY: 0, maxY: 80 * k});
+  assert.ok(perto(r.minX, 0.375, 1e-12) && perto(r.maxX, 0.625, 1e-12) && perto(r.minY, 0.3, 1e-12) && perto(r.maxY, 0.5, 1e-12), JSON.stringify(r));
+  // A vista com contexto é mais afastada que o enquadramento só nos itens.
+  const soItens = M.enquadrar({minX: 10, maxX: 50, minY: 10, maxY: 50}, 400, 300);
+  const comContexto = M.enquadrar(M.limitesComContexto({minX: 10, maxX: 50, minY: 10, maxY: 50}, todos), 400, 300);
+  assert.ok(comContexto.escala < soItens.escala);
+  assert.equal(M.MARGEM_DE_CONTEXTO, 0.25);
+  assert.equal(M.CONTEXTO_MINIMO, 0.25);
 });
 
 test('zoom em torno do cursor (o ponto sob ele fica no lugar), preso aos limites; arrasto e área à vista', () => {
@@ -148,7 +173,7 @@ test('cena: unidades com coordenada viram ponto; estados e conjuntos não; fundo
   assert.notEqual(M.assinaturaDe(['m1']), M.assinaturaDe(['m1', 'm2']));
 });
 
-test('cena: pintura da camada, contínua ou neutra; vazada nunca zero; os maiores atrás; esmaecidos no lugar, nunca somem', () => {
+test('cena: pintura da camada, dos quintis ou contínua; vazada nunca zero; os maiores atrás; esmaecidos no lugar, nunca somem', () => {
   const projecao = M.projetar(new Map([['m1', [-3, -60]], ['m2', [-4, -61]], ['m3', [-5, -62]]]));
   const base = M.baseDoMapa([item('m2', {populacao: 100}), item('m1', {populacao: 400}), item('m3', {populacao: null})], projecao);
   const entrada = {dentro: new Set(['m1', 'm2', 'm3']), pintura: 'camada', dominio: [0, 100], escala: 'linear', maximoTamanho: 400,
@@ -171,9 +196,10 @@ test('cena: pintura da camada, contínua ou neutra; vazada nunca zero; os maiore
   assert.equal(c('m1').cor, '#2a78d6');
   assert.equal(c('m3').cor, '#86b6ef');
   assert.equal(c('m2').vazada, true);
-  // Pergunta: todos neutros (a cor única do gráfico), sem vazados.
-  const neutra = M.montarCena(base, {...entrada, pintura: 'pergunta'});
-  assert.ok(neutra.pontos.every(ponto => ponto.cor === M.MAPA_CORES.neutro && !ponto.vazada));
+  // Quintis do motor (sem a pergunta "Como pintar o mapa?"): pintados como uma camada, com a cor do grupo que a área entrega.
+  const quintis = M.montarCena(base, {...entrada, pintura: 'quintis'});
+  assert.deepEqual(quintis.pontos.map(ponto => [ponto.id, ponto.cor, ponto.vazada, ponto.apagada]),
+    camada.pontos.map(ponto => [ponto.id, ponto.cor, ponto.vazada, ponto.apagada]));
   // Régua e filtros: quem fica fora esmaece, no mesmo lugar e no mesmo tamanho; ninguém some.
   const regua = M.montarCena(base, {...entrada, dentro: new Set(['m1'])});
   assert.equal(regua.pontos.length, 3);

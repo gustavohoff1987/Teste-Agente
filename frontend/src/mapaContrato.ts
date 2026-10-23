@@ -23,17 +23,15 @@ export type DadosDoMapa = {
 };
 
 /**
- * Como o mapa pinta os pontos:
- * - "camada": a mesma pintura do gráfico (grupos, faixas, condições, ordem, classes ou variação), pela função `pintar`;
- * - "continua": mapeamento visual contínuo de `valorContinuo` no `dominio` (linear por padrão; logarítmica só por escolha da
- *   pessoa), transformação admitida pela Parte 13 da SPEC; a legenda diz que a cor não é classe nem limiar;
- * - "pergunta": a análise ainda não tem cor escolhida: pontos neutros e a pergunta "Como pintar o mapa?" (decisão de 23/10).
+ * Como o mapa pinta os pontos (23/10/2026, sem a pergunta "Como pintar o mapa?"):
+ * - "camada": a mesma pintura do gráfico (grupos, faixas, condições, ordem, classes ou variação; sem cor própria, a cor única),
+ *   pela função `pintar`, com a legenda do gráfico;
+ * - "quintis": a análise não tem cor própria, e o mapa usa os 5 grupos iguais (quintis) que o motor devolve em `grupos_mapa`
+ *   (CAP-DIS-02), pela função `pintar` e com a legenda desses grupos; o gráfico não muda;
+ * - "continua": na rotatividade, a permanência da coorte inicial (0 a 100%) em mapeamento visual contínuo no `dominio`
+ *   (Parte 13 da SPEC); a legenda diz que a cor não é classe nem limiar.
  */
-export type PinturaDoMapa = "camada" | "continua" | "pergunta";
-
-/** Opções da pergunta "Como pintar o mapa?". Quintis e faixas vêm do motor (CAP-DIS-02 e CAP-DIS-03), só na distribuição;
- * "condicoes" abre o painel Condições. */
-export type EscolhaDePintura = "quintis" | "faixas" | "continua" | "condicoes";
+export type PinturaDoMapa = "camada" | "quintis" | "continua";
 
 /** Codificação do tamanho (área proporcional): população na densidade, quantidade na quantidade, coorte inicial na rotatividade. */
 export type TamanhoDoMapa = { valor: (item: PainelItem) => number | null; rotulo: string; maximo: number | null };
@@ -46,24 +44,21 @@ export type MapaProps = {
   dados: DadosDoMapa;
   indicador: PainelIndicador;
   pintura: PinturaDoMapa;
-  /** A mesma função de pintura do gráfico (pintura = "camada"). */
+  /** A pintura dos pontos: a do gráfico (pintura = "camada") ou a dos quintis do mapa (pintura = "quintis"). */
   pintar: (item: PainelItem) => Pintura;
-  /** Valor da cor contínua (pintura = "continua"): o indicador, ou a permanência da coorte na rotatividade. */
+  /** Valor da cor contínua (pintura = "continua"): a permanência da coorte inicial na rotatividade. */
   valorContinuo: (item: PainelItem) => number | null;
   /** Rótulo da cor contínua na legenda, com a unidade (por exemplo "Densidade (por 1.000 habitantes)"). */
   rotuloContinuo: string;
   /** Domínio do valor contínuo, do motor (resposta.dominios) ou fixo (0 a 100 na permanência). */
   dominio: [number, number] | null;
-  /** Escala da cor contínua: linear (padrão) ou logarítmica (só por escolha). */
+  /** Escala da cor contínua: linear (a permanência vai de 0 a 100%). */
   escala: Escala;
   tamanho: TamanhoDoMapa;
   /** Valor do Brasil: só uma marca de contexto na legenda contínua; nunca classifica ponto nenhum. */
   contextoBrasil: { valor: number; rotulo: string } | null;
-  /** Legenda da camada em uso (a mesma do gráfico), mostrada com pintura = "camada". */
+  /** Legenda das cores (a da camada do gráfico ou a dos quintis do mapa), mostrada com pintura = "camada" ou "quintis". */
   legendaCor: ReactNode;
-  /** Opções da pergunta nesta análise. */
-  opcoesDePintura: EscolhaDePintura[];
-  onEscolherPintura: (escolha: EscolhaDePintura) => void;
   selecionados: string[];
   /** Membros da referência (a mesma mira do gráfico). */
   referencias: string[];
@@ -75,6 +70,8 @@ export type MapaProps = {
   /** A mesma dica do gráfico (montarDica). */
   dicaDe: (item: PainelItem) => Dica;
   rotulos: RotulosTerritoriais;
+  /** A fonte é a base do Brasil (a nota fala da sede do município, IBGE); numa planilha, da coordenada informada nela. */
+  brasil?: boolean;
   /** Destaque cruzado com o gráfico (lado a lado): o item sob o mouse no gráfico, e o aviso do item sob o mouse no mapa. */
   ativoExterno?: string | null;
   onAtivo?: (id: string | null) => void;
@@ -121,9 +118,9 @@ export type GraficoComMapaProps = {
  * - Ajustes da análise, dentro da aba escolhida: `analise-ajustes` com `data-familia`.
  * - Convite: `analise-convite-mapa` ("Ver onde ficam no mapa").
  * - Frase-resumo do motor: `analise-resumo`.
- * - Mapa: `mapa-analise` com `data-pintura`, `data-pontos` (pontos do resultado desenhados), `data-contexto` (pontos de fundo),
- *   `data-esmaecidos` e `data-escala`; dica `mapa-dica`; pergunta `mapa-pergunta` e botões `mapa-pergunta-<escolha>`; legenda
- *   `mapa-legenda` com `data-tipo` = camada | continua | pergunta; legenda de tamanho `mapa-legenda-tamanho`; controles
+ * - Mapa: `mapa-analise` com `data-pintura` (camada | quintis | continua), `data-pontos` (pontos do resultado desenhados),
+ *   `data-contexto` (pontos de fundo), `data-esmaecidos` e `data-escala`; dica `mapa-dica`; legenda `mapa-legenda` com
+ *   `data-tipo` = camada | quintis | continua; legenda de tamanho `mapa-legenda-tamanho`; controles
  *   `mapa-ampliar`, `mapa-reduzir` e `mapa-ver-tudo`; nota do ponto `mapa-nota`; aviso das ligações `mapa-ligacoes`.
  * - Mapinha: `minimapa` (na dica do gráfico, `analise-dica`, e no canto do mapa com zoom).
  * - Gancho de teste (como o __adtMapModel do mapa antigo): `window.__adtMapa` = { pintura, escala, dominio, contexto,

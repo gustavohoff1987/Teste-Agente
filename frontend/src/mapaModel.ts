@@ -29,7 +29,8 @@ export const MAPA_CORES = {
   muda: "#898781",
   /** Anel tracejado do valor não avaliável (o COR_NAO_AVALIAVEL do gráfico). */
   naoAvaliavel: "#898781",
-  /** Pontos sem cor escolhida (pintura "pergunta"): a cor única do gráfico (COR_BOLHA), que não codifica nada. */
+  /** Pontos sem camada de cor (a análise sem cores próprias e sem os quintis do motor): a cor única do gráfico (COR_BOLHA),
+   * que não codifica nada. */
   neutro: "#008b9e",
   /** Demais unidades da fonte, ao fundo (o formato do Brasil). */
   fundo: "#d9d8d1",
@@ -170,6 +171,24 @@ export function enquadrar(limites: Limites | null, largura: number, altura: numb
   const vaoX = Math.max(limites.maxX - limites.minX, vaoMinimo), vaoY = Math.max(limites.maxY - limites.minY, vaoMinimo);
   const utilX = Math.max(largura - 2 * folga, 40), utilY = Math.max(altura - 2 * folga, 40);
   return { cx: (limites.minX + limites.maxX) / 2, cy: (limites.minY + limites.maxY) / 2, escala: Math.max(1e-6, Math.min(utilX / vaoX, utilY / vaoY)) };
+}
+
+/** Enquadramento inicial com contexto (23/10/2026): o retângulo dos itens ganha uma margem em volta e não fica menor que uma fração
+ * da extensão de todos os pontos da fonte (o desenho do país, ou da planilha, ao fundo), para o mapa abrir com a geografia
+ * reconhecível em volta dos pontos, e não só com bolhas ampliadas; nunca passa da extensão de todos os pontos (com todos os
+ * pontos escolhidos, a vista é a de sempre: a fonte inteira). Vale para qualquer fonte com coordenadas: nenhuma escala fixa do
+ * Brasil. Depois de aberto, o zoom é livre. */
+export const MARGEM_DE_CONTEXTO = 0.25;
+export const CONTEXTO_MINIMO = 0.25;
+export function limitesComContexto(itens: Limites | null, todos: Limites | null, margem = MARGEM_DE_CONTEXTO,
+  minimo = CONTEXTO_MINIMO): Limites | null {
+  if (!itens) return todos;
+  if (!todos) return itens;
+  const totalX = todos.maxX - todos.minX, totalY = todos.maxY - todos.minY;
+  const limite = (vao: number, total: number) => Math.min(Math.max(vao * (1 + 2 * margem), total * minimo), Math.max(total, vao));
+  const meiaX = limite(itens.maxX - itens.minX, totalX) / 2, meiaY = limite(itens.maxY - itens.minY, totalY) / 2;
+  const cx = (itens.minX + itens.maxX) / 2, cy = (itens.minY + itens.maxY) / 2;
+  return { minX: cx - meiaX, maxX: cx + meiaX, minY: cy - meiaY, maxY: cy + meiaY };
 }
 
 /** Do mundo projetado para a tela (px, a partir do canto superior esquerdo da área do mapa). */
@@ -401,7 +420,7 @@ export function montarCena(base: Pick<BaseDoMapa, "pontos">, e: EntradaDaCena): 
   let esmaecidos = 0, vazadas = 0;
   const pontos: PontoDaCena[] = base.pontos.map((ponto, i) => {
     let cor: string = cores.neutro, vazada = false, apagada = false;
-    if (e.pintura === "camada") {
+    if (e.pintura === "camada" || e.pintura === "quintis") {
       const pintura = e.pintar(ponto.item);
       cor = pintura.cor; vazada = !!pintura.vazada; apagada = !!pintura.apagada;
     } else if (e.pintura === "continua") {

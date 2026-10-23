@@ -1,10 +1,12 @@
 # Área de análise da página única
 
-Decisões do responsável pelo produto de 22/10/2026: uma análise integrada, sem duas telas. A página é sempre a análise: famílias
-de análise (Distribuição, Análise espacial, Tendência e Rotatividade) em abas, com os ajustes de cada uma num painel colado na
-aba escolhida, um indicador único, funções comuns a todas as famílias e, abaixo, os Detalhes. O desenho é o gráfico de bolhas e,
-desde 23/10/2026, também o mapa, como segunda vista da mesma análise (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o
-indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
+Decisões do responsável pelo produto de 22/10/2026: uma análise integrada, sem duas telas. A página é sempre a análise. Desde
+23/10/2026, uma linha de abas reúne a **Seleção de Territórios** (o conjunto analisado, compartilhado por todas as análises) e as
+quatro análises com os nomes padronizados: **Análise de Distribuição**, **Análise Espacial**, **Análise de Tendência** e
+**Análise de Rotatividade**. Cada aba abre com a apresentação do que ela faz, mesmo quando a análise não pode ser executada com
+os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
+abaixo, os Detalhes. O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
+(Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
 (`/api/painel`, `/api/painel/referencias` e `/api/painel/mapa`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
 estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no README e nos documentos da interface e da conversa.
 
@@ -27,20 +29,28 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   restaurar={EstadoSalvo | null}        // Histórico: reabre sem recalcular
   onContexto={c => ...}                 // a cada mudança do que está na tela
   onSalvar={e => ...}                   // a cada cálculo do motor
-  onEscolherFonte={tipo => ...}/>       // botões "Dados do Brasil" e "Enviar meus dados" da abertura
+  onEscolherFonte={tipo => ...}         // "Dados do Brasil" e "Enviar meus dados", na abertura e no "Trocar" da fonte
+  apiBase={string}                      // o endereço da API, para o "Modelo de planilha XLSX"
+  trocandoFonte={boolean}               // "Trocar" pedido na barra da fonte: a escolha volta à área, com "Cancelar"
+  onCancelarTroca={() => ...}/>
 ```
 
-- **Fonte:** `null` é a abertura (E0). A troca de fonte (outra versão, outra planilha) recomeça a área. "Nova análise" pode
-  remontar a área (`key`) para voltar a E1 com os mesmos dados.
+- **Fonte:** `null` é a abertura (E0). A troca de fonte (outra versão, outra planilha) recomeça a área. "Nova análise" remonta a
+  área (`key`): os mesmos dados, sem territórios escolhidos.
+- **Entradas dos dados** (23/10/2026): "Dados do Brasil", "Enviar meus dados" e "Modelo de planilha XLSX" ficam na área central
+  (`analise-abertura`, com `analise-fonte-brasil`, `analise-fonte-arquivo` e `analise-fonte-modelo`) e na conversa, com as
+  mesmas ações; não há mais botões de fonte no alto da página. O "Trocar" da barra da fonte traz as mesmas três entradas de
+  volta à área (`analise-troca-fonte`, com `analise-troca-cancelar`), e a análise atual continua à vista até a nova fonte ficar
+  pronta.
 - **Contexto (`onContexto`):** família, indicador, nível, universo, as unidades à vista (`idsNaTela`), competência, janela,
   referência e o título; desde 23/10/2026, também a vista em exibição (`vista`: `grafico`, `mapa` ou `lado`), a frase-resumo
   do motor que está na tela (`resumo`) e se o mapa pode aparecer (`mapaDisponivel`), com o motivo quando não pode
   (`motivoSemMapa`). Só é chamado quando algo muda.
 - **Histórico (`onSalvar` e `restaurar`):** cada cálculo entrega `{titulo, definicao, resposta, quando}`. A `definicao` guarda o
   pedido, a família calculada, a chave do pedido e o estado visual (escala, régua, seleção e, desde 23/10/2026, a vista do
-  desenho e a cor contínua escolhida para o mapa); `restaurar` com esse objeto reabre a análise sem novo pedido ao motor, na
-  vista em que foi guardada. Trocar a vista ou a cor do mapa depois do cálculo atualiza o estado guardado da mesma análise. Um
-  estado de antes, sem esses campos, reabre no gráfico.
+  desenho; o campo da cor contínua do mapa continua no estado, sempre falso, desde que a escolha saiu); `restaurar` com esse
+  objeto reabre a análise sem novo pedido ao motor, na vista em que foi guardada. Trocar a vista depois do cálculo atualiza o
+  estado guardado da mesma análise. Um estado de antes, sem esses campos, reabre no gráfico.
 - **Conversa (`pedido`):** os campos do objeto `painel` da conversa (família, indicador, nível, municípios, competência, janela,
   visão da tendência, referência, função, seleção, ordenação, condições, grupos e, desde 23/10/2026, a vista: `vista: "mapa"`
   para "ver no mapa", `"grafico"` para "volte ao gráfico"). Cada campo é validado; o que não vale vira um aviso
@@ -59,8 +69,9 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 
 | Estado | O que aparece |
 |---|---|
-| E0, antes dos dados | Moldura limpa, sem números nem bolhas de exemplo: "Escolha os dados para começar", com "Dados do Brasil" e "Enviar meus dados". As famílias ficam visíveis; clicar registra a intenção ("Você escolheu Tendência. Agora escolha os dados."). Título: "Diagnóstico territorial da força de trabalho em saúde". |
-| E1, base do Brasil escolhida | Os estados em bolhas (`nivel: "estados"`), com a linha de contexto do Brasil, a instrução "Clique num estado para ver os municípios dele" e a lista de territórios ao lado. Nunca os 5.570 municípios de início. Numa planilha, o gráfico começa limpo, com a instrução de marcar unidades na lista. |
+| E0, antes dos dados | Moldura limpa, sem números nem bolhas de exemplo: "Escolha os dados para começar", com "Dados do Brasil", "Enviar meus dados" e "Modelo de planilha XLSX". As abas ficam visíveis e abrem com a apresentação; clicar numa análise registra a intenção ("Você escolheu Análise de Tendência. Agora escolha os dados."). Título: "Diagnóstico territorial da força de trabalho em saúde". |
+| E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e a aba Seleção de Territórios aberta, com a lista. Nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. |
+| E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção ("Todos os estados (27)") ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
 | E2, unidades na Distribuição | As bolhas das unidades escolhidas no eixo do indicador. |
 | E3, outra família | Análise espacial, Tendência ou Rotatividade. |
 | E4, função em uso | Um painel lateral aberto (no celular, sobe da base da tela). |
@@ -70,8 +81,13 @@ O estado vai em `data-estado` da área; a vista do desenho em exibição, em `da
 ## Escolha dos territórios
 
 Pedido do responsável (22/10/2026): a escolha precisa ser visível e didática, sem adivinhar onde clicar e sem depender de
-digitar o nome de um município. A lista fica sempre à vista: na tela larga, numa coluna ao lado do gráfico; no celular, logo
-abaixo dele.
+digitar o nome de um município. Desde 23/10/2026, a lista fica na aba **Seleção de Territórios**, a primeira da linha das
+análises (`analise-aba-territorios`, com o resumo da seleção em `analise-aba-territorios-resumo`). O painel da aba começa com o
+texto "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar territórios a qualquer
+momento, e as análises serão atualizadas conforme a seleção realizada." e mostra a lista em colunas na tela larga. A mesma
+seleção vale para todas as análises: cada aba de análise mostra o resumo dela (`analise-selecao-resumo`) com "Alterar a
+seleção" (`analise-selecao-alterar`), que volta à Seleção. A referência da Análise Espacial e a janela da Análise de Tendência
+continuam dentro de cada análise, separadas dos territórios analisados.
 
 - **Brasil:** duas opções explícitas, "Todos os estados (27)" (a visão E1, com a linha de contexto do Brasil) e "Todos os
   municípios do Brasil (5.570)" (modo leve, mais lento).
@@ -89,23 +105,37 @@ abaixo dele.
   estados; sem coluna-mãe, a lista das unidades em ordem alfabética, com as caixas. Não há bolhas de grupo nas planilhas
   (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo e `ids`, `code:<código>` ou
   `name:<nome>`.
-- **Abertura da planilha:** sem estados nem bolhas de grupo, a planilha abre com todas as unidades marcadas, e a lista fica à
-  vista para restringir (na base do Brasil, a porta de entrada são os estados).
-- **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico pede a escolha.
+- **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área avisa que os dados estão
+  prontos e abre a Seleção. Antes, a base do Brasil abria nos estados, e a planilha, com todas as unidades marcadas.
+- **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico, o mapa e a frase-resumo da seleção anterior saem da tela;
+  a área pede a escolha.
 
-## Famílias e ajustes dentro de cada análise
+## Abas, apresentação e ajustes de cada análise
 
-Desde 23/10/2026, as opções não ficam mais numa linha solta abaixo das abas: cada família é uma aba, e a aba escolhida se liga a
-um painel colado nela (`analise-ajustes`, `role="tabpanel"`, com `data-familia`), que mostra só o que vale para aquela análise.
-No celular, as abas continuam roláveis, e o painel ocupa a largura logo abaixo delas.
+Desde 23/10/2026, uma linha de abas (`role="tablist"`, "Seleção de territórios e análises"): a Seleção de Territórios e as
+quatro análises, nesta ordem e na mesma linha (no celular, roláveis). A aba escolhida se liga a um painel colado nela
+(`analise-aba-painel`, `role="tabpanel"`, com `data-aba`), que começa pela **apresentação** (`analise-apresentacao`): um título e
+um ou dois parágrafos, em linguagem simples, só sobre o que a área faz, com os nomes territoriais da fonte (municípios e
+estados; distritos e províncias…). Na Análise de Tendência, a apresentação lista o que significa cada classe
+(`analise-apresentacao-classes`). Depois da apresentação, nas análises, vêm os ajustes (`analise-ajustes`, com
+`data-familia`), só o que vale para aquela análise, e o resumo da seleção.
+
+**Toda aba abre** (23/10/2026), mesmo a de uma análise que não pode ser executada com os dados: as abas não ficam mais
+desabilitadas (`data-disponivel` diz se a análise se executa). Nesse caso, o painel mostra a apresentação e o motivo
+(`analise-familia-motivo`, "Indisponível com estes dados: …", com "Enviar meus dados" quando é o caso e "O desenho abaixo
+continua com a <análise>"), sem os ajustes, e o desenho fica com a última análise executada; nada é pedido ao motor. Exemplo: a
+Análise de Rotatividade com a base do Brasil, que tem contagens e não pessoas identificadas.
 
 | Análise | Ajustes dentro dela |
 |---|---|
-| Distribuição | Indicador, Categoria (com mais de uma), Competência, Grupos e faixas |
-| Análise espacial | Indicador, Categoria, Competência, Referência (a escolhida e o botão que abre o painel da referência) |
-| Tendência | Indicador, Categoria, Janela (o resumo, os atalhos e "Outra", que abre o painel da janela) e Visão (Classes, Mudança e Séries, com "Primeira", "Última" e "Reproduzir" quando há o rastro) |
-| Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
-| Estados (E1), em qualquer aba, e família indisponível | Indicador, Competência, Grupos e faixas (o desenho é a distribuição) |
+| Análise de Distribuição | Indicador, Categoria (com mais de uma), Competência, Grupos e faixas |
+| Análise Espacial | Indicador, Categoria, Competência, Referência (a escolhida e o botão que abre o painel da referência) |
+| Análise de Tendência | Indicador, Categoria, Janela (o resumo, os atalhos e "Outra", que abre o painel da janela) e Visão (Classes, Mudança e Séries, com "Primeira", "Última" e "Reproduzir" quando há o rastro) |
+| Análise de Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
+| Estados (E1), em qualquer aba, e análise que espera os municípios | Indicador, Competência, Grupos e faixas (o desenho é a distribuição) |
+
+O texto das apresentações tem medida de leitura limitada, entrelinha folgada, justificação com hifenização na tela larga (no
+celular, alinhado à esquerda) e a mesma hierarquia em todas as abas.
 
 - **Indicador** (Densidade ou Quantidade): um só para todas as abas. A escolha acompanha a pessoa ao trocar de aba e fica sempre
   à vista; quem escolheu Quantidade na Distribuição encontra Quantidade marcada na Tendência. Numa planilha sem população, o
@@ -114,7 +144,7 @@ No celular, as abas continuam roláveis, e o painel ocupa a largura logo abaixo 
 - **Categoria:** quando a fonte tem mais de uma, fica junto do indicador.
 - **Competência:** na Distribuição, na Análise espacial e nos estados (a mais recente, dita no título).
 - **Escala:** sai dos ajustes, porque muda só o desenho ("como ver"): fica na barra das funções, junto da escolha da vista, e
-  aparece só quando se aplica (no gráfico, fora da Rotatividade e da visão Séries; no mapa, só com a cor contínua). É linear, a
+  aparece só quando se aplica (no gráfico, fora da Rotatividade e da visão Séries; o mapa não tem escala própria). É linear, a
   partir do zero; a logarítmica fica só por escolha da pessoa e só com todos os valores positivos (Parte 13, L1994). A escala
   logarítmica automática de 22/10/2026 saiu.
 
@@ -128,8 +158,9 @@ O que cada análise mostra:
   escolha no empate), pelo nome ou pelos membros de um conjunto; com vários membros, a distância vai até o mais próximo, e a dica
   diz qual é (com os empates). Faixas de distância opcionais (CAP-ESP-03). A nota TPL-11 aparece sempre junto. Nos estados, a
   família espera a escolha de municípios (os estados não têm coordenadas). A disponibilidade vem do motor
-  (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba fica
-  desabilitada, com o motivo do motor; quando o motor pede a escolha do referencial, a tela mostra as opções que ele mandar.
+  (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba abre
+  com a apresentação e o motivo do motor, sem os ajustes; quando o motor pede a escolha do referencial, a tela mostra as opções
+  que ele mandar.
 - **Tendência:** a janela é escolha da pessoa (decisão 5a), com os atalhos "Últimos 4 junhos", "Série anual de junho" e "Todas
   as competências", ou as competências marcadas uma a uma. A visão é só estado visual (trocar não pede nada novo):
   - **Mudança:** entre a primeira e a última competência da janela (CAP-TMP-01), o cometa e a cor divergente contínua: azul é
@@ -139,14 +170,26 @@ O que cada análise mostra:
   - **Classes:** CAP-TEN-01 na janela (pelo menos quatro competências). A bolha fica no valor da última competência, com o
     cometa desde a primeira, e a cor é a família da classe (crescimento azul, declínio laranja, sem classificação verde-água;
     não avaliável vazada). Aceleração e desaceleração ficam no rótulo, na dica e no filtro. Acima do gráfico, a contagem por
-    classe do motor, que também filtra.
+    classe do motor, que também filtra; cada contagem traz no `title` o que a classe quer dizer.
+  - **Classes explicadas** (23/10/2026): a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento,
+    aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração do declínio, sem classificação e não
+    avaliável), sem criar classe nem critério, e termina com a âncora do método (CAP-TEN-01, DA-15), exigida pela SPEC (V-05)
+    para descrever as classes. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código
+    ("Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção)."). Abaixo das
+    contagens, uma nota (`analise-nota-sem-classificacao`) conta as unidades sem classificação por motivo, com os números do
+    motor (`sem_classificacao_por_motivo`), e, quando nenhuma unidade recebeu classe, explica a regra: uma única mudança de
+    direção basta para a série ficar sem classificação, e janelas com menos competências (como os últimos 4 junhos) têm menos
+    trechos e mais chance de classe; isso é o resultado do método, não falta de dados. O diagnóstico de 23/10/2026 (com a base
+    versionada: 62 de 62 municípios do Amazonas sem classificação nas 22 competências, todos por mudança de direção) está em
+    [Painel integrado de bolhas](PAINEL_INTEGRADO.md).
   - **Séries:** linhas por competência (no tempo real entre elas), até 12 unidades escolhidas (na tabela, nas bolhas ou "os de
     uma classe"), com pequenos múltiplos na mesma escala acima de 4. Um ponto por observação do motor; lacunas não são ligadas e
     não há linha ajustada. As velocidades do motor da unidade em foco aparecem em barras.
   - Com menos de quatro competências, Classes e Séries ficam indisponíveis, com o texto do catálogo ("A análise de tendência
     exige quatro observações válidas.").
-- **Rotatividade:** só com dados enviados que tenham o identificador individual (CAP-ROT-01). Com a base do Brasil, a aba fica
-  desabilitada, com o motivo e "Enviar meus dados"; o motivo do motor (`disponibilidade`) vale quando vem. O desenho são barras
+- **Rotatividade:** só com dados enviados que tenham o identificador individual (CAP-ROT-01). Com a base do Brasil, a aba abre
+  com a apresentação e o motivo ("A base do Brasil tem contagens, não pessoas: a rotatividade exige dados enviados com o
+  identificador individual.") e "Enviar meus dados"; o motivo do motor (`disponibilidade`) vale quando vem. O desenho são barras
   de 100%: permanência e saída da coorte inicial, com as contagens e os percentuais do motor; "da coorte inicial" vai em todo
   rótulo. A pessoa escolhe os períodos inicial e final.
 
@@ -181,12 +224,15 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   o referencial de uma planilha) aparece na área do mapa, com as opções que ele mandar, como as pendências do gráfico.
 - **O que a área entrega ao mapa:** os mesmos itens do gráfico (sem os estados); o que fica fora da régua e dos filtros aparece
   esmaecido, não escondido (decisão de 23/10/2026); a pintura do gráfico quando há uma camada de cor (grupos, faixas, condições,
-  ordem, classes ou variação); na Rotatividade, a permanência da coorte inicial em cor contínua (0 a 100%); sem camada, a cor
-  contínua do indicador só se a pessoa a escolheu, senão a pergunta "Como pintar o mapa?" (na Distribuição: 5 grupos iguais,
-  faixas ou cor contínua; na Análise espacial: cor contínua ou Condições); o tamanho pela população (densidade), pela quantidade
-  ou pela coorte inicial; o valor do Brasil só como marca de contexto; a mesma legenda e a mesma dica do gráfico; a referência e
-  as ligações ilustrativas dos selecionados (até 30) até o membro da referência mais próximo. Os quintis e as faixas escolhidos
-  no mapa são pedidos ao motor e pintam também o gráfico; a cor contínua é estado visual e entra no Histórico.
+  ordem, classes ou variação); na Rotatividade, a permanência da coorte inicial em cor contínua (0 a 100%); sem camada de cor
+  da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), os **5 grupos iguais
+  (quintis)** do indicador, sem pergunta (23/10/2026): o pedido ao motor leva `grupos_mapa: {tipo: "quintis"}` junto com a
+  análise, e o mapa pinta cada ponto pelo `grupo_mapa` do motor, com a legenda dos quintis (rótulos e contagens do motor). O
+  gráfico, a frase-resumo, a tabela e o CSV não mudam com eles; sem os grupos na resposta (uma análise guardada antes, ou menos
+  de duas unidades com valor), a cor única do gráfico. O tamanho pela população (densidade), pela quantidade ou pela coorte
+  inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas dos
+  selecionados (até 30) até o membro da referência mais próximo. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
+  contínua) saiu em 23/10/2026.
 - **Não avaliáveis:** com o mapa à vista, as unidades sem coordenada válida ficam fora do mapa (no gráfico, continuam) e entram
   em Não avaliáveis, no aspecto "Sem coordenada válida para o mapa", com o motivo do motor.
 - **Depois da primeira vez,** o mapa continua montado (oculto) enquanto houver mapa: volta como foi deixado, com o zoom.
@@ -223,7 +269,6 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 
 | Função | O que faz | Pedido ao motor |
 |---|---|---|
-| Territórios | Leva à lista de territórios | Cada marcação pede de novo |
 | Régua | Mostra só o que fica entre dois valores do indicador; só esconde (RQ-REP-06) | Nenhum |
 | Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual | `condicoes` |
 | Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
@@ -257,16 +302,19 @@ O cliente (`painelApi.ts`) monta o formulário de `/api/painel` (base do Brasil 
 e o mapeamento confirmado), envia as opções com as chaves do contrato e normaliza a resposta. Mudar universo, competência,
 categoria, referência, janela, grupos, faixas, condições, ordenação, comparação, conjuntos ou premissas pede de novo
 (com 150 ms de espera e o pedido anterior cancelado); o gráfico anterior fica à vista, mais claro, enquanto o motor responde. As
-últimas seis respostas ficam na memória da tela: voltar a um estado já calculado não pede de novo. Indicador (sem grupos, faixas,
-tendência, comparação ou ordenação pela variação: a resposta traz população, quantidade e densidade de cada item, e a troca não
-pede nada ao motor), escala, régua, seleção, visão da tendência, primeira ou última competência, filtros, páginas, a vista do
-desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estado visual. Os pontos do mapa vêm de
+últimas seis respostas ficam na memória da tela: voltar a um estado já calculado não pede de novo. Indicador (sem grupos,
+grupos do mapa, faixas, tendência, comparação ou ordenação pela variação: a resposta traz população, quantidade e densidade de
+cada item, e a troca não pede nada ao motor; com os quintis do mapa no pedido, que seguem o indicador, a troca pede de novo, e a
+volta a um indicador já calculado vem da memória), escala, régua, seleção, visão da tendência, primeira ou última competência,
+filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só estado visual. Os pontos do mapa vêm de
 `POST /api/painel/mapa` (seção "Vista do desenho"), com memória própria por fonte e competência.
 
 - **Opções enviadas:** `nivel` (`"estados"` ou `"municipios"`) e `indicador` (`"densidade"` ou `"quantidade"`) em todo
   pedido, porque sem `nivel` o motor responde no contrato de 21/10, que não conhece as chaves da página única; `base`,
   `conjuntos`, `referencia`, `faixas_distancia`, `competencia_inicial` e `tendencia: {competencias}` (com quatro competências
-  ou mais) conforme a família; `grupos` ou `faixas` na Distribuição; `condicoes`, `ordenar` e `comparar` quando pedidos;
+  ou mais) conforme a família; `grupos` ou `faixas` na Distribuição; `grupos_mapa: {tipo: "quintis"}` quando a análise não
+  tem cor própria e o mapa está disponível (unidades com coordenadas, fora da visão Séries); `condicoes`, `ordenar` e
+  `comparar` quando pedidos;
   `rotatividade: {inicial, final}`; `premissas`, só nas planilhas (na base do Brasil, o motor recusa).
 - **Planilhas:** as premissas escolhidas no painel Colunas (unidade de contagem, referencial, separador decimal e, em
   `confirmed_roles`, as colunas que a pessoa escolheu no seletor, como no pré-exame, D1) vão em todo pedido, somadas às que a
@@ -276,8 +324,9 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
   novamente". Com uma pendência de premissa (`pendencia: {chave, opcoes, texto}`), a tela oferece as opções do motor, sem lista fixa;
   a escolhida vai em `options.premissas`.
 - **Campos da resposta lidos:** os de sempre (`itens`, `dominios`, `referencia`, `notas`, `limitacoes`, `versao_base`,
-  `chave_execucao`) e, por item, `tipo`, `tendencia`, `grupo`, `faixa`, `faixa_distancia`, `referencia_mais_proxima`,
-  `condicoes`, `ordem` e `rotatividade`; no topo, `nivel`, `indicador`, `tendencia`, `grupos`, `faixas`, `faixas_distancia`,
+  `chave_execucao`) e, por item, `tipo`, `tendencia`, `grupo`, `grupo_mapa`, `faixa`, `faixa_distancia`,
+  `referencia_mais_proxima`, `condicoes`, `ordem` e `rotatividade`; no topo, `nivel`, `indicador`, `tendencia` (com
+  `sem_classificacao_por_motivo`), `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`,
   `condicoes`, `ordenacao`, `comparacao`, `contexto.brasil`, `disponibilidade`, `sessao`, `rotulos` e `resumo` (`{texto}`, a
   frase-resumo). De `/api/painel/mapa`: `competencia`, `referencial`, `pontos` (`[{id, lat, lon}]`; ponto sem id ou fora do
   intervalo fica de fora) e `sem_coordenada` (`[{id, rotulo, motivo}]`). Campo ausente vira vazio: a resposta de antes continua
@@ -287,12 +336,13 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
   - os limites das faixas vêm em texto decimal com ponto, sem arredondar;
   - na comparação, `maior` e `menor` são listas de ids, com os valores em `itens`, e a diferença de dois itens vem em
     `{a, b, relacao, diferenca}`;
-  - o motivo da tendência aparece em texto, com o código entre parênteses ("Mudança de direção (MUDANCA_DE_DIRECAO)").
+  - o motivo da tendência aparece na tela em palavras, sem o código (dica e Não avaliáveis); o código fica só no CSV
+    ("Mudança de direção (MUDANCA_DE_DIRECAO)").
 
 ## Acessibilidade
 
-- **Teclado:** famílias e abas dos Detalhes com setas, Home e End; da aba escolhida, Tab leva aos ajustes dela (o painel é o
-  `tabpanel` da aba); o gráfico é uma parada de tabulação, e as setas percorrem as bolhas (de cima para baixo no eixo único; da
+- **Teclado:** as abas (a Seleção e as análises) e as abas dos Detalhes com setas, Home e End; da aba escolhida, Tab leva ao
+  painel dela (a apresentação e os ajustes; o painel é o `tabpanel` da aba); o gráfico é uma parada de tabulação, e as setas percorrem as bolhas (de cima para baixo no eixo único; da
   esquerda para a direita com a distância), Enter ou Espaço destacam (ou abrem os municípios do estado), Esc fecha a dica; Esc
   fecha o painel lateral e devolve o foco ao botão que o abriu.
 - **Dica no foco** igual à do mouse; cada bolha é um botão com um rótulo com os valores; a régua tem dois `role="slider"`.
@@ -301,7 +351,7 @@ desenho (gráfico, mapa ou lado a lado) e a cor contínua do mapa são só estad
 - **Equivalentes em texto:** a tabela, os não avaliáveis, as legendas com as contagens, as notas e a frase-resumo. A identidade
   nunca depende só da cor.
 - **Movimento:** com `prefers-reduced-motion`, nenhuma transição nem animação; a troca entre o gráfico e o mapa é direta.
-- **Celular:** famílias em abas roláveis, com o painel dos ajustes na largura toda; funções no botão "Ferramentas"; escala e
+- **Celular:** a Seleção e as análises em abas roláveis, com o painel da aba na largura toda; funções no botão "Ferramentas"; escala e
   vista sempre à vista; painel das funções na base da tela e nenhuma rolagem horizontal.
 - **Modo escuro:** textos, links, avisos e botões a 4,5:1 ou mais nas superfícies escuras; o foco visível a 3:1 ou mais (seção
   seguinte).
@@ -374,31 +424,39 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   falta para pedir; a disponibilidade das famílias; o comando da conversa; a janela e as séries; a tabela em páginas; o CSV em
   precisão integral; o estado salvo; o contexto do gráfico; e a normalização da resposta no cliente. Desde 23/10/2026,
   `frontend/tests/areaDeAnalise.test.mjs` cobre os ajustes de cada análise (sem indicador na rotatividade; nos estados, os da
-  distribuição), a disponibilidade do mapa com o motivo e o atalho, a pintura do mapa (camada, contínua ou pergunta) e as
-  opções de cada análise, a cor contínua e o tamanho, as ligações (até 30), o estado salvo com a vista e a cor contínua (e o
-  estado antigo sem elas), o aspecto "mapa" dos não avaliáveis, a vista pedida na conversa, a frase-resumo no cliente e no
-  arquivo de método e os dados do mapa normalizados. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
+  distribuição), a disponibilidade do mapa com o motivo e o atalho, a pintura do mapa (a camada do gráfico, os quintis do motor
+  ou a cor contínua da rotatividade, sem pergunta) e quando o pedido leva os quintis do mapa, a cor contínua e o tamanho, as
+  ligações (até 30), o estado salvo com a vista (e o estado antigo sem ela), o aspecto "mapa" dos não avaliáveis, a vista
+  pedida na conversa, a frase-resumo no cliente e no arquivo de método, os dados do mapa normalizados e, desde o pedido
+  integrado de 23/10/2026, os nomes das abas, a abertura sem seleção, a apresentação de cada aba (base do Brasil, planilha de
+  distritos e antes dos dados, sem códigos internos), o que significa cada classe da tendência, o motivo de cada unidade em
+  palavras e a nota das sem classificação. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
   (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
   esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
   contraste), a pintura de cada camada no escuro, as variáveis de `styles.css` contra as paletas e contra as classes do
   Tailwind, o contraste dos textos, avisos, links e botões nas superfícies escuras e a ausência de cor fixa nas folhas de
   estilo.
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
-  (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido; E1 com os estados em bolhas, a lista sem digitar, a instrução e a
-  ação na dica; os ajustes dentro de cada análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e
-  a escala fora deles, na barra junto do desenho); a vista do desenho (o gráfico de início; nos estados e em Séries, o mapa
+  (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, com as cinco abas na mesma linha, nos nomes padronizados, e a
+  apresentação de cada aba (a da tendência com as classes); a base sem seleção automática (nenhum pedido, a Seleção aberta e as
+  abas das análises com a apresentação); E1 com os estados escolhidos na Seleção, a lista sem digitar, a instrução e a ação na
+  dica; os ajustes dentro de cada análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala
+  fora deles, na barra junto do desenho); a vista do desenho (o gráfico de início; nos estados e em Séries, o mapa
   desligado, com o motivo e o atalho); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da
   resposta (e fora da tela quando o indicador à vista não é o do cálculo); marcar e desmarcar, marcar e desmarcar todos; a busca
-  como complemento; voltar aos estados pela trilha; Quantidade sem pedido; a régua pelo teclado e pelo mouse; quartis; a análise
-  espacial (o eixo X e o convite ao mapa na base versionada; a recusa e a pendência no catálogo sintético); a tendência nas três
-  visões; a rotatividade desabilitada; Condições (com o convite ao mapa), Ordenar, Comparar e Juntar; o CSV; os Detalhes; o modo
+  como complemento (sem seleção, nada da seleção anterior à vista); voltar aos estados pela trilha; os quintis do mapa no pedido
+  e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo teclado e pelo mouse; quartis; a análise espacial (o
+  eixo X e o convite ao mapa na base versionada; a recusa e a pendência no catálogo sintético); a tendência nas três visões, com
+  a nota das sem classificação e o motivo em palavras na dica; a rotatividade com a apresentação e o motivo, sem pedido;
+  Condições (com o convite ao mapa), Ordenar, Comparar e Juntar; o CSV; os Detalhes; o modo
   leve com todos os municípios do Brasil (base versionada); e o celular (o painel dos ajustes na largura e a vista à vista). Cada
   bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor
   (detalhes em [MAPA_DA_PAGINA_UNICA.md](MAPA_DA_PAGINA_UNICA.md#testes)).
 - **Navegador, modo escuro:** `backend/tests/ui_modo_escuro.py`, na suíte `bloco1`, com o navegador no escuro
-  (`color_scheme="dark"`): o aviso de privacidade, a página, a conversa, os estados e o Amazonas com fundo escuro e textos a
-  4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a
-  dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; o mapa (a superfície escura no canvas e as cores do
-  escuro, ou, se o motor não entregar os pontos no catálogo sintético, só a área do mapa, com o registro na saída); e a
+  (`color_scheme="dark"`): o aviso de privacidade, a página com o banner, as entradas dos dados, as abas e a apresentação, a
+  conversa, a base sem seleção, os estados e o Amazonas com fundo escuro e textos a 4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a
+  dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; o mapa (a superfície escura no canvas, as cores do
+  escuro e a legenda dos quintis, ou, se o motor não entregar os pontos no catálogo sintético, só a área do mapa, com o
+  registro na saída); e a
   impressão de volta ao claro. Tira capturas (`escuro-*.png`) para a conferência visual.

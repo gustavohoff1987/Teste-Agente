@@ -335,7 +335,8 @@ export type Disponibilidade = { familia: Familia; rotulo: string; disponivel: bo
 type Capacidade = { status: string; reasons?: string[] };
 
 /** O que a planilha permite, pelas capacidades do pré-exame do backend: a análise sem os dados necessários fica
- * indisponível, com o motivo. A escolha pendente (por exemplo, a referência da análise espacial, feita no gráfico) não
+ * indisponível, com o motivo. Os rótulos são os nomes padronizados das análises (os mesmos de NOMES_FAMILIAS, em
+ * painelModel.ts, repetidos aqui porque este arquivo não importa outros módulos). A escolha pendente (por exemplo, a referência da análise espacial, feita no gráfico) não
  * torna a análise indisponível. Sem o pré-exame, a lista fica vazia. */
 export function disponibilidadeDaPlanilha(capacidades: Record<string, Capacidade> | undefined, escolhas: EscolhasDaPlanilha,
   separadorMisto: boolean): Disponibilidade[] {
@@ -353,10 +354,10 @@ export function disponibilidadeDaPlanilha(capacidades: Record<string, Capacidade
       : separadorMisto && !escolhas.separador ? "Escolha o separador decimal das coordenadas."
         : livre("spatial") ? "" : motivo("spatial");
   return [
-    item("distribuicao", "Distribuição", livre("counts") || livre("density") ? "" : motivo("counts")),
-    item("espacial", "Análise espacial", espacial),
-    item("tendencia", "Tendência", livre("temporal") ? "" : motivo("temporal")),
-    item("rotatividade", "Rotatividade", !mapeamento.identity ? "Falta a coluna do identificador individual."
+    item("distribuicao", "Análise de Distribuição", livre("counts") || livre("density") ? "" : motivo("counts")),
+    item("espacial", "Análise Espacial", espacial),
+    item("tendencia", "Análise de Tendência", livre("temporal") ? "" : motivo("temporal")),
+    item("rotatividade", "Análise de Rotatividade", !mapeamento.identity ? "Falta a coluna do identificador individual."
       : livre("rotation") ? "" : motivo("rotation")),
   ];
 }
@@ -409,7 +410,11 @@ function achatar(valor: unknown, prefixo: string, saida: Record<string, unknown>
 export function csvDaResposta(resposta: unknown): string {
   const itens = (resposta as { itens?: unknown } | null)?.itens;
   if (!Array.isArray(itens) || !itens.length) return "";
-  const linhas = itens.map(item => achatar(item, "", {}));
+  // Os grupos do mapa (quintis, só para pintar o mapa, 23/10/2026) não são valores da análise: ficam fora do CSV.
+  const linhas = itens.map(item => {
+    const { grupoMapa: _mapa, grupo_mapa: _mapaDoMotor, ...campos } = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    return achatar(item && typeof item === "object" ? campos : item, "", {});
+  });
   const colunas = [...new Set(linhas.flatMap(linha => Object.keys(linha)))];
   const celula = (valor: unknown) => {
     let texto = valor === null || valor === undefined ? "" : String(valor);

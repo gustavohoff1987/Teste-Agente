@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { AlertCircle, Database, FileUp, LoaderCircle, RefreshCw, Send } from "lucide-react";
+import { AlertCircle, Database, FileSpreadsheet, FileUp, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
@@ -229,7 +229,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         return;
       }
       onEscolherFonte(escolha);
-      append(escolha === "brasil" ? "Dados do Brasil escolhidos. Vou prepará-los; em seguida, o gráfico mostra os estados."
+      append(escolha === "brasil" ? "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os territórios na Seleção de " +
+          "Territórios ou me diga quais quer ver, por exemplo “mostre o Pará”."
         : "Escolha o arquivo CSV ou Excel. Depois, confira as colunas no painel Colunas, no alto da página.");
       return;
     }
@@ -380,6 +381,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         <button type="button" data-testid="chat-fonte-arquivo" disabled={!privacyAccepted} onClick={() => onEscolherFonte("arquivo")}
           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
           <FileUp size={16} aria-hidden="true"/>Enviar meus dados</button>
+        {/* O mesmo modelo da área central (23/10/2026): a estrutura recomendada para a planilha, em XLSX. */}
+        <a href={apiBase + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx" data-testid="chat-fonte-modelo"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50">
+          <FileSpreadsheet size={16} aria-hidden="true"/>Modelo de planilha XLSX</a>
       </div>}
       {!status?.configured && <div role="status" className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
         {loadingStatus ? "Preparando a conversa…" : "Perguntas livres estão temporariamente indisponíveis. Os pedidos sobre o " +

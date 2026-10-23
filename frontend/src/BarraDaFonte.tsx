@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { Columns3, Database, Download, FileUp, LoaderCircle, RefreshCw, X } from "lucide-react";
+import { Columns3, LoaderCircle, RefreshCw, X } from "lucide-react";
 
-// Barra da fonte no alto da página única (22/10/2026): antes dos dados, "Dados do Brasil" e "Enviar meus dados"; depois, o
-// resumo da fonte em uso, com "Trocar" (e, numa planilha, "Colunas"). A troca só vale quando a nova fonte fica pronta: até
-// lá, o gráfico continua com a fonte em uso, e "Cancelar" desiste. Aqui também ficam a escolha da aba de uma planilha com
+// Barra da fonte no alto da página única (22/10/2026): o resumo da fonte em uso, com "Trocar" (e, numa planilha, "Colunas").
+// Desde 23/10/2026, as entradas dos dados (Dados do Brasil, Enviar meus dados e o modelo de planilha XLSX) ficam só na área
+// central e na conversa: "Trocar" leva a escolha para a área central. A troca só vale quando a nova fonte fica pronta: até lá, o
+// gráfico continua com a fonte em uso, e "Cancelar" desiste. Aqui também ficam a leitura, a escolha da aba de uma planilha com
 // várias abas, os erros da leitura e o painel "Colunas" (children).
 
 /** Identidade técnica da base do Brasil (sem conteúdo), para o "Diagnóstico técnico da fonte". */
@@ -13,14 +14,12 @@ export type CatalogoDaFonte = { modo: string; versao: string; versao_fixada?: st
 type Props = {
   desabilitado: boolean;
   ativa: { tipo: "brasil" | "arquivo"; resumo: string } | null;
-  /** "Trocar": mostra de novo a escolha entre as duas fontes. */
+  /** "Trocar" pedido: a escolha está na área central (o botão some até ela terminar ou ser cancelada). */
   escolhendo: boolean;
   preparo: { tipo: "brasil" | "arquivo"; nome: string; lendo: boolean; erro: string; abas: string[] | null; aba: string;
     colunas: boolean } | null;
   catalogo: CatalogoDaFonte | null;
   apiBase: string;
-  onBrasil: () => void;
-  onArquivo: () => void;
   onTrocar: () => void;
   onCancelar: () => void;
   onAba: (aba: string) => void;
@@ -30,11 +29,11 @@ type Props = {
 
 const BOTAO = "inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-40";
 
-export default function BarraDaFonte({ desabilitado, ativa, escolhendo, preparo, catalogo, apiBase, onBrasil, onArquivo, onTrocar,
+export default function BarraDaFonte({ desabilitado, ativa, escolhendo, preparo, catalogo, apiBase, onTrocar,
   onCancelar, onAba, onColunas, children }: Props) {
   const [diagnostico, setDiagnostico] = useState<Record<string, unknown> | null>(null);
-  // A escolha aparece antes dos dados, em "Trocar" e depois de um erro de leitura; some durante a leitura e no painel Colunas.
-  const mostrarEscolha = preparo ? !!preparo.erro && !preparo.colunas && !preparo.abas : !ativa || escolhendo;
+  // Antes dos dados e sem leitura em curso, a barra não aparece: as entradas estão na área central e na conversa.
+  if (!ativa && !preparo) return null;
   return <section className="fonte-barra" aria-label="Fonte dos dados" data-testid="fonte-barra">
     {ativa && <div className="fonte-atual">
       <span className="fonte-rotulo">Fonte</span>
@@ -45,17 +44,6 @@ export default function BarraDaFonte({ desabilitado, ativa, escolhendo, preparo,
         {onColunas && <button type="button" data-testid="colunas-abrir" onClick={onColunas} disabled={desabilitado}
           className={BOTAO + " border border-line bg-white text-ink hover:bg-slate-50"}><Columns3 size={15} aria-hidden="true"/>Colunas</button>}
       </div>}
-    </div>}
-    {mostrarEscolha && <div className="fonte-escolha no-print" role="group" aria-label="Escolha dos dados">
-      <span className="fonte-rotulo">{ativa ? "Trocar por" : "Dados"}</span>
-      <button type="button" data-testid="fonte-brasil" onClick={onBrasil} disabled={desabilitado}
-        className={BOTAO + " border-2 border-ink bg-white text-ink hover:bg-slate-50"}><Database size={16} aria-hidden="true"/>Dados do Brasil</button>
-      <button type="button" data-testid="fonte-arquivo" onClick={onArquivo} disabled={desabilitado}
-        className={BOTAO + " border-2 border-ink bg-white text-ink hover:bg-slate-50"}><FileUp size={16} aria-hidden="true"/>Enviar meus dados</button>
-      <a href={apiBase + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx" data-testid="fonte-modelo"
-        className="inline-flex items-center gap-1 text-xs font-semibold text-teal underline"><Download size={14} aria-hidden="true"/>Modelo de planilha (.xlsx)</a>
-      {ativa && !preparo && <button type="button" data-testid="fonte-cancelar" onClick={onCancelar}
-        className={BOTAO + " text-slate-600 hover:bg-slate-100"}><X size={15} aria-hidden="true"/>Cancelar</button>}
     </div>}
     {preparo && <div className="fonte-preparo" data-testid="fonte-preparo">
       {preparo.lendo && <p role="status" className="flex items-center gap-2 text-sm text-teal">

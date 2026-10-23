@@ -54,7 +54,10 @@ const GRUPOS = [{id: '13', nome: 'Amazonas', sigla: 'AM', rotuloGrupo: 'Municíp
   {id: '35', nome: 'São Paulo', sigla: 'SP', rotuloGrupo: 'Municípios de São Paulo', unidades: 645}];
 const grafico = (extra = {}) => M.montarGrafico({itens: ITENS.slice(0, 4), dominios: DOMINIOS, indicador: 'densidade', escala: 'linear',
   distancia: false, cometa: false, vista: 'final', largura: 800, rotuloDistancia: '', pintura: UNICA, ...extra});
-const definicao = (extra = {}) => ({...M.definicaoInicial({tipo: 'brasil', periodos: ['202306', '202406'], categoria: 'MEDICINA', temGrupos: true}), ...extra});
+// Os testes partem da visão dos estados (a escolha "Todos os estados" da Seleção de Territórios), a abertura até 23/10/2026; desde
+// então, a base carregada abre sem seleção (teste "abertura sem seleção").
+const definicao = (extra = {}) => ({...M.definicaoInicial({tipo: 'brasil', periodos: ['202306', '202406'], categoria: 'MEDICINA', temGrupos: true}),
+  nivel: 'estados', ...extra});
 
 test('variação percentual do motor em pt-BR: sinal, duas casas e nunca zero aparente (RQ-REP-05)', () => {
   assert.equal(M.formatarVariacao(12.4), '+12,40%');
@@ -497,16 +500,28 @@ test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a 
   assert.equal(M.profissionaisDe('MEDICINA'), 'médicos');
 });
 
-test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedido; estados na abertura, municípios, grupos, faixas, espacial, tendência e rotatividade', () => {
+test('abertura sem seleção (23/10/2026): a base do Brasil e a planilha abrem sem territórios marcados; nada é pedido até a seleção', () => {
+  for (const fonte of [{tipo: 'brasil', temGrupos: true}, {tipo: 'arquivo', temGrupos: false}]) {
+    const inicial = M.definicaoInicial({...fonte, periodos: ['2023', '2024'], categoria: 'ENFERMAGEM'});
+    assert.equal(inicial.nivel, 'municipios', fonte.tipo + ': sem os estados como ponto de partida');
+    assert.deepEqual(inicial.base, {todos: false, estados: [], ids: []}, fonte.tipo + ': nenhum território marcado');
+    assert.equal(inicial.familia, 'distribuicao');
+    assert.equal(M.bloqueioDoPedido(inicial, {fonte: fonte.tipo, rotulos: fonte.tipo === 'brasil' ? BR : DISTRITOS}),
+      'Selecione os territórios que deseja analisar.');
+  }
+  assert.equal(M.TEXTO_SEM_SELECAO, 'Selecione os territórios que deseja analisar.');
+});
+
+test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedido; estados, municípios, grupos, faixas, espacial, tendência e rotatividade', () => {
   const inicial = definicao();
   assert.equal(inicial.nivel, 'estados');
   assert.equal(inicial.competencia, '202406');
   assert.deepEqual(inicial.janela, []);  // a janela da tendência é escolha da pessoa (decisão 5a)
   assert.deepEqual(M.montarOpcoes(inicial, 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade'});
   assert.equal(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).nivel, 'municipios');
-  // A planilha abre com todas as unidades (não há estados nem bolhas de grupo); a base do Brasil, sem nenhuma (os estados).
+  // Desde 23/10/2026, a planilha também abre sem seleção (antes, com todas as unidades).
   assert.deepEqual(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).base,
-    {todos: true, estados: [], ids: []});
+    {todos: false, estados: [], ids: []});
   assert.deepEqual(inicial.base, {todos: false, estados: [], ids: []});
   const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
   const base = {nivel: 'municipios', indicador: 'densidade', base: {municipios: {todos: false, estados: ['13'], ids: []}}};
@@ -547,8 +562,8 @@ test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedi
 
 test('o que falta para pedir e o que a família espera; a família calculada enquanto isso', () => {
   const vazio = definicao({nivel: 'municipios'});
-  assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'brasil', rotulos: BR}), 'Marque os municípios na lista de territórios para ver o gráfico.');
-  assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'arquivo', rotulos: DISTRITOS}), 'Marque os distritos na lista de territórios para ver o gráfico.');
+  assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'brasil', rotulos: BR}), 'Selecione os territórios que deseja analisar.');
+  assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'arquivo', rotulos: DISTRITOS}), 'Selecione os territórios que deseja analisar.');
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: null, rotulos: BR}), 'Escolha os dados para começar.');
   assert.equal(M.bloqueioDoPedido(definicao(), {fonte: 'brasil', rotulos: BR}), null);
   const ok = {disponivel: true, motivo: '', pendente: false, enviarDados: false};
@@ -604,7 +619,7 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   assert.equal(M.aplicarPedido(para.definicao, {nivel: 'estados'}, c).definicao.nivel, 'estados');
   const rot = M.aplicarPedido(def, {familia: 'rotatividade'}, c);
   assert.equal(rot.definicao.familia, 'distribuicao');
-  assert.ok(rot.mensagens[0].startsWith('Rotatividade: A base do Brasil'));
+  assert.ok(rot.mensagens[0].startsWith('Análise de Rotatividade: A base do Brasil'));  // nomes padronizados (23/10/2026)
   const ref = M.aplicarPedido(def, {referencia: {membros: ['code:150140']}}, c);
   assert.equal(ref.definicao.familia, 'espacial');
   assert.deepEqual(ref.definicao.referencia, {membros: ['code:150140']});

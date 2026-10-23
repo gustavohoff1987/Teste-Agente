@@ -92,6 +92,19 @@
   --grafico-muda: #898781;
   --grafico-trilho: #d9d8d1;
   --grafico-serie: #008b9e;
+  --hero-fundo-1: #102a46;
+  --hero-fundo-2: #123d58;
+  --hero-brilho: #116679;
+  --hero-borda: #214a63;
+  --hero-ponto: #a8e8f0;
+  --hero-texto: #ffffff;
+  --hero-sobretitulo: #a0dce4;
+  --hero-marca: #77e0cf;
+  --hero-marca-anel: #77e0cf26;
+  --hero-destaque: #93e7df;
+  --hero-descricao: #c0d5e3;
+  --hero-sombra: #102a4614;
+  --hero-reflexo: #ffffff14;
 }
 @media screen and (prefers-color-scheme: dark) {
   :root {
@@ -164,6 +177,13 @@
     --grafico-muda: #898781;
     --grafico-trilho: #45443f;
     --grafico-serie: #1ba3b5;
+    --hero-fundo-1: #0b1d31;
+    --hero-fundo-2: #0e2c40;
+    --hero-brilho: #0d4f5e;
+    --hero-borda: #1d3a4d;
+    --hero-ponto: #7fc9d3;
+    --hero-sombra: #00000059;
+    --hero-reflexo: #ffffff0f;
   }
 }
 
@@ -188,13 +208,16 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   .print-content { box-shadow: none !important; border: none !important; }
 }
 
-/* Página única (22/10/2026): no alto, o nome do agente, a navegação (Nova sessão, Nova análise e Histórico) e a fonte dos
-   dados; abaixo, a área de análise; a conversa fica na caixa flutuante. Só apresentação: nada aqui muda valores. */
+/* Página única (22/10/2026; reorganizada em 23/10/2026): no alto, o nome do agente; o banner de apresentação; abaixo dele, à
+   esquerda, a navegação (Nova sessão, Nova análise e Histórico) e o resumo da fonte em uso; depois, a área de análise, com as
+   entradas dos dados; a conversa fica na caixa flutuante. Só apresentação: nada aqui muda valores. */
 .pagina { display: flex; flex-direction: column; }
 .pagina :is(.grid, .flex) > * { min-width: 0; }
 .pagina :is(p, dd, dt, strong, h2, h3, summary) { overflow-wrap: anywhere; }
 .pagina :is(input, textarea, select) { max-width: 100%; }
 .pagina-cabecalho { width: 100%; max-width: 1920px; margin: 0 auto; padding: 14px 20px 0; min-width: 0; }
+.pagina-cabecalho > .workspace-hero { margin-top: 12px; }
+.pagina-acoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px 16px; margin-top: 14px; }
 .pagina-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .pagina-marca { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--cor-tinta); text-decoration: none; border-radius: 12px; }
 .pagina-marca > svg { flex-shrink: 0; }
@@ -206,7 +229,23 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .pagina-rodape { width: 100%; max-width: 1920px; margin: 24px auto 0; padding: 16px 20px 24px; border-top: 1px solid var(--cor-borda); font-size: 12px;
   color: rgb(var(--tom-slate-400)); }
 
-.main-navigation { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin: 0; }
+.main-navigation { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; align-items: stretch; margin: 0; }
+
+/* Banner de apresentação (o de antes da página única, 23/10/2026): azul-marinho com pontos; cores pelas variáveis --hero-*. */
+.workspace-hero { position: relative; isolation: isolate; display: flex; align-items: center; overflow: hidden; gap: 0; padding: 19px 30px;
+  border: 1px solid var(--hero-borda); border-radius: 26px; color: var(--hero-texto);
+  background: radial-gradient(ellipse at 88% 20%, var(--hero-brilho) 0%, transparent 52%), linear-gradient(115deg, var(--hero-fundo-1), var(--hero-fundo-2));
+  box-shadow: 0 12px 30px var(--hero-sombra), inset 0 1px var(--hero-reflexo); }
+.workspace-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .12;
+  background-image: radial-gradient(var(--hero-ponto) .65px, transparent .65px); background-size: 19px 19px;
+  mask-image: linear-gradient(to right, transparent 30%, black); }
+.hero-copy { position: relative; z-index: 1; flex: 1; min-width: 0; }
+.hero-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--hero-sobretitulo); font-size: 10px; font-weight: 700;
+  letter-spacing: .15em; }
+.hero-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: var(--hero-marca); box-shadow: 0 0 0 4px var(--hero-marca-anel); }
+.hero-copy h1 { margin: 0; font-size: clamp(25px, 2.5vw, 35px); font-weight: 750; line-height: 1.16; letter-spacing: -.04em; }
+.hero-copy h1 > span { color: var(--hero-destaque); }
+.hero-description { max-width: 840px; margin: 8px 0 0; color: var(--hero-descricao); font-size: clamp(13px, 1.1vw, 15px); line-height: 1.45; }
 .main-navigation > button, .main-navigation summary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 16px; border: 2px solid var(--cor-borda-nav); border-radius: 12px; background: var(--cor-superficie); color: var(--cor-tinta); font-size: 14px; font-weight: 650; cursor: pointer; list-style: none; }
 .main-navigation > button:hover:not(:disabled), .main-navigation summary:hover { background: var(--cor-realce); }
 .main-navigation > button:disabled { opacity: .45; cursor: not-allowed; }
@@ -255,6 +294,9 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 @media (max-width: 639px) {
   .pagina-cabecalho { padding: 10px 10px 0; }
   .pagina-marca strong { font-size: 16px; }
+  .workspace-hero { padding: 18px 18px; border-radius: 20px; }
+  .hero-copy h1 { font-size: 24px; }
+  .hero-eyebrow { font-size: 9px; letter-spacing: .1em; }
   .pagina-principal { padding: 10px 10px 16px; }
   .pagina-rodape { padding: 12px 10px 240px; }
   .main-navigation { gap: 6px; }

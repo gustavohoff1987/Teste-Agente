@@ -2,15 +2,16 @@
 
 Com o navegador no escuro (contexto do Playwright com color_scheme="dark"), confere pelo estilo calculado (getComputedStyle e a
 luminância relativa do WCAG):
-- o aviso de privacidade, a página, o cabeçalho, a fonte dos dados e a conversa flutuante com fundo escuro e texto claro, a 4,5:1
-  ou mais do fundo;
-- os estados (E1) e o Amazonas (E2), aberto pela lista de territórios: o fundo da área e do gráfico escuros, o título, o
-  subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste de texto; as bolhas na série única do escuro (#1ba3b5), com o
-  anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
+- o aviso de privacidade, a página, o cabeçalho com o banner, as entradas dos dados na área central, as abas (a Seleção de
+  Territórios e as análises) com a apresentação e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
+- a base carregada sem seleção (o aviso e a lista de territórios), os estados (E1) e o Amazonas (E2), aberto pela lista de
+  territórios: o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
+  de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
 - o mapa (botão analise-desenho-mapa): com os pontos do motor, a superfície escura no canvas, as cores do escuro no gancho de
-  teste e a pergunta "Como pintar o mapa?" legível; se o motor não entregar os pontos no catálogo sintético, confere só a área do
-  mapa (o fundo escuro e o aviso do motor legível) e registra isso na saída;
+  teste e a legenda dos 5 grupos iguais (quintis) legível, sem a pergunta "Como pintar o mapa?" (retirada em 23/10/2026); se o
+  motor não entregar os pontos no catálogo sintético, confere só a área do mapa (o fundo escuro e o aviso do motor legível) e
+  registra isso na saída;
 - a impressão (page.emulate_media(media="print")) volta ao claro: a página, o título, a superfície e as bolhas (#008b9e); de
   volta à tela, o escuro.
 Tira capturas em .local/ui-validation (escuro-*.png) para a conferência visual. Catálogo sintético do Bloco 1; servidor
@@ -132,7 +133,8 @@ def main():
         shot("01-privacidade", pagina_inteira=False)
         aceitar.click()
 
-        # 2. A abertura (E0): a página, o cabeçalho, a fonte e a conversa flutuante, escuros e legíveis.
+        # 2. A abertura (E0): a página, o cabeçalho com o banner, as entradas dos dados na área central, as abas com a
+        # apresentação e a conversa flutuante, escuros e legíveis. Antes dos dados, não há barra da fonte no alto.
         area = page.get_by_test_id("area-de-analise")
         expect(area).to_be_visible(timeout=60000)
         expect(area).to_have_attribute("data-estado", "E0")
@@ -141,12 +143,18 @@ def main():
         assert luminancia(cores(page.locator("html"))["fundo"]) < 0.02
         legivel(page.get_by_test_id("pagina-marca"), "nome do agente")
         legivel(page.get_by_test_id("nav-new-session"), "Nova sessão")
-        escuro(page.get_by_test_id("fonte-barra"), "fonte dos dados")
-        legivel(page.get_by_test_id("fonte-brasil"), "Dados do Brasil, na barra da fonte")
+        banner = page.get_by_test_id("pagina-banner")
+        expect(banner).to_be_visible()
+        legivel(banner.locator("h1"), "título do banner")
+        expect(page.get_by_test_id("fonte-barra")).to_have_count(0)
         escuro(area, "área de análise")
         legivel(area.get_by_test_id("analise-titulo"), "título da área")
         legivel(area.get_by_test_id("analise-fonte-brasil"), "botão primário (Dados do Brasil)")
         legivel(area.get_by_test_id("analise-fonte-arquivo"), "botão secundário (Enviar meus dados)")
+        legivel(area.get_by_test_id("analise-fonte-modelo"), "botão secundário (Modelo de planilha XLSX)")
+        legivel(area.get_by_test_id("analise-aba-territorios"), "aba da Seleção de Territórios")
+        escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
+        legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "apresentação da aba")
         chat = page.get_by_test_id("painel-chat")
         expect(chat).to_be_visible()
         escuro(chat, "conversa flutuante")
@@ -158,8 +166,17 @@ def main():
         if chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 3. Os estados (E1): o gráfico escuro; as bolhas na série única do escuro; o mapa desligado mostra o motivo (âmbar).
-        estados = respond(lambda: area.get_by_test_id("analise-fonte-brasil").click())
+        # 3. A base carregada sem seleção: o aviso e a lista de territórios, escuros e legíveis. Os estados (E1), escolhidos na
+        # Seleção de Territórios: o gráfico escuro; as bolhas na série única do escuro; o mapa desligado mostra o motivo (âmbar).
+        area.get_by_test_id("analise-fonte-brasil").click()
+        vazio = area.get_by_test_id("analise-vazio")
+        expect(vazio).to_contain_text("Os dados do Brasil foram carregados", timeout=120000)
+        legivel(vazio.locator("p").first, "aviso da base carregada sem seleção")
+        territorios = area.get_by_test_id("analise-territorios")
+        expect(territorios).to_be_visible()
+        escuro(territorios, "lista de territórios")
+        legivel(territorios.get_by_test_id("analise-territorios-estados"), "Todos os estados, na Seleção")
+        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-territorios-estados")))
         expect(area).to_have_attribute("data-estado", "E1")
         assert estados["itens"], "o motor devolveu os estados"
         grafico = area.get_by_test_id("analise-grafico")
@@ -174,7 +191,6 @@ def main():
         shot("03-estados")
 
         # 4. O Amazonas pela lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.
-        territorios = area.get_by_test_id("analise-territorios")
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         expect(linha_am).to_contain_text("Amazonas")
         escuro(territorios, "lista de territórios")
@@ -195,6 +211,10 @@ def main():
         if (area.get_by_test_id("analise-resumo").text_content() or "").strip():
             legivel(area.get_by_test_id("analise-resumo"), "frase-resumo do motor")
         legivel(area.get_by_test_id("analise-trilha-item").first, "trilha (link)")
+        # Os ajustes ficam na aba da análise (a troca de aba, sem trocar de análise, não pede nada ao motor).
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+        legivel(area.get_by_test_id("analise-selecao-resumo"), "resumo da seleção, na aba da análise")
         legivel(area.get_by_test_id("analise-ajustes").get_by_test_id("analise-indicador-densidade"), "indicador escolhido (preenchido)")
         legivel(area.get_by_test_id("analise-ajustes").get_by_test_id("analise-indicador-quantidade"), "indicador não escolhido")
         legivel(area.get_by_test_id("analise-arranjo-nota"), "nota do arranjo, na legenda")
@@ -255,17 +275,17 @@ def main():
             gancho = page.evaluate("() => { const m = window.__adtMapa; return { esquema: m.esquema, superficie: m.superficie, "
                                    "pintura: m.pintura, pontos: m.pontos.map(p => ({ cor: p.cor, vazada: p.vazada, esmaecido: p.esmaecido })) }; }")
             assert gancho["esquema"] == "escuro" and gancho["superficie"] == SUPERFICIE_ESCURO, gancho
-            if gancho["pintura"] == "pergunta":
-                assert all(ponto["cor"] == SERIE_ESCURO for ponto in gancho["pontos"]), gancho["pontos"]
+            if gancho["pintura"] == "camada":  # sem os quintis do motor: a cor única do escuro
+                assert all(ponto["cor"] == SERIE_ESCURO for ponto in gancho["pontos"] if not ponto["vazada"]), gancho["pontos"]
             canvas = mapa.get_by_test_id("mapa-canvas")
             pixel = canvas.evaluate("c => [...c.getContext('2d').getImageData(1, 1, 1, 1).data]")
             assert hexa(pixel) == SUPERFICIE_ESCURO, ("canvas na superfície escura", pixel)
             escuro(canvas, "quadro do mapa")
             legivel(mapa.get_by_test_id("mapa-nota"), "nota do mapa")
-            if mapa.get_by_test_id("mapa-pergunta").count():
-                pergunta = mapa.get_by_test_id("mapa-pergunta")
-                escuro(pergunta, "pergunta do mapa")
-                legivel(pergunta.locator("p").first, "título da pergunta do mapa")
+            expect(mapa.get_by_test_id("mapa-pergunta")).to_have_count(0)
+            if gancho["pintura"] == "quintis":
+                legivel(mapa.get_by_test_id("mapa-legenda-quintis"), "legenda dos quintis do mapa")
+                legivel(mapa.get_by_test_id("mapa-quintil").first, "item da legenda dos quintis")
             legivel(mapa.get_by_test_id("mapa-ampliar"), "controle do mapa", minimo=3)
             notas.append("mapa com os pontos do motor (" + str(len(gancho["pontos"])) + " pontos), conferido no escuro")
         else:

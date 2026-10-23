@@ -145,6 +145,9 @@ test('o que a planilha permite: indisponível com o motivo, inclusive o referenc
   const lista = P.disponibilidadeDaPlanilha(capacidades, escolhas, false);
   assert.deepEqual(lista.map(item => [item.familia, item.disponivel]),
     [['distribuicao', true], ['espacial', false], ['tendencia', false], ['rotatividade', false]]);
+  // Os mesmos nomes das abas da área de análise.
+  assert.deepEqual(lista.map(item => item.rotulo),
+    ['Análise de Distribuição', 'Análise Espacial', 'Análise de Tendência', 'Análise de Rotatividade']);
   assert.equal(lista[1].motivo, 'Faltam as colunas de latitude e longitude.');
   assert.equal(lista[2].motivo, 'Evolução temporal exige ao menos dois períodos reconhecidos.');
   assert.equal(lista[3].motivo, 'Falta a coluna do identificador individual.');
@@ -199,4 +202,8 @@ test('CSV da análise em exibição: todos os campos do motor, em precisão inte
   assert.equal(linhas[2], '"c1";"conjunto";"\'=SOMA(A1)";"2";"";"";"";"";"";"code:1 | code:2";"[{""a"":1}]";"diz ""oi"""');
   assert.equal(P.csvDaResposta({itens: []}), '');
   assert.equal(P.csvDaResposta(null), '');
+  // Os grupos do mapa (só para pintar o mapa) ficam fora; os grupos da análise continuam.
+  const comMapa = P.csvDaResposta({itens: [{id: 'a', densidade: 1, grupo: {indice: 2, rotulo: '2º quartil'},
+    grupoMapa: {indice: 3, rotulo: '3º quintil'}, grupo_mapa: {indice: 3, rotulo: '3º quintil'}}]});
+  assert.equal(comMapa.split('\r\n')[0], '﻿"id";"densidade";"grupo.indice";"grupo.rotulo"');
 });

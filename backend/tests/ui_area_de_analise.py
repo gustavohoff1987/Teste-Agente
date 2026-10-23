@@ -1,9 +1,17 @@
-"""Área de análise da página única (22/10/2026): abertura antes dos dados (E0), os estados em bolhas com a base do Brasil (E1), a
-escolha de territórios sempre à vista e em lista (ver os municípios de um estado, marcar e desmarcar, marcar e desmarcar todos,
-voltar aos estados pela trilha), o eixo vertical do indicador com o arranjo horizontal, a dica no mouse e no foco, Quantidade
-sem novo pedido, a régua que só esconde, grupos por posição, a análise espacial com a referência por critério, a tendência
-(Classes, Mudança e Séries, com a janela escolhida pela pessoa), a rotatividade desabilitada com o motivo, Condições, Ordenar,
-Comparar, Juntar, Exportar (CSV em precisão integral), os Detalhes e o celular (abas roláveis e o botão Ferramentas).
+"""Área de análise da página única (22/10/2026): abertura antes dos dados (E0), a base do Brasil sem seleção automática e os
+estados em bolhas escolhidos na Seleção de Territórios (E1), a escolha de territórios em lista (ver os municípios de um estado,
+marcar e desmarcar, marcar e desmarcar todos, voltar aos estados pela trilha), o eixo vertical do indicador com o arranjo
+horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
+memória da tela), a régua que só esconde, grupos por posição, a análise espacial com a referência por critério, a tendência
+(Classes, Mudança e Séries, com a janela escolhida pela pessoa, as classes explicadas e o motivo das sem classificação), a
+rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Exportar (CSV em precisão integral), os Detalhes e o celular
+(abas roláveis e o botão Ferramentas).
+
+Desde 23/10/2026 (pedido integrado): uma linha de abas com a Seleção de Territórios primeiro e as quatro análises com os nomes
+padronizados (Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de Rotatividade); cada aba abre, mesmo
+sem poder ser executada, com a apresentação do que faz (`analise-apresentacao`); a lista de territórios fica no painel da
+Seleção (`analise-aba-painel`), e os ajustes de cada análise, no painel da aba dela, com o resumo da seleção e "Alterar a
+seleção".
 
 Desde 23/10/2026: os ajustes dentro de cada análise (`analise-ajustes`, o painel colado na aba escolhida, com só o que vale para
 ela e o mesmo indicador em todas), a escala na barra junto do desenho (fora dos ajustes, e só quando se aplica), a escolha da vista
@@ -140,6 +148,22 @@ def main():
                 aperta(area.get_by_test_id("analise-painel-fechar"))
                 expect(area.get_by_test_id("analise-painel")).to_have_count(0)
 
+        def aba_selecao():
+            """A Seleção de Territórios: a lista dos territórios fica no painel dela (23/10/2026)."""
+            if area.get_attribute("data-aba") != "territorios":
+                aperta(area.get_by_test_id("analise-aba-territorios"))
+            expect(area).to_have_attribute("data-aba", "territorios")
+            expect(territorios).to_be_visible()
+
+        def aba_analise(familia):
+            """A aba de uma análise já escolhida (sem trocar de análise): os ajustes ficam no painel dela."""
+            if area.get_attribute("data-aba") != familia:
+                aperta(area.get_by_test_id("analise-familia-" + familia))
+            expect(area).to_have_attribute("data-aba", familia)
+
+        def milhar(numero):
+            return f"{numero:,}".replace(",", ".")
+
         def confere_valores(body, indicador="densidade"):
             desenhadas = bubbles()
             for item in body["itens"]:
@@ -157,19 +181,67 @@ def main():
         expect(area.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico territorial da força de trabalho em saúde")
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-detalhes")).to_have_count(0)
+        # Uma linha de abas: a Seleção de Territórios primeiro e as quatro análises com os nomes padronizados.
+        linha_de_abas = area.get_by_role("tablist", name="Seleção de territórios e análises")
+        ordem = linha_de_abas.get_by_role("tab").evaluate_all("els => els.map(e => e.dataset.testid)")
+        assert ordem == ["analise-aba-territorios", "analise-familia-distribuicao", "analise-familia-espacial",
+                         "analise-familia-tendencia", "analise-familia-rotatividade"], ordem
+        for testid, nome in (("analise-aba-territorios", "Seleção de Territórios"), ("analise-familia-distribuicao", "Análise de Distribuição"),
+                             ("analise-familia-espacial", "Análise Espacial"), ("analise-familia-tendencia", "Análise de Tendência"),
+                             ("analise-familia-rotatividade", "Análise de Rotatividade")):
+            expect(area.get_by_test_id(testid)).to_contain_text(nome)
+        topos = {round(caixa["y"]) for caixa in (area.get_by_test_id(testid).bounding_box() for testid in ordem)}
+        assert len(topos) == 1, ("as cinco abas na mesma linha", topos)
+        apresentacao = area.get_by_test_id("analise-apresentacao")
+        expect(area).to_have_attribute("data-aba", "territorios")
+        expect(apresentacao).to_contain_text("Selecione os territórios que deseja incluir em suas análises.")
+        expect(apresentacao).to_contain_text("Depois de escolher os dados, a lista de territórios aparece aqui.")
         area.get_by_test_id("analise-familia-tendencia").click()
-        expect(area.get_by_test_id("analise-intencao")).to_contain_text("Você escolheu Tendência. Agora escolha os dados.")
+        expect(area.get_by_test_id("analise-intencao")).to_contain_text("Você escolheu Análise de Tendência. Agora escolha os dados.")
+        # Toda aba abre com a apresentação do que ela faz, mesmo antes dos dados; a da tendência explica cada classe.
+        expect(apresentacao).to_have_attribute("data-aba", "tendencia")
+        termos = apresentacao.get_by_test_id("analise-apresentacao-classes").locator("dt").all_inner_texts()
+        assert termos == ["Crescimento", "Aceleração do crescimento", "Desaceleração do crescimento", "Declínio",
+                          "Aceleração do declínio", "Desaceleração do declínio", "Sem classificação", "Não avaliável"], termos
+        expect(apresentacao).to_contain_text("Basta um trecho na direção contrária")
+        expect(apresentacao).not_to_contain_text(re.compile(r"MUDANCA_DE_DIRECAO|SERIE_ESTAVEL|SEM_CLASSIFICACAO"))
         area.get_by_test_id("analise-familia-distribuicao").click()
-        expect(area.get_by_test_id("analise-intencao")).to_contain_text("Distribuição")
+        expect(area.get_by_test_id("analise-intencao")).to_contain_text("Análise de Distribuição")
+        expect(apresentacao).to_have_attribute("data-aba", "distribuicao")
         assert not painel_calls, "antes dos dados, nada é pedido ao motor"
         # A caixa da conversa (estrutura da página), se estiver aberta, fica minimizada enquanto o roteiro usa o gráfico.
         chat = page.get_by_test_id("painel-chat")
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 2. E1: Dados do Brasil pela própria área. Os estados em bolhas, sem municípios; a lista de territórios à vista, sem
-        # digitar; a instrução de clicar num estado; o eixo vertical do indicador; a linha de contexto do Brasil.
-        estados, sent = ok(lambda: area.get_by_test_id("analise-fonte-brasil").click())
+        # 2. E1: Dados do Brasil pela própria área, sem seleção automática: nada é pedido ao motor; a área avisa que os dados
+        # estão prontos e abre a Seleção de Territórios, com a lista à vista, sem digitar. Depois, os estados em bolhas, sem
+        # municípios; a instrução de clicar num estado; o eixo vertical do indicador; a linha de contexto do Brasil.
+        area.get_by_test_id("analise-fonte-brasil").click()
+        vazio = area.get_by_test_id("analise-vazio")
+        expect(vazio).to_contain_text("Os dados do Brasil foram carregados e estão prontos para a análise.", timeout=120000)
+        expect(vazio).to_contain_text("Selecione os territórios que deseja analisar.")
+        expect(area).to_have_attribute("data-estado", "E1")
+        expect(area).to_have_attribute("data-aba", "territorios")
+        expect(territorios).to_be_visible()
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
+        expect(area.get_by_test_id("analise-resumo")).to_have_count(0)
+        page.wait_for_timeout(800)
+        assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
+        # A aba de uma análise sem territórios: a apresentação, os ajustes e o convite a selecionar; a referência e a janela só
+        # depois da seleção.
+        aperta(area.get_by_test_id("analise-familia-espacial"))
+        expect(apresentacao).to_have_attribute("data-aba", "espacial")
+        expect(apresentacao).to_contain_text("não representa um trajeto por estradas")
+        expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+        expect(area.get_by_test_id("analise-selecao-alterar")).to_have_text("Selecionar os territórios")
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        aperta(area.get_by_test_id("analise-selecao-alterar"))
+        expect(area).to_have_attribute("data-aba", "territorios")
+        page.wait_for_timeout(400)
+        assert not painel_calls, "abrir as abas sem territórios não pede nada ao motor"
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-territorios-estados")))
         # nivel e indicador vão em todo pedido (sem nivel, o motor responde no formato de 21/10).
         assert sent.get("nivel") == "estados" and set(sent) == {"competencia", "categoria", "nivel", "indicador"}, sent
         assert sent.get("indicador") == "densidade", sent
@@ -196,13 +268,24 @@ def main():
         expect(linha_am.get_by_test_id("analise-grupo-ver")).to_have_text(re.compile(r"Ver os \d+ municípios"))
         expect(linha_am.get_by_test_id("analise-grupo-todos")).to_have_attribute("aria-label", "Todos os municípios do Amazonas")
         expect(area.get_by_test_id("analise-trilha")).to_contain_text("Brasil")
-        expect(area.get_by_test_id("analise-familia-rotatividade")).to_have_attribute("aria-disabled", "true")
-        # Ajustes dentro da análise (23/10/2026): o painel colado na aba escolhida mostra só o que vale para ela; nos estados (E1),
-        # o indicador, a competência e os grupos e faixas. A escala sai dos ajustes: fica na barra junto do desenho.
+        # A rotatividade não se executa com a base do Brasil, mas a aba abre (sem aria-disabled), com o motivo dentro dela.
+        expect(area.get_by_test_id("analise-familia-rotatividade")).to_have_attribute("data-disponivel", "false")
+        expect(area.get_by_test_id("analise-familia-rotatividade")).not_to_have_attribute("aria-disabled", "true")
+        # Ajustes dentro da análise (23/10/2026): o painel da aba escolhida começa pela apresentação e mostra só o que vale para
+        # ela; nos estados (E1), o indicador, a competência e os grupos e faixas. A escala sai dos ajustes: fica na barra junto do
+        # desenho. A troca para a aba da análise já escolhida não pede nada ao motor.
+        calls = len(painel_calls)
+        aba_analise("distribuicao")
+        painel_da_aba = area.get_by_test_id("analise-aba-painel")
+        expect(painel_da_aba).to_have_attribute("role", "tabpanel")
+        expect(painel_da_aba).to_have_attribute("data-aba", "distribuicao")
+        expect(area.get_by_test_id("analise-familia-distribuicao")).to_have_attribute("aria-controls", "analise-aba-painel")
+        expect(painel_da_aba.get_by_test_id("analise-apresentacao")).to_contain_text("Cada bolha é um município")
+        expect(painel_da_aba.get_by_test_id("analise-selecao-alterar")).to_have_text("Alterar a seleção")
         ajustes = area.get_by_test_id("analise-ajustes")
         expect(ajustes).to_have_attribute("data-familia", "distribuicao")
-        expect(ajustes).to_have_attribute("role", "tabpanel")
-        expect(area.get_by_test_id("analise-familia-distribuicao")).to_have_attribute("aria-controls", "analise-ajustes")
+        page.wait_for_timeout(300)
+        assert len(painel_calls) == calls, "trocar de aba sem trocar de análise não pede nada ao motor"
         for controle in ("analise-indicador-densidade", "analise-indicador-quantidade", "analise-competencia", "analise-agrupar"):
             expect(ajustes.get_by_test_id(controle)).to_be_visible()
         expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
@@ -243,10 +326,13 @@ def main():
         expect(dica.get_by_test_id("analise-dica-acao")).to_be_visible()
         shot("01-estados")
 
-        # 3. Enter na bolha do estado abre os municípios dele (E2): a lista do estado aparece, marcada; a trilha leva de volta.
+        # 3. Enter na bolha do estado abre os municípios dele (E2): a lista do estado aparece, marcada; a trilha leva de volta. Com
+        # o mapa disponível e sem cor própria da análise, o pedido leva os 5 grupos iguais (quintis) do mapa; o gráfico não muda.
         am, sent = ok(lambda: bolha_am.press("Enter"))
+        sent_am = sent
         universo_am = {"municipios": {"todos": False, "estados": [AM], "ids": []}}
         assert sent["base"] == universo_am and sent.get("nivel") == "municipios", sent
+        assert sent.get("grupos_mapa") == {"tipo": "quintis"} and "grupos" not in sent, sent
         expect(area).to_have_attribute("data-estado", "E2")
         assert all(item["tipo"] == "municipio" for item in am["itens"]), "estados e municípios nunca no mesmo eixo"
         ids_am = esperados(am)
@@ -270,6 +356,8 @@ def main():
         expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
         expect(area).to_have_attribute("data-desenho", "grafico")
         expect(area.get_by_test_id("analise-trilha-atual")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
+        aba_selecao()
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
         expect(linha_am).to_have_attribute("data-aberto", "true")
         lista_am = linha_am.get_by_test_id("analise-grupo-unidades")
         unidades_am = lista_am.get_by_test_id("analise-unidade")
@@ -299,7 +387,10 @@ def main():
         expect(area.locator('[data-testid="analise-bolha"][data-id="' + PARINTINS + '"]')).to_have_count(0)
         calls = len(painel_calls)
         aperta(lista_am.get_by_test_id("analise-unidades-desmarcar-todos"))
-        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Marque os municípios na lista de territórios")
+        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Selecione os territórios que deseja analisar.")
+        # Sem seleção, nenhum resultado anterior fica à vista: nem bolhas, nem a frase-resumo.
+        expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
+        expect(area.get_by_test_id("analise-resumo")).to_have_count(0)
         expect(area.get_by_test_id("analise-trilha-atual")).to_have_text("Nenhum município marcado")
         assert all(not caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
         page.wait_for_timeout(400)
@@ -326,22 +417,30 @@ def main():
         drawn(ids_am)
         expect(linha_am).to_have_attribute("data-aberto", "true")
 
-        # 6. Quantidade só troca o eixo: nenhum pedido novo ao motor; sem escala logarítmica automática. A frase-resumo fala do
-        # indicador do cálculo (densidade): com a quantidade à vista e sem novo cálculo, ela sai, e volta com a densidade.
-        calls = len(painel_calls)
-        area.get_by_test_id("analise-indicador-quantidade").click()
+        # 6. Quantidade troca o eixo, sem escala logarítmica automática. Com os quintis do mapa no pedido (eles seguem o
+        # indicador), a troca pede ao motor o mesmo universo com a quantidade; o gráfico continua sem grupos. A volta à densidade
+        # vem da memória da tela, sem novo pedido. A frase-resumo é sempre a do cálculo à vista.
+        aba_analise("distribuicao")
+        quantidade, sent = ok(lambda: area.get_by_test_id("analise-indicador-quantidade").click())
+        assert sent.get("indicador") == "quantidade" and sent["base"] == universo_am, sent
+        assert sent.get("grupos_mapa") == {"tipo": "quintis"} and "grupos" not in sent, sent
         expect(eixo_y).to_have_attribute("data-eixo", "quantidade")
-        drawn(esperados(am, "quantidade"))
+        drawn(esperados(quantidade, "quantidade"))
+        confere_valores(quantidade, "quantidade")
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Quantidade de médicos")
         expect(ajustes.get_by_test_id("analise-indicador-quantidade")).to_have_attribute("aria-checked", "true")
-        expect(frase).to_be_hidden()
+        resumo_q = quantidade.get("resumo")
+        texto_q = ((resumo_q.get("texto") if isinstance(resumo_q, dict) else resumo_q) or "").strip()
+        if texto_q:
+            expect(frase).to_have_text(texto_q)
+        calls = len(painel_calls)
         area.get_by_test_id("analise-indicador-densidade").click()
         expect(eixo_y).to_have_attribute("data-eixo", "densidade")
         expect(eixo_y).to_have_attribute("data-escala", "linear")
         drawn(ids_am)
         expect(frase).to_have_text(texto_resumo.strip())
         page.wait_for_timeout(400)
-        assert len(painel_calls) == calls, "trocar o indicador não pede nada ao motor"
+        assert len(painel_calls) == calls, "a volta à densidade vem da memória da tela, sem novo pedido"
 
         # 7. Régua: "acima de" pelo teclado; aparecem só as unidades do corte, nada é recalculado.
         regua = abre("regua").get_by_test_id("analise-regua")
@@ -397,9 +496,14 @@ def main():
         if espacial_motor.get("disponivel") is False:
             assert not real, ("a base do Brasil tem as coordenadas: a análise espacial fica disponível", espacial_motor)
             calls = len(painel_calls)
-            expect(area.get_by_test_id("analise-familia-espacial")).to_have_attribute("aria-disabled", "true")
+            expect(area.get_by_test_id("analise-familia-espacial")).to_have_attribute("data-disponivel", "false")
             aperta(area.get_by_test_id("analise-familia-espacial"))
+            # A aba abre com a apresentação e o motivo do motor; o desenho continua com a análise anterior.
+            expect(area).to_have_attribute("data-aba", "espacial")
+            expect(area.get_by_test_id("analise-apresentacao")).to_have_attribute("data-aba", "espacial")
             expect(area.get_by_test_id("analise-familia-motivo")).to_contain_text(str(espacial_motor.get("motivo") or "")[:60])
+            expect(area.get_by_test_id("analise-familia-motivo")).to_contain_text("O desenho abaixo continua com a Análise de Distribuição.")
+            expect(area.get_by_test_id("analise-ajustes")).to_have_count(0)
             expect(area).to_have_attribute("data-familia", "distribuicao")
             page.wait_for_timeout(400)
             assert len(painel_calls) == calls, "a família indisponível não pede nada ao motor"
@@ -519,6 +623,33 @@ def main():
                 if classe.count():
                     expect(classe).to_have_attribute("data-contagem", str(valor))
         expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "classes")
+        # As classes explicadas na aba, e o motivo das unidades sem classificação em palavras, pelas contagens do motor, sem os
+        # códigos internos; a dica de uma bolha sem classificação diz por quê.
+        expect(area.get_by_test_id("analise-apresentacao")).to_have_attribute("data-aba", "tendencia")
+        expect(area.get_by_test_id("analise-apresentacao-classes")).to_contain_text("Aceleração do crescimento")
+        topo_tendencia = tendencia.get("tendencia") or {}
+        sem_classe = (topo_tendencia.get("contagens") or {}).get("SEM_CLASSIFICACAO") or 0
+        nota_sem = area.get_by_test_id("analise-nota-sem-classificacao")
+        if sem_classe:
+            por_motivo = topo_tendencia.get("sem_classificacao_por_motivo") or {}
+            if por_motivo.get("MUDANCA_DE_DIRECAO"):
+                expect(nota_sem).to_contain_text(re.compile(re.escape(milhar(por_motivo["MUDANCA_DE_DIRECAO"])) +
+                                                            r" (municípios|município) por mudança de direção"))
+            if por_motivo.get("SERIE_ESTAVEL"):
+                expect(nota_sem).to_contain_text(re.compile(re.escape(milhar(por_motivo["SERIE_ESTAVEL"])) +
+                                                            r" (municípios|município) por série estável"))
+            expect(nota_sem).not_to_contain_text(re.compile(r"MUDANCA_DE_DIRECAO|SERIE_ESTAVEL"))
+            sem_direcao = next((item for item in tendencia["itens"] if item["id"] in desenhadas and
+                                (item.get("tendencia") or {}).get("motivo") == "MUDANCA_DE_DIRECAO"), None)
+            if sem_direcao:
+                area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
+                area.locator('[data-testid="analise-bolha"][data-id="' + sem_direcao["id"] + '"]').hover()
+                dica = area.get_by_test_id("analise-dica")
+                expect(dica).to_contain_text("o indicador subiu em alguns trechos e caiu em outros (mudança de direção)")
+                expect(dica).not_to_contain_text("MUDANCA_DE_DIRECAO")
+                page.mouse.move(2, 2)
+        else:
+            expect(nota_sem).to_have_count(0)
         shot("07-classes")
         calls = len(painel_calls)
         area.get_by_test_id("analise-visao-mudanca").click()
@@ -560,13 +691,19 @@ def main():
         shot("09-series")
         area.get_by_test_id("analise-visao-classes").click()
 
-        # 11. Rotatividade com a base do Brasil: desabilitada, com o motivo e "Enviar meus dados". A aba é aria-disabled (continua
-        # focável para mostrar o motivo); o Playwright não clica em elemento aria-disabled, então ela é acionada pelo teclado, como
-        # a análise espacial indisponível no passo 9.
+        # 11. Rotatividade com a base do Brasil: a aba abre para a apresentação, com o motivo de não se executar e "Enviar meus
+        # dados"; o desenho continua com a tendência, e nada é pedido ao motor.
+        calls = len(painel_calls)
         aperta(area.get_by_test_id("analise-familia-rotatividade"))
+        expect(area).to_have_attribute("data-aba", "rotatividade")
+        expect(area.get_by_test_id("analise-apresentacao")).to_contain_text("A base do Brasil tem contagens de profissionais")
         expect(area.get_by_test_id("analise-familia-motivo")).to_be_visible()
+        expect(area.get_by_test_id("analise-familia-motivo")).to_contain_text("O desenho abaixo continua com a Análise de Tendência.")
         expect(area.get_by_test_id("analise-enviar-dados")).to_be_visible()
+        expect(area.get_by_test_id("analise-ajustes")).to_have_count(0)
         expect(area).to_have_attribute("data-familia", "tendencia")
+        page.wait_for_timeout(400)
+        assert len(painel_calls) == calls, "a análise que não se executa com estes dados não pede nada ao motor"
 
         # 12. Funções na distribuição: Condições, Ordenar, Comparar e Juntar, com os números do motor.
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
@@ -670,6 +807,7 @@ def main():
         # 14. Base versionada: todos os municípios do Brasil no modo leve, sem escala logarítmica automática; tabela em páginas;
         # régua que só esconde; dica no mouse.
         if real:
+            aba_selecao()
             brasil, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-territorios-todos")))
             assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
             plotaveis = [item for item in brasil["itens"] if item["densidade"] is not None]
@@ -710,10 +848,11 @@ def main():
 
         # 15. Celular (390 px): sem rolagem horizontal; as famílias em abas roláveis; as funções num botão "Ferramentas"; o painel
         # sobe da base da tela.
+        aba_analise("distribuicao")
         page.set_viewport_size({"width": 390, "height": 844})
         page.wait_for_timeout(500)
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
-        familias = area.locator('[role="tablist"][aria-label="Análises"]')
+        familias = area.get_by_role("tablist", name="Seleção de territórios e análises")
         assert familias.evaluate("e => getComputedStyle(e).overflowX") in ("auto", "scroll")
         # O painel dos ajustes ocupa a largura, logo abaixo das abas; a escolha da vista continua à vista, fora das Ferramentas.
         caixa_ajustes = area.get_by_test_id("analise-ajustes").bounding_box()
@@ -739,8 +878,10 @@ def main():
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
-    print("ÁREA DE ANÁLISE PASS: abertura, estados, territórios em lista, eixo do indicador, régua, grupos, espacial, tendência, "
-          "rotatividade, funções, exportação e celular" + (" (base versionada)." if real else " (catálogo sintético)."))
+    print("ÁREA DE ANÁLISE PASS: abertura com as cinco abas, base sem seleção automática, estados pela Seleção de Territórios, "
+          "territórios em lista, eixo do indicador, quintis do mapa no pedido, régua, grupos, espacial, tendência com as classes "
+          "explicadas, rotatividade com o motivo, funções, exportação e celular" +
+          (" (base versionada)." if real else " (catálogo sintético)."))
 
 
 if __name__ == "__main__":

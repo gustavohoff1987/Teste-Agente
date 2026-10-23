@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowLeftRight, ChartScatter, ChevronRight, Columns2, Database, Download, Filter, Layers3, ListOrdered, LoaderCircle, Map as MapaIcone,
-  Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Upload, Wrench, X } from "lucide-react";
+import { ArrowLeftRight, ChartScatter, ChevronRight, Columns2, Database, Download, FileSpreadsheet, Filter, Layers3, ListOrdered, LoaderCircle,
+  Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirMapa, pedirPainel, type FonteDoMotor, type MapaOpcoes, type Pendencia, type PainelConjuntoPedido, type PainelCriterio,
   type PainelItem, type PainelMunicipios, type PainelOpcoes, type PainelReferenciaPedido, type PainelResposta,
 } from "./painelApi";
 import {
-  ATALHOS_JANELA, CLASSES_TENDENCIA, FAMILIAS, INDICADORES, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
+  ABAS, ATALHOS_JANELA, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, NOME_SELECAO, TEXTO_SEM_SELECAO, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
   NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
   apoioDaFamilia, artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corContinuaDoMapa, corOrdinal,
   corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, escreverLimites, exibirCompetencia,
   familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade, grupoDoItem, gruposDaFonte,
   janelaDoAtalho, lerEstadoSalvo, lerLimites, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
-  chaveDoPedido, montarOpcoes, noCorte, opcoesDePintura, paletaDoGrafico, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto,
+  chaveDoPedido, montarOpcoes, noCorte, apresentacaoDaAba, notaSemClassificacao, paletaDoGrafico, precisaQuintisDoMapa, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto,
   ordemNeutra, pintar, pinturaDoMapa, prefixoDe, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula,
   textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
-  type Ajuste, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
+  type Aba, type Ajuste, type Apresentacao, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat,
   type UnidadeDoCatalogo, type Visao, type Vista,
 } from "./painelModel";
-import type { DadosDoMapa, EscolhaDePintura, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
+import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
 import PainelChart, { type FaseAnimacao, type LinhaDeReferencia } from "./PainelChart";
 import PainelSeries, { MAX_SERIES } from "./PainelSeries";
 import PainelRotatividade from "./PainelRotatividade";
@@ -32,11 +32,13 @@ import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJanela, GavetaJu
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import "./analise.css";
 
-// Área de análise da página única (22/10/2026): famílias (Distribuição, Análise espacial, Tendência, Rotatividade) em abas, com
-// os ajustes de cada análise num painel colado na aba escolhida (23/10/2026: indicador, categoria, competência e o que for da
-// família; a rotatividade não tem indicador), o título dinâmico com a frase-resumo do motor, a escolha dos territórios sempre à
-// vista, a barra de funções com a escala e a vista do desenho (Gráfico | Mapa | Lado a lado), os painéis laterais e, abaixo, os
-// Detalhes. Estados E0 (antes dos dados) a E4 (funções em uso). Todo número vem do motor (/api/painel e /api/painel/mapa, pelo
+// Área de análise da página única (22/10/2026). Numa linha de abas (23/10/2026): a Seleção de Territórios, o conjunto analisado,
+// compartilhado por todas as análises, e as quatro análises (Análise de Distribuição, Análise Espacial, Análise de Tendência e
+// Análise de Rotatividade). Cada aba abre com a apresentação do que ela faz, mesmo quando a análise não pode ser executada com os
+// dados (o motivo aparece ali); as análises mostram os ajustes delas num painel colado na aba (indicador, categoria, competência e
+// o que for da família; a rotatividade não tem indicador). A base carregada abre sem territórios escolhidos. Abaixo: o título
+// dinâmico com a frase-resumo do motor, a barra de funções com a escala e a vista do desenho (Gráfico | Mapa | Lado a lado), os
+// painéis laterais e os Detalhes. Estados E0 (antes dos dados) a E4 (funções em uso). Todo número vem do motor (/api/painel e /api/painel/mapa, pelo
 // cliente painelApi.ts); a tela só posiciona, filtra (estado visual) e desenha. Trocar de vista é estado visual e não pede nada
 // novo ao motor (RQ-REP-06): o mapa mostra a mesma análise do gráfico. A conversa age sobre o gráfico pela prop `pedido`; a
 // estrutura da página recebe o contexto (onContexto) e o estado salvo (onSalvar) e pode reabrir sem recalcular (restaurar).
@@ -60,11 +62,15 @@ export type AreaDeAnaliseProps = {
   onContexto: (contexto: ContextoDoGrafico) => void;
   onSalvar: (estado: EstadoSalvo) => void;
   onEscolherFonte: (tipo: "brasil" | "arquivo") => void;
+  /** Endereço da API, para o modelo de planilha (XLSX) entre as entradas dos dados. */
+  apiBase?: string;
+  /** "Trocar" da fonte: a escolha dos dados volta aqui, na área central, com o cancelamento. */
+  trocandoFonte?: boolean;
+  onCancelarTroca?: () => void;
 };
 
 const MAX_CACHE = 6;
-const FUNCOES: { chave: FuncaoPainel | "municipios"; rotulo: string; icone: ReactNode }[] = [
-  { chave: "municipios", rotulo: "Municípios", icone: <MapaIcone size={15} aria-hidden="true"/> },
+const FUNCOES: { chave: FuncaoPainel; rotulo: string; icone: ReactNode }[] = [
   { chave: "regua", rotulo: "Régua", icone: <Ruler size={15} aria-hidden="true"/> },
   { chave: "condicoes", rotulo: "Condições", icone: <Filter size={15} aria-hidden="true"/> },
   { chave: "ordenar", rotulo: "Ordenar", icone: <ListOrdered size={15} aria-hidden="true"/> },
@@ -104,6 +110,24 @@ function baixar(nome: string, corpo: string, tipo: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** A definição sem territórios escolhidos: a base carregada antes da seleção (nada é pedido ao motor). */
+const semSelecao = (d: DefinicaoAnalise) => d.nivel === "municipios" && baseVazia(d.base) && !d.conjuntos.length;
+/** Id do botão de cada aba (os seletores das análises continuam os de antes). */
+const idDaAba = (aba: Aba) => aba === "territorios" ? "analise-aba-territorios" : "analise-familia-" + aba;
+
+/** Apresentação da aba (23/10/2026): título e parágrafos e, na tendência, o significado de cada classe (que se pode recolher). */
+function ApresentacaoDaAba({ aba, apresentacao }: { aba: Aba; apresentacao: Apresentacao }) {
+  return <div data-testid="analise-apresentacao" data-aba={aba} className="analise-apresentacao">
+    <h3 className="analise-apresentacao-titulo">{apresentacao.titulo}</h3>
+    {apresentacao.paragrafos.map((texto, indice) => <p key={indice}>{texto}</p>)}
+    {apresentacao.itens && <details data-testid="analise-apresentacao-classes" className="analise-apresentacao-classes" open>
+      <summary>O que significa cada classe</summary>
+      <dl>{apresentacao.itens.map(item => <div key={item.termo}><dt>{item.termo}</dt><dd>{item.texto}</dd></div>)}</dl>
+    </details>}
+    {apresentacao.nota && <p className="analise-apresentacao-nota">{apresentacao.nota}</p>}
+  </div>;
+}
+
 export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const { fonte, periodos, categorias, niveis, municipios, pedido, restaurar } = props;
   const tipo = fonte?.tipo ?? null;
@@ -128,6 +152,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Referência pedida na conversa por critério: a lista de candidatos abre nessa ordem. */
   const [criterioDoChat, setCriterioDoChat] = useState<PainelCriterio | null>(null);
   const [intencao, setIntencao] = useState<Familia | null>(null);
+  /** Aba à vista: a Seleção de Territórios ou uma análise. A análise desenhada é a da definição (def.familia): a Seleção e a aba de
+   * uma análise que não pode ser executada mostram a apresentação e o motivo, e o desenho continua com a última análise. */
+  const [aba, setAba] = useState<Aba>("territorios");
   const [escala, setEscala] = useState<Escala>("linear");
   const [corte, setCorte] = useState<Corte | null>(null);
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -139,7 +166,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [filtroClasse, setFiltroClasse] = useState<string | null>(null);
   const [ferramentas, setFerramentas] = useState(false);
   const [faixasTexto, setFaixasTexto] = useState("");
-  const [motivoAberto, setMotivoAberto] = useState<Familia | null>(null);
   const [resposta, setResposta] = useState<PainelResposta | null>(null);
   const [calculado, setCalculado] = useState<{ chave: string; def: DefinicaoAnalise; familia: Familia; opcoes: PainelOpcoes } | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -149,8 +175,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Vista do desenho (estado visual da sessão, guardado no Histórico): o gráfico é a vista inicial; a escolha não se perde ao
   // trocar de aba, de território ou de competência. Sem o mapa disponível, aparece o gráfico, e a escolha fica guardada.
   const [vistaEscolhida, setVistaEscolhida] = useState<VistaDesenho>("grafico");
-  /** Cor contínua escolhida para o mapa ("Como pintar o mapa?"), também estado visual guardado no Histórico. */
-  const [corContinua, setCorContinua] = useState(false);
+  /** Cor contínua do mapa: a escolha saiu com a pergunta "Como pintar o mapa?" (23/10/2026); o estado salvo guarda false. */
+  const corContinua = false;
   const [motivoVistaAberto, setMotivoVistaAberto] = useState(false);
   /** Vista de destino desenhada invisível durante a troca animada (as posições de destino são lidas nela). */
   const [oculta, setOculta] = useState<"grafico" | "mapa" | null>(null);
@@ -232,8 +258,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       if (resultado.vista) setVistaEscolhida(resultado.vista);
       setCriterioDoChat(resultado.criterio);
       setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
-    }
+    } else setAviso((tipo === "brasil" ? "Dados do Brasil carregados." : "Planilha carregada.") + " " + TEXTO_SEM_SELECAO);
     setDef(inicial);
+    setAba(semSelecao(inicial) ? "territorios" : inicial.familia);
   }, [fonte, pronto, chaveFonte]);
   // Competência e categoria que chegam depois da fonte.
   useEffect(() => { if (pronto && !def.competencia && periodos.length) setDef(atual => ({ ...atual, competencia: maisRecente(periodos) })); }, [pronto, periodos]);
@@ -243,7 +270,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const dispAtual = disponivelDe(def.familia);
   const familiaPedida = familiaCalculada(def, dispAtual.disponivel && !dispAtual.pendente);
   const bloqueio = pronto ? bloqueioDoPedido(def, { fonte: tipo, rotulos }) : "Preparando os dados…";
-  const opcoes = useMemo(() => bloqueio ? null : montarOpcoes(def, familiaPedida, grupoDe), [def, familiaPedida, bloqueio, grupoDe]);
+  const quintisDoMapa = precisaQuintisDoMapa(def, familiaPedida, mapaDe(def).disponivel);
+  const opcoes = useMemo(() => bloqueio ? null : montarOpcoes(def, familiaPedida, grupoDe, { quintisDoMapa }),
+    [def, familiaPedida, bloqueio, grupoDe, quintisDoMapa]);
   const chave = opcoes ? chaveFonte + "::" + chaveDoPedido(opcoes) : "";
   const fonteMotor: FonteDoMotor | null = useMemo(() => fonte ? { tipo: fonte.tipo, apiBase: fonte.apiBase, datasetVersion: fonte.datasetVersion,
     sheet: fonte.sheet, mapping: fonte.mapping, arquivo: fonte.arquivo, geoVersion: fonte.geoVersion } : null, [fonte]);
@@ -266,8 +295,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!lido) { setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada."); return; }
     reiniciarVisual();
     setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
-    setVistaEscolhida(lido.visual.vista ?? "grafico"); setCorContinua(lido.visual.corContinua ?? false);
+    setVistaEscolhida(lido.visual.vista ?? "grafico");
     setDef(lido.definicao);
+    setAba(semSelecao(lido.definicao) ? "territorios" : lido.definicao.familia);
     if (lido.resposta && lido.opcoes) {
       cache.current.set(lido.chave, lido.resposta);
       setResposta(lido.resposta);
@@ -277,7 +307,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }, [restaurar, pronto, chaveFonte]);
 
   useEffect(() => {
-    if (!fonteMotor || !opcoes) { setCarregando(false); return; }
+    if (!fonteMotor || !opcoes) {
+      setCarregando(false);
+      // Sem territórios escolhidos, nada da seleção anterior fica à vista (nem gráfico, nem mapa, nem frase-resumo).
+      if (fonteMotor && pronto && semSelecao(def)) { setResposta(null); setCalculado(null); setErro(null); }
+      return;
+    }
     if (calculado?.chave === chave) { setCarregando(false); setErro(null); return; }
     const emCache = cache.current.get(chave);
     if (emCache) {
@@ -328,6 +363,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (resultado.selecao) setSelecionados(resultado.selecao);
     if (resultado.abrir) setPainel(resultado.abrir);
     setCriterioDoChat(resultado.criterio);
+    if (pedido.pedido.familia && resultado.definicao.familia === pedido.pedido.familia) setAba(pedido.pedido.familia);
+    else if (aba === "territorios" && !semSelecao(resultado.definicao) && pedido.pedido.familia) setAba(resultado.definicao.familia);
     const base = resultado.definicao.base;
     if (resultado.definicao.nivel === "municipios" && base.estados.length === 1 && !base.ids.length) setAberto(base.estados[0]);
     if (resultado.definicao.nivel === "estados") setAberto(null);
@@ -466,24 +503,32 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const mudar = (parte: Partial<DefinicaoAnalise>) => setDef(atual => ({ ...atual, ...parte }));
   const alternar = useCallback((id: string) =>
     setSelecionados(atual => atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]), []);
+  /** Toda aba abre (23/10/2026): a Seleção de Territórios, e cada análise com a apresentação dela; a que não pode ser executada
+   * com os dados mostra o motivo, e o desenho continua com a última análise. */
+  function escolherAba(proxima: Aba) {
+    if (proxima === "territorios") { setAba("territorios"); return; }
+    escolherFamilia(proxima);
+  }
   function escolherFamilia(familia: Familia) {
     const disponivel = disponivelDe(familia);
+    setAba(familia);
     if (!fonte) { setIntencao(familia); setAviso("Você escolheu " + NOMES_FAMILIAS[familia] + ". Agora escolha os dados."); return; }
-    if (!disponivel.disponivel) { setMotivoAberto(familia); setAviso(NOMES_FAMILIAS[familia] + " indisponível: " + disponivel.motivo); return; }
-    setMotivoAberto(null);
+    if (!disponivel.disponivel) { setAviso(NOMES_FAMILIAS[familia] + " indisponível com estes dados: " + disponivel.motivo); return; }
     mudar({ familia });
     setFiltroClasse(null);
-    if (familia === "espacial" && !def.referencia && def.nivel === "municipios") abrirPainel("referencia");
-    else if (familia === "tendencia" && def.janela.length < 2 && def.nivel === "municipios") abrirPainel("janela");
+    // A referência e a janela são pedidas depois da seleção: sem territórios, a aba mostra a apresentação e os ajustes.
+    const comSelecao = def.nivel === "municipios" && !semSelecao(def);
+    if (familia === "espacial" && !def.referencia && comSelecao) abrirPainel("referencia");
+    else if (familia === "tendencia" && def.janela.length < 2 && comSelecao) abrirPainel("janela");
     else if (painel === "referencia" || painel === "janela") setPainel(null);
     if (disponivel.pendente) setAviso(NOMES_FAMILIAS[familia] + ": " + disponivel.motivo);
   }
-  function teclasFamilias(event: KeyboardEvent<HTMLButtonElement>, indice: number) {
-    const proxima = event.key === "ArrowRight" ? (indice + 1) % FAMILIAS.length : event.key === "ArrowLeft" ? (indice + FAMILIAS.length - 1) % FAMILIAS.length
-      : event.key === "Home" ? 0 : event.key === "End" ? FAMILIAS.length - 1 : null;
+  function teclasAbas(event: KeyboardEvent<HTMLButtonElement>, indice: number) {
+    const proxima = event.key === "ArrowRight" ? (indice + 1) % ABAS.length : event.key === "ArrowLeft" ? (indice + ABAS.length - 1) % ABAS.length
+      : event.key === "Home" ? 0 : event.key === "End" ? ABAS.length - 1 : null;
     if (proxima === null) return;
     event.preventDefault();
-    document.getElementById("analise-familia-" + FAMILIAS[proxima])?.focus();
+    document.getElementById(idDaAba(ABAS[proxima]))?.focus();
   }
   function irParaGrupos() {
     mudar({ nivel: "estados" });
@@ -533,11 +578,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setPainel(null);
     requestAnimationFrame(() => gatilhoRef.current?.focus?.({ preventScroll: true }));
   }
+  /** Volta à Seleção de Territórios, a qualquer momento, com o foco na lista. */
   function irParaTerritorios() {
     setFerramentas(false);
-    const titulo = document.getElementById("analise-territorios-titulo");
-    titulo?.scrollIntoView({ block: "start", behavior: movimentoReduzido ? "auto" : "smooth" });
-    titulo?.focus({ preventScroll: true });
+    setAba("territorios");
+    requestAnimationFrame(() => {
+      const titulo = document.getElementById("analise-territorios-titulo");
+      titulo?.scrollIntoView({ block: "nearest", behavior: movimentoReduzido ? "auto" : "smooth" });
+      titulo?.focus({ preventScroll: true });
+    });
   }
   function juntar(rotulo: string) {
     const membros = selecao.filter(id => resposta?.itens.find(item => item.id === id)?.tipo === "municipio");
@@ -567,7 +616,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setAviso("Premissa confirmada: " + chavePendencia + " = " + valor + ".");
   }
   /** O Histórico guarda a vista e a cor do mapa escolhidas depois do cálculo (a mesma análise, sem novo pedido). */
-  function guardarVisual(parte: { vista?: VistaDesenho; corContinua?: boolean }) {
+  function guardarVisual(parte: { vista?: VistaDesenho }) {
     if (!calculado || !resposta) return;
     salvarRef.current(salvarEstado(tituloDe(calculado.def, calculado.familia, resposta).titulo, { chave: calculado.chave, familia: calculado.familia,
       opcoes: calculado.opcoes, definicao: calculado.def, visual: { escala, corte: null, selecionados, vista: vistaEscolhida, corContinua, ...parte } }, resposta));
@@ -610,22 +659,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setVistaEscolhida("mapa");
     setAviso(maiuscula(todosOs(rotulos.unidade)) + " no mapa.");
   }
-  /** "Como pintar o mapa?": quintis e faixas são pedidos ao motor (o gráfico pinta igual); a cor contínua é estado visual; as
-   * condições abrem o painel. */
-  function escolherPintura(escolha: EscolhaDePintura) {
-    if (escolha === "quintis") {
-      mudar({ agrupar: { tipo: "quintis", faixas: [] } });
-      setAviso("Quintis pedidos ao motor: o mapa e o gráfico pintam os 5 grupos.");
-    } else if (escolha === "faixas") {
-      mudar({ agrupar: { tipo: "faixas", faixas: def.agrupar.faixas } });
-      setAviso("Digite os limites das faixas em Grupos e faixas e aplique.");
-      requestAnimationFrame(() => faixasRef.current?.focus());
-    } else if (escolha === "continua") {
-      setCorContinua(true);
-      guardarVisual({ corContinua: true });
-      setAviso("Cor contínua no mapa: a cor acompanha o valor, sem classes nem limiares.");
-    } else abrirPainel("condicoes");
-  }
   function exportarCsv() {
     if (!resposta) return;
     baixar("analise_" + (resposta.competencia || "grafico") + ".csv", montarCsv(resposta, { familia: familiaDesenho, indicador, rotulos }), "text/csv;charset=utf-8");
@@ -645,8 +678,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     temGrupos: comBolhasDeGrupo, total: niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length, grupoDe }) : [];
   const avisoFamilia = pronto ? avisoDaFamilia(def, dispAtual) : null;
   const naVisaoDeGrupos = (resposta?.nivel ?? def.nivel) === "estados" && familiaDesenho === "distribuicao" && def.nivel === "estados";
-  const funcaoDesabilitada = (chaveFuncao: FuncaoPainel | "municipios"): string | null => {
-    if (!resposta && chaveFuncao !== "municipios") return "Disponível depois do primeiro gráfico.";
+  const funcaoDesabilitada = (chaveFuncao: FuncaoPainel): string | null => {
+    if (!resposta) return "Disponível depois do primeiro gráfico.";
     if (familiaDesenho === "rotatividade" && ["regua", "condicoes", "ordenar", "comparar", "juntar"].includes(chaveFuncao))
       return "A rotatividade mostra barras da coorte inicial; esta função vale para as bolhas.";
     if (chaveFuncao === "juntar" && def.nivel === "estados") {
@@ -729,13 +762,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       "fonte estadual: quem atua em mais de " + umA(unidade) + " conta uma vez. A bolha não é a soma das bolhas d" + artigo(unidade, true) + " " +
       unidade.plural + ", e os dois níveis nunca aparecem juntos."] : []),
   ];
+  const notaClasses = notaSemClassificacao(resposta?.tendencia ?? null, { rotulos, brasil: tipo === "brasil" });
   const contagemClasses = exibicao.tendencia && resposta?.tendencia ? <div data-testid="analise-contagem-classes" className="analise-contagem-classes"
     role="group" aria-label="Contagem por classe de tendência, do motor (clique para filtrar)">
     {CLASSES_TENDENCIA.map(classe => {
       const n = resposta.tendencia!.contagens[classe.codigo];
       if (n === undefined) return null;
       return <button key={classe.codigo} type="button" data-testid="analise-contagem-classe" data-classe={classe.codigo} data-contagem={n}
-        aria-pressed={filtroClasse === classe.codigo} className="analise-contagem" onClick={() => setFiltroClasse(atual => atual === classe.codigo ? null : classe.codigo)}>
+        aria-pressed={filtroClasse === classe.codigo} title={DESCRICAO_DAS_CLASSES[classe.codigo]} className="analise-contagem"
+        onClick={() => setFiltroClasse(atual => atual === classe.codigo ? null : classe.codigo)}>
         <span className="analise-amostra-bolha" style={{ background: paleta.tendencia[classe.familia] }} aria-hidden="true"/>
         {classe.rotulo} <strong className="tabular-nums text-ink">{formatarNumero(n, true)}</strong></button>;
     })}
@@ -746,6 +781,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         <span className="analise-amostra-bolha" style={amostraVazada} aria-hidden="true"/>
         Não avaliável <strong className="tabular-nums text-ink">{formatarNumero((resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL) as number, true)}</strong></button>}
     {resposta.tendencia.bloqueio && <p className="w-full text-xs text-amber-900">{resposta.tendencia.bloqueio}</p>}
+    {notaClasses && <p data-testid="analise-nota-sem-classificacao" className="analise-nota-classes">{notaClasses}</p>}
   </div> : null;
 
   const itensSeries = useMemo(() => {
@@ -765,8 +801,25 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     [rotatividadeNaTela, indicador, resposta]);
   const tamanhoNoMapa = useMemo(() => tamanhoDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
     [rotatividadeNaTela, indicador, resposta]);
-  const pinturaMapa = pinturaDoMapa({ camada: camadaFinal, rotatividade: rotatividadeNaTela, corContinua });
-  const opcoesPintura = useMemo(() => opcoesDePintura(familiaDesenho), [familiaDesenho]);
+  const pinturaMapa = pinturaDoMapa({ camada: camadaFinal, rotatividade: rotatividadeNaTela, gruposDoMapa: !!resposta?.gruposMapa });
+  // Os quintis do mapa (grupos_mapa, do motor): a cor de cada ponto pelo grupo dele e a legenda com os rótulos e as contagens.
+  const totalGruposMapa = resposta?.gruposMapa ? ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[resposta.gruposMapa.tipo] ??
+    resposta.gruposMapa.contagens.length : 0;
+  const pinturaNoMapa = useMemo(() => {
+    if (pinturaMapa !== "quintis") return pintura;
+    return (item: PainelItem) => item.grupoMapa ? { cor: corOrdinal(item.grupoMapa.indice, totalGruposMapa, paleta) ?? paleta.bolha, vazada: false, apagada: false }
+      : { cor: paleta.vazia, vazada: true, apagada: false };
+  }, [pinturaMapa, pintura, totalGruposMapa, paleta]);
+  const legendaDosQuintis = pinturaMapa === "quintis" && resposta?.gruposMapa ? <ul className="flex flex-col gap-1" aria-label="Legenda dos quintis do mapa">
+    {Array.from({ length: totalGruposMapa }, (_, i) => {
+      const contagem = resposta.gruposMapa!.contagens[i];
+      return <li key={i} data-testid="mapa-quintil" data-chave={i + 1} data-contagem={contagem ?? ""} className="flex items-center gap-1.5">
+        <span className="analise-amostra-bolha" style={{ background: corOrdinal(i + 1, totalGruposMapa, paleta) ?? paleta.bolha }} aria-hidden="true"/>
+        <span>{resposta.gruposMapa!.rotulos[i] || (i + 1) + "º grupo"}{contagem !== undefined
+          ? <> · <strong className="tabular-nums text-ink">{formatarNumero(contagem, true)}</strong></> : ""}</span>
+      </li>;
+    })}
+  </ul> : null;
   const referenciasDoMapa = useMemo(() => distanciaNaTela ? (resposta?.referencia?.membros ?? []).map(membro => membro.id).filter(Boolean) : [],
     [distanciaNaTela, resposta]);
   const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, selecao) : [], [distanciaNaTela, resposta, selecao]);
@@ -775,43 +828,55 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo }),
   [indicador, resposta, distanciaNaTela, cometa, nomes, limiares, rotulos, unidadesDoGrupo]);
   // A escala muda só o desenho ("como ver"): fica na barra junto da vista, só quando se aplica (no gráfico, fora da rotatividade
-  // e de Séries; no mapa, só com a cor contínua). Linear por padrão; a logarítmica só por escolha e com valores positivos.
+  // e de Séries). Linear por padrão; a logarítmica só por escolha e com valores positivos. O mapa não tem escala própria: a cor
+  // contínua da rotatividade vai de 0 a 100%.
   const escalaNoGrafico = (vistaExibida === "grafico" || lado) && !rotatividadeNaTela && !series;
-  const escalaNoMapa = mapaNaTela && pinturaMapa === "continua";
-  const dominioDaEscala = escalaNoGrafico ? dominio : corDoMapa.dominio;
-  const logPossivel = !!dominioDaEscala && dominioDaEscala[0] > 0;
+  const logPossivel = !!dominio && dominio[0] > 0;
   const propsDoMapa: MapaProps | null = resposta && dadosAtuais ? {
-    itens: itensDoMapa, dentro: dentroDoMapa, dados: dadosAtuais, indicador, pintura: pinturaMapa, pintar: pintura,
-    valorContinuo: corDoMapa.valor, rotuloContinuo: corDoMapa.rotulo, dominio: corDoMapa.dominio, escala: logPossivel ? escala : "linear",
-    tamanho: tamanhoNoMapa, contextoBrasil: rotatividadeNaTela ? null : contextoBrasil, legendaCor: legendaDoMapa, opcoesDePintura: opcoesPintura,
-    onEscolherPintura: escolherPintura, selecionados: selecao, referencias: referenciasDoMapa, ligacoes, extraDoRotulo, dicaDe, rotulos,
+    itens: itensDoMapa, dentro: dentroDoMapa, dados: dadosAtuais, indicador, pintura: pinturaMapa, pintar: pinturaNoMapa,
+    valorContinuo: corDoMapa.valor, rotuloContinuo: corDoMapa.rotulo, dominio: corDoMapa.dominio, escala: "linear",
+    tamanho: tamanhoNoMapa, contextoBrasil: rotatividadeNaTela ? null : contextoBrasil,
+    legendaCor: pinturaMapa === "quintis" ? legendaDosQuintis : legendaDoMapa, selecionados: selecao, referencias: referenciasDoMapa, ligacoes, extraDoRotulo, dicaDe, rotulos,
+    brasil: tipo === "brasil",
     ativoExterno: lado ? ativoCruzado : null, onAtivo: lado ? setAtivoCruzado : undefined, onAlternar: alternar,
     carregando: carregando || carregandoMapa || !dadosConferem,
   } : null;
   const convite = !!resposta && vistaExibida === "grafico" && mapa.disponivel && (exibicao.condicoes || distanciaNaTela);
   const montarMapa = mapa.disponivel && (mapaNaTela || mapaMontado);
 
-  // Antes do desenho: a abertura (E0), o preparo, a escolha das unidades e o primeiro pedido. Valem para as duas vistas.
+  /** As três entradas dos dados (23/10/2026), as mesmas da conversa: na abertura (E0) e no "Trocar" da fonte, com o cancelamento. */
+  const entradasDosDados = (troca: boolean) => <div data-testid={troca ? "analise-troca-fonte" : "analise-abertura"}
+    className={"analise-abertura" + (troca ? " analise-abertura-troca analise-nao-imprimir" : "")}>
+    <p className="analise-abertura-titulo">{troca ? "Trocar os dados" : "Escolha os dados para começar"}</p>
+    <p className="analise-abertura-texto">{troca
+      ? "Escolha a nova fonte. A análise atual continua à vista até a nova fonte ficar pronta."
+      : "Comece com os dados do Brasil, já preparados, ou envie a sua planilha (CSV ou Excel). O modelo de planilha (XLSX) mostra a " +
+        "estrutura recomendada para organizar os seus dados. O aceite de privacidade vem antes."}</p>
+    <div className="flex flex-wrap justify-center gap-2">
+      <button type="button" data-testid="analise-fonte-brasil" className="analise-botao-primario" onClick={() => props.onEscolherFonte("brasil")}>
+        <Database size={16} aria-hidden="true"/>Dados do Brasil</button>
+      <button type="button" data-testid="analise-fonte-arquivo" className="analise-botao-secundario" onClick={() => props.onEscolherFonte("arquivo")}>
+        <Upload size={16} aria-hidden="true"/>Enviar meus dados</button>
+      <a href={(props.apiBase ?? "") + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx"
+        data-testid="analise-fonte-modelo" className="analise-botao-secundario"><FileSpreadsheet size={16} aria-hidden="true"/>Modelo de planilha XLSX</a>
+      {troca && props.onCancelarTroca && <button type="button" data-testid="analise-troca-cancelar" className="analise-botao-secundario"
+        onClick={props.onCancelarTroca}><X size={15} aria-hidden="true"/>Cancelar</button>}
+    </div>
+    {!troca && intencao && <p data-testid="analise-intencao" role="status" className="text-sm text-teal">Você escolheu {NOMES_FAMILIAS[intencao]}. Agora escolha os dados.</p>}
+  </div>;
+
+  // Antes do desenho: a abertura (E0), o preparo, a base carregada sem seleção e o primeiro pedido. Valem para as duas vistas.
   const antesDoDesenho = (() => {
-    if (!fonte) return <div data-testid="analise-abertura" className="analise-abertura">
-      <p className="analise-abertura-titulo">Escolha os dados para começar</p>
-      <p className="max-w-md text-sm leading-6 text-slate-600">Comece com os dados do Brasil, com os estados e municípios já preparados, ou envie a sua
-        planilha. O aceite de privacidade vem antes.</p>
-      <div className="flex flex-wrap justify-center gap-2">
-        <button type="button" data-testid="analise-fonte-brasil" className="analise-botao-primario" onClick={() => props.onEscolherFonte("brasil")}>
-          <Database size={16} aria-hidden="true"/>Dados do Brasil</button>
-        <button type="button" data-testid="analise-fonte-arquivo" className="analise-botao-secundario" onClick={() => props.onEscolherFonte("arquivo")}>
-          <Upload size={16} aria-hidden="true"/>Enviar meus dados</button>
-      </div>
-      {intencao && <p data-testid="analise-intencao" role="status" className="text-sm text-teal">Você escolheu {NOMES_FAMILIAS[intencao]}. Agora escolha os dados.</p>}
-    </div>;
+    if (!fonte) return entradasDosDados(false);
     if (!pronto) return <p data-testid="analise-preparando" role="status" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>
       Preparando os dados…</p>;
     if (semUnidades) return <div data-testid="analise-vazio" className="analise-vazio">
-      <p className="font-semibold text-ink">{bloqueio}</p>
-      <p className="text-xs text-slate-600">Na lista de territórios, {grupos.length ? "abra " + umA(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) + " ou " : ""}
-        marque {unidade.plural}. Procurar pelo nome é opcional.</p>
-      <button type="button" className="analise-botao-secundario" onClick={irParaTerritorios}>Ir para a lista de territórios</button>
+      <p className="font-semibold text-ink">{tipo === "brasil" ? "Os dados do Brasil foram carregados e estão prontos para a análise."
+        : "A planilha foi carregada e está pronta para a análise."}</p>
+      <p className="max-w-lg text-sm leading-6 text-slate-600">{TEXTO_SEM_SELECAO} Os resultados aparecem aqui assim que você escolher; nada é
+        calculado antes disso.</p>
+      {aba !== "territorios" && <button type="button" data-testid="analise-ir-selecao" className="analise-botao-secundario" onClick={irParaTerritorios}>
+        <MapaIcone size={15} aria-hidden="true"/>Abrir a Seleção de Territórios</button>}
     </div>;
     if (!resposta) return <p role="status" data-testid="analise-carregando" className="analise-vazio">{!erro && <><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>
       Pedindo os valores ao motor…</>}</p>;
@@ -999,40 +1064,68 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     }
   };
 
-  const motivoFamilia = motivoAberto ? disponivelDe(motivoAberto) : null;
   const vistasNaBarra = VISTAS.filter(item => item.chave !== "lado" || largo);
+  // A aba de uma análise que não pode ser executada com estes dados: a apresentação e o motivo, sem os ajustes.
+  const dispDaAba = aba !== "territorios" ? disponivelDe(aba) : null;
+  const motivoDaAba = fonte && dispDaAba && !dispDaAba.disponivel ? dispDaAba : null;
+  const resumoDaSelecao = !fonte ? "Escolha os dados primeiro" : !pronto ? "Preparando os dados…"
+    : semUnidades ? "Nenhum território selecionado" : trilha.at(-1)?.rotulo ?? "";
 
   return <section id="area-de-analise" data-testid="area-de-analise" data-estado={estadoTela} data-familia={def.familia} data-nivel={def.nivel}
-    data-desenho={vistaExibida} aria-labelledby="analise-titulo" className="analise">
-    {/* Famílias: abas (roláveis no celular), com os ajustes da escolhida num painel colado nela. Clicar antes dos dados registra
-        a intenção. */}
-    <div className={"analise-familias-bloco" + (pronto ? " analise-com-ajustes" : "")}>
-      <div role="tablist" aria-label="Análises" className="analise-familias analise-nao-imprimir">
-        {FAMILIAS.map((familia, indice) => {
-          const disponivel = disponivelDe(familia);
-          const ativa = (fonte ? def.familia : intencao ?? "distribuicao") === familia;
-          return <button key={familia} id={"analise-familia-" + familia} type="button" role="tab" data-testid={"analise-familia-" + familia}
-            aria-selected={ativa} aria-disabled={!disponivel.disponivel || undefined} aria-controls={pronto ? "analise-ajustes" : "analise-centro"}
+    data-desenho={vistaExibida} data-aba={aba} aria-labelledby="analise-titulo" className="analise">
+    {fonte && props.trocandoFonte && entradasDosDados(true)}
+    {/* Abas numa linha (roláveis no celular): a Seleção de Territórios e as quatro análises, todas abríveis. O painel da aba escolhida,
+        colado nela, começa pela apresentação; nas análises, vêm o motivo (quando não pode ser executada) e os ajustes. */}
+    <div className="analise-familias-bloco analise-com-ajustes">
+      <div role="tablist" aria-label="Seleção de territórios e análises" className="analise-familias analise-nao-imprimir">
+        {ABAS.map((item, indice) => {
+          const ativa = aba === item;
+          if (item === "territorios") return <button key={item} id={idDaAba(item)} type="button" role="tab" data-testid="analise-aba-territorios"
+            aria-selected={ativa} aria-controls="analise-aba-painel" tabIndex={ativa ? 0 : -1} className="analise-familia analise-aba-selecao"
+            onClick={() => escolherAba(item)} onKeyDown={event => teclasAbas(event, indice)}>
+            <span className="analise-familia-nome">{NOME_SELECAO}</span>
+            <span data-testid="analise-aba-territorios-resumo" className="analise-familia-apoio">{resumoDaSelecao}</span>
+          </button>;
+          const disponivel = disponivelDe(item);
+          return <button key={item} id={idDaAba(item)} type="button" role="tab" data-testid={"analise-familia-" + item}
+            data-disponivel={disponivel.disponivel ? "true" : "false"} aria-selected={ativa} aria-controls="analise-aba-painel"
             tabIndex={ativa ? 0 : -1} title={!disponivel.disponivel ? disponivel.motivo : undefined}
             className={"analise-familia" + (!disponivel.disponivel ? " analise-familia-indisponivel" : "")}
-            onClick={() => escolherFamilia(familia)} onKeyDown={event => teclasFamilias(event, indice)}>
-            <span className="analise-familia-nome">{NOMES_FAMILIAS[familia]}</span>
+            onClick={() => escolherAba(item)} onKeyDown={event => teclasAbas(event, indice)}>
+            <span className="analise-familia-nome">{NOMES_FAMILIAS[item]}</span>
             <span className="analise-familia-apoio">{!disponivel.disponivel ? (disponivel.enviarDados ? "Só com dados enviados" : "Indisponível nesta fonte")
-              : apoioDaFamilia(familia, rotulos)}</span>
+              : apoioDaFamilia(item, rotulos)}</span>
           </button>;
         })}
       </div>
-      {pronto && <div role="tabpanel" id="analise-ajustes" data-testid="analise-ajustes" data-familia={def.familia}
-        aria-labelledby={"analise-familia-" + def.familia} className="analise-ajustes analise-nao-imprimir">
-        {ajustes.map(ajuste)}
-      </div>}
+      <div role="tabpanel" id="analise-aba-painel" data-testid="analise-aba-painel" data-aba={aba} aria-labelledby={idDaAba(aba)}
+        className="analise-aba-painel analise-nao-imprimir">
+        <ApresentacaoDaAba aba={aba} apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0,
+          semDados: !fonte })}/>
+        {aba === "territorios"
+          ? pronto ? <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} comBolhasDeGrupo={comBolhasDeGrupo}
+            unidades={municipios} total={niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length} nivel={def.nivel}
+            base={def.base} aberto={aberto} desabilitado={false} onGrupos={irParaGrupos} onTodas={todasAsUnidades} onVer={verGrupo}
+            onFechar={() => setAberto(null)} onBase={mudarBase}/>
+            : <p className="analise-aba-espera">{fonte ? "Preparando os dados…" : "Escolha os dados para começar: a lista de territórios aparece aqui."}</p>
+          : <>
+            {motivoDaAba && <p data-testid="analise-familia-motivo" role="status" className="analise-motivo">
+              <strong className="text-ink">Indisponível com estes dados:</strong> {motivoDaAba.motivo}
+              {motivoDaAba.enviarDados && <button type="button" data-testid="analise-enviar-dados" className="analise-botao-secundario ml-2"
+                onClick={() => props.onEscolherFonte("arquivo")}><Upload size={14} aria-hidden="true"/>Enviar meus dados</button>}
+              {pronto && <span className="analise-motivo-desenho">O desenho abaixo continua com a {NOMES_FAMILIAS[def.familia]}.</span>}
+            </p>}
+            {pronto && !motivoDaAba && <div data-testid="analise-ajustes" data-familia={def.familia} className="analise-ajustes">
+              {ajustes.map(ajuste)}
+            </div>}
+            {pronto && <p data-testid="analise-selecao-resumo" className="analise-selecao-resumo">
+              <MapaIcone size={14} aria-hidden="true"/><span><strong className="text-ink">Territórios:</strong> {resumoDaSelecao}</span>
+              <button type="button" data-testid="analise-selecao-alterar" className="analise-link" onClick={irParaTerritorios}>
+                {semUnidades ? "Selecionar os territórios" : "Alterar a seleção"}</button>
+            </p>}
+          </>}
+      </div>
     </div>
-    {motivoFamilia && !motivoFamilia.disponivel && <p data-testid="analise-familia-motivo" role="status" className="analise-motivo">
-      <strong className="text-ink">{NOMES_FAMILIAS[motivoAberto!]}:</strong> {motivoFamilia.motivo}
-      {motivoFamilia.enviarDados && <button type="button" data-testid="analise-enviar-dados" className="analise-botao-secundario ml-2"
-        onClick={() => props.onEscolherFonte("arquivo")}><Upload size={14} aria-hidden="true"/>Enviar meus dados</button>}
-      <button type="button" className="analise-icone ml-1" aria-label="Fechar o motivo" onClick={() => setMotivoAberto(null)}><X size={14} aria-hidden="true"/></button>
-    </p>}
 
     <header className="analise-cabecalho">
       {trilha.length > 0 && <nav aria-label="Onde estou" data-testid="analise-trilha" className="analise-trilha analise-nao-imprimir">
@@ -1050,12 +1143,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     </header>
 
     <div className={"analise-corpo" + (!fonte ? " analise-corpo-abertura" : "") + (painel ? " analise-corpo-com-painel" : "") + (lado ? " analise-corpo-lado" : "")}>
-      {pronto && <div className="analise-coluna-territorios analise-nao-imprimir">
-        <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} comBolhasDeGrupo={comBolhasDeGrupo} unidades={municipios}
-          total={niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length} nivel={def.nivel} base={def.base} aberto={aberto}
-          desabilitado={false} onGrupos={irParaGrupos} onTodas={todasAsUnidades} onVer={verGrupo} onFechar={() => setAberto(null)} onBase={mudarBase}/>
-      </div>}
-
       <div id="analise-centro" className="analise-centro">
         {fonte && pronto && <div className="analise-funcoes analise-nao-imprimir">
           <div className="analise-funcoes-linha">
@@ -1064,17 +1151,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <div id="analise-funcoes-lista" role="toolbar" aria-label="Funções" className={"analise-funcoes-lista" + (ferramentas ? " analise-funcoes-abertas" : "")}>
               {FUNCOES.map(funcao => {
                 const motivo = funcaoDesabilitada(funcao.chave);
-                const rotulo = funcao.chave === "municipios" ? "Territórios" : funcao.rotulo;
                 return <button key={funcao.chave} type="button" data-testid={"analise-funcao-" + funcao.chave} disabled={!!motivo} title={motivo ?? undefined}
-                  aria-expanded={funcao.chave === "municipios" ? undefined : painel === funcao.chave} aria-controls={funcao.chave === "municipios" ? undefined : "analise-painel"}
-                  className="analise-funcao" onClick={() => funcao.chave === "municipios" ? irParaTerritorios()
-                    : painel === funcao.chave ? fecharPainel() : abrirPainel(funcao.chave as FuncaoPainel)}>
-                  {funcao.icone}{rotulo}{funcao.chave === "comparar" && selecao.length ? " (" + selecao.length + ")" : ""}</button>;
+                  aria-expanded={painel === funcao.chave} aria-controls="analise-painel" className="analise-funcao"
+                  onClick={() => painel === funcao.chave ? fecharPainel() : abrirPainel(funcao.chave)}>
+                  {funcao.icone}{funcao.rotulo}{funcao.chave === "comparar" && selecao.length ? " (" + selecao.length + ")" : ""}</button>;
               })}
             </div>
             {/* Junto do desenho: a escala (só quando se aplica) e a vista (Gráfico | Mapa | Lado a lado), sempre à vista. */}
             <div data-testid="analise-barra-desenho" className="analise-barra-desenho">
-              {(escalaNoGrafico || escalaNoMapa) && <label className="analise-escala">Escala
+              {escalaNoGrafico && <label className="analise-escala">Escala
                 <select data-testid="analise-escala" value={logPossivel ? escala : "linear"} onChange={event => setEscala(event.target.value as Escala)} className="analise-campo">
                   <option value="linear">Linear (a partir do zero)</option>
                   <option value="logaritmica" disabled={!logPossivel}>Logarítmica{logPossivel ? "" : " (exige valores positivos)"}</option>
@@ -1117,7 +1202,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
                 <RefreshCw size={13} aria-hidden="true"/>Tentar novamente</button>
             </div>
           </div>}
-          {avisoFamilia && fonte && <p data-testid="analise-aviso-familia" role="status" className="analise-aviso-familia">
+          {avisoFamilia && fonte && !semUnidades && <p data-testid="analise-aviso-familia" role="status" className="analise-aviso-familia">
             <SlidersHorizontal size={14} aria-hidden="true"/>{avisoFamilia}</p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">
             <Scale size={14} aria-hidden="true"/>{textoInstrucaoGrupos(rotulos)}</p>}

@@ -7,6 +7,7 @@ import BrandAvatar from "./BrandAvatar";
 import ColunasDaPlanilha from "./ColunasDaPlanilha";
 import HistoricoDeAnalises from "./HistoricoDeAnalises";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
+import WelcomeHero from "./WelcomeHero";
 import WorkspaceDialog from "./WorkspaceDialog";
 import { endSession, sessionFetch as fetch, trackSession, updateContextRevision } from "./conversationSession";
 import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, disponibilidadeDaPlanilha, escolhasIniciais,
@@ -16,10 +17,11 @@ import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, 
 import type { Levels } from "./territorialScope";
 import type { Territory } from "./TerritorialSelection";
 
-// Página única de análise (22/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do agente, a navegação (Nova
-// sessão, Nova análise e Histórico) e a fonte dos dados ("Dados do Brasil" ou "Enviar meus dados", com o resumo da fonte e
-// "Trocar"). Abaixo, a área de análise (AreaDeAnalise), que desenha o gráfico com os valores do motor; ao lado, sempre, a
-// conversa na caixa flutuante. As telas clássicas (catálogo de análises, preparação, resultados em abas, mapa, investigação e
+// Página única de análise (22/10/2026; reorganizada em 23/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do
+// agente e o banner de apresentação; abaixo dele, à esquerda, a navegação (Nova sessão, Nova análise e Histórico) e o resumo da
+// fonte em uso, com "Trocar". As entradas dos dados (Dados do Brasil, Enviar meus dados e o modelo de planilha XLSX) ficam na
+// área central e na conversa, com as mesmas ações. Abaixo, a área de análise (AreaDeAnalise), que desenha o gráfico com os
+// valores do motor; ao lado, sempre, a conversa na caixa flutuante. As telas clássicas (catálogo de análises, preparação, resultados em abas, mapa, investigação e
 // diagnósticos compostos) saíram do produto. O motor (/api/analyze e as capacidades) continua.
 
 const API = import.meta.env.VITE_API_BASE_URL || "";
@@ -378,6 +380,9 @@ function App() {
           <BrandAvatar size={40}/>
           <span className="min-w-0"><strong>Agente Diagnóstico Territorial</strong><small>da Força de Trabalho na Saúde</small></span>
         </a>
+      </div>
+      <WelcomeHero/>
+      <div className="pagina-acoes">
         <nav aria-label="Navegação principal" data-testid="main-navigation" className="main-navigation no-print">
           <button type="button" data-testid="nav-new-session" onClick={() => { setErroDaSessao(""); setConfirmarSessao(true); }}>
             <RefreshCw size={18} aria-hidden="true"/>Nova sessão</button>
@@ -390,7 +395,7 @@ function App() {
         escolhendo={escolhendo} catalogo={ativa?.catalogo ?? null} apiBase={API}
         preparo={preparo ? { tipo: preparo.tipo, nome: preparo.arquivo?.name || "", lendo: preparo.lendo, erro: preparo.erro,
           abas: preparo.inspecao?.requires_sheet ? preparo.inspecao.sheets : null, aba: preparo.aba, colunas: !!colunasEmPreparo } : null}
-        onBrasil={() => void escolherBrasil()} onArquivo={abrirArquivo} onTrocar={() => setEscolhendo(true)}
+        onTrocar={() => setEscolhendo(true)}
         onCancelar={cancelarPreparo} onAba={escolherAba} onColunas={ativa?.planilha && !preparo ? reabrirColunas : undefined}>
         {colunasEmPreparo?.escolhas && colunasEmPreparo.inspecao && <ColunasDaPlanilha colunas={colunasEmPreparo.inspecao.columns}
           sugestoes={sugestoes} escolhas={colunasEmPreparo.escolhas}
@@ -408,7 +413,8 @@ function App() {
       <AreaDeAnalise key={"area-" + montagem.n} fonte={ativa?.dados ?? null} periodos={ativa?.periodos ?? VAZIO}
         categorias={ativa?.categorias ?? VAZIO} categoria={ativa?.categoria ?? ""} niveis={ativa?.niveis}
         municipios={ativa?.municipios ?? SEM_MUNICIPIOS} pedido={pedido} restaurar={montagem.restaurar}
-        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte}/>
+        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte} apiBase={API}
+        trocandoFonte={escolhendo && !!ativa && !preparo} onCancelarTroca={() => setEscolhendo(false)}/>
     </main>
     <AnalysisAssistant apiBase={API} privacyAccepted={privacy.accepted}
       fonteEscolhida={ativa?.dados.tipo ?? preparo?.tipo ?? null} fonte={ativa?.conversa ?? null} fonteChave={ativa?.chave ?? ""}

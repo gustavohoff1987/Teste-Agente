@@ -7,8 +7,7 @@ desenha o que o motor devolveu; nada é calculado na tela.
 
 Código:
 
-- `frontend/src/MapaAnalise.tsx`: o mapa (canvas), a dica, a pergunta "Como pintar o mapa?", as legendas, a busca e o mapinha
-  do canto;
+- `frontend/src/MapaAnalise.tsx`: o mapa (canvas), a dica, as legendas (com a dos quintis), a busca e o mapinha do canto;
 - `frontend/src/mapaModel.ts`: modelo puro do desenho (projeção, enquadramento, tamanho, cor, marcas da legenda, nomes, alvo do
   clique, ligações, mapinha e transição). Não importa nenhum outro módulo em tempo de execução, para os testes em Node;
 - `frontend/src/MiniMapa.tsx`: o mapinha (SVG);
@@ -34,9 +33,9 @@ distância**: a posição serve só para o desenho. As distâncias da análise e
   itens={PainelItem[]}            // os mesmos itens desenháveis do gráfico; estados não chegam ao mapa
   dentro={Set<string>}             // ids dentro da régua e dos filtros; os demais esmaecem
   dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada }}   // do motor (POST /api/painel/mapa)
-  indicador pintura={"camada" | "continua" | "pergunta"} pintar valorContinuo rotuloContinuo dominio escala
+  indicador pintura={"camada" | "quintis" | "continua"} pintar valorContinuo rotuloContinuo dominio escala
   tamanho={{ valor, rotulo, maximo }} contextoBrasil legendaCor
-  opcoesDePintura onEscolherPintura selecionados referencias ligacoes extraDoRotulo dicaDe rotulos
+  selecionados referencias ligacoes extraDoRotulo dicaDe rotulos brasil
   ativoExterno onAtivo onAlternar carregando/>
 ```
 
@@ -47,11 +46,11 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 
 | Codificação | O que mostra |
 |---|---|
-| Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência. A nota `mapa-nota` diz isso e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
+| Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência. A nota `mapa-nota` diz isso pela fonte em uso ("Cada ponto é a sede do município (IBGE) na base do Brasil." ou "Cada ponto é a coordenada do distrito informada na planilha.", com os rótulos da planilha) e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
 | Tamanho | Área proporcional ao valor de tamanho que a área escolhe (população na densidade, quantidade na quantidade). Raio máximo de 16 px, menor que o do gráfico, e mínimo visível de 2,5 px; os maiores ficam atrás e os menores na frente, com um anel fino da cor da superfície separando os sobrepostos. A legenda `mapa-legenda-tamanho` mostra três valores redondos com o mesmo raio do desenho. O tamanho não muda com o zoom: a legenda vale sempre. |
 | Cor, pintura "camada" | A mesma pintura do gráfico (grupos, faixas, condições, ordenação, classes ou variação), pela função `pintar` da área, com a mesma legenda (`legendaCor`). Valor não avaliável: anel tracejado cinza sobre a superfície, nunca preenchido como zero. Pintura apagada (não atende, fora dos primeiros): mais clara. |
-| Cor, pintura "continua" | Rampa sequencial de um tom (azul, do claro ao escuro) entre o mínimo e o máximo do domínio do motor. Linear por padrão; logarítmica só quando a pessoa a escolhe e o domínio é todo positivo. A legenda (`mapa-legenda`, `data-tipo="continua"`) traz o mínimo e o máximo, marcas de leitura (não são limites de classe), a marca do Brasil e o aviso "A cor não é classe nem limiar". |
-| Cor, pintura "pergunta" | A análise ainda não tem cor escolhida: pontos na cor única do gráfico, que não codifica nada, e o cartão "Como pintar o mapa?" (abaixo). |
+| Cor, pintura "quintis" | Sem cor própria da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), os 5 grupos iguais (quintis) do indicador que o motor devolve junto com a análise (`grupos_mapa` no topo e `grupo_mapa` em cada item; CAP-DIS-02), na rampa ordinal dos grupos do gráfico. A legenda (`mapa-legenda`, `data-tipo="quintis"`) diz "Cores do mapa: 5 grupos iguais (quintis) …, calculados pelo motor" e lista cada grupo com o rótulo e a contagem do motor (`mapa-quintil`). Sem grupo (sem valor do indicador): anel tracejado. Sem os grupos na resposta, a cor única do gráfico. |
+| Cor, pintura "continua" | Só na rotatividade: a permanência da coorte inicial, de 0 a 100%, numa rampa sequencial de um tom (azul, do claro ao escuro), linear. A legenda (`mapa-legenda`, `data-tipo="continua"`) traz o mínimo e o máximo, marcas de leitura (não são limites de classe) e o aviso "A cor não é classe nem limiar". |
 | Valor do Brasil | Só uma marca tracejada na legenda contínua, com o texto "referência de contexto; não classifica". O mapa não pinta ninguém "acima" ou "abaixo" do Brasil. |
 | Esmaecido | Item fora da régua ou dos filtros visuais: no mesmo lugar e no mesmo tamanho, bem claro e sem interação. Nunca some. |
 | Fundo | As demais unidades da fonte (os demais municípios do Brasil), em quadradinhos cinza bem claros, sem interação: dão o formato do território. |
@@ -63,16 +62,20 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 
 ## Decisões de 23/10/2026
 
-1. **Pintura na primeira abertura:** sem cor escolhida, o mapa pergunta "Como pintar o mapa?", com um botão por opção da
-   análise (`opcoesDePintura`): "5 grupos iguais (quintis)" (5 grupos com o mesmo número de municípios, calculados pelo motor),
-   "Faixas" (limites que você define), "Cor contínua" (a maioria pode ficar parecida) e "Condições" (separa quem atende). A
-   primeira é a recomendada. O cartão pode ser recolhido (estado visual); a escolha vai para a área (`onEscolherPintura`).
+1. **Pintura sem pergunta** (pedido do responsável, 23/10/2026, no lugar da pergunta "Como pintar o mapa?", que oferecia
+   quintis, faixas, cor contínua ou condições): sem cor própria da análise, o mapa pinta os 5 grupos iguais (quintis) do motor,
+   pelo método existente (CAP-DIS-02), com a legenda. Os quintis vêm com a análise, no mesmo pedido (`grupos_mapa`), para a
+   troca de vista continuar sem pedir cálculo (RQ-REP-06). Os grupos e as faixas escolhidos na Análise de Distribuição, as
+   condições, a ordenação e as classes da tendência continuam pintando o mapa como o gráfico.
 2. **Régua no mapa:** esmaece o que fica fora, em vez de esconder.
-3. **Escala da cor:** linear por padrão; a logarítmica nunca entra sozinha (Parte 13: mudança automática de escala é proibida).
-   O mapa antigo usava a logarítmica por padrão desde 19/10/2026; isso não volta.
+3. **Escala da cor:** a cor contínua ficou só na rotatividade (0 a 100%), linear; o mapa não tem escala própria. A logarítmica
+   nunca entra sozinha (Parte 13: mudança automática de escala é proibida).
 4. **Faixas de distância** não viram cor no mapa: a RQ-REP-02 não lista CAP-ESP-03 entre as classes que podem colorir. Elas
    continuam como linhas no gráfico e na tabela.
-5. **Enquadramento inicial** nos pontos dos itens, não no país inteiro, com folga; "Ver tudo" volta a ele.
+5. **Enquadramento inicial com contexto** (23/10/2026): o retângulo dos pontos da análise ganha uma margem de 25% do vão de
+   cada lado e não fica menor que um quarto da extensão de todos os pontos da fonte (o desenho do país ou da planilha, ao
+   fundo), nem maior que ela. O mapa abre com a geografia reconhecível em volta dos pontos, adaptado à seleção e sem escala fixa
+   do Brasil; com todos os pontos escolhidos, é a vista da fonte inteira. "Ver tudo" volta a ele, e o zoom continua livre.
 
 ## Navegação
 
@@ -90,7 +93,7 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 - **A vista volta como foi deixada:** o zoom e o deslocamento ficam guardados para cada conjunto de itens durante a sessão,
   mesmo quando o mapa sai da tela; outra análise, com outros itens, começa no enquadramento inicial.
 
-Navegar, marcar, trocar de vista e escolher a cor são estado visual: não iniciam análise (RQ-REP-06).
+Navegar, marcar e trocar de vista são estado visual: não iniciam análise (RQ-REP-06).
 
 ## Transição entre as vistas
 
@@ -115,16 +118,17 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
 - **Planilha sem latitude e longitude** (ou sem referencial autorizado): sem geometria autorizada, não há mapa (RQ-REP-07); a
   tabela continua.
 - **Unidade sem coordenada válida:** fica fora do mapa e aparece em Não avaliáveis, com o motivo do motor; a nota do mapa avisa.
-- **Visão Séries e Rotatividade:** a área desliga a vista "Mapa" com o motivo.
+- **Visão Séries:** a área desliga a vista "Mapa" com o motivo. Na rotatividade, o mapa fica desligado só sem latitude e
+  longitude na planilha (com coordenadas, ele pinta a permanência da coorte inicial).
 
 ## Regras da SPEC respeitadas
 
 - **Parte 13:** só transformações admitidas: mapeamento visual contínuo de valores existentes, formatação de apresentação e
   rótulos de metadado autorizado. Nenhuma quebra em quantis, intervalos ou classes, nenhum total, média, contagem, proporção,
   posição ou ranking criado na tela, nenhuma mudança automática de escala.
-- **RQ-REP-02:** as classes que colorem os pontos vêm de capacidades do motor (grupos de CAP-DIS-02, faixas de CAP-DIS-03,
-  condições de CAP-SUB-01, classes de CAP-TEN-01), pela mesma pintura do gráfico. A cor contínua não é classe e a legenda diz
-  isso. As faixas de distância (CAP-ESP-03) não viram cor.
+- **RQ-REP-02:** as classes que colorem os pontos vêm de capacidades do motor (grupos de CAP-DIS-02, também os quintis do
+  mapa, `grupos_mapa`; faixas de CAP-DIS-03, condições de CAP-SUB-01, classes de CAP-TEN-01), pela mesma pintura do gráfico. A
+  cor contínua da permanência não é classe, e a legenda diz isso. As faixas de distância (CAP-ESP-03) não viram cor.
 - **RQ-REP-04:** não avaliável é um anel tracejado, distinto de zero, com legenda.
 - **RQ-REP-06:** controles do mapa e troca de vista só mudam o estado visual.
 - **RQ-REP-07:** o mapa só existe com geometria autorizada (os pontos do motor).
@@ -142,7 +146,7 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
 - Nenhum significado depende só da cor: vazado é tracejado, a referência tem mira, o conjunto tem anel, e a dica e a tabela
   trazem os valores.
 - Com movimento reduzido, a transição entre as vistas é direta.
-- Na impressão, sai a vista que está na tela, sem os controles, a busca, a pergunta e a dica.
+- Na impressão, sai a vista que está na tela, sem os controles, a busca e a dica.
 
 ## Cores
 
@@ -163,16 +167,16 @@ impressão. O mapinha e a camada da transição usam as mesmas cores.
 |---|---|---|---|
 | `superficie` | `#fcfcfb` | `#1a1a19` | a superfície do gráfico no escuro (tabela "Chart chrome & ink" da skill) |
 | `tinta`, `tinta2`, `muda` | `#0b0b0b`, `#52514e`, `#898781` | `#f0efec`, `#c3c2b7`, `#898781` | 15,2:1, 9,7:1 e 4,85:1 da superfície |
-| `neutro` (pontos sem cor escolhida) | `#008b9e` | `#1ba3b5` | a série única do escuro (validador: PASS) |
+| `neutro` (pontos sem camada de cor) | `#008b9e` | `#1ba3b5` | a série única do escuro (validador: PASS) |
 | `naoAvaliavel` (anel tracejado) | `#898781` | `#898781` | 4,85:1 da superfície escura |
 | `fundo` (demais unidades) | `#d9d8d1` (1,39:1) | `#383835` (1,48:1) | recessivo como no claro |
 | `esmaecido` e borda | `#e1e0d9` e `#d9d8d1` | `#2c2c2a` e `#383835` | fora da régua: bem perto da superfície, sem sumir |
 | `miniPontos` | `#c3c2b7` (1,75:1) | `#45443f` (1,78:1) | o formato do Brasil no mapinha |
 | `eixo`, `borda` | `#c3c2b7`, `#dfe7ed` | `#383835`, `#2e2e2b` | linhas finas da legenda e moldura |
-| `painel` (controles, pergunta, dica) | `#ffffff` | `#232321` | a superfície elevada da página no escuro |
+| `painel` (controles, dica) | `#ffffff` | `#232321` | a superfície elevada da página no escuro |
 | `controleTexto`, `textoApoio` | `#0e2840`, `#52606d` | `#e6e5df`, `#c3c2b7` | 12,5:1 e 8,8:1 sobre o painel |
 | `controleBorda`, `controleRealce` | `#c9d8e2`, `#eef7f8` | `#45453f`, `#142d2e` | bordas e passagem do mouse |
-| `destaqueTexto`, `destaqueFundo` | `#0c6b74`, `#effafb` | `#6fcbd2`, `#142d2e` | opção recomendada (7,7:1); o selo "recomendado" a 8,4:1 |
+| `destaqueTexto`, `destaqueFundo` | `#0c6b74`, `#effafb` | `#6fcbd2`, `#142d2e` | sem uso na tela desde 23/10/2026 (eram da opção recomendada da pergunta); continuam na paleta, a 7,7:1 |
 | `foco` | `#3bb5be` | `#3bb5be` | 7,1:1 da superfície escura |
 | `sombra` | `rgba(9, 37, 60, 0.12)` | `rgba(0, 0, 0, 0.5)` | sombras visíveis no escuro |
 
@@ -184,11 +188,11 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 ## Gancho de teste e seletores
 
-- `mapa-analise`, com `data-pintura`, `data-pontos` (pontos do resultado desenhados, inclusive os esmaecidos), `data-contexto`
-  (pontos de fundo), `data-esmaecidos`, `data-escala` (`linear` ou `logaritmica` na cor contínua; `nenhuma` nas demais pinturas)
-  e `data-esquema` (`claro` ou `escuro`).
-- `mapa-canvas`, `mapa-dica` (com `data-id`), `mapa-foco`, `mapa-pergunta` e `mapa-pergunta-<escolha>` (a recomendada com
-  `data-recomendado="true"`), `mapa-pergunta-abrir`, `mapa-legenda` (`data-tipo` = camada | continua | pergunta),
+- `mapa-analise`, com `data-pintura` (`camada`, `quintis` ou `continua`), `data-pontos` (pontos do resultado desenhados,
+  inclusive os esmaecidos), `data-contexto` (pontos de fundo), `data-esmaecidos`, `data-escala` (`linear` na cor contínua;
+  `nenhuma` nas demais pinturas) e `data-esquema` (`claro` ou `escuro`).
+- `mapa-canvas`, `mapa-dica` (com `data-id`), `mapa-foco`, `mapa-legenda` (`data-tipo` = camada | quintis | continua), com
+  `mapa-legenda-quintis` e `mapa-quintil` (`data-chave` e `data-contagem`, do motor) nos quintis,
   `mapa-legenda-min`, `mapa-legenda-max`, `mapa-legenda-marca`, `mapa-legenda-brasil`, `mapa-legenda-aviso`,
   `mapa-legenda-tamanho` e `mapa-legenda-tamanho-item`, `mapa-ampliar`, `mapa-reduzir`, `mapa-ver-tudo`, `mapa-busca`,
   `mapa-nota`, `mapa-simbolos`, `mapa-ligacoes`, `mapa-vazio`; `minimapa` (com `minimapa-destaque` e `minimapa-moldura`);
@@ -200,28 +204,33 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 ## Testes
 
-- Node: `frontend/tests/mapa.test.mjs` (modelo puro): projeção e enquadramento, zoom, tamanho com área proporcional, cor
+- Node: `frontend/tests/mapa.test.mjs` (modelo puro): projeção e enquadramento, o enquadramento inicial com contexto (margem,
+  mínimo de um quarto da fonte, nunca mais que ela, proporcional a qualquer fonte), zoom, tamanho com área proporcional, cor
   contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo,
-  membros, sem coordenada), esmaecidos que nunca somem, vazados nunca como zero, alvo do clique, vizinho pelo teclado, nomes sem
-  sobreposição, ligações, mapinha, transição e cores. `frontend/tests/modoEscuro.test.mjs`: as cores do mapa por esquema (as
-  mesmas chaves, a superfície, as tintas e o neutro do gráfico no escuro, os textos a 4,5:1 ou mais, o fundo e os esmaecidos
-  recessivos), a rampa contínua do escuro (do escuro ao claro) e a cena no escuro (vazado na superfície escura, pergunta no
-  neutro do escuro).
+  membros, sem coordenada; a pintura dos quintis igual à da camada), esmaecidos que nunca somem, vazados nunca como zero, alvo do
+  clique, vizinho pelo teclado, nomes sem sobreposição, ligações, mapinha, transição e cores. `frontend/tests/modoEscuro.test.mjs`:
+  as cores do mapa por esquema (as mesmas chaves, a superfície, as tintas e o neutro do gráfico no escuro, os textos a 4,5:1 ou
+  mais, o fundo e os esmaecidos recessivos), a rampa contínua do escuro (do escuro ao claro) e a cena no escuro (vazado na
+  superfície escura, quintis com a cor que a área entrega). `frontend/tests/areaDeAnalise.test.mjs`: quando a área pinta pelos
+  quintis e quando o pedido os leva.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
-  `/api/painel` e de `/api/painel/mapa`: nos estados, o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil,
-  com os pontos do motor e o fundo; a pergunta "Como pintar o mapa?"; a cor contínua linear e a logarítmica só por escolha, sem
-  pedido ao motor; o Amazonas com os pontos já guardados; os quintis com a mesma contagem por cor que o motor devolveu por grupo;
+  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção, porque a base abre sem seleção), o mapa desligado,
+  com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do motor sem pergunta (a
+  mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas com os pontos já guardados, os
+  quintis dele e o enquadramento com contexto (os pontos do estado só na parte central do mapa); os quintis escolhidos no
+  gráfico, iguais aos do mapa;
   a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
   do gráfico; o convite depois das Condições; as ligações da análise espacial; o lado a lado em 1.700 px, sem legenda repetida;
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
   (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
   convites.
   O roteiro do modo escuro (`backend/tests/ui_modo_escuro.py`, suíte `bloco1`) abre o mapa com o navegador no escuro e confere a
-  superfície escura no canvas (`getImageData`), `data-esquema`, o gancho de teste e a pergunta legível; se o motor não entregar
-  os pontos no catálogo sintético, confere só a área do mapa e registra isso na saída.
+  superfície escura no canvas (`getImageData`), `data-esquema`, o gancho de teste e a legenda dos quintis legível; se o motor
+  não entregar os pontos no catálogo sintético, confere só a área do mapa e registra isso na saída.
 
 ## Limitações e pendências
 
 - Sem limites oficiais de estados nem do Brasil: o formato vem dos próprios pontos (seção 4 de
   [Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md)).
-- Estados em ladrilhos e a rotatividade no mapa ficam para a etapa 2.
+- Estados em ladrilhos: não foram aprovados (precisariam de um adendo à SPEC); nos estados, o mapa fica desligado, com o motivo
+  e o atalho para os municípios.

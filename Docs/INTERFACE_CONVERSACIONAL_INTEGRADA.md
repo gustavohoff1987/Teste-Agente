@@ -15,17 +15,22 @@ resume a mudança.
 
 1. **Aceite de privacidade primeiro.** O pop-up traz só a declaração ("Declaro que não compartilharei dados pessoais ou
    sensíveis, seja por meio dos arquivos enviados ou das mensagens inseridas no chat.") e "Li e concordo"; depois de uma
-   sessão encerrada, o aviso do descarte aparece acima dela. Até o aceite, os botões da fonte e o envio de arquivos ficam
-   desabilitados.
-2. **Cabeçalho.** O nome do agente ("Agente Diagnóstico Territorial", com o rosto do agente) volta ao topo da página. Ao
-   lado, a navegação: **Nova sessão**, **Nova análise** e **Histórico**. Não há "Início" nem "Resultados": a página é
-   sempre o gráfico.
-3. **Fonte dos dados**, logo abaixo:
-   - antes dos dados: **Dados do Brasil** e **Enviar meus dados**, com o modelo de planilha (.xlsx) para baixar;
-   - depois: o resumo da fonte, por exemplo "Dados do Brasil · Medicina · jan/2014 a jun/2024" ou, numa planilha,
-     "distritos.csv · distritos e províncias · Medicina · 2021 a 2024", com **Trocar** (e **Colunas**, na planilha);
-   - "Trocar" mostra de novo as duas fontes. A troca só vale quando a nova fonte fica pronta: até lá, o gráfico continua com
-     a fonte em uso, e "Cancelar" desiste;
+   sessão encerrada, o aviso do descarte aparece acima dela. Até o aceite, a escolha da fonte e o envio de arquivos não
+   funcionam.
+2. **Cabeçalho.** O nome do agente ("Agente Diagnóstico Territorial", com o rosto do agente) no topo da página e, abaixo, o
+   banner de apresentação (de volta em 23/10/2026): "FORÇA DE TRABALHO NA SAÚDE", "Transforme dados em diagnósticos
+   territoriais." e "Um novo olhar sobre seus dados. Explore territórios, conecte informações e compreenda cenários." Abaixo
+   do banner, à esquerda, a navegação: **Nova sessão**, **Nova análise** e **Histórico**. Não há "Início" nem "Resultados":
+   a página é sempre o gráfico.
+3. **Fonte dos dados:**
+   - antes dos dados, as entradas ficam na área de análise e na conversa (23/10/2026), com as mesmas ações: **Dados do
+     Brasil**, **Enviar meus dados** e **Modelo de planilha XLSX** (a estrutura recomendada, para baixar). Não há botões de
+     fonte no alto da página;
+   - depois, logo abaixo do cabeçalho, o resumo da fonte, por exemplo "Dados do Brasil · Medicina · jan/2014 a jun/2024" ou,
+     numa planilha, "distritos.csv · distritos e províncias · Medicina · 2021 a 2024", com **Trocar** (e **Colunas**, na
+     planilha);
+   - "Trocar" traz as três entradas de volta à área central, com "Cancelar". A troca só vale quando a nova fonte fica pronta:
+     até lá, o gráfico continua com a fonte em uso;
    - na base do Brasil, "Diagnóstico técnico da fonte" mostra a origem, a versão e a integridade (sem conteúdo).
 4. **Área de análise**: o gráfico com os valores do motor, nos estados E0 (antes dos dados) a E4 (funções em uso). Ver o
    documento da área.
@@ -43,8 +48,9 @@ a conversa fica ancorada embaixo, sem rolagem horizontal.
 "Dados do Brasil" examina a base versionada uma vez, no recorte municipal, com o bloco dos níveis (Brasil e estados), por
 `/api/inspect`, como antes. A área recebe a fonte (`FonteDados`: `tipo: "brasil"`, a versão da base, o token da camada
 geográfica complementar e os rótulos fixos município/municípios e estado/estados), as competências, a categoria, os níveis e
-o catálogo de municípios para a busca. Depois de escolher a base, o gráfico abre nos **27 estados** (E1); nunca nos 5.570
-municípios de início.
+o catálogo de municípios para a busca. Desde 23/10/2026, a base abre **sem territórios escolhidos**: a área avisa que os
+dados estão prontos, abre a Seleção de Territórios e espera; nada é pedido ao motor até a escolha (os estados, "Todos os
+estados (27)", são uma das opções). Antes, ela abria nos 27 estados.
 
 ### Planilha enviada: o painel "Colunas"
 
@@ -74,7 +80,8 @@ O painel **Colunas** mostra a coluna de cada papel:
 - **Nomes**: como se chamam as unidades e os grupos, no singular e no plural, com a sugestão a partir do nome da coluna
   ("distrito" sugere distrito e distritos; "provincia", província e províncias). Os nomes aparecem nos textos da página e da
   conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha;
-- **O que esta planilha permite**: Distribuição, Análise espacial, Tendência e Rotatividade, cada uma disponível ou
+- **O que esta planilha permite**: Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de
+  Rotatividade (os nomes das abas, desde 23/10/2026), cada uma disponível ou
   indisponível com o motivo, pelo pré-exame do backend (`/api/preflight`), refeito a cada escolha. A escolha que se faz no
   gráfico (por exemplo, a referência da análise espacial) não torna a análise indisponível.
 
@@ -93,7 +100,8 @@ backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas 
   análise devolve o gráfico como estava, **sem recalcular** (a área recebe o estado em `restaurar`). Uma análise feita com
   outra fonte de dados fica na lista, desabilitada, até a pessoa voltar àquela fonte. O menu fecha com clique fora ou
   Escape, devolvendo o foco ao botão.
-- **Nova análise** guarda a análise atual no Histórico e volta a E1 com os mesmos dados. Fica desabilitada antes dos dados.
+- **Nova análise** guarda a análise atual no Histórico e recomeça com os mesmos dados, sem territórios escolhidos (desde
+  23/10/2026; antes, voltava aos estados). Fica desabilitada antes dos dados.
 - **Trocar de fonte** também guarda a análise atual; a área recomeça com a nova fonte.
 - **Nova sessão** pede confirmação num diálogo com: **Exportar CSV** (a análise em exibição: um registro por item da resposta
   do motor, com todos os campos em precisão integral; objetos viram colunas "campo.subcampo", e texto que começaria uma
@@ -114,13 +122,19 @@ Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `la
 e a última resposta aparece junto do campo de mensagem.
 
 **Abertura.** Antes dos dados, a caixa fica aberta e mais larga, perguntando "O que você quer analisar? Prefere começar com
-os dados do Brasil ou enviar os seus?", com os botões **Dados do Brasil** e **Enviar meus dados**. Depois, ela fica compacta,
-com uma orientação curta para cada etapa: "Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver."
-(na planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"), e, com as unidades na
-tela, exemplos de pedidos ("mostre o Pará", "use Belém como referência", "compare Manaus e Tefé").
+os dados do Brasil, enviar os seus ou baixar o modelo de planilha?", com **Dados do Brasil**, **Enviar meus dados** e
+**Modelo de planilha XLSX** (`chat-fonte-modelo`, o mesmo arquivo da área central), as mesmas três entradas da área de
+análise (23/10/2026). Depois, ela fica compacta, com uma orientação curta para cada etapa: enquanto os dados do Brasil são
+preparados, "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar."; com os dados prontos
+e sem territórios escolhidos (a base abre sem seleção automática), "Os dados estão prontos. Escolha os territórios na Seleção
+de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará” ou “todos os estados”." (numa planilha, sem os
+exemplos da base do Brasil); nos estados, "Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver." (na
+planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"); e, com as unidades na tela,
+exemplos de pedidos ("mostre o Pará", "use Belém como referência", "compare Manaus e Tefé").
 
 **Escolha da fonte pela conversa.** "Usar dados do Brasil" e "enviar meus dados" fazem o mesmo que os botões, sem o provedor
-de IA.
+de IA. Escolhidos os dados do Brasil, a resposta diz "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os
+territórios na Seleção de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará”."
 
 **Antes dos dados.** Perguntas sobre o agente, a privacidade e os conceitos ("Como se calcula a densidade?") e sobre o
 conteúdo da base do Brasil continuam respondidas localmente. Um pedido analítico feito antes da escolha fica guardado: quando

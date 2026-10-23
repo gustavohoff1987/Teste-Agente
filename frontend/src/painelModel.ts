@@ -9,9 +9,9 @@ import type {
   AtributoCondicao, AtributoOrdenacao, CondicaoPedido, FamiliaTendencia, OperadorCondicao, OrdenarPedido, PainelAtributo,
   PainelConjuntoPedido, PainelCriterio, PainelDominio, PainelIndicador, PainelItem, PainelMunicipios, PainelNivel, PainelOpcoes, PainelOrdem,
   PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaCandidato, Rotulo, RotulosTerritoriais, SituacaoCondicao,
-  TipoGrupos,
+  TendenciaItem, TendenciaTopo, TipoGrupos,
 } from "./painelApi";
-import type { EscolhaDePintura, PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
+import type { PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
 import type { EsquemaDeCor } from "./esquemaDeCor";
 
 export type { Rotulo, RotulosTerritoriais } from "./painelApi";
@@ -198,8 +198,14 @@ export const OPERADORES: Record<OperadorCondicao, string> = { "<": "menor que", 
 export const SIMBOLOS: Record<OperadorCondicao, string> = { "<": "<", "<=": "≤", ">": ">", ">=": "≥" };
 
 export const FAMILIAS: Familia[] = ["distribuicao", "espacial", "tendencia", "rotatividade"];
-export const NOMES_FAMILIAS: Record<Familia, string> = { distribuicao: "Distribuição", espacial: "Análise espacial",
-  tendencia: "Tendência", rotatividade: "Rotatividade" };
+/** Nomes padronizados das análises (23/10/2026), na navegação, nos títulos e nos avisos. */
+export const NOMES_FAMILIAS: Record<Familia, string> = { distribuicao: "Análise de Distribuição", espacial: "Análise Espacial",
+  tendencia: "Análise de Tendência", rotatividade: "Análise de Rotatividade" };
+/** Abas da área: a Seleção de Territórios (o conjunto analisado, compartilhado por todas as análises) e as quatro análises. */
+export type Aba = "territorios" | Familia;
+export const ABAS: Aba[] = ["territorios", "distribuicao", "espacial", "tendencia", "rotatividade"];
+export const NOME_SELECAO = "Seleção de Territórios";
+export const nomeDaAba = (aba: Aba) => aba === "territorios" ? NOME_SELECAO : NOMES_FAMILIAS[aba];
 export function apoioDaFamilia(familia: Familia, rotulos: RotulosTerritoriais): string {
   if (familia === "distribuicao") return "Como " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " se distribuem";
   if (familia === "espacial") return "Distância até uma referência";
@@ -220,9 +226,9 @@ export function disponibilidadeDaFamilia(familia: Familia, c: { fonte: "brasil" 
   if (familia === "rotatividade") {
     if (motor && !motor.disponivel) return { disponivel: false, motivo: motor.motivo, pendente: false, enviarDados: c.fonte === "brasil" };
     if (c.fonte === "brasil") return { disponivel: false, pendente: false, enviarDados: true,
-      motivo: "A base do Brasil tem contagens, não pessoas: a rotatividade exige dados enviados com o identificador individual (CAP-ROT-01)." };
+      motivo: "A base do Brasil tem contagens, não pessoas: a rotatividade exige dados enviados com o identificador individual." };
     if (!motor && !c.temIdentificador) return { disponivel: false, pendente: false, enviarDados: false,
-      motivo: "A planilha não tem a coluna do identificador individual: a rotatividade acompanha pessoas da coorte inicial (CAP-ROT-01)." };
+      motivo: "A planilha não tem a coluna do identificador individual: a rotatividade acompanha pessoas da coorte inicial." };
     return ok;
   }
   if (motor && !motor.disponivel) return { disponivel: false, motivo: motor.motivo, pendente: false, enviarDados: false };
@@ -496,7 +502,8 @@ export function separarItens(itens: PainelItem[], indicador: PainelIndicador, ex
     plotaveis.push(item);
     semPonto(item);
     if (exibicao.variacao && numero(item.variacao_percentual?.[indicador]) === null) registrar(item, "variacao");
-    if (exibicao.tendencia && (!item.tendencia || !item.tendencia.avaliavel)) registrar(item, "tendencia", item.tendencia?.motivo || item.tendencia?.rotulo);
+    if (exibicao.tendencia && (!item.tendencia || !item.tendencia.avaliavel)) registrar(item, "tendencia",
+      explicacaoDaTendencia(item.tendencia) || item.tendencia?.rotulo);
     if (exibicao.condicoes && item.condicoes?.situacao === "NAO_AVALIAVEL") registrar(item, "condicoes", item.condicoes.motivo ||
       item.condicoes.porCondicao.filter(c => c.situacao === "NAO_AVALIAVEL").map(c => c.texto).filter(Boolean).join("; "));
   }
@@ -1185,7 +1192,8 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
   }
   if (contexto.tendencia && item.tendencia) {
     linhas.push({ rotulo: "Classe de tendência", valor: item.tendencia.rotulo });
-    if (item.tendencia.motivo) notas.push(item.tendencia.motivo);
+    const explicacao = explicacaoDaTendencia(item.tendencia);
+    if (explicacao) notas.push(explicacao);
   }
   if (item.grupo) linhas.push({ rotulo: "Grupo por posição", valor: item.grupo.rotulo });
   if (item.faixa) linhas.push({ rotulo: "Faixa", valor: item.faixa === "fora" ? "fora das faixas" : item.faixa.rotulo });
@@ -1282,15 +1290,15 @@ export type DefinicaoAnalise = {
   janela: string[]; visao: Visao; agrupar: Agrupar; condicoes: CondicaoPedido[]; ordenar: OrdenarPedido | null;
   comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Premissas;
 };
-/** Abertura: base do Brasil com os grupos à vista (E1, os estados em bolhas); planilha com o gráfico limpo, à espera da escolha. */
-/** Estado inicial da análise. Na base do Brasil, a porta de entrada são os estados; na planilha, que não tem bolhas de
- * grupo, todas as unidades (a lista continua à vista para restringir). Na planilha sem população, o indicador começa na
- * quantidade (o motor recusa a densidade sem população), e as premissas escolhidas no painel Colunas vão em todo pedido. */
+/** Estado inicial da análise: em qualquer fonte, nenhum território marcado (23/10/2026); a área espera a escolha na Seleção de
+ * Territórios ou na conversa. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
+ * população), e as premissas escolhidas no painel Colunas vão em todo pedido. */
 export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodos: string[]; categoria: string; familia?: Familia;
   temGrupos: boolean; temPopulacao?: boolean; premissas?: Premissas }): DefinicaoAnalise {
   return { familia: p.familia ?? "distribuicao", indicador: p.temPopulacao === false ? "quantidade" : "densidade",
-    nivel: p.tipo === "brasil" && p.temGrupos ? "estados" : "municipios",
-    base: p.tipo === "arquivo" ? { todos: true, estados: [], ids: [] } : { ...BASE_VAZIA }, competencia: maisRecente(p.periodos),
+    // Sem seleção automática (23/10/2026): a base carregada abre sem territórios marcados; a pessoa escolhe na Seleção de
+    // Territórios (os estados como unidades, os municípios de um estado, todos ou alguns) ou pela conversa.
+    nivel: "municipios", base: { ...BASE_VAZIA }, competencia: maisRecente(p.periodos),
     categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
     premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {} };
@@ -1300,13 +1308,13 @@ export const tendenciaPossivel = (def: DefinicaoAnalise) => def.janela.length >=
 /** Visão da tendência que de fato aparece: Classes e Séries só com quatro competências ou mais; senão, a Mudança. */
 export const visaoEfetiva = (def: DefinicaoAnalise): Visao => def.visao !== "mudanca" && !tendenciaPossivel(def) ? "mudanca" : def.visao;
 
+/** A base carregada sem territórios escolhidos: nada é pedido ao motor até a seleção. */
+export const TEXTO_SEM_SELECAO = "Selecione os territórios que deseja analisar.";
 /** O que impede o pedido ao motor (null quando ele pode sair): sem dados, sem competência ou sem nenhuma unidade marcada. */
 export function bloqueioDoPedido(def: DefinicaoAnalise, c: { fonte: "brasil" | "arquivo" | null; rotulos: RotulosTerritoriais }): string | null {
   if (!c.fonte) return "Escolha os dados para começar.";
   if (!def.competencia) return "Escolha a competência.";
-  const unidade = c.rotulos.unidade;
-  if (def.nivel === "municipios" && baseVazia(def.base) && !def.conjuntos.length)
-    return "Marque " + artigo(unidade, true) + " " + unidade.plural + " na lista de territórios para ver o gráfico.";
+  if (def.nivel === "municipios" && baseVazia(def.base) && !def.conjuntos.length) return TEXTO_SEM_SELECAO;
   return null;
 }
 /** O que falta para a família escolhida aparecer (o gráfico continua com a distribuição enquanto isso). */
@@ -1333,7 +1341,8 @@ export function familiaCalculada(def: DefinicaoAnalise, disponivel: boolean): Fa
 }
 
 /** Opções de /api/painel com as chaves do contrato (seção 3), só as que o estado pede. */
-export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (id: string) => string = prefixoDe): PainelOpcoes {
+export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (id: string) => string = prefixoDe,
+  c: { quintisDoMapa?: boolean } = {}): PainelOpcoes {
   const tendencia = familia === "tendencia";
   const competencia = tendencia ? def.janela.at(-1) ?? def.competencia
     : familia === "rotatividade" && def.rotatividade ? def.rotatividade.final : def.competencia;
@@ -1364,14 +1373,17 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
       opcoes.ordenar = def.ordenar;
     if (def.comparar.length >= 2 && def.comparar.length <= 3) opcoes.comparar = def.comparar;
   }
+  // A cor do mapa sem cor própria da análise: os quintis do motor vêm junto com a análise (23/10/2026), e trocar de vista
+  // continua sem pedir nada novo (RQ-REP-06).
+  if (c.quintisDoMapa) opcoes.grupos_mapa = { tipo: "quintis" };
   if (Object.keys(def.premissas).length) opcoes.premissas = def.premissas;
   return opcoes;
 }
 
-/** O indicador muda a resposta do motor? Só com grupos, faixas, tendência, comparação ou ordenação pela variação; nos demais
- * pedidos, cada item traz população, quantidade e densidade, e o indicador é só estado visual. */
+/** O indicador muda a resposta do motor? Só com grupos (também os do mapa), faixas, tendência, comparação ou ordenação pela
+ * variação; nos demais pedidos, cada item traz população, quantidade e densidade, e o indicador é só estado visual. */
 export const pedidoDependeDoIndicador = (opcoes: PainelOpcoes) =>
-  !!(opcoes.grupos || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
+  !!(opcoes.grupos || opcoes.grupos_mapa || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
 
 /** Chave do pedido na memória da tela: sem dependência do indicador, ele fica de fora, e a troca não pede nada ao motor. O
  * pedido enviado continua com o indicador em exibição. */
@@ -1682,20 +1694,21 @@ export function disponibilidadeDoMapa(c: { fonte: "brasil" | "arquivo" | null; t
   return { disponivel: true, motivo: null, atalho: null };
 }
 
-/** Como o mapa pinta (PinturaDoMapa do contrato): a camada do gráfico quando há uma (grupos, faixas, condições, ordem, classes
- * ou variação); na rotatividade, a permanência da coorte inicial em cor contínua; senão, a cor contínua só se a pessoa a
- * escolheu; e, sem cor escolhida, a pergunta "Como pintar o mapa?" (decisão de 23/10/2026). Nunca a escala logarítmica. */
-export function pinturaDoMapa(c: { camada: CamadaDeCor; rotatividade: boolean; corContinua: boolean }): PinturaDoMapa {
+/** Como o mapa pinta (PinturaDoMapa do contrato; 23/10/2026, sem a pergunta "Como pintar o mapa?"): a camada do gráfico quando
+ * há uma (grupos, faixas, condições, ordem, classes ou variação); na rotatividade, a permanência da coorte inicial em cor
+ * contínua; sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolve em `grupos_mapa`; e, sem eles (uma
+ * análise guardada antes), a cor única do gráfico. Nunca a escala logarítmica. */
+export function pinturaDoMapa(c: { camada: CamadaDeCor; rotatividade: boolean; gruposDoMapa: boolean }): PinturaDoMapa {
   if (c.rotatividade) return "continua";
   if (c.camada !== "unica") return "camada";
-  return c.corContinua ? "continua" : "pergunta";
+  return c.gruposDoMapa ? "quintis" : "camada";
 }
-/** Opções da pergunta "Como pintar o mapa?" em cada análise: quintis e faixas vêm do motor (só na distribuição); a análise
- * espacial oferece a cor contínua e as Condições; tendência (a cor já é a da camada) e rotatividade não perguntam. */
-export function opcoesDePintura(familia: Familia): EscolhaDePintura[] {
-  if (familia === "distribuicao") return ["quintis", "faixas", "continua"];
-  if (familia === "espacial") return ["continua", "condicoes"];
-  return [];
+/** O pedido leva os quintis do mapa (`grupos_mapa`) quando a análise não tem cor própria: a distribuição sem grupos nem faixas
+ * aplicadas e a análise espacial, sem condições nem ordenação, com o mapa disponível (unidades com coordenadas). */
+export function precisaQuintisDoMapa(def: DefinicaoAnalise, familia: Familia, mapaDisponivel: boolean): boolean {
+  if (!mapaDisponivel || def.nivel !== "municipios" || def.condicoes.length || def.ordenar) return false;
+  if (familia === "espacial") return true;
+  return familia === "distribuicao" && (def.agrupar.tipo === "nenhum" || (def.agrupar.tipo === "faixas" && def.agrupar.faixas.length < 2));
 }
 /** Cor contínua do mapa: o indicador no domínio do motor ou, na rotatividade, a permanência da coorte inicial (0 a 100%). */
 export function corContinuaDoMapa(c: { rotatividade: boolean; indicador: PainelIndicador; dominios: PainelResposta["dominios"] }):
@@ -1724,4 +1737,127 @@ export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { d
     if (ligacoes.length >= MAX_LIGACOES) break;
   }
   return ligacoes;
+}
+
+// ================================================================================================ apresentação das abas e da tendência
+/** Apresentação de cada aba (23/10/2026): a primeira coisa que a aba mostra, em linguagem simples, só com o que a área faz de
+ * fato. Os nomes territoriais vêm dos rótulos da fonte (municípios e estados na base do Brasil; distritos, províncias e outros
+ * nas planilhas). */
+export type Apresentacao = { titulo: string; paragrafos: string[]; itens?: { termo: string; texto: string }[]; nota?: string };
+/** O texto explicativo da Seleção de Territórios, como foi pedido. */
+export const TEXTO_DA_SELECAO = "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar " +
+  "territórios a qualquer momento, e as análises serão atualizadas conforme a seleção realizada.";
+
+/** O que cada classe de tendência quer dizer (CAP-TEN-01, DA-15), em palavras, na ordem do enum da SPEC. Só descreve a regra do
+ * motor; não cria classe nem critério. */
+export const DESCRICAO_DAS_CLASSES: Record<string, string> = {
+  CRESCIMENTO: "o indicador não caiu em nenhum trecho da janela e subiu em pelo menos um, sem aceleração nem desaceleração " +
+    "definidas: algum trecho ficou sem variação, ou o ritmo da alta foi constante ou oscilou.",
+  CRESCIMENTO_ACELERADO: "o indicador subiu em todos os trechos, e o ritmo da alta aumentou ao longo da janela: nunca diminuiu de um " +
+    "trecho para o seguinte e aumentou pelo menos uma vez.",
+  CRESCIMENTO_DESACELERADO: "o indicador subiu em todos os trechos, mas o ritmo da alta diminuiu ao longo da janela: nunca aumentou e " +
+    "diminuiu pelo menos uma vez. O valor continua subindo; o que diminui é a velocidade do aumento.",
+  DECLINIO: "o indicador não subiu em nenhum trecho da janela e caiu em pelo menos um, sem aceleração nem desaceleração definidas: " +
+    "algum trecho ficou sem variação, ou o ritmo da queda foi constante ou oscilou.",
+  DECLINIO_ACELERADO: "o indicador caiu em todos os trechos, e a queda ficou mais rápida ao longo da janela: nunca ficou mais lenta " +
+    "de um trecho para o seguinte e ficou mais rápida pelo menos uma vez.",
+  DECLINIO_DESACELERADO: "o indicador caiu em todos os trechos, mas a queda ficou mais lenta ao longo da janela: nunca ficou mais " +
+    "rápida e ficou mais lenta pelo menos uma vez. O valor continua caindo, em ritmo menor.",
+  SEM_CLASSIFICACAO: "o indicador subiu em alguns trechos e caiu em outros (mudança de direção) ou não variou em nenhum (série estável).",
+};
+
+export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; brasil: boolean; comGrupos: boolean; semDados?: boolean }):
+  Apresentacao {
+  const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  const os = artigo(unidade, true), us = unidade.plural, de = c.brasil ? "do Brasil" : "da planilha";
+  if (aba === "territorios") {
+    const como = c.semDados ? "Depois de escolher os dados, a lista de territórios aparece aqui." : c.comGrupos
+      ? "Marque " + todosOs(unidade) + " de " + umA(grupo) + " de uma vez, pela caixa ao lado do nome " + (fem(grupo) ? "dela" : "dele") +
+        ", abra a lista de " + umA(grupo) + " para escolher " + us + " um a um ou use " + todosOs(unidade) + " " + de + "." +
+        (c.brasil ? " " + maiuscula(artigo(grupo, true)) + " " + grupo.plural + " também podem ser analisad" + (fem(grupo) ? "as" : "os") +
+          " como unidades, cada um" + (fem(grupo) ? "a" : "") + " numa bolha." : "")
+      : "Marque " + us + " um a um ou use " + todosOs(unidade) + " " + de + ". Procurar pelo nome é opcional.";
+    return { titulo: NOME_SELECAO, paragrafos: [
+      TEXTO_DA_SELECAO,
+      como + " A mesma seleção vale para todas as análises; o que é próprio de cada uma, como a referência da Análise Espacial " +
+        "ou a janela da Análise de Tendência, é escolhido dentro dela."] };
+  }
+  if (aba === "distribuicao") return { titulo: NOMES_FAMILIAS.distribuicao, paragrafos: [
+    "Mostra como " + os + " " + us + " selecionad" + (fem(unidade) ? "as" : "os") + " se distribuem segundo o indicador escolhido: a " +
+      "densidade de profissionais por 1.000 habitantes ou a quantidade de profissionais, na competência escolhida. Cada bolha é " +
+      umA(unidade) + (c.brasil && c.comGrupos ? " (ou " + umA(grupo) + ", quando " + artigo(grupo, true) + " " + grupo.plural +
+        " são analisad" + (fem(grupo) ? "as" : "os") + " como unidades)" : "") +
+      ": a altura mostra o valor do indicador, e o tamanho, a população.",
+    "Você pode dividir " + os + " " + us + " em grupos do mesmo tamanho (quartis, quintis ou decis) ou em faixas de valores que você " +
+      "define, e explorar o resultado com a Régua, as Condições, a Ordenação, a Comparação e o Juntar. No mapa, sem outra cor " +
+      "escolhida, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
+  if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
+    "Mede a distância em linha reta entre cada " + unidade.singular + " selecionad" + (fem(unidade) ? "a" : "o") + " e uma referência que " +
+      "você escolhe: " + umA(unidade) + " pelo nome, um conjunto deles ou " + os + " que atendem a um critério, como " + os +
+      " de maior densidade. Com a referência escolhida, o eixo horizontal do gráfico passa a mostrar a distância até ela, e o " +
+      "vertical continua mostrando o indicador.",
+    "A distância é calculada sobre a superfície da Terra, a partir das coordenadas de cada " + unidade.singular +
+      (c.brasil ? " (a sede municipal)" : "") + ", e não representa um trajeto por estradas. Quando a referência tem mais de " +
+      umA(unidade) + ", vale a distância até " + artigo(unidade, false) + " mais próxim" + (fem(unidade) ? "a" : "o") +
+      ". Você também pode separar as distâncias em faixas." + (c.comGrupos && c.brasil ? " A distância vale entre " + us + ": " +
+        artigo(grupo, true) + " " + grupo.plural + ", que não têm um ponto único, ficam de fora desta análise." : "")] };
+  if (aba === "tendencia") return { titulo: NOMES_FAMILIAS.tendencia, paragrafos: [
+    "Acompanha a evolução do indicador ao longo de uma janela de competências que você escolhe e classifica o comportamento de " +
+      "cada " + unidade.singular + ". A classificação olha cada trecho entre duas competências seguidas e a velocidade da mudança " +
+      "nele: quanto o indicador subiu ou caiu por unidade de tempo (por mês, quando as competências são meses). São necessárias " +
+      "pelo menos quatro observações válidas na janela."],
+    itens: [...CLASSES_TENDENCIA.map(classe => ({ termo: classe.rotulo, texto: DESCRICAO_DAS_CLASSES[classe.codigo] })),
+      { termo: "Não avaliável", texto: "há menos de quatro observações válidas na janela, ou a série não é comparável ao longo dela." }],
+    nota: "Basta um trecho na direção contrária para a série ficar sem classificação; por isso, janelas longas, com muitas " +
+      "competências, costumam ter mais " + us + " sem classificação. A cor da bolha mostra a família da classe (crescimento, " +
+      "declínio ou sem classificação); a aceleração e a desaceleração aparecem na dica, na tabela e nas contagens, que também " +
+      "filtram. A visão Mudança mostra a variação entre a primeira e a última competência, e a visão Séries, a linha de cada " +
+      unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") + ". Método de classificação: CAP-TEN-01 (DA-15)." };
+  return { titulo: NOMES_FAMILIAS.rotatividade, paragrafos: [
+    "Acompanha as pessoas da coorte inicial, os profissionais presentes no período inicial, e mostra, para cada " + unidade.singular +
+      ", quantos permaneceram e quantos saíram até o período final, em barras de 100%.",
+    "Para isso, a base precisa identificar a mesma pessoa nos dois períodos, com uma coluna de identificador individual." +
+      (c.brasil ? " A base do Brasil tem contagens de profissionais, e não pessoas identificadas: para usar esta análise, envie uma " +
+        "planilha com o identificador individual." : "")] };
+}
+
+/** O motivo de uma tendência sem classe, em palavras e sem o código (23/10/2026); para as classificadas, o que a classe quer
+ * dizer. Usa o motivo que o motor devolveu (MotivoSemClassificacao e o motivo de não avaliável). */
+export function explicacaoDaTendencia(t: TendenciaItem | null | undefined): string | null {
+  if (!t) return null;
+  if (!t.avaliavel) {
+    if (t.motivoCodigo === "SERIE_INSUFICIENTE")
+      return "Não avaliável: série insuficiente na janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
+    if (t.motivoCodigo === "INCOMPARABILIDADE")
+      return "Não avaliável: a série não é comparável ao longo da janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
+    return "Não avaliável" + (t.motivoTexto ? ": " + t.motivoTexto : "") + ".";
+  }
+  if (t.classe === "SEM_CLASSIFICACAO") {
+    if (t.motivoCodigo === "MUDANCA_DE_DIRECAO")
+      return "Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção).";
+    if (t.motivoCodigo === "SERIE_ESTAVEL") return "Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).";
+    return "Sem classificação" + (t.motivoTexto ? ": " + minuscula(t.motivoTexto) : "") + ".";
+  }
+  const descricao = t.classe ? DESCRICAO_DAS_CLASSES[t.classe] : undefined;
+  return descricao ? t.rotulo + ": " + descricao : null;
+}
+
+/** Nota abaixo das contagens quando há unidades sem classificação: quantas por motivo, do motor; se nenhuma unidade avaliável
+ * recebeu classe, a explicação da regra (uma mudança de direção basta) e o efeito do tamanho da janela. Não muda o método. */
+export function notaSemClassificacao(topo: TendenciaTopo | null, c: { rotulos: RotulosTerritoriais; brasil: boolean }): string | null {
+  if (!topo) return null;
+  const sem = topo.contagens.SEM_CLASSIFICACAO ?? 0;
+  if (!sem) return null;
+  const unidade = c.rotulos.unidade;
+  const direcao = topo.semClassificacaoPorMotivo.MUDANCA_DE_DIRECAO ?? 0, estavel = topo.semClassificacaoPorMotivo.SERIE_ESTAVEL ?? 0;
+  const partes = [direcao ? quantos(direcao, unidade) + " por mudança de direção (o indicador subiu em alguns trechos e caiu em outros)" : "",
+    estavel ? quantos(estavel, unidade) + " por série estável (o indicador não variou)" : ""].filter(Boolean);
+  const classificadas = CLASSES_TENDENCIA.filter(classe => classe.codigo !== "SEM_CLASSIFICACAO")
+    .reduce((soma, classe) => soma + (topo.contagens[classe.codigo] ?? 0), 0);
+  const motivos = partes.length ? "Sem classificação: " + partes.join("; ") + "." : "";
+  if (classificadas) return motivos || null;
+  return (motivos ? motivos + " " : "") + "Nenhum" + (fem(unidade) ? "a " : " ") + unidade.singular + " recebeu classe nesta janela: a " +
+    "classificação exige a mesma direção em todos os trechos, e uma única mudança de direção basta para a série ficar sem " +
+    "classificação. Janelas com menos competências" + (c.brasil ? ", como os últimos 4 junhos," : "") + " têm menos trechos e mais " +
+    "chance de classe. Isso é o resultado do método, não falta de dados.";
 }

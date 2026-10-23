@@ -2,9 +2,10 @@
 
 Percorre:
 - perguntas antes dos dados, respondidas sem o provedor de IA (inclusive a descrição dos dados do Brasil);
-- a escolha da base pela conversa ("usar dados do Brasil"), sem o provedor;
+- a escolha da base pela conversa ("usar dados do Brasil"), sem o provedor e sem seleção automática (23/10/2026): nada é
+  pedido ao motor até a escolha dos territórios, e a conversa orienta a escolher na Seleção de Territórios ou pela conversa;
 - comandos que mudam o gráfico: o campo `painel` da resposta do intérprete local vira um pedido para a área, que pede ao
-  motor (/api/painel) o novo recorte: "Mostre o Amazonas", "Compare Manaus e Tefé" e "Volte aos estados";
+  motor (/api/painel) o novo recorte: "todos os estados", "Mostre o Amazonas", "Compare Manaus e Tefé" e "Volte aos estados";
 - a vista do desenho pela conversa (23/10/2026), na tela e sem o intérprete: com os municípios na tela, "ver no mapa" troca
   o gráfico pelo mapa (`area-de-analise` com data-desenho="mapa") e "volte ao gráfico" desfaz; "o que esse gráfico mostra?"
   responde com a frase-resumo do motor (`analise-resumo`), como veio;
@@ -12,9 +13,10 @@ Percorre:
   e a frase-resumo (esta nunca chega ao provedor);
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
 - pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
-  continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular;
-- uma planilha enviada pela conversa ("enviar meus dados"), com condados e sem grupo: a orientação usa o nome das unidades,
-  nunca "município", e "Compare Alfa e Beta" muda o gráfico da planilha.
+  continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
+  análise recomeça sem territórios, sem pedir nada ao motor);
+- uma planilha enviada pela conversa ("enviar meus dados"), com condados e sem grupo: abre sem territórios escolhidos; a
+  orientação usa o nome das unidades, nunca "município"; e "Compare Alfa e Beta" muda o gráfico da planilha.
 Nada é calculado pela conversa.
 
 Dois modos, pela suíte (run_ui_checks.py):
@@ -127,20 +129,27 @@ def main():
         else:
             expect(chat.get_by_role("alert")).to_contain_text("Gemini não configurado")
 
-        # 3. A base escolhida pela conversa, como pelo botão, sem o provedor: os estados (E1). O pedido guardado é interpretado
-        # de novo pelo intérprete local, já com a base.
-        chamadas_llm = len(llm_calls)
+        # 3. A base escolhida pela conversa, como pelo botão, sem o provedor e sem seleção automática: nada é pedido ao motor
+        # até a escolha dos territórios, e a conversa orienta a escolher. O pedido guardado é interpretado de novo pelo
+        # intérprete local, já com a base. Depois, "todos os estados", o exemplo da orientação, põe os estados no gráfico (E1).
+        chamadas_llm, chamadas_painel = len(llm_calls), len(painel)
         reinterpretacao = page.expect_request(lambda r: r.url.endswith("/api/exploration/interpret") and
                                               form_field(r, "message") == "Quero analisar a densidade",
                                               timeout=180000) if guardado else nullcontext()
         with reinterpretacao:
-            with page.expect_response(lambda r: is_post(r, "/api/painel"), timeout=180000) as primeiro:
-                with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
-                    send(page, "usar dados do Brasil")
+            with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
+                send(page, "usar dados do Brasil")
         assert inspecao.value.status == 200, inspecao.value.text()[:2000]
-        assert options_of(primeiro.value.request).get("nivel") == "estados", options_of(primeiro.value.request)
         assert len(llm_calls) == chamadas_llm, "a escolha da fonte pela conversa é local"
         expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
+        expect(guia).to_contain_text("Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais "
+                                     "quer ver, por exemplo “mostre o Pará” ou “todos os estados”.", timeout=60000)
+        expect(area).to_have_attribute("data-aba", "territorios")
+        page.wait_for_timeout(1000)  # a área informa o contexto do gráfico (sem territórios)
+        if not guardado:
+            assert len(painel) == chamadas_painel, "sem territórios escolhidos, nada é pedido ao motor"
+        resposta, _, _, grafico = chat_to_chart("todos os estados", lambda o: o.get("nivel") == "estados")
+        assert resposta["painel"].get("nivel") == "estados", resposta["painel"]
         expect(guia).to_contain_text("Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver.")
         page.wait_for_timeout(1000)  # a área informa o contexto do gráfico (E1)
 
@@ -248,13 +257,14 @@ def main():
         expect(latest).to_contain_text("Ainda não há análise anterior nesta sessão")
         assert len(painel) == chamadas and len(exploracoes) + len(llm_calls) == interpretacoes
 
-        # 11. Nova análise e "volte ao resultado anterior": a conversa reabre a análise anterior do Histórico, sem recalcular.
-        with page.expect_response(lambda r: is_post(r, "/api/painel") and options_of(r.request).get("nivel") == "estados",
-                                  timeout=180000):
-            page.get_by_test_id("nav-new-analysis").click()
-        expect(page.get_by_test_id("nav-history")).to_contain_text(history_label(2), timeout=30000)
-        page.wait_for_timeout(800)
+        # 11. Nova análise (sem territórios, sem pedir nada ao motor) e "volte ao resultado anterior": a conversa reabre a
+        # análise anterior do Histórico, sem recalcular.
         chamadas = len(painel)
+        page.get_by_test_id("nav-new-analysis").click()
+        expect(guia).to_contain_text("Os dados estão prontos. Escolha os territórios", timeout=30000)
+        expect(page.get_by_test_id("nav-history")).to_contain_text(history_label(1), timeout=30000)
+        page.wait_for_timeout(800)
+        assert len(painel) == chamadas, "a nova análise começa sem territórios e não pede nada ao motor"
         send(page, "Volte para o resultado anterior")
         expect(latest).to_contain_text("Reabri a análise anterior, sem recalcular")
         page.wait_for_timeout(1500)
@@ -280,11 +290,24 @@ def main():
         colunas.get_by_test_id("colunas-unidade-de-contagem").select_option("pessoas")
         # Sem coluna de categoria, a pessoa diz quem são os trabalhadores contados (o objeto da análise).
         colunas.get_by_test_id("colunas-objeto").fill("médicos")
+        # A planilha também abre sem territórios: a orientação, sem "município", pede a escolha; com todos os condados
+        # marcados na Seleção de Territórios, a área envia o arquivo ao motor.
+        chamadas = len(painel)
+        colunas.get_by_test_id("colunas-comecar").click()
+        expect(colunas).to_have_count(0)
+        expect(page.get_by_test_id("current-source")).to_contain_text("condados.csv · condados")
+        expect(guia).to_contain_text("Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais "
+                                     "quer ver.")
+        expect(guia).not_to_contain_text(SEM_MUNICIPIO)
+        page.wait_for_timeout(800)
+        assert len(painel) == chamadas, "sem territórios escolhidos, nada é pedido ao motor"
+        todos = area.get_by_test_id("analise-territorios-todos")
         with page.expect_response(lambda r: is_post(r, "/api/painel") and uploaded_filename(r.request) == "condados.csv",
                                   timeout=120000) as primeiro:
-            colunas.get_by_test_id("colunas-comecar").click()
+            todos.scroll_into_view_if_needed()
+            todos.focus()
+            todos.press("Enter")
         assert primeiro.value.status == 200, primeiro.value.text()[:2000]
-        expect(page.get_by_test_id("current-source")).to_contain_text("condados.csv · condados")
         expect(guia).to_contain_text("condados")
         expect(guia).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(1000)
@@ -312,8 +335,8 @@ def main():
         assert not analyze_calls, "a conversa não aciona as telas clássicas de /api/analyze"
         assert not failures, failures
         browser.close()
-    print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa, Amazonas, mapa e gráfico, resumo, comparação, "
-          "esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
+    print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa sem seleção automática, todos os estados, Amazonas, "
+          "mapa e gráfico, resumo, comparação, esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
           (", ambiguidade e minimização (Gemini simulado)." if simulado else " (sem provedor)."))
 
 

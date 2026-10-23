@@ -234,13 +234,19 @@ export type EtapaDaFonte = { tipo: "brasil" | "arquivo" | null; pronta: boolean;
 /** Orientação curta da caixa da conversa em cada etapa. Na planilha, os nomes vêm dos rótulos escolhidos (nunca
  * "município" fixo), sempre no plural, sem artigos de gênero. */
 export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico | null, rotulos: Rotulos | null): string {
-  if (!fonte.tipo) return "O que você quer analisar? Prefere começar com os dados do Brasil ou enviar os seus?";
+  if (!fonte.tipo) return "O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de " +
+    "planilha?";
   if (!fonte.pronta) {
-    if (fonte.tipo === "brasil") return "Estou preparando os dados do Brasil. Em seguida, o gráfico mostra os estados.";
+    if (fonte.tipo === "brasil") return "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar.";
     return fonte.colunasPendentes ? "Confira as colunas da planilha no painel Colunas, no alto da página, e escolha “Começar a análise”."
       : "Estou lendo a sua planilha.";
   }
   const unidades = rotulos?.unidade.plural || "unidades", grupos = rotulos?.grupo?.plural || "";
+  // A base carregada abre sem seleção (23/10/2026): a conversa orienta a escolher os territórios.
+  if (contexto && contexto.nivel === "municipios" && !contexto.municipios.todos && !contexto.municipios.estados.length &&
+    !contexto.municipios.ids.length)
+    return "Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver" +
+      (fonte.tipo === "brasil" ? ", por exemplo “mostre o Pará” ou “todos os estados”." : ".");
   if (!contexto || contexto.nivel === "estados")
     return grupos ? "Escolha no gráfico quais " + grupos + " abrir, ou me diga quais " + unidades + " quer ver."
       : "Escolha " + unidades + " no gráfico ou me diga quais quer ver.";
