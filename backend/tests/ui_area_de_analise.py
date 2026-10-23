@@ -600,7 +600,9 @@ def main():
             aperta(regua.get_by_test_id("analise-regua-limpar"))
             expect(chart).to_have_attribute("data-desenhadas", str(len(plotaveis)), timeout=10000)
             fecha()
-            chart.evaluate("e => e.scrollIntoView({block: 'start'})")
+            # A página rola suave (scroll-behavior: smooth): a rolagem instantânea garante que a posição lida abaixo seja a da
+            # bolha já parada, e não a do meio da rolagem.
+            chart.evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
             alvo = area.locator('[data-testid="analise-camada-leve"] [data-testid="analise-bolha"][data-visivel="true"]').nth(len(plotaveis) // 2)
             caixa = alvo.bounding_box()
             page.mouse.move(caixa["x"] + caixa["width"] / 2, caixa["y"] + caixa["height"] / 2)
