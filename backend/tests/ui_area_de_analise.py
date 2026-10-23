@@ -5,6 +5,12 @@ sem novo pedido, a régua que só esconde, grupos por posição, a análise espa
 (Classes, Mudança e Séries, com a janela escolhida pela pessoa), a rotatividade desabilitada com o motivo, Condições, Ordenar,
 Comparar, Juntar, Exportar (CSV em precisão integral), os Detalhes e o celular (abas roláveis e o botão Ferramentas).
 
+Desde 23/10/2026: os ajustes dentro de cada análise (`analise-ajustes`, o painel colado na aba escolhida, com só o que vale para
+ela e o mesmo indicador em todas), a escala na barra junto do desenho (fora dos ajustes, e só quando se aplica), a escolha da vista
+do desenho (`analise-desenho`: o gráfico é a inicial; nos estados, o mapa desligado, com o motivo e o atalho), o convite ao mapa
+depois das Condições e na análise espacial e a frase-resumo do motor (`analise-resumo`), com a competência da resposta. O mapa
+em si (pontos, pintura, transição, lado a lado) é conferido no roteiro do mapa.
+
 Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências; fonte estadual sintética) ou, com
 ADT_BLOCK1_REAL=1, a base versionada (somente leitura), que acrescenta o modo leve com todos os municípios do Brasil. O roteiro
 assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de privacidade e usa os botões de
@@ -28,6 +34,17 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
 AM = "13"  # prefixo IBGE do Amazonas
 BOLHAS = '[data-testid="analise-bolha"][data-visivel="true"]'
+MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro",
+         "dezembro")
+
+
+def formas_da_competencia(competencia):
+    """A competência AAAAMM como a frase-resumo do motor pode escrevê-la: por extenso, mm/aaaa, mês abreviado ou como veio."""
+    formas = [competencia]
+    if re.fullmatch(r"\d{6}", competencia) and 1 <= int(competencia[4:]) <= 12:
+        mes, ano = MESES[int(competencia[4:]) - 1], competencia[:4]
+        formas += [mes + " de " + ano, competencia[4:] + "/" + ano, mes[:3] + "/" + ano]
+    return formas
 
 
 def options_of(request):
@@ -174,6 +191,38 @@ def main():
         expect(linha_am.get_by_test_id("analise-grupo-todos")).to_have_attribute("aria-label", "Todos os municípios do Amazonas")
         expect(area.get_by_test_id("analise-trilha")).to_contain_text("Brasil")
         expect(area.get_by_test_id("analise-familia-rotatividade")).to_have_attribute("aria-disabled", "true")
+        # Ajustes dentro da análise (23/10/2026): o painel colado na aba escolhida mostra só o que vale para ela; nos estados (E1),
+        # o indicador, a competência e os grupos e faixas. A escala sai dos ajustes: fica na barra junto do desenho.
+        ajustes = area.get_by_test_id("analise-ajustes")
+        expect(ajustes).to_have_attribute("data-familia", "distribuicao")
+        expect(ajustes).to_have_attribute("role", "tabpanel")
+        expect(area.get_by_test_id("analise-familia-distribuicao")).to_have_attribute("aria-controls", "analise-ajustes")
+        for controle in ("analise-indicador-densidade", "analise-indicador-quantidade", "analise-competencia", "analise-agrupar"):
+            expect(ajustes.get_by_test_id(controle)).to_be_visible()
+        expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
+        for ausente in ("analise-referencia-escolher", "analise-janela-escolher", "analise-visao-classes", "analise-rot-inicial",
+                        "analise-escala"):
+            expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
+        barra = area.get_by_test_id("analise-barra-desenho")
+        expect(barra.get_by_test_id("analise-escala")).to_be_visible()
+        expect(barra.get_by_test_id("analise-escala")).to_have_value("linear")
+        # A vista do desenho: o gráfico é a inicial. Nos estados, o mapa fica desligado (os estados não têm um ponto), com o motivo
+        # e o atalho para os municípios no mapa; o lado a lado só aparece com a janela de 1.600 px ou mais.
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        desenho = barra.get_by_test_id("analise-desenho")
+        expect(desenho.get_by_test_id("analise-desenho-grafico")).to_have_attribute("aria-pressed", "true")
+        mapa_botao = desenho.get_by_test_id("analise-desenho-mapa")
+        expect(mapa_botao).to_have_attribute("aria-disabled", "true")
+        expect(desenho.get_by_test_id("analise-desenho-lado")).to_have_count(0)
+        calls = len(painel_calls)
+        aperta(mapa_botao)
+        motivo_mapa = area.get_by_test_id("analise-desenho-motivo")
+        expect(motivo_mapa).to_contain_text("Os estados não têm um ponto no mapa")
+        expect(motivo_mapa.get_by_test_id("analise-desenho-atalho")).to_have_text("Ver os municípios no mapa")
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        expect(area.get_by_test_id("analise-mapa-carregando")).to_have_count(0)
+        page.wait_for_timeout(300)
+        assert len(painel_calls) == calls, "o mapa desligado não pede nada ao motor"
         # A bolha do estado sob o mouse e em foco mostra a ação "Ver os municípios".
         amazonas = next(item for item in itens_estado if "Amazonas" in item["rotulo"])
         bolha_am = area.locator('[data-testid="analise-bolha"][data-id="' + amazonas["id"] + '"]')
@@ -201,6 +250,19 @@ def main():
         expect(eixo_x).to_have_count(0)
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nos municípios do Amazonas · ")
         expect(area.get_by_test_id("analise-subtitulo")).to_have_text("Cada bolha é um município. O tamanho mostra a população.")
+        # Frase-resumo do motor, logo abaixo do subtítulo: o texto da resposta, como veio, com a competência dela.
+        resumo_motor = am.get("resumo")
+        texto_resumo = (resumo_motor.get("texto") if isinstance(resumo_motor, dict) else resumo_motor) or ""
+        assert texto_resumo.strip(), ("o motor entrega a frase-resumo da distribuição", resumo_motor)
+        frase = area.get_by_test_id("analise-resumo")
+        expect(frase).to_be_visible()
+        expect(frase).to_have_attribute("aria-live", "polite")
+        expect(frase).to_have_text(texto_resumo.strip())
+        expect(frase).to_contain_text(re.compile("|".join(re.escape(forma) for forma in formas_da_competencia(am["competencia"]))))
+        # Com os municípios à vista, o mapa fica disponível, e o motivo dos estados sai.
+        expect(area.get_by_test_id("analise-desenho-mapa")).not_to_have_attribute("aria-disabled", "true")
+        expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
+        expect(area).to_have_attribute("data-desenho", "grafico")
         expect(area.get_by_test_id("analise-trilha-atual")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
         expect(linha_am).to_have_attribute("data-aberto", "true")
         lista_am = linha_am.get_by_test_id("analise-grupo-unidades")
@@ -258,16 +320,20 @@ def main():
         drawn(ids_am)
         expect(linha_am).to_have_attribute("data-aberto", "true")
 
-        # 6. Quantidade só troca o eixo: nenhum pedido novo ao motor; sem escala logarítmica automática.
+        # 6. Quantidade só troca o eixo: nenhum pedido novo ao motor; sem escala logarítmica automática. A frase-resumo fala do
+        # indicador do cálculo (densidade): com a quantidade à vista e sem novo cálculo, ela sai, e volta com a densidade.
         calls = len(painel_calls)
         area.get_by_test_id("analise-indicador-quantidade").click()
         expect(eixo_y).to_have_attribute("data-eixo", "quantidade")
         drawn(esperados(am, "quantidade"))
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Quantidade de médicos")
+        expect(ajustes.get_by_test_id("analise-indicador-quantidade")).to_have_attribute("aria-checked", "true")
+        expect(frase).to_be_hidden()
         area.get_by_test_id("analise-indicador-densidade").click()
         expect(eixo_y).to_have_attribute("data-eixo", "densidade")
         expect(eixo_y).to_have_attribute("data-escala", "linear")
         drawn(ids_am)
+        expect(frase).to_have_text(texto_resumo.strip())
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "trocar o indicador não pede nada ao motor"
 
@@ -333,6 +399,13 @@ def main():
             assert len(painel_calls) == calls, "a família indisponível não pede nada ao motor"
         else:
             aperta(area.get_by_test_id("analise-familia-espacial"))
+            # Os ajustes da análise espacial: o mesmo indicador, a competência e a referência (resumo e o botão do painel).
+            expect(ajustes).to_have_attribute("data-familia", "espacial")
+            expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
+            expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text("nenhuma ainda")
+            expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_be_visible()
+            for ausente in ("analise-agrupar", "analise-janela-escolher", "analise-visao-classes", "analise-escala"):
+                expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
             referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
             expect(referencia).to_be_visible()
             expect(referencia.get_by_test_id("analise-nota-tpl11")).to_contain_text("linha reta")
@@ -371,6 +444,9 @@ def main():
                         assert float(desenhadas[item["id"]]["distancia"]) == item["distancia_km"], (desenhadas[item["id"]], item)
                 expect(area.get_by_test_id("analise-nota-distancia")).to_contain_text("linha reta")
                 expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até")
+                # Na análise espacial, o convite ao mapa ("onde ficam?"), com a vista no gráfico.
+                expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
+                expect(area).to_have_attribute("data-desenho", "grafico")
                 shot("06-espacial")
             else:
                 # O motor recusou a distância (catálogo sintético, versão externa). Quando ele oferece a escolha da premissa, a
@@ -408,6 +484,15 @@ def main():
         aperta(area.get_by_test_id("analise-familia-tendencia"))
         expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "janela")
         expect(area.get_by_test_id("analise-aviso-familia")).to_contain_text("Escolha a janela da tendência")
+        # Os ajustes da tendência: o mesmo indicador (a troca de aba o mantém), a janela (resumo e o botão do painel) e a visão,
+        # sem competência nem grupos e faixas.
+        expect(ajustes).to_have_attribute("data-familia", "tendencia")
+        expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
+        for controle in ("analise-janela-texto", "analise-janela-escolher", "analise-visao-classes", "analise-visao-mudanca",
+                         "analise-visao-series"):
+            expect(ajustes.get_by_test_id(controle)).to_be_visible()
+        for ausente in ("analise-competencia", "analise-agrupar", "analise-referencia-escolher", "analise-escala"):
+            expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
         page.wait_for_timeout(400)
         atalho = "ultimos4junhos" if real else "todas"
         tendencia, sent = ok(lambda: aperta(area.get_by_test_id("analise-janela").get_by_test_id("analise-janela-atalho-" + atalho)))
@@ -452,6 +537,11 @@ def main():
         shot("08-mudanca")
         area.get_by_test_id("analise-visao-series").click()
         expect(area.get_by_test_id("analise-series-vazio")).to_be_visible()
+        # Em Séries, a escala não se aplica, e o mapa fica desligado, com o motivo no title (a visão Séries é só do gráfico).
+        expect(area.get_by_test_id("analise-escala")).to_have_count(0)
+        expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("aria-disabled", "true")
+        expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("title", re.compile("Na visão Séries"))
+        expect(area).to_have_attribute("data-desenho", "grafico")
         aperta(area.get_by_test_id("analise-detalhes-tabela"))
         tabela = area.get_by_test_id("analise-tabela")
         for chave in (MANAUS, TEFE):
@@ -483,6 +573,8 @@ def main():
         condicoes.get_by_test_id("analise-condicao-valor").fill(str(limiar).replace(".", ","))
         resultado, sent = ok(lambda: aperta(condicoes.get_by_test_id("analise-condicoes-aplicar")))
         assert sent["condicoes"] == [{"atributo": "densidade", "operador": "<", "valor": limiar}], sent
+        # Com as Condições aplicadas, o convite ao mapa: achar onde ficam os que atendem.
+        expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
         for situacao, valor in (resultado.get("condicoes") or {}).get("contagens", {}).items():
             expect(condicoes.locator('[data-testid="analise-condicoes-contagem"][data-situacao="' + situacao + '"]')).to_have_attribute("data-contagem", str(valor))
         desenhadas = bubbles()
@@ -617,6 +709,10 @@ def main():
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
         familias = area.locator('[role="tablist"][aria-label="Análises"]')
         assert familias.evaluate("e => getComputedStyle(e).overflowX") in ("auto", "scroll")
+        # O painel dos ajustes ocupa a largura, logo abaixo das abas; a escolha da vista continua à vista, fora das Ferramentas.
+        caixa_ajustes = area.get_by_test_id("analise-ajustes").bounding_box()
+        assert caixa_ajustes and caixa_ajustes["width"] >= 390 - 80, caixa_ajustes
+        expect(area.get_by_test_id("analise-desenho")).to_be_visible()
         ferramentas = area.get_by_test_id("analise-ferramentas")
         expect(ferramentas).to_be_visible()
         expect(area.get_by_test_id("analise-funcao-regua")).to_be_hidden()

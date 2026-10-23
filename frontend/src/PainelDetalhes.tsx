@@ -14,6 +14,7 @@ const ABAS: [Aba, string][] = [["tabela", "Tabela"], ["nao-avaliaveis", "Não av
 const ASPECTOS: Record<NaoAvaliavel["aspecto"], string> = {
   indicador: "Sem valor do indicador na competência", distancia: "Sem distância até a referência", variacao: "Variação não avaliável",
   tendencia: "Tendência não avaliável", condicoes: "Sem dado para avaliar as condições", rotatividade: "Coorte não avaliável",
+  mapa: "Sem coordenada válida para o mapa",
 };
 
 type Props = {
@@ -154,7 +155,8 @@ export default function PainelDetalhes(p: Props) {
     <div role="tabpanel" id="analise-detalhes-painel-nao-avaliaveis" aria-labelledby="analise-detalhes-aba-nao-avaliaveis" hidden={aba !== "nao-avaliaveis"}
       data-testid="analise-nao-avaliaveis" className="analise-painel-detalhe">
       <p className="text-xs leading-5 text-slate-600">Não avaliável não é zero: sem o valor, o item fica fora do gráfico (ou vazado, com contorno tracejado, quando
-        só a camada de cor não tem valor) e aparece aqui com o motivo do motor.</p>
+        só a camada de cor não tem valor) e aparece aqui com o motivo do motor.{p.fora.some(item => item.aspecto === "mapa")
+          ? " Com o mapa à vista, quem não tem coordenada válida fica fora do mapa (no gráfico, continua) e também aparece aqui." : ""}</p>
       {grupos.length ? grupos.map(grupo => <div key={grupo.aspecto} className="mt-2">
         <p className="text-xs font-semibold text-ink">{ASPECTOS[grupo.aspecto]}{grupo.aspecto === "indicador" ? " (" + especie.rotulo.toLowerCase() + ")" : ""}</p>
         <ul className="mt-1 space-y-0.5 text-xs text-slate-700">

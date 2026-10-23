@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent as EventoMouse,
   type PointerEvent as EventoPonteiro, type ReactNode, type RefObject } from "react";
+import type { GraficoComMapaProps } from "./mapaContrato";
+import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
 import {
   COR_NAO_AVALIAVEL, INDICADORES, LIMITE_LEVE, caudaDoCometa, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
@@ -13,6 +15,8 @@ import {
 // 24 px, dica ao passar o mouse e ao focar, rótulos diretos seletivos (texto em tinta, nunca na cor da série) e navegação pelas
 // setas. Com muitas bolhas (modo leve, acima de LIMITE_LEVE), as posições valem para todos os itens, numa faixa limitada; a
 // régua só esconde. Uma camada de círculos simples desenha a massa; só as bolhas em destaque ganham o desenho completo.
+// Com o mapa (23/10/2026): com `pontosDoMapa`, a dica da unidade com ponto mostra o mapinha ("onde fica?"); `ativoExterno` dá o
+// anel à bolha do item sob o mouse no mapa (lado a lado), e `onAtivo` avisa a área quando a bolha ativa muda.
 
 const SUPERFICIE = "#fcfcfb", TINTA = "#0b0b0b", TINTA_2 = "#52514e", GRADE = "#e1e0d9", EIXO = "#c3c2b7";
 
@@ -69,7 +73,7 @@ type Props = {
   notas: string[];
   onAlternar: (id: string) => void;
   onAbrirGrupo: (id: string) => void;
-};
+} & GraficoComMapaProps;
 
 const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.rotulo) || [])[1] || item.rotulo;
 
@@ -77,6 +81,17 @@ export default function PainelChart(p: Props) {
   const [ref, largura] = useLargura();
   const [ativo, setAtivo] = useState<string | null>(null);
   const [foco, setFoco] = useState<string | null>(null);
+  // A bolha ativa (mouse ou foco) é avisada à área só quando muda; ao sair da tela, o aviso de que nada está ativo.
+  const aoAtivar = useRef(p.onAtivo);
+  aoAtivar.current = p.onAtivo;
+  const avisado = useRef<string | null>(null);
+  useEffect(() => {
+    if (ativo === avisado.current) return;
+    avisado.current = ativo;
+    aoAtivar.current?.(ativo);
+  }, [ativo]);
+  useEffect(() => () => { if (avisado.current !== null) aoAtivar.current?.(null); }, []);
+  const externo = p.ativoExterno ?? null;
   const elementos = useRef(new Map<string, SVGGElement>());
   const focarDepois = useRef<string | null>(null);
   const leve = p.todos.length > LIMITE_LEVE;
@@ -125,10 +140,10 @@ export default function PainelChart(p: Props) {
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
   const opacidadeDe = (bolha: BolhaDesenho) => !bolha.visivel ? 0
-    : destaque && !selecionados.has(bolha.id) && bolha.id !== ativo ? 0.22 : bolha.apagada ? 0.45 : 1;
+    : destaque && !selecionados.has(bolha.id) && bolha.id !== ativo && bolha.id !== externo ? 0.22 : bolha.apagada ? 0.45 : 1;
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === focoEfetivo)) : [];
+    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo)) : [];
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
     nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo }) : null;
@@ -167,9 +182,11 @@ export default function PainelChart(p: Props) {
     return partes.join("; ");
   };
   const larguraDica = Math.min(270, grafico.largura - 16);
+  // Mapinha na dica: só da unidade com ponto no mapa (estados e conjuntos não têm ponto).
+  const miniNaDica = !!bolhaAtiva && bolhaAtiva.tipo === "municipio" && !!p.pontosDoMapa?.has(bolhaAtiva.id);
   const posicaoDica = bolhaAtiva ? {
     left: Math.max(4, bolhaAtiva.x + bolhaAtiva.r + 12 + larguraDica > grafico.largura ? bolhaAtiva.x - bolhaAtiva.r - 12 - larguraDica : bolhaAtiva.x + bolhaAtiva.r + 12),
-    top: Math.max(4, Math.min(grafico.altura - 140, bolhaAtiva.y - 16)),
+    top: Math.max(4, Math.min(grafico.altura - (miniNaDica ? 244 : 140), bolhaAtiva.y - 16)),
   } : null;
   const classe = "analise-svg" + (leve ? " analise-leve-svg" : (p.fase === "preparar" ? " analise-sem-transicao" : "") +
     (p.fase === "tocar" ? " analise-reproduzindo" : ""));
@@ -225,7 +242,7 @@ export default function PainelChart(p: Props) {
       {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={TINTA} strokeOpacity={0.7} strokeWidth={1.25}/>}
       {bolha.referencia && <path d={`M${-(bolha.r + 9)} 0H${-(bolha.r + 3)}M${bolha.r + 3} 0H${bolha.r + 9}M0 ${-(bolha.r + 9)}V${-(bolha.r + 3)}M0 ${bolha.r + 3}V${bolha.r + 9}`}
         stroke={TINTA} strokeWidth={1.5} strokeLinecap="round"/>}
-      {(selecionado || ativo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={TINTA} strokeWidth={2}/>}
+      {(selecionado || ativo === bolha.id || externo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={TINTA} strokeWidth={2}/>}
       <circle className="analise-alvo" r={Math.max(bolha.r + 2, 12)} fill="transparent"/>
     </g>;
   };
@@ -303,6 +320,7 @@ export default function PainelChart(p: Props) {
         </div>)}
       </dl>
       {dica.notas.map(nota => <p key={nota} className="mt-1 text-[11px] leading-4 text-slate-600">{nota}</p>)}
+      {miniNaDica && <div className="mt-1.5"><MiniMapa pontos={p.pontosDoMapa!} destaque={bolhaAtiva!.id} tamanho={96}/></div>}
     </div>}
     <figcaption className="analise-legenda">
       <LegendaDeTamanho maxima={grafico.populacaoMaxima} raioMax={grafico.raioMax}/>

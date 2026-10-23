@@ -11,6 +11,7 @@ import type {
   PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaCandidato, Rotulo, RotulosTerritoriais, SituacaoCondicao,
   TipoGrupos,
 } from "./painelApi";
+import type { EscolhaDePintura, PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
 
 export type { Rotulo, RotulosTerritoriais } from "./painelApi";
 
@@ -424,7 +425,7 @@ export function ordemNeutra(a: { id: string; tipo?: string }, b: { id: string; t
   return grupoA - grupoB || comparar(a.id, b.id);
 }
 
-export type Aspecto = "indicador" | "distancia" | "variacao" | "tendencia" | "condicoes" | "rotatividade";
+export type Aspecto = "indicador" | "distancia" | "variacao" | "tendencia" | "condicoes" | "rotatividade" | "mapa";
 /** Aspecto de um motivo do motor, pelo começo do texto (nunca pela posição na lista). */
 export function aspectoDoMotivo(texto: string): "distancia" | "variacao" | "geral" {
   const inicio = sem(texto);
@@ -459,7 +460,9 @@ export const NOTA_TPL11 = "Distância geográfica direta em linha reta entre as 
   "estrada, tempo de viagem nem facilidade de chegada.";
 
 export type NaoAvaliavel = { id: string; rotulo: string; tipo: PainelItem["tipo"]; aspecto: Aspecto; motivo: string };
-export type Exibicao = { distancia: boolean; variacao: boolean; tendencia: boolean; condicoes: boolean; rotatividade: boolean };
+export type Exibicao = { distancia: boolean; variacao: boolean; tendencia: boolean; condicoes: boolean; rotatividade: boolean;
+  /** Com o mapa à vista: as unidades que o motor devolveu sem coordenada válida (id → motivo do motor, DadosDoMapa.semCoordenada). */
+  semCoordenada: Map<string, string> | null };
 const MOTIVO_PADRAO: Record<Aspecto, (indicador: PainelIndicador) => string> = {
   indicador: indicador => "Sem " + INDICADORES[indicador].rotulo.toLowerCase() + " avaliável na competência.",
   distancia: () => "Sem coordenada válida para medir a distância até a referência.",
@@ -467,26 +470,30 @@ const MOTIVO_PADRAO: Record<Aspecto, (indicador: PainelIndicador) => string> = {
   tendencia: () => "Tendência não avaliável nesta janela.",
   condicoes: () => "Sem dado para avaliar as condições.",
   rotatividade: () => "Coorte não avaliável.",
+  mapa: () => "Sem coordenada válida para o mapa.",
 };
 
 /** Itens desenháveis no estado da tela e não avaliáveis à parte (RQ-REP-04), na ordem neutra. Sem o indicador, o item não
  * vira bolha; com a distância à vista, também sem coordenada. Variação, tendência e condições não avaliáveis: a bolha fica
- * (vazada) e o item entra na lista com o motivo. Na rotatividade, a coorte sem valor sai das barras. */
+ * (vazada) e o item entra na lista com o motivo. Na rotatividade, a coorte sem valor sai das barras. Com o mapa à vista, a
+ * unidade sem coordenada válida fica fora do mapa (no gráfico, continua) e entra na lista com o motivo do motor. */
 export function separarItens(itens: PainelItem[], indicador: PainelIndicador, exibicao: Partial<Exibicao>):
   { plotaveis: PainelItem[]; fora: NaoAvaliavel[] } {
   const plotaveis: PainelItem[] = [], fora: NaoAvaliavel[] = [];
   const registrar = (item: PainelItem, aspecto: Aspecto, motivo?: string | null) => fora.push({ id: item.id, rotulo: item.rotulo,
     tipo: item.tipo, aspecto, motivo: motivo || (aspecto === "indicador" || aspecto === "distancia" || aspecto === "variacao"
-      ? motivosDe(item, aspecto)[0] : textosDe(item).filter(t => !ehAviso(t))[0]) || MOTIVO_PADRAO[aspecto](indicador) });
+      ? motivosDe(item, aspecto)[0] : aspecto === "mapa" ? null : textosDe(item).filter(t => !ehAviso(t))[0]) || MOTIVO_PADRAO[aspecto](indicador) });
+  const semPonto = (item: PainelItem) => { if (exibicao.semCoordenada?.has(item.id)) registrar(item, "mapa", exibicao.semCoordenada.get(item.id)); };
   for (const item of [...itens].sort(ordemNeutra)) {
     if (exibicao.rotatividade) {
       if (!item.rotatividade || !item.rotatividade.avaliavel) registrar(item, "rotatividade", item.rotatividade?.motivo);
-      else plotaveis.push(item);
+      else { plotaveis.push(item); semPonto(item); }
       continue;
     }
     if (numero(item[indicador]) === null) { registrar(item, "indicador"); continue; }
     if (exibicao.distancia && numero(item.distancia_km) === null) { registrar(item, "distancia"); continue; }
     plotaveis.push(item);
+    semPonto(item);
     if (exibicao.variacao && numero(item.variacao_percentual?.[indicador]) === null) registrar(item, "variacao");
     if (exibicao.tendencia && (!item.tendencia || !item.tendencia.avaliavel)) registrar(item, "tendencia", item.tendencia?.motivo || item.tendencia?.rotulo);
     if (exibicao.condicoes && item.condicoes?.situacao === "NAO_AVALIAVEL") registrar(item, "condicoes", item.condicoes.motivo ||
@@ -1108,6 +1115,13 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
   if (item.condicoes) linhas.push({ rotulo: "Condições", valor: item.condicoes.situacao === "ATENDE" ? "atende a todas"
     : item.condicoes.situacao === "NAO_ATENDE" ? "não atende" : "sem dado para avaliar" });
   if (item.ordem && item.ordem.posicao !== null) linhas.push({ rotulo: "Posição na ordenação", valor: item.ordem.posicao + "º" });
+  // Rotatividade no mapa (a dica do ponto): a permanência e a coorte inicial do motor, sempre "da coorte inicial".
+  if (item.rotatividade) {
+    const r = item.rotatividade;
+    linhas.push({ rotulo: "Permanência da coorte inicial", valor: formatarPercentual(r.permanencia) },
+      { rotulo: "Coorte inicial", valor: r.coorteInicial === null ? "Não avaliável" : formatarNumero(r.coorteInicial, true) });
+    if (!r.avaliavel && r.motivo) notas.push(r.motivo);
+  }
   notas.push(...avisosDe(item));
   if (conjunto) {
     notas.push(NOTA_SOMA);
@@ -1318,12 +1332,16 @@ function lerCondicao(bruto: unknown): CondicaoPedido | null {
 }
 
 export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia" | "janela";
-/** `criterio`: a referência pedida por critério (sem membros): a lista de candidatos abre nessa ordem, e a escolha é da pessoa. */
+/** `criterio`: a referência pedida por critério (sem membros): a lista de candidatos abre nessa ordem, e a escolha é da pessoa.
+ * `vista`: a vista do desenho pedida ("ver no mapa", "volte ao gráfico"), só quando ela pode aparecer; estado visual. */
 export type ResultadoPedido = { definicao: DefinicaoAnalise; abrir: FuncaoPainel | null; selecao: string[] | null; mensagens: string[];
-  criterio: PainelCriterio | null };
-/** Aplica o comando da conversa ao estado do gráfico. Valida cada campo; o que não vale vira mensagem, nunca erro. */
+  criterio: PainelCriterio | null; vista: "grafico" | "mapa" | null };
+/** Aplica o comando da conversa ao estado do gráfico. Valida cada campo; o que não vale vira mensagem, nunca erro. A vista do
+ * mapa é conferida na definição que resulta do pedido (`mapa`): "mostre os municípios do Amazonas no mapa" abre o mapa; nos
+ * estados, a mensagem diz o motivo. */
 export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { periodos: string[]; nomes: Map<string, string>;
-  temGrupos: boolean; disponivel: (familia: Familia) => Disponivel; grupoDe?: (id: string) => string }): ResultadoPedido {
+  temGrupos: boolean; disponivel: (familia: Familia) => Disponivel; grupoDe?: (id: string) => string;
+  mapa?: (definicao: DefinicaoAnalise) => { disponivel: boolean; motivo: string | null } }): ResultadoPedido {
   let proxima: DefinicaoAnalise = { ...def };
   const mensagens: string[] = [];
   let abrir: FuncaoPainel | null = null, selecao: string[] | null = null;
@@ -1405,7 +1423,15 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     const disponivel = c.disponivel(proxima.familia);
     if (!disponivel.disponivel) { mensagens.push(NOMES_FAMILIAS[proxima.familia] + ": " + disponivel.motivo); proxima.familia = def.familia; }
   }
-  return { definicao: proxima, abrir, selecao, mensagens, criterio: criterioPedido };
+  // Vista do desenho (estado visual): o gráfico sempre; o mapa só quando a análise que resulta do pedido tem pontos.
+  let vista: ResultadoPedido["vista"] = null;
+  if (pedido.vista === "grafico") vista = "grafico";
+  else if (pedido.vista === "mapa") {
+    const mapa = c.mapa ? c.mapa(proxima) : { disponivel: true, motivo: null };
+    if (mapa.disponivel) vista = "mapa";
+    else mensagens.push("Mapa: " + (mapa.motivo || "indisponível nesta análise."));
+  }
+  return { definicao: proxima, abrir, selecao, mensagens, criterio: criterioPedido, vista };
 }
 
 /** Contexto do gráfico para a estrutura da página e a conversa. */
@@ -1444,7 +1470,9 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
 }
 
 // ================================================================================================ estado salvo (Histórico)
-export type Visual = { escala: Escala; corte: Corte | null; selecionados: string[] };
+/** Estado visual guardado com a análise. `vista` (gráfico, mapa ou lado a lado) e `corContinua` (a cor contínua escolhida para o
+ * mapa) entraram em 23/10/2026: um estado de antes, sem os campos, reabre no gráfico e com o mapa ainda sem cor escolhida. */
+export type Visual = { escala: Escala; corte: Corte | null; selecionados: string[]; vista?: VistaDesenho; corContinua?: boolean };
 /** O que o Histórico guarda: a definição, a família que o motor calculou, a chave do pedido (para reabrir sem recalcular), o
  * pedido enviado e o estado visual. */
 export type DefinicaoSalva = { versao: 1; chave: string; familia: Familia; opcoes: PainelOpcoes | null; definicao: DefinicaoAnalise; visual: Visual };
@@ -1453,17 +1481,21 @@ export function salvarEstado(titulo: string, salvo: Omit<DefinicaoSalva, "versao
   const definicao: DefinicaoSalva = { versao: 1, ...salvo };
   return { titulo, definicao, resposta, quando };
 }
-/** Lê um estado salvo; o que não tiver a forma esperada é ignorado (null). */
+const VISTAS_VALIDAS = new Set<string>(["grafico", "mapa", "lado"]);
+/** Lê um estado salvo; o que não tiver a forma esperada é ignorado (null). Vista ou cor contínua com valor estranho ficam de fora. */
 export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (DefinicaoSalva & { resposta: PainelResposta | null }) | null {
   const salvo = estado?.definicao as Partial<DefinicaoSalva> | undefined;
   if (!salvo || salvo.versao !== 1 || typeof salvo.chave !== "string" || !salvo.definicao || typeof salvo.definicao !== "object") return null;
   const def = salvo.definicao as DefinicaoAnalise;
   if (!FAMILIAS_VALIDAS.has(def.familia) || !def.base || !Array.isArray(def.janela)) return null;
   const resposta = estado!.resposta as PainelResposta | null;
+  const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
   return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
     opcoes: salvo.opcoes ?? null, definicao: def,
     visual: { escala: salvo.visual?.escala === "logaritmica" ? "logaritmica" : "linear", corte: salvo.visual?.corte ?? null,
-      selecionados: Array.isArray(salvo.visual?.selecionados) ? salvo.visual!.selecionados : [] },
+      selecionados: Array.isArray(salvo.visual?.selecionados) ? salvo.visual!.selecionados : [],
+      ...(typeof vista === "string" && VISTAS_VALIDAS.has(vista) ? { vista } : {}),
+      ...(typeof corContinua === "boolean" ? { corContinua } : {}) },
     resposta: resposta && Array.isArray(resposta.itens) ? resposta : null };
 }
 
@@ -1517,9 +1549,11 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
   const linhas = [colunas.map(([nome]) => celula(nome)).join(";"), ...itens.map(item => colunas.map(([, valor]) => celula(valor(item))).join(";"))];
   return "﻿" + linhas.join("\r\n");
 }
-/** Método e parâmetros em texto: o título, o pedido enviado ao motor, as notas, as limitações e a procedência. */
-export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: PainelOpcoes | null): string {
-  const linhas = [titulo, "", "Procedência", "- Competência: " + exibirCompetencia(resposta.competencia) +
+/** Método e parâmetros em texto: o título, a frase-resumo do motor (a mesma da tela; sem ela, nada no lugar), o pedido
+ * enviado ao motor, as notas, as limitações e a procedência. */
+export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: PainelOpcoes | null,
+  resumo: string | null = resposta.resumo?.texto ?? null): string {
+  const linhas = [titulo, ...(resumo ? [resumo] : []), "", "Procedência", "- Competência: " + exibirCompetencia(resposta.competencia) +
     (resposta.competencia_inicial ? " (inicial: " + exibirCompetencia(resposta.competencia_inicial) + ")" : ""),
     "- Categoria: " + resposta.categoria, "- Versão da base: " + (resposta.versao_base || "não informada"),
     "- Chave de execução: " + (resposta.chave_execucao || "não informada")];
@@ -1530,4 +1564,87 @@ export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: 
   if (opcoes) linhas.push("", "Parâmetros enviados ao motor", JSON.stringify(opcoes, null, 2));
   linhas.push("", "Os valores do CSV estão em precisão integral; na tela, aparecem arredondados.");
   return linhas.join("\n");
+}
+
+// ================================================================================================ ajustes, vista do desenho e mapa
+/** Ajustes dentro da análise escolhida (23/10/2026): o painel colado na aba mostra só o que vale para ela. O indicador é o
+ * mesmo em todas as abas (fica na definição) e fica à vista; a categoria, com mais de uma, vem logo depois dele; a rotatividade
+ * não tem indicador. Nos estados (E1) e com a família indisponível, o desenho é a distribuição, e valem os ajustes dela. */
+export type Ajuste = "indicador" | "categoria" | "competencia" | "agrupar" | "referencia" | "janela" | "visao" | "periodos";
+export function ajustesDaAnalise(c: { familia: Familia; nivel: PainelNivel; disponivel: boolean; categorias: number }): Ajuste[] {
+  const categoria: Ajuste[] = c.categorias > 1 ? ["categoria"] : [];
+  const familia = c.nivel === "estados" || !c.disponivel ? "distribuicao" : c.familia;
+  if (familia === "espacial") return ["indicador", ...categoria, "competencia", "referencia"];
+  if (familia === "tendencia") return ["indicador", ...categoria, "janela", "visao"];
+  if (familia === "rotatividade") return ["periodos", ...categoria];
+  return ["indicador", ...categoria, "competencia", "agrupar"];
+}
+/** Motivo do botão Densidade desligado numa planilha sem população (o motor recusa a densidade sem ela). */
+export const TEXTO_SEM_POPULACAO = "Sem população na planilha: só a quantidade.";
+
+/** Largura mínima da janela (px) para o gráfico e o mapa lado a lado; abaixo dela, a escolha volta ao mapa. */
+export const LARGURA_LADO_A_LADO = 1600;
+/** Ligações ilustrativas do mapa até a referência mais próxima: só dos selecionados, até este número. */
+export const MAX_LIGACOES = 30;
+
+export type MapaDisponivel = { disponivel: boolean; motivo: string | null; atalho: string | null };
+/** Se o mapa pode aparecer na análise e, se não, o motivo (e o texto do atalho, nos estados). Os estados não têm um ponto (os
+ * ladrilhos dos estados não foram aprovados: nada de mapa nesse nível); a planilha precisa das colunas de latitude e longitude;
+ * a visão Séries é só do gráfico. Pendências do motor (o referencial de uma planilha) não desligam o mapa: aparecem nele. */
+export function disponibilidadeDoMapa(c: { fonte: "brasil" | "arquivo" | null; temCoordenadas: boolean; nivel: PainelNivel;
+  series: boolean; rotatividade: boolean; rotulos: RotulosTerritoriais }): MapaDisponivel {
+  const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  if (!c.fonte) return { disponivel: false, motivo: "Escolha os dados para começar.", atalho: null };
+  if (c.nivel === "estados") return { disponivel: false, atalho: "Ver " + artigo(unidade, true) + " " + unidade.plural + " no mapa",
+    motivo: maiuscula(artigo(grupo, true)) + " " + grupo.plural + " não têm um ponto no mapa: cada ponto do mapa é " + umA(unidade) + "." };
+  if (!c.temCoordenadas) return { disponivel: false, atalho: null, motivo: c.rotatividade
+    ? "Sem latitude e longitude na planilha, a rotatividade fica nas barras: o mapa precisa das coordenadas de cada " + unidade.singular + "."
+    : "A planilha não tem as colunas de latitude e longitude: o mapa precisa das coordenadas de cada " + unidade.singular + ". A tabela continua." };
+  if (c.series) return { disponivel: false, atalho: null,
+    motivo: "Na visão Séries, cada " + unidade.singular + " é uma linha no tempo: o mapa fica com Classes e Mudança." };
+  return { disponivel: true, motivo: null, atalho: null };
+}
+
+/** Como o mapa pinta (PinturaDoMapa do contrato): a camada do gráfico quando há uma (grupos, faixas, condições, ordem, classes
+ * ou variação); na rotatividade, a permanência da coorte inicial em cor contínua; senão, a cor contínua só se a pessoa a
+ * escolheu; e, sem cor escolhida, a pergunta "Como pintar o mapa?" (decisão de 23/10/2026). Nunca a escala logarítmica. */
+export function pinturaDoMapa(c: { camada: CamadaDeCor; rotatividade: boolean; corContinua: boolean }): PinturaDoMapa {
+  if (c.rotatividade) return "continua";
+  if (c.camada !== "unica") return "camada";
+  return c.corContinua ? "continua" : "pergunta";
+}
+/** Opções da pergunta "Como pintar o mapa?" em cada análise: quintis e faixas vêm do motor (só na distribuição); a análise
+ * espacial oferece a cor contínua e as Condições; tendência (a cor já é a da camada) e rotatividade não perguntam. */
+export function opcoesDePintura(familia: Familia): EscolhaDePintura[] {
+  if (familia === "distribuicao") return ["quintis", "faixas", "continua"];
+  if (familia === "espacial") return ["continua", "condicoes"];
+  return [];
+}
+/** Cor contínua do mapa: o indicador no domínio do motor ou, na rotatividade, a permanência da coorte inicial (0 a 100%). */
+export function corContinuaDoMapa(c: { rotatividade: boolean; indicador: PainelIndicador; dominios: PainelResposta["dominios"] }):
+  { valor: (item: PainelItem) => number | null; rotulo: string; dominio: PainelDominio | null } {
+  if (c.rotatividade) return { valor: item => numero(item.rotatividade?.permanencia), rotulo: "Permanência da coorte inicial (%)", dominio: [0, 100] };
+  const especie = INDICADORES[c.indicador];
+  return { valor: item => valorDe(item, c.indicador), rotulo: especie.rotulo + " (" + especie.unidade + ")", dominio: c.dominios[c.indicador] ?? null };
+}
+/** Tamanho do ponto (área proporcional, TamanhoDoMapa do contrato): população na densidade, quantidade na quantidade e coorte
+ * inicial na rotatividade; o máximo é o do domínio do motor, quando houver. */
+export function tamanhoDoMapa(c: { rotatividade: boolean; indicador: PainelIndicador; dominios: PainelResposta["dominios"] }): TamanhoDoMapa {
+  const maximo = (chave: string) => numero(c.dominios[chave]?.[1]);
+  if (c.rotatividade) return { valor: item => numero(item.rotatividade?.coorteInicial), rotulo: "Coorte inicial", maximo: maximo("coorte_inicial") };
+  if (c.indicador === "quantidade") return { valor: item => numero(item.quantidade), rotulo: "Quantidade de profissionais", maximo: maximo("quantidade") };
+  return { valor: item => numero(item.populacao), rotulo: "População", maximo: maximo("populacao") };
+}
+/** Ligações ilustrativas do mapa (não são trajeto): de cada unidade selecionada até o membro (ou os membros, no empate) da
+ * referência mais próximo, como o motor disse; só unidades, na ordem da seleção, até MAX_LIGACOES. */
+export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { de: string; para: string[] }[] {
+  const porId = new Map(itens.map(item => [item.id, item]));
+  const ligacoes: { de: string; para: string[] }[] = [];
+  for (const id of selecionados) {
+    const item = porId.get(id);
+    if (!item || item.tipo !== "municipio" || item.referencia || !item.referencia_mais_proxima?.length) continue;
+    ligacoes.push({ de: item.id, para: item.referencia_mais_proxima.map(ref => ref.id) });
+    if (ligacoes.length >= MAX_LIGACOES) break;
+  }
+  return ligacoes;
 }

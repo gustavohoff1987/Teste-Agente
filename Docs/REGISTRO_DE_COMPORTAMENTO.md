@@ -35,6 +35,59 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Área de análise: ajustes dentro de cada análise, o mapa como segunda vista do gráfico (com o lado a lado e o mapinha) e a frase-resumo do motor
+- **Antes:**
+  - indicador, competência, categoria, as opções da família e a escala ficavam numa linha solta abaixo das abas, igual para
+    todas as análises (o indicador aparecia até na rotatividade, onde não tem efeito); numa planilha sem população, Densidade
+    continuava clicável;
+  - desde 22/10/2026, a página única não tinha mapa: a análise era só o gráfico de bolhas; a dica da bolha não mostrava onde
+    fica a unidade;
+  - não havia frase-resumo na tela, e o arquivo de método começava pelo título.
+- **Agora:**
+  - **Ajustes dentro da análise:** cada aba se liga a um painel de ajustes (`analise-ajustes`) com só o que vale para ela:
+    Distribuição (indicador, categoria, competência, grupos e faixas), Análise espacial (indicador, categoria, competência,
+    referência), Tendência (indicador, categoria, janela e a visão Classes | Mudança | Séries), Rotatividade (períodos e
+    categoria, sem indicador) e, nos estados, indicador, competência, grupos e faixas. O indicador é um só e acompanha a troca
+    de aba; numa planilha sem população, Densidade fica desligada, com o motivo, e um pedido da conversa por densidade fica na
+    quantidade. A Escala foi para a barra junto do desenho, só quando se aplica.
+  - **Vista do desenho:** Gráfico | Mapa | Lado a lado (este só com a janela de 1.600 px ou mais; ao estreitar, volta ao
+    mapa), em `data-desenho` da área; o gráfico é a vista inicial; a escolha vale para a sessão e entra no Histórico, que
+    reabre a análise na vista em que foi guardada. O mapa fica desligado, com o motivo, nos estados (os estados não têm um
+    ponto; atalho "Ver os municípios no mapa"; os ladrilhos dos estados não foram aprovados), numa planilha sem latitude e
+    longitude e na visão Séries. Convite "Ver onde ficam no mapa" depois das Condições e na Análise espacial. A troca entre o
+    gráfico e o mapa desloca as bolhas até os pontos (sem movimento reduzido e com até 400 itens; senão, é direta).
+  - **Mapa** (`MapaAnalise.tsx`, sobre o desenho do mapa antigo): os pontos são as coordenadas autorizadas de
+    `POST /api/painel/mapa` (sede municipal do IBGE na base do Brasil; latitude e longitude da planilha, no referencial
+    informado), e a nota diz que a posição é só para o desenho; as demais unidades da fonte ficam ao fundo, em cinza claro;
+    tamanho com área proporcional (população na densidade, quantidade na quantidade, coorte inicial na rotatividade); cor da
+    camada do gráfico (grupos, faixas, condições, ordem, classes ou variação), contínua (linear por padrão; logarítmica só por
+    escolha e com valores positivos; a legenda diz que a cor não é classe nem limiar e marca o Brasil só como contexto) ou,
+    sem cor escolhida, neutra, com a pergunta "Como pintar o mapa?" (quintis do motor como recomendação, faixas, cor contínua
+    ou condições, conforme a análise); a régua e os filtros esmaecem o que fica fora, sem esconder; membros de conjuntos com
+    anel escuro; a referência com a mira do gráfico; ligações tracejadas dos marcados (até 30) até a referência mais próxima,
+    "ligação ilustrativa, não é trajeto"; faixas de distância não viram cor (RQ-REP-02 não lista CAP-ESP-03) e não há círculos
+    de distância; navegação do mapa antigo (botões, arrasto, Ctrl + roda, pinça, duplo clique, teclado e busca por nome),
+    mapinha no canto com zoom e a mesma dica do gráfico; unidades sem coordenada válida entram em Não avaliáveis (aspecto
+    "mapa"), com o motivo do motor.
+  - **Etapa 2 do mapa:** com o mapa disponível, a dica da bolha de um município mostra o mapinha com o destaque ("onde
+    fica?"); no lado a lado, o item sob o mouse num desenho ganha o anel no outro; na rotatividade de uma planilha com
+    coordenadas, o mapa pinta a permanência da coorte inicial (0 a 100%).
+  - **Frase-resumo do motor** (`analise-resumo`, `aria-live`) logo abaixo do subtítulo, só quando fala do indicador à vista;
+    entra na impressão (que sai com a vista em exibição; no lado a lado, as duas) e no arquivo de método. O contexto da
+    conversa leva a vista, a frase e a disponibilidade do mapa.
+- **Permanece:** todo número vem do motor; trocar a vista ou a cor do mapa não pede nada novo (RQ-REP-06); nenhuma classe,
+  quantil, contagem ou posição é criada na tela; logarítmica só por escolha; estados não têm ponto; todos os `data-testid`
+  de antes e o CSV não mudam; a tabela dos Detalhes continua o caminho acessível; nada da base vai ao provedor de IA.
+- **Motivo:** plano da rodada de 23/10/2026 (blocos 1, 2 e 3 e a etapa 2 do mapa), aprovado pelo responsável pelo produto,
+  com as decisões de 23/10: o mapa pergunta como pintar; a régua esmaece no mapa; sem ladrilhos dos estados (o adendo não
+  foi aprovado).
+- **Classificação:** mudança prevista. Escopo: decorre do pedido. Compatibilidade: a SPEC prevê o mapa com geometria
+  autorizada (CAP-REP-03, RQ-REP-07, RQ-REP-10), o painel simples (RQ-REP-08) e a síntese ancorada; cor contínua e tamanho
+  são mapeamento visual contínuo de valores existentes (Parte 13). Desfaz em parte a remoção do mapa de 22/10/2026.
+- **Documentação e testes:** README; `Docs/PAINEL_INTEGRADO_INTERFACE.md`; `Docs/MAPA_DA_PAGINA_UNICA.md` (novo); a nota
+  inicial de `Docs/BLOCO3_MAPAS_VISUALIZACOES.md`; `frontend/tests/areaDeAnalise.test.mjs` e `frontend/tests/mapa.test.mjs`
+  (novos); `backend/tests/ui_area_de_analise.py`; `backend/tests/ui_mapa.py` (novo, na suíte `base-versionada`).
+
 ### 2026-10-23 · Página única: desempenho sem mudar números; respostas grandes comprimidas
 - **Antes:** no ambiente de medição desta rodada, "com tudo" sobre os 5.570 municípios levava 1,98 s; a tendência de 11 junhos
   com condições, 1,03 s; as respostas grandes (até 13,4 MB) iam sem compressão.

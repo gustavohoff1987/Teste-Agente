@@ -1,0 +1,191 @@
+# Mapa da página única
+
+O mapa saiu do produto com as telas clássicas em 22/10/2026 e volta, pelas decisões do responsável pelo produto de 23/10/2026,
+como **segunda vista do gráfico de bolhas** da [área de análise](PAINEL_INTEGRADO_INTERFACE.md). É a mesma análise vista de
+outro jeito: seleção, régua, condições, comparação, conjuntos, dica, tabela e título são os mesmos nas duas vistas. O mapa só
+desenha o que o motor devolveu; nada é calculado na tela.
+
+Código:
+
+- `frontend/src/MapaAnalise.tsx`: o mapa (canvas), a dica, a pergunta "Como pintar o mapa?", as legendas, a busca e o mapinha
+  do canto;
+- `frontend/src/mapaModel.ts`: modelo puro do desenho (projeção, enquadramento, tamanho, cor, marcas da legenda, nomes, alvo do
+  clique, ligações, mapinha e transição). Não importa nenhum outro módulo em tempo de execução, para os testes em Node;
+- `frontend/src/MiniMapa.tsx`: o mapinha (SVG);
+- `frontend/src/transicaoVistas.ts`: a transição entre o gráfico e o mapa;
+- `frontend/src/mapa.css`: os estilos;
+- `frontend/src/mapaContrato.ts`: os tipos combinados entre a área, o mapa, o gráfico e o motor, com os seletores de teste.
+
+O mapa antigo (`TerritoryMap.tsx`, no histórico até `748b3f9`) foi reaproveitado: canvas sem serviço externo nem chave de API,
+projeção equirretangular só para desenhar, pontos em lotes, zoom, arrasto, pinça, duplo clique, teclado, alvo do clique maior
+que o ponto e nomes que não se cobrem. As regras dele estão nas seções 4, 5 e 13 de
+[Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md), que ficam como histórico.
+
+## Para que serve
+
+O gráfico responde "quanto". O mapa responde "onde": onde ficam os municípios de uma faixa, quem atende às condições (os vazios
+assistenciais aparecem como áreas sem pontos que atendem), onde estão a referência e os municípios marcados. O mapa **não mede
+distância**: a posição serve só para o desenho. As distâncias da análise espacial são as do motor (geodésicas, em linha reta).
+
+## Como a área monta o mapa
+
+```ts
+<MapaAnalise ref={mapaRef}
+  itens={PainelItem[]}            // os mesmos itens desenháveis do gráfico; estados não chegam ao mapa
+  dentro={Set<string>}             // ids dentro da régua e dos filtros; os demais esmaecem
+  dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada }}   // do motor (POST /api/painel/mapa)
+  indicador pintura={"camada" | "continua" | "pergunta"} pintar valorContinuo rotuloContinuo dominio escala
+  tamanho={{ valor, rotulo, maximo }} contextoBrasil legendaCor
+  opcoesDePintura onEscolherPintura selecionados referencias ligacoes extraDoRotulo dicaDe rotulos
+  ativoExterno onAtivo onAlternar carregando/>
+```
+
+`mapaRef.current.posicoes()` devolve a posição de cada ponto na janela (para a transição) e `verTudo()` volta ao enquadramento
+inicial. Os tipos completos estão em `mapaContrato.ts`.
+
+## O que cada codificação mostra
+
+| Codificação | O que mostra |
+|---|---|
+| Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência. A nota `mapa-nota` diz isso e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
+| Tamanho | Área proporcional ao valor de tamanho que a área escolhe (população na densidade, quantidade na quantidade). Raio máximo de 16 px, menor que o do gráfico, e mínimo visível de 2,5 px; os maiores ficam atrás e os menores na frente, com um anel fino da cor da superfície separando os sobrepostos. A legenda `mapa-legenda-tamanho` mostra três valores redondos com o mesmo raio do desenho. O tamanho não muda com o zoom: a legenda vale sempre. |
+| Cor, pintura "camada" | A mesma pintura do gráfico (grupos, faixas, condições, ordenação, classes ou variação), pela função `pintar` da área, com a mesma legenda (`legendaCor`). Valor não avaliável: anel tracejado cinza sobre a superfície, nunca preenchido como zero. Pintura apagada (não atende, fora dos primeiros): mais clara. |
+| Cor, pintura "continua" | Rampa sequencial de um tom (azul, do claro ao escuro) entre o mínimo e o máximo do domínio do motor. Linear por padrão; logarítmica só quando a pessoa a escolhe e o domínio é todo positivo. A legenda (`mapa-legenda`, `data-tipo="continua"`) traz o mínimo e o máximo, marcas de leitura (não são limites de classe), a marca do Brasil e o aviso "A cor não é classe nem limiar". |
+| Cor, pintura "pergunta" | A análise ainda não tem cor escolhida: pontos na cor única do gráfico, que não codifica nada, e o cartão "Como pintar o mapa?" (abaixo). |
+| Valor do Brasil | Só uma marca tracejada na legenda contínua, com o texto "referência de contexto; não classifica". O mapa não pinta ninguém "acima" ou "abaixo" do Brasil. |
+| Esmaecido | Item fora da régua ou dos filtros visuais: no mesmo lugar e no mesmo tamanho, bem claro e sem interação. Nunca some. |
+| Fundo | As demais unidades da fonte (os demais municípios do Brasil), em quadradinhos cinza bem claros, sem interação: dão o formato do território. |
+| Anel escuro | Membro de um conjunto. O conjunto não tem ponto: o valor dele é a soma das contagens dos componentes, com possível dupla contagem (RQ-REP-14). A dica do membro diz de qual conjunto ele faz parte. |
+| Mira | Membro da referência da análise espacial (distância 0), a mesma mira do gráfico. |
+| Linha tracejada | Ligação ilustrativa, não é trajeto: de cada município marcado (até 30) ao membro mais próximo da referência, como o motor indicou. O aviso `mapa-ligacoes` diz isso. Não há círculos de "X km". |
+| Anéis de seleção | Marcado: anel escuro junto ao ponto. Sob o mouse, em foco, tocado ou destacado pelo gráfico ao lado: anel externo. Foco pelo teclado: também o contorno de foco da página. |
+| Nomes | Dos marcados, dos que têm texto extra da área (por exemplo "1º" na ordenação) e, com até 12 pontos no resultado, de todos. Com zoom, mais nomes aparecem, sem cobrir uns aos outros, os pontos nomeados, os botões nem o mapinha; só o texto se move, nunca o ponto. |
+
+## Decisões de 23/10/2026
+
+1. **Pintura na primeira abertura:** sem cor escolhida, o mapa pergunta "Como pintar o mapa?", com um botão por opção da
+   análise (`opcoesDePintura`): "5 grupos iguais (quintis)" (5 grupos com o mesmo número de municípios, calculados pelo motor),
+   "Faixas" (limites que você define), "Cor contínua" (a maioria pode ficar parecida) e "Condições" (separa quem atende). A
+   primeira é a recomendada. O cartão pode ser recolhido (estado visual); a escolha vai para a área (`onEscolherPintura`).
+2. **Régua no mapa:** esmaece o que fica fora, em vez de esconder.
+3. **Escala da cor:** linear por padrão; a logarítmica nunca entra sozinha (Parte 13: mudança automática de escala é proibida).
+   O mapa antigo usava a logarítmica por padrão desde 19/10/2026; isso não volta.
+4. **Faixas de distância** não viram cor no mapa: a RQ-REP-02 não lista CAP-ESP-03 entre as classes que podem colorir. Elas
+   continuam como linhas no gráfico e na tabela.
+5. **Enquadramento inicial** nos pontos dos itens, não no país inteiro, com folga; "Ver tudo" volta a ele.
+
+## Navegação
+
+- **Botões** (canto superior direito): `mapa-ampliar`, `mapa-reduzir` e `mapa-ver-tudo` (volta ao enquadramento inicial).
+- **Mouse:** arrastar move o mapa; Ctrl ou ⌘ com a roda (ou só a roda, com o mapa em foco) amplia e reduz em torno do cursor;
+  duplo clique amplia; passar sobre um ponto mostra a dica; clicar marca ou desmarca, como na bolha. O alvo do clique é maior
+  que o ponto: 12 px no mouse e 18 px no toque.
+- **Toque:** arrastar com um dedo, pinça com dois; tocar num ponto marca e mostra a dica.
+- **Teclado,** com o mapa em foco: as setas movem a vista; Shift e as setas vão ao ponto vizinho naquela direção (a vista
+  acompanha); Enter ou espaço marcam o ponto em foco; + e − ampliam e reduzem; 0 ou Home voltam ao enquadramento inicial; Esc
+  fecha a dica. Ao focar o mapa pelo teclado, o ponto mais perto do centro fica em foco.
+- **Mapinha:** com zoom além do inicial, o mapinha (`minimapa`) aparece no canto inferior esquerdo com o retângulo da área à
+  vista.
+- **Busca:** "Achar um município no mapa" (`mapa-busca`) centra o mapa no ponto escolhido e mostra a dica dele, sem marcar nada.
+- **A vista volta como foi deixada:** o zoom e o deslocamento ficam guardados para cada conjunto de itens durante a sessão,
+  mesmo quando o mapa sai da tela; outra análise, com outros itens, começa no enquadramento inicial.
+
+Navegar, marcar, trocar de vista e escolher a cor são estado visual: não iniciam análise (RQ-REP-06).
+
+## Transição entre as vistas
+
+`transicaoVistas.ts` lê a posição de cada bolha do gráfico (`posicoesDoGrafico`, a partir de `[data-testid="analise-bolha"]`) e
+anima, numa camada de canvas fixa por cima da área do desenho, cada bolha até o ponto do mesmo item no mapa (ou o contrário), em
+cerca de `duracaoMs`, com suavização. Os itens que só existem num lado somem ou aparecem aos poucos. A camada cobre a vista nova
+com a superfície e se desfaz no fim, revelando-a no mesmo lugar dos pontos. Com movimento reduzido (preferência do sistema), com
+mais de 1.500 pontos num dos lados (`LIMITE_TRANSICAO`) ou com a área oculta, a troca é direta. A camada é removida ao terminar.
+
+## O gráfico com o mapa
+
+O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComMapaProps`); sem elas, nada muda:
+
+- `pontosDoMapa`: a dica (`analise-dica`) da bolha de uma unidade com ponto mostra o mapinha com o destaque ("onde fica?");
+  estados e conjuntos não têm ponto;
+- `ativoExterno`: a bolha do item sob o mouse no mapa ganha o anel (gráfico e mapa lado a lado);
+- `onAtivo`: avisa a área quando a bolha ativa (mouse ou foco) muda.
+
+## Onde o mapa não se aplica
+
+- **Estados:** não têm ponto e não chegam ao mapa. A área desliga a vista "Mapa" com o motivo e oferece ver os municípios.
+- **Planilha sem latitude e longitude** (ou sem referencial autorizado): sem geometria autorizada, não há mapa (RQ-REP-07); a
+  tabela continua.
+- **Unidade sem coordenada válida:** fica fora do mapa e aparece em Não avaliáveis, com o motivo do motor; a nota do mapa avisa.
+- **Visão Séries e Rotatividade:** a área desliga a vista "Mapa" com o motivo.
+
+## Regras da SPEC respeitadas
+
+- **Parte 13:** só transformações admitidas: mapeamento visual contínuo de valores existentes, formatação de apresentação e
+  rótulos de metadado autorizado. Nenhuma quebra em quantis, intervalos ou classes, nenhum total, média, contagem, proporção,
+  posição ou ranking criado na tela, nenhuma mudança automática de escala.
+- **RQ-REP-02:** as classes que colorem os pontos vêm de capacidades do motor (grupos de CAP-DIS-02, faixas de CAP-DIS-03,
+  condições de CAP-SUB-01, classes de CAP-TEN-01), pela mesma pintura do gráfico. A cor contínua não é classe e a legenda diz
+  isso. As faixas de distância (CAP-ESP-03) não viram cor.
+- **RQ-REP-04:** não avaliável é um anel tracejado, distinto de zero, com legenda.
+- **RQ-REP-06:** controles do mapa e troca de vista só mudam o estado visual.
+- **RQ-REP-07:** o mapa só existe com geometria autorizada (os pontos do motor).
+- **RQ-REP-09:** o mapa traz o que precisa para ser lido sozinho (nota do ponto, legendas, avisos) e não calcula nada: tamanhos,
+  cores e posições saem dos valores do motor.
+- **RQ-REP-14:** conjuntos rotulados como soma das contagens dos componentes, com possível dupla contagem.
+
+## Acessibilidade
+
+- O mapa é focável, com instruções no rótulo; o ponto em foco tem anel, contorno de foco e a dica, e a descrição dele vai para
+  uma região lida pelos leitores de tela (`mapa-foco`).
+- A tabela dos Detalhes continua sendo o caminho acessível para todos os valores.
+- As legendas são regiões com rótulo; os controles têm nomes ("Ampliar o mapa", "Reduzir o mapa", "Ver tudo: volta ao
+  enquadramento inicial").
+- Nenhum significado depende só da cor: vazado é tracejado, a referência tem mira, o conjunto tem anel, e a dica e a tabela
+  trazem os valores.
+- Com movimento reduzido, a transição entre as vistas é direta.
+- Na impressão, sai a vista que está na tela, sem os controles, a busca, a pergunta e a dica.
+
+## Cores
+
+As cores do mapa e do mapinha estão em `MAPA_CORES` (`mapaModel.ts`) e chegam a `mapa.css` como variáveis `--mapa-*`: o modo
+escuro troca só esse objeto. A superfície e as tintas são as da paleta do gráfico. A rampa contínua (`RAMPA_CONTINUA`,
+`#86b6ef` → `#104281`, os passos 250 a 650 do azul) foi conferida no validador da skill de visualização
+(`validate_palette.js --mode light --ordinal`): L monótono, passos de pelo menos 0,06, ponta clara a 2,06:1 da superfície e um
+só matiz. As cores das camadas são as do gráfico.
+
+## Gancho de teste e seletores
+
+- `mapa-analise`, com `data-pintura`, `data-pontos` (pontos do resultado desenhados, inclusive os esmaecidos), `data-contexto`
+  (pontos de fundo), `data-esmaecidos` e `data-escala` (`linear` ou `logaritmica` na cor contínua; `nenhuma` nas demais pinturas).
+- `mapa-canvas`, `mapa-dica` (com `data-id`), `mapa-foco`, `mapa-pergunta` e `mapa-pergunta-<escolha>` (a recomendada com
+  `data-recomendado="true"`), `mapa-pergunta-abrir`, `mapa-legenda` (`data-tipo` = camada | continua | pergunta),
+  `mapa-legenda-min`, `mapa-legenda-max`, `mapa-legenda-marca`, `mapa-legenda-brasil`, `mapa-legenda-aviso`,
+  `mapa-legenda-tamanho` e `mapa-legenda-tamanho-item`, `mapa-ampliar`, `mapa-reduzir`, `mapa-ver-tudo`, `mapa-busca`,
+  `mapa-nota`, `mapa-simbolos`, `mapa-ligacoes`, `mapa-vazio`; `minimapa` (com `minimapa-destaque` e `minimapa-moldura`);
+  `transicao-vistas` (a camada da transição, enquanto existe).
+- `window.__adtMapa`, atualizado a cada desenho: `{ pintura, escala, dominio, contexto, esmaecidos, brasil, vista, largura,
+  altura, desenhos, ms, pontos }`. `pontos` traz `{ id, x, y, r, cor, esmaecido, selecionado, vazada, apagada, naTela }` de cada
+  ponto do resultado, com `x` e `y` em pixels relativos ao canvas. `ms` é o tempo do último desenho. Sai quando o mapa sai da
+  tela.
+
+## Testes
+
+- Node: `frontend/tests/mapa.test.mjs` (modelo puro): projeção e enquadramento, zoom, tamanho com área proporcional, cor
+  contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo,
+  membros, sem coordenada), esmaecidos que nunca somem, vazados nunca como zero, alvo do clique, vizinho pelo teclado, nomes sem
+  sobreposição, ligações, mapinha, transição e cores.
+- Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
+  `/api/painel` e de `/api/painel/mapa`: nos estados, o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil,
+  com os pontos do motor e o fundo; a pergunta "Como pintar o mapa?"; a cor contínua linear e a logarítmica só por escolha, sem
+  pedido ao motor; o Amazonas com os pontos já guardados; os quintis com a mesma contagem por cor que o motor devolveu por grupo;
+  a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
+  do gráfico; o convite depois das Condições; as ligações da análise espacial; o lado a lado em 1.700 px, sem legenda repetida;
+  o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
+  (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
+  convites.
+
+## Limitações e pendências
+
+- Sem limites oficiais de estados nem do Brasil: o formato vem dos próprios pontos (seção 4 de
+  [Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md)).
+- Estados em ladrilhos e a rotatividade no mapa ficam para a etapa 2.
+- Modo escuro: depende de trocar `MAPA_CORES` e de validar as cores para a superfície escura.

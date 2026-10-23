@@ -2,7 +2,7 @@
 
 Experimento isolado de desenvolvimento para o **Agente Diagnóstico Territorial da Força de Trabalho na Saúde**.
 
-- **Interface:** React + TypeScript + Tailwind numa **página única de análise** (desde 22/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do agente e três ações: Nova sessão, Nova análise e Histórico. Logo abaixo, a fonte dos dados: "Dados do Brasil" ou "Enviar meus dados", com o resumo da fonte em uso e "Trocar". Depois, a área de análise: o gráfico de bolhas com as análises, as funções e os Detalhes ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). A conversa fica numa caixa flutuante com o rosto do agente, sempre na página, e muda o gráfico ("mostre o Pará", "compare Manaus e Tefé"). Não há catálogo de análises, preparação, tela de resultados nem mapa: as telas clássicas saíram do produto em 22/10/2026, e o motor (`/api/analyze` e as capacidades) continua. Veja [Interface conversacional integrada](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+- **Interface:** React + TypeScript + Tailwind numa **página única de análise** (desde 22/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do agente e três ações: Nova sessão, Nova análise e Histórico. Logo abaixo, a fonte dos dados: "Dados do Brasil" ou "Enviar meus dados", com o resumo da fonte em uso e "Trocar". Depois, a área de análise: o gráfico de bolhas com as análises, as funções e os Detalhes ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). A conversa fica numa caixa flutuante com o rosto do agente, sempre na página, e muda o gráfico ("mostre o Pará", "compare Manaus e Tefé"). Desde 23/10/2026, os ajustes de cada análise ficam num painel colado na aba escolhida (o indicador, a competência, os grupos, a referência ou a janela, só o que vale para ela), e o desenho tem duas vistas da mesma análise, o gráfico e o mapa (Gráfico | Mapa | Lado a lado; [mapa](Docs/MAPA_DA_PAGINA_UNICA.md)), com a frase-resumo do motor abaixo do título. Não há catálogo de análises, preparação nem tela de resultados: as telas clássicas saíram do produto em 22/10/2026, e o motor (`/api/analyze` e as capacidades) continua. Veja [Interface conversacional integrada](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 - **Histórico:** "Nova análise" guarda a análise em exibição no Histórico e volta ao começo do gráfico com os mesmos dados; o Histórico reabre a análise guardada como estava, sem recalcular. A investigação progressiva com diagnósticos compostos saiu em 22/10/2026 (histórico em [investigação territorial progressiva](Docs/ANALISE_EXPLORATORIA_INTEGRADA.md)).
 - **Motor:** Python + FastAPI; as dez capacidades do contrato conversacional, a referência geográfica mais próxima (Bloco 2, Etapa 1) e os critérios combinados com réguas, rankings e recortes (Bloco 2, Etapa 2) são determinísticos.
 - **Conversa opcional:** integração experimental com Gemini para propor interpretações de solicitações. A API de LLM não recebe a base, não executa análises nem confirma parâmetros automaticamente.
@@ -634,7 +634,12 @@ representavam o mesmo resultado: o mapa de pontos (canvas, com seleção, zoom e
 linhas, o pirulito do ranking, a faixa da distribuição, os blocos dos níveis e o cabeçalho do resultado
 com a frase-resumo, os indicadores e a procedência. Essas visualizações saíram do produto com as telas
 clássicas; a análise na tela é o gráfico de bolhas da página única
-([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)), sem mapa.
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Desde 23/10/2026, o mapa voltou como segunda vista do mesmo
+resultado ([mapa da página única](Docs/MAPA_DA_PAGINA_UNICA.md)): pontos na sede municipal (ou na coordenada da planilha),
+cor da camada do gráfico ou contínua (linear por padrão; com a pergunta "Como pintar o mapa?" quando não há cor
+escolhida), tamanho com área proporcional, régua que esmaece e as mesmas funções do gráfico. Os estados não têm ponto: no
+nível dos estados, o mapa fica desligado, com o atalho para os municípios. A frase-resumo voltou abaixo do título, feita
+pelo motor da página única (`resumo` em `/api/painel`).
 
 O que continua na API (`/api/analyze`):
 - o contrato de apresentação (`metadata.representacao`) com as colunas representáveis (rótulo, unidade,

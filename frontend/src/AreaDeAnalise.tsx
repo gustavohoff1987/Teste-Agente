@@ -1,35 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowLeftRight, ChevronRight, Database, Download, Filter, Layers3, ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play,
-  RefreshCw, Ruler, Scale, SlidersHorizontal, Upload, Wrench, X } from "lucide-react";
+import { ArrowLeftRight, ChartScatter, ChevronRight, Columns2, Database, Download, Filter, Layers3, ListOrdered, LoaderCircle, Map as MapaIcone,
+  Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Upload, Wrench, X } from "lucide-react";
 import {
-  ErroDoMotor, pedirPainel, type FonteDoMotor, type Pendencia, type PainelConjuntoPedido, type PainelCriterio, type PainelItem,
-  type PainelMunicipios, type PainelOpcoes, type PainelReferenciaPedido, type PainelResposta,
+  ErroDoMotor, pedirMapa, pedirPainel, type FonteDoMotor, type MapaOpcoes, type Pendencia, type PainelConjuntoPedido, type PainelCriterio,
+  type PainelItem, type PainelMunicipios, type PainelOpcoes, type PainelReferenciaPedido, type PainelResposta,
 } from "./painelApi";
 import {
-  ATALHOS_JANELA, CLASSES_TENDENCIA, CORES_TENDENCIA, COR_BOLHA, COR_NEUTRA, FAMILIAS, INDICADORES, LIMITE_LEVE, MINIMO_TENDENCIA,
-  NOMES_FAMILIAS, NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, RAMPA_AUMENTO, RAMPA_REDUCAO, ROTULOS_GENERICOS, aplicarPedido, apoioDaFamilia,
-  artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corOrdinal, corteAtivo, cronologica, definicaoInicial,
-  disponibilidadeDaFamilia, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, grupoDaUnidade,
-  grupoDoItem, gruposDaFonte, janelaDoAtalho, lerEstadoSalvo, lerLimites, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv,
-  chaveDoPedido, montarOpcoes, noCorte, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto, ordemNeutra, pintar, prefixoDe, rotulosEfetivos, salvarEstado, separarItens,
-  maiuscula, textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
-  type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala, type EstadoSalvo,
+  ATALHOS_JANELA, CLASSES_TENDENCIA, CORES_TENDENCIA, COR_BOLHA, COR_NEUTRA, FAMILIAS, INDICADORES, LARGURA_LADO_A_LADO, LIMITE_LEVE,
+  MINIMO_TENDENCIA, NOMES_FAMILIAS, NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, RAMPA_AUMENTO, RAMPA_REDUCAO, ROTULOS_GENERICOS,
+  TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido, apoioDaFamilia, artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor,
+  contextoDoGrafico, corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa,
+  escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, grupoDaUnidade, grupoDoItem, gruposDaFonte,
+  janelaDoAtalho, lerEstadoSalvo, lerLimites, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
+  chaveDoPedido, montarOpcoes, noCorte, opcoesDePintura, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto, ordemNeutra, pintar,
+  pinturaDoMapa, prefixoDe, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula, textoDaMarca, textoDoMetodo,
+  textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
+  type Ajuste, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala, type EstadoSalvo,
   type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat, type UnidadeDoCatalogo,
   type Visao, type Vista,
 } from "./painelModel";
+import type { DadosDoMapa, EscolhaDePintura, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
 import PainelChart, { type FaseAnimacao, type LinhaDeReferencia } from "./PainelChart";
 import PainelSeries, { MAX_SERIES } from "./PainelSeries";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
 import PainelTerritorios from "./PainelTerritorios";
 import PainelDetalhes from "./PainelDetalhes";
+import MapaAnalise from "./MapaAnalise";
+import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
 import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJanela, GavetaJuntar, GavetaOrdenar, GavetaReferencia } from "./PainelGavetas";
 import "./analise.css";
 
-// Área de análise da página única (22/10/2026): famílias (Distribuição, Análise espacial, Tendência, Rotatividade), o seletor
-// único de indicador, o título dinâmico, a escolha dos territórios sempre à vista, a barra de funções com painéis laterais e,
-// abaixo, os Detalhes. Estados E0 (antes dos dados) a E4 (funções em uso). Todo número vem do motor (/api/painel, pelo cliente
-// painelApi.ts); a tela só posiciona, filtra (estado visual) e desenha. A conversa age sobre o gráfico pela prop `pedido`; a
+// Área de análise da página única (22/10/2026): famílias (Distribuição, Análise espacial, Tendência, Rotatividade) em abas, com
+// os ajustes de cada análise num painel colado na aba escolhida (23/10/2026: indicador, categoria, competência e o que for da
+// família; a rotatividade não tem indicador), o título dinâmico com a frase-resumo do motor, a escolha dos territórios sempre à
+// vista, a barra de funções com a escala e a vista do desenho (Gráfico | Mapa | Lado a lado), os painéis laterais e, abaixo, os
+// Detalhes. Estados E0 (antes dos dados) a E4 (funções em uso). Todo número vem do motor (/api/painel e /api/painel/mapa, pelo
+// cliente painelApi.ts); a tela só posiciona, filtra (estado visual) e desenha. Trocar de vista é estado visual e não pede nada
+// novo ao motor (RQ-REP-06): o mapa mostra a mesma análise do gráfico. A conversa age sobre o gráfico pela prop `pedido`; a
 // estrutura da página recebe o contexto (onContexto) e o estado salvo (onSalvar) e pode reabrir sem recalcular (restaurar).
 
 export type { ContextoDoGrafico, EstadoSalvo, Familia, FonteDados, NiveisDaBase, PedidoDoChat, UnidadeDoCatalogo, Visao } from "./painelModel";
@@ -65,19 +73,27 @@ const FUNCOES: { chave: FuncaoPainel | "municipios"; rotulo: string; icone: Reac
 ];
 const TITULOS_PAINEL: Record<FuncaoPainel, string> = { regua: "Régua", condicoes: "Condições", ordenar: "Ordenar", comparar: "Comparar",
   juntar: "Juntar", exportar: "Exportar", referencia: "Referência da distância", janela: "Janela da tendência" };
+const VISTAS: { chave: VistaDesenho; rotulo: string; icone: ReactNode }[] = [
+  { chave: "grafico", rotulo: "Gráfico", icone: <ChartScatter size={14} aria-hidden="true"/> },
+  { chave: "mapa", rotulo: "Mapa", icone: <MapaIcone size={14} aria-hidden="true"/> },
+  { chave: "lado", rotulo: "Lado a lado", icone: <Columns2 size={14} aria-hidden="true"/> },
+];
+/** Duração da troca animada entre o gráfico e o mapa (ms) e o limite de espera por ela. */
+const DURACAO_TRANSICAO = 700;
+const esperar = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms));
 
-function useMovimentoReduzido(): boolean {
-  const consulta = "(prefers-reduced-motion: reduce)";
-  const [reduzido, setReduzido] = useState(() => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(consulta).matches);
+/** Consulta de mídia acompanhada (movimento reduzido, largura da janela). */
+function useMidia(consulta: string): boolean {
+  const [ativa, setAtiva] = useState(() => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(consulta).matches);
   useEffect(() => {
     if (!window.matchMedia) return;
     const media = window.matchMedia(consulta);
-    const atualizar = () => setReduzido(media.matches);
+    const atualizar = () => setAtiva(media.matches);
     atualizar();
     media.addEventListener?.("change", atualizar);
     return () => media.removeEventListener?.("change", atualizar);
-  }, []);
-  return reduzido;
+  }, [consulta]);
+  return ativa;
 }
 
 function baixar(nome: string, corpo: string, tipo: string) {
@@ -95,10 +111,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const grupoDeMapa = useMemo(() => new Map(municipios.map(item => [item.id, grupoDaUnidade(item)])), [municipios]);
   const grupoDe = useCallback((id: string) => grupoDeMapa.get(id) ?? prefixoDe(id), [grupoDeMapa]);
   const pronto = !!fonte && periodos.length > 0 && (fonte.tipo !== "brasil" || !!niveis);
-  // Planilha sem população: só a quantidade; as premissas do painel Colunas vão em todo pedido.
+  // Planilha sem população: só a quantidade (a Densidade fica desligada, com o motivo); as premissas do painel Colunas vão em
+  // todo pedido.
   const temPopulacao = tipo !== "arquivo" || !!fonte?.mapping?.population;
   const premissasDaFonte = tipo === "arquivo" ? fonte?.premissas : undefined;
-  const movimentoReduzido = useMovimentoReduzido();
+  // O mapa precisa das coordenadas: a base do Brasil tem a sede de cada município; a planilha, as colunas de latitude e longitude.
+  const temCoordenadas = tipo === "brasil" || (!!fonte?.mapping?.latitude && !!fonte?.mapping?.longitude);
+  const movimentoReduzido = useMidia("(prefers-reduced-motion: reduce)");
+  const largo = useMidia("(min-width: " + LARGURA_LADO_A_LADO + "px)");
 
   const [def, setDef] = useState<DefinicaoAnalise>(() => definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: !!niveis,
     temPopulacao, premissas: premissasDaFonte }));
@@ -123,12 +143,35 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [erro, setErro] = useState<{ mensagem: string; pendencia: Pendencia | null } | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [aviso, setAviso] = useState("");
+  // Vista do desenho (estado visual da sessão, guardado no Histórico): o gráfico é a vista inicial; a escolha não se perde ao
+  // trocar de aba, de território ou de competência. Sem o mapa disponível, aparece o gráfico, e a escolha fica guardada.
+  const [vistaEscolhida, setVistaEscolhida] = useState<VistaDesenho>("grafico");
+  /** Cor contínua escolhida para o mapa ("Como pintar o mapa?"), também estado visual guardado no Histórico. */
+  const [corContinua, setCorContinua] = useState(false);
+  const [motivoVistaAberto, setMotivoVistaAberto] = useState(false);
+  /** Vista de destino desenhada invisível durante a troca animada (as posições de destino são lidas nela). */
+  const [oculta, setOculta] = useState<"grafico" | "mapa" | null>(null);
+  /** O mapa, depois de aparecer, continua montado (oculto) enquanto houver mapa: volta como foi deixado, com o zoom. */
+  const [mapaMontado, setMapaMontado] = useState(false);
+  /** Destaque cruzado no lado a lado: o item sob o mouse num desenho aparece destacado no outro. */
+  const [ativoCruzado, setAtivoCruzado] = useState<string | null>(null);
+  const [dadosDoMapa, setDadosDoMapa] = useState<{ chave: string; dados: DadosDoMapa } | null>(null);
+  const [carregandoMapa, setCarregandoMapa] = useState(false);
+  const [erroMapa, setErroMapa] = useState<{ chave: string; mensagem: string; pendencia: Pendencia | null } | null>(null);
+  const [tentativaMapa, setTentativaMapa] = useState(0);
   const cache = useRef(new Map<string, PainelResposta>());
+  const cacheMapa = useRef(new Map<string, DadosDoMapa>());
   const contextoRef = useRef(props.onContexto); contextoRef.current = props.onContexto;
   const salvarRef = useRef(props.onSalvar); salvarRef.current = props.onSalvar;
-  const visualRef = useRef({ escala, corte, selecionados }); visualRef.current = { escala, corte, selecionados };
+  const visualRef = useRef({ escala, corte, selecionados, vista: vistaEscolhida, corContinua });
+  visualRef.current = { escala, corte, selecionados, vista: vistaEscolhida, corContinua };
   const tituloPainelRef = useRef<HTMLHeadingElement>(null);
   const gatilhoRef = useRef<HTMLElement | null>(null);
+  const faixasRef = useRef<HTMLInputElement>(null);
+  const quadroRef = useRef<HTMLDivElement>(null);
+  const graficoRef = useRef<HTMLDivElement>(null);
+  const mapaRef = useRef<MapaHandle>(null);
+  const transicao = useRef(0);
 
   const rotulos = rotulosEfetivos(resposta?.rotulos, fonte?.rotulos, tipo);
   const temIdentificador = !!fonte?.mapping?.identity;
@@ -136,6 +179,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const comBolhasDeGrupo = tipo === "brasil" && grupos.length > 0 && (disponibilidade?.estados?.disponivel ?? disponibilidade?.grupos?.disponivel ?? true);
   const disponivelDe = useCallback((familia: Familia): Disponivel => disponibilidadeDaFamilia(familia, { fonte: tipo, nivel: def.nivel,
     disponibilidade, temIdentificador, rotulos }), [tipo, def.nivel, disponibilidade, temIdentificador, rotulos]);
+  /** O mapa numa definição (a da tela ou a que resulta de um pedido da conversa). */
+  const mapaDe = (d: DefinicaoAnalise) => disponibilidadeDoMapa({ fonte: tipo, temCoordenadas, nivel: d.nivel,
+    series: d.nivel === "municipios" && d.familia === "tendencia" && visaoEfetiva(d) === "series", rotatividade: d.familia === "rotatividade", rotulos });
   const nomes = useMemo(() => new Map<string, string>([...municipios.map(item => [item.id, nomeDaUnidade(item)] as [string, string]),
     ...(resposta?.itens || []).map(item => [item.id, item.rotulo] as [string, string])]), [municipios, resposta]);
   /** Grupo da lista de uma bolha de grupo (estado) do motor. */
@@ -153,18 +199,20 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const pedidoPendente = useRef<{ id: number; pedido: PedidoDoChat } | null>(null);
   const ultimoPedido = useRef<number | null>(null);
   const reiniciarVisual = () => { setCorte(null); setSelecionados([]); setPainel(null); setAberto(null); setVista("final"); setFase("parado");
-    setSoAtende(false); setFiltroClasse(null); setFaixasTexto(""); };
+    setSoAtende(false); setFiltroClasse(null); setFaixasTexto(""); setOculta(null); setAtivoCruzado(null); setMotivoVistaAberto(false); };
   useEffect(() => {
     if (!fonte) {
-      if (iniciado.current) { iniciado.current = ""; cache.current.clear(); setResposta(null); setCalculado(null); setErro(null); reiniciarVisual();
+      if (iniciado.current) { iniciado.current = ""; cache.current.clear(); cacheMapa.current.clear(); setResposta(null); setCalculado(null); setErro(null);
+        setDadosDoMapa(null); setErroMapa(null); reiniciarVisual();
         setDef(definicaoInicial({ tipo: null, periodos, categoria: props.categoria, temGrupos: false })); }
       return;
     }
     if (!pronto || iniciado.current === chaveFonte) return;
     iniciado.current = chaveFonte;
     cache.current.clear();
+    cacheMapa.current.clear();
     reiniciarVisual();
-    setResposta(null); setCalculado(null); setErro(null);
+    setResposta(null); setCalculado(null); setErro(null); setDadosDoMapa(null); setErroMapa(null);
     let inicial = definicaoInicial({ tipo, periodos, categoria: props.categoria, familia: intencao ?? undefined, temGrupos: grupos.length > 0,
       temPopulacao, premissas: premissasDaFonte });
     setIntencao(null);
@@ -172,11 +220,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (pendente) {
       pedidoPendente.current = null;
       ultimoPedido.current = pendente.id;
-      const resultado = aplicarPedido(inicial, pendente.pedido, { periodos, nomes, temGrupos: grupos.length > 0, grupoDe,
+      const resultado = aplicarPedido(inicial, pendente.pedido, { periodos, nomes, temGrupos: grupos.length > 0, grupoDe, mapa: mapaDe,
         disponivel: familia => disponibilidadeDaFamilia(familia, { fonte: tipo, nivel: inicial.nivel, disponibilidade: null, temIdentificador, rotulos }) });
+      if (!temPopulacao && pendente.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
       inicial = resultado.definicao;
       if (resultado.selecao) setSelecionados(resultado.selecao);
       if (resultado.abrir) setPainel(resultado.abrir);
+      if (resultado.vista) setVistaEscolhida(resultado.vista);
       setCriterioDoChat(resultado.criterio);
       setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
     }
@@ -203,7 +253,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   [tipo, lugarDe, rotulos, nomes]);
 
   // Histórico: a restauração roda antes do pedido ao motor, para a resposta guardada entrar no cache antes; assim, reabrir
-  // uma análise igual ao estado inicial (os estados) não pede de novo.
+  // uma análise igual ao estado inicial (os estados) não pede de novo. A vista e a cor do mapa voltam como foram guardadas (um
+  // estado de antes delas reabre no gráfico).
   const ultimoRestaurado = useRef<EstadoSalvo | null>(null);
   useEffect(() => {
     if (!restaurar || restaurar === ultimoRestaurado.current || !pronto || iniciado.current !== chaveFonte) return;
@@ -212,6 +263,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!lido) { setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada."); return; }
     reiniciarVisual();
     setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
+    setVistaEscolhida(lido.visual.vista ?? "grafico"); setCorContinua(lido.visual.corContinua ?? false);
     setDef(lido.definicao);
     if (lido.resposta && lido.opcoes) {
       cache.current.set(lido.chave, lido.resposta);
@@ -243,7 +295,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           // Histórico: cada cálculo guarda o estado, que reabre sem recalcular.
           const visual = visualRef.current;
           salvarRef.current(salvarEstado(tituloDe(pedidoDef, pedidoFamilia, corpo).titulo, { chave, familia: pedidoFamilia, opcoes: pedidoOpcoes,
-            definicao: pedidoDef, visual: { escala: visual.escala, corte: null, selecionados: visual.selecionados } }, corpo));
+            definicao: pedidoDef, visual: { escala: visual.escala, corte: null, selecionados: visual.selecionados, vista: visual.vista,
+              corContinua: visual.corContinua } }, corpo));
         })
         .catch((exc: unknown) => {
           if (controle.signal.aborted) return;
@@ -266,7 +319,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!pedido || pedido.id === ultimoPedido.current) return;
     if (!pronto || iniciado.current !== chaveFonte) { pedidoPendente.current = pedido; return; }
     ultimoPedido.current = pedido.id;
-    const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe });
+    const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe });
+    if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     setDef(resultado.definicao);
     if (resultado.selecao) setSelecionados(resultado.selecao);
     if (resultado.abrir) setPainel(resultado.abrir);
@@ -274,6 +328,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const base = resultado.definicao.base;
     if (resultado.definicao.nivel === "municipios" && base.estados.length === 1 && !base.ids.length) setAberto(base.estados[0]);
     if (resultado.definicao.nivel === "estados") setAberto(null);
+    // "Ver no mapa" e "volte ao gráfico": estado visual. O mapa que só passa a existir com o pedido (os municípios de um estado)
+    // abre sem a troca animada; o que já existia, com ela.
+    if (resultado.vista === "grafico") trocarVista("grafico", false);
+    else if (resultado.vista === "mapa" && vistaExibida === "grafico") {
+      if (mapa.disponivel) trocarVista("mapa", false);
+      else setVistaEscolhida("mapa");
+    }
     setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
   }, [pedido, pronto, chaveFonte]);
 
@@ -306,13 +367,37 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const visaoNaTela: Visao = !tendenciaNaTela ? "mudanca" : def.visao !== "mudanca" && temTendencia ? def.visao : "mudanca";
   const series = visaoNaTela === "series";
   const cometa = tendenciaNaTela && visaoNaTela !== "series";
+  const rotatividadeNaTela = familiaDesenho === "rotatividade";
   const camada = tendenciaNaTela ? (visaoNaTela === "mudanca" ? "variacao" : "classes") : camadaDeCor(familiaDesenho, visaoDesenho, resposta, defDesenho);
   const camadaFinal = resposta?.condicoes && defDesenho.condicoes.length ? "condicoes" : resposta?.ordenacao && defDesenho.ordenar ? "ordem" : camada;
+
+  // Vista do desenho e mapa. Os estados não têm ponto (o atalho leva aos municípios); a planilha precisa de latitude e
+  // longitude; a visão Séries é só do gráfico. "Lado a lado" só com a janela larga; ao estreitar, volta ao mapa.
+  const mapa = disponibilidadeDoMapa({ fonte: tipo, temCoordenadas, nivel: def.nivel, series, rotatividade: def.familia === "rotatividade" || rotatividadeNaTela,
+    rotulos });
+  const vistaExibida: VistaDesenho = !mapa.disponivel ? "grafico" : vistaEscolhida === "lado" && !largo ? "mapa" : vistaEscolhida;
+  const mapaNaTela = vistaExibida !== "grafico";
+  const lado = vistaExibida === "lado";
+  useEffect(() => { if (!largo && vistaEscolhida === "lado") setVistaEscolhida("mapa"); }, [largo, vistaEscolhida]);
+  useEffect(() => { if (mapaNaTela) setMapaMontado(true); }, [mapaNaTela]);
+  useEffect(() => { if (mapa.disponivel) setMotivoVistaAberto(false); }, [mapa.disponivel]);
+  useEffect(() => { if (!lado) setAtivoCruzado(null); }, [lado]);
+  // Pontos do mapa: os do motor na competência do que está desenhado, pedidos quando o mapa aparece e, em segundo plano, quando o
+  // gráfico mostra unidades com o mapa disponível (o mapinha da dica usa os mesmos pontos). Memória por fonte e competência.
+  const competenciaDoMapa = resposta?.competencia || def.competencia;
+  const categoriaDoMapa = resposta?.categoria || def.categoria;
+  const chaveMapa = fonte && competenciaDoMapa ? chaveFonte + "::" + JSON.stringify([competenciaDoMapa, categoriaDoMapa, tipo === "arquivo" ? def.premissas : {}]) : "";
+  const dadosAtuais = dadosDoMapa?.dados ?? null;
+  const dadosConferem = !!dadosDoMapa && dadosDoMapa.chave === chaveMapa;
+  const erroDoMapa = erroMapa && erroMapa.chave === chaveMapa ? erroMapa : null;
+  const semCoordenada = useMemo(() => mapaNaTela && dadosConferem && dadosAtuais
+    ? new Map(dadosAtuais.semCoordenada.map(item => [item.id, item.motivo] as [string, string])) : null, [mapaNaTela, dadosConferem, dadosAtuais]);
+
   const exibicao = { distancia: distanciaNaTela, variacao: tendenciaNaTela && visaoNaTela === "mudanca",
     tendencia: tendenciaNaTela && visaoNaTela !== "mudanca", condicoes: !!resposta?.condicoes && defDesenho.condicoes.length > 0,
-    rotatividade: familiaDesenho === "rotatividade" };
+    rotatividade: rotatividadeNaTela, semCoordenada };
   const { plotaveis, fora } = useMemo(() => resposta ? separarItens(resposta.itens, indicador, exibicao) : { plotaveis: [], fora: [] },
-    [resposta, indicador, exibicao.distancia, exibicao.variacao, exibicao.tendencia, exibicao.condicoes, exibicao.rotatividade]);
+    [resposta, indicador, exibicao.distancia, exibicao.variacao, exibicao.tendencia, exibicao.condicoes, exibicao.rotatividade, exibicao.semCoordenada]);
   const visiveis = useMemo(() => plotaveis.filter(item => noCorte(item, indicador, corte) &&
     (!soAtende || !exibicao.condicoes || item.condicoes?.situacao === "ATENDE") &&
     (!filtroClasse || !exibicao.tendencia || (filtroClasse === "NAO_AVALIAVEL" ? !item.tendencia?.avaliavel : item.tendencia?.classe === filtroClasse))),
@@ -328,10 +413,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }, [camadaFinal, indicador, limiteVariacao, totalGrupos, totalFaixas, primeiros]);
   const limiares = useMemo(() => corte ? [corte.minimo, corte.maximo] : [], [corte]);
   const dominio = resposta?.dominios[indicador] ?? null;
-  const logPossivel = !!dominio && dominio[0] > 0;
   const idsNaTela = useMemo(() => visiveis.map(item => item.id), [visiveis]);
   const { titulo, subtitulo } = tituloDe(def, familiaPedida, resposta);
-  const contexto = useMemo(() => contextoDoGrafico(def, idsNaTela, titulo, grupoDe), [def, idsNaTela, titulo, grupoDe]);
+  // Frase-resumo do motor, abaixo do subtítulo. Ela fala do indicador do cálculo (o da resposta; numa resposta de antes, o do
+  // pedido): se a troca do indicador não pediu nada novo ao motor, a frase sai até voltar o indicador do cálculo ou chegar um
+  // cálculo novo, para nunca descrever o outro indicador.
+  const indicadorDoCalculo = resposta?.indicador ?? calculado?.opcoes.indicador ?? null;
+  const resumoNaTela = resposta?.resumo?.texto && (!indicadorDoCalculo || indicadorDoCalculo === indicador) ? resposta.resumo.texto : null;
+  const contexto = useMemo(() => ({ ...contextoDoGrafico(def, idsNaTela, titulo, grupoDe), vista: vistaExibida, resumo: resumoNaTela,
+    mapaDisponivel: mapa.disponivel, motivoSemMapa: mapa.motivo }),
+  [def, idsNaTela, titulo, grupoDe, vistaExibida, resumoNaTela, mapa.disponivel, mapa.motivo]);
   const ultimoContexto = useRef("");
   useEffect(() => {
     const json = JSON.stringify(contexto);
@@ -339,6 +430,34 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     ultimoContexto.current = json;
     contextoRef.current(contexto);
   }, [contexto]);
+
+  const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || (resposta?.nivel === "municipios" && plotaveis.length > 0));
+  useEffect(() => {
+    if (!querMapa || !fonteMotor) { setCarregandoMapa(false); return; }
+    const emCache = cacheMapa.current.get(chaveMapa);
+    if (emCache) { setDadosDoMapa({ chave: chaveMapa, dados: emCache }); setErroMapa(null); setCarregandoMapa(false); return; }
+    const controle = new AbortController(), chavePedida = chaveMapa;
+    // Nas planilhas, as premissas e os rótulos vão como no gráfico; na base do Brasil, o motor recusa os dois.
+    const pedidoMapa: MapaOpcoes = { competencia: competenciaDoMapa, categoria: categoriaDoMapa,
+      ...(tipo === "arquivo" && Object.keys(def.premissas).length ? { premissas: def.premissas } : {}),
+      ...(tipo === "arquivo" && fonte?.rotulos ? { rotulos: fonte.rotulos } : {}) };
+    setCarregandoMapa(true);
+    setErroMapa(null);
+    pedirMapa(fonteMotor, pedidoMapa, controle.signal)
+      .then(dados => {
+        if (controle.signal.aborted) return;
+        cacheMapa.current.set(chavePedida, dados);
+        while (cacheMapa.current.size > MAX_CACHE) cacheMapa.current.delete(cacheMapa.current.keys().next().value as string);
+        setDadosDoMapa({ chave: chavePedida, dados });
+      })
+      .catch((exc: unknown) => {
+        if (controle.signal.aborted) return;
+        setErroMapa({ chave: chavePedida, mensagem: exc instanceof Error ? exc.message : "Não foi possível pedir os pontos do mapa.",
+          pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null });
+      })
+      .finally(() => { if (!controle.signal.aborted) setCarregandoMapa(false); });
+    return () => controle.abort();
+  }, [querMapa, chaveMapa, tentativaMapa]);
 
   // ------------------------------------------------------------------------------------------ ações
   const mudar = (parte: Partial<DefinicaoAnalise>) => setDef(atual => ({ ...atual, ...parte }));
@@ -444,13 +563,74 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     mudar({ premissas: { ...def.premissas, [chavePendencia]: novo } });
     setAviso("Premissa confirmada: " + chavePendencia + " = " + valor + ".");
   }
+  /** O Histórico guarda a vista e a cor do mapa escolhidas depois do cálculo (a mesma análise, sem novo pedido). */
+  function guardarVisual(parte: { vista?: VistaDesenho; corContinua?: boolean }) {
+    if (!calculado || !resposta) return;
+    salvarRef.current(salvarEstado(tituloDe(calculado.def, calculado.familia, resposta).titulo, { chave: calculado.chave, familia: calculado.familia,
+      opcoes: calculado.opcoes, definicao: calculado.def, visual: { escala, corte: null, selecionados, vista: vistaEscolhida, corContinua, ...parte } }, resposta));
+  }
+  /** Troca a vista do desenho (estado visual: nada é pedido ao motor). Entre o gráfico e o mapa, sem movimento reduzido e com até
+   * LIMITE_LEVE itens, as bolhas deslizam até os pontos: posições de origem, a vista de destino invisível, as posições de destino
+   * no quadro seguinte, a animação e a revelação. No lado a lado, e nos demais casos, a troca é direta. */
+  function trocarVista(nova: VistaDesenho, conferir = true) {
+    if (conferir && nova !== "grafico" && !mapa.disponivel) {
+      setMotivoVistaAberto(true);
+      setAviso("Mapa indisponível: " + (mapa.motivo ?? ""));
+      return;
+    }
+    setMotivoVistaAberto(false);
+    const de = vistaExibida;
+    if (nova === vistaEscolhida && nova === de) return;
+    setVistaEscolhida(nova);
+    guardarVisual({ vista: nova });
+    setAviso(nova === "grafico" ? "Gráfico à vista." : nova === "mapa" ? "Mapa à vista: a mesma análise do gráfico." : "Gráfico e mapa lado a lado.");
+    const token = ++transicao.current;
+    const posicoesDe = (qual: VistaDesenho): Posicoes => qual === "grafico" ? (graficoRef.current ? posicoesDoGrafico(graficoRef.current) : new Map())
+      : mapaRef.current?.posicoes() ?? new Map();
+    const animar = !movimentoReduzido && plotaveis.length <= LIMITE_LEVE && de !== nova && de !== "lado" && nova !== "lado" && !!resposta;
+    const origem = animar ? posicoesDe(de) : new Map();
+    if (!origem.size) { setOculta(null); return; }
+    setOculta(nova === "grafico" ? "grafico" : "mapa");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (token !== transicao.current) return;
+      const destino = posicoesDe(nova), raiz = quadroRef.current;
+      const animacao = raiz && destino.size
+        ? Promise.race([animarTransicao(raiz, origem, destino, DURACAO_TRANSICAO).catch(() => undefined), esperar(DURACAO_TRANSICAO * 2)])
+        : Promise.resolve();
+      void animacao.then(() => { if (token === transicao.current) setOculta(null); });
+    }));
+  }
+  /** Atalho dos estados: todas as unidades, já no mapa. */
+  function verUnidadesNoMapa() {
+    todasAsUnidades();
+    setMotivoVistaAberto(false);
+    setVistaEscolhida("mapa");
+    setAviso(maiuscula(todosOs(rotulos.unidade)) + " no mapa.");
+  }
+  /** "Como pintar o mapa?": quintis e faixas são pedidos ao motor (o gráfico pinta igual); a cor contínua é estado visual; as
+   * condições abrem o painel. */
+  function escolherPintura(escolha: EscolhaDePintura) {
+    if (escolha === "quintis") {
+      mudar({ agrupar: { tipo: "quintis", faixas: [] } });
+      setAviso("Quintis pedidos ao motor: o mapa e o gráfico pintam os 5 grupos.");
+    } else if (escolha === "faixas") {
+      mudar({ agrupar: { tipo: "faixas", faixas: def.agrupar.faixas } });
+      setAviso("Digite os limites das faixas em Grupos e faixas e aplique.");
+      requestAnimationFrame(() => faixasRef.current?.focus());
+    } else if (escolha === "continua") {
+      setCorContinua(true);
+      guardarVisual({ corContinua: true });
+      setAviso("Cor contínua no mapa: a cor acompanha o valor, sem classes nem limiares.");
+    } else abrirPainel("condicoes");
+  }
   function exportarCsv() {
     if (!resposta) return;
     baixar("analise_" + (resposta.competencia || "grafico") + ".csv", montarCsv(resposta, { familia: familiaDesenho, indicador, rotulos }), "text/csv;charset=utf-8");
   }
   function exportarMetodo() {
     if (!resposta) return;
-    baixar("metodo_" + (resposta.competencia || "grafico") + ".txt", textoDoMetodo(resposta, titulo, calculado?.opcoes ?? null), "text/plain;charset=utf-8");
+    baixar("metodo_" + (resposta.competencia || "grafico") + ".txt", textoDoMetodo(resposta, titulo, calculado?.opcoes ?? null, resumoNaTela),
+      "text/plain;charset=utf-8");
   }
 
   // ------------------------------------------------------------------------------------------ partes da tela
@@ -483,13 +663,19 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     : camadaFinal === "faixas" ? defDesenho.agrupar.faixas.map(valor => ({ valor, rotulo: textoDaMarca(valor) })) : [];
   const faixasDistancia: LinhaDeReferencia[] = distanciaNaTela ? defDesenho.faixasDistancia.map(valor => ({ valor, rotulo: textoDaMarca(valor) + " km" })) : [];
   const rotuloDistancia = (defDesenho.referencia?.membros.length ?? 0) > 1 ? "Distância até o membro mais próximo da referência (km)" : "Distância até a referência (km)";
+  /** Texto antes do nome no rótulo direto: a posição do motor na ordenação (até os 12 primeiros), no gráfico e no mapa. */
+  const extraDoRotulo = camadaFinal === "ordem" ? (item: PainelItem) => item.ordem?.posicao !== null && item.ordem && (primeiros === null ||
+    item.ordem.posicao <= primeiros) && (primeiros ?? 99) <= 12 ? item.ordem.posicao + "º" : null : undefined;
 
-  const legendaCor = ((): ReactNode => {
+  // Legenda da camada de cor: a do gráfico, com os seletores de teste; a cópia que vai ao mapa (a mesma legenda) sai sem eles, para
+  // o lado a lado e o mapa montado e oculto não repetirem os data-testid do gráfico.
+  const legendaDaCor = (comIds: boolean): ReactNode => {
+    const id = (valor: string) => comIds ? valor : undefined;
     if (!resposta) return null;
     if (camadaFinal === "variacao") {
       const gradiente = "linear-gradient(to right, " + [...RAMPA_REDUCAO].reverse().join(", ") + " 48%, " + COR_NEUTRA + " 48% 52%, " +
         RAMPA_AUMENTO.map((cor, indice) => cor + (indice === 0 ? " 52%" : "")).join(", ") + ")";
-      return <div data-testid="analise-legenda-cor" data-camada="variacao" className="max-w-xs">
+      return <div data-testid={id("analise-legenda-cor")} data-camada="variacao" className="max-w-xs">
         <div className="h-2.5 rounded-full" style={{ background: gradiente }} aria-hidden="true"/>
         <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-600" aria-hidden="true">
           {([[0, -limiteVariacao], [50, 0], [100, limiteVariacao]] as const).map(([posicao, valor]) =>
@@ -522,15 +708,17 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         { chave: "demais", cor: COR_NEUTRA, texto: "Demais", contagem: null });
     }
     if (!itensLegenda.length) return null;
-    return <ul data-testid="analise-legenda-cor" data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
-      {itensLegenda.map(item => <li key={item.chave} data-testid="analise-legenda-cor-item" data-chave={item.chave} data-contagem={item.contagem ?? ""}
+    return <ul data-testid={id("analise-legenda-cor")} data-camada={camadaFinal} className="flex flex-col gap-1" aria-label="Legenda das cores">
+      {itensLegenda.map(item => <li key={item.chave} data-testid={id("analise-legenda-cor-item")} data-chave={item.chave} data-contagem={item.contagem ?? ""}
         className="flex items-center gap-1.5">
         <span className="analise-amostra-bolha" style={item.vazada ? { background: "#fff", border: "1.5px dashed #898781" } : { background: item.cor ?? COR_BOLHA }} aria-hidden="true"/>
         <span>{item.texto}{item.contagem !== null ? <> · <strong className="tabular-nums text-ink">{formatarNumero(item.contagem, true)}</strong></> : ""}</span>
       </li>)}
       {camadaFinal === "grupos" && totalGrupos > 5 && <li className="leading-4">Nos decis, só as linhas de corte: mais de cinco tons não se distinguem.</li>}
     </ul>;
-  })();
+  };
+  const legendaCor = legendaDaCor(true);
+  const legendaDoMapa = legendaDaCor(false);
 
   const notasDoGrafico = [
     // As bolhas de grupo só existem na base do Brasil (os estados, da fonte estadual de profissionais únicos).
@@ -567,7 +755,41 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setSelecionados(lista);
   }
 
-  const desenho = (() => {
+  // Mapa (MapaProps do contrato): os mesmos itens do gráfico, sem os estados; a régua e os filtros esmaecem (decisão de 23/10).
+  const itensDoMapa = useMemo(() => plotaveis.filter(item => item.tipo !== "estado"), [plotaveis]);
+  const dentroDoMapa = useMemo(() => new Set(visiveis.map(item => item.id)), [visiveis]);
+  const corDoMapa = useMemo(() => corContinuaDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
+    [rotatividadeNaTela, indicador, resposta]);
+  const tamanhoNoMapa = useMemo(() => tamanhoDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
+    [rotatividadeNaTela, indicador, resposta]);
+  const pinturaMapa = pinturaDoMapa({ camada: camadaFinal, rotatividade: rotatividadeNaTela, corContinua });
+  const opcoesPintura = useMemo(() => opcoesDePintura(familiaDesenho), [familiaDesenho]);
+  const referenciasDoMapa = useMemo(() => distanciaNaTela ? (resposta?.referencia?.membros ?? []).map(membro => membro.id).filter(Boolean) : [],
+    [distanciaNaTela, resposta]);
+  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, selecao) : [], [distanciaNaTela, resposta, selecao]);
+  const dicaDe = useCallback((item: PainelItem) => montarDica(item, { indicador, competencia: resposta?.competencia ?? "",
+    competenciaInicial: resposta?.competencia_inicial || null, distancia: distanciaNaTela, variacao: cometa && !!resposta?.competencia_inicial,
+    tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo }),
+  [indicador, resposta, distanciaNaTela, cometa, nomes, limiares, rotulos, unidadesDoGrupo]);
+  // A escala muda só o desenho ("como ver"): fica na barra junto da vista, só quando se aplica (no gráfico, fora da rotatividade
+  // e de Séries; no mapa, só com a cor contínua). Linear por padrão; a logarítmica só por escolha e com valores positivos.
+  const escalaNoGrafico = (vistaExibida === "grafico" || lado) && !rotatividadeNaTela && !series;
+  const escalaNoMapa = mapaNaTela && pinturaMapa === "continua";
+  const dominioDaEscala = escalaNoGrafico ? dominio : corDoMapa.dominio;
+  const logPossivel = !!dominioDaEscala && dominioDaEscala[0] > 0;
+  const propsDoMapa: MapaProps | null = resposta && dadosAtuais ? {
+    itens: itensDoMapa, dentro: dentroDoMapa, dados: dadosAtuais, indicador, pintura: pinturaMapa, pintar: pintura,
+    valorContinuo: corDoMapa.valor, rotuloContinuo: corDoMapa.rotulo, dominio: corDoMapa.dominio, escala: logPossivel ? escala : "linear",
+    tamanho: tamanhoNoMapa, contextoBrasil: rotatividadeNaTela ? null : contextoBrasil, legendaCor: legendaDoMapa, opcoesDePintura: opcoesPintura,
+    onEscolherPintura: escolherPintura, selecionados: selecao, referencias: referenciasDoMapa, ligacoes, extraDoRotulo, dicaDe, rotulos,
+    ativoExterno: lado ? ativoCruzado : null, onAtivo: lado ? setAtivoCruzado : undefined, onAlternar: alternar,
+    carregando: carregando || carregandoMapa || !dadosConferem,
+  } : null;
+  const convite = !!resposta && vistaExibida === "grafico" && mapa.disponivel && (exibicao.condicoes || distanciaNaTela);
+  const montarMapa = mapa.disponivel && (mapaNaTela || mapaMontado);
+
+  // Antes do desenho: a abertura (E0), o preparo, a escolha das unidades e o primeiro pedido. Valem para as duas vistas.
+  const antesDoDesenho = (() => {
     if (!fonte) return <div data-testid="analise-abertura" className="analise-abertura">
       <p className="analise-abertura-titulo">Escolha os dados para começar</p>
       <p className="max-w-md text-sm leading-6 text-slate-600">Comece com os dados do Brasil, com os estados e municípios já preparados, ou envie a sua
@@ -590,6 +812,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     </div>;
     if (!resposta) return <p role="status" data-testid="analise-carregando" className="analise-vazio">{!erro && <><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>
       Pedindo os valores ao motor…</>}</p>;
+    return null;
+  })();
+
+  const desenhoDoGrafico = (() => {
+    if (!resposta) return null;
     if (familiaDesenho === "rotatividade" && calculado?.def.rotatividade) return <PainelRotatividade itens={visiveis} rotulos={rotulos}
       inicial={calculado.def.rotatividade.inicial} final={calculado.def.rotatividade.final}/>;
     if (series) return itensSeries.length ? <PainelSeries itens={itensSeries} janela={resposta.tendencia?.janela.length ? resposta.tendencia.janela : defDesenho.janela}
@@ -601,15 +828,40 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           <button key={classe.codigo} type="button" data-testid="analise-series-classe" data-classe={classe.codigo} className="analise-chip" onClick={() => seriesDaClasse(classe.codigo)}>
             {classe.rotulo}</button>)}</div>
       </div>;
+    // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
       cometa={cometa} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares} nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={legendaCor} notas={notasDoGrafico}
-      extraDoRotulo={camadaFinal === "ordem" ? item => item.ordem?.posicao !== null && item.ordem && (primeiros === null || item.ordem.posicao <= primeiros) && (primeiros ?? 99) <= 12
-        ? item.ordem.posicao + "º" : null : undefined}
+      extraDoRotulo={extraDoRotulo}
       rotuloSempre={item => item.tipo === "estado" || (camadaFinal === "ordem" && primeiros !== null && primeiros <= 12 && item.ordem?.posicao !== null &&
         item.ordem !== null && (item.ordem.posicao as number) <= primeiros)}
-      onAlternar={alternar} onAbrirGrupo={abrirGrupoDaBolha}/>;
+      onAlternar={alternar} onAbrirGrupo={abrirGrupoDaBolha}
+      pontosDoMapa={mapa.disponivel && dadosConferem ? dadosAtuais?.pontos ?? null : null}
+      ativoExterno={lado ? ativoCruzado : null} onAtivo={lado ? setAtivoCruzado : undefined}/>;
+  })();
+
+  const desenhoDoMapa = (() => {
+    if (!montarMapa || !resposta) return null;
+    const falha = erroDoMapa && <div role="alert" data-testid="analise-mapa-erro" className="analise-erro">
+      <p>O motor não entregou os pontos do mapa: {erroDoMapa.mensagem}</p>
+      {erroDoMapa.pendencia && <div data-testid="analise-mapa-pendencia" className="mt-2 space-y-1.5">
+        <p className="font-semibold">{erroDoMapa.pendencia.texto || "O motor pede uma escolha antes de desenhar o mapa."}</p>
+        <div className="flex flex-wrap gap-1.5">{erroDoMapa.pendencia.opcoes.map(opcao => <button key={opcao.valor} type="button"
+          data-testid="analise-mapa-pendencia-opcao" data-valor={opcao.valor} className="analise-botao-secundario"
+          onClick={() => escolherPendencia(erroDoMapa.pendencia!.chave, opcao.valor)}>{opcao.rotulo}</button>)}</div>
+      </div>}
+      <div className="mt-2 flex flex-wrap gap-3">
+        {!lado && <button type="button" data-testid="analise-mapa-voltar" onClick={() => trocarVista("grafico")} className="font-semibold underline">
+          Voltar ao gráfico</button>}
+        <button type="button" data-testid="analise-mapa-tentar" onClick={() => setTentativaMapa(valor => valor + 1)}
+          className="inline-flex items-center gap-1 font-semibold underline"><RefreshCw size={13} aria-hidden="true"/>Tentar novamente</button>
+      </div>
+    </div>;
+    if (propsDoMapa) return <>{falha}<MapaAnalise ref={mapaRef} {...propsDoMapa}/></>;
+    if (falha) return falha;
+    return <p role="status" data-testid="analise-mapa-carregando" className="analise-vazio"><LoaderCircle size={18} className="animate-spin" aria-hidden="true"/>
+      Pedindo ao motor os pontos do mapa…</p>;
   })();
 
   const conteudoPainel = (() => {
@@ -638,36 +890,59 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     }
   })();
 
-  const opcoesDaFamilia = (() => {
-    if (!pronto) return null;
-    const partes: ReactNode[] = [];
-    if (def.familia === "distribuicao" || def.nivel === "estados") {
-      partes.push(<label key="agrupar" className="analise-rotulo-campo">Grupos e faixas
-        <select data-testid="analise-agrupar" value={def.agrupar.tipo} className="analise-campo"
-          onChange={event => mudar({ agrupar: { tipo: event.target.value as DefinicaoAnalise["agrupar"]["tipo"], faixas: def.agrupar.faixas } })}>
-          <option value="nenhum">Nenhum</option><option value="quartis">Quartis</option><option value="quintis">Quintis</option>
-          <option value="decis">Decis (só as linhas de corte)</option><option value="faixas">Faixas digitadas</option>
+  // Ajustes da análise escolhida, no painel colado na aba (23/10/2026): só o que vale para ela (painelModel.ajustesDaAnalise).
+  const ajustes = pronto ? ajustesDaAnalise({ familia: def.familia, nivel: def.nivel, disponivel: dispAtual.disponivel, categorias: categorias.length }) : [];
+  const ajuste = (qual: Ajuste): ReactNode => {
+    switch (qual) {
+      case "indicador": return <div key={qual} data-ajuste={qual} className="analise-rotulo-campo">
+        <span aria-hidden="true">Indicador</span>
+        <div role="radiogroup" aria-label="Indicador" className="analise-segmentos mt-1">
+          {(["densidade", "quantidade"] as const).map(valor => {
+            // Planilha sem população: a densidade fica desligada, com o motivo à vista e no title.
+            const desligado = valor === "densidade" && !temPopulacao;
+            return <button key={valor} type="button" role="radio" aria-checked={def.indicador === valor} data-testid={"analise-indicador-" + valor}
+              disabled={desligado} title={desligado ? TEXTO_SEM_POPULACAO : undefined} aria-describedby={desligado ? "analise-indicador-motivo" : undefined}
+              onClick={() => { mudar({ indicador: valor }); setCorte(null); }}>{INDICADORES[valor].rotulo}</button>;
+          })}
+        </div>
+        {!temPopulacao && <span id="analise-indicador-motivo" data-testid="analise-indicador-motivo" className="analise-ajuste-nota">{TEXTO_SEM_POPULACAO}</span>}
+      </div>;
+      case "categoria": return <label key={qual} data-ajuste={qual} className="analise-rotulo-campo">Categoria
+        <select data-testid="analise-categoria" value={def.categoria} onChange={event => mudar({ categoria: event.target.value })} className="analise-campo">
+          {categorias.map(valor => <option key={valor} value={valor}>{valor}</option>)}
         </select>
-      </label>);
-      if (def.agrupar.tipo === "faixas") partes.push(<div key="faixas" className="flex items-end gap-1.5">
-        <label className="analise-rotulo-campo">Limites ({especie.contagem ? "profissionais" : "por 1.000 hab."})
-          <input data-testid="analise-faixas" value={faixasTexto || escreverLimites(def.agrupar.faixas)} placeholder="0; 1; 2; 5" inputMode="decimal"
-            onChange={event => setFaixasTexto(event.target.value)} className="analise-campo w-36"/>
+      </label>;
+      case "competencia": return <label key={qual} data-ajuste={qual} className="analise-rotulo-campo">Competência
+        <select data-testid="analise-competencia" value={def.competencia} onChange={event => mudarCompetencia(event.target.value)} className="analise-campo">
+          {cronologica(periodos).reverse().map(periodo => <option key={periodo} value={periodo}>{exibirCompetencia(periodo)}</option>)}
+        </select>
+      </label>;
+      case "agrupar": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
+        <label className="analise-rotulo-campo">Grupos e faixas
+          <select data-testid="analise-agrupar" value={def.agrupar.tipo} className="analise-campo"
+            onChange={event => mudar({ agrupar: { tipo: event.target.value as DefinicaoAnalise["agrupar"]["tipo"], faixas: def.agrupar.faixas } })}>
+            <option value="nenhum">Nenhum</option><option value="quartis">Quartis</option><option value="quintis">Quintis</option>
+            <option value="decis">Decis (só as linhas de corte)</option><option value="faixas">Faixas digitadas</option>
+          </select>
         </label>
-        <button type="button" data-testid="analise-faixas-aplicar" className="analise-botao-secundario" disabled={lerLimites(faixasTexto).length < 2}
-          onClick={() => { mudar({ agrupar: { tipo: "faixas", faixas: lerLimites(faixasTexto) } }); setFaixasTexto(""); }}>Aplicar faixas</button>
-      </div>);
-    }
-    if (def.familia === "espacial" && def.nivel === "municipios") partes.push(<div key="ref" className="flex flex-wrap items-end gap-1.5">
-      <span className="analise-rotulo-campo">Referência
-        <span data-testid="analise-referencia-resumo" className="analise-resumo">{def.referencia
-          ? (resposta?.referencia?.membros.map(m => m.rotulo).join(", ") || def.referencia.membros.map(id => nomes.get(id) || id).join(", ")) : "nenhuma ainda"}</span>
-      </span>
-      <button type="button" data-testid="analise-referencia-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("referencia")}>
-        {def.referencia ? "Mudar" : "Escolher a referência"}</button>
-    </div>);
-    if (def.familia === "tendencia" && def.nivel === "municipios") {
-      partes.push(<div key="janela" className="flex flex-wrap items-end gap-1.5">
+        {def.agrupar.tipo === "faixas" && <div className="flex items-end gap-1.5">
+          <label className="analise-rotulo-campo">Limites ({especie.contagem ? "profissionais" : "por 1.000 hab."})
+            <input ref={faixasRef} data-testid="analise-faixas" value={faixasTexto || escreverLimites(def.agrupar.faixas)} placeholder="0; 1; 2; 5" inputMode="decimal"
+              onChange={event => setFaixasTexto(event.target.value)} className="analise-campo w-36"/>
+          </label>
+          <button type="button" data-testid="analise-faixas-aplicar" className="analise-botao-secundario" disabled={lerLimites(faixasTexto).length < 2}
+            onClick={() => { mudar({ agrupar: { tipo: "faixas", faixas: lerLimites(faixasTexto) } }); setFaixasTexto(""); }}>Aplicar faixas</button>
+        </div>}
+      </div>;
+      case "referencia": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
+        <span className="analise-rotulo-campo">Referência
+          <span data-testid="analise-referencia-resumo" className="analise-resumo">{def.referencia
+            ? (resposta?.referencia?.membros.map(m => m.rotulo).join(", ") || def.referencia.membros.map(id => nomes.get(id) || id).join(", ")) : "nenhuma ainda"}</span>
+        </span>
+        <button type="button" data-testid="analise-referencia-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("referencia")}>
+          {def.referencia ? "Mudar" : "Escolher a referência"}</button>
+      </div>;
+      case "janela": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
         <span className="analise-rotulo-campo">Janela
           <span data-testid="analise-janela-texto" className="analise-resumo">{def.janela.length >= 2
             ? exibirCompetencia(def.janela[0]) + " a " + exibirCompetencia(def.janela[def.janela.length - 1]) + " (" + def.janela.length + " competências)" : "escolha"}</span>
@@ -679,62 +954,75 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             {ATALHOS_JANELA[atalho]}</button>;
         })}
         <button type="button" data-testid="analise-janela-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("janela")}>Outra</button>
-      </div>);
-      partes.push(<div key="visao" role="group" aria-label="Visão da tendência" className="analise-segmentos">
-        {(["mudanca", "classes", "series"] as Visao[]).map(visao => <button key={visao} type="button" data-testid={"analise-visao-" + visao}
-          aria-pressed={def.visao === visao} disabled={visao !== "mudanca" && def.janela.length > 0 && def.janela.length < MINIMO_TENDENCIA}
-          title={visao !== "mudanca" && def.janela.length < MINIMO_TENDENCIA ? "A tendência exige pelo menos " + MINIMO_TENDENCIA + " competências." : undefined}
-          onClick={() => { mudar({ visao }); setFiltroClasse(null); }}>{NOMES_VISOES[visao]}</button>)}
-      </div>);
-      if (cometa) partes.push(<div key="vista" className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Competência mostrada">
-        {(["inicial", "final"] as const).map(qual => <button key={qual} type="button" data-testid={"analise-vista-" + qual} aria-pressed={vista === qual}
-          disabled={fase !== "parado"} className="analise-botao-secundario" onClick={() => setVista(qual)}>
-          {qual === "inicial" ? "Primeira (" + exibirCompetencia(resposta?.competencia_inicial) + ")" : "Última (" + exibirCompetencia(resposta?.competencia) + ")"}</button>)}
-        <button type="button" data-testid="analise-reproduzir" className="analise-botao-secundario" disabled={fase !== "parado"} onClick={reproduzir}>
-          {fase !== "parado" ? <Pause size={14} aria-hidden="true"/> : <Play size={14} aria-hidden="true"/>}
-          {movimentoReduzido || plotaveis.length > LIMITE_LEVE ? "Ir para a última" : "Reproduzir"}</button>
-      </div>);
+      </div>;
+      case "visao": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
+        <div className="analise-rotulo-campo">
+          <span aria-hidden="true">Visão</span>
+          <div role="group" aria-label="Visão da tendência" className="analise-segmentos mt-1">
+            {(["classes", "mudanca", "series"] as Visao[]).map(visao => <button key={visao} type="button" data-testid={"analise-visao-" + visao}
+              aria-pressed={def.visao === visao} disabled={visao !== "mudanca" && def.janela.length > 0 && def.janela.length < MINIMO_TENDENCIA}
+              title={visao !== "mudanca" && def.janela.length < MINIMO_TENDENCIA ? "A tendência exige pelo menos " + MINIMO_TENDENCIA + " competências." : undefined}
+              onClick={() => { mudar({ visao }); setFiltroClasse(null); }}>{NOMES_VISOES[visao]}</button>)}
+          </div>
+        </div>
+        {cometa && <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Competência mostrada">
+          {(["inicial", "final"] as const).map(qualVista => <button key={qualVista} type="button" data-testid={"analise-vista-" + qualVista}
+            aria-pressed={vista === qualVista} disabled={fase !== "parado"} className="analise-botao-secundario" onClick={() => setVista(qualVista)}>
+            {qualVista === "inicial" ? "Primeira (" + exibirCompetencia(resposta?.competencia_inicial) + ")" : "Última (" + exibirCompetencia(resposta?.competencia) + ")"}</button>)}
+          <button type="button" data-testid="analise-reproduzir" className="analise-botao-secundario" disabled={fase !== "parado"} onClick={reproduzir}>
+            {fase !== "parado" ? <Pause size={14} aria-hidden="true"/> : <Play size={14} aria-hidden="true"/>}
+            {movimentoReduzido || plotaveis.length > LIMITE_LEVE ? "Ir para a última" : "Reproduzir"}</button>
+        </div>}
+      </div>;
+      case "periodos": {
+        const ordenadas = cronologica(periodos);
+        return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
+          <label className="analise-rotulo-campo">Período inicial da coorte
+            <select data-testid="analise-rot-inicial" value={def.rotatividade?.inicial ?? ""} className="analise-campo"
+              onChange={event => mudar({ rotatividade: { inicial: event.target.value, final: def.rotatividade?.final ?? "" } })}>
+              <option value="">Escolha</option>{ordenadas.slice(0, -1).map(c => <option key={c} value={c}>{exibirCompetencia(c)}</option>)}
+            </select>
+          </label>
+          <label className="analise-rotulo-campo">Período final
+            <select data-testid="analise-rot-final" value={def.rotatividade?.final ?? ""} className="analise-campo"
+              onChange={event => mudar({ rotatividade: { inicial: def.rotatividade?.inicial ?? "", final: event.target.value } })}>
+              <option value="">Escolha</option>{ordenadas.filter(c => !def.rotatividade?.inicial || c > def.rotatividade.inicial).map(c =>
+                <option key={c} value={c}>{exibirCompetencia(c)}</option>)}
+            </select>
+          </label>
+        </div>;
+      }
+      default: return null;
     }
-    if (def.familia === "rotatividade" && dispAtual.disponivel) {
-      const ordenadas = cronologica(periodos);
-      partes.push(<div key="rot" className="flex flex-wrap items-end gap-1.5">
-        <label className="analise-rotulo-campo">Período inicial da coorte
-          <select data-testid="analise-rot-inicial" value={def.rotatividade?.inicial ?? ""} className="analise-campo"
-            onChange={event => mudar({ rotatividade: { inicial: event.target.value, final: def.rotatividade?.final ?? "" } })}>
-            <option value="">Escolha</option>{ordenadas.slice(0, -1).map(c => <option key={c} value={c}>{exibirCompetencia(c)}</option>)}
-          </select>
-        </label>
-        <label className="analise-rotulo-campo">Período final
-          <select data-testid="analise-rot-final" value={def.rotatividade?.final ?? ""} className="analise-campo"
-            onChange={event => mudar({ rotatividade: { inicial: def.rotatividade?.inicial ?? "", final: event.target.value } })}>
-            <option value="">Escolha</option>{ordenadas.filter(c => !def.rotatividade?.inicial || c > def.rotatividade.inicial).map(c =>
-              <option key={c} value={c}>{exibirCompetencia(c)}</option>)}
-          </select>
-        </label>
-      </div>);
-    }
-    return partes;
-  })();
+  };
 
   const motivoFamilia = motivoAberto ? disponivelDe(motivoAberto) : null;
+  const vistasNaBarra = VISTAS.filter(item => item.chave !== "lado" || largo);
 
   return <section id="area-de-analise" data-testid="area-de-analise" data-estado={estadoTela} data-familia={def.familia} data-nivel={def.nivel}
-    aria-labelledby="analise-titulo" className="analise">
-    {/* Famílias: abas (roláveis no celular). Clicar antes dos dados registra a intenção. */}
-    <div role="tablist" aria-label="Análises" className="analise-familias analise-nao-imprimir">
-      {FAMILIAS.map((familia, indice) => {
-        const disponivel = disponivelDe(familia);
-        const ativa = (fonte ? def.familia : intencao ?? "distribuicao") === familia;
-        return <button key={familia} id={"analise-familia-" + familia} type="button" role="tab" data-testid={"analise-familia-" + familia}
-          aria-selected={ativa} aria-disabled={!disponivel.disponivel || undefined} aria-controls="analise-centro" tabIndex={ativa ? 0 : -1}
-          title={!disponivel.disponivel ? disponivel.motivo : undefined}
-          className={"analise-familia" + (!disponivel.disponivel ? " analise-familia-indisponivel" : "")}
-          onClick={() => escolherFamilia(familia)} onKeyDown={event => teclasFamilias(event, indice)}>
-          <span className="analise-familia-nome">{NOMES_FAMILIAS[familia]}</span>
-          <span className="analise-familia-apoio">{!disponivel.disponivel ? (disponivel.enviarDados ? "Só com dados enviados" : "Indisponível nesta fonte")
-            : apoioDaFamilia(familia, rotulos)}</span>
-        </button>;
-      })}
+    data-desenho={vistaExibida} aria-labelledby="analise-titulo" className="analise">
+    {/* Famílias: abas (roláveis no celular), com os ajustes da escolhida num painel colado nela. Clicar antes dos dados registra
+        a intenção. */}
+    <div className={"analise-familias-bloco" + (pronto ? " analise-com-ajustes" : "")}>
+      <div role="tablist" aria-label="Análises" className="analise-familias analise-nao-imprimir">
+        {FAMILIAS.map((familia, indice) => {
+          const disponivel = disponivelDe(familia);
+          const ativa = (fonte ? def.familia : intencao ?? "distribuicao") === familia;
+          return <button key={familia} id={"analise-familia-" + familia} type="button" role="tab" data-testid={"analise-familia-" + familia}
+            aria-selected={ativa} aria-disabled={!disponivel.disponivel || undefined} aria-controls={pronto ? "analise-ajustes" : "analise-centro"}
+            tabIndex={ativa ? 0 : -1} title={!disponivel.disponivel ? disponivel.motivo : undefined}
+            className={"analise-familia" + (!disponivel.disponivel ? " analise-familia-indisponivel" : "")}
+            onClick={() => escolherFamilia(familia)} onKeyDown={event => teclasFamilias(event, indice)}>
+            <span className="analise-familia-nome">{NOMES_FAMILIAS[familia]}</span>
+            <span className="analise-familia-apoio">{!disponivel.disponivel ? (disponivel.enviarDados ? "Só com dados enviados" : "Indisponível nesta fonte")
+              : apoioDaFamilia(familia, rotulos)}</span>
+          </button>;
+        })}
+      </div>
+      {pronto && <div role="tabpanel" id="analise-ajustes" data-testid="analise-ajustes" data-familia={def.familia}
+        aria-labelledby={"analise-familia-" + def.familia} className="analise-ajustes analise-nao-imprimir">
+        {ajustes.map(ajuste)}
+      </div>}
     </div>
     {motivoFamilia && !motivoFamilia.disponivel && <p data-testid="analise-familia-motivo" role="status" className="analise-motivo">
       <strong className="text-ink">{NOMES_FAMILIAS[motivoAberto!]}:</strong> {motivoFamilia.motivo}
@@ -742,30 +1030,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         onClick={() => props.onEscolherFonte("arquivo")}><Upload size={14} aria-hidden="true"/>Enviar meus dados</button>}
       <button type="button" className="analise-icone ml-1" aria-label="Fechar o motivo" onClick={() => setMotivoAberto(null)}><X size={14} aria-hidden="true"/></button>
     </p>}
-
-    {pronto && <div className="analise-opcoes analise-nao-imprimir">
-      <div role="radiogroup" aria-label="Indicador" className="analise-segmentos">
-        {(["densidade", "quantidade"] as const).map(valor => <button key={valor} type="button" role="radio" aria-checked={def.indicador === valor}
-          data-testid={"analise-indicador-" + valor} onClick={() => { mudar({ indicador: valor }); setCorte(null); }}>{INDICADORES[valor].rotulo}</button>)}
-      </div>
-      {(def.familia === "distribuicao" || def.familia === "espacial" || def.nivel === "estados" || !dispAtual.disponivel) && <label className="analise-rotulo-campo">Competência
-        <select data-testid="analise-competencia" value={def.competencia} onChange={event => mudarCompetencia(event.target.value)} className="analise-campo">
-          {cronologica(periodos).reverse().map(periodo => <option key={periodo} value={periodo}>{exibirCompetencia(periodo)}</option>)}
-        </select>
-      </label>}
-      {categorias.length > 1 && <label className="analise-rotulo-campo">Categoria
-        <select data-testid="analise-categoria" value={def.categoria} onChange={event => mudar({ categoria: event.target.value })} className="analise-campo">
-          {categorias.map(valor => <option key={valor} value={valor}>{valor}</option>)}
-        </select>
-      </label>}
-      {opcoesDaFamilia}
-      {familiaDesenho !== "rotatividade" && !series && <label className="analise-rotulo-campo">Escala
-        <select data-testid="analise-escala" value={logPossivel ? escala : "linear"} onChange={event => setEscala(event.target.value as Escala)} className="analise-campo">
-          <option value="linear">Linear (a partir do zero)</option>
-          <option value="logaritmica" disabled={!logPossivel}>Logarítmica{logPossivel ? "" : " (exige valores positivos)"}</option>
-        </select>
-      </label>}
-    </div>}
 
     <header className="analise-cabecalho">
       {trilha.length > 0 && <nav aria-label="Onde estou" data-testid="analise-trilha" className="analise-trilha analise-nao-imprimir">
@@ -778,9 +1042,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </nav>}
       <h2 id="analise-titulo" tabIndex={-1} data-testid="analise-titulo" className="analise-titulo">{titulo}</h2>
       <p data-testid="analise-subtitulo" className="analise-subtitulo">{subtitulo}</p>
+      {/* Frase-resumo do motor: lida pelos leitores de tela a cada mudança; também na impressão e no arquivo de método. */}
+      {fonte && <p data-testid="analise-resumo" aria-live="polite" className="analise-frase-resumo">{resumoNaTela ?? ""}</p>}
     </header>
 
-    <div className={"analise-corpo" + (!fonte ? " analise-corpo-abertura" : "") + (painel ? " analise-corpo-com-painel" : "")}>
+    <div className={"analise-corpo" + (!fonte ? " analise-corpo-abertura" : "") + (painel ? " analise-corpo-com-painel" : "") + (lado ? " analise-corpo-lado" : "")}>
       {pronto && <div className="analise-coluna-territorios analise-nao-imprimir">
         <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} comBolhasDeGrupo={comBolhasDeGrupo} unidades={municipios}
           total={niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length} nivel={def.nivel} base={def.base} aberto={aberto}
@@ -789,19 +1055,46 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
       <div id="analise-centro" className="analise-centro">
         {fonte && pronto && <div className="analise-funcoes analise-nao-imprimir">
-          <button type="button" data-testid="analise-ferramentas" className="analise-ferramentas-botao" aria-expanded={ferramentas}
-            aria-controls="analise-funcoes-lista" onClick={() => setFerramentas(valor => !valor)}><Wrench size={15} aria-hidden="true"/>Ferramentas</button>
-          <div id="analise-funcoes-lista" role="toolbar" aria-label="Funções" className={"analise-funcoes-lista" + (ferramentas ? " analise-funcoes-abertas" : "")}>
-            {FUNCOES.map(funcao => {
-              const motivo = funcaoDesabilitada(funcao.chave);
-              const rotulo = funcao.chave === "municipios" ? "Territórios" : funcao.rotulo;
-              return <button key={funcao.chave} type="button" data-testid={"analise-funcao-" + funcao.chave} disabled={!!motivo} title={motivo ?? undefined}
-                aria-expanded={funcao.chave === "municipios" ? undefined : painel === funcao.chave} aria-controls={funcao.chave === "municipios" ? undefined : "analise-painel"}
-                className="analise-funcao" onClick={() => funcao.chave === "municipios" ? irParaTerritorios()
-                  : painel === funcao.chave ? fecharPainel() : abrirPainel(funcao.chave as FuncaoPainel)}>
-                {funcao.icone}{rotulo}{funcao.chave === "comparar" && selecao.length ? " (" + selecao.length + ")" : ""}</button>;
-            })}
+          <div className="analise-funcoes-linha">
+            <button type="button" data-testid="analise-ferramentas" className="analise-ferramentas-botao" aria-expanded={ferramentas}
+              aria-controls="analise-funcoes-lista" onClick={() => setFerramentas(valor => !valor)}><Wrench size={15} aria-hidden="true"/>Ferramentas</button>
+            <div id="analise-funcoes-lista" role="toolbar" aria-label="Funções" className={"analise-funcoes-lista" + (ferramentas ? " analise-funcoes-abertas" : "")}>
+              {FUNCOES.map(funcao => {
+                const motivo = funcaoDesabilitada(funcao.chave);
+                const rotulo = funcao.chave === "municipios" ? "Territórios" : funcao.rotulo;
+                return <button key={funcao.chave} type="button" data-testid={"analise-funcao-" + funcao.chave} disabled={!!motivo} title={motivo ?? undefined}
+                  aria-expanded={funcao.chave === "municipios" ? undefined : painel === funcao.chave} aria-controls={funcao.chave === "municipios" ? undefined : "analise-painel"}
+                  className="analise-funcao" onClick={() => funcao.chave === "municipios" ? irParaTerritorios()
+                    : painel === funcao.chave ? fecharPainel() : abrirPainel(funcao.chave as FuncaoPainel)}>
+                  {funcao.icone}{rotulo}{funcao.chave === "comparar" && selecao.length ? " (" + selecao.length + ")" : ""}</button>;
+              })}
+            </div>
+            {/* Junto do desenho: a escala (só quando se aplica) e a vista (Gráfico | Mapa | Lado a lado), sempre à vista. */}
+            <div data-testid="analise-barra-desenho" className="analise-barra-desenho">
+              {(escalaNoGrafico || escalaNoMapa) && <label className="analise-escala">Escala
+                <select data-testid="analise-escala" value={logPossivel ? escala : "linear"} onChange={event => setEscala(event.target.value as Escala)} className="analise-campo">
+                  <option value="linear">Linear (a partir do zero)</option>
+                  <option value="logaritmica" disabled={!logPossivel}>Logarítmica{logPossivel ? "" : " (exige valores positivos)"}</option>
+                </select>
+              </label>}
+              <div role="group" aria-label="Vista do desenho" data-testid="analise-desenho" className="analise-segmentos analise-desenho">
+                {vistasNaBarra.map(item => {
+                  const desligada = item.chave !== "grafico" && !mapa.disponivel;
+                  return <button key={item.chave} type="button" data-testid={"analise-desenho-" + item.chave} aria-pressed={vistaExibida === item.chave}
+                    aria-disabled={desligada || undefined} title={desligada ? mapa.motivo ?? undefined : undefined}
+                    aria-describedby={desligada && motivoVistaAberto ? "analise-desenho-motivo" : undefined} onClick={() => trocarVista(item.chave)}>
+                    {item.icone}{item.rotulo}</button>;
+                })}
+              </div>
+            </div>
           </div>
+          {motivoVistaAberto && !mapa.disponivel && <p id="analise-desenho-motivo" data-testid="analise-desenho-motivo" role="status" className="analise-motivo">
+            <strong className="text-ink">Mapa:</strong> {mapa.motivo}
+            {mapa.atalho && <button type="button" data-testid="analise-desenho-atalho" className="analise-botao-secundario ml-2" onClick={verUnidadesNoMapa}>
+              <MapaIcone size={14} aria-hidden="true"/>{mapa.atalho}</button>}
+            <button type="button" className="analise-icone ml-1" aria-label="Fechar o motivo do mapa" onClick={() => setMotivoVistaAberto(false)}>
+              <X size={14} aria-hidden="true"/></button>
+          </p>}
         </div>}
 
         <div className="analise-avisos">
@@ -825,10 +1118,20 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <SlidersHorizontal size={14} aria-hidden="true"/>{avisoFamilia}</p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">
             <Scale size={14} aria-hidden="true"/>{textoInstrucaoGrupos(rotulos)}</p>}
+          {/* Convite ao mapa depois das Condições e na Análise espacial: "onde ficam?" é a pergunta que o mapa responde. */}
+          {convite && <p className="analise-convite analise-nao-imprimir"><MapaIcone size={14} aria-hidden="true"/>
+            <button type="button" data-testid="analise-convite-mapa" className="analise-link" onClick={() => trocarVista("mapa")}>Ver onde ficam no mapa</button></p>}
         </div>
 
         {contagemClasses}
-        <div className="analise-quadro">{desenho}</div>
+        <div ref={quadroRef} className={"analise-quadro" + (lado && !antesDoDesenho ? " analise-quadro-lado" : "")}>
+          {antesDoDesenho ?? <>
+            {(vistaExibida === "grafico" || lado) && <div ref={graficoRef} data-testid="analise-vista-grafico"
+              className={"analise-vista" + (oculta === "grafico" ? " analise-vista-oculta" : "")}>{desenhoDoGrafico}</div>}
+            {montarMapa && <div data-testid="analise-vista-mapa" hidden={!mapaNaTela}
+              className={"analise-vista" + (oculta === "mapa" ? " analise-vista-oculta" : "")}>{desenhoDoMapa}</div>}
+          </>}
+        </div>
         {distanciaNaTela && <p data-testid="analise-nota-distancia" className="analise-nota">{NOTA_TPL11} (TPL-11)</p>}
       </div>
 
@@ -849,4 +1152,3 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     <p aria-live="polite" className="sr-only" data-testid="analise-aviso">{aviso}</p>
   </section>;
 }
-

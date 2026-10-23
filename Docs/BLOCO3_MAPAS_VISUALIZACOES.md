@@ -5,8 +5,13 @@
 > e ficam como histórico, assim como as medições de navegador (`bench_ui_map.py`, seção 13.1) e os roteiros de
 > navegador citados nas seções 1, 12 e 14. Continua na API o contrato de apresentação (`metadata.representacao`,
 > seções 3 e 4), com os testes do backend (`test_representation.py` e `test_representation_real.py`). A análise na
-> tela é o gráfico de bolhas da página única, sem mapa ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram
+> tela é o gráfico de bolhas da página única ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram
 > está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+>
+> **Mapa de volta (23/10/2026).** O mapa voltou como segunda vista do gráfico de bolhas da página única, reaproveitando o
+> desenho do mapa antigo (canvas, pontos na sede municipal, navegação e seleção), com as decisões de 23/10/2026: a pergunta
+> "Como pintar o mapa?" quando não há cor escolhida, a cor contínua linear por padrão (logarítmica só por escolha), a régua
+> que esmaece em vez de esconder e nenhum mapa no nível dos estados. Veja [o mapa da página única](MAPA_DA_PAGINA_UNICA.md).
 
 Branch `feat/novos-blocos-incrementais`, a partir de `2d8f7a0` (fim da integração das coordenadas
 oficiais do Bloco 2). Referências: Parte 13 da SPEC v1.2.4 (CAP-REP-01 a CAP-REP-06, CFG-REP,

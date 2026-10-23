@@ -1,9 +1,11 @@
-// Cliente do motor da área de análise da página única (POST /api/painel e POST /api/painel/referencias), no contrato de
-// 22/10/2026 (seção 3 do contrato entre as frentes; Docs/PAINEL_INTEGRADO.md). É o ÚNICO lugar com os nomes de campos do
-// motor: o formulário, as opções (montadas em painelModel.montarOpcoes com os tipos daqui), a leitura dos erros (422, com a
-// pendência de premissa) e a normalização da resposta para os tipos da tela. Se o motor mudar um nome, ajuste só este
-// arquivo. Todo número vem do motor; a tela só posiciona, filtra (estado visual) e desenha. Nada calcula aqui.
+// Cliente do motor da área de análise da página única (POST /api/painel, POST /api/painel/referencias e, desde 23/10/2026,
+// POST /api/painel/mapa), no contrato de 22/10/2026 (seção 3 do contrato entre as frentes; Docs/PAINEL_INTEGRADO.md). É o
+// ÚNICO lugar com os nomes de campos do motor: o formulário, as opções (montadas em painelModel.montarOpcoes com os tipos
+// daqui), a leitura dos erros (422, com a pendência de premissa) e a normalização da resposta para os tipos da tela. Se o
+// motor mudar um nome, ajuste só este arquivo. Todo número vem do motor; a tela só posiciona, filtra (estado visual) e
+// desenha. Nada calcula aqui.
 import { contextRevision, sessionFetch as fetch } from "./conversationSession";
+import type { DadosDoMapa } from "./mapaContrato";
 
 // ------------------------------------------------------------------------------------------------ pedido
 export type PainelIndicador = "densidade" | "quantidade";
@@ -56,6 +58,9 @@ export type PainelOpcoes = {
 /** Opções de /api/painel/referencias (o critério aqui não leva universo). */
 export type ReferenciasOpcoes = { competencia: string; categoria: string; universo: PainelUniverso; criterio: PainelCriterio;
   premissas?: Premissas };
+/** Opções de /api/painel/mapa: a competência e a categoria do gráfico; nas planilhas, as premissas e os rótulos (na base do
+ * Brasil, o motor recusa os dois). */
+export type MapaOpcoes = { competencia: string; categoria: string; premissas?: Premissas; rotulos?: RotulosTerritoriais };
 
 // ------------------------------------------------------------------------------------------------ resposta (normalizada)
 /** Nomenclatura territorial: na base do Brasil, município e estado; nas planilhas, o que a pessoa confirmou ("distrito",
@@ -158,6 +163,10 @@ export type PainelResposta = {
   disponibilidade: Disponibilidade;
   sessao: { registrado: boolean; resultId: string | null } | null;
   rotulos: RotulosTerritoriais | null;
+  /** Indicador que o motor usou no cálculo (a frase-resumo fala dele); null na resposta de antes, que não o trazia. */
+  indicador: PainelIndicador | null;
+  /** Frase-resumo do motor (23/10/2026): só números conferidos do resultado, sem julgamento nem causa. A tela só a mostra. */
+  resumo: { texto: string } | null;
 };
 
 export type ReferenciaCandidato = { id: string; rotulo: string; uf: string | null; valor: number | null; posicao: number | null };
@@ -457,6 +466,12 @@ export function rotulosDe(bruto: unknown): RotulosTerritoriais | null {
   return unidade ? { unidade, grupo: rotuloDe(o?.grupo) } : null;
 }
 
+/** Frase-resumo do motor: `{texto}` (ou o texto direto); vazia ou ausente vira null (a resposta de antes continua legível). */
+export function resumoDe(bruto: unknown): { texto: string } | null {
+  const frase = typeof bruto === "string" ? texto(bruto) : texto(objeto(bruto)?.texto);
+  return frase ? { texto: frase } : null;
+}
+
 /** Resposta do motor nos tipos da tela. Campos ausentes viram null (o motor de antes, sem as extensões, continua legível). */
 export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "municipios"): PainelResposta {
   const o = objeto(bruto);
@@ -521,13 +536,42 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     disponibilidade,
     sessao: sessao ? { registrado: sessao.registrado === true, resultId: texto(sessao.result_id) } : null,
     rotulos: rotulosDe(o.rotulos),
+    indicador: o.indicador === "densidade" || o.indicador === "quantidade" ? o.indicador : null,
+    resumo: resumoDe(o.resumo),
   };
+}
+
+/** Resposta de /api/painel/mapa nos tipos da tela (DadosDoMapa do contrato): `pontos` [{id, lat, lon}] vira um Map id →
+ * [latitude, longitude]; ponto sem id ou com coordenada que não é número finito no intervalo fica de fora. `sem_coordenada`
+ * traz as unidades sem coordenada válida, com o motivo do motor (vão para Não avaliáveis). Nada é calculado: o mapa só desenha. */
+export function normalizarMapa(bruto: unknown): DadosDoMapa {
+  const o = objeto(bruto);
+  if (!o || !Array.isArray(o.pontos)) throw new ErroDoMotor("A resposta do mapa não segue o contrato (pontos ausentes).", 200, null);
+  const pontos = new Map<string, [number, number]>();
+  for (const item of o.pontos) {
+    const p = objeto(item);
+    const id = texto(p?.id), lat = num(p?.lat) ?? num(p?.latitude), lon = num(p?.lon) ?? num(p?.longitude);
+    if (id && lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) pontos.set(id, [lat, lon]);
+  }
+  const semCoordenada = lista(o.sem_coordenada).map(item => {
+    const s = objeto(item);
+    const id = texto(s?.id);
+    return id ? { id, rotulo: texto(s?.rotulo) ?? id, motivo: texto(s?.motivo) ?? "" } : null;
+  }).filter((item): item is { id: string; rotulo: string; motivo: string } => !!item);
+  return { competencia: texto(o.competencia) ?? "", referencial: texto(o.referencial) ?? "", pontos, semCoordenada };
 }
 
 // ------------------------------------------------------------------------------------------------ chamadas
 export async function pedirPainel(fonte: FonteDoMotor, opcoes: PainelOpcoes, signal?: AbortSignal): Promise<PainelResposta> {
   const response = await fetch(fonte.apiBase + "/api/painel", { method: "POST", body: formulario(fonte, opcoes, !!opcoes.referencia), signal });
   return normalizarResposta(await lerResposta(response), opcoes.nivel ?? "municipios");
+}
+
+/** Coordenadas autorizadas das unidades na competência (o mesmo formulário de /api/painel, com a versão geográfica): pedidas
+ * só quando o mapa aparece ou o gráfico mostra unidades com o mapa disponível. */
+export async function pedirMapa(fonte: FonteDoMotor, opcoes: MapaOpcoes, signal?: AbortSignal): Promise<DadosDoMapa> {
+  const response = await fetch(fonte.apiBase + "/api/painel/mapa", { method: "POST", body: formulario(fonte, opcoes, true), signal });
+  return normalizarMapa(await lerResposta(response));
 }
 
 export async function pedirReferencias(fonte: FonteDoMotor, opcoes: ReferenciasOpcoes, signal?: AbortSignal): Promise<ReferenciasResposta> {

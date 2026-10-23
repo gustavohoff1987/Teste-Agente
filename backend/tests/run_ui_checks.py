@@ -53,9 +53,11 @@ SUITES = {
         "roteiros": [("ui_conversa_grafico.py", {})],
     },
     "base-versionada": {
-        "descricao": "Página única com a base Brasil versionada (27 estados, 5.570 municípios, 22 competências)",
+        "descricao": "Página única com a base Brasil versionada (27 estados, 5.570 municípios, 22 competências) e o mapa, "
+                     "a segunda vista do gráfico, com as coordenadas da sede municipal",
         "catalogo": "repositorio", "servidor": "offline",
-        "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"})],
+        "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
+                     ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"})],
     },
 }
 SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py"}

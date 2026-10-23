@@ -7,19 +7,27 @@
   border-radius: 24px; background: #fff; box-shadow: 0 10px 35px #113e5610; color: #18384c; }
 .analise button:disabled { cursor: not-allowed; }
 
-/* ------------------------------------------------------------------------------------------- famílias e opções */
-.analise-familias { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* ------------------------------------------------------------------------------------------- famílias (abas) e ajustes */
+/* Padrão de abas com painel colado (23/10/2026): a aba escolhida desce até a borda escura do painel dos ajustes e se liga a ele;
+   as outras ficam um pouco acima. Antes dos dados (sem painel), as abas são cartões soltos, como antes. */
+.analise-familias-bloco { display: flex; flex-direction: column; min-width: 0; }
+.analise-familias { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-items: end; }
 .analise-familia { min-width: 0; padding: 9px 12px; border: 1px solid #d5e2ea; border-radius: 14px; background: #fff; color: #0e2840;
   text-align: left; transition: background .15s ease, border-color .15s ease; }
 .analise-familia:hover { border-color: #8fb3c6; }
 .analise-familia[aria-selected="true"] { border-color: #0e2840; background: #0e2840; color: #fff; }
+.analise-com-ajustes .analise-familia { margin-bottom: 6px; }
+.analise-com-ajustes .analise-familia[aria-selected="true"] { margin-bottom: 0; padding-bottom: 15px; border-radius: 14px 14px 0 0; }
 .analise-familia-nome { display: block; font-size: 14px; font-weight: 650; }
 .analise-familia-apoio { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.35; opacity: .78; }
 .analise-familia-indisponivel { border-style: dashed; background: #f8fafc; color: #5b6b78; }
 .analise-familia-indisponivel[aria-selected="true"] { background: #f1f5f9; color: #334155; }
+.analise-ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; min-width: 0; padding: 12px 14px 14px;
+  border: 1px solid #c9d8e2; border-top: 3px solid #0e2840; border-radius: 0 0 16px 16px; background: #fafcfd; }
+.analise-ajustes > * { max-width: 100%; }
+.analise-ajuste-nota { margin-top: 4px; color: #78350f; font-size: 11.5px; }
 .analise-motivo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px 10px; border: 1px solid #fde68a; border-radius: 10px;
   background: #fffbeb; color: #78350f; font-size: 12.5px; }
-.analise-opcoes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
 .analise-rotulo-campo { display: flex; flex-direction: column; min-width: 0; color: #52606d; font-size: 11.5px; }
 .analise-campo { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 7px 9px; border: 1px solid #c9d8e2; border-radius: 10px;
   background: #fff; color: #0e2840; font-size: 13px; }
@@ -38,6 +46,9 @@
 .analise-trilha [aria-current] { color: #0e2840; font-weight: 650; }
 .analise-titulo { margin: 0; color: #0e2840; font-size: clamp(18px, 2.2vw, 24px); font-weight: 650; letter-spacing: -.01em; line-height: 1.25; outline: none; }
 .analise-subtitulo { margin: 0; color: #52606d; font-size: 12.5px; }
+/* Frase-resumo do motor, logo abaixo do subtítulo (sem frase, o espaço some). */
+.analise-frase-resumo { max-width: 76ch; margin: 2px 0 0; color: #18384c; font-size: 13.5px; line-height: 1.5; }
+.analise-frase-resumo:empty { display: none; }
 
 /* ------------------------------------------------------------------------------------------- corpo: territórios, gráfico e painel */
 .analise-corpo { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
@@ -57,6 +68,12 @@
   .analise-painel { position: absolute; top: 0; right: 0; z-index: 20; width: 360px; max-height: calc(100dvh - 24px); overflow: auto;
     box-shadow: 0 18px 48px #10274033; }
 }
+@media (min-width: 1360px) {
+  /* Gráfico e mapa lado a lado (cada um com a metade): o painel das funções fica por cima, como entre 1.024 e 1.359 px. */
+  .analise-corpo.analise-corpo-lado.analise-corpo-com-painel { grid-template-columns: 300px minmax(0, 1fr); }
+  .analise-corpo-lado .analise-painel { position: absolute; top: 0; right: 0; z-index: 20; width: 360px; max-height: calc(100dvh - 24px);
+    overflow: auto; box-shadow: 0 18px 48px #10274033; }
+}
 @media (max-width: 1023px) {
   /* No celular e no tablet, o painel sobe da base da tela. */
   .analise-painel { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 60; max-height: 72dvh; overflow: auto;
@@ -67,8 +84,11 @@
   padding: 10px 12px; border-bottom: 1px solid #e5edf2; background: #fff; border-radius: 16px 16px 0 0; }
 .analise-painel-corpo { padding: 12px; }
 
-/* ------------------------------------------------------------------------------------------- funções */
+/* ------------------------------------------------------------------------------------------- funções, escala e vista do desenho */
 .analise-funcoes { display: flex; flex-direction: column; gap: 6px; }
+/* Uma linha: as funções à esquerda; à direita, colada no desenho, a escala (quando se aplica) e a vista (Gráfico | Mapa). */
+.analise-funcoes-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.analise-funcoes-linha > .analise-funcoes-lista { flex: 1 1 18rem; min-width: 0; }
 .analise-ferramentas-botao { display: none; align-items: center; gap: 6px; align-self: flex-start; min-height: 36px; padding: 7px 12px;
   border: 1px solid #c9d8e2; border-radius: 10px; background: #fff; color: #0e2840; font-size: 13px; font-weight: 650; }
 .analise-ferramentas-botao[aria-expanded="true"] { background: #0e2840; color: #fff; }
@@ -78,11 +98,20 @@
 .analise-funcao:hover:not(:disabled) { border-color: #8fb3c6; background: #f6f9fb; }
 .analise-funcao[aria-expanded="true"] { border-color: #0e2840; background: #0e2840; color: #fff; }
 .analise-funcao:disabled { opacity: .45; }
+.analise-barra-desenho { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 100%;
+  margin-left: auto; }
+.analise-escala { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; color: #52606d; font-size: 11.5px; }
+.analise-escala .analise-campo { width: auto; max-width: 100%; margin-top: 0; padding: 5px 8px; font-size: 12.5px; }
+.analise-desenho > button { display: inline-flex; align-items: center; gap: 5px; }
+.analise-desenho > button[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.analise-desenho > button[aria-disabled="true"]:hover { background: transparent; }
+.analise-convite { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 7px 10px; border: 1px dashed #9ad2d7;
+  border-radius: 10px; background: #f0fafb; color: #0c6b74; font-size: 12.5px; }
 @media (max-width: 639px) {
   .analise-ferramentas-botao { display: inline-flex; }
   .analise-funcoes-lista { display: none; }
-  .analise-funcoes-lista.analise-funcoes-abertas { display: flex; flex-direction: column; align-items: stretch; padding: 6px; border: 1px solid #d5e2ea;
-    border-radius: 12px; background: #fff; }
+  .analise-funcoes-lista.analise-funcoes-abertas { order: 3; flex-basis: 100%; display: flex; flex-direction: column; align-items: stretch; padding: 6px;
+    border: 1px solid #d5e2ea; border-radius: 12px; background: #fff; }
 }
 
 /* ------------------------------------------------------------------------------------------- avisos */
@@ -156,8 +185,14 @@ button.analise-contagem:hover { border-color: #8fb3c6; }
 .analise-letra { min-width: 26px; padding: 2px 6px; border: 1px solid #d5e2ea; border-radius: 6px; background: #fff; font-size: 11px; font-weight: 600; }
 .analise-letra[aria-pressed="true"] { border-color: #0e2840; background: #0e2840; color: #fff; }
 
-/* ------------------------------------------------------------------------------------------- gráfico */
-.analise-quadro { min-width: 0; padding: 10px 12px 12px; border: 1px solid #dfe7ed; border-radius: 18px; background: #fcfcfb; }
+/* ------------------------------------------------------------------------------------------- gráfico e mapa */
+.analise-quadro { position: relative; min-width: 0; padding: 10px 12px 12px; border: 1px solid #dfe7ed; border-radius: 18px; background: #fcfcfb; }
+/* Lado a lado (janela de 1.600 px ou mais): gráfico e mapa, cada um com a metade. */
+.analise-quadro-lado { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.analise-vista { min-width: 0; }
+.analise-vista[hidden] { display: none !important; }
+/* Vista de destino durante a troca animada: ocupa o lugar (as posições são lidas nela), mas só aparece no fim. */
+.analise-vista-oculta { visibility: hidden; }
 .analise-grafico { position: relative; min-width: 0; margin: 0; }
 .analise-svg { display: block; overflow: visible; font-family: inherit; }
 .analise-grafico-carregando .analise-svg { opacity: .55; transition: opacity .2s ease; }
@@ -224,19 +259,24 @@ button.analise-contagem:hover { border-color: #8fb3c6; }
 /* ------------------------------------------------------------------------------------------- celular, movimento e impressão */
 @media (max-width: 639px) {
   .analise { padding: 12px 12px 230px; border-radius: 18px; }
+  /* Abas roláveis; o painel dos ajustes, logo abaixo, ocupa a largura. */
   .analise-familias { display: flex; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; }
+  .analise-com-ajustes .analise-familias { padding-bottom: 0; }
   .analise-familia { flex: 0 0 auto; scroll-snap-align: start; }
   .analise-familia-apoio { display: none; }
-  .analise-opcoes > * { max-width: 100%; }
+  .analise-ajustes { gap: 10px; padding: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .analise *, .analise *::before, .analise *::after { transition: none !important; animation: none !important; }
 }
 .analise :focus-visible { outline: 3px solid #3bb5be; outline-offset: 2px; }
 @media print {
+  /* Sai a vista em exibição; no lado a lado, as duas, uma abaixo da outra. A frase-resumo vai com o título. */
   .analise { padding: 0; border: 0; box-shadow: none; }
   .analise-nao-imprimir { display: none !important; }
   .analise [role="tabpanel"][hidden] { display: block !important; }
   .analise-corpo { display: block; }
   .analise-dica { display: none; }
+  .analise-quadro-lado { display: block; }
+  .analise-quadro-lado > .analise-vista + .analise-vista { margin-top: 12px; }
 }

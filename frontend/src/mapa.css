@@ -1,0 +1,112 @@
+/* Mapa da página única (23/10/2026). As cores vêm de MAPA_CORES (mapaModel.ts), que o componente põe no elemento .mapa como
+   variáveis --mapa-*: o canvas e estes estilos usam a mesma fonte, e o modo escuro troca só aquele objeto. Superfície e tinta
+   seguem a paleta validada pela skill de visualização; controles, a identidade da aplicação. Só apresentação: nada aqui muda
+   valores. */
+
+.mapa { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: var(--mapa-tinta2); }
+.mapa button { font: inherit; }
+.mapa button:disabled { cursor: not-allowed; }
+
+/* ------------------------------------------------------------------------------------------- barra (busca) */
+.mapa-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.mapa-busca-area { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; max-width: 100%; }
+.mapa-busca { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 5px 9px;
+  border: 1px solid var(--mapa-controle-borda); border-radius: 10px; background: var(--mapa-painel); color: var(--mapa-controle-texto); }
+.mapa-busca input { width: 16rem; max-width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: inherit;
+  font-size: 12.5px; }
+.mapa-busca:focus-within { outline: 3px solid var(--mapa-foco); outline-offset: 1px; }
+.mapa-busca-aviso { color: var(--mapa-texto-apoio); font-size: 12px; }
+
+/* ------------------------------------------------------------------------------------------- área do desenho */
+.mapa-quadro { position: relative; min-width: 0; height: 460px; overflow: hidden; border: 1px solid var(--mapa-borda); border-radius: 14px;
+  background: var(--mapa-superficie); }
+.mapa-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; outline: none; cursor: grab; touch-action: none; }
+.mapa-canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--mapa-foco); }
+.mapa-carregando .mapa-canvas { opacity: .55; transition: opacity .2s ease; }
+.mapa-vazio { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px 64px;
+  color: var(--mapa-texto-apoio); font-size: 13px; text-align: center; pointer-events: none; }
+
+/* Controles: canto superior direito. */
+.mapa-controles { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+.mapa-controle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--mapa-controle-borda);
+  border-radius: 10px; background: var(--mapa-painel); color: var(--mapa-controle-texto); box-shadow: 0 1px 3px var(--mapa-sombra); }
+.mapa-controle:hover { background: var(--mapa-controle-realce); }
+.mapa-icone { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px;
+  color: var(--mapa-texto-apoio); }
+.mapa-icone:hover { background: var(--mapa-controle-realce); }
+.mapa :focus-visible { outline: 3px solid var(--mapa-foco); outline-offset: 2px; }
+.mapa .mapa-canvas:focus-visible { outline: none; }
+
+/* Pergunta "Como pintar o mapa?": cartão no canto superior esquerdo, recolhível. */
+.mapa-pergunta { position: absolute; top: 8px; left: 8px; z-index: 3; width: min(300px, calc(100% - 64px)); max-height: calc(100% - 16px);
+  overflow: auto; padding: 10px; border: 2px solid var(--mapa-controle-texto); border-radius: 14px; background: var(--mapa-painel);
+  box-shadow: 0 14px 40px var(--mapa-sombra); color: var(--mapa-controle-texto); }
+.mapa-pergunta-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mapa-pergunta-titulo { margin: 0; font-size: 14px; font-weight: 650; }
+.mapa-pergunta-apoio { margin: 2px 0 0; color: var(--mapa-texto-apoio); font-size: 12px; }
+.mapa-pergunta-opcoes { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.mapa-pergunta-opcao { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 7px 9px;
+  border: 1px solid var(--mapa-controle-borda); border-radius: 10px; background: var(--mapa-painel); color: var(--mapa-controle-texto); text-align: left; }
+.mapa-pergunta-opcao:hover { background: var(--mapa-controle-realce); }
+.mapa-pergunta-opcao[data-recomendado="true"] { border-color: var(--mapa-destaque-texto); background: var(--mapa-destaque-fundo); }
+.mapa-pergunta-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
+.mapa-pergunta-linha { color: var(--mapa-texto-apoio); font-size: 12px; line-height: 1.4; }
+.mapa-recomendado { padding: 1px 7px; border-radius: 999px; background: var(--mapa-destaque-texto); color: var(--mapa-painel); font-size: 10.5px;
+  font-weight: 700; letter-spacing: .02em; }
+.mapa-pergunta-abrir { position: absolute; top: 8px; left: 8px; z-index: 3; padding: 6px 10px; border: 1px solid var(--mapa-controle-texto);
+  border-radius: 10px; background: var(--mapa-painel); color: var(--mapa-controle-texto); font-size: 12.5px; font-weight: 650;
+  box-shadow: 0 1px 3px var(--mapa-sombra); }
+
+/* Mapinha do canto (com zoom além do inicial). */
+.mapa-mini { position: absolute; left: 8px; bottom: 8px; z-index: 2; border-radius: 7px; box-shadow: 0 4px 14px var(--mapa-sombra); }
+
+/* Dica: a mesma do gráfico, contida na área do mapa. */
+.mapa-dica { position: absolute; z-index: 4; max-width: min(270px, calc(100% - 8px)); padding: 8px 10px; border: 1px solid var(--mapa-borda);
+  border-radius: 12px; background: var(--mapa-painel); box-shadow: 0 14px 45px var(--mapa-sombra); color: var(--mapa-tinta2);
+  font-size: 12px; line-height: 1.4; pointer-events: none; }
+.mapa-dica-titulo { display: block; color: var(--mapa-controle-texto); font-size: 14px; font-weight: 650; }
+.mapa-dica-subtitulo { display: block; color: var(--mapa-texto-apoio); font-size: 11px; }
+.mapa-dica-linhas { margin: 6px 0 0; }
+.mapa-dica-linhas dd { margin: 0 0 2px; }
+.mapa-dica-valor { color: var(--mapa-controle-texto); font-weight: 600; }
+.mapa-dica-rotulo { color: var(--mapa-texto-apoio); }
+.mapa-dica-nota { margin: 4px 0 0; color: var(--mapa-texto-apoio); font-size: 11px; line-height: 1.35; }
+
+/* ------------------------------------------------------------------------------------------- legendas e notas */
+.mapa-legendas { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; color: var(--mapa-tinta2); font-size: 11px; line-height: 1.45; }
+.mapa-legendas p { margin: 0; }
+.mapa-legenda-tamanho { display: flex; align-items: flex-end; gap: 8px; }
+.mapa-legenda-tamanho-texto { max-width: 11rem; line-height: 1.35; }
+.mapa-legenda-texto { fill: var(--mapa-tinta2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mapa-legenda { min-width: 0; }
+.mapa-legenda-continua { width: min(320px, 100%); }
+.mapa-legenda-titulo { color: var(--mapa-controle-texto); font-weight: 650; }
+.mapa-legenda-linha { display: flex; align-items: center; gap: 6px; }
+.mapa-amostra { display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 999px; }
+.mapa-rampa-area { position: relative; height: 12px; margin-top: 6px; }
+.mapa-rampa { height: 10px; border-radius: 3px; }
+.mapa-rampa-extremo { position: absolute; bottom: -3px; height: 7px; border-left: 2px solid var(--mapa-tinta); }
+.mapa-rampa-marca { position: absolute; bottom: -3px; height: 6px; border-left: 1px solid var(--mapa-tinta2); }
+.mapa-rampa-brasil { position: absolute; top: -4px; height: 18px; border-left: 2px dashed var(--mapa-tinta); }
+.mapa-rampa-textos { position: relative; height: 14px; margin-top: 3px; color: var(--mapa-muda); font-size: 10px; font-variant-numeric: tabular-nums; }
+.mapa-rampa-textos span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.mapa-extremos { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.mapa-legenda-brasil { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px !important; }
+.mapa-legenda-brasil-icone { flex-shrink: 0; margin-top: 1px; }
+.mapa-legenda-aviso { margin-top: 2px !important; color: var(--mapa-texto-apoio); }
+.mapa-notas { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 40rem; }
+
+/* ------------------------------------------------------------------------------------------- celular, movimento e impressão */
+@media (max-width: 639px) {
+  .mapa-quadro { height: 360px; }
+  .mapa-busca input { width: 12rem; }
+  .mapa-legenda-continua { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mapa *, .mapa *::before, .mapa *::after { transition: none !important; animation: none !important; }
+}
+@media print {
+  .mapa-nao-imprimir { display: none !important; }
+  .mapa-dica { display: none !important; }
+  .mapa-quadro { break-inside: avoid; }
+}
