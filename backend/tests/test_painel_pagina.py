@@ -52,7 +52,8 @@ MANAUS, TEFE, PARINTINS, MANACAPURU, NOVO, BELEM = ("code:" + code for code in U
 AM = [MANACAPURU, MANAUS, PARINTINS, NOVO, TEFE]  # ordem do código IBGE
 STATE_COUNTS = {"AM": 100, "PA": 60}
 TOP = {"competencia", "competencia_inicial", "categoria", "versao_base", "chave_execucao", "referencia", "itens",
-       "dominios", "notas", "limitacoes", "nivel", "indicador", "rotulos", "disponibilidade", "contexto", "sessao"}
+       "dominios", "notas", "limitacoes", "nivel", "indicador", "rotulos", "disponibilidade", "contexto", "sessao",
+       "resumo"}  # resumo: a frase-resumo do motor (23/10/2026; test_painel_resumo.py)
 BRAZIL_LABELS = {"unidade": {"singular": "município", "plural": "municípios", "genero": "m"},
                  "grupo": {"singular": "estado", "plural": "estados", "genero": "m"}}
 

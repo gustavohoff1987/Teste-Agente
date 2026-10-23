@@ -1,7 +1,8 @@
 """Painel integrado de bolhas: os números que a tela posiciona, filtra e desenha (Adendo BOL-20261021 da SPEC, contrato do
 painel de 21/10/2026 e contrato da página única de análise de 22/10/2026; ver Docs/PAINEL_INTEGRADO.md).
 
-Rotas POST /api/painel e POST /api/painel/referencias (main.py). O pedido de /api/painel tem dois formatos:
+Rotas POST /api/painel, POST /api/painel/referencias e POST /api/painel/mapa (main.py; o mapa lê as coordenadas
+autorizadas da análise espacial, sem cálculo novo). O pedido de /api/painel tem dois formatos:
 - sem `nivel` (contrato de 21/10/2026): só a base Brasil oficial (fonte municipal), com as chaves e a resposta de então;
 - com `nivel` (página única, 22/10/2026): a base Brasil (municípios ou estados) ou uma planilha enviada, com tendência,
   grupos por posição, faixas, condições, ordenação, comparação, rotatividade, disponibilidade por análise, linha de
@@ -19,7 +20,8 @@ Nada aqui é fórmula nova; cada número vem do motor das análises:
   membro mais próximo do conjunto de referência, pelo mínimo do conjunto completo, com os empates exatos (uma referência
   sem coordenada válida deixa a distância não avaliável), com a camada complementar de coordenadas como na análise
   espacial;
-- variação percentual: temporal_change.change (CAP-TMP-01, DA-14), em aritmética exata; base zero não é avaliável;
+- variação percentual: a de temporal_change.change (CAP-TMP-01, DA-14), em aritmética exata com inteiros (_percent);
+  base zero não é avaliável;
 - tendência: trend.classify_frame e trend.summarize (CAP-TEN-01, DA-15), as funções da evolução temporal;
 - grupos por posição: main._compute(..., "distribution") e main.distribution_cuts (CAP-DIS-02, Hyndman–Fan tipo 7);
 - faixas do usuário e faixas de distância: combined_criteria.band_edges e bands_of (CAP-DIS-03 e CAP-ESP-03);
@@ -27,13 +29,17 @@ Nada aqui é fórmula nova; cada número vem do motor das análises:
 - ordenação e N primeiros: combined_criteria.ranking_of e select_top (CAP-SUB-02 e CAP-SUB-03), empates na mesma posição;
 - comparação de 2 ou 3 itens: main._compute(..., "comparisons") (CAP-CMP-01);
 - rotatividade: main._compute(..., "rotation") (CAP-ROT-01), só com identificador individual;
-- linha de contexto do Brasil: territorial_levels.national_reference (decisão D5), sem classificar nada.
+- linha de contexto do Brasil: territorial_levels.national_reference (decisão D5), sem classificar nada;
+- frase-resumo (resumo_painel.py): as contagens de itens e as unidades de menor e de maior valor que ela copia
+  (summary_facts).
 
 Não avaliáveis seguem com o motivo, nunca como zero (RQ-CAP-04, RQ-REP-04). A régua da tela é filtro visual sobre os
-valores devolvidos (RQ-REP-06). Nada deste módulo vai ao provedor de IA.
+valores devolvidos (RQ-REP-06). Na base Brasil verificada, o que não muda entre pedidos é reaproveitado pela memória da
+versão (_reaproveitar). Nada deste módulo vai ao provedor de IA.
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import math
@@ -43,6 +49,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fractions import Fraction
 
+import numpy as np
 import pandas as pd
 
 from analysis_premises import apply_premises, limitations as premise_limitations, premise_notes
@@ -58,7 +65,7 @@ from nearest_reference import (CONDITION_TEXT, METHOD as DISTANCE_METHOD, MOTIVE
 from request_memo import per_source
 from semantic_bridge import (ROLE_NAMES, ROLES, coordinate_roles, premise_reason, role_established, territories_stable,
                              verified_separator)
-from temporal_change import change, evolution_notes, window as series_window
+from temporal_change import evolution_notes, window as series_window
 from territorial_levels import (MAX_IDS, METODOS, NOTE_STATE_POPULATION, NOTE_STATES, ROTATION, Abrangencia, Parts,
                                 _codes_text, human_period, municipal_index, national_reference, parse as parse_scope,
                                 state_part, state_source, thousands, uf_label)
@@ -237,12 +244,19 @@ class Context:
 @dataclass
 class Measures:
     """Valores de uma competência: registros por item (code:/name:/uf:), linhas da fonte e o quadro preparado pelo motor
-    (com a coluna "key", o id do item)."""
+    (com a coluna "key", o id do item). `fingerprint`, quando há, devolve o resumo das linhas lido pela chave de execução
+    (o mesmo hash_pandas_object de `rows`, guardado por versão na base Brasil)."""
     period: str
     records: dict
     rows: pd.DataFrame
     data: pd.DataFrame | None
     parts: object = None
+    fingerprint: object = None
+
+    def row_hash(self) -> bytes:
+        if self.fingerprint is not None:
+            return self.fingerprint()
+        return pd.util.hash_pandas_object(self.rows, index=True).values.tobytes()
 
 
 @dataclass
@@ -256,9 +270,12 @@ class Spatial:
     values: dict
     referencial: str  # o referencial confirmado (canônico), o das premissas e da chave de execução
     nearest: dict = field(default_factory=dict)
+    states: dict | None = None  # condição de cada id, lida uma vez do quadro de coordenadas
 
     def condition(self, key):
-        return self.coords.at[key, "condicao"] if key in self.coords.index else "SEM_REGISTRO"
+        if self.states is None:
+            self.states = self.coords["condicao"].to_dict()
+        return self.states.get(key, "SEM_REGISTRO")
 
 
 @dataclass
@@ -292,6 +309,8 @@ class Pendencia(ChoiceRequired):
 # --------------------------------------------------------------------------------------------- utilidades
 def _num(value):
     """Número nativo para o JSON: inteiro quando o valor é inteiro; ausente, NaN e infinito viram null (nunca zero)."""
+    if type(value) is float:  # o caso comum (valores do pandas), sem conversão: o mesmo resultado do caminho geral
+        return (int(value) if value.is_integer() else value) if math.isfinite(value) else None
     if value is None:
         return None
     try:
@@ -315,14 +334,36 @@ def _values3(record):
     return {field: _num(record["valores"][field]) for field in FIELDS3}
 
 
+def _ratio(value):
+    """O valor exato de Fraction(value) como par de inteiros (numerador, denominador > 0), sem montar o Fraction:
+    inteiro como está e float pela expansão binária exata (float.as_integer_ratio, a mesma de Fraction(float))."""
+    kind = type(value)
+    if kind is int:
+        return value, 1
+    if kind is float:
+        return value.as_integer_ratio()
+    exact = Fraction(value)
+    return exact.numerator, exact.denominator
+
+
+def _pair(record, field):
+    """Valor exato de um registro como par de inteiros (numerador, denominador): a densidade sai da quantidade e da
+    população (quantidade × 1.000 ÷ população), sem passar pelo float, como em _exact."""
+    values = record["valores"]
+    if field != "densidade":
+        return _ratio(values[field])
+    qn, qd = _ratio(values["quantidade"])
+    pn, pd_ = _ratio(values["populacao"])
+    return qn * 1000 * pd_, qd * pn
+
+
 def _exact(record, field):
     """Valor exato (Fraction) de um registro: a densidade sai da quantidade e da população, sem passar pelo float
-    (como em combined_criteria e trend)."""
+    (como em combined_criteria e trend). O Fraction é montado uma vez do par de inteiros (o mesmo valor de
+    Fraction(quantidade) × 1.000 ÷ Fraction(população))."""
     cache = record.setdefault("exatos", {})
     if field not in cache:
-        values = record["valores"]
-        cache[field] = (Fraction(values["quantidade"]) * 1000 / Fraction(values["populacao"]) if field == "densidade"
-                        else Fraction(values[field]))
+        cache[field] = Fraction(*_pair(record, field))
     return cache[field]
 
 
@@ -436,7 +477,7 @@ def _brazil_context(sources, mapping, options, page) -> Context:
         raise ValueError(GOVERNED)
     index = municipal_index(municipal)
     # As mesmas premissas da análise de densidade (perfil oficial, sem as premissas de coordenadas).
-    settings = apply_premises(municipal, mapping, {}, spatial=False)
+    settings = _official_settings(municipal, mapping, False)
     catalog = {item["id"]: item for item in territory_catalog(municipal, mapping, settings)}
     periods = list(index.periods)
     period = _period(options.get("competencia"), periods, "Escolha a competência do painel.")
@@ -444,6 +485,13 @@ def _brazil_context(sources, mapping, options, page) -> Context:
     return Context(municipal, mapping, index, catalog, settings, period, category, period_positions(periods),
                    kind="brasil", sources=sources, labels=labels, periods=periods, categories=list(index.categories),
                    page=page)
+
+
+@per_source()
+def _official_settings(frame, mapping, spatial):
+    """As premissas do perfil oficial da base Brasil (apply_premises sem opções do pedido), com ou sem as de coordenadas.
+    Na base Brasil verificada, por versão (request_memo.per_source); cada chamada recebe cópia própria."""
+    return apply_premises(frame, mapping, {}, spatial=spatial)
 
 
 def _premissas(raw) -> dict:
@@ -778,12 +826,26 @@ def _initial_period(ctx, options):
 
 
 # --------------------------------------------------------------------------------------------- valores do motor
+@per_source()
+def _row_positions(frame, mapping):
+    """Posições das linhas da fonte por (competência, categoria), com os textos normalizados (text_values), como no
+    filtro de _rows; sem coluna de categoria, a categoria é "". Na base Brasil verificada, guardado por versão
+    (request_memo.per_source): o filtro de cada pedido não percorre de novo as 122 mil linhas."""
+    period = text_values(frame[mapping["period"]]).to_numpy(dtype=object)
+    category = (text_values(frame[mapping["category"]]).to_numpy(dtype=object) if mapping.get("category") else
+                np.full(len(frame), "", dtype=object))
+    keys = pd.DataFrame({"periodo": period, "categoria": category})
+    return {key: positions for key, positions in keys.groupby(["periodo", "categoria"], sort=False, dropna=True)
+            .indices.items()}
+
+
 def _rows(frame, mapping, periods, category):
-    """Linhas da fonte nas competências e na categoria pedidas."""
-    mask = text_values(frame[mapping["period"]]).isin(list(periods))
-    if mapping.get("category"):
-        mask &= text_values(frame[mapping["category"]]).isin([category])
-    return frame.loc[mask.to_numpy(dtype=bool)]
+    """Linhas da fonte nas competências e na categoria pedidas, na ordem da fonte (as mesmas de um filtro por máscara)."""
+    groups = _row_positions(frame, mapping)
+    category = category if mapping.get("category") else ""
+    parts = [groups[(period, category)] for period in dict.fromkeys(periods) if (period, category) in groups]
+    positions = np.sort(np.concatenate(parts)) if parts else np.array([], dtype=np.int64)
+    return frame.iloc[positions]
 
 
 @per_source()
@@ -803,11 +865,18 @@ def _measures(ctx, period) -> Measures:
     if rows.empty:
         return Measures(period, {}, rows, None)
     data = _prepared(ctx.frame, ctx.mapping, ctx.settings, period, ctx.category, "density" if ctx.density else "counts")
-    records = {}
-    for key, quantity, population, density in zip(data["key"].tolist(), data["quantity"].tolist(),
-                                                  data["population"].tolist(), data["density"].tolist()):
-        records[key] = {"valores": {"populacao": population, "quantidade": quantity, "densidade": density}}
-    return Measures(period, records, rows, data)
+    records = {key: {"valores": {"populacao": population, "quantidade": quantity, "densidade": density}}
+               for key, quantity, population, density in zip(data["key"].tolist(), data["quantity"].tolist(),
+                                                             data["population"].tolist(), data["density"].tolist())}
+    return Measures(period, records, rows, data,
+                    fingerprint=lambda: _rows_hash(ctx.frame, ctx.mapping, period, ctx.category))
+
+
+@per_source()
+def _rows_hash(frame, mapping, period, category) -> bytes:
+    """Resumo das linhas da competência e da categoria (hash_pandas_object de _rows, o mesmo que a chave de execução lê
+    de Measures.rows); na base Brasil verificada, guardado por versão (request_memo.per_source)."""
+    return pd.util.hash_pandas_object(_rows(frame, mapping, [period], category), index=True).values.tobytes()
 
 
 def _aggregate(ctx, measures, keys):
@@ -835,8 +904,20 @@ def _ranking(ctx, measures, members, criterion):
             values[key] = {"avaliavel": False, "motivos": [_no_record(ctx, measures.period)]}
         else:
             values[key] = {"avaliavel": True, "valor": record["valores"][attribute], "exato": _exact(record, attribute)}
-    ordered, positions, not_evaluable = ranking_of(values, members, names, criterion["ordem"])
+    ordered, positions, not_evaluable = _ranked(values, members, names, criterion["ordem"])
     return ordered, positions, not_evaluable, values
+
+
+def _ranked(values, members, names, order):
+    """combined_criteria.ranking_of (CAP-SUB-02) com os avaliáveis entregues já na ordem dela: valor exato, nome e id,
+    com o float do valor à frente na chave (monótono no valor exato, decide quase todas as comparações sem Fraction; em
+    float igual, decide o valor exato). A ordem, as posições e os não avaliáveis são os mesmos de ranking_of sobre
+    `members`; ela só confere a sequência, sem refazer milhares de comparações entre frações."""
+    sign = -1 if order == "desc" else 1
+    evaluable = [key for key in members if values[key]["avaliavel"]]
+    evaluable.sort(key=lambda key: (sign * float(values[key]["exato"]), sign * values[key]["exato"], names[key]["name"],
+                                    key))
+    return ranking_of(values, evaluable + [key for key in members if not values[key]["avaliavel"]], names, order)
 
 
 def _upload_spatial_settings(ctx):
@@ -862,6 +943,20 @@ def _upload_spatial_settings(ctx):
     return settings
 
 
+def _spatial_settings(ctx):
+    """Premissas das coordenadas, as mesmas da análise espacial: na base Brasil, o perfil oficial (papéis de latitude e
+    longitude e o referencial SIRGAS 2000 governados); na planilha, as colunas escolhidas ou reconhecidas, o referencial
+    confirmado pela pessoa (sem ele, a pendência crs) e o separador decimal verificado nos dados ou escolhido."""
+    if ctx.brazil:
+        settings = _official_settings(ctx.frame, ctx.mapping, True)
+        if not SPATIAL_ROLES <= set(settings.get("governed_roles") or []):
+            raise ValueError(GOVERNED)
+        if _referencial_suportado(settings.get("crs")) is None:
+            raise Pendencia(NO_CRS)
+        return settings
+    return _upload_spatial_settings(ctx)
+
+
 def _referencial_suportado(crs) -> str | None:
     """Nome canônico do referencial (data_contract.canonical_crs, só apelidos enumerados) quando o gráfico calcula a
     distância nele; None para os demais, sem presumir, transformar nem aproximar."""
@@ -883,29 +978,59 @@ def _coordinates(frame, mapping, settings, period):
     return territory_coordinates(_in_period(frame, mapping, period), mapping, settings)
 
 
+_CALCULO = contextvars.ContextVar("painel_calculo")
+
+
+@per_source(extra=_coordinate_layer)
+def _reaproveitado(frame, analise, entradas):
+    """Resultado de uma análise da página única sobre a base Brasil verificada, guardado por versão da base e da camada
+    de coordenadas (request_memo.per_source). `entradas` reúne tudo de que o cálculo depende além da versão; o cálculo
+    vem de _reaproveitar."""
+    return _CALCULO.get()()
+
+
+def _ids_key(ids):
+    """Lista de ids na chave da memória (universo, itens, alvos: milhares de municípios): o SHA-256 dos ids, na ordem."""
+    return hashlib.sha256("\x1f".join(ids).encode()).hexdigest()
+
+
+def _reaproveitar(ctx, analise, entradas, calcular):
+    """Reaproveita entre pedidos o que não mudou: quando só a ordenação muda, as distâncias, as condições, os grupos e as
+    faixas vêm do pedido anterior, sem recalcular. A chave é a da memória da versão (U8 em Docs/OTIMIZACAO_LATENCIA.md,
+    só sobre a cópia íntegra marcada): versão verificada, camada de coordenadas, nível, mapeamento, competência,
+    categoria e as `entradas` da análise (universo, referência, definição). `calcular` devolve só valores serializáveis;
+    cada pedido recebe cópia própria. Nas planilhas, nada fica guardado: calcula a cada pedido."""
+    if not ctx.brazil:
+        return calcular()
+    token = _CALCULO.set(calcular)
+    try:
+        return _reaproveitado(ctx.frame, analise, {"nivel": ctx.nivel, "mapeamento": ctx.mapping, "competencia": ctx.period,
+                                                    "categoria": ctx.category, **entradas})
+    finally:
+        _CALCULO.reset(token)
+
+
 def _spatial(ctx, references, targets) -> Spatial:
     """Coordenadas da competência e distância de cada alvo até a referência mais próxima do conjunto completo de
     referências (nearest_exact, como em compute_nearest), com os membros empatados à menor distância. Com alguma
     referência sem coordenada válida, nenhuma distância é avaliável (DEPENDENCIA_NAO_AVALIAVEL), sem substituição pelo
     mínimo entre as avaliáveis."""
-    if ctx.brazil:
-        settings = apply_premises(ctx.frame, ctx.mapping, {}, spatial=True)
-        if not SPATIAL_ROLES <= set(settings.get("governed_roles") or []):
-            raise ValueError(GOVERNED)
-        if _referencial_suportado(settings.get("crs")) is None:
-            raise Pendencia(NO_CRS)
-    else:
-        settings = _upload_spatial_settings(ctx)
+    settings = _spatial_settings(ctx)
     coords = _coordinates(ctx.frame, ctx.mapping, settings, ctx.period)
     spatial = Spatial(settings, coords, list(references), [], {}, referencial=_referencial_suportado(settings.get("crs")))
     spatial.invalid = [(key, spatial.condition(key)) for key in references if spatial.condition(key) != "VALIDA"]
     valid = [key for key in dict.fromkeys(targets) if spatial.condition(key) == "VALIDA"]
     if not spatial.invalid and valid:
         members = list(references)
-        best, ties, _ = nearest_exact(coords.loc[valid, "lat"], coords.loc[valid, "lon"],
-                                      coords.loc[members, "lat"], coords.loc[members, "lon"], crs=spatial.referencial)
-        spatial.values = {key: float(best[i]) / 1000 for i, key in enumerate(valid)}
-        spatial.nearest = {key: [members[j] for j in ties[i]] for i, key in enumerate(valid)}
+
+        def calcular():
+            best, ties, _ = nearest_exact(coords.loc[valid, "lat"], coords.loc[valid, "lon"],
+                                          coords.loc[members, "lat"], coords.loc[members, "lon"], crs=spatial.referencial)
+            return ({key: float(best[i]) / 1000 for i, key in enumerate(valid)},
+                    {key: [members[j] for j in ties[i]] for i, key in enumerate(valid)})
+
+        spatial.values, spatial.nearest = _reaproveitar(ctx, "distancias", {"referencias": members,
+                                                                            "alvos": _ids_key(valid)}, calcular)
     return spatial
 
 
@@ -928,10 +1053,22 @@ def _distance_reason(ctx, spatial, key):
     return _reference_gap(ctx, spatial) if spatial.invalid else None
 
 
+def _percent(before, after):
+    """Variação percentual de CAP-TMP-01 (temporal_change.change: (v2 − v1) ÷ v1 × 100, em aritmética exata) entre dois
+    valores exatos dados como pares de inteiros (n, d > 0): o par (numerador, denominador) da mesma fração, ou None com
+    valor inicial zero (BASE_ZERO). Em inteiros, sem um Fraction por operação: Fraction(*par) é o valor de change, e
+    numerador ÷ denominador é o float dele (divisão inteira com arredondamento correto, como float(Fraction))."""
+    an, ad = before
+    bn, bd = after
+    if an == 0:
+        return None
+    return (bn * ad - an * bd) * 100, bd * an
+
+
 def _percentages(ctx, before, after, fields=FIELDS3):
-    """CAP-TMP-01 campo a campo: temporal_change.change sobre os valores exatos; base zero fica nula, com o motivo; campo
-    sem valor numa das competências (população estadual incompleta) fica nulo, com o motivo. Devolve também as variações
-    exatas (Fraction), lidas pela ordenação."""
+    """CAP-TMP-01 campo a campo: a variação de temporal_change.change sobre os valores exatos (_percent); base zero fica
+    nula, com o motivo; campo sem valor numa das competências (população estadual incompleta) fica nulo, com o motivo.
+    Devolve também as variações exatas, como pares (numerador, denominador) lidos pela ordenação (_values)."""
     variation, exact, zero, missing = {}, {}, [], []
     for field in FIELDS3:
         variation[field], exact[field] = None, None
@@ -940,9 +1077,9 @@ def _percentages(ctx, before, after, fields=FIELDS3):
         if not _present(before["valores"][field]) or not _present(after["valores"][field]):
             missing.append(field)
             continue
-        percent = change(_exact(before, field), _exact(after, field))["variacao_percentual"]
+        percent = _percent(_pair(before, field), _pair(after, field))
         exact[field] = percent
-        variation[field] = None if percent is None else _num(float(percent))
+        variation[field] = None if percent is None else _num(percent[0] / percent[1])
         if percent is None:
             zero.append(field)
     motives = []
@@ -1215,7 +1352,7 @@ def _execution_key(ctx, final, initial, normalized, spatial, extra=None, frames=
     digest = hashlib.sha256()
     for measures in (final, initial):
         if measures is not None and not measures.rows.empty:
-            digest.update(pd.util.hash_pandas_object(measures.rows, index=True).values.tobytes())
+            digest.update(measures.row_hash())
     for frame in frames:
         if frame is not None and not frame.empty:
             digest.update(pd.util.hash_pandas_object(frame, index=True).values.tobytes())
@@ -1410,7 +1547,8 @@ def _values(ctx, res, attribute, keys):
                             "referencias": list(spatial.nearest.get(key) or []), "alcance": SCOPE_FULL}
             continue
         if attribute == "variacao":
-            exact = (res.changes.get(key) or {}).get(field_of)
+            percent = (res.changes.get(key) or {}).get(field_of)
+            exact = None if percent is None else Fraction(*percent)
             if exact is None:
                 start = by_item[key]["inicial"].get(field_of) if key in by_item else None
                 motive = ("SEM_REGISTRO_OBSERVADO" if key not in res.changes else
@@ -1446,77 +1584,109 @@ class _Evaluator:
         return self.table[attribute]
 
 
+def _apply(res, by_id, field_name, out):
+    """Leva aos itens o que uma análise calculou (_reaproveitar): o campo de cada item do universo (null nos demais
+    itens), as notas e as limitações, na mesma ordem do cálculo; devolve o bloco do topo."""
+    for item in res.items:
+        item[field_name] = None
+    for key, value in out["itens"].items():
+        by_id[key][field_name] = value
+    res.notes += out["notas"]
+    res.limitations += out["limitacoes"]
+    return out["topo"]
+
+
+def _reference_members(res):
+    return list(res.reference["membros"]) if res.reference is not None else None
+
+
 def _conditions(ctx, res, spec, by_id):
     nodes, leaves, root, definition = spec["nodes"], spec["leaves"], spec["root"], spec["definicao"]
-    attributes = {nodes[own]["atributo"] for own in leaves}
-    table = {attribute: _values(ctx, res, attribute, res.universe) for attribute in attributes}
-    inputs = {"nodes": nodes, "root": root, "leaves": leaves, "targets": list(res.universe), "catalog": {}}
-    evaluations = evaluate(None, None, None, inputs, _Evaluator(table))
-    counts = dict.fromkeys(("ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"), 0)
-    for item in res.items:
-        item["condicoes"] = None
-    for record in evaluations:
-        counts[record["estado"]] += 1
-        # Uma entrada por condição, na ordem de condicoes.definicao: estado, valor do item e motivos (sem repetir a
-        # definição em cada item).
-        detail = [{"estado": record["nos"][own]["estado"], "valor": _num(record["nos"][own].get("valor")),
-                   "motivos": list(record["nos"][own].get("motivos") or [])} for own in leaves]
-        by_id[record["elemento"]]["condicoes"] = {"situacao": record["estado"], "por_condicao": detail}
-    text = describe(nodes, root)
-    res.notes += ["Condições definidas pelo usuário (CAP-SUB-01, combinação E): " + text + ". Os valores são escolhas do "
-                  "usuário e não constituem critério legal, sanitário ou científico universal.",
-                  "Três estados por item e por condição: NAO_AVALIAVEL nunca é tratado como NAO_ATENDE; o resultado não "
-                  "depende da ordem das condições."]
-    if counts["NAO_AVALIAVEL"]:
-        res.limitations.append("UNIDADES_NAO_AVALIAVEIS")
-    return {"contagens": counts, "universo": len(res.universe), "combinacao": "E", "descricao": text,
-            "definicao": [{key: entry[key] for key in ("atributo", "operador", "valor", "texto")} for entry in definition]}
+
+    def calcular():
+        attributes = {nodes[own]["atributo"] for own in leaves}
+        table = {attribute: _values(ctx, res, attribute, res.universe) for attribute in attributes}
+        inputs = {"nodes": nodes, "root": root, "leaves": leaves, "targets": list(res.universe), "catalog": {}}
+        evaluations = evaluate(None, None, None, inputs, _Evaluator(table))
+        counts = dict.fromkeys(("ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"), 0)
+        per_item = {}
+        for record in evaluations:
+            counts[record["estado"]] += 1
+            # Uma entrada por condição, na ordem de condicoes.definicao: estado, valor do item e motivos (sem repetir a
+            # definição em cada item).
+            detail = [{"estado": record["nos"][own]["estado"], "valor": _num(record["nos"][own].get("valor")),
+                       "motivos": list(record["nos"][own].get("motivos") or [])} for own in leaves]
+            per_item[record["elemento"]] = {"situacao": record["estado"], "por_condicao": detail}
+        text = describe(nodes, root)
+        notes = ["Condições definidas pelo usuário (CAP-SUB-01, combinação E): " + text + ". Os valores são escolhas do "
+                 "usuário e não constituem critério legal, sanitário ou científico universal.",
+                 "Três estados por item e por condição: NAO_AVALIAVEL nunca é tratado como NAO_ATENDE; o resultado não "
+                 "depende da ordem das condições."]
+        top = {"contagens": counts, "universo": len(res.universe), "combinacao": "E", "descricao": text,
+               "definicao": [{key: entry[key] for key in ("atributo", "operador", "valor", "texto")}
+                             for entry in definition]}
+        return {"topo": top, "itens": per_item, "notas": notes,
+                "limitacoes": ["UNIDADES_NAO_AVALIAVEIS"] if counts["NAO_AVALIAVEL"] else []}
+
+    entradas = {"universo": _ids_key(res.universe), "referencia": _reference_members(res),
+                "condicoes": [[entry["atributo"], entry["operador"], entry["valor"]] for entry in definition]}
+    return _apply(res, by_id, "condicoes", _reaproveitar(ctx, "condicoes", entradas, calcular))
 
 
 def _ordering(ctx, res, spec, by_id):
     attribute = ORDER_ATTRIBUTES[spec["atributo"]]
-    values = _values(ctx, res, attribute, res.universe)
-    ordered, positions, not_evaluable = ranking_of(values, list(res.universe), _names(ctx, res.universe), spec["ordem"])
-    top, tied = None, False
-    if spec["primeiros"] is not None:
-        top, _ = select_top(ordered, positions, spec["primeiros"], False)
-        tied = len(top) > spec["primeiros"]
-    chosen = set(top or [])
-    for item in res.items:
-        item["ordem"] = None
-    for key in res.universe:
-        by_id[key]["ordem"] = {"posicao": positions.get(key),
-                               "selecionado": None if top is None else key in chosen}
-    res.notes.append("Ordenação por " + VALUE_TEXT[attribute] + (" (" + ctx.indicador + ")" if attribute == "variacao"
-                                                                  else "") +
-                     " (" + ORDERS[spec["ordem"]] + "; CAP-SUB-02): valores iguais compartilham posição (1, 2, 2, 4) e não "
-                     "avaliáveis ficam fora da ordenação.")
-    if tied:
-        res.notes.append("Seleção dos " + str(spec["primeiros"]) + " primeiros com empate no corte (CAP-SUB-03): " +
+
+    def calcular():
+        values = _values(ctx, res, attribute, res.universe)
+        ordered, positions, not_evaluable = _ranked(values, list(res.universe), _names(ctx, res.universe), spec["ordem"])
+        top, tied = None, False
+        if spec["primeiros"] is not None:
+            top, _ = select_top(ordered, positions, spec["primeiros"], False)
+            tied = len(top) > spec["primeiros"]
+        chosen = set(top or [])
+        per_item = {key: {"posicao": positions.get(key), "selecionado": None if top is None else key in chosen}
+                    for key in res.universe}
+        notes = ["Ordenação por " + VALUE_TEXT[attribute] + (" (" + ctx.indicador + ")" if attribute == "variacao"
+                                                             else "") +
+                 " (" + ORDERS[spec["ordem"]] + "; CAP-SUB-02): valores iguais compartilham posição (1, 2, 2, 4) e não "
+                 "avaliáveis ficam fora da ordenação."]
+        if tied:
+            notes.append("Seleção dos " + str(spec["primeiros"]) + " primeiros com empate no corte (CAP-SUB-03): " +
                          str(len(top)) + " itens selecionados (EMPATE_NO_CORTE).")
-        res.limitations.append("EMPATE_NO_CORTE")
-    return {"atributo": spec["atributo"], "ordem": spec["ordem"], "primeiros": spec["primeiros"],
-            "universo": len(res.universe), "ordenados": len(ordered), "nao_avaliaveis": len(not_evaluable),
-            "selecionados": None if top is None else len(top), "empates_no_corte": tied,
-            "ids_selecionados": None if top is None else list(top)}
+        topo = {"atributo": spec["atributo"], "ordem": spec["ordem"], "primeiros": spec["primeiros"],
+                "universo": len(res.universe), "ordenados": len(ordered), "nao_avaliaveis": len(not_evaluable),
+                "selecionados": None if top is None else len(top), "empates_no_corte": tied,
+                "ids_selecionados": None if top is None else list(top)}
+        return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": ["EMPATE_NO_CORTE"] if tied else []}
+
+    entradas = {"universo": _ids_key(res.universe), "ordenar": [spec["atributo"], spec["ordem"], spec["primeiros"]],
+                "indicador": ctx.indicador, "referencia": _reference_members(res),
+                "competencia_inicial": res.initial.period if res.initial is not None else None}
+    return _apply(res, by_id, "ordem", _reaproveitar(ctx, "ordenacao", entradas, calcular))
 
 
 def _bands(ctx, res, limits, attribute, key_name, capability, by_id):
-    values = _values(ctx, res, attribute, res.universe)
-    labels, membership, counts, outside, not_evaluable = bands_of(values, list(res.universe), limits)
-    outside, missing = set(outside), set(not_evaluable)
-    for item in res.items:
-        item[key_name] = None
-    for key in res.universe:
-        if key in membership:  # índice ordinal (1 = primeira faixa), como nos grupos por posição
-            by_id[key][key_name] = {"indice": membership[key] + 1, "rotulo": labels[membership[key]]}
-        elif key in outside:
-            by_id[key][key_name] = "fora"
-    res.notes.append("Faixas (" + capability + ") de " + VALUE_TEXT[attribute] + " com limites escolhidos pelo usuário: "
-                     "intervalos [a, b) e o último fechado; nenhum limite é criado pelo sistema.")
-    return {"atributo": "distancia_km" if attribute == "distancia" else attribute, "capacidade": capability,
-            "limites": [format(value, "f") for value in limits], "convencao": BAND_CONVENTION, "rotulos": labels,
-            "contagens": counts, "fora": len(outside), "nao_avaliaveis": len(missing), "universo": len(res.universe)}
+    def calcular():
+        values = _values(ctx, res, attribute, res.universe)
+        labels, membership, counts, outside, not_evaluable = bands_of(values, list(res.universe), limits)
+        outside, missing = set(outside), set(not_evaluable)
+        per_item = {}
+        for key in res.universe:
+            if key in membership:  # índice ordinal (1 = primeira faixa), como nos grupos por posição
+                per_item[key] = {"indice": membership[key] + 1, "rotulo": labels[membership[key]]}
+            elif key in outside:
+                per_item[key] = "fora"
+        notes = ["Faixas (" + capability + ") de " + VALUE_TEXT[attribute] + " com limites escolhidos pelo usuário: "
+                 "intervalos [a, b) e o último fechado; nenhum limite é criado pelo sistema."]
+        topo = {"atributo": "distancia_km" if attribute == "distancia" else attribute, "capacidade": capability,
+                "limites": [format(value, "f") for value in limits], "convencao": BAND_CONVENTION, "rotulos": labels,
+                "contagens": counts, "fora": len(outside), "nao_avaliaveis": len(missing), "universo": len(res.universe)}
+        return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": []}
+
+    entradas = {"universo": _ids_key(res.universe), "atributo": attribute,
+                "limites": [format(value, "f") for value in limits],
+                "referencia": _reference_members(res) if attribute == "distancia" else None}
+    return _apply(res, by_id, key_name, _reaproveitar(ctx, key_name, entradas, calcular))
 
 
 def _rows_frame(ctx, res, keys):
@@ -1549,23 +1719,27 @@ def _groups(ctx, res, k, by_id):
     if len(evaluable) < 2:
         raise ValueError("Os grupos por posição (CAP-DIS-02) exigem pelo menos " + unit.g("dois", "duas") + " " +
                          unit.plural + " com " + ctx.indicador + " em " + human_period(ctx.period) + ".")
-    data, key_of = _rows_frame(ctx, res, evaluable)
-    options = {**ctx.settings, "distribution_indicator": metric, "quantile_count": k}
-    computed = engine._compute(res.engine_rows, ctx.mapping, "distribution", options, prepared=data)
-    labels = [str(i) + "º " + GROUP_NAMES[k] for i in range(1, k + 1)]
-    index_of = {label: i for i, label in enumerate(labels, start=1)}
-    for item in res.items:
-        item["grupo"] = None
-    for row in computed["detail_rows"]:
-        by_id[key_of[row["Território"]]]["grupo"] = {"indice": index_of[row["Quintil"]], "rotulo": row["Quintil"]}
-    res.notes += [note for note in computed["notes"] if note.startswith(("Distribuição com pontos", "Posições crescentes"))]
-    res.notes.append("Grupos por posição (CAP-DIS-02) entre " + unit.g("os", "as") + " " + unit.n(len(evaluable)) +
+
+    def calcular():
+        data, key_of = _rows_frame(ctx, res, evaluable)
+        options = {**ctx.settings, "distribution_indicator": metric, "quantile_count": k}
+        computed = engine._compute(res.engine_rows, ctx.mapping, "distribution", options, prepared=data)
+        labels = [str(i) + "º " + GROUP_NAMES[k] for i in range(1, k + 1)]
+        index_of = {label: i for i, label in enumerate(labels, start=1)}
+        per_item = {key_of[row["Território"]]: {"indice": index_of[row["Quintil"]], "rotulo": row["Quintil"]}
+                    for row in computed["detail_rows"]}
+        notes = [note for note in computed["notes"] if note.startswith(("Distribuição com pontos", "Posições crescentes"))]
+        notes.append("Grupos por posição (CAP-DIS-02) entre " + unit.g("os", "as") + " " + unit.n(len(evaluable)) +
                      " do universo com " + ctx.indicador + " em " + human_period(ctx.period) + "; os não avaliáveis ficam "
                      "fora dos grupos, e as classes não têm caráter normativo.")
-    return {"tipo": {4: "quartis", 5: "quintis", 10: "decis"}[k], "k": k, "atributo": ctx.indicador,
-            "cortes": [_num(value) for value in engine.distribution_cuts(data[metric], k)], "rotulos": labels,
-            "contagens": [int(row["Unidades"]) for row in computed["rows"]], "universo": len(res.universe),
-            "classificados": len(evaluable), "nao_avaliaveis": len(res.universe) - len(evaluable)}
+        topo = {"tipo": {4: "quartis", 5: "quintis", 10: "decis"}[k], "k": k, "atributo": ctx.indicador,
+                "cortes": [_num(value) for value in engine.distribution_cuts(data[metric], k)], "rotulos": labels,
+                "contagens": [int(row["Unidades"]) for row in computed["rows"]], "universo": len(res.universe),
+                "classificados": len(evaluable), "nao_avaliaveis": len(res.universe) - len(evaluable)}
+        return {"topo": topo, "itens": per_item, "notas": notes, "limitacoes": []}
+
+    entradas = {"universo": _ids_key(res.universe), "indicador": ctx.indicador, "k": k}
+    return _apply(res, by_id, "grupo", _reaproveitar(ctx, "grupos", entradas, calcular))
 
 
 def _comparison(ctx, res, ids, by_id):
@@ -1680,9 +1854,10 @@ def _trend_series(frame, metric, positions, incomparability=None) -> dict:
     if metric == "density":
         usable = usable[usable["population"].notna()]
     observed = {}
+    num = _num
     for key, period, value in zip(usable["territory"].tolist(), usable["period"].tolist(), usable[metric].tolist()):
-        observed.setdefault(key, {})[str(period)] = _num(value)
-    return {key[0]: (trend, [_num(speed) for speed in trend.speeds()], observed.get(key[0], {}))
+        observed.setdefault(key, {})[str(period)] = num(value)
+    return {key[0]: (trend, [num(speed) for speed in trend.speeds()], observed.get(key[0], {}))
             for key, trend in classify_frame(usable, value_cols=value_cols, positions=positions,
                                              incomparability=incomparability)}
 
@@ -1709,15 +1884,14 @@ def _unit_series(frame, mapping, settings, window, category, operation, metric, 
 def _set_series(ctx, res, window):
     """Conjuntos na janela: a agregação municipal (main._compute, operação aggregate) em cada competência, sobre os
     membros com registro; com membros diferentes entre as competências, a tendência não é avaliável
-    (INCOMPARABILIDADE pela entrada, CAP-AGR-01 e F-05b)."""
+    (INCOMPARABILIDADE pela entrada, CAP-AGR-01 e F-05b). Devolve também as linhas usadas, para a chave de execução."""
     import main as engine  # importação tardia: main usa este módulo
     mapping = ctx.mapping
     members = {key for spec in res.sets for key in spec["membros"]}
     rows = _rows(ctx.frame, mapping, window, ctx.category)
     rows = rows.loc[row_ids(rows, mapping).isin(members).to_numpy(dtype=bool)]
-    res.frames.append(rows)
     if rows.empty:
-        return pd.DataFrame(columns=SERIES_COLUMNS), {}
+        return pd.DataFrame(columns=SERIES_COLUMNS), {}, rows
     data = prepare(rows, mapping, ctx.settings, "density" if ctx.density else "counts").copy()
     data["key"] = _data_keys(ctx, data["territory"])
     periods = text_values(rows[mapping["period"]])
@@ -1739,61 +1913,86 @@ def _set_series(ctx, res, window):
                 "os membros com registro mudam na janela (" + ", ".join(
                     human_period(period) + ": " + str(len(keys)) for period, keys in support.items()) + ")")
         out += values
-    return pd.DataFrame(out, columns=SERIES_COLUMNS), incomparability
+    return pd.DataFrame(out, columns=SERIES_COLUMNS), incomparability, rows
 
 
 def _state_series(ctx, res, window):
     """Estados na janela pela abrangência da base Brasil (territorial_levels.state_part): contagem estadual e, na
-    densidade, a população do estado em cada competência (lacuna quando incompleta)."""
+    densidade, a população do estado em cada competência (lacuna quando incompleta). Devolve também o quadro da fonte
+    estadual, para a chave de execução."""
     estados = tuple(key[3:] for key in res.universe)
     data = state_part(ctx.sources, {"period_filters": list(window), "category_filter": ctx.category}, True,
                       Abrangencia(False, estados, False, (), ()), ctx.index, Parts())
-    res.frames.append(data)
     if data.empty:
-        return pd.DataFrame(columns=SERIES_COLUMNS)
-    return data.assign(territory="uf:" + data["uf"].astype(str))[SERIES_COLUMNS]
+        return pd.DataFrame(columns=SERIES_COLUMNS), data
+    return data.assign(territory="uf:" + data["uf"].astype(str))[SERIES_COLUMNS], data
 
 
-def _trend(ctx, res, window, by_id):
-    """CAP-TEN-01 por item na janela escolhida (trend.classify_frame, como na evolução temporal) e as contagens do motor
-    por classe no universo (trend.summarize), com o bloqueio de menos de quatro competências (stage_block)."""
+def _trend_block(ctx, res, window):
+    """O cálculo de _trend: a tendência de cada item, o resumo do motor no universo, o domínio das observações, as notas e
+    o que entra na chave de execução (quadros e resumos das linhas usadas)."""
     positions = {period: ctx.positions[period] for period in window}
     convention = resolve_convention(list(ctx.periods))
     metric = INDICATORS[ctx.indicador]
+    frames, digests = [], []
     if ctx.nivel == "estados":
-        series = _trend_series(_state_series(ctx, res, window), metric, positions)
+        frame, data = _state_series(ctx, res, window)
+        frames.append(data)
+        series = _trend_series(frame, metric, positions)
     else:
         units = [item["id"] for item in res.items if item["tipo"] == "municipio"]
         keys = None if len(units) == len(ctx.catalog) else sorted(units)
         series, digest = _unit_series(ctx.frame, ctx.mapping, ctx.settings, list(window), ctx.category,
                                       "density" if ctx.density else "counts", metric, positions, keys)
-        res.digests.append(digest)
+        digests.append(digest)
         if res.sets:
-            frame, incomparability = _set_series(ctx, res, window)
+            frame, incomparability, rows = _set_series(ctx, res, window)
+            frames.append(rows)
             series = {**series, **_trend_series(frame, metric, positions, incomparability)}
     empty = classify([])
-    values = []
+    values, per_item = [], {}
     for item in res.items:
         trend, speeds, observed = series.get(item["id"], (empty, [], {}))
         points = [{"competencia": period, "valor": observed.get(period)} for period in trend.periods]
         values += [point["valor"] for point in points if point["valor"] is not None]
-        item["tendencia"] = {"classe": trend.category, "familia": trend.family, "rotulo": trend.label,
-                             "motivo": trend.motive or trend.not_evaluable, "motivo_texto": trend.motive_label,
-                             "avaliavel": trend.evaluability == "AVALIAVEL", "observacoes": points,
-                             "velocidades": speeds}
+        per_item[item["id"]] = {"classe": trend.category, "familia": trend.family, "rotulo": trend.label,
+                                "motivo": trend.motive or trend.not_evaluable, "motivo_texto": trend.motive_label,
+                                "avaliavel": trend.evaluability == "AVALIAVEL", "observacoes": points,
+                                "velocidades": speeds}
     trends = {key: value[0] for key, value in series.items()}
     block = stage_block(len(window))
     summary = summarize([trends.get(key, empty) for key in res.universe], block=block)
     summary.update({"indicador": ctx.indicador, "unidade_valor": "por 1.000 habitantes" if metric == "density" else
                     count_unit_label(ctx.mapping, ctx.settings), "unidade_tempo": time_unit(convention),
                     "janela": series_window(list(window), positions, convention), "universo": len(res.universe)})
-    res.notes += evolution_notes(summary, {"percentual_nao_avaliavel": {"BASE_ZERO": 0}}, convention)
-    res.notes.append("Classes de tendência (CAP-TEN-01) na janela de " + human_period(window[0]) + " a " +
-                     human_period(window[-1]) + " (" + str(len(window)) + " competências): a cor da bolha segue a família "
-                     "da classe (crescimento, declínio ou sem classificação); não avaliável fica à parte, com o motivo.")
-    res.notes += premise_notes(ctx.settings, "temporal", ctx.mapping)
+    notes = evolution_notes(summary, {"percentual_nao_avaliavel": {"BASE_ZERO": 0}}, convention)
+    notes.append("Classes de tendência (CAP-TEN-01) na janela de " + human_period(window[0]) + " a " +
+                 human_period(window[-1]) + " (" + str(len(window)) + " competências): a cor da bolha segue a família "
+                 "da classe (crescimento, declínio ou sem classificação); não avaliável fica à parte, com o motivo.")
+    notes += premise_notes(ctx.settings, "temporal", ctx.mapping)
+    return {"topo": summary, "itens": per_item, "dominio": [min(values), max(values)] if values else None,
+            "notas": notes, "quadros": frames, "resumos": digests}
+
+
+def _trend(ctx, res, window, by_id):
+    """CAP-TEN-01 por item na janela escolhida (trend.classify_frame, como na evolução temporal) e as contagens do motor
+    por classe no universo (trend.summarize), com o bloqueio de menos de quatro competências (stage_block). No nível
+    municípios, reaproveitada entre pedidos enquanto a janela, o indicador, os itens e o universo não mudam
+    (_reaproveitar)."""
+    if ctx.nivel == "estados":
+        out = _trend_block(ctx, res, window)
+    else:
+        entradas = {"janela": list(window), "indicador": ctx.indicador, "itens": _ids_key(item["id"] for item in res.items),
+                    "conjuntos": [[spec["id"], list(spec["membros"])] for spec in res.sets],
+                    "universo": _ids_key(res.universe)}
+        out = _reaproveitar(ctx, "tendencia", entradas, lambda: _trend_block(ctx, res, window))
+    for item in res.items:
+        item["tendencia"] = out["itens"][item["id"]]
+    res.frames += out["quadros"]
+    res.digests += out["resumos"]
+    res.notes += out["notas"]
     res.methods["tendencia"] = TREND_METHOD
-    return summary, (min(values), max(values)) if values else None
+    return out["topo"], out["dominio"]
 
 
 def _nearest_of(ctx, spatial, item):
@@ -1828,7 +2027,7 @@ def _availability(ctx) -> dict:
         out["espacial"] = entry(False, "No nível estados, a distância não se aplica: estados não têm um ponto único. "
                                        "Abra os municípios de um estado para usar a análise espacial.")
     elif ctx.brazil:
-        settings = apply_premises(ctx.frame, ctx.mapping, {}, spatial=True)
+        settings = _official_settings(ctx.frame, ctx.mapping, True)
         if not SPATIAL_ROLES <= set(settings.get("governed_roles") or []):
             out["espacial"] = entry(False, GOVERNED)
         elif _referencial_suportado(settings.get("crs")) is None:
@@ -1901,9 +2100,14 @@ def _upload_spatial_availability(ctx, entry):
 
 
 def _context_line(ctx) -> dict:
-    """Linha de contexto do Brasil (decisão D5 de 19/10/2026): a taxa nacional na competência, sem classificar nada."""
+    """Linha de contexto do Brasil (decisão D5 de 19/10/2026): a taxa nacional na competência, sem classificar nada;
+    reaproveitada entre pedidos da mesma competência e categoria (_reaproveitar)."""
     if not ctx.brazil:
         return {"brasil": None}
+    return _reaproveitar(ctx, "contexto", {}, lambda: _national_line(ctx))
+
+
+def _national_line(ctx) -> dict:
     reference = national_reference(ctx.sources, [ctx.period], [ctx.category])
     base = {"rotulo": "Brasil (total nacional)", "competencia": ctx.period, "densidade": None, "quantidade": None,
             "populacao": None, "competencia_populacao": None, "avaliabilidade": "NAO_AVALIAVEL", "motivo": None,
@@ -2188,6 +2392,77 @@ def references(sources, mapping, options, frame=None) -> dict:
             "candidatos": [{**unit(key), "valor": _num(values[key]["valor"]), "posicao": positions[key]}
                            for key in ordered],
             "nao_avaliaveis": [{**unit(key), "motivos": list(values[key]["motivos"])} for key in not_evaluable]}
+
+
+# --------------------------------------------------------------------------------------------- mapa (página única)
+MAP_KEYS = frozenset(("competencia", "categoria", "premissas", "rotulos"))
+NO_COORDINATES = "A planilha não tem colunas de latitude e longitude associadas: o mapa precisa delas."
+
+
+def mapa(sources, mapping, options, frame=None) -> dict:
+    """POST /api/painel/mapa: as coordenadas autorizadas de todas as unidades do catálogo da fonte, na competência, as
+    mesmas que a análise espacial usa para medir as distâncias (nearest_reference.territory_coordinates, pela memória da
+    versão em _coordinates): na base Brasil, a sede municipal do perfil oficial em SIRGAS 2000, com a camada complementar
+    governada; na planilha, as colunas de latitude e longitude no referencial confirmado pela pessoa (premissas.crs;
+    sem ele, a mesma pendência da análise espacial). Cada unidade vai em `pontos` ({id, lat, lon}, graus decimais) ou,
+    sem coordenada válida na competência, em `sem_coordenada` ({id, rotulo, motivo}, o motivo com o código, como nas
+    distâncias). Os ids são os dos itens de POST /api/painel, na ordem do código. Estados não têm ponto (só unidades).
+    Nada é calculado além da leitura das coordenadas, nada é registrado na sessão e nada vai ao provedor de IA."""
+    ctx = context(sources, mapping, options, MAP_KEYS, frame=frame, page=True)
+    if not ctx.brazil and not (ctx.mapping.get("latitude") and ctx.mapping.get("longitude")):
+        raise ValueError(NO_COORDINATES)
+    settings = _spatial_settings(ctx)
+    coords = _coordinates(ctx.frame, ctx.mapping, settings, ctx.period)
+    spatial = Spatial(settings, coords, [], [], {}, referencial=_referencial_suportado(settings.get("crs")))
+    latitudes, longitudes = coords["lat"].to_dict(), coords["lon"].to_dict()
+    points, missing = [], []
+    for key in sorted(ctx.catalog, key=lambda key: (ctx.catalog[key]["code"], key)):
+        state = spatial.condition(key)
+        if state == "VALIDA":
+            points.append({"id": key, "lat": float(latitudes[key]), "lon": float(longitudes[key])})
+        else:
+            missing.append({"id": key, "rotulo": _label(ctx.catalog[key]),
+                            "motivo": "Sem coordenada válida em " + human_period(ctx.period) + ": " +
+                                      CONDITION_TEXT[state] + " (" + MOTIVES[state] + ")"})
+    return {"competencia": ctx.period, "referencial": spatial.referencial, "pontos": points, "sem_coordenada": missing}
+
+
+# --------------------------------------------------------------------------------------------- frase-resumo (página única)
+def summary_facts(body) -> dict:
+    """Contagens e extremos que a frase-resumo copia (resumo_painel.py), contados aqui, no motor, sobre os itens da própria
+    resposta: o compositor só copia caminhos, sem comparar valores. `contagens`: unidades (municípios, unidades da
+    planilha ou estados) e conjuntos no gráfico; unidades sem valor do indicador; com a referência, unidades (fora da
+    referência) sem distância; com a competência inicial, unidades sem variação avaliável; com a rotatividade, unidades
+    com e sem permanência avaliável. `extremos`: as posições em `itens` da unidade de menor e da de maior valor (nos
+    empates, a primeira na ordem dos itens), por indicador, distância, variação e permanência."""
+    items = body["itens"]
+    indicator = body["indicador"]
+    units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado")]
+    counts = {"unidades": len(units), "conjuntos": sum(item["tipo"] == "conjunto" for item in items),
+              "sem_valor": sum(items[index][indicator] is None for index in units)}
+    extremes = {"indicador": _extremes(items, units, lambda item: item[indicator])}
+    if body.get("referencia") is not None:
+        targets = [index for index in units if not items[index]["referencia"]]
+        counts["sem_distancia"] = sum(items[index]["distancia_km"] is None for index in targets)
+        extremes["distancia"] = _extremes(items, targets, lambda item: item["distancia_km"])
+    if body.get("competencia_inicial"):
+        counts["sem_variacao"] = sum(items[index]["variacao_percentual"][indicator] is None for index in units)
+        extremes["variacao"] = _extremes(items, units, lambda item: item["variacao_percentual"][indicator])
+    if body.get("rotatividade") is not None:
+        def permanence(item):
+            rotation = item.get("rotatividade") or {}
+            return rotation.get("permanencia_percentual") if rotation.get("avaliavel") else None
+        counts["com_permanencia"] = sum(permanence(items[index]) is not None for index in units)
+        counts["sem_permanencia"] = len(units) - counts["com_permanencia"]
+        extremes["permanencia"] = _extremes(items, units, permanence)
+    return {"contagens": counts, "extremos": extremes}
+
+
+def _extremes(items, indices, value_of):
+    present = [(value_of(items[index]), index) for index in indices if value_of(items[index]) is not None]
+    if not present:
+        return None
+    return [min(present)[1], max(present, key=lambda pair: (pair[0], -pair[1]))[1]]
 
 
 # --------------------------------------------------------------------------------------------- sessão

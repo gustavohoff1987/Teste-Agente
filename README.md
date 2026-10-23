@@ -666,7 +666,10 @@ cada análise, a linha de contexto do Brasil e o registro do resultado na sessã
 21/10. Rotas, campos e regras em [painel integrado](Docs/PAINEL_INTEGRADO.md). Na tela, desde 22/10/2026,
 esse gráfico é a área de análise da página única, a única forma de análise da interface: as telas clássicas
 ("Todas as análises" e "Outras análises") saíram do produto. Detalhes em
-[área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md).
+[área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md). Desde 23/10/2026, `POST /api/painel/mapa` devolve as
+coordenadas autorizadas de cada unidade (a sede municipal em SIRGAS 2000, com a camada complementar, ou, nas planilhas,
+latitude e longitude no referencial confirmado); toda resposta da página única traz `resumo`, a frase-resumo do motor só
+com cópias verificadas; e as respostas grandes vão comprimidas (gzip).
 
 ## Escopo e limitações do protótipo
 

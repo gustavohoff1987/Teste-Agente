@@ -27,6 +27,7 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, Resp
 from fastapi.responses import JSONResponse
 import httpx
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
 from data_contract import (ChoiceRequired, validate_operation, rotation_data, period_positions, resolve_convention, scoped,
                            text_values, count_unit_label, canonical_crs, comparison_window as comparison_window_periods)
@@ -104,6 +105,10 @@ app.add_middleware(
 )
 # Catálogo, recorte territorial e hierarquia repetidos numa requisição são calculados uma vez.
 app.add_middleware(RequestMemoMiddleware)
+# Respostas grandes vão comprimidas (gzip) quando o cliente aceita, como o navegador: o gráfico com todos os municípios
+# passa de 10 MB. Nível 1, o mais rápido (cerca de 0,08 s para 10 MB, com um quinto do tamanho); abaixo de 64 KB, sem
+# compressão. O corpo descomprimido é o mesmo, byte a byte.
+app.add_middleware(GZipMiddleware, minimum_size=64 * 1024, compresslevel=1)
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 ALIASES = EXACT
 ANALYSES = OPERATIONS
@@ -479,17 +484,20 @@ def _compute(df: pd.DataFrame, mapping: dict[str, str], operation: str, options:
                              "Classe": "Q" + str(i), "Quintil": title,
                              "Unidades": int((classes == i).sum()), "Indicador": label,
                              "Unidade de contagem": unit})
-            for pos, (_, record) in enumerate(group.iterrows()):
-                i = int(classes[pos])
+            # Em bloco, pelas colunas (sem montar uma Series por território): os mesmos valores, na mesma ordem.
+            names = [f"{i}º {group_label}" if group_label else f"{i}ª faixa de {k}" for i in range(k + 1)]
+            for territory, i, inside, overall, value, quantity, population in zip(
+                    group["territory"].tolist(), classes.tolist(), inside_positions.tolist(), overall_positions.tolist(),
+                    series.tolist(), group["quantity"].tolist(), group["population"].tolist()):
                 detail_rows.append({
-                    "Território": record["territory"], "Período": period, "Categoria": category,
-                    "Quintil": f"{i}º {group_label}" if group_label else f"{i}ª faixa de {k}",
-                    position_column: int(inside_positions[pos]),
-                    "Posição geral": int(overall_positions[pos]),
-                    label: float(record[metric]),
+                    "Território": territory, "Período": period, "Categoria": category,
+                    "Quintil": names[i],
+                    position_column: int(inside),
+                    "Posição geral": int(overall),
+                    label: float(value),
                     "Unidade de contagem": unit,
-                    "Quantidade": float(record["quantity"]),
-                    "População": float(record["population"]) if pd.notna(record["population"]) else None,
+                    "Quantidade": float(quantity),
+                    "População": float(population) if pd.notna(population) else None,
                 })
         # Total do motor (o frontend não soma as classes): unidades classificadas e número de classes.
         result = _result(
@@ -642,11 +650,14 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
             return None
         limit = _brazil_cache_limit_bytes()
         if limit and parsed.memory_usage(deep=True).sum() <= limit:
+            # Guardado já consolidado (a cópia do pandas junta os blocos de mesmo tipo): a cópia de cada requisição não
+            # refaz a consolidação. Mesmos valores, colunas, tipos e índice.
+            stored = parsed.copy()
             with _BRAZIL_FRAMES_LOCK:
                 for stale in [k for k in _BRAZIL_FRAMES if k[0] == filename]:
                     del _BRAZIL_FRAMES[stale]  # uma versão por fonte: nacional e municipal separadas
-                _BRAZIL_FRAMES[key] = parsed
-                frame = parsed.copy()
+                _BRAZIL_FRAMES[key] = stored
+                frame = parsed
                 reused = True
         else:
             frame = parsed
@@ -1335,9 +1346,32 @@ async def _panel_request(file, sheet, dataset, scope, dataset_version, mapping, 
     return frame, sources, fields, requested
 
 
+class _PanelJSON(JSONResponse):
+    """Resposta do gráfico: os mesmos bytes de JSONResponse, sem a conferência de referências circulares do json (a
+    resposta é montada pelo motor só com dicionários, listas e valores nativos), que pesa com milhares de itens."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(content, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":"),
+                          check_circular=False).encode("utf-8")
+
+
 def _panel_pending(exc: ChoiceRequired) -> JSONResponse:
     """Escolha pendente (422): o texto em `detail` e a pendência estruturada, para a tela oferecer a escolha."""
     return JSONResponse(status_code=422, content={"detail": str(exc), "pendencia": painel.pendencia(exc)})
+
+
+def _attach_panel_summary(body: dict) -> None:
+    """Frase-resumo da página única (resumo_painel.py) em `resumo`, antes do registro na sessão. Como a frase-resumo de
+    /api/analyze, uma falha nunca derruba a resposta: registrada no log, o campo é omitido. Só para a interface; nada
+    dela vai ao provedor de IA."""
+    try:
+        from resumo_painel import summary
+        resumo = summary(body, painel.summary_facts(body))
+    except Exception:  # noqa: BLE001 — registrada no log; o gráfico, a tabela e as exportações seguem disponíveis
+        logging.getLogger(__name__).exception("Falha ao compor a frase-resumo do gráfico")
+        resumo = None
+    if resumo:
+        body["resumo"] = resumo
 
 
 def _panel_session(x_adt_session, context_revision, body, frame, fields, requested) -> None:
@@ -1380,10 +1414,11 @@ async def integrated_panel(file: UploadFile | None = File(None), mapping: str = 
                                  "antes de analisar.")
         body = painel.compute(sources, fields, requested, frame=None if sources is not None else frame)
         if painel.is_page(requested):
+            _attach_panel_summary(body)
             _panel_session(x_adt_session, context_revision, body, frame, fields, requested)
         # Resposta já em tipos JSON nativos (sem NaN): serializada direto, sem a conversão genérica do FastAPI, que
         # pesaria com milhares de municípios.
-        return JSONResponse(body)
+        return _PanelJSON(body)
     except ChoiceRequired as exc:
         return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -1401,6 +1436,29 @@ async def integrated_panel_references(file: UploadFile | None = File(None), mapp
         frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
                                                                  options, lambda requested: True)
         return JSONResponse(painel.references(sources, fields, requested, frame=None if sources is not None else frame))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/painel/mapa")
+async def integrated_panel_map(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                               sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                               dataset_version: str = Form(""), geo_version: str = Form(""),
+                               context_revision: int = Form(0)):
+    """Coordenadas autorizadas do mapa da página única (Docs/PAINEL_INTEGRADO.md, "Rota 3"): o ponto de cada unidade
+    da fonte na competência, o mesmo que a análise espacial usa para medir as distâncias, ou o motivo de não ter ponto.
+    Base Brasil ou planilha enviada. Só lê: nada é registrado na sessão e nada vai ao provedor de IA."""
+    try:
+        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                                 options, lambda requested: True)
+        if sources is not None and geo_version:
+            geo = _geo_identity(frame, "nearest", {})
+            if geo is not None and geo_version != _geo_token(geo):
+                raise ValueError("A camada geográfica complementar mudou depois da preparação. Carregue novamente a base "
+                                 "antes de analisar.")
+        return _PanelJSON(painel.mapa(sources, fields, requested, frame=None if sources is not None else frame))
     except ChoiceRequired as exc:
         return _panel_pending(exc)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:

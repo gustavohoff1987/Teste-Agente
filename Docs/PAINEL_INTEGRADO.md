@@ -26,23 +26,25 @@ Este documento descreve o motor e as rotas. A tela tem documento próprio.
   enviada, as análises novas e os campos fixos de topo (`nivel`, `indicador`, `rotulos`, `disponibilidade`, `contexto`,
   `sessao`). A tela da página única envia sempre `nivel`.
 
-`POST /api/painel/referencias` tem um formato só, com a base Brasil ou uma planilha enviada.
+`POST /api/painel/referencias` e `POST /api/painel/mapa` (23/10/2026) têm um formato só, com a base Brasil ou uma
+planilha enviada.
 
 ## Motor e rotas
 
 ### Visão geral
 
-- **Rotas:** `POST /api/painel` e `POST /api/painel/referencias` (`backend/main.py`). O motor fica em
-  `backend/painel.py`.
+- **Rotas:** `POST /api/painel`, `POST /api/painel/referencias` e `POST /api/painel/mapa` (`backend/main.py`). O motor
+  fica em `backend/painel.py`; a frase-resumo da página única, em `backend/resumo_painel.py`.
 - **Base (sem `nivel`):** só a base Brasil oficial (fonte municipal), numa competência e numa categoria. Arquivo importado
   recebe 422: "O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; …". Com `nivel`, ver
   "Planilhas enviadas".
 - **Números:** todo número vem do motor, pelas mesmas funções das análises, sem fórmula paralela. A tela só posiciona,
   filtra e desenha (RQ-REP-09). A régua "abaixo de / acima de" é filtro visual sobre os valores devolvidos e não inicia
   análise (RQ-REP-06).
-- **Privacidade:** nenhum nome, valor, campo ou arquivo vai ao provedor de IA. As rotas não chamam o Gemini.
+- **Privacidade:** nenhum nome, valor, campo ou arquivo vai ao provedor de IA. As rotas não chamam o Gemini, e nem a
+  frase-resumo nem as coordenadas do mapa entram em contexto enviado a ele.
 
-### Formulário (as duas rotas)
+### Formulário (as três rotas)
 
 Multipart, no padrão de `/api/analyze`:
 
@@ -55,8 +57,8 @@ Multipart, no padrão de `/api/analyze`:
 | `dataset_version` | Versão da inspeção. Integridade conferida pelo manifesto a cada pedido; versão divergente → 422 "A base Brasil foi atualizada. …". |
 | `mapping` | Mapeamento da inspeção. Na base Brasil, o do perfil oficial: código IBGE, município, período, categoria, quantidade e população e, com a referência, latitude e longitude; vazio vale o perfil oficial; papel sem coluna é ignorado. Nas planilhas, ver "Planilhas enviadas". |
 | `options` | JSON descrito em cada rota. Chave desconhecida → 422 "Parâmetro não reconhecido no painel: …". |
-| `geo_version` | Opcional, só na rota 1 com referência na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
-| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão. |
+| `geo_version` | Opcional, na rota 1 com referência e no mapa, só na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
+| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2 e 3, aceita e não usada (nada é gravado). |
 | `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`; na página única, grava também o resultado (seção "Sessão"). |
 
 ### Rota 1: `POST /api/painel` (contrato de 21/10/2026)
@@ -163,6 +165,41 @@ Resposta 200: `{criterio, competencia, categoria, candidatos: [{id, rotulo, uf, 
 - "Usar o primeiro" é a seleção por posição (CAP-SUB-03), feita na tela: com empate na 1ª posição, a tela pede a escolha
   entre os empatados. A rota só lista; não inicia análise nem escolhe a referência.
 
+### Rota 3: `POST /api/painel/mapa` (23/10/2026)
+
+As coordenadas autorizadas do mapa da página única: as mesmas que a análise espacial já usa para medir as distâncias
+(`nearest_reference.territory_coordinates`, pela memória da versão), sem cálculo novo. A tela desenha o mapa com elas;
+o contrato com a tela é `DadosDoMapa` (`frontend/src/mapaContrato.ts`).
+
+`options`: `{competencia, categoria}` e, com planilha, `premissas` e `rotulos` (as mesmas regras da rota 1; chave
+desconhecida → 422 "Parâmetro não reconhecido no painel: …"). O pedido passa pelo mesmo portão do gráfico
+(`painel.context`).
+
+Resposta 200: `{"competencia", "referencial", "pontos": [{id, lat, lon}], "sem_coordenada": [{id, rotulo, motivo}]}`.
+
+- **Unidades:** todas as do catálogo territorial da fonte, na ordem do código, cada uma em `pontos` ou em
+  `sem_coordenada`. Os ids são os dos itens de `POST /api/painel` (`code:<código>` ou `name:<nome>`). Estados não têm
+  ponto: o mapa é das unidades.
+- **Base do Brasil:** a sede municipal do perfil oficial, em SIRGAS 2000 (`referencial: "SIRGAS2000"`), com a camada
+  complementar governada nos municípios autorizados (`dados/brasil/complemento_coordenadas.json`), como na análise
+  espacial. Coordenadas da competência pedida; as de outras competências não são tratadas como equivalentes.
+- **Planilha:** as colunas de latitude e longitude no referencial confirmado em `premissas.crs` (`SIRGAS2000` ou
+  `WGS84`, sem converter um no outro). Sem `crs`, a mesma pendência da análise espacial (`pendencia.chave: "crs"`);
+  referencial fora dos aceitos → 422 "Referencial geodésico informado não suportado …"; separador decimal não
+  verificável → pendência `number_format`. Sem colunas de latitude e longitude associadas → 422 "A planilha não tem
+  colunas de latitude e longitude associadas: o mapa precisa delas."
+- **`pontos`:** latitude e longitude em graus decimais, como lidas (e complementadas) pelo motor.
+- **`sem_coordenada`:** a unidade sem coordenada válida na competência, com o rótulo e o motivo com o código, como nas
+  distâncias: "Sem coordenada válida em junho de 2024: coordenadas ausentes (SEM_INFORMACAO_ESPACIAL)", "… coordenada
+  não numérica ou fora do intervalo (COORDENADA_INVALIDA)", "… coordenadas divergentes no período
+  (COORDENADA_INVALIDA)" ou, sem registro na competência, "… sem registro no período (SEM_REGISTRO_OBSERVADO)". Fica
+  fora do mapa e entra em "Não avaliáveis".
+- **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA, nenhuma distância é medida.
+
+Com a base versionada de 22/10/2026, em junho de 2024 os 5.570 municípios têm ponto (os seis da camada complementar,
+como ANANAS, pela sede oficial do IBGE); em janeiro de 2015, três municípios sem registro na competência ficam em
+`sem_coordenada`.
+
 ### Erros
 
 Respostas 422 com mensagem em português para:
@@ -253,6 +290,7 @@ Topo: as chaves do contrato de 21/10 e, sempre:
 | `disponibilidade` | O que a fonte permite, com o motivo: `{"distribuicao", "densidade", "espacial", "tendencia", "rotatividade", "estados", "grupos"}`, cada um `{"disponivel": bool, "motivo": texto, "pendencia": null \| {chave, opcoes, texto}}`. `motivo` é vazio quando nada limita; pode vir preenchido com `disponivel: true` (por exemplo, menos de quatro competências: só a mudança). `grupos` é a bolha do nível de cima (estados no Brasil; nas planilhas, sempre indisponível). |
 | `contexto` | `{"brasil": {rotulo, competencia, densidade, quantidade, populacao, competencia_populacao, avaliabilidade, motivo, nota, regra_populacao}}` na base do Brasil: a taxa nacional da competência (`territorial_levels.national_reference`, a mesma de `metadata.referencia_nacional` da análise de densidade), sem classificar nada. Indisponível: os valores `null`, `avaliabilidade` `"NAO_AVALIAVEL"` e o `motivo`. Nas planilhas, `{"brasil": null}`. |
 | `sessao` | `{"registrado": bool, "result_id": texto \| null, "motivo": texto \| null}` (seção "Sessão"). |
+| `resumo` | A frase-resumo do motor (23/10/2026; seção "Frase-resumo"). Omitido só se a composição falhar. |
 | `versao_base` | Base do Brasil: a versão verificada; planilha: o SHA-256 do arquivo enviado. |
 | `dominios.tendencia` | Com `tendencia`: `[mínimo, máximo]` das observações devolvidas (ou `null`). |
 
@@ -444,6 +482,57 @@ escolha e repetir o pedido com `options.premissas`:
 Com mais de uma escolha pendente, `detail` traz todas, e `pendencia`, a primeira. O formato de 21/10 também devolve
 `pendencia` nos seus 422 de escolha pendente (o `detail` não muda).
 
+### Frase-resumo (23/10/2026)
+
+Toda resposta da página única (municípios, unidades da planilha ou estados) traz `resumo`, uma frase em palavras do que o
+gráfico mostra, composta pelo motor (`backend/resumo_painel.py`) no modelo da frase-resumo de `/api/analyze`
+(`result_summary.py`, decisão D7) e da verificação de segmentos da conversa (`result_conversation.verify_segment`):
+
+Municípios do Amazonas em junho de 2024, com a base versionada de 22/10/2026 (trechos):
+
+```json
+{"versao": 1,
+ "texto": "Em junho de 2024, o gráfico tem 62 municípios. Entre os municípios, a densidade vai de 0,36 a 2,15 por 1.000 habitantes; 0 municípios sem valor. Referência de contexto: taxa nacional de 2,36 por 1.000 habitantes (Brasil, total nacional); não classifica nem colore os itens do gráfico.",
+ "partes": [{"texto": "Em "}, {"texto": "junho de 2024", "segmento": 0, "tipo": "PARAMETRO", "caminho": ["competencia"]},
+            {"texto": ", o gráfico tem "},
+            {"texto": "62", "segmento": 1, "tipo": "VALOR", "caminho": ["resumo", "contagens", "unidades"]}, "…"],
+ "segmentos": [{"tipo": "PARAMETRO", "formato": "competencia", "caminho": ["competencia"], "texto": "junho de 2024"},
+               {"tipo": "VALOR", "formato": "numero", "caminho": ["resumo", "contagens", "unidades"], "texto": "62"},
+               {"tipo": "VALOR", "formato": "numero", "caminho": ["itens", 50, "densidade"], "texto": "0,36", "casas": 2},
+               {"tipo": "VALOR", "formato": "numero", "caminho": ["itens", 47, "densidade"], "texto": "2,15", "casas": 2},
+               "…"],
+ "contagens": {"unidades": 62, "conjuntos": 0, "sem_valor": 0},
+ "nota": "Frase composta só com valores, relações e contagens do motor, copiados da resposta e conferidos; nada é calculado na tela."}
+```
+
+`formato` diz a regra de apresentação do segmento: `numero` (com `casas` nas medidas contínuas), `texto` (nome ou nota,
+como estão na resposta), `competencia` (a competência por extenso, "junho de 2024") ou `relacao` (a relação do motor na
+comparação).
+
+- **Só cópias verificadas:** cada número e cada nome da frase é um segmento com o caminho na própria resposta
+  (`caminho`), conferido antes de a frase sair (`resumo_painel.verify`); se um segmento não confere, a frase é omitida.
+  Nada é calculado no compositor: as contagens de itens (`contagens`) e as unidades de menor e de maior valor vêm do motor
+  (`painel.summary_facts`); classes, grupos, faixas e condições são as contagens das análises; as relações da comparação
+  são as que o motor devolveu (`comparacao.diferencas`, `maior` e `menor`).
+- **Conteúdo, na ordem das análises pedidas:** itens no gráfico e de quanto a quanto vai o indicador entre as unidades,
+  com as sem valor (distribuição); grupos por posição e faixas, com as contagens; a variação desde a competência inicial
+  (mudança); a referência e de quanto a quanto vai a distância, com as faixas de distância e a nota da linha reta (TPL-11,
+  análise espacial); a janela e a contagem por família de classe, ou o bloqueio do método (tendência); quantos atendem,
+  não atendem e estão sem dado (condições); os valores comparados e a relação do motor (comparação: entre dois itens, a
+  relação A/B e a diferença A − B; entre três, o maior e o menor valor, sem diferenças entre pares); de quanto a quanto
+  vai a permanência da coorte inicial, em % (rotatividade); "soma das contagens dos componentes, com possível dupla
+  contagem" (conjuntos); a nota da fonte estadual (estados); e, com a densidade na base do Brasil, a taxa nacional como
+  referência de contexto.
+- **Redação (as regras de `tests/test_result_summary.py`):** o texto fixo não usa LEX-DES, LEX-NORM nem LEX-CAU; LEX-CMP
+  só nas relações copiadas do motor; LEX-TEN só com a tendência; a taxa do Brasil nunca é "acima" ou "abaixo", nem
+  classifica ou colore os itens. Nomes das unidades pelos rótulos da fonte ("distritos", "províncias").
+- **Números (RQ-REP-05):** duas casas nas medidas contínuas, contagens inteiras com separador de milhar, mais casas só
+  quando o valor arredondaria para zero ou para preservar a relação entre os valores comparados na mesma frase (de
+  quanto a quanto, os itens da comparação); a escala e a unidade junto da densidade ("por 1.000 habitantes"), "km" na
+  distância e "%" na variação e na permanência.
+- **Falha e privacidade:** uma falha ao compor nunca derruba a resposta (registrada no log, o campo é omitido). A frase
+  vai para a tela e para a sessão com o resultado; não entra em contexto nenhum enviado ao provedor de IA.
+
 ### Sessão
 
 Com o cabeçalho `X-ADT-Session`, a página única grava o resultado do gráfico na sessão para o Histórico e para a
@@ -508,6 +597,17 @@ precisões:
 - **Universo:** grupos, faixas, condições, ordenação e as contagens da tendência valem só nos itens base do nível.
 - **Planilhas:** `versao_base` é o SHA-256 do arquivo enviado; `rotulos` aceita `genero`.
 
+### Desvios em relação ao contrato de 23/10/2026 (mapa e frase-resumo)
+
+O contrato entre as frentes (`frontend/src/mapaContrato.ts`, `DadosDoMapa`) vale como está; as precisões:
+
+- **Mapa:** `sem_coordenada` cobre também a unidade do catálogo sem registro na competência (motivo
+  `SEM_REGISTRO_OBSERVADO`), para que todo id de item tenha ponto ou motivo; `geo_version` (opcional, base Brasil) recusa
+  o pedido se a camada complementar mudou depois da preparação, como em `POST /api/painel` com referência; o motivo vem
+  em texto com o código entre parênteses, como os motivos dos itens.
+- **Frase-resumo:** além de `texto`, o resumo traz `partes`, `segmentos`, `contagens`, `versao` e `nota` (seção
+  "Frase-resumo"); no contrato de 21/10 (sem `nivel`), a resposta não muda.
+
 ### Desempenho
 
 - Uma preparação por competência pedida, sobre as linhas da competência e da categoria; na base Brasil verificada, a
@@ -516,23 +616,69 @@ precisões:
   cópia íntegra marcada).
 - A tendência prepara numa só passagem as linhas da janela, só dos itens pedidos; distâncias vetorizadas
   (`nearest_exact`).
-- A resposta já sai em tipos JSON nativos e é serializada direto, sem a conversão genérica do FastAPI.
-- Medição local de 22/10/2026 com a base versionada, por um script de medição (não é teste): mediana de três pedidos
-  depois do primeiro, no servidor de teste (`TestClient`), sem o aquecimento da base (`ADT_AQUECIMENTO=0`):
+- A resposta já sai em tipos JSON nativos e é serializada direto, sem a conversão genérica do FastAPI e, desde
+  23/10/2026, sem a conferência de referências circulares do `json` (os mesmos bytes).
 
-  | Pedido | Tempo (primeiro pedido) | Resposta |
-  |---|---|---|
-  | Contrato de 21/10: todos os municípios, variação e referência | 0,70 s (1,12 s) | 2,6 MB |
-  | Página única: todos os municípios, distribuição | 0,28 s (0,27 s) | 2,4 MB |
-  | Página única: 27 estados (E1) | 0,17 s (0,16 s) | < 0,1 MB |
-  | Página única: 27 estados, tendência de 11 junhos e quartis | 0,19 s (0,19 s) | < 0,1 MB |
-  | Página única: Amazonas (62), tendência de 11 junhos e condições | 0,21 s (0,35 s) | 0,1 MB |
-  | Página única: todos, tendência de 11 junhos e condições | 0,77 s (1,73 s) | 9,4 MB |
-  | Página única: todos, tendência de 22 competências e condições | 0,96 s (2,43 s) | 13,4 MB |
-  | Página única: todos, com tudo (variação, tendência, quintis, faixas, faixas de distância, condições, ordenação e comparação) | 1,58 s (1,50 s) | 10,7 MB |
-  | Página única: todos, tendência de 11 junhos e condições, com sessão | 1,09 s (1,14 s) | 9,4 MB |
+Desde 23/10/2026 (meta de 0,4 a 0,8 s no servidor), sem mudar número nenhum:
 
-  Com todos os municípios e a tendência, a resposta pesa por causa das observações por item; a gravação na sessão
-  acrescenta cerca de 0,3 s nesse caso. No pedido "com tudo", o tempo é o das funções do motor somadas: grupos por
-  posição cerca de 0,3 s (a distribuição de `main._compute` percorre os municípios um a um), variação exata cerca de
-  0,3 s e ordenação cerca de 0,2 s.
+- **Reaproveitamento entre pedidos** (`painel._reaproveitar`, sobre a mesma memória da versão, nas condições de U8): as
+  distâncias até a referência, as condições, os grupos por posição, as faixas, a ordenação, a tendência por item (nível
+  municípios) e a linha de contexto do Brasil ficam guardadas por versão da base e da camada de coordenadas, com a chave
+  de tudo de que cada cálculo depende (nível, mapeamento, competência, categoria, universo, itens, referência, janela,
+  indicador, competência inicial e a definição da análise). Quando só a ordenação muda, o resto vem do pedido anterior;
+  mudar o universo, a competência ou a referência recalcula o que depende deles. Cada pedido recebe cópia própria;
+  planilhas enviadas nunca ficam guardadas.
+- **Grupos por posição em bloco:** a distribuição de `main._compute` monta o detalhamento pelas colunas, sem uma
+  `Series` por município (`iterrows`), com os mesmos valores, na mesma ordem (também em `/api/analyze`).
+- **Variação exata em inteiros:** a variação percentual de `temporal_change.change` sobre pares de inteiros
+  (`painel._percent`), sem um `Fraction` por operação; o float publicado é a divisão inteira com arredondamento correto
+  (o mesmo de `float(Fraction)`), e o valor exato lido pela ordenação é o `Fraction` do mesmo par.
+- **Ordenação:** `combined_criteria.ranking_of` recebe os avaliáveis já na ordem dela (`painel._ranked`, com o float do
+  valor à frente na chave, monótono no valor exato; em float igual, decide o valor exato) e só confere a sequência.
+- **Linhas da competência e chave de execução:** as posições das linhas por competência e categoria (`_row_positions`) e
+  o resumo das linhas lido pela chave de execução (`_rows_hash`) ficam na memória da versão; as premissas do perfil
+  oficial também (`_official_settings`); a condição de cada coordenada é lida uma vez por pedido. O quadro guardado da
+  base Brasil já fica consolidado, e a cópia própria de cada pedido não refaz a consolidação (cerca de 50 ms a menos em
+  todo pedido à base Brasil, em qualquer rota).
+- **Compressão gzip** (`GZipMiddleware` do FastAPI, nível 1, a partir de 64 KB, para o cliente que aceita gzip, como o
+  navegador): os 10,7 MB do pedido "com tudo" vão em 2,2 MB, com cerca de 0,08 s para comprimir. Descomprimido, o corpo é
+  o mesmo byte a byte; nada depende do corpo cru (a tela e os roteiros de navegador leem o JSON já descomprimido).
+- **Conferência:** o script de medição (`backend/tests/bench_painel.py`, não é teste) compara o SHA-256 canônico de cada
+  corpo com o da medição anterior: nos casos da tabela e em outras 76 respostas (estados, conjuntos, planilhas, erros e
+  sequências que mudam uma análise por vez), as respostas são as do código anterior, salvo o campo novo `resumo`. Os
+  testes de `backend/tests/test_painel_desempenho.py` conferem cada atalho com o caminho que ele substitui.
+
+Medição local de 23/10/2026 com a base versionada, as duas versões no mesmo ambiente, em rodadas alternadas (antes: o
+código de `9f0c595`; depois: o atual): mediana de 10 pedidos depois do primeiro (duas rodadas de 5), no servidor de
+teste (`TestClient`, que aceita gzip como o navegador: o tempo inclui comprimir e descomprimir), sem o aquecimento da
+base (`ADT_AQUECIMENTO=0`). O primeiro pedido é o primeiro do caso no processo, na ordem da tabela (os casos anteriores
+já deixaram parte da memória da versão). Este ambiente é mais lento que o de 22/10/2026: o pedido "com tudo", no código
+anterior, levou 1,98 s aqui e 1,58 s lá.
+
+| Pedido | Antes: tempo (primeiro pedido) | Depois: tempo (primeiro pedido) | Resposta | Transferido |
+|---|---|---|---|---|
+| Contrato de 21/10: todos os municípios, variação e referência | 0,76 s (1,23 s) | 0,38 s (1,02 s) | 2,6 MB | 0,6 MB |
+| Página única: todos os municípios, distribuição | 0,35 s (0,37 s) | 0,18 s (0,29 s) | 2,4 MB | 0,2 MB |
+| Página única: 27 estados (E1) | 0,22 s (0,20 s) | 0,10 s (0,10 s) | < 0,1 MB | < 0,1 MB |
+| Página única: 27 estados, tendência de 11 junhos e quartis | 0,25 s (0,30 s) | 0,12 s (0,13 s) | < 0,1 MB | < 0,1 MB |
+| Página única: Amazonas (62), tendência de 11 junhos e condições | 0,25 s (0,38 s) | 0,09 s (0,18 s) | 0,1 MB | < 0,1 MB |
+| Página única: todos, tendência de 11 junhos e condições | 1,03 s (1,87 s) | 0,53 s (1,99 s) | 9,4 MB | 1,9 MB |
+| Página única: todos, tendência de 22 competências e condições | 1,18 s (3,35 s) | 0,72 s (2,86 s) | 13,4 MB | 3,0 MB |
+| Página única: todos, com tudo (variação, tendência, quintis, faixas, faixas de distância, condições, ordenação e comparação) | 1,98 s (1,84 s) | 0,76 s (0,87 s) | 10,7 MB | 2,2 MB |
+| Página única: todos, tendência de 11 junhos e condições, com sessão | 1,39 s (1,25 s) | 0,73 s (0,98 s) | 9,4 MB | 1,9 MB |
+| Mapa: coordenadas de todos os municípios (rota nova) | — | 0,11 s (0,12 s) | 0,3 MB | < 0,1 MB |
+
+Todos os pedidos repetidos ficaram dentro da meta. Ficaram acima dela:
+
+- **O primeiro pedido com a tendência de todos os municípios** (2,0 s com 11 junhos; 2,9 s com 22 competências): é o
+  cálculo frio do motor, uma vez por versão e janela — a preparação das linhas da janela (`data_contract.prepare`, 61
+  mil ou 122 mil linhas), a classificação (`trend.classify_frame`) e o resumo das linhas lido pela chave de execução —,
+  mais, no mesmo pedido, as condições (`combined_criteria.evaluate`) e as distâncias (`nearest_exact`) ainda não
+  guardadas. Nenhuma delas mudou: são as funções das análises, e acelerá-las é mudar o motor comum, fora desta rodada. O
+  primeiro pedido do processo também calcula o catálogo territorial e as coordenadas da competência (cerca de 0,3 s); o
+  aquecimento na partida (U11) faz só a inspeção.
+- **O tamanho da resposta com a tendência:** 9,4 MB a 13,4 MB, por causa das observações e velocidades de cada
+  município, que continuam na resposta (o contrato não muda). Serializar leva 0,2 s a 0,3 s e comprimir, cerca de
+  0,1 s; com 22 competências, o pedido repetido fica em 0,72 s, perto do limite.
+- **A gravação na sessão** acrescenta cerca de 0,2 s com 9,4 MB: a sessão serializa o resultado inteiro para conferir
+  a integridade (`conversation_session.record_panel`).

@@ -35,6 +35,53 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-23 · Página única: desempenho sem mudar números; respostas grandes comprimidas
+- **Antes:** no ambiente de medição desta rodada, "com tudo" sobre os 5.570 municípios levava 1,98 s; a tendência de 11 junhos
+  com condições, 1,03 s; as respostas grandes (até 13,4 MB) iam sem compressão.
+- **Agora:** 0,76 s e 0,53 s no mesmo ambiente (mediana de 10 pedidos depois do primeiro; tabela em `Docs/PAINEL_INTEGRADO.md`).
+  O motor reaproveita entre pedidos o que não mudou (distâncias, condições, grupos, faixas, ordenação, tendência por item e a
+  linha de contexto, pela memória da versão); a distribuição é montada em bloco; a variação exata usa inteiros, com o mesmo
+  valor de `temporal_change.change`; respostas a partir de 64 KB vão com gzip para quem aceita (10,7 MB → 2,2 MB).
+- **Permanece:** números, textos e chaves de execução (corpos idênticos ao do código anterior, conferidos por SHA-256 nos
+  casos medidos e em outras 76 respostas); o contrato (nenhum campo saiu); a integridade conferida a cada pedido; planilhas
+  nunca guardadas. Ficam acima da meta o primeiro pedido com tendência de todos os municípios (cálculo frio) e o tamanho das
+  respostas com tendência.
+- **Motivo:** bloco 4 do plano da rodada de 23/10/2026 (meta de 0,4 a 0,8 s).
+- **Classificação:** os resultados não mudam; muda o transporte (`Content-Encoding: gzip`), e o corpo descomprimido é o mesmo.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO.md` (Desempenho); `test_painel_desempenho.py` (novo); `bench_painel.py`
+  (medição, fora do CI).
+
+### 2026-10-23 · Página única: frase-resumo do motor (`resumo`)
+- **Antes:** a resposta da página única não dizia em palavras o que o gráfico mostra; a frase verificada existia só em
+  `/api/analyze` (decisão D7).
+- **Agora:** toda resposta com `nivel` traz `resumo` (`texto`, `partes`, `segmentos`, `contagens`, `nota`). A frase usa só
+  cópias conferidas da própria resposta (contagens e extremos vêm do motor) e cobre as análises pedidas: distribuição, grupos
+  e faixas, mudança, análise espacial (com a nota da linha reta), tendência ou o bloqueio, condições, comparação,
+  rotatividade (em %), a ressalva dos conjuntos, a nota da fonte estadual e a taxa do Brasil só como contexto. Exemplo: "Em
+  junho de 2024, o gráfico tem 62 municípios. Entre os municípios, a densidade vai de 0,36 a 2,15 por 1.000 habitantes; …".
+- **Permanece:** nenhum número muda nem é calculado na frase; as regras de léxico da D7 (nunca "acima" ou "abaixo"); nada vai
+  ao provedor; uma falha omite o campo sem derrubar a resposta; o contrato de 21/10 (sem `nivel`) não muda.
+- **Motivo:** bloco 3 do plano da rodada de 23/10/2026.
+- **Classificação:** mudança prevista; a SPEC prevê a síntese ancorada.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO.md` (Frase-resumo); `test_painel_resumo.py` (novo); o conjunto `TOP` de
+  `test_painel_pagina.py` ganha `resumo` (muda de propósito).
+
+### 2026-10-23 · Página única: coordenadas do mapa (`POST /api/painel/mapa`)
+- **Antes:** as coordenadas autorizadas só eram usadas por dentro, nas distâncias da análise espacial; não havia rota de mapa.
+- **Agora:** `POST /api/painel/mapa` (mesmo formulário de `/api/painel/referencias`; opções `competencia`, `categoria`,
+  `premissas` e `rotulos`) devolve `{competencia, referencial, pontos, sem_coordenada}` com todas as unidades do catálogo na
+  competência, na ordem do código e com os mesmos ids de `/api/painel`. Base do Brasil: a sede municipal em SIRGAS 2000, com
+  a camada complementar governada. Planilhas: latitude e longitude no `crs` confirmado (SIRGAS 2000 ou WGS 84); sem `crs`, a
+  pendência da análise espacial; sem colunas de coordenadas, 422 com o motivo. Sem coordenada válida (ou sem registro na
+  competência), a unidade vai em `sem_coordenada`, com o motivo e o código.
+- **Permanece:** as coordenadas, as premissas e a camada são as da análise espacial, sem cálculo novo; estados não têm ponto;
+  nada vai à sessão nem ao provedor; `/api/painel` e `/api/painel/referencias` não mudam.
+- **Motivo:** bloco 2 do plano da rodada de 23/10/2026 (o mapa como segunda vista do gráfico).
+- **Classificação:** mudança prevista; a SPEC prevê o mapa com geometria autorizada (CAP-REP-03, RQ-REP-07). Desfaz em parte
+  a remoção de 22/10/2026.
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO.md` (Rota 3); `test_painel_mapa.py` (novo, com a base versionada no job
+  `dados-reais`).
+
 ### 2026-10-22 · Página única: o painel Colunas pergunta quem são os trabalhadores, e a troca do indicador redesenha o eixo
 - **Antes** (commits `ef58a33` e `6ec1ef4`, ainda não aprovados no CI):
   - o painel Colunas não tinha o objeto da análise (ele saiu com a preparação): numa planilha sem coluna de categoria, o
