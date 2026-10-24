@@ -20,17 +20,23 @@ resume a mudança.
 2. **Cabeçalho.** O nome do agente ("Agente Diagnóstico Territorial", com o rosto do agente) no topo da página e, abaixo, o
    banner de apresentação (de volta em 23/10/2026): "FORÇA DE TRABALHO NA SAÚDE", "Transforme dados em diagnósticos
    territoriais." e "Um novo olhar sobre seus dados. Explore territórios, conecte informações e compreenda cenários." Abaixo
-   do banner, à esquerda, a navegação: **Nova sessão**, **Nova análise** e **Histórico**. Não há "Início" nem "Resultados":
-   a página é sempre o gráfico.
+   do banner, à esquerda, com os dados prontos (24/10/2026), a navegação: **Nova sessão**, **Nova análise** e **Histórico**.
+   Antes dos dados, ela não aparece: a primeira ação é escolher os dados. Não há "Início" nem "Resultados": a página é sempre
+   a análise.
 3. **Fonte dos dados:**
-   - antes dos dados, as entradas ficam na área de análise e na conversa (23/10/2026), com as mesmas ações: **Dados do
-     Brasil**, **Enviar meus dados** e **Modelo de planilha XLSX** (a estrutura recomendada, para baixar). Não há botões de
-     fonte no alto da página;
+   - antes dos dados, as entradas ficam na área de análise e na conversa, com as mesmas ações: desde 24/10/2026, só **Usar
+     dados do Brasil** e **Enviar meus dados**. "Enviar meus dados" abre sempre a mesma **janela de envio** ("Enviar meus
+     dados", `envio-de-dados`), com o que enviar (CSV, XLS ou XLSX, até 30 MB), "Escolher o arquivo" e o **modelo de planilha**
+     (a estrutura recomendada, com as colunas descritas, para consultar ou baixar em XLSX); "Cancelar" fecha sem mudar nada. O
+     botão "Modelo de planilha XLSX" saiu da área e da conversa: o modelo fica na janela. Não há botões de fonte no alto da
+     página;
    - depois, logo abaixo do cabeçalho, o resumo da fonte, por exemplo "Dados do Brasil · Medicina · jan/2014 a jun/2024" ou,
      numa planilha, "distritos.csv · distritos e províncias · Medicina · 2021 a 2024", com **Trocar** (e **Colunas**, na
      planilha);
-   - "Trocar" traz as três entradas de volta à área central, com "Cancelar". A troca só vale quando a nova fonte fica pronta:
-     até lá, o gráfico continua com a fonte em uso;
+   - "Trocar" traz as duas entradas de volta à área central, com "Cancelar" ("Escolha a nova fonte. A análise atual continua à
+     vista até a nova fonte ficar pronta."); "Enviar meus dados" abre a mesma janela de envio. A troca só vale quando a nova
+     fonte fica pronta: até lá, a análise continua com a fonte em uso, e um cancelamento ou um arquivo recusado não a tiram
+     da tela;
    - na base do Brasil, "Diagnóstico técnico da fonte" mostra a origem, a versão e a integridade (sem conteúdo).
 4. **Área de análise**: o gráfico com os valores do motor, nos estados E0 (antes dos dados) a E4 (funções em uso). Ver o
    documento da área.
@@ -48,9 +54,10 @@ a conversa fica ancorada embaixo, sem rolagem horizontal.
 "Dados do Brasil" examina a base versionada uma vez, no recorte municipal, com o bloco dos níveis (Brasil e estados), por
 `/api/inspect`, como antes. A área recebe a fonte (`FonteDados`: `tipo: "brasil"`, a versão da base, o token da camada
 geográfica complementar e os rótulos fixos município/municípios e estado/estados), as competências, a categoria, os níveis e
-o catálogo de municípios para a busca. Desde 23/10/2026, a base abre **sem territórios escolhidos**: a área avisa que os
-dados estão prontos, abre a Seleção de Territórios e espera; nada é pedido ao motor até a escolha (os estados, "Todos os
-estados (27)", são uma das opções). Antes, ela abria nos 27 estados.
+o catálogo de municípios para a busca. Desde 23/10/2026, a base abre **sem territórios escolhidos**: a área abre a Seleção
+de Territórios e espera; nada é pedido ao motor até a escolha. Antes, ela abria nos 27 estados. Desde 24/10/2026, a Seleção
+tem três níveis, um por vez: o Brasil como unidade, os estados (um, vários ou todos) e os municípios, por estado e
+cumulativos (ver o documento da área).
 
 ### Planilha enviada: o painel "Colunas"
 
@@ -101,7 +108,8 @@ backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas 
   outra fonte de dados fica na lista, desabilitada, até a pessoa voltar àquela fonte. O menu fecha com clique fora ou
   Escape, devolvendo o foco ao botão.
 - **Nova análise** guarda a análise atual no Histórico e recomeça com os mesmos dados, sem territórios escolhidos (desde
-  23/10/2026; antes, voltava aos estados). Fica desabilitada antes dos dados.
+  23/10/2026; antes, voltava aos estados). Desde 24/10/2026, a navegação só aparece com os dados prontos (antes, Nova análise
+  ficava desabilitada antes dos dados).
 - **Trocar de fonte** também guarda a análise atual; a área recomeça com a nova fonte.
 - **Nova sessão** pede confirmação num diálogo com: **Exportar CSV** (a análise em exibição: um registro por item da resposta
   do motor, com todos os campos em precisão integral; objetos viram colunas "campo.subcampo", e texto que começaria uma
@@ -121,14 +129,17 @@ teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dent
 Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `latest-reply`). A transcrição fica em memória,
 e a última resposta aparece junto do campo de mensagem.
 
-**Abertura.** Antes dos dados, a caixa fica aberta e mais larga, perguntando "O que você quer analisar? Prefere começar com
-os dados do Brasil, enviar os seus ou baixar o modelo de planilha?", com **Dados do Brasil**, **Enviar meus dados** e
-**Modelo de planilha XLSX** (`chat-fonte-modelo`, o mesmo arquivo da área central), as mesmas três entradas da área de
-análise (23/10/2026). Depois, ela fica compacta, com uma orientação curta para cada etapa: enquanto os dados do Brasil são
+**Abertura.** Antes dos dados, a caixa fica aberta e mais larga, perguntando "O que você quer analisar? Prefere usar os dados
+do Brasil ou enviar os seus?", com **Usar dados do Brasil** e **Enviar meus dados**, as mesmas duas entradas da área de
+análise (24/10/2026; o botão "Modelo de planilha XLSX", `chat-fonte-modelo`, saiu). "Enviar meus dados", pelo botão ou
+pedido em palavras, abre a mesma janela de envio da área ("Abri a janela de envio: escolha o arquivo CSV ou Excel. O modelo de
+planilha também está nela. Depois, confira as colunas no painel Colunas, no alto da página."). Um cumprimento antes dos dados
+recebe "Olá! O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?". Depois, ela fica compacta, com uma orientação curta para cada etapa: enquanto os dados do Brasil são
 preparados, "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar."; com os dados prontos
 e sem territórios escolhidos (a base abre sem seleção automática), "Os dados estão prontos. Escolha os territórios na Seleção
 de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará” ou “todos os estados”." (numa planilha, sem os
-exemplos da base do Brasil); nos estados, "Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver." (na
+exemplos da base do Brasil; desde 24/10/2026, também no nível Estados sem nenhum estado marcado); nos estados, "Escolha no
+gráfico quais estados abrir, ou me diga quais municípios quer ver." (na
 planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"); e, com as unidades na tela,
 exemplos de pedidos ("mostre o Pará", "use Belém como referência", "compare Manaus e Tefé").
 
@@ -147,7 +158,12 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   referência, função, seleção, ordenação, condições, grupos e vista do desenho), ele vira um **pedido para a área**, com um
   id novo a cada comando. Só os campos válidos entram, e os não citados (`null`) ficam de fora;
 - "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
-  gráfico; os números vêm do motor, pedidos pela área;
+  gráfico; os números vêm do motor, pedidos pela área. Desde 24/10/2026, um pedido feito com a Seleção de Territórios aberta
+  leva a área à análise quando há territórios escolhidos (os resultados ficam nas análises); um pedido que muda os
+  territórios pode ser desfeito com Voltar ("Voltar à seleção anterior", no alto da análise); e a comparação de antes só
+  continua se os itens dela seguem na análise.
+  O nível `brasil` (o Brasil como unidade) vale na base do Brasil; numa planilha, vira o aviso "O Brasil como unidade existe
+  só nos dados do Brasil.";
 - o **contexto** de cada pedido sai do que está no gráfico (`ContextoDoGrafico`): em `options` vão `territory_ids` (as
   unidades na tela, só as do catálogo territorial; com todos os municípios ou nos estados, nenhuma), `exploration_operation`
   (a família: distribuição → `density` ou `counts`, conforme o indicador; espacial → `spatial`; tendência → `temporal`;

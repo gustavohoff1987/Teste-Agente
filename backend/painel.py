@@ -92,7 +92,7 @@ REQUIRED_ROLES = frozenset(("territory", "territory_id", "period", "category", "
 SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
 PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "grupos_mapa", "faixas",
-                       "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos"))
+                       "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos", "estados"))
 PAGE_KEYS = PANEL_KEYS | PAGE_ONLY
 REFERENCE_KEYS = frozenset(("competencia", "categoria", "universo", "criterio", "premissas", "rotulos"))
 ATTRIBUTES = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
@@ -107,9 +107,10 @@ MAX_LABEL = 120
 SCOPE_SHAPE = "use {\"municipios\": {\"todos\", \"estados\", \"ids\"}}"
 CRITERION_SHAPE = ("Critério inválido: use {\"atributo\": \"densidade\", \"quantidade\" ou \"populacao\", \"ordem\": "
                    "\"desc\" ou \"asc\"}.")
-# Página única (22/10/2026).
+# Página única (22/10/2026). O nível Brasil (24/10/2026): o país inteiro como uma unidade, da fonte nacional (D3 e D4).
 GROUP_ROLE = "grupo_territorial"
-LEVELS = ("municipios", "estados")
+LEVELS = ("municipios", "estados", "brasil")
+BRAZIL_ID = "br"
 INDICATORS = {"densidade": "density", "quantidade": "quantity"}
 GROUP_TYPES = {"quartis": 4, "quintis": 5, "decis": 10}
 GROUP_NAMES = {4: "quartil", 5: "quintil", 10: "decil"}
@@ -421,7 +422,7 @@ def _keys(options, allowed):
     if unknown:
         text = "Parâmetro não reconhecido no painel: " + ", ".join(unknown[:5]) + "."
         if allowed is PANEL_KEYS and set(unknown) & PAGE_ONLY:
-            text += " As chaves da página única valem com nivel (\"municipios\" ou \"estados\")."
+            text += " As chaves da página única valem com nivel (\"municipios\", \"estados\" ou \"brasil\")."
         raise ValueError(text)
 
 
@@ -1385,10 +1386,16 @@ def _page_spec(ctx, options) -> dict:
     unit = ctx.labels.unidade
     nivel = options.get("nivel")
     if nivel not in LEVELS:
-        raise ValueError("Nível do gráfico inválido: use \"municipios\" ou \"estados\".")
+        raise ValueError("Nível do gráfico inválido: use \"municipios\", \"estados\" ou \"brasil\".")
     if nivel == "estados" and not ctx.brazil:
         raise ValueError("O nível estados existe só na base do Brasil, com a fonte estadual de médicos únicos; nas "
                          "planilhas, o gráfico mostra " + unit.g("os", "as") + " " + unit.plural + ".")
+    if nivel == "brasil" and not ctx.brazil:
+        raise ValueError("O nível Brasil existe só na base do Brasil, com a contagem da fonte nacional; nas planilhas, o "
+                         "gráfico mostra " + unit.g("os", "as") + " " + unit.plural + ".")
+    if nivel != "estados" and options.get("estados") is not None:
+        raise ValueError("A lista estados vale só no nível estados: nos municípios, os estados inteiros vão em "
+                         "base.estados.")
     indicador = options.get("indicador")
     if indicador not in INDICATORS:
         raise ValueError("Escolha o indicador do gráfico: \"densidade\" ou \"quantidade\".")
@@ -1958,6 +1965,10 @@ def _trend_block(ctx, res, window):
         frame, data = _state_series(ctx, res, window)
         frames.append(data)
         series = _trend_series(frame, metric, positions)
+    elif ctx.nivel == "brasil":
+        frame = _brazil_series(ctx, window)
+        frames.append(frame)
+        series = _trend_series(frame, metric, positions)
     else:
         units = [item["id"] for item in res.items if item["tipo"] == "municipio"]
         keys = None if len(units) == len(ctx.catalog) else sorted(units)
@@ -1998,7 +2009,7 @@ def _trend(ctx, res, window, by_id):
     por classe no universo (trend.summarize), com o bloqueio de menos de quatro competências (stage_block). No nível
     municípios, reaproveitada entre pedidos enquanto a janela, o indicador, os itens e o universo não mudam
     (_reaproveitar)."""
-    if ctx.nivel == "estados":
+    if ctx.nivel in ("estados", "brasil"):
         out = _trend_block(ctx, res, window)
     else:
         entradas = {"janela": list(window), "indicador": ctx.indicador, "itens": _ids_key(item["id"] for item in res.items),
@@ -2044,6 +2055,8 @@ def _availability(ctx) -> dict:
     out = {"distribuicao": entry(True), "densidade": entry(ctx.density, "" if ctx.density else _no_population(ctx))}
     if ctx.nivel == "estados":
         out["espacial"] = entry(False, _sem_ponto_unico(ctx.labels))
+    elif ctx.nivel == "brasil":
+        out["espacial"] = entry(False, BRAZIL_NO_POINT)
     elif ctx.brazil:
         settings = _official_settings(ctx.frame, ctx.mapping, True)
         if not SPATIAL_ROLES <= set(settings.get("governed_roles") or []):
@@ -2130,8 +2143,9 @@ def _upload_spatial_availability(ctx, entry):
 
 def _context_line(ctx) -> dict:
     """Linha de contexto do Brasil (decisão D5 de 19/10/2026): a taxa nacional na competência, sem classificar nada;
-    reaproveitada entre pedidos da mesma competência e categoria (_reaproveitar)."""
-    if not ctx.brazil:
+    reaproveitada entre pedidos da mesma competência e categoria (_reaproveitar). No nível Brasil, o próprio item é o
+    total nacional: sem a linha."""
+    if not ctx.brazil or ctx.nivel == "brasil":
         return {"brasil": None}
     return _reaproveitar(ctx, "contexto", {}, lambda: _national_line(ctx))
 
@@ -2188,7 +2202,7 @@ def _page_extras(ctx, spec, body, res):
         res.notes += body["comparacao"]["notas"]
     if spec["rotatividade"] is not None:
         body["rotatividade"] = _rotation(ctx, res, spec["rotatividade"], by_id)
-    if ctx.brazil:
+    if ctx.brazil and ctx.nivel != "brasil":
         res.notes.append(NOTE_CONTEXT)
     body["notas"] = _dedupe(body["notas"] + res.notes)
     body["limitacoes"] = _dedupe(body["limitacoes"] + res.limitations)
@@ -2211,11 +2225,28 @@ def _page_normalized(ctx, spec, normalized):
 
 # --------------------------------------------------------------------------------------------- estados (página única)
 STATE_REFUSALS = {
-    "base": "No nível estados, o gráfico mostra todos os estados da fonte estadual: base vale só para municípios.",
+    "base": "No nível estados, os estados escolhidos vão em estados (sem a lista, todos os da fonte estadual): base vale "
+            "só para municípios.",
     "conjuntos": "Conjuntos de estados não estão disponíveis no gráfico; marque municípios para formar conjuntos.",
     "referencia": "Não se aplica: estados não têm um ponto único. Para usar a distância, mostre os municípios.",
     "faixas_distancia": "Não se aplica: estados não têm um ponto único; as faixas de distância valem para municípios.",
 }
+
+
+def _state_choice(raw, keys):
+    """Estados escolhidos no nível estados (24/10/2026): os prefixos IBGE (ou os ids "uf:") em `estados`, na ordem do
+    código; sem a lista, todos os estados da fonte estadual, como antes."""
+    if raw is None:
+        return keys
+    if (not isinstance(raw, list) or not raw or len(raw) > len(keys) or len(set(raw)) != len(raw) or
+            any(not isinstance(value, str) for value in raw)):
+        raise ValueError("Estados inválidos: envie em estados a lista dos estados escolhidos, por exemplo [\"29\", \"42\"], "
+                         "sem repetir.")
+    wanted = {value if value.startswith("uf:") else "uf:" + value for value in raw}
+    unknown = sorted(wanted - set(keys))
+    if unknown:
+        raise ValueError("Estado sem registro na fonte estadual: " + ", ".join(key[3:][:8] for key in unknown[:5]) + ".")
+    return [key for key in keys if key in wanted]
 
 
 def _state_measures(ctx, period, keys) -> Measures:
@@ -2327,7 +2358,7 @@ def _compute_states(ctx, options, spec) -> dict:
     state, prefixes, reason = state_source(ctx.sources)
     if state is None:
         raise ValueError(reason)
-    keys = ["uf:" + prefix for prefix in sorted(prefixes & set(ctx.index.by_uf))]
+    keys = _state_choice(options.get("estados"), ["uf:" + prefix for prefix in sorted(prefixes & set(ctx.index.by_uf))])
     final = _state_measures(ctx, ctx.period, keys)
     initial = _state_measures(ctx, initial_period, keys) if initial_period else None
     changes = {}
@@ -2347,6 +2378,131 @@ def _compute_states(ctx, options, spec) -> dict:
     return body
 
 
+# --------------------------------------------------------------------------------------------- Brasil (página única)
+BRAZIL_NO_POINT = ("Não se aplica: as distâncias usam a localização de cada município, e o Brasil não tem um ponto "
+                   "único.")
+# A matriz da decisão D3: com o Brasil, valem os valores (densidade e quantidade) e a evolução no tempo; o que agrupa,
+# ordena, filtra ou compara vários territórios não se aplica, porque o Brasil é um só.
+BRAZIL_REFUSALS = {
+    "base": "No nível Brasil, a unidade é o país inteiro: base vale só para municípios.",
+    "conjuntos": "Não se aplica: o total do Brasil vem pronto da fonte nacional e não é somado a outros territórios.",
+    "referencia": BRAZIL_NO_POINT,
+    "faixas_distancia": BRAZIL_NO_POINT,
+}
+BRAZIL_SINGLE = {
+    "grupos": "Não se aplica: a distribuição agrupa vários territórios, e o Brasil é um só.",
+    "grupos_mapa": "Não se aplica: a distribuição agrupa vários territórios, e o Brasil é um só.",
+    "faixas": "Não se aplica: as faixas agrupam vários territórios, e o Brasil é um só.",
+    "condicoes": "Não se aplica: as condições separam vários territórios, e o Brasil é um só.",
+    "ordenar": "Não se aplica: a ordenação ordena vários territórios, e o Brasil é um só.",
+    "comparar": "Não se aplica: a comparação põe vários territórios lado a lado, e o Brasil é um só.",
+}
+NOTE_BRAZIL = ("Brasil (total nacional): contagem da fonte nacional e população pela soma da população estimada dos "
+               "municípios em junho do ano (regra BR-POP-JUNHO-1). Densidade = contagem / população × 1.000, em precisão "
+               "integral. O total do Brasil não é a soma dos estados nem dos municípios e não aparece com eles no mesmo "
+               "gráfico.")
+
+
+def _brazil_values(ctx, periods):
+    """Valores do Brasil nas competências (territorial_levels.national_reference, a mesma conta da linha de contexto):
+    contagem da fonte nacional, população BR-POP-JUNHO-1 e densidade, com a avaliabilidade e o motivo de cada uma."""
+    reference = national_reference(ctx.sources, list(periods), [ctx.category])
+    if reference.get("estado") == "INDISPONIVEL":
+        raise ValueError("O total do Brasil não está disponível nesta base: " + str(reference.get("motivo") or "") +
+                         ". As demais análises continuam com os estados e os municípios.")
+    return {entry["competencia"]: entry for entry in reference["valores"]}
+
+
+def _brazil_measures(ctx, period) -> Measures:
+    entry = _brazil_values(ctx, [period])[str(period)]
+    record = {"valores": {"populacao": entry["denominador"], "quantidade": entry["numerador"], "densidade": entry["valor"]},
+              "motivo": entry.get("motivo"), "nota": entry.get("nota")}
+    rows = pd.DataFrame([{"period": str(period), "category": ctx.category, "quantity": entry["numerador"],
+                          "population": entry["denominador"], "density": entry["valor"]}])
+    return Measures(str(period), {BRAZIL_ID: record}, rows, None)
+
+
+def _brazil_series(ctx, window):
+    """O Brasil na janela da tendência: os valores nacionais de cada competência, no quadro de _trend_series (lacuna
+    quando falta a contagem ou a população, nunca zero)."""
+    values = _brazil_values(ctx, window)
+    rows = [{"territory": BRAZIL_ID, "period": str(period), "category": ctx.category,
+             "quantity": values[str(period)]["numerador"], "population": values[str(period)]["denominador"],
+             "density": values[str(period)]["valor"]} for period in window]
+    return pd.DataFrame(rows, columns=SERIES_COLUMNS)
+
+
+def _brazil_item(ctx, final, initial, changes):
+    record = final.records[BRAZIL_ID]
+    values = record["valores"]
+    item = {"id": BRAZIL_ID, "tipo": "brasil", "rotulo": "Brasil", "uf": None,
+            "populacao": _num(values["populacao"]), "quantidade": _num(values["quantidade"]),
+            "densidade": _num(values["densidade"]), "distancia_km": None}
+    motives = []
+    if item["quantidade"] is None:
+        motives.append("Sem registro em " + human_period(final.period) + " na fonte nacional (categoria " + ctx.category +
+                       "): valores não avaliáveis, nunca zero (SEM_REGISTRO_OBSERVADO)")
+    elif item["densidade"] is None:
+        motives.append("Densidade não avaliável em " + human_period(final.period) + ": " +
+                       (record.get("nota") or "sem a população nacional de junho do ano (regra BR-POP-JUNHO-1)") +
+                       " (" + str(record.get("motivo") or "DENOMINADOR_AUSENTE") + ")")
+    inicial, variation, variation_ok = _empty3(), _empty3(), None
+    if initial is not None:
+        variation_ok = False
+        before = initial.records[BRAZIL_ID]
+        inicial = _values3(before)
+        if item["quantidade"] is not None and not _present(before["valores"]["quantidade"]):
+            motives.append(_no_initial(initial.period))
+        elif item["quantidade"] is not None:
+            variation, variation_ok, why, exact = _percentages(ctx, before, record)
+            motives += why
+            changes[BRAZIL_ID] = exact
+    item.update({"inicial": inicial, "variacao_percentual": variation,
+                 "avaliavel": {"densidade": item["densidade"] is not None, "distancia": None, "variacao": variation_ok},
+                 "motivos": motives, "referencia": False})
+    return item
+
+
+def _compute_brazil(ctx, options, spec) -> dict:
+    """Nível Brasil da base Brasil (24/10/2026): o país inteiro como uma unidade (decisões D3 e D4), com a contagem da
+    fonte nacional e a população pela regra BR-POP-JUNHO-1; a mudança e a tendência sobre os mesmos valores nacionais.
+    O que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3)."""
+    for key, text in BRAZIL_REFUSALS.items():
+        if options.get(key) not in (None, [], {}):
+            raise ValueError(text)
+    for key, text in BRAZIL_SINGLE.items():
+        if spec[key]:
+            raise ValueError(text)
+    if spec["rotatividade"] is not None:
+        raise ValueError(ROTATION)
+    initial_period = _initial_period(ctx, options)
+    final = _brazil_measures(ctx, ctx.period)
+    initial = _brazil_measures(ctx, initial_period) if initial_period else None
+    changes = {}
+    items = [_brazil_item(ctx, final, initial, changes)]
+    res = Result([BRAZIL_ID], [], None, final, initial, None, items, _engine_rows(ctx), changes=changes)
+    res.methods.update({"populacao_nacional": METODOS["populacao_nacional"]})
+    limitations = ["UNIDADES_NAO_AVALIAVEIS"] if any(
+        flag is False for item in items for flag in item["avaliavel"].values()) else []
+    notes = [NOTE_BRAZIL, "Valores ausentes e denominadores nulos não são transformados em zero; itens não avaliáveis "
+                          "seguem com o motivo."]
+    if initial is not None:
+        notes.append("Variação percentual (CAP-TMP-01) entre " + human_period(initial.period) + " e " +
+                     human_period(ctx.period) + ": (valor final − valor inicial) / valor inicial × 100, em aritmética "
+                     "exata; não indica tendência. Com valor inicial zero, a variação percentual não é avaliável "
+                     "(BASE_ZERO).")
+        notes += premise_notes(ctx.settings, "temporal", ctx.mapping)
+    body = {"competencia": ctx.period, "competencia_inicial": initial_period, "categoria": ctx.category,
+            "versao_base": (ctx.frame.attrs.get("source") or {}).get("version"), "chave_execucao": None,
+            "referencia": None, "itens": items, "dominios": _domains(items), "notas": _dedupe(notes),
+            "limitacoes": limitations}
+    _page_extras(ctx, spec, body, res)
+    normalized = _page_normalized(ctx, spec, {"competencia": ctx.period, "competencia_inicial": initial_period,
+                                              "categoria": ctx.category, "brasil": BRAZIL_ID})
+    body["chave_execucao"] = _execution_key(ctx, final, initial, normalized, None, res.methods, res.frames, res.digests)
+    return body
+
+
 # --------------------------------------------------------------------------------------------- rotas
 def compute(sources, mapping, options, frame=None) -> dict:
     """POST /api/painel: municípios base (ou unidades da planilha, ou estados), conjuntos e referência numa competência,
@@ -2358,6 +2514,8 @@ def compute(sources, mapping, options, frame=None) -> dict:
     spec = _page_spec(ctx, options) if page else None
     if page and ctx.nivel == "estados":
         return _compute_states(ctx, options, spec)
+    if page and ctx.nivel == "brasil":
+        return _compute_brazil(ctx, options, spec)
     unit = ctx.labels.unidade
     initial_period = _initial_period(ctx, options)
     base = _universe(options.get("base"), ctx, unit.g("os", "as") + " " + unit.plural + " base", allow_empty=True)
@@ -2470,7 +2628,7 @@ def summary_facts(body) -> dict:
     empates, a primeira na ordem dos itens), por indicador, distância, variação e permanência."""
     items = body["itens"]
     indicator = body["indicador"]
-    units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado")]
+    units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado", "brasil")]
     counts = {"unidades": len(units), "conjuntos": sum(item["tipo"] == "conjunto" for item in items),
               "sem_valor": sum(items[index][indicator] is None for index in units)}
     extremes = {"indicador": _extremes(items, units, lambda item: item[indicator])}
@@ -2488,7 +2646,23 @@ def summary_facts(body) -> dict:
         counts["com_permanencia"] = sum(permanence(items[index]) is not None for index in units)
         counts["sem_permanencia"] = len(units) - counts["com_permanencia"]
         extremes["permanencia"] = _extremes(items, units, permanence)
-    return {"contagens": counts, "extremos": extremes}
+    # Para a frase individual e as amplitudes (24/10/2026): o item único (um território, sem conjuntos), se os extremos
+    # têm o mesmo valor, e, no item único, a direção da mudança (CAP-TMP-01: aumento, redução ou sem mudança) ou o motivo
+    # da variação não avaliável. Tudo contado aqui, no motor; o compositor só escolhe o modelo e copia os caminhos.
+    values = {"indicador": lambda item: item[indicator], "distancia": lambda item: item["distancia_km"],
+              "variacao": lambda item: item["variacao_percentual"][indicator],
+              "permanencia": lambda item: (item.get("rotatividade") or {}).get("permanencia_percentual")}
+    equal = {key: pair is not None and values[key](items[pair[0]]) == values[key](items[pair[1]])
+             for key, pair in extremes.items()}
+    single = units[0] if len(units) == 1 and not counts["conjuntos"] else None
+    out = {"contagens": counts, "extremos": extremes, "iguais": equal, "unico": single}
+    if single is not None and body.get("competencia_inicial"):
+        change = items[single]["variacao_percentual"][indicator]
+        out["direcao"] = (None if change is None else "AUMENTO" if change > 0 else "REDUCAO" if change < 0 else
+                          "SEM_MUDANCA")
+        out["motivo_variacao"] = (None if change is not None else "BASE_ZERO" if items[single]["inicial"][indicator] == 0
+                                  else "DADO_AUSENTE")
+    return out
 
 
 def _extremes(items, indices, value_of):

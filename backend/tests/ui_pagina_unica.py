@@ -2,18 +2,21 @@
 
 Percorre:
 - o aceite de privacidade primeiro;
-- a abertura (E0): o nome do agente, o banner ("Transforme dados em diagnósticos territoriais.") e, abaixo dele, à esquerda,
-  Nova sessão, Nova análise (desabilitada) e Histórico, sem Início nem Resultados; as três entradas dos dados ("Dados do
-  Brasil", "Enviar meus dados" e "Modelo de planilha XLSX") na área central e na conversa, nenhuma no alto da página (23/10/2026);
-  a conversa aberta e mais larga, perguntando o que analisar; nenhum pedido ao motor antes dos dados;
-- a base do Brasil (E1) sem seleção automática (23/10/2026): o resumo da fonte, o aviso de que os dados estão prontos, a
-  Seleção de Territórios aberta e nenhum pedido ao motor até a escolha; depois, os estados como unidades;
+- a abertura (E0, 24/10/2026): o nome do agente e o banner ("Transforme dados em diagnósticos territoriais."); na área central,
+  só a identificação ("Diagnóstico Territorial da Força de Trabalho em Saúde"), a chamada ("Escolha seus dados para começar") e as
+  duas entradas ("Usar dados do Brasil" e "Enviar meus dados"), sem abas de análise, sem Nova sessão, Nova análise e Histórico e
+  sem a frase do aceite de privacidade; "Enviar meus dados" abre a janela de envio, com o modelo de planilha (XLSX), pela área e
+  pela conversa; a conversa aberta e mais larga, perguntando o que analisar, com as mesmas duas entradas; nenhum pedido ao motor
+  antes dos dados;
+- a base do Brasil (E1) sem seleção automática (23/10/2026): a navegação (Nova sessão, Nova análise e Histórico) abaixo do
+  banner, o resumo da fonte, a Seleção de Territórios aberta e nenhum pedido ao motor até a escolha; depois, os estados como
+  unidades (o nível Estados e "Marcar todos os estados");
 - o Histórico, que guarda cada análise e reabre sem recalcular, e Nova análise, que guarda a atual e recomeça com os mesmos
   dados e sem territórios escolhidos;
 - o diálogo de Nova sessão, com o foco preso nele e o CSV da análise em exibição (valores do motor, em precisão integral);
 - a caixa da conversa, que o mouse e o teclado movem, guarda a posição e se minimiza;
-- uma planilha de outro país, com distritos e províncias e sem código IBGE, pelo "Trocar" (a escolha volta à área central) e
-  pelo painel "Colunas": papéis sugeridos e escolhidos, nomes das unidades e dos grupos, referencial das coordenadas (SIRGAS
+- uma planilha de outro país, com distritos e províncias e sem código IBGE, pelo "Trocar" (as duas entradas voltam à área
+  central, e "Enviar meus dados" abre a mesma janela de envio) e pelo painel "Colunas": papéis sugeridos e escolhidos, nomes das unidades e dos grupos, referencial das coordenadas (SIRGAS
   2000 ou WGS 84, sem conversão) e o que a planilha permite; a planilha também abre sem territórios escolhidos, e a Seleção
   fala de distritos e províncias; com a escolha, a área envia o arquivo, o mapeamento e as premissas; nenhum texto da
   estrutura diz "município";
@@ -112,18 +115,25 @@ def main():
             locator.press("Enter")
 
         def escolher_arquivo(caminho):
-            """"Trocar" leva a escolha dos dados à área central (as mesmas entradas da abertura, com "Cancelar")."""
+            """"Trocar" leva a escolha dos dados à área central (as duas entradas da abertura, com "Cancelar"); "Enviar meus dados"
+            abre a janela de envio, com o modelo de planilha, e o arquivo escolhido nela vai para a preparação de sempre."""
             fonte.get_by_test_id("fonte-trocar").click()
             troca = area.get_by_test_id("analise-troca-fonte")
             expect(troca.get_by_test_id("analise-troca-cancelar")).to_be_visible()
-            expect(troca.get_by_test_id("analise-fonte-modelo")).to_be_visible()
+            expect(troca.get_by_test_id("analise-fonte-brasil")).to_have_text("Usar dados do Brasil")
+            expect(troca.get_by_test_id("analise-fonte-modelo")).to_have_count(0)
+            aperta(troca.get_by_test_id("analise-fonte-arquivo"))
+            janela = page.get_by_test_id("envio-de-dados")
+            expect(janela).to_be_visible()
+            expect(janela.get_by_test_id("envio-modelo-baixar")).to_be_visible()
             with page.expect_file_chooser() as escolha:
-                aperta(troca.get_by_test_id("analise-fonte-arquivo"))
+                janela.get_by_test_id("envio-escolher-arquivo").click()
             escolha.value.set_files(str(caminho))
+            expect(janela).to_have_count(0)
 
         page.goto(URL)
-        # 1. Abertura (E0): o aceite de privacidade primeiro; depois, o banner, a navegação abaixo dele, as entradas dos dados na
-        # área central e na conversa e a conversa perguntando o que analisar. Nada é pedido ao motor antes dos dados.
+        # 1. Abertura (E0): o aceite de privacidade primeiro; depois, o banner e, na área central, só a identificação, a chamada e as
+        # duas entradas dos dados (as mesmas da conversa). Sem abas, sem navegação; nada é pedido ao motor antes dos dados.
         privacidade = page.get_by_role("dialog", name=PRIVACIDADE)
         expect(privacidade).to_be_visible()
         expect(fonte).to_have_count(0)  # antes dos dados, nenhuma barra da fonte no alto
@@ -134,40 +144,56 @@ def main():
         expect(banner.get_by_role("heading", level=1)).to_have_text("Transforme dados em diagnósticos territoriais.")
         expect(banner).to_contain_text("FORÇA DE TRABALHO NA SAÚDE")
         expect(banner).to_contain_text("Um novo olhar sobre seus dados. Explore territórios, conecte informações e compreenda cenários.")
-        no_banner, na_navegacao = banner.bounding_box(), navigation.bounding_box()
-        assert na_navegacao["y"] >= no_banner["y"] + no_banner["height"] - 1, ("a navegação fica abaixo do banner", no_banner, na_navegacao)
-        assert abs(na_navegacao["x"] - no_banner["x"]) <= 2, ("a navegação começa à esquerda, alinhada ao banner", no_banner, na_navegacao)
-        assert navigation.locator(":scope > button").all_text_contents() == ["Nova sessão", "Nova análise"]
-        expect(historico).to_contain_text("Histórico")
-        expect(historico).to_contain_text(history_label(0))
+        # Nova sessão, Nova análise e Histórico só com os dados prontos (24/10/2026); as abas da área também.
+        expect(navigation).to_have_count(0)
+        expect(historico).to_have_count(0)
+        expect(area.get_by_role("tablist")).to_have_count(0)
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_count(0)
         for removed in ("nav-home", "nav-results", "analysis-catalog", "stage-tabs", "painel-voltar", "conversation-pane",
                         "territory-card", "investigation-overview"):
             expect(page.get_by_test_id(removed)).to_have_count(0)
         for removed in ("#preparacao-conversacional", "#resultados"):
             expect(page.locator(removed)).to_have_count(0)
-        expect(page.get_by_test_id("nav-new-analysis")).to_be_disabled()
-        # As três entradas dos dados, com as mesmas ações, na área central e na conversa; nenhuma no alto da página.
-        for antiga in ("fonte-brasil", "fonte-arquivo", "fonte-modelo", "fonte-cancelar"):
+        # Só as duas entradas dos dados, com as mesmas ações, na área central e na conversa; nenhuma no alto da página, e o modelo
+        # de planilha só na janela de envio. A frase do aceite de privacidade saiu da área (o aceite continua antes de tudo).
+        for antiga in ("fonte-brasil", "fonte-arquivo", "fonte-modelo", "fonte-cancelar", "analise-fonte-modelo", "chat-fonte-modelo"):
             expect(page.get_by_test_id(antiga)).to_have_count(0)
         abertura = area.get_by_test_id("analise-abertura")
-        expect(abertura.get_by_test_id("analise-fonte-brasil")).to_have_text("Dados do Brasil")
+        expect(abertura.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico Territorial da Força de Trabalho em Saúde")
+        expect(abertura.get_by_test_id("analise-abertura-chamada")).to_have_text("Escolha seus dados para começar")
+        expect(abertura.get_by_test_id("analise-fonte-brasil")).to_have_text("Usar dados do Brasil")
         expect(abertura.get_by_test_id("analise-fonte-arquivo")).to_have_text("Enviar meus dados")
-        modelo = abertura.get_by_test_id("analise-fonte-modelo")
-        expect(modelo).to_have_text("Modelo de planilha XLSX")
+        expect(abertura).not_to_contain_text("privacidade")
+        # A identificação e a chamada no alto: logo abaixo do banner, sem nada da navegação das análises no meio.
+        no_banner, na_abertura = banner.bounding_box(), abertura.get_by_test_id("analise-titulo").bounding_box()
+        assert na_abertura["y"] - (no_banner["y"] + no_banner["height"]) < 160, ("a chamada logo abaixo do banner", no_banner, na_abertura)
+        # "Enviar meus dados" abre a janela de envio, com o modelo de planilha para consultar ou baixar; Cancelar fecha.
+        aperta(abertura.get_by_test_id("analise-fonte-arquivo"))
+        janela = page.get_by_test_id("envio-de-dados")
+        expect(janela).to_be_visible()
+        expect(janela.get_by_test_id("envio-modelo")).to_contain_text("Modelo de planilha")
+        modelo = janela.get_by_test_id("envio-modelo-baixar")
         expect(modelo).to_have_attribute("href", re.compile(r"/api/modelo/estrutura-recomendada$"))
         with page.expect_download() as baixado:
-            aperta(modelo)
+            modelo.click()
         assert baixado.value.suggested_filename == "modelo_territorial_recomendado.xlsx", baixado.value.suggested_filename
         assert Path(baixado.value.path()).read_bytes()[:2] == b"PK", "o modelo é um XLSX"
+        janela.get_by_test_id("envio-cancelar").click()
+        expect(janela).to_have_count(0)
         expect(page.get_by_test_id("current-source")).to_have_count(0)
         expect(area).to_be_visible()
         expect(chat).to_have_attribute("data-minimizada", "false")
         expect(chat).to_have_attribute("data-ampla", "true")
         expect(chat.get_by_test_id("painel-chat-guia")).to_contain_text(
-            "O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de planilha?")
-        expect(chat.get_by_test_id("chat-fonte-brasil")).to_be_visible()
-        expect(chat.get_by_test_id("chat-fonte-arquivo")).to_be_visible()
-        expect(chat.get_by_test_id("chat-fonte-modelo")).to_have_attribute("href", modelo.get_attribute("href"))
+            "O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?")
+        expect(chat.get_by_test_id("chat-fonte-brasil")).to_have_text("Usar dados do Brasil")
+        expect(chat.get_by_test_id("chat-fonte-arquivo")).to_have_text("Enviar meus dados")
+        # Pela conversa, a mesma janela de envio (um fluxo só para enviar dados).
+        chat.get_by_test_id("chat-fonte-arquivo").click()
+        expect(janela).to_be_visible()
+        expect(janela.get_by_test_id("envio-modelo-baixar")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(janela).to_have_count(0)
         page.wait_for_timeout(800)
         assert not painel, "antes dos dados, a área não pede nada ao motor"
         shot("01-abertura")
@@ -177,15 +203,19 @@ def main():
         with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
             aperta(abertura.get_by_test_id("analise-fonte-brasil"))
         assert inspecao.value.status == 200, inspecao.value.text()[:2000]
-        vazio = area.get_by_test_id("analise-vazio")
-        expect(vazio).to_contain_text("Os dados do Brasil foram carregados e estão prontos para a análise.", timeout=120000)
-        expect(vazio).to_contain_text("Selecione os territórios que deseja analisar.")
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true", timeout=120000)
         expect(area).to_have_attribute("data-aba", "territorios")
-        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true")
-        expect(area.get_by_test_id("analise-apresentacao")).to_contain_text(
-            "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar territórios a "
-            "qualquer momento, e as análises serão atualizadas conforme a seleção realizada.")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        expect(area.get_by_test_id("analise-apresentacao")).to_have_text(
+            "Escolha os territórios que entram nas análises. A seleção vale para todas elas e pode ser mudada a qualquer momento.")
         expect(area.get_by_test_id("analise-territorios")).to_be_visible()
+        # A navegação aparece com os dados prontos, abaixo do banner, à esquerda.
+        no_banner, na_navegacao = banner.bounding_box(), navigation.bounding_box()
+        assert na_navegacao["y"] >= no_banner["y"] + no_banner["height"] - 1, ("a navegação fica abaixo do banner", no_banner, na_navegacao)
+        assert abs(na_navegacao["x"] - no_banner["x"]) <= 2, ("a navegação começa à esquerda, alinhada ao banner", no_banner, na_navegacao)
+        assert navigation.locator(":scope > button").all_text_contents() == ["Nova sessão", "Nova análise"]
+        expect(historico).to_contain_text("Histórico")
+        expect(historico).to_contain_text(history_label(0))
         periodos = "jan/2014 a jun/2024" if real else "jan/2023 a jun/2024"
         expect(page.get_by_test_id("current-source")).to_have_text("Dados do Brasil · Medicina · " + periodos)
         expect(fonte.get_by_test_id("fonte-trocar")).to_be_visible()
@@ -198,8 +228,11 @@ def main():
         page.wait_for_timeout(1500)
         assert not painel, "sem territórios escolhidos, a área não pede nada ao motor"
         shot("02-sem-selecao")
-        e1, sent, _ = painel_response(lambda: aperta(area.get_by_test_id("analise-territorios-estados")))
-        assert sent.get("nivel") == "estados", sent
+        aperta(area.get_by_test_id("analise-nivel-estados"))
+        page.wait_for_timeout(800)
+        assert not painel, "o nível Estados sem nenhum estado marcado não pede nada ao motor"
+        e1, sent, _ = painel_response(lambda: aperta(area.get_by_test_id("analise-marcar-todos")))
+        assert sent.get("nivel") == "estados" and "estados" not in sent, sent  # todos os estados: sem a lista
         assert not sent.get("base", {}).get("municipios", {}).get("todos"), sent
         if real:
             assert len([item for item in e1["itens"] if item.get("tipo") == "estado"]) == 27, len(e1["itens"])
@@ -213,7 +246,7 @@ def main():
         chamadas = len(painel)
         navigation.get_by_test_id("nav-new-analysis").click()
         expect(page.get_by_test_id("pagina-aviso")).to_have_text("Análise guardada no Histórico. Nova análise com os mesmos dados.")
-        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-aba", "territorios")
         expect(page.get_by_test_id("current-source")).to_have_text("Dados do Brasil · Medicina · " + periodos)
         page.wait_for_timeout(1500)
@@ -349,21 +382,28 @@ def main():
         chamadas = len(painel)
         colunas.get_by_test_id("colunas-comecar").click()
         expect(colunas).to_have_count(0)
-        expect(area.get_by_test_id("analise-vazio")).to_contain_text("A planilha foi carregada e está pronta para a análise.")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-aba", "territorios")
-        expect(area.get_by_test_id("analise-apresentacao")).to_contain_text("os distritos de uma província de uma vez")
+        # Numa planilha, sem os níveis Brasil e Estados: a busca e os comandos coletivos falam de distritos e províncias.
+        expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
+        expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar distrito ou província")
+        expect(area.get_by_test_id("analise-marcar-todos")).to_have_text("Marcar todos os distritos (4)")
         # As províncias da planilha (a coluna-mãe) agrupam os distritos na Seleção, como os estados na base do Brasil.
         assert area.get_by_test_id("analise-grupo").evaluate_all("els => els.map(e => e.dataset.id)") == ["Norte", "Sul"]
         expect(area.get_by_test_id("analise-aba-painel")).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "sem territórios escolhidos, nada é pedido ao motor"
-        _, sent, pedido = painel_response(lambda: aperta(area.get_by_test_id("analise-territorios-todos")))
+        _, sent, pedido = painel_response(lambda: aperta(area.get_by_test_id("analise-marcar-todos")))
         assert sent["base"]["municipios"]["todos"], sent
         assert uploaded_filename(pedido) == "distritos.csv", uploaded_filename(pedido)
         assert not form_field(pedido, "dataset"), "planilha enviada: vai o arquivo, não a base do Brasil"
         assert json.loads(form_field(pedido, "mapping")) == MAPEAMENTO_DOS_DISTRITOS, form_field(pedido, "mapping")
         # A coluna escolhida pela pessoa no seletor vai como papel estabelecido (confirmed_roles, D1), como no pré-exame.
         assert sent.get("premissas") == {"confirmed_roles": ["territory"], "count_unit": "pessoas", "crs": "SIRGAS2000"}, sent
+        # Os nomes confirmados vão no pedido (24/10/2026): a resposta e a Seleção falam de distritos, não de "unidades".
+        assert (sent.get("rotulos") or {}).get("unidade", {}).get("plural") == "distritos", sent
+        assert ((sent.get("rotulos") or {}).get("grupo") or {}).get("plural") == "províncias", sent
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todos os distritos (4)")
         expect(page.get_by_test_id("current-source")).to_contain_text("distritos.csv · distritos e províncias")
         expect(fonte.get_by_test_id("colunas-abrir")).to_be_visible()
         expect(fonte).not_to_contain_text(SEM_MUNICIPIO)
@@ -394,6 +434,8 @@ def main():
         fonte.get_by_test_id("fonte-cancelar-preparo").click()
         expect(fonte.get_by_test_id("colunas-painel")).to_have_count(0)
         expect(page.get_by_test_id("current-source")).to_contain_text("distritos.csv")
+        # A análise em uso continua como estava: a mesma seleção, sem novo pedido ao motor.
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todos os distritos (4)")
         assert len(painel) == chamadas
 
         # 7. Formato recusado: a mensagem diz o que aceitar, e a planilha em uso continua.
@@ -402,6 +444,7 @@ def main():
         escolher_arquivo(texto)
         expect(fonte.get_by_test_id("fonte-erro")).to_have_text("Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.")
         expect(page.get_by_test_id("current-source")).to_contain_text("distritos.csv")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todos os distritos (4)")
         fonte.get_by_test_id("fonte-cancelar-preparo").click()
         expect(fonte.get_by_test_id("fonte-erro")).to_have_count(0)
 
@@ -434,7 +477,8 @@ def main():
         expect(page.get_by_test_id("session-ended-notice")).to_contain_text("A sessão anterior foi encerrada")
         assert context.request.get(URL.rstrip("/") + "/api/session", headers={"X-ADT-Session": token}).status == 410
         accept_privacy(page)
-        expect(historico).to_contain_text(history_label(0))
+        expect(historico).to_have_count(0)  # sem dados, sem a navegação
+        expect(area.get_by_test_id("analise-abertura")).to_be_visible()
         expect(page.get_by_test_id("current-source")).to_have_count(0)
         expect(page.get_by_test_id("latest-reply")).to_have_count(0)
 
@@ -442,8 +486,9 @@ def main():
         assert not analyze_calls, "a página única não usa as telas clássicas de /api/analyze"
         assert not failures, failures
         browser.close()
-    print("PÁGINA ÚNICA PASS: abertura com o banner e as entradas na área central e na conversa (com o modelo XLSX), base sem "
-          "seleção automática, estados pela Seleção de Territórios, Histórico e Nova análise sem recálculo, CSV da sessão, planilha "
+    print("PÁGINA ÚNICA PASS: abertura só com a identificação e as duas entradas (o modelo XLSX na janela de envio, pela área, pela "
+          "conversa e pelo Trocar), navegação só com os dados, base sem seleção automática, estados pela Seleção de Territórios, "
+          "Histórico e Nova análise sem recálculo, CSV da sessão, planilha "
           "de distritos e províncias pelo painel Colunas, abas, formato recusado, celular e fim da sessão" +
           (" (base versionada)." if real else " (catálogo sintético)."))
 

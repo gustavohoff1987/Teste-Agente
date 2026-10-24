@@ -19,6 +19,7 @@ import resumo_painel
 from nearest_reference import TPL_11
 from result_conversation import resolve
 from territorial_levels import NOTE_STATES
+from trend import TEXT_MINIMUM
 from test_painel_pagina import (AM, BELEM, DISTRICT_MAPPING, LABELS, MANACAPURU, MANAUS, NOVO, PARINTINS, PERIODS, TEFE,
                                 YEARS, by_id, districts, inspection, ok, page, post, upload)
 from test_painel_pagina import repo  # noqa: F401 (fixture)
@@ -63,7 +64,7 @@ def check(body):
     if body.get("tendencia") is None:
         assert not found(LEX_TEN, text), found(LEX_TEN, text)
     # As contagens que a frase copia são as dos itens da resposta.
-    units = [item for item in body["itens"] if item["tipo"] in ("municipio", "estado")]
+    units = [item for item in body["itens"] if item["tipo"] in ("municipio", "estado", "brasil")]
     assert resumo["contagens"]["unidades"] == len(units)
     assert resumo["contagens"]["sem_valor"] == sum(item[body["indicador"]] is None for item in units)
     assert resumo["contagens"]["conjuntos"] == sum(item["tipo"] == "conjunto" for item in body["itens"])
@@ -78,9 +79,9 @@ def test_distribution_summary_copies_the_items_and_the_brazil_rate_as_context(re
     assert by_id(body)[NOVO]["densidade"] == by_id(body)[MANACAPURU]["densidade"] == 8 and AM[0] == MANACAPURU
     text = check(body)
     rate = resumo_painel.number(body["contexto"]["brasil"]["densidade"])
-    assert text == ("Em junho de 2024, o gráfico tem 5 municípios. Entre os municípios, a densidade vai de 8 a 25 por "
-                    "1.000 habitantes; 0 municípios sem valor. Referência de contexto: taxa nacional de " + rate +
-                    " por 1.000 habitantes (Brasil, total nacional); não classifica nem colore os itens do gráfico.")
+    # Desde 24/10/2026: sem "Entre os municípios" e sem as contagens que são zero ("0 municípios sem valor").
+    assert text == ("Em junho de 2024, o gráfico tem 5 municípios. A densidade vai de 8 a 25 por 1.000 habitantes. "
+                    "Referência de contexto: a taxa do Brasil (total nacional) é de " + rate + " por 1.000 habitantes.")
     # Os extremos são cópias dos itens (o primeiro na ordem dos itens, no empate de 8 por 1.000).
     paths = [segment["caminho"] for segment in body["resumo"]["segmentos"]]
     items = body["itens"]
@@ -89,21 +90,63 @@ def test_distribution_summary_copies_the_items_and_the_brazil_rate_as_context(re
     # Quantidade, sem a escala da densidade; grupos e faixas com as contagens do motor.
     counts = ok(page(info, indicador="quantidade", grupos={"tipo": "quartis"}, faixas=[0, 10, 100]))
     text = check(counts)
-    assert "a quantidade vai de 4 a 50; 0 municípios sem valor." in text
+    assert "A quantidade vai de 4 a 50." in text and "sem valor" not in text
     assert "por 1.000 habitantes" not in text  # sem a taxa (só com a densidade) e sem a escala
-    assert "Grupos por posição (quartis): 1º quartil, " in text and "; sem valor, 0." in text
-    assert ("Faixas de quantidade: 0 a <10, 3; 10 a 100, 2; fora das faixas, 0; sem valor, 0." in text)
+    assert "Grupos por posição (quartis): 1º quartil, " in text
+    assert "Faixas de quantidade: 0 a <10, 3; 10 a 100, 2." in text  # fora das faixas e sem valor: zero, fora da frase
     assert counts["faixas"]["contagens"] == [3, 2]
 
 
 def test_change_summary_copies_the_extremes_of_the_engine_variation(repo):
     body = ok(page(inspection(), competencia_inicial="202006"))
     text = check(body)
-    assert "Variação de densidade entre junho de 2020 e junho de 2024: de " in text
-    assert "; 2 municípios sem variação avaliável." in text  # TEFE (base zero) e NOVO AIRAO (sem registro em 2020)
+    assert "Variação da densidade entre junho de 2020 e junho de 2024: de " in text
+    assert ". 2 municípios sem variação avaliável." in text  # TEFE (base zero) e NOVO AIRAO (sem registro em 2020)
     values = [item["variacao_percentual"]["densidade"] for item in body["itens"]
               if item["variacao_percentual"]["densidade"] is not None]
     assert resumo_painel.number(min(values)) + "% a " + resumo_painel.number(max(values)) + "%" in text
+
+
+def test_one_territory_gets_its_own_sentence_without_ranges_or_zero_counts(repo):
+    """Um território só (24/10/2026): a frase diz o nome, a competência e o valor dele, a variação com a direção (aumento,
+    redução ou sem mudança, CAP-TMP-01) e a classe da tendência, sem frases coletivas ("entre os municípios"), sem "de X a
+    X" e sem contagens zero. Base zero e série insuficiente em palavras, sem códigos. O mesmo vale para um estado e para o
+    Brasil; com dois itens de mesmo valor, o valor sai uma vez."""
+    info = inspection()
+    window = PERIODS[2:]
+    one = ok(page(info, base={"municipios": {"ids": [MANAUS]}}, competencia_inicial="202106",
+                  tendencia={"competencias": window}))
+    text = check(one)
+    rate = resumo_painel.number(one["contexto"]["brasil"]["densidade"])
+    assert one["itens"][0]["tendencia"]["rotulo"] == "Desaceleração do crescimento"
+    assert text == ("MANAUS (AM), em junho de 2024: densidade de 25 por 1.000 habitantes. Entre junho de 2021 e junho de "
+                    "2024, a variação da densidade foi de 25% (aumento). Tendência de junho de 2021 a junho de 2024: "
+                    "Desaceleração do crescimento. Referência de contexto: a taxa do Brasil (total nacional) é de " + rate +
+                    " por 1.000 habitantes.")
+    assert ["itens", 0, "tendencia", "rotulo"] in [segment["caminho"] for segment in one["resumo"]["segmentos"]]
+    tefe = check(ok(page(info, base={"municipios": {"ids": [TEFE]}}, competencia_inicial="202006",
+                         tendencia={"competencias": PERIODS})))
+    assert "a variação da densidade não é avaliável: o valor inicial é zero." in tefe and "BASE_ZERO" not in tefe
+    novo = check(ok(page(info, base={"municipios": {"ids": [NOVO]}}, competencia_inicial="202006",
+                         tendencia={"competencias": PERIODS})))
+    assert "a variação da densidade não é avaliável: falta o valor numa das duas competências." in novo
+    assert "Tendência de junho de 2019 a junho de 2024: não avaliável. " + TEXT_MINIMUM in novo
+    para = check(ok(post(info, nivel="estados", indicador="densidade", competencia="202406", estados=["15"],
+                         competencia_inicial="202106", tendencia={"competencias": window})))
+    assert para.startswith("Pará (PA), em junho de 2024: densidade de 20 por 1.000 habitantes. Entre junho de 2021 e "
+                           "junho de 2024, a variação da densidade foi de 0% (sem mudança). Tendência de junho de 2021 a "
+                           "junho de 2024: Sem classificação, porque o valor não mudou entre os períodos.")
+    brasil = ok(post(info, nivel="brasil", indicador="densidade", competencia="202406", competencia_inicial="202106",
+                     tendencia={"competencias": window}))
+    text = check(brasil)
+    item = brasil["itens"][0]
+    assert text == ("Brasil, em junho de 2024: densidade de " + resumo_painel.number(item["densidade"]) + " por 1.000 "
+                    "habitantes. Entre junho de 2021 e junho de 2024, a variação da densidade foi de " +
+                    resumo_painel.number(item["variacao_percentual"]["densidade"]) + "% (redução). Tendência de junho de "
+                    "2021 a junho de 2024: " + item["tendencia"]["rotulo"] + ".")
+    assert "Referência de contexto" not in text  # o próprio item é o total nacional
+    pair = check(ok(page(info, base={"municipios": {"ids": [MANACAPURU, NOVO]}})))
+    assert "A densidade é de 8 por 1.000 habitantes em todos." in pair and "de 8 a 8" not in pair
 
 
 # --------------------------------------------------------------------------------------------- análise espacial
@@ -111,7 +154,7 @@ def test_spatial_summary_has_the_reference_the_distances_and_the_straight_line_n
     body = ok(page(inspection(), referencia={"membros": [PARINTINS, BELEM]}, faixas_distancia=[0, 100, 1000]))
     text = check(body)
     assert "Distância em linha reta até o membro mais próximo da referência (PARINTINS (AM) e BELEM (PA)): de " in text
-    assert "; 1 município sem distância." in text  # MANACAPURU, sem coordenadas (os membros da referência ficam fora)
+    assert ". 1 município sem distância." in text  # MANACAPURU, sem coordenadas (os membros da referência ficam fora)
     assert "Faixas de distância (km): 0 a <100, " in text
     assert text.count(TPL_11) == 1 and ["notas", body["notas"].index(TPL_11)] in [
         segment["caminho"] for segment in body["resumo"]["segmentos"]]
@@ -124,12 +167,12 @@ def test_trend_summary_uses_the_engine_family_counts_only_with_cap_ten_01(repo):
     body = ok(page(inspection(), tendencia={"competencias": PERIODS}))
     text = check(body)
     families = body["tendencia"]["familias"]
-    assert ("Tendência na janela de junho de 2019 a junho de 2024: família do crescimento, " +
-            str(families["CRESCIMENTO"]) + "; família do declínio, " + str(families["DECLINIO"]) +
-            "; sem classificação, " + str(families["NENHUMA"]) + "; não avaliável, " +
-            str(body["tendencia"]["nao_avaliaveis"]) + ".") in text
+    assert (families["CRESCIMENTO"], families["DECLINIO"], families["NENHUMA"], body["tendencia"]["nao_avaliaveis"]) == (
+        2, 1, 1, 1)
+    assert ("Tendência de junho de 2019 a junho de 2024: 2 na família do crescimento, 1 na família do declínio e 1 sem "
+            "classificação; 1 não avaliável.") in text
     short = ok(page(inspection(), tendencia={"competencias": PERIODS[-3:]}))
-    assert ("Tendência na janela de junho de 2022 a junho de 2024: " + short["tendencia"]["bloqueio"]["texto"]) in check(short)
+    assert ("Tendência de junho de 2022 a junho de 2024: " + short["tendencia"]["bloqueio"]["texto"]) in check(short)
 
 
 # --------------------------------------------------------------------------------------------- condições e comparação
@@ -139,7 +182,8 @@ def test_conditions_summary_copies_the_three_state_counts(repo):
                               {"atributo": "distancia_km", "operador": ">", "valor": 100}]))
     counts = body["condicoes"]["contagens"]
     assert (" Condições " + body["condicoes"]["descricao"] + ": atendem, " + str(counts["ATENDE"]) + "; não atendem, " +
-            str(counts["NAO_ATENDE"]) + "; sem dado, " + str(counts["NAO_AVALIAVEL"]) + ".") in check(body)
+            str(counts["NAO_ATENDE"]) + ("; sem dado, " + str(counts["NAO_AVALIAVEL"]) if counts["NAO_AVALIAVEL"] else "") +
+            ".") in check(body)
 
 
 def test_comparison_summary_is_the_relation_returned_by_the_engine(repo):
@@ -166,12 +210,12 @@ def test_sets_and_states_keep_the_caveats_of_the_engine(repo):
     info = inspection()
     sets = ok(page(info, conjuntos=SETS))
     text = check(sets)
-    assert text.startswith("Em junho de 2024, o gráfico tem 5 municípios e 1 conjunto. Entre os municípios, ")
+    assert text.startswith("Em junho de 2024, o gráfico tem 5 municípios e 1 conjunto. A densidade vai de ")
     assert "Conjuntos: soma das contagens dos componentes, com possível dupla contagem." in text
     states = ok(post(info, nivel="estados", indicador="densidade", competencia="202406"))
     text = check(states)
-    assert text.startswith("Em junho de 2024, o gráfico tem 2 estados. Entre os estados, a densidade vai de ")
-    assert NOTE_STATES in text and "Referência de contexto: taxa nacional de" in text
+    assert text.startswith("Em junho de 2024, o gráfico tem 2 estados. A densidade vai de ")
+    assert NOTE_STATES in text and "Referência de contexto: a taxa do Brasil (total nacional) é de" in text
 
 
 # --------------------------------------------------------------------------------------------- planilhas
@@ -179,9 +223,8 @@ def test_uploaded_summary_uses_the_received_labels_and_the_rotation_percent(repo
     body = ok(districts(premissas={"count_unit": "pessoas", "crs": "SIRGAS2000"}, referencia={"membros": [
         "name:Alto Rio"]}, tendencia={"competencias": YEARS}))
     text = check(body)
-    assert text.startswith("Em 2024, o gráfico tem 4 distritos. Entre os distritos, a densidade vai de 10 a 16 por 1.000 "
-                           "habitantes; 0 distritos sem valor.")
-    assert "1 distrito sem distância." in text and "Tendência na janela de 2021 a 2024: " in text
+    assert text.startswith("Em 2024, o gráfico tem 4 distritos. A densidade vai de 10 a 16 por 1.000 habitantes. ")
+    assert "1 distrito sem distância." in text and "Tendência de 2021 a 2024: " in text
     assert "Referência de contexto" not in text  # o contexto do Brasil não se aplica às planilhas
     people = {"2023": {"Alto Rio": ["p1", "p2", "p3", "p4"], "Campina": ["p5", "p6"]},
               "2024": {"Alto Rio": ["p1", "p2", "p9"], "Campina": ["p5", "p6", "p7"], "Serra": ["p8"]}}
@@ -195,7 +238,7 @@ def test_uploaded_summary_uses_the_received_labels_and_the_rotation_percent(repo
                           "base": {"municipios": {"todos": True}}, "rotatividade": {"inicial": "2023", "final": "2024"}},
                          mapping=mapping, contents=("\n".join(lines) + "\n").encode(), name="pessoas.csv"))
     text = check(rotation)
-    assert ("Permanência da coorte inicial entre 2023 e 2024: de 50% a 100%; 1 distrito sem permanência avaliável."
+    assert ("Permanência da coorte inicial entre 2023 e 2024: de 50% a 100%. 1 distrito sem permanência avaliável."
             in text)
 
 

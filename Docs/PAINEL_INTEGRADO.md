@@ -13,6 +13,10 @@ Decisões de 22/10/2026 (página única de análise): uma análise integrada, se
 comparação e rotatividade. O complemento de 22/10/2026 do Adendo BOL-20261021 admite a cor da bolha pela família da
 classe de tendência de CAP-TEN-01 e a rotatividade em barras de 100%.
 
+Decisões de 24/10/2026 (rodada de ajustes de interface): o nível `brasil`, o país inteiro como uma unidade, com o total da
+fonte nacional (decisões D3 e D4); no nível `estados`, a escolha de um, vários ou todos os estados (`estados`); e a
+frase-resumo individual quando há um território só, sem faixas artificiais nem contagens zeradas quando há vários.
+
 Este documento descreve o motor e as rotas. A tela tem documento próprio.
 
 ## Dois formatos de pedido
@@ -245,6 +249,7 @@ O pedido com `nivel` vale o que está acima e mais o que segue. As análises nov
 | Membro mais próximo | CAP-ESP-02 | `nearest_reference.nearest_exact`, com os empates exatos |
 | Rotatividade | CAP-ROT-01 | `main._compute(..., "rotation")` |
 | Linha de contexto do Brasil | D5 (19/10/2026) | `territorial_levels.national_reference` |
+| Brasil como unidade (24/10/2026) | D3 e D4 (contagem da fonte nacional, população BR-POP-JUNHO-1) | `territorial_levels.national_reference`, a mesma conta da linha de contexto, na competência e em cada competência da janela |
 
 ### `options` da página única
 
@@ -252,14 +257,15 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 
 | Chave | Regra |
 |---|---|
-| `nivel` | Obrigatória: `"municipios"` ou `"estados"`. `estados` só na base do Brasil (planilha → 422 "O nível estados existe só na base do Brasil, …"). |
+| `nivel` | Obrigatória: `"municipios"`, `"estados"` ou, desde 24/10/2026, `"brasil"`. `estados` e `brasil` só na base do Brasil (planilha → 422 "O nível estados existe só na base do Brasil, …" ou "O nível Brasil existe só na base do Brasil, …"). |
+| `estados` | Só no nível estados (24/10/2026): os estados escolhidos, pelos prefixos IBGE (`["29", "42"]`) ou pelos ids (`"uf:29"`), sem repetir; os itens vêm na ordem do código. Sem a lista, todos os estados da fonte estadual, como antes. Fora do nível estados → 422 "A lista estados vale só no nível estados: …"; lista vazia ou repetida → 422 "Estados inválidos: …"; estado sem registro → 422 "Estado sem registro na fonte estadual: …". |
 | `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
 | `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. |
-| `competencia_inicial` | Como no contrato de 21/10 (visão Mudança, CAP-TMP-01), nos dois níveis. |
+| `competencia_inicial` | Como no contrato de 21/10 (visão Mudança, CAP-TMP-01), em todos os níveis. |
 | `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
 | `grupos` | `{"tipo": "quartis" \| "quintis" \| "decis"}`. |
-| `grupos_mapa` | `{"tipo": "quartis" \| "quintis" \| "decis"}`: os grupos por posição que pintam o mapa (23/10/2026; seção "Grupos do mapa"). A mesma validação de `grupos` (tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."), nos dois níveis e com qualquer outra chave; pode vir junto com `grupos`, e cada um é calculado à parte. |
+| `grupos_mapa` | `{"tipo": "quartis" \| "quintis" \| "decis"}`: os grupos por posição que pintam o mapa (23/10/2026; seção "Grupos do mapa"). A mesma validação de `grupos` (tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."), nos níveis municípios e estados e com qualquer outra chave; pode vir junto com `grupos`, e cada um é calculado à parte. No nível Brasil, recusado (o Brasil é um só). |
 | `faixas` | Lista de 2 a 21 limites crescentes e distintos, não negativos, do `indicador` (números ou textos com vírgula ou ponto decimal, como `[0, 1, 2, 5]` ou `["0", "1,5"]`). Intervalos [a, b) e o último fechado. |
 | `faixas_distancia` | A mesma forma, em km. Exige `referencia`. |
 | `condicoes` | Lista de 1 a 12 `{"atributo", "operador", "valor"}` combinados por E. `atributo`: `densidade`, `quantidade`, `populacao` ou `distancia_km` (este exige `referencia`). `operador`: `<`, `<=`, `>`, `>=`, `=` ou `!=`. `valor`: número não negativo ou texto com vírgula ou ponto decimal; densidade por 1.000 habitantes, distância em km. |
@@ -270,12 +276,21 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 | `rotulos` | Só nas planilhas; na base do Brasil → 422 "Na base do Brasil, os rótulos são fixos …". |
 
 No nível `estados`, `base`, `conjuntos`, `referencia`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
-`distancia_km` são recusados com o motivo (estados não têm um ponto único; a base vale só para municípios).
+`distancia_km` são recusados com o motivo (estados não têm um ponto único; a base vale só para municípios; os estados
+escolhidos vão em `estados`).
+
+No nível `brasil` (24/10/2026), pela matriz da decisão D3, valem os valores (densidade e quantidade), a mudança
+(`competencia_inicial`) e a tendência (`tendencia`): `base`, `conjuntos`, `referencia`, `faixas_distancia` e `rotatividade` são
+recusados com o motivo ("No nível Brasil, a unidade é o país inteiro: base vale só para municípios."; "Não se aplica: as
+distâncias usam a localização de cada município, e o Brasil não tem um ponto único."), e também `grupos`, `grupos_mapa`,
+`faixas`, `condicoes`, `ordenar` e `comparar` ("Não se aplica: a distribuição agrupa vários territórios, e o Brasil é um
+só."). O total do Brasil não é a soma dos estados nem dos municípios e não aparece com eles no mesmo gráfico (RQ-DAD-30).
 
 ### Universo das análises
 
 `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`, `condicoes` e `ordenar`, e as contagens de `tendencia`, valem no
-**universo**: os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados. Conjuntos e membros
+**universo**: os municípios base (ou as unidades base da planilha) ou, no nível estados, os estados escolhidos (todos, sem a
+lista `estados`); no nível Brasil, o Brasil. Conjuntos e membros
 da referência fora da base não entram no universo: os campos por item deles vêm `null`. A `tendencia` por item é
 calculada para todos os itens, inclusive conjuntos (CAP-AGR-01 por competência; membros com registro diferentes na
 janela → `INCOMPARABILIDADE`, pela entrada, como pede F-05b). A comparação aceita qualquer item da resposta.
@@ -289,7 +304,7 @@ Topo: as chaves do contrato de 21/10 e, sempre:
 | `nivel`, `indicador` | Os do pedido. |
 | `rotulos` | `{"unidade": {singular, plural, genero}, "grupo": {singular, plural, genero}}`. Base do Brasil: município/municípios e estado/estados. Planilha: os recebidos ou, sem eles, unidade/unidades e grupo/grupos. `genero` é `"m"` ou `"f"`. |
 | `disponibilidade` | O que a fonte permite, com o motivo: `{"distribuicao", "densidade", "espacial", "tendencia", "rotatividade", "estados", "grupos"}`, cada um `{"disponivel": bool, "motivo": texto, "pendencia": null \| {chave, opcoes, texto}}`. `motivo` é vazio quando nada limita; pode vir preenchido com `disponivel: true` (por exemplo, menos de quatro competências: só a mudança). `grupos` é a bolha do nível de cima (estados no Brasil; nas planilhas, sempre indisponível). |
-| `contexto` | `{"brasil": {rotulo, competencia, densidade, quantidade, populacao, competencia_populacao, avaliabilidade, motivo, nota, regra_populacao}}` na base do Brasil: a taxa nacional da competência (`territorial_levels.national_reference`, a mesma de `metadata.referencia_nacional` da análise de densidade), sem classificar nada. Indisponível: os valores `null`, `avaliabilidade` `"NAO_AVALIAVEL"` e o `motivo`. Nas planilhas, `{"brasil": null}`. |
+| `contexto` | `{"brasil": {rotulo, competencia, densidade, quantidade, populacao, competencia_populacao, avaliabilidade, motivo, nota, regra_populacao}}` na base do Brasil: a taxa nacional da competência (`territorial_levels.national_reference`, a mesma de `metadata.referencia_nacional` da análise de densidade), sem classificar nada. Indisponível: os valores `null`, `avaliabilidade` `"NAO_AVALIAVEL"` e o `motivo`. Nas planilhas e no nível Brasil (o item já é o total nacional), `{"brasil": null}`. |
 | `sessao` | `{"registrado": bool, "result_id": texto \| null, "motivo": texto \| null}` (seção "Sessão"). |
 | `resumo` | A frase-resumo do motor (23/10/2026; seção "Frase-resumo"). Omitido só se a composição falhar. |
 | `versao_base` | Base do Brasil: a versão verificada; planilha: o SHA-256 do arquivo enviado. |
@@ -310,7 +325,10 @@ Quando pedidos:
 
 Itens: os campos do contrato de 21/10 e, sempre, `grupo_territorial` (base do Brasil: o prefixo IBGE do estado, como
 `"13"`; planilha: o valor da coluna `grupo_territorial` ou `null`; estados e conjuntos: `null`). No nível estados, o item
-é `tipo: "estado"`, `id: "uf:13"`, `rotulo: "Amazonas (AM)"`, `uf: "AM"`, sem `membros`, com `distancia_km` nulo. Nas
+é `tipo: "estado"`, `id: "uf:13"`, `rotulo: "Amazonas (AM)"`, `uf: "AM"`, sem `membros`, com `distancia_km` nulo. No nível
+Brasil, um item só: `tipo: "brasil"`, `id: "br"`, `rotulo: "Brasil"`, `uf: null`, com a contagem da fonte nacional, a
+população BR-POP-JUNHO-1 e a densidade (sem registro ou sem a população, não avaliável, com o motivo, nunca zero), e
+`distancia_km` nulo; a nota do método diz que o total do Brasil não é a soma dos estados nem dos municípios. Nas
 planilhas, o item da unidade continua `tipo: "municipio"` (o código do nível; o nome vem de `rotulos`), com `uf: null`.
 
 Por item, quando pedidos (o campo vem em todos os itens; `null` fora do universo ou quando não se aplica):
@@ -561,15 +579,15 @@ Com mais de uma escolha pendente, `detail` traz todas, e `pendencia`, a primeira
 
 ### Frase-resumo (23/10/2026)
 
-Toda resposta da página única (municípios, unidades da planilha ou estados) traz `resumo`, uma frase em palavras do que o
+Toda resposta da página única (municípios, unidades da planilha, estados ou o Brasil) traz `resumo`, uma frase em palavras do que o
 gráfico mostra, composta pelo motor (`backend/resumo_painel.py`) no modelo da frase-resumo de `/api/analyze`
 (`result_summary.py`, decisão D7) e da verificação de segmentos da conversa (`result_conversation.verify_segment`):
 
-Municípios do Amazonas em junho de 2024, com a base versionada de 22/10/2026 (trechos):
+Municípios do Amazonas em junho de 2024, com a base versionada de 22/10/2026 (trechos; texto de 24/10/2026):
 
 ```json
 {"versao": 1,
- "texto": "Em junho de 2024, o gráfico tem 62 municípios. Entre os municípios, a densidade vai de 0,36 a 2,15 por 1.000 habitantes; 0 municípios sem valor. Referência de contexto: taxa nacional de 2,36 por 1.000 habitantes (Brasil, total nacional); não classifica nem colore os itens do gráfico.",
+ "texto": "Em junho de 2024, o gráfico tem 62 municípios. A densidade vai de 0,36 a 2,15 por 1.000 habitantes. Referência de contexto: a taxa do Brasil (total nacional) é de 2,36 por 1.000 habitantes.",
  "partes": [{"texto": "Em "}, {"texto": "junho de 2024", "segmento": 0, "tipo": "PARAMETRO", "caminho": ["competencia"]},
             {"texto": ", o gráfico tem "},
             {"texto": "62", "segmento": 1, "tipo": "VALOR", "caminho": ["resumo", "contagens", "unidades"]}, "…"],
@@ -591,15 +609,32 @@ comparação).
   Nada é calculado no compositor: as contagens de itens (`contagens`) e as unidades de menor e de maior valor vêm do motor
   (`painel.summary_facts`); classes, grupos, faixas e condições são as contagens das análises; as relações da comparação
   são as que o motor devolveu (`comparacao.diferencas`, `maior` e `menor`).
-- **Conteúdo, na ordem das análises pedidas:** itens no gráfico e de quanto a quanto vai o indicador entre as unidades,
-  com as sem valor (distribuição); grupos por posição e faixas, com as contagens; a variação desde a competência inicial
-  (mudança); a referência e de quanto a quanto vai a distância, com as faixas de distância e a nota da linha reta (TPL-11,
-  análise espacial); a janela e a contagem por família de classe, ou o bloqueio do método (tendência); quantos atendem,
-  não atendem e estão sem dado (condições); os valores comparados e a relação do motor (comparação: entre dois itens, a
+- **Conteúdo, na ordem das análises pedidas:** itens no gráfico e de quanto a quanto vai o indicador entre as unidades
+  (distribuição); grupos por posição e faixas, com as contagens; a variação desde a competência inicial (mudança); a
+  referência e de quanto a quanto vai a distância, com as faixas de distância e a nota da linha reta (TPL-11, análise
+  espacial); a janela e a contagem por família de classe, ou o bloqueio do método (tendência); quantos atendem e não
+  atendem e quantos estão sem dado (condições); os valores comparados e a relação do motor (comparação: entre dois itens, a
   relação A/B e a diferença A − B; entre três, o maior e o menor valor, sem diferenças entre pares); de quanto a quanto
   vai a permanência da coorte inicial, em % (rotatividade); "soma das contagens dos componentes, com possível dupla
   contagem" (conjuntos); a nota da fonte estadual (estados); e, com a densidade na base do Brasil, a taxa nacional como
-  referência de contexto. Os grupos que pintam o mapa (`grupos_mapa`) não entram: a frase é a mesma com ou sem eles.
+  referência de contexto ("Referência de contexto: a taxa do Brasil (total nacional) é de 2,36 por 1.000 habitantes."). Os
+  grupos que pintam o mapa (`grupos_mapa`) não entram: a frase é a mesma com ou sem eles.
+- **Um território só** (24/10/2026; `summary_facts` devolve o item único em `unico`, a direção da mudança em `direcao` e,
+  quando a variação não é avaliável, o motivo em `motivo_variacao`): a frase é individual, sem contagens nem amplitudes. O
+  nome, a competência e o valor; a variação com a direção do motor (CAP-TMP-01: aumento, redução ou sem mudança; não
+  avaliável, "o valor inicial é zero." ou "falta o valor numa das duas competências."); e a classe da tendência (sem
+  classificação, o motivo em palavras; não avaliável, o texto do catálogo). Porto Alegre, na base versionada, com a
+  tendência anual: "PORTO ALEGRE (RS), em junho de 2024: densidade de 9,40 por 1.000 habitantes. Entre junho de 2021 e junho
+  de 2024, a variação da densidade foi de 25,96% (aumento). Tendência de junho de 2021 a junho de 2024: Aceleração do
+  crescimento. Referência de contexto: a taxa do Brasil (total nacional) é de 2,36 por 1.000 habitantes." O Brasil como
+  unidade, sem a linha de contexto: "Brasil, em junho de 2024: densidade de 2,36 por 1.000 habitantes. Entre junho de 2021 e
+  junho de 2024, a variação da densidade foi de 19,18% (aumento). Tendência de junho de 2021 a junho de 2024: Aceleração do
+  crescimento."
+- **Vários territórios** (24/10/2026): com os extremos de mesmo valor, o valor comum sai uma vez (no catálogo dos testes, "A
+  densidade é de 8 por 1.000 habitantes em todos."), nunca "de X a X"; as contagens que são zero (sem valor, sem variação avaliável, sem distância,
+  sem dado, fora das faixas, não avaliáveis) ficam de fora; na tendência, só as famílias com territórios. Os 27 estados, com a
+  tendência anual: "… Variação da densidade entre junho de 2021 e junho de 2024: de 15,89% a 46,93%. Tendência de junho de
+  2021 a junho de 2024: 26 na família do crescimento e 1 sem classificação. …".
 - **Redação (as regras de `tests/test_result_summary.py`):** o texto fixo não usa LEX-DES, LEX-NORM nem LEX-CAU; LEX-CMP
   só nas relações copiadas do motor; LEX-TEN só com a tendência; a taxa do Brasil nunca é "acima" ou "abaixo", nem
   classifica ou colore os itens. Nomes das unidades pelos rótulos da fonte ("distritos", "províncias").

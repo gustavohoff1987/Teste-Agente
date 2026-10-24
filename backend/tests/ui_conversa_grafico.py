@@ -15,8 +15,9 @@ Percorre:
 - pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
   continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
   análise recomeça sem territórios, sem pedir nada ao motor);
-- uma planilha enviada pela conversa ("enviar meus dados"), com condados e sem grupo: abre sem territórios escolhidos; a
-  orientação usa o nome das unidades, nunca "município"; e "Compare Alfa e Beta" muda o gráfico da planilha.
+- uma planilha enviada pela conversa ("enviar meus dados", que abre a mesma janela de envio da área central, com o modelo de
+  planilha), com condados e sem grupo: abre sem territórios escolhidos; a orientação usa o nome das unidades, nunca
+  "município"; e "Compare Alfa e Beta" muda o gráfico da planilha.
 Nada é calculado pela conversa.
 
 Dois modos, pela suíte (run_ui_checks.py):
@@ -234,10 +235,19 @@ def main():
             page.wait_for_timeout(1000)
             indicador = "quantity"
 
-        # 9. "Volte aos estados": de volta à porta de entrada, com o indicador do gráfico no contexto.
-        resposta, conversa, _, _ = chat_to_chart("Volte aos estados", lambda o: o.get("nivel") == "estados")
-        assert resposta["painel"].get("nivel") == "estados", resposta["painel"]
+        # 9. "Volte aos estados": de volta à porta de entrada, com o indicador do gráfico no contexto. Os estados (todos) já foram
+        # calculados no passo 3: a resposta vem da memória da tela, sem novo pedido ao motor; a comparação dos municípios não vai
+        # junto (ela só vale para os itens que continuam na análise, 24/10/2026).
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=120000) as conversa_estados:
+            send(page, "Volte aos estados")
+        assert conversa_estados.value.status == 200, conversa_estados.value.text()[:2000]
+        resposta, conversa = conversa_estados.value.json(), options_of(conversa_estados.value.request)
+        assert resposta.get("handled") is True and resposta["painel"].get("nivel") == "estados", resposta
         assert conversa.get("exploration_indicator") == indicador, conversa
+        expect(area).to_have_attribute("data-nivel", "estados")
+        expect(page.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]').first).to_be_attached(timeout=60000)
+        assert not any(options_of(pedido).get("nivel") == "estados" and options_of(pedido).get("comparar") for pedido in painel
+                       if pedido.method == "POST"), "a comparação dos municípios não vai ao pedido dos estados"
         page.wait_for_timeout(1000)
 
         # 10. Pedidos de apresentação: respondidos na tela, sem recalcular nem chamar o intérprete. Nos estados, o mapa não
@@ -270,14 +280,19 @@ def main():
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "reabrir a análise anterior não recalcula"
 
-        # 12. Planilha pela conversa: "enviar meus dados" abre a escolha do arquivo; a orientação usa o nome das unidades
+        # 12. Planilha pela conversa: "enviar meus dados" abre a janela de envio; a orientação usa o nome das unidades
         # (condados), nunca "município"; e a conversa muda o gráfico da planilha.
         caminho = pasta / "condados.csv"
         caminho.write_text("condado;ano;quantidade;populacao\nAlfa;2023;10;1000\nBeta;2023;20;4000\nGama;2023;5;2500\n"
                            "Alfa;2024;12;1000\nBeta;2024;22;4100\nGama;2024;6;2500\n", encoding="utf-8")
-        with page.expect_file_chooser() as escolha:
-            send(page, "enviar meus dados")
+        send(page, "enviar meus dados")
+        expect(latest).to_contain_text("Abri a janela de envio")
         expect(latest).to_contain_text("confira as colunas no painel Colunas")
+        janela = page.get_by_test_id("envio-de-dados")
+        expect(janela).to_be_visible()
+        expect(janela.get_by_test_id("envio-modelo-baixar")).to_be_visible()
+        with page.expect_file_chooser() as escolha:
+            janela.get_by_test_id("envio-escolher-arquivo").click()
         with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=60000) as inspecao:
             escolha.value.set_files(str(caminho))
         assert inspecao.value.status == 200, inspecao.value.text()[:2000]
@@ -301,13 +316,20 @@ def main():
         expect(guia).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(800)
         assert len(painel) == chamadas, "sem territórios escolhidos, nada é pedido ao motor"
-        todos = area.get_by_test_id("analise-territorios-todos")
+        todos = area.get_by_test_id("analise-marcar-todos")
+        expect(todos).to_have_text("Marcar todos os condados")
         with page.expect_response(lambda r: is_post(r, "/api/painel") and uploaded_filename(r.request) == "condados.csv",
                                   timeout=120000) as primeiro:
             todos.scroll_into_view_if_needed()
             todos.focus()
             todos.press("Enter")
         assert primeiro.value.status == 200, primeiro.value.text()[:2000]
+        # Os nomes confirmados vão no pedido (24/10/2026), e a resposta fala deles: a Seleção continua com "condados", sem
+        # voltar para "unidades" depois da resposta do motor.
+        rotulos_pedidos = options_of(primeiro.value.request).get("rotulos") or {}
+        assert (rotulos_pedidos.get("unidade") or {}).get("plural") == "condados", rotulos_pedidos
+        assert primeiro.value.json()["rotulos"]["unidade"]["plural"] == "condados", primeiro.value.json()["rotulos"]
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(re.compile(r"^Todos os condados( \(3\))?$"))
         expect(guia).to_contain_text("condados")
         expect(guia).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(1000)

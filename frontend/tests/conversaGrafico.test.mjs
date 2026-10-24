@@ -220,9 +220,9 @@ test('contexto do gráfico → opções da conversa: unidades na tela, família,
 test('orientação da conversa: pergunta na abertura e, na planilha, usa os nomes escolhidos, nunca "município" fixo', () => {
   const DISTRITOS = {unidade: {singular: 'distrito', plural: 'distritos'}, grupo: {singular: 'província', plural: 'províncias'}};
   const BRASIL = {unidade: {singular: 'município', plural: 'municípios'}, grupo: {singular: 'estado', plural: 'estados'}};
-  // Na abertura, as três entradas dos dados (23/10/2026: também o modelo de planilha).
+  // Na abertura, só as duas entradas dos dados (24/10/2026: o modelo de planilha fica na janela de envio).
   assert.equal(C.guiaDaConversa({tipo: null, pronta: false, colunasPendentes: false}, null, null),
-    'O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de planilha?');
+    'O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?');
   assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: false, colunasPendentes: false}, null, null),
     'Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar.');
   // A base carregada abre sem seleção (23/10/2026): a conversa orienta a escolher os territórios, com os nomes da fonte.

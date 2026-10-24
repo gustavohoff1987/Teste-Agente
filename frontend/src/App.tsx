@@ -6,6 +6,7 @@ import BarraDaFonte, { type CatalogoDaFonte } from "./BarraDaFonte";
 import BrandAvatar from "./BrandAvatar";
 import ColunasDaPlanilha from "./ColunasDaPlanilha";
 import HistoricoDeAnalises from "./HistoricoDeAnalises";
+import JanelaDeEnvio from "./JanelaDeEnvio";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
 import WelcomeHero from "./WelcomeHero";
 import WorkspaceDialog from "./WorkspaceDialog";
@@ -17,10 +18,11 @@ import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, 
 import type { Levels } from "./territorialScope";
 import type { Territory } from "./TerritorialSelection";
 
-// Página única de análise (22/10/2026; reorganizada em 23/10/2026). Primeiro, o aceite de privacidade. No alto, o nome do
-// agente e o banner de apresentação; abaixo dele, à esquerda, a navegação (Nova sessão, Nova análise e Histórico) e o resumo da
-// fonte em uso, com "Trocar". As entradas dos dados (Dados do Brasil, Enviar meus dados e o modelo de planilha XLSX) ficam na
-// área central e na conversa, com as mesmas ações. Abaixo, a área de análise (AreaDeAnalise), que desenha o gráfico com os
+// Página única de análise (22/10/2026; reorganizada em 23/10/2026 e 24/10/2026). Primeiro, o aceite de privacidade. No alto, o
+// nome do agente e o banner de apresentação; abaixo dele, à esquerda, com os dados prontos, a navegação (Nova sessão, Nova
+// análise e Histórico) e o resumo da fonte em uso, com "Trocar". As duas entradas dos dados (Usar dados do Brasil e Enviar meus
+// dados) ficam na área central e na conversa, com as mesmas ações; "Enviar meus dados" abre sempre a mesma janela de envio
+// (JanelaDeEnvio), com o modelo de planilha XLSX. Abaixo, a área de análise (AreaDeAnalise), que desenha o gráfico com os
 // valores do motor; ao lado, sempre, a conversa na caixa flutuante. As telas clássicas (catálogo de análises, preparação, resultados em abas, mapa, investigação e
 // diagnósticos compostos) saíram do produto. O motor (/api/analyze e as capacidades) continua.
 
@@ -116,6 +118,8 @@ function App() {
   const [ativa, setAtiva] = useState<FonteAtiva | null>(null);
   const [preparo, setPreparo] = useState<Preparo | null>(null);
   const [escolhendo, setEscolhendo] = useState(false);
+  /** A janela "Enviar meus dados" (24/10/2026), aberta por qualquer entrada que envia dados. */
+  const [enviando, setEnviando] = useState(false);
   const geracao = useRef(0);
   // Histórico: cada análise guarda o último estado informado pela área (onSalvar). A área é montada de novo (chave) em Nova
   // análise, ao reabrir do Histórico e ao trocar de fonte; na primeira fonte, ela passa de E0 a E1 sem remontar.
@@ -131,7 +135,6 @@ function App() {
   const [confirmarSessao, setConfirmarSessao] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
   const [erroDaSessao, setErroDaSessao] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
   const fonteAtual = useRef<FonteAtiva | null>(ativa);
   fonteAtual.current = ativa;
 
@@ -226,7 +229,7 @@ function App() {
     }
   }
   function abrirArquivo() {
-    if (privacy.accepted) inputRef.current?.click();
+    if (privacy.accepted) setEnviando(true);
   }
   async function lerPlanilha(minha: number, arquivo: File, aba: string) {
     try {
@@ -242,6 +245,7 @@ function App() {
   }
   async function escolherArquivo(arquivo: File | undefined) {
     if (!arquivo || !privacy.accepted) return;
+    setEnviando(false);
     const minha = ++geracao.current;
     setEscolhendo(false);
     const base = novoPreparo(minha, "arquivo", arquivo);
@@ -369,9 +373,8 @@ function App() {
       </div>
       {erroDaSessao && <p role="alert" className="mt-3 text-sm text-rose-800">{erroDaSessao}</p>}
     </WorkspaceDialog>}
-    <input ref={inputRef} disabled={!privacy.accepted} type="file" accept=".csv,.xls,.xlsx" className="sr-only"
-      aria-label="Enviar meus dados (arquivo CSV ou Excel)" data-testid="fonte-arquivo-input"
-      onChange={event => { const proximo = event.target.files?.[0]; event.target.value = ""; void escolherArquivo(proximo); }}/>
+    {enviando && privacy.accepted && <JanelaDeEnvio apiBase={API} onArquivo={arquivo => { void escolherArquivo(arquivo); }}
+      onFechar={() => setEnviando(false)}/>}
     <header className="pagina-cabecalho" data-testid="pagina-cabecalho">
       <div className="pagina-topo">
         <a href="#topo" className="pagina-marca" data-testid="pagina-marca"
@@ -382,15 +385,16 @@ function App() {
         </a>
       </div>
       <WelcomeHero/>
-      <div className="pagina-acoes">
+      {/* Nova sessão, Nova análise e Histórico só com os dados prontos (24/10/2026): antes, a primeira ação é escolher os dados. */}
+      {ativa && <div className="pagina-acoes">
         <nav aria-label="Navegação principal" data-testid="main-navigation" className="main-navigation no-print">
           <button type="button" data-testid="nav-new-session" onClick={() => { setErroDaSessao(""); setConfirmarSessao(true); }}>
             <RefreshCw size={18} aria-hidden="true"/>Nova sessão</button>
-          <button type="button" data-testid="nav-new-analysis" disabled={!ativa} onClick={novaAnalise}>
+          <button type="button" data-testid="nav-new-analysis" onClick={novaAnalise}>
             <FileBarChart2 size={18} aria-hidden="true"/>Nova análise</button>
           <HistoricoDeAnalises itens={itensDoHistorico} desabilitado={false} onAbrir={id => { abrirDoHistorico(id); }}/>
         </nav>
-      </div>
+      </div>}
       <BarraDaFonte desabilitado={!privacy.accepted} ativa={ativa ? { tipo: ativa.dados.tipo, resumo: ativa.resumo } : null}
         escolhendo={escolhendo} catalogo={ativa?.catalogo ?? null} apiBase={API}
         preparo={preparo ? { tipo: preparo.tipo, nome: preparo.arquivo?.name || "", lendo: preparo.lendo, erro: preparo.erro,
@@ -413,7 +417,7 @@ function App() {
       <AreaDeAnalise key={"area-" + montagem.n} fonte={ativa?.dados ?? null} periodos={ativa?.periodos ?? VAZIO}
         categorias={ativa?.categorias ?? VAZIO} categoria={ativa?.categoria ?? ""} niveis={ativa?.niveis}
         municipios={ativa?.municipios ?? SEM_MUNICIPIOS} pedido={pedido} restaurar={montagem.restaurar}
-        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte} apiBase={API}
+        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte}
         trocandoFonte={escolhendo && !!ativa && !preparo} onCancelarTroca={() => setEscolhendo(false)}/>
     </main>
     <AnalysisAssistant apiBase={API} privacyAccepted={privacy.accepted}

@@ -2,10 +2,10 @@
 
 Com o navegador no escuro (contexto do Playwright com color_scheme="dark"), confere pelo estilo calculado (getComputedStyle e a
 luminância relativa do WCAG):
-- o aviso de privacidade, a página, o cabeçalho com o banner, as entradas dos dados na área central, as abas (a Seleção de
-  Territórios e as análises) com a apresentação e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
-- a base carregada sem seleção (o aviso e a lista de territórios), os estados (E1) e o Amazonas (E2), aberto pela lista de
-  territórios: o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
+- o aviso de privacidade, a página, o cabeçalho com o banner, a abertura com as duas entradas dos dados, a janela de envio com o
+  modelo de planilha e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
+- a base carregada sem seleção (as abas, a Seleção de Territórios com os níveis, a busca e o que entra na análise), os estados (E1)
+  e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
   de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
 - o mapa (botão analise-desenho-mapa): com os pontos do motor, a superfície escura no canvas, as cores do escuro no gancho de
@@ -142,25 +142,31 @@ def main():
         assert luminancia(fundo_pagina) < 0.02, ("página", hexa(fundo_pagina))
         assert luminancia(cores(page.locator("html"))["fundo"]) < 0.02
         legivel(page.get_by_test_id("pagina-marca"), "nome do agente")
-        legivel(page.get_by_test_id("nav-new-session"), "Nova sessão")
         banner = page.get_by_test_id("pagina-banner")
         expect(banner).to_be_visible()
         legivel(banner.locator("h1"), "título do banner")
         expect(page.get_by_test_id("fonte-barra")).to_have_count(0)
         escuro(area, "área de análise")
         legivel(area.get_by_test_id("analise-titulo"), "título da área")
-        legivel(area.get_by_test_id("analise-fonte-brasil"), "botão primário (Dados do Brasil)")
+        legivel(area.get_by_test_id("analise-abertura-chamada"), "chamada da abertura")
+        legivel(area.get_by_test_id("analise-fonte-brasil"), "botão primário (Usar dados do Brasil)")
         legivel(area.get_by_test_id("analise-fonte-arquivo"), "botão secundário (Enviar meus dados)")
-        legivel(area.get_by_test_id("analise-fonte-modelo"), "botão secundário (Modelo de planilha XLSX)")
-        legivel(area.get_by_test_id("analise-aba-territorios"), "aba da Seleção de Territórios")
-        escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
-        legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "apresentação da aba")
+        # A janela de envio, com o modelo de planilha, escura e legível.
+        aperta(area.get_by_test_id("analise-fonte-arquivo"))
+        janela = page.get_by_test_id("envio-de-dados")
+        expect(janela).to_be_visible()
+        escuro(janela, "janela de envio")
+        legivel(janela.locator("p").first, "texto da janela de envio")
+        legivel(janela.get_by_test_id("envio-escolher-arquivo"), "Escolher o arquivo")
+        legivel(janela.get_by_test_id("envio-modelo-baixar"), "link do modelo de planilha")
+        janela.get_by_test_id("envio-cancelar").click()
+        expect(janela).to_have_count(0)
         chat = page.get_by_test_id("painel-chat")
         expect(chat).to_be_visible()
         escuro(chat, "conversa flutuante")
         guia = page.get_by_test_id("painel-chat-guia").locator("p").first
         legivel(guia, "texto da conversa")
-        legivel(chat.get_by_test_id("chat-fonte-brasil"), "Dados do Brasil, na conversa")
+        legivel(chat.get_by_test_id("chat-fonte-brasil"), "Usar dados do Brasil, na conversa")
         legivel(chat.locator("#assistant-input"), "campo da mensagem")
         shot("02-abertura")
         if chat.get_attribute("data-minimizada") != "true":
@@ -169,14 +175,25 @@ def main():
         # 3. A base carregada sem seleção: o aviso e a lista de territórios, escuros e legíveis. Os estados (E1), escolhidos na
         # Seleção de Territórios: o gráfico escuro; as bolhas na série única do escuro; o mapa desligado mostra o motivo (âmbar).
         area.get_by_test_id("analise-fonte-brasil").click()
-        vazio = area.get_by_test_id("analise-vazio")
-        expect(vazio).to_contain_text("Os dados do Brasil foram carregados", timeout=120000)
-        legivel(vazio.locator("p").first, "aviso da base carregada sem seleção")
         territorios = area.get_by_test_id("analise-territorios")
-        expect(territorios).to_be_visible()
+        expect(territorios).to_be_visible(timeout=120000)
+        legivel(page.get_by_test_id("nav-new-session"), "Nova sessão")
+        legivel(area.get_by_test_id("analise-aba-territorios"), "aba da Seleção de Territórios")
+        escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
+        legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "orientação da Seleção")
         escuro(territorios, "lista de territórios")
-        legivel(territorios.get_by_test_id("analise-territorios-estados"), "Todos os estados, na Seleção")
-        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-territorios-estados")))
+        legivel(territorios.get_by_test_id("analise-nivel-municipios"), "nível escolhido (Municípios)")
+        legivel(territorios.get_by_test_id("analise-nivel-estados"), "nível Estados")
+        legivel(territorios.get_by_test_id("analise-busca"), "busca no alto")
+        escuro(territorios.get_by_test_id("analise-selecionados"), "o que entra na análise")
+        legivel(territorios.get_by_test_id("analise-selecionados-resumo"), "resumo do que entra na análise")
+        aperta(territorios.get_by_test_id("analise-nivel-estados"))
+        legivel(territorios.get_by_test_id("analise-marcar-todos"), "Marcar todos os estados")
+        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
+        legivel(territorios.get_by_test_id("analise-limpar-selecao"), "Limpar a seleção (vassoura)")
+        legivel(territorios.get_by_test_id("analise-desfazer"), "Desfazer")
+        legivel(territorios.get_by_test_id("analise-ver-analise"), "Ver a análise")
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-estado", "E1")
         assert estados["itens"], "o motor devolveu os estados"
         grafico = area.get_by_test_id("analise-grafico")
@@ -190,12 +207,21 @@ def main():
         legivel(motivo, "motivo do mapa desligado (âmbar)")
         shot("03-estados")
 
-        # 4. O Amazonas pela lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.
+        # 4. O Amazonas marcado na lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(territorios.get_by_test_id("analise-nivel-municipios"))
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         expect(linha_am).to_contain_text("Amazonas")
         escuro(territorios, "lista de territórios")
         legivel(linha_am.get_by_test_id("analise-grupo-ver"), "Ver os municípios (link de ação)")
-        am = respond(lambda: aperta(linha_am.get_by_test_id("analise-grupo-ver")))
+        caixa_am = linha_am.get_by_test_id("analise-grupo-todos")
+
+        def marca_am():
+            caixa_am.scroll_into_view_if_needed()
+            caixa_am.focus()
+            caixa_am.press("Space")
+        am = respond(marca_am)
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-estado", "E2")
         assert all(item["tipo"] == "municipio" for item in am["itens"])
         com_valor = sorted(item["id"] for item in am["itens"] if item.get("densidade") is not None)
@@ -210,10 +236,10 @@ def main():
         legivel(area.get_by_test_id("analise-subtitulo"), "subtítulo")
         if (area.get_by_test_id("analise-resumo").text_content() or "").strip():
             legivel(area.get_by_test_id("analise-resumo"), "frase-resumo do motor")
-        legivel(area.get_by_test_id("analise-trilha-item").first, "trilha (link)")
         # Os ajustes ficam na aba da análise (a troca de aba, sem trocar de análise, não pede nada ao motor).
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area).to_have_attribute("data-aba", "distribuicao")
+        legivel(area.get_by_test_id("analise-entenda-botao"), "Entenda esta análise")
         legivel(area.get_by_test_id("analise-selecao-resumo"), "resumo da seleção, na aba da análise")
         legivel(area.get_by_test_id("analise-ajustes").get_by_test_id("analise-indicador-densidade"), "indicador escolhido (preenchido)")
         legivel(area.get_by_test_id("analise-ajustes").get_by_test_id("analise-indicador-quantidade"), "indicador não escolhido")

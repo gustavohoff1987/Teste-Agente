@@ -27,6 +27,7 @@ from decimal import Decimal, ROUND_HALF_UP, localcontext
 from nearest_reference import TPL_11
 from result_conversation import resolve
 from territorial_levels import NOTE_STATES, human_period, thousands
+from trend import TEXT_MINIMUM
 
 VERSION = 1
 DENSITY_UNIT = "por 1.000 habitantes"
@@ -161,7 +162,9 @@ def _units(body):
     return unit["singular"], unit["plural"], "as" if unit.get("genero") == "f" else "os"
 
 
-def _lead(c: Composer, body: dict, facts: dict):
+def _lead_many(c: Composer, body: dict, facts: dict):
+    """Vários itens: quantos o gráfico tem e de quanto a quanto vai o indicador; com os extremos iguais, o valor comum
+    (nunca "de X a X"); as unidades sem valor só quando há alguma."""
     singular, plural, article = _units(body)
     indicator = body["indicador"]
     unit = " " + DENSITY_UNIT if indicator == "densidade" else ""
@@ -171,12 +174,27 @@ def _lead(c: Composer, body: dict, facts: dict):
     c.text(".")
     extremes = facts["extremos"]["indicador"]
     if extremes is None:
-        c.text(" Sem valor de " + INDICATOR_TEXT[indicator] + " em ").count(singular, plural, "resumo", "contagens",
-                                                                          "sem_valor").text(".")
+        c.text(" Sem valor de " + INDICATOR_TEXT[indicator] + " nesta competência.")
         return
-    c.text(" Entre " + article + " " + plural + ", a " + INDICATOR_TEXT[indicator] + " vai ")
-    c.range(extremes, [indicator], unit).text("; ").count(singular, plural, "resumo", "contagens", "sem_valor") \
-        .text(" sem valor.")
+    if facts["iguais"]["indicador"]:
+        every = ("todos" if article == "os" else "todas") + (" com valor" if facts["contagens"]["sem_valor"] else "")
+        c.text(" A " + INDICATOR_TEXT[indicator] + " é de ").number("itens", extremes[0], indicator) \
+            .text(unit + " em " + every + ".")
+    else:
+        c.text(" A " + INDICATOR_TEXT[indicator] + " vai ").range(extremes, [indicator], unit).text(".")
+    if facts["contagens"]["sem_valor"]:
+        c.text(" ").count(singular, plural, "resumo", "contagens", "sem_valor").text(" sem valor nesta competência.")
+
+
+def _lead_one(c: Composer, body: dict, facts: dict):
+    """Um território só (24/10/2026): o nome, a competência e o valor dele, sem frases coletivas nem amplitude."""
+    index, indicator = facts["unico"], body["indicador"]
+    unit = " " + DENSITY_UNIT if indicator == "densidade" else ""
+    c.label("itens", index, "rotulo").text(", em ").period("competencia").text(": ")
+    if facts["contagens"]["sem_valor"]:
+        c.text("sem valor de " + INDICATOR_TEXT[indicator] + " nesta competência.")
+        return
+    c.text(INDICATOR_TEXT[indicator] + " de ").number("itens", index, indicator).text(unit + ".")
 
 
 def _bands(c: Composer, body: dict, key: str, title: str, missing: str):
@@ -184,25 +202,56 @@ def _bands(c: Composer, body: dict, key: str, title: str, missing: str):
     c.text(" " + title + ": ")
     for index in range(len(bands["rotulos"])):
         c.text("; " if index else "").label(key, "rotulos", index).text(", ").number(key, "contagens", index)
-    c.text("; fora das faixas, ").number(key, "fora").text("; " + missing + ", ").number(key, "nao_avaliaveis").text(".")
+    if bands.get("fora"):
+        c.text("; fora das faixas, ").number(key, "fora")
+    if bands.get("nao_avaliaveis"):
+        c.text("; " + missing + ", ").number(key, "nao_avaliaveis")
+    c.text(".")
 
 
 def _groups(c: Composer, body: dict):
     c.text(" Grupos por posição (").label("grupos", "tipo").text("): ")
     for index in range(len(body["grupos"]["rotulos"])):
         c.text("; " if index else "").label("grupos", "rotulos", index).text(", ").number("grupos", "contagens", index)
-    c.text("; sem valor, ").number("grupos", "nao_avaliaveis").text(".")
+    if body["grupos"].get("nao_avaliaveis"):
+        c.text("; sem valor, ").number("grupos", "nao_avaliaveis")
+    c.text(".")
 
 
-def _change(c: Composer, body: dict, facts: dict):
-    singular, plural, _ = _units(body)
+DIRECTIONS = {"AUMENTO": "aumento", "REDUCAO": "redução", "SEM_MUDANCA": "sem mudança"}  # CAP-TMP-01 (V-05)
+
+
+def _change_many(c: Composer, body: dict, facts: dict):
+    singular, plural, article = _units(body)
     indicator = body["indicador"]
-    c.text(" Variação de " + INDICATOR_TEXT[indicator] + " entre ").period("competencia_inicial").text(" e ") \
+    c.text(" Variação da " + INDICATOR_TEXT[indicator] + " entre ").period("competencia_inicial").text(" e ") \
         .period("competencia").text(": ")
     extremes = facts["extremos"]["variacao"]
-    if extremes is not None:
-        c.range(extremes, ["variacao_percentual", indicator], each="%").text("; ")
-    c.count(singular, plural, "resumo", "contagens", "sem_variacao").text(" sem variação avaliável.")
+    if extremes is None:
+        c.text(("nenhum" if article == "os" else "nenhuma") + " com variação avaliável.")
+        return
+    if facts["iguais"]["variacao"]:
+        every = ("todos" if article == "os" else "todas") + (" com variação avaliável" if facts["contagens"]["sem_variacao"]
+                                                              else "")
+        c.number("itens", extremes[0], "variacao_percentual", indicator).text("% em " + every + ".")
+    else:
+        c.range(extremes, ["variacao_percentual", indicator], each="%").text(".")
+    if facts["contagens"]["sem_variacao"]:
+        c.text(" ").count(singular, plural, "resumo", "contagens", "sem_variacao").text(" sem variação avaliável.")
+
+
+def _change_one(c: Composer, body: dict, facts: dict):
+    """A mudança de um território: a variação do motor e a direção dela (aumento, redução ou sem mudança, CAP-TMP-01);
+    não avaliável, o motivo em palavras."""
+    index, indicator = facts["unico"], body["indicador"]
+    c.text(" Entre ").period("competencia_inicial").text(" e ").period("competencia") \
+        .text(", a variação da " + INDICATOR_TEXT[indicator] + " ")
+    direction = facts.get("direcao")
+    if direction is None:
+        c.text("não é avaliável: " + ("o valor inicial é zero." if facts.get("motivo_variacao") == "BASE_ZERO" else
+                                     "falta o valor numa das duas competências."))
+        return
+    c.text("foi de ").number("itens", index, "variacao_percentual", indicator).text("% (" + DIRECTIONS[direction] + ").")
 
 
 def _spatial(c: Composer, body: dict, facts: dict):
@@ -215,9 +264,18 @@ def _spatial(c: Composer, body: dict, facts: dict):
                                                                                          "rotulo")
     c.text(": " if len(members) == 1 else "): ")
     extremes = facts["extremos"]["distancia"]
-    if extremes is not None:
-        c.range(extremes, ["distancia_km"], " km").text("; ")
-    c.count(singular, plural, "resumo", "contagens", "sem_distancia").text(" sem distância.")
+    missing = facts["contagens"]["sem_distancia"]
+    if extremes is None and not missing:
+        c.text("só a referência no gráfico.")
+    elif extremes is None:
+        c.count(singular, plural, "resumo", "contagens", "sem_distancia").text(" sem distância.")
+    else:
+        if facts["iguais"]["distancia"]:
+            c.number("itens", extremes[0], "distancia_km").text(" km.")
+        else:
+            c.range(extremes, ["distancia_km"], " km").text(".")
+        if missing:
+            c.text(" ").count(singular, plural, "resumo", "contagens", "sem_distancia").text(" sem distância.")
     if body.get("faixas_distancia") is not None:
         _bands(c, body, "faixas_distancia", "Faixas de distância (km)", "sem distância")
     note = _note_index(body, TPL_11)
@@ -225,24 +283,58 @@ def _spatial(c: Composer, body: dict, facts: dict):
         c.text(" ").note(note)
 
 
-def _trend(c: Composer, body: dict):
+FAMILY_TEXT = (("CRESCIMENTO", "na família do crescimento"), ("DECLINIO", "na família do declínio"),
+               ("NENHUMA", "sem classificação"))
+
+
+def _trend_window(c: Composer):
+    c.text(" Tendência de ").period("tendencia", "janela", "inicio").text(" a ").period("tendencia", "janela", "fim") \
+        .text(": ")
+
+
+def _trend_many(c: Composer, body: dict):
+    """Vários territórios: quantos em cada família de classe e os não avaliáveis, só as contagens que não são zero."""
     trend = body["tendencia"]
-    c.text(" Tendência na janela de ").period("tendencia", "janela", "inicio").text(" a ") \
-        .period("tendencia", "janela", "fim").text(": ")
+    _trend_window(c)
     if trend.get("bloqueio"):
         c.label("tendencia", "bloqueio", "texto", kind="LIMITACAO")
         return
-    c.text("família do crescimento, ").number("tendencia", "familias", "CRESCIMENTO") \
-        .text("; família do declínio, ").number("tendencia", "familias", "DECLINIO") \
-        .text("; sem classificação, ").number("tendencia", "familias", "NENHUMA") \
-        .text("; não avaliável, ").number("tendencia", "nao_avaliaveis").text(".")
+    present = [(key, text) for key, text in FAMILY_TEXT if trend["familias"][key]]
+    for order, (key, text) in enumerate(present):
+        c.text(", " if 0 < order < len(present) - 1 else " e " if order else "") \
+            .number("tendencia", "familias", key).text(" " + text)
+    if trend["nao_avaliaveis"]:
+        c.text("; " if present else "").count("não avaliável", "não avaliáveis", "tendencia", "nao_avaliaveis")
+    c.text(".")
+
+
+def _trend_one(c: Composer, body: dict, facts: dict):
+    """Um território: a classe do motor; sem classificação, o motivo em palavras; não avaliável, o texto do catálogo."""
+    index = facts["unico"]
+    trend = body["itens"][index]["tendencia"]
+    _trend_window(c)
+    if body["tendencia"].get("bloqueio"):
+        c.label("tendencia", "bloqueio", "texto", kind="LIMITACAO")
+        return
+    if not trend["avaliavel"]:
+        c.text("não avaliável. " + (TEXT_MINIMUM if trend["motivo"] == "SERIE_INSUFICIENTE" else
+                                    "A série não é comparável entre os períodos."))
+        return
+    c.label("itens", index, "tendencia", "rotulo", kind="VALOR")
+    if trend["classe"] == "SEM_CLASSIFICACAO":
+        c.text(", porque " + ("houve alta e queda entre os períodos" if trend["motivo"] == "MUDANCA_DE_DIRECAO" else
+                              "o valor não mudou entre os períodos") + ".")
+    else:
+        c.text(".")
 
 
 def _conditions(c: Composer, body: dict):
     c.text(" Condições ").label("condicoes", "descricao").text(": atendem, ") \
         .number("condicoes", "contagens", "ATENDE").text("; não atendem, ") \
-        .number("condicoes", "contagens", "NAO_ATENDE").text("; sem dado, ") \
-        .number("condicoes", "contagens", "NAO_AVALIAVEL").text(".")
+        .number("condicoes", "contagens", "NAO_ATENDE")
+    if body["condicoes"]["contagens"].get("NAO_AVALIAVEL"):
+        c.text("; sem dado, ").number("condicoes", "contagens", "NAO_AVALIAVEL")
+    c.text(".")
 
 
 def _comparison(c: Composer, body: dict):
@@ -277,37 +369,48 @@ def _rotation(c: Composer, body: dict, facts: dict):
     c.text(" Permanência da coorte inicial entre ").period("rotatividade", "inicial").text(" e ") \
         .period("rotatividade", "final").text(": ")
     extremes = facts["extremos"]["permanencia"]
-    if extremes is not None:
-        c.range(extremes, ["rotatividade", "permanencia_percentual"], each="%").text("; ")
-    c.count(singular, plural, "resumo", "contagens", "sem_permanencia").text(" sem permanência avaliável.")
+    missing = facts["contagens"]["sem_permanencia"]
+    if extremes is None:
+        c.count(singular, plural, "resumo", "contagens", "sem_permanencia").text(" sem permanência avaliável.")
+        return
+    if facts["iguais"]["permanencia"]:
+        c.number("itens", extremes[0], "rotatividade", "permanencia_percentual").text("%.")
+    else:
+        c.range(extremes, ["rotatividade", "permanencia_percentual"], each="%").text(".")
+    if missing:
+        c.text(" ").count(singular, plural, "resumo", "contagens", "sem_permanencia").text(" sem permanência avaliável.")
 
 
 def _context(c: Composer, body: dict):
     line = (body.get("contexto") or {}).get("brasil")
     if body["indicador"] != "densidade" or not line or line.get("densidade") is None:
         return
-    c.text(" Referência de contexto: taxa nacional de ").number("contexto", "brasil", "densidade", kind="PARAMETRO") \
-        .text(" " + DENSITY_UNIT + " (Brasil, total nacional); não classifica nem colore os itens do gráfico.")
+    # Só referência de contexto (D5): nunca "acima" ou "abaixo"; a tela não classifica nem colore nada por ela.
+    c.text(" Referência de contexto: a taxa do Brasil (total nacional) é de ") \
+        .number("contexto", "brasil", "densidade", kind="PARAMETRO").text(" " + DENSITY_UNIT + ".")
 
 
 def compose(body: dict, facts: dict) -> Composer:
     """A frase de uma resposta da página única, na ordem das análises: itens e indicador (distribuição), grupos e faixas,
     mudança, análise espacial, tendência, condições, comparação, rotatividade, ressalvas (conjuntos e estados) e a linha de
     contexto do Brasil. Os grupos que pintam o mapa (`grupos_mapa`, pedidos pela tela junto com toda análise) não entram:
-    a frase descreve o que o gráfico mostra, e é a mesma com ou sem eles."""
+    a frase descreve o que o gráfico mostra, e é a mesma com ou sem eles. Desde 24/10/2026, com um território só, a frase
+    é individual (o nome, o valor, a variação com a direção e a classe dele); com vários, valores iguais saem uma vez (nunca
+    "de X a X"), e as contagens que são zero (sem valor, sem dado, não avaliáveis) ficam de fora."""
     view = {**body, "resumo": {"contagens": facts["contagens"]}}  # os caminhos como ficam na resposta
     c = Composer(view)
-    _lead(c, view, facts)
+    one = facts.get("unico") is not None
+    (_lead_one if one else _lead_many)(c, view, facts)
     if view.get("grupos") is not None:
         _groups(c, view)
     if view.get("faixas") is not None:
         _bands(c, view, "faixas", "Faixas de " + INDICATOR_TEXT[view["indicador"]], "sem valor")
     if view.get("competencia_inicial"):
-        _change(c, view, facts)
+        (_change_one if one else _change_many)(c, view, facts)
     if view.get("referencia") is not None:
         _spatial(c, view, facts)
     if view.get("tendencia") is not None:
-        _trend(c, view)
+        _trend_one(c, view, facts) if one else _trend_many(c, view)
     if view.get("condicoes") is not None:
         _conditions(c, view)
     if view.get("comparacao") is not None:

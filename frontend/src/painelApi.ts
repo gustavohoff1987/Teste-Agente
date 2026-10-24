@@ -13,7 +13,9 @@ export type PainelAtributo = "densidade" | "quantidade" | "populacao";
 export type AtributoOrdenacao = PainelAtributo | "distancia_km" | "variacao";
 export type AtributoCondicao = PainelAtributo | "distancia_km";
 export type PainelOrdem = "desc" | "asc";
-export type PainelNivel = "estados" | "municipios";
+/** Nível do gráfico: os municípios (ou as unidades da planilha), os estados ou, desde 24/10/2026, o Brasil inteiro como uma
+ * unidade (só na base do Brasil). */
+export type PainelNivel = "estados" | "municipios" | "brasil";
 /** Premissas de uma planilha, com os nomes de /api/analyze: textos e, em `confirmed_roles`, os papéis escolhidos pela pessoa. */
 export type Premissas = Record<string, string | string[]>;
 /** Universo das unidades, na forma de `options.abrangencia.municipios`. Em planilhas, `estados` leva os valores do grupo
@@ -41,6 +43,8 @@ export type PainelOpcoes = {
   competencia: string;
   categoria: string;
   base?: PainelUniverso;
+  /** Nível estados: os estados escolhidos (prefixos IBGE); sem a lista, todos (24/10/2026). */
+  estados?: string[];
   conjuntos?: PainelConjuntoPedido[];
   referencia?: PainelReferenciaPedido;
   faixas_distancia?: number[];
@@ -56,6 +60,9 @@ export type PainelOpcoes = {
   comparar?: string[];
   rotatividade?: { inicial: string; final: string };
   premissas?: Premissas;
+  /** Só nas planilhas (24/10/2026): os nomes da unidade e do grupo que a pessoa confirmou, para a resposta (os rótulos, a
+   * frase-resumo) falar deles; sem eles, o motor responde com "unidades". Na base do Brasil, o motor recusa. */
+  rotulos?: RotulosTerritoriais;
 };
 
 /** Opções de /api/painel/referencias (o critério aqui não leva universo). */
@@ -96,7 +103,7 @@ export type RotatividadeItem = { coorteInicial: number | null; permaneceram: num
 
 export type PainelItem = {
   id: string;
-  tipo: "municipio" | "estado" | "conjunto";
+  tipo: "municipio" | "estado" | "conjunto" | "brasil";
   rotulo: string;
   uf: string | null;
   /** Conjunto: identificadores das unidades agregadas, na ordem do pedido. */
@@ -355,7 +362,7 @@ function itemDe(bruto: unknown): PainelItem | null {
   const o = objeto(bruto);
   const id = texto(o?.id);
   if (!o || !id) return null;
-  const tipo = o.tipo === "conjunto" || o.tipo === "estado" ? o.tipo : "municipio";
+  const tipo = o.tipo === "conjunto" || o.tipo === "estado" || o.tipo === "brasil" ? o.tipo : "municipio";
   const avaliavel = objeto(o.avaliavel);
   const ordem = objeto(o.ordem);
   return {
@@ -525,7 +532,8 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   return {
     competencia: texto(o.competencia) ?? "", competencia_inicial: texto(o.competencia_inicial), categoria: texto(o.categoria) ?? "",
     versao_base: texto(o.versao_base), chave_execucao: texto(o.chave_execucao) ?? "",
-    nivel: o.nivel === "estados" || o.nivel === "municipios" ? o.nivel : itens.some(item => item.tipo === "estado") ? "estados" : nivelPedido,
+    nivel: o.nivel === "estados" || o.nivel === "municipios" || o.nivel === "brasil" ? o.nivel
+      : itens.some(item => item.tipo === "estado") ? "estados" : nivelPedido,
     referencia: referencia ? { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio",
       membros: lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" })),
       origem: texto(referencia.origem) ?? "" } : null,

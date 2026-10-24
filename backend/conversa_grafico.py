@@ -363,7 +363,7 @@ def contexto(options):
     brutos = _textos(options.get("territory_ids"))
     ids = [item for item in brutos if item.startswith(("code:", "name:"))]
     ufs = [item for item in brutos if item.startswith("uf:")]
-    nivel = options.get("painel_nivel") if options.get("painel_nivel") in ("estados", "municipios") else \
+    nivel = options.get("painel_nivel") if options.get("painel_nivel") in ("estados", "municipios", "brasil") else \
         ("municipios" if ids else "estados" if ufs else None)
     competencia = next((valor for valor in (options.get("painel_competencia"), options.get("period_filter"))
                         if isinstance(valor, str) and valor), None)

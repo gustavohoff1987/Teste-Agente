@@ -3,8 +3,9 @@
 Decisões do responsável pelo produto de 22/10/2026: uma análise integrada, sem duas telas. A página é sempre a análise. Desde
 23/10/2026, uma linha de abas reúne a **Seleção de Territórios** (o conjunto analisado, compartilhado por todas as análises) e as
 quatro análises com os nomes padronizados: **Análise de Distribuição**, **Análise Espacial**, **Análise de Tendência** e
-**Análise de Rotatividade**. Cada aba abre com a apresentação do que ela faz, mesmo quando a análise não pode ser executada com
-os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
+**Análise de Rotatividade**. As abas aparecem quando os dados estão prontos (24/10/2026). Cada aba abre com a apresentação do
+que ela faz (nas análises, desde 24/10/2026, em "Entenda esta análise", que se recolhe), mesmo quando a análise não pode ser
+executada com os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
 abaixo, os Detalhes. O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
 (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
 (`/api/painel`, `/api/painel/referencias` e `/api/painel/mapa`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
@@ -30,19 +31,25 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   restaurar={EstadoSalvo | null}        // Histórico: reabre sem recalcular
   onContexto={c => ...}                 // a cada mudança do que está na tela
   onSalvar={e => ...}                   // a cada cálculo do motor
-  onEscolherFonte={tipo => ...}         // "Dados do Brasil" e "Enviar meus dados", na abertura e no "Trocar" da fonte
-  apiBase={string}                      // o endereço da API, para o "Modelo de planilha XLSX"
+  onEscolherFonte={tipo => ...}         // "Usar dados do Brasil" e "Enviar meus dados" (abre a janela de envio), na abertura e no "Trocar"
   trocandoFonte={boolean}               // "Trocar" pedido na barra da fonte: a escolha volta à área, com "Cancelar"
   onCancelarTroca={() => ...}/>
 ```
 
 - **Fonte:** `null` é a abertura (E0). A troca de fonte (outra versão, outra planilha) recomeça a área. "Nova análise" remonta a
   área (`key`): os mesmos dados, sem territórios escolhidos.
-- **Entradas dos dados** (23/10/2026): "Dados do Brasil", "Enviar meus dados" e "Modelo de planilha XLSX" ficam na área central
-  (`analise-abertura`, com `analise-fonte-brasil`, `analise-fonte-arquivo` e `analise-fonte-modelo`) e na conversa, com as
-  mesmas ações; não há mais botões de fonte no alto da página. O "Trocar" da barra da fonte traz as mesmas três entradas de
-  volta à área (`analise-troca-fonte`, com `analise-troca-cancelar`), e a análise atual continua à vista até a nova fonte ficar
-  pronta.
+- **Entradas dos dados** (24/10/2026): só duas, "Usar dados do Brasil" e "Enviar meus dados", na área central
+  (`analise-abertura`, com `analise-fonte-brasil` e `analise-fonte-arquivo`) e na conversa, com as mesmas ações; não há botões
+  de fonte no alto da página. "Enviar meus dados" abre a **janela de envio** (`envio-de-dados`, em `JanelaDeEnvio.tsx`), a mesma
+  em todas as entradas (a abertura, a conversa, o "Trocar" da fonte e o "Enviar meus dados" da Rotatividade): o que enviar (CSV,
+  XLS ou XLSX, até 30 MB, uma linha por território, categoria e período), "Escolher o arquivo" (`envio-escolher-arquivo`) e o
+  **modelo de planilha** (`envio-modelo`), com as colunas descritas e "Baixar o modelo de planilha (XLSX)"
+  (`envio-modelo-baixar`); "Cancelar" (`envio-cancelar`) fecha sem mudar nada. O arquivo escolhido segue a preparação de sempre
+  (as validações de formato e de tamanho, a aba e o painel Colunas). O botão "Modelo de planilha XLSX" da abertura
+  (`analise-fonte-modelo`) e o da conversa saíram: o modelo fica na janela de envio. O "Trocar" da barra da fonte traz as mesmas
+  duas entradas de volta à área (`analise-troca-fonte`: "Escolha a nova fonte. A análise atual continua à vista até a nova fonte
+  ficar pronta.", com `analise-troca-cancelar`). A troca só vale quando a nova fonte fica pronta: com "Cancelar", na janela ou
+  na preparação, ou com um arquivo recusado, a fonte e a análise em uso continuam como estavam.
 - **Contexto (`onContexto`):** família, indicador, nível, universo, as unidades à vista (`idsNaTela`), competência, janela,
   referência e o título; desde 23/10/2026, também a vista em exibição (`vista`: `grafico`, `mapa` ou `lado`), a frase-resumo
   do motor que está na tela (`resumo`) e se o mapa pode aparecer (`mapaDisponivel`), com o motivo quando não pode
@@ -62,7 +69,7 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   Um pedido feito antes dos dados é aplicado quando a base fica pronta.
 - **Nomenclatura territorial:** `fonte.rotulos` (`{unidade: {singular, plural}, grupo: {singular, plural} | null}`) ou os
   `rotulos` da resposta do motor. Na base do Brasil, município e estado; numa planilha, o que a pessoa confirmou (distrito,
-  província…). Nenhum texto da área fixa "município" ou "estado": título, subtítulo, lista de territórios, trilha, dica, tabela,
+  província…). Nenhum texto da área fixa "município" ou "estado": título, subtítulo, lista de territórios, resumo da seleção, dica, tabela,
   Detalhes, exportação e mensagens saem dos rótulos, com concordância simples ("Todas as províncias", "Ver os 12 distritos",
   "Cada bolha é uma comuna"). O gênero é o informado (`genero`) ou, sem ele, deduzido pela terminação.
 
@@ -70,9 +77,9 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 
 | Estado | O que aparece |
 |---|---|
-| E0, antes dos dados | Moldura limpa, sem números nem bolhas de exemplo: "Escolha os dados para começar", com "Dados do Brasil", "Enviar meus dados" e "Modelo de planilha XLSX". As abas ficam visíveis e abrem com a apresentação; clicar numa análise registra a intenção ("Você escolheu Análise de Tendência. Agora escolha os dados."). Título: "Diagnóstico territorial da força de trabalho em saúde". |
-| E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e a aba Seleção de Territórios aberta, com a lista. Nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. |
-| E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção ("Todos os estados (27)") ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
+| E0, antes dos dados | Desde 24/10/2026, só a identificação e a escolha dos dados, mais acima e centradas, sem números nem bolhas de exemplo: o título "Diagnóstico Territorial da Força de Trabalho em Saúde" (`analise-titulo`), "Escolha seus dados para começar" (`analise-abertura-chamada`), uma frase ("Use os dados do Brasil, já preparados, ou envie a sua planilha em CSV ou Excel.") e os botões "Usar dados do Brasil" e "Enviar meus dados". Sem as abas e sem Nova sessão, Nova análise e Histórico, que aparecem com os dados prontos. A escolha da análise antes dos dados (a "intenção") saiu. |
+| E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: a aba Seleção de Territórios aberta, com a lista; nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. Nas análises, antes da escolha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e "Abrir a Seleção de Territórios". |
+| E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção (o nível Estados: um, vários ou todos) ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
 | E2, unidades na Distribuição | As bolhas das unidades escolhidas no eixo do indicador. |
 | E3, outra família | Análise espacial, Tendência ou Rotatividade. |
 | E4, função em uso | Um painel lateral aberto (no celular, sobe da base da tela). |
@@ -83,44 +90,108 @@ O estado vai em `data-estado` da área; a vista do desenho em exibição, em `da
 
 Pedido do responsável (22/10/2026): a escolha precisa ser visível e didática, sem adivinhar onde clicar e sem depender de
 digitar o nome de um município. Desde 23/10/2026, a lista fica na aba **Seleção de Territórios**, a primeira da linha das
-análises (`analise-aba-territorios`, com o resumo da seleção em `analise-aba-territorios-resumo`). O painel da aba começa com o
-texto "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar territórios a qualquer
-momento, e as análises serão atualizadas conforme a seleção realizada." e mostra a lista em colunas na tela larga. A mesma
-seleção vale para todas as análises: cada aba de análise mostra o resumo dela (`analise-selecao-resumo`) com "Alterar a
-seleção" (`analise-selecao-alterar`), que volta à Seleção. A referência da Análise Espacial e a janela da Análise de Tendência
-continuam dentro de cada análise, separadas dos territórios analisados.
+análises (`analise-aba-territorios`, com o resumo da seleção em `analise-aba-territorios-resumo`). Desde 24/10/2026, a aba é só
+da seleção (`PainelTerritorios.tsx`): encontrar, navegar entre os níveis, marcar e desmarcar, ver o que está marcado e corrigir
+ou limpar. O gráfico, o mapa, a frase-resumo e os Detalhes ficam nas análises (na Seleção, `analise-resultados` fica oculto).
+A aba começa com uma orientação curta, sempre à vista: "Escolha os territórios que entram nas análises. A seleção vale para
+todas elas e pode ser mudada a qualquer momento." As instruções sobre as caixas e os textos técnicos saíram. Cada aba de
+análise mostra o resumo da seleção (`analise-selecao-resumo`) com "Alterar a seleção" (`analise-selecao-alterar`), que volta à
+Seleção. A referência da Análise Espacial e o período da Análise de Tendência continuam dentro de cada análise.
 
-- **Brasil:** duas opções explícitas, "Todos os estados (27)" (a visão E1, com a linha de contexto do Brasil) e "Todos os
-  municípios do Brasil (5.570)" (modo leve, mais lento).
-- **Estados:** os 27 numa lista, com nome, sigla e a caixa "Todos os municípios de <estado>" (marca o estado inteiro, junto com o
-  que já estiver marcado) e a ação "Ver os N municípios", que abre a lista do estado ali mesmo e põe só esse estado, inteiro, no gráfico.
-- **Municípios do estado aberto:** caixas de marcar, na lista da página (sem rolagem escondida), com "Marcar todos" e "Desmarcar
-  todos". Desmarcar um município de um estado inteiro deixa os demais marcados, um a um; marcar o último que faltava devolve o
-  estado inteiro. Com mais de 120, atalhos pela letra inicial ajudam, e "Todas" mostra a lista inteira.
-- **Busca:** "Procurar pelo nome ou código (opcional)", só como complemento.
-- **No gráfico (E1):** clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios dele; a dica da bolha sob o
-  mouse ou em foco mostra a ação "Ver os N municípios".
-- **Trilha de volta,** em qualquer estado: "Brasil › Amazonas (62 municípios)", "Brasil › Amazonas › 3 municípios", "Brasil ›
-  Todos os municípios (5.570)". "Brasil" volta aos estados; o nome do estado volta ao estado inteiro.
-- **Planilhas:** com coluna-mãe (o papel `grupo_territorial`), a lista dos grupos, cada um com "Ver as N <unidades>" e as
-  caixas das unidades, como os estados; o grupo de cada unidade vem do catálogo do pré-exame (`parents`, desde 23/10/2026;
-  antes, a lista ficava sem os grupos). Sem coluna-mãe, a lista das unidades em ordem alfabética, com as caixas. Não há bolhas de grupo nas planilhas
-  (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo e `ids`, `code:<código>` ou
-  `name:<nome>`.
-- **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área avisa que os dados estão
-  prontos e abre a Seleção. Antes, a base do Brasil abria nos estados, e a planilha, com todas as unidades marcadas.
+- **Níveis, na base do Brasil** (24/10/2026): três, um em análise por vez (`analise-nivel`, com `analise-nivel-brasil`,
+  `analise-nivel-estados` e `analise-nivel-municipios`; RQ-DAD-30: nenhum nível é somado a outro). Cada nível guarda a sua
+  escolha: voltar a um nível devolve o que estava marcado nele. A base abre no nível dos municípios, sem nada marcado.
+  - **Brasil:** o país inteiro como uma unidade (`analise-territorios-brasil`): o total nacional de profissionais e a
+    população do país. Não é a soma dos estados nem a seleção de todos os municípios (seção "Brasil como unidade").
+  - **Estados:** a lista dos 27 (`analise-estados`), com caixas: um, vários ou todos, com "Marcar todos os estados (27)" e
+    "Desmarcar todos os estados" (`analise-marcar-todos` e `analise-desmarcar-todos`). Com só alguns marcados, o pedido leva a
+    lista deles (`estados`).
+  - **Municípios:** navegados por estado e cumulativos. Cada estado é uma linha (`analise-grupo`) com a caixa do estado inteiro
+    (`analise-grupo-todos`, parcial quando há só alguns marcados, com "3 de 417 marcados" ou "Todos os 417 marcados") e "Ver os
+    N municípios ›" (`analise-grupo-ver`), que **só abre a lista** do estado e não muda o que está marcado. Na lista aberta:
+    "← Voltar aos estados" (`analise-grupo-voltar`), quantos estão marcados, "Marcar todos os municípios da Bahia" e
+    "Desmarcar os municípios da Bahia" e as caixas, com atalhos pela letra inicial acima de 120 municípios. Marcar em outro
+    estado soma ao que já estava marcado: o defeito de 24/10/2026 (marcar na Bahia e depois em Santa Catarina perdia a Bahia)
+    vinha de a abertura da lista trocar a seleção pelo estado aberto, e foi corrigido na causa. No alto da lista dos estados,
+    "Marcar todos os municípios do Brasil (5.570)" e "Desmarcar todos os municípios" (no lugar da opção "Todos os municípios do
+    Brasil"). Desmarcar um município de um estado inteiro deixa os demais marcados, um a um; marcar o último que faltava
+    devolve o estado inteiro.
+- **Busca, no alto** (`analise-busca`): "Buscar município ou estado" (no nível Estados, "Buscar estado"), pelo nome ou pelo
+  código. O resultado (`analise-busca-resultado`) traz os estados e os municípios encontrados, com as caixas, sem abrir lista
+  nenhuma; a busca não muda a seleção.
+- **Na análise** (`analise-selecionados`), presa à base da tela enquanto a lista rola (no celular, no fim da lista): o resumo
+  do que está marcado (`analise-selecionados-resumo`: "Brasil (total nacional)", "Todos os estados (27)", "Bahia e Santa
+  Catarina", "Amazonas (62 municípios)", "3 municípios de 2 estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o
+  botão da análise em uso ("Ver a Análise de Distribuição", `analise-ver-analise`) e "Limpar a seleção de municípios" (ou "de
+  estados"; `analise-limpar-selecao`, com o ícone da vassoura). Abaixo, o que entra, estado a estado ("Bahia: ABAIRA e
+  AIQUARA"; "Amazonas: todos os 62"), cada linha com um × que tira só aquele estado; no nível Estados, as etiquetas dos
+  estados, também com o ×. Com todos marcados, o resumo basta; com mais de 6 linhas, a lista se recolhe ("Ver quais (N)").
+  O mesmo resumo, em poucas palavras, aparece no título das análises e no resumo de cada aba (`resumoDoUniverso`, no lugar da
+  trilha "Brasil › Amazonas", que saiu).
+- **Desfazer:** o que marca ou desmarca muitos de uma vez (os comandos coletivos, a caixa de um estado inteiro, o × de um
+  estado) e "Limpar a seleção" dizem o que mudou (`analise-desfazer-aviso`: "Municípios da Bahia desmarcados.", "Todos os
+  estados marcados.", "Seleção de municípios limpa.") e oferecem "Desfazer" (`analise-desfazer`), que devolve a seleção de
+  antes. Os comandos dizem sobre qual conjunto agem: os estados, os municípios do Brasil ou os municípios de um estado.
+- **No gráfico (E1):** clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios dele na análise; a dica da
+  bolha sob o mouse ou em foco mostra a ação "Ver os N municípios". "Voltar aos estados" (seção seguinte) desfaz a navegação.
+- **Planilhas:** sem os níveis Brasil e Estados, com os mesmos passos e a nomenclatura da planilha (a busca "Buscar distrito ou
+  província"). Com coluna-mãe (o papel `grupo_territorial`), os grupos ficam como os estados ("Ver as N <unidades>", a caixa
+  do grupo inteiro), com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde 23/10/2026); sem ela, a lista
+  das unidades em ordem alfabética, com as caixas. "Marcar todos os distritos (4)" marca a planilha inteira. Sem a lista das
+  unidades (quando o catálogo do pré-exame não veio, por exemplo com nomes que não permitem escolher uma a uma), "Marcar todos"
+  continua valendo para a planilha inteira, e o resumo fica "Todos os condados", sem um número. Não há bolhas de grupo nas
+  planilhas (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
+  `code:<código>` ou `name:<nome>`.
+- **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção. Antes, a base
+  do Brasil abria nos estados, e a planilha, com todas as unidades marcadas.
 - **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico, o mapa e a frase-resumo da seleção anterior saem da tela;
   a área pede a escolha.
+
+### Voltar, Limpar e Desfazer
+
+Pedido do responsável (24/10/2026): um ícone para voltar e outro para limpar, os mesmos em toda a área, sem perda involuntária.
+
+- **Voltar** (`analise-voltar`, a seta ←, no alto da análise, antes do título): desfaz a última navegação que trocou o que está
+  na análise, com o nome do passo no botão: abrir um estado pela bolha e o atalho "Ver os municípios no mapa" ("Voltar aos
+  estados") e uma mudança de territórios pedida na conversa ("Voltar à seleção anterior"). As navegações se empilham; cada
+  Voltar desfaz uma. Uma mudança feita à mão na Seleção esvazia a pilha: Voltar nunca desfaz uma escolha feita ali (para isso,
+  há o Desfazer). Sem navegação para desfazer, o botão não aparece. Na lista aberta de um estado, "← Voltar aos estados" só fecha
+  a lista.
+- **Limpar** usa sempre a vassoura e diz o que limpa: na Seleção, "Limpar a seleção de municípios" (ou "de estados"), só do
+  nível em uso; nas análises, "Limpar filtros" (`analise-limpar-filtros`), que tira a régua, as condições, a ordenação, a
+  comparação, o filtro da classe e os itens marcados no desenho, sem mexer nos territórios nem nos ajustes da análise. Ele só
+  aparece com algum filtro em uso.
+- **Desfazer** (a seta curva): na Seleção, depois de uma mudança coletiva ou do Limpar (seção anterior); nas análises, "Desfazer
+  a limpeza" (`analise-desfazer-filtros`), que devolve os filtros tirados pelo "Limpar filtros" até o próximo filtro.
+
+### Brasil como unidade
+
+Decisões D3 e D4 (24/10/2026, pedido do responsável): no nível Brasil, a análise usa o país inteiro como uma unidade (`nivel:
+"brasil"`), com a contagem da fonte nacional e a população pela regra BR-POP-JUNHO-1. O título fica "… no Brasil", e o subtítulo,
+"A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população.". Valem a Distribuição (uma
+bolha) e a Tendência (a série nacional, na mesma regra de classes); a linha de contexto do Brasil não aparece, porque o item já
+é o total nacional. O que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3): Grupos e faixas
+saem dos ajustes, e as funções, exceto Exportar, ficam desligadas, com o motivo ("Com o Brasil como unidade, há um território
+só: esta função vale para vários."). A Análise Espacial espera municípios ("A distância é medida entre municípios: o Brasil,
+como unidade, não tem um ponto no mapa. Para usar esta análise, escolha municípios na Seleção de Territórios."), e o mapa fica
+desligado, com o motivo ("O Brasil, como unidade, não tem um ponto no mapa: cada ponto do mapa é um município."), sem atalho.
+Desde 24/10/2026, a Análise de Tendência também vale para os estados (um, vários ou todos), com a série estadual do motor.
 
 ## Abas, apresentação e ajustes de cada análise
 
 Desde 23/10/2026, uma linha de abas (`role="tablist"`, "Seleção de territórios e análises"): a Seleção de Territórios e as
-quatro análises, nesta ordem e na mesma linha (no celular, roláveis). A aba escolhida se liga a um painel colado nela
-(`analise-aba-painel`, `role="tabpanel"`, com `data-aba`), que começa pela **apresentação** (`analise-apresentacao`): um título e
-um ou dois parágrafos, em linguagem simples, só sobre o que a área faz, com os nomes territoriais da fonte (municípios e
-estados; distritos e províncias…). Na Análise de Tendência, a apresentação lista o que significa cada classe
-(`analise-apresentacao-classes`). Depois da apresentação, nas análises, vêm os ajustes (`analise-ajustes`, com
-`data-familia`), só o que vale para aquela análise, e o resumo da seleção.
+quatro análises, nesta ordem e na mesma linha (no celular, roláveis). Desde 24/10/2026, as abas aparecem só com os dados
+prontos. A aba escolhida se liga a um painel colado nela (`analise-aba-painel`, `role="tabpanel"`, com `data-aba`), que começa
+pela **apresentação** (`analise-apresentacao`): um título e um ou dois parágrafos, em linguagem simples, só sobre o que a área
+faz, com os nomes territoriais da fonte (municípios e estados; distritos e províncias…), sem códigos internos. Na Análise de
+Tendência, a apresentação lista o que significa cada classe (`analise-apresentacao-classes`, "O que significa cada classe").
+Depois da apresentação, nas análises, vêm os ajustes (`analise-ajustes`, com `data-familia`), só o que vale para aquela análise,
+e o resumo da seleção.
+
+**"Entenda esta análise"** (24/10/2026): nas quatro análises, a apresentação fica num bloco recolhível (`analise-entenda`, um
+`<details>` com o botão `analise-entenda-botao`), aberto na primeira visita de cada aba na sessão e recolhido nas seguintes,
+para os resultados ficarem no alto; se a pessoa o abre ou fecha, a aba guarda a escolha. Na Seleção de Territórios, a orientação
+curta continua sempre à vista.
 
 **Toda aba abre** (23/10/2026), mesmo a de uma análise que não pode ser executada com os dados: as abas não ficam mais
 desabilitadas (`data-disponivel` diz se a análise se executa). Nesse caso, o painel mostra a apresentação e o motivo
@@ -134,7 +205,8 @@ Análise de Rotatividade com a base do Brasil, que tem contagens e não pessoas 
 | Análise Espacial | Indicador, Categoria, Competência, Referência (a escolhida e o botão que abre o painel da referência) |
 | Análise de Tendência | Indicador, Categoria, Período (Anual ou Semestral, com as 4 competências usadas; o ritmo que a base não tem fica desligado, com o motivo) e Visão (Classes, no quadro de setas, Mudança e Séries; "Primeira", "Última" e "Reproduzir" só na Mudança) |
 | Análise de Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
-| Estados (E1), em qualquer aba, e análise que espera os municípios | Indicador, Competência, Grupos e faixas (o desenho é a distribuição) |
+| Estados (E1), na Distribuição e na análise que espera os municípios (Espacial e Rotatividade) | Indicador, Competência, Grupos e faixas (o desenho é a distribuição); na Tendência, os da Tendência |
+| Brasil como unidade | Indicador e Competência (sem Grupos e faixas: o Brasil é um só); na Tendência, os da Tendência |
 
 O texto das apresentações tem medida de leitura limitada, entrelinha folgada, justificação com hifenização na tela larga (no
 celular, alinhado à esquerda) e a mesma hierarquia em todas as abas.
@@ -197,12 +269,16 @@ O que cada análise mostra:
     quer dizer. Abaixo, a legenda das setas (`analise-setas-legenda`) e a das famílias com as contagens. O eixo mostra os 4
     períodos. No lado a lado, a linha sob o mouse destaca o ponto no mapa, e o contrário também. A escala (linear ou logarítmica) não se
     aplica ao quadro.
-  - **Classes explicadas** (23/10/2026; desde 24/10/2026, com o vocabulário das regrinhas: o **avanço** é a mudança de um período
-    para o seguinte, alta, queda ou pausa): a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento,
-    aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração de declínio, sem classificação e não
-    avaliável), que uma alta sozinha é só uma alta e duas ainda não são tendência (são precisos 4 períodos, 3 avanços), sem criar
-    classe nem critério, e termina com a âncora do método (CAP-TEN-01, DA-15), exigida pela SPEC (V-05) para descrever as
-    classes. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código ("Sem classificação:
+  - **Classes explicadas** (23/10/2026; linguagem revista em 24/10/2026, para quem não é da estatística): a apresentação da aba
+    diz o que acontece de um período para o seguinte (o indicador sobe, alta; cai, queda; ou fica igual, pausa) e, para cada
+    classe de DA-15 (crescimento, aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração de declínio,
+    sem classificação e não avaliável), o que aconteceu com o indicador nos 4 períodos, com um exemplo curto ("Aceleração do
+    crescimento: o indicador subiu em todos os períodos, e cada alta foi do mesmo tamanho ou maior que a anterior, com pelo
+    menos uma maior: o crescimento ganhou ritmo. Exemplo: 10, 11, 13 e 16 (altas de 1, 2 e 3)."). Os exemplos seguem a regra
+    do motor (conferidos nos testes com a mesma conta de `classify_speeds`). O texto só descreve a regra: não cria classe nem
+    critério. A nota diz que, com períodos de distâncias diferentes, o tamanho de cada alta ou queda é comparado por mês, e
+    termina com "A referência do método fica em Detalhes, na aba Método e procedência.", onde está a âncora do método
+    (CAP-TEN-01, rótulos de DA-15); os códigos saíram da apresentação. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código ("Sem classificação:
     entre os períodos, houve alta e queda (mudança de direção)."). Abaixo das contagens, uma nota
     (`analise-nota-sem-classificacao`) conta as unidades sem classificação por motivo, com os números do motor
     (`sem_classificacao_por_motivo`), e, quando nenhuma unidade recebeu classe, explica a regra: a classificação exige a mesma
@@ -305,20 +381,33 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela | Nenhum |
 
-A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) esmaece os demais; Comparar e Juntar agem sobre ela.
+A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) esmaece os demais; Comparar e Juntar agem sobre ela. "Limpar
+filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a comparação, o filtro da classe e os itens
+marcados, e pode ser desfeito (seção "Voltar, Limpar e Desfazer"). Uma comparação só continua enquanto os itens dela estão na
+análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do pedido (com ela, o motor recusaria o pedido com
+"Itens da comparação fora do gráfico"). Com o Brasil como unidade, só Exportar vale.
 
 ## Título e Detalhes
 
 - **Título dinâmico:** "Densidade de médicos nos municípios do Amazonas · junho de 2024"; "Densidade de médicos nos estados ·
   junho de 2024"; "Densidade de médicos e distância até MANAUS (AM) · Amazonas · junho de 2024"; "Tendência da densidade de
   médicos · Amazonas · junho de 2021 a junho de 2024". "Médicos" sai da categoria MEDICINA; com outra, "profissionais de
-  <categoria>". Subtítulo: "Cada bolha é um município. O tamanho mostra a população."
+  <categoria>". Subtítulo: "Cada bolha é um município. O tamanho mostra a população." Com uma ou duas unidades marcadas, o
+  título usa os nomes delas ("… em PORTO ALEGRE (RS) · …"); no nível Brasil, "… no Brasil · …". Na visão Classes da tendência,
+  o subtítulo é "Cada linha é um município: as setas mostram a alta, a queda ou a pausa de um período para o seguinte.".
+- **Voltar** (`analise-voltar`), acima do título, quando há uma navegação para desfazer (seção "Voltar, Limpar e Desfazer").
 - **Frase-resumo** (23/10/2026), logo abaixo do subtítulo (`analise-resumo`, lida pelos leitores de tela a cada mudança): o texto
   que o motor devolve em `resumo.texto`, como veio, só com números conferidos do resultado, sem julgamento nem causa. A tela não
   escreve nem completa a frase. Ela fala do indicador do cálculo (o `indicador` da resposta): quando a troca do indicador não
   pede nada novo ao motor, a frase sai até voltar o indicador do cálculo ou chegar um cálculo novo, para nunca descrever o outro
   indicador. Vale nas duas vistas, entra na impressão e no arquivo de método e vai no contexto da conversa. Sem frase na
-  resposta, nada aparece no lugar.
+  resposta, nada aparece no lugar. Desde 24/10/2026, a frase de um território só é individual, e a de vários não traz faixas
+  artificiais nem contagens zeradas ([Painel integrado de bolhas](PAINEL_INTEGRADO.md)).
+- **O que a classe quer dizer** (24/10/2026, `analise-resumo-significado`): com a tendência de um território só, uma linha abaixo
+  da frase-resumo diz a classe que o motor atribuiu e o que ela significa, no texto fixo da explicação, sem o exemplo
+  ("Aceleração do crescimento: o indicador subiu em todos os períodos…"; para o não avaliável, o motivo geral). Com vários
+  territórios, as contagens por classe ficam acima do quadro de setas, só com as classes que têm territórios; com um só, as
+  contagens saem.
 - **Detalhes,** abaixo do desenho, em abas: Tabela (os mesmos itens do gráfico, na ordem do código territorial, com 100 linhas
   por página; clicar num cabeçalho só reordena, sem criar posições), Não avaliáveis (por aspecto, com o motivo do motor:
   indicador, distância, variação, tendência, condições, coorte e, com o mapa à vista, coordenada do mapa) e Método e procedência
@@ -338,13 +427,18 @@ volta a um indicador já calculado vem da memória), escala, régua, seleção, 
 filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só estado visual. Os pontos do mapa vêm de
 `POST /api/painel/mapa` (seção "Vista do desenho"), com memória própria por fonte e competência.
 
-- **Opções enviadas:** `nivel` (`"estados"` ou `"municipios"`) e `indicador` (`"densidade"` ou `"quantidade"`) em todo
-  pedido, porque sem `nivel` o motor responde no contrato de 21/10, que não conhece as chaves da página única; `base`,
+- **Opções enviadas:** `nivel` (`"estados"`, `"municipios"` ou, desde 24/10/2026, `"brasil"`) e `indicador` (`"densidade"` ou
+  `"quantidade"`) em todo pedido, porque sem `nivel` o motor responde no contrato de 21/10, que não conhece as chaves da página
+  única; no nível estados, `estados` (os prefixos dos estados marcados) quando são só alguns; no nível Brasil, só competência,
+  categoria, indicador e, na tendência, a janela; `base`,
   `conjuntos`, `referencia`, `faixas_distancia`, `competencia_inicial` e `tendencia: {competencias}` (com quatro competências
   ou mais) conforme a família; `grupos` ou `faixas` na Distribuição; `grupos_mapa: {tipo: "quintis"}` quando a análise não
   tem cor própria e o mapa está disponível (unidades com coordenadas, fora da visão Séries); `condicoes`, `ordenar` e
   `comparar` quando pedidos;
-  `rotatividade: {inicial, final}`; `premissas`, só nas planilhas (na base do Brasil, o motor recusa).
+  `rotatividade: {inicial, final}`; `premissas`, só nas planilhas (na base do Brasil, o motor recusa); e, desde 24/10/2026,
+  `rotulos` (os nomes da unidade e do grupo confirmados no painel Colunas), só nas planilhas, como já ia no pedido do mapa.
+  Antes, sem eles, o motor respondia com "unidade/unidades", e a área e a frase-resumo trocavam os nomes da planilha pelos
+  genéricos depois do primeiro cálculo.
 - **Planilhas:** as premissas escolhidas no painel Colunas (unidade de contagem, referencial, separador decimal e, em
   `confirmed_roles`, as colunas que a pessoa escolheu no seletor, como no pré-exame, D1) vão em todo pedido, somadas às que a
   pessoa confirma numa pendência (um papel confirmado entra na lista `confirmed_roles`). Sem população associada, o indicador começa na quantidade: o motor
@@ -440,7 +534,8 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
 
 - A conversa e o Histórico dependem da estrutura da página (frente B1); a área entrega o contexto, o estado salvo e aplica o
   pedido.
-- Tendência e Análise espacial na visão dos estados esperam a escolha de municípios (os estados ficam para depois).
+- A Análise espacial nos estados e no Brasil espera a escolha de municípios (os estados e o Brasil não têm um ponto no mapa);
+  a Tendência vale para os estados e para o Brasil desde 24/10/2026.
 - Não há mapa no nível dos estados: os ladrilhos dos estados não foram aprovados.
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
@@ -451,8 +546,10 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   indicador com o arranjo horizontal sem sobreposição; o modo leve preso à largura; a ausência de escala logarítmica
   automática; a análise espacial; o cometa vertical só com a variação do motor; as camadas de cor (classe, grupos, faixas,
   condições e ordem); a nomenclatura territorial (municípios e estados; distritos e províncias; comunas); a escolha de
-  territórios (marcar e desmarcar unidades e grupos); a trilha e o título; as opções do pedido com as chaves do contrato; o que
-  falta para pedir; a disponibilidade das famílias; o comando da conversa; a janela e as séries; a tabela em páginas; o CSV em
+  territórios (marcar e desmarcar unidades e grupos; desde 24/10/2026, a seleção cumulativa entre estados, o que está marcado
+  estado a estado, o resumo da seleção, inclusive a planilha sem a lista das unidades, e o lugar no título, com os nomes de uma
+  ou duas unidades); o título; as opções do pedido com as chaves do contrato (também no nível Brasil e com os estados
+  escolhidos); a comparação que sai quando os itens dela saem da análise; o que falta para pedir; a disponibilidade das famílias; o comando da conversa; a janela e as séries; a tabela em páginas; o CSV em
   precisão integral; o estado salvo; o contexto do gráfico; e a normalização da resposta no cliente. Desde 23/10/2026,
   `frontend/tests/areaDeAnalise.test.mjs` cobre os ajustes de cada análise (sem indicador na rotatividade; nos estados, os da
   distribuição), a disponibilidade do mapa com o motivo e o atalho, a pintura do mapa (a camada do gráfico, os quintis do motor
@@ -462,7 +559,9 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   integrado de 23/10/2026, os nomes das abas, a abertura sem seleção, a apresentação de cada aba (base do Brasil, planilha de
   distritos e antes dos dados, sem códigos internos), o que significa cada classe da tendência, o motivo de cada unidade em
   palavras e a nota das sem classificação; desde 24/10/2026, o quadro de setas (um ponto por período, uma seta por avanço com o
-  sinal do motor, a escala da linha, a lacuna sem ponto inventado e a ordem por classe). `frontend/tests/painel.test.mjs` cobre o
+  sinal do motor, a escala da linha, a lacuna sem ponto inventado e a ordem por classe), as classes em palavras simples, com um
+  exemplo cada (os exemplos conferidos pela mesma regra do motor, `classify_speeds`, passo a passo), o que a classe quer dizer
+  (`significadoDaClasse`), a Seleção só com a orientação curta e a apresentação sem códigos. `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
   o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
   conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial).
@@ -473,21 +572,25 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   Tailwind, o contraste dos textos, avisos, links e botões nas superfícies escuras e a ausência de cor fixa nas folhas de
   estilo.
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
-  (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, com as cinco abas na mesma linha, nos nomes padronizados, e a
-  apresentação de cada aba (a da tendência com as classes); a base sem seleção automática (nenhum pedido, a Seleção aberta e as
-  abas das análises com a apresentação); E1 com os estados escolhidos na Seleção, a lista sem digitar, a instrução e a ação na
-  dica; os ajustes dentro de cada análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala
+  (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, desde 24/10/2026 sem as abas, só com a identificação, a chamada e
+  as duas entradas; a base sem seleção automática (nenhum pedido, a Seleção aberta e as abas das análises com a apresentação
+  em "Entenda esta análise", aberta na primeira visita e recolhida depois, como a pessoa deixou); os níveis da Seleção (Estados
+  com "Marcar todos os estados", cada nível com a sua escolha); E1 com os estados escolhidos, a instrução e a ação na dica;
+  desde 24/10/2026, a seleção cumulativa entre estados (abrir outro estado não muda nada nem pede ao motor), o × que tira um
+  estado, Limpar (a vassoura) e Desfazer, a busca no alto, "Voltar aos estados" depois da bolha, o Brasil como unidade (só o
+  nível no pedido, um item, a frase do motor, as funções e o mapa desligados, sem Grupos) e os estados escolhidos no pedido
+  (`estados`); os ajustes dentro de cada análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala
   fora deles, na barra junto do desenho); a vista do desenho (o gráfico de início; nos estados e em Séries, o mapa
   desligado, com o motivo e o atalho); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da
-  resposta (e fora da tela quando o indicador à vista não é o do cálculo); marcar e desmarcar, marcar e desmarcar todos; a busca
-  como complemento (sem seleção, nada da seleção anterior à vista); voltar aos estados pela trilha; os quintis do mapa no pedido
+  resposta (e fora da tela quando o indicador à vista não é o do cálculo); marcar e desmarcar, marcar e desmarcar todos (sem
+  seleção, nada da seleção anterior à vista); os quintis do mapa no pedido
   e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo teclado e pelo mouse; quartis; a análise espacial (o
   eixo X e o convite ao mapa na base versionada; a recusa e a pendência no catálogo sintético); a tendência nas três visões, com
   a nota das sem classificação e o motivo em palavras na dica, e, desde 24/10/2026, o campo Período (sem ritmo padrão; o anual
   desligado, com o motivo, no catálogo sintético; os últimos 4 períodos no pedido) e o quadro de setas (cada linha com a classe
   do motor, uma seta por velocidade do motor com o sinal dela e um ponto por observação; a ordem por classe; o filtro pela
   contagem; a escolha da linha; a dica no mouse e no foco); a rotatividade com a apresentação e o motivo, sem pedido;
-  Condições (com o convite ao mapa), Ordenar, Comparar e Juntar; o CSV; os Detalhes; o modo
+  Condições (com o convite ao mapa), Ordenar, Comparar e Juntar; "Limpar filtros" e "Desfazer a limpeza"; o CSV; os Detalhes; o modo
   leve com todos os municípios do Brasil (base versionada); e o celular (o painel dos ajustes na largura e a vista à vista). Cada
   bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor

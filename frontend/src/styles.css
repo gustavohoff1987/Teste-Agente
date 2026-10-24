@@ -288,6 +288,13 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .workspace-dialog { width: min(600px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; padding: 24px; border: 2px solid var(--cor-borda-nav); border-radius: 20px; background: var(--cor-superficie-elevada); color: var(--cor-texto); }
 .workspace-dialog::backdrop { background: var(--cor-veu-dialogo); backdrop-filter: blur(3px); }
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+/* Janela "Enviar meus dados" (24/10/2026): a escolha do arquivo e, logo abaixo, o modelo de planilha para consultar ou baixar. */
+.envio-escolher { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; margin-top: 16px; padding: 10px 18px; border: 1px solid var(--cor-destaque);
+  border-radius: 12px; background: var(--cor-destaque); color: var(--cor-sobre-tinta); font-size: 14px; font-weight: 700; }
+.envio-escolher:hover { background: var(--cor-destaque-realce); }
+.envio-modelo { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--cor-borda-cartao); border-radius: 14px; background: var(--cor-superficie); }
+.envio-modelo-baixar { display: inline-flex; margin-top: 8px; color: var(--cor-destaque-texto); font-size: 13px; font-weight: 650; text-decoration: underline;
+  text-underline-offset: 2px; }
 .dialog-actions button { padding: 10px 14px; border: 2px solid var(--cor-borda-nav); border-radius: 10px; font-size: 13px; font-weight: 650; }
 .dialog-actions button:hover:not(:disabled) { background: var(--cor-realce); }
 .dialog-actions button:disabled { opacity: .4; }

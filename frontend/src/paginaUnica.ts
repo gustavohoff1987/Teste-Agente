@@ -7,7 +7,8 @@
 /** As quatro famílias de análise da área. */
 export type Familia = "distribuicao" | "espacial" | "tendencia" | "rotatividade";
 export type Indicador = "densidade" | "quantidade";
-export type Nivel = "estados" | "municipios";
+/** O nível em análise: os municípios, os estados como unidades ou o Brasil inteiro como uma unidade (24/10/2026). */
+export type Nivel = "estados" | "municipios" | "brasil";
 /** Universo do gráfico, na forma de `options.base.municipios` do motor. */
 export type MunicipiosDoGrafico = { todos: boolean; estados: string[]; ids: string[] };
 /** Como se chamam as unidades territoriais e os grupos delas, no singular e no plural. */
@@ -37,6 +38,8 @@ export type PedidoDoChat = {
 export type ContextoDoGrafico = {
   familia: Familia; indicador: Indicador; nivel: Nivel; municipios: MunicipiosDoGrafico; idsNaTela: string[];
   competencia: string; janela: string[]; referencia: string[]; titulo: string;
+  /** Os estados escolhidos no nível estados (24/10/2026). */
+  estados?: string[];
   /** Vista em exibição e a frase-resumo do motor (verificada), para a conversa responder "o que o gráfico mostra?". */
   vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
   /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */

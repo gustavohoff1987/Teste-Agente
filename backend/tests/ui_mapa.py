@@ -172,15 +172,20 @@ def main():
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios. O mapa fica desligado, com o motivo
-        # (os estados não têm um ponto) e o atalho; nada é pedido ao endpoint do mapa.
+        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios (o nível Estados e "Marcar todos os
+        # estados", 24/10/2026). O mapa fica desligado, com o motivo (os estados não têm um ponto) e o atalho; nada é pedido ao
+        # endpoint do mapa.
         area.get_by_test_id("analise-fonte-brasil").click()
-        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados", timeout=120000)
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true", timeout=120000)
         expect(area).to_have_attribute("data-aba", "territorios")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         page.wait_for_timeout(500)
         assert not painel_calls and not mapa_calls, "sem territórios escolhidos, nada é pedido ao motor"
-        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-territorios-estados")))
+        aperta(territorios.get_by_test_id("analise-nivel-estados"))
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
         assert sent.get("nivel") == "estados" and "grupos_mapa" not in sent, sent
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area).to_have_attribute("data-estado", "E1")
         expect(area).to_have_attribute("data-desenho", "grafico")
         botao_mapa = area.get_by_test_id("analise-desenho-mapa")
@@ -223,14 +228,19 @@ def main():
         expect(area.get_by_test_id("analise-escala")).to_have_count(0)
         shot("01-brasil-quintis")
 
-        # 3. Amazonas pela Seleção de Territórios: o mapa abre afastado, com contexto em volta do estado e o restante do Brasil ao
-        # fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para os municípios do estado.
+        # 3. Amazonas pela Seleção de Territórios (desmarcar todos os municípios e marcar os do Amazonas; abrir a lista de um
+        # estado só mostra a lista, desde 24/10/2026): o mapa abre afastado, com contexto em volta do estado e o restante do Brasil
+        # ao fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para os municípios do estado.
         pedidos_mapa = len(mapa_calls)
         aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(territorios.get_by_test_id("analise-desmarcar-todos"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
-        am, sent = ok(lambda: aperta(linha_am.get_by_test_id("analise-grupo-ver")))
+        am, sent = ok(lambda: marca(linha_am.get_by_test_id("analise-grupo-todos")))
         assert sent["base"] == {"municipios": {"todos": False, "estados": [AM], "ids": []}}, sent
         assert sent.get("grupos_mapa") == {"tipo": "quintis"}, sent
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        expect(area).to_have_attribute("data-desenho", "mapa")
         desenhaveis_am = com_ponto(am, pontos_motor)
         estado = desenhado(len(desenhaveis_am), "quintis")
         assert estado["contexto"] == len(set(pontos_motor) - {item["id"] for item in desenhaveis_am}), estado["contexto"]
@@ -391,7 +401,8 @@ def main():
         navegacao = page.get_by_test_id("main-navigation")
         navegacao.get_by_test_id("nav-new-analysis").click()
         expect(area).to_have_attribute("data-estado", "E1", timeout=60000)
-        expect(area.get_by_test_id("analise-vazio")).to_contain_text("Selecione os territórios que deseja analisar.")
+        expect(area).to_have_attribute("data-aba", "territorios")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-desenho", "grafico")
         expect(mapa).to_have_count(0)
         historico = page.get_by_test_id("nav-history")

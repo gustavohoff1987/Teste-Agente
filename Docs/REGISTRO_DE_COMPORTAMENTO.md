@@ -35,6 +35,172 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-24 · Página única: duas entradas dos dados, Seleção de Territórios por níveis e cumulativa, Voltar e Limpar, explicações recolhíveis e frase-resumo individual
+- **Antes:**
+  - **Abertura (E0):** "Diagnóstico territorial da força de trabalho em saúde" e "Escolha os dados para começar", com três
+    entradas ("Dados do Brasil", "Enviar meus dados" e "Modelo de planilha XLSX") e o texto "… O aceite de privacidade vem
+    antes.". As abas das análises ficavam à vista antes dos dados, e clicar numa delas registrava a intenção ("Você escolheu
+    Análise de Tendência. Agora escolha os dados."). Nova sessão, Nova análise (desabilitada) e Histórico ficavam à vista desde
+    o início.
+  - **Envio:** "Enviar meus dados" abria direto o seletor de arquivos; o modelo de planilha era um botão à parte, na área e na
+    conversa (`analise-fonte-modelo`, `chat-fonte-modelo`); "Trocar" trazia as três entradas. A conversa perguntava "… Prefere
+    começar com os dados do Brasil, enviar os seus ou baixar o modelo de planilha?".
+  - **Seleção de Territórios:**
+    - "Territórios disponíveis", com as opções "Todos os estados (27)" e "Todos os municípios do Brasil (5.570)", a lista dos
+      estados e, no fim, a busca ("Procurar pelo nome ou código (opcional)"), com instruções sobre as caixas.
+    - **Defeito:** "Ver os N municípios" abria a lista e punha só aquele estado na análise. Marcar municípios da Bahia e depois
+      abrir Santa Catarina trocava a seleção, e a da Bahia se perdia.
+    - A aba mostrava também o desenho, a frase-resumo e os Detalhes.
+    - Não havia o Brasil como unidade nem a escolha de alguns estados; a Tendência nos estados esperava os municípios.
+  - **Voltar:** a trilha "Brasil › Amazonas (62 municípios)": "Brasil" voltava aos estados, e o nome do estado, ao estado
+    inteiro. Não havia Limpar nem Desfazer.
+  - **Explicações:** a apresentação de cada análise ficava sempre aberta no alto da aba. A das classes da tendência falava de
+    "avanços" e terminava com "Método de classificação: CAP-TEN-01 (DA-15).".
+  - **Frase-resumo:** sempre coletiva, também com um território só ("o gráfico tem 1 município. Entre os municípios, a
+    densidade vai de 9,40 a 9,40 …; 0 municípios sem valor."), e com as contagens zeradas ("família do declínio, 0; …; não
+    avaliável, 0").
+  - **Nomes da planilha (defeito):** o pedido ao `/api/painel` não levava os rótulos confirmados no painel Colunas (só o pedido
+    do mapa levava). O motor respondia com "unidade/unidades", e a área e a frase-resumo trocavam os nomes da planilha pelos
+    genéricos depois do primeiro cálculo ("Em 2024, o gráfico tem 3 unidades.").
+- **Agora:**
+  - **Abertura e envio (itens 1 e 2 do pedido):**
+    - **Abertura (E0):** mais acima e centrada, só "Diagnóstico Territorial da Força de Trabalho em Saúde", "Escolha seus dados
+      para começar", uma frase ("Use os dados do Brasil, já preparados, ou envie a sua planilha em CSV ou Excel.") e dois
+      botões, "Usar dados do Brasil" e "Enviar meus dados". O texto sobre o aceite de privacidade saiu (o aceite continua antes
+      de tudo).
+    - **Abas e navegação:** as abas e Nova sessão, Nova análise e Histórico aparecem quando a base fica pronta. A escolha da
+      análise antes dos dados (a "intenção") saiu.
+    - **Janela de envio:** "Enviar meus dados" abre a mesma janela em todas as entradas (a abertura, a conversa, o "Trocar" e
+      o "Enviar meus dados" da Rotatividade): o que enviar, "Escolher o arquivo" e o modelo de planilha, com as colunas
+      descritas e "Baixar o modelo de planilha (XLSX)". Os botões do modelo na área e na conversa saíram.
+    - **Conversa:** "O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?", com "Usar dados do Brasil"
+      e "Enviar meus dados".
+    - **Trocar:** as mesmas duas entradas, com "Cancelar"; a análise em uso continua à vista até a nova fonte ficar pronta, e
+      um cancelamento ou um arquivo recusado não a tiram da tela.
+  - **Seleção de Territórios (item 3):**
+    - **Níveis,** um em análise por vez, cada um com a sua escolha: o **Brasil** como unidade (o total da fonte nacional, que
+      não é a soma dos estados nem a seleção de todos os municípios), os **estados** (um, vários ou todos, com "Marcar todos os
+      estados (27)" e "Desmarcar todos os estados") e os **municípios**, navegados por estado e cumulativos.
+    - **Defeito corrigido na causa:** abrir a lista de um estado ("Ver os N municípios ›") só mostra a lista e não muda a
+      seleção; marcar na Bahia e depois em Santa Catarina mantém os dois.
+    - **Comandos coletivos** que dizem sobre qual conjunto agem: "Marcar todos os municípios do Brasil (5.570)" (no lugar de
+      "Todos os municípios do Brasil"), "Desmarcar todos os municípios", "Marcar todos os municípios da Bahia", "Desmarcar os
+      municípios da Bahia" e a caixa do estado inteiro.
+    - **Busca no alto,** por nome ou código, com os estados e os municípios encontrados.
+    - **Na análise:** o resumo do que está marcado ("3 municípios de 2 estados", "Bahia e Santa Catarina", "PORTO ALEGRE
+      (RS)"), estado a estado, cada um com um × para tirá-lo, "Ver a <análise>" e "Limpar a seleção". A aba fica só com a
+      seleção: o desenho, a frase-resumo e os Detalhes ficam nas análises. Os textos técnicos e as instruções das caixas saíram;
+      fica a orientação curta.
+    - **Planilhas:** os mesmos passos, sem os níveis; sem a lista das unidades no catálogo, "Marcar todos" continua valendo
+      para a planilha inteira, e o resumo fica sem um "(0)".
+    - **Tendência dos estados:** a Análise de Tendência vale para os estados escolhidos (o motor já a calculava no nível
+      estados); a espacial continua esperando os municípios.
+  - **Voltar, Limpar e Desfazer (item 4):**
+    - **Voltar** (a seta ←, no alto da análise) desfaz a última navegação, com o nome dela: abrir um estado pela bolha e o
+      atalho do mapa ("Voltar aos estados") e uma mudança de territórios pedida na conversa ("Voltar à seleção anterior"). Uma
+      mudança à mão na Seleção esvazia a pilha. A trilha saiu.
+    - **Limpar** (a vassoura): "Limpar a seleção de municípios" (ou "de estados"), na Seleção, e "Limpar filtros", nas
+      análises (a régua, as condições, a ordenação, a comparação, o filtro da classe e os itens marcados, sem mexer nos
+      territórios nem nos ajustes).
+    - **Desfazer** depois de marcar ou desmarcar muitos de uma vez, de limpar a seleção e de limpar os filtros.
+  - **Explicações (itens 5, 7 e 8):**
+    - **Classes da tendência** em linguagem simples, com um exemplo curto cada ("Aceleração do crescimento: o indicador subiu em
+      todos os períodos, e cada alta foi do mesmo tamanho ou maior que a anterior, com pelo menos uma maior: o crescimento
+      ganhou ritmo. Exemplo: 10, 11, 13 e 16 (altas de 1, 2 e 3)."). A nota termina com "A referência do método fica em
+      Detalhes, na aba Método e procedência.", onde está "CAP-TEN-01, rótulos de DA-15".
+    - **"Entenda esta análise":** nas quatro análises, a apresentação fica num bloco recolhível, aberto na primeira visita de
+      cada aba e recolhido nas seguintes, para os resultados ficarem no alto.
+  - **Frase-resumo e significado (item 6):**
+    - **Um território só:** a frase é individual: "PORTO ALEGRE (RS), em junho de 2024: densidade de 9,40 por 1.000
+      habitantes. Entre junho de 2021 e junho de 2024, a variação da densidade foi de 25,96% (aumento). Tendência de junho de
+      2021 a junho de 2024: Aceleração do crescimento. Referência de contexto: a taxa do Brasil (total nacional) é de 2,36 por
+      1.000 habitantes."; abaixo dela, o que a classe quer dizer ("Aceleração do crescimento: o indicador subiu em todos os
+      períodos…"). Sem contagens por classe na tela com um território só.
+    - **Vários territórios:** sem "de X a X" com valores iguais e sem as contagens que são zero.
+  - **Motor (`/api/painel`):**
+    - **`nivel: "brasil"`:** um item `tipo: "brasil"`, `id: "br"`, com a contagem da fonte nacional e a população
+      BR-POP-JUNHO-1, a mudança e a tendência; grupos, faixas, condições, ordenação, comparação, conjuntos, referência e
+      rotatividade recusados com o motivo; sem a linha de contexto.
+    - **`estados`:** no nível estados, a lista dos estados escolhidos (sem ela, todos, como antes).
+    - **Frase-resumo:** individual com um território só; coletiva sem faixas artificiais nem contagens zeradas; a linha de
+      contexto como "Referência de contexto: a taxa do Brasil (total nacional) é de …".
+  - **Nomes da planilha:** os rótulos confirmados vão em todo pedido de planilha ao `/api/painel`, e a resposta, a área e a
+    frase falam deles ("Em 2024, o gráfico tem 3 condados.").
+  - **Comparação que continua:** na verificação desta rodada, trocar o nível ou tirar da seleção um item comparado deixava a
+    comparação no pedido, e o motor o recusava ("Itens da comparação fora do gráfico"). Agora, a comparação só continua
+    enquanto os itens dela estão na análise.
+- **Permanece:**
+  - **Métodos e valores:** os cálculos, os métodos e as classes (CAP-TEN-01, DA-15, CAP-TMP-01, CAP-DIS-02), os rótulos, a
+    população BR-POP-JUNHO-1, a linha de contexto do Brasil (D5) nos municípios e nos estados e todos os números do motor.
+  - **Regras de leitura:** nenhum nível somado a outro (RQ-DAD-30) e as decisões D3, D4 e D5.
+  - **Contrato sem `nivel`:** o contrato de `/api/painel` sem `nivel` e o nível estados sem a lista `estados` (todos).
+  - **Planilha:** o aceite de privacidade antes de tudo; a preparação da planilha (formatos, tamanho, aba, painel Colunas);
+    o Histórico, Nova análise e Nova sessão (com o diálogo de sempre); o mapa e as vistas.
+  - **Dados e provedor:** os dados versionados não mudam, e nada da base vai ao provedor de IA.
+- **Motivo:** pedido do responsável pelo produto em 24/10/2026, "Comando para o Opus — rodada de ajustes de interface,
+  navegação e análises" (itens 1 a 10), com o defeito prioritário da seleção cumulativa ("ao selecionar municípios da Bahia
+  e, em seguida, municípios de Santa Catarina, a seleção da Bahia é perdida").
+  - **Classificação:** todos os itens são mudança de comportamento prevista. Decorrem do pedido e não contrariam a SPEC nem
+    as divergências aprovadas. Classificados pela leitura, antes de codar:
+    - **Brasil como unidade:** previsto na D3 (abrangência vertical com Brasil), na D4 (população nacional) e na matriz
+      por análise ([abrangência territorial](ABRANGENCIA_TERRITORIAL.md)). Com o Brasil, valem os valores, a mudança e a
+      evolução temporal; o que agrupa, ordena, filtra ou compara vários territórios "não se aplica". A linha de contexto (D5)
+      não aparece quando o item é o próprio total nacional.
+    - **Estados escolhidos e tendência dos estados:** a D3 admite a distribuição só entre estados e a evolução temporal nos
+      estados.
+    - **Navegação só com os dados:** o controle "Encerrar sessão" (RQ-FLX-17, AT-152) continua em "Nova sessão" assim que a
+      base fica pronta. Antes dos dados não há base nem resultado a descartar, e a inatividade continua encerrando a sessão.
+    - **Modelo de planilha:** só na janela de envio; a SPEC não tem regra sobre onde fica o modelo.
+    - **Texto sobre o aceite:** sai só a frase; a declaração continua antes de tudo, como na divergência de 19/10/2026
+      (RQ-FLX-19, TPL-09).
+    - **Classes e âncora do método:** as classes descritas sem mudar critério nem classe. A âncora do método (CAP-TEN-01, DA-15)
+      fica no bloco de método (TPL-12, "Método e documentação"), e a apresentação aponta para ele (V-05, RQ-SIN-10).
+    - **Frase-resumo:** só cópias verificadas (D7), com a direção da mudança de CAP-TMP-01 (aumento, redução, sem mudança) e
+      LEX-TEN só com a tendência.
+    - **Nomes da planilha e comparação:** defeitos encontrados na verificação desta rodada. As correções fazem o código cumprir
+      o que os documentos já diziam (a nomenclatura da planilha nos textos da área; a comparação só entre itens da análise) e
+      usam chaves que o motor já aceitava (`rotulos`, `comparar`).
+- **Documentação e testes:**
+  - **Documentação:**
+    - `Docs/PAINEL_INTEGRADO_INTERFACE.md`: entradas dos dados, estados da tela, Seleção por níveis, Voltar, Limpar e
+      Desfazer, Brasil como unidade, "Entenda esta análise", classes, significado, pedido e testes.
+    - `Docs/PAINEL_INTEGRADO.md`: o nível `brasil`, a lista `estados` e a frase-resumo individual e coletiva.
+    - `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`: estrutura, envio, Trocar e conversa.
+    - `Docs/MAPA_DA_PAGINA_UNICA.md`, `Docs/CONVERSACAO_INCREMENTO_FN.md`, `Docs/ABRANGENCIA_TERRITORIAL.md` (a nota da
+      página única) e `README.md`.
+  - **Testes novos:**
+    - **Motor (`test_painel_pagina.py`):** `test_states_level_with_the_chosen_states`,
+      `test_brazil_level_is_the_national_total_as_one_unit` e, com a base versionada,
+      `test_real_brazil_level_is_the_national_reference_and_the_national_trend`.
+    - **Frase (`test_painel_resumo.py`):** `test_one_territory_gets_its_own_sentence_without_ranges_or_zero_counts`.
+    - **`painel.test.mjs`:** a seleção cumulativa entre estados (Bahia e Santa Catarina), o resumo do que está na análise
+      (inclusive a planilha sem a lista das unidades), as opções do pedido no nível Brasil, com os estados escolhidos e com os
+      nomes da planilha, os títulos e a comparação que sai com os itens.
+    - **`areaDeAnalise.test.mjs`:** as classes em palavras simples, com os exemplos conferidos pela mesma regra do motor
+      (`classify_speeds`); `significadoDaClasse`; os ajustes no nível Brasil.
+    - **Roteiros:**
+      - `ui_area_de_analise.py`: E0 sem abas, os níveis, "Entenda esta análise", a seleção cumulativa, o ×, Limpar e
+        Desfazer, a busca no alto, Voltar, o Brasil como unidade, os estados escolhidos e "Limpar filtros".
+      - `ui_pagina_unica.py`: a janela de envio por todas as entradas, os nomes da planilha no pedido e na Seleção depois da
+        resposta e a análise que continua com o cancelamento e o arquivo recusado.
+      - `ui_conversa_grafico.py`: os nomes da planilha de condados no pedido, na resposta e na Seleção.
+      - `ui_conversa_grafico.py`, `ui_mapa.py` e `ui_modo_escuro.py`: também atualizados para a nova abertura, os níveis da
+        Seleção e a janela de envio (no modo escuro, a janela também é conferida no escuro).
+  - **Testes mudados de propósito:** o comportamento mudou por este pedido; os defeitos da seleção, dos nomes da planilha e da
+    comparação estavam no produto, e não nos testes.
+    - **Frase (`test_painel_resumo.py`):** as frases esperadas sem "Entre os municípios", sem as contagens zero e com a nova
+      forma da linha de contexto e da tendência.
+    - **`painel.test.mjs`:**
+      - o teste da trilha (`trilhaDoUniverso`, que saiu) virou o do resumo e do lugar no título;
+      - o título de E0;
+      - a disponibilidade da tendência nos estados.
+    - **`areaDeAnalise.test.mjs`:** os textos da Seleção e das classes.
+    - **`conversaGrafico.test.mjs`:** a pergunta da abertura.
+    - **Roteiros:** os passos que usavam os botões e as opções que saíram (`analise-territorios-estados`,
+      `analise-territorios-todos`, `analise-fonte-modelo`, `chat-fonte-modelo`, a trilha) passaram aos controles novos, com as
+      mesmas conferências contra o motor.
+  - Nenhum teste foi enfraquecido, pulado ou apagado sem a cobertura registrada acima.
+
 ### 2026-10-24 · Tendência sem janela longa e os rótulos "Aceleração de declínio" e "Desaceleração de declínio"
 - **Antes:**
   - Uma janela pedida na conversa valia como veio na tela, até a escolha de um ritmo no campo Período. Por exemplo, "tendência

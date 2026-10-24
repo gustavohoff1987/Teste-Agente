@@ -214,9 +214,10 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   superfície escura, quintis com a cor que a área entrega). `frontend/tests/areaDeAnalise.test.mjs`: quando a área pinta pelos
   quintis e quando o pedido os leva.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
-  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção, porque a base abre sem seleção), o mapa desligado,
-  com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do motor sem pergunta (a
-  mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas com os pontos já guardados, os
+  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção, no nível Estados, porque a base abre sem seleção),
+  o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do
+  motor sem pergunta (a mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas (desde
+  24/10/2026, marcado pela caixa do estado na Seleção, porque abrir a lista de um estado só mostra a lista) com os pontos já guardados, os
   quintis dele e o enquadramento com contexto (os pontos do estado só na parte central do mapa); os quintis escolhidos no
   gráfico, iguais aos do mapa;
   a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
@@ -233,4 +234,5 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 - Sem limites oficiais de estados nem do Brasil: o formato vem dos próprios pontos (seção 4 de
   [Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md)).
 - Estados em ladrilhos: não foram aprovados (precisariam de um adendo à SPEC); nos estados, o mapa fica desligado, com o motivo
-  e o atalho para os municípios.
+  e o atalho para os municípios. Com o Brasil como unidade (24/10/2026), também: "O Brasil, como unidade, não tem um ponto no
+  mapa: cada ponto do mapa é um município.", sem atalho.

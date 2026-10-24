@@ -257,6 +257,71 @@ def test_states_level_uses_the_state_source_and_the_state_population(repo):
     refused(post(info, **states, condicoes=[{"atributo": "distancia_km", "operador": ">", "valor": 1}]), "ponto único")
 
 
+def test_states_level_with_the_chosen_states(repo):
+    """Seleção de Territórios (24/10/2026): no nível estados, `estados` traz os estados escolhidos (prefixos IBGE ou ids
+    uf:), com os mesmos valores do pedido com todos; sem a lista, todos, como antes."""
+    info = inspection()
+    states = {"nivel": "estados", "indicador": "densidade", "competencia": "202406"}
+    todos = ok(post(info, **states))
+    para = ok(post(info, **states, estados=["15"]))
+    assert [item["id"] for item in para["itens"]] == ["uf:15"]
+    assert para["itens"][0] == by_id(todos)["uf:15"]
+    assert [item["id"] for item in ok(post(info, **states, estados=["uf:15", "13"]))["itens"]] == ["uf:13", "uf:15"]
+    assert para["chave_execucao"] != todos["chave_execucao"]
+    # A tendência e os grupos valem sobre os estados escolhidos.
+    trend = ok(post(info, **states, estados=["15"], tendencia={"competencias": PERIODS}))
+    assert trend["tendencia"]["universo"] == 1 and trend["itens"][0]["tendencia"]["motivo"] == "SERIE_ESTAVEL"
+    refused(post(info, **states, estados=[]), "Estados inválidos")
+    refused(post(info, **states, estados=["15", "15"]), "Estados inválidos")
+    refused(post(info, **states, estados=["99"]), "Estado sem registro na fonte estadual: 99")
+    refused(page(info, estados=["13"]), "A lista estados vale só no nível estados")
+
+
+# --------------------------------------------------------------------------------------------- Brasil
+def test_brazil_level_is_the_national_total_as_one_unit(repo):
+    """O Brasil como unidade agregada (24/10/2026; decisões D3 e D4): um item só, com a contagem da fonte nacional e a
+    população BR-POP-JUNHO-1, os mesmos valores da linha de contexto; a tendência é a da evolução temporal do Brasil;
+    o que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3)."""
+    info = inspection()
+    brazil = {"nivel": "brasil", "indicador": "densidade", "competencia": "202406"}
+    body = ok(post(info, **brazil, competencia_inicial="202106"))
+    assert set(body) == TOP
+    [item] = body["itens"]
+    assert (item["id"], item["tipo"], item["rotulo"], item["uf"], item["grupo_territorial"]) == (
+        "br", "brasil", "Brasil", None, None)
+    line = ok(page(info))["contexto"]["brasil"]
+    assert (item["quantidade"], item["populacao"], item["densidade"]) == (line["quantidade"], line["populacao"],
+                                                                          line["densidade"])
+    before = ok(page(info, competencia="202106"))["contexto"]["brasil"]
+    assert item["inicial"] == {"populacao": before["populacao"], "quantidade": before["quantidade"],
+                               "densidade": before["densidade"]}
+    assert item["variacao_percentual"]["quantidade"] == 0  # 1.000 nas duas competências
+    if before["densidade"] is not None:
+        exact = (Fraction(1000 * 1000, line["populacao"]) - Fraction(1000 * 1000, before["populacao"])) / \
+            Fraction(1000 * 1000, before["populacao"]) * 100
+        assert item["variacao_percentual"]["densidade"] == float(exact)
+    # O próprio item é o total nacional: sem a linha de contexto; a nota diz a regra e que o Brasil não soma níveis.
+    assert body["contexto"] == {"brasil": None}
+    assert painel.NOTE_BRAZIL in body["notas"] and painel.NOTE_CONTEXT not in body["notas"]
+    assert body["disponibilidade"]["espacial"] == {"disponivel": False, "motivo": painel.BRAZIL_NO_POINT, "pendencia": None}
+    # Tendência: a mesma classe da evolução temporal do Brasil (abrangência nacional de /api/analyze), na mesma janela.
+    window = PERIODS[2:]
+    trend = ok(post(info, **brazil, tendencia={"competencias": window}))
+    analysis = ok(analyze(info, "temporal", {"brasil": True}, temporal_indicator="density", period_filters=window))
+    [row] = [row for row in analysis["rows"] if row["Território"].startswith("Brasil")]
+    assert trend["itens"][0]["tendencia"]["rotulo"] == row["Tendência"]
+    assert trend["tendencia"]["universo"] == 1
+    # Funções de vários territórios e a distância não se aplicam; nas planilhas, não há nível Brasil.
+    refused(post(info, **brazil, grupos={"tipo": "quartis"}), "a distribuição agrupa vários territórios, e o Brasil é um só")
+    refused(post(info, **brazil, ordenar={"atributo": "densidade", "ordem": "desc"}), "e o Brasil é um só")
+    refused(post(info, **brazil, comparar=["br", "uf:13"]), "e o Brasil é um só")
+    refused(post(info, **brazil, referencia={"membros": [MANAUS]}), "o Brasil não tem um ponto único")
+    refused(post(info, **brazil, base={"municipios": {"todos": True}}), "a unidade é o país inteiro")
+    refused(post(info, **brazil, estados=["13"]), "A lista estados vale só no nível estados")
+    refused(post(info, **brazil, rotatividade={"inicial": "202306", "final": "202406"}), ROTATION)
+    refused(districts(nivel="brasil"), "O nível Brasil existe só na base do Brasil")
+
+
 # --------------------------------------------------------------------------------------------- tendência
 def test_trend_per_item_is_the_temporal_evolution_of_the_same_window(repo):
     info = inspection()
@@ -829,6 +894,26 @@ def test_real_states_match_the_state_level_of_the_density_analysis(real):
             row["Quantidade"], row["População"], row["Densidade por 1.000"])
     line = body["contexto"]["brasil"]
     assert line["densidade"] is not None and line["competencia"] == "202406"
+    # Os estados escolhidos (24/10/2026): os mesmos valores do pedido com todos.
+    chosen = ok(post(real, nivel="estados", indicador="densidade", competencia="202406", estados=["29", "42"]))
+    assert [item["id"] for item in chosen["itens"]] == ["uf:29", "uf:42"]
+    assert all(item == items[item["id"]] for item in chosen["itens"])
+
+
+def test_real_brazil_level_is_the_national_reference_and_the_national_trend(real):
+    """O Brasil como unidade agregada, com a base versionada: os valores da linha de contexto (BR-POP-JUNHO-1) e a classe
+    da evolução temporal do Brasil nos últimos 4 junhos e nos últimos 4 semestres."""
+    line = ok(post(real, nivel="estados", indicador="densidade", competencia="202406"))["contexto"]["brasil"]
+    for window in (["202106", "202206", "202306", "202406"], ["202301", "202306", "202401", "202406"]):
+        body = ok(post(real, nivel="brasil", indicador="densidade", competencia="202406", competencia_inicial=window[0],
+                       tendencia={"competencias": window}))
+        [item] = body["itens"]
+        assert (item["quantidade"], item["populacao"], item["densidade"]) == (line["quantidade"], line["populacao"],
+                                                                              line["densidade"])
+        analysis = ok(analyze(real, "temporal", {"brasil": True}, temporal_indicator="density", period_filters=window))
+        [row] = [row for row in analysis["rows"] if row["Território"].startswith("Brasil")]
+        assert item["tendencia"]["rotulo"] == row["Tendência"]
+        assert body["resumo"]["texto"].startswith("Brasil, em junho de 2024: densidade de ")
 
 
 def test_real_trend_groups_and_conditions_for_amazonas(real):

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { AlertCircle, Database, FileSpreadsheet, FileUp, LoaderCircle, RefreshCw, Send } from "lucide-react";
+import { AlertCircle, Database, FileUp, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
@@ -8,7 +8,8 @@ import { comandoDeFonte, guiaDaConversa, normalizeCommand, opcoesDaConversa, ped
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
 
 // Conversa da página única (22/10/2026), sempre na caixa flutuante com o rosto do agente. Antes dos dados, ela pergunta o que
-// a pessoa quer analisar e oferece "Dados do Brasil" e "Enviar meus dados". Com os dados prontos, cada pedido vai primeiro
+// a pessoa quer analisar e oferece "Usar dados do Brasil" e "Enviar meus dados" (24/10/2026: a mesma janela de envio da área
+// central, com o modelo de planilha). Com os dados prontos, cada pedido vai primeiro
 // ao intérprete local (/api/exploration/interpret) e, sem resposta local, ao intérprete contextual
 // (/api/llm/interpret-context); sem dados, ao intérprete preliminar (/api/llm/interpret). Quando a resposta traz o campo
 // `painel`, ele vira um pedido para a área de análise, que muda o gráfico; a conversa não calcula nada. O contexto de cada
@@ -231,12 +232,13 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       onEscolherFonte(escolha);
       append(escolha === "brasil" ? "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os territórios na Seleção de " +
           "Territórios ou me diga quais quer ver, por exemplo “mostre o Pará”."
-        : "Escolha o arquivo CSV ou Excel. Depois, confira as colunas no painel Colunas, no alto da página.");
+        : "Abri a janela de envio: escolha o arquivo CSV ou Excel. O modelo de planilha também está nela. Depois, confira as colunas " +
+          "no painel Colunas, no alto da página.");
       return;
     }
     const normalized = normalizeCommand(message);
     if (!fonteEscolhida && /^(?:ola|oi|bom dia|boa tarde|boa noite)$/.test(normalized)) {
-      append("Olá! O que você quer analisar? Prefere começar com os dados do Brasil ou enviar os seus?");
+      append("Olá! O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?");
       return;
     }
     if (!pronta && pendingRequest.current && SEGUIMENTO.test(message)) {
@@ -375,16 +377,14 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     <div className="px-4 pt-3" data-testid="painel-chat-guia">
       <p className="text-sm leading-5 text-slate-700">{guia}</p>
       {!fonteEscolhida && <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Escolha dos dados na conversa">
+        {/* As mesmas duas entradas da área central (24/10/2026); "Enviar meus dados" abre a mesma janela de envio, com o modelo de
+            planilha. */}
         <button type="button" data-testid="chat-fonte-brasil" disabled={!privacyAccepted} onClick={() => onEscolherFonte("brasil")}
           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
-          <Database size={16} aria-hidden="true"/>Dados do Brasil</button>
+          <Database size={16} aria-hidden="true"/>Usar dados do Brasil</button>
         <button type="button" data-testid="chat-fonte-arquivo" disabled={!privacyAccepted} onClick={() => onEscolherFonte("arquivo")}
           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
           <FileUp size={16} aria-hidden="true"/>Enviar meus dados</button>
-        {/* O mesmo modelo da área central (23/10/2026): a estrutura recomendada para a planilha, em XLSX. */}
-        <a href={apiBase + "/api/modelo/estrutura-recomendada"} download="modelo_territorial_recomendado.xlsx" data-testid="chat-fonte-modelo"
-          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50">
-          <FileSpreadsheet size={16} aria-hidden="true"/>Modelo de planilha XLSX</a>
       </div>}
       {!status?.configured && <div role="status" className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
         {loadingStatus ? "Preparando a conversa…" : "Perguntas livres estão temporariamente indisponíveis. Os pedidos sobre o " +

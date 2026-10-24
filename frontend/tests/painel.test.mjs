@@ -54,10 +54,11 @@ const GRUPOS = [{id: '13', nome: 'Amazonas', sigla: 'AM', rotuloGrupo: 'Municíp
   {id: '35', nome: 'São Paulo', sigla: 'SP', rotuloGrupo: 'Municípios de São Paulo', unidades: 645}];
 const grafico = (extra = {}) => M.montarGrafico({itens: ITENS.slice(0, 4), dominios: DOMINIOS, indicador: 'densidade', escala: 'linear',
   distancia: false, cometa: false, vista: 'final', largura: 800, rotuloDistancia: '', pintura: UNICA, ...extra});
-// Os testes partem da visão dos estados (a escolha "Todos os estados" da Seleção de Territórios), a abertura até 23/10/2026; desde
-// então, a base carregada abre sem seleção (teste "abertura sem seleção").
+// Os testes partem da visão dos estados com todos marcados (a abertura até 23/10/2026); desde então, a base carregada abre sem
+// seleção (teste "abertura sem seleção"), e, desde 24/10/2026, os estados são escolhidos um a um (`estados`).
 const definicao = (extra = {}) => ({...M.definicaoInicial({tipo: 'brasil', periodos: ['202306', '202406'], categoria: 'MEDICINA', temGrupos: true}),
-  nivel: 'estados', ...extra});
+  nivel: 'estados', estados: ['13', '35'], ...extra});
+const TODOS_OS_ESTADOS = {todosOsEstados: ['13', '35']};
 
 test('variação percentual do motor em pt-BR: sinal, duas casas e nunca zero aparente (RQ-REP-05)', () => {
   assert.equal(M.formatarVariacao(12.4), '+12,40%');
@@ -445,23 +446,35 @@ test('escolha de territórios: marcar e desmarcar unidades e grupos, sem perder 
   assert.equal(M.grupoDoItem({id: 'x', uf: null, rotulo: 'Pará'}, GRUPOS), null);
 });
 
-test('trilha de volta e lugar no título: "Brasil › Amazonas › 3 municípios"', () => {
-  const c = {grupos: GRUPOS, rotulos: BR, brasil: true, temGrupos: true, total: 5570, grupoDe: M.prefixoDe};
+test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2026: no lugar da trilha "Brasil › Amazonas")', () => {
+  const c = {grupos: GRUPOS, rotulos: BR, total: 5570, grupoDe: M.prefixoDe, conjuntos: 0, estados: []};
   const base = (estados, ids = [], todos = false) => ({todos, estados, ids});
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'estados', base: base([])}), [{rotulo: 'Brasil', acao: null}, {rotulo: 'Todos os estados (2)', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'municipios', base: base(['13'])}),
-    [{rotulo: 'Brasil', acao: {tipo: 'estados'}}, {rotulo: 'Amazonas (62 municípios)', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'municipios', base: base([], ['code:130260', 'code:130420', 'code:130340'])}),
-    [{rotulo: 'Brasil', acao: {tipo: 'estados'}}, {rotulo: 'Amazonas', acao: {tipo: 'grupo', id: '13'}}, {rotulo: '3 municípios', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'municipios', base: base([], [], true)}),
-    [{rotulo: 'Brasil', acao: {tipo: 'estados'}}, {rotulo: 'Todos os municípios (5.570)', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'municipios', base: base([])}),
-    [{rotulo: 'Brasil', acao: {tipo: 'estados'}}, {rotulo: 'Nenhum município marcado', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({...c, nivel: 'municipios', base: base(['13', '35'])}),
-    [{rotulo: 'Brasil', acao: {tipo: 'estados'}}, {rotulo: 'Amazonas, São Paulo (707 municípios)', acao: null}]);
-  assert.deepEqual(M.trilhaDoUniverso({nivel: 'municipios', base: base([], ['name:a']), grupos: [{id: 'BA', nome: 'Buenos Aires', sigla: '', rotuloGrupo: '', unidades: 12}],
-    rotulos: DISTRITOS, brasil: false, temGrupos: false, total: 40, grupoDe: () => 'BA'}),
-    [{rotulo: 'Planilha', acao: {tipo: 'todos'}}, {rotulo: 'Buenos Aires', acao: {tipo: 'grupo', id: 'BA'}}, {rotulo: '1 distrito', acao: null}]);
+  const resumo = extra => M.resumoDoUniverso({...c, nivel: 'municipios', base: base([]), ...extra});
+  assert.equal(resumo({nivel: 'estados', estados: ['13', '35']}), 'Todos os estados (2)');
+  assert.equal(resumo({nivel: 'estados', estados: ['35']}), 'São Paulo');
+  assert.equal(resumo({nivel: 'estados', estados: []}), 'Nenhum estado marcado');
+  assert.equal(resumo({nivel: 'brasil'}), 'Brasil (total nacional)');
+  assert.equal(resumo({base: base(['13'])}), 'Amazonas (62 municípios)');
+  assert.equal(resumo({base: base([], ['code:130260', 'code:130420', 'code:130340'])}), '3 municípios do Amazonas');
+  assert.equal(resumo({base: base([], [], true)}), 'Todos os municípios (5.570)');
+  // Planilha sem a lista das unidades (o catálogo não veio): a planilha inteira, sem um "(0)" enganoso.
+  assert.equal(M.resumoDoUniverso({nivel: 'municipios', base: base([], [], true), estados: [], conjuntos: 0, grupos: [], rotulos: DISTRITOS,
+    total: 0, grupoDe: () => ''}), 'Todos os distritos');
+  assert.equal(resumo({base: base([])}), 'Nenhum município marcado');
+  assert.equal(resumo({base: base(['13', '35'])}), 'Amazonas e São Paulo (707 municípios)');
+  // A seleção cumulativa, de estados diferentes: cada um com as suas unidades.
+  assert.equal(resumo({base: base([], ['code:130260', 'code:350010'])}), '2 municípios de 2 estados');
+  assert.equal(resumo({base: base(['13'], ['code:350010'])}), '63 municípios de 2 estados');
+  assert.equal(resumo({base: base(['13']), conjuntos: 1}), 'Amazonas (62 municípios) e 1 conjunto');
+  // Uma ou duas unidades marcadas: os nomes delas, no resumo e no título (24/10/2026).
+  const nomes = new Map([['code:431490', 'PORTO ALEGRE (RS)'], ['code:130260', 'MANAUS (AM)']]);
+  assert.equal(resumo({base: base([], ['code:431490']), nomes}), 'PORTO ALEGRE (RS)');
+  assert.equal(resumo({base: base([], ['code:431490', 'code:130260']), nomes}), 'PORTO ALEGRE (RS) e MANAUS (AM)');
+  assert.deepEqual(M.lugarDoUniverso({nivel: 'municipios', base: base([], ['code:431490']), conjuntos: 0, grupos: GRUPOS, rotulos: BR, brasil: true,
+    grupoDe: M.prefixoDe, nomes}), {lugar: 'em PORTO ALEGRE (RS)', curto: 'PORTO ALEGRE (RS)'});
+  assert.equal(M.resumoDoUniverso({nivel: 'municipios', base: base([], ['name:a']), estados: [], conjuntos: 0,
+    grupos: [{id: 'BA', nome: 'Buenos Aires', sigla: '', rotuloGrupo: '', unidades: 12}], rotulos: DISTRITOS, total: 40, grupoDe: () => 'BA'}),
+    '1 distrito de Buenos Aires');
   const lugar = (nivel, b, rotulos = BR, brasil = true, grupos = GRUPOS, grupoDe = M.prefixoDe) =>
     M.lugarDoUniverso({nivel, base: b, conjuntos: 0, grupos, rotulos, brasil, grupoDe});
   assert.deepEqual(lugar('municipios', base(['13'])), {lugar: 'nos municípios do Amazonas', curto: 'Amazonas'});
@@ -470,10 +483,53 @@ test('trilha de volta e lugar no título: "Brasil › Amazonas › 3 municípios
     {lugar: 'em 3 municípios do Amazonas', curto: '3 municípios do Amazonas'});
   assert.deepEqual(lugar('municipios', base([], [], true)), {lugar: 'nos municípios do Brasil', curto: 'Brasil'});
   assert.deepEqual(lugar('estados', base([])), {lugar: 'nos estados', curto: 'Brasil'});
+  // Os estados escolhidos (24/10/2026) e o Brasil como unidade.
+  const estados = (escolhidos) => M.lugarDoUniverso({nivel: 'estados', base: base([]), conjuntos: 0, grupos: GRUPOS, rotulos: BR, brasil: true,
+    grupoDe: M.prefixoDe, estados: escolhidos});
+  assert.deepEqual(estados(['13', '35']), {lugar: 'nos estados', curto: 'Brasil'});
+  assert.deepEqual(estados(['13']), {lugar: 'no Amazonas', curto: 'Amazonas'});
+  assert.deepEqual(estados(['35']), {lugar: 'em São Paulo', curto: 'São Paulo'});
+  assert.deepEqual(M.lugarDoUniverso({nivel: 'brasil', base: base([]), conjuntos: 0, grupos: GRUPOS, rotulos: BR, brasil: true, grupoDe: M.prefixoDe}),
+    {lugar: 'no Brasil', curto: 'Brasil'});
   assert.deepEqual(lugar('municipios', base(['BA']), DISTRITOS, false, [{id: 'BA', nome: 'Buenos Aires', sigla: '', rotuloGrupo: '', unidades: 12}], () => 'BA'),
     {lugar: 'nos distritos de Buenos Aires', curto: 'Buenos Aires'});
   assert.deepEqual(lugar('municipios', base([], [], true), {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: null}, false),
     {lugar: 'nas comunas da planilha', curto: 'Planilha'});
+});
+
+test('seleção cumulativa entre estados (24/10/2026): marcar na Bahia e depois em Santa Catarina mantém os dois', () => {
+  // Abrir a lista de outro estado não muda a seleção (a lista aberta é só navegação); cada marcação soma à anterior.
+  const grupos = [{id: '29', nome: 'Bahia', sigla: 'BA', rotuloGrupo: 'Municípios da Bahia', unidades: 3},
+    {id: '42', nome: 'Santa Catarina', sigla: 'SC', rotuloGrupo: 'Municípios de Santa Catarina', unidades: 2}];
+  const unidades = {29: ['code:290070', 'code:292740', 'code:293320'], 42: ['code:420540', 'code:420910']};
+  const ids = Object.values(unidades).flat(), todos = ['29', '42'];
+  let base = M.BASE_VAZIA;
+  base = M.alternarUnidade(base, 'code:292740', '29', unidades[29], todos, ids);
+  base = M.alternarUnidade(base, 'code:293320', '29', unidades[29], todos, ids);
+  base = M.alternarUnidade(base, 'code:420540', '42', unidades[42], todos, ids);
+  assert.deepEqual(base, {todos: false, estados: [], ids: ['code:292740', 'code:293320', 'code:420540']});
+  // Marcar o último que faltava num estado vira o estado inteiro, sem perder o outro.
+  base = M.alternarUnidade(base, 'code:420910', '42', unidades[42], todos, ids);
+  assert.deepEqual(base, {todos: false, estados: ['42'], ids: ['code:292740', 'code:293320']});
+  const nomes = new Map([['code:292740', 'SALVADOR'], ['code:293320', 'TEIXEIRA DE FREITAS']]);
+  assert.deepEqual(M.marcadasPorGrupo(base, {grupos, unidadesDoGrupo: g => unidades[g], nomes, grupoDe: M.prefixoDe}), [
+    {grupo: '29', nome: 'Bahia', marcadas: 2, total: 3, inteiro: false, nomes: ['SALVADOR', 'TEIXEIRA DE FREITAS']},
+    {grupo: '42', nome: 'Santa Catarina', marcadas: 2, total: 2, inteiro: true, nomes: []}]);
+  assert.equal(M.resumoDoUniverso({nivel: 'municipios', base, estados: [], conjuntos: 0, grupos, rotulos: BR, total: 5, grupoDe: M.prefixoDe}),
+    '4 municípios de 2 estados');
+  // Desmarcar um estado inteiro tira só ele; todos os municípios marcados se desfazem de uma vez (sem desmarcar um a um).
+  assert.deepEqual(M.desmarcarGrupo(base, '42', unidades[42], todos, ids), {todos: false, estados: [], ids: ['code:292740', 'code:293320']});
+  assert.deepEqual(M.desmarcarGrupo({todos: true, estados: [], ids: []}, '29', unidades[29], todos, ids), {todos: false, estados: ['42'], ids: []});
+  // A comparação continua só com os itens dela na análise; ao trocar de nível, sai (o motor recusa itens fora do gráfico).
+  const antes = {nivel: 'municipios', comparar: ['code:292740', 'code:420540']};
+  assert.deepEqual(M.comparacaoQueContinua(antes, {nivel: 'municipios', base, estados: [], conjuntos: []}), antes.comparar);
+  assert.deepEqual(M.comparacaoQueContinua(antes, {nivel: 'municipios', base: M.desmarcarGrupo(base, '42', unidades[42], todos, ids),
+    estados: [], conjuntos: []}), []);
+  assert.deepEqual(M.comparacaoQueContinua(antes, {nivel: 'estados', base, estados: ['29', '42'], conjuntos: []}), []);
+  assert.deepEqual(M.comparacaoQueContinua({nivel: 'estados', comparar: ['uf:29', 'uf:42']}, {nivel: 'estados', base, estados: ['29', '42'],
+    conjuntos: []}), ['uf:29', 'uf:42']);
+  // Os estados escolhidos como unidades: na ordem do código, sem repetir e só os da fonte.
+  assert.deepEqual(M.normalizarEstados(['42', '29', '42', '99'], todos), ['29', '42']);
 });
 
 test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a leitura', () => {
@@ -490,10 +546,25 @@ test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a 
     'Tendência da densidade de médicos · Amazonas · junho de 2021 a junho de 2024');
   assert.equal(t({familia: 'tendencia', janela: ['202306', '202406']}).titulo, 'Mudança da densidade de médicos · Amazonas · junho de 2023 a junho de 2024');
   assert.equal(t({familia: 'tendencia', visao: 'series', janela: ['202106', '202206', '202306', '202406']}).subtitulo,
-    'Cada linha é um município, nas competências da janela.');
+    'Cada linha é um município, nos períodos escolhidos.');
+  // Visão Classes: o quadro de setas (as linhas), não as bolhas.
+  assert.equal(t({familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}).subtitulo,
+    'Cada linha é um município: as setas mostram a alta, a queda ou a pausa de um período para o seguinte.');
+  // O Brasil como unidade (24/10/2026): a distribuição e a tendência, com o país inteiro.
+  assert.deepEqual(t({nivel: 'brasil', lugar: {lugar: 'no Brasil', curto: 'Brasil'}}), {titulo: 'Densidade de médicos no Brasil · junho de 2024',
+    subtitulo: 'A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população.'});
+  assert.deepEqual(t({nivel: 'brasil', lugar: {lugar: 'no Brasil', curto: 'Brasil'}, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}),
+    {titulo: 'Tendência da densidade de médicos · Brasil · junho de 2021 a junho de 2024',
+      subtitulo: 'A linha é o Brasil inteiro: as setas mostram a alta, a queda ou a pausa de um período para o seguinte.'});
+  // Os estados escolhidos também têm a tendência.
+  assert.equal(t({nivel: 'estados', lugar: {lugar: 'no Amazonas', curto: 'Amazonas'}, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}).titulo,
+    'Tendência da densidade de médicos · Amazonas · junho de 2021 a junho de 2024');
+  assert.equal(M.tituloDaAnalise({fonte: null, familia: 'distribuicao', visao: 'classes', indicador: 'densidade', nivel: 'municipios', categoria: '',
+    competencia: '', janela: [], rotatividade: null, lugar: {lugar: '', curto: ''}, referencia: null, rotulos: BR}).titulo,
+    'Diagnóstico Territorial da Força de Trabalho em Saúde');
   assert.equal(t({familia: 'rotatividade', rotatividade: {inicial: '202306', final: '202406'}}).titulo,
     'Rotatividade e permanência da coorte inicial · Amazonas · junho de 2023 a junho de 2024');
-  assert.equal(t({fonte: null}).titulo, 'Diagnóstico territorial da força de trabalho em saúde');
+  assert.equal(t({fonte: null}).titulo, 'Diagnóstico Territorial da Força de Trabalho em Saúde');
   assert.deepEqual(t({fonte: 'arquivo', categoria: 'ENFERMAGEM', competencia: '2024', rotulos: DISTRITOS,
     lugar: {lugar: 'nos distritos da planilha', curto: 'Planilha'}}),
     {titulo: 'Densidade de profissionais de enfermagem nos distritos da planilha · 2024', subtitulo: 'Cada bolha é um distrito. O tamanho mostra a população.'});
@@ -512,12 +583,37 @@ test('abertura sem seleção (23/10/2026): a base do Brasil e a planilha abrem s
   assert.equal(M.TEXTO_SEM_SELECAO, 'Selecione os territórios que deseja analisar.');
 });
 
+test('planilha: os nomes confirmados vão em todo pedido ao motor (24/10/2026), para a resposta falar deles', () => {
+  const inicial = M.definicaoInicial({tipo: 'arquivo', periodos: ['2023', '2024'], categoria: 'médicos', temGrupos: false, premissas: {}});
+  const todas = {...inicial, base: {todos: true, estados: [], ids: []}};
+  const opcoes = M.montarOpcoes(todas, 'distribuicao', () => '', {rotulos: DISTRITOS});
+  assert.deepEqual(opcoes.rotulos, DISTRITOS);
+  assert.deepEqual(opcoes.base, {municipios: {todos: true, estados: [], ids: []}});
+  // Sem os nomes (a base do Brasil, que os recusa), nada vai.
+  assert.ok(!('rotulos' in M.montarOpcoes(todas, 'distribuicao', () => '')));
+});
+
 test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedido; estados, municípios, grupos, faixas, espacial, tendência e rotatividade', () => {
   const inicial = definicao();
   assert.equal(inicial.nivel, 'estados');
   assert.equal(inicial.competencia, '202406');
   assert.deepEqual(inicial.janela, []);  // a janela da tendência é escolha da pessoa (decisão 5a)
-  assert.deepEqual(M.montarOpcoes(inicial, 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade'});
+  // Todos os estados marcados: sem a lista (o motor usa todos os da fonte estadual); alguns, com a lista deles, na ordem do código.
+  assert.deepEqual(M.montarOpcoes(inicial, 'distribuicao', M.prefixoDe, TODOS_OS_ESTADOS),
+    {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade'});
+  assert.deepEqual(M.montarOpcoes(definicao({estados: ['35']}), 'distribuicao', M.prefixoDe, TODOS_OS_ESTADOS),
+    {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade', estados: ['35']});
+  // A tendência dos estados vai como a dos municípios.
+  assert.deepEqual(M.montarOpcoes(definicao({estados: ['35'], familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}), 'tendencia',
+    M.prefixoDe, TODOS_OS_ESTADOS), {competencia: '202406', categoria: 'MEDICINA', nivel: 'estados', indicador: 'densidade', estados: ['35'],
+    competencia_inicial: '202106', tendencia: {competencias: ['202106', '202206', '202306', '202406']}});
+  // O Brasil como unidade: só o nível; nada do que vale para vários territórios (grupos, condições, ordenação, comparação).
+  assert.deepEqual(M.montarOpcoes(definicao({nivel: 'brasil', agrupar: {tipo: 'quartis', faixas: []}, ordenar: {atributo: 'densidade', ordem: 'desc'},
+    condicoes: [{atributo: 'densidade', operador: '<', valor: 1}], comparar: ['a', 'b']}), 'distribuicao', M.prefixoDe, TODOS_OS_ESTADOS),
+    {competencia: '202406', categoria: 'MEDICINA', nivel: 'brasil', indicador: 'densidade'});
+  assert.deepEqual(M.montarOpcoes(definicao({nivel: 'brasil', familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}), 'tendencia'),
+    {competencia: '202406', categoria: 'MEDICINA', nivel: 'brasil', indicador: 'densidade', competencia_inicial: '202106',
+      tendencia: {competencias: ['202106', '202206', '202306', '202406']}});
   assert.equal(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).nivel, 'municipios');
   // Desde 23/10/2026, a planilha também abre sem seleção (antes, com todas as unidades).
   assert.deepEqual(M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'ENFERMAGEM', temGrupos: false}).base,
@@ -566,6 +662,10 @@ test('o que falta para pedir e o que a família espera; a família calculada enq
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: 'arquivo', rotulos: DISTRITOS}), 'Selecione os territórios que deseja analisar.');
   assert.equal(M.bloqueioDoPedido(vazio, {fonte: null, rotulos: BR}), 'Escolha os dados para começar.');
   assert.equal(M.bloqueioDoPedido(definicao(), {fonte: 'brasil', rotulos: BR}), null);
+  // Cada nível com a sua escolha (24/10/2026): estados sem nenhum marcado esperam; o Brasil já é a escolha.
+  assert.equal(M.bloqueioDoPedido(definicao({estados: []}), {fonte: 'brasil', rotulos: BR}), 'Selecione os territórios que deseja analisar.');
+  assert.equal(M.bloqueioDoPedido(definicao({nivel: 'brasil', estados: []}), {fonte: 'brasil', rotulos: BR}), null);
+  assert.equal(M.semSelecao(definicao({nivel: 'municipios', conjuntos: [{id: 'c1', rotulo: 'A', membros: ['x', 'y']}]})), false);
   const ok = {disponivel: true, motivo: '', pendente: false, enviarDados: false};
   const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'tendencia'}), ok),
@@ -579,12 +679,15 @@ test('o que falta para pedir e o que a família espera; a família calculada enq
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial'}), true), 'distribuicao');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'espacial');
   assert.equal(M.familiaCalculada(definicao({familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'distribuicao');  // estados
+  assert.equal(M.familiaCalculada(definicao({familia: 'tendencia', janela: ['202306', '202406']}), true), 'tendencia');  // estados
+  assert.equal(M.familiaCalculada(definicao({nivel: 'brasil', familia: 'tendencia', janela: ['202306', '202406']}), true), 'tendencia');
+  assert.equal(M.familiaCalculada(definicao({nivel: 'brasil', familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'distribuicao');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'rotatividade', rotatividade: {inicial: '202306', final: '202406'}}), false), 'distribuicao');
   assert.equal(M.visaoEfetiva(definicao({...am, janela: ['202306', '202406'], visao: 'classes'})), 'mudanca');
   assert.equal(M.visaoEfetiva(definicao({...am, janela: ['202106', '202206', '202306', '202406'], visao: 'series'})), 'series');
 });
 
-test('disponibilidade das famílias: rotatividade só com identificador; motivos do motor; nos estados, espacial e tendência esperam', () => {
+test('disponibilidade das famílias: rotatividade só com identificador; motivos do motor; nos estados e no Brasil, a espacial espera', () => {
   const c = extra => ({fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR, ...extra});
   const brasil = M.disponibilidadeDaFamilia('rotatividade', c({}));
   assert.equal(brasil.disponivel, false);
@@ -602,8 +705,13 @@ test('disponibilidade das famílias: rotatividade só com identificador; motivos
   const nosEstados = M.disponibilidadeDaFamilia('espacial', c({nivel: 'estados'}));
   assert.equal(nosEstados.disponivel, true);
   assert.equal(nosEstados.pendente, true);
-  assert.ok(nosEstados.motivo.includes('os estados não têm coordenadas'));
-  assert.equal(M.disponibilidadeDaFamilia('tendencia', c({nivel: 'estados'})).pendente, true);
+  assert.equal(nosEstados.motivo, 'A distância é medida entre municípios: os estados não têm um ponto no mapa. Para usar esta análise, ' +
+    'escolha municípios na Seleção de Territórios.');
+  // O motivo do motor para o nível (os estados e o Brasil sem ponto) não desliga a aba: ela espera municípios.
+  assert.equal(M.disponibilidadeDaFamilia('espacial', c({nivel: 'brasil', disponibilidade: {espacial: {disponivel: false, motivo: 'Não se aplica.'}}})).pendente, true);
+  // Desde 24/10/2026, a tendência vale para os estados e para o Brasil (matriz D3), como para os municípios.
+  assert.deepEqual(M.disponibilidadeDaFamilia('tendencia', c({nivel: 'estados'})), {disponivel: true, motivo: '', pendente: false, enviarDados: false});
+  assert.deepEqual(M.disponibilidadeDaFamilia('tendencia', c({nivel: 'brasil'})), {disponivel: true, motivo: '', pendente: false, enviarDados: false});
   assert.equal(M.disponibilidadeDaFamilia('tendencia', c({fonte: null})).pendente, true);
   assert.deepEqual(M.disponibilidadeDaFamilia('distribuicao', c({nivel: 'estados'})), {disponivel: true, motivo: '', pendente: false, enviarDados: false});
 });
@@ -618,6 +726,14 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   assert.deepEqual(para.definicao.base, {todos: false, estados: ['15'], ids: []});
   assert.deepEqual(para.mensagens, []);
   assert.equal(M.aplicarPedido(para.definicao, {nivel: 'estados'}, c).definicao.nivel, 'estados');
+  // "Todos os estados" na conversa (24/10/2026) marca todos os estados da fonte; o Brasil só na base do Brasil.
+  assert.deepEqual(M.aplicarPedido(definicao({estados: ['35']}), {nivel: 'estados'}, {...c, todosOsEstados: ['13', '35']}).definicao.estados, ['13', '35']);
+  assert.equal(M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true}).definicao.nivel, 'brasil');
+  const semBrasil = M.aplicarPedido(para.definicao, {nivel: 'brasil'}, c);
+  assert.equal(semBrasil.definicao.nivel, 'municipios');
+  assert.deepEqual(semBrasil.mensagens, ['O Brasil como unidade existe só nos dados do Brasil.']);
+  // A escolha dos outros níveis fica guardada quando o pedido muda o nível.
+  assert.deepEqual(M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true}).definicao.base, para.definicao.base);
   const rot = M.aplicarPedido(def, {familia: 'rotatividade'}, c);
   assert.equal(rot.definicao.familia, 'distribuicao');
   assert.ok(rot.mensagens[0].startsWith('Análise de Rotatividade: A base do Brasil'));  // nomes padronizados (23/10/2026)
@@ -795,7 +911,8 @@ test('contexto do gráfico para a página e a conversa: família, indicador, uni
   const def = definicao({familia: 'espacial', nivel: 'municipios', base: {todos: false, estados: ['13'], ids: ['code:130260']},
     referencia: {membros: ['code:130260']}});
   assert.deepEqual(M.contextoDoGrafico(def, ['code:130260'], 'T'), {familia: 'espacial', indicador: 'densidade', nivel: 'municipios',
-    municipios: {todos: false, estados: ['13'], ids: []}, idsNaTela: ['code:130260'], competencia: '202406', janela: [], referencia: ['code:130260'], titulo: 'T'});
+    municipios: {todos: false, estados: ['13'], ids: []}, estados: ['13', '35'], idsNaTela: ['code:130260'], competencia: '202406', janela: [],
+    referencia: ['code:130260'], titulo: 'T'});
   const tendencia = M.contextoDoGrafico(definicao({familia: 'tendencia', janela: ['202306', '202406'], competencia: '202306'}), [], 'T');
   assert.equal(tendencia.competencia, '202406');
   assert.deepEqual(tendencia.referencia, []);

@@ -127,7 +127,7 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   const pedido: PedidoDoChat = {};
   if (FAMILIAS.includes(p.familia as Familia)) pedido.familia = p.familia as Familia;
   if (p.indicador === "densidade" || p.indicador === "quantidade") pedido.indicador = p.indicador;
-  if (p.nivel === "estados" || p.nivel === "municipios") pedido.nivel = p.nivel;
+  if (p.nivel === "estados" || p.nivel === "municipios" || p.nivel === "brasil") pedido.nivel = p.nivel;
   const municipios = objeto(p.municipios);
   if (municipios) {
     const todos = municipios.todos === true, estados = textos(municipios.estados), ids = textos(municipios.ids);
@@ -234,8 +234,8 @@ export type EtapaDaFonte = { tipo: "brasil" | "arquivo" | null; pronta: boolean;
 /** Orientação curta da caixa da conversa em cada etapa. Na planilha, os nomes vêm dos rótulos escolhidos (nunca
  * "município" fixo), sempre no plural, sem artigos de gênero. */
 export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico | null, rotulos: Rotulos | null): string {
-  if (!fonte.tipo) return "O que você quer analisar? Prefere começar com os dados do Brasil, enviar os seus ou baixar o modelo de " +
-    "planilha?";
+  // Duas entradas (24/10/2026): os dados do Brasil ou os seus; o modelo de planilha fica na janela de envio.
+  if (!fonte.tipo) return "O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?";
   if (!fonte.pronta) {
     if (fonte.tipo === "brasil") return "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar.";
     return fonte.colunasPendentes ? "Confira as colunas da planilha no painel Colunas, no alto da página, e escolha “Começar a análise”."
@@ -243,8 +243,8 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
   }
   const unidades = rotulos?.unidade.plural || "unidades", grupos = rotulos?.grupo?.plural || "";
   // A base carregada abre sem seleção (23/10/2026): a conversa orienta a escolher os territórios.
-  if (contexto && contexto.nivel === "municipios" && !contexto.municipios.todos && !contexto.municipios.estados.length &&
-    !contexto.municipios.ids.length)
+  if (contexto && ((contexto.nivel === "municipios" && !contexto.municipios.todos && !contexto.municipios.estados.length &&
+    !contexto.municipios.ids.length) || (contexto.nivel === "estados" && contexto.estados?.length === 0)))
     return "Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver" +
       (fonte.tipo === "brasil" ? ", por exemplo “mostre o Pará” ou “todos os estados”." : ".");
   if (!contexto || contexto.nivel === "estados")

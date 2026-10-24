@@ -39,7 +39,18 @@
 .analise-apresentacao p + p { margin-top: 8px; }
 .analise-apresentacao-classes { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--cor-borda-suave); border-radius: 12px;
   background: var(--cor-superficie); }
-.analise-apresentacao-classes > summary { color: var(--cor-tinta); font-size: 13px; font-weight: 650; cursor: pointer; }
+.analise-apresentacao-subtitulo { margin: 0 !important; color: var(--cor-tinta); font-size: 13px; font-weight: 650; text-align: left !important; }
+/* "Entenda esta análise" (24/10/2026): a explicação de cada análise, recolhível; aberta, ocupa a largura de leitura. */
+.analise-entenda { min-width: 0; }
+.analise-entenda > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px 4px 8px; list-style: none;
+  border: 1px solid var(--cor-borda-campo); border-radius: 999px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
+  font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.analise-entenda > summary::-webkit-details-marker { display: none; }
+.analise-entenda > summary:hover { background: var(--cor-realce-destaque); }
+.analise-entenda-seta { transition: transform .15s ease; transform: rotate(-90deg); }
+.analise-entenda[open] > summary .analise-entenda-seta { transform: none; }
+.analise-entenda[open] > .analise-apresentacao { margin-top: 10px; }
+.analise-selecao-intro { display: flex; flex-direction: column; gap: 2px; }
 .analise-apresentacao-classes dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 8px 0 0; }
 .analise-apresentacao-classes dl > div { display: grid; grid-template-columns: minmax(150px, 13rem) minmax(0, 1fr); gap: 2px 12px; }
 .analise-apresentacao-classes dt { color: var(--cor-tinta); font-weight: 650; }
@@ -65,12 +76,19 @@
   color: var(--cor-sobre-tinta); }
 .analise-segmentos > button:disabled { opacity: .4; }
 
-/* ------------------------------------------------------------------------------------------- título e trilha */
+/* ------------------------------------------------------------------------------------------- título, Voltar e Limpar */
 .analise-cabecalho { display: flex; flex-direction: column; gap: 4px; }
-.analise-trilha ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; color: var(--cor-texto-2);
-  font-size: 12px; }
-.analise-trilha li { display: inline-flex; align-items: center; gap: 4px; }
-.analise-trilha [aria-current] { color: var(--cor-tinta); font-weight: 650; }
+/* Voltar (24/10/2026): a seta universal de retorno, discreta e sempre no mesmo lugar (no alto à esquerda da área a que se refere). */
+.analise-voltar { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 32px; padding: 5px 10px 5px 8px;
+  border: 1px solid var(--cor-borda-campo); border-radius: 999px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
+  font-size: 12.5px; font-weight: 650; }
+.analise-voltar:hover { background: var(--cor-realce-destaque); }
+/* Limpar filtros, ao lado das funções; o Desfazer ocupa o mesmo lugar depois da limpeza. */
+.analise-limpar { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+/* O que a classe de tendência quer dizer, junto do resultado de um território só. */
+.analise-frase-significado { max-width: 76ch; margin: 0; color: var(--cor-texto-2); font-size: 12.5px; line-height: 1.5; }
+.analise-resultados { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.analise-resultados[hidden] { display: none !important; }
 .analise-titulo { margin: 0; color: var(--cor-tinta); font-size: clamp(18px, 2.2vw, 24px); font-weight: 650; letter-spacing: -.01em; line-height: 1.25; outline: none; }
 .analise-subtitulo { margin: 0; color: var(--cor-texto-2); font-size: 12.5px; }
 /* Frase-resumo do motor, logo abaixo do subtítulo (sem frase, o espaço some). */
@@ -159,6 +177,17 @@
 .analise-abertura-titulo { margin: 0; color: var(--cor-tinta); font-size: 20px; font-weight: 650; }
 .analise-abertura-texto { max-width: 62ch; margin: 0; color: var(--cor-texto-2); font-size: 14px; line-height: 1.6; text-align: center; }
 .analise-abertura-troca { min-height: 0; padding: 18px; border: 2px solid var(--cor-borda-painel); border-radius: 18px; }
+/* A abertura (24/10/2026): a identificação do sistema e a chamada para escolher os dados, no alto e ao centro, sem nada da
+   navegação das análises ao lado; as duas entradas em botões grandes. */
+.analise-abertura-inicial { min-height: 0; gap: 10px; padding: clamp(28px, 5vw, 52px) 20px; border: 1px solid var(--cor-borda-cartao);
+  background: var(--cor-superficie); }
+.analise-abertura-sistema { max-width: 30ch; margin: 0; color: var(--cor-tinta); font-size: clamp(22px, 2.6vw, 30px); font-weight: 750;
+  letter-spacing: -.02em; line-height: 1.2; text-wrap: balance; }
+.analise-abertura-chamada { margin: 4px 0 0; color: var(--cor-destaque-texto); font-size: clamp(17px, 1.8vw, 21px); font-weight: 700; }
+.analise-abertura-botoes { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 8px; }
+.analise-abertura-inicial { border: 0; background: transparent; }
+.analise-botao-primario.analise-botao-grande, .analise-botao-secundario.analise-botao-grande { min-height: 48px; padding: 10px 20px;
+  border-radius: 14px; font-size: 15px; }
 .analise-vazio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 280px; margin: 0;
   padding: 24px; color: var(--cor-destaque); font-size: 13.5px; text-align: center; }
 
@@ -230,6 +259,41 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-letra { min-width: 26px; padding: 2px 6px; border: 1px solid var(--cor-borda-controle); border-radius: 6px; background: var(--cor-superficie);
   font-size: 11px; font-weight: 600; }
 .analise-letra[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+/* Seleção de Territórios (24/10/2026): os três níveis, a busca no alto, os comandos coletivos e o que entra na análise. */
+.analise-niveis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.analise-nivel { min-width: 0; padding: 8px 12px; border: 1px solid var(--cor-borda-controle); border-radius: 12px; background: var(--cor-superficie);
+  color: var(--cor-tinta); text-align: left; }
+.analise-nivel:hover { border-color: var(--cor-borda-realce); }
+.analise-nivel[aria-checked="true"] { border-color: var(--cor-destaque); background: var(--cor-realce-destaque); box-shadow: inset 0 0 0 1px var(--cor-destaque); }
+.analise-nivel-nome { display: block; font-size: 14px; font-weight: 700; }
+.analise-nivel-apoio { display: block; margin-top: 1px; color: var(--cor-texto-2); font-size: 11.5px; line-height: 1.35; }
+.analise-busca { position: relative; }
+.analise-busca-icone { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--cor-texto-2); pointer-events: none; }
+.analise-campo.analise-busca-campo { margin-top: 0; padding: 10px 36px 10px 34px; border-radius: 12px; font-size: 14px; }
+.analise-busca-campo::-webkit-search-cancel-button { display: none; }
+.analise-busca-limpar { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+.analise-territorios-coletivos { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (min-width: 640px) {
+  .analise-lista-estados { display: block; columns: 4 190px; column-gap: 16px; }
+  .analise-lista-estados > li { break-inside: avoid; }
+}
+.analise-grupo-aberto-bloco { display: flex; flex-direction: column; gap: 6px; }
+.analise-territorios-brasil { padding: 12px 14px; border: 1px solid var(--cor-destaque); border-radius: 12px; background: var(--cor-realce-destaque);
+  color: var(--cor-texto); font-size: 13px; line-height: 1.55; }
+.analise-territorios-brasil p { margin: 0; }
+/* O que entra na análise fica preso à base da tela enquanto a lista rola: sempre à vista, com Limpar e Ver a análise à esquerda
+   (a caixa da conversa ocupa o canto direito). */
+.analise-selecionados { position: sticky; bottom: 8px; z-index: 4; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  border: 1px solid var(--cor-borda-campo); border-radius: 14px; background: var(--cor-superficie-suave); box-shadow: 0 -6px 20px var(--cor-sombra-suave); }
+.analise-selecionados-cabeca { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font-size: 13px; }
+.analise-selecionados-lista, .analise-selecionados-estados { max-height: 24vh; overflow: auto; }
+.analise-selecionados-lista { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.analise-selecionados-estados { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.analise-selecionado { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 2px 8px; border-radius: 8px;
+  color: var(--cor-texto); font-size: 12.5px; }
+.analise-selecionado:hover { background: var(--cor-realce-suave); }
+.analise-icone.analise-icone-pequeno { width: 24px; height: 24px; flex-shrink: 0; }
+.analise-desfazer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--cor-texto-2); font-size: 12.5px; }
 
 /* ------------------------------------------------------------------------------------------- gráfico e mapa */
 .analise-quadro { position: relative; min-width: 0; padding: 10px 12px 12px; border: 1px solid var(--cor-borda); border-radius: 18px;
@@ -366,6 +430,11 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
   /* Em coluna estreita, o texto alinhado à esquerda lê melhor que o justificado. */
   .analise-apresentacao p, .analise-apresentacao-classes dd { text-align: left; }
   .analise-apresentacao-classes dl > div { grid-template-columns: minmax(0, 1fr); }
+  .analise-niveis { gap: 4px; }
+  .analise-nivel { padding: 7px 8px; }
+  .analise-nivel-apoio { font-size: 10.5px; }
+  /* No celular, a barra "Na análise" fica no fim da lista (presa à base, cobriria a tela pequena junto com a conversa). */
+  .analise-selecionados { position: static; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .analise *, .analise *::before, .analise *::after { transition: none !important; animation: none !important; }
@@ -378,6 +447,7 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
   .analise [role="tabpanel"][hidden] { display: block !important; }
   .analise-corpo { display: block; }
   .analise-dica { display: none; }
+  .analise-resultados[hidden] { display: flex !important; }
   .analise-quadro-lado { display: block; }
   .analise-quadro-lado > .analise-vista + .analise-vista { margin-top: 12px; }
 }

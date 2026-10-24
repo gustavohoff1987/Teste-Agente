@@ -93,7 +93,7 @@ O estado do gráfico chega em `options`, e o pedido seguinte parte dele:
 |---|---|
 | `painel_familia` | `distribuicao`, `espacial`, `tendencia`, `rotatividade` ou nula |
 | `painel_indicador` | `densidade` ou `quantidade` (também valem `comparison_indicator`, `temporal_indicator` e `exploration_indicator`) |
-| `painel_nivel` | `estados` ou `municipios` |
+| `painel_nivel` | `estados`, `municipios` ou, desde 24/10/2026, `brasil` (o Brasil como unidade) |
 | `painel_municipios` | `{"todos", "estados", "ids"}`: os municípios no gráfico (sem ela, valem os `territory_ids`) |
 | `painel_competencia` / `period_filter` | a competência à vista |
 | `painel_janela` / `period_filters` | a janela da tendência |
@@ -127,7 +127,7 @@ Todas as chaves vêm sempre; **nula quer dizer "o gráfico mantém o que tem"**.
 |---|---|
 | `familia` | `distribuicao`, `espacial`, `tendencia`, `rotatividade` |
 | `indicador` | `densidade` (por 1.000 habitantes) ou `quantidade` |
-| `nivel` | `estados` ou `municipios` |
+| `nivel` | `estados` ou `municipios` (a área aceita também `brasil`, o Brasil como unidade, desde 24/10/2026) |
 | `municipios` | `{"todos": bool, "estados": [...], "ids": [...]}`; na base do Brasil, `estados` traz o prefixo IBGE da UF (`"15"`); nas planilhas, o valor da coluna-mãe (`"Zambézia"`) |
 | `competencia` | `AAAAMM` (ou o período da planilha, como `2024`) |
 | `janela` | na tendência, os últimos 4 períodos do ritmo, anual ou semestral, em ordem (desde 24/10/2026; não há janela longa); na rotatividade, os dois períodos da coorte |

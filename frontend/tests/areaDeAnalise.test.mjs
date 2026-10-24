@@ -40,8 +40,12 @@ test('ajustes dentro da análise: cada aba só com os seus; o mesmo indicador em
   assert.deepEqual(a({familia: 'rotatividade', categorias: 2}), ['periodos', 'categoria']);
   // O indicador é um só (fica na definição): a escolha acompanha a pessoa em todas as abas que o têm, sempre à vista e em primeiro.
   for (const familia of ['distribuicao', 'espacial', 'tendencia']) assert.equal(a({familia})[0], 'indicador');
-  // Nos estados (E1), o desenho é o dos estados, qualquer que seja a aba; com a família indisponível, o da distribuição.
-  for (const familia of ['distribuicao', 'espacial', 'tendencia']) assert.deepEqual(a({familia, nivel: 'estados'}), ['indicador', 'competencia', 'agrupar']);
+  // Nos estados e no Brasil (24/10/2026), a distribuição e a tendência valem; a espacial espera municípios (os ajustes da
+  // distribuição). Com o Brasil, uma unidade só, sem grupos nem faixas.
+  for (const familia of ['distribuicao', 'espacial']) assert.deepEqual(a({familia, nivel: 'estados'}), ['indicador', 'competencia', 'agrupar']);
+  assert.deepEqual(a({familia: 'tendencia', nivel: 'estados'}), ['indicador', 'janela', 'visao']);
+  for (const familia of ['distribuicao', 'espacial', 'rotatividade']) assert.deepEqual(a({familia, nivel: 'brasil'}), ['indicador', 'competencia']);
+  assert.deepEqual(a({familia: 'tendencia', nivel: 'brasil'}), ['indicador', 'janela', 'visao']);
   assert.deepEqual(a({familia: 'rotatividade', disponivel: false}), ['indicador', 'competencia', 'agrupar']);
   // A escala não é ajuste da análise: fica junto do desenho.
   for (const familia of ['distribuicao', 'espacial', 'tendencia', 'rotatividade']) assert.ok(!a({familia}).includes('escala'));
@@ -237,8 +241,13 @@ test('nomes padronizados: a Seleção de Territórios primeiro, e as quatro aná
   assert.deepEqual(M.ABAS.map(M.nomeDaAba), ['Seleção de Territórios', 'Análise de Distribuição', 'Análise Espacial',
     'Análise de Tendência', 'Análise de Rotatividade']);
   assert.equal(M.NOME_SELECAO, 'Seleção de Territórios');  // a seleção não é uma análise
-  assert.equal(M.TEXTO_DA_SELECAO, 'Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar ' +
-    'territórios a qualquer momento, e as análises serão atualizadas conforme a seleção realizada.');
+  // A orientação da Seleção, curta (24/10/2026), sem instruções sobre as caixas.
+  assert.equal(M.TEXTO_DA_SELECAO, 'Escolha os territórios que entram nas análises. A seleção vale para todas elas e pode ser mudada a ' +
+    'qualquer momento.');
+  // A abertura: a identificação do sistema e a chamada para escolher os dados, com as duas entradas.
+  assert.equal(M.TITULO_DO_SISTEMA, 'Diagnóstico Territorial da Força de Trabalho em Saúde');
+  assert.equal(M.TEXTO_ESCOLHA_DOS_DADOS, 'Escolha seus dados para começar');
+  assert.ok(!/privacidade|modelo/i.test(M.TEXTO_DAS_FONTES), M.TEXTO_DAS_FONTES);
   // A abertura não marca territórios: nada é pedido ao motor até a escolha.
   for (const tipo of ['brasil', 'arquivo']) {
     const inicial = M.definicaoInicial({tipo, periodos: ['202406'], categoria: '', temGrupos: tipo === 'brasil'});
@@ -257,67 +266,94 @@ test('apresentação de cada aba: o que a aba faz, com os nomes territoriais da 
     assert.ok(brasil(aba).paragrafos.length >= 1);
     const texto = tudo(planilha(aba));
     assert.ok(!/município|estado|Brasil/i.test(texto), aba + ': ' + texto);  // a planilha fala de distritos e províncias
-    // Sem códigos do motor na tela, a não ser a âncora do método na nota da tendência.
-    assert.ok(!/[A-Z]{3,}_[A-Z]/.test(texto.replace('CAP-TEN-01 (DA-15)', '')), aba + ': ' + texto);
+    // Sem códigos do motor nem do método na tela (24/10/2026: a referência do método fica em Detalhes, na aba Método e procedência).
+    assert.ok(!/[A-Z]{3,}_[A-Z]|CAP-|DA-\d/.test(tudo(brasil(aba)) + texto), aba + ': ' + texto);
   }
-  assert.equal(brasil('territorios').paragrafos[0], M.TEXTO_DA_SELECAO);
-  assert.ok(brasil('territorios').paragrafos[1].includes('os municípios de um estado de uma vez'));
-  assert.ok(planilha('territorios').paragrafos[1].includes('os distritos de uma província de uma vez'));
-  // Antes dos dados, sem falar de planilha nem do Brasil.
+  // A Seleção: só a orientação curta (as instruções das caixas saíram).
+  assert.deepEqual(brasil('territorios').paragrafos, [M.TEXTO_DA_SELECAO]);
+  assert.deepEqual(planilha('territorios').paragrafos, [M.TEXTO_DA_SELECAO]);
   const antes = M.apresentacaoDaAba('territorios', {rotulos: M.ROTULOS_GENERICOS, brasil: false, comGrupos: false, semDados: true});
-  assert.ok(antes.paragrafos[1].startsWith('Depois de escolher os dados, a lista de territórios aparece aqui.'), antes.paragrafos[1]);
+  assert.equal(antes.paragrafos[0], 'Depois de escolher os dados, a lista de territórios aparece aqui.');
   assert.ok(brasil('distribuicao').paragrafos[1].includes('5 grupos iguais (quintis)'));
   assert.ok(brasil('espacial').paragrafos[1].includes('(a sede municipal)'));
+  assert.ok(brasil('espacial').paragrafos[1].includes('os estados e o Brasil não têm um ponto no mapa'));
   assert.ok(!planilha('espacial').paragrafos[1].includes('sede'));
   assert.ok(brasil('rotatividade').paragrafos[1].includes('envie uma planilha com o identificador individual'));
   assert.ok(!planilha('rotatividade').paragrafos[1].includes('envie'));
-  // As classes da tendência, na ordem da SPEC, com o que cada uma quer dizer, e o não avaliável.
+  // As classes da tendência, na ordem da SPEC, cada uma com o que quer dizer e um exemplo curto, e o não avaliável.
   const tendencia = brasil('tendencia');
   assert.deepEqual(tendencia.itens.map(item => item.termo), ['Crescimento', 'Aceleração do crescimento', 'Desaceleração do crescimento',
     'Declínio', 'Aceleração de declínio', 'Desaceleração de declínio', 'Sem classificação', 'Não avaliável']);
   assert.ok(tendencia.itens.every(item => item.texto && item.texto.endsWith('.')));
-  assert.ok(tendencia.paragrafos[0].includes('pelo menos quatro observações válidas'));
-  assert.ok(tendencia.nota.includes('Basta uma alta e uma queda entre os períodos'));
-  // O campo Período (24/10/2026): os últimos 4 períodos, anuais ou semestrais; o avanço e as setas do quadro, em palavras.
-  assert.ok(tendencia.paragrafos[0].includes('nos últimos 4 períodos, anuais ou semestrais, à sua escolha no campo Período'));
-  assert.ok(tendencia.paragrafos[0].includes('Uma alta sozinha é só uma alta, e duas ainda não são tendência'));
+  assert.ok(tendencia.itens.slice(0, 7).every(item => /Exemplos?: /.test(item.texto)), 'cada classe com um exemplo');
+  assert.ok(tendencia.paragrafos[0].includes('nos últimos 4 períodos, anuais ou semestrais (você escolhe no campo Período)'));
+  assert.ok(tendencia.paragrafos[0].includes('o indicador sobe (alta), cai (queda) ou fica igual (pausa)'));
   assert.ok(tendencia.nota.includes('a seta para cima é alta; para baixo, queda; para o lado, pausa'));
-  assert.ok(!/janelas longas|trecho/.test(tendencia.nota + tendencia.paragrafos.join(' ')));
-  assert.ok(tendencia.nota.endsWith('Método de classificação: CAP-TEN-01 (DA-15).'));
+  assert.ok(tendencia.nota.includes('o tamanho de cada alta ou queda é comparado por mês'));
+  assert.ok(tendencia.nota.endsWith('A referência do método fica em Detalhes, na aba Método e procedência.'));
+  assert.ok(!/janelas longas|trecho|avanço/.test(tendencia.nota + tendencia.paragrafos.join(' ')));
   assert.deepEqual(Object.keys(M.DESCRICAO_DAS_CLASSES), M.CLASSES_TENDENCIA.map(classe => classe.codigo));
+});
+
+test('as classes da tendência em palavras simples: os exemplos seguem a regra do motor (CAP-TEN-01), passo a passo', () => {
+  // Cada exemplo da explicação, classificado aqui pela mesma regra do motor (backend/trend.py, classify_speeds: o sinal de cada
+  // avanço e se o tamanho cresce ou diminui), dá a classe que ele ilustra. Os períodos dos exemplos têm a mesma distância.
+  const classe = valores => {
+    const v = valores.slice(1).map((x, i) => x - valores[i]);
+    if (v.every(x => x === 0)) return 'SEM_CLASSIFICACAO';
+    if (v.some(x => x > 0) && v.some(x => x < 0)) return 'SEM_CLASSIFICACAO';
+    const base = v.every(x => x >= 0) ? 'CRESCIMENTO' : 'DECLINIO';
+    if (v.some(x => x === 0)) return base;
+    const m = v.map(Math.abs), passos = m.slice(1).map((x, i) => [m[i], x]);
+    if (passos.every(([a, b]) => b >= a) && passos.some(([a, b]) => b > a)) return base + '_ACELERADO';
+    if (passos.every(([a, b]) => b <= a) && passos.some(([a, b]) => b < a)) return base + '_DESACELERADO';
+    return base;
+  };
+  for (const [codigo, texto] of Object.entries(M.DESCRICAO_DAS_CLASSES)) {
+    const exemplos = texto.split(/Exemplos?: /)[1].split(';').map(trecho => trecho.replace(/\(.*?\)/g, '').match(/\d+/g).map(Number));
+    for (const exemplo of exemplos) assert.equal(classe(exemplo), codigo, codigo + ': ' + exemplo.join(', '));
+  }
+  // O que a classe quer dizer, junto do resultado de um território só: o rótulo do motor e a descrição, sem o exemplo.
+  const t = extra => ({classe: 'CRESCIMENTO_ACELERADO', familia: 'CRESCIMENTO', rotulo: 'Aceleração do crescimento', motivo: null,
+    motivoCodigo: null, motivoTexto: null, avaliavel: true, observacoes: [], velocidades: [], ...extra});
+  assert.equal(M.significadoDaClasse(t()), 'Aceleração do crescimento: o indicador subiu em todos os períodos, e cada alta foi do mesmo ' +
+    'tamanho ou maior que a anterior, com pelo menos uma maior: o crescimento ganhou ritmo.');
+  assert.equal(M.significadoDaClasse(t({avaliavel: false, classe: null})), 'Não avaliável: ' + M.DESCRICAO_NAO_AVALIAVEL);
+  assert.equal(M.significadoDaClasse(null), null);
 });
 
 test('tendência: o motivo de cada unidade em palavras, sem o código; a nota das sem classificação conta pelo motor e explica a regra', () => {
   const t = extra => ({classe: 'SEM_CLASSIFICACAO', familia: 'NENHUMA', rotulo: 'Sem classificação', motivo: null, motivoCodigo: null,
     motivoTexto: null, avaliavel: true, observacoes: 22, velocidades: [], ...extra});
   assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'MUDANCA_DE_DIRECAO', motivoTexto: 'Mudança de direção'})),
-    'Sem classificação: entre os períodos, houve alta e queda (mudança de direção).');
+    'Sem classificação: o indicador subiu num período e caiu em outro (mudou de direção).');
   assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'SERIE_ESTAVEL'})),
-    'Sem classificação: o valor não mudou em nenhum avanço (série estável).');
+    'Sem classificação: o indicador ficou igual em todos os períodos.');
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: null, motivoCodigo: 'SERIE_INSUFICIENTE',
-    motivoTexto: '3 de 4 observações necessárias'})), 'Não avaliável: série insuficiente nos períodos (3 de 4 observações necessárias).');
+    motivoTexto: '3 de 4 observações necessárias'})),
+    'Não avaliável: falta o valor do indicador em algum dos períodos (3 de 4 observações necessárias).');
   // Sem o código nem o texto do motivo (uma resposta de antes), vale o rótulo do motor, que já diz o motivo.
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: 'Não avaliável: série insuficiente'})),
     'Não avaliável: série insuficiente');
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: 'Não avaliável'})), 'Não avaliável.');
   assert.equal(M.explicacaoDaTendencia(t({motivo: 'Mudança de direção (MUDANCA_DE_DIRECAO)'})), 'Sem classificação: mudança de direção.');
   assert.equal(M.explicacaoDaTendencia(t({classe: 'CRESCIMENTO_ACELERADO', familia: 'CRESCIMENTO', rotulo: 'Aceleração do crescimento'})),
-    'Aceleração do crescimento: ' + M.DESCRICAO_DAS_CLASSES.CRESCIMENTO_ACELERADO);
+    'Aceleração do crescimento: ' + M.DESCRICAO_DAS_CLASSES.CRESCIMENTO_ACELERADO.replace(/\s*Exemplo:.*$/, ''));
   assert.equal(M.explicacaoDaTendencia(null), null);
   for (const caso of [t({motivoCodigo: 'MUDANCA_DE_DIRECAO'}), t({motivoCodigo: 'SERIE_ESTAVEL'})])
     assert.ok(!/MUDANCA_DE_DIRECAO|SERIE_ESTAVEL/.test(M.explicacaoDaTendencia(caso)));
   const topo = (contagens, porMotivo) => ({contagens, semClassificacaoPorMotivo: porMotivo});
   // Todas as unidades sem classe (o cenário real das 22 competências): a contagem por motivo e a explicação da regra.
   const real = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 62}, {MUDANCA_DE_DIRECAO: 62}), {rotulos: BR, brasil: true});
-  assert.ok(real.startsWith('Sem classificação: 62 municípios por mudança de direção'), real);
+  assert.ok(real.startsWith('Sem classificação: 62 municípios mudaram de direção (o indicador subiu num período e caiu em outro).'), real);
   assert.ok(real.includes('Nenhum município recebeu classe nestes períodos'));
-  assert.ok(real.includes('uma única mudança de direção basta'));
+  assert.ok(real.includes('basta subir num e cair em outro para ficar sem classificação'));
   assert.ok(!real.includes('junhos') && !real.includes('Janelas com menos'), real);  // a janela é sempre a dos últimos 4 períodos
-  assert.ok(real.endsWith('Isso é o resultado do método, não falta de dados.'));
+  assert.ok(real.endsWith('É o resultado do método, não falta de dados.'));
   // Com unidades classificadas, só a contagem por motivo.
   assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 17, SEM_CLASSIFICACAO: 38}, {MUDANCA_DE_DIRECAO: 37, SERIE_ESTAVEL: 1}),
-    {rotulos: BR, brasil: true}), 'Sem classificação: 37 municípios por mudança de direção (houve alta e queda entre os períodos); ' +
-    '1 município por série estável (o valor não mudou).');
+    {rotulos: BR, brasil: true}), 'Sem classificação: 37 municípios mudaram de direção (o indicador subiu num período e caiu em outro); ' +
+    '1 município ficou igual em todos os períodos.');
   assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 5}, {}), {rotulos: BR, brasil: true}), null);
   assert.equal(M.notaSemClassificacao(null, {rotulos: BR, brasil: true}), null);
   const distritos = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 3}, {MUDANCA_DE_DIRECAO: 3}), {rotulos: DISTRITOS, brasil: false});
