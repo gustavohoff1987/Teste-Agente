@@ -277,7 +277,12 @@ test('apresentação de cada aba: o que a aba faz, com os nomes territoriais da 
     'Declínio', 'Aceleração do declínio', 'Desaceleração do declínio', 'Sem classificação', 'Não avaliável']);
   assert.ok(tendencia.itens.every(item => item.texto && item.texto.endsWith('.')));
   assert.ok(tendencia.paragrafos[0].includes('pelo menos quatro observações válidas'));
-  assert.ok(tendencia.nota.includes('Basta um trecho na direção contrária'));
+  assert.ok(tendencia.nota.includes('Basta uma alta e uma queda entre os períodos'));
+  // O campo Período (24/10/2026): os últimos 4 períodos, anuais ou semestrais; o avanço e as setas do quadro, em palavras.
+  assert.ok(tendencia.paragrafos[0].includes('nos últimos 4 períodos, anuais ou semestrais, à sua escolha no campo Período'));
+  assert.ok(tendencia.paragrafos[0].includes('Uma alta sozinha é só uma alta, e duas ainda não são tendência'));
+  assert.ok(tendencia.nota.includes('a seta para cima é alta; para baixo, queda; para o lado, pausa'));
+  assert.ok(!/janelas longas|trecho/.test(tendencia.nota + tendencia.paragrafos.join(' ')));
   assert.ok(tendencia.nota.endsWith('Método de classificação: CAP-TEN-01 (DA-15).'));
   assert.deepEqual(Object.keys(M.DESCRICAO_DAS_CLASSES), M.CLASSES_TENDENCIA.map(classe => classe.codigo));
 });
@@ -286,11 +291,11 @@ test('tendência: o motivo de cada unidade em palavras, sem o código; a nota da
   const t = extra => ({classe: 'SEM_CLASSIFICACAO', familia: 'NENHUMA', rotulo: 'Sem classificação', motivo: null, motivoCodigo: null,
     motivoTexto: null, avaliavel: true, observacoes: 22, velocidades: [], ...extra});
   assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'MUDANCA_DE_DIRECAO', motivoTexto: 'Mudança de direção'})),
-    'Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção).');
+    'Sem classificação: entre os períodos, houve alta e queda (mudança de direção).');
   assert.equal(M.explicacaoDaTendencia(t({motivoCodigo: 'SERIE_ESTAVEL'})),
-    'Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).');
+    'Sem classificação: o valor não mudou em nenhum avanço (série estável).');
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: null, motivoCodigo: 'SERIE_INSUFICIENTE',
-    motivoTexto: '3 de 4 observações necessárias'})), 'Não avaliável: série insuficiente na janela (3 de 4 observações necessárias).');
+    motivoTexto: '3 de 4 observações necessárias'})), 'Não avaliável: série insuficiente nos períodos (3 de 4 observações necessárias).');
   // Sem o código nem o texto do motivo (uma resposta de antes), vale o rótulo do motor, que já diz o motivo.
   assert.equal(M.explicacaoDaTendencia(t({avaliavel: false, classe: null, rotulo: 'Não avaliável: série insuficiente'})),
     'Não avaliável: série insuficiente');
@@ -305,14 +310,14 @@ test('tendência: o motivo de cada unidade em palavras, sem o código; a nota da
   // Todas as unidades sem classe (o cenário real das 22 competências): a contagem por motivo e a explicação da regra.
   const real = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 62}, {MUDANCA_DE_DIRECAO: 62}), {rotulos: BR, brasil: true});
   assert.ok(real.startsWith('Sem classificação: 62 municípios por mudança de direção'), real);
-  assert.ok(real.includes('Nenhum município recebeu classe nesta janela'));
+  assert.ok(real.includes('Nenhum município recebeu classe nestes períodos'));
   assert.ok(real.includes('uma única mudança de direção basta'));
-  assert.ok(real.includes('como os últimos 4 junhos'));
+  assert.ok(!real.includes('junhos') && !real.includes('Janelas com menos'), real);  // a janela é sempre a dos últimos 4 períodos
   assert.ok(real.endsWith('Isso é o resultado do método, não falta de dados.'));
   // Com unidades classificadas, só a contagem por motivo.
   assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 17, SEM_CLASSIFICACAO: 38}, {MUDANCA_DE_DIRECAO: 37, SERIE_ESTAVEL: 1}),
-    {rotulos: BR, brasil: true}), 'Sem classificação: 37 municípios por mudança de direção (o indicador subiu em alguns trechos e ' +
-    'caiu em outros); 1 município por série estável (o indicador não variou).');
+    {rotulos: BR, brasil: true}), 'Sem classificação: 37 municípios por mudança de direção (houve alta e queda entre os períodos); ' +
+    '1 município por série estável (o valor não mudou).');
   assert.equal(M.notaSemClassificacao(topo({CRESCIMENTO: 5}, {}), {rotulos: BR, brasil: true}), null);
   assert.equal(M.notaSemClassificacao(null, {rotulos: BR, brasil: true}), null);
   const distritos = M.notaSemClassificacao(topo({SEM_CLASSIFICACAO: 3}, {MUDANCA_DE_DIRECAO: 3}), {rotulos: DISTRITOS, brasil: false});
@@ -324,6 +329,50 @@ test('tendência: o motivo de cada unidade em palavras, sem o código; a nota da
     tendencia: {competencias: ['202306', '202406'], contagens: {SEM_CLASSIFICACAO: 1}, sem_classificacao_por_motivo: {MUDANCA_DE_DIRECAO: 1}}});
   assert.equal(r.itens[0].tendencia.motivoCodigo, 'MUDANCA_DE_DIRECAO');
   assert.equal(r.tendencia.semClassificacaoPorMotivo.MUDANCA_DE_DIRECAO, 1);
+});
+
+test('quadro de setas: um ponto por período, uma seta por avanço com o sinal do motor, escala da linha e a ordem por classe', () => {
+  const tendencia = (classe, observacoes, velocidades, extra = {}) => ({classe, familia: M.familiaDaClasse(classe), rotulo: classe ? 'Classe' : 'Não avaliável',
+    motivo: null, motivoCodigo: null, motivoTexto: null, avaliavel: true, observacoes, velocidades, ...extra});
+  const janela = ['202106', '202206', '202306', '202406'];
+  const obs = valores => valores.map((valor, i) => ({competencia: janela[i], valor}));
+  const vel = valores => valores.slice(1).map((valor, i) => ({de: janela[i], ate: janela[i + 1], valor: (valor - valores[i]) / 12}));
+  // Manaus nos últimos 4 junhos (base versionada, arredondado): três altas, cada uma maior que a anterior.
+  const valores = [1.81, 1.87, 1.96, 2.07];
+  const manaus = tendencia('CRESCIMENTO_ACELERADO', obs(valores), vel(valores), {rotulo: 'Aceleração do crescimento'});
+  const caixa = {x0: 0, x1: 120, y0: 0, y1: 40};
+  const {pontos, setas} = M.montarSetas(manaus, janela, caixa);
+  const arredondar = valor => Math.round(valor * 1e6) / 1e6;  // as posições são contas em ponto flutuante
+  assert.deepEqual(pontos.map(p => arredondar(p.x)), [0, 40, 80, 120]);  // a cada 12 meses, no tempo real
+  assert.deepEqual([arredondar(pontos[0].y), arredondar(pontos[3].y)], [40, 0]);  // escala da linha: o menor no pé, o maior no topo
+  assert.deepEqual(setas.map(s => [s.de, s.ate, s.sinal]), [['202106', '202206', 'alta'], ['202206', '202306', 'alta'], ['202306', '202406', 'alta']]);
+  assert.ok(setas.every(s => s.angulo < 0 && s.meioX > s.x1 && s.meioX < s.x2), 'a ponta no meio de cada avanço, subindo');
+  // O sinal é o da velocidade do motor (pausa, alta, queda); a amplitude mínima não faz uma série quase parada parecer um salto.
+  const quase = M.montarSetas(tendencia('SEM_CLASSIFICACAO', obs([5, 5, 5.0001, 5]), [{de: '202106', ate: '202206', valor: 0},
+    {de: '202206', ate: '202306', valor: 0.00001}, {de: '202306', ate: '202406', valor: -0.00001}]), janela, caixa);
+  assert.deepEqual(quase.setas.map(s => s.sinal), ['pausa', 'alta', 'queda']);
+  assert.ok(Math.max(...quase.pontos.map(p => p.y)) - Math.min(...quase.pontos.map(p => p.y)) < 1, 'quase plana');
+  // Período sem valor: nenhum ponto inventado; a seta liga as observações que o motor usou. Semestral: 5 e 7 meses.
+  const semestral = ['202301', '202306', '202401', '202406'];
+  const lacuna = M.montarSetas(tendencia(null, [{competencia: '202301', valor: 1}, {competencia: '202306', valor: null}, {competencia: '202401', valor: 2},
+    {competencia: '202406', valor: 3}], [{de: '202301', ate: '202401', valor: 0.08}, {de: '202401', ate: '202406', valor: 0.2}], {avaliavel: false}),
+  semestral, {x0: 0, x1: 170, y0: 0, y1: 40});
+  assert.deepEqual(lacuna.pontos.map(p => [p.competencia, arredondar(p.x)]), [['202301', 0], ['202401', 120], ['202406', 170]]);
+  assert.deepEqual(lacuna.setas.map(s => [s.de, s.ate]), [['202301', '202401'], ['202401', '202406']]);
+  assert.deepEqual(M.montarSetas(null, janela, caixa), {pontos: [], setas: []});
+  // Ordem: a classe na ordem da SPEC e, nela, a maior variação primeiro (sem valor no fim); os não avaliáveis por último. Com a
+  // ordenação em uso, a posição do motor.
+  const item = (id, classe, variacao) => ({id, tipo: 'municipio', rotulo: id, densidade: 1, variacao_percentual: {densidade: variacao},
+    tendencia: classe ? tendencia(classe, [], []) : tendencia(null, [], [], {avaliavel: false}), ordem: null});
+  const itens = [item('A', 'SEM_CLASSIFICACAO', 9), item('B', 'CRESCIMENTO', 2), item('C', 'CRESCIMENTO', 7), item('D', null, 50),
+    item('E', 'CRESCIMENTO_ACELERADO', 1), item('F', 'CRESCIMENTO', null)];
+  assert.deepEqual(M.ordemDoQuadro(itens, 'densidade', false).map(i => i.id), ['C', 'B', 'F', 'E', 'A', 'D']);
+  const comPosicao = itens.map((i, n) => ({...i, ordem: {posicao: [3, null, 1, 2, null, 4][n]}}));
+  assert.deepEqual(M.ordemDoQuadro(comPosicao, 'densidade', true).map(i => i.id), ['C', 'D', 'A', 'F', 'B', 'E']);
+  // Para os leitores de tela: a classe do motor e cada período com o valor e o avanço até ele.
+  assert.equal(M.descricaoDasSetas({...item('MANAUS (AM)', 'CRESCIMENTO_ACELERADO', 14), tendencia: manaus}, 'densidade'),
+    'MANAUS (AM): Aceleração do crescimento. 06/2021: 1,81; 06/2022: 1,87, alta; 06/2023: 1,96, alta; 06/2024: 2,07, alta.');
+  assert.equal(M.sinalDoAvanco(-0.1), 'queda');
 });
 
 test('planilha com a coluna-mãe: os grupos da Seleção vêm do catálogo do pré-exame (a província de cada distrito)', () => {

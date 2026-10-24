@@ -272,6 +272,50 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-legenda p { margin: 0; }
 .analise-multiplos { display: grid; gap: 12px; }
 
+/* ------------------------------------------------------------------------------------------- quadro de setas (tendência) */
+/* Como um painel de cotações (24/10/2026): uma linha por unidade, com o nome, o desenho dos períodos com as setas, o último valor e
+   a variação, e a classe do motor. As cores das setas vêm da paleta do gráfico (no componente); aqui, só superfícies e tintas. A
+   linha muda de arranjo pela largura do próprio quadro (lado a lado e celular). */
+.analise-ajuste-apoio { margin-top: 4px; color: var(--cor-texto-2); font-size: 11.5px; line-height: 1.45; }
+.analise-setas { container-type: inline-size; display: flex; flex-direction: column; gap: 6px; }
+.analise-setas-cabecalho, .analise-seta-linha { display: grid; grid-template-columns: minmax(8rem, 1.2fr) 212px minmax(6.5rem, .6fr) minmax(9.5rem, 1fr);
+  align-items: center; gap: 4px 16px; }
+.analise-setas-cabecalho { padding: 0 10px 4px; border-bottom: 1px solid var(--cor-borda-suave); color: var(--cor-texto-3); font-size: 11px;
+  letter-spacing: .05em; text-transform: uppercase; }
+.analise-setas-eixo { display: block; overflow: visible; }
+.analise-setas-linhas { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.analise-seta-item { position: relative; }
+.analise-seta-linha { width: 100%; padding: 6px 10px; border: 0; border-bottom: 1px solid var(--cor-borda-suave); border-radius: 10px;
+  background: transparent; color: var(--cor-texto); font-size: 12.5px; text-align: left; cursor: pointer; }
+.analise-seta-linha:hover, .analise-seta-linha[data-ativo="true"] { background: var(--cor-realce-suave); }
+.analise-seta-linha:focus-visible { outline: 2px solid var(--cor-foco); outline-offset: -2px; background: var(--cor-realce-suave); }
+.analise-seta-linha[aria-pressed="true"] { background: var(--cor-realce); box-shadow: inset 3px 0 0 var(--cor-tinta); }
+.analise-seta-nome { display: flex; min-width: 0; align-items: baseline; gap: 6px; color: var(--cor-tinta); font-weight: 600; }
+.analise-seta-posicao { flex-shrink: 0; color: var(--cor-texto-2); font-variant-numeric: tabular-nums; }
+.analise-seta-condicao { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--cor-borda-controle); border-radius: 999px; color: var(--cor-texto-2);
+  font-size: 10.5px; font-weight: 600; }
+.analise-setas-desenho { display: block; overflow: visible; }
+.analise-seta-numeros { display: flex; flex-direction: column; min-width: 0; color: var(--cor-texto-2); font-size: 11.5px; line-height: 1.35; }
+.analise-seta-numeros strong { color: var(--cor-tinta); font-size: 13px; }
+.analise-seta-classe { display: inline-flex; min-width: 0; align-items: center; gap: 6px; color: var(--cor-tinta); font-weight: 600; }
+.analise-seta-classe svg { flex-shrink: 0; }
+.analise-seta-dica { position: absolute; z-index: 30; top: calc(100% - 2px); left: 10px; width: min(340px, calc(100% - 20px)); padding: 10px 12px;
+  border: 1px solid var(--cor-borda-controle); border-radius: 12px; background: var(--cor-superficie-elevada); box-shadow: 0 10px 30px var(--cor-sombra);
+  color: var(--cor-texto); font-size: 12px; line-height: 1.5; pointer-events: none; }
+.analise-seta-dica p { margin: 6px 0 0; }
+.analise-seta-dica .analise-seta-dica-titulo { margin: 0; color: var(--cor-tinta); font-weight: 700; }
+.analise-seta-dica-periodos { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0; padding: 0; list-style: none; }
+.analise-seta-dica-periodos li { display: contents; }
+.analise-seta-dica-periodos strong { color: var(--cor-tinta); }
+@container (max-width: 720px) {
+  .analise-setas-cabecalho { display: none; }
+  .analise-seta-linha { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nome classe" "desenho numeros"; gap: 2px 12px; }
+  .analise-seta-nome { grid-area: nome; }
+  .analise-seta-classe { grid-area: classe; justify-self: end; }
+  .analise-setas-desenho { grid-area: desenho; }
+  .analise-seta-numeros { grid-area: numeros; align-items: flex-end; }
+}
+
 /* ------------------------------------------------------------------------------------------- rotatividade */
 .analise-rot-linha { display: grid; grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr); gap: 2px 12px; align-items: center; font-size: 12px; }
 .analise-rot-nome { overflow: hidden; color: var(--cor-tinta); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

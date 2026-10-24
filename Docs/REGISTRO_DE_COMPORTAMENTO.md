@@ -35,6 +35,66 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-24 · Página única: o campo Período (anual ou semestral, os últimos 4 períodos) e o quadro de setas da Análise de Tendência
+- **Antes:**
+  - A janela da tendência era escolhida pelos atalhos "Últimos 4 junhos", "Série anual de junho" e "Todas as competências"
+    ou pelas competências marcadas uma a uma, num painel que abria sozinho ao entrar na aba.
+  - Com janelas longas (as 22 competências da base do Brasil), quase nenhuma unidade recebia classe.
+  - Na visão Classes, as unidades eram bolhas com o cometa, pintadas pela família da classe.
+  - Os textos da aba falavam em "trechos" e diziam que janelas longas têm menos classes.
+- **Agora:**
+  - **Campo Período:** a aba traz o campo Período, com o seletor Anual ou Semestral, e a análise usa os últimos 4 períodos do
+    ritmo escolhido, contados da competência mais recente.
+    - Na base do Brasil, o anual dá 06/2021, 06/2022, 06/2023 e 06/2024, e o semestral, 01/2023, 06/2023, 01/2024 e 06/2024.
+    - A cada passo, vale a competência mais perto de 12 ou 6 meses antes, com folga de 2 meses (de janeiro a junho são 5
+      meses).
+    - Não há ritmo padrão: nada de tendência é pedido até a escolha, e o aviso diz "Escolha o período da tendência, anual ou
+      semestral: a análise usa os últimos 4 períodos.".
+    - O ritmo que a base não tem fica desligado, com o motivo à vista ("Esta base não tem 4 períodos anuais seguidos (um por
+      ano) até a competência mais recente.").
+    - O texto do campo lista as 4 competências usadas.
+    - Os atalhos antigos e o painel da janela saíram.
+    - Uma janela pedida na conversa, ou de um estado salvo antes, continua valendo como veio, até a escolha de um ritmo.
+  - **Quadro de setas:** a visão Classes passa a ser um quadro de setas, como um painel de cotações.
+    - Cada linha é uma unidade, com o nome, um ponto por período e uma seta por avanço: para cima é alta, em azul; para baixo,
+      queda, em laranja; para o lado, pausa, em cinza, pelo sinal da velocidade do motor.
+    - Ao lado, o último valor, a variação entre o primeiro e o último período, do motor, e a classe do motor, com um ícone.
+    - Cada linha tem a própria escala vertical.
+    - As linhas vêm agrupadas pela classe e, dentro dela, pela variação, 50 por página, ou pela posição da Ordenação.
+    - A dica, no mouse e no foco, lista os períodos com o valor e o avanço.
+    - Clicar na linha escolhe a unidade para Séries e Comparar.
+    - A contagem por classe filtra o quadro.
+    - O cometa e "Primeira", "Última" e "Reproduzir" ficam só na visão Mudança, e a escala não se aplica ao quadro.
+  - **Textos da aba:** usam períodos e avanços, como nas regrinhas.
+    - Uma alta sozinha é só uma alta, e duas ainda não são tendência: são precisos 4 períodos, ou seja, 3 avanços.
+    - "Sem classificação: entre os períodos, houve alta e queda (mudança de direção)."
+    - A nota das sem classificação já não fala de janelas longas.
+- **Permanece:**
+  - O método e as classes: CAP-TEN-01 com DA-15, o mínimo de 4 observações e a velocidade por mês. A tela não classifica nada:
+    a classe e o sinal de cada seta são do motor (RQ-REP-02).
+  - O motor e o contrato: a janela continua indo em `tendencia.competencias`.
+  - As visões Mudança e Séries, o mapa pintado pela família da classe, a contagem por classe, a nota das sem classificação por
+    motivo, a âncora "Método de classificação: CAP-TEN-01 (DA-15)." (V-05), a conversa e o CSV.
+- **Motivo:** pedido do responsável pelo produto em 24/10/2026: o campo Período com o seletor anual ou semestral, a regra
+  considerando os últimos 4 períodos e um gráfico diferente para a tendência, com setas, como na bolsa de valores.
+  - **Classificação:** prevista. Decorre do pedido e não contraria a SPEC: o mínimo de 4 observações é o de DA-15, a janela
+    continua escolha da pessoa (decisão 5a: a pessoa escolhe o ritmo) e a classe continua a do motor.
+  - **Cores das setas:** conferidas no validador da skill de visualização. Alta e queda (`#2a78d6` e `#eb6834` no claro;
+    `#3987e5` e `#d95926` no escuro) passam em todos os pares: CVD ΔE 24,7 e 26,8; visão normal 33,6 e 31,8; contraste de 3:1 ou
+    mais. A pausa, `#898781`, fica a 3,50:1 no claro e 4,85:1 no escuro, e a forma da seta também diz a direção.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Período, quadro de setas, eixos, cores e testes),
+    `Docs/PAINEL_INTEGRADO.md` (a janela que a tela pede) e `README.md`.
+  - **Testes de Node:**
+    - `painel.test.mjs`: o teste da janela cobre os ritmos (anual, semestral, base mensal, anos), o ritmo indisponível com o
+      motivo e o ritmo de uma janela; a cobertura dos atalhos removidos passou para essas conferências.
+    - `areaDeAnalise.test.mjs`: o quadro de setas (pontos, sinal do motor, escala, lacuna e ordem) e os textos novos.
+  - **Roteiro de navegador:** `ui_area_de_analise.py` cobre o Período, sem ritmo padrão e com o anual desligado no catálogo
+    sintético, e o quadro de setas, conferido linha a linha com a resposta do motor.
+  - **Testes mudados de propósito:** os textos esperados da apresentação, do motivo e da nota, e o aviso da família. O
+    comportamento mudou por este pedido, e o defeito não estava no produto nem no teste.
+  - Nenhum teste foi enfraquecido, pulado ou apagado.
+
 ### 2026-10-23 · Página única: as províncias (ou outros grupos) da planilha na Seleção de Territórios
 - **Antes:** numa planilha com a coluna-mãe (papel `grupo_territorial`, por exemplo a província de cada distrito), a lista de
   territórios mostrava só as unidades, sem os grupos: o catálogo da planilha trazia o grupo de cada unidade em `parents`, mas a

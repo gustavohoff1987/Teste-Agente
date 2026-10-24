@@ -601,10 +601,13 @@ estável), com o motivo e o número de observações. A classificação usa arit
 transcorrido entre elas; com menos de quatro competências a etapa recebe BLQ-MET com os textos do
 catálogo, e a mudança continua disponível. Contagens por classe, velocidades e janela ficam em
 `metadata.tendencia` e `metadata.mudanca`, fora do contexto enviado à IA. Na página única, a análise
-Tendência mostra a mudança, as classes e as séries, com a janela escolhida pela pessoa; desde 23/10/2026, a aba explica
-em palavras o que significa cada classe, e a tela diz por que cada unidade ficou sem classificação (uma única mudança de
-direção na janela basta, pela regra DA-15; com as 22 competências da base versionada, isso vale para todos os municípios do
-Amazonas) ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Os selos, o filtro por família, a caixa Período
+Tendência mostra a mudança, as classes e as séries; desde 23/10/2026, a aba explica em palavras o que significa cada
+classe, e a tela diz por que cada unidade ficou sem classificação (uma única mudança de direção basta, pela regra DA-15; com
+as 22 competências da base versionada, isso valia para todos os municípios do Amazonas). Desde 24/10/2026, o campo Período
+escolhe o ritmo, anual ou semestral, e a análise usa os últimos 4 períodos dele (o mínimo da regra: 4 períodos, 3 avanços),
+sem ritmo padrão; a visão Classes é um quadro de setas, como um painel de cotações, com uma linha por unidade, uma seta por
+avanço (alta, queda ou pausa, pelo sinal do motor), o último valor, a variação e a classe do motor
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Os selos, o filtro por família, a caixa Período
 com o atalho "Série anual (junho)", os pequenos múltiplos e os halteres da aba Gráficos saíram com as
 telas clássicas em 22/10/2026. Detalhes,
 contagens com os dados reais e testes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md).

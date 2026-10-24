@@ -6,29 +6,30 @@ import {
   type PainelItem, type PainelMunicipios, type PainelOpcoes, type PainelReferenciaPedido, type PainelResposta,
 } from "./painelApi";
 import {
-  ABAS, ATALHOS_JANELA, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, NOME_SELECAO, TEXTO_SEM_SELECAO, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
+  ABAS, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, NOME_SELECAO, TEXTO_SEM_SELECAO, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
   NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
   apoioDaFamilia, artigo, avisoDaFamilia, baseVazia, bloqueioDoPedido, camadaDeCor, contextoDoGrafico, corContinuaDoMapa, corOrdinal,
   corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, escreverLimites, exibirCompetencia,
   familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade, grupoDoItem, gruposDaFonte,
-  janelaDoAtalho, lerEstadoSalvo, lerLimites, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
+  lerEstadoSalvo, lerLimites, listaDeCompetencias, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
   chaveDoPedido, montarOpcoes, noCorte, apresentacaoDaAba, notaSemClassificacao, paletaDoGrafico, precisaQuintisDoMapa, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto,
-  ordemNeutra, pintar, pinturaDoMapa, prefixoDe, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula,
+  ordemNeutra, pintar, pinturaDoMapa, prefixoDe, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA, rotulosEfetivos, salvarEstado, separarItens, tamanhoDoMapa, todosOs, maiuscula,
   textoDaMarca, textoDoMetodo, textoInstrucaoGrupos, tituloDaAnalise, trilhaDoUniverso, umA, visaoEfetiva,
-  type Aba, type Ajuste, type Apresentacao, type AtalhoJanela, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
+  type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoTrilha, type PedidoDoChat,
   type UnidadeDoCatalogo, type Visao, type Vista,
 } from "./painelModel";
 import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
 import PainelChart, { type FaseAnimacao, type LinhaDeReferencia } from "./PainelChart";
 import PainelSeries, { MAX_SERIES } from "./PainelSeries";
+import PainelSetas from "./PainelSetas";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
 import PainelTerritorios from "./PainelTerritorios";
 import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
-import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJanela, GavetaJuntar, GavetaOrdenar, GavetaReferencia } from "./PainelGavetas";
+import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJuntar, GavetaOrdenar, GavetaReferencia } from "./PainelGavetas";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import "./analise.css";
 
@@ -79,7 +80,7 @@ const FUNCOES: { chave: FuncaoPainel; rotulo: string; icone: ReactNode }[] = [
   { chave: "exportar", rotulo: "Exportar", icone: <Download size={15} aria-hidden="true"/> },
 ];
 const TITULOS_PAINEL: Record<FuncaoPainel, string> = { regua: "Régua", condicoes: "Condições", ordenar: "Ordenar", comparar: "Comparar",
-  juntar: "Juntar", exportar: "Exportar", referencia: "Referência da distância", janela: "Janela da tendência" };
+  juntar: "Juntar", exportar: "Exportar", referencia: "Referência da distância" };
 const VISTAS: { chave: VistaDesenho; rotulo: string; icone: ReactNode }[] = [
   { chave: "grafico", rotulo: "Gráfico", icone: <ChartScatter size={14} aria-hidden="true"/> },
   { chave: "mapa", rotulo: "Mapa", icone: <MapaIcone size={14} aria-hidden="true"/> },
@@ -406,7 +407,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const temTendencia = tendenciaNaTela && defDesenho.janela.length >= MINIMO_TENDENCIA && (!!resposta?.tendencia || !!resposta?.itens.some(item => item.tendencia));
   const visaoNaTela: Visao = !tendenciaNaTela ? "mudanca" : def.visao !== "mudanca" && temTendencia ? def.visao : "mudanca";
   const series = visaoNaTela === "series";
-  const cometa = tendenciaNaTela && visaoNaTela !== "series";
+  // Visão Classes: o quadro de setas (24/10/2026), no lugar das bolhas; o cometa, com "Primeira", "Última" e "Reproduzir", fica na
+  // Mudança. A dica do mapa continua com a variação nas duas visões.
+  const quadroDeSetas = tendenciaNaTela && visaoNaTela === "classes";
+  const cometa = tendenciaNaTela && visaoNaTela === "mudanca";
+  const dicaComVariacao = tendenciaNaTela && visaoNaTela !== "series";
   const rotatividadeNaTela = familiaDesenho === "rotatividade";
   const camada = tendenciaNaTela ? (visaoNaTela === "mudanca" ? "variacao" : "classes") : camadaDeCor(familiaDesenho, visaoDesenho, resposta, defDesenho);
   const camadaFinal = resposta?.condicoes && defDesenho.condicoes.length ? "condicoes" : resposta?.ordenacao && defDesenho.ordenar ? "ordem" : camada;
@@ -516,11 +521,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!disponivel.disponivel) { setAviso(NOMES_FAMILIAS[familia] + " indisponível com estes dados: " + disponivel.motivo); return; }
     mudar({ familia });
     setFiltroClasse(null);
-    // A referência e a janela são pedidas depois da seleção: sem territórios, a aba mostra a apresentação e os ajustes.
+    // A referência é pedida depois da seleção: sem territórios, a aba mostra a apresentação e os ajustes. O período da tendência
+    // (anual ou semestral) fica no campo Período, nos ajustes da aba.
     const comSelecao = def.nivel === "municipios" && !semSelecao(def);
     if (familia === "espacial" && !def.referencia && comSelecao) abrirPainel("referencia");
-    else if (familia === "tendencia" && def.janela.length < 2 && comSelecao) abrirPainel("janela");
-    else if (painel === "referencia" || painel === "janela") setPainel(null);
+    else if (painel === "referencia") setPainel(null);
     if (disponivel.pendente) setAviso(NOMES_FAMILIAS[familia] + ": " + disponivel.motivo);
   }
   function teclasAbas(event: KeyboardEvent<HTMLButtonElement>, indice: number) {
@@ -536,10 +541,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     setAviso("De volta " + (generoDe(grupo) === "f" ? "às " : "aos ") + grupo.plural + ".");
   }
-  /** Com as unidades à vista, a família que esperava por elas pede o que falta (a referência ou a janela). */
+  /** Com as unidades à vista, a análise espacial que esperava por elas pede a referência (o período da tendência fica no campo
+   * Período). */
   function pedirOQueFalta() {
     if (def.familia === "espacial" && !def.referencia && disponivelDe("espacial").disponivel) abrirPainel("referencia");
-    else if (def.familia === "tendencia" && def.janela.length < 2 && disponivelDe("tendencia").disponivel) abrirPainel("janela");
   }
   function verGrupo(grupo: string) {
     mudar({ nivel: "municipios", base: { todos: false, estados: [grupo], ids: [] } });
@@ -824,13 +829,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     [distanciaNaTela, resposta]);
   const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, selecao) : [], [distanciaNaTela, resposta, selecao]);
   const dicaDe = useCallback((item: PainelItem) => montarDica(item, { indicador, competencia: resposta?.competencia ?? "",
-    competenciaInicial: resposta?.competencia_inicial || null, distancia: distanciaNaTela, variacao: cometa && !!resposta?.competencia_inicial,
+    competenciaInicial: resposta?.competencia_inicial || null, distancia: distanciaNaTela, variacao: dicaComVariacao && !!resposta?.competencia_inicial,
     tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo }),
-  [indicador, resposta, distanciaNaTela, cometa, nomes, limiares, rotulos, unidadesDoGrupo]);
+  [indicador, resposta, distanciaNaTela, dicaComVariacao, nomes, limiares, rotulos, unidadesDoGrupo]);
   // A escala muda só o desenho ("como ver"): fica na barra junto da vista, só quando se aplica (no gráfico, fora da rotatividade
   // e de Séries). Linear por padrão; a logarítmica só por escolha e com valores positivos. O mapa não tem escala própria: a cor
   // contínua da rotatividade vai de 0 a 100%.
-  const escalaNoGrafico = (vistaExibida === "grafico" || lado) && !rotatividadeNaTela && !series;
+  const escalaNoGrafico = (vistaExibida === "grafico" || lado) && !rotatividadeNaTela && !series && !quadroDeSetas;
   const logPossivel = !!dominio && dominio[0] > 0;
   const propsDoMapa: MapaProps | null = resposta && dadosAtuais ? {
     itens: itensDoMapa, dentro: dentroDoMapa, dados: dadosAtuais, indicador, pintura: pinturaMapa, pintar: pinturaNoMapa,
@@ -891,11 +896,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       indicador={indicador} rotulos={rotulos} unidadeTempo={resposta.tendencia?.unidadeTempo ?? null}/>
       : <div data-testid="analise-series-vazio" className="analise-vazio">
         <p className="font-semibold text-ink">Escolha até {MAX_SERIES} {unidade.plural} para ver as séries.</p>
-        <p className="text-xs text-slate-600">Marque na tabela (Detalhes) ou clique nas bolhas na visão Classes. Ou use {artigo(unidade, true)} de uma classe:</p>
+        <p className="text-xs text-slate-600">Marque na tabela (Detalhes) ou clique nas linhas do quadro de setas, na visão Classes. Ou use {artigo(unidade, true)} de uma classe:</p>
         <div className="flex flex-wrap justify-center gap-1.5">{CLASSES_TENDENCIA.filter(classe => (resposta.tendencia?.contagens[classe.codigo] ?? 0) > 0).map(classe =>
           <button key={classe.codigo} type="button" data-testid="analise-series-classe" data-classe={classe.codigo} className="analise-chip" onClick={() => seriesDaClasse(classe.codigo)}>
             {classe.rotulo}</button>)}</div>
       </div>;
+    if (quadroDeSetas) return <PainelSetas itens={visiveis} janela={resposta.tendencia?.janela.length ? resposta.tendencia.janela : defDesenho.janela}
+      indicador={indicador} rotulos={rotulos} selecionados={selecao} pelaPosicao={camadaFinal === "ordem"} condicoes={camadaFinal === "condicoes"}
+      legenda={legendaCor} onAlternar={alternar} ativoExterno={lado ? ativoCruzado : null} onAtivo={lado ? setAtivoCruzado : undefined}/>;
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
       cometa={cometa} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares} nomes={nomes} carregando={carregando}
@@ -942,7 +950,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         catalogo={municipios} premissas={def.premissas} faixas={def.faixasDistancia} criterioInicial={criterioDoChat} onAplicar={aplicarReferencia}
         onRemover={() => { mudar({ referencia: null, faixasDistancia: [] }); setAviso("Referência removida: volta o eixo único."); }}
         onFaixas={limites => mudar({ faixasDistancia: limites })}/>;
-      case "janela": return <GavetaJanela periodos={periodos} janela={def.janela} onAplicar={janela => { mudar({ janela, familia: "tendencia" }); setFiltroClasse(null); }}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
         soAtende={soAtende} onSoAtende={setSoAtende} onAplicar={condicoes => mudar({ condicoes })}/>;
       case "ordenar": return <GavetaOrdenar ordenar={def.ordenar} espacial={distanciaNaTela} mudanca={exibicao.variacao} resposta={resposta}
@@ -1010,19 +1017,29 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         <button type="button" data-testid="analise-referencia-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("referencia")}>
           {def.referencia ? "Mudar" : "Escolher a referência"}</button>
       </div>;
-      case "janela": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
-        <span className="analise-rotulo-campo">Janela
-          <span data-testid="analise-janela-texto" className="analise-resumo">{def.janela.length >= 2
-            ? exibirCompetencia(def.janela[0]) + " a " + exibirCompetencia(def.janela[def.janela.length - 1]) + " (" + def.janela.length + " competências)" : "escolha"}</span>
-        </span>
-        {(Object.keys(ATALHOS_JANELA) as AtalhoJanela[]).map(atalho => {
-          const valor = janelaDoAtalho(atalho, periodos);
-          return <button key={atalho} type="button" data-testid={"analise-janela-rapida-" + atalho} className="analise-botao-secundario" disabled={valor.length < 2}
-            aria-pressed={valor.length >= 2 && valor.join() === def.janela.join()} onClick={() => { mudar({ janela: valor }); setFiltroClasse(null); if (painel === "janela") setPainel(null); }}>
-            {ATALHOS_JANELA[atalho]}</button>;
-        })}
-        <button type="button" data-testid="analise-janela-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("janela")}>Outra</button>
-      </div>;
+      case "janela": {
+        // Campo Período (24/10/2026): a pessoa escolhe o ritmo, e a janela são os últimos 4 períodos dele (sem ritmo padrão). O ritmo
+        // que a base não tem fica desligado, com o motivo. Uma janela que não é de um ritmo (pedida na conversa ou de um estado salvo
+        // antes) continua valendo como veio, até a escolha de um ritmo.
+        const ritmos = ritmosDaBase(periodos);
+        const ritmoAtual = ritmoDaJanela(def.janela, periodos);
+        const plural = RITMOS_TENDENCIA.find(item => item.ritmo === ritmoAtual)?.plural;
+        const texto = !def.janela.length ? "Escolha anual ou semestral: a análise usa os últimos 4 períodos."
+          : plural ? "Últimos 4 períodos " + plural + ": " + listaDeCompetencias(def.janela) + "."
+          : "Janela de " + def.janela.length + " períodos, de " + exibirCompetencia(def.janela[0]) + " a " +
+            exibirCompetencia(def.janela[def.janela.length - 1]) + ". Escolha anual ou semestral para usar os últimos 4.";
+        return <div key={qual} data-ajuste={qual} className="analise-rotulo-campo">
+          <span aria-hidden="true">Período</span>
+          <div role="radiogroup" aria-label="Período da tendência" aria-describedby="analise-periodo-texto" className="analise-segmentos mt-1">
+            {ritmos.map(item => <button key={item.ritmo} type="button" role="radio" aria-checked={ritmoAtual === item.ritmo}
+              data-testid={"analise-periodo-" + item.ritmo} disabled={!item.janela.length} title={item.motivo ?? listaDeCompetencias(item.janela)}
+              onClick={() => { mudar({ janela: item.janela, familia: "tendencia" }); setFiltroClasse(null); }}>{item.rotulo}</button>)}
+          </div>
+          <span id="analise-periodo-texto" data-testid="analise-periodo-texto" className="analise-ajuste-apoio">{texto}</span>
+          {ritmos.filter(item => item.motivo).map(item => <span key={item.ritmo} data-testid={"analise-periodo-motivo-" + item.ritmo}
+            className="analise-ajuste-nota">{item.rotulo}: {item.motivo}</span>)}
+        </div>;
+      }
       case "visao": return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
         <div className="analise-rotulo-campo">
           <span aria-hidden="true">Visão</span>

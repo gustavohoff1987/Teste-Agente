@@ -12,7 +12,8 @@ estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no
 
 Código: `frontend/src/AreaDeAnalise.tsx` (a área e o estado), `PainelChart.tsx` (bolhas, dica e legendas), `MapaAnalise.tsx`
 (o mapa) e `transicaoVistas.ts` (a troca animada entre o gráfico e o mapa), montados pelo contrato de `mapaContrato.ts`,
-`PainelTerritorios.tsx` (escolha dos territórios), `PainelSeries.tsx` (séries da tendência), `PainelRotatividade.tsx` (barras de
+`PainelTerritorios.tsx` (escolha dos territórios), `PainelSeries.tsx` (séries da tendência), `PainelSetas.tsx` (quadro de setas
+da tendência, na visão Classes), `PainelRotatividade.tsx` (barras de
 100%), `PainelGavetas.tsx` (painéis das funções), `PainelRuler.tsx` (régua), `PainelDetalhes.tsx` (tabela, não avaliáveis e
 método), `painelModel.ts` (modelo puro), `painelApi.ts` (cliente do motor, único lugar com os nomes de campos) e `analise.css`.
 A estrutura da página (`App.tsx`) monta a área direto, sem invólucro. No código e nos testes, os identificadores da área
@@ -131,7 +132,7 @@ Análise de Rotatividade com a base do Brasil, que tem contagens e não pessoas 
 |---|---|
 | Análise de Distribuição | Indicador, Categoria (com mais de uma), Competência, Grupos e faixas |
 | Análise Espacial | Indicador, Categoria, Competência, Referência (a escolhida e o botão que abre o painel da referência) |
-| Análise de Tendência | Indicador, Categoria, Janela (o resumo, os atalhos e "Outra", que abre o painel da janela) e Visão (Classes, Mudança e Séries, com "Primeira", "Última" e "Reproduzir" quando há o rastro) |
+| Análise de Tendência | Indicador, Categoria, Período (Anual ou Semestral, com as 4 competências usadas; o ritmo que a base não tem fica desligado, com o motivo) e Visão (Classes, no quadro de setas, Mudança e Séries; "Primeira", "Última" e "Reproduzir" só na Mudança) |
 | Análise de Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
 | Estados (E1), em qualquer aba, e análise que espera os municípios | Indicador, Competência, Grupos e faixas (o desenho é a distribuição) |
 
@@ -162,30 +163,53 @@ O que cada análise mostra:
   (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba abre
   com a apresentação e o motivo do motor, sem os ajustes; quando o motor pede a escolha do referencial, a tela mostra as opções
   que ele mandar.
-- **Tendência:** a janela é escolha da pessoa (decisão 5a), com os atalhos "Últimos 4 junhos", "Série anual de junho" e "Todas
-  as competências", ou as competências marcadas uma a uma. A visão é só estado visual (trocar não pede nada novo):
+- **Tendência:** desde 24/10/2026, o campo **Período** (`analise-periodo-anual` e `analise-periodo-semestral`) escolhe o ritmo, e a
+  janela são os **últimos 4 períodos** dele, contados da competência mais recente: o mínimo de DA-15 (4 períodos, 3 avanços). A
+  escolha é da pessoa, sem ritmo padrão (decisão 5a): até ela, nada de tendência é pedido, e o aviso diz "Escolha o período da
+  tendência, anual ou semestral: a análise usa os últimos 4 períodos.". No anual, a cada passo vale a competência mais perto de
+  12 meses antes; no semestral, de 6 meses antes, com folga de 2 meses (de janeiro a junho são 5 meses; de junho a janeiro, 7).
+  Na base do Brasil: anual = 06/2021, 06/2022, 06/2023 e 06/2024; semestral = 01/2023, 06/2023, 01/2024 e 06/2024. Sem 4 períodos
+  assim (por exemplo, uma planilha só com junhos, no semestral, ou com um ano faltando, no anual), o ritmo fica desligado, com o
+  motivo à vista. O texto do campo (`analise-periodo-texto`) lista as 4 competências usadas. Os atalhos "Últimos 4 junhos",
+  "Série anual de junho" e "Todas as competências" e o painel que marcava as competências uma a uma saíram. Uma janela pedida na
+  conversa (ou de um estado salvo antes) continua valendo como veio, com o texto "Janela de N períodos…", até a escolha de um
+  ritmo. O método não muda (CAP-TEN-01). A visão é só estado visual (trocar não pede nada novo):
   - **Mudança:** entre a primeira e a última competência da janela (CAP-TMP-01), o cometa e a cor divergente contínua: azul é
     aumento, laranja é redução, cinza é sem mudança (V-05; nunca "crescimento"). "Primeira" e "Última" alternam as posições;
     "Reproduzir" desliza as bolhas da primeira à última (com movimento reduzido ou no modo leve, o botão vira "Ir para a
-    última", sem animação).
-  - **Classes:** CAP-TEN-01 na janela (pelo menos quatro competências). A bolha fica no valor da última competência, com o
-    cometa desde a primeira, e a cor é a família da classe (crescimento azul, declínio laranja, sem classificação verde-água;
-    não avaliável vazada). Aceleração e desaceleração ficam no rótulo, na dica e no filtro. Acima do gráfico, a contagem por
-    classe do motor, que também filtra; cada contagem traz no `title` o que a classe quer dizer.
-  - **Classes explicadas** (23/10/2026): a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento,
+    última", sem animação). Desde 24/10/2026, o cometa e esses botões ficam só na Mudança.
+  - **Classes, no quadro de setas** (24/10/2026, no lugar das bolhas; `PainelSetas.tsx`, `analise-setas`): como um painel de
+    cotações, uma linha por unidade (`analise-seta-linha`), com o nome, o desenho dos períodos (um ponto por observação do
+    motor e uma seta por avanço, `analise-seta`, com o sinal da velocidade do motor: para cima é alta, em azul; para baixo, queda,
+    em laranja; para o lado, pausa, em cinza), o último valor e a variação entre o primeiro e o último período (CAP-TMP-01, do
+    motor, com ▲ ou ▼) e a classe do motor, com o ícone da família. A tela só posiciona e ordena: a classe e o sinal de cada seta
+    são do motor (RQ-REP-02). Cada linha tem a própria escala vertical (o desenho mostra o caminho; os valores ficam ao lado, na
+    dica e na tabela), com amplitude mínima de 5% do maior valor, para uma variação ínfima não parecer um salto. As linhas vêm
+    agrupadas pela classe, na ordem da SPEC (os não avaliáveis no fim), e, dentro dela, pela variação, da maior para a menor; com
+    a Ordenação em uso, pela posição do motor; com as Condições, a situação aparece ao lado do nome. São 50 linhas por página
+    (`analise-setas-paginas`). A dica (`analise-seta-dica`), no mouse e no foco, lista cada período com o valor e o avanço até
+    ele, a variação e o que a classe quer dizer; Escape fecha. Clicar na linha (ou Enter) escolhe a unidade, para Séries e
+    Comparar. Acima do quadro, a contagem por classe do motor, que também filtra; cada contagem traz no `title` o que a classe
+    quer dizer. Abaixo, a legenda das setas (`analise-setas-legenda`) e a das famílias com as contagens. Numa janela longa
+    (pedida na conversa), a ponta da seta só aparece quando o avanço tem espaço, e o eixo mostra o primeiro e o último período.
+    No lado a lado, a linha sob o mouse destaca o ponto no mapa, e o contrário também. A escala (linear ou logarítmica) não se
+    aplica ao quadro.
+  - **Classes explicadas** (23/10/2026; desde 24/10/2026, com o vocabulário das regrinhas: o **avanço** é a mudança de um período
+    para o seguinte, alta, queda ou pausa): a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento,
     aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração do declínio, sem classificação e não
-    avaliável), sem criar classe nem critério, e termina com a âncora do método (CAP-TEN-01, DA-15), exigida pela SPEC (V-05)
-    para descrever as classes. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código
-    ("Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção)."). Abaixo das
-    contagens, uma nota (`analise-nota-sem-classificacao`) conta as unidades sem classificação por motivo, com os números do
-    motor (`sem_classificacao_por_motivo`), e, quando nenhuma unidade recebeu classe, explica a regra: uma única mudança de
-    direção basta para a série ficar sem classificação, e janelas com menos competências (como os últimos 4 junhos) têm menos
-    trechos e mais chance de classe; isso é o resultado do método, não falta de dados. O diagnóstico de 23/10/2026 (com a base
+    avaliável), que uma alta sozinha é só uma alta e duas ainda não são tendência (são precisos 4 períodos, 3 avanços), sem criar
+    classe nem critério, e termina com a âncora do método (CAP-TEN-01, DA-15), exigida pela SPEC (V-05) para descrever as
+    classes. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código ("Sem classificação:
+    entre os períodos, houve alta e queda (mudança de direção)."). Abaixo das contagens, uma nota
+    (`analise-nota-sem-classificacao`) conta as unidades sem classificação por motivo, com os números do motor
+    (`sem_classificacao_por_motivo`), e, quando nenhuma unidade recebeu classe, explica a regra: a classificação exige a mesma
+    direção em todos os avanços, e uma única mudança de direção basta para a série ficar sem classificação; isso é o resultado
+    do método, não falta de dados. O diagnóstico de 23/10/2026 (com a base
     versionada: 62 de 62 municípios do Amazonas sem classificação nas 22 competências, todos por mudança de direção) está em
     [Painel integrado de bolhas](PAINEL_INTEGRADO.md).
   - **Séries:** linhas por competência (no tempo real entre elas), até 12 unidades escolhidas (na tabela, nas bolhas ou "os de
-    uma classe"), com pequenos múltiplos na mesma escala acima de 4. Um ponto por observação do motor; lacunas não são ligadas e
-    não há linha ajustada. As velocidades do motor da unidade em foco aparecem em barras.
+    uma classe"; desde 24/10/2026, também nas linhas do quadro de setas), com pequenos múltiplos na mesma escala acima de 4. Um
+    ponto por observação do motor; lacunas não são ligadas e não há linha ajustada. As velocidades do motor da unidade em foco aparecem em barras.
   - Com menos de quatro competências, Classes e Séries ficam indisponíveis, com o texto do catálogo ("A análise de tendência
     exige quatro observações válidas.").
 - **Rotatividade:** só com dados enviados que tenham o identificador individual (CAP-ROT-01). Com a base do Brasil, a aba abre
@@ -240,7 +264,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 
 ## Eixos, marcas e cores
 
-- **Eixo único (Distribuição, Tendência e estados):** Y é o indicador. As bolhas se espalham na horizontal só como arranjo, para
+- **Eixo único (Distribuição, Tendência na Mudança e estados):** Y é o indicador. Na visão Classes da tendência, o quadro de
+  setas (acima) substitui as bolhas, com a escala própria de cada linha. As bolhas se espalham na horizontal só como arranjo, para
   não se sobreporem, e a nota diz "a posição horizontal é só arranjo". Arranjo exato até 400 bolhas (o gráfico cresce na altura
   se precisar); acima disso, ou se não couber, o arranjo leve, numa faixa limitada da largura, com bolhas semitransparentes.
 - **Análise espacial:** X = distância até a referência (km), Y = indicador. Sem reta de tendência nem correlação.
@@ -393,6 +418,8 @@ nos valores, nos pedidos ao motor nem nos textos, e os seletores de teste contin
 |---|---|---|---|
 | Série única (sem camada, "atendem", "os primeiros", permanência) | `#008b9e` | `#1ba3b5` | PASS (5,77:1) |
 | Famílias da tendência | `#2a78d6`, `#eb6834`, `#1baf7a` | `#3987e5`, `#d95926`, `#199e70` | PASS em todos os pares: CVD ΔE 9,4; visão normal 20,9 |
+| Setas do quadro (24/10/2026): alta e queda | `#2a78d6`, `#eb6834` | `#3987e5`, `#d95926` | PASS em todos os pares: CVD ΔE 24,7 (claro) e 26,8 (escuro); visão normal 33,6 e 31,8; ≥ 3:1 |
+| Setas do quadro: pausa | `#898781` | `#898781` | 3,50:1 no claro e 4,85:1 no escuro (a forma da seta também diz a direção) |
 | Grupos e faixas (2 a 5) | do claro (menor) ao escuro (maior) | do escuro (menor) ao claro (maior): 5 tons `#184f95` → `#9ec5f4` | `--ordinal` PASS (ponta escura a 2,15:1) |
 | Mudança: aumento | `#9cc2ee` → `#184f95` | `#1c5cab` → `#3987e5` → `#9ec5f4` | `--ordinal` PASS |
 | Mudança: redução | `#f2ad8c` → `#a8431b` | `#a8431b` → `#d95926` → `#f2ad8c` | `--ordinal` PASS; entre os braços, CVD ΔE 21,8 nos começos e 14,3 nas pontas |
@@ -431,7 +458,10 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   pedida na conversa, a frase-resumo no cliente e no arquivo de método, os dados do mapa normalizados e, desde o pedido
   integrado de 23/10/2026, os nomes das abas, a abertura sem seleção, a apresentação de cada aba (base do Brasil, planilha de
   distritos e antes dos dados, sem códigos internos), o que significa cada classe da tendência, o motivo de cada unidade em
-  palavras e a nota das sem classificação. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
+  palavras e a nota das sem classificação; desde 24/10/2026, o quadro de setas (um ponto por período, uma seta por avanço com o
+  sinal do motor, a escala da linha, a lacuna sem ponto inventado e a ordem por classe). `frontend/tests/painel.test.mjs` cobre o
+  campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
+  o ritmo de uma janela. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
   (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
   esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
   contraste), a pintura de cada camada no escuro, as variáveis de `styles.css` contra as paletas e contra as classes do
@@ -448,7 +478,10 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   como complemento (sem seleção, nada da seleção anterior à vista); voltar aos estados pela trilha; os quintis do mapa no pedido
   e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo teclado e pelo mouse; quartis; a análise espacial (o
   eixo X e o convite ao mapa na base versionada; a recusa e a pendência no catálogo sintético); a tendência nas três visões, com
-  a nota das sem classificação e o motivo em palavras na dica; a rotatividade com a apresentação e o motivo, sem pedido;
+  a nota das sem classificação e o motivo em palavras na dica, e, desde 24/10/2026, o campo Período (sem ritmo padrão; o anual
+  desligado, com o motivo, no catálogo sintético; os últimos 4 períodos no pedido) e o quadro de setas (cada linha com a classe
+  do motor, uma seta por velocidade do motor com o sinal dela e um ponto por observação; a ordem por classe; o filtro pela
+  contagem; a escolha da linha; a dica no mouse e no foco); a rotatividade com a apresentação e o motivo, sem pedido;
   Condições (com o convite ao mapa), Ordenar, Comparar e Juntar; o CSV; os Detalhes; o modo
   leve com todos os municípios do Brasil (base versionada); e o celular (o painel dos ajustes na largura e a vista à vista). Cada
   bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem roteiro próprio.

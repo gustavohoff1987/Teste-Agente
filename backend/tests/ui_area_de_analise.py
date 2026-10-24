@@ -3,7 +3,8 @@ estados em bolhas escolhidos na Seleção de Territórios (E1), a escolha de ter
 marcar e desmarcar, marcar e desmarcar todos, voltar aos estados pela trilha), o eixo vertical do indicador com o arranjo
 horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
 memória da tela), a régua que só esconde, grupos por posição, a análise espacial com a referência por critério, a tendência
-(Classes, Mudança e Séries, com a janela escolhida pela pessoa, as classes explicadas e o motivo das sem classificação), a
+(o campo Período, anual ou semestral, com os últimos 4 períodos, desde 24/10/2026; Classes no quadro de setas, Mudança e Séries; as
+classes explicadas e o motivo das sem classificação), a
 rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Exportar (CSV em precisão integral), os Detalhes e o celular
 (abas roláveis e o botão Ferramentas).
 
@@ -210,7 +211,7 @@ def main():
         termos = apresentacao.get_by_test_id("analise-apresentacao-classes").locator("dt").all_inner_texts()
         assert termos == ["Crescimento", "Aceleração do crescimento", "Desaceleração do crescimento", "Declínio",
                           "Aceleração do declínio", "Desaceleração do declínio", "Sem classificação", "Não avaliável"], termos
-        expect(apresentacao).to_contain_text("Basta um trecho na direção contrária")
+        expect(apresentacao).to_contain_text("Basta uma alta e uma queda entre os períodos")
         expect(apresentacao).not_to_contain_text(re.compile(r"MUDANCA_DE_DIRECAO|SERIE_ESTAVEL|SEM_CLASSIFICACAO"))
         area.get_by_test_id("analise-familia-distribuicao").click()
         expect(area.get_by_test_id("analise-intencao")).to_contain_text("Análise de Distribuição")
@@ -595,43 +596,107 @@ def main():
                     assert len(painel_calls) == calls, "voltar ao último gráfico não recalcula"
             fecha()
 
-        # 10. Tendência: a janela é escolha da pessoa (sem janela padrão); Classes com a contagem por classe do motor acima do
-        # gráfico; Mudança com os percentuais do motor; Séries com as linhas das unidades escolhidas.
-        calls = len(painel_calls)
+        # 10. Tendência: o campo Período (24/10/2026), anual ou semestral, sem ritmo padrão, com os últimos 4 períodos; Classes no
+        # quadro de setas (no lugar das bolhas), com a contagem por classe do motor acima; Mudança com os percentuais do motor; Séries
+        # com as linhas das unidades escolhidas.
         aperta(area.get_by_test_id("analise-familia-tendencia"))
-        expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "janela")
-        expect(area.get_by_test_id("analise-aviso-familia")).to_contain_text("Escolha a janela da tendência")
-        # Os ajustes da tendência: o mesmo indicador (a troca de aba o mantém), a janela (resumo e o botão do painel) e a visão,
-        # sem competência nem grupos e faixas.
+        expect(area.get_by_test_id("analise-aviso-familia")).to_contain_text("Escolha o período da tendência, anual ou semestral")
+        expect(area.get_by_test_id("analise-painel")).to_have_count(0)  # nenhuma gaveta abre: o período fica nos ajustes
+        # Os ajustes da tendência: o mesmo indicador (a troca de aba o mantém), o Período e a visão, sem competência nem grupos e faixas.
         expect(ajustes).to_have_attribute("data-familia", "tendencia")
         expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
-        for controle in ("analise-janela-texto", "analise-janela-escolher", "analise-visao-classes", "analise-visao-mudanca",
-                         "analise-visao-series"):
+        for controle in ("analise-periodo-anual", "analise-periodo-semestral", "analise-periodo-texto", "analise-visao-classes",
+                         "analise-visao-mudanca", "analise-visao-series"):
             expect(ajustes.get_by_test_id(controle)).to_be_visible()
-        for ausente in ("analise-competencia", "analise-agrupar", "analise-referencia-escolher", "analise-escala"):
+        for ausente in ("analise-competencia", "analise-agrupar", "analise-referencia-escolher", "analise-escala", "analise-janela-escolher"):
             expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
+        # Sem ritmo padrão: nenhum escolhido até a pessoa escolher. O ritmo que a base não tem fica desligado, com o motivo: no
+        # catálogo sintético (01/2023, 06/2023, 01/2024 e 06/2024), o anual; na base versionada, os dois existem.
+        for ritmo in ("anual", "semestral"):
+            expect(ajustes.get_by_test_id("analise-periodo-" + ritmo)).to_have_attribute("aria-checked", "false")
+        expect(ajustes.get_by_test_id("analise-periodo-texto")).to_have_text("Escolha anual ou semestral: a análise usa os últimos 4 períodos.")
+        if real:
+            expect(ajustes.get_by_test_id("analise-periodo-anual")).to_be_enabled()
+            expect(ajustes.get_by_test_id("analise-periodo-semestral")).to_be_enabled()
+        else:
+            expect(ajustes.get_by_test_id("analise-periodo-anual")).to_be_disabled()
+            expect(ajustes.get_by_test_id("analise-periodo-motivo-anual")).to_contain_text("não tem 4 períodos anuais seguidos")
         page.wait_for_timeout(400)
-        atalho = "ultimos4junhos" if real else "todas"
-        tendencia, sent = ok(lambda: aperta(area.get_by_test_id("analise-janela").get_by_test_id("analise-janela-atalho-" + atalho)))
+        ritmo = "anual" if real else "semestral"
+        tendencia, sent = ok(lambda: aperta(ajustes.get_by_test_id("analise-periodo-" + ritmo)))
         janela = sent["tendencia"]["competencias"]
-        assert len(janela) >= 4 and sent["competencia_inicial"] == janela[0] and sent["competencia"] == janela[-1], sent
+        esperada = ["202106", "202206", "202306", "202406"] if real else ["202301", "202306", "202401", "202406"]
+        assert janela == esperada and sent["competencia_inicial"] == janela[0] and sent["competencia"] == janela[-1], sent
         assert sent.get("indicador") == "densidade" and "referencia" not in sent, sent
-        fecha()
-        drawn(esperados(tendencia))
+        expect(ajustes.get_by_test_id("analise-periodo-" + ritmo)).to_have_attribute("aria-checked", "true")
+        expect(ajustes.get_by_test_id("analise-periodo-texto")).to_contain_text("Últimos 4 períodos " + ("anuais" if real else "semestrais"))
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Tendência da densidade de médicos")
-        desenhadas = bubbles()
-        for item in tendencia["itens"]:
-            if item["id"] in desenhadas and item.get("tendencia") is not None:
-                classe = item["tendencia"].get("classe") if item["tendencia"].get("avaliavel", True) else None
-                assert desenhadas[item["id"]]["classe"] == (classe or "NAO_AVALIAVEL"), (desenhadas[item["id"]], item)
+        # Classes: o quadro de setas, uma linha por unidade com o indicador, no lugar das bolhas. A classe de cada linha é a do motor,
+        # e cada seta segue o sinal de uma velocidade do motor (alta, queda ou pausa); as linhas vêm agrupadas pela classe, na ordem
+        # da SPEC, 50 por página.
+        quadro = area.get_by_test_id("analise-setas")
+        expect(quadro).to_be_visible()
+        expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
+        com_valor = esperados(tendencia)
+        linhas = quadro.get_by_test_id("analise-seta-linha")
+        expect(linhas).to_have_count(min(len(com_valor), 50))
+        lidas = linhas.evaluate_all("els => els.map(e => ({id: e.dataset.id, classe: e.dataset.classe, selecionado: e.dataset.selecionado, "
+                                    "sinais: [...e.querySelectorAll('[data-testid=analise-seta]')].map(s => s.dataset.sinal), "
+                                    "pontos: e.querySelectorAll('[data-testid=analise-seta-ponto]').length}))")
+        desenhadas = {linha["id"]: linha for linha in lidas}
+        por_id = {item["id"]: item for item in tendencia["itens"]}
+        for linha in lidas:
+            t = por_id[linha["id"]].get("tendencia") or {}
+            classe = t.get("classe") if t.get("avaliavel", True) else None
+            assert linha["classe"] == (classe or "NAO_AVALIAVEL"), (linha, t)
+            # As velocidades do motor vêm em números (ou objetos com o valor); as observações, em objetos com a competência e o valor.
+            velocidades = [v if isinstance(v, (int, float)) else (v or {}).get("valor") for v in (t.get("velocidades") or [])]
+            sinais = ["alta" if v > 0 else "queda" if v < 0 else "pausa" for v in velocidades if v is not None]
+            assert linha["sinais"] == sinais, (linha, t)
+            observacoes = t.get("observacoes") if isinstance(t.get("observacoes"), list) else []
+            assert linha["pontos"] == sum(1 for obs in observacoes if obs.get("valor") is not None), (linha, t)
+        ordem = ["CRESCIMENTO", "CRESCIMENTO_ACELERADO", "CRESCIMENTO_DESACELERADO", "DECLINIO", "DECLINIO_ACELERADO",
+                 "DECLINIO_DESACELERADO", "SEM_CLASSIFICACAO", "NAO_AVALIAVEL"]
+        sequencia = [ordem.index(linha["classe"]) for linha in lidas]
+        assert sequencia == sorted(sequencia), ("as linhas agrupadas pela classe, na ordem da SPEC", sequencia)
+        if len(com_valor) > 50:
+            expect(quadro.get_by_test_id("analise-setas-paginas")).to_contain_text("Linhas 1 a 50 de " + milhar(len(com_valor)))
+        expect(quadro.get_by_test_id("analise-setas-legenda")).to_contain_text("Alta")
         if (tendencia.get("tendencia") or {}).get("contagens"):
             for codigo, valor in tendencia["tendencia"]["contagens"].items():
                 classe = area.locator('[data-testid="analise-contagem-classe"][data-classe="' + codigo + '"]')
                 if classe.count():
                     expect(classe).to_have_attribute("data-contagem", str(valor))
         expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "classes")
+        # A contagem também filtra o quadro, sem pedir nada ao motor; de novo, volta tudo.
+        calls = len(painel_calls)
+        filtro = next(((codigo, valor) for codigo, valor in (tendencia.get("tendencia") or {}).get("contagens", {}).items() if valor), None)
+        if filtro and area.locator('[data-testid="analise-contagem-classe"][data-classe="' + filtro[0] + '"]').count():
+            botao = area.locator('[data-testid="analise-contagem-classe"][data-classe="' + filtro[0] + '"]')
+            aperta(botao)
+            expect(linhas).to_have_count(min(filtro[1], 50))
+            assert set(linhas.evaluate_all("els => els.map(e => e.dataset.classe)")) == {filtro[0]}
+            aperta(botao)
+            expect(linhas).to_have_count(min(len(com_valor), 50))
+        # Clicar numa linha escolhe a unidade (Séries e Comparar); de novo, desfaz.
+        primeira = linhas.first
+        aperta(primeira)
+        expect(primeira).to_have_attribute("aria-pressed", "true")
+        aperta(primeira)
+        expect(primeira).to_have_attribute("aria-pressed", "false")
+        page.wait_for_timeout(300)
+        assert len(painel_calls) == calls, "o filtro da classe e a escolha de uma linha não pedem nada ao motor"
+        # A dica no mouse: os períodos da linha com o valor de cada um.
+        quadro.evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
+        primeira.hover()
+        dica = quadro.get_by_test_id("analise-seta-dica")
+        expect(dica).to_be_visible()
+        observacoes = (por_id[lidas[0]["id"]].get("tendencia") or {}).get("observacoes")
+        expect(dica.locator("li")).to_have_count(len(observacoes) if isinstance(observacoes, list) else 0)
+        page.mouse.move(2, 2)
+        expect(dica).to_have_count(0)
         # As classes explicadas na aba, e o motivo das unidades sem classificação em palavras, pelas contagens do motor, sem os
-        # códigos internos; a dica de uma bolha sem classificação diz por quê.
+        # códigos internos; a dica de uma linha sem classificação diz por quê.
         expect(area.get_by_test_id("analise-apresentacao")).to_have_attribute("data-aba", "tendencia")
         expect(area.get_by_test_id("analise-apresentacao-classes")).to_contain_text("Aceleração do crescimento")
         topo_tendencia = tendencia.get("tendencia") or {}
@@ -649,12 +714,14 @@ def main():
             sem_direcao = next((item for item in tendencia["itens"] if item["id"] in desenhadas and
                                 (item.get("tendencia") or {}).get("motivo") == "MUDANCA_DE_DIRECAO"), None)
             if sem_direcao:
-                # A dica no foco (a mesma do mouse), sem depender de onde a bolha está.
-                area.locator('[data-testid="analise-bolha"][data-id="' + sem_direcao["id"] + '"]').focus()
-                dica = area.get_by_test_id("analise-dica")
-                expect(dica).to_contain_text("o indicador subiu em alguns trechos e caiu em outros (mudança de direção)")
+                # A dica no foco (a mesma do mouse); Escape fecha. O foco sai antes da linha escolhida, que pode ser a primeira.
+                linha = quadro.locator('[data-testid="analise-seta-linha"][data-id="' + sem_direcao["id"] + '"]')
+                page.evaluate("document.activeElement && document.activeElement.blur()")
+                linha.focus()
+                expect(dica).to_contain_text("entre os períodos, houve alta e queda (mudança de direção)")
                 expect(dica).not_to_contain_text("MUDANCA_DE_DIRECAO")
-                page.keyboard.press("Escape")
+                linha.press("Escape")
+                expect(dica).to_have_count(0)
         else:
             expect(nota_sem).to_have_count(0)
         shot("07-classes")
@@ -886,8 +953,8 @@ def main():
         assert not failures, failures
         browser.close()
     print("ÁREA DE ANÁLISE PASS: abertura com as cinco abas, base sem seleção automática, estados pela Seleção de Territórios, "
-          "territórios em lista, eixo do indicador, quintis do mapa no pedido, régua, grupos, espacial, tendência com as classes "
-          "explicadas, rotatividade com o motivo, funções, exportação e celular" +
+          "territórios em lista, eixo do indicador, quintis do mapa no pedido, régua, grupos, espacial, tendência com o Período e o "
+          "quadro de setas, rotatividade com o motivo, funções, exportação e celular" +
           (" (base versionada)." if real else " (catálogo sintético)."))
 
 

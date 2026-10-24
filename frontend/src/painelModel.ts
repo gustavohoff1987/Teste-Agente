@@ -478,7 +478,7 @@ const MOTIVO_PADRAO: Record<Aspecto, (indicador: PainelIndicador) => string> = {
   indicador: indicador => "Sem " + INDICADORES[indicador].rotulo.toLowerCase() + " avaliável na competência.",
   distancia: () => "Sem coordenada válida para medir a distância até a referência.",
   variacao: () => "Variação não avaliável (valor inicial zero ou ausente).",
-  tendencia: () => "Tendência não avaliável nesta janela.",
+  tendencia: () => "Tendência não avaliável nestes períodos.",
   condicoes: () => "Sem dado para avaliar as condições.",
   rotatividade: () => "Coorte não avaliável.",
   mapa: () => "Sem coordenada válida para o mapa.",
@@ -1138,19 +1138,117 @@ export function barrasDeVelocidade(valores: number[], largura: number, altura: n
   }) };
 }
 
-/** Janela: atalhos (decisão 5a do responsável: a pessoa escolhe; sem janela padrão). */
-export type AtalhoJanela = "ultimos4junhos" | "anualjunho" | "todas";
-export const ATALHOS_JANELA: Record<AtalhoJanela, string> = { ultimos4junhos: "Últimos 4 junhos", anualjunho: "Série anual de junho",
-  todas: "Todas as competências" };
-export function janelaDoAtalho(atalho: AtalhoJanela, periodos: string[]): string[] {
-  const ordenadas = cronologica(periodos);
-  const junhos = ordenadas.filter(c => ehAaaamm(c) && c.endsWith("06"));
-  if (atalho === "ultimos4junhos") return junhos.length >= 4 ? junhos.slice(-4) : [];
-  if (atalho === "anualjunho") return junhos.length >= 2 ? junhos : [];
-  return ordenadas;
+// ================================================================================================ tendência: quadro de setas
+/** Avanço de um período para o seguinte pelo sinal da velocidade do motor (CAP-TEN-01): alta, queda ou pausa. Só lê o sinal; a
+ * classe continua a do motor. */
+export type SinalDoAvanco = "alta" | "queda" | "pausa";
+export const sinalDoAvanco = (valor: number): SinalDoAvanco => valor > 0 ? "alta" : valor < 0 ? "queda" : "pausa";
+export type PontoDaSeta = { competencia: string; valor: number; x: number; y: number };
+export type SetaDoAvanco = { de: string; ate: string; valor: number; sinal: SinalDoAvanco; x1: number; y1: number; x2: number; y2: number;
+  /** Ponta da seta, no meio do avanço, e o ângulo dele em graus (no sentido do tempo). */
+  meioX: number; meioY: number; angulo: number };
+/** Desenho de uma linha do quadro de setas (24/10/2026): um ponto por observação do motor (sem imputar o período sem valor) e uma
+ * seta por velocidade do motor, ligando as duas observações que ela usou. X é a posição no tempo dentro da janela; Y, a escala
+ * própria da linha (o desenho mostra a forma, e o valor fica ao lado e na dica), com amplitude mínima de 5% do maior valor, para
+ * uma variação ínfima não parecer um salto. Só posiciona. */
+export function montarSetas(t: TendenciaItem | null | undefined, janela: string[], caixa: { x0: number; x1: number; y0: number; y1: number }):
+  { pontos: PontoDaSeta[]; setas: SetaDoAvanco[] } {
+  if (!t) return { pontos: [], setas: [] };
+  const tempos = posicoesTemporais(janela.length ? janela : t.observacoes.map(obs => obs.competencia));
+  const fim = Math.max(1, ...tempos.values());
+  const validas = t.observacoes.filter((obs): obs is { competencia: string; valor: number } => obs.valor !== null && Number.isFinite(obs.valor) &&
+    tempos.has(obs.competencia));
+  if (!validas.length) return { pontos: [], setas: [] };
+  const valores = validas.map(obs => obs.valor);
+  const minimo = Math.min(...valores), maximo = Math.max(...valores);
+  const amplitude = Math.max(maximo - minimo, Math.max(Math.abs(minimo), Math.abs(maximo)) * 0.05, 1e-9);
+  const piso = (minimo + maximo) / 2 - amplitude / 2;
+  const x = (c: string) => caixa.x0 + (caixa.x1 - caixa.x0) * (tempos.get(c)! / fim);
+  const y = (valor: number) => caixa.y1 - (caixa.y1 - caixa.y0) * ((valor - piso) / amplitude);
+  const pontos = validas.map(obs => ({ competencia: obs.competencia, valor: obs.valor, x: x(obs.competencia), y: y(obs.valor) }));
+  const porCompetencia = new Map(pontos.map(ponto => [ponto.competencia, ponto]));
+  const setas = t.velocidades.flatMap(v => {
+    const a = porCompetencia.get(v.de), b = porCompetencia.get(v.ate);
+    return a && b ? [{ de: v.de, ate: v.ate, valor: v.valor, sinal: sinalDoAvanco(v.valor), x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      meioX: (a.x + b.x) / 2, meioY: (a.y + b.y) / 2, angulo: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI }] : [];
+  });
+  return { pontos, setas };
 }
+/** Ordem das linhas do quadro: a posição do motor quando a ordenação está em uso; senão, a classe na ordem da SPEC (os não
+ * avaliáveis no fim) e, dentro dela, a variação entre o primeiro e o último período, da maior para a menor (sem valor no fim);
+ * no empate, o nome. Não é ranking de classe: só agrupa. */
+export function ordemDoQuadro(itens: PainelItem[], indicador: PainelIndicador, pelaPosicao: boolean): PainelItem[] {
+  const indiceDaClasse = (item: PainelItem) => {
+    const indice = item.tendencia?.avaliavel ? CLASSES_TENDENCIA.findIndex(classe => classe.codigo === item.tendencia!.classe) : -1;
+    return indice < 0 ? CLASSES_TENDENCIA.length : indice;
+  };
+  const porNome = (a: PainelItem, b: PainelItem) => a.rotulo.localeCompare(b.rotulo, "pt-BR");
+  if (pelaPosicao) return [...itens].sort((a, b) => (a.ordem?.posicao ?? Infinity) - (b.ordem?.posicao ?? Infinity) || porNome(a, b));
+  return [...itens].sort((a, b) => {
+    const va = variacaoDe(a, indicador), vb = variacaoDe(b, indicador);
+    return indiceDaClasse(a) - indiceDaClasse(b) || (va === null ? 1 : 0) - (vb === null ? 1 : 0) || (vb ?? 0) - (va ?? 0) || porNome(a, b);
+  });
+}
+/** O que a linha diz, para os leitores de tela: a classe do motor e cada período com o valor e o avanço até ele. */
+export function descricaoDasSetas(item: PainelItem, indicador: PainelIndicador): string {
+  const t = item.tendencia;
+  if (!t) return item.rotulo + ": sem tendência.";
+  const contagem = INDICADORES[indicador].contagem;
+  const sinalAte = new Map(t.velocidades.map(v => [v.ate, sinalDoAvanco(v.valor)]));
+  const periodos = t.observacoes.map(obs => exibirCompetencia(obs.competencia) + ": " + (obs.valor === null ? "sem valor"
+    : formatarNumero(obs.valor, contagem) + (sinalAte.has(obs.competencia) ? ", " + sinalAte.get(obs.competencia) : "")));
+  return item.rotulo + ": " + (t.avaliavel ? t.rotulo : "Não avaliável") + ". " + periodos.join("; ") + ".";
+}
+
 /** CAP-TEN-01 exige ao menos quatro competências; a mudança (CAP-TMP-01), duas. */
 export const MINIMO_TENDENCIA = 4;
+/** Período da tendência (24/10/2026, pedido do responsável): a pessoa escolhe o ritmo, anual ou semestral, e a janela são os
+ * últimos 4 períodos desse ritmo, contados da competência mais recente: o mínimo de DA-15 (4 períodos, 3 avanços). Sem ritmo
+ * padrão (decisão 5a: a pessoa escolhe). O ritmo só escolhe as competências; o método é o mesmo (CAP-TEN-01). */
+export type RitmoTendencia = "anual" | "semestral";
+export const RITMOS_TENDENCIA: { ritmo: RitmoTendencia; rotulo: string; plural: string; meses: number; passo: string }[] = [
+  { ritmo: "anual", rotulo: "Anual", plural: "anuais", meses: 12, passo: "um por ano" },
+  { ritmo: "semestral", rotulo: "Semestral", plural: "semestrais", meses: 6, passo: "um a cada seis meses, mais ou menos" },
+];
+/** Folga, em meses, entre um período e o seguinte: janeiro e junho ficam a 5 e 7 meses e contam como semestrais. */
+const FOLGA_DO_RITMO = 2;
+/** Posição em meses de uma competência AAAAMM ou de um ano AAAA (só o ritmo anual cabe nos anos). */
+function mesDoPeriodo(c: string): number | null {
+  if (ehAaaamm(c)) return Number(c.slice(0, 4)) * 12 + Number(c.slice(4)) - 1;
+  return /^\d{4}$/.test(c) ? Number(c) * 12 : null;
+}
+/** Os últimos 4 períodos de um ritmo: da competência mais recente para trás, a cada passo a competência mais perto de 12 (ou 6)
+ * meses antes, com folga de 2 meses (no empate, a mais recente). Sem 4 períodos assim, nenhum ([]): o ritmo fica indisponível. */
+export function janelaDoRitmo(ritmo: RitmoTendencia, periodos: string[]): string[] {
+  const passo = RITMOS_TENDENCIA.find(item => item.ritmo === ritmo)!.meses;
+  const comMes = cronologica(periodos).map(c => ({ c, mes: mesDoPeriodo(c) })).filter((item): item is { c: string; mes: number } => item.mes !== null);
+  const janela: string[] = [];
+  let atual = comMes.at(-1);
+  while (atual && janela.length < MINIMO_TENDENCIA) {
+    janela.unshift(atual.c);
+    const alvo = atual.mes - passo, antes: { c: string; mes: number } = atual;
+    atual = comMes.filter(item => item.mes < antes.mes && Math.abs(item.mes - alvo) <= FOLGA_DO_RITMO)
+      .sort((a, b) => Math.abs(a.mes - alvo) - Math.abs(b.mes - alvo) || b.mes - a.mes)[0];
+  }
+  return janela.length === MINIMO_TENDENCIA ? janela : [];
+}
+/** O ritmo de uma janela: o que dá exatamente estas competências nesta base; senão (uma janela pedida na conversa, ou de um
+ * estado salvo antes do campo Período), nenhum. */
+export function ritmoDaJanela(janela: string[], periodos: string[]): RitmoTendencia | null {
+  if (janela.length !== MINIMO_TENDENCIA) return null;
+  return RITMOS_TENDENCIA.find(item => janelaDoRitmo(item.ritmo, periodos).join() === janela.join())?.ritmo ?? null;
+}
+/** Cada ritmo na base: a janela e, quando não há 4 períodos nesse ritmo até a competência mais recente, o motivo. */
+export function ritmosDaBase(periodos: string[]): { ritmo: RitmoTendencia; rotulo: string; janela: string[]; motivo: string | null }[] {
+  return RITMOS_TENDENCIA.map(item => {
+    const janela = janelaDoRitmo(item.ritmo, periodos);
+    return { ritmo: item.ritmo, rotulo: item.rotulo, janela,
+      motivo: janela.length ? null : "Esta base não tem 4 períodos " + item.plural + " seguidos (" + item.passo + ") até a competência mais recente." };
+  });
+}
+/** "06/2021, 06/2022, 06/2023 e 06/2024": as competências da janela, para o campo Período. */
+export const listaDeCompetencias = (janela: string[]) => janela.length <= 1 ? janela.map(exibirCompetencia).join("")
+  : janela.slice(0, -1).map(exibirCompetencia).join(", ") + " e " + exibirCompetencia(janela[janela.length - 1]);
 export const TEXTO_MINIMO_TENDENCIA = "A análise de tendência exige quatro observações válidas.";
 
 // ================================================================================================ dica
@@ -1326,7 +1424,7 @@ export function avisoDaFamilia(def: DefinicaoAnalise, disponivel: Disponivel): s
   if (!disponivel.disponivel || disponivel.pendente) return def.familia === "distribuicao" ? null : disponivel.motivo || null;
   if (def.nivel === "estados") return null;
   if (def.familia === "tendencia" && def.janela.length < 2)
-    return "Escolha a janela da tendência: últimos 4 junhos, série anual de junho, todas as competências ou outra.";
+    return "Escolha o período da tendência, anual ou semestral: a análise usa os últimos 4 períodos.";
   if (def.familia === "tendencia" && def.visao !== "mudanca" && def.janela.length < MINIMO_TENDENCIA)
     return TEXTO_MINIMO_TENDENCIA + " Com " + def.janela.length + " competências, aparece a mudança entre a primeira e a última.";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final))
@@ -1424,7 +1522,7 @@ function lerCondicao(bruto: unknown): CondicaoPedido | null {
   return { atributo: o.atributo as AtributoCondicao, operador: o.operador as OperadorCondicao, valor: o.valor };
 }
 
-export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia" | "janela";
+export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia";
 /** `criterio`: a referência pedida por critério (sem membros): a lista de candidatos abre nessa ordem, e a escolha é da pessoa.
  * `vista`: a vista do desenho pedida ("ver no mapa", "volte ao gráfico"), só quando ela pode aparecer; estado visual. */
 export type ResultadoPedido = { definicao: DefinicaoAnalise; abrir: FuncaoPainel | null; selecao: string[] | null; mensagens: string[];
@@ -1752,22 +1850,21 @@ export type Apresentacao = { titulo: string; paragrafos: string[]; itens?: { ter
 export const TEXTO_DA_SELECAO = "Selecione os territórios que deseja incluir em suas análises. Você poderá acrescentar ou retirar " +
   "territórios a qualquer momento, e as análises serão atualizadas conforme a seleção realizada.";
 
-/** O que cada classe de tendência quer dizer (CAP-TEN-01, DA-15), em palavras, na ordem do enum da SPEC. Só descreve a regra do
+/** O que cada classe de tendência quer dizer (CAP-TEN-01, DA-15), em palavras, na ordem do enum da SPEC, com o vocabulário das
+ * regrinhas (24/10/2026): o avanço é a mudança de um período para o seguinte (alta, queda ou pausa). Só descreve a regra do
  * motor; não cria classe nem critério. */
 export const DESCRICAO_DAS_CLASSES: Record<string, string> = {
-  CRESCIMENTO: "o indicador não caiu em nenhum trecho da janela e subiu em pelo menos um, sem aceleração nem desaceleração " +
-    "definidas: algum trecho ficou sem variação, ou o ritmo da alta foi constante ou oscilou.",
-  CRESCIMENTO_ACELERADO: "o indicador subiu em todos os trechos, e o ritmo da alta aumentou ao longo da janela: nunca diminuiu de um " +
-    "trecho para o seguinte e aumentou pelo menos uma vez.",
-  CRESCIMENTO_DESACELERADO: "o indicador subiu em todos os trechos, mas o ritmo da alta diminuiu ao longo da janela: nunca aumentou e " +
-    "diminuiu pelo menos uma vez. O valor continua subindo; o que diminui é a velocidade do aumento.",
-  DECLINIO: "o indicador não subiu em nenhum trecho da janela e caiu em pelo menos um, sem aceleração nem desaceleração definidas: " +
-    "algum trecho ficou sem variação, ou o ritmo da queda foi constante ou oscilou.",
-  DECLINIO_ACELERADO: "o indicador caiu em todos os trechos, e a queda ficou mais rápida ao longo da janela: nunca ficou mais lenta " +
-    "de um trecho para o seguinte e ficou mais rápida pelo menos uma vez.",
-  DECLINIO_DESACELERADO: "o indicador caiu em todos os trechos, mas a queda ficou mais lenta ao longo da janela: nunca ficou mais " +
-    "rápida e ficou mais lenta pelo menos uma vez. O valor continua caindo, em ritmo menor.",
-  SEM_CLASSIFICACAO: "o indicador subiu em alguns trechos e caiu em outros (mudança de direção) ou não variou em nenhum (série estável).",
+  CRESCIMENTO: "nenhum avanço é queda e pelo menos um é alta, sem aceleração nem desaceleração definidas: houve uma pausa, ou as " +
+    "altas foram iguais, ou aumentaram e diminuíram.",
+  CRESCIMENTO_ACELERADO: "todos os avanços são altas, e cada alta é igual ou maior que a anterior, com pelo menos uma maior.",
+  CRESCIMENTO_DESACELERADO: "todos os avanços são altas, e cada alta é igual ou menor que a anterior, com pelo menos uma menor. O " +
+    "valor continua subindo; o que diminui é o tamanho da alta.",
+  DECLINIO: "nenhum avanço é alta e pelo menos um é queda, sem aceleração nem desaceleração definidas: houve uma pausa, ou as " +
+    "quedas foram iguais, ou aumentaram e diminuíram.",
+  DECLINIO_ACELERADO: "todos os avanços são quedas, e cada queda é igual ou maior que a anterior, com pelo menos uma maior.",
+  DECLINIO_DESACELERADO: "todos os avanços são quedas, e cada queda é igual ou menor que a anterior, com pelo menos uma menor. O " +
+    "valor continua caindo, em ritmo menor.",
+  SEM_CLASSIFICACAO: "houve alta e queda entre os períodos (mudança de direção), ou o valor não mudou em nenhum avanço (série estável).",
 };
 
 export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; brasil: boolean; comGrupos: boolean; semDados?: boolean }):
@@ -1806,17 +1903,18 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       ". Você também pode separar as distâncias em faixas." + (c.comGrupos && c.brasil ? " A distância vale entre " + us + ": " +
         artigo(grupo, true) + " " + grupo.plural + ", que não têm um ponto único, ficam de fora desta análise." : "")] };
   if (aba === "tendencia") return { titulo: NOMES_FAMILIAS.tendencia, paragrafos: [
-    "Acompanha a evolução do indicador ao longo de uma janela de competências que você escolhe e classifica o comportamento de " +
-      "cada " + unidade.singular + ". A classificação olha cada trecho entre duas competências seguidas e a velocidade da mudança " +
-      "nele: quanto o indicador subiu ou caiu por unidade de tempo (por mês, quando as competências são meses). São necessárias " +
-      "pelo menos quatro observações válidas na janela."],
+    "Acompanha a evolução do indicador nos últimos 4 períodos, anuais ou semestrais, à sua escolha no campo Período, e classifica " +
+      "o comportamento de cada " + unidade.singular + ". De um período para o seguinte há um avanço, que pode ser uma alta, uma " +
+      "queda ou uma pausa. Uma alta sozinha é só uma alta, e duas ainda não são tendência: a classificação precisa de pelo menos " +
+      "quatro observações válidas, ou seja, 3 avanços. Quando os períodos não têm a mesma distância (de janeiro a junho são 5 " +
+      "meses; de junho a janeiro, 7), os avanços são comparados por mês."],
     itens: [...CLASSES_TENDENCIA.map(classe => ({ termo: classe.rotulo, texto: DESCRICAO_DAS_CLASSES[classe.codigo] })),
-      { termo: "Não avaliável", texto: "há menos de quatro observações válidas na janela, ou a série não é comparável ao longo dela." }],
-    nota: "Basta um trecho na direção contrária para a série ficar sem classificação; por isso, janelas longas, com muitas " +
-      "competências, costumam ter mais " + us + " sem classificação. A cor da bolha mostra a família da classe (crescimento, " +
-      "declínio ou sem classificação); a aceleração e a desaceleração aparecem na dica, na tabela e nas contagens, que também " +
-      "filtram. A visão Mudança mostra a variação entre a primeira e a última competência, e a visão Séries, a linha de cada " +
-      unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") + ". Método de classificação: CAP-TEN-01 (DA-15)." };
+      { termo: "Não avaliável", texto: "há menos de quatro observações válidas nos períodos, ou a série não é comparável ao longo deles." }],
+    nota: "Basta uma alta e uma queda entre os períodos para a série ficar sem classificação. O quadro de setas mostra, para cada " +
+      unidade.singular + ", os períodos e o avanço de cada um para o seguinte: a seta para cima é alta; para baixo, queda; para o " +
+      "lado, pausa. A classe ao lado vem do motor, e as contagens também filtram o quadro. A visão Mudança mostra a variação entre " +
+      "o primeiro e o último período, e a visão Séries, a linha de cada " + unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") +
+      ". Método de classificação: CAP-TEN-01 (DA-15)." };
   return { titulo: NOMES_FAMILIAS.rotatividade, paragrafos: [
     "Acompanha as pessoas da coorte inicial, os profissionais presentes no período inicial, e mostra, para cada " + unidade.singular +
       ", quantos permaneceram e quantos saíram até o período final, em barras de 100%.",
@@ -1831,17 +1929,17 @@ export function explicacaoDaTendencia(t: TendenciaItem | null | undefined): stri
   if (!t) return null;
   if (!t.avaliavel) {
     if (t.motivoCodigo === "SERIE_INSUFICIENTE")
-      return "Não avaliável: série insuficiente na janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
+      return "Não avaliável: série insuficiente nos períodos" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
     if (t.motivoCodigo === "INCOMPARABILIDADE")
-      return "Não avaliável: a série não é comparável ao longo da janela" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
+      return "Não avaliável: a série não é comparável ao longo dos períodos" + (t.motivoTexto ? " (" + t.motivoTexto + ")" : "") + ".";
     if (t.motivoTexto) return "Não avaliável: " + t.motivoTexto + ".";
     // Sem o código nem o texto do motivo (uma resposta de antes), o rótulo do motor, que já diz o motivo.
     return t.rotulo && t.rotulo !== "Não avaliável" ? t.rotulo : "Não avaliável.";
   }
   if (t.classe === "SEM_CLASSIFICACAO") {
     if (t.motivoCodigo === "MUDANCA_DE_DIRECAO")
-      return "Sem classificação: na janela, o indicador subiu em alguns trechos e caiu em outros (mudança de direção).";
-    if (t.motivoCodigo === "SERIE_ESTAVEL") return "Sem classificação: o indicador não variou em nenhum trecho da janela (série estável).";
+      return "Sem classificação: entre os períodos, houve alta e queda (mudança de direção).";
+    if (t.motivoCodigo === "SERIE_ESTAVEL") return "Sem classificação: o valor não mudou em nenhum avanço (série estável).";
     // Sem o código (uma resposta de antes), o texto do motivo, sem o código entre parênteses.
     const motivo = t.motivoTexto || (t.motivo ? t.motivo.replace(/\s*\([A-Z_]+\)\s*$/, "").trim() : "");
     return "Sem classificação" + (motivo ? ": " + minuscula(motivo) : "") + ".";
@@ -1851,21 +1949,20 @@ export function explicacaoDaTendencia(t: TendenciaItem | null | undefined): stri
 }
 
 /** Nota abaixo das contagens quando há unidades sem classificação: quantas por motivo, do motor; se nenhuma unidade avaliável
- * recebeu classe, a explicação da regra (uma mudança de direção basta) e o efeito do tamanho da janela. Não muda o método. */
+ * recebeu classe, a explicação da regra (uma mudança de direção basta). Não muda o método. */
 export function notaSemClassificacao(topo: TendenciaTopo | null, c: { rotulos: RotulosTerritoriais; brasil: boolean }): string | null {
   if (!topo) return null;
   const sem = topo.contagens.SEM_CLASSIFICACAO ?? 0;
   if (!sem) return null;
   const unidade = c.rotulos.unidade;
   const direcao = topo.semClassificacaoPorMotivo.MUDANCA_DE_DIRECAO ?? 0, estavel = topo.semClassificacaoPorMotivo.SERIE_ESTAVEL ?? 0;
-  const partes = [direcao ? quantos(direcao, unidade) + " por mudança de direção (o indicador subiu em alguns trechos e caiu em outros)" : "",
-    estavel ? quantos(estavel, unidade) + " por série estável (o indicador não variou)" : ""].filter(Boolean);
+  const partes = [direcao ? quantos(direcao, unidade) + " por mudança de direção (houve alta e queda entre os períodos)" : "",
+    estavel ? quantos(estavel, unidade) + " por série estável (o valor não mudou)" : ""].filter(Boolean);
   const classificadas = CLASSES_TENDENCIA.filter(classe => classe.codigo !== "SEM_CLASSIFICACAO")
     .reduce((soma, classe) => soma + (topo.contagens[classe.codigo] ?? 0), 0);
   const motivos = partes.length ? "Sem classificação: " + partes.join("; ") + "." : "";
   if (classificadas) return motivos || null;
-  return (motivos ? motivos + " " : "") + "Nenhum" + (fem(unidade) ? "a " : " ") + unidade.singular + " recebeu classe nesta janela: a " +
-    "classificação exige a mesma direção em todos os trechos, e uma única mudança de direção basta para a série ficar sem " +
-    "classificação. Janelas com menos competências" + (c.brasil ? ", como os últimos 4 junhos," : "") + " têm menos trechos e mais " +
-    "chance de classe. Isso é o resultado do método, não falta de dados.";
+  return (motivos ? motivos + " " : "") + "Nenhum" + (fem(unidade) ? "a " : " ") + unidade.singular + " recebeu classe nestes períodos: " +
+    "a classificação exige a mesma direção em todos os avanços, e uma única mudança de direção basta para a série ficar sem " +
+    "classificação. Isso é o resultado do método, não falta de dados.";
 }

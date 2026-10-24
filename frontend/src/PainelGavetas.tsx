@@ -8,10 +8,10 @@ import {
   type ReferenciasResposta, type SituacaoCondicao,
 } from "./painelApi";
 import {
-  ATALHOS_JANELA, ATRIBUTOS, INDICADORES, MAX_CONJUNTOS, MINIMO_TENDENCIA, NOTA_TPL11, OPERADORES, ORDENS, SIMBOLOS, TEXTO_MINIMO_TENDENCIA,
-  artigo, baseVazia, cronologica, escreverLimites, exibirCompetencia, formatarIndicador, formatarNumero, formatarVariacao, generoDe, janelaDoAtalho,
+  ATRIBUTOS, INDICADORES, MAX_CONJUNTOS, NOTA_TPL11, OPERADORES, ORDENS, SIMBOLOS,
+  artigo, baseVazia, escreverLimites, exibirCompetencia, formatarIndicador, formatarNumero, formatarVariacao, generoDe,
   lerLimites, maiuscula, normalizarBase, numero, ordemNeutra, primeirosColocados, quantos, textoDaContagem, todosOs, umA, variacaoDe,
-  type AtalhoJanela, type RotulosTerritoriais, type UnidadeDoCatalogo,
+  type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
 
 // Painéis laterais das funções e das opções das análises. Os valores, as posições, as contagens e as comparações vêm do motor;
@@ -197,43 +197,6 @@ export function GavetaReferencia(p: ReferenciaProps) {
       </div>
     </fieldset>
     <p data-testid="analise-nota-tpl11" className="text-[11px] leading-4 text-slate-600">{NOTA_TPL11}</p>
-  </section>;
-}
-
-// ------------------------------------------------------------------------------------------------ janela (tendência)
-type JanelaProps = { periodos: string[]; janela: string[]; onAplicar: (janela: string[]) => void };
-/** Janela da tendência: a pessoa escolhe (decisão 5a), com atalhos. CAP-TEN-01 exige pelo menos quatro competências. */
-export function GavetaJanela({ periodos, janela, onAplicar }: JanelaProps) {
-  const todas = cronologica(periodos);
-  const [marcadas, setMarcadas] = useState<string[]>(janela);
-  useEffect(() => setMarcadas(janela), [janela]);
-  const alternar = (c: string) => setMarcadas(atual => atual.includes(c) ? atual.filter(item => item !== c) : cronologica([...atual, c]));
-  return <section data-testid="analise-janela" aria-label="Janela da tendência" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">A janela muda o resultado: escolha as competências. Com duas ou três, aparece a mudança entre a primeira
-      e a última; a tendência (classes e séries) exige pelo menos {MINIMO_TENDENCIA}. Janeiro e junho alternam intervalos de 5 e 7 meses; a série anual
-      de junho é a mais regular.</p>
-    <div className="flex flex-wrap gap-1.5">
-      {(Object.keys(ATALHOS_JANELA) as AtalhoJanela[]).map(atalho => {
-        const valor = janelaDoAtalho(atalho, periodos);
-        return <button key={atalho} type="button" data-testid={"analise-janela-atalho-" + atalho} disabled={valor.length < 2}
-          className="analise-botao-secundario" title={valor.length < 2 ? "Esta base não tem competências suficientes para este atalho." : undefined}
-          onClick={() => { setMarcadas(valor); onAplicar(valor); }}>{ATALHOS_JANELA[atalho]}{valor.length >= 2 ? " (" + valor.length + ")" : ""}</button>;
-      })}
-    </div>
-    <fieldset>
-      <legend className="text-xs font-semibold text-ink">Ou escolha as competências</legend>
-      <ul className="analise-competencias">
-        {todas.map(c => <li key={c}><label className="analise-caixa">
-          <input type="checkbox" data-testid="analise-janela-competencia" data-competencia={c} checked={marcadas.includes(c)} onChange={() => alternar(c)}/>
-          <span>{exibirCompetencia(c)}</span></label></li>)}
-      </ul>
-    </fieldset>
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" data-testid="analise-janela-aplicar" className="analise-botao-primario" disabled={marcadas.length < 2}
-        onClick={() => onAplicar(marcadas)}>Aplicar janela</button>
-      <span className="text-xs text-slate-600">{marcadas.length} competências{marcadas.length > 0 && marcadas.length < MINIMO_TENDENCIA ? ": só a mudança" : ""}</span>
-    </div>
-    {marcadas.length > 0 && marcadas.length < MINIMO_TENDENCIA && <p className="text-[11px] text-slate-600">{TEXTO_MINIMO_TENDENCIA}</p>}
   </section>;
 }
 

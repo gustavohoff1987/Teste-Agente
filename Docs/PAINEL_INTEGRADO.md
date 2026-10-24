@@ -462,6 +462,10 @@ classe em janelas longas vem da regra, não de falha no cálculo, e o método n�
 `backend/tests/test_painel_tendencia.py` confere cada desfecho de AT-53 num catálogo sintético e esse diagnóstico com a
 base versionada (job `dados-reais`).
 
+Desde 24/10/2026, a tela pede a tendência com os **últimos 4 períodos** do ritmo escolhido no campo Período (anual: 06/2021 a
+06/2024; semestral: 01/2023 a 06/2024, na base do Brasil), em `tendencia.competencias`, como qualquer janela: o motor e o
+contrato não mudam, e uma janela pedida na conversa continua aceita como veio ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)).
+
 ### Planilhas enviadas
 
 Planilhas de qualquer país, com a estrutura da base do Brasil e a nomenclatura própria (distrito, condado, província,
