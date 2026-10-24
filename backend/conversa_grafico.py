@@ -175,6 +175,12 @@ SERIE_ANUAL = re.compile(r"\bseries?\s+anua(?:l|is)(?:\s+de\s+junho)?\b|\b(?:so|
                          r"(?:junhos|competencias\s+de\s+junho)\b")
 JUNHOS = re.compile(r"\bultim[oa]s\s+(" + NUM_ALT + r")\s+junhos\b")
 TODAS = re.compile(r"\btod[oa]s\s+(?:[oa]s\s+)?(?:competencias|periodos)\b")
+# Ritmo da tendência (24/10/2026): a análise usa sempre os últimos 4 períodos do ritmo escolhido, anual ou semestral.
+RITMO_ANUAL = re.compile(r"\banua(?:l|is)\b|\bano\s+a\s+ano\b|\b(?:por|a\s+cada)\s+ano\b")
+RITMO_SEMESTRAL = re.compile(r"\bsemestra(?:l|is)\b|\bsemestre\s+a\s+semestre\b|\b(?:por|a\s+cada)\s+semestre\b|"
+                             r"\ba\s+cada\s+seis\s+meses\b")
+RITMOS = {"anual": (12, "anuais"), "semestral": (6, "semestrais")}
+FOLGA_DO_RITMO = 2  # meses: janeiro e junho ficam a 5 e 7 meses e contam como semestrais
 FAIXA = re.compile(r"\b(?:entre|de|desde|do\s+ano\s+de)\s+((?:19|20)\d{2})\s+(?:e|a|ate|para)\s+((?:19|20)\d{2})\b")
 DESDE = re.compile(r"\b(?:a\s+partir\s+de|desde)\s+((?:19|20)\d{2})\b")
 ATE = re.compile(r"\bate\s+((?:19|20)\d{2})\b")
@@ -1002,10 +1008,111 @@ def _periodo(conv, varias):
     return None, None
 
 
-def _quando(painel):
+def _mes(periodo):
+    """Posição em meses de uma competência AAAAMM ou de um ano AAAA (só o ritmo anual cabe nos anos)."""
+    if re.fullmatch(r"\d{6}", periodo) and 1 <= int(periodo[4:]) <= 12:
+        return int(periodo[:4]) * 12 + int(periodo[4:]) - 1
+    return int(periodo) * 12 if re.fullmatch(r"\d{4}", periodo) else None
+
+
+def janela_do_ritmo(ritmo, periodos):
+    """Os últimos 4 períodos de um ritmo (24/10/2026), como na tela (painelModel.janelaDoRitmo): da competência mais recente
+    para trás, a cada passo a competência mais perto de 12 (anual) ou 6 meses (semestral) antes, com folga de 2 meses (no
+    empate, a mais recente). Sem 4 períodos assim, nenhum ([])."""
+    com_mes = sorted((mes, periodo) for periodo in periodos for mes in [_mes(periodo)] if mes is not None)
+    passo, janela = RITMOS[ritmo][0], []
+    atual = com_mes[-1] if com_mes else None
+    while atual and len(janela) < 4:
+        janela.insert(0, atual[1])
+        alvo, limite = atual[0] - passo, atual[0]
+        perto = [item for item in com_mes if item[0] < limite and abs(item[0] - alvo) <= FOLGA_DO_RITMO]
+        atual = min(perto, key=lambda item: (abs(item[0] - alvo), -item[0])) if perto else None
+    return janela if len(janela) == 4 else []
+
+
+def _ritmo_da_janela(janela, periodos):
+    """O ritmo cujos últimos 4 períodos são esta janela; senão, None."""
+    return next((ritmo for ritmo in RITMOS if janela and janela_do_ritmo(ritmo, periodos) == list(janela)), None)
+
+
+def _ritmo_citado(conv):
+    """O ritmo da tendência citado no pedido (o trecho é consumido): "anual" ("série anual", "últimos N junhos", "ano a
+    ano", "anual") ou "semestral"; senão, None."""
+    pedido = conv.pedido
+    for padrao, ritmo in ((SERIE_ANUAL, "anual"), (JUNHOS, "anual"), (RITMO_ANUAL, "anual"), (RITMO_SEMESTRAL, "semestral")):
+        encontrado = padrao.search(pedido.resto)
+        if encontrado:
+            pedido.consome(*encontrado.span())
+            return ritmo
+    return None
+
+
+def _pergunta_do_ritmo(conv, antes):
+    """Um período sem ritmo na tendência (anos, datas, "todas as competências"): a pergunta do ritmo, com um botão por ritmo
+    da base, que reescreve o pedido com ele no lugar do período citado. Nada muda no gráfico."""
+    mudou = [indice for indice, (a, b) in enumerate(zip(antes, conv.pedido.resto)) if a != b]
+    opcoes = [(ritmo, janela) for ritmo in RITMOS for janela in [janela_do_ritmo(ritmo, conv.periodos)] if janela]
+    if not opcoes:
+        return _pergunta("A tendência usa os últimos 4 períodos, anuais ou semestrais, e esta base não tem 4 períodos assim." +
+                         NADA_MUDOU)
+    texto = ("Na tendência, os períodos são sempre os últimos 4 do ritmo escolhido: " +
+             "; ".join(ritmo + ", de " + _human(janela[0]) + " a " + _human(janela[-1]) for ritmo, janela in opcoes) +
+             ". Qual ritmo?" + NADA_MUDOU)
+    if not mudou:
+        def rascunho(novo):
+            return "tendência " + novo
+    else:
+        # O período citado sai com a preposição que o introduz ("em todas as competências", "entre junho de 2023 e …").
+        prefixo = re.search(r"\b(?:em|entre|nas|nos|na|no|de|com|para|durante)\s+$", conv.pedido.texto[:mudou[0]])
+        inicio = prefixo.start() if prefixo else mudou[0]
+
+        def rascunho(novo):
+            return conv.pedido.reescreve(inicio, mudou[-1] + 1, novo)
+    return _pergunta(texto, [_escolha(_maiuscula(ritmo), rascunho(ritmo)) for ritmo, _ in opcoes])
+
+
+def _sem_o_ritmo(ritmo):
+    """O ritmo citado sem 4 períodos na base: a pergunta (nada muda no gráfico)."""
+    return _pergunta("Esta base não tem 4 períodos " + RITMOS[ritmo][1] + " seguidos até a competência mais recente; a "
+                     "tendência usa os últimos 4 períodos do ritmo escolhido." + NADA_MUDOU)
+
+
+def _uma_competencia_por_vez(quem, janela):
+    """Uma janela numa análise de uma competência por vez (distribuição ou espacial): a pergunta, com um exemplo."""
+    return _pergunta(quem + " usa uma competência por vez, e a tendência usa os últimos 4 períodos, anuais ou semestrais. "
+                     "Diga uma competência, por exemplo, “em " + _human(janela[-1]) + "”, ou peça a tendência anual ou "
+                     "semestral." + NADA_MUDOU)
+
+
+def _periodo_da_funcao(conv, espacial=False):
+    """Período citado num pedido de função (condições, ordenação, comparar, juntar ou referência): (resultado, None),
+    (None, pergunta) ou (None, None). A competência vale como sempre; a janela é da tendência, que não tem janela longa
+    (24/10/2026): o ritmo citado dá os últimos 4 períodos dele, e outro período com várias competências vira a pergunta do
+    ritmo. Na análise espacial (espacial=True), que usa uma competência por vez, a janela vira a pergunta da competência."""
+    ritmo = None if espacial else _ritmo_citado(conv)
+    if ritmo:
+        janela = janela_do_ritmo(ritmo, conv.periodos)
+        return ({"janela": janela}, None) if janela else (None, _sem_o_ritmo(ritmo))
+    antes = conv.pedido.resto
+    periodo, pergunta = _periodo(conv, False)
+    if periodo and periodo.get("janela"):
+        if espacial:
+            return None, _uma_competencia_por_vez("A análise espacial", periodo["janela"])
+        return None, _pergunta_do_ritmo(conv, antes)
+    return periodo, pergunta
+
+
+def _lista_de_periodos(janela):
+    return ", ".join(_human(periodo) for periodo in janela[:-1]) + " e " + _human(janela[-1])
+
+
+def _quando(painel, periodos=None):
     if painel.get("competencia"):
         return ", em " + _human(painel["competencia"])
     janela = painel.get("janela") or []
+    ritmo = _ritmo_da_janela(janela, periodos) if periodos and painel.get("familia") in (None, "tendencia") else None
+    if ritmo:
+        return ", com os últimos 4 períodos " + RITMOS[ritmo][1] + " (" + _lista_de_periodos(janela) + ")"
     if len(janela) == 2:
         return ", entre " + _human(janela[0]) + " e " + _human(janela[1])
     if len(janela) > 2:
@@ -1162,7 +1269,8 @@ def _condicoes(conv, dica, dica_indicador):
         pedido.consome(encontrado.start(), clausula["fim"])
     alvos = [(indice, clausula["alvo"], achadas[indice + 1][0].start() if indice + 1 < len(achadas) else len(pedido.texto))
              for indice, (_, clausula) in enumerate(achadas) if clausula["alvo"] is not None]
-    periodo, pergunta = _periodo(conv, False)
+    distancia = any(clausula["item"]["atributo"] == "distancia_km" for _, clausula in achadas)
+    periodo, pergunta = _periodo_da_funcao(conv, espacial=distancia)
     if pergunta:
         return pergunta
     membros = []
@@ -1177,7 +1285,6 @@ def _condicoes(conv, dica, dica_indicador):
             achadas[indice][1]["texto"] += " até " + _listed([conv.cat.rotulo(i) for i in ids])
         membros += ids
     membros = list(dict.fromkeys(membros))
-    distancia = any(clausula["item"]["atributo"] == "distancia_km" for _, clausula in achadas)
     if distancia and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
         return _pergunta("A distância é medida até a referência. Diga até onde, por exemplo, “a mais de 150 km de " +
                          _nome_de_exemplo(conv) + "”, ou escolha a referência antes (por exemplo, “use " + _nome_de_exemplo(conv) +
@@ -1203,7 +1310,8 @@ def _condicoes(conv, dica, dica_indicador):
     if distancia and conv.ctx["nivel"] == "estados":
         painel["nivel"] = "municipios"
     textos = [clausula["texto"] for _, clausula in achadas]
-    frases.append("Apliquei " + ("a condição " if len(textos) == 1 else "as condições ") + _e(textos) + _quando(painel) +
+    frases.append("Apliquei " + ("a condição " if len(textos) == 1 else "as condições ") + _e(textos) +
+                  _quando(painel, conv.periodos) +
                   ": o gráfico separa quem atende a " + ("ela" if len(textos) == 1 else "todas") +
                   ", quem não atende e quem não tem dado.")
     if len(itens) > len(textos):
@@ -1238,7 +1346,9 @@ def _ordenar(conv, dica, dica_indicador):
         return None
     if not posicao and GRUPOS_VISTA.search(pedido.resto):
         return None  # "classifique em quintis": grupos por posição da distribuição
-    periodo, pergunta = _periodo(conv, False)
+    # A distância é da análise espacial, que usa uma competência por vez.
+    distancia = bool(re.search(r"\b(?:distancias?|distantes?|proxim[oa]s?)\b", pedido.resto))
+    periodo, pergunta = _periodo_da_funcao(conv, espacial=distancia)
     if pergunta:
         return pergunta
     quantos = atributo = ordem = alvo = None
@@ -1308,7 +1418,7 @@ def _ordenar(conv, dica, dica_indicador):
                          " como referência”." + NADA_MUDOU)
     if atributo == "variacao" and conv.ctx["familia"] != "tendencia":
         return _pergunta("A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança "
-                         "entre junho de 2023 e junho de 2024”." + NADA_MUDOU)
+                         "anual”." + NADA_MUDOU)
     if quantos is not None and not 1 <= quantos <= 10000:
         return _pergunta("Escolha quantos destacar, entre 1 e 10.000." + NADA_MUDOU)
     achado = _resolve(conv)
@@ -1336,7 +1446,7 @@ def _ordenar(conv, dica, dica_indicador):
         texto += ", e destaquei os " + str(quantos) + " primeiros; empates na posição de corte também entram"
     else:
         texto += "; empates ficam na mesma posição"
-    frases.append(texto + _quando(painel) + ".")
+    frases.append(texto + _quando(painel, conv.periodos) + ".")
     return _resposta(painel, " ".join(frases))
 
 
@@ -1356,7 +1466,7 @@ def _referencia(conv, dica, dica_indicador):
             return None
         trecho = (encontrado.end(), len(pedido.texto))
     pedido.consome(*encontrado.span())
-    periodo, pergunta = _periodo(conv, False)
+    periodo, pergunta = _periodo_da_funcao(conv, espacial=True)
     if pergunta:
         return pergunta
     achado = _resolve(conv, *trecho)
@@ -1443,7 +1553,7 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     funcao = "comparar" if comparar or pendente or (not juntar and dica == "comparisons") else "juntar"
     for encontrado in list(COMPARAR.finditer(pedido.resto)) + list(JUNTAR.finditer(pedido.resto)):
         pedido.consome(*encontrado.span())
-    periodo, pergunta = _periodo(conv, False)
+    periodo, pergunta = _periodo_da_funcao(conv)
     if pergunta:
         return pergunta
     indicador = "densidade" if DENSIDADE.search(pedido.resto) else "quantidade" if QUANTIDADE.search(pedido.resto) else \
@@ -1496,7 +1606,7 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
                          "3 nomes ou use Ordenar ou Condições para ver todos." + NADA_MUDOU)
     painel = _painel(funcao=funcao, selecao=selecao, indicador=indicador)
     _aplica_periodo(painel, periodo)
-    quando = _quando(painel)
+    quando = _quando(painel, conv.periodos)
     frases = []
     if objetos:
         painel["nivel"] = "estados"
@@ -1550,7 +1660,7 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
     rot = conv.rot
     familia = painel["familia"] or conv.ctx["familia"]
     indicador = painel["indicador"] or conv.ctx["indicador"]
-    quando = _quando(painel)
+    quando = _quando(painel, conv.periodos)
     frases = []
     if painel["funcao"] == "exportar":
         frases.append("Abri Exportar: CSV com precisão integral, Imprimir/PDF e o método com os parâmetros.")
@@ -1578,8 +1688,9 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
     elif painel["competencia"]:
         frases.append("Mudei a competência para " + _human(painel["competencia"]) + ".")
     elif painel["janela"]:
-        frases.append("Janela " + ("da rotatividade" if familia == "rotatividade" else "da tendência") + ": " +
-                      quando[2:] + ".")
+        ritmo = _ritmo_da_janela(painel["janela"], conv.periodos) if familia != "rotatividade" else None
+        frases.append("Período da tendência: " + ritmo + ", com os últimos 4 períodos (" + _lista_de_periodos(painel["janela"]) + ")."
+                      if ritmo else "Janela da rotatividade: " + quando[2:] + ".")
     if painel["visao_tendencia"]:
         frases.append("Visão da tendência: " + VISOES[painel["visao_tendencia"]] + ".")
     if painel["grupos"]:
@@ -1587,10 +1698,6 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
                       "Grupos por posição: " + painel["grupos"]["tipo"] + ".")
     if periodo and periodo.get("nota"):
         frases.append(periodo["nota"])
-    janela = painel["janela"] or []
-    if familia == "tendencia" and painel["visao_tendencia"] != "mudanca" and 2 <= len(janela) < 4:
-        frases.append("A classificação da tendência exige pelo menos 4 competências; com " + str(len(janela)) + ", fica a "
-                      "mudança entre a primeira e a última.")
     return " ".join(frases)
 
 
@@ -1655,22 +1762,36 @@ def _vista(conv, dica, dica_indicador, funcao=None):
                                                          if isinstance(dica_indicador, str) else None)
     painel["indicador"] = indicador
     atual = familia or conv.ctx["familia"]
+    # Tendência (24/10/2026): os períodos são sempre os últimos 4 do ritmo escolhido. O ritmo citado ("anual", "série anual",
+    # "últimos 4 junhos", "semestral") dá a janela; um período sem ritmo (anos, datas, "todas") vira a pergunta do ritmo.
+    ritmo = _ritmo_citado(conv) if familia in (None, "tendencia") and atual != "rotatividade" else None
+    if ritmo:
+        atual = "tendencia"
+        if familia is None and conv.ctx["familia"] != "tendencia":
+            familia = "tendencia"  # o ritmo é da tendência
+    antes = conv.pedido.resto
     periodo, pergunta = _periodo(conv, atual in ("tendencia", "rotatividade"))
+    # Na tendência, um período sem ritmo (anos, datas, "todas as competências"), mesmo ambíguo, vira a pergunta do ritmo:
+    # o período citado não escolhe a janela.
+    if not ritmo and atual == "tendencia" and (pergunta or (periodo and periodo.get("janela"))):
+        return _pergunta_do_ritmo(conv, antes)
     if pergunta:
         return pergunta
     if periodo and periodo.get("janela") and familia in ("distribuicao", "espacial"):
-        return _pergunta(("A distribuição" if familia == "distribuicao" else "A análise espacial") + " usa uma competência "
-                         "por vez; a janela vale para a tendência. Diga uma competência, por exemplo, “em " +
-                         _human(periodo["janela"][-1]) + "”, ou peça a tendência nessa janela." + NADA_MUDOU)
-    if periodo and periodo.get("janela"):
-        janela = periodo["janela"]
-        if atual == "rotatividade":
-            janela = periodo.get("pontas") or [janela[0], janela[-1]]
-        elif painel["visao_tendencia"] == "mudanca" and periodo.get("pontas"):
-            janela = periodo["pontas"]
-        elif familia is None and conv.ctx["familia"] != "tendencia":
-            familia = "tendencia"  # uma janela de competências é a tendência
+        return _uma_competencia_por_vez("A distribuição" if familia == "distribuicao" else "A análise espacial",
+                                        periodo["janela"])
+    if periodo and periodo.get("janela") and atual != "rotatividade" and not ritmo:
+        return _pergunta_do_ritmo(conv, antes)
+    if ritmo:
+        janela = janela_do_ritmo(ritmo, conv.periodos)
+        if not janela:
+            return _sem_o_ritmo(ritmo)
         painel["janela"] = janela
+        if periodo:  # o ritmo vale; o período citado junto não muda a janela
+            periodo = {"nota": "A tendência usa sempre os últimos 4 períodos do ritmo; o período citado não muda a janela."}
+    elif periodo and periodo.get("janela"):
+        janela = periodo["janela"]
+        painel["janela"] = periodo.get("pontas") or [janela[0], janela[-1]]  # a rotatividade: os dois períodos da coorte
     elif periodo:
         painel["competencia"] = periodo["competencia"]
     painel["familia"] = familia

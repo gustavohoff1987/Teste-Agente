@@ -368,9 +368,9 @@ def _classify(points):
     size = [abs(v) for v in speeds]
     steps = list(zip(size, size[1:]))
     if all(b >= a for a, b in steps) and any(b > a for a, b in steps):
-        return {"Crescimento": "Aceleração do crescimento", "Declínio": "Aceleração do declínio"}[base]
+        return {"Crescimento": "Aceleração do crescimento", "Declínio": "Aceleração de declínio"}[base]
     if all(b <= a for a, b in steps) and any(b < a for a, b in steps):
-        return {"Crescimento": "Desaceleração do crescimento", "Declínio": "Desaceleração do declínio"}[base]
+        return {"Crescimento": "Desaceleração do crescimento", "Declínio": "Desaceleração de declínio"}[base]
     return base
 
 

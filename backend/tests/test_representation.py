@@ -155,7 +155,7 @@ def test_operations_without_map_explain_why_and_series_stay_available():
     assert list(indicators) == ["Tendência", "Direção da mudança", "Variação absoluta", "Variação (%)"]
     assert indicators["Tendência"]["tipo"] == "CLASSE" and indicators["Tendência"]["origem"] == "CAP-TEN-01"
     assert indicators["Tendência"]["classes"] == ["Crescimento", "Aceleração do crescimento", "Desaceleração do crescimento",
-        "Declínio", "Aceleração do declínio", "Desaceleração do declínio", "Sem classificação",
+        "Declínio", "Aceleração de declínio", "Desaceleração de declínio", "Sem classificação",
         "Não avaliável: série insuficiente", "Não avaliável: série não comparável"]
     assert indicators["Direção da mudança"] == {"coluna": "Direção da mudança", "rotulo": "Direção da mudança", "tipo": "ESTADO",
                                                 "origem": "CAP-TMP-01", "classes": ["Aumento", "Redução", "Sem mudança"]}

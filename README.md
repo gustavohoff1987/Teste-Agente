@@ -352,7 +352,7 @@ O Python também confronta deterministamente os períodos e categorias explicita
 
 **Sem base carregada:** o comportamento de primeira iteração continua disponível em `POST /api/llm/interpret`, mas a proposta é explicitamente preliminar e não verifica a existência dos valores sugeridos.
 
-**Na página única de análise (desde 22/10/2026):** a conversa mexe no gráfico de bolhas. Quando o pedido toca o gráfico ("mostre o Pará", "use Belém como referência", "os 5 municípios com maior densidade", "compare Manaus e Tefé", "tendência nos últimos 4 anos", "volte aos estados"), as três rotas devolvem o campo `painel`: o comando com família, indicador, nível, municípios, competência, janela, referência, função, seleção, ordenação, condições e grupos. A conversa só interpreta; os números vêm do motor quando a tela aplica o comando. O estado do gráfico chega em `options`, e o pedido seguinte parte dele. Ambiguidades viram alternativas em botões, sem mudar o gráfico. Nas planilhas de outros países, as respostas usam os nomes das unidades e do grupo (distrito, província). Nada da base vai ao provedor. Formato e frases na seção "Conversa no gráfico" de [Docs/CONVERSACAO_INCREMENTO_FN.md](Docs/CONVERSACAO_INCREMENTO_FN.md).
+**Na página única de análise (desde 22/10/2026):** a conversa mexe no gráfico de bolhas. Quando o pedido toca o gráfico ("mostre o Pará", "use Belém como referência", "os 5 municípios com maior densidade", "compare Manaus e Tefé", "tendência anual", "volte aos estados"), as três rotas devolvem o campo `painel`: o comando com família, indicador, nível, municípios, competência, janela, referência, função, seleção, ordenação, condições e grupos. A conversa só interpreta; os números vêm do motor quando a tela aplica o comando. O estado do gráfico chega em `options`, e o pedido seguinte parte dele. Ambiguidades viram alternativas em botões, sem mudar o gráfico. Nas planilhas de outros países, as respostas usam os nomes das unidades e do grupo (distrito, província). Nada da base vai ao provedor. Formato e frases na seção "Conversa no gráfico" de [Docs/CONVERSACAO_INCREMENTO_FN.md](Docs/CONVERSACAO_INCREMENTO_FN.md).
 
 A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
 
@@ -595,7 +595,7 @@ A evolução temporal traz, por território e categoria, a mudança entre a prim
 competência (inicial, final, variação absoluta e percentual, a **direção da mudança** — Aumento,
 Redução ou Sem mudança — e a condição, com base zero quando o inicial é 0) e a **tendência** da SPEC
 (CAP-TEN-01, DA-15): Crescimento, Aceleração do crescimento, Desaceleração do crescimento, Declínio,
-Aceleração do declínio, Desaceleração do declínio ou Sem classificação (mudança de direção ou série
+Aceleração de declínio, Desaceleração de declínio ou Sem classificação (mudança de direção ou série
 estável), com o motivo e o número de observações. A classificação usa aritmética exata (a densidade
 é recalculada como quantidade × 1.000 / população), sem imputar competências ausentes e com o tempo
 transcorrido entre elas; com menos de quatro competências a etapa recebe BLQ-MET com os textos do
@@ -605,9 +605,11 @@ Tendência mostra a mudança, as classes e as séries; desde 23/10/2026, a aba e
 classe, e a tela diz por que cada unidade ficou sem classificação (uma única mudança de direção basta, pela regra DA-15; com
 as 22 competências da base versionada, isso valia para todos os municípios do Amazonas). Desde 24/10/2026, o campo Período
 escolhe o ritmo, anual ou semestral, e a análise usa os últimos 4 períodos dele (o mínimo da regra: 4 períodos, 3 avanços),
-sem ritmo padrão; a visão Classes é um quadro de setas, como um painel de cotações, com uma linha por unidade, uma seta por
+sem ritmo padrão e sem janela longa (na conversa, um período sem ritmo vira a pergunta "anual ou semestral?"); a visão
+Classes é um quadro de setas, como um painel de cotações, com uma linha por unidade, uma seta por
 avanço (alta, queda ou pausa, pelo sinal do motor), o último valor, a variação e a classe do motor
-([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Os selos, o filtro por família, a caixa Período
+([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md)). Os rótulos dos dois do declínio usam "de" desde 24/10/2026
+(divergência aprovada da SPEC, que diz "do declínio"). Os selos, o filtro por família, a caixa Período
 com o atalho "Série anual (junho)", os pequenos múltiplos e os halteres da aba Gráficos saíram com as
 telas clássicas em 22/10/2026. Detalhes,
 contagens com os dados reais e testes: [Evolução temporal e tendência](Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md).

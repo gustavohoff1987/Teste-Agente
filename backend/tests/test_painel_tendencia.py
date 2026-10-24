@@ -10,7 +10,8 @@ Catálogo sintético próprio, instalado como versão governada (manifesto próp
 quantidade). Cada unidade realiza um desfecho:
 - as séries de AT-53 (SPEC, seção 20.4) nos últimos quatro junhos, sem registro antes (10, 11, 12, 14 → aceleração do
   crescimento; 10, 12, 14, 16 → crescimento; 10, 14, 16, 17 → desaceleração do crescimento; 20, 18, 15, 11 → aceleração
-  do declínio; 20, 12, 8, 6 → desaceleração do declínio; 10, 12, 12, 15 → crescimento, intervalo com velocidade zero;
+  de declínio; 20, 12, 8, 6 → desaceleração de declínio (os rótulos do declínio com "de" desde 24/10/2026, divergência
+  aprovada); 10, 12, 12, 15 → crescimento, intervalo com velocidade zero;
   10, 12, 15, 17 → crescimento, ritmo sem monotonicidade; 10, 12, 11, 13 → sem classificação, mudança de direção;
   5, 5, 5, 5 → sem classificação, série estável), mais o declínio (constante, e com intervalo de velocidade zero);
 - três observações (série insuficiente) e o intervalo irregular de AT-53 (2018: 10, 2019: 12, 2021: 16, 2022: 18 →
@@ -83,7 +84,7 @@ EXPECTED_ALL = {**EXPECTED_LAST4,
                 "130160": ("DECLINIO", None)}  # 40, 30, 20, 20, 12, 8, 6: intervalo de velocidade zero
 LABELS = {"CRESCIMENTO": "Crescimento", "CRESCIMENTO_ACELERADO": "Aceleração do crescimento",
           "CRESCIMENTO_DESACELERADO": "Desaceleração do crescimento", "DECLINIO": "Declínio",
-          "DECLINIO_ACELERADO": "Aceleração do declínio", "DECLINIO_DESACELERADO": "Desaceleração do declínio",
+          "DECLINIO_ACELERADO": "Aceleração de declínio", "DECLINIO_DESACELERADO": "Desaceleração de declínio",
           "SEM_CLASSIFICACAO": "Sem classificação"}
 FAMILY = {"CRESCIMENTO": "CRESCIMENTO", "CRESCIMENTO_ACELERADO": "CRESCIMENTO",
           "CRESCIMENTO_DESACELERADO": "CRESCIMENTO", "DECLINIO": "DECLINIO", "DECLINIO_ACELERADO": "DECLINIO",

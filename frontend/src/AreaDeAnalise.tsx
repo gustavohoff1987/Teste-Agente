@@ -1018,16 +1018,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {def.referencia ? "Mudar" : "Escolher a referência"}</button>
       </div>;
       case "janela": {
-        // Campo Período (24/10/2026): a pessoa escolhe o ritmo, e a janela são os últimos 4 períodos dele (sem ritmo padrão). O ritmo
-        // que a base não tem fica desligado, com o motivo. Uma janela que não é de um ritmo (pedida na conversa ou de um estado salvo
-        // antes) continua valendo como veio, até a escolha de um ritmo.
+        // Campo Período (24/10/2026): a pessoa escolhe o ritmo, e a janela são os últimos 4 períodos dele (sem ritmo padrão; não há
+        // outra janela). O ritmo que a base não tem fica desligado, com o motivo.
         const ritmos = ritmosDaBase(periodos);
         const ritmoAtual = ritmoDaJanela(def.janela, periodos);
         const plural = RITMOS_TENDENCIA.find(item => item.ritmo === ritmoAtual)?.plural;
-        const texto = !def.janela.length ? "Escolha anual ou semestral: a análise usa os últimos 4 períodos."
-          : plural ? "Últimos 4 períodos " + plural + ": " + listaDeCompetencias(def.janela) + "."
-          : "Janela de " + def.janela.length + " períodos, de " + exibirCompetencia(def.janela[0]) + " a " +
-            exibirCompetencia(def.janela[def.janela.length - 1]) + ". Escolha anual ou semestral para usar os últimos 4.";
+        const texto = plural ? "Últimos 4 períodos " + plural + ": " + listaDeCompetencias(def.janela) + "."
+          : "Escolha anual ou semestral: a análise usa os últimos 4 períodos.";
         return <div key={qual} data-ajuste={qual} className="analise-rotulo-campo">
           <span aria-hidden="true">Período</span>
           <div role="radiogroup" aria-label="Período da tendência" aria-describedby="analise-periodo-texto" className="analise-segmentos mt-1">

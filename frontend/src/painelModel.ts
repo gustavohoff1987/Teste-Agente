@@ -630,14 +630,15 @@ export const COR_NAO_AVALIAVEL = "#898781";
 export const CORES_TENDENCIA: Record<FamiliaTendencia, string> = { CRESCIMENTO: "#2a78d6", DECLINIO: "#eb6834", NENHUMA: "#1baf7a" };
 export const NOMES_FAMILIA_TENDENCIA: Record<FamiliaTendencia, string> = { CRESCIMENTO: "Família do crescimento",
   DECLINIO: "Família do declínio", NENHUMA: "Sem classificação" };
-/** Ordem do enum CategoriaTendencia (SPEC L415): a ordem da legenda e das contagens, não um ranking. Rótulos de DA-15. */
+/** Ordem do enum CategoriaTendencia (SPEC L415): a ordem da legenda e das contagens, não um ranking. Rótulos de DA-15, com "de
+ * declínio" nos dois do declínio (divergência aprovada pelo responsável em 24/10/2026; os mesmos do motor). */
 export const CLASSES_TENDENCIA: { codigo: string; rotulo: string; familia: FamiliaTendencia }[] = [
   { codigo: "CRESCIMENTO", rotulo: "Crescimento", familia: "CRESCIMENTO" },
   { codigo: "CRESCIMENTO_ACELERADO", rotulo: "Aceleração do crescimento", familia: "CRESCIMENTO" },
   { codigo: "CRESCIMENTO_DESACELERADO", rotulo: "Desaceleração do crescimento", familia: "CRESCIMENTO" },
   { codigo: "DECLINIO", rotulo: "Declínio", familia: "DECLINIO" },
-  { codigo: "DECLINIO_ACELERADO", rotulo: "Aceleração do declínio", familia: "DECLINIO" },
-  { codigo: "DECLINIO_DESACELERADO", rotulo: "Desaceleração do declínio", familia: "DECLINIO" },
+  { codigo: "DECLINIO_ACELERADO", rotulo: "Aceleração de declínio", familia: "DECLINIO" },
+  { codigo: "DECLINIO_DESACELERADO", rotulo: "Desaceleração de declínio", familia: "DECLINIO" },
   { codigo: "SEM_CLASSIFICACAO", rotulo: "Sem classificação", familia: "NENHUMA" },
 ];
 export function familiaDaClasse(classe: string | null | undefined): FamiliaTendencia | null {
@@ -1232,8 +1233,7 @@ export function janelaDoRitmo(ritmo: RitmoTendencia, periodos: string[]): string
   }
   return janela.length === MINIMO_TENDENCIA ? janela : [];
 }
-/** O ritmo de uma janela: o que dá exatamente estas competências nesta base; senão (uma janela pedida na conversa, ou de um
- * estado salvo antes do campo Período), nenhum. */
+/** O ritmo de uma janela: o que dá exatamente estas competências nesta base; senão (nenhuma janela escolhida), nenhum. */
 export function ritmoDaJanela(janela: string[], periodos: string[]): RitmoTendencia | null {
   if (janela.length !== MINIMO_TENDENCIA) return null;
   return RITMOS_TENDENCIA.find(item => janelaDoRitmo(item.ritmo, periodos).join() === janela.join())?.ritmo ?? null;
@@ -1246,9 +1246,32 @@ export function ritmosDaBase(periodos: string[]): { ritmo: RitmoTendencia; rotul
       motivo: janela.length ? null : "Esta base não tem 4 períodos " + item.plural + " seguidos (" + item.passo + ") até a competência mais recente." };
   });
 }
+/** O ritmo pelos intervalos de uma janela: cerca de 12 meses entre as competências é o anual; cerca de 6, o semestral (com a
+ * mesma folga de 2 meses); senão, nenhum. Para a janela que chega da conversa ou de outra rota. */
+export function ritmoDosIntervalos(janela: string[]): RitmoTendencia | null {
+  const meses = cronologica(janela).map(mesDoPeriodo);
+  if (meses.length < 2 || meses.some(mes => mes === null)) return null;
+  const passos = meses.slice(1).map((mes, indice) => (mes as number) - (meses[indice] as number));
+  return RITMOS_TENDENCIA.find(item => passos.every(passo => Math.abs(passo - item.meses) <= FOLGA_DO_RITMO))?.ritmo ?? null;
+}
 /** "06/2021, 06/2022, 06/2023 e 06/2024": as competências da janela, para o campo Período. */
 export const listaDeCompetencias = (janela: string[]) => janela.length <= 1 ? janela.map(exibirCompetencia).join("")
   : janela.slice(0, -1).map(exibirCompetencia).join(", ") + " e " + exibirCompetencia(janela[janela.length - 1]);
+export const TEXTO_ESCOLHA_DO_PERIODO = "Escolha o período da tendência, anual ou semestral: a análise usa os últimos 4 períodos.";
+/** A janela que chega de fora do campo Período (a conversa ou outra rota). Não há janela longa (24/10/2026): vale o ritmo dos
+ * intervalos dela, e a janela passa a ser os últimos 4 períodos desse ritmo; sem ritmo, ou sem 4 períodos nele, nenhuma
+ * janela, e a mensagem diz por quê. Competências fora da base ficam de fora. */
+export function janelaPeloRitmo(pedida: unknown[], periodos: string[]): { janela: string[]; mensagem: string | null } {
+  const daBase = new Set(periodos);
+  const lida = cronologica(pedida.filter((p): p is string => typeof p === "string" && daBase.has(p)));
+  const ritmo = ritmoDosIntervalos(lida);
+  const item = RITMOS_TENDENCIA.find(r => r.ritmo === ritmo);
+  if (!item) return { janela: [], mensagem: TEXTO_ESCOLHA_DO_PERIODO };
+  const janela = janelaDoRitmo(item.ritmo, periodos);
+  if (!janela.length) return { janela, mensagem: "Esta base não tem 4 períodos " + item.plural + " seguidos até a competência mais recente." };
+  return { janela, mensagem: janela.join() === lida.join() ? null
+    : "A tendência usa os últimos 4 períodos " + item.plural + ": " + listaDeCompetencias(janela) + "." };
+}
 export const TEXTO_MINIMO_TENDENCIA = "A análise de tendência exige quatro observações válidas.";
 
 // ================================================================================================ dica
@@ -1423,8 +1446,7 @@ export function bloqueioDoPedido(def: DefinicaoAnalise, c: { fonte: "brasil" | "
 export function avisoDaFamilia(def: DefinicaoAnalise, disponivel: Disponivel): string | null {
   if (!disponivel.disponivel || disponivel.pendente) return def.familia === "distribuicao" ? null : disponivel.motivo || null;
   if (def.nivel === "estados") return null;
-  if (def.familia === "tendencia" && def.janela.length < 2)
-    return "Escolha o período da tendência, anual ou semestral: a análise usa os últimos 4 períodos.";
+  if (def.familia === "tendencia" && def.janela.length < 2) return TEXTO_ESCOLHA_DO_PERIODO;
   if (def.familia === "tendencia" && def.visao !== "mudanca" && def.janela.length < MINIMO_TENDENCIA)
     return TEXTO_MINIMO_TENDENCIA + " Com " + def.janela.length + " competências, aparece a mudança entre a primeira e a última.";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final))
@@ -1552,10 +1574,15 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (periodos.has(pedido.competencia)) proxima.competencia = pedido.competencia;
     else mensagens.push("A competência " + exibirCompetencia(pedido.competencia) + " não existe nesta base.");
   }
-  if (Array.isArray(pedido.janela)) {
-    const janela = cronologica(pedido.janela.filter((p): p is string => typeof p === "string" && periodos.has(p)));
-    if (janela.length >= 2) proxima = { ...proxima, janela, familia: pedido.familia ?? "tendencia" };
-    else mensagens.push("A janela pedida não tem duas competências desta base.");
+  // Tendência (24/10/2026): a janela são sempre os últimos 4 períodos do ritmo, anual ou semestral. A janela que vem da conversa
+  // (ou de outra rota) vale pelo ritmo dos intervalos dela (janelaPeloRitmo); sem ritmo, a janela não muda, e a mensagem pede a
+  // escolha. A janela só vale para a tendência: as outras famílias usam uma competência (a rotatividade, os períodos da coorte,
+  // que ficam nos ajustes dela).
+  const paraTendencia = pedido.familia ? pedido.familia === "tendencia" : def.familia !== "rotatividade";
+  if (Array.isArray(pedido.janela) && paraTendencia) {
+    const { janela, mensagem } = janelaPeloRitmo(pedido.janela, c.periodos);
+    if (janela.length) proxima = { ...proxima, janela, familia: "tendencia" };
+    if (mensagem) mensagens.push(mensagem);
   }
   if (pedido.visaoTendencia === "mudanca" || pedido.visaoTendencia === "classes" || pedido.visaoTendencia === "series")
     proxima = { ...proxima, visao: pedido.visaoTendencia, familia: pedido.familia ?? "tendencia" };

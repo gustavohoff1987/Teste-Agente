@@ -58,10 +58,8 @@ function Desenho({ item, janela, paleta }: { item: PainelItem; janela: string[];
       const cor = corDoSinal(seta.sinal, paleta);
       return <g key={seta.de + seta.ate} data-testid="analise-seta" data-sinal={seta.sinal} data-de={seta.de} data-ate={seta.ate}>
         <line x1={seta.x1} y1={seta.y1} x2={seta.x2} y2={seta.y2} stroke={cor} strokeWidth={2} strokeLinecap="round"/>
-        {/* A ponta da seta só quando o avanço tem espaço para ela (numa janela longa, pedida na conversa, fica só a cor). */}
-        {Math.hypot(seta.x2 - seta.x1, seta.y2 - seta.y1) >= 18 && <path d="M -3.5 -4.5 L 2 0 L -3.5 4.5" fill="none" stroke={cor}
-          strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
-          transform={`translate(${seta.meioX.toFixed(1)} ${seta.meioY.toFixed(1)}) rotate(${seta.angulo.toFixed(1)})`}/>}
+        <path d="M -3.5 -4.5 L 2 0 L -3.5 4.5" fill="none" stroke={cor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+          transform={`translate(${seta.meioX.toFixed(1)} ${seta.meioY.toFixed(1)}) rotate(${seta.angulo.toFixed(1)})`}/>
       </g>;
     })}
     {pontos.map(ponto => <circle key={ponto.competencia} cx={ponto.x} cy={ponto.y} r={4} fill={paleta.tinta2} stroke={paleta.superficie} strokeWidth={2}
@@ -125,8 +123,6 @@ export default function PainelSetas(p: Props) {
         <span>{maiuscula(unidade.singular)}</span>
         <svg width={LARGURA} height={16} viewBox={`0 0 ${LARGURA} 16`} className="analise-setas-eixo">
           {p.janela.map((c, indice) => {
-            // Até 5 períodos, todos os rótulos; numa janela longa, só o primeiro e o último, sem se sobreporem.
-            if (p.janela.length > 5 && indice !== 0 && indice !== p.janela.length - 1) return null;
             const x = MARGEM_X + (LARGURA - MARGEM_X * 2) * ((tempos.get(c) ?? 0) / fim);
             return <text key={c} x={x} y={12} textAnchor={indice === 0 ? "start" : indice === p.janela.length - 1 ? "end" : "middle"}
               className="analise-marca-texto">{curta(c)}</text>;

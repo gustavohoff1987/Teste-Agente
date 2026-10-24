@@ -331,7 +331,7 @@ test('camadas de cor só traduzem o motor: classe de tendência pela família, g
   assert.equal(M.pintar(municipio('code:9', 'X (AM)'), p('unica')).cor, M.COR_BOLHA);
   assert.equal(M.familiaDaClasse('DECLINIO_DESACELERADO'), 'DECLINIO');
   assert.deepEqual(M.CLASSES_TENDENCIA.map(item => item.rotulo), ['Crescimento', 'Aceleração do crescimento', 'Desaceleração do crescimento',
-    'Declínio', 'Aceleração do declínio', 'Desaceleração do declínio', 'Sem classificação']);
+    'Declínio', 'Aceleração de declínio', 'Desaceleração de declínio', 'Sem classificação']);
   assert.equal(M.corOrdinal(1, 5), '#86b6ef');
   assert.equal(M.corOrdinal(5, 5), '#104281');
   assert.equal(M.corOrdinal(1, 10), null);
@@ -627,9 +627,11 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   assert.equal(ref.definicao.nivel, 'municipios');
   const comCriterio = M.aplicarPedido(def, {referencia: {membros: ['code:150140'], criterio: {atributo: 'densidade', ordem: 'desc'}}}, c);
   assert.deepEqual(comCriterio.definicao.referencia, {membros: ['code:150140'], criterio: {atributo: 'densidade', ordem: 'desc'}});
+  // Sem janela longa (24/10/2026): a janela da conversa vale pelo ritmo dos intervalos (aqui, anual), e esta base, com dois
+  // junhos, não tem 4 períodos anuais; antes, a janela de duas competências valia como veio. O resto, em "período da tendência".
   const janela = M.aplicarPedido(def, {janela: ['202406', '202306', '209913']}, c);
-  assert.deepEqual(janela.definicao.janela, ['202306', '202406']);
-  assert.equal(janela.definicao.familia, 'tendencia');
+  assert.deepEqual([janela.definicao.janela, janela.definicao.familia], [[], def.familia]);
+  assert.deepEqual(janela.mensagens, ['Esta base não tem 4 períodos anuais seguidos até a competência mais recente.']);
   assert.deepEqual(M.aplicarPedido(def, {competencia: '202413'}, c).mensagens, ['A competência 202413 não existe nesta base.']);
   assert.equal(M.aplicarPedido(def, {competencia: '202306'}, c).definicao.competencia, '202306');
   assert.equal(M.aplicarPedido(def, {indicador: 'quantidade'}, c).definicao.indicador, 'quantidade');
@@ -672,12 +674,41 @@ test('período da tendência: anual ou semestral, os últimos 4 períodos, sem r
   assert.deepEqual(M.janelaDoRitmo('anual', mensal), ['202112', '202212', '202312', '202412']);
   assert.deepEqual(M.janelaDoRitmo('anual', ['2019', '2020', '2021', '2022', '2023']), ['2020', '2021', '2022', '2023']);  // anos
   assert.deepEqual(M.janelaDoRitmo('semestral', ['2019', '2020', '2021', '2022']), []);
-  // O ritmo de uma janela: só o que dá exatamente aquelas competências (uma janela da conversa ou de antes fica sem ritmo).
+  // O ritmo de uma janela: só o que dá exatamente aquelas competências (qualquer outra janela fica sem ritmo).
   assert.equal(M.ritmoDaJanela(['202106', '202206', '202306', '202406'], periodos), 'anual');
   assert.equal(M.ritmoDaJanela(['202301', '202306', '202401', '202406'], periodos), 'semestral');
   assert.equal(M.ritmoDaJanela(['202006', '202106', '202206', '202306', '202406'], periodos), null);
   assert.equal(M.ritmoDaJanela([], periodos), null);
   assert.equal(M.listaDeCompetencias(['202106', '202206', '202306', '202406']), '06/2021, 06/2022, 06/2023 e 06/2024');
+  // A janela de fora do campo Período (a conversa): vale o ritmo dos intervalos dela, e a janela são os últimos 4 desse ritmo;
+  // sem ritmo, nenhuma janela, e a mensagem pede a escolha. Não há janela longa (24/10/2026).
+  assert.equal(M.ritmoDosIntervalos(['202306', '202406']), 'anual');
+  assert.equal(M.ritmoDosIntervalos(['202406', '202401', '202306']), 'semestral');  // 7 e 5 meses, em qualquer ordem
+  assert.equal(M.ritmoDosIntervalos(['2021', '2022', '2023']), 'anual');
+  assert.equal(M.ritmoDosIntervalos(['202301', '202406']), null);  // 17 meses
+  assert.equal(M.ritmoDosIntervalos(['202406']), null);
+  assert.deepEqual(M.janelaPeloRitmo(periodos, periodos), {janela: ['202301', '202306', '202401', '202406'],
+    mensagem: 'A tendência usa os últimos 4 períodos semestrais: 01/2023, 06/2023, 01/2024 e 06/2024.'});
+  assert.deepEqual(M.janelaPeloRitmo(['202106', '202206', '202306', '202406'], periodos),
+    {janela: ['202106', '202206', '202306', '202406'], mensagem: null});
+  assert.deepEqual(M.janelaPeloRitmo(['202301', '202406', 7, '209913'], periodos), {janela: [], mensagem: M.TEXTO_ESCOLHA_DO_PERIODO});
+  assert.deepEqual(M.janelaPeloRitmo(['202306', '202406'], sintetico),
+    {janela: [], mensagem: 'Esta base não tem 4 períodos anuais seguidos até a competência mais recente.'});
+  const contexto = {periodos, nomes: new Map(), temGrupos: true,
+    disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR})};
+  const longa = M.aplicarPedido(definicao(), {janela: periodos}, contexto);
+  assert.deepEqual([longa.definicao.familia, longa.definicao.janela], ['tendencia', ['202301', '202306', '202401', '202406']]);
+  assert.deepEqual(longa.mensagens, ['A tendência usa os últimos 4 períodos semestrais: 01/2023, 06/2023, 01/2024 e 06/2024.']);
+  const pontas = M.aplicarPedido(definicao(), {janela: ['202306', '202406']}, contexto);
+  assert.deepEqual([pontas.definicao.janela, pontas.mensagens],
+    [['202106', '202206', '202306', '202406'], ['A tendência usa os últimos 4 períodos anuais: 06/2021, 06/2022, 06/2023 e 06/2024.']]);
+  const semRitmo = M.aplicarPedido(definicao(), {janela: ['202301', '202406']}, contexto);
+  assert.deepEqual([semRitmo.definicao.familia, semRitmo.definicao.janela, semRitmo.mensagens],
+    [definicao().familia, [], [M.TEXTO_ESCOLHA_DO_PERIODO]]);
+  // A rotatividade usa os períodos da coorte, e a análise espacial, uma competência: a janela não vale para elas.
+  const coorte = M.aplicarPedido(definicao({familia: 'rotatividade'}), {janela: ['202306', '202406']}, contexto);
+  assert.deepEqual([coorte.definicao.janela, coorte.mensagens], [[], []]);
+  assert.deepEqual(M.aplicarPedido(definicao(), {familia: 'espacial', janela: periodos}, contexto).definicao.janela, []);
   assert.deepEqual([...M.posicoesTemporais(['202306', '202301', '202406', '202401']).entries()],
     [['202301', 0], ['202306', 5], ['202401', 12], ['202406', 17]]);  // janeiro e junho a 5 e 7 meses, como são
   assert.deepEqual([...M.posicoesTemporais(['2021', '2020']).entries()], [['2020', 0], ['2021', 1]]);

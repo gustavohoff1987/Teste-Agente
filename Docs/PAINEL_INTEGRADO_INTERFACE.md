@@ -171,9 +171,13 @@ O que cada análise mostra:
   Na base do Brasil: anual = 06/2021, 06/2022, 06/2023 e 06/2024; semestral = 01/2023, 06/2023, 01/2024 e 06/2024. Sem 4 períodos
   assim (por exemplo, uma planilha só com junhos, no semestral, ou com um ano faltando, no anual), o ritmo fica desligado, com o
   motivo à vista. O texto do campo (`analise-periodo-texto`) lista as 4 competências usadas. Os atalhos "Últimos 4 junhos",
-  "Série anual de junho" e "Todas as competências" e o painel que marcava as competências uma a uma saíram. Uma janela pedida na
-  conversa (ou de um estado salvo antes) continua valendo como veio, com o texto "Janela de N períodos…", até a escolha de um
-  ritmo. O método não muda (CAP-TEN-01). A visão é só estado visual (trocar não pede nada novo):
+  "Série anual de junho" e "Todas as competências" e o painel que marcava as competências uma a uma saíram. Não há janela
+  longa nem outra janela: a conversa pede o ritmo ([conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md)), e uma janela que chegue
+  à tela por ela (ou por outra rota) vale pelo ritmo dos intervalos dela (cerca de 12 meses entre as competências, o anual;
+  cerca de 6, o semestral, com a mesma folga) e passa a ser os últimos 4 períodos desse ritmo, com o aviso "A tendência usa os
+  últimos 4 períodos …"; sem ritmo, a janela não muda e o aviso pede a escolha (`janelaPeloRitmo`). A janela só vale para a
+  tendência: a rotatividade usa os períodos da coorte, e as outras análises, uma competência. O método não muda (CAP-TEN-01).
+  A visão é só estado visual (trocar não pede nada novo):
   - **Mudança:** entre a primeira e a última competência da janela (CAP-TMP-01), o cometa e a cor divergente contínua: azul é
     aumento, laranja é redução, cinza é sem mudança (V-05; nunca "crescimento"). "Primeira" e "Última" alternam as posições;
     "Reproduzir" desliza as bolhas da primeira à última (com movimento reduzido ou no modo leve, o botão vira "Ir para a
@@ -190,13 +194,12 @@ O que cada análise mostra:
     (`analise-setas-paginas`). A dica (`analise-seta-dica`), no mouse e no foco, lista cada período com o valor e o avanço até
     ele, a variação e o que a classe quer dizer; Escape fecha. Clicar na linha (ou Enter) escolhe a unidade, para Séries e
     Comparar. Acima do quadro, a contagem por classe do motor, que também filtra; cada contagem traz no `title` o que a classe
-    quer dizer. Abaixo, a legenda das setas (`analise-setas-legenda`) e a das famílias com as contagens. Numa janela longa
-    (pedida na conversa), a ponta da seta só aparece quando o avanço tem espaço, e o eixo mostra o primeiro e o último período.
-    No lado a lado, a linha sob o mouse destaca o ponto no mapa, e o contrário também. A escala (linear ou logarítmica) não se
+    quer dizer. Abaixo, a legenda das setas (`analise-setas-legenda`) e a das famílias com as contagens. O eixo mostra os 4
+    períodos. No lado a lado, a linha sob o mouse destaca o ponto no mapa, e o contrário também. A escala (linear ou logarítmica) não se
     aplica ao quadro.
   - **Classes explicadas** (23/10/2026; desde 24/10/2026, com o vocabulário das regrinhas: o **avanço** é a mudança de um período
     para o seguinte, alta, queda ou pausa): a apresentação da aba diz, em palavras, a regra de cada classe de DA-15 (crescimento,
-    aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração do declínio, sem classificação e não
+    aceleração e desaceleração do crescimento, declínio, aceleração e desaceleração de declínio, sem classificação e não
     avaliável), que uma alta sozinha é só uma alta e duas ainda não são tendência (são precisos 4 períodos, 3 avanços), sem criar
     classe nem critério, e termina com a âncora do método (CAP-TEN-01, DA-15), exigida pela SPEC (V-05) para descrever as
     classes. A dica e os Não avaliáveis dizem o motivo de cada unidade sem classe em palavras, sem o código ("Sem classificação:
@@ -205,13 +208,13 @@ O que cada análise mostra:
     (`sem_classificacao_por_motivo`), e, quando nenhuma unidade recebeu classe, explica a regra: a classificação exige a mesma
     direção em todos os avanços, e uma única mudança de direção basta para a série ficar sem classificação; isso é o resultado
     do método, não falta de dados. O diagnóstico de 23/10/2026 (com a base
-    versionada: 62 de 62 municípios do Amazonas sem classificação nas 22 competências, todos por mudança de direção) está em
-    [Painel integrado de bolhas](PAINEL_INTEGRADO.md).
+    versionada: 62 de 62 municípios do Amazonas sem classificação nas 22 competências, todos por mudança de direção; desde
+    24/10/2026, a tela não pede essa janela) está em [Painel integrado de bolhas](PAINEL_INTEGRADO.md).
   - **Séries:** linhas por competência (no tempo real entre elas), até 12 unidades escolhidas (na tabela, nas bolhas ou "os de
     uma classe"; desde 24/10/2026, também nas linhas do quadro de setas), com pequenos múltiplos na mesma escala acima de 4. Um
     ponto por observação do motor; lacunas não são ligadas e não há linha ajustada. As velocidades do motor da unidade em foco aparecem em barras.
-  - Com menos de quatro competências, Classes e Séries ficam indisponíveis, com o texto do catálogo ("A análise de tendência
-    exige quatro observações válidas.").
+  - Sem o período escolhido, nenhuma visão é calculada (o aviso pede a escolha). Com ele, a janela tem sempre os 4 períodos, e a
+    unidade com menos de 4 observações válidas neles fica não avaliável, com o motivo do motor (série insuficiente).
 - **Rotatividade:** só com dados enviados que tenham o identificador individual (CAP-ROT-01). Com a base do Brasil, a aba abre
   com a apresentação e o motivo ("A base do Brasil tem contagens, não pessoas: a rotatividade exige dados enviados com o
   identificador individual.") e "Enviar meus dados"; o motivo do motor (`disponibilidade`) vale quando vem. O desenho são barras
@@ -461,7 +464,9 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   palavras e a nota das sem classificação; desde 24/10/2026, o quadro de setas (um ponto por período, uma seta por avanço com o
   sinal do motor, a escala da linha, a lacuna sem ponto inventado e a ordem por classe). `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
-  o ritmo de uma janela. O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
+  o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
+  conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial).
+  O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
   (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
   esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
   contraste), a pintura de cada camada no escuro, as variáveis de `styles.css` contra as paletas e contra as classes do

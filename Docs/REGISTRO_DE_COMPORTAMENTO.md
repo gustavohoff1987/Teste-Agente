@@ -35,6 +35,87 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-24 · Tendência sem janela longa e os rótulos "Aceleração de declínio" e "Desaceleração de declínio"
+- **Antes:**
+  - Uma janela pedida na conversa valia como veio na tela, até a escolha de um ritmo no campo Período. Por exemplo, "tendência
+    nos últimos 4 anos" abria as 8 competências de 2021 a 2024, e "todas as competências", as 22 da base do Brasil.
+  - Na conversa, "série anual de junho", "últimos N junhos", anos, datas e "últimos N anos" davam janelas com todas as
+    competências citadas, também nas condições, na ordenação, em comparar, em juntar e na referência da análise espacial.
+  - O quadro de setas tinha um arranjo para janelas longas: sem a ponta da seta nos avanços curtos e, no eixo, só o primeiro e
+    o último período.
+  - Dois rótulos do declínio eram "Aceleração do declínio" e "Desaceleração do declínio".
+- **Agora:**
+  - **Sem janela longa:** a tendência usa sempre os últimos 4 períodos do ritmo escolhido, anual ou semestral, também pela
+    conversa.
+    - **Ritmo citado na conversa:** "tendência anual", "semestral", "ano a ano", "por semestre", "série anual de junho" e
+      "últimos N junhos" dão os últimos 4 períodos do ritmo, e a resposta diz quais ("Abri a tendência da densidade, com os
+      últimos 4 períodos anuais (junho de 2021, junho de 2022, junho de 2023 e junho de 2024).").
+    - **Período sem ritmo:** um período com várias competências (anos, datas, "últimos N anos", mesmo com as âncoras
+      divergentes da AT-34, "todas as competências", "mudança entre junho de 2023 e junho de 2024") vira a pergunta do ritmo.
+      A pergunta traz um botão por ritmo que a base tem, e cada botão reescreve o pedido com o ritmo no lugar do período.
+      Nada muda no gráfico enquanto isso.
+    - **Pedidos de função:** o mesmo vale nas condições, na ordenação, em comparar e em juntar. A distribuição e a análise
+      espacial (também a referência e a ordenação pela distância) usam uma competência por vez: com um período assim, a
+      conversa pede uma competência ou a tendência anual ou semestral.
+    - **Exemplo da variação:** a pergunta da variação fora da tendência passa a sugerir "mostre a mudança anual".
+    - **Janela de outra rota na tela:** ela vale pelo ritmo dos intervalos dela (cerca de 12 meses, o anual; cerca de 6, o
+      semestral, com a folga de 2 meses) e passa a ser os últimos 4 períodos desse ritmo, com o aviso "A tendência usa os
+      últimos 4 períodos …". Sem ritmo, ou sem 4 períodos nele, a janela não muda, e o aviso pede a escolha. A janela só vale
+      para a tendência: a rotatividade e a análise espacial não a recebem.
+    - **Campo Período e quadro:** o texto do campo deixa de ter a forma "Janela de N períodos…", e o quadro de setas sempre
+      desenha a ponta da seta e os 4 períodos no eixo.
+  - **Rótulos:** "Aceleração de declínio" e "Desaceleração de declínio" valem em todo o sistema.
+    - Valem na tela e no motor: o `rotulo` da tendência na API, a coluna "Tendência" das tabelas e do CSV e os textos que
+      listam as classes.
+    - Os do crescimento continuam "Aceleração do crescimento" e "Desaceleração do crescimento".
+- **Permanece:**
+  - O método (CAP-TEN-01, DA-15), os códigos das classes (`DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`) e os nomes das
+    famílias ("Família do declínio").
+  - O motor e o contrato de `/api/painel`: `tendencia.competencias` aceita de 2 a 80 competências. Quem limita a janela aos
+    últimos 4 períodos do ritmo são a tela e a conversa.
+  - Fora da tendência, a AMB-04 nas leituras de "últimos N anos" e a pergunta da competência de um ano com várias.
+  - Na rotatividade, as duas pontas citadas na conversa.
+  - O catálogo documental (`Docs/CFG_DOC_CATALOG.yaml`), que cita a SPEC e é conferido com ela, continua com "do declínio".
+  - O campo Período, o quadro de setas, o mapa e o CSV continuam como estavam, fora o rótulo.
+- **Motivo:** pedido do responsável pelo produto em 24/10/2026: "Mas não tem janela longa agora. Quando o usuário escolhe o
+  período (semestral ou anual) a análise olha os últimos 4 períodos. E o nome adequado é aceleração de declínio, e
+  desaceleração de declínio e não "do" declínio."
+  - **Classificação, sem janela longa:** prevista. Decorre do pedido e não contraria a SPEC.
+    - CAP-TEN-01 vale para qualquer janela com 4 observações ou mais.
+    - A pessoa continua escolhendo: pela decisão 5a, ela escolhe o ritmo.
+    - A AT-34 é respeitada: nada é escolhido em silêncio, porque a pergunta do ritmo mostra os 4 períodos de cada ritmo.
+  - **Classificação, rótulos:** contraria a SPEC: na L415, os rótulos de apresentação de DA-15; na L1776, "classe com o
+    rótulo de DA-15". O responsável foi consultado e aprovou em 24/10/2026:
+    - os rótulos novos em todo o sistema;
+    - os do crescimento sem mudança;
+    - a divergência registrada aqui, sem alterar a SPEC.
+  - **Divergência da SPEC registrada, sem alterar a SPEC:** DA-15 (L415, CategoriaTendencia) e a saída de CAP-TEN-01 (L1776).
+    Os rótulos de `DECLINIO_ACELERADO` e `DECLINIO_DESACELERADO` são "Aceleração de declínio" e "Desaceleração de declínio".
+- **Documentação e testes:**
+  - **Documentação:**
+    - `Docs/CONVERSACAO_INCREMENTO_FN.md`: o período da tendência na conversa, as perguntas, as respostas e os testes.
+    - `Docs/PAINEL_INTEGRADO_INTERFACE.md`: a janela que chega à tela, o quadro sem o arranjo das janelas longas, os rótulos e
+      os testes.
+    - `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`: os rótulos, com a divergência.
+    - `Docs/PAINEL_INTEGRADO.md` e `README.md`.
+  - **Testes novos:**
+    - `test_conversa_grafico.py`:
+      - `test_periodo_da_tendencia_anual_ou_semestral_com_os_ultimos_4_periodos`: o ritmo citado, a pergunta do ritmo, a
+        Mudança e `janela_do_ritmo`.
+      - `test_periodo_nos_pedidos_de_funcao_segue_o_ritmo_da_tendencia`: condições, ordenação, comparar, juntar e
+        referência, o exemplo da variação e a AMB-04 fora da tendência.
+    - `painel.test.mjs`: o ritmo pelos intervalos, `janelaPeloRitmo` e a guarda de `aplicarPedido` (nada na rotatividade
+      nem na análise espacial).
+  - **Testes mudados de propósito:** o comportamento mudou por este pedido, e o defeito não estava no produto nem no teste.
+    - **Rótulos:** `test_painel_tendencia.py`, `test_real_data.py`, `test_levels_real_data.py`, `test_representation.py`,
+      `painel.test.mjs`, `areaDeAnalise.test.mjs` e `ui_area_de_analise.py` passam a esperar "de declínio".
+    - **Janela, em `painel.test.mjs`:** a janela de duas competências pedida pela conversa deixa de valer como veio; a base do
+      teste, com dois junhos, não tem 4 períodos anuais.
+    - **Janela, em `test_conversa_grafico.py`:** o teste antigo da janela da tendência com os últimos anos e os atalhos foi
+      substituído pelos dois testes novos. A cobertura do ritmo e da pergunta está neles, e a da AMB-04 (AT-34) fora da
+      tendência, no segundo.
+  - Nenhum teste foi enfraquecido, pulado ou apagado sem a cobertura registrada acima.
+
 ### 2026-10-24 · Página única: o campo Período (anual ou semestral, os últimos 4 períodos) e o quadro de setas da Análise de Tendência
 - **Antes:**
   - A janela da tendência era escolhida pelos atalhos "Últimos 4 junhos", "Série anual de junho" e "Todas as competências"

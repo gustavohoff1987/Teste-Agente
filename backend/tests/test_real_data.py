@@ -226,7 +226,7 @@ def test_real_resident_distribution(real_catalog, indicator):
 # Fraction e lendo o CSV por conta própria; não usa backend/trend.py.
 DA15 = {"CRESCIMENTO": "Crescimento", "CRESCIMENTO_ACELERADO": "Aceleração do crescimento",
         "CRESCIMENTO_DESACELERADO": "Desaceleração do crescimento", "DECLINIO": "Declínio",
-        "DECLINIO_ACELERADO": "Aceleração do declínio", "DECLINIO_DESACELERADO": "Desaceleração do declínio"}
+        "DECLINIO_ACELERADO": "Aceleração de declínio", "DECLINIO_DESACELERADO": "Desaceleração de declínio"}
 
 
 def independent_trend(points):

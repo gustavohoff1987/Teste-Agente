@@ -28,13 +28,13 @@ MIN_OBSERVATIONS = 4
 # Ordem do enum CategoriaTendencia (SPEC L415). É a ordem da legenda e das contagens, não um ranking.
 CLASSES = ("CRESCIMENTO", "CRESCIMENTO_ACELERADO", "CRESCIMENTO_DESACELERADO",
            "DECLINIO", "DECLINIO_ACELERADO", "DECLINIO_DESACELERADO", "SEM_CLASSIFICACAO")
-LABELS = {  # rótulos de apresentação DA-15
+LABELS = {  # rótulos de apresentação DA-15; os do declínio com "de" (divergência aprovada pelo responsável em 24/10/2026)
     "CRESCIMENTO": "Crescimento",
     "CRESCIMENTO_ACELERADO": "Aceleração do crescimento",
     "CRESCIMENTO_DESACELERADO": "Desaceleração do crescimento",
     "DECLINIO": "Declínio",
-    "DECLINIO_ACELERADO": "Aceleração do declínio",
-    "DECLINIO_DESACELERADO": "Desaceleração do declínio",
+    "DECLINIO_ACELERADO": "Aceleração de declínio",
+    "DECLINIO_DESACELERADO": "Desaceleração de declínio",
     "SEM_CLASSIFICACAO": "Sem classificação",
 }
 FAMILIES = ("CRESCIMENTO", "DECLINIO", "NENHUMA")

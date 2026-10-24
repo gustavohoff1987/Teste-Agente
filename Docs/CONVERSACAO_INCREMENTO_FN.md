@@ -130,7 +130,7 @@ Todas as chaves vêm sempre; **nula quer dizer "o gráfico mantém o que tem"**.
 | `nivel` | `estados` ou `municipios` |
 | `municipios` | `{"todos": bool, "estados": [...], "ids": [...]}`; na base do Brasil, `estados` traz o prefixo IBGE da UF (`"15"`); nas planilhas, o valor da coluna-mãe (`"Zambézia"`) |
 | `competencia` | `AAAAMM` (ou o período da planilha, como `2024`) |
-| `janela` | lista de competências da base, em ordem; na visão Mudança, as duas pontas |
+| `janela` | na tendência, os últimos 4 períodos do ritmo, anual ou semestral, em ordem (desde 24/10/2026; não há janela longa); na rotatividade, os dois períodos da coorte |
 | `visao_tendencia` | `mudanca`, `classes` ou `series` |
 | `referencia` | `{"membros": [ids]}`; por critério, `{"membros": [], "criterio": {"atributo", "ordem"}}` |
 | `funcao` | `comparar`, `juntar`, `ordenar`, `condicoes` ou `exportar` |
@@ -154,10 +154,18 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   dos municípios do gráfico); "volte aos estados" (`nivel: "estados"`) e "volte aos municípios".
 - **Indicador, análise e grupos:** "mostre a quantidade", "a densidade"; "mostre a distribuição", "a tendência", "a
   análise espacial"; "em quintis", "sem os grupos"; "visão Mudança", "classes", "séries".
-- **Competência e janela:** "em junho de 2023"; "em 2023" (com duas competências no ano, a pergunta qual); "de 2021 a
-  2024", "desde 2022", "até 2023"; "tendência nos últimos 4 anos" (as duas âncoras da AT-34: se coincidem, a janela e a
-  leitura na resposta; se divergem, AMB-04 com os anos explícitos em botões); "série anual de junho", "últimos 3
-  junhos", "todas as competências"; "mudança entre junho de 2023 e junho de 2024".
+- **Competência:** "em junho de 2023"; "em 2023" (com duas competências no ano, a pergunta qual).
+- **Período da tendência** (desde 24/10/2026, sem janela longa): os períodos são sempre os últimos 4 do ritmo, anual ou
+  semestral, como no campo Período da tela (`janela_do_ritmo`, o mesmo cálculo de `painelModel.janelaDoRitmo`). O ritmo vem
+  de "tendência anual", "semestral", "ano a ano", "a cada ano", "por semestre", "a cada seis meses", "série anual de junho"
+  e "últimos 3 junhos" (anual, e sempre com 4 períodos); "mostre a mudança anual" abre a visão Mudança, entre o primeiro e o
+  último dos 4. Um período com várias competências e sem ritmo ("de 2021 a 2024", "desde 2022", "nos últimos 4 anos",
+  mesmo nas leituras divergentes da AT-34, "todas as competências", "mudança entre junho de 2023 e junho de 2024") vira a
+  pergunta do ritmo, com um botão por ritmo que a base tem ("Anual" e "Semestral"); cada botão reescreve o pedido com o
+  ritmo no lugar do período. O mesmo vale nas condições, na ordenação, em comparar e em juntar ("os 5 municípios com maior
+  densidade anual", "compare Manaus e Tefé ano a ano"). A distribuição e a análise espacial (também a referência e a ordenação pela distância) usam uma
+  competência por vez: com um período assim, a conversa pede uma competência ou a tendência anual ou semestral. Na
+  rotatividade, as duas pontas citadas são os períodos da coorte.
 - **Referência da análise espacial:** "use Belém como referência", "distância até Belém", "a referência é Belém"; "use
   Manaus e Belém como conjunto de referência" (o membro mais próximo); "use como referência o município de maior
   densidade" (critério: a lista de candidatos abre nessa ordem e a escolha final é da pessoa).
@@ -198,7 +206,8 @@ catálogo local (`CATALOGO_LOCAL`), cada uma com o pedido reescrito:
 - homônimos ("Santarém": "SANTAREM (PA)" ou "SANTAREM (PB)"); vale o único homônimo que já está no gráfico, e a
   resposta diz qual, com a sigla;
 - "menos de 2 médicos": densidade por mil habitantes ou quantidade;
-- direção da ordenação; competência de um ano com várias; leituras de "últimos N anos" (AMB-04);
+- direção da ordenação; competência de um ano com várias; leituras de "últimos N anos" (AMB-04), fora da tendência;
+- na tendência (e nas funções que a pedem), o ritmo de um período citado sem ele: anual ou semestral (desde 24/10/2026);
 - duas análises ou dois indicadores no mesmo pedido; comparar e juntar ao mesmo tempo; quantos grupos por posição.
 
 Também viram pergunta: condições com "ou" (o gráfico combina com "e"); densidade por 10 ou 100 mil e distância em
@@ -211,7 +220,8 @@ está na base ("Não encontrei “Belen” …").
 As respostas dizem o que muda no gráfico, sem valores da base: "Mostrei a densidade nos 144 municípios do Pará.",
 "Usei BELEM (PA) como referência: o eixo X passa a mostrar a distância em linha reta (km) até ela.", "Ordenei os
 municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros; empates na posição de corte também
-entram.", "Voltei aos estados: cada bolha é um estado, com a densidade.". Na base do Brasil, a rotatividade não está
+entram.", "Voltei aos estados: cada bolha é um estado, com a densidade.", "Abri a tendência da densidade, com os últimos 4
+períodos anuais (junho de 2021, junho de 2022, junho de 2023 e junho de 2024).". Na base do Brasil, a rotatividade não está
 disponível (não há identificador individual), e a resposta diz isso sem mudar o gráfico.
 
 Com a vista citada, a resposta ganha uma frase, conforme a vista em exibição (`painel_vista`): "Passei para o mapa." (ou
@@ -262,8 +272,9 @@ Desde 22/10/2026, a interface é a página única de análise: no alto, o nome d
 `test_conversa_grafico.py` cobre a conversa no gráfico: o mapeamento das operações atuais, cada frase do contrato,
 o contexto do gráfico, as ambiguidades com os botões (e o pedido de cada botão), uma planilha sintética de distritos
 e províncias sem código IBGE, as três rotas e o provedor de IA sem dados da base; a vista do desenho nos comandos
-compostos e onde o mapa não mostra a análise; e as chaves `painel_vista`, `painel_mapa_disponivel` e `painel_resumo`
-fora do pré-exame, do intérprete e do provedor, nas duas rotas; no job `dados-reais`, as frases com a base versionada.
+compostos e onde o mapa não mostra a análise; as chaves `painel_vista`, `painel_mapa_disponivel` e `painel_resumo`
+fora do pré-exame, do intérprete e do provedor, nas duas rotas; o período da tendência pelo ritmo, sem janela longa, na
+tendência e nos pedidos de função (desde 24/10/2026); no job `dados-reais`, as frases com a base versionada.
 
 Os testes `test_dialogue_guidance.py`, `test_conversation_guidance.py`,
 `test_llm_context.py` e `test_territorial_selection.py` verificam capacidades

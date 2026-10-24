@@ -464,7 +464,12 @@ base versionada (job `dados-reais`).
 
 Desde 24/10/2026, a tela pede a tendência com os **últimos 4 períodos** do ritmo escolhido no campo Período (anual: 06/2021 a
 06/2024; semestral: 01/2023 a 06/2024, na base do Brasil), em `tendencia.competencias`, como qualquer janela: o motor e o
-contrato não mudam, e uma janela pedida na conversa continua aceita como veio ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)).
+contrato não mudam (o motor aceita de 2 a 80 competências; com menos de 4, a tendência recebe o bloqueio do método). Na
+tela não há janela longa: a conversa pede o ritmo, e
+uma janela que chegue à tela por ela vale pelo ritmo dos intervalos dela ([área de análise](PAINEL_INTEGRADO_INTERFACE.md),
+[conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md)). Os rótulos dos dois do declínio usam "de" desde 24/10/2026
+("Aceleração de declínio" e "Desaceleração de declínio"; divergência aprovada da SPEC, que diz "do declínio"); os códigos não
+mudam.
 
 ### Planilhas enviadas
 

@@ -210,7 +210,7 @@ def main():
         expect(apresentacao).to_have_attribute("data-aba", "tendencia")
         termos = apresentacao.get_by_test_id("analise-apresentacao-classes").locator("dt").all_inner_texts()
         assert termos == ["Crescimento", "Aceleração do crescimento", "Desaceleração do crescimento", "Declínio",
-                          "Aceleração do declínio", "Desaceleração do declínio", "Sem classificação", "Não avaliável"], termos
+                          "Aceleração de declínio", "Desaceleração de declínio", "Sem classificação", "Não avaliável"], termos
         expect(apresentacao).to_contain_text("Basta uma alta e uma queda entre os períodos")
         expect(apresentacao).not_to_contain_text(re.compile(r"MUDANCA_DE_DIRECAO|SERIE_ESTAVEL|SEM_CLASSIFICACAO"))
         area.get_by_test_id("analise-familia-distribuicao").click()

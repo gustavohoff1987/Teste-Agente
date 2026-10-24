@@ -274,7 +274,7 @@ test('apresentação de cada aba: o que a aba faz, com os nomes territoriais da 
   // As classes da tendência, na ordem da SPEC, com o que cada uma quer dizer, e o não avaliável.
   const tendencia = brasil('tendencia');
   assert.deepEqual(tendencia.itens.map(item => item.termo), ['Crescimento', 'Aceleração do crescimento', 'Desaceleração do crescimento',
-    'Declínio', 'Aceleração do declínio', 'Desaceleração do declínio', 'Sem classificação', 'Não avaliável']);
+    'Declínio', 'Aceleração de declínio', 'Desaceleração de declínio', 'Sem classificação', 'Não avaliável']);
   assert.ok(tendencia.itens.every(item => item.texto && item.texto.endsWith('.')));
   assert.ok(tendencia.paragrafos[0].includes('pelo menos quatro observações válidas'));
   assert.ok(tendencia.nota.includes('Basta uma alta e uma queda entre os períodos'));

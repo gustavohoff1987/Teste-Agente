@@ -6,8 +6,8 @@
 > histórico, assim como `trend.ts`, `TrendVisuals.tsx`, `ResultWorkspace.tsx`, `PeriodSelection.tsx`, os testes
 > `trend.test.mjs` e `visualModels.test.mjs` e os roteiros de navegador citados na seção 7. Continuam o método e os
 > metadados na API (`metadata.tendencia` e `metadata.mudanca`), com os testes do backend (`test_trend.py`). Na
-> página única, a análise Tendência mostra a mudança, as classes e as séries, com a janela escolhida pela pessoa
-> ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+> página única, a análise Tendência mostra a mudança, as classes e as séries com os últimos 4 períodos do ritmo que a
+> pessoa escolhe, anual ou semestral (desde 24/10/2026, sem janela longa; [área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
 
 Vigência: 19/10/2026 (decisão D6 do responsável pelo produto). Código: `backend/trend.py`,
 `backend/temporal_change.py`, o ramo `temporal` de `backend/main.py` e `backend/representation.py`; na
@@ -59,7 +59,7 @@ do resultado continua a mesma de antes (a condição não aciona a limitação d
      um aumento estrito: **Aceleração do crescimento**; não crescentes com uma redução estrita:
      **Desaceleração do crescimento**; constantes ou sem monotonicidade: Crescimento;
    - declínio simétrico (todas ≤ 0 e ao menos uma < 0) sobre as magnitudes: **Declínio**,
-     **Aceleração do declínio**, **Desaceleração do declínio**.
+     **Aceleração de declínio**, **Desaceleração de declínio** (com "de" desde 24/10/2026: divergência aprovada da SPEC, que diz "do declínio").
    - Família derivada: Crescimento (três primeiras), Declínio (três seguintes) e nenhuma (Sem
      classificação). "Sem classificação" é resultado do método, não falta de dados.
 5. **Desfecho da etapa** (`metadata.tendencia.desfecho`): RES-VAL (todas avaliáveis, com ao menos uma

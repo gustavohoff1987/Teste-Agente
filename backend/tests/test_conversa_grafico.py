@@ -230,24 +230,103 @@ def test_comparar_e_juntar_municipios_nomeados():
     assert pedir("compare Tefé e Parintins", **seguinte)["painel"]["selecao"] == ["code:130420", "code:130340"]
 
 
-def test_janela_da_tendencia_com_os_ultimos_anos_e_os_atalhos():
-    body = pedir("tendência nos últimos 4 anos")
-    assert body["painel"] == painel(familia="tendencia", janela=PERIODOS)
-    assert body["reply"] == ("Abri a tendência da densidade, de janeiro de 2021 a junho de 2024 (8 competências). "
-                             "“Últimos 4 anos”: de 2021 a 2024 (até o último período da base, que é também o ano atual).")
-    # AT-34: as duas âncoras divergem; nada muda, e cada botão envia o pedido com os anos explícitos.
-    duas = pedir("tendência nos últimos 4 anos", conversation_today="2026-10-22")
-    assert "painel" not in duas and duas["ambiguity"] == "AMB-04"
-    assert duas["clarification"].startswith("“Últimos 4 anos” pode ser contado de duas formas")
-    assert [escolha["draft"] for escolha in duas["choices"]] == ["tendência de 2021 a 2024", "tendência de 2023 a 2024"]
-    assert pedir(duas["choices"][1]["draft"])["painel"] == painel(familia="tendencia", janela=PERIODOS[4:])
-    anual = pedir("use a série anual de junho", painel_familia="tendencia")
-    assert anual["painel"] == painel(janela=["202106", "202206", "202306", "202406"])
-    assert anual["reply"] == "Janela da tendência: de junho de 2021 a junho de 2024 (4 competências)."
+def test_periodo_da_tendencia_anual_ou_semestral_com_os_ultimos_4_periodos():
+    """Tendência (24/10/2026): os períodos são sempre os últimos 4 do ritmo escolhido, anual ou semestral, sem janela longa.
+    O ritmo citado dá a janela (a mesma da tela, painelModel.janelaDoRitmo); um período sem ritmo (anos, datas, "todas as
+    competências"), mesmo ambíguo, vira a pergunta do ritmo, com um botão por ritmo que reescreve o pedido. Antes, "tendência nos
+    últimos 4 anos" abria as 8 competências; a cobertura dos atalhos de janela passou para estas conferências."""
+    anuais, semestrais = ["202106", "202206", "202306", "202406"], ["202301", "202306", "202401", "202406"]
+    anual = pedir("tendência anual")
+    assert anual["painel"] == painel(familia="tendencia", janela=anuais)
+    assert anual["reply"] == ("Abri a tendência da densidade, com os últimos 4 períodos anuais (junho de 2021, junho de 2022, "
+                              "junho de 2023 e junho de 2024).")
+    assert pedir("mostre a tendência semestral")["painel"] == painel(familia="tendencia", janela=semestrais)
+    serie = pedir("use a série anual de junho", painel_familia="tendencia")
+    assert serie["painel"] == painel(janela=anuais)
+    assert serie["reply"] == ("Período da tendência: anual, com os últimos 4 períodos (junho de 2021, junho de 2022, junho de "
+                              "2023 e junho de 2024).")
+    assert pedir("os últimos 6 junhos", painel_familia="tendencia")["painel"] == painel(janela=anuais)  # sempre 4
+    # Um período sem ritmo não escolhe a janela: a pergunta do ritmo, com os 4 períodos de cada um; nada muda no gráfico.
+    anos = pedir("tendência nos últimos 4 anos")
+    assert "painel" not in anos
+    assert anos["clarification"] == ("Na tendência, os períodos são sempre os últimos 4 do ritmo escolhido: anual, de junho de "
+                                     "2021 a junho de 2024; semestral, de janeiro de 2023 a junho de 2024. Qual ritmo?" +
+                                     conversa_grafico.NADA_MUDOU)
+    assert [(escolha["label"], escolha["draft"]) for escolha in anos["choices"]] == [
+        ("Anual", "tendência anual"), ("Semestral", "tendência semestral")]
+    # Mesmo ambíguo (AT-34: as duas âncoras divergem), o período não decide nada na tendência: a pergunta é a do ritmo.
+    assert pedir("tendência nos últimos 4 anos", conversation_today="2026-10-22")["choices"] == anos["choices"]
+    assert [escolha["draft"] for escolha in pedir("tendência de 2015 a 2020 no Pará")["choices"]] == [
+        "tendência anual no Pará", "tendência semestral no Pará"]
+    assert [escolha["draft"] for escolha in pedir("tendência em todas as competências")["choices"]] == [
+        "tendência anual", "tendência semestral"]
+    # A mudança da tendência é entre o primeiro e o último dos 4 períodos: a mudança entre duas datas também pergunta o ritmo.
     mudanca = pedir("mostre a mudança entre junho de 2023 e junho de 2024")
-    assert mudanca["painel"] == painel(familia="tendencia", visao_tendencia="mudanca", janela=["202306", "202406"])
-    assert mudanca["reply"] == ("Abri a tendência da densidade, entre junho de 2023 e junho de 2024. Visão da tendência: "
-                                "Mudança.")
+    assert "painel" not in mudanca
+    assert [escolha["draft"] for escolha in mudanca["choices"]] == ["mostre a mudança anual", "mostre a mudança semestral"]
+    escolhida = pedir("mostre a mudança anual")
+    assert escolhida["painel"] == painel(familia="tendencia", visao_tendencia="mudanca", janela=anuais)
+    assert escolhida["reply"] == ("Abri a tendência da densidade, com os últimos 4 períodos anuais (junho de 2021, junho de 2022, "
+                                  "junho de 2023 e junho de 2024). Visão da tendência: Mudança.")
+    # A janela da tela, em Python, é a mesma do modelo da tela: anos sozinhos só no anual; sem 4 períodos, nenhuma.
+    assert conversa_grafico.janela_do_ritmo("anual", ["2019", "2020", "2021", "2022", "2023"]) == ["2020", "2021", "2022", "2023"]
+    assert conversa_grafico.janela_do_ritmo("semestral", ["202106", "202206", "202306", "202406"]) == []
+    assert conversa_grafico.janela_do_ritmo("anual", ["202006", "202106", "202306", "202406"]) == []  # sem 2022
+
+
+def test_periodo_nos_pedidos_de_funcao_segue_o_ritmo_da_tendencia():
+    """Condições, ordenação, comparar e juntar (24/10/2026): a janela é da tendência, que não tem janela longa. O ritmo citado
+    dá os últimos 4 períodos dele, e a resposta diz quais; outro período com várias competências vira a pergunta do ritmo
+    (nada muda no gráfico), com botões que reescrevem o pedido. Na referência da análise espacial, que usa uma competência por
+    vez, a janela vira a pergunta da competência. Antes, o período citado ia como veio (as 8 competências de 2021 a 2024)."""
+    anuais, semestrais = ["202106", "202206", "202306", "202406"], ["202301", "202306", "202401", "202406"]
+    condicao = pedir("municípios com menos de 1 médico por mil, semestral")
+    assert condicao["painel"] == painel(funcao="condicoes", condicoes=[{"atributo": "densidade", "operador": "<", "valor": 1}],
+                                        janela=semestrais)
+    assert condicao["reply"] == ("Apliquei a condição densidade < 1 por mil habitantes, com os últimos 4 períodos semestrais "
+                                 "(janeiro de 2023, junho de 2023, janeiro de 2024 e junho de 2024): o gráfico separa quem "
+                                 "atende a ela, quem não atende e quem não tem dado.")
+    faixa = pedir("municípios com menos de 1 médico por mil de 2021 a 2024")
+    assert "painel" not in faixa and faixa["clarification"].startswith("Na tendência, os períodos são sempre os últimos 4 do "
+                                                                       "ritmo escolhido: anual, de junho de 2021")
+    assert [(escolha["label"], escolha["draft"]) for escolha in faixa["choices"]] == [
+        ("Anual", "municípios com menos de 1 médico por mil anual"),
+        ("Semestral", "municípios com menos de 1 médico por mil semestral")]
+    assert pedir(faixa["choices"][0]["draft"])["painel"]["janela"] == anuais
+    ordena = pedir("os 5 municípios com maior densidade de 2021 a 2024")
+    assert "painel" not in ordena
+    assert [escolha["draft"] for escolha in ordena["choices"]] == [
+        "os 5 municípios com maior densidade anual", "os 5 municípios com maior densidade semestral"]
+    anual = pedir(ordena["choices"][0]["draft"])
+    assert anual["painel"] == painel(funcao="ordenar", ordenar={"atributo": "densidade", "ordem": "desc", "primeiros": 5},
+                                     janela=anuais)
+    assert anual["reply"] == ("Ordenei os municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros; "
+                              "empates na posição de corte também entram, com os últimos 4 períodos anuais (junho de 2021, "
+                              "junho de 2022, junho de 2023 e junho de 2024).")
+    compara = pedir("compare Manaus e Tefé ano a ano")
+    assert compara["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420"], janela=anuais)
+    assert compara["reply"] == ("Abri a comparação lado a lado de MANAUS (AM) e TEFE (AM), com os últimos 4 períodos anuais "
+                                "(junho de 2021, junho de 2022, junho de 2023 e junho de 2024): maior, menor e diferença vêm "
+                                "do motor.")
+    # "em todas as competências" sai com a preposição: o botão pede o ritmo no lugar dele.
+    junta = pedir("junte Manaus e Tefé em todas as competências")
+    assert "painel" not in junta
+    assert [escolha["draft"] for escolha in junta["choices"]] == ["junte Manaus e Tefé anual", "junte Manaus e Tefé semestral"]
+    # A análise espacial usa uma competência por vez: a janela citada na referência vira a pergunta da competência.
+    assert pedir("use Belém como referência de 2021 a 2024") == {"handled": True, "executed": False, "clarification": (
+        "A análise espacial usa uma competência por vez, e a tendência usa os últimos 4 períodos, anuais ou semestrais. Diga "
+        "uma competência, por exemplo, “em junho de 2024”, ou peça a tendência anual ou semestral." + conversa_grafico.NADA_MUDOU)}
+    # A variação é da tendência: o exemplo da pergunta pede a Mudança pelo ritmo, sem janela longa.
+    assert pedir("ordene pela variação do maior para o menor") == {"handled": True, "executed": False, "clarification": (
+        "A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança anual”." +
+        conversa_grafico.NADA_MUDOU)}
+    # Fora da tendência, "últimos N anos" com as âncoras divergentes continua na AMB-04 (AT-34), com os anos em botões (a
+    # cobertura que estava no teste antigo da janela da tendência).
+    relativo = pedir("mostre a densidade nos últimos 4 anos", conversation_today="2026-10-22")
+    assert "painel" not in relativo and relativo["ambiguity"] == "AMB-04"
+    assert relativo["clarification"].startswith("“Últimos 4 anos” pode ser contado de duas formas")
+    assert [escolha["draft"] for escolha in relativo["choices"]] == ["mostre a densidade de 2021 a 2024",
+                                                                     "mostre a densidade de 2023 a 2024"]
 
 
 def test_volte_aos_estados():
