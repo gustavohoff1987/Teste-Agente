@@ -433,12 +433,19 @@ export function marcadasPorGrupo(base: PainelMunicipios, c: { grupos: GrupoInfo[
     const ids = base.todos ? todas : base.ids;
     return ids.length ? [{ grupo: "", nome: "", marcadas: ids.length, total: todas.length || ids.length, inteiro: base.todos, nomes: nomesDe(ids) }] : [];
   }
-  return c.grupos.flatMap((g): MarcadasDoGrupo[] => {
+  const porGrupo = c.grupos.flatMap((g): MarcadasDoGrupo[] => {
     const unidades = c.unidadesDoGrupo(g.id), total = g.unidades || unidades.length;
     if (base.todos || base.estados.includes(g.id)) return [{ grupo: g.id, nome: g.nome, marcadas: total, total, inteiro: true, nomes: [] }];
     const ids = base.ids.filter(id => c.grupoDe(id) === g.id);
     return ids.length ? [{ grupo: g.id, nome: g.nome, marcadas: ids.length, total, inteiro: false, nomes: nomesDe(ids) }] : [];
   });
+  // Unidades marcadas sem um grupo da lista (numa planilha, uma linha sem o valor da coluna-mãe; um id vindo da conversa): um
+  // item à parte, com id "", para nada marcado ficar fora do que a Seleção mostra.
+  const conhecidos = new Set(c.grupos.map(g => g.id));
+  const outras = base.todos ? [] : base.ids.filter(id => !conhecidos.has(c.grupoDe(id)));
+  if (outras.length) porGrupo.push({ grupo: "", nome: "", marcadas: outras.length, total: c.unidadesDoGrupo("").length || outras.length,
+    inteiro: false, nomes: nomesDe(outras) });
+  return porGrupo;
 }
 
 /** Grupos da escolha: os estados da base do Brasil (bloco "niveis") ou os valores da coluna-mãe do catálogo da planilha. */
@@ -2029,16 +2036,20 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
   Apresentacao {
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const os = artigo(unidade, true), us = unidade.plural;
-  // O que se analisa: na base do Brasil, o Brasil, os estados ou os municípios; numa planilha, as unidades dela.
+  // O que se analisa: na base do Brasil, o Brasil, os estados ou os municípios; numa planilha, as unidades dela, com o gênero
+  // delas ("cada comuna escolhida", "Cada bolha é uma comuna").
   const territorio = c.brasil && c.comGrupos ? "território" : unidade.singular;
   const territorios = c.brasil && c.comGrupos ? "territórios" : us;
+  const f = !(c.brasil && c.comGrupos) && fem(unidade);
+  const escolhido = f ? "escolhida" : "escolhido", um = f ? "uma" : "um";
   if (aba === "territorios") return { titulo: NOME_SELECAO, paragrafos: [c.semDados
     ? "Depois de escolher os dados, a lista de territórios aparece aqui." : TEXTO_DA_SELECAO] };
   if (aba === "distribuicao") return { titulo: NOMES_FAMILIAS.distribuicao, paragrafos: [
-    "Mostra o indicador de cada " + territorio + " escolhido na competência que você escolhe: a densidade (profissionais por " +
-      "1.000 habitantes) ou a quantidade de profissionais. Cada bolha é um " + territorio + ": a altura mostra o valor, e o " +
+    "Mostra o indicador de cada " + territorio + " " + escolhido + " na competência que você escolhe: a densidade (profissionais por " +
+      "1.000 habitantes) ou a quantidade de profissionais. Cada bolha é " + um + " " + territorio + ": a altura mostra o valor, e o " +
       "tamanho, a população.",
-    "Com vários " + territorios + ", você pode dividi-los em grupos do mesmo tamanho (quartis, quintis ou decis) ou em faixas de " +
+    "Com vári" + (f ? "as " : "os ") + territorios + ", você pode dividi-l" + (f ? "as" : "os") + " em grupos do mesmo tamanho " +
+      "(quartis, quintis ou decis) ou em faixas de " +
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Juntar. No mapa, os pontos aparecem em 5 grupos " +
       "iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
@@ -2058,7 +2069,7 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       { termo: "Não avaliável", texto: DESCRICAO_NAO_AVALIAVEL }],
     nota: "Quando os períodos não têm a mesma distância (de janeiro a junho são 5 meses; de junho a janeiro, 7), o tamanho de cada " +
       "alta ou queda é comparado por mês. No quadro de setas, a seta para cima é alta; para baixo, queda; para o lado, pausa. A visão " +
-      "Mudança mostra a variação entre o primeiro e o último período, e a visão Séries, a linha de cada " + territorio + " escolhido. " +
+      "Mudança mostra a variação entre o primeiro e o último período, e a visão Séries, a linha de cada " + territorio + " " + escolhido + ". " +
       "A referência do método fica em Detalhes, na aba Método e procedência." };
   return { titulo: NOMES_FAMILIAS.rotatividade, paragrafos: [
     "Acompanha os profissionais presentes no período inicial (a coorte inicial) e mostra, para cada " + unidade.singular +

@@ -125,13 +125,15 @@ Seleção. A referência da Análise Espacial e o período da Análise de Tendê
   botão da análise em uso ("Ver a Análise de Distribuição", `analise-ver-analise`) e "Limpar a seleção de municípios" (ou "de
   estados"; `analise-limpar-selecao`, com o ícone da vassoura). Abaixo, o que entra, estado a estado ("Bahia: ABAIRA e
   AIQUARA"; "Amazonas: todos os 62"), cada linha com um × que tira só aquele estado; no nível Estados, as etiquetas dos
-  estados, também com o ×. Com todos marcados, o resumo basta; com mais de 6 linhas, a lista se recolhe ("Ver quais (N)").
+  estados, também com o ×. Uma unidade marcada sem um grupo da lista (numa planilha, sem o valor da coluna-mãe) aparece numa
+  linha à parte. Com todos marcados, o resumo basta; com mais de 6 linhas, a lista se recolhe ("Ver quais (N)").
   O mesmo resumo, em poucas palavras, aparece no título das análises e no resumo de cada aba (`resumoDoUniverso`, no lugar da
   trilha "Brasil › Amazonas", que saiu).
-- **Desfazer:** o que marca ou desmarca muitos de uma vez (os comandos coletivos, a caixa de um estado inteiro, o × de um
-  estado) e "Limpar a seleção" dizem o que mudou (`analise-desfazer-aviso`: "Municípios da Bahia desmarcados.", "Todos os
+- **Desfazer:** o que marca ou desmarca muitos de uma vez (os comandos coletivos, a caixa de um estado inteiro, o × que tira
+  os municípios de um estado) e "Limpar a seleção" dizem o que mudou (`analise-desfazer-aviso`: "Municípios da Bahia desmarcados.", "Todos os
   estados marcados.", "Seleção de municípios limpa.") e oferecem "Desfazer" (`analise-desfazer`), que devolve a seleção de
-  antes. Os comandos dizem sobre qual conjunto agem: os estados, os municípios do Brasil ou os municípios de um estado.
+  antes, até a mudança seguinte (juntar ou desfazer um conjunto também conta). Os comandos dizem sobre qual conjunto agem: os
+  estados, os municípios do Brasil ou os municípios de um estado.
 - **No gráfico (E1):** clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios dele na análise; a dica da
   bolha sob o mouse ou em foco mostra a ação "Ver os N municípios". "Voltar aos estados" (seção seguinte) desfaz a navegação.
 - **Planilhas:** sem os níveis Brasil e Estados, com os mesmos passos e a nomenclatura da planilha (a busca "Buscar distrito ou
@@ -153,16 +155,19 @@ Pedido do responsável (24/10/2026): um ícone para voltar e outro para limpar, 
 
 - **Voltar** (`analise-voltar`, a seta ←, no alto da análise, antes do título): desfaz a última navegação que trocou o que está
   na análise, com o nome do passo no botão: abrir um estado pela bolha e o atalho "Ver os municípios no mapa" ("Voltar aos
-  estados") e uma mudança de territórios pedida na conversa ("Voltar à seleção anterior"). As navegações se empilham; cada
-  Voltar desfaz uma. Uma mudança feita à mão na Seleção esvazia a pilha: Voltar nunca desfaz uma escolha feita ali (para isso,
-  há o Desfazer). Sem navegação para desfazer, o botão não aparece. Na lista aberta de um estado, "← Voltar aos estados" só fecha
+  estados") e uma mudança de territórios pedida na conversa ("Voltar à seleção anterior", também quando a escolha de antes era
+  de outro nível). As navegações se empilham; cada Voltar desfaz uma. Uma mudança feita à mão na Seleção, ou juntar e desfazer
+  um conjunto, esvazia a pilha: Voltar nunca desfaz uma escolha feita à mão (para isso, há o Desfazer) nem apaga um conjunto
+  criado depois da navegação. Sem navegação para desfazer, o botão não aparece. Na lista aberta de um estado, "← Voltar aos estados" só fecha
   a lista.
 - **Limpar** usa sempre a vassoura e diz o que limpa: na Seleção, "Limpar a seleção de municípios" (ou "de estados"), só do
   nível em uso; nas análises, "Limpar filtros" (`analise-limpar-filtros`), que tira a régua, as condições, a ordenação, a
   comparação, o filtro da classe e os itens marcados no desenho, sem mexer nos territórios nem nos ajustes da análise. Ele só
   aparece com algum filtro em uso.
 - **Desfazer** (a seta curva): na Seleção, depois de uma mudança coletiva ou do Limpar (seção anterior); nas análises, "Desfazer
-  a limpeza" (`analise-desfazer-filtros`), que devolve os filtros tirados pelo "Limpar filtros" até o próximo filtro.
+  a limpeza" (`analise-desfazer-filtros`), que devolve os filtros tirados pelo "Limpar filtros" até a mudança seguinte: um
+  filtro novo ou outra escolha de territórios (os filtros de antes, como uma comparação, podem não valer para os territórios
+  novos).
 
 ### Brasil como unidade
 
@@ -172,7 +177,7 @@ Decisões D3 e D4 (24/10/2026, pedido do responsável): no nível Brasil, a aná
 bolha) e a Tendência (a série nacional, na mesma regra de classes); a linha de contexto do Brasil não aparece, porque o item já
 é o total nacional. O que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3): Grupos e faixas
 saem dos ajustes, e as funções, exceto Exportar, ficam desligadas, com o motivo ("Com o Brasil como unidade, há um território
-só: esta função vale para vários."). A Análise Espacial espera municípios ("A distância é medida entre municípios: o Brasil,
+só: esta função vale para vários."); um painel de função aberto antes fecha. A Análise Espacial espera municípios ("A distância é medida entre municípios: o Brasil,
 como unidade, não tem um ponto no mapa. Para usar esta análise, escolha municípios na Seleção de Territórios."), e o mapa fica
 desligado, com o motivo ("O Brasil, como unidade, não tem um ponto no mapa: cada ponto do mapa é um município."), sem atalho.
 Desde 24/10/2026, a Análise de Tendência também vale para os estados (um, vários ou todos), com a série estadual do motor.
@@ -407,7 +412,7 @@ análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do
   da frase-resumo diz a classe que o motor atribuiu e o que ela significa, no texto fixo da explicação, sem o exemplo
   ("Aceleração do crescimento: o indicador subiu em todos os períodos…"; para o não avaliável, o motivo geral). Com vários
   territórios, as contagens por classe ficam acima do quadro de setas, só com as classes que têm territórios; com um só, as
-  contagens saem.
+  contagens saem. A classe do filtro em uso continua à vista, mesmo sem territórios, para o filtro poder ser desligado.
 - **Detalhes,** abaixo do desenho, em abas: Tabela (os mesmos itens do gráfico, na ordem do código territorial, com 100 linhas
   por página; clicar num cabeçalho só reordena, sem criar posições), Não avaliáveis (por aspecto, com o motivo do motor:
   indicador, distância, variação, tendência, condições, coorte e, com o mapa à vista, coordenada do mapa) e Método e procedência

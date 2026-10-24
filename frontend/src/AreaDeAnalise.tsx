@@ -15,7 +15,7 @@ import {
   lerEstadoSalvo, lerLimites, listaDeCompetencias, ligacoesDoMapa, limiteDaVariacao, lugarDoUniverso, maisRecente, montarCsv, montarDica,
   chaveDoPedido, montarOpcoes, noCorte, apresentacaoDaAba, notaSemClassificacao, paletaDoGrafico, precisaQuintisDoMapa, pedidoDependeDoIndicador, nomeDaUnidade, novoConjunto,
   ordemNeutra, pintar, pinturaDoMapa, prefixoDe, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA, rotulosEfetivos, salvarEstado,
-  comparacaoQueContinua, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, todosOs, maiuscula, textoDaMarca, textoDoMetodo, textoInstrucaoGrupos,
+  baseVazia, comparacaoQueContinua, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, todosOs, maiuscula, textoDaMarca, textoDoMetodo, textoInstrucaoGrupos,
   tituloDaAnalise, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PedidoDoChat,
@@ -123,6 +123,8 @@ const idDaAba = (aba: Aba) => aba === "territorios" ? "analise-aba-territorios" 
 type Escolha = Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">;
 const escolhaDe = (d: DefinicaoAnalise): Escolha => ({ nivel: d.nivel, base: d.base, estados: d.estados, conjuntos: d.conjuntos });
 const mesmaEscolha = (a: Escolha, b: Escolha) => JSON.stringify(a) === JSON.stringify(b);
+/** Há alguma escolha guardada, em qualquer nível (o Brasil, quando é o nível em análise, é sempre uma)? */
+const temAlgumaEscolha = (e: Escolha) => e.nivel === "brasil" || !baseVazia(e.base) || e.estados.length > 0 || e.conjuntos.length > 0;
 
 /** O corpo da apresentação de uma aba: parágrafos, a lista das classes (na tendência) e a nota. */
 function TextoDaApresentacao({ aba, apresentacao }: { aba: Aba; apresentacao: Apresentacao }) {
@@ -393,8 +395,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
-    // O pedido da conversa que troca o que está na análise pode ser desfeito com Voltar (a escolha de antes fica guardada).
-    if (!semSelecao(def) && !mesmaEscolha(escolhaDe(def), escolhaDe(resultado.definicao)))
+    // O pedido da conversa que troca o que está na análise pode ser desfeito com Voltar (a escolha de antes fica guardada, também
+    // a de um nível que não estava em análise).
+    if (temAlgumaEscolha(escolhaDe(def)) && !mesmaEscolha(escolhaDe(def), escolhaDe(resultado.definicao)))
       setHistorico(atual => [...atual, { rotulo: "Voltar à seleção anterior", escolha: escolhaDe(def) }]);
     setDesfazer(null);
     // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise.
@@ -592,6 +595,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function trocarEscolha(escolha: Escolha) {
     mudar({ ...escolha, comparar: comparacaoQueContinua(def, escolha, grupoDe) });
   }
+  /** Juntar ou desfazer um conjunto: uma mudança à mão no que está na análise, como as da Seleção. O Voltar e o Desfazer de antes
+   * deixam de valer (devolveriam a escolha sem o conjunto novo), e a comparação só continua com os itens dela. */
+  function mudarConjuntos(conjuntos: PainelConjuntoPedido[]) {
+    setDesfazer(null);
+    setHistorico([]);
+    trocarEscolha({ ...escolhaDe(def), conjuntos });
+  }
   function escolherNivel(nivel: PainelNivel) {
     mudarEscolha({ nivel });
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
@@ -665,7 +675,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const membros = selecao.filter(id => resposta?.itens.find(item => item.id === id)?.tipo === "municipio");
     if (membros.length < 2) return;
     const conjunto = novoConjunto(def.conjuntos, membros, rotulo);
-    mudar({ conjuntos: [...def.conjuntos, conjunto] });
+    mudarConjuntos([...def.conjuntos, conjunto]);
     setSelecionados([conjunto.id]);
     setAviso("Conjunto " + conjunto.rotulo + " criado. O motor devolve a bolha com a soma das contagens dos componentes.");
   }
@@ -751,13 +761,22 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }
   function desfazerFiltros() {
     if (!filtrosDesfazer) return;
-    mudar({ condicoes: filtrosDesfazer.condicoes, ordenar: filtrosDesfazer.ordenar, comparar: filtrosDesfazer.comparar });
+    mudar({ condicoes: filtrosDesfazer.condicoes, ordenar: filtrosDesfazer.ordenar,
+      comparar: comparacaoQueContinua({ nivel: def.nivel, comparar: filtrosDesfazer.comparar }, escolhaDe(def), grupoDe) });
     setCorte(filtrosDesfazer.corte); setSoAtende(filtrosDesfazer.soAtende); setFiltroClasse(filtrosDesfazer.filtroClasse);
     setSelecionados(filtrosDesfazer.selecionados);
     setFiltrosDesfazer(null);
     setAviso("Filtros de volta.");
   }
   useEffect(() => { if (filtrosAtivos) setFiltrosDesfazer(null); }, [filtrosAtivos]);
+  // "Desfazer a limpeza" vale até a mudança seguinte: com outra escolha de territórios, os filtros de antes não se aplicam.
+  const chaveDaEscolha = JSON.stringify(escolhaDe(def));
+  useEffect(() => setFiltrosDesfazer(null), [chaveDaEscolha]);
+  // Com o Brasil como unidade, só Exportar vale: um painel aberto antes (a régua, as condições…) fecha, em vez de ficar à vista
+  // sem efeito.
+  useEffect(() => {
+    if (def.nivel === "brasil" && painel && painel !== "exportar") setPainel(null);
+  }, [def.nivel]);
   function exportarCsv() {
     if (!resposta) return;
     baixar("analise_" + (resposta.competencia || "grafico") + ".csv", montarCsv(resposta, { familia: familiaDesenho, indicador, rotulos }), "text/csv;charset=utf-8");
@@ -867,22 +886,23 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // Com um território só (24/10/2026), as contagens por classe saem: o resultado dele e o que a classe quer dizer ficam na frase
   // do resultado. Com vários, só as classes que têm territórios.
   const naoAvaliaveis = resposta?.tendencia ? resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL ?? null : null;
-  const contagemClasses = exibicao.tendencia && resposta?.tendencia && resposta.itens.length > 1 ? <div data-testid="analise-contagem-classes"
+  const contagemClasses = exibicao.tendencia && resposta?.tendencia && (resposta.itens.length > 1 || !!filtroClasse) ? <div data-testid="analise-contagem-classes"
     className="analise-contagem-classes" role="group" aria-label="Contagem por classe de tendência, do motor (clique para filtrar)">
     {CLASSES_TENDENCIA.map(classe => {
-      const n = resposta.tendencia!.contagens[classe.codigo];
-      if (!n) return null;
+      const n = resposta.tendencia!.contagens[classe.codigo] ?? 0;
+      // A classe do filtro em uso continua à vista, mesmo sem territórios, para o filtro poder ser desligado.
+      if (!n && filtroClasse !== classe.codigo) return null;
       return <button key={classe.codigo} type="button" data-testid="analise-contagem-classe" data-classe={classe.codigo} data-contagem={n}
         aria-pressed={filtroClasse === classe.codigo} title={DESCRICAO_DAS_CLASSES[classe.codigo]} className="analise-contagem"
         onClick={() => setFiltroClasse(atual => atual === classe.codigo ? null : classe.codigo)}>
         <span className="analise-amostra-bolha" style={{ background: paleta.tendencia[classe.familia] }} aria-hidden="true"/>
         {classe.rotulo} <strong className="tabular-nums text-ink">{formatarNumero(n, true)}</strong></button>;
     })}
-    {!!naoAvaliaveis && <button type="button" data-testid="analise-contagem-classe" data-classe="NAO_AVALIAVEL" data-contagem={naoAvaliaveis}
+    {(!!naoAvaliaveis || filtroClasse === "NAO_AVALIAVEL") && <button type="button" data-testid="analise-contagem-classe" data-classe="NAO_AVALIAVEL" data-contagem={naoAvaliaveis ?? 0}
       aria-pressed={filtroClasse === "NAO_AVALIAVEL"} className="analise-contagem"
       onClick={() => setFiltroClasse(atual => atual === "NAO_AVALIAVEL" ? null : "NAO_AVALIAVEL")}>
       <span className="analise-amostra-bolha" style={amostraVazada} aria-hidden="true"/>
-      Não avaliável <strong className="tabular-nums text-ink">{formatarNumero(naoAvaliaveis, true)}</strong></button>}
+      Não avaliável <strong className="tabular-nums text-ink">{formatarNumero(naoAvaliaveis ?? 0, true)}</strong></button>}
     {resposta.tendencia.bloqueio && <p className="w-full text-xs text-amber-900">{resposta.tendencia.bloqueio}</p>}
     {notaClasses && <p data-testid="analise-nota-sem-classificacao" className="analise-nota-classes">{notaClasses}</p>}
   </div> : null;
@@ -1060,7 +1080,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         nomes={nomes} onAlternar={alternar} onLimpar={() => { setSelecionados([]); mudar({ comparar: [] }); }} onComparar={ids => mudar({ comparar: ids })}/>;
       case "juntar": return <GavetaJuntar itens={resposta?.itens || []} selecionados={selecao} conjuntos={def.conjuntos} rotulos={rotulos}
         nivelGrupos={def.nivel === "estados"} onJuntar={juntar}
-        onDesfazer={id => { mudar({ conjuntos: def.conjuntos.filter((item: PainelConjuntoPedido) => item.id !== id) }); setSelecionados(atual => atual.filter(item => item !== id)); }}/>;
+        onDesfazer={id => { mudarConjuntos(def.conjuntos.filter((item: PainelConjuntoPedido) => item.id !== id)); setSelecionados(atual => atual.filter(item => item !== id)); }}/>;
       case "exportar": return <GavetaExportar pronto={!!resposta} onCsv={exportarCsv} onImprimir={() => window.print()} onMetodo={exportarMetodo}/>;
       default: return null;
     }

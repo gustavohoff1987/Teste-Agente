@@ -401,6 +401,16 @@ test('nomenclatura territorial: na base do Brasil, os textos de sempre; numa pla
   assert.equal(M.textoCadaBolha(comunas.unidade), 'Cada bolha é uma comuna. O tamanho mostra a população.');
   assert.equal(M.textoTodasAsUnidades(comunas, 3, false), 'Todas as comunas da planilha (3)');
   assert.equal(M.apoioDaFamilia('distribuicao', comunas), 'Como as comunas se distribuem');
+  // Os textos das análises concordam com o gênero da unidade da planilha (revisão de 24/10/2026: "cada comuna escolhido").
+  const apresentacao = aba => {
+    const a = M.apresentacaoDaAba(aba, {rotulos: comunas, brasil: false, comGrupos: true});
+    return [...a.paragrafos, a.nota || ''].join(' ');
+  };
+  assert.ok(apresentacao('distribuicao').includes('cada comuna escolhida'), apresentacao('distribuicao'));
+  assert.ok(apresentacao('distribuicao').includes('Cada bolha é uma comuna'));
+  assert.ok(apresentacao('distribuicao').includes('Com várias comunas, você pode dividi-las'));
+  assert.ok(apresentacao('tendencia').includes('a linha de cada comuna escolhida'));
+  assert.ok(!/comuna escolhido|um comuna|vários comunas/.test(apresentacao('distribuicao') + apresentacao('tendencia')));
   assert.deepEqual(M.rotulosEfetivos(null, null, 'brasil'), BR);
   assert.deepEqual(M.rotulosEfetivos(null, DISTRITOS, 'arquivo'), DISTRITOS);
   assert.deepEqual(M.rotulosEfetivos(comunas, DISTRITOS, 'arquivo'), comunas);  // os do motor, quando houver
@@ -530,6 +540,13 @@ test('seleção cumulativa entre estados (24/10/2026): marcar na Bahia e depois 
     conjuntos: []}), ['uf:29', 'uf:42']);
   // Os estados escolhidos como unidades: na ordem do código, sem repetir e só os da fonte.
   assert.deepEqual(M.normalizarEstados(['42', '29', '42', '99'], todos), ['29', '42']);
+  // Uma unidade marcada sem um grupo da lista (na planilha, sem o valor da coluna-mãe) não some do que a Seleção mostra: vem
+  // num item à parte, com id "" (a revisão de 24/10/2026 achou a lista vazia com a unidade no pedido).
+  const comAvulsa = {todos: false, estados: [], ids: ['code:292740', 'name:Sem Grupo']};
+  const grupoDe = id => id === 'name:Sem Grupo' ? '' : M.prefixoDe(id);
+  assert.deepEqual(M.marcadasPorGrupo(comAvulsa, {grupos, unidadesDoGrupo: g => g === '' ? ['name:Sem Grupo'] : unidades[g],
+    nomes: new Map([['name:Sem Grupo', 'Sem Grupo']]), grupoDe}).map(item => [item.grupo, item.marcadas, item.nomes]),
+  [['29', 1, ['code:292740']], ['', 1, ['Sem Grupo']]]);
 });
 
 test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a leitura', () => {

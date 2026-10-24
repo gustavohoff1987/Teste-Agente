@@ -35,6 +35,40 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-24 · Página única: correções da revisão da rodada de interface (Desfazer, Voltar, conjuntos, filtro de classe e textos)
+- **Antes** (desde `0874349`):
+  - "Desfazer a limpeza" continuava valendo depois de outra escolha de territórios e devolvia a comparação antiga, que o motor
+    recusava ("Itens da comparação fora do gráfico").
+  - Um pedido da conversa feito com o nível em análise vazio (por exemplo, Estados sem nenhum marcado) trocava a escolha dos
+    municípios sem guardar o Voltar, e a escolha de antes se perdia.
+  - Juntar ou desfazer um conjunto não invalidava o Voltar e o Desfazer, que depois apagavam o conjunto novo.
+  - Desfazer um conjunto comparado deixava-o na comparação, e o motor recusava o pedido.
+  - O filtro de classe da tendência podia ficar em uso sem a contagem dele à vista (com um território só ou com zero na classe),
+    com o quadro vazio.
+  - Um painel de função aberto continuava à vista no nível Brasil, sem efeito.
+  - Uma unidade marcada sem grupo da lista não aparecia em "Na análise", e "Ver a análise" e "Limpar" ficavam desligados.
+  - Os textos das análises não concordavam com uma unidade feminina da planilha ("cada comuna escolhido", "um comuna").
+- **Agora:**
+  - "Desfazer a limpeza" vale até a mudança seguinte (um filtro novo ou outra escolha de territórios), e a comparação devolvida
+    só continua com os itens na análise.
+  - O pedido da conversa guarda o Voltar sempre que havia alguma escolha, em qualquer nível.
+  - Juntar ou desfazer um conjunto é uma mudança à mão: esvazia o Voltar e o Desfazer e tira o conjunto desfeito da comparação.
+  - A classe do filtro em uso fica sempre à vista, para o filtro poder ser desligado.
+  - No nível Brasil, um painel de função aberto fecha.
+  - Em "Na análise", as unidades sem grupo da lista ficam numa linha à parte.
+  - Os textos concordam com o gênero da unidade ("cada comuna escolhida", "Cada bolha é uma comuna", "Com várias comunas, você
+    pode dividi-las").
+- **Permanece:** o resto da rodada de `0874349`, os cálculos e os pedidos ao motor (só sem a comparação inválida).
+- **Motivo:** defeitos achados na revisão independente do código da rodada, antes do segundo envio. Classificação: correções
+  previstas, que fazem o código cumprir o que a entrada de `0874349` e os documentos descrevem, sem contrariar a SPEC.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Desfazer, Voltar, "Na análise", contagens por classe e o nível
+    Brasil).
+  - **Testes:**
+    - `painel.test.mjs`: a unidade sem grupo em `marcadasPorGrupo` e a concordância dos textos com "comunas".
+    - `ui_area_de_analise.py`: "Desfazer a limpeza" some com outra escolha de territórios.
+  - Os testes só ganharam conferências; nenhum foi enfraquecido, pulado ou apagado.
+
 ### 2026-10-24 · Página única: duas entradas dos dados, Seleção de Territórios por níveis e cumulativa, Voltar e Limpar, explicações recolhíveis e frase-resumo individual
 - **Antes:**
   - **Abertura (E0):** "Diagnóstico territorial da força de trabalho em saúde" e "Escolha os dados para começar", com três

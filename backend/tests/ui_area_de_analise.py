@@ -934,6 +934,17 @@ def main():
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(1)
         aperta(area.get_by_test_id("analise-limpar-filtros"))
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
+        # "Desfazer a limpeza" vale até a mudança seguinte: com outra escolha de territórios (aqui, limpar a seleção e desfazer),
+        # os filtros de antes não voltam (a revisão de 24/10/2026 achou a comparação antiga indo ao motor fora do gráfico).
+        expect(area.get_by_test_id("analise-desfazer-filtros")).to_be_visible()
+        aba_selecao()
+        aperta(territorios.get_by_test_id("analise-limpar-selecao"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        aperta(territorios.get_by_test_id("analise-desfazer"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(resumo_antes)
+        aba_analise("distribuicao")
+        drawn(ids_am)
+        expect(area.get_by_test_id("analise-desfazer-filtros")).to_have_count(0)
 
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start'})")
         for chave in (MANAUS, TEFE):
