@@ -617,6 +617,88 @@ test('território de referência: a guarda, as delimitações que a fonte tem, o
     .includes('a mesma província ou a planilha inteira'));
 });
 
+test('território base (25/10/2026): uma das unidades em análise; a referência dela com os valores do motor, sem novo pedido', () => {
+  // Por elegibilidade, o motor manda a UF e os valores de cada território de referência; o item diz qual é o de cada um.
+  const SEM_REF = 'Sem território de referência: nenhum outro município de todo o Brasil atende à condição densidade > 9 por 1.000 habitantes (CONJUNTO_REFERENCIAS_VAZIO)';
+  const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
+    referencia: {tipo: 'elegiveis', relacao: 'mais_proxima', delimitacao: {tipo: 'todos', valores: [], texto: 'de todo o Brasil'},
+      condicao: {atributo: 'densidade', operador: '>', valor: '2', texto: 'densidade > 2 por 1.000 habitantes'},
+      elegiveis: {universo: 5570, atende: 2510, nao_atende: 3060, nao_avaliaveis: 0},
+      membros: [{id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71, densidade: 2.1512543934068598},
+        {id: 'code:140010', rotulo: 'BOA VISTA (RR)', uf: 'RR', populacao: 470169, quantidade: 1181, densidade: 2.5118627557325133}],
+      origem: 'Para cada município, o município mais próximo…'},
+    itens: [
+      municipio('code:140002', 'AMAJARI (RR)', {populacao: 15583, distancia_km: 124.43, referencia_do_item: {id: 'code:140010', rotulo: 'BOA VISTA (RR)', empate: []}}),
+      municipio('code:140010', 'BOA VISTA (RR)', {populacao: 470169, quantidade: 1181, densidade: 2.5118627557325133, distancia_km: 543.82,
+        referencia_do_item: {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', empate: []}}),
+      municipio('code:140015', 'BONFIM (RR)', {distancia_km: null, referencia_do_item: null, motivos: [SEM_REF]}),
+      municipio('code:140020', 'CARACARAI (RR)', {distancia_km: 100, referencia_do_item: {id: 'code:140010', rotulo: 'BOA VISTA (RR)',
+        empate: [{id: 'code:140010', rotulo: 'BOA VISTA (RR)'}, {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)'}]}}),
+      {...municipio('c1', 'Juntos'), tipo: 'conjunto'}, {...municipio('uf:14', 'Roraima (RR)'), tipo: 'estado'}]});
+  assert.deepEqual(r.referencia.membros[0], {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71,
+    densidade: 2.1512543934068598});
+  // As opções do Território base: as unidades em análise, sem conjuntos nem estados, na ordem dos nomes.
+  assert.deepEqual(M.basesPossiveis(r.itens).map(base => base.rotulo), ['AMAJARI (RR)', 'BOA VISTA (RR)', 'BONFIM (RR)', 'CARACARAI (RR)']);
+  // A referência fora da análise: contexto no gráfico (não é desenhada lá), com os valores dos membros e a distância do item.
+  const boaVista = M.parDaBase(r, 'code:140010');
+  assert.equal(boaVista.base.id, 'code:140010');
+  assert.deepEqual(boaVista.referencia, {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71,
+    densidade: 2.1512543934068598, noGrafico: false, emAnalise: false});
+  assert.deepEqual([boaVista.distancia, boaVista.empate, boaVista.motivo], [543.82, [], null]);
+  assert.equal(M.textoDoParDaBase(boaVista, 'mais_proxima'), 'Território base: BOA VISTA (RR) · Território de referência (o mais próximo): ' +
+    'PRESIDENTE FIGUEIREDO (AM), a 543,82 km em linha reta.');
+  const dica = M.dicaDaReferenciaDaBase(boaVista, 'mais_proxima');
+  assert.equal(dica.titulo, 'PRESIDENTE FIGUEIREDO (AM)');
+  assert.equal(dica.subtitulo, 'Território de referência (o mais próximo) de BOA VISTA (RR)');
+  assert.deepEqual(dica.linhas.map(linha => [linha.rotulo, linha.valor]), [['População', '33.004 habitantes'], ['Profissionais', '71'],
+    ['Densidade', '2,15 por 1.000 habitantes'], ['Distância até BOA VISTA (RR)', '543,82 km']]);
+  assert.deepEqual(dica.notas, ['Fora da seleção: aparece só como a referência do território base, no início do eixo (0 km).']);
+  // A referência que também está em análise (com a sua própria distância): o contexto continua, com a nota.
+  const amajari = M.parDaBase(r, 'code:140002');
+  assert.deepEqual([amajari.referencia.id, amajari.referencia.noGrafico, amajari.referencia.emAnalise, amajari.referencia.densidade],
+    ['code:140010', false, true, 2.5118627557325133]);
+  assert.match(M.dicaDaReferenciaDaBase(amajari, 'mais_proxima').notas[0], /^Também está em análise/);
+  // Empate: o primeiro e os demais nomes; sem referência, o motivo do motor; sem base ou com a base fora da análise, nada.
+  assert.equal(M.textoDoParDaBase(M.parDaBase(r, 'code:140020'), 'mais_proxima'), 'Território base: CARACARAI (RR) · Território de ' +
+    'referência (o mais próximo): BOA VISTA (RR) (empate com PRESIDENTE FIGUEIREDO (AM)), a 100,00 km em linha reta.');
+  const bonfim = M.parDaBase(r, 'code:140015');
+  assert.deepEqual([bonfim.referencia, bonfim.motivo], [null, SEM_REF]);
+  assert.equal(M.textoDoParDaBase(bonfim, 'mais_proxima'), 'Território base: BONFIM (RR). ' + SEM_REF);
+  assert.equal(M.dicaDaReferenciaDaBase(bonfim, 'mais_proxima'), null);
+  assert.equal(M.parDaBase(r, 'c1'), null);
+  assert.equal(M.parDaBase(r, 'code:999999'), null);
+  assert.equal(M.parDaBase(r, null), null);
+  assert.equal(M.parDaBase(null, 'code:140010'), null);
+  // Pelos membros escolhidos (a conversa: "use Manaus como referência"), o membro já está no gráfico, a distância zero, com a mira:
+  // os valores vêm do item e a ligação vai até a bolha dele.
+  const pelosMembros = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
+    referencia: {tipo: 'municipio', membros: [{id: 'code:130260', rotulo: 'MANAUS (AM)'}], origem: 'Referência escolhida.'},
+    itens: [municipio('code:130260', 'MANAUS (AM)', {populacao: 2000, quantidade: 50, densidade: 25, distancia_km: 0, referencia: true}),
+      municipio('code:130420', 'TEFE (AM)', {distancia_km: 522.5, referencia_mais_proxima: {id: 'code:130260', rotulo: 'MANAUS (AM)', empate: []}})]});
+  const tefe = M.parDaBase(pelosMembros, 'code:130420');
+  assert.deepEqual([tefe.referencia.noGrafico, tefe.referencia.emAnalise, tefe.referencia.populacao, tefe.referencia.densidade], [true, false, 2000, 25]);
+  assert.equal(M.parDaBase(pelosMembros, 'code:130260').referencia, null);  // o próprio membro não tem outra referência
+  // Só estado visual: o pedido ao motor é o mesmo com ou sem base; a definição começa sem base, e o estado salvo a guarda.
+  const espacial = definicao({nivel: 'municipios', base: {todos: false, estados: ['14'], ids: []}, familia: 'espacial',
+    referencia: {relacao: 'mais_proxima', delimitacao: {tipo: 'todos'}, condicao: {atributo: 'densidade', operador: '>', valor: 2}}});
+  assert.equal(M.definicaoInicial({tipo: 'brasil', periodos: ['202406'], categoria: 'MEDICINA', temGrupos: true}).territorioBase, null);
+  assert.deepEqual(M.montarOpcoes({...espacial, territorioBase: 'code:140010'}, 'espacial'), M.montarOpcoes(espacial, 'espacial'));
+  const salvo = M.salvarEstado('t', {chave: 'k', familia: 'espacial', opcoes: null, definicao: {...espacial, territorioBase: 'code:140010'},
+    visual: {escala: 'linear', corte: null, selecionados: []}}, null);
+  assert.equal(M.lerEstadoSalvo(salvo).definicao.territorioBase, 'code:140010');
+  const antigo = M.salvarEstado('t', {chave: 'k', familia: 'espacial', opcoes: null, definicao: {...espacial, territorioBase: 7},
+    visual: {escala: 'linear', corte: null, selecionados: []}}, null);
+  assert.equal(M.lerEstadoSalvo(antigo).definicao.territorioBase, null);
+  // O gráfico cobre a referência de contexto: o eixo com o valor dela e a escala de tamanho com a população dela.
+  const grafico = (extra = {}) => M.montarGrafico({itens: r.itens.slice(0, 2), dominios: {}, indicador: 'densidade', escala: 'linear',
+    distancia: true, cometa: false, vista: 'final', largura: 900, rotuloDistancia: 'Distância (km)', pintura: () => ({cor: '#123', vazada: false, apagada: false}), ...extra});
+  assert.equal(grafico().populacaoMaxima, 470169);
+  assert.equal(grafico({extrasPopulacao: [900000]}).populacaoMaxima, 900000);
+  assert.ok(grafico().eixoY.dominio[1] < 40, String(grafico().eixoY.dominio));
+  const alto = grafico({extras: [40]});
+  assert.ok(alto.eixoY.dominio[1] >= 40, String(alto.eixoY.dominio));
+});
+
 test('decisões 4 e 5 (25/10/2026): "maior/menor" da conversa vira o operador, e Limpar seleção tira só o nível em uso', () => {
   // Decisão 4: a ordem do critério da conversa vira o operador da condição; o valor de corte, a relação e a delimitação ficam com
   // a pessoa (nenhum território é escolhido pela posição na ordem).

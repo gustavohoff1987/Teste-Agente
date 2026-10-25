@@ -64,8 +64,12 @@ export type MapaProps = {
    * como referência (podem estar fora do resultado: a mira vai no ponto de fundo deles). */
   referencias: string[];
   /** Ligações ilustrativas até a referência mais próxima (ou, por elegibilidade, até o território de referência de cada item), só
-   * dos selecionados (até 30), com o aviso "ligação ilustrativa, não é trajeto". */
+   * dos selecionados (até 30) e do território base, com o aviso "ligação ilustrativa, não é trajeto". */
   ligacoes: { de: string; para: string[] }[];
+  /** Nomes dos territórios de referência (25/10/2026): o que fica fora do resultado ganha o nome quando uma ligação chega até ele. */
+  nomesDasReferencias?: Map<string, string>;
+  /** Território base da Análise Espacial (25/10/2026): a ligação dele vem sempre, e o aviso das ligações o cita. */
+  territorioBase?: string | null;
   /** Território de referência por elegibilidade (24/10/2026): a referência é de cada item, e os avisos dizem isso. */
   referenciaPorItem?: boolean;
   /** Texto antes do nome (por exemplo "1º" na ordenação, posição do motor). */

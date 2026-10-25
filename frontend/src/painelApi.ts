@@ -152,9 +152,13 @@ export type PainelItem = {
   rotatividade: RotatividadeItem | null;
   serie: SerieItem | null;
 };
+/** Um território de referência. Por elegibilidade, o motor manda também a UF e os valores dele na competência (25/10/2026),
+ * para a tela mostrar a referência do território base; pelos membros escolhidos, os valores vêm no item (distância zero). */
+export type MembroDaReferencia = { id: string; rotulo: string; uf?: string | null; populacao?: number | null; quantidade?: number | null;
+  densidade?: number | null };
 /** A referência da resposta: um município ou um conjunto escolhidos (membros) ou, por elegibilidade, a definição (relação,
  * delimitação e condição, com os textos do motor), as contagens da condição e os territórios que ficaram como referência. */
-export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "elegiveis"; membros: { id: string; rotulo: string }[]; origem: string;
+export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "elegiveis"; membros: MembroDaReferencia[]; origem: string;
   relacao?: RelacaoEspacial; delimitacao?: { tipo: TipoDelimitacao; valores: string[]; texto: string };
   condicao?: { atributo: PainelAtributo; operador: OperadorCondicao; valor: string; texto: string };
   elegiveis?: { universo: number; atende: number; naoAtende: number; naoAvaliaveis: number } };
@@ -417,9 +421,13 @@ const DELIMITACOES = new Set<string>(["todos", "mesmo_grupo", "grupos", "mesma_r
 function referenciaRespostaDe(bruto: unknown): PainelReferenciaResposta | null {
   const referencia = objeto(bruto);
   if (!referencia) return null;
-  const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" }));
   const origem = texto(referencia.origem) ?? "";
-  if (referencia.tipo !== "elegiveis") return { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio", membros, origem };
+  if (referencia.tipo !== "elegiveis") {
+    const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" }));
+    return { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio", membros, origem };
+  }
+  const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "",
+    uf: texto(m!.uf), populacao: num(m!.populacao), quantidade: num(m!.quantidade), densidade: num(m!.densidade) }));
   const delimitacao = objeto(referencia.delimitacao), condicao = objeto(referencia.condicao), elegiveis = objeto(referencia.elegiveis);
   const relacao = texto(referencia.relacao);
   const tipo = texto(delimitacao?.tipo);

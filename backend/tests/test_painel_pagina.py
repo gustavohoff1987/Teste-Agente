@@ -558,16 +558,25 @@ def test_eligible_reference_filters_first_then_takes_the_nearest_without_the_ter
     body = ok(page(info, referencia=eligible()))
     items = by_id(body)
     assert list(items) == AM  # os elegíveis não entram como itens: BELEM, do Pará, fica fora da seleção do Amazonas
-    assert body["referencia"] == {
+    reference = body["referencia"]
+    assert {key: value for key, value in reference.items() if key != "membros"} == {
         "tipo": "elegiveis", "relacao": "mais_proxima",
         "delimitacao": {"tipo": "todos", "valores": [], "texto": "de todo o Brasil"},
         "condicao": {"atributo": "densidade", "operador": ">", "valor": "10", "texto": "densidade > 10 por 1.000 habitantes"},
         "elegiveis": {"universo": 6, "atende": 3, "nao_atende": 3, "nao_avaliaveis": 0},
-        "membros": [{"id": MANAUS, "rotulo": "MANAUS (AM)"}, {"id": PARINTINS, "rotulo": "PARINTINS (AM)"},
-                    {"id": BELEM, "rotulo": "BELEM (PA)"}],
         "origem": ("Para cada município, o município mais próximo entre os municípios de todo o Brasil com densidade > 10 "
                    "por 1.000 habitantes em junho de 2024 (3 de 6 municípios da base atendem à condição); o próprio "
                    "município não é a sua referência. A condição é escolha do usuário e não tem caráter normativo")}
+    assert [(member["id"], member["rotulo"], member["uf"]) for member in reference["membros"]] == [
+        (MANAUS, "MANAUS (AM)", "AM"), (PARINTINS, "PARINTINS (AM)", "AM"), (BELEM, "BELEM (PA)", "PA")]
+    # Cada território de referência leva os valores da competência (25/10/2026, para a tela mostrar a referência do território
+    # base): os do catálogo e, quando ele também está em análise, os mesmos do item.
+    for member in reference["membros"]:
+        _, _, _, counts, populations = UNITS[member["id"].removeprefix("code:")]
+        assert (member["populacao"], member["quantidade"]) == (populations[-1], counts[-1])
+        assert member["densidade"] == pytest.approx(counts[-1] * 1000 / populations[-1], rel=1e-12)
+        if member["id"] in items:
+            assert all(member[key] == items[member["id"]][key] for key in ("uf", "populacao", "quantidade", "densidade"))
     # MANAUS é elegível, mas não é a sua referência: fica entre PARINTINS e BELEM, no empate exato.
     assert items[MANAUS]["referencia_do_item"] == {"id": PARINTINS, "rotulo": "PARINTINS (AM)", "empate": [
         {"id": PARINTINS, "rotulo": "PARINTINS (AM)"}, {"id": BELEM, "rotulo": "BELEM (PA)"}]}

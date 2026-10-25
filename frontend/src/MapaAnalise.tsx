@@ -9,7 +9,8 @@ import { useNarrow } from "./useNarrow";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import {
   ALVO_MOUSE, ALVO_TOQUE, LIMITE_NOMES_TODOS, OPACIDADE_APAGADA, RAIO_FUNDO, alvoMaisProximo, areaVisivel, baseDoMapa, coresDoMapa,
-  deslocar, enquadrar, escalaEfetiva, gradienteDaRampa, limitesComContexto, limitesDe, marcasDaLegenda, marcasDeTamanho, montarCena, paraTela,
+  assinaturaDe, deslocar, enquadrar, escalaEfetiva, gradienteDaRampa, limitesComContexto, limitesComReferencias, limitesDe, marcasDaLegenda,
+  marcasDeTamanho, montarCena, paraTela,
   posicaoDoContexto, posicionarNomes, projetar, rampaContinua, segmentosDasLigacoes, vizinhoNaDirecao, zoomEm, type Caixa, type Cena,
   type CoresDoMapa, type Direcao, type EscalaDeCor, type PedidoDeNome, type PontoDaCena, type Vista,
 } from "./mapaModel";
@@ -83,6 +84,10 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   const projecao = useMemo(() => projetar(p.dados.pontos), [p.dados.pontos]);
   const limitesTodos = useMemo(() => limitesDe(projecao, projecao.ids.map((_, i) => i)), [projecao]);
   const base = useMemo(() => baseDoMapa(p.itens, projecao), [p.itens, projecao]);
+  // O enquadramento inicial cobre também os territórios de referência desenhados (25/10/2026); a vista guardada é a deste conjunto.
+  const limitesDoQuadro = useMemo(() => limitesComReferencias(projecao, base, p.referencias), [projecao, base, p.referencias]);
+  const assinatura = useMemo(() => base.assinatura + (p.referencias.length ? "|" + assinaturaDe(p.referencias) : ""),
+    [base.assinatura, p.referencias]);
   const cena = useMemo(() => montarCena(base, { dentro: p.dentro, pintura: p.pintura, pintar: p.pintar, valorContinuo: p.valorContinuo,
     dominio: p.dominio, escala: p.escala, tamanho: p.tamanho.valor, maximoTamanho: p.tamanho.maximo, cores, rampa }),
   [base, p.dentro, p.pintura, p.pintar, p.valorContinuo, p.dominio, p.escala, p.tamanho.valor, p.tamanho.maximo, cores, rampa]);
@@ -90,9 +95,9 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   const segmentos = useMemo(() => segmentosDasLigacoes(p.ligacoes, id => projecao.indice.has(id)), [p.ligacoes, projecao]);
 
   const projRef = useRef(projecao), limitesTodosRef = useRef(limitesTodos), baseRef = useRef(base), cenaRef = useRef(cena);
-  const selRef = useRef(selecionados), segRef = useRef(segmentos);
+  const selRef = useRef(selecionados), segRef = useRef(segmentos), quadroLimitesRef = useRef(limitesDoQuadro), assinaturaRef = useRef(assinatura);
   projRef.current = projecao; limitesTodosRef.current = limitesTodos; baseRef.current = base; cenaRef.current = cena;
-  selRef.current = selecionados; segRef.current = segmentos;
+  selRef.current = selecionados; segRef.current = segmentos; quadroLimitesRef.current = limitesDoQuadro; assinaturaRef.current = assinatura;
 
   // ------------------------------------------------------------------------------------------ estado visual (refs)
   const vista = useRef<Vista | null>(null);
@@ -123,7 +128,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
 
   const vistaInicial = useCallback((): Vista => {
     const { w, h } = tamanho.current;
-    return enquadrar(limitesComContexto(baseRef.current.limites, limitesTodosRef.current), w, h);
+    return enquadrar(limitesComContexto(quadroLimitesRef.current, limitesTodosRef.current), w, h);
   }, []);
   const limitesDeZoom = useCallback(() => {
     const { w, h } = tamanho.current;
@@ -321,9 +326,19 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       textos.set(ponto.id, texto);
       pedidos.push({ id: ponto.id, x: sx[i], y: sy[i], r: rs[i], largura: larguraDe(texto), obrigatorio });
     }
+    // O território de referência fora do resultado, quando uma ligação chega até ele (o território base e os marcados), ganha o
+    // nome (25/10/2026), com "· referência".
+    for (const id of new Set(segRef.current.map(segmento => segmento.para))) {
+      const nome = props.nomesDasReferencias?.get(id), pos = c.porId.has(id) ? null : posicaoDe(id);
+      if (!nome || !pos || pos[0] < 0 || pos[1] < 0 || pos[0] > w || pos[1] > h) continue;
+      const texto = nome + " · referência";
+      textos.set(id, texto);
+      pedidos.push({ id, x: pos[0], y: pos[1], r: pos[2], largura: larguraDe(texto), obrigatorio: true });
+    }
     const comMiniMapa = zoom > 1.1;
     const tamanhoMini = estreitoRef.current ? 88 : 120;
     const obstaculos = [CAIXA_CONTROLES(w), ...(comMiniMapa ? [{ x0: 0, y0: h - tamanhoMini - 16, x1: tamanhoMini + 16, y1: h }] : [])];
+    const escritos = new Set<string>();
     if (pedidos.length) {
       ctx.lineJoin = "round";
       ctx.lineWidth = 3;
@@ -333,6 +348,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
         const texto = textos.get(nome.id)!;
         ctx.strokeText(texto, nome.x, nome.y);
         ctx.fillText(texto, nome.x, nome.y);
+        escritos.add(nome.id);
       }
     }
 
@@ -351,6 +367,14 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       get pontos() {
         return pontosDoGancho.map((ponto, i) => ({ id: ponto.id, x: sx[i], y: sy[i], r: ponto.r, cor: corDesenhada(ponto, paleta),
           esmaecido: ponto.esmaecido, selecionado: sel.has(ponto.id), vazada: ponto.vazada, apagada: ponto.apagada, naTela: naTela(i) }));
+      },
+      /** Os territórios de referência desenhados (a mira), em pixels CSS, e o nome escrito junto, quando há (25/10/2026). */
+      get referencias() {
+        return props.referencias.map(id => {
+          const pos = posicaoDe(id);
+          return { id, x: pos ? pos[0] : null, y: pos ? pos[1] : null, naTela: !!pos && pos[0] >= 0 && pos[1] >= 0 && pos[0] <= w && pos[1] <= h,
+            nome: escritos.has(id) ? textos.get(id) ?? null : null };
+        });
       },
     };
 
@@ -422,7 +446,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
 
   const marcarInteracao = useCallback(() => {
     interagiu.current = true;
-    if (vista.current) lembrarVista(baseRef.current.assinatura, vista.current);
+    if (vista.current) lembrarVista(assinaturaRef.current, vista.current);
   }, []);
   const zoom = useCallback((fator: number, px?: number, py?: number) => {
     const v = vista.current;
@@ -434,7 +458,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
   }, [agendar, limitesDeZoom, marcarInteracao]);
   const verTudo = useCallback(() => {
     interagiu.current = false;
-    memoriaDeVistas.delete(baseRef.current.assinatura);
+    memoriaDeVistas.delete(assinaturaRef.current);
     if (tamanho.current.w) vista.current = vistaInicial();
     agendar();
   }, [agendar, vistaInicial]);
@@ -449,7 +473,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
         canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       }
     }
-    if (!vista.current && tamanho.current.w) vista.current = memoriaDeVistas.get(baseRef.current.assinatura) ?? vistaInicial();
+    if (!vista.current && tamanho.current.w) vista.current = memoriaDeVistas.get(assinaturaRef.current) ?? vistaInicial();
   }, [vistaInicial]);
   /** Centra num ponto (busca por nome), com zoom suficiente para vê-lo entre os vizinhos. */
   const centrar = useCallback((id: string) => {
@@ -463,13 +487,14 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     if (ponto && !ponto.esmaecido) definirAtivo({ id, origem: "busca" }); else agendar();
   }, [agendar, definirAtivo, garantirVista, limitesDeZoom, marcarInteracao, vistaInicial]);
 
-  // A análise mudou de itens: volta a vista guardada para eles, ou o enquadramento inicial. (Antes do efeito do tamanho.)
+  // A análise mudou de itens (ou de territórios de referência): volta a vista guardada para eles, ou o enquadramento inicial. (Antes
+  // do efeito do tamanho.)
   useEffect(() => {
-    const guardada = memoriaDeVistas.get(base.assinatura);
+    const guardada = memoriaDeVistas.get(assinatura);
     interagiu.current = !!guardada;
     vista.current = guardada ?? (tamanho.current.w ? vistaInicial() : null);
     agendar();
-  }, [base.assinatura, agendar, vistaInicial]);
+  }, [assinatura, agendar, vistaInicial]);
 
   // Tamanho do canvas (densidade de pixels) e novo enquadramento enquanto a pessoa não navegou. Oculto (largura zero), espera.
   useEffect(() => {
@@ -757,8 +782,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           textoDoReferencial(p.dados.referencial) + "." : ""}{semPontoNoResultado ? " Sem coordenada válida, " + umaUnidade(rotulos) +
           " fica fora do mapa e aparece em Não avaliáveis." : ""}</p>
         {simbolos && <p data-testid="mapa-simbolos">{maiuscula(simbolos)}.</p>}
-        {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {feminino
-          ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
+        {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {p.territorioBase
+          ? "o território base ou " : ""}{feminino ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
           (feminino ? "a" : "e") : "ao membro mais próximo da referência"}; a distância é medida em linha reta.</p>}
       </div>
     </div>

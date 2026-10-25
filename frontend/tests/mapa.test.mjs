@@ -75,6 +75,18 @@ test('enquadramento inicial com contexto: margem em volta dos itens, ao menos um
   assert.equal(M.CONTEXTO_MINIMO, 0.25);
 });
 
+test('enquadramento com os territórios de referência (25/10/2026): a mira fora do resultado entra no quadro inicial', () => {
+  const projecao = M.projetar(new Map([['rr1', [2.8, -60.7]], ['rr2', [3.4, -61.0]], ['am1', [-2.0, -60.0]], ['sp', [-23.5, -46.6]]]));
+  const base = M.baseDoMapa([item('rr1'), item('rr2')], projecao);
+  const so = M.limitesComReferencias(projecao, base, []);
+  assert.deepEqual(so, M.limitesDe(projecao, base.pontos.map(ponto => ponto.indice)));  // sem referência, os mesmos limites dos itens
+  const com = M.limitesComReferencias(projecao, base, ['am1', 'fora-da-fonte']);
+  const am = projecao.indice.get('am1');
+  assert.ok(com.maxY >= projecao.y[am] && com.minY <= so.minY && com.maxY > so.maxY, JSON.stringify([so, com]));
+  assert.equal(com.minX, so.minX);  // a referência fica na mesma faixa de longitude: o quadro só cresce para o sul
+  assert.equal(M.limitesComReferencias(projecao, {pontos: []}, ['sp']).minX, projecao.x[projecao.indice.get('sp')]);
+});
+
 test('zoom em torno do cursor (o ponto sob ele fica no lugar), preso aos limites; arrasto e área à vista', () => {
   const v = {cx: 5, cy: 2, escala: 10};
   const ampliada = M.zoomEm(v, 2, 100, 80, 400, 300, {min: 1, max: 1000});

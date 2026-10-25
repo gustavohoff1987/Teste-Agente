@@ -1295,11 +1295,19 @@ def _eligible_origin(ctx, reference, spatial):
             " " + unit.singular + " não é a sua referência. A condição é escolha do usuário e não tem caráter normativo")
 
 
-def _eligible_block(ctx, reference, spatial, items):
+def _eligible_block(ctx, reference, spatial, items, final):
     """`referencia` da resposta no modo por elegibilidade: a definição, as contagens da condição e os territórios que
-    ficaram como referência de algum item (na ordem do código)."""
+    ficaram como referência de algum item (na ordem do código), com a UF, a população, a quantidade e a densidade de cada
+    um na competência, lidas das mesmas medidas dos itens (25/10/2026: a tela mostra a referência do território base)."""
     used = sorted({key for item in items if item["tipo"] == "municipio" for key in spatial.nearest.get(item["id"], [])},
                   key=lambda key: (ctx.catalog[key]["code"], key))
+
+    def member(key):
+        entry, record = ctx.catalog[key], final.records.get(key)
+        values = record["valores"] if record is not None else {}
+        return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
+                "populacao": _num(values.get("populacao")), "quantidade": _num(values.get("quantidade")),
+                "densidade": _num(values.get("densidade"))}
     condition, delimitation = reference["condicao"], reference["delimitacao"]
     return {"tipo": "elegiveis", "relacao": reference["relacao"],
             "delimitacao": {"tipo": delimitation["tipo"], "valores": list(delimitation["valores"]),
@@ -1307,7 +1315,7 @@ def _eligible_block(ctx, reference, spatial, items):
             "condicao": {"atributo": condition["atributo"], "operador": condition["operador"],
                          "valor": _condition_value(condition), "texto": condition["texto"]},
             "elegiveis": dict(spatial.eligible or {}),
-            "membros": [{"id": key, "rotulo": _label(ctx.catalog[key])} for key in used],
+            "membros": [member(key) for key in used],
             "origem": _eligible_origin(ctx, reference, spatial)}
 
 
@@ -2971,7 +2979,7 @@ def compute(sources, mapping, options, frame=None) -> dict:
     items += [_set_item(ctx, spec_, final, initial, spatial, reference, changes) for spec_ in sets]
     block = None
     if eligible_mode:
-        block = _eligible_block(ctx, reference, spatial, items)
+        block = _eligible_block(ctx, reference, spatial, items, final)
     elif reference is not None:
         block = {"tipo": "municipio" if len(reference_ids) == 1 else "conjunto",
                  "membros": [{"id": key, "rotulo": _label(ctx.catalog[key])} for key in reference_ids],

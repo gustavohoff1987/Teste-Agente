@@ -562,6 +562,10 @@ primeiro os elegíveis (a delimitação geográfica, como o mesmo estado, uma re
 densidade, quantidade ou população com o valor de corte), depois o mais próximo ou o mais distante deles para cada município,
 nunca ele mesmo, pelas mesmas geodésicas ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md) e
 [painel integrado](Docs/PAINEL_INTEGRADO.md)); uma referência pelo nome, pedida na conversa, mostra a distância até ela.
+Desde 25/10/2026, o **Território base**, no início do mesmo painel, escolhe uma das unidades em análise para ver a referência
+dela: no gráfico, uma bolha de contexto no início do eixo (0 km), ligada à base por uma linha tracejada, com os valores do
+motor; no mapa, dentro do quadro e com o nome; acima do desenho, a frase com a base, a referência e a distância. É só estado
+visual: o cálculo é o mesmo.
 Na API, as referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
 O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial

@@ -29,6 +29,11 @@ type ReferenciaProps = {
   faixas: number[];
   /** Critério pedido na conversa ("a de maior densidade como referência"): o atributo e o operador dele já vêm escolhidos. */
   criterioInicial?: PainelCriterio | null;
+  /** Território base (25/10/2026): as unidades em análise e a escolhida (nulo = todos os selecionados, cada um com a sua
+   * referência). Só estado visual: vale na hora, sem novo pedido ao motor. */
+  bases: { id: string; rotulo: string }[];
+  territorioBase: string | null;
+  onBase: (id: string | null) => void;
   onAplicar: (referencia: ReferenciaElegivel) => void; onRemover: () => void; onFaixas: (limites: number[]) => void;
 };
 type OperadorDoCorte = ">" | "<";
@@ -39,7 +44,8 @@ const NOMES_ATRIBUTOS: Record<PainelAtributo, string> = { densidade: "Densidade"
  * nome ou por um conjunto): um fluxo só. Primeiro, os elegíveis: a delimitação geográfica (os níveis que a fonte tem) e a condição
  * (densidade, quantidade ou população, maior ou menor que o valor de corte, CAP-SUB-01). Depois, a relação espacial: para cada
  * território, o mais próximo (CAP-ESP-02) ou o mais distante dos elegíveis, sem ele mesmo, pelas distâncias geodésicas do motor.
- * Nenhum campo tem valor padrão: o pedido sai só com os cinco escolhidos. Faixas de distância opcionais (CAP-ESP-03). */
+ * Nenhum campo tem valor padrão: o pedido sai só com os cinco escolhidos. Faixas de distância opcionais (CAP-ESP-03). No início
+ * (25/10/2026), o Território base: uma das unidades em análise, para o gráfico e o mapa mostrarem a referência dela. */
 export function GavetaReferencia(p: ReferenciaProps) {
   const anterior = referenciaElegivel(p.pedida) ? p.pedida : null;
   const [relacao, setRelacao] = useState<RelacaoEspacial | null>(anterior?.relacao ?? null);
@@ -120,6 +126,21 @@ export function GavetaReferencia(p: ReferenciaProps) {
       a condição já vem com {NOMES_ATRIBUTOS[p.criterioInicial.atributo]} e "{p.criterioInicial.ordem === "desc" ? "Maior que" : "Menor que"}".
       Complete a relação, a delimitação e o valor de corte.</p>}
 
+    <fieldset className="analise-ref-passo" data-testid="analise-ref-base-passo">
+      <legend>Território base</legend>
+      <label className="analise-rotulo-campo">Qual {unidade.singular} olhar com a referência
+        <select data-testid="analise-ref-base" value={p.territorioBase ?? ""} className="analise-campo" disabled={!p.bases.length}
+          onChange={event => p.onBase(event.target.value || null)}>
+          <option value="">Todos os selecionados (cada um com a sua referência)</option>
+          {p.bases.map(base => <option key={base.id} value={base.id}>{base.rotulo}</option>)}
+        </select>
+      </label>
+      <p className="text-[11px] leading-4 text-slate-600">{p.bases.length
+        ? "Com um território base, o gráfico e o mapa mostram a referência dele, ligada a ele. Muda só o que se vê: o cálculo é o mesmo para todos."
+        : "Os territórios selecionados aparecem aqui depois do primeiro gráfico."}</p>
+    </fieldset>
+
+    <p className="text-xs font-semibold text-ink">Território de referência</p>
     <fieldset className="analise-ref-passo">
       <legend>1. Relação espacial</legend>
       <div role="radiogroup" aria-label="Relação espacial" className="analise-segmentos">

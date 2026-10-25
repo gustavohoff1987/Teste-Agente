@@ -302,7 +302,21 @@ O que cada análise mostra:
   ("Maior que" ou "Menor que"), com o aviso `analise-ref-da-conversa`; a relação, a delimitação e o valor de corte ficam com a
   pessoa, sem valor sugerido, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01); uma
   referência pelo nome, vinda da conversa, continua valendo (a distância até ela). Faixas de distância opcionais
-  (CAP-ESP-03). A nota TPL-11 aparece sempre junto. Nos estados, a
+  (CAP-ESP-03). **Território base** (25/10/2026, pedido do responsável, no início do painel): uma das unidades em análise
+  (`analise-ref-base`; "Todos os selecionados (cada um com a sua referência)" é o padrão), escolhida no painel, não pelo clique
+  no gráfico, que continua só marcando. Com uma base, o gráfico mostra a referência dela: quando ela não é desenhada no gráfico
+  (por elegibilidade, a referência costuma ficar fora da seleção), entra uma bolha de contexto (`analise-referencia-da-base`),
+  círculo claro com a mira, no início do eixo (0 km), na altura do indicador dela e com o tamanho pela população dela, os
+  valores do motor (`referencia.membros`), com o nome "· referência" e a dica própria (população, profissionais, densidade e
+  a distância até a base); uma linha tracejada (`analise-ligacao-base`) liga a base (anel e nome "· território base") a ela,
+  e a distância entre as duas no eixo horizontal é a própria distância. Com a referência pelo nome, o membro já está no gráfico
+  com a mira, e a linha vai até ele. A bolha de contexto não conta na frase-resumo, nos grupos, na régua, nos filtros, na
+  tabela nem no CSV, e a mesma unidade em análise continua com a sua própria bolha. Acima do desenho, `analise-par-base` diz
+  "Território base: BOA VISTA (RR) · Território de referência (o mais próximo): PRESIDENTE FIGUEIREDO (AM), a 543,82 km em
+  linha reta." (sem referência, o motivo do motor), com "Mudar o território base"; o resumo do Território de referência ganha
+  "· território base: …". No mapa, a ligação da base vem sempre, e a referência fica no quadro, com o nome. É só estado visual
+  (RQ-REP-06): o pedido ao motor é o mesmo, nada é calculado entre os dois (CAP-REF-01), e a escolha é um passo do Desfazer
+  ("Escolher BOA VISTA (RR) como território base") e fica no estado salvo. A nota TPL-11 aparece sempre junto. Nos estados, a
   família espera a escolha de municípios (os estados não têm coordenadas). A disponibilidade vem do motor
   (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba abre
   com a apresentação e o motivo do motor, sem os ajustes; quando o motor pede a escolha do referencial, a tela mostra as opções
@@ -443,7 +457,9 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   gráfico, a frase-resumo, a tabela e o CSV não mudam com eles; sem os grupos na resposta (uma análise guardada antes, ou menos
   de duas unidades com valor), a cor única do gráfico (a unidade sem o valor do indicador, vazada). O tamanho pela população (densidade), pela quantidade ou pela coorte
   inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas dos
-  selecionados (até 30) até o membro da referência mais próximo. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
+  selecionados (até 30) e, desde 25/10/2026, do território base até o membro da referência mais próximo; o enquadramento
+  inicial cobre também as referências desenhadas, e a que fica fora do resultado ganha o nome quando uma ligação chega até
+  ela. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
   contínua) saiu em 23/10/2026.
 - **Não avaliáveis:** com o mapa à vista, as unidades sem coordenada válida ficam fora do mapa (no gráfico, continuam) e entram
   em Não avaliáveis, no aspecto "Sem coordenada válida para o mapa", com o motivo do motor.
@@ -711,7 +727,9 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   do atributo, a resposta com `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação); desde 25/10/2026, o mapa
   com todas as unidades em análise (`itensParaOMapa`), os filtros que esmaecem nele (`dentroDosFiltros`), a cor única vazada sem
   o valor do indicador, o aviso "Fora do gráfico" (`textoForaDoDesenho`) e a opacidade das bolhas, que não depende da seleção
-  (`opacidadeDaBolha`). `frontend/tests/painel.test.mjs` cobre o
+  (`opacidadeDaBolha`); e o território base (`basesPossiveis`, `parDaBase`, `textoDoParDaBase` e `dicaDaReferenciaDaBase`: a
+  referência fora da análise, também em análise e pelo nome, o empate, sem referência, o pedido igual com e sem base, o estado
+  salvo e a escala do gráfico com a referência de contexto). `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
   o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
   conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial);

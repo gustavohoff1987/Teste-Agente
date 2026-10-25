@@ -385,6 +385,17 @@ export function baseDoMapa(itens: PainelItem[], projecao: Projecao): BaseDoMapa 
     limites: limitesDe(projecao, pontos.map(ponto => ponto.indice)) };
 }
 
+/** Limites do enquadramento inicial (25/10/2026): os itens com ponto e os territórios de referência desenhados (a mira), para a
+ * referência fora do resultado não ficar cortada na borda nem fora da vista. */
+export function limitesComReferencias(projecao: Projecao, base: Pick<BaseDoMapa, "pontos">, referencias: string[]): Limites | null {
+  const indices = base.pontos.map(ponto => ponto.indice);
+  for (const id of referencias) {
+    const indice = projecao.indice.get(id);
+    if (indice !== undefined) indices.push(indice);
+  }
+  return limitesDe(projecao, indices);
+}
+
 export type PontoDaCena = {
   id: string; item: PainelItem; indice: number; r: number;
   /** Preenchimento (a cor da camada, a contínua ou a neutra); na vazada, a superfície. */

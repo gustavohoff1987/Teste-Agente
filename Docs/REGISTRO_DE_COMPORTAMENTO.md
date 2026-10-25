@@ -35,6 +35,68 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-25 · Análise Espacial: o território base e a referência à vista no gráfico e no mapa
+- **Antes:**
+  - O motor achava a referência de cada município (por elegibilidade, o mais próximo ou o mais distante dos elegíveis), mas a
+    tela não a mostrava: o gráfico desenha só as unidades em análise, e a referência de fora da seleção aparecia só em palavras,
+    na dica e na coluna dos Detalhes; nem a unidade em análise que é a referência de outra ganhava a mira. Marcar uma bolha só
+    dava o anel e o nome; as ligações ficavam no mapa.
+  - No mapa, a mira e a linha tracejada até a referência de fora da seleção ficavam na borda, cortadas e sem nome: o
+    enquadramento inicial e o "Ver tudo" usavam só os itens, e os nomes só eram pedidos para eles. No relato do responsável
+    (AMAJARI, BOA VISTA e BONFIM, de Roraima; referência no Brasil inteiro com densidade acima de 2; BOA VISTA marcada), a
+    referência de BOA VISTA, PRESIDENTE FIGUEIREDO (AM), a 543,82 km, não aparecia.
+  - Não havia território base: a escolha implícita era marcar no gráfico.
+  - Na resposta, por elegibilidade, `referencia.membros` trazia só `id` e `rotulo`.
+- **Agora:**
+  - **Território base** (`analise-ref-base`), no início do painel do Território de referência: "Todos os selecionados (cada um
+    com a sua referência)", o padrão e o comportamento de antes, ou uma das unidades em análise. Com uma base:
+    - no gráfico, a referência dela, quando o gráfico não a desenha (por elegibilidade), entra como bolha de contexto
+      (`analise-referencia-da-base`): círculo claro com a mira, no início do eixo (0 km), na altura do indicador e com o tamanho
+      pela população dela, os valores do motor, com o nome "· referência" e uma dica própria (população, profissionais,
+      densidade e a distância até a base); a base ganha o anel e o nome "· território base", e uma linha tracejada
+      (`analise-ligacao-base`) liga as duas, a distância no eixo horizontal; com a referência pelo nome, a linha vai até o
+      membro, que já está no gráfico com a mira. A legenda de símbolos diz o que são a bolha clara e a linha;
+    - acima do desenho, `analise-par-base`: "Território base: BOA VISTA (RR) · Território de referência (o mais próximo):
+      PRESIDENTE FIGUEIREDO (AM), a 543,82 km em linha reta." (sem referência, o motivo do motor), com "Mudar o território
+      base"; o resumo do Território de referência ganha "· território base: …";
+    - no mapa, a ligação da base vem sempre (mesmo com 30 marcadas), com o anel, e o aviso `mapa-ligacoes` diz "o território
+      base ou um município marcado".
+    A escolha é só estado visual: um passo do Desfazer ("Escolher BOA VISTA (RR) como território base"; "Voltar a todos os
+    selecionados, sem território base"), guardada no estado salvo, sem nenhum pedido novo ao motor.
+  - **Mapa, com ou sem base:** o enquadramento inicial e o "Ver tudo" cobrem também as referências desenhadas
+    (`limitesComReferencias`), e a de fora do resultado ganha o nome "· referência" quando uma ligação chega até ela.
+  - **Motor** (`/api/painel`, por elegibilidade): cada membro da referência leva também `uf`, `populacao`, `quantidade` e
+    `densidade` na competência, lidos das mesmas medidas dos itens.
+- **Permanece:** o cálculo (os elegíveis, a relação, as distâncias, nunca o próprio município) e o pedido ao motor, igual com ou
+  sem base; a referência pelo nome (o membro continua como item, a distância zero, com a mira); a frase-resumo, os grupos, a
+  régua, os filtros, a tabela e o CSV, nos quais a bolha de contexto não entra (a mesma unidade em análise continua com a sua
+  bolha); o clique na bolha, que continua só marcando (Comparar e as ligações); a aba Seleção, só da seleção (decisão de
+  24/10/2026); e nada da base vai ao provedor de IA.
+- **Motivo:** relato e pedido do responsável em 25/10/2026 ("não aparece o território de referência no gráfico […] ele tem que
+  trazer o território de referência para olhar"; "só selecionar no gráfico […] não fica tão intuitivo"; "território base,
+  território de referência", no painel do lado). Diagnóstico: o motor estava certo; o gráfico só desenha as unidades em análise;
+  no mapa, o quadro e os nomes só consideravam os itens. O responsável escolheu, entre as opções apresentadas: o território base
+  no início do painel da Análise Espacial (e não na aba Seleção, o que mudaria a decisão de 24/10/2026); no gráfico, os
+  selecionados com a referência da base como bolha de contexto ligada a ela; e o clique na bolha só marcando.
+  - **Classificação, pela leitura, antes de codar:** mudanças previstas: decorrem do pedido e não contrariam a SPEC. A base é
+    estado visual (RQ-REP-06); mostrar a referência não cria operação comparativa (CAP-REF-01: nada é calculado entre as duas);
+    todo número vem do motor (Adendo BOL e RQ-REP-09: a densidade, a população e a distância); a posição no 0 km é a mesma da
+    referência escolhida pelo nome, que o gráfico já desenha a distância zero com a mira; o mapa só lê as coordenadas
+    autorizadas do motor (RQ-REP-07).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o Território base na análise espacial, o que a área entrega ao mapa
+    e os testes), `Docs/MAPA_DA_PAGINA_UNICA.md` (as codificações, a decisão 3 de 25/10/2026, o gancho `referencias` e os testes),
+    `Docs/PAINEL_INTEGRADO.md` (o contrato de `referencia.membros`) e `README.md`.
+  - **Testes novos:** Node, `areaDeAnalise.test.mjs` (as opções da base; o par por elegibilidade, com a referência fora e dentro
+    da análise, pelo nome, no empate e sem referência; os textos e a dica; o pedido igual com e sem base; o estado salvo; a escala
+    do gráfico com a referência de contexto) e `mapa.test.mjs` (`limitesComReferencias`); roteiro `ui_mapa.py`, passo 11c (base
+    versionada: BOA VISTA como base com a referência no Brasil inteiro e densidade acima de 2; a bolha de contexto com o id, a
+    densidade e a população do motor, à esquerda de todas as bolhas; a ligação, o anel da base e a legenda; no mapa, a
+    referência à vista e com o nome; nenhum pedido novo ao motor).
+  - **Teste mudado de propósito** (o motor mudou por este pedido; o teste estava certo): `test_painel_pagina.py`
+    (`test_eligible_reference_filters_first_then_takes_the_nearest_without_the_territory_itself`), que continua conferindo o bloco
+    `referencia` inteiro, agora com a UF e os valores de cada membro, contra o catálogo sintético e contra os itens.
+
 ### 2026-10-25 · Base municipal: a linha de SANTAREM (PB) em junho de 2016 com a UF, a região, a coordenada e a população certas
 - **Antes:** a linha 21 de `Dados_Municipios_Brasil.csv` (`Norte;PA;SANTAREM;251365;-2,43;-54,72;MEDICINA;2016;6;0;331942`)
   trazia o código de SANTAREM (PB) com a região, a UF e a coordenada de SANTAREM (PA) e 331.942 habitantes (a população de
