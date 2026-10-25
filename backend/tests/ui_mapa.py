@@ -7,8 +7,9 @@ aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais un
 (`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
 gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
 mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial (até
-o Território de referência de cada município, por elegibilidade, desde a segunda rodada de 24/10/2026), o
-lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
+o Território de referência de cada município, por elegibilidade, desde a segunda rodada de 24/10/2026), Roraima com todos os
+municípios no mapa, também BOA VISTA, sem território de referência e fora do gráfico, com o aviso pelo nome, e as legendas de
+tamanho na proporção exata (25/10/2026), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
 cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
@@ -109,9 +110,9 @@ def main():
             return gancho()
 
         def com_ponto(body, dados):
-            """Itens que o mapa desenha: unidades com densidade e com coordenada válida (estados e conjuntos não têm ponto)."""
-            return [item for item in body["itens"] if item["tipo"] == "municipio" and item.get("densidade") is not None
-                    and item["id"] in dados]
+            """Itens que o mapa desenha: as unidades com coordenada válida (estados e conjuntos não têm ponto), também, desde
+            25/10/2026, as que o gráfico deixa de fora por falta do valor que as posiciona (o indicador ou a distância)."""
+            return [item for item in body["itens"] if item["tipo"] == "municipio" and item["id"] in dados]
 
         def estavel():
             """O gancho depois de o desenho assentar. Fechar um painel devolve a largura ao desenho (com a janela larga, o painel
@@ -285,7 +286,7 @@ def main():
             cursor.press("PageUp")
         minimo = float(cursor.get_attribute("aria-valuenow"))
         maximo = float(regua.get_by_test_id("analise-regua-max").get_attribute("aria-valuenow"))
-        fora = [item for item in desenhaveis_am if not minimo <= item["densidade"] <= maximo]
+        fora = [item for item in desenhaveis_am if item["densidade"] is None or not minimo <= item["densidade"] <= maximo]
         assert fora, "o corte deixa municípios de fora"
         expect(mapa).to_have_attribute("data-esmaecidos", str(len(fora)), timeout=10000)
         expect(mapa).to_have_attribute("data-pontos", str(len(desenhaveis_am)))
@@ -326,7 +327,7 @@ def main():
         bolha = area.locator('[data-testid="analise-bolha"][data-id="' + alvo["id"] + '"]')
         expect(bolha).to_have_attribute("data-selecionado", "true", timeout=10000)
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
-        maior = max(desenhaveis_am, key=lambda item: item["populacao"] or 0)
+        maior = max((item for item in desenhaveis_am if item["densidade"] is not None), key=lambda item: item["populacao"] or 0)
         area.locator('[data-testid="analise-bolha"][data-id="' + maior["id"] + '"]').hover()
         dica_grafico = area.get_by_test_id("analise-dica")
         expect(dica_grafico).to_contain_text(maior["rotulo"])
@@ -336,7 +337,7 @@ def main():
         expect(bolha).not_to_have_attribute("data-selecionado", "true")
 
         # 10. Condições no gráfico: o convite leva ao mapa, pintado como o gráfico (quem atende, quem não atende, sem dado).
-        densidades = sorted(item["densidade"] for item in desenhaveis_am)
+        densidades = sorted(item["densidade"] for item in desenhaveis_am if item["densidade"] is not None)
         limiar = round(densidades[len(densidades) // 2], 2)
         condicoes = abre("condicoes").get_by_test_id("analise-condicoes")
         condicoes.get_by_test_id("analise-condicao-atributo").select_option("densidade")
@@ -392,6 +393,57 @@ def main():
         expect(mapa.get_by_test_id("mapa-simbolos")).to_contain_text("mira: território de referência")
         shot("06-am-espacial")
 
+        # 11b. Nenhum município escolhido some do mapa (25/10/2026). Em Roraima, com o território de referência no mesmo estado e
+        # densidade acima da taxa do Brasil, só BOA VISTA atende à condição, e ela nunca é a sua própria referência: fica sem
+        # distância. No gráfico, sai, com o aviso pelo nome (`analise-fora-do-grafico`); no mapa, continua no lugar dela, com a
+        # cor do quintil do motor, junto dos outros 14. A revisão das coordenadas da mesma data: os 15 municípios têm ponto.
+        rr, boa_vista = "14", "code:140010"
+        aperta(area.get_by_test_id("analise-limpar-selecao"))
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        linha_rr = territorios.locator('[data-testid="analise-grupo"][data-id="' + rr + '"]')
+        ok(lambda: marca(linha_rr.get_by_test_id("analise-grupo-todos")))
+        ids_rr = {item_id for item_id in pontos_motor if item_id.startswith("code:" + rr)}
+        assert len(ids_rr) == 15, sorted(ids_rr)
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        expect(area).to_have_attribute("data-familia", "espacial")
+        aperta(area.get_by_test_id("analise-referencia-escolher"))
+        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        aperta(referencia.get_by_test_id("analise-ref-relacao-mais_proxima"))
+        referencia.get_by_test_id("analise-ref-delimitacao").select_option("mesmo_grupo")
+        referencia.get_by_test_id("analise-ref-atributo").select_option("densidade")
+        aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
+        referencia.get_by_test_id("analise-ref-valor").fill("2,36")
+        roraima, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
+        assert sent["referencia"]["condicao"] == {"atributo": "densidade", "operador": ">", "valor": 2.36}, sent
+        fecha()
+        assert {item["id"] for item in roraima["itens"]} == ids_rr, "os 15 municípios de Roraima na análise"
+        sem_distancia = {item["id"] for item in roraima["itens"] if item.get("distancia_km") is None}
+        assert sem_distancia == {boa_vista}, sem_distancia
+        aperta(area.get_by_test_id("analise-desenho-grafico"))
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        page.wait_for_function("ids => JSON.stringify([...document.querySelectorAll('[data-testid=analise-bolha][data-visivel=true]')]"
+                               ".map(e => e.dataset.id).sort()) === JSON.stringify(ids)", arg=sorted(ids_rr - {boa_vista}), timeout=30000)
+        fora_do_grafico = area.get_by_test_id("analise-fora-do-grafico")
+        expect(fora_do_grafico).to_contain_text("sem distância até a referência: BOA VISTA (RR).")
+        expect(fora_do_grafico).to_contain_text("Não avaliáveis")
+        expect(fora_do_grafico).to_contain_text("no mapa, o município aparece no lugar dele")
+        # A legenda de tamanho na proporção exata (25/10/2026): a área de cada referência proporcional à população dela, sem
+        # nenhuma abaixo do mínimo visível (desenhada maior do que a área dela).
+        marcas = area.get_by_test_id("analise-legenda-tamanho-item").evaluate_all("els => els.map(e => [+e.dataset.valor, +e.dataset.raio])")
+        assert len(marcas) >= 2 and all(raio >= 4 - 0.005 for _, raio in marcas), marcas
+        assert all(abs((r1 / r2) ** 2 - v1 / v2) < 0.02 * (v1 / v2) for v1, r1 in marcas for v2, r2 in marcas), marcas
+        aperta(area.get_by_test_id("analise-desenho-mapa"))
+        estado = desenhado(15, "quintis")
+        assert {ponto["id"] for ponto in estado["pontos"]} == ids_rr
+        [ponto_bv] = [ponto for ponto in estado["pontos"] if ponto["id"] == boa_vista]
+        assert not ponto_bv["vazada"] and not ponto_bv["esmaecido"], ponto_bv
+        confere_quintis(roraima, ids_rr, estado)
+        expect(area.get_by_test_id("analise-fora-do-grafico")).to_have_count(0)  # só o mapa à vista: todos estão nele
+        marcas = mapa.get_by_test_id("mapa-legenda-tamanho-item").evaluate_all("els => els.map(e => [+e.dataset.valor, +e.dataset.raio])")
+        assert len(marcas) >= 2 and all(raio >= 2.5 - 0.005 for _, raio in marcas), marcas
+        assert all(abs((r1 / r2) ** 2 - v1 / v2) < 0.02 * (v1 / v2) for v1, r1 in marcas for v2, r2 in marcas), marcas
+        shot("06b-roraima-espacial")
+
         # 12. Lado a lado (janela de 1.600 px ou mais): gráfico e mapa juntos, sem legenda repetida; ao estreitar, volta ao mapa.
         page.set_viewport_size({"width": 1700, "height": 1000})
         lado = area.get_by_test_id("analise-desenho-lado")
@@ -439,7 +491,8 @@ def main():
         browser.close()
     print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
           "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
-          "Condições, ligações da análise espacial, lado a lado, Histórico e celular (base versionada).")
+          "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência, fora do gráfico com o aviso), "
+          "legendas de tamanho na proporção exata, lado a lado, Histórico e celular (base versionada).")
 
 
 if __name__ == "__main__":

@@ -6,8 +6,8 @@ quatro análises com os nomes padronizados: **Análise de Distribuição**, **An
 **Análise de Rotatividade**. As abas aparecem quando os dados estão prontos (24/10/2026). Cada aba abre com a apresentação do
 que ela faz (nas análises, desde 24/10/2026, em "Entenda esta análise", que se recolhe), mesmo quando a análise não pode ser
 executada com os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
-abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Voltar** e **Limpar seleção** ficam fixos no alto da área, lado a
-lado, em todas as abas (seção "Voltar e Limpar seleção"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
+abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Desfazer** (até 25/10/2026, "Voltar") e **Limpar seleção** ficam
+fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
 (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
 (`/api/painel`, `/api/painel/referencias` e `/api/painel/mapa`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
 estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no README e nos documentos da interface e da conversa.
@@ -117,7 +117,7 @@ tela, com rolagem própria): a seleção nunca fica escondida depois da lista in
     (`analise-grupo-todos`, parcial quando há só alguns marcados, com "3 de 417 marcados" ou "Todos os 417 marcados") e "Ver os
     N municípios ›" (`analise-grupo-ver`), que **só abre a lista** do estado e não muda o que está marcado. Na lista aberta:
     "Voltar aos estados" (`analise-grupo-voltar`; desde a segunda rodada de 24/10/2026, maior e preenchido, como os botões de
-    destaque, com a seta à esquerda; ele só fecha a lista e é diferente do Voltar do alto, que desfaz passos), quantos estão
+    destaque, com a seta à esquerda; ele só fecha a lista e é diferente do Desfazer do alto, que desfaz passos), quantos estão
     marcados, "Marcar todos os municípios da Bahia" e
     "Desmarcar os municípios da Bahia" e as caixas, com atalhos pela letra inicial acima de 120 municípios. Marcar em outro
     estado soma ao que já estava marcado: o defeito de 24/10/2026 (marcar na Bahia e depois em Santa Catarina perdia a Bahia)
@@ -142,13 +142,14 @@ tela, com rolagem própria): a seleção nunca fica escondida depois da lista in
   (`analise-controles-territorios`; `resumoDoUniverso`, no lugar da trilha "Brasil › Amazonas", que saiu).
 - **O que mudou, em palavras:** o que marca ou desmarca muitos de uma vez (os comandos coletivos, a caixa de um estado inteiro,
   o × que tira os municípios de um estado) diz o que mudou (`analise-selecao-aviso`: "Municípios da Bahia desmarcados. Para
-  desfazer, use Voltar, no alto."). Toda mudança da Seleção, uma a uma ou coletiva, também o × de uma unidade, pode ser
-  desfeita pelo Voltar do alto (seção seguinte). O botão "Desfazer" da Seleção (`analise-desfazer`, com o aviso
-  `analise-desfazer-aviso`) saiu na segunda rodada de 24/10/2026: o Voltar do alto faz o mesmo e mais. Os comandos dizem sobre
+  desfazer, use o botão Desfazer, no alto."). Toda mudança da Seleção, uma a uma ou coletiva, também o × de uma unidade, pode
+  ser desfeita pelo Desfazer do alto (seção seguinte). O botão "Desfazer" da Seleção (com o aviso `analise-desfazer-aviso`)
+  saiu na segunda rodada de 24/10/2026: o controle do alto faz o mesmo e mais e, desde 25/10/2026, leva o nome e o seletor
+  dele (`analise-desfazer`). Os comandos dizem sobre
   qual conjunto agem: os estados, os municípios do Brasil ou os municípios de um estado.
 - **No gráfico (E1):** clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios dele na análise; a dica da
-  bolha sob o mouse ou em foco mostra a ação "Ver os N municípios". O Voltar do alto (seção seguinte) desfaz a navegação, e o
-  aviso diz isso ("Mostrando os municípios do Amazonas. Para voltar aos estados, use Voltar, no alto.").
+  bolha sob o mouse ou em foco mostra a ação "Ver os N municípios". O Desfazer do alto (seção seguinte) desfaz a navegação, e
+  o aviso diz isso ("Mostrando os municípios do Amazonas. Para voltar aos estados, use Desfazer, no alto.").
 - **Planilhas:** sem os níveis Brasil e Estados, com os mesmos passos e a nomenclatura da planilha (a busca "Buscar distrito ou
   província"). Com coluna-mãe (o papel `grupo_territorial`), os grupos ficam como os estados ("Ver as N <unidades>", a caixa
   do grupo inteiro), com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde 23/10/2026); sem ela, a lista
@@ -162,39 +163,40 @@ tela, com rolagem própria): a seleção nunca fica escondida depois da lista in
 - **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico, o mapa e a frase-resumo da seleção anterior saem da tela;
   a área pede a escolha.
 
-### Voltar e Limpar seleção
+### Desfazer e Limpar seleção
 
 Pedido do responsável (24/10/2026, segunda rodada, no lugar do Voltar só das navegações e dos Desfazer da primeira rodada): dois
 controles globais, sempre à vista e lado a lado, no alto da área (`analise-controles-globais`, `role="toolbar"`), fixos ao rolar
 a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado deles, o resumo do que está na análise
 (`analise-controles-territorios`).
 
-- **Voltar** (`analise-voltar`, a seta ←, ícone universal de voltar): um desfazer sequencial, como o Ctrl+Z, de toda a interação
-  na área. Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
+- **Desfazer** (`analise-desfazer`, a seta curva do desfazer, ↶, o ícone universal do Ctrl+Z): um desfazer sequencial de toda a
+  interação na área. Até 25/10/2026, chamava-se "Voltar" (`analise-voltar`), com a seta ←; o nome e a seta pareciam levar ao
+  começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
   da direita), trocar o nível, abrir a lista de um estado e "Voltar aos estados", abrir um estado pela bolha e o atalho do
   mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
   um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, o
   território de referência), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
   os itens marcados no desenho, Limpar filtros, a escala e a vista do desenho, um pedido da conversa e a reabertura do
-  Histórico. Cada Voltar desfaz um passo, na ordem inversa, e devolve a seleção, a aba, a lista aberta, os ajustes, os filtros
+  Histórico. Cada Desfazer desfaz um passo, na ordem inversa, e devolve a seleção, a aba, a lista aberta, os ajustes, os filtros
   e a vista de antes; o arraste da régua, com passos seguidos em menos de 0,9 s, vira um passo só. A pilha guarda até 80 passos
-  (`empilharPasso`). O botão diz o que vai desfazer no `title` e no nome acessível ("Voltar: desfaz abrir a Análise de
-  Tendência"); os passos de um território só começam pelo verbo, e o nome fica como é ("Voltar: desfaz desmarcar PARINTINS
-  (AM)", "Voltar: desfaz tirar MANAUS (AM)", "Voltar: desfaz marcar Amazonas"); sem nada a desfazer, fica desligado, com
-  "Voltar: nenhuma ação para desfazer ainda". Depois de desfazer, o aviso
-  diz o que voltou ("Voltar: Limpar seleção desfeito."). O histórico não é o do navegador e não sai da área: recomeça com outra
-  fonte de dados ou com Nova análise. Os passos desfeitos não são refeitos (não há "Refazer").
+  (`empilharPasso`). O botão diz o que vai desfazer no `title` e no nome acessível ("Desfazer: abrir a Análise de Tendência",
+  `textoDoDesfazer`); os passos de um território só começam pelo verbo, e o nome fica como é ("Desfazer: desmarcar PARINTINS
+  (AM)", "Desfazer: tirar MANAUS (AM)", "Desfazer: marcar Amazonas"); sem nada a desfazer, fica desligado, com "Nada para
+  desfazer ainda". Depois de desfazer, o aviso diz o que foi desfeito ("Desfeito: limpar seleção.", `textoDoDesfeito`). O
+  histórico não é o do navegador e não sai da área: recomeça com outra fonte de dados ou com Nova análise. Os passos desfeitos
+  não são refeitos (não há "Refazer").
 - **Limpar seleção** (`analise-limpar-selecao`, a vassoura; o nome é exatamente "Limpar seleção"): tira os territórios do
   nível em uso, porque cada nível guarda a sua escolha (decisão 5, 25/10/2026): em Municípios, os municípios e os conjuntos; em
   Estados, os estados. A escolha dos outros níveis, a base carregada e os ajustes das análises continuam. Os desenhos que
   dependem da seleção saem, a comparação sai com os itens, e o aviso diz "Seleção limpa: nenhum território na análise. A base
-  de dados continua carregada. Para desfazer, use Voltar.". Sem nada marcado no nível em uso, fica desligado ("Nenhum território
+  de dados continua carregada. Para desfazer, use o botão Desfazer.". Sem nada marcado no nível em uso, fica desligado ("Nenhum território
   selecionado."); no nível Brasil, também, porque o país é a própria unidade ("No nível Brasil, o país inteiro é a unidade em
   análise: não há seleção para limpar."). É o único "limpar a seleção" da área: o botão "Limpar a seleção de municípios" da
   Seleção saiu.
 - **Limpar filtros** (`analise-limpar-filtros`, o filtro riscado, na barra das funções das análises): continua tirando a régua,
   as condições, a ordenação, a comparação, o filtro da classe e os itens marcados no desenho, sem mexer nos territórios nem nos
-  ajustes; ele só aparece com algum filtro em uso, e o Voltar devolve os filtros ("Desfazer a limpeza",
+  ajustes; ele só aparece com algum filtro em uso, e o Desfazer devolve os filtros ("Desfazer a limpeza",
   `analise-desfazer-filtros`, saiu).
 - **Voltar aos estados** (`analise-grupo-voltar`, na lista aberta de um estado): contextual, maior e preenchido, só fecha a lista.
 
@@ -426,19 +428,31 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   que não têm coordenada válida, com o motivo. A tela pede quando o mapa aparece e, em segundo plano, quando o gráfico mostra
   unidades com o mapa disponível; guarda as últimas seis respostas por fonte e competência. Uma pendência do motor (por exemplo,
   o referencial de uma planilha) aparece na área do mapa, com as opções que ele mandar, como as pendências do gráfico.
-- **O que a área entrega ao mapa:** os mesmos itens do gráfico (sem os estados); o que fica fora da régua e dos filtros aparece
-  esmaecido, não escondido (decisão de 23/10/2026); a pintura do gráfico quando há uma camada de cor (grupos, faixas, condições,
+- **O que a área entrega ao mapa:** todas as unidades em análise (sem os estados; os conjuntos dão o anel aos membros), também,
+  desde 25/10/2026, as que o gráfico deixa de fora por falta do valor que as posiciona (`itensParaOMapa`): sem distância até o
+  território de referência, sem o valor do indicador ou sem a coorte, cada uma no lugar dela, com a pintura da camada (na análise
+  espacial, o quintil do indicador) ou, sem valor nela, vazada, e com o motivo na dica. Antes, o mapa tinha os mesmos itens do
+  gráfico, e quem ficava sem distância (por exemplo, BOA VISTA (RR), com o território de referência no mesmo estado e densidade
+  acima da taxa do Brasil) sumia também do mapa, embora tivesse coordenada. O que fica fora da régua e dos filtros aparece
+  esmaecido, não escondido (decisão de 23/10/2026; `dentroDosFiltros`, os mesmos filtros do gráfico); sem o valor do indicador,
+  com a régua em uso, também esmaece; a pintura do gráfico quando há uma camada de cor (grupos, faixas, condições,
   ordem, classes ou variação); na Rotatividade, a permanência da coorte inicial em cor contínua (0 a 100%); sem camada de cor
   da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), os **5 grupos iguais
   (quintis)** do indicador, sem pergunta (23/10/2026): o pedido ao motor leva `grupos_mapa: {tipo: "quintis"}` junto com a
   análise, e o mapa pinta cada ponto pelo `grupo_mapa` do motor, com a legenda dos quintis (rótulos e contagens do motor). O
   gráfico, a frase-resumo, a tabela e o CSV não mudam com eles; sem os grupos na resposta (uma análise guardada antes, ou menos
-  de duas unidades com valor), a cor única do gráfico. O tamanho pela população (densidade), pela quantidade ou pela coorte
+  de duas unidades com valor), a cor única do gráfico (a unidade sem o valor do indicador, vazada). O tamanho pela população (densidade), pela quantidade ou pela coorte
   inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas dos
   selecionados (até 30) até o membro da referência mais próximo. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
   contínua) saiu em 23/10/2026.
 - **Não avaliáveis:** com o mapa à vista, as unidades sem coordenada válida ficam fora do mapa (no gráfico, continuam) e entram
   em Não avaliáveis, no aspecto "Sem coordenada válida para o mapa", com o motivo do motor.
+- **Fora do gráfico** (25/10/2026): com o gráfico à vista, as unidades (e os conjuntos) que ele não pode desenhar, por falta do
+  valor que as posiciona, ficam ditas acima do desenho, pelo nome (`analise-fora-do-grafico`, `textoForaDoDesenho`): "Fora do
+  gráfico, sem distância até a referência: BOA VISTA (RR). O motivo está em Não avaliáveis, nos Detalhes; no mapa, o município
+  aparece no lugar dele." Os motivos são três: sem valor do indicador na competência, sem distância até a referência e sem coorte
+  inicial avaliável; até cinco nomes por motivo, com "e mais N". Não aparece quando nenhum território ficou com referência (o
+  aviso `analise-ref-sem-resultado` diz o que aconteceu), na Série temporal nem com só o mapa à vista.
 - **Depois da primeira vez,** o mapa continua montado (oculto) enquanto houver mapa: volta como foi deixado, com o zoom.
 
 ## Eixos, marcas e cores
@@ -448,8 +462,12 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   não se sobreporem, e a nota diz "a posição horizontal é só arranjo". Arranjo exato até 400 bolhas (o gráfico cresce na altura
   se precisar); acima disso, ou se não couber, o arranjo leve, numa faixa limitada da largura, com bolhas semitransparentes.
 - **Análise espacial:** X = distância até a referência (km), Y = indicador. Sem reta de tendência nem correlação.
-- **Tamanho:** população, com área proporcional (raio pela raiz quadrada) e diâmetro mínimo visível; legenda com três
-  populações redondas.
+- **Tamanho:** população, com área proporcional (raio pela raiz quadrada: o raio máximo, de 12 a 34 px conforme a largura, vai
+  para a maior população do resultado) e diâmetro mínimo visível (raio de 4 px); legenda com três populações redondas (1, 2 ou
+  5 × 10ⁿ), todas na proporção exata desde 25/10/2026 (`valoresDaLegendaDeTamanho`): a referência que ficaria abaixo do mínimo
+  visível, e por isso seria desenhada maior do que a área dela, dá lugar ao menor número redondo que já alcança o mínimo (em
+  Roraima, com BOA VISTA, 200 mil, 50 mil e 10 mil habitantes, no lugar de 5 mil). A conferência de 25/10/2026, com os 15
+  municípios de Roraima, achou o raio de cada bolha igual ao da área proporcional à população, com duas casas.
 - **Linhas de referência,** finas e sólidas: o contexto do Brasil na densidade ("Brasil · 2,36", que não classifica nada), os
   cortes dos grupos ou os limites das faixas, os limites da régua e as faixas de distância.
 - **Cores,** uma camada de cada vez (condições, depois ordenação, depois a da família), conferidas com o validador da skill de
@@ -481,9 +499,11 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela | Nenhum |
 
-A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) esmaece os demais; Comparar e Juntar agem sobre ela. "Limpar
-filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a comparação, o filtro da classe e os itens
-marcados, e o Voltar do alto a desfaz (seção "Voltar e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
+A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
+25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
+leve, a camada inteira a 30%; `opacidadeDaBolha`). Só a pintura apagada (não atende, fora dos primeiros) continua mais clara.
+Comparar e Juntar agem sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
+comparação, o filtro da classe e os itens marcados, e o Desfazer do alto a desfaz (seção "Desfazer e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
 análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do pedido (com ela, o motor recusaria o pedido com
 "Itens da comparação fora do gráfico"). Com o Brasil como unidade, só Exportar vale.
 
@@ -508,7 +528,7 @@ e o resultado da comparação continuam.
   município, com o valor observado em cada competência do intervalo."; com o território de referência, "Densidade de médicos e
   distância até o território de referência · Amazonas · junho de 2024". Na Análise de Tendência, o subtítulo e a frase-resumo
   ficam no painel "Como ler", à direita do desenho.
-- **Voltar** (`analise-voltar`) e **Limpar seleção** ficam no alto da área, fora do título (seção "Voltar e Limpar seleção").
+- **Desfazer** (`analise-desfazer`) e **Limpar seleção** ficam no alto da área, fora do título (seção "Desfazer e Limpar seleção").
 - **Frase-resumo** (23/10/2026), logo abaixo do subtítulo (`analise-resumo`, lida pelos leitores de tela a cada mudança): o texto
   que o motor devolve em `resumo.texto`, como veio, só com números conferidos do resultado, sem julgamento nem causa. A tela não
   escreve nem completa a frase. Ela fala do indicador do cálculo (o `indicador` da resposta): quando a troca do indicador não
@@ -682,16 +702,20 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   sinal do motor, a escala da linha, a lacuna sem ponto inventado e a ordem por classe), as classes em palavras simples, com um
   exemplo cada (os exemplos conferidos pela mesma regra do motor, `classify_speeds`, passo a passo), o que a classe quer dizer
   (`significadoDaClasse`), a Seleção só com a orientação curta e a apresentação sem códigos; desde a segunda rodada de
-  24/10/2026, o histórico do Voltar (um passo por ação, o arraste contínuo como um passo só, o limite de 80 passos e o texto do
-  botão), o período com que a tendência abre (`janelaPadrao`: o anual; sem ele, o único ritmo; sem nenhum, a escolha), as
+  24/10/2026, o histórico do Desfazer (um passo por ação, o arraste contínuo como um passo só, o limite de 80 passos e, desde
+  25/10/2026, os textos do botão e do aviso com o nome Desfazer), o período com que a tendência abre (`janelaPadrao`: o anual; sem ele, o único ritmo; sem nenhum, a escolha), as
   visões (Tendência, Trajetória e Série temporal) e os ajustes de cada uma, o intervalo da Série temporal (a extensão inteira,
   o intervalo escolhido, a leitura da resposta, o CSV com uma coluna por competência e o método), o desenho dela (a cor única
   e o conjunto não comparável só com os pontos), a Trajetória (os períodos do meio no rastro e na dica, sem caminho sem a
   variação) e o território de referência (a guarda do formato, as delimitações que a fonte tem, o valor de corte pela natureza
-  do atributo, a resposta com `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação). `frontend/tests/painel.test.mjs` cobre o
+  do atributo, a resposta com `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação); desde 25/10/2026, o mapa
+  com todas as unidades em análise (`itensParaOMapa`), os filtros que esmaecem nele (`dentroDosFiltros`), a cor única vazada sem
+  o valor do indicador, o aviso "Fora do gráfico" (`textoForaDoDesenho`) e a opacidade das bolhas, que não depende da seleção
+  (`opacidadeDaBolha`). `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
   o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
-  conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial).
+  conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial);
+  desde 25/10/2026, a legenda de tamanho na proporção exata (nenhuma referência abaixo do mínimo visível).
   O modo escuro tem `frontend/tests/modoEscuro.test.mjs`: a loja do esquema
   (o escuro só na tela e fora da impressão, o aviso síncrono no começo da impressão), as paletas do gráfico e do mapa por
   esquema (o claro igual ao de antes; no escuro, os valores validados, as rampas do escuro ao claro, o zero abaixo dos braços, o
@@ -705,14 +729,15 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   com "Marcar todos os estados", cada nível com a sua escolha); E1 com os estados escolhidos, a instrução e a ação na dica;
   desde 24/10/2026, a seleção cumulativa entre estados (abrir outro estado não muda nada nem pede ao motor), a busca no alto, o
   Brasil como unidade (só o nível no pedido, um item, a frase do motor, as funções e o mapa desligados, sem Grupos) e os estados
-  escolhidos no pedido (`estados`); desde a segunda rodada de 24/10/2026, o nome da plataforma em E0; Voltar e Limpar seleção
-  no alto, lado a lado e fixos ao rolar (o Voltar desligado, com "Voltar: nenhuma ação para desfazer ainda", e, depois de cada
-  passo, o `title` com o que ele desfaz: abrir uma aba, marcar e desmarcar, o × de um município e de um estado, abrir os
-  municípios pela bolha, Limpar seleção, a régua, o território de referência, o período, a visão, Limpar filtros; cada Voltar
-  devolve o estado de antes, um passo por vez); Limpar seleção sem apagar os dados (os botões de antes da Seleção, "Desfazer"
-  e "Desfazer a limpeza", não existem mais); "Voltar aos estados" preenchido e maior, abaixo do Voltar do alto, e diferente
-  dele (pelo estilo calculado); a Seleção em duas áreas, com o que está marcado à direita, estado a estado, e o × de cada
-  município e de cada estado, desfeitos pelo Voltar; as abas só com o nome (sem os apoios de antes); os ajustes dentro de cada
+  escolhidos no pedido (`estados`); desde a segunda rodada de 24/10/2026, o nome da plataforma em E0; Desfazer (o "Voltar" até
+  25/10/2026, desde então com a seta curva do desfazer, `lucide-undo`) e Limpar seleção no alto, lado a lado e fixos ao rolar (o
+  Desfazer desligado, com "Nada para desfazer ainda", e, depois de cada passo, o `title` com o que ele desfaz: abrir uma aba,
+  marcar e desmarcar, o × de um município e de um estado, abrir os municípios pela bolha, Limpar seleção, a régua, o território
+  de referência, o período, a visão, Limpar filtros; cada Desfazer devolve o estado de antes, um passo por vez, com o aviso
+  "Desfeito: …"); Limpar seleção sem apagar os dados (os botões de antes da Seleção, "Desfazer" e "Desfazer a limpeza", não
+  existem mais: o único `analise-desfazer` é o do alto); "Voltar aos estados" preenchido e maior, abaixo do Desfazer do alto, e
+  diferente dele (pelo estilo calculado); a Seleção em duas áreas, com o que está marcado à direita, estado a estado, e o × de
+  cada município e de cada estado, desfeitos pelo Desfazer; as abas só com o nome (sem os apoios de antes); os ajustes dentro de cada
   análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala fora deles, na barra junto do
   desenho); a vista do desenho (o gráfico de início; nos estados e na Série temporal, o mapa desligado, com o motivo e o
   atalho); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da resposta (e fora da tela
@@ -731,10 +756,11 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   pedido) e o quadro de setas (cada linha com a classe na coluna "Tendência", uma seta por velocidade do motor com o sinal dela e
   um ponto por observação; a ordem por classe; o filtro pela contagem; a escolha da linha e as velocidades dela no painel; a
   dica no mouse e no foco); a rotatividade com a apresentação e o motivo, sem pedido; Condições (com o convite ao mapa),
-  Ordenar, Comparar e Juntar (com a orientação e os escolhidos em etiquetas, sem os cartões de valores); "Limpar filtros",
-  desfeito pelo Voltar; o CSV; os Detalhes; o modo leve com todos os municípios do Brasil (base versionada); e o celular (o
-  painel dos ajustes na largura, a vista à vista, Voltar e Limpar seleção dentro da largura e as duas áreas da Seleção uma
-  sobre a outra). Cada bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem
+  Ordenar, Comparar e Juntar (com a orientação e os escolhidos em etiquetas, sem os cartões de valores; desde 25/10/2026, as
+  bolhas marcadas para Comparar sem esmaecer as demais, todas com a opacidade inteira); "Limpar filtros", desfeito pelo
+  Desfazer; o CSV; os Detalhes; o modo leve com todos os municípios do Brasil (base versionada); e o celular (o painel dos
+  ajustes na largura, a vista à vista, Desfazer e Limpar seleção dentro da largura e as duas áreas da Seleção uma sobre a
+  outra). Cada bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem
   roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor
   (detalhes em [MAPA_DA_PAGINA_UNICA.md](MAPA_DA_PAGINA_UNICA.md#testes)).

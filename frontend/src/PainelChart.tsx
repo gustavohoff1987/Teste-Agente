@@ -5,7 +5,7 @@ import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta, RelacaoEspacial } from "./painelApi";
 import {
   INDICADORES, LIMITE_LEVE, caudaDoCometa, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto, legendaDeTamanhos,
-  montarDica, montarGrafico, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, type BolhaDesenho, type Corte, type Escala,
+  montarDica, montarGrafico, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, type BolhaDesenho, type Corte, type Escala,
   type PaletaDoGrafico, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
@@ -112,7 +112,6 @@ export default function PainelChart(p: Props) {
   const dentro = useMemo(() => leve ? new Set(p.itens.map(item => item.id)) : null, [leve, p.itens]);
   const desenhada = useCallback((bolha: BolhaDesenho) => bolha.visivel && (!dentro || dentro.has(bolha.id)), [dentro]);
   const selecionados = useMemo(() => new Set(p.selecionados), [p.selecionados]);
-  const destaque = p.selecionados.length > 0;
   const competenciaInicial = p.resposta.competencia_inicial || null;
   const especie = INDICADORES[p.indicador];
 
@@ -146,8 +145,8 @@ export default function PainelChart(p: Props) {
   // Ordem de desenho estável: as mais populosas atrás. Não depende do mouse, do foco nem do destaque.
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
-  const opacidadeDe = (bolha: BolhaDesenho) => !bolha.visivel ? 0
-    : destaque && !selecionados.has(bolha.id) && bolha.id !== ativo && bolha.id !== externo ? 0.22 : bolha.apagada ? 0.45 : 1;
+  // Marcar não esmaece as outras bolhas (25/10/2026): as marcadas ganham o anel escuro e o nome.
+  const opacidadeDe = opacidadeDaBolha;
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
     bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo)) : [];
@@ -304,7 +303,7 @@ export default function PainelChart(p: Props) {
           <text x={posicaoNoEixo(eixoX, item.valor) + 4} y={grafico.topo + 12} className="analise-linha-texto analise-linha-texto-leve">{item.rotulo}</text>
         </g>)}
       {leve ? <>
-        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} esmaecida={destaque} paleta={paleta}
+        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta}
           onAtivar={ativarLeve} onAcionar={id => { const bolha = grafico.bolhas.find(item => item.id === id); if (bolha) acionar(bolha); }}/>
         {especiais.map(bolha => desenharBolha(bolha, "analise-bolha-destaque",
           selecionados.has(bolha.id) || bolha.tipo === "conjunto" || bolha.referencia || bolha.id === focoEfetivo))}
@@ -378,17 +377,17 @@ function LegendaDeTamanho({ maxima, raioMax, paleta }: { maxima: number; raioMax
 }
 
 type CamadaProps = {
-  bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; esmaecida: boolean; paleta: PaletaDoGrafico;
+  bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; paleta: PaletaDoGrafico;
   onAtivar: (id: string | null) => void; onAcionar: (id: string) => void;
 };
 
 /** Modo leve: um círculo simples por bolha (e uma linha fina por rastro), com os mesmos atributos de dados e um único conjunto de
- * eventos no grupo. Não depende do mouse, do foco nem da seleção: passar o mouse não redesenha os milhares de círculos. Fora da
- * régua, o círculo só fica oculto. */
-const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, esmaecida, paleta, onAtivar, onAcionar }: CamadaProps) {
+ * eventos no grupo. Não depende do mouse, do foco nem da seleção: passar o mouse não redesenha os milhares de círculos, e marcar
+ * não esmaece a camada (25/10/2026). Fora da régua, o círculo só fica oculto. */
+const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, paleta, onAtivar, onAcionar }: CamadaProps) {
   const alvo = (event: EventoPonteiro<SVGGElement> | EventoMouse<SVGGElement>) =>
     (event.target as Element).closest?.("[data-id]")?.getAttribute("data-id") ?? null;
-  return <g data-testid="analise-camada-leve" className="analise-camada-leve" style={{ opacity: esmaecida ? 0.3 : 1 }}
+  return <g data-testid="analise-camada-leve" className="analise-camada-leve"
     onPointerMove={event => onAtivar(alvo(event))} onPointerLeave={() => onAtivar(null)}
     onClick={event => { const id = alvo(event); if (id) onAcionar(id); }}>
     {cometa && bolhas.map(bolha => bolha.rastro && <line key={"r" + bolha.id} x1={bolha.x + bolha.rastro.dx} y1={bolha.y + bolha.rastro.dy}

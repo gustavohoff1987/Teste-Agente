@@ -583,6 +583,48 @@ export function separarItens(itens: PainelItem[], indicador: PainelIndicador, ex
   return { plotaveis, fora };
 }
 
+/** Aspectos que tiram o item do desenho: falta o valor que o posiciona (o indicador; na análise espacial, a distância até a
+ * referência; na rotatividade, a coorte). Nos demais (variação, tendência, condições, mapa), a bolha fica, vazada quando falta. */
+export const ASPECTOS_FORA_DO_DESENHO: readonly Aspecto[] = ["indicador", "distancia", "rotatividade"];
+
+/** Itens do mapa (25/10/2026): todas as unidades em análise, no lugar delas, também as que o gráfico deixa de fora por falta do
+ * valor que as posiciona (o indicador, a distância até o território de referência, a coorte). Nenhum território escolhido some do
+ * mapa por isso; só quem não tem coordenada válida fica fora dele, com o motivo do motor. Os estados não têm ponto, e os conjuntos
+ * dão o anel aos membros. Na ordem neutra, a do gráfico. */
+export const itensParaOMapa = (itens: PainelItem[]) => [...itens].filter(item => item.tipo !== "estado").sort(ordemNeutra);
+
+/** Filtros visuais da área (estado visual, RQ-REP-06): a régua do indicador, "Mostrar só quem atende" das condições e a classe
+ * escolhida na tendência. No gráfico, separam as bolhas à vista; no mapa, quem fica fora deles esmaece, sem sumir. */
+export type FiltrosVisuais = { indicador: PainelIndicador; corte: Corte | null; soAtende: boolean; condicoes: boolean;
+  filtroClasse: string | null; tendencia: boolean };
+export const dentroDosFiltros = (item: PainelItem, f: FiltrosVisuais) => noCorte(item, f.indicador, f.corte) &&
+  (!f.soAtende || !f.condicoes || item.condicoes?.situacao === "ATENDE") &&
+  (!f.filtroClasse || !f.tendencia || (f.filtroClasse === "NAO_AVALIAVEL" ? !item.tendencia?.avaliavel : item.tendencia?.classe === f.filtroClasse));
+
+const FALTA_NO_DESENHO: Partial<Record<Aspecto, string>> = { indicador: "sem valor do indicador na competência",
+  distancia: "sem distância até a referência", rotatividade: "sem coorte inicial avaliável" };
+/** O que fica fora do gráfico (25/10/2026), dito junto dele: os itens sem o valor que os posiciona, pelo que falta, com os nomes
+ * (até `limite` por motivo) e as contagens. O motivo de cada um continua em Não avaliáveis; com o mapa, as unidades aparecem nele,
+ * no lugar delas. Null quando nada fica de fora. */
+export function textoForaDoDesenho(fora: NaoAvaliavel[], c: { rotulos: RotulosTerritoriais; mapa: boolean; limite?: number }): string | null {
+  const limite = c.limite ?? 5, unidade = c.rotulos.unidade, f = fem(unidade);
+  const deFora = fora.filter(item => ASPECTOS_FORA_DO_DESENHO.includes(item.aspecto));
+  if (!deFora.length) return null;
+  const frases = ASPECTOS_FORA_DO_DESENHO.map(aspecto => {
+    const itens = deFora.filter(item => item.aspecto === aspecto);
+    if (!itens.length) return null;
+    const nomes = itens.slice(0, limite).map(item => item.rotulo), resto = itens.length - nomes.length;
+    return FALTA_NO_DESENHO[aspecto] + (itens.length > 1 ? " (" + inteiro.format(itens.length) + ")" : "") + ": " +
+      emLista(resto ? [...nomes, "mais " + inteiro.format(resto)] : nomes) + ".";
+  }).filter((frase): frase is string => !!frase);
+  const unidades = deFora.filter(item => item.tipo !== "conjunto" && item.tipo !== "estado" && item.tipo !== "brasil").length;
+  const noMapa = !c.mapa || !unidades ? "" : "; no mapa, " + (unidades === 1
+    ? artigo(unidade, false) + " " + unidade.singular + " aparece no lugar " + (f ? "dela" : "dele")
+    : artigo(unidade, true) + " " + unidade.plural + " aparecem no lugar " + (f ? "delas" : "deles"));
+  return "Fora do gráfico, " + frases.map((frase, indice) => indice ? maiuscula(frase) : frase).join(" ") + " O motivo " +
+    (deFora.length > 1 ? "de " + (f ? "cada uma " : "cada um ") : "") + "está em Não avaliáveis, nos Detalhes" + noMapa + ".";
+}
+
 export const valorDe = (item: PainelItem, indicador: PainelIndicador): number | null => numero(item[indicador]);
 export const inicialDe = (item: PainelItem, campo: PainelIndicador | "populacao"): number | null => numero(item.inicial?.[campo]);
 export const variacaoDe = (item: PainelItem, campo: PainelIndicador | "populacao"): number | null => numero(item.variacao_percentual?.[campo]);
@@ -678,14 +720,26 @@ export function raioDaPopulacao(populacao: number | null | undefined, maxima: nu
 }
 
 export type TamanhoLegenda = { valor: number; raio: number; texto: string };
-/** Três tamanhos de referência em números redondos (1, 2 ou 5 × 10ⁿ) abaixo da maior população: legenda de escala, não dado. */
+/** Valores da legenda de tamanho: três referências em números redondos (1, 2 ou 5 × 10ⁿ) abaixo do máximo, todas na proporção
+ * exata (25/10/2026). Uma referência abaixo de `minimo` (o valor do raio mínimo visível) seria desenhada maior do que a área
+ * dela; no lugar, entra o menor número redondo que já alcança o mínimo, ou nada, se ele não ficar abaixo da referência anterior. */
+export function valoresDaLegendaDeTamanho(topo: number, minimo: number): number[] {
+  const abaixo = (valor: number) => limpo(([5, 2, 1].find(fator => fator * potencia(valor) <= valor * (1 + 1e-9)) ?? 1) * potencia(valor));
+  const acima = (valor: number) => limpo(([1, 2, 5, 10].find(fator => fator * potencia(valor) >= valor * (1 - 1e-9)) ?? 10) * potencia(valor));
+  const maior = abaixo(topo);
+  const valores: number[] = [];
+  for (const candidato of [maior, abaixo(maior / 4), abaixo(maior / 25)]) {
+    const valor = candidato >= minimo * (1 - 1e-9) ? candidato : acima(minimo);
+    if (valor > 0 && valor <= topo && (!valores.length || valor < valores[valores.length - 1])) valores.push(valor);
+  }
+  return valores;
+}
+/** Três tamanhos de referência abaixo da maior população, na proporção exata: legenda de escala, não dado. */
 export function legendaDeTamanhos(maxima: number | null | undefined, raioMax: number): TamanhoLegenda[] {
   const topo = numero(maxima);
   if (topo === null || topo <= 0) return [];
-  const abaixo = (valor: number) => limpo(([5, 2, 1].find(fator => fator * potencia(valor) <= valor * (1 + 1e-9)) ?? 1) * potencia(valor));
-  const maior = abaixo(topo);
-  const valores = [maior, abaixo(maior / 4), abaixo(maior / 25)].filter((valor, indice, todos) => valor > 0 && todos.indexOf(valor) === indice);
-  return valores.map(valor => ({ valor, raio: raioDaPopulacao(valor, topo, raioMax), texto: compacto(valor) + " hab." }));
+  return valoresDaLegendaDeTamanho(topo, topo * (RAIO_MINIMO / raioMax) ** 2)
+    .map(valor => ({ valor, raio: raioDaPopulacao(valor, topo, raioMax), texto: compacto(valor) + " hab." }));
 }
 
 // ================================================================================================ cor
@@ -860,7 +914,9 @@ export function pintar(item: PainelItem, p: ParametrosPintura): Pintura {
       return dentro ? { cor: paleta.bolha, vazada: false, apagada: false } : posicao === null ? vazia : { cor: paleta.neutra, vazada: false, apagada: true };
     }
     default:
-      return { cor: paleta.bolha, vazada: false, apagada: false };
+      // A cor única não codifica nada; a unidade sem o valor do indicador (que o mapa mostra no lugar dela, 25/10/2026) fica
+      // vazada, como todo valor não avaliável, nunca preenchida como se tivesse valor.
+      return valorDe(item, p.indicador) === null ? vazia : { cor: paleta.bolha, vazada: false, apagada: false };
   }
 }
 
@@ -1128,6 +1184,11 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
   return { largura, altura: topo + alturaPlot + rodape, topo, base: topo + alturaPlot, esquerda, direita, eixoX,
     eixoY: eixoIndicador(baixoY, altoY), bolhas, raioMax, populacaoMaxima, escala, arranjo: "dados" };
 }
+
+/** Opacidade da bolha no gráfico: oculta quando não tem posição na vista; a pintura apagada (não atende, fora dos primeiros), mais
+ * clara; as demais, inteiras. Marcar bolhas não esmaece as outras (25/10/2026): o anel escuro e o nome destacam as marcadas, como
+ * no mapa. */
+export const opacidadeDaBolha = (bolha: Pick<BolhaDesenho, "visivel" | "apagada">) => !bolha.visivel ? 0 : bolha.apagada ? 0.45 : 1;
 
 /** Cauda do cometa: triângulo do ponto da competência inicial (fino) até a bolha, em coordenadas relativas ao centro. */
 export function caudaDoCometa(dx: number, dy: number, r: number): string {
@@ -2293,12 +2354,12 @@ export function notaSemClassificacao(topo: TendenciaTopo | null, c: { rotulos: R
     "sem classificação. É o resultado do método, não falta de dados.";
 }
 
-// ================================================================================================ Voltar: o histórico da interação
-/** Voltar (24/10/2026, pedido do responsável): um desfazer sequencial, como o Ctrl+Z, da interação na área. Cada ação reversível
- * (marcar ou desmarcar territórios, trocar o nível, abrir a lista de um estado, Limpar seleção, trocar de aba, mudar um ajuste,
- * um filtro ou a vista) guarda o estado de antes; Voltar devolve o último guardado, um passo por vez. Passos seguidos do mesmo
- * tipo contínuo (o arraste da régua) em menos de PASSO_CONTINUO_MS viram um só, com o estado de antes do primeiro. O histórico
- * não é o do navegador e não sai da área: recomeça com outra fonte de dados ou com Nova análise. */
+// ================================================================================================ Desfazer: o histórico da interação
+/** Desfazer (24/10/2026, pedido do responsável; até 25/10/2026, "Voltar"): um desfazer sequencial, como o Ctrl+Z, da interação na
+ * área. Cada ação reversível (marcar ou desmarcar territórios, trocar o nível, abrir a lista de um estado, Limpar seleção, trocar de
+ * aba, mudar um ajuste, um filtro ou a vista) guarda o estado de antes; Desfazer devolve o último guardado, um passo por vez. Passos
+ * seguidos do mesmo tipo contínuo (o arraste da régua) em menos de PASSO_CONTINUO_MS viram um só, com o estado de antes do
+ * primeiro. O histórico não é o do navegador e não sai da área: recomeça com outra fonte de dados ou com Nova análise. */
 export type PassoDaInteracao<T> = { rotulo: string; tipo: string; quando: number; estado: T };
 export const MAX_PASSOS = 80;
 export const PASSO_CONTINUO_MS = 900;
@@ -2308,6 +2369,8 @@ export function empilharPasso<T>(pilha: PassoDaInteracao<T>[], passo: PassoDaInt
     return [...pilha.slice(0, -1), { ...topo, quando: passo.quando }];
   return [...pilha, passo].slice(-MAX_PASSOS);
 }
-/** O texto do botão Voltar (no `title` e no rótulo acessível): o que o próximo Voltar desfaz, ou que não há o que desfazer. */
-export const textoDoVoltar = (passo: { rotulo: string } | null | undefined) =>
-  passo ? "Voltar: desfaz " + minuscula(passo.rotulo) : "Voltar: nenhuma ação para desfazer ainda";
+/** O texto do botão Desfazer (no `title` e no rótulo acessível): o que o próximo Desfazer desfaz, ou que não há o que desfazer. */
+export const textoDoDesfazer = (passo: { rotulo: string } | null | undefined) =>
+  passo ? "Desfazer: " + minuscula(passo.rotulo.replace(/\.$/, "")) : "Nada para desfazer ainda";
+/** O aviso depois de um Desfazer: o passo que foi desfeito. */
+export const textoDoDesfeito = (passo: { rotulo: string }) => "Desfeito: " + minuscula(passo.rotulo.replace(/\.$/, "")) + ".";

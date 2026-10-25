@@ -428,7 +428,7 @@ test('planilha com a coluna-mãe: os grupos da Seleção vêm do catálogo do pr
 });
 
 // ================================================================================================ ajustes de 24/10/2026 (segunda rodada)
-test('Voltar: um passo por ação, o arraste contínuo vira um passo só, com o estado de antes, e o texto do botão diz o que desfaz', () => {
+test('Desfazer: um passo por ação, o arraste contínuo vira um passo só, com o estado de antes, e o texto do botão diz o que desfaz', () => {
   let pilha = [];
   pilha = M.empilharPasso(pilha, {rotulo: 'MANAUS (AM) marcado', tipo: 'MANAUS (AM) marcado', quando: 1000, estado: {n: 0}});
   pilha = M.empilharPasso(pilha, {rotulo: 'TEFE (AM) marcado', tipo: 'TEFE (AM) marcado', quando: 1500, estado: {n: 1}});
@@ -448,9 +448,16 @@ test('Voltar: um passo por ação, o arraste contínuo vira um passo só, com o 
   for (let i = 0; i < M.MAX_PASSOS + 5; i++) longa = M.empilharPasso(longa, {rotulo: 'p' + i, tipo: 'p' + i, quando: i * 5000, estado: i});
   assert.equal(longa.length, M.MAX_PASSOS);
   assert.equal(longa[0].estado, 5);
-  assert.equal(M.textoDoVoltar(null), 'Voltar: nenhuma ação para desfazer ainda');
-  assert.equal(M.textoDoVoltar({rotulo: 'Limpar seleção'}), 'Voltar: desfaz limpar seleção');
-  assert.equal(M.textoDoVoltar({rotulo: 'Abrir a Análise de Tendência'}), 'Voltar: desfaz abrir a Análise de Tendência');
+  // O botão se chama Desfazer desde 25/10/2026 (antes, Voltar): o title diz o que o próximo clique desfaz, sem o ponto final do
+  // passo, e o aviso diz o que foi desfeito; o nome próprio no começo do passo fica como é.
+  assert.equal(M.textoDoDesfazer(null), 'Nada para desfazer ainda');
+  assert.equal(M.textoDoDesfazer({rotulo: 'Limpar seleção'}), 'Desfazer: limpar seleção');
+  assert.equal(M.textoDoDesfazer({rotulo: 'Abrir a Análise de Tendência'}), 'Desfazer: abrir a Análise de Tendência');
+  assert.equal(M.textoDoDesfazer({rotulo: 'Todos os estados marcados.'}), 'Desfazer: todos os estados marcados');
+  assert.equal(M.textoDoDesfeito({rotulo: 'Abrir a Seleção de Territórios'}), 'Desfeito: abrir a Seleção de Territórios.');
+  assert.equal(M.textoDoDesfeito({rotulo: 'Municípios do Amazonas desmarcados.'}), 'Desfeito: municípios do Amazonas desmarcados.');
+  assert.equal(M.textoDoDesfazer({rotulo: 'Marcar MANAUS (AM)'}), 'Desfazer: marcar MANAUS (AM)');
+  assert.equal(M.textoDoVoltar, undefined, 'o texto antigo saiu com o nome Voltar');
 });
 
 test('período com que a tendência abre: o anual, à vista; sem ele, o único ritmo da base; sem nenhum, a escolha', () => {
@@ -629,4 +636,84 @@ test('decisões 4 e 5 (25/10/2026): "maior/menor" da conversa vira o operador, e
   assert.equal(M.limparNivel({nivel: 'brasil', base: municipios, estados: ['13'], conjuntos: []}), null);
   assert.equal(M.limparNivel({nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: ['13'], conjuntos: []}), null);
   assert.equal(M.limparNivel({nivel: 'estados', base: municipios, estados: [], conjuntos: []}), null);
+});
+
+// ================================================================================================ ajustes de 25/10/2026
+test('mapa com todas as unidades em análise: também as que o gráfico deixa de fora, no lugar delas, com os filtros que esmaecem', () => {
+  // Roraima com o território de referência no mesmo estado: BOA VISTA fica sem distância; IRACEMA, sem o indicador.
+  const boaVista = municipio('code:140010', 'BOA VISTA (RR)', {distancia_km: null});
+  const altoAlegre = municipio('code:140005', 'ALTO ALEGRE (RR)', {distancia_km: 74.2});
+  const iracema = municipio('code:140028', 'IRACEMA (RR)', {populacao: null, densidade: null, distancia_km: 83.3});
+  const conjunto = {...municipio('c1', 'NORTE (soma)', {distancia_km: 10}), tipo: 'conjunto', membros: ['code:140005']};
+  const roraima = {...municipio('uf:14', 'Roraima (RR)'), tipo: 'estado'};
+  const itens = [iracema, conjunto, roraima, boaVista, altoAlegre];
+  const {plotaveis, fora} = M.separarItens(itens.filter(item => item.tipo !== 'estado'), 'densidade', {distancia: true});
+  assert.deepEqual(plotaveis.map(item => item.id), ['code:140005', 'c1'], 'no gráfico, só quem tem a distância e o indicador');
+  assert.deepEqual(fora.map(item => [item.id, item.aspecto]), [['code:140010', 'distancia'], ['code:140028', 'indicador']]);
+  // No mapa, todas as unidades (os estados não têm ponto; o conjunto dá o anel aos membros), na ordem neutra do gráfico.
+  assert.deepEqual(M.itensParaOMapa(itens).map(item => item.id), ['code:140005', 'code:140010', 'code:140028', 'c1']);
+  const filtros = {indicador: 'densidade', corte: null, soAtende: false, condicoes: false, filtroClasse: null, tendencia: false};
+  assert.ok(M.itensParaOMapa(itens).every(item => M.dentroDosFiltros(item, filtros)), 'sem filtros, ninguém esmaece no mapa');
+  // Com a régua, quem não tem o valor do indicador fica fora do corte (esmaece no mapa, nunca some); o conjunto não entra na régua.
+  const corte = {minimo: 5, maximo: 20};
+  assert.deepEqual(M.itensParaOMapa(itens).filter(item => !M.dentroDosFiltros(item, {...filtros, corte})).map(item => item.id), ['code:140028']);
+  assert.deepEqual(M.itensParaOMapa(itens).filter(item => !M.dentroDosFiltros(item, {...filtros, corte: {minimo: 11, maximo: 20}}))
+    .map(item => item.id), ['code:140005', 'code:140010', 'code:140028']);
+  // Os mesmos filtros do gráfico: "Mostrar só quem atende" (com as condições no desenho) e a classe escolhida na tendência.
+  const atende = municipio('code:1', 'A (AM)', {condicoes: {situacao: 'ATENDE', porCondicao: [], motivo: null}});
+  const naoAtende = municipio('code:2', 'B (AM)', {condicoes: {situacao: 'NAO_ATENDE', porCondicao: [], motivo: null}});
+  assert.equal(M.dentroDosFiltros(atende, {...filtros, soAtende: true, condicoes: true}), true);
+  assert.equal(M.dentroDosFiltros(naoAtende, {...filtros, soAtende: true, condicoes: true}), false);
+  assert.equal(M.dentroDosFiltros(naoAtende, {...filtros, soAtende: true, condicoes: false}), true, 'sem as condições no desenho, não filtra');
+  const cresce = municipio('code:3', 'C (AM)', {tendencia: {classe: 'CRESCIMENTO', avaliavel: true}});
+  const semClasse = municipio('code:4', 'D (AM)', {tendencia: {classe: null, avaliavel: false}});
+  assert.equal(M.dentroDosFiltros(cresce, {...filtros, tendencia: true, filtroClasse: 'CRESCIMENTO'}), true);
+  assert.equal(M.dentroDosFiltros(semClasse, {...filtros, tendencia: true, filtroClasse: 'CRESCIMENTO'}), false);
+  assert.equal(M.dentroDosFiltros(semClasse, {...filtros, tendencia: true, filtroClasse: 'NAO_AVALIAVEL'}), true);
+  // Sem camada de cor, a cor única não codifica nada: no mapa, a unidade sem o indicador fica vazada, nunca preenchida; a que
+  // só não tem a distância continua com a cor única (o mapa não desenha a distância).
+  const p = {camada: 'unica', indicador: 'densidade', limiteVariacao: 0, totalGrupos: 0, totalFaixas: 0, primeiros: null};
+  assert.deepEqual(M.pintar(iracema, p), {cor: M.PALETA_CLARA.vazia, vazada: true, apagada: false});
+  assert.deepEqual(M.pintar(boaVista, p), {cor: M.COR_BOLHA, vazada: false, apagada: false});
+  assert.deepEqual(M.pintar(iracema, {...p, indicador: 'quantidade'}), {cor: M.COR_BOLHA, vazada: false, apagada: false},
+    'com a quantidade, IRACEMA tem o valor do indicador');
+});
+
+test('fora do gráfico: o aviso diz quem ficou de fora e por quê, com o caminho do motivo e o mapa', () => {
+  const boaVista = municipio('code:140010', 'BOA VISTA (RR)', {distancia_km: null});
+  const altoAlegre = municipio('code:140005', 'ALTO ALEGRE (RR)', {distancia_km: 74.2});
+  const iracema = municipio('code:140028', 'IRACEMA (RR)', {populacao: null, densidade: null, distancia_km: 83.3});
+  const so = M.separarItens([boaVista, altoAlegre], 'densidade', {distancia: true}).fora;
+  assert.equal(M.textoForaDoDesenho(so, {rotulos: BR, mapa: true}), 'Fora do gráfico, sem distância até a referência: BOA VISTA (RR). ' +
+    'O motivo está em Não avaliáveis, nos Detalhes; no mapa, o município aparece no lugar dele.');
+  assert.equal(M.textoForaDoDesenho(so, {rotulos: BR, mapa: false}), 'Fora do gráfico, sem distância até a referência: BOA VISTA (RR). ' +
+    'O motivo está em Não avaliáveis, nos Detalhes.');
+  // Dois motivos, cada um com os seus nomes; o indicador primeiro.
+  const dois = M.separarItens([iracema, boaVista, altoAlegre], 'densidade', {distancia: true}).fora;
+  assert.equal(M.textoForaDoDesenho(dois, {rotulos: BR, mapa: true}), 'Fora do gráfico, sem valor do indicador na competência: IRACEMA (RR). ' +
+    'Sem distância até a referência: BOA VISTA (RR). O motivo de cada um está em Não avaliáveis, nos Detalhes; no mapa, os municípios ' +
+    'aparecem no lugar deles.');
+  // Muitos: os cinco primeiros pelo nome e a contagem; numa planilha, os nomes dela (no feminino, "cada uma" e "dela").
+  const muitos = Array.from({length: 7}, (_, i) => ({id: 'code:' + (i + 1), rotulo: 'M' + (i + 1), tipo: 'municipio', aspecto: 'distancia', motivo: 'x'}));
+  assert.equal(M.textoForaDoDesenho(muitos, {rotulos: BR, mapa: false}), 'Fora do gráfico, sem distância até a referência (7): M1, M2, M3, M4, M5 ' +
+    'e mais 2. O motivo de cada um está em Não avaliáveis, nos Detalhes.');
+  const unidades = {unidade: {singular: 'unidade', plural: 'unidades'}};
+  assert.equal(M.textoForaDoDesenho(muitos.slice(0, 1), {rotulos: unidades, mapa: true}), 'Fora do gráfico, sem distância até a referência: M1. ' +
+    'O motivo está em Não avaliáveis, nos Detalhes; no mapa, a unidade aparece no lugar dela.');
+  // Um conjunto não tem ponto no mapa; a rotatividade sem coorte também fica dita. Os aspectos que não tiram do desenho não entram.
+  assert.equal(M.textoForaDoDesenho([{id: 'c1', rotulo: 'NORTE (soma)', tipo: 'conjunto', aspecto: 'indicador', motivo: 'x'}], {rotulos: BR, mapa: true}),
+    'Fora do gráfico, sem valor do indicador na competência: NORTE (soma). O motivo está em Não avaliáveis, nos Detalhes.');
+  assert.match(M.textoForaDoDesenho([{id: 'code:9', rotulo: 'X', tipo: 'municipio', aspecto: 'rotatividade', motivo: 'x'}], {rotulos: BR, mapa: false}),
+    /^Fora do gráfico, sem coorte inicial avaliável: X\./);
+  assert.equal(M.textoForaDoDesenho([{id: 'code:9', rotulo: 'X', tipo: 'municipio', aspecto: 'variacao', motivo: 'x'},
+    {id: 'code:8', rotulo: 'Y', tipo: 'municipio', aspecto: 'mapa', motivo: 'x'}], {rotulos: BR, mapa: true}), null);
+  assert.equal(M.textoForaDoDesenho([], {rotulos: BR, mapa: true}), null);
+});
+
+test('bolhas: marcar não esmaece as outras; só a pintura apagada fica mais clara, e a bolha sem posição na vista, oculta', () => {
+  // A opacidade não depende da seleção (25/10/2026): as marcadas ganham o anel escuro e o nome, como no mapa.
+  assert.equal(M.opacidadeDaBolha({visivel: true, apagada: false}), 1);
+  assert.equal(M.opacidadeDaBolha({visivel: true, apagada: true}), 0.45);
+  assert.equal(M.opacidadeDaBolha({visivel: false, apagada: false}), 0);
+  assert.equal(M.opacidadeDaBolha.length, 1, 'só a bolha decide: nada da seleção, do mouse ou do foco');
 });

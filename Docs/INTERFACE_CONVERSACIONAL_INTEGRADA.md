@@ -160,8 +160,9 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
 - "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
   gráfico; os números vêm do motor, pedidos pela área. Desde 24/10/2026, um pedido feito com a Seleção de Territórios aberta
   leva a área à análise quando há territórios escolhidos (os resultados ficam nas análises); um pedido que muda os
-  territórios (desde a segunda rodada de 24/10/2026, qualquer pedido que muda a área) pode ser desfeito com o Voltar fixo no
-  alto da área ("Voltar: desfaz aplicar o pedido da conversa"); e a comparação de antes só
+  territórios (desde a segunda rodada de 24/10/2026, qualquer pedido que muda a área) pode ser desfeito com o Desfazer fixo
+  no alto da área ("Desfazer: aplicar o pedido da conversa"; até 25/10/2026, o botão se chamava "Voltar"); e a comparação de
+  antes só
   continua se os itens dela seguem na análise.
   O nível `brasil` (o Brasil como unidade) vale na base do Brasil; numa planilha, vira o aviso "O Brasil como unidade existe
   só nos dados do Brasil.";

@@ -109,6 +109,18 @@ test('tamanho = população: área proporcional (raiz quadrada), mínimo visíve
   assert.ok(legenda[0].raio > legenda[1].raio && legenda[1].raio > legenda[2].raio);
   assert.deepEqual(M.legendaDeTamanhos(9000, 30).map(item => item.valor), [5000, 1000, 200]);
   assert.deepEqual(M.legendaDeTamanhos(0, 30), []);
+  // A legenda na proporção exata (25/10/2026): nenhuma referência abaixo do mínimo visível (desenhada maior do que a área dela);
+  // no lugar, o menor número redondo que já alcança o mínimo. Roraima: BOA VISTA (470.169 hab.) é a maior.
+  const roraima = M.legendaDeTamanhos(470169, 34);
+  assert.deepEqual(roraima.map(item => item.valor), [200000, 50000, 10000]);
+  assert.deepEqual(roraima.map(item => item.texto), ['200 mil hab.', '50 mil hab.', '10 mil hab.']);
+  for (const item of roraima) {
+    assert.ok(item.raio >= M.RAIO_MINIMO, item.valor + ': acima do mínimo visível');
+    assert.ok(Math.abs(item.raio - 34 * Math.sqrt(item.valor / 470169)) < 1e-9, item.valor + ': na proporção exata');
+  }
+  // No gráfico estreito (raio máximo de 12 px), a referência que repetiria a anterior sai.
+  assert.deepEqual(M.legendaDeTamanhos(470169, 12).map(item => item.valor), [200000, 100000]);
+  assert.deepEqual(M.valoresDaLegendaDeTamanho(470169, 6507.5), [200000, 50000, 10000]);
 });
 
 test('não avaliáveis à parte, com o motivo do motor, na ordem do código territorial; variação vazia continua bolha', () => {

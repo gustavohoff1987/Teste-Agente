@@ -14,10 +14,11 @@ fica no painel da Seleção (`analise-aba-painel`), e os ajustes de cada anális
 análises), e cada análise começa por "Entenda esta análise" (`analise-entenda`), aberta na primeira visita e recolhível.
 
 Desde 24/10/2026 (segunda rodada, os 12 ajustes de interface): o nome da plataforma na abertura ("Diagnóstico Territorial da
-Força de Trabalho na Saúde"); no alto da área, fixos ao rolar e lado a lado, Voltar (`analise-voltar`, um desfazer sequencial
+Força de Trabalho na Saúde"); no alto da área, fixos ao rolar e lado a lado, Desfazer (`analise-desfazer`, até 25/10/2026
+"Voltar", com a seta curva do desfazer desde então; um desfazer sequencial
 de toda a interação, como o Ctrl+Z: a seleção, as abas, os ajustes, os filtros e a vista; desligado, com o motivo em palavras,
 quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a vassoura: tira os territórios do nível em uso sem
-apagar os dados nem a escolha dos outros níveis; desligado no nível Brasil, com o motivo); "Voltar aos estados" maior e preenchido, distinto do Voltar do alto; a Seleção em duas áreas (à esquerda, a busca e a
+apagar os dados nem a escolha dos outros níveis; desligado no nível Brasil, com o motivo); "Voltar aos estados" maior e preenchido, distinto do Desfazer do alto; a Seleção em duas áreas (à esquerda, a busca e a
 lista; à direita, o que entra na análise, estado a estado, com o × de cada município e de cada estado); as abas das análises só
 com o nome; o Território de referência da análise espacial num fluxo só (a relação, a delimitação, o atributo, o operador e o
 valor de corte, sem valores padrão; primeiro os elegíveis, depois o mais próximo ou o mais distante, nunca o próprio território;
@@ -58,7 +59,7 @@ AM = "13"  # prefixo IBGE do Amazonas
 BOLHAS = '[data-testid="analise-bolha"][data-visivel="true"]'
 MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro",
          "dezembro")
-VOLTAR_VAZIO = "Voltar: nenhuma ação para desfazer ainda"
+DESFAZER_VAZIO = "Nada para desfazer ainda"
 # Estilo calculado e caixa de um elemento, para comparar o destaque de dois botões.
 ESTILO = """e => { const s = getComputedStyle(e), c = e.getBoundingClientRect();
   return {fundo: s.backgroundColor, cor: s.color, altura: c.height, fonte: parseFloat(s.fontSize), peso: Number(s.fontWeight)}; }"""
@@ -127,7 +128,7 @@ def main():
         eixo_y, eixo_x = area.get_by_test_id("analise-eixo-y"), area.get_by_test_id("analise-eixo-x")
         territorios = area.get_by_test_id("analise-territorios")
         controles = area.get_by_test_id("analise-controles-globais")
-        voltar = controles.get_by_test_id("analise-voltar")
+        desfazer = controles.get_by_test_id("analise-desfazer")
         limpar = controles.get_by_test_id("analise-limpar-selecao")
         aviso = area.get_by_test_id("analise-aviso")
 
@@ -226,7 +227,7 @@ def main():
                     expect(area.locator('[data-testid="analise-nao-avaliavel"][data-id="' + item["id"] + '"]')).to_have_count(1)
 
         # 1. E0 (24/10/2026): antes dos dados, só a identificação (o nome da plataforma), a chamada e as duas entradas; sem abas,
-        # sem números nem bolhas, e sem os controles do alto (Voltar e Limpar seleção só existem com os dados prontos).
+        # sem números nem bolhas, e sem os controles do alto (Desfazer e Limpar seleção só existem com os dados prontos).
         expect(area).to_be_visible(timeout=60000)
         expect(area).to_have_attribute("data-estado", "E0")
         expect(area.get_by_test_id("analise-abertura")).to_contain_text("Escolha seus dados para começar")
@@ -254,26 +255,28 @@ def main():
         expect(area.get_by_test_id("analise-resultados")).to_be_hidden()
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
-        # Voltar e Limpar seleção (24/10/2026, segunda rodada): no alto da área, lado a lado, com os nomes exatos e os ícones (a seta
-        # e a vassoura). Sem nada para desfazer nem territórios marcados, os dois ficam desligados, com o motivo em palavras; o
-        # Limpar seleção da Seleção saiu (um só, o do alto).
+        # Desfazer e Limpar seleção (24/10/2026, segunda rodada; o Desfazer era "Voltar" até 25/10/2026): no alto da área, lado a
+        # lado, com os nomes exatos e os ícones (a seta curva do desfazer e a vassoura). Sem nada para desfazer nem territórios
+        # marcados, os dois ficam desligados, com o motivo em palavras; o Limpar seleção da Seleção saiu (um só, o do alto).
         expect(controles).to_be_visible()
         expect(controles).to_have_attribute("role", "toolbar")
-        expect(voltar).to_have_text("Voltar")
+        expect(desfazer).to_have_text("Desfazer")
         expect(limpar).to_have_text("Limpar seleção")
-        expect(voltar.locator("svg")).to_have_count(1)
+        expect(desfazer.locator("svg")).to_have_count(1)
         expect(limpar.locator("svg")).to_have_count(1)
-        expect(voltar).to_be_disabled()
-        expect(voltar).to_have_attribute("title", VOLTAR_VAZIO)
-        expect(voltar).to_have_attribute("aria-label", VOLTAR_VAZIO)
+        expect(desfazer).to_be_disabled()
+        expect(desfazer).to_have_attribute("title", DESFAZER_VAZIO)
+        expect(desfazer).to_have_attribute("aria-label", DESFAZER_VAZIO)
         expect(limpar).to_be_disabled()
         expect(limpar).to_have_attribute("title", "Nenhum território selecionado.")
         expect(area.get_by_test_id("analise-limpar-selecao")).to_have_count(1)
-        expect(area.get_by_test_id("analise-desfazer")).to_have_count(0)
-        caixa_voltar, caixa_limpar = voltar.bounding_box(), limpar.bounding_box()
-        assert caixa_voltar["x"] + caixa_voltar["width"] <= caixa_limpar["x"] and abs(caixa_voltar["y"] - caixa_limpar["y"]) < 4, \
-            ("Voltar e Limpar seleção lado a lado, o Voltar primeiro", caixa_voltar, caixa_limpar)
-        assert caixa_voltar["y"] < territorios.bounding_box()["y"], "os controles no alto da área"
+        expect(area.get_by_test_id("analise-desfazer")).to_have_count(1)  # um só: o do alto (o da Seleção saiu em 24/10/2026)
+        expect(territorios.get_by_test_id("analise-desfazer")).to_have_count(0)
+        expect(desfazer.locator("svg.lucide-undo")).to_have_count(1)  # a seta curva do desfazer (25/10/2026), não a seta de voltar
+        caixa_desfazer, caixa_limpar = desfazer.bounding_box(), limpar.bounding_box()
+        assert caixa_desfazer["x"] + caixa_desfazer["width"] <= caixa_limpar["x"] and abs(caixa_desfazer["y"] - caixa_limpar["y"]) < 4, \
+            ("Desfazer e Limpar seleção lado a lado, o Desfazer primeiro", caixa_desfazer, caixa_limpar)
+        assert caixa_desfazer["y"] < territorios.bounding_box()["y"], "os controles no alto da área"
         # Uma linha de abas: a Seleção de Territórios primeiro e as quatro análises com os nomes padronizados, só os nomes (os
         # textos de apoio das análises saíram em 24/10/2026).
         linha_de_abas = area.get_by_role("tablist", name="Seleção de territórios e análises")
@@ -348,26 +351,26 @@ def main():
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         aperta(area.get_by_test_id("analise-selecao-alterar"))
         expect(area).to_have_attribute("data-aba", "territorios")
-        # Cada troca de aba é um passo do Voltar (24/10/2026, segunda rodada): ele diz o que desfaz e devolve a aba anterior, um
+        # Cada troca de aba é um passo do Desfazer (24/10/2026, segunda rodada): ele diz o que desfaz e devolve a aba anterior, um
         # passo por vez, como o Ctrl+Z; sem mais passos, volta ao estado inicial e desliga, com o motivo. Nada é pedido ao motor.
-        expect(voltar).to_be_enabled()
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Seleção de Territórios")
-        aperta(voltar)
+        expect(desfazer).to_be_enabled()
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir a Seleção de Territórios")
+        aperta(desfazer)
         expect(area).to_have_attribute("data-aba", "distribuicao")
-        expect(aviso).to_have_text("Voltar: Abrir a Seleção de Territórios desfeito.")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
-        aperta(voltar)
+        expect(aviso).to_have_text("Desfeito: abrir a Seleção de Territórios.")
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir a Análise de Distribuição")
+        aperta(desfazer)
         expect(area).to_have_attribute("data-aba", "espacial")
         for _ in range(20):
-            if voltar.is_disabled():
+            if desfazer.is_disabled():
                 break
-            aperta(voltar)
+            aperta(desfazer)
             page.wait_for_timeout(60)
-        expect(voltar).to_be_disabled()
-        expect(voltar).to_have_attribute("title", VOLTAR_VAZIO)
+        expect(desfazer).to_be_disabled()
+        expect(desfazer).to_have_attribute("title", DESFAZER_VAZIO)
         expect(area).to_have_attribute("data-aba", "territorios")
         page.wait_for_timeout(400)
-        assert not painel_calls, "abrir as abas sem territórios (e voltar) não pede nada ao motor"
+        assert not painel_calls, "abrir as abas sem territórios (e desfazer) não pede nada ao motor"
         # Os estados como unidades: o nível Estados (cada nível guarda a sua escolha) e "Marcar todos os estados".
         aperta(territorios.get_by_test_id("analise-nivel-estados"))
         expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("aria-checked", "true")
@@ -379,9 +382,9 @@ def main():
         expect(territorios.get_by_test_id("analise-marcar-todos")).to_have_text(re.compile(r"Marcar todos os estados \(\d+\)"))
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
         expect(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')).to_be_checked()
-        # Marcar muitos de uma vez fica dito junto do que está marcado, com o caminho para desfazer (o Voltar do alto).
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Todos os estados marcados. Para desfazer, use Voltar, no alto.")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz todos os estados marcados.")
+        # Marcar muitos de uma vez fica dito junto do que está marcado, com o caminho para desfazer (o Desfazer do alto).
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Todos os estados marcados. Para desfazer, use o botão Desfazer, no alto.")
+        expect(desfazer).to_have_attribute("title", "Desfazer: todos os estados marcados")
         expect(limpar).to_be_enabled()
         expect(limpar).to_have_attribute("title", "Tira os territórios em análise; os dados carregados continuam.")
         expect(area).to_have_attribute("data-estado", "E1")
@@ -401,8 +404,8 @@ def main():
         expect(area.get_by_test_id("analise-subtitulo")).to_have_text("Cada bolha é um estado. O tamanho mostra a população.")
         if ((estados.get("contexto") or {}).get("brasil") or {}).get("densidade") is not None:
             expect(area.get_by_test_id("analise-contexto-brasil")).to_have_count(1)
-        # O Voltar do alto desfaz passo a passo: agora, a última ação foi abrir a análise.
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
+        # O Desfazer do alto desfaz passo a passo: agora, a última ação foi abrir a análise.
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir a Análise de Distribuição")
         # A rotatividade não se executa com a base do Brasil, mas a aba abre (sem aria-disabled), com o motivo dentro dela.
         expect(area.get_by_test_id("analise-familia-rotatividade")).to_have_attribute("data-disponivel", "false")
         expect(area.get_by_test_id("analise-familia-rotatividade")).not_to_have_attribute("aria-disabled", "true")
@@ -463,7 +466,7 @@ def main():
         sem_bastidor("Análise de Distribuição nos estados")
         shot("01-estados")
 
-        # 3. Enter na bolha do estado abre os municípios dele (E2). O Voltar do alto (24/10/2026, segunda rodada, no lugar do
+        # 3. Enter na bolha do estado abre os municípios dele (E2). O Desfazer do alto (24/10/2026, segunda rodada, no lugar do
         # "Voltar aos estados" que aparecia só depois dessa navegação) diz o que desfaz e devolve os estados, como estavam. Com o
         # mapa disponível e sem cor própria da análise, o pedido leva os 5 grupos iguais (quintis) do mapa.
         am, sent = ok(lambda: bolha_am.press("Enter"))
@@ -494,21 +497,21 @@ def main():
         expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
         expect(area).to_have_attribute("data-desenho", "grafico")
         expect(area.get_by_test_id("analise-selecao-resumo")).to_contain_text(re.compile(r"Amazonas \(\d+ municípios\)"))
-        expect(aviso).to_contain_text("Para voltar aos estados, use Voltar, no alto.")
-        expect(voltar).to_have_text("Voltar")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir os municípios de Amazonas")
-        # Voltar devolve os estados, como estavam (sem pedir de novo: a resposta está na memória da tela); a bolha abre de novo.
+        expect(aviso).to_contain_text("Para voltar aos estados, use Desfazer, no alto.")
+        expect(desfazer).to_have_text("Desfazer")
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir os municípios de Amazonas")
+        # Desfazer devolve os estados, como estavam (sem pedir de novo: a resposta está na memória da tela); a bolha abre de novo.
         calls = len(painel_calls)
-        aperta(voltar)
+        aperta(desfazer)
         drawn(esperados(estados))
         expect(area).to_have_attribute("data-estado", "E1")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir a Análise de Distribuição")
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start'})")
         bolha_am.focus()
         bolha_am.press("Enter")
         drawn(ids_am)
         page.wait_for_timeout(400)
-        assert len(painel_calls) == calls, "voltar e abrir de novo vêm da memória da tela"
+        assert len(painel_calls) == calls, "desfazer e abrir de novo vêm da memória da tela"
         # A Seleção mostra o estado aberto, com os municípios marcados, no nível Municípios; os estados continuam guardados.
         aba_selecao()
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
@@ -541,18 +544,18 @@ def main():
         shot("02-amazonas")
 
         # 4. Marcar e desmarcar na lista do estado aberto: tirar PARINTINS pede os demais; "Desmarcar os municípios do Amazonas"
-        # esvazia sem pedir nada e o Voltar desfaz; "Marcar todos os municípios do Amazonas" volta ao estado inteiro; o resumo diz
+        # esvazia sem pedir nada e o Desfazer desfaz; "Marcar todos os municípios do Amazonas" volta ao estado inteiro; o resumo diz
         # quais (com um ou dois, os nomes).
         aba_selecao()
         grupo_voltar = territorios.get_by_test_id("analise-grupo-voltar")
         expect(grupo_voltar).to_have_text("Voltar aos estados")
-        # "Voltar aos estados" (24/10/2026, segunda rodada): maior e preenchido, como os botões de destaque, e distinto do Voltar do
+        # "Voltar aos estados" (24/10/2026, segunda rodada): maior e preenchido, como os botões de destaque, e distinto do Desfazer do
         # alto (outro lugar, outro nome e outra cor); só fecha a lista do estado.
-        estilo_grupo, estilo_global = grupo_voltar.evaluate(ESTILO), voltar.evaluate(ESTILO)
+        estilo_grupo, estilo_global = grupo_voltar.evaluate(ESTILO), desfazer.evaluate(ESTILO)
         assert estilo_grupo["fundo"] not in ("rgba(0, 0, 0, 0)", "transparent"), ("preenchido", estilo_grupo)
-        assert estilo_grupo["fundo"] != estilo_global["fundo"], ("distinto do Voltar do alto", estilo_grupo, estilo_global)
+        assert estilo_grupo["fundo"] != estilo_global["fundo"], ("distinto do Desfazer do alto", estilo_grupo, estilo_global)
         assert estilo_grupo["altura"] >= 38 and estilo_grupo["fonte"] >= 13 and estilo_grupo["peso"] >= 600, ("evidente", estilo_grupo)
-        assert grupo_voltar.bounding_box()["y"] > voltar.bounding_box()["y"] + 20, "na lista do estado, abaixo do Voltar do alto"
+        assert grupo_voltar.bounding_box()["y"] > desfazer.bounding_box()["y"] + 20, "na lista do estado, abaixo do Desfazer do alto"
         _, sent = ok(lambda: marca(lista_am.locator('[data-testid="analise-unidade"][data-id="' + PARINTINS + '"] input')))
         restantes = {item.get_attribute("data-id") for item in unidades_am.all()} - {PARINTINS}
         assert sent["base"]["municipios"]["estados"] == [] and set(sent["base"]["municipios"]["ids"]) == restantes, sent
@@ -561,8 +564,8 @@ def main():
                            else str(len(restantes)) + " municípios do Amazonas")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(texto_restantes)
         expect(area.locator('[data-testid="analise-bolha"][data-id="' + PARINTINS + '"]')).to_have_count(0)
-        # O passo de um município só começa pelo verbo: o nome dele fica como é no texto do Voltar.
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz desmarcar " + nomes_am[PARINTINS])
+        # O passo de um município só começa pelo verbo: o nome dele fica como é no texto do Desfazer.
+        expect(desfazer).to_have_attribute("title", "Desfazer: desmarcar " + nomes_am[PARINTINS])
         # À direita, em tempo real: o estado com "N de M" e cada município marcado, com o × dele.
         expect(grupo_am_direita).to_contain_text(str(len(restantes)) + " de " + str(total_am))
         expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(len(restantes))
@@ -575,13 +578,13 @@ def main():
         expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
         assert all(not caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
         expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text(
-            "Municípios do Amazonas desmarcados. Para desfazer, use Voltar, no alto.")
+            "Municípios do Amazonas desmarcados. Para desfazer, use o botão Desfazer, no alto.")
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "sem unidades marcadas, nada é pedido ao motor"
-        aperta(voltar)
+        aperta(desfazer)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(texto_restantes)
         expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
-        expect(aviso).to_have_text("Voltar: Municípios do Amazonas desmarcados desfeito.")
+        expect(aviso).to_have_text("Desfeito: municípios do Amazonas desmarcados.")
         aperta(lista_am.get_by_test_id("analise-desmarcar-todos"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         # A busca, no alto: pelo código, marca um município sem abrir lista nenhuma; o resumo diz qual, e a lista da direita mostra
@@ -628,8 +631,8 @@ def main():
         aperta(territorios.get_by_test_id("analise-grupo-voltar"))
         aperta(linha_am.get_by_test_id("analise-grupo-ver"))
         expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).to_be_checked()
-        # Na lista da direita (24/10/2026, segunda rodada): o × de MANAUS tira só ela; o Voltar a devolve. O × do estado tira o
-        # estado inteiro; o Voltar também o devolve.
+        # Na lista da direita (24/10/2026, segunda rodada): o × de MANAUS tira só ela; o Desfazer a devolve. O × do estado tira o
+        # estado inteiro; o Desfazer também o devolve.
         tirar_manaus = territorios.locator('[data-testid="analise-selecionado-unidade"][data-id="' + MANAUS + '"]').get_by_role("button")
         expect(tirar_manaus).to_have_attribute("aria-label", "Tirar " + nomes_am[MANAUS])
         _, sent = ok(lambda: aperta(tirar_manaus))
@@ -637,8 +640,8 @@ def main():
                                                                     sent["base"]["municipios"]["estados"] == ["35"]), sent
         expect(selecionados).to_have_count(1)
         expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).not_to_be_checked()
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz tirar " + nomes_am[MANAUS])
-        aperta(voltar)
+        expect(desfazer).to_have_attribute("title", "Desfazer: tirar " + nomes_am[MANAUS])
+        aperta(desfazer)
         expect(selecionados).to_have_count(2)
         expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).to_be_checked()
         # Tirar o estado inteiro dá a mesma escolha de antes (só São Paulo): a resposta vem da memória da tela.
@@ -649,7 +652,7 @@ def main():
         expect(selecionados).to_have_count(1)
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"]')).to_have_count(0)
         expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).not_to_be_checked()
-        aperta(voltar)
+        aperta(desfazer)
         expect(selecionados).to_have_count(2)
         shot("03b-cumulativa")
         # Cada nível guarda a sua escolha: os estados voltam como estavam, e os municípios também.
@@ -660,20 +663,20 @@ def main():
         expect(selecionados).to_have_count(2)
         # Limpar seleção (a vassoura do alto, 24/10/2026): tira só os territórios do nível em uso (aqui, os municípios; decisão 5,
         # 25/10/2026), sem apagar os dados carregados (a lista do estado aberto continua, com os municípios, e a fonte também) nem a
-        # escolha guardada dos estados; o Voltar devolve tudo. Depois, de novo o Limpar e o Amazonas inteiro, para os passos
+        # escolha guardada dos estados; o Desfazer devolve tudo. Depois, de novo o Limpar e o Amazonas inteiro, para os passos
         # seguintes.
         fonte_antes = page.get_by_test_id("current-source").inner_text()
         aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Seleção limpa. Para desfazer, use Voltar, no alto.")
-        expect(aviso).to_have_text("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use Voltar.")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Seleção limpa. Para desfazer, use o botão Desfazer, no alto.")
+        expect(aviso).to_have_text("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use o botão Desfazer.")
         expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
         expect(linha_am).to_have_attribute("data-aberto", "true")
         expect(unidades_am).to_have_count(total_am)
         expect(page.get_by_test_id("current-source")).to_have_text(fonte_antes)
         expect(limpar).to_be_disabled()
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz limpar seleção")
-        aperta(voltar)
+        expect(desfazer).to_have_attribute("title", "Desfazer: limpar seleção")
+        aperta(desfazer)
         expect(selecionados).to_have_count(2)
         expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
         aperta(limpar)
@@ -707,11 +710,11 @@ def main():
         assert len(painel_calls) == calls, "a volta à densidade vem da memória da tela, sem novo pedido"
 
         # 7. Régua: "acima de" pelo teclado; aparecem só as unidades do corte, nada é recalculado. O arraste é um passo só do
-        # Voltar, que devolve a régua de antes.
+        # Desfazer, que devolve a régua de antes.
         regua = abre("regua").get_by_test_id("analise-regua")
         dominio = am["dominios"]["densidade"]
         assert [float(regua.get_attribute("data-dominio-min")), float(regua.get_attribute("data-dominio-max"))] == dominio
-        # Ao rolar, o painel da função fica preso abaixo de Voltar e Limpar seleção: o título e o × à vista, sem nada por cima.
+        # Ao rolar, o painel da função fica preso abaixo de Desfazer e Limpar seleção: o título e o × à vista, sem nada por cima.
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
         page.wait_for_timeout(200)
         titulo_painel = area.get_by_test_id("analise-painel").locator("#analise-painel-titulo")
@@ -741,12 +744,12 @@ def main():
         expect(area.get_by_test_id("analise-corte-regua")).to_have_count(2)
         assert len(painel_calls) == calls, "a régua só esconde: nada é recalculado"
         shot("04-regua")
-        # O ajuste da régua é um passo do Voltar (o arraste contínuo, um passo só): Voltar desfaz o arraste do limite superior.
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz ajustar a régua")
-        aperta(voltar)
+        # O ajuste da régua é um passo do Desfazer (o arraste contínuo, um passo só): Desfazer desfaz o arraste do limite superior.
+        expect(desfazer).to_have_attribute("title", "Desfazer: ajustar a régua")
+        aperta(desfazer)
         page.wait_for_function("v => Number(document.querySelector('[data-testid=analise-regua]').dataset.maximo) === v",
                                arg=dominio[1], timeout=5000)
-        assert len(painel_calls) == calls, "o Voltar da régua também não recalcula"
+        assert len(painel_calls) == calls, "o Desfazer da régua também não recalcula"
         if regua.get_by_test_id("analise-regua-limpar").is_enabled():
             aperta(regua.get_by_test_id("analise-regua-limpar"))
         drawn(ids_am)
@@ -956,7 +959,7 @@ def main():
                 drawn(esperados(distante, distancia=True))
                 expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_contain_text("Mais distante · ")
                 # Sem elegíveis: ninguém da base atende à condição; nenhuma distância vira zero, e a mensagem diz o que aconteceu e
-                # o que fazer. O Voltar devolve a definição anterior.
+                # o que fazer. O Desfazer devolve a definição anterior.
                 referencia.get_by_test_id("analise-ref-valor").fill(milhar(10 ** 9))
                 nenhum, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
                 assert sent["referencia"]["condicao"]["valor"] == 10 ** 9, sent
@@ -970,12 +973,12 @@ def main():
                 aperta(sem_resultado.get_by_test_id("analise-ref-sem-resultado-mudar"))
                 expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "referencia")
                 fecha()
-                expect(voltar).to_have_attribute("title", "Voltar: desfaz aplicar o território de referência")
-                aperta(voltar)
+                expect(desfazer).to_have_attribute("title", "Desfazer: aplicar o território de referência")
+                aperta(desfazer)
                 drawn(esperados(distante, distancia=True))
                 expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
                 notas.append("Território de referência conferido no navegador: mais próximo, mais distante, sem elegíveis e o "
-                             "Voltar" + (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
+                             "Desfazer" + (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
             else:
                 notas.append("o motor recusou a distância neste catálogo (código " + str(response.status) + "): conferidos o "
                              "pedido do Território de referência, a recusa e a volta ao último gráfico calculado")
@@ -1029,11 +1032,11 @@ def main():
             mm_aaaa(janela[-1]) + ".")
         if real:
             expect(ajustes.get_by_test_id("analise-periodo-semestral")).to_have_attribute("aria-checked", "false")
-            # Trocar pelo semestral pede os últimos 4 períodos semestrais; o Voltar devolve o anual (da memória da tela).
+            # Trocar pelo semestral pede os últimos 4 períodos semestrais; o Desfazer devolve o anual (da memória da tela).
             _, sent_semestral = ok(lambda: aperta(ajustes.get_by_test_id("analise-periodo-semestral")))
             assert sent_semestral["tendencia"]["competencias"] == ["202301", "202306", "202401", "202406"], sent_semestral
-            expect(voltar).to_have_attribute("title", "Voltar: desfaz trocar o período para semestral")
-            aperta(voltar)
+            expect(desfazer).to_have_attribute("title", "Desfazer: trocar o período para semestral")
+            aperta(desfazer)
             expect(ajustes.get_by_test_id("analise-periodo-anual")).to_have_attribute("aria-checked", "true")
         else:
             expect(ajustes.get_by_test_id("analise-periodo-anual")).to_be_disabled()
@@ -1215,13 +1218,13 @@ def main():
         sem_bastidor("Análise de Tendência, visão Tendência")
         shot("07-classes")
         # Trajetória (a antiga visão Mudança): a mesma resposta (nada é pedido), as bolhas com a variação do motor e, no caminho do
-        # rastro, os períodos do meio, como o motor os observou (o que não tem valor fica sem ponto). O Voltar devolve a visão.
+        # rastro, os períodos do meio, como o motor os observou (o que não tem valor fica sem ponto). O Desfazer devolve a visão.
         calls = len(painel_calls)
         area.get_by_test_id("analise-visao-mudanca").click()
         expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "variacao")
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Trajetória da densidade de médicos")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz trocar a visão para Trajetória")
-        aperta(voltar)
+        expect(desfazer).to_have_attribute("title", "Desfazer: trocar a visão para Trajetória")
+        aperta(desfazer)
         expect(ajustes.get_by_test_id("analise-visao-classes")).to_have_attribute("aria-pressed", "true")
         expect(quadro).to_be_visible()
         area.get_by_test_id("analise-visao-mudanca").click()
@@ -1381,8 +1384,8 @@ def main():
         drawn(ids_am)
         fecha()
         # Limpar filtros (o ícone do filtro riscado, 24/10/2026): tira a ordenação e os itens marcados, sem mexer nos territórios
-        # nem nos ajustes. O Voltar do alto devolve os filtros (no lugar do "Desfazer a limpeza" ao lado do botão, que saiu com o
-        # Voltar sequencial).
+        # nem nos ajustes. O Desfazer do alto devolve os filtros (no lugar do "Desfazer a limpeza" ao lado do botão, que saiu com o
+        # Desfazer sequencial).
         ordem, sent = ok(lambda: aperta(abre("ordenar").get_by_test_id("analise-ordenar-aplicar")))
         fecha()
         limpar_filtros = area.get_by_test_id("analise-limpar-filtros")
@@ -1395,23 +1398,23 @@ def main():
         drawn(ids_am)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(resumo_antes)
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz limpar filtros")
-        aperta(voltar)
+        expect(desfazer).to_have_attribute("title", "Desfazer: limpar filtros")
+        aperta(desfazer)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(1)
         aperta(area.get_by_test_id("analise-limpar-filtros"))
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
-        # O Voltar é sequencial: Limpar seleção e Voltar devolvem os territórios sem os filtros (limpos antes); o passo seguinte do
-        # Voltar devolve os filtros, com a mesma escolha de territórios que valia com eles (a comparação antiga nunca vai ao motor
+        # O Desfazer é sequencial: Limpar seleção e Desfazer devolvem os territórios sem os filtros (limpos antes); o passo seguinte do
+        # Desfazer devolve os filtros, com a mesma escolha de territórios que valia com eles (a comparação antiga nunca vai ao motor
         # fora do gráfico, o defeito que a revisão de 24/10/2026 achou).
         aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area.get_by_test_id("analise-vazio")).to_be_visible()
-        aperta(voltar)
+        aperta(desfazer)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(resumo_antes)
         drawn(ids_am)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-limpar-filtros")).to_have_count(0)
-        aperta(voltar)
+        aperta(desfazer)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(1)
         aperta(area.get_by_test_id("analise-limpar-filtros"))
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
@@ -1423,6 +1426,10 @@ def main():
                 bolha.focus()
                 bolha.press("Enter")
             expect(bolha).to_have_attribute("data-selecionado", "true")
+        # Marcar não esmaece as demais (25/10/2026): as marcadas ganham o anel e o nome, e nenhuma bolha à vista perde a cor.
+        opacidades = area.locator(BOLHAS).evaluate_all("els => els.map(e => [e.dataset.selecionado === 'true', e.style.opacity])")
+        assert sum(marcada for marcada, _ in opacidades) == 2 and len(opacidades) > 2, opacidades
+        assert all(opacidade == "1" for _, opacidade in opacidades), ("marcar não esmaece as outras bolhas", opacidades)
         # Comparar (24/10/2026): o título do painel, a orientação objetiva e os escolhidos, sem os cartões com os valores (os
         # valores estão no gráfico, na dica e na tabela); o resultado da comparação continua.
         comparar = abre("comparar").get_by_test_id("analise-comparar")
@@ -1462,7 +1469,7 @@ def main():
         shot("10-funcoes")
 
         # 13. Exportar: CSV com todos os itens, em precisão integral, com a avaliabilidade e o motivo; Detalhes com a tabela e os
-        # não avaliáveis. Lá embaixo, nos Detalhes, Voltar e Limpar seleção continuam no alto da tela, sem rolar de volta.
+        # não avaliáveis. Lá embaixo, nos Detalhes, Desfazer e Limpar seleção continuam no alto da tela, sem rolar de volta.
         exportar = abre("exportar").get_by_test_id("analise-exportar")
         with page.expect_download() as baixado:
             aperta(exportar.get_by_test_id("analise-exportar-csv"))
@@ -1484,10 +1491,10 @@ def main():
         page.wait_for_timeout(300)
         assert area.get_by_test_id("analise-titulo").bounding_box()["y"] < 0, "a página rolou até os Detalhes"
         caixa_controles = controles.bounding_box()
-        assert -2 <= caixa_controles["y"] <= 6, ("Voltar e Limpar seleção fixos no alto ao rolar", caixa_controles)
-        expect(voltar).to_be_visible()
+        assert -2 <= caixa_controles["y"] <= 6, ("Desfazer e Limpar seleção fixos no alto ao rolar", caixa_controles)
+        expect(desfazer).to_be_visible()
         expect(limpar).to_be_visible()
-        expect(voltar).to_be_in_viewport()
+        expect(desfazer).to_be_in_viewport()
         expect(limpar).to_be_in_viewport()
         page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
 
@@ -1501,11 +1508,11 @@ def main():
             expect(marcar_brasil).to_have_text("Marcar todos os municípios do Brasil (5.570)")
             brasil, sent = ok(lambda: aperta(marcar_brasil))
             assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
-            # A seleção de todos os municípios se desfaz de uma vez (Limpar seleção e Voltar), sem desmarcar um a um.
+            # A seleção de todos os municípios se desfaz de uma vez (Limpar seleção e Desfazer), sem desmarcar um a um.
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aperta(limpar)
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
-            aperta(voltar)
+            aperta(desfazer)
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aba_analise("distribuicao")
             plotaveis = [item for item in brasil["itens"] if item["densidade"] is not None]
@@ -1576,7 +1583,7 @@ def main():
         _, sent = ok(lambda: marca(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')))
         assert sent.get("nivel") == "estados" and sent.get("estados") == [AM], sent
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Amazonas")
-        expect(voltar).to_have_attribute("title", "Voltar: desfaz marcar Amazonas")
+        expect(desfazer).to_have_attribute("title", "Desfazer: marcar Amazonas")
         aba_analise("distribuicao")
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("no Amazonas")
         aba_selecao()
@@ -1585,7 +1592,7 @@ def main():
         shot("13-niveis")
 
         # 16. Celular (390 px): sem rolagem horizontal; as famílias em abas roláveis; as funções num botão "Ferramentas"; o painel
-        # sobe da base da tela; Voltar e Limpar seleção à vista, dentro da largura; na Seleção, as duas áreas uma sobre a outra (o
+        # sobe da base da tela; Desfazer e Limpar seleção à vista, dentro da largura; na Seleção, as duas áreas uma sobre a outra (o
         # que entra na análise primeiro).
         aba_analise("distribuicao")
         page.set_viewport_size({"width": 390, "height": 844})
@@ -1597,7 +1604,7 @@ def main():
         caixa_ajustes = area.get_by_test_id("analise-ajustes").bounding_box()
         assert caixa_ajustes and caixa_ajustes["width"] >= 390 - 80, caixa_ajustes
         expect(area.get_by_test_id("analise-desenho")).to_be_visible()
-        for botao in (voltar, limpar):
+        for botao in (desfazer, limpar):
             expect(botao).to_be_visible()
             caixa_botao = botao.bounding_box()
             assert caixa_botao["x"] >= 0 and caixa_botao["x"] + caixa_botao["width"] <= 390, caixa_botao
@@ -1629,7 +1636,7 @@ def main():
         browser.close()
     for nota in notas:
         print("Nota: " + nota)
-    print("ÁREA DE ANÁLISE PASS: abertura com o nome da plataforma, sem abas, base sem seleção automática, Voltar sequencial e Limpar "
+    print("ÁREA DE ANÁLISE PASS: abertura com o nome da plataforma, sem abas, base sem seleção automática, Desfazer sequencial e Limpar "
           "seleção no alto (fixos ao rolar), Seleção por níveis em duas áreas com o × de cada território, seleção cumulativa entre "
           "estados, Voltar aos estados em destaque, abas só com os nomes, Entenda esta análise, eixo do indicador, quintis do mapa no "
           "pedido, régua, grupos, análise espacial (o Território de referência por elegibilidade quando o motor a oferece, ou o "

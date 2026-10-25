@@ -233,16 +233,22 @@ function potencia(valor: number): number {
   return limpo(resultado);
 }
 const redondoAbaixo = (valor: number) => limpo(([5, 2, 1].find(fator => fator * potencia(valor) <= valor * (1 + 1e-9)) ?? 1) * potencia(valor));
+const redondoAcima = (valor: number) => limpo(([1, 2, 5, 10].find(fator => fator * potencia(valor) >= valor * (1 - 1e-9)) ?? 10) * potencia(valor));
 
 /** Três tamanhos de referência para a legenda (1, 2 ou 5 × 10ⁿ abaixo do máximo da escala), com o mesmo raio do desenho:
- * marcas da legenda, não dados. */
+ * marcas da legenda, não dados. Todas na proporção exata (25/10/2026): uma referência abaixo do raio mínimo visível seria
+ * desenhada maior do que a área dela; no lugar, entra o menor número redondo que já alcança o mínimo, ou nada, se ele não ficar
+ * abaixo da referência anterior. A mesma regra da legenda do gráfico (valoresDaLegendaDeTamanho, em painelModel.ts). */
 export function marcasDeTamanho(maximo: number | null | undefined, raioMax = RAIO_MAXIMO_MAPA, raioMin = RAIO_MINIMO_MAPA):
   { valor: number; raio: number }[] {
   if (!finito(maximo) || maximo <= 0) return [];
-  const maior = redondoAbaixo(maximo);
-  return [maior, redondoAbaixo(maior / 4), redondoAbaixo(maior / 25)]
-    .filter((valor, indice, todos) => valor > 0 && todos.indexOf(valor) === indice)
-    .map(valor => ({ valor, raio: raioDeArea(valor, maximo, raioMax, raioMin) }));
+  const minimo = maximo * (raioMin / raioMax) ** 2, maior = redondoAbaixo(maximo);
+  const valores: number[] = [];
+  for (const candidato of [maior, redondoAbaixo(maior / 4), redondoAbaixo(maior / 25)]) {
+    const valor = candidato >= minimo * (1 - 1e-9) ? candidato : redondoAcima(minimo);
+    if (valor > 0 && valor <= maximo && (!valores.length || valor < valores[valores.length - 1])) valores.push(valor);
+  }
+  return valores.map(valor => ({ valor, raio: raioDeArea(valor, maximo, raioMax, raioMin) }));
 }
 
 // ================================================================================================ cor contínua

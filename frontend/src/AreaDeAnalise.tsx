@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as EventoPonteiro,
   type ReactNode } from "react";
-import { ArrowLeft, ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Database, Download, Filter, FilterX, GripVertical, Layers3,
-  ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Upload, Wrench, X } from "lucide-react";
+import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Database, Download, Filter, FilterX, GripVertical, Layers3,
+  ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirMapa, pedirPainel, type FonteDoMotor, type MapaOpcoes, type Pendencia, type PainelConjuntoPedido,
   type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta, type ReferenciaElegivel,
@@ -12,13 +12,13 @@ import {
   NOMES_FAMILIA_TENDENCIA, NOMES_RELACOES, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
   artigo, avisoDaFamilia, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, contextoDoGrafico,
   corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, empilharPasso,
-  escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
-  grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
-  limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica, montarOpcoes, noCorte,
+  dentroDosFiltros, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
+  grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
+  limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica, montarOpcoes,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, pedidoDependeDoIndicador, pintar,
   pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, referenciaElegivel, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
-  rotulosEfetivos, salvarEstado, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoMetodo,
-  textoDoVoltar, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
+  rotulosEfetivos, salvarEstado, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
+  textoDoMetodo, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoDaInteracao, type PedidoDoChat,
   type UnidadeDoCatalogo, type Visao, type Vista,
@@ -48,8 +48,9 @@ import "./analise.css";
 // abaixo dos ajustes, com a explicação num painel à direita, de largura ajustável pela divisória. Antes dos dados (E0), só a
 // identificação e as duas entradas dos dados. Todo número vem do motor (/api/painel e /api/painel/mapa, pelo cliente
 // painelApi.ts); a tela só posiciona, filtra (estado visual) e desenha. Trocar de vista é estado visual e não pede nada novo ao
-// motor (RQ-REP-06). No alto, fixos (24/10/2026, segunda rodada): Voltar, um desfazer sequencial de toda a interação na área (a
-// seleção, as abas, os ajustes, os filtros e a vista), e Limpar seleção, que tira os territórios em análise sem apagar os dados.
+// motor (RQ-REP-06). No alto, fixos (24/10/2026, segunda rodada): Desfazer (o "Voltar" até 25/10/2026), sequencial, como o Ctrl+Z,
+// de toda a interação na área (a seleção, as abas, os ajustes, os filtros e a vista), e Limpar seleção, que tira os territórios em
+// análise sem apagar os dados.
 // A conversa age sobre o gráfico pela prop `pedido`; a estrutura da página recebe o contexto (onContexto) e o estado salvo
 // (onSalvar) e pode reabrir sem recalcular (restaurar).
 
@@ -128,7 +129,7 @@ const idDaAba = (aba: Aba) => aba === "territorios" ? "analise-aba-territorios" 
 /** O que a Seleção guarda de cada nível. */
 type Escolha = Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">;
 const escolhaDe = (d: DefinicaoAnalise): Escolha => ({ nivel: d.nivel, base: d.base, estados: d.estados, conjuntos: d.conjuntos });
-/** O que o Voltar devolve (24/10/2026): a definição da análise (a seleção e os ajustes), a aba, a lista aberta e o estado visual
+/** O que o Desfazer devolve (24/10/2026): a definição da análise (a seleção e os ajustes), a aba, a lista aberta e o estado visual
  * das análises (a vista, a escala, a régua, os itens marcados e os filtros). */
 type EstadoDaInteracao = { def: DefinicaoAnalise; aba: Aba; aberto: string | null; vista: VistaDesenho; escala: Escala; corte: Corte | null;
   selecionados: string[]; filtroClasse: string | null; soAtende: boolean };
@@ -184,7 +185,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     temPopulacao, premissas: premissasDaFonte }));
   /** Referência pedida na conversa por critério: o atributo citado já vem escolhido no Território de referência. */
   const [criterioDoChat, setCriterioDoChat] = useState<{ atributo: "densidade" | "quantidade" | "populacao"; ordem: "desc" | "asc" } | null>(null);
-  /** Voltar (24/10/2026, segunda rodada): os passos da interação, o mais recente no fim. */
+  /** Desfazer (24/10/2026, segunda rodada): os passos da interação, o mais recente no fim. */
   const [passos, setPassos] = useState<PassoDaInteracao<EstadoDaInteracao>[]>([]);
   /** O que a última mudança coletiva da Seleção fez ("Municípios da Bahia desmarcados."), mostrado junto do que está marcado. */
   const [avisoSelecao, setAvisoSelecao] = useState<string | null>(null);
@@ -242,9 +243,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const mapaRef = useRef<MapaHandle>(null);
   const transicao = useRef(0);
 
-  // ------------------------------------------------------------------------------------------ Voltar: o histórico da interação
+  // ------------------------------------------------------------------------------------------ Desfazer: o histórico da interação
   // Cada ação reversível guarda, antes de mudar, o estado da interação (registrar); depois da mudança, o passo só entra no
-  // histórico se algo de fato mudou. Voltar devolve o estado do último passo. Ações seguidas do mesmo tipo contínuo (o arraste da
+  // histórico se algo de fato mudou. Desfazer devolve o estado do último passo. Ações seguidas do mesmo tipo contínuo (o arraste da
   // régua) viram um passo só (empilharPasso).
   const estadoDaInteracao = (): EstadoDaInteracao => ({ def, aba, aberto, vista: vistaEscolhida, escala, corte, selecionados, filtroClasse,
     soAtende });
@@ -262,7 +263,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     pendente.current = null;
     if (JSON.stringify(passo.estado) !== instantaneo) setPassos(atual => empilharPasso(atual, passo));
   }, [instantaneo]);
-  function voltar() {
+  function desfazer() {
     const atual = instantaneo;
     let pilha = passos;
     while (pilha.length && JSON.stringify(pilha[pilha.length - 1].estado) === atual) pilha = pilha.slice(0, -1);
@@ -275,9 +276,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setSelecionados(e.selecionados); setFiltroClasse(e.filtroClasse); setSoAtende(e.soAtende);
     if (painel === "referencia" && e.def.familia !== "espacial") setPainel(null);
     setVista("final"); setFase("parado"); setAvisoSelecao(null);
-    setAviso("Voltar: " + passo.rotulo.replace(/\.$/, "") + " desfeito.");
+    setAviso(textoDoDesfeito(passo));
   }
-  const passoDeVolta = passos[passos.length - 1] ?? null;
+  const passoADesfazer = passos[passos.length - 1] ?? null;
 
   const rotulos = rotulosEfetivos(resposta?.rotulos, fonte?.rotulos, tipo);
   const temIdentificador = !!fonte?.mapping?.identity;
@@ -321,7 +322,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setResposta(null); setCalculado(null); setErro(null); setDadosDoMapa(null); setErroMapa(null);
     let inicial = definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: grupos.length > 0, temPopulacao,
       premissas: premissasDaFonte });
-    // Outra fonte, outro histórico: o Voltar não volta a uma seleção de outra base.
+    // Outra fonte, outro histórico: o Desfazer não volta a uma seleção de outra base.
     setPassos([]); pendente.current = null; setAvisoSelecao(null);
     const pendentePedido = pedidoPendente.current ?? (pedido && pedido.id !== ultimoPedido.current ? pedido : null);
     if (pendentePedido) {
@@ -454,7 +455,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
-    // O pedido da conversa também é um passo do Voltar (24/10/2026): Voltar devolve o que estava antes dele.
+    // O pedido da conversa também é um passo do Desfazer (24/10/2026): Desfazer devolve o que estava antes dele.
     registrar("Aplicar o pedido da conversa");
     // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise.
     if (pedido.pedido.funcao !== "comparar") resultado.definicao.comparar = comparacaoQueContinua(def, resultado.definicao, grupoDe);
@@ -548,10 +549,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     rotatividade: rotatividadeNaTela, semCoordenada };
   const { plotaveis, fora } = useMemo(() => resposta ? separarItens(resposta.itens, indicador, exibicao) : { plotaveis: [], fora: [] },
     [resposta, indicador, exibicao.distancia, exibicao.variacao, exibicao.tendencia, exibicao.condicoes, exibicao.rotatividade, exibicao.semCoordenada]);
-  const visiveis = useMemo(() => plotaveis.filter(item => noCorte(item, indicador, corte) &&
-    (!soAtende || !exibicao.condicoes || item.condicoes?.situacao === "ATENDE") &&
-    (!filtroClasse || !exibicao.tendencia || (filtroClasse === "NAO_AVALIAVEL" ? !item.tendencia?.avaliavel : item.tendencia?.classe === filtroClasse))),
-  [plotaveis, indicador, corte, soAtende, filtroClasse, exibicao.condicoes, exibicao.tendencia]);
+  const filtrosVisuais = useMemo(() => ({ indicador, corte, soAtende, condicoes: exibicao.condicoes, filtroClasse, tendencia: exibicao.tendencia }),
+    [indicador, corte, soAtende, filtroClasse, exibicao.condicoes, exibicao.tendencia]);
+  const visiveis = useMemo(() => plotaveis.filter(item => dentroDosFiltros(item, filtrosVisuais)), [plotaveis, filtrosVisuais]);
   const selecao = useMemo(() => selecionados.filter(id => (resposta?.itens || []).some(item => item.id === id)), [selecionados, resposta]);
   const limiteVariacao = useMemo(() => resposta ? limiteDaVariacao(resposta, indicador, plotaveis) : 0, [resposta, indicador, plotaveis]);
   const totalGrupos = resposta?.grupos ? ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[resposta.grupos.tipo] ?? resposta.grupos.contagens.length : 0;
@@ -613,14 +613,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // ------------------------------------------------------------------------------------------ ações
   const mudar = (parte: Partial<DefinicaoAnalise>) => setDef(atual => ({ ...atual, ...parte }));
-  /** Um ajuste da análise (o indicador, a competência, o período, a visão…): um passo do Voltar. */
+  /** Um ajuste da análise (o indicador, a competência, o período, a visão…): um passo do Desfazer. */
   const ajustar = (rotulo: string, parte: Partial<DefinicaoAnalise>) => { registrar(rotulo); mudar(parte); };
   const alternar = useCallback((id: string) => {
     registrar((selecionados.includes(id) ? "Desmarcar " : "Marcar ") + (nomes.get(id) || id) + " no desenho");
     setSelecionados(atual => atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]);
   }, [selecionados, nomes, def, aba, aberto, vistaEscolhida, escala, corte, filtroClasse, soAtende]);
   /** Toda aba abre (23/10/2026): a Seleção de Territórios, e cada análise com a apresentação dela; a que não pode ser executada
-   * com os dados mostra o motivo, e o desenho continua com a última análise. Trocar de aba é um passo do Voltar. */
+   * com os dados mostra o motivo, e o desenho continua com a última análise. Trocar de aba é um passo do Desfazer. */
   function escolherAba(proxima: Aba) {
     if (proxima === aba) return;
     registrar("Abrir a " + (proxima === "territorios" ? NOME_SELECAO : NOMES_FAMILIAS[proxima]));
@@ -653,7 +653,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function pedirOQueFalta() {
     if (def.familia === "espacial" && !def.referencia && disponivelDe("espacial").disponivel) abrirPainel("referencia");
   }
-  /** Mudança feita na Seleção de Territórios: o nível em análise e a escolha de cada nível. Cada uma é um passo do Voltar; a
+  /** Mudança feita na Seleção de Territórios: o nível em análise e a escolha de cada nível. Cada uma é um passo do Desfazer; a
    * coletiva (muitos de uma vez) também aparece por escrito junto do que está marcado. */
   function mudarEscolha(parte: Partial<Escolha>, rotulo: string, coletiva = false) {
     registrar(rotulo);
@@ -666,7 +666,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function trocarEscolha(escolha: Escolha) {
     mudar({ ...escolha, comparar: comparacaoQueContinua(def, escolha, grupoDe) });
   }
-  /** Juntar ou desfazer um conjunto: uma mudança no que está na análise, como as da Seleção (um passo do Voltar). */
+  /** Juntar ou desfazer um conjunto: uma mudança no que está na análise, como as da Seleção (um passo do Desfazer). */
   function mudarConjuntos(conjuntos: PainelConjuntoPedido[], rotulo: string) {
     registrar(rotulo);
     trocarEscolha({ ...escolhaDe(def), conjuntos });
@@ -682,7 +682,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Limpar seleção (24/10/2026, controle global, no alto): tira os territórios do nível em uso (limparNivel, decisão 5 de
    * 25/10/2026: em Municípios, os municípios e os conjuntos; em Estados, os estados), sem apagar a base carregada, os ajustes das
    * análises nem a escolha guardada dos outros níveis. No nível Brasil, o país é a própria unidade: o botão fica desligado, com o
-   * motivo. Os desenhos que dependem da seleção saem, e a comparação sai com os itens. É um passo do Voltar. */
+   * motivo. Os desenhos que dependem da seleção saem, e a comparação sai com os itens. É um passo do Desfazer. */
   const selecaoLimpa = limparNivel(escolhaDe(def));
   const temSelecaoParaLimpar = selecaoLimpa !== null;
   function limparSelecao() {
@@ -691,9 +691,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     trocarEscolha(selecaoLimpa);
     setSelecionados([]); setCorte(null); setSoAtende(false); setFiltroClasse(null);
     setAvisoSelecao("Seleção limpa.");
-    setAviso("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use Voltar.");
+    setAviso("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use o botão Desfazer.");
   }
-  /** Navegação que troca o que está na análise (abrir um estado pela bolha, o atalho do mapa): um passo do Voltar. */
+  /** Navegação que troca o que está na análise (abrir um estado pela bolha, o atalho do mapa): um passo do Desfazer. */
   function navegar(parte: Partial<Escolha>, rotulo: string) {
     registrar(rotulo);
     trocarEscolha({ ...escolhaDe(def), ...parte });
@@ -711,10 +711,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setAberto(grupo);
     setAviso("Mostrando " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " de " + (info ? info.nome : grupo) +
       ". Para voltar " + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "às " : "aos ") +
-      (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + ", use Voltar, no alto.");
+      (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + ", use Desfazer, no alto.");
     pedirOQueFalta();
   }
-  /** A lista de um estado na Seleção ("Ver os N municípios ›" e "Voltar aos estados"): navegação, um passo do Voltar. */
+  /** A lista de um estado na Seleção ("Ver os N municípios ›" e "Voltar aos estados"): navegação, um passo do Desfazer. */
   function abrirLista(grupo: string | null) {
     if (grupo === aberto) return;
     const info = grupo ? grupos.find(item => item.id === grupo) : null;
@@ -783,7 +783,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Troca a vista do desenho (estado visual: nada é pedido ao motor). Entre o gráfico e o mapa, sem movimento reduzido e com até
    * LIMITE_LEVE itens, as bolhas deslizam até os pontos: posições de origem, a vista de destino invisível, as posições de destino
    * no quadro seguinte, a animação e a revelação. No lado a lado, e nos demais casos, a troca é direta. A troca pela pessoa é um
-   * passo do Voltar. */
+   * passo do Desfazer. */
   function trocarVista(nova: VistaDesenho, conferir = true, comPasso = true) {
     if (conferir && nova !== "grafico" && !mapa.disponivel) {
       setMotivoVistaAberto(true);
@@ -813,7 +813,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       void animacao.then(() => { if (token === transicao.current) setOculta(null); });
     }));
   }
-  /** Atalho dos estados: os municípios dos estados escolhidos (ou de todos), já no mapa (um passo do Voltar). */
+  /** Atalho dos estados: os municípios dos estados escolhidos (ou de todos), já no mapa (um passo do Desfazer). */
   function verUnidadesNoMapa() {
     const alguns = def.estados.length > 0 && def.estados.length < grupos.length;
     navegar({ nivel: "municipios", base: alguns ? { todos: false, estados: [...def.estados], ids: [] } : { todos: true, estados: [], ids: [] } },
@@ -823,11 +823,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setVistaEscolhida("mapa");
     setAviso(maiuscula(alguns ? artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " dos estados escolhidos" : todosOs(rotulos.unidade)) +
       " no mapa. Para voltar " + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "às " : "aos ") +
-      (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + ", use Voltar, no alto.");
+      (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + ", use Desfazer, no alto.");
     pedirOQueFalta();
   }
   /** Limpar filtros (a função das análises, 24/10/2026): a régua, as condições, a ordenação, a comparação, o filtro da classe e os
-   * itens marcados no desenho; a seleção de territórios e os ajustes da análise continuam. Voltar devolve os filtros. */
+   * itens marcados no desenho; a seleção de territórios e os ajustes da análise continuam. Desfazer devolve os filtros. */
   const filtrosAtivos = !!corte || def.condicoes.length > 0 || !!def.ordenar || def.comparar.length > 0 || !!filtroClasse || soAtende ||
     selecionados.length > 0;
   function limparFiltros() {
@@ -835,7 +835,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     mudar({ condicoes: [], ordenar: null, comparar: [] });
     setCorte(null); setSoAtende(false); setFiltroClasse(null); setSelecionados([]);
     if (painel === "regua" || painel === "condicoes" || painel === "ordenar" || painel === "comparar") setPainel(null);
-    setAviso("Filtros limpos: os territórios e os ajustes da análise continuam. Para desfazer, use Voltar.");
+    setAviso("Filtros limpos: os territórios e os ajustes da análise continuam. Para desfazer, use o botão Desfazer.");
   }
   // Com o Brasil como unidade, só Exportar vale: um painel aberto antes (a régua, as condições…) fecha, em vez de ficar à vista
   // sem efeito.
@@ -900,6 +900,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         " própri" + (fUnidade ? "a " : "o ") + unidade.singular + " pode atender, ou falta a coordenada de um território. O motivo de " +
         cadaUm + " está em Não avaliáveis, nos Detalhes.")
     : null;
+  // Fora do gráfico (25/10/2026): quem não tem o valor que o posiciona (o indicador; na análise espacial, a distância até o
+  // território de referência; na rotatividade, a coorte) fica dito junto do desenho, pelo nome, com o caminho do motivo, e o mapa
+  // mostra essas unidades no lugar delas. Sem nenhum território de referência, vale o aviso acima; na Série temporal (que desenha as
+  // séries) e com só o mapa à vista, não se aplica.
+  const foraDoGrafico = resposta && !semUnidades && !semReferencia && !series && vistaExibida !== "mapa"
+    ? textoForaDoDesenho(fora, { rotulos, mapa: mapa.disponivel }) : null;
   const naVisaoDeGrupos = (resposta?.nivel ?? def.nivel) === "estados" && familiaDesenho === "distribuicao" && def.nivel === "estados";
   const funcaoDesabilitada = (chaveFuncao: FuncaoPainel): string | null => {
     if (!resposta) return "Disponível depois do primeiro gráfico.";
@@ -1030,9 +1036,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return comSerie.length <= MAX_SERIES ? comSerie : [];
   }, [series, resposta, selecao]);
 
-  // Mapa (MapaProps do contrato): os mesmos itens do gráfico, sem os estados; a régua e os filtros esmaecem (decisão de 23/10).
-  const itensDoMapa = useMemo(() => plotaveis.filter(item => item.tipo !== "estado"), [plotaveis]);
-  const dentroDoMapa = useMemo(() => new Set(visiveis.map(item => item.id)), [visiveis]);
+  // Mapa (MapaProps do contrato): todas as unidades em análise, sem os estados, também as que o gráfico deixa de fora por falta do
+  // valor que as posiciona (25/10/2026: sem território de referência, sem o indicador ou sem a coorte, cada uma no lugar dela, com a
+  // pintura da camada ou vazada); a régua e os filtros esmaecem (decisão de 23/10).
+  const itensDoMapa = useMemo(() => resposta ? itensParaOMapa(resposta.itens) : [], [resposta]);
+  const dentroDoMapa = useMemo(() => new Set(itensDoMapa.filter(item => dentroDosFiltros(item, filtrosVisuais)).map(item => item.id)),
+    [itensDoMapa, filtrosVisuais]);
   const corDoMapa = useMemo(() => corContinuaDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
     [rotatividadeNaTela, indicador, resposta]);
   const tamanhoNoMapa = useMemo(() => tamanhoDoMapa({ rotatividade: rotatividadeNaTela, indicador, dominios: resposta?.dominios ?? {} }),
@@ -1399,12 +1408,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   return <section id="area-de-analise" data-testid="area-de-analise" data-estado={estadoTela} data-familia={def.familia} data-nivel={def.nivel}
     data-desenho={vistaExibida} data-aba={aba} aria-labelledby="analise-titulo" className="analise">
-    {/* Voltar e Limpar seleção (24/10/2026, segunda rodada): fixos no alto da área, lado a lado, em todas as abas, sem rolar. */}
-    {pronto && <div data-testid="analise-controles-globais" role="toolbar" aria-label="Voltar e limpar seleção"
+    {/* Desfazer e Limpar seleção (24/10/2026, segunda rodada): fixos no alto da área, lado a lado, em todas as abas, sem rolar. */}
+    {pronto && <div data-testid="analise-controles-globais" role="toolbar" aria-label="Desfazer e limpar seleção"
       className="analise-controles-globais analise-nao-imprimir">
-      <button type="button" data-testid="analise-voltar" className="analise-controle-global" onClick={voltar} disabled={!passoDeVolta}
-        title={textoDoVoltar(passoDeVolta)} aria-label={textoDoVoltar(passoDeVolta)} data-passos={passos.length}>
-        <ArrowLeft size={18} aria-hidden="true"/>Voltar</button>
+      <button type="button" data-testid="analise-desfazer" className="analise-controle-global" onClick={desfazer} disabled={!passoADesfazer}
+        title={textoDoDesfazer(passoADesfazer)} aria-label={textoDoDesfazer(passoADesfazer)} data-passos={passos.length}>
+        <Undo size={18} aria-hidden="true"/>Desfazer</button>
       <button type="button" data-testid="analise-limpar-selecao" className="analise-controle-global" onClick={limparSelecao}
         disabled={!temSelecaoParaLimpar} title={temSelecaoParaLimpar ? "Tira os territórios em análise; os dados carregados continuam."
           : def.nivel === "brasil" ? "No nível Brasil, o país inteiro é a unidade em análise: não há seleção para limpar."
@@ -1497,7 +1506,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
               })}
             </div>
             {/* Limpar filtros (24/10/2026): os filtros da análise em uso, nunca a seleção de territórios nem os ajustes; o ícone do
-                filtro riscado o distingue do Limpar seleção, no alto. Voltar devolve os filtros. */}
+                filtro riscado o distingue do Limpar seleção, no alto. Desfazer devolve os filtros. */}
             {filtrosAtivos && <div className="analise-limpar" role="group" aria-label="Limpar os filtros">
               <button type="button" data-testid="analise-limpar-filtros" className="analise-funcao"
                 title="Tira a régua, as condições, a ordenação, a comparação, o filtro da classe e os itens marcados. Os territórios e os ajustes continuam."
@@ -1555,6 +1564,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <SlidersHorizontal size={14} aria-hidden="true"/><span>{semReferencia}{" "}
               <button type="button" data-testid="analise-ref-sem-resultado-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
                 Mudar o território de referência</button></span></p>}
+          {foraDoGrafico && <p data-testid="analise-fora-do-grafico" role="status" className="analise-aviso-familia">
+            <ChartScatter size={14} aria-hidden="true"/><span>{foraDoGrafico}</span></p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">
             <Scale size={14} aria-hidden="true"/>{textoInstrucaoGrupos(rotulos)}</p>}
           {/* Convite ao mapa depois das Condições e na Análise espacial: "onde ficam?" é a pergunta que o mapa responde. */}

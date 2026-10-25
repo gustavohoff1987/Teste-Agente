@@ -98,11 +98,13 @@ test('tamanho: área proporcional ao valor, raio máximo menor que o do gráfico
   for (const valor of [0, -3, null, undefined, Number.NaN]) assert.equal(M.raioDeArea(valor, 100), M.RAIO_MINIMO_MAPA);
   assert.equal(M.raioDeArea(0.01, 100), M.RAIO_MINIMO_MAPA, 'valor muito pequeno fica no mínimo visível');
   assert.equal(M.raioDeArea(50, null), M.RAIO_MINIMO_MAPA);
-  // Legenda: 1, 2 ou 5 × 10ⁿ abaixo do máximo, com o mesmo raio do desenho.
+  // Legenda: 1, 2 ou 5 × 10ⁿ abaixo do máximo, com o mesmo raio do desenho, todas na proporção exata (25/10/2026): a referência
+  // que ficaria abaixo do mínimo visível (desenhada maior do que a área dela) dá lugar ao menor número redondo que o alcança.
   const marcas = M.marcasDeTamanho(12000000);
-  assert.deepEqual(marcas.map(marca => marca.valor), [10000000, 2000000, 200000]);
+  assert.deepEqual(marcas.map(marca => marca.valor), [10000000, 2000000, 500000]);
   assert.ok(perto(marcas[0].raio, 16 * Math.sqrt(10 / 12), 1e-9));
-  assert.equal(marcas[2].raio, M.RAIO_MINIMO_MAPA);
+  for (const marca of marcas) assert.ok(marca.raio > M.RAIO_MINIMO_MAPA && perto(marca.raio, 16 * Math.sqrt(marca.valor / 12000000), 1e-9), marca.valor);
+  assert.deepEqual(M.marcasDeTamanho(470169).map(marca => marca.valor), [200000, 50000, 20000]);
   assert.deepEqual(M.marcasDeTamanho(null), []);
 });
 

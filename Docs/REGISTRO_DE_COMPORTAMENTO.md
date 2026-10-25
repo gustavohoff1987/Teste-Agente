@@ -35,6 +35,130 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-25 · Página única: Desfazer no lugar de Voltar, todas as unidades em análise no mapa, o aviso "Fora do gráfico", bolhas sem esmaecer e legenda de tamanho na proporção exata
+- **Antes:**
+  - **Voltar (item 4 do pedido):** o controle global do alto se chamava "Voltar" (`analise-voltar`), com a seta ← (`ArrowLeft`).
+    O `title` dizia "Voltar: desfaz abrir a Análise de Tendência" (sem passos, "Voltar: nenhuma ação para desfazer ainda"), e o
+    aviso, "Voltar: Abrir a Análise de Tendência desfeito.". Os avisos da Seleção, de Limpar seleção e de Limpar filtros diziam
+    "Para desfazer, use Voltar[, no alto]."; os da navegação pela bolha e pelo atalho do mapa, "Para voltar aos estados, use
+    Voltar, no alto.". A barra dos dois controles tinha o nome acessível "Voltar e limpar seleção".
+  - **Mapa (item 1):** recebia os mesmos itens do gráfico. A unidade sem o valor que a posiciona no gráfico (a distância até o
+    território de referência, o indicador ou a coorte) sumia também do mapa, embora tivesse coordenada. Em Roraima, na Análise
+    Espacial com o território de referência no mesmo estado e densidade acima de 2,36 (ou população acima de 100.000), só BOA
+    VISTA atende à condição, e ela nunca é a sua própria referência: ficava fora do gráfico, do mapa e da tabela, só em Não
+    avaliáveis, com o motivo. Nada avisava junto do desenho, além da contagem da frase-resumo ("1 município sem distância.").
+  - **Bolhas (item 2):** marcar bolhas (clique, Enter ou a caixa da tabela dos Detalhes, como para ver as ligações da análise
+    espacial ou para Comparar) esmaecia as demais a 22% de opacidade; no modo leve (mais de 400 bolhas), a camada inteira ficava
+    a 30%.
+  - **Legenda de tamanho (item 3):** das três referências redondas (1, 2 ou 5 × 10ⁿ), a menor podia ficar abaixo do raio mínimo
+    visível e ser desenhada no mínimo, maior do que a área dela: no gráfico de Roraima, "5 mil hab." a 4 px, no lugar de 3,5 px;
+    no mapa de PORTO ALEGRE (RS) e PORTO ALEGRE DO NORTE (MT), "20 mil" a 2,5 px, no lugar de 1,9 px.
+- **Agora:**
+  - **Desfazer:** o controle se chama "Desfazer" (`analise-desfazer`), com a seta curva do desfazer (↶, `Undo` do lucide, o
+    símbolo do Ctrl+Z), no lugar de "Voltar", que parecia levar ao começo da sessão. O `title` e o nome acessível dizem o que o
+    próximo clique desfaz ("Desfazer: abrir a Análise de Tendência", o passo sem o ponto final; sem passos, "Nada para desfazer
+    ainda"), e o aviso, o que foi desfeito ("Desfeito: abrir a Análise de Tendência."). Os avisos passam a "Para desfazer, use o
+    botão Desfazer, no alto.", "… Para desfazer, use o botão Desfazer." e "Para voltar aos estados, use Desfazer, no alto."; a
+    barra, "Desfazer e limpar seleção". O que o controle faz não mudou (os mesmos passos, até 80, sem Refazer).
+  - **Mapa:** todas as unidades em análise (`itensParaOMapa`), também as que o gráfico deixa de fora, cada uma no lugar dela:
+    com a pintura da camada (na análise espacial, o quintil do indicador do motor; BOA VISTA fica no 5º) ou, sem valor nela,
+    vazada; a cor única, sem camada, fica vazada para a unidade sem o valor do indicador (`pintar`). A dica traz o motivo
+    ("Distância: Não avaliável", com o texto do motor). A régua e os filtros esmaecem pelos mesmos critérios do gráfico
+    (`dentroDosFiltros`); sem o valor do indicador e com a régua em uso, a unidade esmaece, nunca some.
+  - **Fora do gráfico:** com o gráfico à vista, acima do desenho, `analise-fora-do-grafico` (`textoForaDoDesenho`) diz quem ficou
+    de fora e por quê, pelo nome: "Fora do gráfico, sem distância até a referência: BOA VISTA (RR). O motivo está em Não
+    avaliáveis, nos Detalhes; no mapa, o município aparece no lugar dele." Três motivos (sem valor do indicador na competência,
+    sem distância até a referência, sem coorte inicial avaliável), até cinco nomes por motivo, com "e mais N"; nas planilhas,
+    com os nomes delas. Não aparece quando nenhum território ficou com referência (vale o aviso `analise-ref-sem-resultado`), na
+    Série temporal nem com só o mapa à vista.
+  - **Bolhas:** marcar não esmaece as demais (`opacidadeDaBolha`): as marcadas ganham o anel escuro e o nome, como no mapa. A
+    pintura apagada (não atende, fora dos primeiros) continua mais clara (45%), e o modo leve continua semitransparente (62%),
+    pela sobreposição de milhares de bolhas.
+  - **Legenda de tamanho:** todas as referências na proporção exata (`valoresDaLegendaDeTamanho` no gráfico e `marcasDeTamanho`
+    no mapa): a que ficaria abaixo do mínimo visível dá lugar ao menor número redondo que já o alcança, ou sai, se repetiria a
+    anterior. Em Roraima: 200 mil, 50 mil e 10 mil habitantes no gráfico; 200 mil, 50 mil e 20 mil no mapa.
+- **Permanece:**
+  - Os números e os métodos: as distâncias (CAP-ESP-01 e CAP-ESP-02), o território de referência por elegibilidade, os quintis do
+    mapa (CAP-DIS-02), a fórmula do tamanho (área proporcional à população, com o raio pela raiz quadrada; o raio máximo, de 12 a
+    34 px no gráfico e de 16 px no mapa, vai para o maior valor do resultado; os mínimos visíveis de 4 e 2,5 px), a régua, as
+    condições, a ordenação, Comparar, Juntar e as rotas do motor (nada mudou no backend).
+  - O gráfico continua sem desenhar quem não tem a distância ou o indicador (à parte, com o motivo: RQ-REP-04 e Adendo BOL); a
+    tabela dos Detalhes continua com os mesmos itens do gráfico, e Não avaliáveis, com o motivo de cada um.
+  - "Voltar aos estados" (`analise-grupo-voltar`), "Voltar ao gráfico" e "Voltar ao último gráfico calculado" continuam: são
+    navegação, não o desfazer.
+  - O nome de Porto Alegre (item 5): conferido, sem mudança. A base escreve "PORTO ALEGRE" (431490, RS) nas 22 linhas, e a tela
+    mostra "PORTO ALEGRE (RS)" na Seleção, no título, na frase-resumo, na dica, na tabela e no mapa. Os nomes da base vêm em
+    maiúsculas e sem acento ("SAO PAULO", "UIRAMUTA"); Porto Alegre não tem acento.
+  - Os dados versionados não mudaram, e nada da base vai ao provedor de IA.
+- **Motivo:** pedido do responsável pelo produto em 25/10/2026 (cinco pontos, na branch de ajustes de UX): municípios de
+  Roraima que "não apareciam na análise espacial, na análise de tendência, como se tivesse algum problema nas coordenadas
+  geográficas", com a revisão geral das coordenadas ("todos os municípios precisam estar representados ao serem selecionados");
+  as bolhas "esmaecidas, com pouca cor" no gráfico da análise espacial; a verificação da proporcionalidade das bolhas; "Desfazer",
+  com a seta redonda do desfazer, no lugar de "Voltar"; e o nome de Porto Alegre.
+  - **Classificação, pela leitura, antes de codar:**
+    - **Mapa com todas as unidades e o aviso "Fora do gráfico":** mudança prevista. Decorre do pedido e não contraria a SPEC:
+      RQ-REP-04 (não avaliável distinto de zero, com legenda: o anel tracejado), RQ-REP-07 e RQ-REP-09 (o mapa só lê as
+      coordenadas autorizadas do motor; nada é calculado) e o Adendo BOL (no gráfico, os não avaliáveis ficam à parte, com o
+      motivo: o aviso os nomeia).
+    - **Bolhas sem esmaecer:** mudança prevista. A seleção é estado visual (RQ-REP-06), e nada na SPEC pede o esmaecimento.
+    - **Legenda de tamanho:** mudança prevista. A verificação pedida achou a imprecisão, e o Adendo BOL pede área proporcional e
+      legenda.
+    - **Desfazer:** mudança prevista. Decorre do pedido; a decisão de 24/10/2026 já descrevia o controle como "um desfazer
+      sequencial, como o Ctrl+Z".
+    - **Revisão das coordenadas e o nome de Porto Alegre:** conferências, sem mudança de comportamento.
+  - **Diagnóstico de Roraima:** o motor devolve os 15 municípios de Roraima com coordenada e valores (`/api/painel/mapa` e
+    `/api/painel`), e a tela desenha todos eles na Distribuição e na Tendência (no gráfico e no mapa das visões Tendência e
+    Trajetória; a Série temporal é só do gráfico e, com mais de 12 unidades, pede a escolha de até 12, pela decisão 6 verificada
+    em 25/10/2026). O que sumia era a unidade sem
+    distância na Análise Espacial: Roraima tem 15 municípios, e só BOA VISTA passa das condições comuns (densidade acima da
+    taxa do Brasil, população acima de 100.000); no mesmo estado, ela fica sem território de referência e saía do gráfico, do
+    mapa e da tabela. Com "No Brasil inteiro" e população acima de 100.000, a referência dela é MANAUS (AM), a 662 km.
+  - **Revisão das coordenadas (só leitura, pela rota do mapa, nas 22 competências):** as 5.570 sedes municipais têm coordenada
+    válida em todas as competências em que o município tem registro (os sem registro numa competência, como CRISTAL DO SUL (RS)
+    em 2015, ficam sem ponto nela, com o motivo); todas dentro do Brasil e perto dos demais municípios do estado (as duas mais
+    afastadas, AFRANIO e FERNANDO DE NORONHA (PE), estão certas: o extremo oeste do estado e a ilha), nenhuma com latitude e
+    longitude trocadas, nenhuma duas no mesmo ponto; os seis pontos inválidos da fonte seguem complementados pela camada governada. Oito municípios têm
+    pequenas diferenças de coordenada entre as competências (até 6,5 km, em SUCUPIRA (TO)), cada competência com um ponto só.
+    **Um defeito na base, fora das coordenadas da sede:** a linha 21 de `Dados_Municipios_Brasil.csv`
+    (`Norte;PA;SANTAREM;251365;-2,43;-54,72;MEDICINA;2016;6;0;331942`) traz o código de SANTAREM (PB) com a UF, a coordenada e a
+    população de SANTAREM (PA), que tem a sua própria linha em junho de 2016 (código 150680). Em junho de 2016, SANTAREM (PB) fica
+    no Pará, com 331.942 habitantes e nenhum profissional (densidade 0); a população da Paraíba nessa competência fica em
+    4.328.672 (3.999.415 em janeiro), e a do Brasil de 2016, que segue junho (BR-POP-JUNHO-1), também a inclui. A correção muda
+    dados versionados e depende de pedido explícito do responsável (AGENTS.md, regra 2): fica pendente, com duas propostas
+    (tirar a linha, e SANTAREM (PB) fica sem registro em junho de 2016, como os demais municípios sem registro numa competência;
+    ou trocá-la pelos valores certos, com a fonte).
+  - **Verificação da proporcionalidade:** com os 15 municípios de Roraima no gráfico, o raio de cada bolha é igual, com duas
+    casas, ao da área proporcional à população (BOA VISTA, a maior, no raio máximo; SAO LUIZ, a menor, a 4,37 px). A impressão de
+    bolhas maiores tem duas origens: a escala é relativa à maior população do resultado (com só municípios pequenos, o maior
+    deles fica no raio máximo, como São Paulo numa seleção que o tenha), e o mínimo visível iguala os muito pequenos (dito na
+    legenda). O único desvio era a menor referência da legenda, corrigido aqui.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a seção "Desfazer e Limpar seleção", o que a área entrega ao mapa,
+    "Fora do gráfico", o tamanho e a legenda, a seleção sem esmaecer e os testes), `Docs/MAPA_DA_PAGINA_UNICA.md` (os itens do
+    mapa, a legenda, as decisões de 25/10/2026 com a revisão das coordenadas e os testes),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (o Desfazer do pedido da conversa), `README.md` e a tabela de cobertura de
+    `backend/tests/legado/README.md`.
+  - **Testes novos:**
+    - **Node:** `areaDeAnalise.test.mjs` (o mapa com todas as unidades em análise e a ordem; os filtros que esmaecem nele, com
+      a régua, "Mostrar só quem atende" e a classe; a cor única vazada sem o indicador; o aviso "Fora do gráfico", com um e dois
+      motivos, a contagem, a planilha no feminino, o conjunto e a rotatividade; a opacidade que não depende da seleção; os textos
+      do Desfazer e do Desfeito); `painel.test.mjs` (a legenda de tamanho de Roraima na proporção exata e o gráfico estreito);
+      `mapa.test.mjs` (as marcas do mapa na proporção exata).
+    - **Roteiros:** `ui_mapa.py` (Roraima inteira com o território de referência no mesmo estado e densidade acima de 2,36: BOA
+      VISTA sem distância, fora do gráfico com o aviso pelo nome e no mapa, no lugar dela, com a cor do quintil, junto dos outros
+      14; os quintis do mapa; as legendas de tamanho do gráfico e do mapa na proporção exata); `ui_area_de_analise.py` (as
+      bolhas marcadas para Comparar sem esmaecer as demais; o Desfazer com a seta curva, `lucide-undo`, o único
+      `analise-desfazer` da área).
+  - **Testes mudados de propósito** (o comportamento mudou por este pedido; os defeitos estavam no produto, e não nos testes):
+    - **O nome e os textos do Desfazer:** `ui_area_de_analise.py`, `ui_conversa_grafico.py` e `ui_modo_escuro.py` (o seletor
+      `analise-desfazer`, o nome do botão, o `title`, o aviso "Desfeito: …" e "use o botão Desfazer"; a ausência de
+      `analise-desfazer`, que valia para o Desfazer antigo da Seleção, passa a "um só, o do alto"); `areaDeAnalise.test.mjs`
+      (`textoDoVoltar` deu lugar a `textoDoDesfazer` e `textoDoDesfeito`).
+    - **`ui_mapa.py`:** `com_ponto` (o que o mapa desenha) passa a ser as unidades com coordenada, também sem o indicador; a
+      régua conta como fora do corte quem não tem o indicador.
+    - **`mapa.test.mjs`:** as marcas da legenda com 12 milhões no máximo passam de 10 mi, 2 mi e 200 mil (esta desenhada no
+      mínimo visível, maior do que a área dela) a 10 mi, 2 mi e 500 mil, todas na proporção exata.
+
 ### 2026-10-24 · Página única: nome da plataforma, Voltar e Limpar seleção globais, Seleção em duas áreas, Território de referência por elegibilidade e as visões Tendência, Trajetória e Série temporal
 - **Antes:**
   - **Nome (item 1):** a abertura (E0) dizia "Diagnóstico Territorial da Força de Trabalho em Saúde".

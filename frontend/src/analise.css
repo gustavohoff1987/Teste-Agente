@@ -76,10 +76,10 @@
   color: var(--cor-sobre-tinta); }
 .analise-segmentos > button:disabled { opacity: .4; }
 
-/* ------------------------------------------------------------------------------------------- Voltar e Limpar seleção (globais) */
-/* No alto da área (24/10/2026, segunda rodada): Voltar (a seta universal de retorno) e Limpar seleção (a vassoura), lado a lado,
-   presos ao alto da tela enquanto a página rola, em todas as abas; ao lado, o resumo da seleção em uso. Desligados, ficam à vista,
-   mais claros, com o motivo no title. */
+/* ----------------------------------------------------------------------------------------- Desfazer e Limpar seleção (globais) */
+/* No alto da área (24/10/2026, segunda rodada): Desfazer (a seta curva universal do desfazer, desde 25/10/2026; antes, Voltar) e
+   Limpar seleção (a vassoura), lado a lado, presos ao alto da tela enquanto a página rola, em todas as abas; ao lado, o resumo da
+   seleção em uso. Desligados, ficam à vista, mais claros, com o motivo no title. */
 .analise-controles-globais { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
   margin: -6px -6px 0; padding: 8px 6px; border-bottom: 1px solid var(--cor-borda-suave); border-radius: 14px 14px 0 0;
   background: var(--cor-superficie); box-shadow: 0 6px 14px -12px var(--cor-sombra-forte); }
@@ -112,7 +112,7 @@
 @media (min-width: 1360px) {
   /* A lista dos territórios está na aba da Seleção (23/10/2026): o desenho usa a largura toda, e o painel das funções, uma coluna. */
   .analise-corpo.analise-corpo-com-painel { grid-template-columns: minmax(0, 1fr) 340px; }
-  /* Preso abaixo de Voltar e Limpar seleção (fixos no alto desde 24/10/2026), como a explicação da tendência: com top de 12 px, o
+  /* Preso abaixo de Desfazer e Limpar seleção (fixos no alto desde 24/10/2026), como a explicação da tendência: com top de 12 px, o
      título e o × do painel ficavam por baixo deles ao rolar. */
   .analise-painel { position: sticky; top: 70px; max-height: calc(100dvh - 84px); overflow: auto; }
 }

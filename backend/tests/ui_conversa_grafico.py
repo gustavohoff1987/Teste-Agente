@@ -208,8 +208,8 @@ def main():
         page.wait_for_timeout(1500)
 
         # 7b. Território de referência pela conversa (decisão 4, 25/10/2026): o "menor" do pedido vira o operador da condição, com o
-        # atributo citado; a relação, a delimitação e o valor de corte ficam com a pessoa, sem valor sugerido. O Voltar do alto
-        # desfaz o pedido da conversa e devolve a análise de antes, para os passos seguintes.
+        # atributo citado; a relação, a delimitação e o valor de corte ficam com a pessoa, sem valor sugerido. O Desfazer do alto
+        # (o "Voltar" até 25/10/2026) desfaz o pedido da conversa e devolve a análise de antes, para os passos seguintes.
         familia_antes = area.get_attribute("data-familia")
         with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
             send(page, "use como referência o município de menor densidade")
@@ -228,7 +228,7 @@ def main():
         expect(referencia.get_by_test_id("analise-ref-falta")).to_have_text(
             "Falta escolher: a relação espacial, a delimitação, o valor de corte.")
         shot("02b-referencia-pela-conversa")
-        page.get_by_test_id("analise-voltar").click()
+        page.get_by_test_id("analise-desfazer").click()
         expect(area).to_have_attribute("data-familia", familia_antes, timeout=60000)
         page.wait_for_timeout(1500)
 

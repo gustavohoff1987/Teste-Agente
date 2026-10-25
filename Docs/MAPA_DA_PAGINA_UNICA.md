@@ -30,7 +30,7 @@ distância**: a posição serve só para o desenho. As distâncias da análise e
 
 ```ts
 <MapaAnalise ref={mapaRef}
-  itens={PainelItem[]}            // os mesmos itens desenháveis do gráfico; estados não chegam ao mapa
+  itens={PainelItem[]}            // todas as unidades em análise (itensParaOMapa, 25/10/2026); estados não chegam ao mapa
   dentro={Set<string>}             // ids dentro da régua e dos filtros; os demais esmaecem
   dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada }}   // do motor (POST /api/painel/mapa)
   indicador pintura={"camada" | "quintis" | "continua"} pintar valorContinuo rotuloContinuo dominio escala
@@ -47,7 +47,7 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 | Codificação | O que mostra |
 |---|---|
 | Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência. A nota `mapa-nota` diz isso pela fonte em uso ("Cada ponto é a sede do município (IBGE) na base do Brasil." ou "Cada ponto é a coordenada do distrito informada na planilha.", com os rótulos da planilha) e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
-| Tamanho | Área proporcional ao valor de tamanho que a área escolhe (população na densidade, quantidade na quantidade). Raio máximo de 16 px, menor que o do gráfico, e mínimo visível de 2,5 px; os maiores ficam atrás e os menores na frente, com um anel fino da cor da superfície separando os sobrepostos. A legenda `mapa-legenda-tamanho` mostra três valores redondos com o mesmo raio do desenho. O tamanho não muda com o zoom: a legenda vale sempre. |
+| Tamanho | Área proporcional ao valor de tamanho que a área escolhe (população na densidade, quantidade na quantidade). Raio máximo de 16 px, menor que o do gráfico, e mínimo visível de 2,5 px; os maiores ficam atrás e os menores na frente, com um anel fino da cor da superfície separando os sobrepostos. A legenda `mapa-legenda-tamanho` mostra três valores redondos com o mesmo raio do desenho, todos na proporção exata desde 25/10/2026: a referência que ficaria abaixo do mínimo visível (desenhada maior do que a área dela) dá lugar ao menor número redondo que já alcança o mínimo (com 470 mil no máximo, 200 mil, 50 mil e 20 mil, no lugar de 5 mil). O tamanho não muda com o zoom: a legenda vale sempre. |
 | Cor, pintura "camada" | A mesma pintura do gráfico (grupos, faixas, condições, ordenação, classes ou variação), pela função `pintar` da área, com a mesma legenda (`legendaCor`). Valor não avaliável: anel tracejado cinza sobre a superfície, nunca preenchido como zero. Pintura apagada (não atende, fora dos primeiros): mais clara. |
 | Cor, pintura "quintis" | Sem cor própria da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), os 5 grupos iguais (quintis) do indicador que o motor devolve junto com a análise (`grupos_mapa` no topo e `grupo_mapa` em cada item; CAP-DIS-02), na rampa ordinal dos grupos do gráfico. A legenda (`mapa-legenda`, `data-tipo="quintis"`) diz "Cores do mapa: 5 grupos iguais (quintis) …, calculados pelo motor" e lista cada grupo com o rótulo e a contagem do motor (`mapa-quintil`). Sem grupo (sem valor do indicador): anel tracejado. Sem os grupos na resposta, a cor única do gráfico. |
 | Cor, pintura "continua" | Só na rotatividade: a permanência da coorte inicial, de 0 a 100%, numa rampa sequencial de um tom (azul, do claro ao escuro), linear. A legenda (`mapa-legenda`, `data-tipo="continua"`) traz o mínimo e o máximo, marcas de leitura (não são limites de classe) e o aviso "A cor não é classe nem limiar". |
@@ -76,6 +76,23 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
    cada lado e não fica menor que um quarto da extensão de todos os pontos da fonte (o desenho do país ou da planilha, ao
    fundo), nem maior que ela. O mapa abre com a geografia reconhecível em volta dos pontos, adaptado à seleção e sem escala fixa
    do Brasil; com todos os pontos escolhidos, é a vista da fonte inteira. "Ver tudo" volta a ele, e o zoom continua livre.
+
+## Decisões de 25/10/2026
+
+Pedido do responsável (25/10/2026: "todos os municípios precisam estar representados ao serem selecionados"), depois de ver
+municípios de Roraima sumirem da Análise Espacial, "como se tivesse algum problema nas coordenadas":
+
+1. **Todas as unidades em análise no mapa** (`itensParaOMapa`): também as que o gráfico deixa de fora por falta do valor que as
+   posiciona (sem distância até o território de referência, sem o valor do indicador, sem a coorte), cada uma no lugar dela,
+   com a pintura da camada ou, sem valor nela, vazada, e o motivo na dica e em Não avaliáveis. A causa estava aqui, e não nas
+   coordenadas: com o território de referência no mesmo estado e densidade acima da taxa do Brasil, em Roraima só BOA VISTA
+   atende à condição, e ela nunca é a sua própria referência; sem distância, saía do gráfico e, como o mapa recebia os mesmos
+   itens do gráfico, saía também do mapa. A revisão das coordenadas da base versionada (as 22 competências, pela rota do
+   mapa) achou todas as 5.570 sedes válidas, dentro do Brasil, sem duas no mesmo ponto, com uma só exceção, que não é de
+   coordenada da sede: a linha de SANTAREM com o código 251365 (da Paraíba) em junho de 2016, com a UF, a coordenada e a
+   população de Santarém do Pará ([registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md), entrada de 25/10/2026). Os dados não
+   mudaram.
+2. **Legenda de tamanho na proporção exata:** nenhuma referência abaixo do mínimo visível (linha "Tamanho", acima).
 
 ## Navegação
 
@@ -210,11 +227,13 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   mínimo de um quarto da fonte, nunca mais que ela, proporcional a qualquer fonte), zoom, tamanho com área proporcional, cor
   contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo,
   membros, sem coordenada; a pintura dos quintis igual à da camada), esmaecidos que nunca somem, vazados nunca como zero, alvo do
-  clique, vizinho pelo teclado, nomes sem sobreposição, ligações, mapinha, transição e cores. `frontend/tests/modoEscuro.test.mjs`:
+  clique, vizinho pelo teclado, nomes sem sobreposição, ligações, mapinha, transição e cores; desde 25/10/2026, a legenda de
+  tamanho na proporção exata (nenhuma referência abaixo do mínimo visível). `frontend/tests/modoEscuro.test.mjs`:
   as cores do mapa por esquema (as mesmas chaves, a superfície, as tintas e o neutro do gráfico no escuro, os textos a 4,5:1 ou
   mais, o fundo e os esmaecidos recessivos), a rampa contínua do escuro (do escuro ao claro) e a cena no escuro (vazado na
   superfície escura, quintis com a cor que a área entrega). `frontend/tests/areaDeAnalise.test.mjs`: quando a área pinta pelos
-  quintis e quando o pedido os leva.
+  quintis e quando o pedido os leva; desde 25/10/2026, as unidades do mapa (todas as em análise, também as que o gráfico deixa
+  de fora), os filtros que esmaecem nele e a cor única vazada sem o valor do indicador.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
   `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção, no nível Estados, porque a base abre sem seleção),
   o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do
@@ -225,7 +244,10 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
   do gráfico; o convite depois das Condições; a análise espacial com o Território de referência (desde a segunda rodada de
   24/10/2026: os elegíveis do mesmo estado acima da mediana da população, a referência de cada município entre eles e nunca ele
-  mesmo, as ligações até o território de referência e a mira dele na legenda de símbolos); o lado a lado em 1.700 px, sem legenda repetida;
+  mesmo, as ligações até o território de referência e a mira dele na legenda de símbolos); desde 25/10/2026, Roraima inteira com
+  o território de referência no mesmo estado e densidade acima de 2,36: BOA VISTA sem distância, fora do gráfico (com o aviso
+  `analise-fora-do-grafico` pelo nome) e no mapa, no lugar dela, com a cor do quintil, junto dos outros 14, e as legendas de
+  tamanho do gráfico e do mapa na proporção exata; o lado a lado em 1.700 px, sem legenda repetida;
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
   (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
   convites.

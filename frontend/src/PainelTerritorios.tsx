@@ -13,8 +13,8 @@ import {
 // dos municípios), os estados (um, vários ou todos) e os municípios, navegados por estado e cumulativos: abrir outro estado só
 // mostra a lista dele e não muda o que já está marcado. Cada nível guarda a sua escolha. Desde 24/10/2026 (segunda rodada), a
 // tela tem duas áreas lado a lado: à esquerda, a busca e a lista para marcar; à direita, sempre à vista, o que já está marcado,
-// estado a estado, com o × de cada unidade e de cada estado. Voltar e Limpar seleção ficam no alto da área (controles globais),
-// e toda mudança daqui pode ser desfeita pelo Voltar. Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades),
+// estado a estado, com o × de cada unidade e de cada estado. Desfazer e Limpar seleção ficam no alto da área (controles globais),
+// e toda mudança daqui pode ser desfeita pelo Desfazer. Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades),
 // sem os níveis. Cada mudança é um pedido explícito ao motor; nada é calculado aqui.
 
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -37,12 +37,12 @@ type Props = {
   conjuntos: PainelConjuntoPedido[];
   /** Grupo com a lista aberta (só mostra a lista; não muda a seleção). */
   aberto: string | null;
-  /** O que a última mudança coletiva fez ("Municípios da Bahia desmarcados."), para a pessoa ver e, se quiser, usar o Voltar. */
+  /** O que a última mudança coletiva fez ("Municípios da Bahia desmarcados."), para a pessoa ver e, se quiser, usar o Desfazer. */
   aviso: string | null;
   /** Rótulo do botão que leva às análises ("Ver a análise"). */
   verAnalise: string;
   onNivel: (nivel: PainelNivel) => void;
-  /** Nova escolha dos municípios, com o que mudou em palavras (vai para o Voltar); `coletiva` quando muda muitos de uma vez. */
+  /** Nova escolha dos municípios, com o que mudou em palavras (vai para o Desfazer); `coletiva` quando muda muitos de uma vez. */
   onBase: (base: PainelMunicipios, acao: string, coletiva?: boolean) => void;
   onEstados: (estados: string[], acao: string, coletiva?: boolean) => void;
   onAbrir: (grupo: string | null) => void;
@@ -96,7 +96,7 @@ export default function PainelTerritorios(p: Props) {
   const nomeCompleto = (id: string) => nomesCompletos.get(id) || nomes.get(id) || id;
 
   // ------------------------------------------------------------------------------------------ ações
-  // O que muda um território só começa pelo verbo ("Marcar MANAUS (AM)"): o Voltar diz "desfaz marcar MANAUS (AM)", e o nome
+  // O que muda um território só começa pelo verbo ("Marcar MANAUS (AM)"): o Desfazer diz "Desfazer: marcar MANAUS (AM)", e o nome
   // próprio fica como é (começando pelo nome, a primeira letra iria para a minúscula).
   const alternarEstado = (id: string) => {
     const marcado = p.estados.includes(id);
@@ -244,7 +244,7 @@ export default function PainelTerritorios(p: Props) {
       </ul>
     </div>;
     if (temGrupos && grupoAberto) return <div data-testid="analise-grupo" data-id={grupoAberto.id} data-aberto="true" className="analise-grupo-aberto-bloco">
-      {/* "Voltar aos estados" (24/10/2026): maior e preenchido, como os botões de destaque; só fecha a lista (o Voltar do alto desfaz passos). */}
+      {/* "Voltar aos estados" (24/10/2026): maior e preenchido, como os botões de destaque; só fecha a lista (o Desfazer do alto desfaz passos). */}
       <button type="button" data-testid="analise-grupo-voltar" className="analise-botao-primario analise-voltar-grupos" onClick={() => p.onAbrir(null)}>
         <ArrowLeft size={17} aria-hidden="true"/>Voltar {generoGrupoF ? "às " : "aos "}{grupoRotulo.plural}</button>
       {listaDeUnidades(porGrupo.get(grupoAberto.id) || [], grupoAberto)}
@@ -347,7 +347,7 @@ export default function PainelTerritorios(p: Props) {
           <button type="button" data-testid="analise-ver-analise" className="analise-botao-primario" disabled={vazio} onClick={p.onVerAnalise}>
             {p.verAnalise}<ArrowRight size={15} aria-hidden="true"/></button>
         </div>
-        {p.aviso && <p role="status" data-testid="analise-selecao-aviso" className="analise-desfazer">{p.aviso} Para desfazer, use Voltar, no alto.</p>}
+        {p.aviso && <p role="status" data-testid="analise-selecao-aviso" className="analise-desfazer">{p.aviso} Para desfazer, use o botão Desfazer, no alto.</p>}
         <div data-testid="analise-selecionados-itens" className="analise-selecionados-itens">{selecionadas}</div>
       </aside>
     </div>
