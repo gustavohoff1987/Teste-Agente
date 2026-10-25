@@ -782,8 +782,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           textoDoReferencial(p.dados.referencial) + "." : ""}{semPontoNoResultado ? " Sem coordenada válida, " + umaUnidade(rotulos) +
           " fica fora do mapa e aparece em Não avaliáveis." : ""}</p>
         {simbolos && <p data-testid="mapa-simbolos">{maiuscula(simbolos)}.</p>}
-        {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {p.territorioBase
-          ? "o território base ou " : ""}{feminino ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
+        {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {p.comTerritoriosBase
+          ? "um território base ou " : ""}{feminino ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
           (feminino ? "a" : "e") : "ao membro mais próximo da referência"}; a distância é medida em linha reta.</p>}
       </div>
     </div>

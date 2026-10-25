@@ -481,7 +481,7 @@ nivel)."; no nível estados, a recusa de sempre ("Não se aplica: estados não t
 - **Resposta:** `referencia` com `tipo: "elegiveis"`, a definição normalizada, os textos (`delimitacao.texto`, `condicao.texto`
   como nas Condições), as contagens da condição na base (`elegiveis`), os territórios que ficaram como referência de algum
   item (`membros`, na ordem do código, com `id` e `rotulo` e, desde 25/10/2026, `uf`, `populacao`, `quantidade` e `densidade`
-  de cada um na competência, lidos das mesmas medidas dos itens, para a tela mostrar a referência do território base) e a
+  de cada um na competência, lidos das mesmas medidas dos itens, para a tela mostrar a referência dos territórios base) e a
   `origem` em palavras ("Para cada município, o município mais próximo entre os
   municípios de todo o Brasil com densidade > 10 por 1.000 habitantes em junho de 2024 (3 de 6 municípios da base atendem à
   condição); o próprio município não é a sua referência. A condição é escolha do usuário e não tem caráter normativo"); por

@@ -6,7 +6,7 @@ import type {
   SituacaoCondicao, TipoDelimitacao,
 } from "./painelApi";
 import {
-  ATRIBUTOS, MAX_CONJUNTOS, NOMES_RELACOES, NOTA_TPL11, OPERADORES, ORDENS, REGIOES_DO_BRASIL, SIMBOLOS, UNIDADES_DO_CORTE,
+  ATRIBUTOS, MAX_CONJUNTOS, MAX_LIGACOES, NOMES_RELACOES, NOTA_TPL11, OPERADORES, ORDENS, REGIOES_DO_BRASIL, SIMBOLOS, UNIDADES_DO_CORTE,
   artigo, delimitacoesDaFonte, escreverLimites, formatarIndicador, formatarNumero, formatarVariacao, generoDe, lerLimites,
   lerValorDeCorte, maiuscula, numero, operadorDoCriterio, ordemNeutra, quantos, referenciaElegivel, variacaoDe, type GrupoInfo,
   type RotulosTerritoriais,
@@ -29,11 +29,11 @@ type ReferenciaProps = {
   faixas: number[];
   /** Critério pedido na conversa ("a de maior densidade como referência"): o atributo e o operador dele já vêm escolhidos. */
   criterioInicial?: PainelCriterio | null;
-  /** Território base (25/10/2026): as unidades em análise e a escolhida (nulo = todos os selecionados, cada um com a sua
-   * referência). Só estado visual: vale na hora, sem novo pedido ao motor. */
+  /** Territórios base (25/10/2026; cumulativos desde a terceira rodada do dia): as unidades em análise e as escolhidas (nulo =
+   * todos os selecionados). Só estado visual: vale na hora, sem novo pedido ao motor; `rotulo` é o passo do Desfazer. */
   bases: { id: string; rotulo: string }[];
-  territorioBase: string | null;
-  onBase: (id: string | null) => void;
+  territoriosBase: string[] | null;
+  onBases: (ids: string[] | null, rotulo: string) => void;
   onAplicar: (referencia: ReferenciaElegivel) => void; onRemover: () => void; onFaixas: (limites: number[]) => void;
 };
 type OperadorDoCorte = ">" | "<";
@@ -45,7 +45,8 @@ const NOMES_ATRIBUTOS: Record<PainelAtributo, string> = { densidade: "Densidade"
  * (densidade, quantidade ou população, maior ou menor que o valor de corte, CAP-SUB-01). Depois, a relação espacial: para cada
  * território, o mais próximo (CAP-ESP-02) ou o mais distante dos elegíveis, sem ele mesmo, pelas distâncias geodésicas do motor.
  * Nenhum campo tem valor padrão: o pedido sai só com os cinco escolhidos. Faixas de distância opcionais (CAP-ESP-03). No início
- * (25/10/2026), o Território base: uma das unidades em análise, para o gráfico e o mapa mostrarem a referência dela. */
+ * (25/10/2026), os Territórios base: todos os selecionados ou alguns, cumulativos, para o gráfico e o mapa ligarem cada um à sua
+ * referência. */
 export function GavetaReferencia(p: ReferenciaProps) {
   const anterior = referenciaElegivel(p.pedida) ? p.pedida : null;
   const [relacao, setRelacao] = useState<RelacaoEspacial | null>(anterior?.relacao ?? null);
@@ -68,6 +69,14 @@ export function GavetaReferencia(p: ReferenciaProps) {
   }, [criterioDaConversa]);
   const unidade = p.rotulos.unidade, grupo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const fem = generoDe(unidade) === "f", grupoFem = generoDe(grupo) === "f";
+  // Territórios base cumulativos: "Todos os selecionados" marca todas as opções; tirar uma passa à escolha uma a uma.
+  const todasAsBases = p.territoriosBase === null;
+  const basesMarcadas = new Set(todasAsBases ? p.bases.map(base => base.id) : p.territoriosBase);
+  function alternarBase(base: { id: string; rotulo: string }) {
+    const marcada = basesMarcadas.has(base.id);
+    p.onBases(marcada ? [...basesMarcadas].filter(id => id !== base.id) : [...basesMarcadas, base.id],
+      marcada ? "Tirar " + base.rotulo + " dos territórios base" : "Incluir " + base.rotulo + " nos territórios base");
+  }
   const opcoes = useMemo(() => delimitacoesDaFonte({ brasil: p.brasil, comGrupos: p.grupos.length > 0, rotulos: p.rotulos }),
     [p.brasil, p.grupos.length, p.rotulos]);
   const escolhaDeValores = delimitacao === "grupos" ? p.grupos.map(item => ({ id: item.id, nome: item.nome + (item.sigla ? " (" + item.sigla + ")" : "") }))
@@ -127,16 +136,25 @@ export function GavetaReferencia(p: ReferenciaProps) {
       Complete a relação, a delimitação e o valor de corte.</p>}
 
     <fieldset className="analise-ref-passo" data-testid="analise-ref-base-passo">
-      <legend>Território base</legend>
-      <label className="analise-rotulo-campo">Qual {unidade.singular} olhar com a referência
-        <select data-testid="analise-ref-base" value={p.territorioBase ?? ""} className="analise-campo" disabled={!p.bases.length}
-          onChange={event => p.onBase(event.target.value || null)}>
-          <option value="">Todos os selecionados (cada um com a sua referência)</option>
-          {p.bases.map(base => <option key={base.id} value={base.id}>{base.rotulo}</option>)}
-        </select>
-      </label>
+      <legend>Territórios base</legend>
+      {p.bases.length > 0 && <>
+        <p className="text-[11px] leading-4 text-slate-600">Quais {unidade.plural} em análise mostrar ligad{fem ? "as" : "os"} ao seu território
+          de referência: todos ou alguns.</p>
+        <label className="analise-caixa">
+          <input type="checkbox" data-testid="analise-ref-base-todos" checked={todasAsBases}
+            ref={elemento => { if (elemento) elemento.indeterminate = !todasAsBases && basesMarcadas.size > 0; }}
+            onChange={() => p.onBases(todasAsBases ? [] : null, todasAsBases ? "Nenhum território base" : "Todos os selecionados como territórios base")}/>
+          <span>Todos os selecionados</span></label>
+        <ul data-testid="analise-ref-base" className="analise-ref-valores" aria-label="Territórios base">
+          {p.bases.map(base => <li key={base.id}><label className="analise-caixa">
+            <input type="checkbox" data-testid="analise-ref-base-opcao" data-id={base.id} checked={basesMarcadas.has(base.id)}
+              onChange={() => alternarBase(base)}/>
+            <span>{base.rotulo}</span></label></li>)}
+        </ul>
+      </>}
       <p className="text-[11px] leading-4 text-slate-600">{p.bases.length
-        ? "Com um território base, o gráfico e o mapa mostram a referência dele, ligada a ele. Muda só o que se vê: o cálculo é o mesmo para todos."
+        ? "No gráfico e no mapa, cada território base aparece ligado ao seu território de referência por linha tracejada (até " +
+          MAX_LIGACOES + " ligações). Muda só o que se vê: o cálculo é o mesmo para todos."
         : "Os territórios selecionados aparecem aqui depois do primeiro gráfico."}</p>
     </fieldset>
 

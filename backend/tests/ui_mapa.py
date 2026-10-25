@@ -9,7 +9,8 @@ gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleçã
 mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial (até
 o Território de referência de cada município, por elegibilidade, desde a segunda rodada de 24/10/2026), Roraima com todos os
 municípios no mapa, também BOA VISTA, sem território de referência e fora do gráfico, com o aviso pelo nome, e as legendas de
-tamanho na proporção exata (25/10/2026), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
+tamanho na proporção exata (25/10/2026), os territórios base, cumulativos, cada um ligado ao seu território de referência no
+gráfico e no mapa (25/10/2026), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
 cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
@@ -30,6 +31,14 @@ GANCHO = """() => { const m = window.__adtMapa; if (!m) return null;
 
 def options_of(request):
     return json.loads(request.post_data.split('name="options"\r\n\r\n', 1)[1].split("\r\n--", 1)[0])
+
+
+def referencias_do_item(item):
+    """Os territórios de referência de um item na resposta (o primeiro e os empatados)."""
+    ref = item.get("referencia_do_item")
+    if not ref:
+        return []
+    return [ref["id"]] + [e["id"] for e in ref.get("empate") or [] if e["id"] != ref["id"]]
 
 
 def main():
@@ -444,50 +453,82 @@ def main():
         assert all(abs((r1 / r2) ** 2 - v1 / v2) < 0.02 * (v1 / v2) for v1, r1 in marcas for v2, r2 in marcas), marcas
         shot("06b-roraima-espacial")
 
-        # 11c. Território base (25/10/2026, pedido do responsável): com o território de referência no Brasil inteiro e densidade
-        # acima de 2, BOA VISTA como base mostra a referência dela, que fica fora de Roraima: no gráfico, a bolha de contexto com a
-        # mira, no início do eixo (0 km), com a densidade do motor e ligada à base; no mapa, dentro do quadro e com o nome. Escolher a
-        # base é só estado visual: nada é pedido ao motor.
+        # 11c. Territórios base (25/10/2026, pedido do responsável; cumulativos desde a terceira rodada do dia): com o território de
+        # referência no Brasil inteiro e densidade acima de 2, todos os selecionados são territórios base (o padrão), cada um ligado
+        # ao seu território de referência; o de BOA VISTA fica fora de Roraima. No gráfico, cada referência entra como contexto, com
+        # a mira, no início do eixo (0 km) e com os valores do motor, e uma linha tracejada liga cada base à sua referência; no mapa,
+        # a referência fica dentro do quadro e com o nome. A escolha é cumulativa (todos ou alguns) e só estado visual: nada é pedido
+        # ao motor.
         aperta(area.get_by_test_id("analise-referencia-escolher"))
         referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
         referencia.get_by_test_id("analise-ref-delimitacao").select_option("todos")
         referencia.get_by_test_id("analise-ref-valor").fill("2")
         brasil, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
         assert sent["referencia"]["delimitacao"] == {"tipo": "todos"} and sent["referencia"]["condicao"]["valor"] == 2, sent
+        refs = {item["id"]: referencias_do_item(item) for item in brasil["itens"] if item.get("referencia_do_item")}
+        assert set(refs) == ids_rr, sorted(ids_rr - set(refs))  # no Brasil inteiro, os 15 têm território de referência
         ref_bv = {item["id"]: item for item in brasil["itens"]}[boa_vista]["referencia_do_item"]
-        assert ref_bv and ref_bv["id"] not in ids_rr, ref_bv
+        assert ref_bv["id"] not in ids_rr, ref_bv
         [membro] = [item for item in brasil["referencia"]["membros"] if item["id"] == ref_bv["id"]]
         assert membro["densidade"] > 2 and membro["populacao"] > 0, membro  # os valores da referência vêm do motor
         calls = len(painel_calls)
-        base = referencia.get_by_test_id("analise-ref-base")
-        expect(base.locator("option")).to_have_count(16)  # "Todos os selecionados" e os 15 municípios de Roraima
-        base.select_option(boa_vista)
-        expect(area.get_by_test_id("analise-par-base")).to_contain_text(
-            "Território base: BOA VISTA (RR) · Território de referência (o mais próximo): " + ref_bv["rotulo"] + ", a ")
+        expect(referencia.get_by_test_id("analise-ref-base-todos")).to_be_checked()
+        opcoes = referencia.get_by_test_id("analise-ref-base-opcao")
+        expect(opcoes).to_have_count(15)
+        assert all(opcoes.evaluate_all("els => els.map(e => e.checked)")), "todos os selecionados como territórios base"
+        par = area.get_by_test_id("analise-par-base")
+        expect(par).to_contain_text("Territórios base: 15 (todos os selecionados) · cada um ligado ao seu território de referência "
+                                    "(o mais próximo) por linha tracejada: ")
+        expect(par).to_contain_text("BOA VISTA (RR) → " + ref_bv["rotulo"] + ", ")
         fecha()
         aperta(area.get_by_test_id("analise-desenho-grafico"))
         expect(area).to_have_attribute("data-desenho", "grafico")
-        contexto = area.get_by_test_id("analise-referencia-da-base")
-        expect(contexto).to_have_attribute("data-id", ref_bv["id"])
-        expect(contexto).to_have_attribute("data-base", boa_vista)
+        esperadas = sorted([base, ref] for base, lista in refs.items() for ref in lista)
+        ligacoes = area.get_by_test_id("analise-ligacao-base")
+        expect(ligacoes).to_have_count(len(esperadas))
+        assert sorted(ligacoes.evaluate_all("els => els.map(e => [e.dataset.base, e.dataset.referencia])")) == esperadas
+        de_contexto = {ref for lista in refs.values() for ref in lista}
+        contextos = area.get_by_test_id("analise-referencia-da-base")
+        expect(contextos).to_have_count(len(de_contexto))
+        assert set(contextos.evaluate_all("els => els.map(e => e.dataset.id)")) == de_contexto
+        contexto = area.locator('[data-testid="analise-referencia-da-base"][data-id="' + ref_bv["id"] + '"]')
+        assert boa_vista in contexto.get_attribute("data-bases").split(), contexto.get_attribute("data-bases")
         assert float(contexto.get_attribute("data-valor")) == membro["densidade"]
         assert float(contexto.get_attribute("data-populacao")) == membro["populacao"]
         caixa_ref = contexto.locator("circle").first.bounding_box()
         centros = area.locator('[data-testid="analise-bolha"][data-visivel="true"] circle.analise-marca').evaluate_all(
             "els => els.map(e => { const b = e.getBoundingClientRect(); return b.left + b.width / 2; })")
-        # Os 15 têm distância agora (BOA VISTA também); a referência da base fica à esquerda de todos, no 0 km.
+        # Os 15 têm distância agora (BOA VISTA também); a referência dela fica à esquerda de todos, no 0 km.
         assert len(centros) == 15 and caixa_ref["x"] + caixa_ref["width"] / 2 < min(centros), (caixa_ref, centros)
-        expect(area.get_by_test_id("analise-ligacao-base")).to_have_count(1)
-        expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_attribute("data-id", boa_vista)
-        expect(area.get_by_test_id("analise-simbolos")).to_contain_text("território de referência do território base")
+        expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_count(15)
+        simbolos = area.get_by_test_id("analise-simbolos")
+        expect(simbolos).to_contain_text("território de referência fora da seleção, no início do eixo (0 km)")
+        expect(simbolos).to_contain_text("do território base até o seu território de referência")
+        # Cumulativo: tirar todos e escolher só BOA VISTA; cada escolha é um passo do Desfazer.
+        aperta(area.get_by_test_id("analise-par-base-mudar"))
+        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        marca(referencia.get_by_test_id("analise-ref-base-todos"))
+        expect(referencia.get_by_test_id("analise-ref-base-todos")).not_to_be_checked()
+        expect(par).to_contain_text("Nenhum território base")
+        expect(ligacoes).to_have_count(0)
+        marca(referencia.locator('[data-testid="analise-ref-base-opcao"][data-id="' + boa_vista + '"]'))
+        expect(par).to_contain_text("Território base: BOA VISTA (RR) · Território de referência (o mais próximo): " + ref_bv["rotulo"] + ", a ")
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: incluir BOA VISTA (RR) nos territórios base")
+        expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text(" · território base: BOA VISTA (RR)")
+        fecha()
+        expect(ligacoes).to_have_count(len(refs[boa_vista]))
+        base_marcada = area.locator('[data-testid="analise-bolha"][data-base="true"]')
+        expect(base_marcada).to_have_count(1)
+        expect(base_marcada).to_have_attribute("data-id", boa_vista)
+        expect(contexto).to_have_attribute("data-bases", boa_vista)
         aperta(area.get_by_test_id("analise-desenho-mapa"))
         desenhado(15, "quintis")
         nome_ref = ref_bv["rotulo"] + " · referência"
         page.wait_for_function("([id, nome]) => (window.__adtMapa.referencias || []).some(r => r.id === id && r.naTela && r.nome === nome)",
                                arg=[ref_bv["id"], nome_ref], timeout=30000)
-        expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("o território base ou um município marcado")
-        assert len(painel_calls) == calls, "escolher o território base não pede nada ao motor"
-        shot("06c-territorio-base")
+        expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território base ou um município marcado")
+        assert len(painel_calls) == calls, "escolher os territórios base não pede nada ao motor"
+        shot("06c-territorios-base")
 
         # 12. Lado a lado (janela de 1.600 px ou mais): gráfico e mapa juntos, sem legenda repetida; ao estreitar, volta ao mapa.
         page.set_viewport_size({"width": 1700, "height": 1000})
@@ -537,7 +578,8 @@ def main():
     print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
           "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
           "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência, fora do gráfico com o aviso), "
-          "legendas de tamanho na proporção exata, território base com a referência no gráfico e no mapa, lado a lado, Histórico e "
+          "legendas de tamanho na proporção exata, territórios base cumulativos ligados às referências no gráfico e no mapa, lado a lado, "
+          "Histórico e "
           "celular (base versionada).")
 
 

@@ -617,7 +617,7 @@ test('território de referência: a guarda, as delimitações que a fonte tem, o
     .includes('a mesma província ou a planilha inteira'));
 });
 
-test('território base (25/10/2026): uma das unidades em análise; a referência dela com os valores do motor, sem novo pedido', () => {
+test('territórios base (25/10/2026): todos os selecionados ou alguns, cumulativos; cada um ligado à sua referência, com os valores do motor, sem novo pedido', () => {
   // Por elegibilidade, o motor manda a UF e os valores de cada território de referência; o item diz qual é o de cada um.
   const SEM_REF = 'Sem território de referência: nenhum outro município de todo o Brasil atende à condição densidade > 9 por 1.000 habitantes (CONJUNTO_REFERENCIAS_VAZIO)';
   const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
@@ -638,58 +638,112 @@ test('território base (25/10/2026): uma das unidades em análise; a referência
   assert.deepEqual(r.referencia.membros[0], {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71,
     densidade: 2.1512543934068598});
   // As opções do Território base: as unidades em análise, sem conjuntos nem estados, na ordem dos nomes.
-  assert.deepEqual(M.basesPossiveis(r.itens).map(base => base.rotulo), ['AMAJARI (RR)', 'BOA VISTA (RR)', 'BONFIM (RR)', 'CARACARAI (RR)']);
+  const bases = M.basesPossiveis(r.itens);
+  assert.deepEqual(bases.map(base => base.rotulo), ['AMAJARI (RR)', 'BOA VISTA (RR)', 'BONFIM (RR)', 'CARACARAI (RR)']);
+  // Cumulativos: nulo é todos os selecionados (também os que entrarem depois); a lista vale na ordem das opções, só com quem
+  // continua em análise; com todas marcadas, volta a nulo.
+  const TODAS = ['code:140002', 'code:140010', 'code:140015', 'code:140020'];
+  assert.deepEqual(M.basesEmUso(null, bases), TODAS);
+  assert.deepEqual(M.basesEmUso(['code:140020', 'code:999999', 'code:140010'], bases), ['code:140010', 'code:140020']);
+  assert.deepEqual(M.basesEmUso([], bases), []);
+  assert.equal(M.normalizarBases([...TODAS].reverse(), bases), null);
+  assert.deepEqual(M.normalizarBases(['code:140020', 'code:140010', 'code:999999'], bases), ['code:140010', 'code:140020']);
+  assert.deepEqual(M.normalizarBases([], bases), []);
   // A referência fora da análise: contexto no gráfico (não é desenhada lá), com os valores dos membros e a distância do item.
   const boaVista = M.parDaBase(r, 'code:140010');
   assert.equal(boaVista.base.id, 'code:140010');
-  assert.deepEqual(boaVista.referencia, {id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71,
-    densidade: 2.1512543934068598, noGrafico: false, emAnalise: false});
-  assert.deepEqual([boaVista.distancia, boaVista.empate, boaVista.motivo], [543.82, [], null]);
+  assert.deepEqual(boaVista.referencias, [{id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71,
+    densidade: 2.1512543934068598, noGrafico: false, emAnalise: false}]);
+  assert.deepEqual([boaVista.distancia, boaVista.motivo], [543.82, null]);
   assert.equal(M.textoDoParDaBase(boaVista, 'mais_proxima'), 'Território base: BOA VISTA (RR) · Território de referência (o mais próximo): ' +
     'PRESIDENTE FIGUEIREDO (AM), a 543,82 km em linha reta.');
-  const dica = M.dicaDaReferenciaDaBase(boaVista, 'mais_proxima');
-  assert.equal(dica.titulo, 'PRESIDENTE FIGUEIREDO (AM)');
-  assert.equal(dica.subtitulo, 'Território de referência (o mais próximo) de BOA VISTA (RR)');
-  assert.deepEqual(dica.linhas.map(linha => [linha.rotulo, linha.valor]), [['População', '33.004 habitantes'], ['Profissionais', '71'],
-    ['Densidade', '2,15 por 1.000 habitantes'], ['Distância até BOA VISTA (RR)', '543,82 km']]);
-  assert.deepEqual(dica.notas, ['Fora da seleção: aparece só como a referência do território base, no início do eixo (0 km).']);
-  // A referência que também está em análise (com a sua própria distância): o contexto continua, com a nota.
-  const amajari = M.parDaBase(r, 'code:140002');
-  assert.deepEqual([amajari.referencia.id, amajari.referencia.noGrafico, amajari.referencia.emAnalise, amajari.referencia.densidade],
-    ['code:140010', false, true, 2.5118627557325133]);
-  assert.match(M.dicaDaReferenciaDaBase(amajari, 'mais_proxima').notas[0], /^Também está em análise/);
-  // Empate: o primeiro e os demais nomes; sem referência, o motivo do motor; sem base ou com a base fora da análise, nada.
-  assert.equal(M.textoDoParDaBase(M.parDaBase(r, 'code:140020'), 'mais_proxima'), 'Território base: CARACARAI (RR) · Território de ' +
+  // A referência que também está em análise (com a sua própria distância): o contexto continua.
+  const [deAmajari] = M.parDaBase(r, 'code:140002').referencias;
+  assert.deepEqual([deAmajari.id, deAmajari.noGrafico, deAmajari.emAnalise, deAmajari.densidade], ['code:140010', false, true, 2.5118627557325133]);
+  // Empate: todas as empatadas, a primeira antes (CAP-ESP-02); sem referência, o motivo do motor; sem base ou com a base fora da
+  // análise, nada.
+  const caracarai = M.parDaBase(r, 'code:140020');
+  assert.deepEqual(caracarai.referencias.map(ref => ref.id), ['code:140010', 'code:130353']);
+  assert.equal(M.textoDoParDaBase(caracarai, 'mais_proxima'), 'Território base: CARACARAI (RR) · Território de ' +
     'referência (o mais próximo): BOA VISTA (RR) (empate com PRESIDENTE FIGUEIREDO (AM)), a 100,00 km em linha reta.');
   const bonfim = M.parDaBase(r, 'code:140015');
-  assert.deepEqual([bonfim.referencia, bonfim.motivo], [null, SEM_REF]);
+  assert.deepEqual([bonfim.referencias, bonfim.motivo], [[], SEM_REF]);
   assert.equal(M.textoDoParDaBase(bonfim, 'mais_proxima'), 'Território base: BONFIM (RR). ' + SEM_REF);
-  assert.equal(M.dicaDaReferenciaDaBase(bonfim, 'mais_proxima'), null);
   assert.equal(M.parDaBase(r, 'c1'), null);
   assert.equal(M.parDaBase(r, 'code:999999'), null);
   assert.equal(M.parDaBase(r, null), null);
   assert.equal(M.parDaBase(null, 'code:140010'), null);
+  // Todos os selecionados: um par por base, na ordem das opções; as referências de contexto uma vez cada, com as bases ligadas a
+  // elas e a distância de cada uma.
+  const pares = M.paresDasBases(r, M.basesEmUso(null, bases));
+  assert.deepEqual(pares.map(par => par.base.id), TODAS);
+  assert.deepEqual(M.paresDasBases(r, ['code:140010', 'code:999999']).map(par => par.base.id), ['code:140010']);
+  const contextos = M.referenciasDeContexto(pares);
+  assert.deepEqual(contextos.map(c => [c.referencia.id, c.bases.map(item => [item.base.id, item.distancia])]), [
+    ['code:140010', [['code:140002', 124.43], ['code:140020', 100]]],
+    ['code:130353', [['code:140010', 543.82], ['code:140020', 100]]]]);
+  // A dica de uma referência de contexto: os valores do motor e a distância até cada base ligada a ela.
+  const [deBoaVista, dePresidente] = contextos;
+  const dica = M.dicaDaReferenciaDeContexto(dePresidente, 'mais_proxima');
+  assert.equal(dica.titulo, 'PRESIDENTE FIGUEIREDO (AM)');
+  assert.equal(dica.subtitulo, 'Território de referência (o mais próximo) de BOA VISTA (RR) e CARACARAI (RR)');
+  assert.deepEqual(dica.linhas.map(linha => [linha.rotulo, linha.valor]), [['População', '33.004 habitantes'], ['Profissionais', '71'],
+    ['Densidade', '2,15 por 1.000 habitantes'], ['Distância até BOA VISTA (RR)', '543,82 km'], ['Distância até CARACARAI (RR)', '100,00 km']]);
+  assert.deepEqual(dica.notas, ['Fora da seleção: aparece só como território de referência, no início do eixo (0 km).']);
+  assert.match(M.dicaDaReferenciaDeContexto(deBoaVista, 'mais_proxima').notas[0], /^Também está em análise/);
+  // Com mais de quatro bases ligadas à mesma referência: três nomes no subtítulo, as quatro primeiras distâncias e quantas faltam.
+  const seis = {referencia: dePresidente.referencia, bases: Array.from({length: 6}, (_, i) => ({base: {...r.itens[0], rotulo: 'B' + i}, distancia: i}))};
+  const cheia = M.dicaDaReferenciaDeContexto(seis, null);
+  assert.equal(cheia.subtitulo, 'Território de referência de B0, B1, B2 e mais 3');
+  assert.deepEqual(cheia.linhas.slice(3).map(linha => linha.rotulo), ['Distância até B0', 'Distância até B1', 'Distância até B2', 'Distância até B3']);
+  assert.equal(cheia.notas[0], 'E mais 2 territórios base ligados a esta referência (as distâncias estão na tabela).');
+  // A linha acima do desenho: com uma base, o par dela; com mais, quantas, os quatro primeiros pares e, quando o gráfico liga menos
+  // do que os pares com referência, quantas ligações ele desenha; sem bases, o que falta.
+  assert.equal(M.textoDosTerritoriosBase({pares: [boaVista], todos: false, ligados: 1, relacao: 'mais_proxima'}),
+    M.textoDoParDaBase(boaVista, 'mais_proxima'));
+  assert.equal(M.textoDosTerritoriosBase({pares: [boaVista], todos: false, ligados: 0, relacao: 'mais_proxima'}),
+    M.textoDoParDaBase(boaVista, 'mais_proxima') + ' Nenhuma ligação à vista no gráfico: a bolha do território base está fora da régua ou dos filtros.');
+  assert.equal(M.textoDosTerritoriosBase({pares, todos: true, ligados: 3, relacao: 'mais_proxima'}),
+    'Territórios base: 4 (todos os selecionados) · cada um ligado ao seu território de referência (o mais próximo) por linha ' +
+    'tracejada: AMAJARI (RR) → BOA VISTA (RR), 124,43 km; BOA VISTA (RR) → PRESIDENTE FIGUEIREDO (AM), 543,82 km; BONFIM (RR): sem ' +
+    'território de referência; CARACARAI (RR) → BOA VISTA (RR) ou PRESIDENTE FIGUEIREDO (AM) (empate), 100,00 km.');
+  assert.match(M.textoDosTerritoriosBase({pares: [...pares, M.parDaBase(r, 'code:140002')], todos: false, ligados: 2, relacao: null}),
+    /^Territórios base: 5 · cada um ligado ao seu território de referência por linha tracejada: .+; e mais 1 \(nas dicas e na tabela\)\. O gráfico desenha 2 dessas ligações: no máximo 30, e só das bolhas à vista\.$/);
+  assert.equal(M.textoDosTerritoriosBase({pares: [], todos: false, ligados: 0}),
+    'Nenhum território base: o gráfico e o mapa não mostram as ligações até os territórios de referência.');
+  // O resumo no ajuste do Território de referência: só com as bases escolhidas uma a uma (todos é o padrão).
+  const nome = id => bases.find(base => base.id === id)?.rotulo ?? id;
+  assert.equal(M.resumoDosTerritoriosBase(TODAS, true, nome), '');
+  assert.equal(M.resumoDosTerritoriosBase([], false, nome), ' · nenhum território base');
+  assert.equal(M.resumoDosTerritoriosBase(['code:140010'], false, nome), ' · território base: BOA VISTA (RR)');
+  assert.equal(M.resumoDosTerritoriosBase(['code:140002', 'code:140010'], false, nome), ' · territórios base: AMAJARI (RR) e BOA VISTA (RR)');
+  assert.equal(M.resumoDosTerritoriosBase(TODAS, false, nome), ' · 4 territórios base');
   // Pelos membros escolhidos (a conversa: "use Manaus como referência"), o membro já está no gráfico, a distância zero, com a mira:
-  // os valores vêm do item e a ligação vai até a bolha dele.
+  // os valores vêm do item, a ligação vai até a bolha dele, e ele não entra como contexto.
   const pelosMembros = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
     referencia: {tipo: 'municipio', membros: [{id: 'code:130260', rotulo: 'MANAUS (AM)'}], origem: 'Referência escolhida.'},
     itens: [municipio('code:130260', 'MANAUS (AM)', {populacao: 2000, quantidade: 50, densidade: 25, distancia_km: 0, referencia: true}),
       municipio('code:130420', 'TEFE (AM)', {distancia_km: 522.5, referencia_mais_proxima: {id: 'code:130260', rotulo: 'MANAUS (AM)', empate: []}})]});
   const tefe = M.parDaBase(pelosMembros, 'code:130420');
-  assert.deepEqual([tefe.referencia.noGrafico, tefe.referencia.emAnalise, tefe.referencia.populacao, tefe.referencia.densidade], [true, false, 2000, 25]);
-  assert.equal(M.parDaBase(pelosMembros, 'code:130260').referencia, null);  // o próprio membro não tem outra referência
-  // Só estado visual: o pedido ao motor é o mesmo com ou sem base; a definição começa sem base, e o estado salvo a guarda.
+  const [manaus] = tefe.referencias;
+  assert.deepEqual([manaus.noGrafico, manaus.emAnalise, manaus.populacao, manaus.densidade], [true, false, 2000, 25]);
+  assert.deepEqual(M.parDaBase(pelosMembros, 'code:130260').referencias, []);  // o próprio membro não tem outra referência
+  assert.deepEqual(M.referenciasDeContexto([tefe]), []);
+  assert.deepEqual(M.basesPossiveis(pelosMembros.itens).map(base => base.id), ['code:130420']);  // o membro é a referência, não base
+  // Só estado visual: o pedido ao motor é o mesmo com ou sem bases; a definição começa com todos os selecionados, e o estado salvo
+  // guarda a escolha (de antes de serem cumulativos, o único escolhido vira a lista).
   const espacial = definicao({nivel: 'municipios', base: {todos: false, estados: ['14'], ids: []}, familia: 'espacial',
     referencia: {relacao: 'mais_proxima', delimitacao: {tipo: 'todos'}, condicao: {atributo: 'densidade', operador: '>', valor: 2}}});
-  assert.equal(M.definicaoInicial({tipo: 'brasil', periodos: ['202406'], categoria: 'MEDICINA', temGrupos: true}).territorioBase, null);
-  assert.deepEqual(M.montarOpcoes({...espacial, territorioBase: 'code:140010'}, 'espacial'), M.montarOpcoes(espacial, 'espacial'));
-  const salvo = M.salvarEstado('t', {chave: 'k', familia: 'espacial', opcoes: null, definicao: {...espacial, territorioBase: 'code:140010'},
+  assert.equal(M.definicaoInicial({tipo: 'brasil', periodos: ['202406'], categoria: 'MEDICINA', temGrupos: true}).territoriosBase, null);
+  assert.deepEqual(M.montarOpcoes({...espacial, territoriosBase: ['code:140010']}, 'espacial'), M.montarOpcoes(espacial, 'espacial'));
+  const salvar = def => M.salvarEstado('t', {chave: 'k', familia: 'espacial', opcoes: null, definicao: def,
     visual: {escala: 'linear', corte: null, selecionados: []}}, null);
-  assert.equal(M.lerEstadoSalvo(salvo).definicao.territorioBase, 'code:140010');
-  const antigo = M.salvarEstado('t', {chave: 'k', familia: 'espacial', opcoes: null, definicao: {...espacial, territorioBase: 7},
-    visual: {escala: 'linear', corte: null, selecionados: []}}, null);
-  assert.equal(M.lerEstadoSalvo(antigo).definicao.territorioBase, null);
-  // O gráfico cobre a referência de contexto: o eixo com o valor dela e a escala de tamanho com a população dela.
+  assert.deepEqual(M.lerEstadoSalvo(salvar({...espacial, territoriosBase: ['code:140010', 7]})).definicao.territoriosBase, ['code:140010']);
+  assert.equal(M.lerEstadoSalvo(salvar({...espacial, territoriosBase: null})).definicao.territoriosBase, null);
+  const antigo = M.lerEstadoSalvo(salvar({...espacial, territoriosBase: undefined, territorioBase: 'code:140010'})).definicao;
+  assert.deepEqual([antigo.territoriosBase, 'territorioBase' in antigo], [['code:140010'], false]);
+  assert.equal(M.lerEstadoSalvo(salvar({...espacial, territoriosBase: undefined, territorioBase: 7})).definicao.territoriosBase, null);
+  // O gráfico cobre as referências de contexto: o eixo com o valor delas e a escala de tamanho com a população delas.
   const grafico = (extra = {}) => M.montarGrafico({itens: r.itens.slice(0, 2), dominios: {}, indicador: 'densidade', escala: 'linear',
     distancia: true, cometa: false, vista: 'final', largura: 900, rotuloDistancia: 'Distância (km)', pintura: () => ({cor: '#123', vazada: false, apagada: false}), ...extra});
   assert.equal(grafico().populacaoMaxima, 470169);

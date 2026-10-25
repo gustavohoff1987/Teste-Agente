@@ -1596,9 +1596,10 @@ export type DefinicaoAnalise = {
   /** Intervalo da Série temporal (24/10/2026): as competências escolhidas, em ordem; vazio = a extensão inteira da base (do
    * primeiro ao último período que ela tem, lidos dos dados a cada pedido). */
   serie?: string[];
-  /** Território base da Análise Espacial (25/10/2026): um dos territórios em análise, para a tela mostrar a referência dele;
-   * nulo = todos os selecionados, cada um com a sua referência. Só estado visual: não entra no pedido ao motor. */
-  territorioBase?: string | null;
+  /** Territórios base da Análise Espacial (25/10/2026; cumulativos desde a terceira rodada do dia): os territórios em análise
+   * que a tela mostra ligados ao território de referência de cada um; nulo = todos os selecionados (o padrão, também os que
+   * entrarem depois). Só estado visual: não entra no pedido ao motor. */
+  territoriosBase?: string[] | null;
 };
 /** Estado inicial da análise: em qualquer fonte, nenhum território marcado (23/10/2026); a área espera a escolha na Seleção de
  * Territórios ou na conversa. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
@@ -1611,7 +1612,7 @@ export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodo
     nivel: "municipios", base: { ...BASE_VAZIA }, estados: [], competencia: maisRecente(p.periodos),
     categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
-    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [], territorioBase: null };
+    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [], territoriosBase: null };
 }
 /** O período com que a Análise de Tendência abre (24/10/2026, pedido do responsável, no lugar de "sem ritmo padrão"): o anual,
  * quando a base tem 4 períodos anuais até a competência mais recente; senão, o único ritmo que a base tem (RQ-GOV-14: um só valor
@@ -2034,10 +2035,13 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
   const lida = salvo.definicao as DefinicaoAnalise;
   if (!FAMILIAS_VALIDAS.has(lida.familia) || !lida.base || !Array.isArray(lida.janela)) return null;
   // Os estados escolhidos entraram em 24/10/2026: uma definição sem eles abre sem estados marcados; sem o intervalo da Série
-  // temporal (24/10/2026), toda a série.
-  const def: DefinicaoAnalise = { ...lida, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
+  // temporal (24/10/2026), toda a série. Os territórios base (25/10/2026): a lista guardada ou, de antes de serem cumulativos, o
+  // único escolhido; sem eles, todos os selecionados.
+  const { territorioBase: unicaBase, ...semUnicaBase } = lida as DefinicaoAnalise & { territorioBase?: unknown };
+  const def: DefinicaoAnalise = { ...semUnicaBase, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
     serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [],
-    territorioBase: typeof lida.territorioBase === "string" ? lida.territorioBase : null };
+    territoriosBase: Array.isArray(lida.territoriosBase) ? lida.territoriosBase.filter(id => typeof id === "string")
+      : typeof unicaBase === "string" ? [unicaBase] : null };
   const resposta = estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
   return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
@@ -2221,8 +2225,8 @@ export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { d
   return ligacoes;
 }
 
-// ================================================================================================ território base
-/** A referência do território base, com os valores do motor: por elegibilidade, os de `referencia.membros`; pelos membros
+// ================================================================================================ territórios base
+/** A referência de um território base, com os valores do motor: por elegibilidade, os de `referencia.membros`; pelos membros
  * escolhidos, os do próprio item (o membro entra na análise a distância zero). */
 export type ReferenciaDaBase = { id: string; rotulo: string; uf: string | null; populacao: number | null; quantidade: number | null;
   densidade: number | null;
@@ -2230,17 +2234,39 @@ export type ReferenciaDaBase = { id: string; rotulo: string; uf: string | null; 
   noGrafico: boolean;
   /** A referência também está em análise (por elegibilidade, com a sua própria distância). */
   emAnalise: boolean };
-export type ParDaBase = { base: PainelItem; referencia: ReferenciaDaBase | null;
-  /** Os outros territórios de referência empatados com o primeiro (nomes). */
-  empate: string[]; distancia: number | null;
+/** Um território base e a referência dele: no empate, todas as empatadas (CAP-ESP-02), a primeira antes. */
+export type ParDaBase = { base: PainelItem; referencias: ReferenciaDaBase[]; distancia: number | null;
   /** Sem referência: o motivo do motor (Não avaliáveis). */
   motivo: string | null };
+/** Uma referência que o gráfico desenha como contexto (por elegibilidade, fora das bolhas da análise), uma vez só, com os
+ * territórios base ligados a ela e a distância de cada um, na ordem dos pares. */
+export type ReferenciaDeContexto = { referencia: ReferenciaDaBase; bases: { base: PainelItem; distancia: number | null }[] };
 
-/** As opções do Território base (25/10/2026): as unidades em análise, sem estados nem conjuntos, na ordem dos nomes. */
-export const basesPossiveis = (itens: PainelItem[]) => itens.filter(item => item.tipo === "municipio")
+/** As opções do Território base (25/10/2026): as unidades em análise, sem estados nem conjuntos, na ordem dos nomes; com a
+ * referência pelo nome, sem os membros dela (eles são a referência). */
+export const basesPossiveis = (itens: PainelItem[]) => itens.filter(item => item.tipo === "municipio" && !item.referencia)
   .map(item => ({ id: item.id, rotulo: item.rotulo })).sort((a, b) => comparar(a.rotulo, b.rotulo) || comparar(a.id, b.id));
+/** Os territórios base em uso, na ordem das opções: nulo, todas elas; senão, as escolhidas que continuam em análise. */
+export function basesEmUso(escolha: string[] | null | undefined, bases: { id: string }[]): string[] {
+  if (!escolha) return bases.map(base => base.id);
+  const escolhidas = new Set(escolha);
+  return bases.filter(base => escolhidas.has(base.id)).map(base => base.id);
+}
+/** A escolha a guardar: com todas as opções marcadas, nulo (todos os selecionados, também os que entrarem depois). */
+export function normalizarBases(ids: string[], bases: { id: string }[]): string[] | null {
+  const marcadas = new Set(ids);
+  return bases.length > 0 && bases.every(base => marcadas.has(base.id)) ? null : bases.filter(base => marcadas.has(base.id)).map(base => base.id);
+}
 
-/** O território base da Análise Espacial com a referência dele (25/10/2026, pedido do responsável): a tela mostra a referência
+function referenciaDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">, ref: { id: string; rotulo: string }): ReferenciaDaBase {
+  const comoItem = resposta.itens.find(candidato => candidato.id === ref.id && candidato.tipo === "municipio") ?? null;
+  const membro = resposta.referencia?.membros.find(candidato => candidato.id === ref.id);
+  const noGrafico = !!comoItem?.referencia;
+  const fonte = noGrafico || !membro ? comoItem : membro;
+  return { id: ref.id, rotulo: ref.rotulo, uf: fonte?.uf ?? null, populacao: numero(fonte?.populacao), quantidade: numero(fonte?.quantidade),
+    densidade: numero(fonte?.densidade), noGrafico, emAnalise: !!comoItem && !noGrafico };
+}
+/** Um território base da Análise Espacial com a referência dele (25/10/2026, pedido do responsável): a tela mostra a referência
  * no gráfico (bolha de contexto com a mira, no início do eixo, ligada à base) e no mapa. Só estado visual (RQ-REP-06): o pedido
  * ao motor é o mesmo, todo número vem dele, e nada é calculado entre os dois (CAP-REF-01). Nulo sem base ou com a base fora da
  * análise. */
@@ -2248,48 +2274,90 @@ export function parDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">
   if (!resposta || !base) return null;
   const item = resposta.itens.find(candidato => candidato.id === base && candidato.tipo === "municipio");
   if (!item) return null;
-  const primeira = item.referencia ? undefined : item.referenciaDoItem?.[0];
-  if (!primeira) return { base: item, referencia: null, empate: [], distancia: null, motivo: motivosDe(item, "distancia")[0] ?? null };
-  const comoItem = resposta.itens.find(candidato => candidato.id === primeira.id && candidato.tipo === "municipio") ?? null;
-  const membro = resposta.referencia?.membros.find(candidato => candidato.id === primeira.id);
-  const noGrafico = !!comoItem?.referencia;
-  const fonte = noGrafico || !membro ? comoItem : membro;
-  return { base: item,
-    referencia: { id: primeira.id, rotulo: primeira.rotulo, uf: fonte?.uf ?? null, populacao: numero(fonte?.populacao),
-      quantidade: numero(fonte?.quantidade), densidade: numero(fonte?.densidade), noGrafico, emAnalise: !!comoItem && !noGrafico },
-    empate: (item.referenciaDoItem || []).slice(1).map(ref => ref.rotulo), distancia: numero(item.distancia_km), motivo: null };
+  const referencias = item.referencia ? [] : item.referenciaDoItem ?? [];
+  if (!referencias.length) return { base: item, referencias: [], distancia: null, motivo: motivosDe(item, "distancia")[0] ?? null };
+  return { base: item, referencias: referencias.map(ref => referenciaDaBase(resposta, ref)), distancia: numero(item.distancia_km), motivo: null };
+}
+/** Os pares dos territórios base em uso, na ordem deles. */
+export const paresDasBases = (resposta: Pick<PainelResposta, "itens" | "referencia"> | null, bases: string[]) =>
+  bases.map(base => parDaBase(resposta, base)).filter((par): par is ParDaBase => !!par);
+/** As referências de contexto do gráfico: as dos pares que o gráfico não desenha como bolha (por elegibilidade), uma vez cada. */
+export function referenciasDeContexto(pares: ParDaBase[]): ReferenciaDeContexto[] {
+  const porId = new Map<string, ReferenciaDeContexto>();
+  for (const par of pares) for (const referencia of par.referencias) {
+    if (referencia.noGrafico) continue;
+    const contexto = porId.get(referencia.id) ?? { referencia, bases: [] };
+    contexto.bases.push({ base: par.base, distancia: par.distancia });
+    porId.set(referencia.id, contexto);
+  }
+  return [...porId.values()];
 }
 
 const comE = (nomes: string[]) => nomes.length < 2 ? nomes.join("") : nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1];
 const qualReferencia = (relacao: RelacaoEspacial | null | undefined) =>
   relacao === "mais_distante" ? " (o mais distante)" : relacao === "mais_proxima" ? " (o mais próximo)" : "";
 
-/** A linha acima do desenho (`analise-par-base`): a base, a referência dela e a distância do motor, ou o motivo sem referência. */
+/** O texto de um território base só: a base, a referência dela e a distância do motor, ou o motivo sem referência. */
 export function textoDoParDaBase(par: ParDaBase, relacao?: RelacaoEspacial | null): string {
-  if (!par.referencia) return "Território base: " + par.base.rotulo + ". " +
+  const [primeira, ...empate] = par.referencias;
+  if (!primeira) return "Território base: " + par.base.rotulo + ". " +
     (par.motivo ?? "Sem território de referência nesta definição (o motivo está em Não avaliáveis, nos Detalhes).");
-  return "Território base: " + par.base.rotulo + " · Território de referência" + qualReferencia(relacao) + ": " + par.referencia.rotulo +
-    (par.empate.length ? " (empate com " + comE(par.empate) + ")" : "") +
+  return "Território base: " + par.base.rotulo + " · Território de referência" + qualReferencia(relacao) + ": " + primeira.rotulo +
+    (empate.length ? " (empate com " + comE(empate.map(ref => ref.rotulo)) + ")" : "") +
     (par.distancia !== null ? ", a " + formatarNumero(par.distancia) + " km em linha reta" : "") + ".";
 }
+/** Quantos pares a linha acima do desenho escreve; os outros ficam nas dicas e na tabela. */
+const PARES_NO_TEXTO = 4;
+const parCurto = (par: ParDaBase) => !par.referencias.length ? par.base.rotulo + ": sem território de referência"
+  : par.base.rotulo + " → " + par.referencias.map(ref => ref.rotulo).join(" ou ") + (par.referencias.length > 1 ? " (empate)" : "") +
+    (par.distancia !== null ? ", " + formatarNumero(par.distancia) + " km" : "");
+/** A linha acima do desenho (`analise-par-base`): com um território base, o par dele; com mais, quantos são e os primeiros pares
+ * (base → referência, distância do motor); quando o gráfico liga menos do que os pares com referência, quantas ligações desenha. */
+export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; todos: boolean; ligados: number; relacao?: RelacaoEspacial | null }): string {
+  const { pares, todos, ligados, relacao } = c;
+  if (!pares.length) return "Nenhum território base: o gráfico e o mapa não mostram as ligações até os territórios de referência.";
+  const comReferencia = pares.filter(par => par.referencias.length).length;
+  const ligacoes = ligados >= comReferencia ? "" : !ligados ? " Nenhuma ligação à vista no gráfico: " + (comReferencia === 1
+    ? "a bolha do território base está fora" : "as bolhas dos territórios base estão fora") + " da régua ou dos filtros."
+    : " O gráfico desenha " + ligados + " dessas ligações: no máximo " + MAX_LIGACOES + ", e só das bolhas à vista.";
+  if (pares.length === 1) return textoDoParDaBase(pares[0], relacao) + ligacoes;
+  const resto = pares.length - PARES_NO_TEXTO;
+  return "Territórios base: " + pares.length + (todos ? " (todos os selecionados)" : "") + " · cada um ligado ao seu território de referência" +
+    qualReferencia(relacao) + " por linha tracejada: " + pares.slice(0, PARES_NO_TEXTO).map(parCurto).join("; ") +
+    (resto > 0 ? "; e mais " + resto + " (nas dicas e na tabela)" : "") + "." + ligacoes;
+}
+/** O resumo dos territórios base no ajuste do Território de referência: só quando escolhidos um a um (todos é o padrão). */
+export function resumoDosTerritoriosBase(bases: string[], todos: boolean, nomeDe: (id: string) => string): string {
+  if (todos) return "";
+  if (!bases.length) return " · nenhum território base";
+  if (bases.length === 1) return " · território base: " + nomeDe(bases[0]);
+  return bases.length <= 3 ? " · territórios base: " + comE(bases.map(nomeDe)) : " · " + bases.length + " territórios base";
+}
 
-/** A dica da bolha de contexto da referência do território base: os valores do motor e a distância até a base. */
-export function dicaDaReferenciaDaBase(par: ParDaBase, relacao?: RelacaoEspacial | null): Dica | null {
-  const ref = par.referencia;
-  if (!ref) return null;
-  return { titulo: ref.rotulo, subtitulo: "Território de referência" + qualReferencia(relacao) + " de " + par.base.rotulo,
+/** Quantas distâncias a dica de uma referência de contexto lista; as outras ficam na tabela. */
+const DISTANCIAS_NA_DICA = 4;
+/** A dica da bolha de contexto de um território de referência: os valores do motor e a distância até cada território base ligado
+ * a ela. */
+export function dicaDaReferenciaDeContexto(contexto: ReferenciaDeContexto, relacao?: RelacaoEspacial | null): Dica {
+  const { referencia: ref, bases } = contexto;
+  const nomes = bases.map(item => item.base.rotulo);
+  return { titulo: ref.rotulo, subtitulo: "Território de referência" + qualReferencia(relacao) + " de " +
+      (nomes.length > 3 ? nomes.slice(0, 3).join(", ") + " e mais " + (nomes.length - 3) : comE(nomes)),
     linhas: [
       { rotulo: "População", valor: ref.populacao === null ? "Não avaliável" : formatarNumero(ref.populacao, true) + " habitantes" },
       { rotulo: "Profissionais", valor: ref.quantidade === null ? "Não avaliável" : formatarNumero(ref.quantidade, true) },
       { rotulo: "Densidade", valor: formatarIndicador(ref.densidade, "densidade") },
-      { rotulo: "Distância até " + par.base.rotulo, valor: par.distancia === null ? "Não avaliável" : formatarNumero(par.distancia) + " km" }],
-    notas: [ref.emAnalise ? "Também está em análise: a outra bolha com este nome mostra a distância até a sua própria referência."
-      : "Fora da seleção: aparece só como a referência do território base, no início do eixo (0 km)."], acao: null };
+      ...bases.slice(0, DISTANCIAS_NA_DICA).map(item => ({ rotulo: "Distância até " + item.base.rotulo,
+        valor: item.distancia === null ? "Não avaliável" : formatarNumero(item.distancia) + " km" }))],
+    notas: [...(bases.length > DISTANCIAS_NA_DICA ? ["E mais " + (bases.length - DISTANCIAS_NA_DICA) + " territórios base ligados a esta " +
+        "referência (as distâncias estão na tabela)."] : []),
+      ref.emAnalise ? "Também está em análise: a outra bolha com este nome mostra a distância até a sua própria referência."
+        : "Fora da seleção: aparece só como território de referência, no início do eixo (0 km)."], acao: null };
 }
 
 // ================================================================================================ apresentação das abas e da tendência
 /** Apresentação de cada aba: o que a aba faz, em linguagem simples, só com o que a área faz de fato. Nas análises (24/10/2026),
- * ela fica em "Entenda esta análise", que abre na primeira visita e se recolhe; a da Seleção de Territórios é curta e fica à
+ * ela fica em "Entenda esta análise", que começa recolhido (25/10/2026); a da Seleção de Territórios é curta e fica à
  * vista. Os nomes territoriais vêm dos rótulos da fonte (municípios e estados na base do Brasil; distritos, províncias e outros
  * nas planilhas). */
 export type Apresentacao = { titulo: string; paragrafos: string[]; itens?: { termo: string; texto: string }[]; nota?: string };

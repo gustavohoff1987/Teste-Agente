@@ -4,7 +4,7 @@ Decisões do responsável pelo produto de 22/10/2026: uma análise integrada, se
 23/10/2026, uma linha de abas reúne a **Seleção de Territórios** (o conjunto analisado, compartilhado por todas as análises) e as
 quatro análises com os nomes padronizados: **Análise de Distribuição**, **Análise Espacial**, **Análise de Tendência** e
 **Análise de Rotatividade**. As abas aparecem quando os dados estão prontos (24/10/2026). Cada aba abre com a apresentação do
-que ela faz (nas análises, desde 24/10/2026, em "Entenda esta análise", que se recolhe), mesmo quando a análise não pode ser
+que ela faz (nas análises, desde 24/10/2026, em "Entenda esta análise", recolhido por padrão desde 25/10/2026), mesmo quando a análise não pode ser
 executada com os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
 abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Desfazer** (até 25/10/2026, "Voltar") e **Limpar seleção** ficam
 fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
@@ -225,9 +225,10 @@ Depois da apresentação, nas análises, vêm os ajustes (`analise-ajustes`, com
 e o resumo da seleção.
 
 **"Entenda esta análise"** (24/10/2026): nas quatro análises, a apresentação fica num bloco recolhível (`analise-entenda`, um
-`<details>` com o botão `analise-entenda-botao`), aberto na primeira visita de cada aba na sessão e recolhido nas seguintes,
-para os resultados ficarem no alto; se a pessoa o abre ou fecha, a aba guarda a escolha. Na Seleção de Territórios, a orientação
-curta continua sempre à vista.
+`<details>` com o botão `analise-entenda-botao`), recolhido por padrão desde a primeira visita (25/10/2026, pedido do
+responsável, para não ocupar espaço; antes, abria na primeira visita de cada aba, menos na Tendência), para os resultados
+ficarem no alto; se a pessoa o abre ou fecha, a aba guarda a escolha na sessão. Na Seleção de Territórios, a orientação curta
+continua sempre à vista.
 
 **Toda aba abre** (23/10/2026), mesmo a de uma análise que não pode ser executada com os dados: as abas não ficam mais
 desabilitadas (`data-disponivel` diz se a análise se executa). Nesse caso, o painel mostra a apresentação e o motivo
@@ -302,21 +303,34 @@ O que cada análise mostra:
   ("Maior que" ou "Menor que"), com o aviso `analise-ref-da-conversa`; a relação, a delimitação e o valor de corte ficam com a
   pessoa, sem valor sugerido, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01); uma
   referência pelo nome, vinda da conversa, continua valendo (a distância até ela). Faixas de distância opcionais
-  (CAP-ESP-03). **Território base** (25/10/2026, pedido do responsável, no início do painel): uma das unidades em análise
-  (`analise-ref-base`; "Todos os selecionados (cada um com a sua referência)" é o padrão), escolhida no painel, não pelo clique
-  no gráfico, que continua só marcando. Com uma base, o gráfico mostra a referência dela: quando ela não é desenhada no gráfico
-  (por elegibilidade, a referência costuma ficar fora da seleção), entra uma bolha de contexto (`analise-referencia-da-base`),
-  círculo claro com a mira, no início do eixo (0 km), na altura do indicador dela e com o tamanho pela população dela, os
-  valores do motor (`referencia.membros`), com o nome "· referência" e a dica própria (população, profissionais, densidade e
-  a distância até a base); uma linha tracejada (`analise-ligacao-base`) liga a base (anel e nome "· território base") a ela,
-  e a distância entre as duas no eixo horizontal é a própria distância. Com a referência pelo nome, o membro já está no gráfico
-  com a mira, e a linha vai até ele. A bolha de contexto não conta na frase-resumo, nos grupos, na régua, nos filtros, na
-  tabela nem no CSV, e a mesma unidade em análise continua com a sua própria bolha. Acima do desenho, `analise-par-base` diz
-  "Território base: BOA VISTA (RR) · Território de referência (o mais próximo): PRESIDENTE FIGUEIREDO (AM), a 543,82 km em
-  linha reta." (sem referência, o motivo do motor), com "Mudar o território base"; o resumo do Território de referência ganha
-  "· território base: …". No mapa, a ligação da base vem sempre, e a referência fica no quadro, com o nome. É só estado visual
-  (RQ-REP-06): o pedido ao motor é o mesmo, nada é calculado entre os dois (CAP-REF-01), e a escolha é um passo do Desfazer
-  ("Escolher BOA VISTA (RR) como território base") e fica no estado salvo. A nota TPL-11 aparece sempre junto. Nos estados, a
+  (CAP-ESP-03). **Territórios base** (25/10/2026, pedido do responsável, no início do painel; cumulativos desde a terceira
+  rodada do mesmo dia): "Todos os selecionados" (`analise-ref-base-todos`, o padrão, que vale também para quem entrar depois)
+  ou alguns, marcados um a um na lista das unidades em análise (`analise-ref-base`, caixas `analise-ref-base-opcao`; com a
+  referência pelo nome, sem os membros dela; com algumas marcadas, "Todos" fica indeterminado, e marcar todas volta a
+  "Todos"), no painel, não pelo clique no gráfico, que continua só marcando. Com o território de referência aplicado, cada território base aparece ligado ao seu: quando a
+  referência não é desenhada no gráfico (por elegibilidade, a referência costuma ficar fora da seleção), entra uma bolha de
+  contexto (`analise-referencia-da-base`, uma por referência, com `data-bases`), círculo claro com a mira, no início do eixo
+  (0 km), na altura do indicador dela e com o tamanho pela população dela, os valores do motor (`referencia.membros`), com o
+  nome "· referência" e a dica própria (população, profissionais, densidade e a distância até cada base ligada a ela, até 4);
+  uma linha tracejada (`analise-ligacao-base`, com `data-base` e `data-referencia`) liga cada base a ela, e a distância entre
+  as duas no eixo horizontal é a própria distância; no empate, uma linha até cada referência empatada (CAP-ESP-02). As bases
+  escolhidas uma a uma ganham o anel e o nome "· território base"; com todos os selecionados, as bases ficam com o nome de
+  sempre. Até 12 bases têm o nome à vista (e até 12 referências de contexto); com mais, a dica. O gráfico desenha no máximo
+  30 ligações, das bases à vista (dentro da régua e dos filtros), as marcadas primeiro. Com a referência pelo nome, o membro
+  já está no gráfico com a mira, e a linha vai até ele. A bolha de contexto não conta na frase-resumo, nos grupos, na régua,
+  nos filtros, na tabela nem no CSV, e a mesma unidade em análise continua com a sua própria bolha. Acima do desenho,
+  `analise-par-base` diz, com uma base, "Território base: BOA VISTA (RR) · Território de referência (o mais próximo):
+  PRESIDENTE FIGUEIREDO (AM), a 543,82 km em linha reta." (sem referência, o motivo do motor) e, com mais, "Territórios base:
+  4 (todos os selecionados) · cada um ligado ao seu território de referência (o mais próximo) por linha tracejada: …", com os
+  quatro primeiros pares (base → referência, distância) e quantos faltam; quando o gráfico liga menos do que os pares com
+  referência, diz quantas ligações desenha; sem bases, "Nenhum território base: …"; com várias bases e nenhuma com
+  referência, a linha sai (o aviso `analise-ref-sem-resultado` diz o motivo). O botão `analise-par-base-mudar` reabre o
+  painel. O resumo do Território de referência cita as bases só quando escolhidas uma a uma ("· território base: …",
+  "· territórios base: … e …", "· N territórios base" ou "· nenhum território base"). No mapa, as ligações das bases vêm
+  primeiro, e a referência fica no quadro, com o nome. É só estado visual (RQ-REP-06): o pedido ao motor é o mesmo, nada é
+  calculado entre os dois (CAP-REF-01), e cada escolha é um passo do Desfazer ("Incluir BOA VISTA (RR) nos territórios base",
+  "Tirar … dos territórios base", "Todos os selecionados como territórios base", "Nenhum território base") e fica no estado
+  salvo (um território base guardado antes de serem cumulativos vira a lista com ele). A nota TPL-11 aparece sempre junto. Nos estados, a
   família espera a escolha de municípios (os estados não têm coordenadas). A disponibilidade vem do motor
   (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba abre
   com a apresentação e o motivo do motor, sem os ajustes; quando o motor pede a escolha do referencial, a tela mostra as opções
@@ -345,7 +359,7 @@ O que cada análise mostra:
   dois, a **divisória** (`analise-divisoria`, `role="separator"`) muda a largura do painel: arrastando com o mouse ou o dedo,
   ou com as setas do teclado com o foco nela (Shift para passos maiores; Home e End vão aos limites), entre 240 px e a metade
   da área (no máximo 620 px; 340 px de início). Abaixo de 1.024 px, sem a divisória, o painel vai para baixo do desenho.
-  **"Entenda esta análise"** começa recolhido nesta aba desde a primeira visita, para o desenho ficar no alto.
+  **"Entenda esta análise"** começa recolhido desde a primeira visita, como nas outras análises, para o desenho ficar no alto.
   As visões, nesta ordem (`analise-visao-classes`, `analise-visao-mudanca` e `analise-visao-series`; os nomes de antes, Classes,
   Mudança e Séries, saíram); trocar de visão não refaz a seleção nem os ajustes:
   - **Trajetória** (no lugar da Mudança): entre a primeira e a última competência da janela (CAP-TMP-01), o cometa e a cor
@@ -456,8 +470,9 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   análise, e o mapa pinta cada ponto pelo `grupo_mapa` do motor, com a legenda dos quintis (rótulos e contagens do motor). O
   gráfico, a frase-resumo, a tabela e o CSV não mudam com eles; sem os grupos na resposta (uma análise guardada antes, ou menos
   de duas unidades com valor), a cor única do gráfico (a unidade sem o valor do indicador, vazada). O tamanho pela população (densidade), pela quantidade ou pela coorte
-  inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas dos
-  selecionados (até 30) e, desde 25/10/2026, do território base até o membro da referência mais próximo; o enquadramento
+  inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas, até
+  30: desde 25/10/2026, as dos territórios base (escolhidos um a um, primeiro; com todos os selecionados, depois dos marcados)
+  e as dos selecionados, até o membro da referência mais próximo; o enquadramento
   inicial cobre também as referências desenhadas, e a que fica fora do resultado ganha o nome quando uma ligação chega até
   ela. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
   contínua) saiu em 23/10/2026.
@@ -727,9 +742,11 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   do atributo, a resposta com `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação); desde 25/10/2026, o mapa
   com todas as unidades em análise (`itensParaOMapa`), os filtros que esmaecem nele (`dentroDosFiltros`), a cor única vazada sem
   o valor do indicador, o aviso "Fora do gráfico" (`textoForaDoDesenho`) e a opacidade das bolhas, que não depende da seleção
-  (`opacidadeDaBolha`); e o território base (`basesPossiveis`, `parDaBase`, `textoDoParDaBase` e `dicaDaReferenciaDaBase`: a
-  referência fora da análise, também em análise e pelo nome, o empate, sem referência, o pedido igual com e sem base, o estado
-  salvo e a escala do gráfico com a referência de contexto). `frontend/tests/painel.test.mjs` cobre o
+  (`opacidadeDaBolha`); e os territórios base (`basesPossiveis`, `basesEmUso`, `normalizarBases`, `parDaBase`,
+  `paresDasBases`, `referenciasDeContexto`, `textoDoParDaBase`, `textoDosTerritoriosBase`, `resumoDosTerritoriosBase` e
+  `dicaDaReferenciaDeContexto`: todos ou alguns, a referência fora da análise, também em análise e pelo nome, o empate com
+  todas as empatadas, sem referência, a referência de contexto com as bases ligadas, os textos e a dica, o pedido igual com e
+  sem bases, o estado salvo, também o de antes, e a escala do gráfico com as referências de contexto). `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
   o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
   conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial);
@@ -743,7 +760,7 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
   (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, desde 24/10/2026 sem as abas, só com a identificação, a chamada e
   as duas entradas; a base sem seleção automática (nenhum pedido, a Seleção aberta e as abas das análises com a apresentação
-  em "Entenda esta análise", aberta na primeira visita e recolhida depois, como a pessoa deixou); os níveis da Seleção (Estados
+  em "Entenda esta análise", recolhido desde a primeira visita e, depois, como a pessoa deixou); os níveis da Seleção (Estados
   com "Marcar todos os estados", cada nível com a sua escolha); E1 com os estados escolhidos, a instrução e a ação na dica;
   desde 24/10/2026, a seleção cumulativa entre estados (abrir outro estado não muda nada nem pede ao motor), a busca no alto, o
   Brasil como unidade (só o nível no pedido, um item, a frase do motor, as funções e o mapa desligados, sem Grupos) e os estados

@@ -4,9 +4,9 @@ import type { GraficoComMapaProps } from "./mapaContrato";
 import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta, RelacaoEspacial } from "./painelApi";
 import {
-  INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDaBase, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
+  INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
   legendaDeTamanhos, montarDica, montarGrafico, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
-  type BolhaDesenho, type Corte, type Escala, type PaletaDoGrafico, type ParDaBase, type Pintura, type RotulosTerritoriais, type Vista,
+  referenciasDeContexto, type BolhaDesenho, type Corte, type Escala, type PaletaDoGrafico, type ParDaBase, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
@@ -54,9 +54,12 @@ type Props = {
   trajetoria?: boolean;
   /** Território de referência por elegibilidade: a relação (a dica diz "o mais próximo" ou "o mais distante"). */
   relacao?: RelacaoEspacial | null;
-  /** Território base (25/10/2026): a base e a referência dela, com os valores do motor. A referência que o gráfico não desenha
-   * entra como contexto, no início do eixo (0 km), ligada à base por uma linha tracejada; não conta, não filtra e não vai à tabela. */
-  parDaBase?: ParDaBase | null;
+  /** Territórios base (25/10/2026; cumulativos desde a terceira rodada do dia): as bases à vista e a referência de cada uma, com os
+   * valores do motor (até MAX_LIGACOES). A referência que o gráfico não desenha entra como contexto, no início do eixo (0 km),
+   * ligada às suas bases por linhas tracejadas; não conta, não filtra e não vai à tabela. */
+  pares?: ParDaBase[];
+  /** As bases foram escolhidas uma a uma (não todos os selecionados): ganham o anel e "· território base" no nome. */
+  basesEscolhidas?: boolean;
   vista: Vista;
   fase: FaseAnimacao;
   pintura: (item: PainelItem) => Pintura;
@@ -86,8 +89,10 @@ type Props = {
 const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.rotulo) || [])[1] || item.rotulo;
 /** A mira da referência, em volta de um círculo de raio r. */
 const mira = (r: number) => `M${-(r + 9)} 0H${-(r + 3)}M${r + 3} 0H${r + 9}M0 ${-(r + 9)}V${-(r + 3)}M0 ${r + 3}V${r + 9}`;
-/** Identificador da bolha de contexto da referência do território base (não é item da análise). */
-const ID_REFERENCIA_DA_BASE = "referencia-da-base";
+/** Prefixo do identificador das bolhas de contexto das referências dos territórios base (não são itens da análise). */
+const PREFIXO_REFERENCIA = "referencia-da-base:";
+/** Até quantas bases (e quantas referências de contexto) ganham o nome direto; com mais, só a dica. */
+const ROTULOS_DAS_LIGACOES = 12;
 
 export default function PainelChart(p: Props) {
   const [ref, largura] = useLargura();
@@ -101,7 +106,7 @@ export default function PainelChart(p: Props) {
   useEffect(() => {
     if (ativo === avisado.current) return;
     avisado.current = ativo;
-    aoAtivar.current?.(ativo === ID_REFERENCIA_DA_BASE ? null : ativo);
+    aoAtivar.current?.(ativo?.startsWith(PREFIXO_REFERENCIA) ? null : ativo);
   }, [ativo]);
   useEffect(() => () => { if (avisado.current !== null) aoAtivar.current?.(null); }, []);
   const externo = p.ativoExterno ?? null;
@@ -109,15 +114,16 @@ export default function PainelChart(p: Props) {
   const focarDepois = useRef<string | null>(null);
   const leve = p.todos.length > LIMITE_LEVE;
   const desenhaveis = leve ? p.todos : p.itens;
-  // Território base (25/10/2026): a referência dele que o gráfico não desenha (por elegibilidade) entra como contexto, no início do
-  // eixo (0 km), na posição do indicador e com o tamanho pela população, os valores do motor; o eixo e a escala de tamanho a cobrem.
-  const baseId = p.distancia ? p.parDaBase?.base.id ?? null : null;
-  const refContexto = p.distancia && p.parDaBase?.referencia && !p.parDaBase.referencia.noGrafico ? p.parDaBase.referencia : null;
-  const valorRef = refContexto ? refContexto[p.indicador] : null;
-  const populacaoRef = refContexto ? refContexto.populacao : null;
-  const extras = useMemo(() => [...(p.contextoBrasil ? [p.contextoBrasil.valor] : []), ...(valorRef !== null ? [valorRef] : [])],
-    [p.contextoBrasil, valorRef]);
-  const extrasPopulacao = useMemo(() => populacaoRef !== null ? [populacaoRef] : [], [populacaoRef]);
+  // Territórios base (25/10/2026): as referências que o gráfico não desenha (por elegibilidade) entram como contexto, no início do
+  // eixo (0 km), na posição do indicador e com o tamanho pela população, os valores do motor; o eixo e a escala de tamanho as cobrem.
+  const pares = useMemo(() => p.distancia ? p.pares ?? [] : [], [p.distancia, p.pares]);
+  const idsDasBases = useMemo(() => new Set(pares.map(par => par.base.id)), [pares]);
+  const referenciasFora = useMemo(() => referenciasDeContexto(pares), [pares]);
+  const extras = useMemo(() => [...(p.contextoBrasil ? [p.contextoBrasil.valor] : []),
+    ...referenciasFora.map(contexto => contexto.referencia[p.indicador]).filter((valor): valor is number => valor !== null)],
+  [p.contextoBrasil, referenciasFora, p.indicador]);
+  const extrasPopulacao = useMemo(() => referenciasFora.map(contexto => contexto.referencia.populacao)
+    .filter((valor): valor is number => valor !== null), [referenciasFora]);
   const grafico = useMemo(() => montarGrafico({ itens: desenhaveis, dominios: p.resposta.dominios, indicador: p.indicador, escala: p.escala,
     distancia: p.distancia, cometa: p.cometa, trajetoria: p.trajetoria, vista: p.vista, largura, rotuloDistancia: p.rotuloDistancia,
     pintura: p.pintura, extras, extrasPopulacao, denso: leve }),
@@ -126,15 +132,25 @@ export default function PainelChart(p: Props) {
   // Modo leve: a régua só esconde (as posições não mudam); no modo normal, o gráfico já recebe só os itens do corte.
   const dentro = useMemo(() => leve ? new Set(p.itens.map(item => item.id)) : null, [leve, p.itens]);
   const desenhada = useCallback((bolha: BolhaDesenho) => bolha.visivel && (!dentro || dentro.has(bolha.id)), [dentro]);
-  // A base ganha o anel e o nome; a ligação tracejada vai da base até a referência: a de contexto ou, com o membro escolhido (já
-  // desenhado com a mira, a distância zero), a bolha dele.
-  const bolhaDaBase = baseId ? grafico.bolhas.find(bolha => bolha.id === baseId && desenhada(bolha)) : undefined;
-  const contexto = refContexto && valorRef !== null && grafico.eixoX ? { x: posicaoNoEixo(grafico.eixoX, 0),
-    y: posicaoNoEixo(grafico.eixoY, valorRef), r: raioDaPopulacao(populacaoRef, grafico.populacaoMaxima, grafico.raioMax) } : null;
-  const membroDaBase = p.distancia && p.parDaBase?.referencia?.noGrafico
-    ? grafico.bolhas.find(bolha => bolha.id === p.parDaBase!.referencia!.id && desenhada(bolha)) : undefined;
-  const fimDaLigacao = bolhaDaBase ? contexto ?? membroDaBase ?? null : null;
-  const textoDaReferencia = refContexto ? refContexto.rotulo + " · referência" : "";
+  // As ligações tracejadas vão de cada base até a referência dela: a de contexto ou, com o membro escolhido (já desenhado com a
+  // mira, a distância zero), a bolha dele; no empate, até cada uma (CAP-ESP-02). As bases escolhidas uma a uma ganham o anel.
+  const bolhaDe = useMemo(() => new Map(grafico.bolhas.filter(desenhada).map(bolha => [bolha.id, bolha])), [grafico, desenhada]);
+  const contextos = grafico.eixoX ? referenciasFora.flatMap(contexto => {
+    const valor = contexto.referencia[p.indicador];
+    return valor === null ? [] : [{ ...contexto, id: PREFIXO_REFERENCIA + contexto.referencia.id, valor, x: posicaoNoEixo(grafico.eixoX!, 0),
+      y: posicaoNoEixo(grafico.eixoY, valor), r: raioDaPopulacao(contexto.referencia.populacao, grafico.populacaoMaxima, grafico.raioMax),
+      texto: contexto.referencia.rotulo + " · referência" }];
+  }).sort((a, b) => (b.referencia.populacao ?? -1) - (a.referencia.populacao ?? -1)) : [];  // as mais populosas atrás
+  const contextoDe = new Map(contextos.map(contexto => [contexto.referencia.id, contexto]));
+  const ligacoes = pares.flatMap(par => {
+    const de = bolhaDe.get(par.base.id);
+    return de ? par.referencias.flatMap(ref => {
+      const ate = ref.noGrafico ? bolhaDe.get(ref.id) : contextoDe.get(ref.id);
+      return ate ? [{ base: par.base.id, referencia: ref.id, x1: de.x, y1: de.y, x2: ate.x, y2: ate.y }] : [];
+    }) : [];
+  });
+  const comNome = pares.length <= ROTULOS_DAS_LIGACOES, referenciasComNome = contextos.length <= ROTULOS_DAS_LIGACOES;
+  const comAnel = (id: string) => !!p.basesEscolhidas && idsDasBases.has(id);
   const selecionados = useMemo(() => new Set(p.selecionados), [p.selecionados]);
   const competenciaInicial = p.resposta.competencia_inicial || null;
   const especie = INDICADORES[p.indicador];
@@ -157,17 +173,17 @@ export default function PainelChart(p: Props) {
     const nome = bolha.item.rotulo + (bolha.tipo === "conjunto" ? " (soma)" : "");
     const extra = p.extraDoRotulo?.(bolha.item);
     if (extra) return extra + " " + nome;
-    if (bolha.id === baseId) return nome + " · território base";
+    if (comAnel(bolha.id)) return nome + " · território base";
     if (p.vista === "inicial" && p.cometa) return nome + " · " + exibirCompetencia(competenciaInicial);
     if (p.cometa && bolha.variacao !== null) return nome + " · " + formatarVariacao(bolha.variacao);
     if (bolha.referencia) return nome + " · referência";
     return nome + " · " + formatarNumero(bolha.valor, especie.contagem, p.limiares);
   };
   const rotulados = grafico.bolhas.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === baseId || !!p.rotuloSempre?.(bolha.item)));
+    bolha.referencia || bolha.id === ativo || (comNome && idsDasBases.has(bolha.id)) || !!p.rotuloSempre?.(bolha.item)));
   const rotulos = posicionarRotulos([...rotulados.map(bolha => ({ id: bolha.id, x: bolha.x, y: bolha.y, r: bolha.r,
-    largura: larguraDoTexto(textoDoRotulo(bolha)) })), ...(contexto ? [{ id: ID_REFERENCIA_DA_BASE, x: contexto.x, y: contexto.y,
-    r: contexto.r, largura: larguraDoTexto(textoDaReferencia) }] : [])], grafico.largura - 4);
+    largura: larguraDoTexto(textoDoRotulo(bolha)) })), ...contextos.filter(contexto => referenciasComNome || contexto.id === ativo).map(contexto =>
+    ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto) }))], grafico.largura - 4);
   // Ordem de desenho estável: as mais populosas atrás. Não depende do mouse, do foco nem do destaque.
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
@@ -175,13 +191,13 @@ export default function PainelChart(p: Props) {
   const opacidadeDe = opacidadeDaBolha;
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || bolha.id === baseId)) : [];
-  const naReferencia = ativo === ID_REFERENCIA_DA_BASE && !!contexto;
+    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || comAnel(bolha.id))) : [];
+  const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
     nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, relacao: p.relacao ?? null,
-    trajetoria: !!p.trajetoria }) : naReferencia && p.parDaBase ? dicaDaReferenciaDaBase(p.parDaBase, p.relacao) : null;
-  const alvoDaDica = bolhaAtiva ?? (naReferencia ? contexto : null);
+    trajetoria: !!p.trajetoria }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo, p.relacao) : null;
+  const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 
   function acionar(bolha: BolhaDesenho) {
     if (bolha.tipo === "estado") p.onAbrirGrupo(bolha.id);
@@ -217,8 +233,8 @@ export default function PainelChart(p: Props) {
     return partes.join("; ");
   };
   const larguraDica = Math.min(270, grafico.largura - 16);
-  // Mapinha na dica: só da unidade com ponto no mapa (estados e conjuntos não têm ponto); na referência do território base, o dela.
-  const destaqueDoMini = bolhaAtiva ? (bolhaAtiva.tipo === "municipio" ? bolhaAtiva.id : null) : naReferencia ? refContexto?.id ?? null : null;
+  // Mapinha na dica: só da unidade com ponto no mapa (estados e conjuntos não têm ponto); na referência de contexto, o dela.
+  const destaqueDoMini = bolhaAtiva ? (bolhaAtiva.tipo === "municipio" ? bolhaAtiva.id : null) : contextoAtivo?.referencia.id ?? null;
   const miniNaDica = !!destaqueDoMini && !!p.pontosDoMapa?.has(destaqueDoMini);
   const posicaoDica = alvoDaDica ? {
     left: Math.max(4, alvoDaDica.x + alvoDaDica.r + 12 + larguraDica > grafico.largura ? alvoDaDica.x - alvoDaDica.r - 12 - larguraDica : alvoDaDica.x + alvoDaDica.r + 12),
@@ -232,8 +248,8 @@ export default function PainelChart(p: Props) {
   const temVazada = grafico.bolhas.some(bolha => bolha.vazada && bolha.visivel);
   const simbolos = [temConjunto ? "anel escuro: conjunto (soma das contagens dos componentes, com possível dupla contagem)" : "",
     temReferencia ? "mira: membro da referência (distância 0)" : "",
-    contexto ? "círculo claro com mira: território de referência do território base, no início do eixo (0 km)" : "",
-    fimDaLigacao ? "linha tracejada: do território base até a referência dele; a distância é a do eixo horizontal" : "",
+    contextos.length ? "círculo claro com mira: território de referência fora da seleção, no início do eixo (0 km)" : "",
+    ligacoes.length ? "linha tracejada: do território base até o seu território de referência; a distância é a do eixo horizontal" : "",
     temConjunto && p.distancia ? "traço horizontal: do membro mais próximo ao mais distante do conjunto" : "",
     p.cometa ? "rastro: do valor na competência inicial (círculo vazado) até a atual" +
       (p.trajetoria && grafico.bolhas.some(bolha => bolha.trajeto) ? "; pontos pequenos: os valores dos períodos do meio" : "") : "",
@@ -255,7 +271,7 @@ export default function PainelChart(p: Props) {
       data-faixa={bolha.item.faixa ? (bolha.item.faixa === "fora" ? "fora" : String(bolha.item.faixa.indice)) : undefined}
       data-condicao={bolha.item.condicoes?.situacao} data-posicao={bolha.item.ordem?.posicao ?? undefined}
       data-referencia={bolha.referencia ? "true" : undefined} data-selecionado={selecionado ? "true" : undefined}
-      data-base={bolha.id === baseId ? "true" : undefined}
+      data-base={idsDasBases.has(bolha.id) ? "true" : undefined}
       data-visivel={bolha.visivel ? "true" : "false"}
       style={{ transform: `translate(${bolha.x}px, ${bolha.y}px)`, opacity: opacidadeDe(bolha), pointerEvents: bolha.visivel && interativa ? undefined : "none" }}
       role="button" tabIndex={bolha.visivel && focoEfetivo === bolha.id ? 0 : -1} aria-pressed={bolha.tipo === "estado" ? undefined : selecionado}
@@ -286,7 +302,7 @@ export default function PainelChart(p: Props) {
         stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1.5 : 2} strokeDasharray={bolha.vazada ? "3 2" : undefined}/>
       {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={paleta.tinta} strokeOpacity={0.7} strokeWidth={1.25}/>}
       {bolha.referencia && <path d={mira(bolha.r)} stroke={paleta.tinta} strokeWidth={1.5} strokeLinecap="round"/>}
-      {(selecionado || ativo === bolha.id || externo === bolha.id || bolha.id === baseId) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
+      {(selecionado || ativo === bolha.id || externo === bolha.id || comAnel(bolha.id)) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
       <circle className="analise-alvo" r={Math.max(bolha.r + 2, 12)} fill="transparent"/>
     </g>;
   };
@@ -333,19 +349,21 @@ export default function PainelChart(p: Props) {
           <line x1={posicaoNoEixo(eixoX, item.valor)} x2={posicaoNoEixo(eixoX, item.valor)} y1={grafico.topo} y2={grafico.base} stroke={paleta.eixo} strokeWidth={1}/>
           <text x={posicaoNoEixo(eixoX, item.valor) + 4} y={grafico.topo + 12} className="analise-linha-texto analise-linha-texto-leve">{item.rotulo}</text>
         </g>)}
-      {/* Território base (25/10/2026): a ligação tracejada até a referência e, fora das bolhas da análise, a referência de contexto
-          (não conta, não filtra, não vai à tabela). */}
-      {bolhaDaBase && fimDaLigacao && <line data-testid="analise-ligacao-base" x1={bolhaDaBase.x} y1={bolhaDaBase.y} x2={fimDaLigacao.x}
-        y2={fimDaLigacao.y} stroke={paleta.tinta2} strokeWidth={1.4} strokeDasharray="5 4" aria-hidden="true"/>}
-      {contexto && refContexto && p.parDaBase && <g data-testid="analise-referencia-da-base" data-id={refContexto.id} data-base={p.parDaBase.base.id}
-        data-valor={String(valorRef)} data-populacao={refContexto.populacao ?? ""} data-x={contexto.x.toFixed(1)}
-        role="img" aria-label={refContexto.rotulo + ", território de referência de " + p.parDaBase.base.rotulo}
+      {/* Territórios base (25/10/2026): as ligações tracejadas até as referências e, fora das bolhas da análise, as referências de
+          contexto (não contam, não filtram, não vão à tabela). */}
+      {ligacoes.map(ligacao => <line key={ligacao.base + ">" + ligacao.referencia} data-testid="analise-ligacao-base" data-base={ligacao.base}
+        data-referencia={ligacao.referencia} x1={ligacao.x1} y1={ligacao.y1} x2={ligacao.x2} y2={ligacao.y2} stroke={paleta.tinta2}
+        strokeWidth={1.4} strokeDasharray="5 4" aria-hidden="true"/>)}
+      {contextos.map(contexto => <g key={contexto.id} data-testid="analise-referencia-da-base" data-id={contexto.referencia.id}
+        data-bases={contexto.bases.map(item => item.base.id).join(" ")} data-valor={String(contexto.valor)}
+        data-populacao={contexto.referencia.populacao ?? ""} data-x={contexto.x.toFixed(1)} role="img"
+        aria-label={contexto.referencia.rotulo + ", território de referência de " + contexto.bases.map(item => item.base.rotulo).join(", ")}
         style={{ transform: `translate(${contexto.x}px, ${contexto.y}px)` }}
-        onPointerEnter={() => setAtivo(ID_REFERENCIA_DA_BASE)} onPointerLeave={() => setAtivo(atual => atual === ID_REFERENCIA_DA_BASE ? null : atual)}>
-        <circle r={contexto.r} fill={paleta.superficie} stroke={paleta.tinta} strokeWidth={1.5}/>
+        onPointerEnter={() => setAtivo(contexto.id)} onPointerLeave={() => setAtivo(atual => atual === contexto.id ? null : atual)}>
+        <circle r={contexto.r} fill={paleta.superficie} fillOpacity={0.75} stroke={paleta.tinta} strokeWidth={1.5}/>
         <path d={mira(contexto.r)} stroke={paleta.tinta} strokeWidth={1.5} strokeLinecap="round"/>
         <circle r={Math.max(contexto.r + 2, 12)} fill="transparent"/>
-      </g>}
+      </g>)}
       {leve ? <>
         <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta}
           onAtivar={ativarLeve} onAcionar={id => { const bolha = grafico.bolhas.find(item => item.id === id); if (bolha) acionar(bolha); }}/>
@@ -360,11 +378,13 @@ export default function PainelChart(p: Props) {
             <text x={rotulo.dx} y={rotulo.dy + 4} textAnchor={rotulo.ancora} className="analise-rotulo">{textoDoRotulo(bolha)}</text>
           </g>;
         })}
-        {contexto && rotulos.has(ID_REFERENCIA_DA_BASE) && <g className="analise-rotulo-grupo" data-id={ID_REFERENCIA_DA_BASE}
-          style={{ transform: `translate(${contexto.x}px, ${contexto.y}px)` }}>
-          <text x={rotulos.get(ID_REFERENCIA_DA_BASE)!.dx} y={rotulos.get(ID_REFERENCIA_DA_BASE)!.dy + 4}
-            textAnchor={rotulos.get(ID_REFERENCIA_DA_BASE)!.ancora} className="analise-rotulo">{textoDaReferencia}</text>
-        </g>}
+        {contextos.filter(contexto => rotulos.has(contexto.id)).map(contexto => {
+          const rotulo = rotulos.get(contexto.id)!;
+          return <g key={contexto.id} className="analise-rotulo-grupo" data-id={contexto.id}
+            style={{ transform: `translate(${contexto.x}px, ${contexto.y}px)` }}>
+            <text x={rotulo.dx} y={rotulo.dy + 4} textAnchor={rotulo.ancora} className="analise-rotulo">{contexto.texto}</text>
+          </g>;
+        })}
       </g>
     </svg>
     {(leve ? !navegaveis.length : !grafico.bolhas.length) && <p role="status" className="analise-grafico-vazio">

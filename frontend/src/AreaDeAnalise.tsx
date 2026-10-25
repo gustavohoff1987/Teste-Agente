@@ -10,15 +10,15 @@ import {
   ABAS, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, MAX_LIGACOES, NOME_SELECAO, ORDEM_DAS_VISOES, TEXTO_DAS_FONTES,
   TEXTO_ESCOLHA_DOS_DADOS, TEXTO_SEM_SELECAO, TITULO_DO_SISTEMA, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
   NOMES_FAMILIA_TENDENCIA, NOMES_RELACOES, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
-  artigo, avisoDaFamilia, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, contextoDoGrafico,
+  artigo, avisoDaFamilia, basesEmUso, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, contextoDoGrafico,
   corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, empilharPasso,
   dentroDosFiltros, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica, montarOpcoes,
-  apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, parDaBase, pedidoDependeDoIndicador, pintar,
-  pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, referenciaElegivel, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
+  apresentacaoDaAba, nomeDaUnidade, normalizarBases, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
+  pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, referenciaElegivel, resumoDosTerritoriosBase, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
   rotulosEfetivos, salvarEstado, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
-  textoDoMetodo, textoDoParDaBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
+  textoDoMetodo, textoDosTerritoriosBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
   type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoDaInteracao, type PedidoDoChat,
   type UnidadeDoCatalogo, type Visao, type Vista,
@@ -145,14 +145,12 @@ function TextoDaApresentacao({ aba, apresentacao }: { aba: Aba; apresentacao: Ap
     {apresentacao.nota && <p className="analise-apresentacao-nota">{apresentacao.nota}</p>}
   </div>;
 }
-/** "Entenda esta análise" (24/10/2026): a explicação abre na primeira visita da aba (na sessão da página) e se recolhe; nas
- * visitas seguintes, começa recolhida, a menos que a pessoa a tenha deixado aberta. Na Análise de Tendência (24/10/2026, segunda
- * rodada), começa recolhida desde a primeira visita: o desenho fica no alto, e a pessoa abre a explicação quando quiser. */
+/** "Entenda esta análise" (24/10/2026): a explicação começa recolhida em todas as análises, desde a primeira visita (25/10/2026,
+ * pedido do responsável; antes, abria na primeira visita, menos na Tendência), para não ocupar espaço: o desenho fica no alto, e
+ * a pessoa abre a explicação quando quiser. Se a pessoa a abre ou fecha, a aba guarda a escolha na sessão da página. */
 const explicacaoAberta = new Map<Aba, boolean>();
-const ABERTA_NA_PRIMEIRA_VISITA = (aba: Aba) => aba !== "tendencia";
 function EntendaEstaAnalise({ aba, apresentacao }: { aba: Aba; apresentacao: Apresentacao }) {
-  const [aberta, setAberta] = useState(() => explicacaoAberta.get(aba) ?? ABERTA_NA_PRIMEIRA_VISITA(aba));
-  useEffect(() => { if (!explicacaoAberta.has(aba)) explicacaoAberta.set(aba, false); }, [aba]);
+  const [aberta, setAberta] = useState(() => explicacaoAberta.get(aba) ?? false);
   return <details data-testid="analise-entenda" data-aba={aba} open={aberta} className="analise-entenda"
     onToggle={event => { const valor = event.currentTarget.open; if (valor !== aberta) { explicacaoAberta.set(aba, valor); setAberta(valor); } }}>
     <summary data-testid="analise-entenda-botao"><ChevronDown size={15} aria-hidden="true" className="analise-entenda-seta"/>
@@ -553,16 +551,24 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     [indicador, corte, soAtende, filtroClasse, exibicao.condicoes, exibicao.tendencia]);
   const visiveis = useMemo(() => plotaveis.filter(item => dentroDosFiltros(item, filtrosVisuais)), [plotaveis, filtrosVisuais]);
   const selecao = useMemo(() => selecionados.filter(id => (resposta?.itens || []).some(item => item.id === id)), [selecionados, resposta]);
-  // Território base da Análise Espacial (25/10/2026, pedido do responsável): uma das unidades em análise, escolhida no painel do
-  // Território de referência, para a tela mostrar a referência dela no gráfico (bolha de contexto ligada à base) e no mapa. Só
-  // estado visual: o pedido ao motor é o mesmo; com a base fora da análise, não vale. Clicar numa bolha continua só marcando.
+  // Territórios base da Análise Espacial (25/10/2026, pedido do responsável; cumulativos desde a terceira rodada do dia): todos os
+  // selecionados (o padrão) ou alguns, escolhidos no painel do Território de referência; cada um aparece ligado ao seu território
+  // de referência no gráfico (a referência como bolha de contexto, no 0 km) e no mapa. Só estado visual: o pedido ao motor é o
+  // mesmo; a base que sai da análise deixa de valer. Clicar numa bolha continua só marcando.
   const basesDaReferencia = useMemo(() => resposta ? basesPossiveis(resposta.itens) : [], [resposta]);
-  const baseAtual = def.territorioBase && basesDaReferencia.some(base => base.id === def.territorioBase) ? def.territorioBase : null;
-  const par = useMemo(() => distanciaNaTela && resposta ? parDaBase(resposta, baseAtual) : null, [distanciaNaTela, resposta, baseAtual]);
-  function escolherBase(id: string | null) {
-    if (id === baseAtual) return;
-    ajustar(id ? "Escolher " + (basesDaReferencia.find(base => base.id === id)?.rotulo ?? id) + " como território base"
-      : "Voltar a todos os selecionados, sem território base", { territorioBase: id });
+  const todasAsBases = !def.territoriosBase;
+  const idsDasBases = useMemo(() => basesEmUso(def.territoriosBase, basesDaReferencia), [def.territoriosBase, basesDaReferencia]);
+  const pares = useMemo(() => distanciaNaTela && resposta ? paresDasBases(resposta, idsDasBases) : [], [distanciaNaTela, resposta, idsDasBases]);
+  // As ligações do gráfico: das bases à vista (dentro da régua e dos filtros), as marcadas primeiro, até MAX_LIGACOES.
+  const paresLigados = useMemo(() => {
+    const aVista = new Set(visiveis.map(item => item.id)), marcadas = new Set(selecao);
+    return pares.filter(par => par.referencias.length > 0 && aVista.has(par.base.id))
+      .sort((a, b) => Number(marcadas.has(b.base.id)) - Number(marcadas.has(a.base.id))).slice(0, MAX_LIGACOES);
+  }, [pares, visiveis, selecao]);
+  function escolherBases(ids: string[] | null, rotulo: string) {
+    const nova = ids === null ? null : normalizarBases(ids, basesDaReferencia);
+    if (JSON.stringify(nova) === JSON.stringify(def.territoriosBase ?? null)) return;
+    ajustar(rotulo, { territoriosBase: nova });
   }
   const limiteVariacao = useMemo(() => resposta ? limiteDaVariacao(resposta, indicador, plotaveis) : 0, [resposta, indicador, plotaveis]);
   const totalGrupos = resposta?.grupos ? ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[resposta.grupos.tipo] ?? resposta.grupos.contagens.length : 0;
@@ -1076,10 +1082,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </li>;
     })}
   </ul> : null;
-  // Com o território base, a ligação dele vem primeiro (sempre à vista, mesmo com 30 marcadas); ele ganha o anel, como as marcadas.
-  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, baseAtual ? [baseAtual, ...selecao.filter(id => id !== baseAtual)]
-    : selecao) : [], [distanciaNaTela, resposta, selecao, baseAtual]);
-  const selecaoDoMapa = useMemo(() => par && !selecao.includes(par.base.id) ? [...selecao, par.base.id] : selecao, [par, selecao]);
+  // As ligações do mapa, até MAX_LIGACOES: primeiro as dos territórios base escolhidos um a um, depois as das unidades marcadas e,
+  // com todos os selecionados como base, as dos demais, na ordem dos nomes. As bases escolhidas ganham o anel, como as marcadas.
+  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens,
+    [...new Set([...(todasAsBases ? [] : idsDasBases), ...selecao, ...(todasAsBases ? idsDasBases : [])])]) : [],
+  [distanciaNaTela, resposta, selecao, idsDasBases, todasAsBases]);
+  const selecaoDoMapa = useMemo(() => todasAsBases || !pares.length ? selecao : [...new Set([...selecao, ...pares.map(par => par.base.id)])],
+    [todasAsBases, pares, selecao]);
   const nomesDasReferencias = useMemo(() => new Map((resposta?.referencia?.membros ?? []).map(membro => [membro.id, membro.rotulo] as [string, string])),
     [resposta]);
   // A mira do mapa: os membros da referência; por elegibilidade, os territórios de referência (todos, até MAX_LIGACOES; com mais,
@@ -1104,7 +1113,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     valorContinuo: corDoMapa.valor, rotuloContinuo: corDoMapa.rotulo, dominio: corDoMapa.dominio, escala: "linear",
     tamanho: tamanhoNoMapa, contextoBrasil: rotatividadeNaTela ? null : contextoBrasil,
     legendaCor: pinturaMapa === "quintis" ? legendaDosQuintis : legendaDoMapa, selecionados: selecaoDoMapa, referencias: referenciasDoMapa, ligacoes,
-    nomesDasReferencias, territorioBase: par?.base.id ?? null, extraDoRotulo, dicaDe, rotulos,
+    nomesDasReferencias, comTerritoriosBase: pares.length > 0, extraDoRotulo, dicaDe, rotulos,
     brasil: tipo === "brasil", referenciaPorItem,
     ativoExterno: lado ? ativoCruzado : null, onAtivo: lado ? setAtivoCruzado : undefined, onAlternar: alternar,
     carregando: carregando || carregandoMapa || !dadosConferem,
@@ -1169,7 +1178,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       legenda={layoutTendencia ? undefined : legendaCor} onAlternar={alternar} ativoExterno={lado ? ativoCruzado : null} onAtivo={lado ? setAtivoCruzado : undefined}/>;
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
-      cometa={cometa} trajetoria={cometa} relacao={relacaoNaTela} parDaBase={par} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
+      cometa={cometa} trajetoria={cometa} relacao={relacaoNaTela} pares={paresLigados} basesEscolhidas={!todasAsBases} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}
@@ -1212,7 +1221,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         plural={naVisaoDeGrupos ? rotulos.grupo?.plural ?? "grupos" : unidade.plural}/> : null;
       case "referencia": return <GavetaReferencia pedida={def.referencia} ativa={distanciaNaTela ? resposta?.referencia ?? null : null} nomes={nomes}
         rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} temPopulacao={temPopulacao} faixas={def.faixasDistancia}
-        criterioInicial={criterioDoChat} onAplicar={aplicarReferencia} bases={basesDaReferencia} territorioBase={baseAtual} onBase={escolherBase}
+        criterioInicial={criterioDoChat} onAplicar={aplicarReferencia} bases={basesDaReferencia} territoriosBase={def.territoriosBase ?? null} onBases={escolherBases}
         onRemover={() => { ajustar("Remover a referência", { referencia: null, faixasDistancia: [] }); setAviso("Referência removida: volta o eixo único."); }}
         onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
@@ -1286,7 +1295,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           ? NOMES_RELACOES[pedida.relacao] + " · " + (resposta?.referencia?.tipo === "elegiveis" && resposta.referencia.delimitacao?.texto
             ? resposta.referencia.delimitacao.texto + " · " + (resposta.referencia.condicao?.texto ?? "") : "definido")
           : resposta?.referencia?.membros.map(m => m.rotulo).join(", ") || pedida.membros.map(id => nomes.get(id) || id).join(", ");
-        const resumoBase = par ? " · território base: " + par.base.rotulo : "";
+        const resumoBase = distanciaNaTela && basesDaReferencia.length ? resumoDosTerritoriosBase(idsDasBases, todasAsBases,
+          id => basesDaReferencia.find(base => base.id === id)?.rotulo ?? id) : "";
         return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
           <span className="analise-rotulo-campo">Território de referência
             <span data-testid="analise-referencia-resumo" className="analise-resumo">{resumoRef}{resumoBase}</span>
@@ -1584,11 +1594,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
                 Mudar o território de referência</button></span></p>}
           {foraDoGrafico && <p data-testid="analise-fora-do-grafico" role="status" className="analise-aviso-familia">
             <ChartScatter size={14} aria-hidden="true"/><span>{foraDoGrafico}</span></p>}
-          {/* Território base (25/10/2026): a base, a referência dela e a distância do motor, à vista no gráfico e no mapa. */}
-          {par && !semUnidades && <p data-testid="analise-par-base" role="status" className="analise-aviso-familia">
-            <Crosshair size={14} aria-hidden="true"/><span>{textoDoParDaBase(par, relacaoNaTela)}{" "}
+          {/* Territórios base (25/10/2026): cada base, a referência dela e a distância do motor, à vista no gráfico e no mapa. */}
+          {/* Sem nenhuma referência entre várias bases, o aviso acima já diz o motivo. */}
+          {distanciaNaTela && basesDaReferencia.length > 0 && !semUnidades && (pares.length < 2 || pares.some(par => par.referencias.length > 0)) &&
+            <p data-testid="analise-par-base" role="status" className="analise-aviso-familia">
+            <Crosshair size={14} aria-hidden="true"/><span>{textoDosTerritoriosBase({ pares, todos: todasAsBases, ligados: paresLigados.length,
+              relacao: relacaoNaTela })}{" "}
               <button type="button" data-testid="analise-par-base-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
-                Mudar o território base</button></span></p>}
+                {!pares.length ? "Escolher os territórios base" : pares.length === 1 && !todasAsBases ? "Mudar o território base"
+                  : "Mudar os territórios base"}</button></span></p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">
             <Scale size={14} aria-hidden="true"/>{textoInstrucaoGrupos(rotulos)}</p>}
           {/* Convite ao mapa depois das Condições e na Análise espacial: "onde ficam?" é a pergunta que o mapa responde. */}

@@ -35,6 +35,107 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-25 · Análise Espacial: territórios base cumulativos, cada um ligado à sua referência no gráfico; "Entenda esta análise" recolhido por padrão
+- **Antes:**
+  - **Território base único:** um `<select>` (`analise-ref-base`) com "Todos os selecionados (cada um com a sua referência)",
+    o padrão, ou uma das unidades em análise. No padrão, o gráfico não mostrava nenhuma referência nem ligação: só com uma base
+    escolhida aparecia a bolha de contexto dela, no 0 km, ligada à base por uma linha tracejada. No relato do responsável (ALTO
+    ALEGRE DOS PARECIS e ALTO PARAISO, de Rondônia; RODRIGUES ALVES e SANTA ROSA DO PURUS, do Acre; referência mais próxima
+    no Brasil inteiro com densidade acima de 2), o gráfico ficava só com os quatro, de 0 a 300 km, e a referência de cada um
+    aparecia só na tabela.
+  - **Empate:** a bolha de contexto e a ligação iam só até a primeira referência empatada (as outras ficavam no texto).
+  - **Mapa:** as ligações eram as dos municípios marcados (até 30) e a do território base escolhido, que vinha primeiro.
+  - **"Entenda esta análise":** abria na primeira visita de cada análise na sessão (menos na Tendência, que já começava
+    recolhida) e ficava como a pessoa deixou.
+- **Agora:**
+  - **Territórios base cumulativos** (`analise-ref-base-passo`, no início do painel do Território de referência): "Todos os
+    selecionados" (`analise-ref-base-todos`, o padrão, que vale também para quem entrar depois) ou alguns, marcados um a um na
+    lista das unidades em análise (`analise-ref-base`, caixas `analise-ref-base-opcao`; com a referência pelo nome, sem os
+    membros dela, que são a referência). Com algumas marcadas, "Todos" fica indeterminado; marcar todas volta a "Todos"; tirar
+    "Todos" deixa nenhuma.
+  - **Gráfico:** com o território de referência aplicado, cada território base aparece ligado ao seu território de referência.
+    - Uma linha tracejada por par (`analise-ligacao-base`, com `data-base` e `data-referencia`), até 30 ligações, das bases à
+      vista (dentro da régua e dos filtros), as marcadas primeiro. No empate, uma linha até cada referência empatada
+      (CAP-ESP-02).
+    - Cada referência que o gráfico não desenha entra uma vez como bolha de contexto (`analise-referencia-da-base`, com
+      `data-bases`): círculo claro com a mira, no 0 km, os valores do motor. As mais populosas ficam atrás, e o círculo deixa ver
+      as que se cobrem.
+    - A dica da referência traz a população, os profissionais, a densidade e a distância até cada base ligada a ela (até 4; as
+      outras, na tabela).
+    - Nomes à vista: até 12 bases e até 12 referências; com mais, a dica.
+    - Só as bases escolhidas uma a uma ganham o anel e "· território base"; com todos os selecionados, as bases ficam com o nome
+      de sempre.
+    - A legenda de símbolos diz "círculo claro com mira: território de referência fora da seleção, no início do eixo (0 km)" e
+      "linha tracejada: do território base até o seu território de referência".
+  - **Acima do desenho** (`analise-par-base`, sempre que há bases possíveis):
+    - **Uma base:** o par dela, como antes.
+    - **Mais de uma:** "Territórios base: 4 (todos os selecionados) · cada um ligado ao seu território de referência (o mais
+      próximo) por linha tracejada: …", com os quatro primeiros pares (base → referência, distância do motor) e quantos faltam.
+    - **Menos ligações que pares:** quando o gráfico liga menos do que os pares com referência, quantas ligações ele desenha.
+    - **Sem bases:** "Nenhum território base: …".
+    - **Nenhuma referência:** com várias bases e nenhuma com referência, a linha sai, e o aviso `analise-ref-sem-resultado` diz
+      o motivo.
+    - **Botão:** "Mudar os territórios base" (ou "Mudar o território base", ou "Escolher os territórios base").
+  - **Resumo do Território de referência:** cita as bases só quando escolhidas uma a uma.
+  - **Mapa:** ligações até 30, na ordem: as bases escolhidas uma a uma, depois as unidades marcadas e, com todos os
+    selecionados como base, as demais, na ordem dos nomes. O aviso diz "um território base ou um município marcado".
+  - **Desfazer:** cada escolha é um passo ("Incluir BOA VISTA (RR) nos territórios base", "Tirar … dos territórios base",
+    "Todos os selecionados como territórios base", "Nenhum território base"). O estado salvo guarda a lista, e um território base
+    guardado antes vira a lista com ele.
+  - **"Entenda esta análise":** começa recolhido em todas as análises, desde a primeira visita; se a pessoa o abre ou fecha, a aba
+    guarda a escolha na sessão.
+- **Permanece:**
+  - **Motor e cálculo:** o pedido ao motor (os territórios base não entram nele, RQ-REP-06) e o cálculo (os elegíveis, a relação,
+    as distâncias, nunca o próprio município).
+  - **Contagens e exportações:** a frase-resumo, os grupos, a régua, os filtros, a tabela e o CSV, nos quais as bolhas de contexto
+    não entram.
+  - **Referência pelo nome:** o membro continua como item, a distância zero, com a mira, e a ligação vai até ele.
+  - **Clique na bolha:** continua só marcando (Comparar e as ligações do mapa).
+  - **Explicações:** o conteúdo das explicações e a orientação da Seleção, sempre à vista.
+  - **Dados:** nada da base vai ao provedor de IA.
+- **Motivo:** pedido do responsável em 25/10/2026, ao conferir a versão mais atual:
+  - Pedidos:
+    - "a caixa seletora deveria ser cumulativa […] Todos ou alguns. Como território base";
+    - "quando aplica território de referência, precisa aparecer no gráfico com linha tracejada cada território base e o seu
+      território de referência […] e no eixo X os quilômetros";
+    - "toda a explicação, tipo, entenda esta análise, ela sempre deve ficar com o botão recolhido por padrão, para não ocupar
+      muito espaço".
+  - Conferido na base: SANTA ROSA DO PURUS → BRASILEIA (AC), a 257,98 km; BRASILEIA, com 65 profissionais e 27.841 habitantes em
+    junho de 2024, tem densidade de 2,33 por 1.000 e atende à condição.
+  - **Classificação, pela leitura, antes de codar:** mudanças previstas; decorrem do pedido e não contrariam a SPEC.
+    - A escolha das bases é estado visual (RQ-REP-06).
+    - As ligações e as referências de contexto só mostram resultados do motor (Adendo BOL e RQ-REP-09: a posição pela distância,
+      todo número do motor) e não criam operação comparativa (CAP-REF-01).
+    - O empate preserva todas as referências empatadas (CAP-ESP-02).
+    - O mapa só lê as coordenadas autorizadas (RQ-REP-07).
+    - "Entenda esta análise" recolhido é decisão de apresentação do próprio responsável e muda a de 24/10/2026, sem SPEC que a
+      regule.
+- **Documentação e testes:**
+  - **Documentação:**
+    - `Docs/PAINEL_INTEGRADO_INTERFACE.md`: os territórios base, "Entenda esta análise", o que a área entrega ao mapa e os testes.
+    - `Docs/MAPA_DA_PAGINA_UNICA.md`: as props, as linhas tracejadas, os anéis, os nomes, a decisão 3 de 25/10/2026 e os testes.
+    - `Docs/PAINEL_INTEGRADO.md`, na linha de `referencia.membros`.
+    - `README.md`.
+  - **Testes mudados de propósito** (o comportamento mudou por este pedido; os testes estavam certos):
+    - Node, `areaDeAnalise.test.mjs` (os territórios base). Cobre:
+      - todos ou alguns (`basesEmUso`, `normalizarBases`);
+      - os pares, com todas as empatadas, e as opções sem os membros da referência pelo nome;
+      - as referências de contexto com as bases ligadas e a dica delas;
+      - a linha acima do desenho com uma base, com várias, com menos ligações e sem bases;
+      - o resumo;
+      - o pedido igual com e sem bases;
+      - o estado salvo, também o de antes;
+      - a escala do gráfico.
+    - Roteiro `ui_mapa.py`, passo 11c, na base versionada, com Roraima inteira:
+      - todos os selecionados como padrão, com as 15 caixas marcadas e a frase dos pares;
+      - uma ligação por par, igual às referências do motor;
+      - as referências de contexto com os valores do motor, à esquerda de todas as bolhas;
+      - depois, nenhuma base e só BOA VISTA, com o passo do Desfazer, o resumo, o anel e a ligação;
+      - no mapa, a referência à vista e com o nome;
+      - nenhum pedido novo ao motor.
+    - Roteiro `ui_area_de_analise.py`: "Entenda esta análise" recolhido na primeira visita da Espacial e da Distribuição; ao abrir,
+      fica como a pessoa deixou.
+
 ### 2026-10-25 · Análise Espacial: o território base e a referência à vista no gráfico e no mapa
 - **Antes:**
   - O motor achava a referência de cada município (por elegibilidade, o mais próximo ou o mais distante dos elegíveis), mas a

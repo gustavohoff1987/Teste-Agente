@@ -11,7 +11,7 @@ Desde 23/10/2026 (pedido integrado): uma linha de abas com a Seleção de Territ
 padronizados (Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de Rotatividade); a lista de territórios
 fica no painel da Seleção (`analise-aba-painel`), e os ajustes de cada análise, no painel da aba dela, com o resumo da seleção e
 "Alterar a seleção". Desde 24/10/2026, a Seleção é só seleção (o título, a frase-resumo, o desenho e os Detalhes ficam nas
-análises), e cada análise começa por "Entenda esta análise" (`analise-entenda`), aberta na primeira visita e recolhível.
+análises), e cada análise começa por "Entenda esta análise" (`analise-entenda`), recolhido desde a primeira visita (25/10/2026).
 
 Desde 24/10/2026 (segunda rodada, os 12 ajustes de interface): o nome da plataforma na abertura ("Diagnóstico Territorial da
 Força de Trabalho na Saúde"); no alto da área, fixos ao rolar e lado a lado, Desfazer (`analise-desfazer`, até 25/10/2026
@@ -321,30 +321,29 @@ def main():
         sem_bastidor("Seleção de Territórios")
         page.wait_for_timeout(800)
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
-        # A aba de uma análise sem territórios: "Entenda esta análise" aberta na primeira visita, os ajustes e o convite a
-        # selecionar; a referência e a janela só depois da seleção.
+        # A aba de uma análise sem territórios: "Entenda esta análise" recolhido desde a primeira visita (25/10/2026, pedido do
+        # responsável, para não ocupar espaço), os ajustes e o convite a selecionar; a referência e a janela só depois da seleção.
         aperta(area.get_by_test_id("analise-familia-espacial"))
         entenda = area.get_by_test_id("analise-entenda")
         expect(entenda).to_have_attribute("data-aba", "espacial")
-        expect(entenda).to_have_attribute("open", "")
+        expect(entenda).not_to_have_attribute("open", "")
+        expect(apresentacao).to_be_hidden()
         expect(apresentacao).to_have_attribute("data-aba", "espacial")
         expect(apresentacao).to_contain_text("não é um trajeto por estradas")
         expect(apresentacao).to_contain_text("O próprio município nunca é a sua referência.")
-        expect(apresentacao).to_be_visible()
         expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados e estão prontos para a análise.")
         expect(area.get_by_test_id("analise-painel")).to_have_count(0)
         expect(area.get_by_test_id("analise-selecao-alterar")).to_have_text("Selecionar os territórios")
-        # A explicação se recolhe e se reabre; na visita seguinte da aba, começa recolhida (os resultados ficam no alto).
-        aperta(entenda.get_by_test_id("analise-entenda-botao"))
-        expect(entenda).not_to_have_attribute("open", "")
-        expect(apresentacao).to_be_hidden()
+        # A explicação se abre e se recolhe; a aba guarda a escolha da pessoa na sessão da página.
         aperta(entenda.get_by_test_id("analise-entenda-botao"))
         expect(entenda).to_have_attribute("open", "")
+        expect(apresentacao).to_be_visible()
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
-        expect(area.get_by_test_id("analise-entenda")).to_have_attribute("open", "")  # primeira visita da distribuição
+        expect(area.get_by_test_id("analise-entenda")).not_to_have_attribute("open", "")  # primeira visita da distribuição
         aperta(area.get_by_test_id("analise-familia-espacial"))
         expect(area.get_by_test_id("analise-entenda")).to_have_attribute("open", "")  # a pessoa a deixou aberta
         aperta(area.get_by_test_id("analise-entenda-botao"))
+        expect(area.get_by_test_id("analise-entenda")).not_to_have_attribute("open", "")
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         aperta(area.get_by_test_id("analise-familia-espacial"))
         expect(area.get_by_test_id("analise-entenda")).not_to_have_attribute("open", "")  # recolhida, como a pessoa deixou

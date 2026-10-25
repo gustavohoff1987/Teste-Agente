@@ -35,7 +35,7 @@ distância**: a posição serve só para o desenho. As distâncias da análise e
   dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada }}   // do motor (POST /api/painel/mapa)
   indicador pintura={"camada" | "quintis" | "continua"} pintar valorContinuo rotuloContinuo dominio escala
   tamanho={{ valor, rotulo, maximo }} contextoBrasil legendaCor
-  selecionados referencias ligacoes nomesDasReferencias territorioBase extraDoRotulo dicaDe rotulos brasil
+  selecionados referencias ligacoes nomesDasReferencias comTerritoriosBase extraDoRotulo dicaDe rotulos brasil
   ativoExterno onAtivo onAlternar carregando/>
 ```
 
@@ -56,9 +56,9 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 | Fundo | As demais unidades da fonte (os demais municípios do Brasil), em quadradinhos cinza bem claros, sem interação: dão o formato do território. |
 | Anel escuro | Membro de um conjunto. O conjunto não tem ponto: o valor dele é a soma das contagens dos componentes, com possível dupla contagem (RQ-REP-14). A dica do membro diz de qual conjunto ele faz parte. |
 | Mira | Com a referência pelos membros (vinda da conversa pelo nome), o membro da referência da análise espacial (distância 0), a mesma mira do gráfico. Com o território de referência por elegibilidade (24/10/2026), os territórios que ficaram como referência de algum município (`referencia.membros` da resposta), também os de fora da seleção, pelo ponto do fundo: todos, até 30; com mais, só os dos municípios marcados, os mesmos das ligações. A legenda de símbolos diz "mira: território de referência" (`mapa-simbolos`). Os elegíveis não entram como itens do gráfico. Desde 25/10/2026, o enquadramento inicial e o "Ver tudo" cobrem também as referências desenhadas (`limitesComReferencias`): a mira de uma referência fora do resultado não fica cortada na borda nem fora da vista. |
-| Linha tracejada | Ligação ilustrativa, não é trajeto: do território base (25/10/2026, sempre, mesmo com 30 marcados) e de cada município marcado (até 30) ao território de referência dele (o mais próximo ou o mais distante dos elegíveis, desde 24/10/2026) ou, com a referência pelos membros, ao membro mais próximo, como o motor indicou (com os empates). O aviso `mapa-ligacoes` diz isso (com uma base, "o território base ou um município marcado"). Não há círculos de "X km". |
-| Anéis de seleção | Marcado (e o território base): anel escuro junto ao ponto. Sob o mouse, em foco, tocado ou destacado pelo gráfico ao lado: anel externo. Foco pelo teclado: também o contorno de foco da página. |
-| Nomes | Dos marcados, dos que têm texto extra da área (por exemplo "1º" na ordenação) e, com até 12 pontos no resultado, de todos. Com zoom, mais nomes aparecem, sem cobrir uns aos outros, os pontos nomeados, os botões nem o mapinha; só o texto se move, nunca o ponto. Desde 25/10/2026, o território de referência fora do resultado ganha o nome, com "· referência", quando uma ligação chega até ele (a do território base e as dos marcados). |
+| Linha tracejada | Ligação ilustrativa, não é trajeto, até 30: de cada território base (25/10/2026; cumulativos desde a terceira rodada do dia: os escolhidos um a um primeiro e, com todos os selecionados, depois dos marcados, na ordem dos nomes) e de cada município marcado ao território de referência dele (o mais próximo ou o mais distante dos elegíveis, desde 24/10/2026) ou, com a referência pelos membros, ao membro mais próximo, como o motor indicou (com os empates). O aviso `mapa-ligacoes` diz isso (com bases, "um território base ou um município marcado"). Não há círculos de "X km". |
+| Anéis de seleção | Marcado (e o território base escolhido um a um): anel escuro junto ao ponto. Sob o mouse, em foco, tocado ou destacado pelo gráfico ao lado: anel externo. Foco pelo teclado: também o contorno de foco da página. |
+| Nomes | Dos marcados, dos que têm texto extra da área (por exemplo "1º" na ordenação) e, com até 12 pontos no resultado, de todos. Com zoom, mais nomes aparecem, sem cobrir uns aos outros, os pontos nomeados, os botões nem o mapinha; só o texto se move, nunca o ponto. Desde 25/10/2026, o território de referência fora do resultado ganha o nome, com "· referência", quando uma ligação chega até ele (as dos territórios base e as dos marcados). |
 
 ## Decisões de 23/10/2026
 
@@ -98,9 +98,9 @@ municípios de Roraima sumirem da Análise Espacial, "como se tivesse algum prob
    AMAJARI, BOA VISTA e BONFIM e a referência no Brasil inteiro com densidade acima de 2): o motor estava certo (AMAJARI e BONFIM
    → BOA VISTA; BOA VISTA → PRESIDENTE FIGUEIREDO (AM), a 543,82 km), mas a referência de fora da seleção ficava na borda do
    mapa, cortada e sem nome, porque o enquadramento e os nomes só consideravam os itens. Agora o quadro cobre as referências
-   desenhadas, e a de fora do resultado ganha o nome quando uma ligação chega até ela; com o **território base** escolhido no
-   painel do Território de referência, a ligação dele vem sempre ([guia da interface](PAINEL_INTEGRADO_INTERFACE.md), análise
-   espacial).
+   desenhadas, e a de fora do resultado ganha o nome quando uma ligação chega até ela; com os **territórios base** do painel
+   do Território de referência (todos os selecionados, o padrão, ou alguns, cumulativos, desde a terceira rodada do dia), as
+   ligações deles vêm primeiro ([guia da interface](PAINEL_INTEGRADO_INTERFACE.md), análise espacial).
 
 ## Navegação
 
@@ -257,9 +257,11 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   mesmo, as ligações até o território de referência e a mira dele na legenda de símbolos); desde 25/10/2026, Roraima inteira com
   o território de referência no mesmo estado e densidade acima de 2,36: BOA VISTA sem distância, fora do gráfico (com o aviso
   `analise-fora-do-grafico` pelo nome) e no mapa, no lugar dela, com a cor do quintil, junto dos outros 14, e as legendas de
-  tamanho do gráfico e do mapa na proporção exata; com a referência no Brasil inteiro e densidade acima de 2, o território base
-  BOA VISTA: a referência dela (fora de Roraima) no gráfico, como bolha de contexto no 0 km com a densidade e a população do
-  motor e ligada à base, e no mapa, dentro do quadro e com o nome, sem novo pedido ao motor; o lado a lado em 1.700 px, sem
+  tamanho do gráfico e do mapa na proporção exata; com a referência no Brasil inteiro e densidade acima de 2, os territórios
+  base: todos os selecionados (o padrão), cada um ligado à sua referência no gráfico (uma linha tracejada por par e as
+  referências de contexto no 0 km, com a densidade e a população do motor; a de BOA VISTA fica fora de Roraima), depois
+  nenhum e só BOA VISTA (o passo do Desfazer e o resumo), e no mapa a referência dentro do quadro e com o nome, sem novo
+  pedido ao motor; o lado a lado em 1.700 px, sem
   legenda repetida;
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
   (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
