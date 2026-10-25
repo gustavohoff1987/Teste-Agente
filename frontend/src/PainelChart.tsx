@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardE
   type PointerEvent as EventoPonteiro, type ReactNode, type RefObject } from "react";
 import type { GraficoComMapaProps } from "./mapaContrato";
 import MiniMapa from "./MiniMapa";
-import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
+import type { PainelIndicador, PainelItem, PainelResposta, RelacaoEspacial } from "./painelApi";
 import {
   INDICADORES, LIMITE_LEVE, caudaDoCometa, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto, legendaDeTamanhos,
   montarDica, montarGrafico, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, type BolhaDesenho, type Corte, type Escala,
@@ -50,6 +50,10 @@ type Props = {
   escala: Escala;
   distancia: boolean;
   cometa: boolean;
+  /** Visão Trajetória (24/10/2026): os períodos do meio da janela, como pontos pequenos no caminho do cometa e na dica. */
+  trajetoria?: boolean;
+  /** Território de referência por elegibilidade: a relação (a dica diz "o mais próximo" ou "o mais distante"). */
+  relacao?: RelacaoEspacial | null;
   vista: Vista;
   fase: FaseAnimacao;
   pintura: (item: PainelItem) => Pintura;
@@ -100,9 +104,10 @@ export default function PainelChart(p: Props) {
   const desenhaveis = leve ? p.todos : p.itens;
   const extras = useMemo(() => p.contextoBrasil ? [p.contextoBrasil.valor] : [], [p.contextoBrasil]);
   const grafico = useMemo(() => montarGrafico({ itens: desenhaveis, dominios: p.resposta.dominios, indicador: p.indicador, escala: p.escala,
-    distancia: p.distancia, cometa: p.cometa, vista: p.vista, largura, rotuloDistancia: p.rotuloDistancia, pintura: p.pintura, extras,
-    denso: leve }),
-  [desenhaveis, p.resposta.dominios, p.indicador, p.escala, p.distancia, p.cometa, p.vista, largura, p.rotuloDistancia, p.pintura, extras, leve]);
+    distancia: p.distancia, cometa: p.cometa, trajetoria: p.trajetoria, vista: p.vista, largura, rotuloDistancia: p.rotuloDistancia,
+    pintura: p.pintura, extras, denso: leve }),
+  [desenhaveis, p.resposta.dominios, p.indicador, p.escala, p.distancia, p.cometa, p.trajetoria, p.vista, largura, p.rotuloDistancia, p.pintura,
+    extras, leve]);
   // Modo leve: a régua só esconde (as posições não mudam); no modo normal, o gráfico já recebe só os itens do corte.
   const dentro = useMemo(() => leve ? new Set(p.itens.map(item => item.id)) : null, [leve, p.itens]);
   const desenhada = useCallback((bolha: BolhaDesenho) => bolha.visivel && (!dentro || dentro.has(bolha.id)), [dentro]);
@@ -148,7 +153,8 @@ export default function PainelChart(p: Props) {
     bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo)) : [];
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
-    nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo }) : null;
+    nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, relacao: p.relacao ?? null,
+    trajetoria: !!p.trajetoria }) : null;
 
   function acionar(bolha: BolhaDesenho) {
     if (bolha.tipo === "estado") p.onAbrirGrupo(bolha.id);
@@ -199,7 +205,8 @@ export default function PainelChart(p: Props) {
   const simbolos = [temConjunto ? "anel escuro: conjunto (soma das contagens dos componentes, com possível dupla contagem)" : "",
     temReferencia ? "mira: membro da referência (distância 0)" : "",
     temConjunto && p.distancia ? "traço horizontal: do membro mais próximo ao mais distante do conjunto" : "",
-    p.cometa ? "rastro: do valor na competência inicial (círculo vazado) até a atual" : "",
+    p.cometa ? "rastro: do valor na competência inicial (círculo vazado) até a atual" +
+      (p.trajetoria && grafico.bolhas.some(bolha => bolha.trajeto) ? "; pontos pequenos: os valores dos períodos do meio" : "") : "",
     temVazada ? "bolha vazada tracejada: valor não avaliável nesta camada (veja Não avaliáveis)" : ""]
     .filter(Boolean).join("; ").replace(/^./, letra => letra.toUpperCase());
   const linhaH = (valor: number) => posicaoNoEixo(eixoY, valor);
@@ -234,6 +241,11 @@ export default function PainelChart(p: Props) {
         </defs>
         <polygon points={caudaDoCometa(bolha.rastro.dx, bolha.rastro.dy, bolha.r)} fill={`url(#${gradiente})`}/>
         <circle cx={bolha.rastro.dx} cy={bolha.rastro.dy} r={3.5} fill={paleta.superficie} stroke={bolha.vazada ? paleta.naoAvaliavel : bolha.cor} strokeWidth={1.5}/>
+      </g>}
+      {/* Trajetória: os valores observados nos períodos do meio, no caminho do cometa (sem ligar por reta ajustada). */}
+      {bolha.trajeto && <g className="analise-rastro" aria-hidden="true">
+        {bolha.trajeto.map(passo => <circle key={passo.competencia} data-testid="analise-trajeto-ponto" data-competencia={passo.competencia}
+          data-valor={passo.valor} cx={passo.dx} cy={passo.dy} r={2.5} fill={paleta.tinta2} stroke={paleta.superficie} strokeWidth={1}/>)}
       </g>}
       {bolha.faixa && <g aria-hidden="true">
         <line x1={0} x2={bolha.faixa.dx} y1={0} y2={0} stroke={paleta.tinta2} strokeWidth={1.5} strokeLinecap="round"/>
@@ -329,7 +341,8 @@ export default function PainelChart(p: Props) {
       {p.legendaCor}
       <div className="min-w-0 max-w-xl space-y-1">
         {notaArranjo && <p data-testid="analise-arranjo-nota">{notaArranjo}</p>}
-        {eixoY && eixoX && <p>Horizontal: distância até a referência, do motor; vertical: {especie.rotulo.toLowerCase()}. Sem reta de tendência nem
+        {eixoY && eixoX && <p>Horizontal: {p.relacao ? "distância até o território de referência de cada " + p.rotulos.unidade.singular
+          : "distância até a referência"}; vertical: {especie.rotulo.toLowerCase()}. Sem reta de tendência nem
           correlação: cada bolha é só um par de valores.{leve ? " Com muitas bolhas, elas ficam semitransparentes e podem se sobrepor." : ""}</p>}
         {simbolos && <p data-testid="analise-simbolos">{simbolos}.</p>}
         {p.notas.map(nota => <p key={nota}>{nota}</p>)}

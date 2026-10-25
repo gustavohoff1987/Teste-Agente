@@ -207,6 +207,31 @@ def main():
         assert options_of(event.value.request).get("conversation_pending_operation") == "comparisons", options_of(event.value.request)
         page.wait_for_timeout(1500)
 
+        # 7b. Território de referência pela conversa (decisão 4, 25/10/2026): o "menor" do pedido vira o operador da condição, com o
+        # atributo citado; a relação, a delimitação e o valor de corte ficam com a pessoa, sem valor sugerido. O Voltar do alto
+        # desfaz o pedido da conversa e devolve a análise de antes, para os passos seguintes.
+        familia_antes = area.get_attribute("data-familia")
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
+            send(page, "use como referência o município de menor densidade")
+        resposta = event.value.json()
+        assert (resposta.get("painel") or {}).get("referencia") == {
+            "membros": [], "criterio": {"atributo": "densidade", "ordem": "asc"}}, resposta
+        expect(latest).to_contain_text("com a condição Densidade “Menor que”")
+        referencia = area.get_by_test_id("analise-referencia")
+        expect(referencia).to_be_visible(timeout=60000)
+        expect(referencia.get_by_test_id("analise-ref-da-conversa")).to_contain_text("pela menor densidade")
+        expect(referencia.get_by_test_id("analise-ref-atributo")).to_have_value("densidade")
+        expect(referencia.get_by_test_id("analise-ref-operador-menor")).to_have_attribute("aria-checked", "true")
+        expect(referencia.get_by_test_id("analise-ref-operador-maior")).to_have_attribute("aria-checked", "false")
+        expect(referencia.get_by_test_id("analise-ref-relacao-mais_proxima")).to_have_attribute("aria-checked", "false")
+        expect(referencia.get_by_test_id("analise-ref-valor")).to_have_value("")
+        expect(referencia.get_by_test_id("analise-ref-falta")).to_have_text(
+            "Falta escolher: a relação espacial, a delimitação, o valor de corte.")
+        shot("02b-referencia-pela-conversa")
+        page.get_by_test_id("analise-voltar").click()
+        expect(area).to_have_attribute("data-familia", familia_antes, timeout=60000)
+        page.wait_for_timeout(1500)
+
         # 8. Gemini simulado: ambiguidade material com alternativas em botões; a escolha muda o indicador do gráfico, e a
         # mensagem seguinte leva o novo indicador no contexto.
         indicador = "density"

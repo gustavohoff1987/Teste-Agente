@@ -537,6 +537,201 @@ def test_nearest_reference_member_keeps_the_exact_ties(repo):
     assert items[BELEM]["referencia_mais_proxima"]["id"] == BELEM  # o próprio membro, a distância zero
 
 
+# --------------------------------------------------------------------------------------------- território de referência
+def eligible(relacao="mais_proxima", tipo="todos", valores=None, atributo="densidade", operador=">", valor=10):
+    """Território de referência por elegibilidade (24/10/2026): a relação, a delimitação e a condição, sem padrão."""
+    return {"relacao": relacao, "delimitacao": {"tipo": tipo, **({} if valores is None else {"valores": valores})},
+            "condicao": {"atributo": atributo, "operador": operador, "valor": valor}}
+
+
+def reference_of(item):
+    """Os territórios de referência de um item: o primeiro e os empatados."""
+    found = item["referencia_do_item"]
+    return [] if found is None else [entry["id"] for entry in found["empate"]] or [found["id"]]
+
+
+def test_eligible_reference_filters_first_then_takes_the_nearest_without_the_territory_itself(repo):
+    """Primeiro os elegíveis (a delimitação e a condição, CAP-REF-01 por CAP-SUB-01, valores exatos); depois, para cada
+    município, o mais próximo entre eles (CAP-ESP-02), nunca ele mesmo. Densidades de junho de 2024: MANAUS 25, BELEM
+    18,67, PARINTINS 12, TEFE 10 (fora de "> 10", no limite), MANACAPURU e NOVO AIRAO 8."""
+    info = inspection()
+    body = ok(page(info, referencia=eligible()))
+    items = by_id(body)
+    assert list(items) == AM  # os elegíveis não entram como itens: BELEM, do Pará, fica fora da seleção do Amazonas
+    assert body["referencia"] == {
+        "tipo": "elegiveis", "relacao": "mais_proxima",
+        "delimitacao": {"tipo": "todos", "valores": [], "texto": "de todo o Brasil"},
+        "condicao": {"atributo": "densidade", "operador": ">", "valor": "10", "texto": "densidade > 10 por 1.000 habitantes"},
+        "elegiveis": {"universo": 6, "atende": 3, "nao_atende": 3, "nao_avaliaveis": 0},
+        "membros": [{"id": MANAUS, "rotulo": "MANAUS (AM)"}, {"id": PARINTINS, "rotulo": "PARINTINS (AM)"},
+                    {"id": BELEM, "rotulo": "BELEM (PA)"}],
+        "origem": ("Para cada município, o município mais próximo entre os municípios de todo o Brasil com densidade > 10 "
+                   "por 1.000 habitantes em junho de 2024 (3 de 6 municípios da base atendem à condição); o próprio "
+                   "município não é a sua referência. A condição é escolha do usuário e não tem caráter normativo")}
+    # MANAUS é elegível, mas não é a sua referência: fica entre PARINTINS e BELEM, no empate exato.
+    assert items[MANAUS]["referencia_do_item"] == {"id": PARINTINS, "rotulo": "PARINTINS (AM)", "empate": [
+        {"id": PARINTINS, "rotulo": "PARINTINS (AM)"}, {"id": BELEM, "rotulo": "BELEM (PA)"}]}
+    assert items[MANAUS]["distancia_km"] == km(MANAUS, PARINTINS) == km(MANAUS, BELEM)
+    assert reference_of(items[PARINTINS]) == [MANAUS] and items[PARINTINS]["distancia_km"] == km(PARINTINS, MANAUS)
+    for key in (TEFE, NOVO):
+        assert reference_of(items[key]) == [PARINTINS] and items[key]["distancia_km"] == km(key, PARINTINS)
+    # Sem coordenada, o município fica sem distância e sem referência, com o motivo.
+    assert items[MANACAPURU]["distancia_km"] is None and items[MANACAPURU]["referencia_do_item"] is None
+    assert any("(SEM_INFORMACAO_ESPACIAL)" in text for text in items[MANACAPURU]["motivos"])
+    assert all(item["referencia_mais_proxima"] is None for item in items.values())
+    assert any(note.startswith("Território de referência: Para cada município") for note in body["notas"])
+    # Os elegíveis são os do critério de densidade das referências da análise existente (CAP-REF-01), e os municípios fora
+    # da condição têm a mesma distância da referência mais próxima dela.
+    nearest = ok(analyze(info, "nearest", period_filter="202406", reference_mode="criterion",
+                         reference_criterion={"operator": ">", "value": "10"}, crs="SIRGAS2000",
+                         number_format="decimal_comma", category_filter="MEDICINA"))["metadata"]["nearest_reference"]
+    assert sorted(member["id"] for member in nearest["conjunto_referencias"]["membros"]) == sorted([MANAUS, PARINTINS, BELEM])
+    records = {record["unidade"]: record for record in nearest["cobertura_referencias"]}
+    for key in (TEFE, NOVO):
+        assert items[key]["distancia_km"] == records[key]["minimo_completo"]["distancia_km"]
+        assert reference_of(items[key]) == records[key]["minimo_completo"]["referencias"]
+
+
+def test_eligible_reference_takes_the_farthest_and_follows_the_delimitation(repo):
+    info = inspection()
+    far = ok(page(info, referencia=eligible("mais_distante")))
+    items = by_id(far)
+    # O mais distante entre os elegíveis, sem o próprio município; o empate exato continua.
+    assert reference_of(items[MANAUS]) == [PARINTINS, BELEM]
+    for key in (PARINTINS, TEFE, NOVO):
+        assert items[key]["referencia_do_item"] == {"id": BELEM, "rotulo": "BELEM (PA)", "empate": []}
+        assert items[key]["distancia_km"] == km(key, BELEM)
+    assert far["referencia"]["origem"].startswith("Para cada município, o município mais distante entre os municípios de "
+                                                  "todo o Brasil com densidade > 10")
+    # Do mesmo estado de cada município: BELEM, do Pará, não é elegível para os municípios do Amazonas.
+    same = ok(page(info, referencia=eligible(tipo="mesmo_grupo")))
+    assert same["referencia"]["delimitacao"] == {"tipo": "mesmo_grupo", "valores": [],
+                                                 "texto": "do mesmo estado de cada município"}
+    assert {key: reference_of(item) for key, item in by_id(same).items()} == {
+        MANACAPURU: [], MANAUS: [PARINTINS], PARINTINS: [MANAUS], NOVO: [PARINTINS], TEFE: [PARINTINS]}
+    # Estados escolhidos: só o Pará.
+    chosen = ok(page(info, referencia=eligible(tipo="grupos", valores=["15"])))
+    assert chosen["referencia"]["delimitacao"] == {"tipo": "grupos", "valores": ["15"], "texto": "do estado escolhido (Pará)"}
+    assert {key: reference_of(item) for key, item in by_id(chosen).items() if item["referencia_do_item"]} == {
+        MANAUS: [BELEM], PARINTINS: [BELEM], NOVO: [BELEM], TEFE: [BELEM]}
+    two = ok(page(info, referencia=eligible(tipo="grupos", valores=["15", "13"])))["referencia"]["delimitacao"]
+    assert two == {"tipo": "grupos", "valores": ["13", "15"], "texto": "dos estados escolhidos (Amazonas e Pará)"}
+    # A mesma região de cada município e a Região Norte: todos estes municípios são do Norte (o 1º dígito do código).
+    region = ok(page(info, referencia=eligible(tipo="mesma_regiao")))
+    north = ok(page(info, referencia=eligible(tipo="regioes", valores=["Norte"])))
+    assert region["referencia"]["delimitacao"]["texto"] == "da mesma região de cada município"
+    assert north["referencia"]["delimitacao"]["texto"] == "da Região Norte"
+    expected = [(item["id"], item["distancia_km"], reference_of(item)) for item in ok(page(info, referencia=eligible()))["itens"]]
+    assert [(item["id"], item["distancia_km"], reference_of(item)) for item in region["itens"]] == expected
+    assert [(item["id"], item["distancia_km"], reference_of(item)) for item in north["itens"]] == expected
+
+
+def test_eligible_reference_without_eligibles_or_with_an_eligible_without_coordinates(repo):
+    info = inspection()
+    # Nenhum elegível na delimitação: nenhuma distância (nunca zero), com o motivo, e nenhum membro.
+    none = ok(page(info, referencia=eligible(tipo="regioes", valores=["Nordeste"])))
+    assert none["referencia"]["membros"] == [] and none["referencia"]["elegiveis"]["atende"] == 3
+    assert all(item["distancia_km"] is None and item["referencia_do_item"] is None for item in none["itens"])
+    assert ("Sem território de referência: nenhum outro município da Região Nordeste atende à condição densidade > 10 por "
+            "1.000 habitantes em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)") in by_id(none)[TEFE]["motivos"]
+    # O único elegível é o próprio município: sem referência para ele; os demais vão até ele.
+    alone = by_id(ok(page(info, referencia=eligible(valor=20))))
+    assert alone[MANAUS]["distancia_km"] is None and alone[MANAUS]["referencia_do_item"] is None
+    assert ("Sem território de referência: nenhum outro município de todo o Brasil atende à condição densidade > 20 por "
+            "1.000 habitantes em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)") in alone[MANAUS]["motivos"]
+    assert reference_of(alone[TEFE]) == [MANAUS] and alone[TEFE]["distancia_km"] == km(TEFE, MANAUS)
+    # Um elegível sem coordenada (MANACAPURU, densidade 8, entra em "≥ 8"): a distância fica não avaliável, sem trocar
+    # pelo extremo entre os demais (mínimo do conjunto completo, CAP-ESP-02).
+    gap = by_id(ok(page(info, referencia=eligible(operador=">=", valor=8))))
+    reason = ("Distância não avaliável em junho de 2024: sem coordenada válida no território elegível MANACAPURU (AM) "
+              "(SEM_INFORMACAO_ESPACIAL); a referência não é escolhida entre os demais (DEPENDENCIA_NAO_AVALIAVEL)")
+    for key in (MANAUS, PARINTINS, NOVO, TEFE):
+        assert gap[key]["distancia_km"] is None and gap[key]["referencia_do_item"] is None and reason in gap[key]["motivos"]
+    # Conjuntos: cada membro tem a sua referência, e o conjunto não tem um ponto único.
+    sets = ok(page(info, referencia=eligible(), conjuntos=[{"id": "c1", "rotulo": "Capital e vizinho",
+                                                            "membros": [MANAUS, PARINTINS]}]))
+    [group] = [item for item in sets["itens"] if item["tipo"] == "conjunto"]
+    assert group["distancia_km"] is None and group["referencia_do_item"] is None
+    assert any(text.startswith("Distância não se aplica ao conjunto") for text in group["motivos"])
+    # Quantidade e população também são condições, com a unidade de cada uma.
+    quantity = ok(page(info, referencia=eligible(atributo="quantidade", operador=">=", valor=50)))["referencia"]
+    assert (quantity["condicao"]["texto"], quantity["elegiveis"]["atende"]) == ("quantidade ≥ 50 pessoas", 2)
+    population = ok(page(info, referencia=eligible(atributo="populacao", operador="<", valor=1000)))["referencia"]
+    assert (population["condicao"]["texto"], population["elegiveis"]["atende"]) == ("população < 1000 habitantes", 2)
+
+
+def test_eligible_reference_is_validated_and_has_no_default(repo):
+    info = inspection()
+    refused(page(info, referencia={"relacao": "mais_proxima"}), "Território de referência inválido")
+    refused(page(info, referencia={**eligible(), "membros": [MANAUS]}), "Território de referência inválido")
+    refused(page(info, referencia=eligible("proximo")), "Relação espacial não reconhecida")
+    refused(page(info, referencia=eligible(tipo="estado")), "Delimitação inválida")
+    refused(page(info, referencia=eligible(tipo="regioes", valores=[])), "Escolha as regiões da delimitação, sem repetir.")
+    refused(page(info, referencia=eligible(tipo="grupos")), "Escolha os estados da delimitação, sem repetir.")
+    refused(page(info, referencia=eligible(tipo="grupos", valores=["99"])), "Estados inexistentes na delimitação: 99.")
+    refused(page(info, referencia=eligible(tipo="regioes", valores=["Amazônia"])), "Regiões inexistentes na delimitação: Amazônia.")
+    refused(page(info, referencia=eligible(tipo="todos", valores=["13"])), "A delimitação todos não leva valores")
+    refused(page(info, referencia=eligible(atributo="distancia_km")),
+            "Atributo da condição do território de referência não reconhecido")
+    refused(page(info, referencia=eligible(operador="=")), "Operador da condição do território de referência não reconhecido")
+    refused(page(info, referencia={**eligible(), "condicao": {"atributo": "densidade", "operador": ">"}}),
+            "Condição do território de referência inválida")
+    # Só na página única (com nivel) e só com municípios.
+    refused(post(info, competencia="202406", base={"municipios": {"estados": ["13"]}}, referencia=eligible()),
+            "vale só no formato da página única")
+    refused(post(info, nivel="estados", indicador="densidade", competencia="202406", referencia=eligible()),
+            "estados não têm um ponto único")
+
+
+# --------------------------------------------------------------------------------------------- série temporal
+def observed(points):
+    return {point["competencia"]: point["valor"] for point in points if point["valor"] is not None}
+
+
+def test_time_series_is_the_observed_value_in_each_period_without_classes(repo):
+    """Série temporal (24/10/2026): o valor observado do indicador em cada competência do intervalo, pela mesma
+    preparação da tendência (os mesmos valores das observações dela), sem classificar, sem linha ajustada e sem preencher
+    lacunas (sem registro, null; o zero observado é valor)."""
+    info = inspection()
+    sets = [{"id": "c1", "rotulo": "Manaus e Novo Airão", "membros": [MANAUS, NOVO]},
+            {"id": "c2", "rotulo": "Manaus e Parintins", "membros": [MANAUS, PARINTINS]}]
+    body = ok(page(info, serie={"competencias": list(reversed(PERIODS))}, conjuntos=sets))
+    assert body["serie"] == {"janela": {"inicio": "201906", "fim": "202406", "competencias": PERIODS}, "competencias": 6,
+                             "indicador": "densidade", "unidade_valor": "por 1.000 habitantes", "itens_com_valor": 7,
+                             "itens": 7, "rotulo_itens": "municípios"}
+    items = by_id(body)
+    trend = by_id(ok(page(info, competencia_inicial="201906", tendencia={"competencias": PERIODS}, conjuntos=sets)))
+    for key, item in items.items():
+        assert [point["competencia"] for point in item["serie"]["observacoes"]] == PERIODS
+        assert observed(item["serie"]["observacoes"]) == observed(trend[key]["tendencia"]["observacoes"])
+        assert item.get("tendencia") is None  # sem classificação
+    assert [point["valor"] for point in items[NOVO]["serie"]["observacoes"]][:3] == [None, None, None]
+    assert items[TEFE]["serie"]["observacoes"][0]["valor"] == 0
+    # Conjunto com membros diferentes no intervalo: os valores valem isoladamente, sem linha (RQ-REP-15).
+    assert items["c1"]["serie"]["comparavel"] is False and items["c1"]["serie"]["motivo"].startswith("Série não comparável: ")
+    assert items["c2"]["serie"] == {"observacoes": trend["c2"]["tendencia"]["observacoes"], "comparavel": True, "motivo": None}
+    assert body["dominios"]["serie"] == [0, 25]
+    assert any(note.startswith("Série temporal de junho de 2019 a junho de 2024 (6 competências)") for note in body["notas"])
+    assert " Série temporal de junho de 2019 a junho de 2024: 6 competências." in body["resumo"]["texto"]
+    # Os estados e o Brasil, pelas mesmas séries da tendência deles.
+    states = ok(post(info, nivel="estados", indicador="densidade", competencia="202406", serie={"competencias": PERIODS}))
+    state_trend = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia="202406",
+                                tendencia={"competencias": PERIODS})))
+    assert states["serie"]["rotulo_itens"] == "estados" and states["serie"]["itens"] == 2
+    for key, item in by_id(states).items():
+        assert observed(item["serie"]["observacoes"]) == observed(state_trend[key]["tendencia"]["observacoes"])
+    assert [point["valor"] for point in by_id(states)["uf:13"]["serie"]["observacoes"]][:3] == [None, None, None]
+    brazil = ok(post(info, nivel="brasil", indicador="quantidade", competencia="202406", serie={"competencias": PERIODS}))
+    [item] = brazil["itens"]
+    assert brazil["serie"]["rotulo_itens"] == "Brasil" and brazil["serie"]["unidade_valor"] != "por 1.000 habitantes"
+    assert [point["valor"] for point in item["serie"]["observacoes"]] == [1000] * 6
+    # Validação do intervalo.
+    refused(page(info, serie={"competencias": ["202406"]}), "Intervalo da série temporal inválido")
+    refused(page(info, serie={"competencias": ["202406", "202406"]}), "Intervalo da série temporal inválido")
+    refused(page(info, serie={"competencias": ["202406", "209912"]}), "Competência inexistente na série temporal: 209912.")
+    refused(page(info, serie=PERIODS), "Série temporal inválida")
+
+
 # --------------------------------------------------------------------------------------------- sessão e privacidade
 def test_the_chart_result_is_recorded_without_replacing_the_conversation_context(repo, monkeypatch):
     forbidden = []
@@ -774,6 +969,50 @@ def test_uploaded_distance_needs_a_confirmed_supported_reference(repo):
     refused(upload(roles, contents=contents), "incompatíveis com o ponto decimal")
 
 
+def test_uploaded_eligible_reference_uses_the_spreadsheet_levels(repo):
+    """Território de referência numa planilha (24/10/2026): as delimitações são as que a planilha tem (a província da
+    coluna-mãe ou a planilha inteira; as regiões existem só na base do Brasil), com os nomes da planilha. Densidades de
+    2024: Alto Rio 16, Baixo Rio, Campina e Serra 10; Serra não tem coordenada."""
+    premises = {"count_unit": "pessoas", "crs": "SIRGAS2000"}
+    missing = refused(districts(referencia=eligible(operador=">=", valor=10)), "Confirme o referencial geodésico")
+    assert missing["pendencia"]["chave"] == "crs"
+    body = ok(districts(premissas=premises, referencia=eligible(tipo="mesmo_grupo", operador=">=", valor=10)))
+    items = by_id(body)
+    assert body["referencia"]["delimitacao"]["texto"] == "da mesma província de cada distrito"
+    assert body["referencia"]["origem"] == (
+        "Para cada distrito, o distrito mais próximo entre os distritos da mesma província de cada distrito com densidade "
+        "≥ 10 por 1.000 habitantes em 2024 (4 de 4 distritos da base atendem à condição); o próprio distrito não é a sua "
+        "referência. A condição é escolha do usuário e não tem caráter normativo")
+    # Província Norte: cada um vai até o outro. Província Sul: Serra atende, mas sem coordenada, e Campina fica sem distância.
+    assert reference_of(items[ALTO]) == [BAIXO] and reference_of(items[BAIXO]) == [ALTO]
+    assert items[CAMPINA]["distancia_km"] is None and items[SERRA]["distancia_km"] is None
+    assert any("no território elegível Serra (SEM_INFORMACAO_ESPACIAL)" in text for text in items[CAMPINA]["motivos"])
+    brazilian = re.compile(r"munic[íi]pi|\bIBGE\b|\bUF\b|\bBrasil\b|\bestad(?:o|os|ual|uais)\b", re.IGNORECASE)
+    texts = [body["referencia"]["origem"]] + [text for item in body["itens"] for text in item["motivos"]]
+    assert not [text for text in texts if brazilian.search(text)]
+    # A planilha inteira: só Alto Rio atende a "> 10"; ele mesmo fica sem referência.
+    whole = by_id(ok(districts(premissas=premises, referencia=eligible(operador=">", valor=10))))
+    assert reference_of(whole[BAIXO]) == [ALTO] and reference_of(whole[CAMPINA]) == [ALTO]
+    assert ("Sem território de referência: nenhum outro distrito de toda a planilha atende à condição densidade > 10 por "
+            "1.000 habitantes em 2024 (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)") in whole[ALTO]["motivos"]
+    refused(districts(premissas=premises, referencia=eligible(tipo="regioes", valores=["Norte"])),
+            "As regiões (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil: nesta planilha, "
+            "delimite pela província ou pela planilha inteira.")
+    refused(districts(premissas=premises, referencia=eligible(tipo="grupos", valores=["Província Leste"])),
+            "Províncias inexistentes na delimitação: Província Leste.")
+    chosen = ok(districts(premissas=premises, referencia=eligible(tipo="grupos", valores=["Província Norte"], operador=">=",
+                                                                  valor=10)))
+    assert chosen["referencia"]["delimitacao"]["texto"] == "da província escolhida (Província Norte)"
+    assert reference_of(by_id(chosen)[CAMPINA]) == [ALTO]  # Baixo Rio (10) fica mais longe de Campina que Alto Rio
+    # Sem a coluna de província, só a planilha inteira.
+    options = {"nivel": "municipios", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+               "premissas": premises, "base": {"municipios": {"todos": True}},
+               "referencia": eligible(tipo="mesmo_grupo", operador=">=", valor=10)}
+    plain = {key: value for key, value in DISTRICT_MAPPING.items() if key != "grupo_territorial"}
+    refused(upload(options, mapping=plain), "A planilha não tem a coluna de província (papel grupo_territorial): delimite "
+                                            "pela planilha inteira.")
+
+
 def test_uploaded_rotation_with_the_individual_identifier_is_cap_rot_01(repo):
     people = {"2023": {"Alto Rio": ["p1", "p2", "p3", "p4"], "Campina": ["p5", "p6"]},
               "2024": {"Alto Rio": ["p1", "p2", "p9"], "Campina": ["p5", "p6", "p7"], "Serra": ["p8"]}}
@@ -957,3 +1196,44 @@ def test_real_all_municipalities_with_trend_and_conditions(real):
     assert sum(body["condicoes"]["contagens"].values()) == len(units)
     assert all(len(item["tendencia"]["observacoes"]) <= len(JUNE) for item in units)
     json.dumps(body, allow_nan=False)
+
+
+def test_real_eligible_reference_matches_every_geodesic_and_the_series_matches_the_trend(real):
+    """Base versionada (24/10/2026): o território de referência nos 62 municípios do Amazonas, com os elegíveis do mesmo
+    estado acima de 50 mil habitantes, conferido com todas as distâncias de cada elegível (a referência mais próxima da
+    análise existente, um elegível por vez): o mais próximo e o mais distante, sem o próprio município, com os empates.
+    E a série temporal dos junhos, com os mesmos valores das observações da tendência."""
+    am = {"municipios": {"estados": ["13"]}}
+    base = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", base=am))
+    eligibles = [item["id"] for item in base["itens"] if item["populacao"] is not None and item["populacao"] > 50000]
+    assert 2 <= len(eligibles) < 62
+    distance = {}
+    for key in eligibles:
+        nearest = ok(analyze(real, "nearest", am, period_filter="202406", reference_mode="list", reference_ids=[key],
+                             crs="SIRGAS2000", number_format="decimal_comma", category_filter="MEDICINA"))
+        for record in nearest["metadata"]["nearest_reference"]["cobertura_referencias"]:
+            found = record["minimo_completo"]
+            distance[record["unidade"], key] = found["distancia_km"] if found["avaliabilidade"] == "AVALIAVEL" else None
+    for relation, pick in (("mais_proxima", min), ("mais_distante", max)):
+        body = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", base=am, referencia={
+            "relacao": relation, "delimitacao": {"tipo": "mesmo_grupo"},
+            "condicao": {"atributo": "populacao", "operador": ">", "valor": 50000}}))
+        assert body["referencia"]["elegiveis"]["universo"] == 5570
+        units = [item for item in body["itens"] if item["tipo"] == "municipio"]
+        assert len(units) == 62
+        for item in units:
+            others = {key: distance[item["id"], key] for key in eligibles if key != item["id"]}
+            if None in others.values() or not others:
+                assert item["distancia_km"] is None and item["referencia_do_item"] is None
+                continue
+            best = pick(others.values())
+            assert item["distancia_km"] == best
+            assert sorted(reference_of(item)) == sorted(key for key, value in others.items() if value == best)
+        json.dumps(body, allow_nan=False)
+    series = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", base=am,
+                     serie={"competencias": JUNE}))
+    trend = by_id(ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", base=am,
+                          tendencia={"competencias": JUNE})))
+    assert series["serie"]["competencias"] == len(JUNE) and series["serie"]["itens"] == 62
+    for item in series["itens"]:
+        assert observed(item["serie"]["observacoes"]) == observed(trend[item["id"]]["tendencia"]["observacoes"])

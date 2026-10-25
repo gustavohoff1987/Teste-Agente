@@ -166,8 +166,10 @@ Resposta 200: `{criterio, competencia, categoria, candidatos: [{id, rotulo, uf, 
 - A ordem e as posições são as de `combined_criteria.ranking_of` (CAP-SUB-02): valores exatos, empates na mesma posição
   (1, 2, 2, 4) e, dentro do empate, ordem alfabética só para exibir.
 - Os não avaliáveis (sem registro na competência) ficam em `nao_avaliaveis`, sem posição.
-- "Usar o primeiro" é a seleção por posição (CAP-SUB-03), feita na tela: com empate na 1ª posição, a tela pede a escolha
-  entre os empatados. A rota só lista; não inicia análise nem escolhe a referência.
+- "Usar o primeiro" era a seleção por posição (CAP-SUB-03), feita na tela: com empate na 1ª posição, a tela pedia a escolha
+  entre os empatados. A rota só lista; não inicia análise nem escolhe a referência. Desde a segunda rodada de 24/10/2026, a
+  tela não usa mais esta rota: o território de referência é definido por elegibilidade (seção "Território de referência por
+  elegibilidade"). A rota continua no contrato, com os testes dela.
 
 ### Rota 3: `POST /api/painel/mapa` (23/10/2026)
 
@@ -261,9 +263,10 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 | `estados` | Só no nível estados (24/10/2026): os estados escolhidos, pelos prefixos IBGE (`["29", "42"]`) ou pelos ids (`"uf:29"`), sem repetir; os itens vêm na ordem do código. Sem a lista, todos os estados da fonte estadual, como antes. Fora do nível estados → 422 "A lista estados vale só no nível estados: …"; lista vazia ou repetida → 422 "Estados inválidos: …"; estado sem registro → 422 "Estado sem registro na fonte estadual: …". |
 | `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
-| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. |
-| `competencia_inicial` | Como no contrato de 21/10 (visão Mudança, CAP-TMP-01), em todos os níveis. |
+| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. Desde a segunda rodada de 24/10/2026, `referencia` também aceita o **território de referência por elegibilidade** (seção "Território de referência por elegibilidade"), só na página única. |
+| `competencia_inicial` | Como no contrato de 21/10 (visão Trajetória, antes chamada Mudança, CAP-TMP-01), em todos os níveis. |
 | `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
+| `serie` | Desde a segunda rodada de 24/10/2026: `{"competencias": [...]}`, o intervalo da série temporal, de 2 a 600 competências distintas e existentes, em qualquer ordem (o motor ordena), nos três níveis (seção "Série temporal"). Forma errada → 422 "Série temporal inválida: use {"competencias": [...]}, …"; uma só, repetida ou mais de 600 → 422 "Intervalo da série temporal inválido: …"; competência que a base não tem → 422 "Competência inexistente na série temporal: …". |
 | `grupos` | `{"tipo": "quartis" \| "quintis" \| "decis"}`. |
 | `grupos_mapa` | `{"tipo": "quartis" \| "quintis" \| "decis"}`: os grupos por posição que pintam o mapa (23/10/2026; seção "Grupos do mapa"). A mesma validação de `grupos` (tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."), nos níveis municípios e estados e com qualquer outra chave; pode vir junto com `grupos`, e cada um é calculado à parte. No nível Brasil, recusado (o Brasil é um só). |
 | `faixas` | Lista de 2 a 21 limites crescentes e distintos, não negativos, do `indicador` (números ou textos com vírgula ou ponto decimal, como `[0, 1, 2, 5]` ou `["0", "1,5"]`). Intervalos [a, b) e o último fechado. |
@@ -309,6 +312,7 @@ Topo: as chaves do contrato de 21/10 e, sempre:
 | `resumo` | A frase-resumo do motor (23/10/2026; seção "Frase-resumo"). Omitido só se a composição falhar. |
 | `versao_base` | Base do Brasil: a versão verificada; planilha: o SHA-256 do arquivo enviado. |
 | `dominios.tendencia` | Com `tendencia`: `[mínimo, máximo]` das observações devolvidas (ou `null`). |
+| `dominios.serie` | Com `serie` (24/10/2026): `[mínimo, máximo]` dos valores observados no intervalo (ou `null`). |
 
 Quando pedidos:
 
@@ -322,6 +326,8 @@ Quando pedidos:
 | `ordenacao` | `{atributo, ordem, primeiros, universo, ordenados, nao_avaliaveis, selecionados, empates_no_corte, ids_selecionados}`; sem `primeiros`, `selecionados` e `ids_selecionados` são `null`. |
 | `comparacao` | `{indicador, itens: [{id, rotulo, tipo, valor, avaliavel, motivos}], maior, menor, diferencas, relacoes, notas}`. Dois itens: `diferencas` = [{a, b, relacao, diferenca}], A e B em ordem de nome, relação A/B (`MAIOR`, `MENOR` ou `IGUALDADE`) e diferença assinada A − B. Três: `relacoes` = [{id, valor, proximo_valor_maior, mesmo_valor}] e `diferencas` vazia (sem diferenças automáticas entre pares, AT-84). `maior` e `menor` são listas de ids (empate: mais de um). Com menos de dois itens com valor, as listas ficam vazias, com a nota. |
 | `rotatividade` | `{inicial, final, universo, avaliaveis, nao_avaliaveis}`. |
+| `serie` | Com `serie` (24/10/2026; seção "Série temporal"): `{janela: {inicio, fim, competencias}, competencias, indicador, unidade_valor, itens_com_valor, itens, rotulo_itens}`. |
+| `referencia` | Com o território de referência por elegibilidade (24/10/2026; seção "Território de referência por elegibilidade"): `{tipo: "elegiveis", relacao, delimitacao: {tipo, valores, texto}, condicao: {atributo, operador, valor, texto}, elegiveis: {universo, atende, nao_atende, nao_avaliaveis}, membros, origem}`. Com membros escolhidos, a forma do contrato de 21/10. |
 
 Itens: os campos do contrato de 21/10 e, sempre, `grupo_territorial` (base do Brasil: o prefixo IBGE do estado, como
 `"13"`; planilha: o valor da coluna `grupo_territorial` ou `null`; estados e conjuntos: `null`). No nível estados, o item
@@ -335,8 +341,10 @@ Por item, quando pedidos (o campo vem em todos os itens; `null` fora do universo
 
 | Campo | Forma |
 |---|---|
-| `referencia_mais_proxima` | Com `referencia`: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável e nos conjuntos. |
-| `tendencia` | `{classe, familia, rotulo, motivo, motivo_texto, avaliavel, observacoes, velocidades}`. `classe`: CategoriaTendencia (`CRESCIMENTO`, `CRESCIMENTO_ACELERADO`, `CRESCIMENTO_DESACELERADO`, `DECLINIO`, `DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`, `SEM_CLASSIFICACAO`) ou `null`; `familia`: `CRESCIMENTO`, `DECLINIO`, `NENHUMA` ou `null` (não avaliável); `rotulo`: o rótulo DA-15 ("Desaceleração do crescimento", "Não avaliável: série insuficiente"); `motivo`: `SERIE_ESTAVEL`, `MUDANCA_DE_DIRECAO`, `SERIE_INSUFICIENTE`, `INCOMPARABILIDADE` ou `null`; `motivo_texto`: o texto do motivo ("3 de 4 observações necessárias"); `observacoes`: [{competencia, valor}] do indicador nas competências com valor (também nos não avaliáveis, para a visão Séries); `velocidades`: as velocidades do motor (variação do indicador por `unidade_tempo`, o mês nas competências AAAAMM) entre observações consecutivas, na ordem de `observacoes`; vazia quando não avaliável. |
+| `referencia_mais_proxima` | Com `referencia` por membros: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável, nos conjuntos e com o território de referência por elegibilidade. |
+| `referencia_do_item` | Com o território de referência por elegibilidade (24/10/2026): a mesma forma, `{id, rotulo, empate}`, com o território de referência do item (o mais próximo ou o mais distante dos elegíveis, nunca ele mesmo) e os empatados. `null` sem distância avaliável e nos conjuntos. |
+| `serie` | Com `serie` (24/10/2026): `{observacoes: [{competencia, valor}], comparavel, motivo}`, uma observação por competência do intervalo, na ordem dele; `valor` é `null` sem valor (nunca zero). `comparavel` é falso no conjunto com membros diferentes no intervalo, com o `motivo` ("Série não comparável: …; cada valor vale isoladamente e os pontos não são ligados (INCOMPARABILIDADE)"). |
+| `tendencia` | `{classe, familia, rotulo, motivo, motivo_texto, avaliavel, observacoes, velocidades}`. `classe`: CategoriaTendencia (`CRESCIMENTO`, `CRESCIMENTO_ACELERADO`, `CRESCIMENTO_DESACELERADO`, `DECLINIO`, `DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`, `SEM_CLASSIFICACAO`) ou `null`; `familia`: `CRESCIMENTO`, `DECLINIO`, `NENHUMA` ou `null` (não avaliável); `rotulo`: o rótulo DA-15 ("Desaceleração do crescimento", "Não avaliável: série insuficiente"); `motivo`: `SERIE_ESTAVEL`, `MUDANCA_DE_DIRECAO`, `SERIE_INSUFICIENTE`, `INCOMPARABILIDADE` ou `null`; `motivo_texto`: o texto do motivo ("3 de 4 observações necessárias"); `observacoes`: [{competencia, valor}] do indicador nas competências com valor (também nos não avaliáveis); `velocidades`: as velocidades do motor (variação do indicador por `unidade_tempo`, o mês nas competências AAAAMM) entre observações consecutivas, na ordem de `observacoes`; vazia quando não avaliável. As observações também desenham os períodos do meio da visão Trajetória. |
 | `grupo` | `{indice, rotulo}` (`indice` de 1 a k, "2º quartil"). |
 | `grupo_mapa` | Com `grupos_mapa`: a mesma forma de `grupo` (`{indice, rotulo}`); `null` fora do universo, sem valor do `indicador` ou com `grupos_mapa` nulo. |
 | `faixa`, `faixa_distancia` | `{indice, rotulo}` (`indice` a partir de 1), `"fora"` (fora de todas as faixas) ou `null` (não avaliável). |
@@ -420,6 +428,84 @@ E os blocos do topo do mesmo pedido (trechos):
                          "avaliabilidade": "AVALIAVEL", "motivo": null, "nota": "…", "regra_populacao": "BR-POP-JUNHO-1"}},
  "sessao": {"registrado": false, "result_id": null, "motivo": "Sem sessão: o pedido não trouxe o cabeçalho X-ADT-Session."}}
 ```
+
+### Território de referência por elegibilidade (24/10/2026)
+
+Pedido do responsável (segunda rodada de 24/10/2026, item 6): na análise espacial, primeiro os territórios **elegíveis**,
+depois o mais próximo ou o mais distante deles, para cada município, sem ele mesmo. Só na página única (com `nivel`) e só no
+nível municípios; sem `nivel` → 422 "O território de referência por elegibilidade vale só no formato da página única (com
+nivel)."; no nível estados, a recusa de sempre ("Não se aplica: estados não têm um ponto único. …").
+
+```json
+{"referencia": {"relacao": "mais_distante",
+                "delimitacao": {"tipo": "regioes", "valores": ["Norte"]},
+                "condicao": {"atributo": "populacao", "operador": ">", "valor": 100000}}}
+```
+
+- **Chaves:** exatamente `relacao`, `delimitacao` e `condicao` (outra chave, ou faltando uma → 422 "Território de referência
+  inválido: use {"relacao": …}"). Nenhuma tem valor padrão.
+- **`relacao`:** `"mais_proxima"` (CAP-ESP-02, o mínimo do conjunto completo) ou `"mais_distante"` (as distâncias de CAP-ESP-01
+  em ordem decrescente, CAP-SUB-02, e a 1ª posição, CAP-SUB-03). Outro valor → 422 "Relação espacial não reconhecida: …".
+- **`delimitacao`:** `{"tipo", "valores"}`, o universo dos elegíveis, só com os níveis que a fonte tem (nenhum é presumido):
+  - `todos`: a base inteira ("de todo o Brasil"; numa planilha, "de toda a planilha");
+  - `mesmo_grupo`: o mesmo estado de cada município (o prefixo do código IBGE; numa planilha, o valor da coluna
+    `grupo_territorial`, "da mesma província de cada distrito");
+  - `grupos`: os estados escolhidos (prefixos IBGE) ou, numa planilha, os valores da coluna-mãe ("do estado escolhido
+    (Pará)", "dos estados escolhidos (Acre e Amazonas)");
+  - `mesma_regiao` e `regioes`: só na base do Brasil, as Grandes Regiões pelo primeiro dígito do código IBGE (a regra da
+    conversa, conferida com a coluna `regiao_geografica` da base versionada): "Norte", "Nordeste", "Sudeste", "Sul" e
+    "Centro-Oeste" ("da mesma região de cada município", "da Região Norte", "das regiões Norte e Sul").
+
+  `valores` só com `grupos` e `regioes` (outro tipo com valores → 422 "A delimitação todos não leva valores: …"); vazios ou
+  repetidos → 422 "Escolha os estados da delimitação, sem repetir." (ou "as regiões", "as províncias"); desconhecidos → 422
+  "Estados inexistentes na delimitação: …" (ou "Regiões", "Províncias"). Regiões numa planilha → 422 "As regiões (Norte,
+  Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil: nesta planilha, delimite pela província ou pela planilha
+  inteira."; o grupo numa planilha sem a coluna-mãe → 422 "A planilha não tem a coluna de província (papel
+  grupo_territorial): delimite pela planilha inteira.".
+- **`condicao`:** `{"atributo", "operador", "valor"}`, CAP-SUB-01 atômico pela mesma árvore das Condições (`parse_tree`, valores
+  exatos, três estados): `atributo` `densidade` (por 1.000 habitantes), `quantidade` (na unidade de contagem) ou `populacao`
+  (habitantes); `operador` `<`, `<=`, `>` ou `>=` (outro → 422 "Operador da condição do território de referência não
+  reconhecido: …"); `valor` não negativo. Densidade ou população numa planilha sem população → 422 com o motivo.
+- **Cálculo:** os elegíveis são as unidades da base (na competência) que atendem à condição (`ATENDE`; sem registro ou sem o
+  valor, não avaliável, nunca elegível), dentro da delimitação de cada alvo. Para cada município com coordenada válida, o
+  extremo entre os elegíveis da delimitação dele, **sem ele mesmo**, pelas geodésicas de Karney no elipsoide do referencial
+  (`nearest_reference.extreme_exact`, com todos os empates exatos; limites só poupam geodésicas que não podem decidir: na mais
+  próxima, a corda 3D; na mais distante, o arco entre os pontos levados pela normal até a esfera de raio a, nunca menor que a
+  geodésica). Os elegíveis não entram como itens: a seleção da pessoa continua a mesma. Como no conjunto de referência, um
+  elegível sem coordenada válida deixa a distância do alvo não avaliável, sem trocar pelo extremo entre os demais ("Distância
+  não avaliável em junho de 2024: sem coordenada válida no território elegível MANACAPURU (AM) (SEM_INFORMACAO_ESPACIAL); a
+  referência não é escolhida entre os demais (DEPENDENCIA_NAO_AVALIAVEL)"); sem elegível, também, com o motivo ("Sem território
+  de referência: nenhum outro município da Região Nordeste atende à condição densidade > 10 por 1.000 habitantes em junho de
+  2024 (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)"), nunca distância zero. Num conjunto, a distância não se aplica
+  (cada membro tem a sua referência). Duas definições diferentes nunca dividem distâncias na memória do pedido.
+- **Resposta:** `referencia` com `tipo: "elegiveis"`, a definição normalizada, os textos (`delimitacao.texto`, `condicao.texto`
+  como nas Condições), as contagens da condição na base (`elegiveis`), os territórios que ficaram como referência de algum
+  item (`membros`, na ordem do código) e a `origem` em palavras ("Para cada município, o município mais próximo entre os
+  municípios de todo o Brasil com densidade > 10 por 1.000 habitantes em junho de 2024 (3 de 6 municípios da base atendem à
+  condição); o próprio município não é a sua referência. A condição é escolha do usuário e não tem caráter normativo"); por
+  item, `referencia_do_item`. As notas do método dizem a ordem (primeiro os elegíveis, depois o extremo) e a regra das
+  coordenadas; a frase-resumo cita a definição.
+
+### Série temporal (24/10/2026)
+
+Pedido do responsável (segunda rodada de 24/10/2026, item 12): a visão Série temporal da Análise de Tendência mostra a série
+histórica completa, lida dos dados, ou o intervalo escolhido. `serie: {"competencias": [...]}` pede o valor observado do
+`indicador` de cada item em cada competência do intervalo, nos três níveis (municípios e conjuntos, estados, Brasil), pelas
+mesmas funções da tendência (`data_contract.prepare` nas linhas do intervalo; nos estados, a fonte estadual; no Brasil, a fonte
+nacional e BR-POP-JUNHO-1), **sem método novo**: a classificação (CAP-TEN-01) não é chamada, não há linha ajustada e nada é
+preenchido (competência sem valor fica `null`, nunca zero). O método (`SERIE-OBSERVADA-1`) entra na chave de execução. Os
+valores são os mesmos das observações da tendência na mesma janela (conferido nos testes, também com a base
+versionada).
+
+- **Conjuntos:** a soma dos componentes em cada competência, como na tendência; com membros diferentes no intervalo
+  (CAP-AGR-01, F-05b), `comparavel: false` e o motivo: os valores valem isoladamente, e a tela não os liga (RQ-REP-15).
+- **Topo:** `serie` com o intervalo (`janela`), o número de competências, o indicador, a unidade dos valores e quantos itens
+  têm algum valor; `dominios.serie`; a nota "Série temporal de junho de 2019 a junho de 2024 (6 competências): o valor
+  observado da densidade em cada competência, pela mesma preparação da análise; sem classificação, sem linha ajustada e sem
+  preencher lacunas (competência sem valor fica sem ponto)." e, na frase-resumo, " Série temporal de junho de 2019 a junho de
+  2024: 6 competências.".
+- **Na tela:** sem intervalo escolhido, a tela pede todas as competências da base (do primeiro ao último período que ela tem),
+  e a competência do pedido é a última do intervalo.
 
 ### Grupos do mapa (`grupos_mapa`, 23/10/2026)
 

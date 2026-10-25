@@ -4,7 +4,8 @@ Com o navegador no escuro (contexto do Playwright com color_scheme="dark"), conf
 luminância relativa do WCAG):
 - o aviso de privacidade, a página, o cabeçalho com o banner, a abertura com as duas entradas dos dados, a janela de envio com o
   modelo de planilha e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
-- a base carregada sem seleção (as abas, a Seleção de Territórios com os níveis, a busca e o que entra na análise), os estados (E1)
+- a base carregada sem seleção (as abas, a Seleção de Territórios com os níveis, a busca e o que entra na análise; desde a segunda
+  rodada de 24/10/2026, Voltar e Limpar seleção no alto, o aviso da mudança coletiva e o "Voltar aos estados" preenchido), os estados (E1)
   e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
   de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
@@ -190,8 +191,13 @@ def main():
         aperta(territorios.get_by_test_id("analise-nivel-estados"))
         legivel(territorios.get_by_test_id("analise-marcar-todos"), "Marcar todos os estados")
         estados = respond(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
-        legivel(territorios.get_by_test_id("analise-limpar-selecao"), "Limpar a seleção (vassoura)")
-        legivel(territorios.get_by_test_id("analise-desfazer"), "Desfazer")
+        # Voltar e Limpar seleção (24/10/2026, segunda rodada): no alto da área, com fundo escuro e os nomes legíveis; o aviso da
+        # mudança coletiva ("Para desfazer, use Voltar, no alto.") junto do que está marcado, também legível.
+        controles = area.get_by_test_id("analise-controles-globais")
+        escuro(controles, "Voltar e Limpar seleção, no alto")
+        legivel(controles.get_by_test_id("analise-voltar"), "Voltar")
+        legivel(controles.get_by_test_id("analise-limpar-selecao"), "Limpar seleção (vassoura)")
+        legivel(territorios.get_by_test_id("analise-selecao-aviso"), "aviso da mudança coletiva, com o caminho do Voltar")
         legivel(territorios.get_by_test_id("analise-ver-analise"), "Ver a análise")
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-estado", "E1")
@@ -214,6 +220,13 @@ def main():
         expect(linha_am).to_contain_text("Amazonas")
         escuro(territorios, "lista de territórios")
         legivel(linha_am.get_by_test_id("analise-grupo-ver"), "Ver os municípios (link de ação)")
+        # "Voltar aos estados" (24/10/2026, segunda rodada): o botão preenchido da lista do estado, legível no escuro; ele só fecha
+        # a lista.
+        aperta(linha_am.get_by_test_id("analise-grupo-ver"))
+        legivel(territorios.get_by_test_id("analise-grupo-voltar"), "Voltar aos estados (preenchido)")
+        escuro(territorios.get_by_test_id("analise-selecionados"), "o que entra na análise, à direita")
+        aperta(territorios.get_by_test_id("analise-grupo-voltar"))
+        expect(linha_am.get_by_test_id("analise-grupo-todos")).to_be_visible()
         caixa_am = linha_am.get_by_test_id("analise-grupo-todos")
 
         def marca_am():

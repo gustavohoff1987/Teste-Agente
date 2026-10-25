@@ -1,13 +1,11 @@
 """Área de análise da página única (22/10/2026): abertura antes dos dados (E0, só a identificação e as duas entradas, sem abas,
 desde 24/10/2026), a base do Brasil sem seleção automática e a Seleção de Territórios por níveis (24/10/2026: o Brasil como
-unidade, os estados um a um ou todos, os municípios navegados por estado e cumulativos, a busca no alto, "Marcar todos",
-"Desmarcar todos", Limpar e Desfazer, o que entra na análise sempre à vista), os estados em bolhas e a bolha que abre os
-municípios de um estado com "Voltar aos estados", o eixo vertical do indicador com o arranjo horizontal, a dica no mouse e no
-foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da memória da tela), a régua que só
-esconde, grupos por posição, a análise espacial com a referência por critério, a tendência (o campo Período, anual ou semestral,
-com os últimos 4 períodos, desde 24/10/2026; Classes no quadro de setas, Mudança e Séries; as classes explicadas e o motivo das
-sem classificação), a rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Limpar filtros, Exportar (CSV em
-precisão integral), os Detalhes e o celular (abas roláveis e o botão Ferramentas).
+unidade, os estados um a um ou todos, os municípios navegados por estado e cumulativos, a busca no alto, "Marcar todos" e
+"Desmarcar todos"), os estados em bolhas e a bolha que abre os municípios de um estado, o eixo vertical do indicador com o arranjo
+horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
+memória da tela), a régua que só esconde, grupos por posição, a análise espacial com o Território de referência, a tendência, a
+rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Limpar filtros, Exportar (CSV em precisão integral), os
+Detalhes e o celular (abas roláveis e o botão Ferramentas).
 
 Desde 23/10/2026 (pedido integrado): uma linha de abas com a Seleção de Territórios primeiro e as quatro análises com os nomes
 padronizados (Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de Rotatividade); a lista de territórios
@@ -15,20 +13,34 @@ fica no painel da Seleção (`analise-aba-painel`), e os ajustes de cada anális
 "Alterar a seleção". Desde 24/10/2026, a Seleção é só seleção (o título, a frase-resumo, o desenho e os Detalhes ficam nas
 análises), e cada análise começa por "Entenda esta análise" (`analise-entenda`), aberta na primeira visita e recolhível.
 
+Desde 24/10/2026 (segunda rodada, os 12 ajustes de interface): o nome da plataforma na abertura ("Diagnóstico Territorial da
+Força de Trabalho na Saúde"); no alto da área, fixos ao rolar e lado a lado, Voltar (`analise-voltar`, um desfazer sequencial
+de toda a interação, como o Ctrl+Z: a seleção, as abas, os ajustes, os filtros e a vista; desligado, com o motivo em palavras,
+quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a vassoura: tira os territórios do nível em uso sem
+apagar os dados nem a escolha dos outros níveis; desligado no nível Brasil, com o motivo); "Voltar aos estados" maior e preenchido, distinto do Voltar do alto; a Seleção em duas áreas (à esquerda, a busca e a
+lista; à direita, o que entra na análise, estado a estado, com o × de cada município e de cada estado); as abas das análises só
+com o nome; o Território de referência da análise espacial num fluxo só (a relação, a delimitação, o atributo, o operador e o
+valor de corte, sem valores padrão; primeiro os elegíveis, depois o mais próximo ou o mais distante, nunca o próprio território;
+a mensagem quando nenhum território fica com referência); Comparar e Juntar sem os cartões de valores, com a orientação e os
+escolhidos; na tendência, "Entenda esta análise" recolhido, o período Anual (ou o único ritmo da base) e o Gráfico ao abrir, os
+ajustes no alto, o desenho em destaque e a explicação à direita, com a divisória ajustável (mouse e teclado, com limites); a
+coluna "Tendência" (sem "Classe (do motor)") e nenhum "motor" nos textos da área; as visões Tendência, Trajetória (com os
+períodos do meio no caminho) e Série temporal (toda a série da base ou o intervalo escolhido), trocadas sem refazer a seleção.
+
 Desde 23/10/2026: os ajustes dentro de cada análise (`analise-ajustes`, o painel colado na aba escolhida, com só o que vale para
 ela e o mesmo indicador em todas), a escala na barra junto do desenho (fora dos ajustes, e só quando se aplica), a escolha da vista
 do desenho (`analise-desenho`: o gráfico é a inicial; nos estados, o mapa desligado, com o motivo e o atalho), o convite ao mapa
 depois das Condições e na análise espacial e a frase-resumo do motor (`analise-resumo`), com a competência da resposta. O mapa
 em si (pontos, pintura, transição, lado a lado) é conferido no roteiro do mapa.
 
-Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências; fonte estadual sintética) ou, com
-ADT_BLOCK1_REAL=1, a base versionada (somente leitura), que acrescenta o modo leve com todos os municípios do Brasil. O roteiro
-assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de privacidade e usa os botões de
-fonte da própria área em E0. Cada bolha desenhada é conferida com a resposta de /api/painel: todo número vem do motor. A
-disponibilidade da análise espacial também vem do motor: no catálogo sintético, instalado como versão externa, o referencial
-(SIRGAS 2000 ou WGS 84) pode não ser premissa, e o roteiro segue o que o motor disser (a aba desabilitada com o motivo; a recusa,
-com as opções da pendência que o motor mandar, e a volta ao último gráfico calculado; ou o eixo da distância). Servidor
-serve_ui_offline.py; nunca chama o provedor de IA.
+Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências; fonte estadual sintética; todas as
+sedes no mesmo ponto) ou, com ADT_BLOCK1_REAL=1, a base versionada (somente leitura), que acrescenta o modo leve com todos os
+municípios do Brasil. O roteiro assume que a estrutura da página abre a área de análise (`area-de-analise`) depois do aceite de
+privacidade e usa os botões de fonte da própria área em E0. Cada bolha desenhada é conferida com a resposta de /api/painel: todo
+número vem do motor. A disponibilidade da análise espacial também vem do motor: no catálogo sintético, instalado como versão
+externa, o referencial (SIRGAS 2000 ou WGS 84) pode não ser premissa, e o roteiro segue o que o motor disser (a aba desabilitada
+com o motivo; a recusa, com as opções da pendência que o motor mandar, e a volta ao último gráfico calculado; ou o eixo da
+distância). Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import csv
 import io
@@ -46,6 +58,13 @@ AM = "13"  # prefixo IBGE do Amazonas
 BOLHAS = '[data-testid="analise-bolha"][data-visivel="true"]'
 MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro",
          "dezembro")
+VOLTAR_VAZIO = "Voltar: nenhuma ação para desfazer ainda"
+# Estilo calculado e caixa de um elemento, para comparar o destaque de dois botões.
+ESTILO = """e => { const s = getComputedStyle(e), c = e.getBoundingClientRect();
+  return {fundo: s.backgroundColor, cor: s.color, altura: c.height, fonte: parseFloat(s.fontSize), peso: Number(s.fontWeight)}; }"""
+# O texto da área (o que está à vista e o que os leitores de tela leem) e os title/aria-label dos controles.
+TEXTOS_DA_AREA = """e => e.innerText + '\\n' + [...e.querySelectorAll('[title],[aria-label]')]
+  .map(x => (x.getAttribute('title') || '') + ' ' + (x.getAttribute('aria-label') || '')).join('\\n')"""
 
 
 def formas_da_competencia(competencia):
@@ -55,6 +74,10 @@ def formas_da_competencia(competencia):
         mes, ano = MESES[int(competencia[4:]) - 1], competencia[:4]
         formas += [mes + " de " + ano, competencia[4:] + "/" + ano, mes[:3] + "/" + ano]
     return formas
+
+
+def mm_aaaa(competencia):
+    return competencia[4:] + "/" + competencia[:4] if re.fullmatch(r"\d{6}", competencia) else competencia
 
 
 def options_of(request):
@@ -75,6 +98,14 @@ def esperados(body, indicador="densidade", corte=None, distancia=False):
     return sorted(ids)
 
 
+def referencias_do_item(item):
+    """Os territórios de referência de um item na resposta (o primeiro e os empatados)."""
+    ref = item.get("referencia_do_item")
+    if not ref:
+        return []
+    return [ref["id"]] + [e["id"] for e in ref.get("empate") or [] if e["id"] != ref["id"]]
+
+
 def main():
     real = os.getenv("ADT_BLOCK1_REAL") == "1"
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -84,7 +115,7 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
         offline(context)
         page = context.new_page()
-        failures, llm_calls, painel_calls, pedidos = [], [], [], []
+        failures, llm_calls, painel_calls, pedidos, notas = [], [], [], [], []
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on("request", lambda request: llm_calls.append(request.url) if "/api/llm/interpret" in request.url else None)
         page.on("request", lambda request: painel_calls.append(request.url) if request.url.endswith("/api/painel") else None)
@@ -95,28 +126,34 @@ def main():
         area = page.get_by_test_id("area-de-analise")
         eixo_y, eixo_x = area.get_by_test_id("analise-eixo-y"), area.get_by_test_id("analise-eixo-x")
         territorios = area.get_by_test_id("analise-territorios")
+        controles = area.get_by_test_id("analise-controles-globais")
+        voltar = controles.get_by_test_id("analise-voltar")
+        limpar = controles.get_by_test_id("analise-limpar-selecao")
+        aviso = area.get_by_test_id("analise-aviso")
 
         def shot(name):
             page.wait_for_timeout(700)  # transições do gráfico
             page.screenshot(path=str(OUTPUT / ("area-" + name + suffix + ".png")), full_page=True)
 
-        def respond(action, timeout=180000):
+        def respond(action, timeout=180000, condicao=None):
             """Executa a ação e devolve a resposta de /api/painel e as opções do mesmo pedido. Só vale um pedido feito depois do
-            início da ação: a resposta de um pedido anterior ainda em curso (o "Limpar" das Condições pede ao motor sem que o
-            roteiro espere) pode chegar depois e não é a desta ação. A tela só pede 150 ms depois da mudança (e só quando a
-            resposta não está na memória dela, que guarda as seis últimas); por isso, antes da ação, o cálculo que a ação anterior
-            tenha disparado termina ("Atualizando o gráfico no motor…" sai), para esse pedido não sair já dentro desta ação."""
+            início da ação (e, com `condicao`, o primeiro cujas opções a atendem): a resposta de um pedido anterior ainda em curso
+            (o "Limpar" das Condições pede ao motor sem que o roteiro espere) pode chegar depois e não é a desta ação. A tela só
+            pede 150 ms depois da mudança (e só quando a resposta não está na memória dela, que guarda as seis últimas); por isso,
+            antes da ação, o cálculo que a ação anterior tenha disparado termina ("Atualizando o gráfico…" sai), para esse pedido
+            não sair já dentro desta ação."""
             page.wait_for_timeout(200)
             expect(area.get_by_test_id("analise-atualizando")).to_have_count(0, timeout=timeout)
             antes = len(pedidos)
             with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST"
-                                      and any(r.request is pedido for pedido in pedidos[antes:]), timeout=timeout) as event:
+                                      and any(r.request is pedido for pedido in pedidos[antes:])
+                                      and (condicao is None or condicao(options_of(r.request))), timeout=timeout) as event:
                 action()
             response = event.value
             return response, options_of(response.request)
 
-        def ok(action, timeout=180000):
-            response, sent = respond(action, timeout)
+        def ok(action, timeout=180000, condicao=None):
+            response, sent = respond(action, timeout, condicao)
             assert response.status == 200, response.text()[:2000]
             return response.json(), sent
 
@@ -128,11 +165,14 @@ def main():
             return {item["id"]: item for item in area.locator(BOLHAS).evaluate_all(
                 "els => els.map(e => ({id: e.dataset.id, tipo: e.dataset.tipo, valor: e.dataset.valor, populacao: e.dataset.populacao, "
                 "distancia: e.dataset.distancia ?? null, variacao: e.dataset.variacao ?? null, classe: e.dataset.classe ?? null, "
-                "grupo: e.dataset.grupo ?? null, condicao: e.dataset.condicao ?? null, posicao: e.dataset.posicao ?? null}))")}
+                "grupo: e.dataset.grupo ?? null, condicao: e.dataset.condicao ?? null, posicao: e.dataset.posicao ?? null, "
+                "trajeto: [...e.querySelectorAll('[data-testid=analise-trajeto-ponto]')].map(t => t.dataset.competencia)}))")}
 
         def aperta(locator):
-            """Botões e caixas pelo teclado: além de conferir o acesso sem mouse, evita a caixa da conversa por cima."""
+            """Botões e caixas pelo teclado: além de conferir o acesso sem mouse, evita a caixa da conversa por cima. Um botão
+            desligado (disabled) não recebe o foco, e o Enter iria para o controle focado antes: o roteiro para com o motivo."""
             locator.scroll_into_view_if_needed()
+            assert not locator.evaluate("e => !!e.disabled"), "o botão está desligado: o Enter iria para outro controle"
             locator.focus()
             locator.press("Enter")
 
@@ -170,6 +210,11 @@ def main():
         def milhar(numero):
             return f"{numero:,}".replace(",", ".")
 
+        def sem_bastidor(onde):
+            """Requisito 11 (24/10/2026): nenhum texto da área, à vista, lido pelos leitores de tela ou nos title, fala do "motor"."""
+            achados = re.findall(r"[^\n]{0,50}\bmotor\b[^\n]{0,50}", area.evaluate(TEXTOS_DA_AREA), flags=re.IGNORECASE)
+            assert not achados, (onde, achados[:5])
+
         def confere_valores(body, indicador="densidade"):
             desenhadas = bubbles()
             for item in body["itens"]:
@@ -180,15 +225,17 @@ def main():
                 elif item.get(indicador) is None:
                     expect(area.locator('[data-testid="analise-nao-avaliavel"][data-id="' + item["id"] + '"]')).to_have_count(1)
 
-        # 1. E0 (24/10/2026): antes dos dados, só a identificação, a chamada e as duas entradas; sem abas, sem números nem bolhas.
+        # 1. E0 (24/10/2026): antes dos dados, só a identificação (o nome da plataforma), a chamada e as duas entradas; sem abas,
+        # sem números nem bolhas, e sem os controles do alto (Voltar e Limpar seleção só existem com os dados prontos).
         expect(area).to_be_visible(timeout=60000)
         expect(area).to_have_attribute("data-estado", "E0")
         expect(area.get_by_test_id("analise-abertura")).to_contain_text("Escolha seus dados para começar")
-        expect(area.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico Territorial da Força de Trabalho em Saúde")
+        expect(area.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico Territorial da Força de Trabalho na Saúde")
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-detalhes")).to_have_count(0)
         expect(area.get_by_role("tablist")).to_have_count(0)
         expect(area.get_by_test_id("analise-apresentacao")).to_have_count(0)
+        expect(controles).to_have_count(0)
         assert not painel_calls, "antes dos dados, nada é pedido ao motor"
         # A caixa da conversa (estrutura da página), se estiver aberta, fica minimizada enquanto o roteiro usa o gráfico.
         chat = page.get_by_test_id("painel-chat")
@@ -207,15 +254,39 @@ def main():
         expect(area.get_by_test_id("analise-resultados")).to_be_hidden()
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
-        # Uma linha de abas: a Seleção de Territórios primeiro e as quatro análises com os nomes padronizados.
+        # Voltar e Limpar seleção (24/10/2026, segunda rodada): no alto da área, lado a lado, com os nomes exatos e os ícones (a seta
+        # e a vassoura). Sem nada para desfazer nem territórios marcados, os dois ficam desligados, com o motivo em palavras; o
+        # Limpar seleção da Seleção saiu (um só, o do alto).
+        expect(controles).to_be_visible()
+        expect(controles).to_have_attribute("role", "toolbar")
+        expect(voltar).to_have_text("Voltar")
+        expect(limpar).to_have_text("Limpar seleção")
+        expect(voltar.locator("svg")).to_have_count(1)
+        expect(limpar.locator("svg")).to_have_count(1)
+        expect(voltar).to_be_disabled()
+        expect(voltar).to_have_attribute("title", VOLTAR_VAZIO)
+        expect(voltar).to_have_attribute("aria-label", VOLTAR_VAZIO)
+        expect(limpar).to_be_disabled()
+        expect(limpar).to_have_attribute("title", "Nenhum território selecionado.")
+        expect(area.get_by_test_id("analise-limpar-selecao")).to_have_count(1)
+        expect(area.get_by_test_id("analise-desfazer")).to_have_count(0)
+        caixa_voltar, caixa_limpar = voltar.bounding_box(), limpar.bounding_box()
+        assert caixa_voltar["x"] + caixa_voltar["width"] <= caixa_limpar["x"] and abs(caixa_voltar["y"] - caixa_limpar["y"]) < 4, \
+            ("Voltar e Limpar seleção lado a lado, o Voltar primeiro", caixa_voltar, caixa_limpar)
+        assert caixa_voltar["y"] < territorios.bounding_box()["y"], "os controles no alto da área"
+        # Uma linha de abas: a Seleção de Territórios primeiro e as quatro análises com os nomes padronizados, só os nomes (os
+        # textos de apoio das análises saíram em 24/10/2026).
         linha_de_abas = area.get_by_role("tablist", name="Seleção de territórios e análises")
         ordem = linha_de_abas.get_by_role("tab").evaluate_all("els => els.map(e => e.dataset.testid)")
         assert ordem == ["analise-aba-territorios", "analise-familia-distribuicao", "analise-familia-espacial",
                          "analise-familia-tendencia", "analise-familia-rotatividade"], ordem
-        for testid, nome in (("analise-aba-territorios", "Seleção de Territórios"), ("analise-familia-distribuicao", "Análise de Distribuição"),
-                             ("analise-familia-espacial", "Análise Espacial"), ("analise-familia-tendencia", "Análise de Tendência"),
-                             ("analise-familia-rotatividade", "Análise de Rotatividade")):
-            expect(area.get_by_test_id(testid)).to_contain_text(nome)
+        expect(area.get_by_test_id("analise-aba-territorios")).to_contain_text("Seleção de Territórios")
+        for testid, nome in (("analise-familia-distribuicao", "Análise de Distribuição"), ("analise-familia-espacial", "Análise Espacial"),
+                             ("analise-familia-tendencia", "Análise de Tendência"), ("analise-familia-rotatividade", "Análise de Rotatividade")):
+            expect(area.get_by_test_id(testid)).to_have_text(nome)
+        for apoio in ("Indicador de cada território", "Distância até uma referência", "Mudança e tendência no tempo",
+                      "Só com os dados enviados"):
+            expect(linha_de_abas).not_to_contain_text(apoio)
         # Na mesma linha: uma linha horizontal atravessa as cinco abas (as alturas podem variar com o texto de apoio), da
         # esquerda para a direita, na ordem acima.
         caixas = [area.get_by_test_id(testid).bounding_box() for testid in ordem]
@@ -231,9 +302,20 @@ def main():
         expect(busca).to_be_visible()
         expect(busca).to_have_attribute("placeholder", "Buscar município ou estado")
         assert busca.bounding_box()["y"] < territorios.get_by_test_id("analise-grupo").first.bounding_box()["y"], "a busca no alto da Seleção"
+        # Duas áreas lado a lado (24/10/2026, segunda rodada): à esquerda, a busca no alto e a lista; à direita, sempre à vista, o
+        # que entra na análise (vazio, com a orientação). Cada uma com cerca de metade da largura.
+        lista_esquerda = territorios.get_by_test_id("analise-territorios-lista")
+        direita = territorios.get_by_test_id("analise-selecionados")
+        caixa_e, caixa_d, largura_sel = lista_esquerda.bounding_box(), direita.bounding_box(), territorios.bounding_box()["width"]
+        assert caixa_e["x"] + caixa_e["width"] <= caixa_d["x"] + 1, ("a lista à esquerda, o que está marcado à direita", caixa_e, caixa_d)
+        assert abs(caixa_e["y"] - caixa_d["y"]) < 8, ("as duas áreas começam na mesma altura", caixa_e, caixa_d)
+        assert min(caixa_e["width"], caixa_d["width"]) >= 0.4 * largura_sel, ("cada área com cerca de metade", caixa_e, caixa_d, largura_sel)
+        expect(lista_esquerda.get_by_test_id("analise-busca")).to_be_visible()
+        expect(direita.get_by_test_id("analise-selecionados-itens")).to_contain_text("Nenhum município marcado ainda")
         for nivel, rotulo in (("brasil", "Brasil"), ("estados", "Estados"), ("municipios", "Municípios")):
             expect(territorios.get_by_test_id("analise-nivel-" + nivel)).to_contain_text(rotulo)
         expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        sem_bastidor("Seleção de Territórios")
         page.wait_for_timeout(800)
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
         # A aba de uma análise sem territórios: "Entenda esta análise" aberta na primeira visita, os ajustes e o convite a
@@ -244,6 +326,7 @@ def main():
         expect(entenda).to_have_attribute("open", "")
         expect(apresentacao).to_have_attribute("data-aba", "espacial")
         expect(apresentacao).to_contain_text("não é um trajeto por estradas")
+        expect(apresentacao).to_contain_text("O próprio município nunca é a sua referência.")
         expect(apresentacao).to_be_visible()
         expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados e estão prontos para a análise.")
         expect(area.get_by_test_id("analise-painel")).to_have_count(0)
@@ -265,8 +348,26 @@ def main():
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         aperta(area.get_by_test_id("analise-selecao-alterar"))
         expect(area).to_have_attribute("data-aba", "territorios")
+        # Cada troca de aba é um passo do Voltar (24/10/2026, segunda rodada): ele diz o que desfaz e devolve a aba anterior, um
+        # passo por vez, como o Ctrl+Z; sem mais passos, volta ao estado inicial e desliga, com o motivo. Nada é pedido ao motor.
+        expect(voltar).to_be_enabled()
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Seleção de Territórios")
+        aperta(voltar)
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+        expect(aviso).to_have_text("Voltar: Abrir a Seleção de Territórios desfeito.")
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
+        aperta(voltar)
+        expect(area).to_have_attribute("data-aba", "espacial")
+        for _ in range(20):
+            if voltar.is_disabled():
+                break
+            aperta(voltar)
+            page.wait_for_timeout(60)
+        expect(voltar).to_be_disabled()
+        expect(voltar).to_have_attribute("title", VOLTAR_VAZIO)
+        expect(area).to_have_attribute("data-aba", "territorios")
         page.wait_for_timeout(400)
-        assert not painel_calls, "abrir as abas sem territórios não pede nada ao motor"
+        assert not painel_calls, "abrir as abas sem territórios (e voltar) não pede nada ao motor"
         # Os estados como unidades: o nível Estados (cada nível guarda a sua escolha) e "Marcar todos os estados".
         aperta(territorios.get_by_test_id("analise-nivel-estados"))
         expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("aria-checked", "true")
@@ -278,8 +379,11 @@ def main():
         expect(territorios.get_by_test_id("analise-marcar-todos")).to_have_text(re.compile(r"Marcar todos os estados \(\d+\)"))
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
         expect(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')).to_be_checked()
-        # Marcar muitos de uma vez pode ser desfeito.
-        expect(territorios.get_by_test_id("analise-desfazer-aviso")).to_contain_text("Todos os estados marcados.")
+        # Marcar muitos de uma vez fica dito junto do que está marcado, com o caminho para desfazer (o Voltar do alto).
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Todos os estados marcados. Para desfazer, use Voltar, no alto.")
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz todos os estados marcados.")
+        expect(limpar).to_be_enabled()
+        expect(limpar).to_have_attribute("title", "Tira os territórios em análise; os dados carregados continuam.")
         expect(area).to_have_attribute("data-estado", "E1")
         itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
         assert itens_estado and all(item["tipo"] == "estado" for item in estados["itens"]), "estados e municípios nunca juntos"
@@ -297,7 +401,8 @@ def main():
         expect(area.get_by_test_id("analise-subtitulo")).to_have_text("Cada bolha é um estado. O tamanho mostra a população.")
         if ((estados.get("contexto") or {}).get("brasil") or {}).get("densidade") is not None:
             expect(area.get_by_test_id("analise-contexto-brasil")).to_have_count(1)
-        expect(area.get_by_test_id("analise-voltar")).to_have_count(0)  # nenhuma navegação para desfazer ainda
+        # O Voltar do alto desfaz passo a passo: agora, a última ação foi abrir a análise.
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
         # A rotatividade não se executa com a base do Brasil, mas a aba abre (sem aria-disabled), com o motivo dentro dela.
         expect(area.get_by_test_id("analise-familia-rotatividade")).to_have_attribute("data-disponivel", "false")
         expect(area.get_by_test_id("analise-familia-rotatividade")).not_to_have_attribute("aria-disabled", "true")
@@ -355,10 +460,12 @@ def main():
         expect(dica).to_have_count(0)
         bolha_am.focus()
         expect(dica.get_by_test_id("analise-dica-acao")).to_be_visible()
+        sem_bastidor("Análise de Distribuição nos estados")
         shot("01-estados")
 
-        # 3. Enter na bolha do estado abre os municípios dele (E2), com "Voltar aos estados" (a seta), que desfaz só essa
-        # navegação. Com o mapa disponível e sem cor própria da análise, o pedido leva os 5 grupos iguais (quintis) do mapa.
+        # 3. Enter na bolha do estado abre os municípios dele (E2). O Voltar do alto (24/10/2026, segunda rodada, no lugar do
+        # "Voltar aos estados" que aparecia só depois dessa navegação) diz o que desfaz e devolve os estados, como estavam. Com o
+        # mapa disponível e sem cor própria da análise, o pedido leva os 5 grupos iguais (quintis) do mapa.
         am, sent = ok(lambda: bolha_am.press("Enter"))
         sent_am = sent
         universo_am = {"municipios": {"todos": False, "estados": [AM], "ids": []}}
@@ -387,14 +494,15 @@ def main():
         expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
         expect(area).to_have_attribute("data-desenho", "grafico")
         expect(area.get_by_test_id("analise-selecao-resumo")).to_contain_text(re.compile(r"Amazonas \(\d+ municípios\)"))
-        voltar = area.get_by_test_id("analise-voltar")
-        expect(voltar).to_have_text("Voltar aos estados")
+        expect(aviso).to_contain_text("Para voltar aos estados, use Voltar, no alto.")
+        expect(voltar).to_have_text("Voltar")
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir os municípios de Amazonas")
         # Voltar devolve os estados, como estavam (sem pedir de novo: a resposta está na memória da tela); a bolha abre de novo.
         calls = len(painel_calls)
         aperta(voltar)
         drawn(esperados(estados))
         expect(area).to_have_attribute("data-estado", "E1")
-        expect(area.get_by_test_id("analise-voltar")).to_have_count(0)
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz abrir a Análise de Distribuição")
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start'})")
         bolha_am.focus()
         bolha_am.press("Enter")
@@ -413,6 +521,11 @@ def main():
         total_am = unidades_am.count()
         assert total_am == len(am["itens"]), (total_am, len(am["itens"]))
         assert all(caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
+        # À direita, o estado inteiro numa linha ("todos os N"), sem a lista dos municípios.
+        grupo_am_direita = territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"]')
+        expect(grupo_am_direita).to_contain_text("Amazonas")
+        expect(grupo_am_direita).to_contain_text("todos os " + str(total_am))
+        expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(0)
         # Dica no mouse (a maior bolha) e no foco (outra bolha), na aba da análise.
         aba_analise("distribuicao")
         com_valor = [item for item in am["itens"] if item["id"] in ids_am]
@@ -428,10 +541,18 @@ def main():
         shot("02-amazonas")
 
         # 4. Marcar e desmarcar na lista do estado aberto: tirar PARINTINS pede os demais; "Desmarcar os municípios do Amazonas"
-        # esvazia sem pedir nada e pode ser desfeito; "Marcar todos os municípios do Amazonas" volta ao estado inteiro; o resumo diz
+        # esvazia sem pedir nada e o Voltar desfaz; "Marcar todos os municípios do Amazonas" volta ao estado inteiro; o resumo diz
         # quais (com um ou dois, os nomes).
         aba_selecao()
-        expect(territorios.get_by_test_id("analise-grupo-voltar")).to_have_text("Voltar aos estados")
+        grupo_voltar = territorios.get_by_test_id("analise-grupo-voltar")
+        expect(grupo_voltar).to_have_text("Voltar aos estados")
+        # "Voltar aos estados" (24/10/2026, segunda rodada): maior e preenchido, como os botões de destaque, e distinto do Voltar do
+        # alto (outro lugar, outro nome e outra cor); só fecha a lista do estado.
+        estilo_grupo, estilo_global = grupo_voltar.evaluate(ESTILO), voltar.evaluate(ESTILO)
+        assert estilo_grupo["fundo"] not in ("rgba(0, 0, 0, 0)", "transparent"), ("preenchido", estilo_grupo)
+        assert estilo_grupo["fundo"] != estilo_global["fundo"], ("distinto do Voltar do alto", estilo_grupo, estilo_global)
+        assert estilo_grupo["altura"] >= 38 and estilo_grupo["fonte"] >= 13 and estilo_grupo["peso"] >= 600, ("evidente", estilo_grupo)
+        assert grupo_voltar.bounding_box()["y"] > voltar.bounding_box()["y"] + 20, "na lista do estado, abaixo do Voltar do alto"
         _, sent = ok(lambda: marca(lista_am.locator('[data-testid="analise-unidade"][data-id="' + PARINTINS + '"] input')))
         restantes = {item.get_attribute("data-id") for item in unidades_am.all()} - {PARINTINS}
         assert sent["base"]["municipios"]["estados"] == [] and set(sent["base"]["municipios"]["ids"]) == restantes, sent
@@ -440,6 +561,12 @@ def main():
                            else str(len(restantes)) + " municípios do Amazonas")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(texto_restantes)
         expect(area.locator('[data-testid="analise-bolha"][data-id="' + PARINTINS + '"]')).to_have_count(0)
+        # O passo de um município só começa pelo verbo: o nome dele fica como é no texto do Voltar.
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz desmarcar " + nomes_am[PARINTINS])
+        # À direita, em tempo real: o estado com "N de M" e cada município marcado, com o × dele.
+        expect(grupo_am_direita).to_contain_text(str(len(restantes)) + " de " + str(total_am))
+        expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(len(restantes))
+        expect(grupo_am_direita.locator('[data-testid="analise-selecionado-unidade"][data-id="' + PARINTINS + '"]')).to_have_count(0)
         calls = len(painel_calls)
         aperta(lista_am.get_by_test_id("analise-desmarcar-todos"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
@@ -447,20 +574,26 @@ def main():
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-resumo")).to_have_text("")  # a região da frase fica, vazia
         assert all(not caixa.is_checked() for caixa in lista_am.locator("input[type=checkbox]").all())
-        expect(territorios.get_by_test_id("analise-desfazer-aviso")).to_contain_text("Municípios do Amazonas desmarcados.")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text(
+            "Municípios do Amazonas desmarcados. Para desfazer, use Voltar, no alto.")
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "sem unidades marcadas, nada é pedido ao motor"
-        aperta(territorios.get_by_test_id("analise-desfazer"))
+        aperta(voltar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(texto_restantes)
-        expect(territorios.get_by_test_id("analise-desfazer-aviso")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_count(0)
+        expect(aviso).to_have_text("Voltar: Municípios do Amazonas desmarcados desfeito.")
         aperta(lista_am.get_by_test_id("analise-desmarcar-todos"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        # A busca, no alto: pelo código, marca um município sem abrir lista nenhuma; o resumo diz qual.
+        # A busca, no alto: pelo código, marca um município sem abrir lista nenhuma; o resumo diz qual, e a lista da direita mostra
+        # o estado com ele.
         busca.fill("130420")
         _, sent = ok(lambda: marca(territorios.locator('[data-testid="analise-busca-item"][data-id="' + TEFE + '"] input')))
         assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [TEFE]}}, sent
         drawn([TEFE])
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(nomes_am[TEFE])
+        expect(grupo_am_direita).to_contain_text("1 de " + str(total_am))
+        expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(1)
+        expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_attribute("data-id", TEFE)
         busca.fill("")
         aperta(lista_am.get_by_test_id("analise-marcar-todos"))
         drawn(ids_am)
@@ -491,29 +624,60 @@ def main():
         expect(selecionados).to_have_count(2)
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"]')).to_contain_text("Amazonas")
         expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="35"]')).to_contain_text("São Paulo")
-        # Voltar aos estados (da lista) e abrir o Amazonas de novo não desfaz nada; tirar o Amazonas pelo resumo tira só ele.
+        # Voltar aos estados (da lista) e abrir o Amazonas de novo não desfaz nada.
         aperta(territorios.get_by_test_id("analise-grupo-voltar"))
         aperta(linha_am.get_by_test_id("analise-grupo-ver"))
         expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).to_be_checked()
-        _, sent = ok(lambda: aperta(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"] button')))
+        # Na lista da direita (24/10/2026, segunda rodada): o × de MANAUS tira só ela; o Voltar a devolve. O × do estado tira o
+        # estado inteiro; o Voltar também o devolve.
+        tirar_manaus = territorios.locator('[data-testid="analise-selecionado-unidade"][data-id="' + MANAUS + '"]').get_by_role("button")
+        expect(tirar_manaus).to_have_attribute("aria-label", "Tirar " + nomes_am[MANAUS])
+        _, sent = ok(lambda: aperta(tirar_manaus))
         assert MANAUS not in sent["base"]["municipios"]["ids"] and (id_sp in sent["base"]["municipios"]["ids"] or
                                                                     sent["base"]["municipios"]["estados"] == ["35"]), sent
-        aperta(territorios.get_by_test_id("analise-desfazer"))
+        expect(selecionados).to_have_count(1)
+        expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).not_to_be_checked()
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz tirar " + nomes_am[MANAUS])
+        aperta(voltar)
+        expect(selecionados).to_have_count(2)
+        expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).to_be_checked()
+        # Tirar o estado inteiro dá a mesma escolha de antes (só São Paulo): a resposta vem da memória da tela.
+        tirar_am = territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"]').get_by_test_id(
+            "analise-selecionado-tirar-grupo")
+        expect(tirar_am).to_have_attribute("aria-label", "Tirar municípios do Amazonas")
+        aperta(tirar_am)
+        expect(selecionados).to_have_count(1)
+        expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + AM + '"]')).to_have_count(0)
+        expect(lista_am.locator('[data-testid="analise-unidade"][data-id="' + MANAUS + '"] input')).not_to_be_checked()
+        aperta(voltar)
         expect(selecionados).to_have_count(2)
         shot("03b-cumulativa")
         # Cada nível guarda a sua escolha: os estados voltam como estavam, e os municípios também.
-        calls = len(painel_calls)
         aperta(territorios.get_by_test_id("analise-nivel-estados"))
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
         drawn(esperados(estados))
         aperta(territorios.get_by_test_id("analise-nivel-municipios"))
         expect(selecionados).to_have_count(2)
-        # E o Amazonas inteiro de novo, para os passos seguintes: Limpar (a vassoura) e "Marcar todos os municípios do Amazonas"
-        # na lista dele, que continua aberta.
-        aperta(territorios.get_by_test_id("analise-limpar-selecao"))
+        # Limpar seleção (a vassoura do alto, 24/10/2026): tira só os territórios do nível em uso (aqui, os municípios; decisão 5,
+        # 25/10/2026), sem apagar os dados carregados (a lista do estado aberto continua, com os municípios, e a fonte também) nem a
+        # escolha guardada dos estados; o Voltar devolve tudo. Depois, de novo o Limpar e o Amazonas inteiro, para os passos
+        # seguintes.
+        fonte_antes = page.get_by_test_id("current-source").inner_text()
+        aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        expect(territorios.get_by_test_id("analise-desfazer-aviso")).to_contain_text("Seleção de municípios limpa.")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Seleção limpa. Para desfazer, use Voltar, no alto.")
+        expect(aviso).to_have_text("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use Voltar.")
+        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
         expect(linha_am).to_have_attribute("data-aberto", "true")
+        expect(unidades_am).to_have_count(total_am)
+        expect(page.get_by_test_id("current-source")).to_have_text(fonte_antes)
+        expect(limpar).to_be_disabled()
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz limpar seleção")
+        aperta(voltar)
+        expect(selecionados).to_have_count(2)
+        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
+        aperta(limpar)
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         aperta(lista_am.get_by_test_id("analise-marcar-todos"))
         drawn(ids_am)
 
@@ -542,10 +706,21 @@ def main():
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "a volta à densidade vem da memória da tela, sem novo pedido"
 
-        # 7. Régua: "acima de" pelo teclado; aparecem só as unidades do corte, nada é recalculado.
+        # 7. Régua: "acima de" pelo teclado; aparecem só as unidades do corte, nada é recalculado. O arraste é um passo só do
+        # Voltar, que devolve a régua de antes.
         regua = abre("regua").get_by_test_id("analise-regua")
         dominio = am["dominios"]["densidade"]
         assert [float(regua.get_attribute("data-dominio-min")), float(regua.get_attribute("data-dominio-max"))] == dominio
+        # Ao rolar, o painel da função fica preso abaixo de Voltar e Limpar seleção: o título e o × à vista, sem nada por cima.
+        area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
+        page.wait_for_timeout(200)
+        titulo_painel = area.get_by_test_id("analise-painel").locator("#analise-painel-titulo")
+        caixa_titulo, caixa_controles = titulo_painel.bounding_box(), controles.bounding_box()
+        assert caixa_titulo["y"] >= caixa_controles["y"] + caixa_controles["height"] - 1, \
+            ("o título do painel abaixo dos controles do alto", caixa_titulo, caixa_controles)
+        assert titulo_painel.evaluate("e => { const c = e.getBoundingClientRect(); "
+                                      "const alvo = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2); "
+                                      "return !!alvo && e.contains(alvo); }"), "nada por cima do título do painel"
         minimo_cursor = regua.get_by_test_id("analise-regua-min")
         minimo_cursor.focus()
         for _ in range(3):
@@ -566,7 +741,14 @@ def main():
         expect(area.get_by_test_id("analise-corte-regua")).to_have_count(2)
         assert len(painel_calls) == calls, "a régua só esconde: nada é recalculado"
         shot("04-regua")
-        aperta(regua.get_by_test_id("analise-regua-limpar"))
+        # O ajuste da régua é um passo do Voltar (o arraste contínuo, um passo só): Voltar desfaz o arraste do limite superior.
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz ajustar a régua")
+        aperta(voltar)
+        page.wait_for_function("v => Number(document.querySelector('[data-testid=analise-regua]').dataset.maximo) === v",
+                               arg=dominio[1], timeout=5000)
+        assert len(painel_calls) == calls, "o Voltar da régua também não recalcula"
+        if regua.get_by_test_id("analise-regua-limpar").is_enabled():
+            aperta(regua.get_by_test_id("analise-regua-limpar"))
         drawn(ids_am)
         fecha()
 
@@ -588,10 +770,12 @@ def main():
         area.get_by_test_id("analise-agrupar").select_option("nenhum")
         drawn(ids_am)
 
-        # 9. Análise espacial. A disponibilidade vem do motor (`disponibilidade.espacial`). Disponível: a referência por critério,
-        # na ordem do motor; "Usar o primeiro" (com empate, a escolha); X = distância. Indisponível (por exemplo, quando o
-        # referencial, SIRGAS 2000 ou WGS 84, não é premissa da fonte): a aba fica desabilitada, com o motivo do motor, e nada é
-        # pedido.
+        # 9. Análise espacial. A disponibilidade vem do motor (`disponibilidade.espacial`). Disponível: o Território de referência
+        # (24/10/2026, segunda rodada, no lugar da referência por critério, pelo nome ou por um conjunto), num fluxo só e sem
+        # valores padrão: a relação, a delimitação, o atributo, o operador e o valor de corte; primeiro os elegíveis (a delimitação
+        # e a condição), depois o mais próximo ou o mais distante de cada município, nunca ele mesmo; X = distância. Indisponível
+        # (por exemplo, quando o referencial, SIRGAS 2000 ou WGS 84, não é premissa da fonte): a aba fica desabilitada, com o motivo
+        # do motor, e nada é pedido.
         espacial_motor = (am.get("disponibilidade") or {}).get("espacial") or {}
         if espacial_motor.get("disponivel") is False:
             assert not real, ("a base do Brasil tem as coordenadas: a análise espacial fica disponível", espacial_motor)
@@ -607,62 +791,92 @@ def main():
             expect(area).to_have_attribute("data-familia", "distribuicao")
             page.wait_for_timeout(400)
             assert len(painel_calls) == calls, "a família indisponível não pede nada ao motor"
+            notas.append("análise espacial indisponível no motor neste catálogo: conferidos a aba e o motivo, sem o Território de "
+                         "referência")
         else:
             aperta(area.get_by_test_id("analise-familia-espacial"))
-            # Os ajustes da análise espacial: o mesmo indicador, a competência e a referência (resumo e o botão do painel).
+            # Os ajustes da análise espacial: o mesmo indicador, a competência e o Território de referência (o resumo e o botão).
             expect(ajustes).to_have_attribute("data-familia", "espacial")
             expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
-            expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text("nenhuma ainda")
-            expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_be_visible()
+            expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text("nenhum ainda")
+            expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_have_text("Definir o território de referência")
             for ausente in ("analise-agrupar", "analise-janela-escolher", "analise-visao-classes", "analise-escala"):
                 expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
-            referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+            # Com os municípios na análise, o painel abre sozinho, com o título "Território de referência" (sem "Referência da
+            # distância") e a escolha passo a passo.
+            painel_ref = area.get_by_test_id("analise-painel")
+            expect(painel_ref).to_have_attribute("data-painel", "referencia")
+            expect(painel_ref.locator("#analise-painel-titulo")).to_have_text("Território de referência")
+            expect(area).not_to_contain_text("Referência da distância")
+            referencia = painel_ref.get_by_test_id("analise-referencia")
             expect(referencia).to_be_visible()
             expect(referencia.get_by_test_id("analise-nota-tpl11")).to_contain_text("linha reta")
-            referencia.get_by_test_id("analise-ref-criterio").select_option("densidade")
-            referencia.get_by_test_id("analise-ref-ordem").select_option("desc")
-            with page.expect_response(lambda r: r.url.endswith("/api/painel/referencias"), timeout=120000) as event:
-                aperta(referencia.get_by_test_id("analise-ref-listar"))
-            assert event.value.status == 200, event.value.text()[:2000]
-            lista = event.value.json()
-            candidatos = referencia.get_by_test_id("analise-ref-candidato")
-            expect(candidatos).to_have_count(len(lista["candidatos"]))
-            for row, candidato in zip(candidatos.all()[:5], lista["candidatos"][:5]):
-                expect(row).to_have_attribute("data-id", candidato["id"])
-                expect(row).to_contain_text(str(candidato["posicao"]) + "º")
-            primeiros = [item for item in lista["candidatos"] if item["posicao"] == 1]
-            if len(primeiros) == 1:
-                response, sent = respond(lambda: aperta(referencia.get_by_test_id("analise-ref-primeiro")))
-            else:
-                aperta(referencia.get_by_test_id("analise-ref-primeiro"))
-                expect(referencia.get_by_test_id("analise-ref-empate")).to_be_visible()
-                expect(candidatos).to_have_count(len(primeiros))
-                marca(candidatos.first.locator("input"))
-                response, sent = respond(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-            assert sent["referencia"] == {"membros": [primeiros[0]["id"]], "criterio": {"atributo": "densidade", "ordem": "desc",
-                                                                                         "universo": universo_am}}, sent
+            expect(referencia).to_contain_text("O próprio município nunca é a sua referência.")
+            for antigo in ("analise-ref-criterio", "analise-ref-ordem", "analise-ref-listar", "analise-ref-candidatos", "analise-ref-primeiro",
+                           "analise-ref-busca"):
+                expect(referencia.get_by_test_id(antigo)).to_have_count(0)
+            # Nenhum valor padrão: nada escolhido, o pedido não sai, e a tela diz o que falta.
+            relacao_proxima = referencia.get_by_test_id("analise-ref-relacao-mais_proxima")
+            relacao_distante = referencia.get_by_test_id("analise-ref-relacao-mais_distante")
+            expect(relacao_proxima).to_have_text("Mais próximo")
+            expect(relacao_distante).to_have_text("Mais distante")
+            for botao in (relacao_proxima, relacao_distante, referencia.get_by_test_id("analise-ref-operador-maior"),
+                          referencia.get_by_test_id("analise-ref-operador-menor")):
+                expect(botao).to_have_attribute("aria-checked", "false")
+            expect(referencia.get_by_test_id("analise-ref-operador-maior")).to_have_text("Maior que")
+            expect(referencia.get_by_test_id("analise-ref-operador-menor")).to_have_text("Menor que")
+            delimitacao = referencia.get_by_test_id("analise-ref-delimitacao")
+            atributo = referencia.get_by_test_id("analise-ref-atributo")
+            valor_corte = referencia.get_by_test_id("analise-ref-valor")
+            expect(delimitacao).to_have_value("")
+            expect(atributo).to_have_value("")
+            expect(valor_corte).to_be_disabled()  # sem o atributo, o valor de corte espera (a unidade depende dele)
+            expect(referencia.get_by_test_id("analise-ref-falta")).to_have_text(
+                "Falta escolher: a relação espacial, a delimitação, o atributo da condição, o operador, o valor de corte.")
+            aplicar_ref = referencia.get_by_test_id("analise-ref-aplicar")
+            expect(aplicar_ref).to_be_disabled()
+            # A delimitação segue os níveis que a fonte tem: na base do Brasil, o estado, os estados escolhidos, a região, as
+            # regiões escolhidas e o país inteiro.
+            opcoes = delimitacao.locator("option").evaluate_all("els => els.map(e => [e.value, e.textContent])")
+            assert opcoes == [["", "Escolha"], ["mesmo_grupo", "No mesmo estado de cada município"], ["grupos", "Estados escolhidos"],
+                              ["mesma_regiao", "Na mesma região de cada município"], ["regioes", "Regiões escolhidas"],
+                              ["todos", "No Brasil inteiro"]], opcoes
+            delimitacao.select_option("regioes")
+            expect(referencia.get_by_test_id("analise-ref-valor-opcao")).to_have_count(5)  # as cinco Grandes Regiões
+            expect(referencia.get_by_test_id("analise-ref-falta")).to_contain_text("as regiões")
+            # O valor de corte com a unidade e a validação do atributo: a população, um inteiro de habitantes.
+            atributo.select_option("populacao")
+            expect(valor_corte).to_be_enabled()
+            expect(referencia).to_contain_text("Valor de corte (habitantes)")
+            valor_corte.fill("2,5")
+            expect(valor_corte).to_have_attribute("aria-invalid", "true")
+            expect(referencia).to_contain_text("Use um número inteiro não negativo.")
+            # A condição: população maior que a mediana dos municípios do Amazonas, no mesmo estado de cada município. Os elegíveis
+            # saem desta resposta (a dos municípios do Amazonas): quem atende à condição.
+            populacoes = sorted(int(round(item["populacao"])) for item in am["itens"] if item.get("populacao") is not None)
+            limiar = populacoes[len(populacoes) // 2]
+            elegiveis = {item["id"] for item in am["itens"] if item.get("populacao") is not None and item["populacao"] > limiar}
+            assert elegiveis, "algum município do Amazonas atende à condição"
+            delimitacao.select_option("mesmo_grupo")
+            valor_corte.fill(milhar(limiar))  # com o ponto de milhar, como a pessoa escreve
+            aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
+            aperta(relacao_proxima)
+            expect(relacao_proxima).to_have_attribute("aria-checked", "true")
+            expect(valor_corte).not_to_have_attribute("aria-invalid", "true")
+            expect(referencia.get_by_test_id("analise-ref-previa")).to_have_text(
+                "Para cada município, o município mais próximo entre os municípios do mesmo estado de cada município com população "
+                "maior que " + milhar(limiar) + " habitantes.")
+            expect(aplicar_ref).to_be_enabled()
+            calls = len(painel_calls)
+            response, sent = respond(lambda: aperta(aplicar_ref))
+            assert sent["referencia"] == {"relacao": "mais_proxima", "delimitacao": {"tipo": "mesmo_grupo"},
+                                          "condicao": {"atributo": "populacao", "operador": ">", "valor": limiar}}, sent
+            assert sent["base"] == universo_am, ("a seleção continua a mesma", sent)
             if real:
                 assert response.status == 200, response.text()[:2000]
-            if response.status == 200:
-                espacial = response.json()
-                expect(eixo_x).to_have_attribute("data-eixo", "distancia")
-                expect(eixo_y).to_have_attribute("data-eixo", "densidade")
-                drawn(esperados(espacial, distancia=True))
-                desenhadas = bubbles()
-                for item in espacial["itens"]:
-                    if item["id"] in desenhadas:
-                        assert float(desenhadas[item["id"]]["distancia"]) == item["distancia_km"], (desenhadas[item["id"]], item)
-                expect(area.get_by_test_id("analise-nota-distancia")).to_contain_text("linha reta")
-                expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até")
-                # Na análise espacial, o convite ao mapa ("onde ficam?"), com a vista no gráfico.
-                expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
-                expect(area).to_have_attribute("data-desenho", "grafico")
-                shot("06-espacial")
-            else:
+            if response.status == 422:
                 # O motor recusou a distância (catálogo sintético, versão externa). Quando ele oferece a escolha da premissa, a
-                # tela mostra as opções que ele mandou (sem lista fixa) e pede de novo com a escolhida; depois, a volta ao
-                # último gráfico calculado, sem recalcular.
-                assert response.status == 422, response.text()[:2000]
+                # tela mostra as opções que ele mandou (sem lista fixa) e pede de novo com a escolhida.
                 erro = area.get_by_test_id("analise-erro")
                 corpo = response.json()
                 expect(erro).to_contain_text(str(corpo["detail"])[:60])
@@ -676,8 +890,95 @@ def main():
                     escolhida = opcoes.first.get_attribute("data-valor")
                     response, sent = respond(lambda: aperta(opcoes.first))
                     assert sent.get("premissas", {}).get(pendencia["chave"]) == escolhida, sent
-                    if response.status == 200:
-                        expect(eixo_x).to_have_attribute("data-eixo", "distancia")
+            if response.status == 200:
+                proxima = response.json()
+                referencia_resposta = proxima["referencia"]
+                assert referencia_resposta["tipo"] == "elegiveis" and referencia_resposta["relacao"] == "mais_proxima", referencia_resposta
+                assert referencia_resposta["delimitacao"]["texto"] == "do mesmo estado de cada município", referencia_resposta
+                assert referencia_resposta["elegiveis"]["atende"] >= len(elegiveis), referencia_resposta
+                expect(eixo_x).to_have_attribute("data-eixo", "distancia")
+                expect(eixo_y).to_have_attribute("data-eixo", "densidade")
+                drawn(esperados(proxima, distancia=True))
+                desenhadas = bubbles()
+                for item in proxima["itens"]:
+                    refs = referencias_do_item(item)
+                    # Primeiro os elegíveis: a referência de cada município atende à condição, no mesmo estado, e nunca é ele.
+                    assert set(refs) <= elegiveis and item["id"] not in refs, (item["id"], refs, sorted(elegiveis))
+                    if refs:
+                        assert item.get("distancia_km") is not None, item
+                    else:
+                        # Sem referência (sem coordenada válida ou sem outro elegível): o motivo, nunca distância zero.
+                        assert item.get("distancia_km") is None and item.get("motivos"), item
+                    if not elegiveis - {item["id"]}:
+                        # Só o próprio município atende à condição no estado: sem referência, com o motivo.
+                        assert not refs and any("Sem território de referência" in motivo for motivo in item.get("motivos") or []), item
+                    if item["id"] in desenhadas:
+                        assert float(desenhadas[item["id"]]["distancia"]) == item["distancia_km"], (desenhadas[item["id"]], item)
+                assert any(referencias_do_item(item) for item in proxima["itens"]), "algum município do Amazonas tem referência"
+                expect(area.get_by_test_id("analise-nota-distancia")).to_contain_text("linha reta")
+                expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até o território de referência")
+                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
+                # O resumo nos ajustes diz a relação, a delimitação e a condição, com os textos do motor.
+                expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text(
+                    "Mais próximo · do mesmo estado de cada município · " + referencia_resposta["condicao"]["texto"])
+                expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_have_text("Mudar")
+                # A dica da bolha diz qual é o território de referência dela.
+                com_ref = next(item for item in proxima["itens"] if item["id"] in desenhadas and referencias_do_item(item))
+                fecha()
+                area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
+                area.locator('[data-testid="analise-bolha"][data-id="' + com_ref["id"] + '"]').focus()
+                expect(dica).to_contain_text("Território de referência (o mais próximo")
+                expect(dica).to_contain_text(com_ref["referencia_do_item"]["rotulo"])
+                page.evaluate("document.activeElement && document.activeElement.blur()")
+                # Na análise espacial, o convite ao mapa ("onde ficam?"), com a vista no gráfico.
+                expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
+                expect(area).to_have_attribute("data-desenho", "grafico")
+                sem_bastidor("Análise Espacial")
+                shot("06-espacial")
+                # Reconfigurar sem recomeçar: o painel volta com a escolha em uso; trocar só a relação pede de novo, com a mesma
+                # seleção, e o mais distante fica a pelo menos a distância do mais próximo.
+                aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
+                referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+                expect(referencia.get_by_test_id("analise-ref-relacao-mais_proxima")).to_have_attribute("aria-checked", "true")
+                expect(referencia.get_by_test_id("analise-ref-delimitacao")).to_have_value("mesmo_grupo")
+                expect(referencia.get_by_test_id("analise-ref-atributo")).to_have_value("populacao")
+                expect(referencia.get_by_test_id("analise-ref-ativa")).to_contain_text("Em uso:")
+                aperta(referencia.get_by_test_id("analise-ref-relacao-mais_distante"))
+                distante, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
+                assert sent["referencia"]["relacao"] == "mais_distante" and sent["base"] == universo_am, sent
+                assert distante["referencia"]["relacao"] == "mais_distante", distante["referencia"]
+                perto = {item["id"]: item.get("distancia_km") for item in proxima["itens"]}
+                for item in distante["itens"]:
+                    refs = referencias_do_item(item)
+                    assert set(refs) <= elegiveis and item["id"] not in refs, (item["id"], refs)
+                    if item.get("distancia_km") is not None and perto.get(item["id"]) is not None:
+                        assert item["distancia_km"] >= perto[item["id"]], (item["id"], item["distancia_km"], perto[item["id"]])
+                drawn(esperados(distante, distancia=True))
+                expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_contain_text("Mais distante · ")
+                # Sem elegíveis: ninguém da base atende à condição; nenhuma distância vira zero, e a mensagem diz o que aconteceu e
+                # o que fazer. O Voltar devolve a definição anterior.
+                referencia.get_by_test_id("analise-ref-valor").fill(milhar(10 ** 9))
+                nenhum, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
+                assert sent["referencia"]["condicao"]["valor"] == 10 ** 9, sent
+                assert nenhum["referencia"]["elegiveis"]["atende"] == 0, nenhum["referencia"]
+                assert all(item.get("distancia_km") is None and not referencias_do_item(item) for item in nenhum["itens"]), nenhum["itens"]
+                sem_resultado = area.get_by_test_id("analise-ref-sem-resultado")
+                expect(sem_resultado).to_contain_text("Nenhum município da base atende à condição " +
+                                                      nenhum["referencia"]["condicao"]["texto"] + ": não há território de referência.")
+                expect(area.locator(BOLHAS)).to_have_count(0)
+                fecha()
+                aperta(sem_resultado.get_by_test_id("analise-ref-sem-resultado-mudar"))
+                expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "referencia")
+                fecha()
+                expect(voltar).to_have_attribute("title", "Voltar: desfaz aplicar o território de referência")
+                aperta(voltar)
+                drawn(esperados(distante, distancia=True))
+                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
+                notas.append("Território de referência conferido no navegador: mais próximo, mais distante, sem elegíveis e o "
+                             "Voltar" + (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
+            else:
+                notas.append("o motor recusou a distância neste catálogo (código " + str(response.status) + "): conferidos o "
+                             "pedido do Território de referência, a recusa e a volta ao último gráfico calculado")
                 if area.get_by_test_id("analise-erro").count():
                     calls = len(painel_calls)
                     aperta(area.get_by_test_id("analise-voltar-calculado"))
@@ -688,11 +989,27 @@ def main():
                     assert len(painel_calls) == calls, "voltar ao último gráfico não recalcula"
             fecha()
 
-        # 10. Tendência: o campo Período (24/10/2026), anual ou semestral, sem ritmo padrão, com os últimos 4 períodos; Classes no
-        # quadro de setas (no lugar das bolhas), com a contagem por classe do motor acima; Mudança com os percentuais do motor; Séries
-        # com as linhas das unidades escolhidas.
-        aperta(area.get_by_test_id("analise-familia-tendencia"))
-        expect(area.get_by_test_id("analise-aviso-familia")).to_contain_text("Escolha o período da tendência, anual ou semestral")
+        # 10. Tendência (24/10/2026): abre com "Entenda esta análise" recolhido, o Período anual (ou, sem ele, o único ritmo da
+        # base, RQ-GOV-14) e o Gráfico, mesmo com o mapa à vista antes (o mapa continua como alternativa); os ajustes no alto, o
+        # desenho em destaque e a explicação à direita, com a divisória ajustável. As visões: Tendência (o quadro de setas, no
+        # lugar das bolhas, com a contagem por classe do motor ao lado), Trajetória (os percentuais do motor, com os períodos do
+        # meio no caminho) e Série temporal (toda a série da base ou o intervalo escolhido).
+        if area.get_by_test_id("analise-desenho-mapa").get_attribute("aria-disabled") != "true":
+            aperta(area.get_by_test_id("analise-desenho-mapa"))
+            expect(area).to_have_attribute("data-desenho", "mapa")
+        tendencia, sent = ok(lambda: aperta(area.get_by_test_id("analise-familia-tendencia")), condicao=lambda o: "tendencia" in o)
+        janela = sent["tendencia"]["competencias"]
+        esperada = ["202106", "202206", "202306", "202406"] if real else ["202301", "202306", "202401", "202406"]
+        assert janela == esperada and sent["competencia_inicial"] == janela[0] and sent["competencia"] == janela[-1], sent
+        assert sent.get("indicador") == "densidade" and "referencia" not in sent and sent["base"] == universo_am, sent
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        expect(area.get_by_test_id("analise-desenho-grafico")).to_have_attribute("aria-pressed", "true")
+        expect(area.get_by_test_id("analise-desenho-mapa")).not_to_have_attribute("aria-disabled", "true")
+        entenda = area.get_by_test_id("analise-entenda")
+        expect(entenda).to_have_attribute("data-aba", "tendencia")
+        expect(entenda).not_to_have_attribute("open", "")
+        expect(area.get_by_test_id("analise-apresentacao")).to_be_hidden()
+        expect(area.get_by_test_id("analise-aviso-familia")).to_have_count(0)  # o período já vem escolhido
         expect(area.get_by_test_id("analise-painel")).to_have_count(0)  # nenhuma gaveta abre: o período fica nos ajustes
         # Os ajustes da tendência: o mesmo indicador (a troca de aba o mantém), o Período e a visão, sem competência nem grupos e faixas.
         expect(ajustes).to_have_attribute("data-familia", "tendencia")
@@ -700,35 +1017,40 @@ def main():
         for controle in ("analise-periodo-anual", "analise-periodo-semestral", "analise-periodo-texto", "analise-visao-classes",
                          "analise-visao-mudanca", "analise-visao-series"):
             expect(ajustes.get_by_test_id(controle)).to_be_visible()
-        for ausente in ("analise-competencia", "analise-agrupar", "analise-referencia-escolher", "analise-escala", "analise-janela-escolher"):
+        for ausente in ("analise-competencia", "analise-agrupar", "analise-referencia-escolher", "analise-escala", "analise-janela-escolher",
+                        "analise-serie-intervalo"):
             expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
-        # Sem ritmo padrão: nenhum escolhido até a pessoa escolher. O ritmo que a base não tem fica desligado, com o motivo: no
-        # catálogo sintético (01/2023, 06/2023, 01/2024 e 06/2024), o anual; na base versionada, os dois existem.
-        for ritmo in ("anual", "semestral"):
-            expect(ajustes.get_by_test_id("analise-periodo-" + ritmo)).to_have_attribute("aria-checked", "false")
-        expect(ajustes.get_by_test_id("analise-periodo-texto")).to_have_text("Escolha anual ou semestral: a análise usa os últimos 4 períodos.")
+        # O ritmo à vista: na base versionada, o anual (os dois existem); no catálogo sintético (01/2023, 06/2023, 01/2024 e
+        # 06/2024), o anual fica desligado, com o motivo, e o semestral, o único da base, vem escolhido.
+        ritmo = "anual" if real else "semestral"
+        expect(ajustes.get_by_test_id("analise-periodo-" + ritmo)).to_have_attribute("aria-checked", "true")
+        expect(ajustes.get_by_test_id("analise-periodo-texto")).to_have_text(
+            "Últimos 4 períodos " + ("anuais" if real else "semestrais") + ": " + ", ".join(mm_aaaa(c) for c in janela[:-1]) + " e " +
+            mm_aaaa(janela[-1]) + ".")
         if real:
-            expect(ajustes.get_by_test_id("analise-periodo-anual")).to_be_enabled()
-            expect(ajustes.get_by_test_id("analise-periodo-semestral")).to_be_enabled()
+            expect(ajustes.get_by_test_id("analise-periodo-semestral")).to_have_attribute("aria-checked", "false")
+            # Trocar pelo semestral pede os últimos 4 períodos semestrais; o Voltar devolve o anual (da memória da tela).
+            _, sent_semestral = ok(lambda: aperta(ajustes.get_by_test_id("analise-periodo-semestral")))
+            assert sent_semestral["tendencia"]["competencias"] == ["202301", "202306", "202401", "202406"], sent_semestral
+            expect(voltar).to_have_attribute("title", "Voltar: desfaz trocar o período para semestral")
+            aperta(voltar)
+            expect(ajustes.get_by_test_id("analise-periodo-anual")).to_have_attribute("aria-checked", "true")
         else:
             expect(ajustes.get_by_test_id("analise-periodo-anual")).to_be_disabled()
             expect(ajustes.get_by_test_id("analise-periodo-motivo-anual")).to_contain_text("não tem 4 períodos anuais seguidos")
-        page.wait_for_timeout(400)
-        ritmo = "anual" if real else "semestral"
-        tendencia, sent = ok(lambda: aperta(ajustes.get_by_test_id("analise-periodo-" + ritmo)))
-        janela = sent["tendencia"]["competencias"]
-        esperada = ["202106", "202206", "202306", "202406"] if real else ["202301", "202306", "202401", "202406"]
-        assert janela == esperada and sent["competencia_inicial"] == janela[0] and sent["competencia"] == janela[-1], sent
-        assert sent.get("indicador") == "densidade" and "referencia" not in sent, sent
-        expect(ajustes.get_by_test_id("analise-periodo-" + ritmo)).to_have_attribute("aria-checked", "true")
-        expect(ajustes.get_by_test_id("analise-periodo-texto")).to_contain_text("Últimos 4 períodos " + ("anuais" if real else "semestrais"))
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Tendência da densidade de médicos")
-        # Classes: o quadro de setas, uma linha por unidade com o indicador, no lugar das bolhas. A classe de cada linha é a do motor,
-        # e cada seta segue o sinal de uma velocidade do motor (alta, queda ou pausa); as linhas vêm agrupadas pela classe, na ordem
-        # da SPEC, 50 por página.
+        # As visões com os nomes de 24/10/2026, nesta ordem; a Tendência escolhida.
+        nomes_visoes = ajustes.get_by_role("group", name="Visão da tendência").get_by_role("button").all_text_contents()
+        assert nomes_visoes == ["Tendência", "Trajetória", "Série temporal"], nomes_visoes
+        expect(ajustes.get_by_test_id("analise-visao-classes")).to_have_attribute("aria-pressed", "true")
+        # Tendência: o quadro de setas, uma linha por unidade com o indicador, no lugar das bolhas. A classe de cada linha é a do
+        # motor, e cada seta segue o sinal de uma velocidade do motor (alta, queda ou pausa); as linhas vêm agrupadas pela classe,
+        # na ordem da SPEC, 50 por página. A coluna da classe se chama "Tendência".
         quadro = area.get_by_test_id("analise-setas")
         expect(quadro).to_be_visible()
         expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
+        expect(quadro.locator(".analise-setas-cabecalho > span").last).to_have_text("Tendência")
+        expect(area).not_to_contain_text("Classe (do motor)")
         com_valor = esperados(tendencia)
         linhas = quadro.get_by_test_id("analise-seta-linha")
         expect(linhas).to_have_count(min(len(com_valor), 50))
@@ -753,13 +1075,72 @@ def main():
         assert sequencia == sorted(sequencia), ("as linhas agrupadas pela classe, na ordem da SPEC", sequencia)
         if len(com_valor) > 50:
             expect(quadro.get_by_test_id("analise-setas-paginas")).to_contain_text("Linhas 1 a 50 de " + milhar(len(com_valor)))
-        expect(quadro.get_by_test_id("analise-setas-legenda")).to_contain_text("Alta")
+        # O layout da tendência: os ajustes no alto; abaixo, o desenho em destaque e, à direita, a explicação (como ler, a
+        # frase-resumo, as contagens por classe, a legenda e as velocidades), separados pela divisória.
+        lateral = area.get_by_test_id("analise-tendencia-lateral")
+        explicacao = lateral.get_by_test_id("analise-explicacao")
+        divisoria = area.get_by_test_id("analise-divisoria")
+        expect(explicacao).to_be_visible()
+        expect(explicacao).to_contain_text("Como ler")
+        expect(explicacao.get_by_test_id("analise-subtitulo")).to_have_text(
+            "Cada linha é um município: as setas mostram a alta, a queda ou a pausa de um período para o seguinte.")
+        expect(explicacao.get_by_test_id("analise-resumo")).to_have_count(1)
+        expect(explicacao.get_by_test_id("analise-setas-legenda")).to_contain_text("Alta")
+        expect(explicacao.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "classes")
+        caixa_ajustes, caixa_quadro = ajustes.bounding_box(), quadro.bounding_box()
+        caixa_lateral, caixa_divisoria = lateral.bounding_box(), divisoria.bounding_box()
+        assert caixa_ajustes["y"] + caixa_ajustes["height"] <= caixa_quadro["y"] + 1, ("os ajustes acima do desenho", caixa_ajustes, caixa_quadro)
+        assert caixa_quadro["x"] + caixa_quadro["width"] <= caixa_divisoria["x"] + 1 <= caixa_lateral["x"] + 2, \
+            ("o desenho, a divisória e a explicação, da esquerda para a direita", caixa_quadro, caixa_divisoria, caixa_lateral)
+        assert caixa_quadro["width"] > caixa_lateral["width"], ("o desenho em destaque", caixa_quadro, caixa_lateral)
+        # A divisória: separador vertical com o valor em px; as setas, Home e End mudam a largura da explicação, dentro dos
+        # limites (240 px e a metade da área, até 620 px); o arraste com o mouse também.
+        expect(divisoria).to_have_attribute("role", "separator")
+        expect(divisoria).to_have_attribute("aria-orientation", "vertical")
+        expect(divisoria).to_have_attribute("aria-valuemin", "240")
+        expect(divisoria).to_have_attribute("aria-valuenow", "340")
+        limite = int(divisoria.get_attribute("aria-valuemax"))
+        assert 240 < limite <= 620, limite
+        assert abs(caixa_lateral["width"] - 340) <= 2, caixa_lateral
+        divisoria.focus()
+        divisoria.press("ArrowLeft")
+        expect(divisoria).to_have_attribute("aria-valuenow", "364")
+        page.wait_for_function("w => Math.abs(document.querySelector('[data-testid=analise-tendencia-lateral]').getBoundingClientRect().width - w) <= 2",
+                               arg=364, timeout=5000)
+        divisoria.press("End")
+        expect(divisoria).to_have_attribute("aria-valuenow", str(limite))
+        divisoria.press("ArrowLeft")
+        expect(divisoria).to_have_attribute("aria-valuenow", str(limite))  # não passa da metade da área
+        divisoria.press("Home")
+        expect(divisoria).to_have_attribute("aria-valuenow", "240")
+        divisoria.press("ArrowRight")
+        expect(divisoria).to_have_attribute("aria-valuenow", "240")  # nem fica menor que 240 px
+        divisoria.scroll_into_view_if_needed()
+        caixa_divisoria, caixa_lateral = divisoria.bounding_box(), lateral.bounding_box()
+        direita_da_area = caixa_lateral["x"] + caixa_lateral["width"]
+        meio_y = caixa_divisoria["y"] + min(caixa_divisoria["height"] / 2, 60)
+        page.mouse.move(caixa_divisoria["x"] + caixa_divisoria["width"] / 2, meio_y)
+        page.mouse.down()
+        page.mouse.move(direita_da_area - 420, meio_y, steps=8)
+        page.mouse.up()
+        largura_arrastada = int(divisoria.get_attribute("aria-valuenow"))
+        assert abs(largura_arrastada - min(420, limite)) <= 3, (largura_arrastada, limite)
+        divisoria.focus()
+        for _ in range(6):
+            divisoria.press("ArrowRight")  # de volta perto da largura inicial
+        # Abaixo de 1.024 px, a explicação desce para baixo do desenho, sem divisória nem rolagem horizontal.
+        page.set_viewport_size({"width": 900, "height": 900})
+        page.wait_for_timeout(400)
+        expect(divisoria).to_be_hidden()
+        assert lateral.bounding_box()["y"] >= quadro.bounding_box()["y"] + quadro.bounding_box()["height"] - 1, "a explicação abaixo do desenho"
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2"), "sem rolagem horizontal"
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.wait_for_timeout(400)
         if (tendencia.get("tendencia") or {}).get("contagens"):
             for codigo, valor in tendencia["tendencia"]["contagens"].items():
                 classe = area.locator('[data-testid="analise-contagem-classe"][data-classe="' + codigo + '"]')
                 if classe.count():
                     expect(classe).to_have_attribute("data-contagem", str(valor))
-        expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "classes")
         # A contagem também filtra o quadro, sem pedir nada ao motor; de novo, volta tudo.
         calls = len(painel_calls)
         filtro = next(((codigo, valor) for codigo, valor in (tendencia.get("tendencia") or {}).get("contagens", {}).items() if valor), None)
@@ -770,27 +1151,38 @@ def main():
             assert set(linhas.evaluate_all("els => els.map(e => e.dataset.classe)")) == {filtro[0]}
             aperta(botao)
             expect(linhas).to_have_count(min(len(com_valor), 50))
-        # Clicar numa linha escolhe a unidade (Séries e Comparar); de novo, desfaz.
+        # Clicar numa linha escolhe a unidade (Série temporal e Comparar), e as velocidades dela aparecem na explicação, ao lado;
+        # de novo, desfaz.
         primeira = linhas.first
         aperta(primeira)
         expect(primeira).to_have_attribute("aria-pressed", "true")
+        expect(explicacao.get_by_test_id("analise-velocidades")).to_have_attribute("data-id", lidas[0]["id"])
         aperta(primeira)
         expect(primeira).to_have_attribute("aria-pressed", "false")
+        expect(explicacao.get_by_test_id("analise-velocidades")).to_have_count(0)
+        expect(explicacao).to_contain_text("Clique numa linha do quadro para ver as velocidades dela aqui.")
         page.wait_for_timeout(300)
         assert len(painel_calls) == calls, "o filtro da classe e a escolha de uma linha não pedem nada ao motor"
         # A dica no mouse: os períodos da linha com o valor de cada um.
         quadro.evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
         primeira.hover()
-        dica = quadro.get_by_test_id("analise-seta-dica")
-        expect(dica).to_be_visible()
+        dica_setas = quadro.get_by_test_id("analise-seta-dica")
+        expect(dica_setas).to_be_visible()
         observacoes = (por_id[lidas[0]["id"]].get("tendencia") or {}).get("observacoes")
-        expect(dica.locator("li")).to_have_count(len(observacoes) if isinstance(observacoes, list) else 0)
+        expect(dica_setas.locator("li")).to_have_count(len(observacoes) if isinstance(observacoes, list) else 0)
         page.mouse.move(2, 2)
-        expect(dica).to_have_count(0)
-        # As classes explicadas na aba, e o motivo das unidades sem classificação em palavras, pelas contagens do motor, sem os
-        # códigos internos; a dica de uma linha sem classificação diz por quê.
+        expect(dica_setas).to_have_count(0)
+        # As classes explicadas em "Entenda esta análise" (recolhido; abre e se recolhe de novo), e o motivo das unidades sem
+        # classificação em palavras, pelas contagens do motor, sem os códigos internos; a dica de uma linha sem classificação diz
+        # por quê.
+        aperta(entenda.get_by_test_id("analise-entenda-botao"))
+        expect(entenda).to_have_attribute("open", "")
         expect(area.get_by_test_id("analise-apresentacao")).to_have_attribute("data-aba", "tendencia")
+        expect(area.get_by_test_id("analise-apresentacao-classes")).to_be_visible()
         expect(area.get_by_test_id("analise-apresentacao-classes")).to_contain_text("Aceleração do crescimento")
+        expect(area.get_by_test_id("analise-apresentacao")).to_contain_text("A visão Trajetória mostra a variação entre o primeiro e o último período")
+        aperta(entenda.get_by_test_id("analise-entenda-botao"))
+        expect(entenda).not_to_have_attribute("open", "")
         topo_tendencia = tendencia.get("tendencia") or {}
         sem_classe = (topo_tendencia.get("contagens") or {}).get("SEM_CLASSIFICACAO") or 0
         nota_sem = area.get_by_test_id("analise-nota-sem-classificacao")
@@ -810,16 +1202,31 @@ def main():
                 linha = quadro.locator('[data-testid="analise-seta-linha"][data-id="' + sem_direcao["id"] + '"]')
                 page.evaluate("document.activeElement && document.activeElement.blur()")
                 linha.focus()
-                expect(dica).to_contain_text("o indicador subiu num período e caiu em outro (mudou de direção)")
-                expect(dica).not_to_contain_text("MUDANCA_DE_DIRECAO")
+                expect(dica_setas).to_contain_text("o indicador subiu num período e caiu em outro (mudou de direção)")
+                expect(dica_setas).not_to_contain_text("MUDANCA_DE_DIRECAO")
                 linha.press("Escape")
-                expect(dica).to_have_count(0)
+                expect(dica_setas).to_have_count(0)
         else:
             expect(nota_sem).to_have_count(0)
+        # A tabela dos Detalhes chama a coluna da classe de "Tendência".
+        aperta(area.get_by_test_id("analise-detalhes-tabela"))
+        expect(area.get_by_test_id("analise-tabela").locator("thead")).to_contain_text("Tendência")
+        expect(area.get_by_test_id("analise-tabela").locator("thead")).not_to_contain_text("Classe de tendência")
+        sem_bastidor("Análise de Tendência, visão Tendência")
         shot("07-classes")
+        # Trajetória (a antiga visão Mudança): a mesma resposta (nada é pedido), as bolhas com a variação do motor e, no caminho do
+        # rastro, os períodos do meio, como o motor os observou (o que não tem valor fica sem ponto). O Voltar devolve a visão.
         calls = len(painel_calls)
         area.get_by_test_id("analise-visao-mudanca").click()
         expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "variacao")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Trajetória da densidade de médicos")
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz trocar a visão para Trajetória")
+        aperta(voltar)
+        expect(ajustes.get_by_test_id("analise-visao-classes")).to_have_attribute("aria-pressed", "true")
+        expect(quadro).to_be_visible()
+        area.get_by_test_id("analise-visao-mudanca").click()
+        expect(area.get_by_test_id("analise-legenda-cor")).to_have_attribute("data-camada", "variacao")
+        drawn(esperados(tendencia))
         desenhadas = bubbles()
         for item in tendencia["itens"]:
             valor = (item.get("variacao_percentual") or {}).get("densidade")
@@ -827,6 +1234,10 @@ def main():
                 assert (desenhadas[item["id"]]["variacao"] is None) == (valor is None), (desenhadas[item["id"]], item)
                 if valor is not None:
                     assert float(desenhadas[item["id"]]["variacao"]) == valor
+                observacoes = (item.get("tendencia") or {}).get("observacoes") or []
+                meio = [obs["competencia"] for obs in observacoes[1:-1] if obs.get("valor") is not None]
+                com_rastro = valor is not None and (item.get("inicial") or {}).get("densidade") is not None
+                assert desenhadas[item["id"]]["trajeto"] == (meio if com_rastro else []), (desenhadas[item["id"]], item)
         if any((item.get("variacao_percentual") or {}).get("densidade") not in (None, 0) for item in tendencia["itens"]):
             expect(area.get_by_test_id("analise-rastro").first).to_be_attached()
         sem_variacao = [item["id"] for item in tendencia["itens"] if item["id"] in desenhadas and
@@ -837,25 +1248,76 @@ def main():
         area.get_by_test_id("analise-reproduzir").click()
         expect(area.get_by_test_id("analise-vista-final")).to_have_attribute("aria-pressed", "true", timeout=10000)
         drawn(esperados(tendencia))
-        shot("08-mudanca")
-        area.get_by_test_id("analise-visao-series").click()
-        expect(area.get_by_test_id("analise-series-vazio")).to_be_visible()
-        # Em Séries, a escala não se aplica, e o mapa fica desligado, com o motivo no title (a visão Séries é só do gráfico).
+        page.wait_for_timeout(300)
+        assert len(painel_calls) == calls, "entre a Tendência e a Trajetória, a troca de visão não pede nada ao motor"
+        shot("08-trajetoria")
+        # Série temporal: pede os valores de toda a série da base (lida dos dados, do primeiro ao último período), com a mesma
+        # seleção (sem refazê-la), sem a tendência nem a variação; o Período dá lugar ao intervalo da série.
+        serie, sent = ok(lambda: area.get_by_test_id("analise-visao-series").click(), condicao=lambda o: "serie" in o)
+        todas = sent["serie"]["competencias"]
+        assert len(todas) >= 4 and todas == sorted(todas) and sent["competencia"] == todas[-1], sent
+        assert "tendencia" not in sent and "competencia_inicial" not in sent and sent["base"] == universo_am, sent
+        assert serie["serie"]["janela"]["competencias"] == todas, serie["serie"]
+        if real:
+            assert todas[0] == "201401" and todas[-1] == "202406" and len(todas) == 22, todas
+        else:
+            assert todas == ["202301", "202306", "202401", "202406"], todas
+        expect(ajustes.get_by_test_id("analise-periodo-anual")).to_have_count(0)
+        intervalo = ajustes.get_by_test_id("analise-serie-intervalo")
+        expect(intervalo.get_by_test_id("analise-serie-inicio")).to_have_value(todas[0])
+        expect(intervalo.get_by_test_id("analise-serie-fim")).to_have_value(todas[-1])
+        expect(intervalo.get_by_test_id("analise-serie-toda")).to_be_disabled()
+        expect(intervalo.get_by_test_id("analise-serie-texto")).to_have_text(
+            "Toda a série da base: " + mm_aaaa(todas[0]) + " a " + mm_aaaa(todas[-1]) + " (" + str(len(todas)) + " competências).")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Série temporal da densidade de médicos")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
+        # Na Série temporal, a escala e a régua não se aplicam, e o mapa fica desligado, com o motivo no title (só do gráfico).
         expect(area.get_by_test_id("analise-escala")).to_have_count(0)
+        expect(area.get_by_test_id("analise-funcao-regua")).to_be_disabled()
         expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("aria-disabled", "true")
-        expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("title", re.compile("Na visão Séries"))
+        expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("title", re.compile("Na visão Série temporal"))
         expect(area).to_have_attribute("data-desenho", "grafico")
+        expect(explicacao.get_by_test_id("analise-serie-legenda")).to_contain_text("Não há classificação nem linha ajustada")
+        series = area.get_by_test_id("analise-series")
+        com_serie = [item for item in serie["itens"] if item.get("serie")]
+        if len(com_serie) > 12:
+            expect(area.get_by_test_id("analise-series-vazio")).to_be_visible()
+        else:
+            expect(series.get_by_test_id("analise-serie")).to_have_count(len(com_serie))
         aperta(area.get_by_test_id("analise-detalhes-tabela"))
         tabela = area.get_by_test_id("analise-tabela")
         for chave in (MANAUS, TEFE):
             marca(tabela.locator('[data-testid="analise-linha"][data-id="' + chave + '"] input[type=checkbox]'))
-        series = area.get_by_test_id("analise-series")
         expect(series.get_by_test_id("analise-serie")).to_have_count(2)
-        expect(series.get_by_test_id("analise-velocidades")).to_be_visible()
-        page.wait_for_timeout(400)
-        assert len(painel_calls) == calls, "trocar a visão da tendência não pede nada ao motor"
-        shot("09-series")
+        por_id_serie = {item["id"]: item for item in serie["itens"]}
+        for chave in (MANAUS, TEFE):
+            linha_serie = series.locator('[data-testid="analise-serie"][data-id="' + chave + '"]')
+            observadas = [obs for obs in por_id_serie[chave]["serie"]["observacoes"] if obs.get("valor") is not None]
+            expect(linha_serie).to_have_attribute("data-pontos", str(len(observadas)))
+            expect(linha_serie).to_have_attribute("data-comparavel", "true")
+            pontos = linha_serie.get_by_test_id("analise-serie-ponto").evaluate_all(
+                "els => els.map(e => [e.dataset.competencia, Number(e.dataset.valor)])")
+            assert pontos == [[obs["competencia"], obs["valor"]] for obs in observadas], (chave, pontos)
+        # O intervalo escolhido pede só as competências dele; "Toda a série" volta à extensão inteira (da memória da tela).
+        inicio_escolhido = todas[len(todas) // 2]
+        parte, sent = ok(lambda: intervalo.get_by_test_id("analise-serie-inicio").select_option(inicio_escolhido))
+        assert sent["serie"]["competencias"] == todas[len(todas) // 2:] and sent["base"] == universo_am, sent
+        expect(intervalo.get_by_test_id("analise-serie-texto")).to_have_text(
+            "Intervalo escolhido: " + mm_aaaa(inicio_escolhido) + " a " + mm_aaaa(todas[-1]) + " (" +
+            str(len(todas) - len(todas) // 2) + " competências).")
+        expect(intervalo.get_by_test_id("analise-serie-toda")).to_be_enabled()
+        expect(series).to_have_attribute("data-competencias", str(len(todas) - len(todas) // 2))
+        aperta(area.get_by_test_id("analise-detalhes-metodo"))
+        expect(area.get_by_test_id("analise-metodo-serie")).to_contain_text(
+            "Série temporal: " + mm_aaaa(inicio_escolhido) + " a " + mm_aaaa(todas[-1]) + " (" + str(len(todas) - len(todas) // 2) +
+            " competências)")
+        aperta(intervalo.get_by_test_id("analise-serie-toda"))
+        expect(intervalo.get_by_test_id("analise-serie-texto")).to_contain_text("Toda a série da base")
+        expect(series).to_have_attribute("data-competencias", str(len(todas)))
+        sem_bastidor("Análise de Tendência, visão Série temporal")
+        shot("09-serie-temporal")
         area.get_by_test_id("analise-visao-classes").click()
+        expect(quadro).to_be_visible()
 
         # 11. Rotatividade com a base do Brasil: a aba abre para a apresentação, com o motivo de não se executar e "Enviar meus
         # dados"; o desenho continua com a tendência, e nada é pedido ao motor.
@@ -918,33 +1380,41 @@ def main():
         aperta(ordenar.get_by_test_id("analise-ordenar-limpar"))
         drawn(ids_am)
         fecha()
-        # Limpar filtros (a vassoura, 24/10/2026): tira a ordenação e os itens marcados, sem mexer nos territórios nem nos
-        # ajustes; Desfazer devolve tudo.
+        # Limpar filtros (o ícone do filtro riscado, 24/10/2026): tira a ordenação e os itens marcados, sem mexer nos territórios
+        # nem nos ajustes. O Voltar do alto devolve os filtros (no lugar do "Desfazer a limpeza" ao lado do botão, que saiu com o
+        # Voltar sequencial).
         ordem, sent = ok(lambda: aperta(abre("ordenar").get_by_test_id("analise-ordenar-aplicar")))
         fecha()
         limpar_filtros = area.get_by_test_id("analise-limpar-filtros")
         expect(limpar_filtros).to_be_visible()
+        expect(limpar_filtros).to_have_text("Limpar filtros")
+        expect(area.get_by_test_id("analise-desfazer-filtros")).to_have_count(0)
         resumo_antes = area.get_by_test_id("analise-aba-territorios-resumo").inner_text()
         aperta(limpar_filtros)
         expect(limpar_filtros).to_have_count(0)
         drawn(ids_am)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(resumo_antes)
-        aperta(area.get_by_test_id("analise-desfazer-filtros"))
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz limpar filtros")
+        aperta(voltar)
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(1)
         aperta(area.get_by_test_id("analise-limpar-filtros"))
         expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
-        # "Desfazer a limpeza" vale até a mudança seguinte: com outra escolha de territórios (aqui, limpar a seleção e desfazer),
-        # os filtros de antes não voltam (a revisão de 24/10/2026 achou a comparação antiga indo ao motor fora do gráfico).
-        expect(area.get_by_test_id("analise-desfazer-filtros")).to_be_visible()
-        aba_selecao()
-        aperta(territorios.get_by_test_id("analise-limpar-selecao"))
+        # O Voltar é sequencial: Limpar seleção e Voltar devolvem os territórios sem os filtros (limpos antes); o passo seguinte do
+        # Voltar devolve os filtros, com a mesma escolha de territórios que valia com eles (a comparação antiga nunca vai ao motor
+        # fora do gráfico, o defeito que a revisão de 24/10/2026 achou).
+        aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
-        aperta(territorios.get_by_test_id("analise-desfazer"))
+        expect(area.get_by_test_id("analise-vazio")).to_be_visible()
+        aperta(voltar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(resumo_antes)
-        aba_analise("distribuicao")
         drawn(ids_am)
-        expect(area.get_by_test_id("analise-desfazer-filtros")).to_have_count(0)
+        expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
+        expect(area.get_by_test_id("analise-limpar-filtros")).to_have_count(0)
+        aperta(voltar)
+        expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(1)
+        aperta(area.get_by_test_id("analise-limpar-filtros"))
+        expect(area.locator(BOLHAS + '[data-posicao="1"]')).to_have_count(0)
 
         area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start'})")
         for chave in (MANAUS, TEFE):
@@ -953,15 +1423,25 @@ def main():
                 bolha.focus()
                 bolha.press("Enter")
             expect(bolha).to_have_attribute("data-selecionado", "true")
+        # Comparar (24/10/2026): o título do painel, a orientação objetiva e os escolhidos, sem os cartões com os valores (os
+        # valores estão no gráfico, na dica e na tabela); o resultado da comparação continua.
         comparar = abre("comparar").get_by_test_id("analise-comparar")
+        expect(area.get_by_test_id("analise-painel").locator("#analise-painel-titulo")).to_have_text("Comparar")
+        expect(comparar.get_by_test_id("analise-comparar-orientacao")).to_contain_text("Escolha dois ou três itens")
         expect(comparar.get_by_test_id("analise-comparar-item")).to_have_count(2)
+        expect(comparar.locator("article, dl")).to_have_count(0)
         comparado, sent = ok(lambda: aperta(comparar.get_by_test_id("analise-comparar-calcular")))
         assert sorted(sent["comparar"]) == sorted([MANAUS, TEFE]), sent
         if comparado.get("comparacao"):
             expect(comparar.get_by_test_id("analise-comparacao")).to_be_visible()
             expect(comparar.get_by_test_id("analise-comparacao-linha").first).to_be_visible()
         fecha()
+        # Juntar: a mesma forma, com os escolhidos em etiquetas, cada uma com o ×.
         juntar = abre("juntar").get_by_test_id("analise-juntar")
+        expect(area.get_by_test_id("analise-painel").locator("#analise-painel-titulo")).to_have_text("Juntar")
+        expect(juntar.get_by_test_id("analise-juntar-orientacao")).to_contain_text("Escolha dois ou mais municípios")
+        expect(juntar.get_by_test_id("analise-juntar-item")).to_have_count(2)
+        expect(juntar.locator("article, dl")).to_have_count(0)
         juntar.get_by_test_id("analise-juntar-nome").fill("Capital e Tefé")
         junto, sent = ok(lambda: aperta(juntar.get_by_test_id("analise-juntar-criar")))
         assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Capital e Tefé", "membros": [MANAUS, TEFE]}], sent
@@ -971,6 +1451,10 @@ def main():
         expect(area.locator('[data-testid="analise-bolha"][data-id="c1"]')).to_have_attribute("data-tipo", "conjunto")
         expect(area.get_by_test_id("analise-simbolos")).to_contain_text("possível dupla contagem")
         fecha()
+        # O conjunto aparece na lista da direita da Seleção, com o × que o desfaz.
+        aba_selecao()
+        expect(territorios.locator('[data-testid="analise-selecionado-conjunto"][data-id="c1"]')).to_contain_text("Capital e Tefé")
+        aba_analise("distribuicao")
         aperta(area.get_by_test_id("analise-detalhes-tabela"))
         expect(area.locator('[data-testid="analise-linha"][data-id="c1"]')).to_contain_text("soma das contagens dos componentes")
         aperta(area.get_by_test_id("analise-detalhes-metodo"))
@@ -978,7 +1462,7 @@ def main():
         shot("10-funcoes")
 
         # 13. Exportar: CSV com todos os itens, em precisão integral, com a avaliabilidade e o motivo; Detalhes com a tabela e os
-        # não avaliáveis.
+        # não avaliáveis. Lá embaixo, nos Detalhes, Voltar e Limpar seleção continuam no alto da tela, sem rolar de volta.
         exportar = abre("exportar").get_by_test_id("analise-exportar")
         with page.expect_download() as baixado:
             aperta(exportar.get_by_test_id("analise-exportar-csv"))
@@ -996,6 +1480,16 @@ def main():
         expect(area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")).to_have_count(len(esperados(junto)))
         aperta(area.get_by_test_id("analise-detalhes-nao-avaliaveis"))
         expect(area.get_by_test_id("analise-nao-avaliaveis")).to_be_visible()
+        area.get_by_test_id("analise-detalhes").evaluate("e => e.scrollIntoView({block: 'end', behavior: 'instant'})")
+        page.wait_for_timeout(300)
+        assert area.get_by_test_id("analise-titulo").bounding_box()["y"] < 0, "a página rolou até os Detalhes"
+        caixa_controles = controles.bounding_box()
+        assert -2 <= caixa_controles["y"] <= 6, ("Voltar e Limpar seleção fixos no alto ao rolar", caixa_controles)
+        expect(voltar).to_be_visible()
+        expect(limpar).to_be_visible()
+        expect(voltar).to_be_in_viewport()
+        expect(limpar).to_be_in_viewport()
+        page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
 
         # 14. Base versionada: todos os municípios do Brasil no modo leve, sem escala logarítmica automática; tabela em páginas;
         # régua que só esconde; dica no mouse.
@@ -1007,11 +1501,11 @@ def main():
             expect(marcar_brasil).to_have_text("Marcar todos os municípios do Brasil (5.570)")
             brasil, sent = ok(lambda: aperta(marcar_brasil))
             assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
-            # A seleção de todos os municípios se desfaz de uma vez (Limpar e Desfazer), sem desmarcar um a um.
+            # A seleção de todos os municípios se desfaz de uma vez (Limpar seleção e Voltar), sem desmarcar um a um.
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
-            aperta(territorios.get_by_test_id("analise-limpar-selecao"))
+            aperta(limpar)
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
-            aperta(territorios.get_by_test_id("analise-desfazer"))
+            aperta(voltar)
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aba_analise("distribuicao")
             plotaveis = [item for item in brasil["itens"] if item["densidade"] is not None]
@@ -1061,6 +1555,9 @@ def main():
         expect(territorios.get_by_test_id("analise-territorios-brasil")).to_contain_text("Não é a soma dos estados nem a seleção de todos")
         expect(territorios.get_by_test_id("analise-busca")).to_have_count(0)
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Brasil (total nacional)")
+        # Limpar seleção no nível Brasil (decisão 5, 25/10/2026): o país é a própria unidade, e o botão fica desligado, com o motivo.
+        expect(limpar).to_be_disabled()
+        expect(limpar).to_have_attribute("title", "No nível Brasil, o país inteiro é a unidade em análise: não há seleção para limpar.")
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         drawn(["br"])
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("no Brasil")
@@ -1073,11 +1570,13 @@ def main():
         expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("aria-disabled", "true")
         aba_selecao()
         aperta(territorios.get_by_test_id("analise-nivel-estados"))
-        aperta(territorios.get_by_test_id("analise-desmarcar-todos"))
+        if territorios.get_by_test_id("analise-desmarcar-todos").is_enabled():
+            aperta(territorios.get_by_test_id("analise-desmarcar-todos"))
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum estado marcado")
         _, sent = ok(lambda: marca(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')))
         assert sent.get("nivel") == "estados" and sent.get("estados") == [AM], sent
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Amazonas")
+        expect(voltar).to_have_attribute("title", "Voltar: desfaz marcar Amazonas")
         aba_analise("distribuicao")
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("no Amazonas")
         aba_selecao()
@@ -1086,7 +1585,8 @@ def main():
         shot("13-niveis")
 
         # 16. Celular (390 px): sem rolagem horizontal; as famílias em abas roláveis; as funções num botão "Ferramentas"; o painel
-        # sobe da base da tela.
+        # sobe da base da tela; Voltar e Limpar seleção à vista, dentro da largura; na Seleção, as duas áreas uma sobre a outra (o
+        # que entra na análise primeiro).
         aba_analise("distribuicao")
         page.set_viewport_size({"width": 390, "height": 844})
         page.wait_for_timeout(500)
@@ -1097,6 +1597,10 @@ def main():
         caixa_ajustes = area.get_by_test_id("analise-ajustes").bounding_box()
         assert caixa_ajustes and caixa_ajustes["width"] >= 390 - 80, caixa_ajustes
         expect(area.get_by_test_id("analise-desenho")).to_be_visible()
+        for botao in (voltar, limpar):
+            expect(botao).to_be_visible()
+            caixa_botao = botao.bounding_box()
+            assert caixa_botao["x"] >= 0 and caixa_botao["x"] + caixa_botao["width"] <= 390, caixa_botao
         ferramentas = area.get_by_test_id("analise-ferramentas")
         expect(ferramentas).to_be_visible()
         expect(area.get_by_test_id("analise-funcao-regua")).to_be_hidden()
@@ -1112,15 +1616,26 @@ def main():
         page.screenshot(path=str(OUTPUT / ("area-12-celular" + suffix + ".png")), full_page=False)
         aperta(painel.get_by_test_id("analise-painel-fechar"))
         expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+        aba_selecao()
+        caixa_d, caixa_e, caixa_t = direita.bounding_box(), lista_esquerda.bounding_box(), territorios.bounding_box()
+        assert caixa_d["y"] + caixa_d["height"] <= caixa_e["y"] + 1, ("no celular, o que entra na análise acima da lista", caixa_d, caixa_e)
+        assert abs(caixa_d["x"] - caixa_e["x"]) < 2 and abs(caixa_d["width"] - caixa_e["width"]) < 2 and \
+            caixa_d["width"] >= 0.85 * caixa_t["width"], ("uma coluna só, com a largura do painel", caixa_d, caixa_e, caixa_t)
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
         page.set_viewport_size({"width": 1440, "height": 900})
 
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
-    print("ÁREA DE ANÁLISE PASS: abertura sem abas, base sem seleção automática, Seleção por níveis (Brasil, estados e municípios), "
-          "seleção cumulativa entre estados, Voltar e Limpar com Desfazer, Entenda esta análise, eixo do indicador, quintis do mapa no "
-          "pedido, régua, grupos, espacial, tendência com o Período e o quadro de setas, rotatividade com o motivo, funções, "
-          "exportação e celular" +
+    for nota in notas:
+        print("Nota: " + nota)
+    print("ÁREA DE ANÁLISE PASS: abertura com o nome da plataforma, sem abas, base sem seleção automática, Voltar sequencial e Limpar "
+          "seleção no alto (fixos ao rolar), Seleção por níveis em duas áreas com o × de cada território, seleção cumulativa entre "
+          "estados, Voltar aos estados em destaque, abas só com os nomes, Entenda esta análise, eixo do indicador, quintis do mapa no "
+          "pedido, régua, grupos, análise espacial (o Território de referência por elegibilidade quando o motor a oferece, ou o "
+          "motivo: veja as notas), tendência com o Período anual e o Gráfico ao abrir, a explicação ao lado com a "
+          "divisória, as visões Tendência, Trajetória e Série temporal, rotatividade com o motivo, funções (Comparar e Juntar sem "
+          "cartões), exportação, nenhum \"motor\" nos textos e celular" +
           (" (base versionada)." if real else " (catálogo sintético)."))
 
 

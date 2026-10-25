@@ -6,7 +6,8 @@ aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais un
 (retirada em 23/10/2026): sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolve junto com a análise
 (`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
 gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
-mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial, o
+mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial (até
+o Território de referência de cada município, por elegibilidade, desde a segunda rodada de 24/10/2026), o
 lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
 cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
@@ -356,30 +357,39 @@ def main():
         fecha()
         estado = desenhado(len(desenhaveis_am), "quintis")
 
-        # 11. Análise espacial no mapa: a referência do motor e as ligações ilustrativas dos marcados (até 30).
+        # 11. Análise espacial no mapa: o Território de referência (24/10/2026, segunda rodada, no lugar da referência por critério
+        # com a lista de candidatos): para cada município do Amazonas, o mais próximo entre os municípios do mesmo estado com
+        # população acima da mediana do estado, nunca ele mesmo. A mira marca os territórios de referência, e as ligações
+        # ilustrativas dos marcados (até 30) vão até o território de referência de cada um.
         aperta(area.get_by_test_id("analise-familia-espacial"))
         referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
         expect(referencia).to_be_visible()
-        referencia.get_by_test_id("analise-ref-criterio").select_option("densidade")
-        referencia.get_by_test_id("analise-ref-ordem").select_option("desc")
-        with page.expect_response(lambda r: r.url.endswith("/api/painel/referencias"), timeout=120000) as lista_evento:
-            aperta(referencia.get_by_test_id("analise-ref-listar"))
-        lista = lista_evento.value.json()
-        primeiros = [item for item in lista["candidatos"] if item["posicao"] == 1]
-        if len(primeiros) == 1:
-            espacial, _ = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-primeiro")))
-        else:
-            aperta(referencia.get_by_test_id("analise-ref-primeiro"))
-            marca(referencia.get_by_test_id("analise-ref-candidato").first.locator("input"))
-            espacial, _ = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
+        populacoes = sorted(int(round(item["populacao"])) for item in am["itens"] if item.get("populacao") is not None)
+        limiar = populacoes[len(populacoes) // 2]
+        elegiveis = {item["id"] for item in am["itens"] if item.get("populacao") is not None and item["populacao"] > limiar}
+        aperta(referencia.get_by_test_id("analise-ref-relacao-mais_proxima"))
+        referencia.get_by_test_id("analise-ref-delimitacao").select_option("mesmo_grupo")
+        referencia.get_by_test_id("analise-ref-atributo").select_option("populacao")
+        aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
+        referencia.get_by_test_id("analise-ref-valor").fill(str(limiar))
+        expect(referencia.get_by_test_id("analise-ref-previa")).to_be_visible()
+        espacial, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
+        assert sent["referencia"] == {"relacao": "mais_proxima", "delimitacao": {"tipo": "mesmo_grupo"},
+                                      "condicao": {"atributo": "populacao", "operador": ">", "valor": limiar}}, sent
         fecha()
         expect(area).to_have_attribute("data-desenho", "mapa")
         com_distancia = [item for item in com_ponto(espacial, pontos_motor) if item.get("distancia_km") is not None]
         assert com_distancia, "a análise espacial devolve distâncias"
+        for item in com_distancia:
+            referencia_do_item = item.get("referencia_do_item") or {}
+            assert referencia_do_item.get("id") in elegiveis and referencia_do_item["id"] != item["id"], item
         dois = [item["id"] for item in com_distancia if not item.get("referencia")][:2]
         for chave in dois:
             marca(area.locator('[data-testid="analise-linha"][data-id="' + chave + '"] input[type=checkbox]'))
-        expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("ligação ilustrativa, não é trajeto")
+        ligacoes = mapa.get_by_test_id("mapa-ligacoes")
+        expect(ligacoes).to_contain_text("ligação ilustrativa, não é trajeto")
+        expect(ligacoes).to_contain_text("ao território de referência dele")
+        expect(mapa.get_by_test_id("mapa-simbolos")).to_contain_text("mira: território de referência")
         shot("06-am-espacial")
 
         # 12. Lado a lado (janela de 1.600 px ou mais): gráfico e mapa juntos, sem legenda repetida; ao estreitar, volta ao mapa.

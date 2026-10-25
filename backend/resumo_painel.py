@@ -256,13 +256,24 @@ def _change_one(c: Composer, body: dict, facts: dict):
 
 def _spatial(c: Composer, body: dict, facts: dict):
     singular, plural, _ = _units(body)
-    members = body["referencia"]["membros"]
-    c.text(" Distância em linha reta até " + ("a referência " if len(members) == 1 else
-                                              "o membro mais próximo da referência ("))
-    for index in range(len(members)):
-        c.text(", " if 0 < index < len(members) - 1 else " e " if index else "").label("referencia", "membros", index,
-                                                                                         "rotulo")
-    c.text(": " if len(members) == 1 else "): ")
+    reference = body["referencia"]
+    if reference.get("tipo") == "elegiveis":
+        # Território de referência por elegibilidade (24/10/2026): a referência é de cada território; a frase copia a
+        # delimitação e a condição da resposta.
+        feminine = (body["rotulos"]["unidade"].get("genero") == "f") if body.get("rotulos") else False
+        relation = ("mais próxima" if feminine else "mais próximo") if reference["relacao"] == "mais_proxima" \
+            else "mais distante"
+        c.text(" Distância em linha reta até o território de referência de cada " + singular + " (" +
+               ("a " if feminine else "o ") + relation + " entre " + ("as " if feminine else "os ") + plural + " ") \
+            .label("referencia", "delimitacao", "texto").text(" com ").label("referencia", "condicao", "texto").text("): ")
+    else:
+        members = reference["membros"]
+        c.text(" Distância em linha reta até " + ("a referência " if len(members) == 1 else
+                                                  "o membro mais próximo da referência ("))
+        for index in range(len(members)):
+            c.text(", " if 0 < index < len(members) - 1 else " e " if index else "").label("referencia", "membros", index,
+                                                                                             "rotulo")
+        c.text(": " if len(members) == 1 else "): ")
     extremes = facts["extremos"]["distancia"]
     missing = facts["contagens"]["sem_distancia"]
     if extremes is None and not missing:
@@ -326,6 +337,13 @@ def _trend_one(c: Composer, body: dict, facts: dict):
                               "o valor não mudou entre os períodos") + ".")
     else:
         c.text(".")
+
+
+def _series(c: Composer, body: dict):
+    """Série temporal (24/10/2026): o intervalo e quantas competências ele tem, copiados da resposta; os valores de cada
+    competência ficam no gráfico e na tabela, sem classificação (sem termos de LEX-TEN)."""
+    c.text(" Série temporal de ").period("serie", "janela", "inicio").text(" a ").period("serie", "janela", "fim") \
+        .text(": ").number("serie", "competencias").text(" competências.")
 
 
 def _conditions(c: Composer, body: dict):
@@ -411,6 +429,8 @@ def compose(body: dict, facts: dict) -> Composer:
         _spatial(c, view, facts)
     if view.get("tendencia") is not None:
         _trend_one(c, view, facts) if one else _trend_many(c, view)
+    if view.get("serie") is not None:
+        _series(c, view)
     if view.get("condicoes") is not None:
         _conditions(c, view)
     if view.get("comparacao") is not None:

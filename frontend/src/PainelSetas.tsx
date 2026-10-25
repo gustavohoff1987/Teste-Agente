@@ -5,12 +5,13 @@ import {
 import type { PainelIndicador, PainelItem } from "./painelApi";
 import {
   INDICADORES, artigo, descricaoDasSetas, direcaoDaVariacao, exibirCompetencia, explicacaoDaTendencia, formatarNumero, formatarVariacao, generoDe, maiuscula,
-  montarSetas, ordemDoQuadro, paginar, paletaDoGrafico, posicoesTemporais, sinalDoAvanco, valorDe, variacaoDe,
+  montarSetas, ordemDoQuadro, paginar, paletaDoGrafico, posicoesTemporais, sinalDoAvanco, umA, valorDe, variacaoDe,
   type PaletaDoGrafico, type RotulosTerritoriais, type SinalDoAvanco,
 } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
-// Quadro de setas da Análise de Tendência, visão Classes (24/10/2026, pedido do responsável): como um painel de cotações, uma linha
+// Quadro de setas da Análise de Tendência, visão Tendência (a antiga visão Classes; 24/10/2026, pedido do responsável): como um
+// painel de cotações, uma linha
 // por unidade com os períodos da janela, uma seta por avanço (alta, queda ou pausa, pelo sinal da velocidade do motor), o último
 // valor, a variação entre o primeiro e o último período (CAP-TMP-01, do motor) e a classe (CAP-TEN-01, do motor). A tela só
 // posiciona e ordena; não classifica nada (RQ-REP-02). Cores da paleta validada pela skill de visualização: alta no azul e queda no
@@ -42,8 +43,9 @@ type Props = {
   pelaPosicao: boolean;
   /** Condições em uso: a situação de cada unidade aparece ao lado do nome. */
   condicoes: boolean;
-  /** Legenda da camada de cor (as famílias com as contagens do motor), a mesma do gráfico. */
-  legenda: ReactNode;
+  /** Legenda da camada de cor (as famílias com as contagens do motor), a mesma do gráfico. Sem ela (undefined), a explicação do
+   * quadro fica no painel ao lado, montado pela área (LegendaDoQuadro). */
+  legenda?: ReactNode;
   onAlternar: (id: string) => void;
   /** Destaque cruzado com o mapa no lado a lado. */
   ativoExterno?: string | null;
@@ -129,7 +131,8 @@ export default function PainelSetas(p: Props) {
           })}
         </svg>
         <span>Último valor · variação</span>
-        <span>Classe (do motor)</span>
+        {/* "Tendência" (24/10/2026, no lugar de "Classe (do motor)"): a classe de cada linha, sem nome de bastidor. */}
+        <span>Tendência</span>
       </div>
       <ol className="analise-setas-linhas">
         {atual.linhas.map(item => {
@@ -171,16 +174,25 @@ export default function PainelSetas(p: Props) {
           className="analise-botao-secundario">Próximas</button>
       </div>}
     </> : <p className="analise-vazio">Nenhum{generoDe(unidade) === "f" ? "a" : ""} {unidade.singular} com estes filtros.</p>}
-    <div className="analise-legenda">
-      <ul data-testid="analise-setas-legenda" className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Setas: o avanço de um período para o seguinte">
-        {(["alta", "queda", "pausa"] as const).map(sinal => <li key={sinal} className="flex items-center gap-1.5">
-          <span aria-hidden="true" style={{ color: corDoSinal(sinal, paleta) }}>{GLIFOS[sinal]}</span>
-          {sinal === "alta" ? "Alta" : sinal === "queda" ? "Queda" : "Pausa"}</li>)}
-      </ul>
-      {p.legenda}
-      <p className="max-w-xl">Cada seta é o avanço de um período para o seguinte, pelo sinal calculado pelo motor. Cada linha tem a própria escala
-        vertical: o desenho mostra o caminho, e os valores estão ao lado, na dica e na tabela dos Detalhes. Clique numa linha para escolher{" "}
-        {artigo(unidade, false)} {unidade.singular} (Séries e Comparar).</p>
-    </div>
+    {p.legenda !== undefined && <LegendaDoQuadro legenda={p.legenda} rotulos={p.rotulos}/>}
   </section>;
+}
+
+/** A explicação do quadro de setas: o que cada seta quer dizer, as famílias com as contagens do motor e como ler cada linha. Desde
+ * 24/10/2026, fica no painel ao lado do quadro (a área a monta lá); sem esse painel, o quadro a mostra embaixo. */
+export function LegendaDoQuadro({ legenda, rotulos }: { legenda: ReactNode; rotulos: RotulosTerritoriais }) {
+  const paleta = paletaDoGrafico(useEsquemaDeCor());
+  const unidade = rotulos.unidade;
+  return <div data-testid="analise-setas-explicacao" className="analise-legenda analise-explicacao-bloco">
+    <ul data-testid="analise-setas-legenda" className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Setas: o avanço de um período para o seguinte">
+      {(["alta", "queda", "pausa"] as const).map(sinal => <li key={sinal} className="flex items-center gap-1.5">
+        <span aria-hidden="true" style={{ color: corDoSinal(sinal, paleta) }}>{GLIFOS[sinal]}</span>
+        {sinal === "alta" ? "Alta" : sinal === "queda" ? "Queda" : "Pausa"}</li>)}
+    </ul>
+    {legenda}
+    <p className="max-w-xl">Cada linha é {umA(unidade)}, e cada seta é o avanço de um período para o
+      seguinte, pelo sinal da mudança entre eles. Cada linha tem a própria escala vertical: o desenho mostra o caminho, e os valores estão
+      ao lado, na dica e na tabela dos Detalhes. Clique numa linha para escolher {artigo(unidade, false)} {unidade.singular} (Série temporal e
+      Comparar).</p>
+  </div>;
 }

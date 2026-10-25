@@ -54,7 +54,7 @@ export default function PainelRotatividade({ itens, rotulos, inicial, final }: P
         <li className="flex items-center gap-1.5"><span className="analise-amostra" style={{ background: paleta.neutra }} aria-hidden="true"/>Saíram (da coorte inicial)</li>
       </ul>
       <p className="max-w-xl">Cada barra é {umA(rotulos.unidade)}: a coorte inicial reúne as pessoas distintas
-        de {exibirCompetencia(inicial)}, e a permanência é conferida em {exibirCompetencia(final)}. Percentuais e contagens do motor.</p>
+        de {exibirCompetencia(inicial)}, e a permanência é conferida em {exibirCompetencia(final)}. Percentuais e contagens da análise.</p>
     </figcaption>
   </figure>;
 }

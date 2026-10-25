@@ -60,11 +60,14 @@ export type MapaProps = {
   /** Legenda das cores (a da camada do gráfico ou a dos quintis do mapa), mostrada com pintura = "camada" ou "quintis". */
   legendaCor: ReactNode;
   selecionados: string[];
-  /** Membros da referência (a mesma mira do gráfico). */
+  /** Membros da referência (a mesma mira do gráfico); com o território de referência por elegibilidade, os territórios que ficaram
+   * como referência (podem estar fora do resultado: a mira vai no ponto de fundo deles). */
   referencias: string[];
-  /** Ligações ilustrativas até a referência mais próxima, só dos selecionados (até 30), com o aviso "ligação ilustrativa, não é
-   * trajeto". */
+  /** Ligações ilustrativas até a referência mais próxima (ou, por elegibilidade, até o território de referência de cada item), só
+   * dos selecionados (até 30), com o aviso "ligação ilustrativa, não é trajeto". */
   ligacoes: { de: string; para: string[] }[];
+  /** Território de referência por elegibilidade (24/10/2026): a referência é de cada item, e os avisos dizem isso. */
+  referenciaPorItem?: boolean;
   /** Texto antes do nome (por exemplo "1º" na ordenação, posição do motor). */
   extraDoRotulo?: (item: PainelItem) => string | null;
   /** A mesma dica do gráfico (montarDica). */

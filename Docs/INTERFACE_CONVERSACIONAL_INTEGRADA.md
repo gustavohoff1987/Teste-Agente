@@ -160,7 +160,8 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
 - "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
   gráfico; os números vêm do motor, pedidos pela área. Desde 24/10/2026, um pedido feito com a Seleção de Territórios aberta
   leva a área à análise quando há territórios escolhidos (os resultados ficam nas análises); um pedido que muda os
-  territórios pode ser desfeito com Voltar ("Voltar à seleção anterior", no alto da análise); e a comparação de antes só
+  territórios (desde a segunda rodada de 24/10/2026, qualquer pedido que muda a área) pode ser desfeito com o Voltar fixo no
+  alto da área ("Voltar: desfaz aplicar o pedido da conversa"); e a comparação de antes só
   continua se os itens dela seguem na análise.
   O nível `brasil` (o Brasil como unidade) vale na base do Brasil; numa planilha, vira o aviso "O Brasil como unidade existe
   só nos dados do Brasil.";
@@ -178,8 +179,9 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   `painel_*` e `rotulos` das opções antes do pré-exame e do intérprete: nada delas vai ao provedor de IA, e a frase-resumo,
   que traz valores da base, fica só no backend local;
 - os comandos da conversa incluem os grupos da distribuição ("divida em quintis", "sem os grupos") e a referência por
-  critério ("a de maior densidade como referência"): a lista de candidatos abre nessa ordem, e usar o primeiro ou outro é
-  escolha da pessoa;
+  critério ("a de maior densidade como referência"): o Território de referência abre com o atributo citado e, desde
+  25/10/2026, o operador do "maior" ou "menor"; a relação, a delimitação e o valor de corte são escolha da pessoa (a lista de
+  candidatos, com "usar o primeiro", saiu em 24/10/2026);
 - **ambiguidades** continuam com alternativas em botões (`CATALOGO_LOCAL`), e nada é calculado. Escolher uma alternativa
   reinterpreta o pedido com a escolha; se a resposta não trouxer o campo `painel`, a operação escolhida vira a família ou a
   função equivalente (densidade e quantitativos → Distribuição com o indicador; evolução → Tendência; espacial e referência
@@ -192,7 +194,7 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   responde "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."; "volte ao gráfico", "mostre no
   gráfico" e "agora o gráfico" mandam `{ vista: "grafico" }` ("Voltei ao gráfico. …"). Quando a área informa que o mapa não
   está disponível (`mapaDisponivel: false`: nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na
-  visão Séries), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
+  visão Série temporal), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
   gráfico.". Já na vista pedida, a conversa só diz isso. Essas formas diretas são reconhecidas na tela, sem o intérprete;
   trocar de vista é estado visual e não recalcula (RQ-REP-06). Pedidos com mais do que a vista ("mostre o Pará no mapa",
   "onde ficam os municípios com menos de 1 médico por mil?", "a quantidade no gráfico") vão ao intérprete local, que devolve

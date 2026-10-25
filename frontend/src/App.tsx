@@ -360,7 +360,7 @@ function App() {
       onClose={() => setConfirmarSessao(false)}>
       <p className="mt-4 text-sm leading-6">Ao iniciar uma nova sessão, a conversa, as análises do Histórico e a fonte de dados atual
         deixam de estar disponíveis. Se quiser conservar a análise em exibição, exporte-a antes de continuar.</p>
-      <p className="mt-3 text-xs leading-5">O CSV traz os valores do motor da análise em exibição, em precisão integral; Imprimir / PDF
+      <p className="mt-3 text-xs leading-5">O CSV traz os valores da análise em exibição, em precisão integral; Imprimir / PDF
         imprime a página. Para guardar outra análise, reabra-a pelo Histórico e exporte. Nada fica salvo entre sessões.</p>
       {estadoEmExibicao && <p className="mt-2 text-sm font-semibold" data-testid="session-current-analysis">Em exibição: {estadoEmExibicao.titulo}</p>}
       <div className="dialog-actions">

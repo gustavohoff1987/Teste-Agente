@@ -35,6 +35,234 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-24 · Página única: nome da plataforma, Voltar e Limpar seleção globais, Seleção em duas áreas, Território de referência por elegibilidade e as visões Tendência, Trajetória e Série temporal
+- **Antes:**
+  - **Nome (item 1):** a abertura (E0) dizia "Diagnóstico Territorial da Força de Trabalho em Saúde".
+  - **Voltar e Limpar (itens 2 e 3):**
+    - O Voltar, acima do título, desfazia só navegações (a bolha de um estado, o atalho do mapa e uma mudança de territórios
+      pedida na conversa) e sumia sem navegação. Uma mudança à mão esvaziava a pilha.
+    - Na Seleção, "Limpar a seleção de municípios" (ou "de estados") e o "Desfazer" depois de uma mudança coletiva
+      (`analise-desfazer`, com o aviso `analise-desfazer-aviso`); nas análises, "Desfazer a limpeza"
+      (`analise-desfazer-filtros`).
+    - "← Voltar aos estados", na lista aberta de um estado, era um botão secundário pequeno.
+  - **Seleção (item 4):** a lista, com a busca no alto, e "Na análise" presa à base da tela (no celular, no fim da lista),
+    estado a estado, só com o × do estado inteiro; os municípios marcados apareciam como texto, e a lista se recolhia acima de 6
+    linhas ("Ver quais (N)").
+  - **Abas (item 5):** os botões das análises tinham uma linha de apoio ("Indicador de cada território", "Distância até uma
+    referência", "Mudança e tendência no tempo", "Só com os dados enviados").
+  - **Análise Espacial (item 6):** o painel "Referência da distância" tinha três caminhos: por critério (a lista de candidatos
+    de `/api/painel/referencias`, na ordem do motor, com "Usar o primeiro" e a escolha no empate), pelo nome (a busca) ou por
+    um conjunto (a distância até o membro mais próximo). O mesmo município podia ser a referência de todos, inclusive dele
+    mesmo (distância zero).
+  - **Comparar e Juntar (item 7):** os painéis repetiam os itens escolhidos em retângulos grandes, com os dados de cada um.
+  - **Tendência (itens 8, 9, 10 e 12):**
+    - "Entenda esta análise" abria na primeira visita também na Tendência.
+    - O Período começava sem escolha (decisão 5a), e nada de tendência era pedido até a escolha; a vista do desenho era a que
+      estivesse em uso.
+    - O desenho ficava abaixo do título, com a legenda e as contagens acima dele, como nas outras análises.
+    - As visões se chamavam Classes (o quadro de setas), Mudança e Séries; as Séries mostravam só os 4 períodos da janela, com
+      as velocidades da unidade em foco.
+  - **Termos de bastidor (item 11):** a coluna do quadro de setas era "Classe (do motor)", e textos da tela e da conversa
+    falavam em "motor" ("Limitação registrada pelo motor: …", "Parâmetros enviados ao motor", "maior, menor e diferença vêm do
+    motor", "Percentuais e contagens do motor", "O CSV traz os valores do motor…", "o motor Python e os controles continuam
+    funcionando", "aplicada pelo motor", "suportado pelo motor experimental").
+  - **Motor (`/api/painel`):** a referência era só por membros (`{membros, criterio}`), e não havia a série temporal. A recusa
+    da ordenação pela variação sem a competência inicial citava a "visão Mudança".
+- **Agora:**
+  - **Nome (item 1):** "Diagnóstico Territorial da Força de Trabalho na Saúde", o nome da plataforma (o do cabeçalho e da
+    SPEC), no título central de E0; o cabeçalho no alto à esquerda continua como estava.
+  - **Voltar e Limpar seleção (item 2):** dois controles globais, lado a lado, fixos no alto da área ao rolar, em todas as abas
+    (`analise-controles-globais`):
+    - **Voltar** (`analise-voltar`, a seta ←) é um desfazer sequencial, como o Ctrl+Z, de toda a interação na área: a
+      seleção (uma a uma, coletiva, o × da lista da direita, o nível, a lista aberta), os conjuntos, as abas, os ajustes (o
+      período, a visão, o intervalo da série, o território de referência…), os filtros, a régua (o arraste vira um passo só),
+      a escala, a vista, um pedido da conversa e a reabertura do Histórico. Cada Voltar desfaz um passo, até 80; o botão diz o
+      que vai desfazer ("Voltar: desfaz abrir a Análise de Tendência") e, sem nada a desfazer, fica desligado, com "Voltar:
+      nenhuma ação para desfazer ainda". Não é o voltar do navegador.
+    - **Limpar seleção** (`analise-limpar-selecao`, a vassoura) tira os territórios do nível em uso, porque cada nível guarda
+      a sua escolha (em Municípios, os municípios e os conjuntos; em Estados, os estados), sem apagar os dados carregados, os
+      ajustes nem a escolha dos outros níveis. Fica desligado sem nada marcado no nível em uso e no nível Brasil, em que o país é
+      a própria unidade ("No nível Brasil, o país inteiro é a unidade em análise: não há seleção para limpar."). É o único
+      "limpar a seleção": o da Seleção saiu.
+    - Saíram o "Desfazer" da Seleção (`analise-desfazer`, `analise-desfazer-aviso`) e o "Desfazer a limpeza"
+      (`analise-desfazer-filtros`): o Voltar faz o mesmo. O aviso de uma mudança coletiva continua por escrito
+      (`analise-selecao-aviso`, "… Para desfazer, use Voltar, no alto."). "Limpar filtros" continua.
+  - **Voltar aos estados (item 3):** maior e preenchido, com a seta à esquerda, distinto do Voltar do alto; só fecha a lista.
+  - **Seleção em duas áreas (item 4):** à esquerda, a busca no alto e a lista (`analise-territorios-lista`); à direita, sempre
+    à vista e em tempo real, o que está marcado, agrupado por estado (`analise-selecionados-itens`), com o × de cada município
+    (`analise-selecionado-unidade`), de cada estado (`analise-selecionado-tirar-grupo`) e de cada conjunto
+    (`analise-selecionado-conjunto`), sem recolher. Abaixo de 900 px, uma sobre a outra, com o que está marcado antes da lista.
+  - **Abas (item 5):** só os nomes das análises.
+  - **Território de referência (item 6):** o painel "Território de referência" (o título "Referência da distância" saiu) é um
+    fluxo só: a relação (Mais próximo ou Mais distante), a delimitação geográfica (no Brasil, o mesmo estado, estados
+    escolhidos, a mesma região, regiões escolhidas ou o Brasil inteiro; numa planilha, a província da coluna-mãe ou a planilha
+    inteira), o atributo (Densidade, Quantidade ou População), o operador (Maior que ou Menor que) e o valor de corte, com a
+    unidade e a validação do atributo. Nenhum campo tem valor padrão; a prévia diz a definição em palavras. O motor primeiro
+    filtra os elegíveis e depois escolhe, para cada município, o mais próximo ou o mais distante deles, nunca ele mesmo, com os
+    empates, pelas mesmas geodésicas; sem elegível ou com coordenada faltando, a distância fica não avaliável, com o motivo,
+    nunca zero. Quando nenhum município em análise fica com referência, um aviso acima do desenho diz o que aconteceu
+    (`analise-ref-sem-resultado`: "Nenhum município da base atende à condição …: não há território de referência. Mude o
+    atributo, o operador ou o valor de corte." ou as causas possíveis), com "Mudar o território de referência". A seleção e o
+    território de referência se mantêm um sem o outro, e o painel reabre com a definição em uso. A
+    lista de candidatos ("Usar o primeiro") e a escolha pelo nome ou por um conjunto saíram da tela (a referência pelo nome,
+    pedida na conversa, continua valendo).
+  - **Comparar e Juntar (item 7):** sem os retângulos; o botão, o título do painel, uma orientação objetiva
+    (`analise-comparar-orientacao`, `analise-juntar-orientacao`), os itens escolhidos numa lista curta e o resultado.
+  - **Tendência (itens 8, 9, 10 e 12):**
+    - "Entenda esta análise" começa recolhido na Tendência desde a primeira visita (nas outras análises, como antes).
+    - A aba abre no Período **Anual** (sem ele na base, no único ritmo que ela tem) e na vista **Gráfico**; o mapa continua
+      como alternativa.
+    - Os ajustes em cima; abaixo, as ferramentas e o desenho em destaque; à direita, o painel "Como ler"
+      (`analise-explicacao`), com o subtítulo, a frase-resumo, as contagens, a legenda e as velocidades da linha escolhida,
+      separado do desenho por uma divisória arrastável e ajustável pelo teclado (`analise-divisoria`), entre 240 px e a metade
+      da área.
+    - As visões **Tendência** (o quadro de setas), **Trajetória** (a mudança, agora com os períodos do meio no caminho do
+      rastro e na dica) e **Série temporal** (a série histórica completa, lida dos dados, ou o intervalo escolhido em "De" e
+      "Até", com "Toda a série"; sem classificação, sem linha ajustada e sem preencher lacunas; o conjunto não comparável fica
+      só com os pontos). Trocar de visão não refaz a seleção.
+  - **Termos de bastidor (item 11):** a coluna é "Tendência"; os textos da tela e da conversa não falam em "motor" ("Limitação
+    registrada no cálculo: …", "Parâmetros da análise", "com o maior, o menor e a diferença", "Percentuais e contagens da
+    análise"…). Os nomes internos (código, chaves do contrato, `visao: "classes" | "mudanca" | "series"`) não mudaram.
+  - **Motor (`/api/painel`):**
+    - `referencia: {relacao, delimitacao: {tipo, valores?}, condicao: {atributo, operador, valor}}`, só na página única e
+      no nível municípios, com a validação e os textos descritos em `Docs/PAINEL_INTEGRADO.md`; a resposta traz
+      `referencia.tipo: "elegiveis"` (a definição, os textos, as contagens da condição e os territórios usados) e, por item,
+      `referencia_do_item`. A busca do extremo é exata (`nearest_reference.extreme_exact`): só geodésicas de Karney decidem;
+      os limites (a corda 3D e, na mais distante, o arco na esfera de raio a) só poupam geodésicas que não podem decidir.
+    - `serie: {competencias}` devolve o valor observado de cada item em cada competência do intervalo (municípios,
+      conjuntos, estados e Brasil), pelas mesmas funções da tendência, com o topo `serie`, `dominios.serie`, a nota e o trecho
+      da frase-resumo.
+    - A recusa da ordenação pela variação cita a "visão Trajetória".
+  - **Conversa:** "trajetória" abre a visão Trajetória; "série temporal" ou "séries históricas", a Série temporal; as respostas
+    usam os nomes novos ("Visão da tendência: Trajetória."); o critério de referência ("use como referência o município de
+    maior densidade") abre o Território de referência com o atributo citado e o operador do "maior" ou "menor" ("Maior que"
+    ou "Menor que", com o aviso `analise-ref-da-conversa`), e a relação, a delimitação e o valor de corte ficam com a pessoa.
+- **Permanece:**
+  - Os métodos e os números: CAP-ESP-01 e CAP-ESP-02 (Karney, `minimo_completo`, empates), CAP-TEN-01 e DA-15, CAP-TMP-01,
+    CAP-SUB-01/02/03, CAP-AGR-01; nenhum método novo.
+  - A referência por membros (`{membros}`, como pede a conversa pelo nome), a rota `/api/painel/referencias` (a tela não a usa
+    mais), o contrato sem `nivel`, o Histórico, Nova análise e Nova sessão, o mapa e as vistas, "Limpar filtros", a Seleção
+    por níveis e cumulativa, o cabeçalho.
+  - Os dados versionados não mudam, e nada da base vai ao provedor de IA.
+- **Motivo:** pedido do responsável pelo produto em 24/10/2026, "Implementação integral de ajustes de interface, navegação e
+  experiência do usuário no Agente Diagnóstico Territorial da Força de Trabalho na Saúde" (12 requisitos).
+  - **Classificação, pela leitura, antes de codar:** todos os itens são mudança de comportamento prevista: decorrem do pedido
+    e não contrariam a SPEC nem as divergências aprovadas.
+    - **Território de referência (item 6):** CAP-REF-01 admite o conjunto produzido por critério autorizado aplicado aos dados
+      (CAP-SUB-01); para cada município, o conjunto é a delimitação E a condição E "não pertence a [ele mesmo]" (a pertença a
+      uma lista é atributo de CAP-SUB-01). O mais próximo é CAP-ESP-02 (`minimo_completo`); o mais distante, as distâncias de
+      CAP-ESP-01 ordenadas (CAP-SUB-02) com a 1ª posição (CAP-SUB-03). As regiões seguem o primeiro dígito do código IBGE, a
+      regra já usada na conversa. Nada é presumido: sem a definição completa, nenhum pedido sai.
+    - **Período anual ao abrir (item 9):** a tabela de autoridade (C §5.5) admite a definição do período "quando por regra";
+      a regra é a decisão do responsável, à vista e trocável, e o pedido ao motor continua explícito
+      (`tendencia.competencias`). Com um só ritmo aplicável, RQ-GOV-14. Substitui a decisão 5a da rodada anterior.
+    - **Série temporal (item 12):** CAP-REP-02 e Parte 13 (sem linha ajustada), RQ-REP-15 (agregados incomparáveis sem
+      linha); os valores são os observados, sem método novo.
+    - **Os demais (1 a 5, 7, 8, 10 e 11):** apresentação, navegação e textos, sem regra da SPEC em contrário.
+    - **Correções de 25/10/2026 (decisões 4 e 5):** mudança prevista. Decorrem das diretrizes 4 e 5 do responsável e dos
+      itens 2 e 6; a condição continua a de CAP-SUB-01, com o valor de corte decidido pela pessoa, e a limpeza por nível
+      restabelece a regra já aprovada ("Cada nível guarda a sua escolha").
+  - **Decisões verificadas em 25/10/2026** (as sete diretrizes do responsável, conferidas com o pedido original, o
+    AGENTS.md, a SPEC e o contrato):
+    1. **Território de referência:** o fluxo único é exigência do pedido ("Elimine controles redundantes e substitua a
+       configuração fragmentada por um fluxo único"); por isso saíram do painel a lista de candidatos, a busca pelo nome e a
+       escolha por conjunto. A conversa ainda aceita a referência pelo nome ou por um grupo (CAP-REF-01, lista explícita da
+       pessoa), que aparece como "Referência em uso".
+    2. **Período da tendência:** o Anual é o preferido (item 9). Sem 4 períodos anuais, abre no único ritmo com 4 períodos
+       (RQ-GOV-14: um único valor aplicável resolve o parâmetro, sem substituir o pedido explícito; DA-15; a matriz de
+       autoridade da SPEC admite a definição "quando por regra"); sem nenhum, nada é escolhido e um aviso pede a escolha.
+    3. **Velocidades:** no painel "Como ler" da visão Tendência (itens 10 e 12), com as barras, os valores e a interpretação;
+       continuam nas setas do quadro, na dica e no CSV.
+    4. **Conversa (corrigida em 25/10/2026):** o "maior" ou "menor" ficava sem efeito; agora vira o operador da condição.
+       Escolher sozinho o primeiro colocado não é operação autorizada: CAP-REF-01 pede uma condição de CAP-SUB-01, e o valor de
+       corte é da pessoa.
+    5. **Voltar e Limpar seleção (corrigida em 25/10/2026):** o Voltar desfaz até 80 passos e não há "Refazer". Limpar
+       seleção apagava a escolha de todos os níveis e, no Brasil, trocava para Municípios; agora limpa só o nível em uso e fica
+       desligado no nível Brasil, com o motivo.
+    6. **Série temporal:** abre com a série inteira; o desenho mostra até 12 unidades (as marcadas ou, sem marcação, todas
+       quando são até 12), e o cálculo e o CSV cobrem todas as unidades da seleção.
+    7. **Rota `/api/painel/referencias`:** continua no contrato, com os testes, embora a tela não a use.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (E0, Seleção em duas áreas, "Voltar e Limpar seleção", ajustes,
+    Território de referência, Tendência com o layout e as três visões, títulos, pedido e testes), `Docs/PAINEL_INTEGRADO.md`
+    (`referencia` por elegibilidade, `referencia_do_item`, `serie`), `Docs/MAPA_DA_PAGINA_UNICA.md`,
+    `Docs/CONVERSACAO_INCREMENTO_FN.md`, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`, `Docs/EVOLUCAO_TEMPORAL_E_TENDENCIA.md`,
+    `README.md` e a tabela de cobertura de `backend/tests/legado/README.md` (o passo 9 com o Território de referência, a visão
+    Trajetória e o celular no passo 16, que a tabela ainda dava como 15).
+  - **Testes novos:**
+    - **Motor:** `test_nearest_reference.py::test_extreme_search_equals_exhaustive_search_without_the_territory_itself` (o
+      mais próximo e o mais distante, com e sem a exclusão, contra todas as geodésicas, inclusive polos, antípodas e
+      empates); em `test_painel_pagina.py`, o território de referência (o mais próximo sem o próprio município, conferido
+      com o critério de densidade da análise existente; o mais distante; as cinco delimitações; sem elegível; um elegível
+      sem coordenada; conjuntos; quantidade e população; a validação; a planilha com e sem a coluna-mãe) e a série temporal
+      (os mesmos valores das observações da tendência, nos municípios, conjuntos, estados e Brasil, e a validação); com a
+      base versionada, `test_real_eligible_reference_matches_every_geodesic_and_the_series_matches_the_trend`.
+    - **Conversa (`test_conversa_grafico.py`):** "trajetória", "série temporal" e "séries históricas"; o critério de
+      referência com "maior", "menor" e "mais populoso", e o operador na resposta.
+    - **Node (`areaDeAnalise.test.mjs`):** o histórico do Voltar, o período com que a tendência abre, as visões e os
+      ajustes, a Série temporal (o intervalo, a resposta, o CSV, o método e o desenho), a Trajetória (os períodos do meio no
+      rastro e na dica) e o território de referência (a guarda, as delimitações, o valor de corte, a resposta, a dica, o CSV,
+      as ligações do mapa e a apresentação); o operador que vem do "maior" ou "menor" da conversa (`operadorDoCriterio`) e a
+      limpeza por nível (`limparNivel`).
+    - **Roteiros:**
+      - `ui_area_de_analise.py`:
+        - o nome da plataforma;
+        - Voltar e Limpar seleção no alto, fixos ao rolar: o Voltar desligado sem passos, com o texto dele, e o `title` de
+          cada passo (uma aba, marcar e desmarcar, o × de um município e de um estado, a bolha, Limpar seleção, a régua, o
+          território de referência, o período, a visão, Limpar filtros), com a volta ao estado de antes, um passo por vez;
+        - Limpar seleção sem apagar os dados, só no nível em uso (a escolha dos estados continua) e desligado no nível
+          Brasil, com o motivo;
+        - "Voltar aos estados" preenchido, maior e diferente do Voltar do alto (pelo estilo calculado);
+        - as duas áreas da Seleção, com o × de município e de estado;
+        - as abas só com o nome;
+        - o Território de referência: sem valor padrão; a prévia; o pedido; as distâncias iguais às do motor, nunca até o
+          próprio município; o mais distante nunca mais perto que o mais próximo; sem elegíveis, a mensagem
+          `analise-ref-sem-resultado` e "Mudar o território de referência"; o Voltar;
+        - Comparar e Juntar com a orientação;
+        - a Tendência: o Anual (ou o único ritmo) e o Gráfico ao abrir, mesmo com o mapa antes; "Entenda esta análise"
+          recolhido; o painel "Como ler" e a divisória pelo teclado, com os limites; a Trajetória com os pontos do meio;
+          a Série temporal com toda a série, o intervalo escolhido, o pedido `serie` e o Método;
+        - nenhum "motor" nos textos da área, também nos rótulos acessíveis e nos `title`;
+        - no celular, os controles do alto e as duas áreas da Seleção.
+      - `ui_conversa_grafico.py`: o critério de referência pela conversa ("menor densidade"): o painel com o atributo e o
+        operador já escolhidos, a relação, a delimitação e o valor de corte em aberto, e o Voltar que desfaz o pedido.
+      - `ui_mapa.py`: o Território de referência no mapa (os elegíveis do mesmo estado acima da mediana da população,
+        cada município com a referência entre eles e nunca ele mesmo, as ligações e a mira do território de referência).
+      - `ui_modo_escuro.py`: Voltar e Limpar seleção, o aviso da mudança coletiva e o "Voltar aos estados" preenchido,
+        legíveis no escuro.
+      - `ui_pagina_unica.py`: o nome da plataforma.
+  - **Testes mudados de propósito** (o comportamento mudou por este pedido; os defeitos estavam no produto, e não nos testes):
+    - **`test_conversa_grafico.py`:** as respostas com os nomes novos das visões, sem "vêm do motor", e o critério de
+      referência (antes, "usar o primeiro"). Um texto antigo que restava no produto ("abra a análise espacial" ainda dizia
+      "escolha a referência pelo nome, por um critério ou por um conjunto") foi corrigido.
+    - **`painel.test.mjs`:** os títulos da Trajetória e da Série temporal, o nome da plataforma, os textos sem "motor", os
+      avisos da família, o pedido da Série temporal e `referenciaDoItem` (no lugar de `referencia_mais_proxima` no cliente).
+      O teste de "Usar o primeiro" (`primeirosColocados`, que saiu com a lista de candidatos) deu lugar ao das competências; a
+      cobertura do território de referência está nos testes novos acima. Os testes de `apoioDaFamilia` (os apoios das abas, que
+      saíram) foram retirados.
+    - **`areaDeAnalise.test.mjs`:** o nome da plataforma, o motivo do mapa na Série temporal e `referenciaDoItem`.
+    - **`conversaGrafico.test.mjs`:** a resposta sobre a tabela, sem "do motor".
+    - **Roteiros:** as conferências das funções que saíram passaram às do comportamento novo, com as mesmas checagens
+      contra o motor:
+      - "Desfazer" e "Desfazer a limpeza" (`analise-desfazer`, `analise-desfazer-aviso` e `analise-desfazer-filtros`) e o
+        Voltar só das navegações (que sumia sem navegação): agora, o Voltar do alto, que devolve as mesmas escolhas, e a
+        ausência dos botões antigos.
+      - "Limpar a seleção (vassoura)" da Seleção, no modo escuro: agora, o Limpar seleção do alto.
+      - Limpar seleção de todos os níveis (`ui_area_de_analise.py`, que conferia os estados desmarcados): agora, só o nível em
+        uso, com a escolha dos estados guardada.
+      - A referência por critério com a lista de candidatos (as posições, o empate, "Usar o primeiro" e os controles
+        `analise-ref-*` da lista), em `ui_area_de_analise.py` e `ui_mapa.py`: agora, o fluxo do Território de referência. A
+        rota `/api/painel/referencias`, que a tela não usa mais, continua coberta no pytest
+        (`test_uploaded_trend_conditions_and_reference_candidates`).
+      - O Período sem escolha ao abrir (o aviso "Escolha o período…" e os dois ritmos desmarcados): agora, o Anual (ou o
+        único ritmo) já escolhido.
+      - A visão Séries (as velocidades nela e o motivo do mapa "Na visão Séries"): agora, a Série temporal, com as
+        velocidades no painel "Como ler" da visão Tendência.
+      - A legenda e as contagens acima do quadro de setas: agora, no painel "Como ler", com as mesmas conferências.
+      - Os nomes das abas: o texto exato, no lugar de "contém", e a ausência dos apoios.
+      - O título de E0.
+  - Nenhum teste foi enfraquecido, pulado ou apagado sem a cobertura registrada acima.
+
 ### 2026-10-24 · Página única: correções da revisão da rodada de interface (Desfazer, Voltar, conjuntos, filtro de classe e textos)
 - **Antes** (desde `0874349`):
   - "Desfazer a limpeza" continuava valendo depois de outra escolha de territórios e devolvia a comparação antiga, que o motor

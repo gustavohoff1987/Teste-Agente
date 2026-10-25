@@ -12,7 +12,8 @@ import main
 from brazil_catalog_profile import FIELDS
 from llm_bridge import OPERATIONS as LLM_OPERATIONS
 from llm_context import provider_snapshot
-from nearest_reference import GEOD, GEODS, GRS80_A, GRS80_RF, nearest_exact, nearest_exhaustive
+from nearest_reference import (GEOD, GEODS, GRS80_A, GRS80_RF, extreme_exact, extreme_exhaustive, nearest_exact,
+                               nearest_exhaustive)
 from prepare_block1_catalog import prepare
 from catalog_support import use_external_catalog
 
@@ -136,6 +137,63 @@ def test_exact_search_equals_exhaustive_search(seed, crs):
         assert evaluated <= len(t_lat) * len(r_lat)
     assert all(len(x) == 2 for x in nearest_exact(*scenarios[3], crs=crs)[1])
     assert len(nearest_exact(*scenarios[4], crs=crs)[1][0]) == 6
+
+
+def antipodal_ring(rng):
+    """Referências a 1.000 km + centímetros do antípoda do alvo, em azimutes aleatórios: as mais distantes do alvo ficam
+    a poucos metros umas das outras, e a ordem pelo limite superior (o arco na esfera de raio a) não coincide com a ordem
+    geodésica — só as geodésicas decidem a mais distante."""
+    azimuths = rng.uniform(-180, 180, 64)
+    distances = 1_000_000 + rng.permutation(64) * 0.01
+    lon, lat, _ = GEOD.fwd(np.full(64, 130.0), np.full(64, 10.0), azimuths, distances)
+    return np.array([-10.0]), np.array([-50.0]), lat, lon
+
+
+@pytest.mark.parametrize("farthest", [False, True])
+@pytest.mark.parametrize("crs", ["SIRGAS2000", "WGS84"])
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_extreme_search_equals_exhaustive_search_without_the_territory_itself(seed, crs, farthest):
+    """Território de referência (24/10/2026): para cada alvo, o mais próximo ou o mais distante entre os elegíveis, sem
+    ele mesmo (skip). A busca exata decide só por geodésicas de Karney e dá o mesmo extremo e os mesmos empates da busca
+    completa, com e sem a exclusão; o alvo sem nenhuma referência restante fica sem valor (nan) e sem referência."""
+    rng = np.random.default_rng(seed)
+    scenarios = [
+        (rng.uniform(-33.7, 5.2, 150), rng.uniform(-73.9, -34.8, 150), rng.uniform(-33.7, 5.2, 400), rng.uniform(-73.9, -34.8, 400)),
+        (rng.uniform(-90, 90, 80), rng.uniform(-180, 180, 80), rng.uniform(-90, 90, 300), rng.uniform(-180, 180, 300)),
+        # Polos, linha de data, quase antípodas e pontos coincidentes.
+        (np.array([90, -90, 0, 0, 10, -45, 0]), np.array([0, 0, 179.9999, -179.9999, 20, 60, 0]),
+         np.array([-90, 90, 0, 0.1, -10, 45, 0, 0]), np.array([0, 0, -179.9999, 179.95, -160, -120, 0, 0])),
+        # Empates exatos: referências simétricas no equador.
+        (np.zeros(5), np.array([0, 10, 20, 30, 40.0]), np.zeros(10), np.concatenate([np.arange(0, 50, 10) - 1.5, np.arange(0, 50, 10) + 1.5])),
+        # Seis referências coincidentes: empate de seis.
+        (np.array([-10.0]), np.array([-50.0]), np.full(6, -11.0), np.full(6, -50.0)),
+        ring(rng),
+        antipodal_ring(rng),
+    ]
+    for number, (t_lat, t_lon, r_lat, r_lon) in enumerate(scenarios):
+        # Cada alvo deixa de fora uma referência ao acaso (o próprio território) ou nenhuma (-1).
+        skip = rng.integers(-1, len(r_lat), len(t_lat))
+        for exclude in (None, skip):
+            best, ties, evaluated = extreme_exact(t_lat, t_lon, r_lat, r_lon, crs=crs, farthest=farthest, skip=exclude)
+            expected_best, expected_ties = extreme_exhaustive(t_lat, t_lon, r_lat, r_lon, crs=crs, farthest=farthest,
+                                                              skip=exclude)
+            assert np.array_equal(best, expected_best, equal_nan=True)
+            assert [sorted(x) for x in ties] == [sorted(x) for x in expected_ties]
+            assert evaluated <= len(t_lat) * len(r_lat)
+            if exclude is not None:
+                assert all(own not in found for own, found in zip(exclude, ties) if own >= 0)
+            if number == 0:  # numa base como a do Brasil, os limites poupam geodésicas
+                assert evaluated < len(t_lat) * len(r_lat)
+        if not farthest:  # sem exclusão, a mais próxima é a mesma da referência mais próxima de sempre
+            assert np.array_equal(extreme_exact(t_lat, t_lon, r_lat, r_lon, crs=crs)[0],
+                                  nearest_exact(t_lat, t_lon, r_lat, r_lon, crs=crs)[0])
+    # O único elegível é o próprio alvo: sem referência, nunca a distância zero até si mesmo.
+    best, ties, evaluated = extreme_exact([-10.0], [-50.0], [-10.0], [-50.0], crs=crs, farthest=farthest, skip=[0])
+    assert np.isnan(best[0]) and ties == [[]] and evaluated == 0
+    # Os empates exatos continuam todos, também na mais distante: no equador, 1° de longitude (leste e oeste) é mais longo
+    # que 1° de latitude (norte e sul), e cada par simétrico empata.
+    best, ties, _ = extreme_exact([0.0], [0.0], [0.0, 0.0, 1.0, -1.0], [1.0, -1.0, 0.0, 0.0], crs=crs, farthest=farthest)
+    assert sorted(ties[0]) == ([0, 1] if farthest else [2, 3])
 
 
 def test_explicit_list_with_references_in_other_state_and_target_also_reference():

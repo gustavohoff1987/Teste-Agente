@@ -3,9 +3,9 @@
 Percorre:
 - o aceite de privacidade primeiro;
 - a abertura (E0, 24/10/2026): o nome do agente e o banner ("Transforme dados em diagnósticos territoriais."); na área central,
-  só a identificação ("Diagnóstico Territorial da Força de Trabalho em Saúde"), a chamada ("Escolha seus dados para começar") e as
-  duas entradas ("Usar dados do Brasil" e "Enviar meus dados"), sem abas de análise, sem Nova sessão, Nova análise e Histórico e
-  sem a frase do aceite de privacidade; "Enviar meus dados" abre a janela de envio, com o modelo de planilha (XLSX), pela área e
+  só a identificação, com o nome da plataforma ("Diagnóstico Territorial da Força de Trabalho na Saúde", desde a segunda rodada de
+  24/10/2026), a chamada ("Escolha seus dados para começar") e as duas entradas ("Usar dados do Brasil" e "Enviar meus dados"),
+  sem abas de análise, sem Nova sessão, Nova análise e Histórico e sem a frase do aceite de privacidade; "Enviar meus dados" abre a janela de envio, com o modelo de planilha (XLSX), pela área e
   pela conversa; a conversa aberta e mais larga, perguntando o que analisar, com as mesmas duas entradas; nenhum pedido ao motor
   antes dos dados;
 - a base do Brasil (E1) sem seleção automática (23/10/2026): a navegação (Nova sessão, Nova análise e Histórico) abaixo do
@@ -13,7 +13,7 @@ Percorre:
   unidades (o nível Estados e "Marcar todos os estados");
 - o Histórico, que guarda cada análise e reabre sem recalcular, e Nova análise, que guarda a atual e recomeça com os mesmos
   dados e sem territórios escolhidos;
-- o diálogo de Nova sessão, com o foco preso nele e o CSV da análise em exibição (valores do motor, em precisão integral);
+- o diálogo de Nova sessão, com o foco preso nele e o CSV da análise em exibição (os valores da análise, em precisão integral);
 - a caixa da conversa, que o mouse e o teclado movem, guarda a posição e se minimiza;
 - uma planilha de outro país, com distritos e províncias e sem código IBGE, pelo "Trocar" (as duas entradas voltam à área
   central, e "Enviar meus dados" abre a mesma janela de envio) e pelo painel "Colunas": papéis sugeridos e escolhidos, nomes das unidades e dos grupos, referencial das coordenadas (SIRGAS
@@ -159,7 +159,7 @@ def main():
         for antiga in ("fonte-brasil", "fonte-arquivo", "fonte-modelo", "fonte-cancelar", "analise-fonte-modelo", "chat-fonte-modelo"):
             expect(page.get_by_test_id(antiga)).to_have_count(0)
         abertura = area.get_by_test_id("analise-abertura")
-        expect(abertura.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico Territorial da Força de Trabalho em Saúde")
+        expect(abertura.get_by_test_id("analise-titulo")).to_have_text("Diagnóstico Territorial da Força de Trabalho na Saúde")
         expect(abertura.get_by_test_id("analise-abertura-chamada")).to_have_text("Escolha seus dados para começar")
         expect(abertura.get_by_test_id("analise-fonte-brasil")).to_have_text("Usar dados do Brasil")
         expect(abertura.get_by_test_id("analise-fonte-arquivo")).to_have_text("Enviar meus dados")
@@ -280,7 +280,7 @@ def main():
         expect(historico).to_be_focused()
         shot("03-historico")
 
-        # 4. Nova sessão: o diálogo oferece o CSV da análise em exibição (os valores do motor, em precisão integral) e
+        # 4. Nova sessão: o diálogo oferece o CSV da análise em exibição (os valores da análise, em precisão integral) e
         # Imprimir / PDF; "Continuar nesta sessão" não muda nada.
         navigation.get_by_test_id("nav-new-session").click()
         dialogo = page.get_by_test_id("new-session-confirmation")

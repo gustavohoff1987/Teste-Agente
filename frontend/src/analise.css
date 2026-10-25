@@ -76,14 +76,25 @@
   color: var(--cor-sobre-tinta); }
 .analise-segmentos > button:disabled { opacity: .4; }
 
-/* ------------------------------------------------------------------------------------------- título, Voltar e Limpar */
+/* ------------------------------------------------------------------------------------------- Voltar e Limpar seleção (globais) */
+/* No alto da área (24/10/2026, segunda rodada): Voltar (a seta universal de retorno) e Limpar seleção (a vassoura), lado a lado,
+   presos ao alto da tela enquanto a página rola, em todas as abas; ao lado, o resumo da seleção em uso. Desligados, ficam à vista,
+   mais claros, com o motivo no title. */
+.analise-controles-globais { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  margin: -6px -6px 0; padding: 8px 6px; border-bottom: 1px solid var(--cor-borda-suave); border-radius: 14px 14px 0 0;
+  background: var(--cor-superficie); box-shadow: 0 6px 14px -12px var(--cor-sombra-forte); }
+.analise-controle-global { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 7px 14px 7px 11px;
+  border: 1px solid var(--cor-borda-controle); border-radius: 12px; background: var(--cor-superficie); color: var(--cor-tinta);
+  font-size: 13.5px; font-weight: 700; }
+.analise-controle-global:hover:not(:disabled) { border-color: var(--cor-tinta); background: var(--cor-realce-destaque); }
+.analise-controle-global:disabled { opacity: .45; }
+.analise-controles-territorios { display: inline-flex; min-width: 0; flex: 1 1 14rem; align-items: center; gap: 6px; margin-left: 4px;
+  color: var(--cor-texto-2); font-size: 12.5px; }
+.analise-controles-territorios .truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ------------------------------------------------------------------------------------------- título e Limpar filtros */
 .analise-cabecalho { display: flex; flex-direction: column; gap: 4px; }
-/* Voltar (24/10/2026): a seta universal de retorno, discreta e sempre no mesmo lugar (no alto à esquerda da área a que se refere). */
-.analise-voltar { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 32px; padding: 5px 10px 5px 8px;
-  border: 1px solid var(--cor-borda-campo); border-radius: 999px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
-  font-size: 12.5px; font-weight: 650; }
-.analise-voltar:hover { background: var(--cor-realce-destaque); }
-/* Limpar filtros, ao lado das funções; o Desfazer ocupa o mesmo lugar depois da limpeza. */
+/* Limpar filtros, ao lado das funções (o filtro riscado o distingue do Limpar seleção, no alto). */
 .analise-limpar { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 /* O que a classe de tendência quer dizer, junto do resultado de um território só. */
 .analise-frase-significado { max-width: 76ch; margin: 0; color: var(--cor-texto-2); font-size: 12.5px; line-height: 1.5; }
@@ -101,7 +112,9 @@
 @media (min-width: 1360px) {
   /* A lista dos territórios está na aba da Seleção (23/10/2026): o desenho usa a largura toda, e o painel das funções, uma coluna. */
   .analise-corpo.analise-corpo-com-painel { grid-template-columns: minmax(0, 1fr) 340px; }
-  .analise-painel { position: sticky; top: 12px; max-height: calc(100dvh - 24px); overflow: auto; }
+  /* Preso abaixo de Voltar e Limpar seleção (fixos no alto desde 24/10/2026), como a explicação da tendência: com top de 12 px, o
+     título e o × do painel ficavam por baixo deles ao rolar. */
+  .analise-painel { position: sticky; top: 70px; max-height: calc(100dvh - 84px); overflow: auto; }
 }
 @media (min-width: 1024px) and (max-width: 1359px) {
   /* Ao lado do gráfico, sem empurrá-lo para baixo: o painel fica por cima da parte direita do gráfico. */
@@ -120,6 +133,38 @@
     border-radius: 18px 18px 14px 14px; box-shadow: 0 -12px 40px var(--cor-sombra-forte); }
 }
 .analise-painel { min-width: 0; border: 2px solid var(--cor-borda-painel); border-radius: 18px; background: var(--cor-superficie-elevada); }
+/* Análise de Tendência (24/10/2026, segunda rodada): o desenho logo abaixo dos ajustes, com a explicação à direita; a divisória
+   entre os dois muda a largura da explicação (de 240 px até a metade da área; a largura vem de --analise-largura-lateral). O painel
+   da função aberta fica no alto da coluna da explicação. Abaixo de 1.024 px, a explicação desce para baixo do desenho, sem
+   divisória nem rolagem horizontal. */
+@media (min-width: 1024px) {
+  .analise-corpo.analise-corpo-tendencia { grid-template-columns: minmax(0, 1fr) 14px min(var(--analise-largura-lateral, 340px), 50%); gap: 0; }
+  .analise-corpo-tendencia .analise-centro { padding-right: 8px; }
+  .analise-corpo-tendencia .analise-lateral { position: sticky; top: 70px; max-height: calc(100dvh - 84px); overflow: auto; padding-left: 8px; }
+  .analise-corpo-tendencia .analise-lateral .analise-painel { position: static; width: auto; max-height: none; box-shadow: none; margin-bottom: 10px; }
+}
+.analise-divisoria { position: relative; display: none; align-self: stretch; align-items: center; justify-content: center; min-height: 120px;
+  border-radius: 999px; color: var(--cor-texto-2); cursor: col-resize; touch-action: none; user-select: none; }
+.analise-divisoria::before { content: ""; position: absolute; width: 2px; top: 0; bottom: 0; border-radius: 2px; background: var(--cor-borda-campo); }
+.analise-divisoria svg { position: relative; z-index: 1; padding: 3px 0; border-radius: 6px; background: var(--cor-superficie); }
+.analise-divisoria:hover::before, .analise-divisoria:focus-visible::before { background: var(--cor-destaque); }
+@media (min-width: 1024px) { .analise-divisoria { display: flex; } }
+.analise-lateral { display: flex; min-width: 0; flex-direction: column; gap: 10px; }
+.analise-explicacao { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--cor-borda); border-radius: 16px;
+  background: var(--cor-superficie); color: var(--cor-texto); font-size: 12.5px; line-height: 1.5; }
+.analise-explicacao-titulo { margin: 0; color: var(--cor-tinta); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.analise-explicacao .analise-frase-resumo { font-size: 13px; }
+.analise-explicacao-bloco { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave);
+  color: var(--cor-texto-2); font-size: 12px; line-height: 1.5; }
+.analise-explicacao-bloco p { margin: 0; }
+.analise-explicacao .analise-legenda { margin-top: 0; }
+.analise-explicacao-dica { margin: 0; color: var(--cor-texto-2); font-size: 12px; }
+/* Território de referência (24/10/2026): os três passos do fluxo, cada um com o título dele. */
+.analise-ref-passo { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--cor-borda-suave); }
+.analise-ref-passo > legend { padding: 0; color: var(--cor-tinta); font-size: 12.5px; font-weight: 700; }
+.analise-ref-valores { display: block; max-height: 12rem; overflow: auto; margin: 0; padding: 4px; columns: 2 150px; column-gap: 8px;
+  border: 1px solid var(--cor-borda); border-radius: 10px; background: var(--cor-superficie-suave); list-style: none; }
+.analise-ref-valores > li { break-inside: avoid; }
 .analise-painel-cabecalho { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 12px; border-bottom: 1px solid var(--cor-borda-suave); background: var(--cor-superficie-elevada); border-radius: 16px 16px 0 0; }
 .analise-painel-corpo { padding: 12px; }
@@ -277,23 +322,38 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
   .analise-lista-estados { display: block; columns: 4 190px; column-gap: 16px; }
   .analise-lista-estados > li { break-inside: avoid; }
 }
-.analise-grupo-aberto-bloco { display: flex; flex-direction: column; gap: 6px; }
+.analise-grupo-aberto-bloco { display: flex; flex-direction: column; gap: 8px; }
+/* "Voltar aos estados" (24/10/2026, segunda rodada): maior e preenchido, na cor dos botões de destaque, no alto da lista aberta. */
+.analise-botao-primario.analise-voltar-grupos { align-self: flex-start; min-height: 40px; padding: 8px 16px 8px 12px; border-radius: 12px;
+  font-size: 13.5px; }
 .analise-territorios-brasil { padding: 12px 14px; border: 1px solid var(--cor-destaque); border-radius: 12px; background: var(--cor-realce-destaque);
   color: var(--cor-texto); font-size: 13px; line-height: 1.55; }
 .analise-territorios-brasil p { margin: 0; }
-/* O que entra na análise fica preso à base da tela enquanto a lista rola: sempre à vista, com Limpar e Ver a análise à esquerda
-   (a caixa da conversa ocupa o canto direito). */
-.analise-selecionados { position: sticky; bottom: 8px; z-index: 4; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
-  border: 1px solid var(--cor-borda-campo); border-radius: 14px; background: var(--cor-superficie-suave); box-shadow: 0 -6px 20px var(--cor-sombra-suave); }
-.analise-selecionados-cabeca { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font-size: 13px; }
-.analise-selecionados-lista, .analise-selecionados-estados { max-height: 24vh; overflow: auto; }
-.analise-selecionados-lista { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+/* Duas áreas lado a lado (24/10/2026, segunda rodada): à esquerda, a busca e a lista para marcar (cerca de metade da largura); à
+   direita, o que já está marcado, estado a estado, preso abaixo dos controles do alto enquanto a lista rola. Em telas estreitas, o
+   que está marcado vem antes da lista, compacto, com rolagem própria: a seleção nunca fica escondida depois da lista inteira. */
+.analise-territorios-colunas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.analise-territorios-lista { display: flex; min-width: 0; flex-direction: column; gap: 10px; }
+.analise-aba-painel .analise-territorios-lista .analise-unidades-lista { columns: 2 200px; column-gap: 16px; }
+.analise-aba-painel .analise-territorios-lista .analise-grupos { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.analise-selecionados { position: sticky; top: 70px; z-index: 4; display: flex; min-width: 0; flex-direction: column; gap: 10px;
+  max-height: calc(100dvh - 90px); padding: 12px; border: 1px solid var(--cor-borda-campo); border-radius: 14px;
+  background: var(--cor-superficie-suave); }
+.analise-selecionados-cabeca { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.analise-selecionados-itens { min-height: 0; overflow: auto; }
+.analise-selecionados-lista { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .analise-selecionados-estados { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.analise-selecionado { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 2px 8px; border-radius: 8px;
-  color: var(--cor-texto); font-size: 12.5px; }
-.analise-selecionado:hover { background: var(--cor-realce-suave); }
+.analise-selecionados-vazio { margin: 0; color: var(--cor-texto-2); font-size: 12.5px; line-height: 1.5; }
+.analise-selecionado-grupo { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--cor-borda-suave);
+  border-radius: 12px; background: var(--cor-superficie); color: var(--cor-texto); font-size: 12.5px; }
+.analise-selecionado-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.analise-selecionado-unidades { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .analise-icone.analise-icone-pequeno { width: 24px; height: 24px; flex-shrink: 0; }
 .analise-desfazer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--cor-texto-2); font-size: 12.5px; }
+@media (max-width: 899px) {
+  .analise-territorios-colunas { grid-template-columns: minmax(0, 1fr); }
+  .analise-selecionados { position: static; order: -1; max-height: 40dvh; }
+}
 
 /* ------------------------------------------------------------------------------------------- gráfico e mapa */
 .analise-quadro { position: relative; min-width: 0; padding: 10px 12px 12px; border: 1px solid var(--cor-borda); border-radius: 18px;

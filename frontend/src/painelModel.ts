@@ -8,8 +8,8 @@
 import type {
   AtributoCondicao, AtributoOrdenacao, CondicaoPedido, FamiliaTendencia, OperadorCondicao, OrdenarPedido, PainelAtributo,
   PainelConjuntoPedido, PainelCriterio, PainelDominio, PainelIndicador, PainelItem, PainelMunicipios, PainelNivel, PainelOpcoes, PainelOrdem,
-  PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaCandidato, Rotulo, RotulosTerritoriais, SituacaoCondicao,
-  TendenciaItem, TendenciaTopo, TipoGrupos,
+  PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaElegivel, RelacaoEspacial, Rotulo, RotulosTerritoriais,
+  SituacaoCondicao, TendenciaItem, TendenciaTopo, TipoDelimitacao, TipoGrupos,
 } from "./painelApi";
 import type { PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
 import type { EsquemaDeCor } from "./esquemaDeCor";
@@ -211,15 +211,11 @@ export type Aba = "territorios" | Familia;
 export const ABAS: Aba[] = ["territorios", "distribuicao", "espacial", "tendencia", "rotatividade"];
 export const NOME_SELECAO = "Seleção de Territórios";
 export const nomeDaAba = (aba: Aba) => aba === "territorios" ? NOME_SELECAO : NOMES_FAMILIAS[aba];
-export function apoioDaFamilia(familia: Familia, rotulos: RotulosTerritoriais, comNiveis = false): string {
-  // Com os níveis da base do Brasil (24/10/2026), a distribuição vale para o Brasil, os estados ou os municípios.
-  if (familia === "distribuicao") return comNiveis ? "O indicador de cada território"
-    : "Como " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " se distribuem";
-  if (familia === "espacial") return "Distância até uma referência";
-  if (familia === "tendencia") return "Mudança e tendência no tempo";
-  return "Permanência da coorte inicial";
-}
-export const NOMES_VISOES: Record<Visao, string> = { mudanca: "Mudança", classes: "Classes", series: "Séries" };
+/** Visões da Análise de Tendência (24/10/2026), nesta ordem: Tendência (as classes, no quadro de setas), Trajetória (a mudança
+ * entre o primeiro e o último período, com os períodos do meio) e Série temporal (a série histórica, no intervalo escolhido). Os
+ * códigos internos (classes, mudanca, series) continuam os de antes. */
+export const NOMES_VISOES: Record<Visao, string> = { classes: "Tendência", mudanca: "Trajetória", series: "Série temporal" };
+export const ORDEM_DAS_VISOES: Visao[] = ["classes", "mudanca", "series"];
 
 export type Disponivel = { disponivel: boolean; motivo: string; pendente: boolean; enviarDados: boolean };
 /** Se a família pode ser usada agora. "pendente": registra a intenção e pede um passo antes (escolher os dados, escolher
@@ -423,28 +419,32 @@ export function resumoDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios
 /** O que está marcado no nível dos municípios, grupo a grupo, para a Seleção mostrar o que entra na análise: quantas
  * unidades de cada grupo (do total dele) e, quando são poucas, os nomes. Sem grupos (planilha sem a coluna-mãe), um item só,
  * com id "". Só conta o que já está na escolha; nada é calculado. */
-export type MarcadasDoGrupo = { grupo: string; nome: string; marcadas: number; total: number; inteiro: boolean; nomes: string[] };
+export type MarcadasDoGrupo = { grupo: string; nome: string; marcadas: number; total: number; inteiro: boolean; nomes: string[];
+  /** As unidades marcadas uma a uma (fora de um grupo inteiro), na ordem do nome: cada uma pode ser tirada sozinha (24/10/2026). */
+  ids: string[] };
 export function marcadasPorGrupo(base: PainelMunicipios, c: { grupos: GrupoInfo[]; unidadesDoGrupo: (grupo: string) => string[];
   nomes: Map<string, string>; grupoDe: (id: string) => string; todas?: string[]; nomesAte?: number }): MarcadasDoGrupo[] {
   const ate = c.nomesAte ?? 6;
   const nomesDe = (ids: string[]) => ids.length <= ate ? ids.map(id => c.nomes.get(id) || id).sort(comparar) : [];
+  const porNome = (ids: string[]) => [...ids].sort((a, b) => comparar(c.nomes.get(a) || a, c.nomes.get(b) || b));
   if (!c.grupos.length) {
     const todas = c.todas ?? [];
     const ids = base.todos ? todas : base.ids;
-    return ids.length ? [{ grupo: "", nome: "", marcadas: ids.length, total: todas.length || ids.length, inteiro: base.todos, nomes: nomesDe(ids) }] : [];
+    return ids.length ? [{ grupo: "", nome: "", marcadas: ids.length, total: todas.length || ids.length, inteiro: base.todos, nomes: nomesDe(ids),
+      ids: base.todos ? [] : porNome(ids) }] : [];
   }
   const porGrupo = c.grupos.flatMap((g): MarcadasDoGrupo[] => {
     const unidades = c.unidadesDoGrupo(g.id), total = g.unidades || unidades.length;
-    if (base.todos || base.estados.includes(g.id)) return [{ grupo: g.id, nome: g.nome, marcadas: total, total, inteiro: true, nomes: [] }];
+    if (base.todos || base.estados.includes(g.id)) return [{ grupo: g.id, nome: g.nome, marcadas: total, total, inteiro: true, nomes: [], ids: [] }];
     const ids = base.ids.filter(id => c.grupoDe(id) === g.id);
-    return ids.length ? [{ grupo: g.id, nome: g.nome, marcadas: ids.length, total, inteiro: false, nomes: nomesDe(ids) }] : [];
+    return ids.length ? [{ grupo: g.id, nome: g.nome, marcadas: ids.length, total, inteiro: false, nomes: nomesDe(ids), ids: porNome(ids) }] : [];
   });
   // Unidades marcadas sem um grupo da lista (numa planilha, uma linha sem o valor da coluna-mãe; um id vindo da conversa): um
   // item à parte, com id "", para nada marcado ficar fora do que a Seleção mostra.
   const conhecidos = new Set(c.grupos.map(g => g.id));
   const outras = base.todos ? [] : base.ids.filter(id => !conhecidos.has(c.grupoDe(id)));
   if (outras.length) porGrupo.push({ grupo: "", nome: "", marcadas: outras.length, total: c.unidadesDoGrupo("").length || outras.length,
-    inteiro: false, nomes: nomesDe(outras) });
+    inteiro: false, nomes: nomesDe(outras), ids: porNome(outras) });
   return porGrupo;
 }
 
@@ -533,9 +533,10 @@ const LIMITACOES: Record<string, string> = {
   UNIDADES_NAO_AVALIAVEIS: "Há itens com valor não avaliável, listados à parte com o motivo.",
 };
 /** Código de limitação do motor em texto; código desconhecido aparece como está. */
-export const textoDaLimitacao = (codigo: string) => LIMITACOES[codigo] || "Limitação registrada pelo motor: " + codigo + ".";
-/** Nota TPL-11 da distância (sempre junto da análise espacial). */
-export const NOTA_TPL11 = "Distância geográfica direta em linha reta entre as unidades (km), calculada pelo motor. Não representa " +
+export const textoDaLimitacao = (codigo: string) => LIMITACOES[codigo] || "Limitação registrada no cálculo: " + codigo + ".";
+/** Nota TPL-11 da distância (sempre junto da análise espacial). Desde 24/10/2026, sem nomes de bastidor ("calculada pelo
+ * motor"): a interface fala do fenômeno e do resultado. */
+export const NOTA_TPL11 = "Distância geográfica direta em linha reta entre as unidades (km). Não representa " +
   "estrada, tempo de viagem nem facilidade de chegada.";
 
 export type NaoAvaliavel = { id: string; rotulo: string; tipo: PainelItem["tipo"]; aspecto: Aspecto; motivo: string };
@@ -994,6 +995,8 @@ export type BolhaDesenho = {
   valor: number; inicial: number | null; variacao: number | null; referencia: boolean;
   /** Início do rastro (valor na competência inicial), relativo ao centro da bolha. */
   rastro: { dx: number; dy: number } | null;
+  /** Visão Trajetória: os valores observados nos períodos do meio da janela, relativos ao centro da bolha (na ordem do tempo). */
+  trajeto: { competencia: string; valor: number; dx: number; dy: number }[] | null;
   /** Conjunto com a distância à vista: do membro mais próximo (centro) ao mais distante, relativo ao centro. */
   faixa: { dx: number } | null;
   cor: string; vazada: boolean; apagada: boolean;
@@ -1005,8 +1008,11 @@ export type ParametrosGrafico = {
   itens: PainelItem[]; dominios: PainelResposta["dominios"]; indicador: PainelIndicador; escala: Escala;
   /** Análise espacial: X = distância até a referência; sem ela, eixo único do indicador (Y). */
   distancia: boolean;
-  /** Cometa da competência inicial à atual (Mudança e Classes). */
+  /** Cometa da competência inicial à atual (visão Trajetória). */
   cometa: boolean;
+  /** Visão Trajetória (24/10/2026): os períodos do meio da janela, valores observados do motor, como pontos no caminho do
+   * cometa. */
+  trajetoria?: boolean;
   vista: Vista; largura: number; rotuloDistancia: string;
   pintura: (item: PainelItem) => Pintura;
   /** Valores que o eixo precisa mostrar além dos itens (a linha de contexto do Brasil). */
@@ -1030,8 +1036,10 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
   };
   // Só com a variação do motor: sem ela (base zero, sem registro inicial, conjunto incomparável), não há rastro (RQ-REP-15).
   const comRastro = (item: PainelItem) => p.cometa && variacaoDe(item, p.indicador) !== null && inicialDe(item, p.indicador) !== null;
+  // Na Trajetória, os valores dos períodos do meio também cabem no eixo (o domínio das observações da tendência, do motor).
+  const meio = p.trajetoria ? dominioDo("tendencia") ?? [] : [];
   const valores = [...(dominioDo(p.indicador) || p.itens.map(item => valorDe(item, p.indicador)).filter(ehNumero)),
-    ...p.itens.filter(comRastro).map(item => inicialDe(item, p.indicador)).filter(ehNumero), ...(p.extras || [])];
+    ...p.itens.filter(comRastro).map(item => inicialDe(item, p.indicador)).filter(ehNumero), ...meio, ...(p.extras || [])];
   const escala = escalaPossivel(valores, p.escala);
   const dominioIndicador = enquadrar(valores, escala);
   const populacoes = [...(dominioDo("populacao") ? [dominioDo("populacao")![1]] : p.itens.map(item => numero(item.populacao)).filter(ehNumero)),
@@ -1053,12 +1061,22 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
   const eixoIndicador = (baixo: number, alto: number): EixoDesenho => ({ tipo: p.indicador, rotulo: especie.eixo, dominio: dominioIndicador,
     escala, de: baixo, ate: alto, marcas: marcas(dominioIndicador, escala).map(valor => ({ valor,
       pos: entre(fracao(valor, dominioIndicador, escala), baixo, alto), texto: textoDaMarca(valor) })) });
-  const bolha = (d: typeof base[number], x: number, yFinal: number, yInicial: number | null, xInicial: number | null): BolhaDesenho => {
+  // Trajetória (24/10/2026): os períodos do meio da janela, como o motor os observou (sem imputar o que falta), só com o rastro
+  // (sem a variação do motor, como num conjunto incomparável, não há caminho: RQ-REP-15).
+  const trajetoDe = (d: typeof base[number], yFinal: number, yDe: (valor: number) => number): BolhaDesenho["trajeto"] => {
+    if (!p.trajetoria || naVistaInicial || d.inicial === null) return null;
+    const observacoes = (d.item.tendencia?.observacoes || []).slice(1, -1)
+      .filter((obs): obs is { competencia: string; valor: number } => obs.valor !== null && Number.isFinite(obs.valor));
+    return observacoes.length ? observacoes.map(obs => ({ competencia: obs.competencia, valor: obs.valor, dx: 0, dy: yDe(obs.valor) - yFinal })) : null;
+  };
+  const bolha = (d: typeof base[number], x: number, yFinal: number, yInicial: number | null, xInicial: number | null,
+    yDe?: (valor: number) => number): BolhaDesenho => {
     const naInicial = naVistaInicial && yInicial !== null;
     const dx = xInicial !== null ? xInicial - x : 0, dy = yInicial !== null ? yInicial - yFinal : 0;
     return { id: d.item.id, tipo: d.item.tipo, item: d.item, x: naInicial && xInicial !== null ? xInicial : x, y: naInicial ? yInicial! : yFinal,
       r: naInicial ? d.rInicial : d.rFinal, visivel: d.visivel, valor: d.valor, inicial: d.inicial, variacao: d.variacao,
       referencia: !!d.item.referencia, rastro: !naVistaInicial && yInicial !== null && Math.hypot(dx, dy) >= 1 ? { dx, dy } : null,
+      trajeto: yDe ? trajetoDe(d, yFinal, yDe) : null,
       faixa: null, cor: d.pintura.cor, vazada: d.pintura.vazada, apagada: d.pintura.apagada };
   };
 
@@ -1084,7 +1102,7 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
     const bolhas = base.map(d => {
       const r = Math.max(d.rFinal, d.rInicial);
       const x = Math.min(largura - direita - r, Math.max(esquerda + r, centroX + (arranjo.get(d.item.id) ?? 0)));
-      return bolha(d, x, y(d.valor), d.inicial !== null ? y(d.inicial) : null, d.inicial !== null ? x : null);
+      return bolha(d, x, y(d.valor), d.inicial !== null ? y(d.inicial) : null, d.inicial !== null ? x : null, y);
     });
     return { largura, altura: topo + alturaPlot + rodape, topo, base: topo + alturaPlot, esquerda, direita, eixoX: null,
       eixoY: eixoIndicador(baixo, alto), bolhas, raioMax, populacaoMaxima, escala, arranjo: modo };
@@ -1154,37 +1172,47 @@ export function posicoesTemporais(competencias: string[]): Map<string, number> {
   } else ordenadas.forEach((c, indice) => saida.set(c, indice));
   return saida;
 }
-/** Domínio das séries: os valores observados do motor, enquadrados (só para desenhar). */
-export function dominioDasSeries(itens: PainelItem[]): PainelDominio {
-  const valores = itens.flatMap(item => (item.tendencia?.observacoes || []).map(obs => obs.valor)).filter(ehNumero);
+type Observacoes = (item: PainelItem) => { competencia: string; valor: number | null }[];
+const observacoesDaTendencia: Observacoes = item => item.tendencia?.observacoes || [];
+/** Domínio das séries: os valores observados do motor, enquadrados (só para desenhar). Por padrão, as observações da tendência;
+ * na Série temporal (24/10/2026), as da série do intervalo (`observacoesDe`). */
+export function dominioDasSeries(itens: PainelItem[], observacoesDe: Observacoes = observacoesDaTendencia): PainelDominio {
+  const valores = itens.flatMap(item => observacoesDe(item).map(obs => obs.valor)).filter(ehNumero);
   return enquadrar(valores, "linear");
 }
 export type PontoSerie = { competencia: string; x: number; y: number; valor: number };
 export type SerieDesenho = { id: string; rotulo: string; cor: string; familia: FamiliaTendencia | null; classe: string;
-  pontos: PontoSerie[]; caminhos: string[]; fim: PontoSerie | null };
-/** Linhas por competência: um ponto por observação; lacunas não são ligadas (sem imputar), sem reta ajustada. */
+  pontos: PontoSerie[]; caminhos: string[]; fim: PontoSerie | null;
+  /** Os pontos estão ligados por linha (falso no conjunto não comparável da Série temporal: só os pontos, RQ-REP-15). */
+  ligada: boolean };
+/** Linhas por competência: um ponto por observação; lacunas não são ligadas (sem imputar), sem reta ajustada. Na Série temporal
+ * (24/10/2026): as observações do intervalo (`observacoesDe`), a cor única do gráfico (`corUnica`, sem classe) e, sem
+ * comparabilidade (`ligar` falso), só os pontos. */
 export function montarSeries(p: { itens: PainelItem[]; janela: string[]; dominio: PainelDominio; x0: number; x1: number; y0: number; y1: number;
-  paleta?: PaletaDoGrafico }): { series: SerieDesenho[]; marcasX: { competencia: string; x: number }[] } {
+  paleta?: PaletaDoGrafico; observacoesDe?: Observacoes; corUnica?: string; ligar?: (item: PainelItem) => boolean }):
+  { series: SerieDesenho[]; marcasX: { competencia: string; x: number }[] } {
   const paleta = p.paleta ?? PALETA_CLARA;
+  const observacoesDe = p.observacoesDe ?? observacoesDaTendencia;
   const tempos = posicoesTemporais(p.janela);
   const maximo = Math.max(1, ...tempos.values());
   const x = (c: string) => p.x0 + (p.x1 - p.x0) * ((tempos.get(c) ?? 0) / maximo);
   const y = (valor: number) => entre(fracao(valor, p.dominio, "linear"), p.y1, p.y0);
   const series = p.itens.map(item => {
     const tendencia = item.tendencia;
-    const familia = tendencia?.avaliavel ? tendencia.familia ?? familiaDaClasse(tendencia.classe) : null;
-    const porCompetencia = new Map((tendencia?.observacoes || []).map(obs => [obs.competencia, obs.valor]));
+    const familia = !p.corUnica && tendencia?.avaliavel ? tendencia.familia ?? familiaDaClasse(tendencia.classe) : null;
+    const ligada = p.ligar ? p.ligar(item) : true;
+    const porCompetencia = new Map(observacoesDe(item).map(obs => [obs.competencia, obs.valor]));
     const pontos: PontoSerie[] = [], caminhos: string[] = [];
     let atual: PontoSerie[] = [];
     for (const competencia of [...tempos.keys()]) {
       const valor = porCompetencia.get(competencia);
-      if (valor === null || valor === undefined) { if (atual.length > 1) caminhos.push(caminho(atual)); atual = []; continue; }
+      if (valor === null || valor === undefined) { if (atual.length > 1 && ligada) caminhos.push(caminho(atual)); atual = []; continue; }
       const ponto = { competencia, x: x(competencia), y: y(valor), valor };
       pontos.push(ponto); atual.push(ponto);
     }
-    if (atual.length > 1) caminhos.push(caminho(atual));
-    return { id: item.id, rotulo: item.rotulo, cor: familia ? paleta.tendencia[familia] : paleta.naoAvaliavel, familia,
-      classe: tendencia?.rotulo || "Não avaliável", pontos, caminhos, fim: pontos.at(-1) ?? null };
+    if (atual.length > 1 && ligada) caminhos.push(caminho(atual));
+    return { id: item.id, rotulo: item.rotulo, cor: p.corUnica ?? (familia ? paleta.tendencia[familia] : paleta.naoAvaliavel), familia,
+      classe: tendencia?.rotulo || "Não avaliável", pontos, caminhos, fim: pontos.at(-1) ?? null, ligada };
   });
   return { series, marcasX: [...tempos.keys()].map(c => ({ competencia: c, x: x(c) })) };
 }
@@ -1271,9 +1299,10 @@ export function descricaoDasSetas(item: PainelItem, indicador: PainelIndicador):
 
 /** CAP-TEN-01 exige ao menos quatro competências; a mudança (CAP-TMP-01), duas. */
 export const MINIMO_TENDENCIA = 4;
-/** Período da tendência (24/10/2026, pedido do responsável): a pessoa escolhe o ritmo, anual ou semestral, e a janela são os
- * últimos 4 períodos desse ritmo, contados da competência mais recente: o mínimo de DA-15 (4 períodos, 3 avanços). Sem ritmo
- * padrão (decisão 5a: a pessoa escolhe). O ritmo só escolhe as competências; o método é o mesmo (CAP-TEN-01). */
+/** Período da tendência (24/10/2026, pedido do responsável): o ritmo, anual ou semestral, e a janela são os últimos 4 períodos
+ * desse ritmo, contados da competência mais recente: o mínimo de DA-15 (4 períodos, 3 avanços). A análise abre no anual
+ * (janelaPadrao), à vista no campo Período, e a pessoa pode trocar. O ritmo só escolhe as competências; o método é o mesmo
+ * (CAP-TEN-01). */
 export type RitmoTendencia = "anual" | "semestral";
 export const RITMOS_TENDENCIA: { ritmo: RitmoTendencia; rotulo: string; plural: string; meses: number; passo: string }[] = [
   { ritmo: "anual", rotulo: "Anual", plural: "anuais", meses: 12, passo: "um por ano" },
@@ -1348,7 +1377,11 @@ export type Dica = { titulo: string; subtitulo: string; linhas: LinhaDica[]; not
 export type ContextoDica = { indicador: PainelIndicador; competencia: string; competenciaInicial: string | null; distancia: boolean;
   variacao: boolean; tendencia: boolean; nomes: Map<string, string>; limiares?: number[]; rotulos: RotulosTerritoriais;
   /** Unidades de um grupo (para a ação "Ver os N municípios" na bolha do grupo). */
-  unidadesDoGrupo?: (id: string) => number | null };
+  unidadesDoGrupo?: (id: string) => number | null;
+  /** Território de referência por elegibilidade (24/10/2026): a relação, para a dica dizer "o mais próximo" ou "o mais distante". */
+  relacao?: RelacaoEspacial | null;
+  /** Visão Trajetória: cada período da janela com o valor observado. */
+  trajetoria?: boolean };
 
 /** Conteúdo da dica (ao passar o mouse e ao focar), só com valores do motor; o valor vem primeiro, o rótulo depois. */
 export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
@@ -1364,12 +1397,16 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
   const notas: string[] = [];
   if (contexto.distancia) {
     const distancia = numero(item.distancia_km), maxima = numero(item.distancia_km_max);
-    linhas.push({ rotulo: item.referencia ? "Distância (membro da referência)" : conjunto ? "Distância (membro mais próximo)" : "Distância até a referência",
+    const porItem = !!contexto.relacao;
+    linhas.push({ rotulo: item.referencia ? "Distância (membro da referência)" : conjunto && !porItem ? "Distância (membro mais próximo)"
+      : porItem ? "Distância até o território de referência" : "Distância até a referência",
       valor: distancia === null ? "Não avaliável" : formatarNumero(distancia) + " km" });
     if (conjunto && maxima !== null) linhas.push({ rotulo: "Distância (membro mais distante)", valor: formatarNumero(maxima) + " km" });
-    if (item.referencia_mais_proxima?.length && !item.referencia)
-      linhas.push({ rotulo: item.referencia_mais_proxima.length > 1 ? "Membros da referência mais próximos (empate)" : "Membro da referência mais próximo",
-        valor: item.referencia_mais_proxima.map(ref => ref.rotulo).join(", ") });
+    if (item.referenciaDoItem?.length && !item.referencia)
+      linhas.push({ rotulo: porItem ? "Território de referência (" + (contexto.relacao === "mais_distante" ? "o mais distante" : "o mais próximo") +
+        (item.referenciaDoItem.length > 1 ? ", empate" : "") + ")"
+        : item.referenciaDoItem.length > 1 ? "Membros da referência mais próximos (empate)" : "Membro da referência mais próximo",
+        valor: item.referenciaDoItem.map(ref => ref.rotulo).join(", ") });
     if (item.faixa_distancia) linhas.push({ rotulo: "Faixa de distância", valor: item.faixa_distancia === "fora" ? "fora das faixas" : item.faixa_distancia.rotulo });
     if (distancia === null) notas.push(...motivosDe(item, "distancia").slice(0, 1));
   }
@@ -1381,10 +1418,20 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
       valor: formatarVariacao(variacao) });
     if (inicial !== null) linhas.push({ rotulo: especie.rotulo + (desde ? " em " + desde : " na competência inicial"),
       valor: formatarIndicador(inicial, contexto.indicador) });
+    // Trajetória (24/10/2026): o valor observado em cada período do meio da janela, com o sinal do avanço desde o anterior.
+    if (contexto.trajetoria && item.tendencia) {
+      const observacoes = item.tendencia.observacoes;
+      observacoes.slice(1, -1).forEach((obs, indice) => {
+        const anterior = observacoes[indice].valor;
+        const sinal = obs.valor === null || anterior === null ? "" : obs.valor > anterior ? " ▲" : obs.valor < anterior ? " ▼" : " ►";
+        linhas.push({ rotulo: especie.rotulo + " em " + exibirCompetencia(obs.competencia),
+          valor: obs.valor === null ? "sem valor" : formatarNumero(obs.valor, especie.contagem) + sinal });
+      });
+    }
     if (variacao === null) notas.push(motivosDe(item, "variacao")[0] || MOTIVO_PADRAO.variacao(contexto.indicador));
   }
   if (contexto.tendencia && item.tendencia) {
-    linhas.push({ rotulo: "Classe de tendência", valor: item.tendencia.rotulo });
+    linhas.push({ rotulo: "Tendência", valor: item.tendencia.rotulo });
     const explicacao = explicacaoDaTendencia(item.tendencia);
     if (explicacao) notas.push(explicacao);
   }
@@ -1460,9 +1507,7 @@ export function paginar<T>(linhas: T[], pagina: number, porPagina = POR_PAGINA):
   return { linhas: linhas.slice(atual * porPagina, (atual + 1) * porPagina), pagina: atual, paginas };
 }
 
-// ================================================================================================ referência e competências
-/** "Usar o primeiro" (CAP-SUB-03): os candidatos na 1ª posição do motor. Mais de um é empate, e a tela pede a escolha. */
-export const primeirosColocados = (candidatos: ReferenciaCandidato[]) => candidatos.filter(candidato => candidato.posicao === 1);
+// ================================================================================================ competências
 export const cronologica = (valores: string[]) => [...new Set(valores)].sort(comparar);
 export const maisRecente = (periodos: string[]) => cronologica(periodos).at(-1) ?? "";
 export const anteriores = (periodos: string[], competencia: string) => cronologica(periodos).filter(periodo => comparar(periodo, competencia) < 0);
@@ -1485,6 +1530,9 @@ export type DefinicaoAnalise = {
   categoria: string; conjuntos: PainelConjuntoPedido[]; referencia: PainelReferenciaPedido | null; faixasDistancia: number[];
   janela: string[]; visao: Visao; agrupar: Agrupar; condicoes: CondicaoPedido[]; ordenar: OrdenarPedido | null;
   comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Premissas;
+  /** Intervalo da Série temporal (24/10/2026): as competências escolhidas, em ordem; vazio = a extensão inteira da base (do
+   * primeiro ao último período que ela tem, lidos dos dados a cada pedido). */
+  serie?: string[];
 };
 /** Estado inicial da análise: em qualquer fonte, nenhum território marcado (23/10/2026); a área espera a escolha na Seleção de
  * Territórios ou na conversa. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
@@ -1497,12 +1545,78 @@ export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodo
     nivel: "municipios", base: { ...BASE_VAZIA }, estados: [], competencia: maisRecente(p.periodos),
     categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
-    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {} };
+    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [] };
 }
+/** O período com que a Análise de Tendência abre (24/10/2026, pedido do responsável, no lugar de "sem ritmo padrão"): o anual,
+ * quando a base tem 4 períodos anuais até a competência mais recente; senão, o único ritmo que a base tem (RQ-GOV-14: um só valor
+ * aplicável resolve o parâmetro); senão, nenhum, e o aviso pede a escolha. A escolha fica à vista no campo Período, que lista as 4
+ * competências, e a pessoa pode trocar pelo semestral. */
+export function janelaPadrao(periodos: string[]): string[] {
+  const ritmos = ritmosDaBase(periodos).filter(item => item.janela.length);
+  return (ritmos.find(item => item.ritmo === "anual") ?? (ritmos.length === 1 ? ritmos[0] : undefined))?.janela ?? [];
+}
+/** As competências da Série temporal: as escolhidas ou, sem escolha, todas as da base, em ordem cronológica. */
+export const intervaloDaSerie = (def: Pick<DefinicaoAnalise, "serie">, periodos: string[]) =>
+  def.serie?.length ? cronologica(def.serie) : cronologica(periodos);
+/** O intervalo da Série temporal entre duas competências da base (inclusive): o que a pessoa escolhe nos campos De e Até. Do
+ * primeiro ao último período da base, o intervalo vazio (toda a série). */
+export function intervaloEntre(periodos: string[], inicio: string, fim: string): string[] {
+  const todas = cronologica(periodos);
+  const [a, b] = comparar(inicio, fim) <= 0 ? [inicio, fim] : [fim, inicio];
+  const escolhidas = todas.filter(c => comparar(c, a) >= 0 && comparar(c, b) <= 0);
+  return escolhidas.length === todas.length ? [] : escolhidas;
+}
+/** O território de referência por elegibilidade (24/10/2026), em vez dos membros escolhidos. */
+export const referenciaElegivel = (r: PainelReferenciaPedido | null | undefined): r is ReferenciaElegivel => !!r && "relacao" in r;
+/** "Maior" ou "menor" pedidos na conversa (decisão 4, 25/10/2026): a ordem do critério vira o operador da condição do Território
+ * de referência ("maior densidade" é Densidade "Maior que"; "menos populosos", População "Menor que"). O valor de corte, a relação
+ * e a delimitação continuam com a pessoa: nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01). */
+export const operadorDoCriterio = (criterio: PainelCriterio | null | undefined): ">" | "<" | null =>
+  criterio ? (criterio.ordem === "desc" ? ">" : "<") : null;
+/** As Grandes Regiões da base do Brasil, pelo primeiro dígito do código IBGE do estado (a regra do motor e da conversa). */
+export const REGIOES_DO_BRASIL: { id: string; nome: string }[] = [
+  { id: "1", nome: "Norte" }, { id: "2", nome: "Nordeste" }, { id: "3", nome: "Sudeste" }, { id: "4", nome: "Sul" }, { id: "5", nome: "Centro-Oeste" }];
+export const regiaoDoEstado = (prefixo: string) => REGIOES_DO_BRASIL.find(regiao => regiao.id === prefixo.charAt(0))?.nome ?? null;
+/** Textos do território de referência: a relação e a delimitação, com os rótulos da fonte. */
+export const NOMES_RELACOES: Record<RelacaoEspacial, string> = { mais_proxima: "Mais próximo", mais_distante: "Mais distante" };
+export function delimitacoesDaFonte(c: { brasil: boolean; comGrupos: boolean; rotulos: RotulosTerritoriais }): { tipo: TipoDelimitacao; rotulo: string }[] {
+  const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  const mesmo = (fem(grupo) ? "Na mesma " : "No mesmo ") + grupo.singular + " de cada " + unidade.singular;
+  const escolhidos = maiuscula(grupo.plural) + (fem(grupo) ? " escolhidas" : " escolhidos");
+  if (c.brasil) return [{ tipo: "mesmo_grupo", rotulo: mesmo }, { tipo: "grupos", rotulo: escolhidos },
+    { tipo: "mesma_regiao", rotulo: "Na mesma região de cada " + unidade.singular }, { tipo: "regioes", rotulo: "Regiões escolhidas" },
+    { tipo: "todos", rotulo: "No Brasil inteiro" }];
+  return [...(c.comGrupos ? [{ tipo: "mesmo_grupo" as const, rotulo: mesmo }, { tipo: "grupos" as const, rotulo: escolhidos }] : []),
+    { tipo: "todos", rotulo: "Na planilha inteira" }];
+}
+/** O valor de corte digitado (vírgula ou ponto decimal; sem separador de milhar ambíguo): número não negativo ou null. Na
+ * quantidade e na população, só inteiros (pessoas e habitantes); na densidade, o valor por 1.000 habitantes. */
+export function lerValorDeCorte(texto: string, atributo: PainelAtributo): number | null {
+  const limpo = texto.trim().replace(/\s/g, "");
+  if (!limpo) return null;
+  const normal = /,/.test(limpo) ? limpo.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(limpo) ? limpo.replace(/\./g, "") : limpo;
+  if (!/^\d+(\.\d+)?$/.test(normal)) return null;
+  const valor = Number(normal);
+  if (!Number.isFinite(valor) || valor < 0) return null;
+  return atributo !== "densidade" && !Number.isInteger(valor) ? null : valor;
+}
+/** Unidade e orientação do valor de corte, pelo atributo escolhido. */
+export const UNIDADES_DO_CORTE: Record<PainelAtributo, { unidade: string; dica: string }> = {
+  densidade: { unidade: "profissionais por 1.000 habitantes", dica: "Por exemplo, 2,36 (a densidade usa a mesma escala da análise)." },
+  quantidade: { unidade: "profissionais", dica: "Um número inteiro de profissionais, por exemplo, 500." },
+  populacao: { unidade: "habitantes", dica: "Um número inteiro de habitantes, por exemplo, 50.000." },
+};
 /** Nada escolhido no nível em análise: municípios sem nenhum marcado nem conjunto, ou estados sem nenhum marcado. O Brasil é
  * uma unidade só: escolher o nível já o seleciona. */
 export const semSelecao = (def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">) =>
   def.nivel === "brasil" ? false : def.nivel === "estados" ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
+/** Limpar seleção (decisão 5, 25/10/2026): tira só os territórios do nível em uso, porque cada nível guarda a sua escolha (em
+ * Municípios, os municípios e os conjuntos; em Estados, os estados). No nível Brasil, o país é a própria unidade e não há o que
+ * limpar; sem nada marcado no nível em uso, também não. Nos dois casos, null. */
+export function limparNivel<E extends Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">>(escolha: E): E | null {
+  if (escolha.nivel === "brasil" || semSelecao(escolha)) return null;
+  return escolha.nivel === "estados" ? { ...escolha, estados: [] } : { ...escolha, base: { ...BASE_VAZIA }, conjuntos: [] };
+}
 /** A comparação (CAP-CMP) vale para itens que estão na análise: depois de uma mudança na Seleção de Territórios, ela continua só se
  * o nível é o mesmo e todos os itens dela continuam escolhidos (o motor recusa itens fora do gráfico). Senão, sai. */
 export function comparacaoQueContinua(antes: Pick<DefinicaoAnalise, "nivel" | "comparar">,
@@ -1520,13 +1634,15 @@ export const normalizarEstados = (estados: string[], todos: string[]) => {
 };
 
 export const tendenciaPossivel = (def: DefinicaoAnalise) => def.janela.length >= MINIMO_TENDENCIA;
-/** Visão da tendência que de fato aparece: Classes e Séries só com quatro competências ou mais; senão, a Mudança. */
-export const visaoEfetiva = (def: DefinicaoAnalise): Visao => def.visao !== "mudanca" && !tendenciaPossivel(def) ? "mudanca" : def.visao;
+/** Visão da tendência que de fato aparece: a Tendência (classes) só com quatro competências ou mais; senão, a Trajetória. A
+ * Série temporal (24/10/2026) tem o próprio intervalo e não depende da janela. */
+export const visaoEfetiva = (def: DefinicaoAnalise): Visao => def.visao === "classes" && !tendenciaPossivel(def) ? "mudanca" : def.visao;
 
 /** A base carregada sem territórios escolhidos: nada é pedido ao motor até a seleção. */
 export const TEXTO_SEM_SELECAO = "Selecione os territórios que deseja analisar.";
-/** A abertura (24/10/2026): a identificação do sistema e a chamada para a escolha dos dados, no alto e ao centro. */
-export const TITULO_DO_SISTEMA = "Diagnóstico Territorial da Força de Trabalho em Saúde";
+/** A abertura (24/10/2026): a identificação do sistema e a chamada para a escolha dos dados, no alto e ao centro. O nome é o da
+ * plataforma (o da SPEC e do cabeçalho): "na Saúde". */
+export const TITULO_DO_SISTEMA = "Diagnóstico Territorial da Força de Trabalho na Saúde";
 export const TEXTO_ESCOLHA_DOS_DADOS = "Escolha seus dados para começar";
 export const TEXTO_DAS_FONTES = "Use os dados do Brasil, já preparados, ou envie a sua planilha em CSV ou Excel.";
 /** O que impede o pedido ao motor (null quando ele pode sair): sem dados, sem competência ou nada escolhido no nível. */
@@ -1539,20 +1655,25 @@ export function bloqueioDoPedido(def: DefinicaoAnalise, c: { fonte: "brasil" | "
 /** O que falta para a família escolhida aparecer (o gráfico continua com a distribuição enquanto isso). */
 export function avisoDaFamilia(def: DefinicaoAnalise, disponivel: Disponivel): string | null {
   if (!disponivel.disponivel || disponivel.pendente) return def.familia === "distribuicao" ? null : disponivel.motivo || null;
+  // A Série temporal tem o próprio intervalo (toda a série, sem escolha): não espera o período da tendência.
+  if (def.familia === "tendencia" && def.visao === "series") return null;
   if (def.familia === "tendencia" && def.janela.length < 2) return TEXTO_ESCOLHA_DO_PERIODO;
-  if (def.familia === "tendencia" && def.visao !== "mudanca" && def.janela.length < MINIMO_TENDENCIA)
-    return TEXTO_MINIMO_TENDENCIA + " Com " + def.janela.length + " competências, aparece a mudança entre a primeira e a última.";
+  if (def.familia === "tendencia" && def.visao === "classes" && def.janela.length < MINIMO_TENDENCIA)
+    return TEXTO_MINIMO_TENDENCIA + " Com " + def.janela.length + " competências, aparece a trajetória entre a primeira e a última.";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final))
     return "Escolha os períodos inicial e final da coorte.";
-  if (def.familia === "espacial" && !def.referencia) return "Escolha a referência da distância: por critério ou pelo nome.";
+  if (def.familia === "espacial" && !def.referencia) return TEXTO_ESCOLHA_DA_REFERENCIA;
   return null;
 }
+/** O que falta na Análise Espacial sem referência (24/10/2026): o território de referência, num fluxo só. */
+export const TEXTO_ESCOLHA_DA_REFERENCIA = "Defina o território de referência: a relação (mais próximo ou mais distante), a delimitação " +
+  "e a condição.";
 
 /** Família que o pedido de fato calcula: a escolhida quando disponível e possível no nível; senão, a distribuição. */
 export function familiaCalculada(def: DefinicaoAnalise, disponivel: boolean): Familia {
   if (!disponivel) return "distribuicao";
   if (def.familia === "espacial" && (!def.referencia || def.nivel !== "municipios")) return "distribuicao";
-  if (def.familia === "tendencia" && def.janela.length < 2) return "distribuicao";
+  if (def.familia === "tendencia" && def.visao !== "series" && def.janela.length < 2) return "distribuicao";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final || def.nivel !== "municipios")) return "distribuicao";
   return def.familia;
 }
@@ -1562,9 +1683,14 @@ export function familiaCalculada(def: DefinicaoAnalise, disponivel: boolean): Fa
  * ela, o motor usa todos os da fonte estadual); o Brasil, nada além do nível. Com o Brasil, uma unidade só, ficam de fora os
  * grupos, as faixas, as condições, a ordenação e a comparação, que valem para vários territórios (matriz D3). */
 export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (id: string) => string = prefixoDe,
-  c: { quintisDoMapa?: boolean; todosOsEstados?: string[]; rotulos?: RotulosTerritoriais } = {}): PainelOpcoes {
+  c: { quintisDoMapa?: boolean; todosOsEstados?: string[]; rotulos?: RotulosTerritoriais;
+    /** As competências da base: a Série temporal sem intervalo escolhido usa todas (24/10/2026). */
+    periodos?: string[] } = {}): PainelOpcoes {
   const tendencia = familia === "tendencia";
-  const competencia = tendencia ? def.janela.at(-1) ?? def.competencia
+  // Série temporal (24/10/2026): os valores de cada competência do intervalo (toda a série, sem escolha), sem classificação; a
+  // competência do pedido é a última do intervalo.
+  const serie = tendencia && def.visao === "series" ? intervaloDaSerie(def, c.periodos ?? def.serie ?? []) : null;
+  const competencia = serie?.length ? serie[serie.length - 1] : tendencia ? def.janela.at(-1) ?? def.competencia
     : familia === "rotatividade" && def.rotatividade ? def.rotatividade.final : def.competencia;
   const opcoes: PainelOpcoes = { competencia, categoria: def.categoria, nivel: def.nivel, indicador: def.indicador };
   const varios = def.nivel !== "brasil";
@@ -1582,9 +1708,11 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
     const escolhidos = todos.length ? normalizarEstados(def.estados, todos) : [...new Set(def.estados)].sort(comparar);
     if (!todos.length || escolhidos.length < todos.length) opcoes.estados = escolhidos;
   }
-  // A visão (Mudança, Classes ou Séries) é só estado visual: com quatro competências ou mais, a tendência vai junto e a troca
-  // de visão não pede nada novo ao motor.
-  if (tendencia && def.janela.length >= 2) {
+  // Entre a Tendência e a Trajetória, a visão é só estado visual: com quatro competências ou mais, a tendência vai junto e a troca
+  // não pede nada novo. A Série temporal pede os valores do intervalo dela (`serie`), sem a tendência nem a variação.
+  if (serie) {
+    if (serie.length >= 2) opcoes.serie = { competencias: serie };
+  } else if (tendencia && def.janela.length >= 2) {
     opcoes.competencia_inicial = def.janela[0];
     if (def.janela.length >= MINIMO_TENDENCIA) opcoes.tendencia = { competencias: def.janela };
   }
@@ -1611,7 +1739,8 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
 /** O indicador muda a resposta do motor? Só com grupos (também os do mapa), faixas, tendência, comparação ou ordenação pela
  * variação; nos demais pedidos, cada item traz população, quantidade e densidade, e o indicador é só estado visual. */
 export const pedidoDependeDoIndicador = (opcoes: PainelOpcoes) =>
-  !!(opcoes.grupos || opcoes.grupos_mapa || opcoes.faixas || opcoes.tendencia || opcoes.comparar || opcoes.ordenar?.atributo === "variacao");
+  !!(opcoes.grupos || opcoes.grupos_mapa || opcoes.faixas || opcoes.tendencia || opcoes.serie || opcoes.comparar ||
+    opcoes.ordenar?.atributo === "variacao");
 
 /** Chave do pedido na memória da tela: sem dependência do indicador, ele fica de fora, e a troca não pede nada ao motor. O
  * pedido enviado continua com o indicador em exibição. */
@@ -1625,7 +1754,7 @@ export function camadaDeCor(familia: Familia, visao: Visao, resposta: PainelResp
   if (!resposta) return "unica";
   if (resposta.condicoes && def.condicoes.length) return "condicoes";
   if (resposta.ordenacao && def.ordenar) return "ordem";
-  if (familia === "tendencia") return visao === "mudanca" ? "variacao" : "classes";
+  if (familia === "tendencia") return visao === "mudanca" ? "variacao" : visao === "series" ? "unica" : "classes";
   if (familia === "distribuicao" && resposta.grupos && def.agrupar.tipo !== "nenhum" && def.agrupar.tipo !== "faixas") return "grupos";
   if (familia === "distribuicao" && resposta.faixas && def.agrupar.tipo === "faixas") return "faixas";
   return "unica";
@@ -1649,7 +1778,8 @@ function lerCondicao(bruto: unknown): CondicaoPedido | null {
 }
 
 export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia";
-/** `criterio`: a referência pedida por critério (sem membros): a lista de candidatos abre nessa ordem, e a escolha é da pessoa.
+/** `criterio`: a referência pedida por critério (sem membros): o Território de referência abre com o atributo e o operador do
+ * pedido (operadorDoCriterio), e a relação, a delimitação e o valor de corte são da pessoa.
  * `vista`: a vista do desenho pedida ("ver no mapa", "volte ao gráfico"), só quando ela pode aparecer; estado visual. */
 export type ResultadoPedido = { definicao: DefinicaoAnalise; abrir: FuncaoPainel | null; selecao: string[] | null; mensagens: string[];
   criterio: PainelCriterio | null; vista: "grafico" | "mapa" | null };
@@ -1706,7 +1836,8 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
       proxima = { ...proxima, familia: pedido.familia ?? "espacial", nivel: "municipios",
         referencia: { membros, ...(valido ? { criterio: { atributo: criterio!.atributo as PainelAtributo, ordem: criterio!.ordem as PainelOrdem } } : {}) } };
     } else if (valido) {
-      // Referência por critério: a lista de candidatos abre nessa ordem (CAP-SUB-02); usar o primeiro ou outro é da pessoa.
+      // Referência por critério: abre o Território de referência com o atributo e o operador do pedido (CAP-SUB-01); o valor de
+      // corte, a relação e a delimitação são da pessoa, sem valor sugerido e sem escolher pela posição na ordem.
       criterioPedido = { atributo: criterio!.atributo as PainelAtributo, ordem: criterio!.ordem as PainelOrdem };
       proxima = { ...proxima, familia: pedido.familia ?? "espacial", nivel: "municipios" };
       abrir = "referencia";
@@ -1764,17 +1895,25 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
 }
 
 /** Contexto do gráfico para a estrutura da página e a conversa. */
-export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], titulo: string, grupoDe: (id: string) => string = prefixoDe): ContextoDoGrafico {
+export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], titulo: string, grupoDe: (id: string) => string = prefixoDe,
+  /** Com o território de referência por elegibilidade, os territórios que ficaram como referência (da resposta). */
+  referenciasDaResposta: string[] = []): ContextoDoGrafico {
+  const referencia = def.familia !== "espacial" || !def.referencia ? [] : referenciaElegivel(def.referencia) ? referenciasDaResposta
+    : def.referencia.membros;
   return { familia: def.familia, indicador: def.indicador, nivel: def.nivel, municipios: normalizarBase(def.base, grupoDe), estados: def.estados, idsNaTela,
     competencia: def.familia === "tendencia" ? def.janela.at(-1) ?? def.competencia : def.competencia, janela: def.janela,
-    referencia: def.familia === "espacial" ? def.referencia?.membros ?? [] : [], titulo };
+    referencia, titulo };
 }
 
 // ================================================================================================ título
 /** Frase que diz o que está na tela (decisão 8): o indicador, onde e quando; o subtítulo explica a leitura. */
 export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia: Familia; visao: Visao; indicador: PainelIndicador;
   nivel: PainelNivel; categoria: string; competencia: string; janela: string[]; rotatividade: { inicial: string; final: string } | null;
-  lugar: Lugar; referencia: string | null; rotulos: RotulosTerritoriais }): { titulo: string; subtitulo: string } {
+  lugar: Lugar; referencia: string | null; rotulos: RotulosTerritoriais;
+  /** As competências da Série temporal (24/10/2026), quando é a visão em uso. */
+  serie?: string[];
+  /** O território de referência por elegibilidade: a referência é de cada território. */
+  referenciaPorItem?: boolean }): { titulo: string; subtitulo: string } {
   if (!p.fonte) return { titulo: TITULO_DO_SISTEMA, subtitulo: TEXTO_ESCOLHA_DOS_DADOS };
   const especie = INDICADORES[p.indicador].rotulo;
   const quem = profissionaisDe(p.categoria);
@@ -1786,14 +1925,21 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
   const onde = p.lugar.lugar ? " " + p.lugar.lugar : "";
   const periodo = (a: string, b: string) => competenciaPorExtenso(a) + " a " + competenciaPorExtenso(b);
   if (p.familia === "espacial" && p.nivel === "municipios")
-    return { titulo: especie + " de " + quem + " e distância até " + (p.referencia || "a referência") + " · " + p.lugar.curto + " · " +
-      competenciaPorExtenso(p.competencia), subtitulo: cadaBolha + " A posição horizontal é a distância até a referência." };
+    return { titulo: especie + " de " + quem + " e distância até " + (p.referenciaPorItem ? "o território de referência" : p.referencia || "a referência") +
+      " · " + p.lugar.curto + " · " + competenciaPorExtenso(p.competencia),
+      subtitulo: cadaBolha + (p.referenciaPorItem ? " A posição horizontal é a distância até o território de referência de cada " +
+        rotuloBolha.singular + "." : " A posição horizontal é a distância até a referência.") };
+  if (p.familia === "tendencia" && p.visao === "series" && (p.serie?.length ?? 0) >= 2) {
+    const serie = p.serie!;
+    return { titulo: "Série temporal da " + especie.toLowerCase() + " de " + quem + " · " + p.lugar.curto + " · " +
+      periodo(serie[0], serie[serie.length - 1]),
+      subtitulo: cadaLinha + ", com o valor observado em cada competência do intervalo." };
+  }
   if (p.familia === "tendencia" && p.janela.length >= 2) {
     const janela = periodo(p.janela[0], p.janela[p.janela.length - 1]);
-    const mudanca = p.visao === "mudanca" || p.janela.length < MINIMO_TENDENCIA;
-    return { titulo: (mudanca ? "Mudança da " : "Tendência da ") + especie.toLowerCase() + " de " + quem + " · " + p.lugar.curto + " · " + janela,
-      subtitulo: p.visao === "series" && !mudanca ? cadaLinha + ", nos períodos escolhidos."
-        : mudanca ? cadaBolha + " O rastro sai do valor no primeiro período."
+    const trajetoria = p.visao !== "classes" || p.janela.length < MINIMO_TENDENCIA;
+    return { titulo: (trajetoria ? "Trajetória da " : "Tendência da ") + especie.toLowerCase() + " de " + quem + " · " + p.lugar.curto + " · " + janela,
+      subtitulo: trajetoria ? cadaBolha + " O rastro sai do valor no primeiro período; os pontos pequenos são os períodos do meio."
         : cadaLinha + ": as setas mostram a alta, a queda ou a pausa de um período para o seguinte." };
   }
   if (p.familia === "rotatividade" && p.nivel === "municipios" && p.rotatividade)
@@ -1821,8 +1967,10 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
   if (!salvo || salvo.versao !== 1 || typeof salvo.chave !== "string" || !salvo.definicao || typeof salvo.definicao !== "object") return null;
   const lida = salvo.definicao as DefinicaoAnalise;
   if (!FAMILIAS_VALIDAS.has(lida.familia) || !lida.base || !Array.isArray(lida.janela)) return null;
-  // Os estados escolhidos entraram em 24/10/2026: uma definição sem eles abre sem estados marcados.
-  const def: DefinicaoAnalise = { ...lida, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [] };
+  // Os estados escolhidos entraram em 24/10/2026: uma definição sem eles abre sem estados marcados; sem o intervalo da Série
+  // temporal (24/10/2026), toda a série.
+  const def: DefinicaoAnalise = { ...lida, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
+    serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [] };
   const resposta = estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
   return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
@@ -1858,8 +2006,13 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
     ["População", item => item.populacao], ["Quantidade", item => item.quantidade], ["Densidade por 1.000 habitantes", item => item.densidade],
     ["Tipo de contagem", item => item.tipo === "conjunto" ? textoDaContagem(item.contagem) : ""],
   ];
-  if (distancia) colunas.push(["Distância até a referência (km)", item => item.distancia_km], ["Distância do membro mais distante (km)", item => item.distancia_km_max ?? null],
-    ["Membro da referência mais próximo", item => (item.referencia_mais_proxima || []).map(ref => ref.rotulo).join(" | ")],
+  // Com o território de referência por elegibilidade (24/10/2026), a referência é de cada item: a coluna diz qual é.
+  const porItem = resposta.referencia?.tipo === "elegiveis";
+  if (distancia && porItem) colunas.push(["Distância até o território de referência (km)", item => item.distancia_km],
+    ["Território de referência (" + (resposta.referencia?.relacao === "mais_distante" ? "o mais distante" : "o mais próximo") + ")",
+      item => (item.referenciaDoItem || []).map(ref => ref.rotulo).join(" | ")]);
+  else if (distancia) colunas.push(["Distância até a referência (km)", item => item.distancia_km], ["Distância do membro mais distante (km)", item => item.distancia_km_max ?? null],
+    ["Membro da referência mais próximo", item => (item.referenciaDoItem || []).map(ref => ref.rotulo).join(" | ")],
     ["Membro da referência", item => item.referencia ? "sim" : "não"]);
   if (faixaDistancia) colunas.push(["Faixa de distância", item => item.faixa_distancia === "fora" ? "fora" : item.faixa_distancia?.rotulo ?? ""]);
   if (variacao) colunas.push(["Competência inicial", () => resposta.competencia_inicial],
@@ -1870,6 +2023,15 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
     ["Classe de tendência", item => item.tendencia?.classe ?? ""], ["Rótulo da tendência", item => item.tendencia?.rotulo ?? ""],
     ["Motivo da tendência", item => item.tendencia?.motivo ?? ""],
     ["Velocidades", item => (item.tendencia?.velocidades || []).map(v => v.de + "-" + v.ate + ":" + String(v.valor)).join(" | ")]);
+  // Série temporal (24/10/2026): uma coluna por competência do intervalo, com o valor observado em precisão integral (vazia sem
+  // valor, nunca zero).
+  const serie = resposta.serie?.competencias ?? [];
+  if (serie.length && itens.some(item => item.serie)) {
+    const rotulo = INDICADORES[c.indicador].rotulo;
+    for (const competencia of serie) colunas.push([rotulo + " em " + exibirCompetencia(competencia),
+      item => item.serie?.observacoes.find(obs => obs.competencia === competencia)?.valor ?? null]);
+    colunas.push(["Série comparável", item => item.serie ? (item.serie.comparavel ? "sim" : "não") : ""]);
+  }
   if (grupo) colunas.push(["Grupo por posição", item => item.grupo?.rotulo ?? ""]);
   if (faixa) colunas.push(["Faixa", item => item.faixa === "fora" ? "fora" : item.faixa?.rotulo ?? ""]);
   if (condicoes) colunas.push(["Condições", item => item.condicoes?.situacao ?? ""]);
@@ -1894,9 +2056,11 @@ export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: 
     "- Chave de execução: " + (resposta.chave_execucao || "não informada")];
   if (resposta.referencia?.origem) linhas.push("- Referência: " + resposta.referencia.origem);
   if (resposta.tendencia?.janela.length) linhas.push("- Janela da tendência: " + resposta.tendencia.janela.map(exibirCompetencia).join(", "));
+  if (resposta.serie) linhas.push("- Série temporal: " + exibirCompetencia(resposta.serie.inicio) + " a " + exibirCompetencia(resposta.serie.fim) +
+    " (" + resposta.serie.competencias.length + " competências)");
   linhas.push("", "Notas do método", ...resposta.notas.map(nota => "- " + nota));
   if (resposta.limitacoes.length) linhas.push("", "Limitações", ...resposta.limitacoes.map(codigo => "- " + textoDaLimitacao(codigo)));
-  if (opcoes) linhas.push("", "Parâmetros enviados ao motor", JSON.stringify(opcoes, null, 2));
+  if (opcoes) linhas.push("", "Parâmetros da análise", JSON.stringify(opcoes, null, 2));
   linhas.push("", "Os valores do CSV estão em precisão integral; na tela, aparecem arredondados.");
   return linhas.join("\n");
 }
@@ -1905,14 +2069,15 @@ export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: 
 /** Ajustes dentro da análise escolhida (23/10/2026): o painel colado na aba mostra só o que vale para ela. O indicador é o
  * mesmo em todas as abas (fica na definição) e fica à vista; a categoria, com mais de uma, vem logo depois dele; a rotatividade
  * não tem indicador. Nos estados (E1) e com a família indisponível, o desenho é a distribuição, e valem os ajustes dela. */
-export type Ajuste = "indicador" | "categoria" | "competencia" | "agrupar" | "referencia" | "janela" | "visao" | "periodos";
-export function ajustesDaAnalise(c: { familia: Familia; nivel: PainelNivel; disponivel: boolean; categorias: number }): Ajuste[] {
+export type Ajuste = "indicador" | "categoria" | "competencia" | "agrupar" | "referencia" | "janela" | "visao" | "periodos" | "serie";
+export function ajustesDaAnalise(c: { familia: Familia; nivel: PainelNivel; disponivel: boolean; categorias: number; visao?: Visao }): Ajuste[] {
   const categoria: Ajuste[] = c.categorias > 1 ? ["categoria"] : [];
   // Nos estados e no Brasil (24/10/2026), a distância espera municípios: valem os ajustes da distribuição. Com o Brasil, uma
   // unidade só, não há grupos nem faixas.
   const familia = !c.disponivel || (c.nivel !== "municipios" && (c.familia === "espacial" || c.familia === "rotatividade")) ? "distribuicao" : c.familia;
   if (familia === "espacial") return ["indicador", ...categoria, "competencia", "referencia"];
-  if (familia === "tendencia") return ["indicador", ...categoria, "janela", "visao"];
+  // Na tendência, o Período (anual ou semestral) orienta a Tendência e a Trajetória; a Série temporal tem o intervalo dela.
+  if (familia === "tendencia") return ["indicador", ...categoria, c.visao === "series" ? "serie" : "janela", "visao"];
   if (familia === "rotatividade") return ["periodos", ...categoria];
   return ["indicador", ...categoria, "competencia", ...(c.nivel === "brasil" ? [] : ["agrupar" as const])];
 }
@@ -1940,7 +2105,7 @@ export function disponibilidadeDoMapa(c: { fonte: "brasil" | "arquivo" | null; t
     ? "Sem latitude e longitude na planilha, a rotatividade fica nas barras: o mapa precisa das coordenadas de cada " + unidade.singular + "."
     : "A planilha não tem as colunas de latitude e longitude: o mapa precisa das coordenadas de cada " + unidade.singular + ". A tabela continua." };
   if (c.series) return { disponivel: false, atalho: null,
-    motivo: "Na visão Séries, cada " + unidade.singular + " é uma linha no tempo: o mapa fica com Classes e Mudança." };
+    motivo: "Na visão Série temporal, cada " + unidade.singular + " é uma linha no tempo: o mapa fica com Tendência e Trajetória." };
   return { disponivel: true, motivo: null, atalho: null };
 }
 
@@ -1982,8 +2147,8 @@ export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { d
   const ligacoes: { de: string; para: string[] }[] = [];
   for (const id of selecionados) {
     const item = porId.get(id);
-    if (!item || item.tipo !== "municipio" || item.referencia || !item.referencia_mais_proxima?.length) continue;
-    ligacoes.push({ de: item.id, para: item.referencia_mais_proxima.map(ref => ref.id) });
+    if (!item || item.tipo !== "municipio" || item.referencia || !item.referenciaDoItem?.length) continue;
+    ligacoes.push({ de: item.id, para: item.referenciaDoItem.map(ref => ref.id) });
     if (ligacoes.length >= MAX_LIGACOES) break;
   }
   return ligacoes;
@@ -2053,12 +2218,15 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Juntar. No mapa, os pontos aparecem em 5 grupos " +
       "iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
-    "Mede a distância em linha reta entre cada " + unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") + " e uma referência: " +
-      umA(unidade) + " pelo nome, um conjunto deles ou " + os + " que atendem a um critério, como " + os + " de maior densidade. " +
-      "Com a referência escolhida, o eixo horizontal mostra a distância, e o vertical, o indicador.",
+    "Mede a distância em linha reta entre cada " + unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") + " e o seu território " +
+      "de referência. No Território de referência, você define primeiro quais " + us + " podem ser referência (a delimitação, como " +
+      (c.brasil ? "o mesmo estado, uma região ou o Brasil inteiro" : c.comGrupos ? (fem(grupo) ? "a mesma " : "o mesmo ") + grupo.singular +
+        " ou a planilha inteira" : "a planilha inteira") + ", e uma condição de densidade, quantidade ou população) e depois se a referência de cada " +
+      unidade.singular + " é " + artigo(unidade, false) + " mais próxim" + (fem(unidade) ? "a" : "o") + " ou " + artigo(unidade, false) +
+      " mais distante entre el" + (fem(unidade) ? "as" : "es") + ". " + maiuscula(artigo(unidade, false)) + " própri" + (fem(unidade) ? "a" : "o") +
+      " " + unidade.singular + " nunca é a sua referência. O eixo horizontal mostra a distância, e o vertical, o indicador.",
     "A distância é medida sobre a superfície da Terra, a partir das coordenadas de cada " + unidade.singular +
-      (c.brasil ? " (a sede municipal)" : "") + ", e não é um trajeto por estradas. Se a referência tem mais de " + umA(unidade) +
-      ", vale a distância até " + artigo(unidade, false) + " mais próxim" + (fem(unidade) ? "a" : "o") + "." +
+      (c.brasil ? " (a sede municipal)" : "") + ", e não é um trajeto por estradas." +
       (c.comGrupos && c.brasil ? " Esta análise usa " + us + ": " + artigo(grupo, true) + " " + grupo.plural + " e o Brasil não têm " +
         "um ponto no mapa." : "")] };
   if (aba === "tendencia") return { titulo: NOMES_FAMILIAS.tendencia, paragrafos: [
@@ -2068,9 +2236,11 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
     itens: [...CLASSES_TENDENCIA.map(classe => ({ termo: classe.rotulo, texto: DESCRICAO_DAS_CLASSES[classe.codigo] })),
       { termo: "Não avaliável", texto: DESCRICAO_NAO_AVALIAVEL }],
     nota: "Quando os períodos não têm a mesma distância (de janeiro a junho são 5 meses; de junho a janeiro, 7), o tamanho de cada " +
-      "alta ou queda é comparado por mês. No quadro de setas, a seta para cima é alta; para baixo, queda; para o lado, pausa. A visão " +
-      "Mudança mostra a variação entre o primeiro e o último período, e a visão Séries, a linha de cada " + territorio + " " + escolhido + ". " +
-      "A referência do método fica em Detalhes, na aba Método e procedência." };
+      "alta ou queda é comparado por mês. Na visão Tendência, o quadro de setas mostra a classe de cada " + territorio + ": a seta para " +
+      "cima é alta; para baixo, queda; para o lado, pausa. A visão Trajetória mostra a variação entre o primeiro e o último período, " +
+      "com os períodos do meio no caminho, e a visão Série temporal, a linha de cada " + territorio + " " + escolhido + " em toda a " +
+      "série da base (ou no intervalo que você escolher), sem classificação. A referência do método fica em Detalhes, na aba Método e " +
+      "procedência." };
   return { titulo: NOMES_FAMILIAS.rotatividade, paragrafos: [
     "Acompanha os profissionais presentes no período inicial (a coorte inicial) e mostra, para cada " + unidade.singular +
       ", quantos continuaram e quantos saíram até o período final, em barras de 100%.",
@@ -2122,3 +2292,22 @@ export function notaSemClassificacao(topo: TendenciaTopo | null, c: { rotulos: R
     "para ter classe, o indicador precisa ir na mesma direção em todos os períodos, e basta subir num e cair em outro para ficar " +
     "sem classificação. É o resultado do método, não falta de dados.";
 }
+
+// ================================================================================================ Voltar: o histórico da interação
+/** Voltar (24/10/2026, pedido do responsável): um desfazer sequencial, como o Ctrl+Z, da interação na área. Cada ação reversível
+ * (marcar ou desmarcar territórios, trocar o nível, abrir a lista de um estado, Limpar seleção, trocar de aba, mudar um ajuste,
+ * um filtro ou a vista) guarda o estado de antes; Voltar devolve o último guardado, um passo por vez. Passos seguidos do mesmo
+ * tipo contínuo (o arraste da régua) em menos de PASSO_CONTINUO_MS viram um só, com o estado de antes do primeiro. O histórico
+ * não é o do navegador e não sai da área: recomeça com outra fonte de dados ou com Nova análise. */
+export type PassoDaInteracao<T> = { rotulo: string; tipo: string; quando: number; estado: T };
+export const MAX_PASSOS = 80;
+export const PASSO_CONTINUO_MS = 900;
+export function empilharPasso<T>(pilha: PassoDaInteracao<T>[], passo: PassoDaInteracao<T>): PassoDaInteracao<T>[] {
+  const topo = pilha.at(-1);
+  if (topo && passo.tipo.startsWith("continuo:") && topo.tipo === passo.tipo && passo.quando - topo.quando < PASSO_CONTINUO_MS)
+    return [...pilha.slice(0, -1), { ...topo, quando: passo.quando }];
+  return [...pilha, passo].slice(-MAX_PASSOS);
+}
+/** O texto do botão Voltar (no `title` e no rótulo acessível): o que o próximo Voltar desfaz, ou que não há o que desfazer. */
+export const textoDoVoltar = (passo: { rotulo: string } | null | undefined) =>
+  passo ? "Voltar: desfaz " + minuscula(passo.rotulo) : "Voltar: nenhuma ação para desfazer ainda";

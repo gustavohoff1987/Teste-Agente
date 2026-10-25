@@ -140,7 +140,21 @@ def test_referencia_por_nome_por_conjunto_ou_por_criterio():
     criterio = pedir("use como referência o município de maior densidade")
     assert criterio["painel"] == painel(familia="espacial", referencia={
         "membros": [], "criterio": {"atributo": "densidade", "ordem": "desc"}})
-    assert "usar o primeiro" in criterio["reply"]
+    # O critério abre o Território de referência com o atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior"
+    # ou "menor"; a relação, a delimitação e o valor de corte são da pessoa (antes de 24/10, a lista de candidatos abria na
+    # ordem para "usar o primeiro", que saiu; de 24 a 25/10, o "maior/menor" ficava sem efeito).
+    assert criterio["reply"] == ("Abri o Território de referência com a condição Densidade “Maior que”: escolha a relação (mais "
+                                 "próximo ou mais distante), a delimitação e o valor de corte, e o eixo X mostra a distância em "
+                                 "linha reta (km) até o território de referência de cada município.")
+    menor = pedir("use como referência o município de menor densidade")
+    assert menor["painel"]["referencia"] == {"membros": [], "criterio": {"atributo": "densidade", "ordem": "asc"}}
+    assert menor["reply"].startswith("Abri o Território de referência com a condição Densidade “Menor que”: ")
+    populosos = pedir("use como referência o município mais populoso")
+    assert populosos["painel"]["referencia"] == {"membros": [], "criterio": {"atributo": "populacao", "ordem": "desc"}}
+    assert populosos["reply"].startswith("Abri o Território de referência com a condição População “Maior que”: ")
+    assert pedir("abra a análise espacial")["reply"] == (
+        "Abri a análise espacial: defina o Território de referência (a relação, a delimitação e a condição) ou diga o nome "
+        "dele, e o eixo X mostra a distância em linha reta (km) até ele.")
     # Estado não é referência (não tem um ponto único); nome desconhecido é perguntado.
     assert pedir("use o Amazonas como referência") == {"handled": True, "executed": False,
                                                        "clarification": conversa_grafico.SEM_PONTO_UNICO}
@@ -199,7 +213,8 @@ def test_condicoes_combinadas_com_a_referencia_da_distancia():
 def test_comparar_e_juntar_municipios_nomeados():
     body = pedir("compare Manaus e Tefé")
     assert body["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420"])
-    assert body["reply"] == "Abri a comparação lado a lado de MANAUS (AM) e TEFE (AM): maior, menor e diferença vêm do motor."
+    # Sem nome de bastidor na resposta (24/10/2026; antes, "vêm do motor").
+    assert body["reply"] == "Abri a comparação lado a lado de MANAUS (AM) e TEFE (AM), com o maior, o menor e a diferença."
     # Município fora do gráfico entra nele para a comparação.
     fora = pedir("compare Manaus e Belém")
     assert fora["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:150140"], nivel="municipios",
@@ -267,7 +282,14 @@ def test_periodo_da_tendencia_anual_ou_semestral_com_os_ultimos_4_periodos():
     escolhida = pedir("mostre a mudança anual")
     assert escolhida["painel"] == painel(familia="tendencia", visao_tendencia="mudanca", janela=anuais)
     assert escolhida["reply"] == ("Abri a tendência da densidade, com os últimos 4 períodos anuais (junho de 2021, junho de 2022, "
-                                  "junho de 2023 e junho de 2024). Visão da tendência: Mudança.")
+                                  "junho de 2023 e junho de 2024). Visão da tendência: Trajetória.")
+    # As visões com os nomes da tela (24/10/2026): "trajetória" abre a antiga Mudança, e "série temporal", a série histórica.
+    trajetoria = pedir("mostre a trajetória anual")
+    assert trajetoria["painel"] == escolhida["painel"] and trajetoria["reply"] == escolhida["reply"]
+    serie_temporal = pedir("mostre a série temporal")
+    assert serie_temporal["painel"] == painel(familia="tendencia", visao_tendencia="series")
+    assert serie_temporal["reply"] == "Abri a tendência da densidade. Visão da tendência: Série temporal."
+    assert pedir("quero ver as séries históricas")["painel"]["visao_tendencia"] == "series"
     # A janela da tela, em Python, é a mesma do modelo da tela: anos sozinhos só no anual; sem 4 períodos, nenhuma.
     assert conversa_grafico.janela_do_ritmo("anual", ["2019", "2020", "2021", "2022", "2023"]) == ["2020", "2021", "2022", "2023"]
     assert conversa_grafico.janela_do_ritmo("semestral", ["202106", "202206", "202306", "202406"]) == []
@@ -306,8 +328,8 @@ def test_periodo_nos_pedidos_de_funcao_segue_o_ritmo_da_tendencia():
     compara = pedir("compare Manaus e Tefé ano a ano")
     assert compara["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420"], janela=anuais)
     assert compara["reply"] == ("Abri a comparação lado a lado de MANAUS (AM) e TEFE (AM), com os últimos 4 períodos anuais "
-                                "(junho de 2021, junho de 2022, junho de 2023 e junho de 2024): maior, menor e diferença vêm "
-                                "do motor.")
+                                "(junho de 2021, junho de 2022, junho de 2023 e junho de 2024), com o maior, o menor e a "
+                                "diferença.")
     # "em todas as competências" sai com a preposição: o botão pede o ritmo no lugar dele.
     junta = pedir("junte Manaus e Tefé em todas as competências")
     assert "painel" not in junta
@@ -316,9 +338,9 @@ def test_periodo_nos_pedidos_de_funcao_segue_o_ritmo_da_tendencia():
     assert pedir("use Belém como referência de 2021 a 2024") == {"handled": True, "executed": False, "clarification": (
         "A análise espacial usa uma competência por vez, e a tendência usa os últimos 4 períodos, anuais ou semestrais. Diga "
         "uma competência, por exemplo, “em junho de 2024”, ou peça a tendência anual ou semestral." + conversa_grafico.NADA_MUDOU)}
-    # A variação é da tendência: o exemplo da pergunta pede a Mudança pelo ritmo, sem janela longa.
+    # A variação é da tendência: o exemplo da pergunta pede a Trajetória pelo ritmo, sem janela longa.
     assert pedir("ordene pela variação do maior para o menor") == {"handled": True, "executed": False, "clarification": (
-        "A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança anual”." +
+        "A variação aparece na tendência, na visão Trajetória. Peça antes, por exemplo, “mostre a mudança anual”." +
         conversa_grafico.NADA_MUDOU)}
     # Fora da tendência, "últimos N anos" com as âncoras divergentes continua na AMB-04 (AT-34), com os anos em botões (a
     # cobertura que estava no teste antigo da janela da tendência).
@@ -427,7 +449,7 @@ def test_no_mapa_e_onde_ficam_acompanham_o_comando_com_a_vista_do_mapa():
 
 
 def test_onde_o_mapa_nao_mostra_a_analise_a_vista_fica_no_grafico():
-    """Os estados não têm um ponto; a visão Séries fica só no gráfico; a área já disse que o mapa não está disponível:
+    """Os estados não têm um ponto; a visão Série temporal fica só no gráfico; a área já disse que o mapa não está disponível:
     o comando segue sem a vista, e a resposta diz por quê."""
     estados = pedir("volte aos estados no mapa")
     assert estados["painel"] == painel(nivel="estados")
@@ -439,8 +461,8 @@ def test_onde_o_mapa_nao_mostra_a_analise_a_vista_fica_no_grafico():
                                          "abra os municípios de um estado.")
     series = pedir("mostre a visão séries no mapa")
     assert series["painel"] == painel(familia="tendencia", visao_tendencia="series")
-    assert series["reply"] == ("Abri a tendência da densidade. Visão da tendência: Séries. A visão Séries fica só no "
-                               "gráfico.")
+    assert series["reply"] == ("Abri a tendência da densidade. Visão da tendência: Série temporal. A visão Série temporal fica "
+                               "só no gráfico.")
     indisponivel = pedir("mostre a quantidade no mapa", painel_mapa_disponivel=False)
     assert indisponivel["painel"] == painel(indicador="quantidade")
     assert indisponivel["reply"] == ("Troquei o indicador para a quantidade. O mapa não está disponível nesta análise; ela "

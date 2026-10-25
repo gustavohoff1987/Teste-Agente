@@ -17,7 +17,7 @@ export default function PainelRuler({ indicador, dominio, escala, corte, onCorte
   const especie = INDICADORES[indicador];
   if (!dominio || !(dominio[1] >= dominio[0])) {
     return <section data-testid="analise-regua" data-indicador={indicador} aria-label="Régua" className="text-xs text-slate-600">
-      Régua indisponível: o motor não devolveu valores avaliáveis de {especie.rotulo.toLowerCase()} para estes itens.
+      Régua indisponível: não há valores avaliáveis de {especie.rotulo.toLowerCase()} para estes itens.
     </section>;
   }
   const [inicio, fim] = dominio;

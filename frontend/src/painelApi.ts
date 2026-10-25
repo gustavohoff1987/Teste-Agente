@@ -1,5 +1,6 @@
-// Cliente do motor da área de análise da página única (POST /api/painel, POST /api/painel/referencias e, desde 23/10/2026,
-// POST /api/painel/mapa), no contrato de 22/10/2026 (seção 3 do contrato entre as frentes; Docs/PAINEL_INTEGRADO.md). É o
+// Cliente do motor da área de análise da página única (POST /api/painel e, desde 23/10/2026, POST /api/painel/mapa; a rota
+// POST /api/painel/referencias continua no motor, mas a tela não a usa desde 24/10/2026), no contrato de 22/10/2026 (seção 3
+// do contrato entre as frentes; Docs/PAINEL_INTEGRADO.md). É o
 // ÚNICO lugar com os nomes de campos do motor: o formulário, as opções (montadas em painelModel.montarOpcoes com os tipos
 // daqui), a leitura dos erros (422, com a pendência de premissa) e a normalização da resposta para os tipos da tela. Se o
 // motor mudar um nome, ajuste só este arquivo. Todo número vem do motor; a tela só posiciona, filtra (estado visual) e
@@ -26,9 +27,18 @@ export type PainelCriterio = { atributo: PainelAtributo; ordem: PainelOrdem };
 /** Conjunto agregado (CAP-AGR-01): id com letras, números, _ ou - (até 64), rótulo de até 120 caracteres, dois ou mais membros. */
 export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string[] };
 /** Um membro: referência município; dois ou mais: conjunto de referência (distância até o membro mais próximo). O critério só
- * registra a origem (CAP-REF-01); com o universo da lista, a origem cita a posição exata vista pela pessoa. */
-export type PainelReferenciaPedido = { membros: string[]; criterio?: PainelCriterio & { universo?: PainelUniverso } };
+ * registra a origem (CAP-REF-01); com o universo da lista, a origem cita a posição exata vista pela pessoa. É a forma que a
+ * conversa usa ("use Manaus como referência"). */
+export type ReferenciaPorMembros = { membros: string[]; criterio?: PainelCriterio & { universo?: PainelUniverso } };
 export type OperadorCondicao = "<" | "<=" | ">" | ">=";
+/** Território de referência (24/10/2026): primeiro os elegíveis (a delimitação e a condição), depois, para cada território, o
+ * mais próximo ou o mais distante deles, sem ele mesmo. "grupos" e "regioes" levam os valores escolhidos (os prefixos IBGE dos
+ * estados, os nomes das regiões, os valores do grupo da planilha); as regiões existem só na base do Brasil. */
+export type RelacaoEspacial = "mais_proxima" | "mais_distante";
+export type TipoDelimitacao = "todos" | "mesmo_grupo" | "grupos" | "mesma_regiao" | "regioes";
+export type ReferenciaElegivel = { relacao: RelacaoEspacial; delimitacao: { tipo: TipoDelimitacao; valores?: string[] };
+  condicao: { atributo: PainelAtributo; operador: OperadorCondicao; valor: number } };
+export type PainelReferenciaPedido = ReferenciaPorMembros | ReferenciaElegivel;
 export type CondicaoPedido = { atributo: AtributoCondicao; operador: OperadorCondicao; valor: number };
 export type OrdenarPedido = { atributo: AtributoOrdenacao; ordem: PainelOrdem; primeiros?: number };
 export type TipoGrupos = "quartis" | "quintis" | "decis";
@@ -50,6 +60,8 @@ export type PainelOpcoes = {
   faixas_distancia?: number[];
   competencia_inicial?: string;
   tendencia?: { competencias: string[] };
+  /** Série temporal (24/10/2026): as competências do intervalo, com os valores observados, sem classificação. */
+  serie?: { competencias: string[] };
   grupos?: { tipo: TipoGrupos };
   /** Grupos por posição só para a cor do mapa (23/10/2026): os quintis do motor (CAP-DIS-02, a mesma conta de `grupos`) quando a
    * análise não tem cor própria. Não mudam o gráfico, a frase-resumo, a tabela nem o CSV. */
@@ -65,9 +77,6 @@ export type PainelOpcoes = {
   rotulos?: RotulosTerritoriais;
 };
 
-/** Opções de /api/painel/referencias (o critério aqui não leva universo). */
-export type ReferenciasOpcoes = { competencia: string; categoria: string; universo: PainelUniverso; criterio: PainelCriterio;
-  premissas?: Premissas };
 /** Opções de /api/painel/mapa: a competência e a categoria do gráfico; nas planilhas, as premissas e os rótulos (na base do
  * Brasil, o motor recusa os dois). */
 export type MapaOpcoes = { competencia: string; categoria: string; premissas?: Premissas; rotulos?: RotulosTerritoriais };
@@ -97,6 +106,9 @@ export type TendenciaItem = {
 export type SituacaoCondicao = "ATENDE" | "NAO_ATENDE" | "NAO_AVALIAVEL";
 export type CondicoesItem = { situacao: SituacaoCondicao; porCondicao: { texto: string; situacao: SituacaoCondicao | null }[];
   motivo: string | null };
+/** Série temporal de um item (24/10/2026): o valor observado em cada competência do intervalo (null sem valor, nunca zero). Um
+ * conjunto com membros diferentes no intervalo vem com `comparavel` falso e o motivo: os pontos não são ligados (RQ-REP-15). */
+export type SerieItem = { observacoes: { competencia: string; valor: number | null }[]; comparavel: boolean; motivo: string | null };
 /** Rotatividade (CAP-ROT-01): contagens e percentuais do motor, sempre da coorte inicial. A tela não divide nada. */
 export type RotatividadeItem = { coorteInicial: number | null; permaneceram: number | null; sairam: number | null;
   permanencia: number | null; saida: number | null; avaliavel: boolean; motivo: string | null };
@@ -131,13 +143,21 @@ export type PainelItem = {
   grupoMapa: Posicao | null;
   faixa: Posicao | "fora" | null;
   faixa_distancia: Posicao | "fora" | null;
-  /** Membro da referência mais próximo; mais de um quando há empate (explícito). */
-  referencia_mais_proxima: { id: string; rotulo: string }[] | null;
+  /** A referência do item: com membros escolhidos, o membro da referência mais próximo (`referencia_mais_proxima` do motor); com o
+   * território de referência por elegibilidade, o mais próximo ou o mais distante dos elegíveis (`referencia_do_item`). Mais de um
+   * quando há empate (explícito). */
+  referenciaDoItem: { id: string; rotulo: string }[] | null;
   condicoes: CondicoesItem | null;
   ordem: { posicao: number | null } | null;
   rotatividade: RotatividadeItem | null;
+  serie: SerieItem | null;
 };
-export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto"; membros: { id: string; rotulo: string }[]; origem: string };
+/** A referência da resposta: um município ou um conjunto escolhidos (membros) ou, por elegibilidade, a definição (relação,
+ * delimitação e condição, com os textos do motor), as contagens da condição e os territórios que ficaram como referência. */
+export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "elegiveis"; membros: { id: string; rotulo: string }[]; origem: string;
+  relacao?: RelacaoEspacial; delimitacao?: { tipo: TipoDelimitacao; valores: string[]; texto: string };
+  condicao?: { atributo: PainelAtributo; operador: OperadorCondicao; valor: string; texto: string };
+  elegiveis?: { universo: number; atende: number; naoAtende: number; naoAvaliaveis: number } };
 export type Contagens = Record<string, number>;
 export type TendenciaTopo = { janela: string[]; contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null;
   bloqueio: string | null; unidadeTempo: string | null;
@@ -154,6 +174,8 @@ export type ComparacaoTopo = { itens: string[]; linhas: LinhaComparacao[]; texto
 export type ChaveDisponibilidade = "espacial" | "tendencia" | "rotatividade" | "estados" | "grupos";
 export type Disponibilidade = Partial<Record<ChaveDisponibilidade, { disponivel: boolean; motivo: string }>>;
 export type ContextoBrasil = { densidade: number | null; quantidade: number | null; populacao: number | null; competencia: string | null };
+/** A série temporal do topo: o intervalo pedido (do primeiro ao último período) e a unidade dos valores. */
+export type SerieTopo = { competencias: string[]; inicio: string; fim: string; unidadeValor: string | null };
 
 export type PainelResposta = {
   competencia: string;
@@ -170,6 +192,7 @@ export type PainelResposta = {
   /** Códigos de limitação (SOMA_COM_POSSIVEL_DUPLA_CONTAGEM, AGREGADO_PARCIAL, DISTANCIA_GEODESICA_DIRETA…). */
   limitacoes: string[];
   tendencia: TendenciaTopo | null;
+  serie: SerieTopo | null;
   grupos: GruposTopo | null;
   /** Os grupos do mapa (`grupos_mapa`), na mesma forma de `grupos`. */
   gruposMapa: GruposTopo | null;
@@ -187,11 +210,6 @@ export type PainelResposta = {
   /** Frase-resumo do motor (23/10/2026): só números conferidos do resultado, sem julgamento nem causa. A tela só a mostra. */
   resumo: { texto: string } | null;
 };
-
-export type ReferenciaCandidato = { id: string; rotulo: string; uf: string | null; valor: number | null; posicao: number | null };
-export type ReferenciaNaoAvaliavel = { id: string; rotulo: string; uf: string | null; motivos: string[] };
-export type ReferenciasResposta = { criterio: PainelCriterio; competencia: string; categoria: string;
-  candidatos: ReferenciaCandidato[]; nao_avaliaveis: ReferenciaNaoAvaliavel[] };
 
 /** Pendência de premissa (ChoiceRequired): o motor pede uma escolha (referencial, formato de número…) antes de calcular. */
 export type Pendencia = { chave: string; texto: string; opcoes: { valor: string; rotulo: string }[] };
@@ -343,6 +361,17 @@ function rotatividadeDe(bruto: unknown): RotatividadeItem | null {
     motivo: texto(o.motivo) ?? texto(o.condicao) };
 }
 
+function serieDe(bruto: unknown): SerieItem | null {
+  const o = objeto(bruto);
+  if (!o) return null;
+  const observacoes = lista(o.observacoes).map(item => {
+    const obs = objeto(item);
+    const competencia = texto(obs?.competencia);
+    return competencia ? { competencia, valor: num(obs?.valor) } : null;
+  }).filter((item): item is { competencia: string; valor: number | null } => !!item);
+  return { observacoes, comparavel: o.comparavel !== false, motivo: texto(o.motivo) };
+}
+
 function referenciaProximaDe(bruto: unknown): { id: string; rotulo: string }[] | null {
   const itens = Array.isArray(bruto) ? bruto : bruto ? [bruto] : [];
   const saida = itens.flatMap(item => {
@@ -377,9 +406,43 @@ function itemDe(bruto: unknown): PainelItem | null {
     motivos: lista(o.motivos).filter((m): m is string => typeof m === "string"),
     referencia: o.referencia === true,
     tendencia: tendenciaDe(o.tendencia), grupo: posicao(o.grupo), grupoMapa: posicao(o.grupo_mapa), faixa: faixaDe(o.faixa), faixa_distancia: faixaDe(o.faixa_distancia),
-    referencia_mais_proxima: referenciaProximaDe(o.referencia_mais_proxima), condicoes: condicoesDe(o.condicoes),
-    ordem: ordem ? { posicao: num(ordem.posicao) } : null, rotatividade: rotatividadeDe(o.rotatividade),
+    referenciaDoItem: referenciaProximaDe(o.referencia_do_item ?? o.referencia_mais_proxima), condicoes: condicoesDe(o.condicoes),
+    ordem: ordem ? { posicao: num(ordem.posicao) } : null, rotatividade: rotatividadeDe(o.rotatividade), serie: serieDe(o.serie),
   };
+}
+
+const RELACOES = new Set<string>(["mais_proxima", "mais_distante"]);
+const DELIMITACOES = new Set<string>(["todos", "mesmo_grupo", "grupos", "mesma_regiao", "regioes"]);
+/** A referência da resposta, com a definição por elegibilidade quando ela vem (24/10/2026). */
+function referenciaRespostaDe(bruto: unknown): PainelReferenciaResposta | null {
+  const referencia = objeto(bruto);
+  if (!referencia) return null;
+  const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" }));
+  const origem = texto(referencia.origem) ?? "";
+  if (referencia.tipo !== "elegiveis") return { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio", membros, origem };
+  const delimitacao = objeto(referencia.delimitacao), condicao = objeto(referencia.condicao), elegiveis = objeto(referencia.elegiveis);
+  const relacao = texto(referencia.relacao);
+  const tipo = texto(delimitacao?.tipo);
+  const atributo = texto(condicao?.atributo), operador = texto(condicao?.operador);
+  return { tipo: "elegiveis", membros, origem,
+    relacao: relacao && RELACOES.has(relacao) ? relacao as RelacaoEspacial : undefined,
+    delimitacao: tipo && DELIMITACOES.has(tipo) ? { tipo: tipo as TipoDelimitacao,
+      valores: lista(delimitacao?.valores).filter((v): v is string => typeof v === "string"), texto: texto(delimitacao?.texto) ?? "" } : undefined,
+    condicao: atributo && operador ? { atributo: atributo as PainelAtributo, operador: operador as OperadorCondicao,
+      valor: texto(condicao?.valor) ?? String(num(condicao?.valor) ?? ""), texto: texto(condicao?.texto) ?? "" } : undefined,
+    elegiveis: elegiveis ? { universo: num(elegiveis.universo) ?? 0, atende: num(elegiveis.atende) ?? 0,
+      naoAtende: num(elegiveis.nao_atende) ?? 0, naoAvaliaveis: num(elegiveis.nao_avaliaveis) ?? 0 } : undefined };
+}
+
+/** A série temporal do topo (`serie`): as competências do intervalo; sem elas, nada. */
+function serieTopoDe(bruto: unknown): SerieTopo | null {
+  const o = objeto(bruto);
+  if (!o) return null;
+  const janela = objeto(o.janela);
+  const competencias = lista(janela?.competencias ?? o.competencias).filter((c): c is string => typeof c === "string");
+  if (!competencias.length) return null;
+  return { competencias, inicio: texto(janela?.inicio) ?? competencias[0], fim: texto(janela?.fim) ?? competencias[competencias.length - 1],
+    unidadeValor: texto(o.unidade_valor) };
 }
 
 /** Contagens como lista alinhada aos índices 1..k: aceita lista, objeto {"1": n} ou {"Q1": n} e lista de {indice, contagem}. */
@@ -507,9 +570,8 @@ function gruposTopoDe(bruto: unknown, posicoes: (Posicao | null)[]): GruposTopo 
 
 export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "municipios"): PainelResposta {
   const o = objeto(bruto);
-  if (!o || !Array.isArray(o.itens)) throw new ErroDoMotor("A resposta do motor não segue o contrato (itens ausentes).", 200, null);
+  if (!o || !Array.isArray(o.itens)) throw new ErroDoMotor("A resposta do cálculo não segue o contrato (itens ausentes).", 200, null);
   const itens = o.itens.map(itemDe).filter((item): item is PainelItem => !!item);
-  const referencia = objeto(o.referencia);
   const tendencia = objeto(o.tendencia);
   const janelaBruta = tendencia ? (Array.isArray(tendencia.janela) ? tendencia.janela : lista(objeto(tendencia.janela)?.competencias)
     .concat(lista(objeto(tendencia.janela)?.periodos))) : [];
@@ -534,9 +596,7 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     versao_base: texto(o.versao_base), chave_execucao: texto(o.chave_execucao) ?? "",
     nivel: o.nivel === "estados" || o.nivel === "municipios" || o.nivel === "brasil" ? o.nivel
       : itens.some(item => item.tipo === "estado") ? "estados" : nivelPedido,
-    referencia: referencia ? { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio",
-      membros: lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" })),
-      origem: texto(referencia.origem) ?? "" } : null,
+    referencia: referenciaRespostaDe(o.referencia),
     itens, dominios,
     notas: lista(o.notas).filter((n): n is string => typeof n === "string"),
     limitacoes: lista(o.limitacoes).filter((n): n is string => typeof n === "string"),
@@ -547,6 +607,7 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
       unidadeTempo: texto(tendencia.unidade_tempo),
       semClassificacaoPorMotivo: Object.fromEntries(Object.entries(objeto(tendencia.sem_classificacao_por_motivo) || {})
         .filter(([, v]) => typeof v === "number")) as Contagens } : null,
+    serie: serieTopoDe(o.serie),
     grupos: gruposTopoDe(o.grupos, itens.map(item => item.grupo)),
     gruposMapa: gruposTopoDe(o.grupos_mapa, itens.map(item => item.grupoMapa)),
     faixas: faixasTopoDe(o.faixas, []),
@@ -604,9 +665,3 @@ export async function pedirMapa(fonte: FonteDoMotor, opcoes: MapaOpcoes, signal?
   return normalizarMapa(await lerResposta(response));
 }
 
-export async function pedirReferencias(fonte: FonteDoMotor, opcoes: ReferenciasOpcoes, signal?: AbortSignal): Promise<ReferenciasResposta> {
-  const response = await fetch(fonte.apiBase + "/api/painel/referencias", { method: "POST", body: formulario(fonte, opcoes, false), signal });
-  const body = objeto(await lerResposta(response));
-  if (!body || !Array.isArray(body.candidatos)) throw new ErroDoMotor("A resposta das referências não segue o contrato (candidatos ausentes).", 200, null);
-  return body as unknown as ReferenciasResposta;
-}

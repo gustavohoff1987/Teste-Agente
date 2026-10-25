@@ -68,7 +68,7 @@ const comPonto = (texto: string) => /[.!?…]$/.test(texto) ? texto : texto + ".
 export function respostaDaVista(vista: ResultView, contexto: ContextoDoGrafico | null): RespostaDaVista {
   if (vista === "tabela")
     return { texto: "A tabela fica em Detalhes, logo abaixo do " + (contexto?.vista === "mapa" ? "mapa" : "gráfico") +
-      ", com os mesmos valores do motor.", pedido: null };
+      ", com os mesmos valores.", pedido: null };
   if (vista === "mapa") {
     if (!contexto) return { texto: "Ainda não há uma análise na tela para mostrar no mapa.", pedido: null };
     if (contexto.mapaDisponivel === false)

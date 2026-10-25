@@ -120,8 +120,8 @@ registrado nas mesmas suítes (`bloco1` e `base-versionada`), e para os roteiros
 | Municípios por busca | Passo 4 (a busca como complemento da lista) |
 | Municípios arrastados para o gráfico | Saiu do produto: a escolha passou a ser a lista sempre à vista, com caixas de marcar (passos 3 a 5) |
 | Conjunto agregado como bolha | Passo 12 (Juntar) |
-| Distância com "Usar o primeiro" e a recusa do motor no catálogo sintético | Passo 9 (Análise espacial), conforme a disponibilidade do motor: o eixo da distância, a recusa com as opções da pendência que o motor mandar ou a aba desabilitada com o motivo |
-| Crescimento com os percentuais, vista inicial e Reproduzir | Passo 10 (Tendência, visão Mudança) |
+| Distância com "Usar o primeiro" e a recusa do motor no catálogo sintético | Passo 9 (Análise espacial), conforme a disponibilidade do motor: o eixo da distância, a recusa com as opções da pendência que o motor mandar ou a aba desabilitada com o motivo. Desde a segunda rodada de 24/10/2026, a referência sai do Território de referência (a relação, a delimitação e a condição), no lugar de "Usar o primeiro", que saiu do produto |
+| Crescimento com os percentuais, vista inicial e Reproduzir | Passo 10 (Tendência, visão Trajetória, a antiga Mudança) |
 | Caixa da conversa arrastável (mouse e teclado) e envio de mensagem | Roteiros da estrutura da página e da conversa (`ui_pagina_unica.py` e `ui_conversa_grafico.py`, frente B1), donos da caixa |
-| 390 px sem rolagem horizontal | Passo 15 (com as abas roláveis, o botão "Ferramentas" e o painel na base da tela); a conversa ancorada embaixo fica com a frente B1 |
+| 390 px sem rolagem horizontal | Passo 16 (com as abas roláveis, o botão "Ferramentas" e o painel na base da tela; desde a segunda rodada de 24/10/2026, também Voltar e Limpar seleção dentro da largura e as duas áreas da Seleção uma sobre a outra); a conversa ancorada embaixo fica com a frente B1 |
 | "Todas as análises" e a volta pelo "Início" sem recalcular | O fluxo clássico sai do produto com a página única (decisão de 22/10/2026, frente B1), e reabrir sem recalcular passa a ser o Histórico, em `ui_pagina_unica.py` (B1), que confere também que "Todas as análises" (`painel-voltar`) não existe mais |

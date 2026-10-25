@@ -708,7 +708,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     base.fundo.length > 0 ? "cinza miúdo ao fundo: " + artigo(unidade, true) + " demais " + unidade.plural + " da fonte, só para situar" : "",
     base.aneis.length > 0 ? "anel escuro: membro de conjunto; o conjunto não tem ponto, e o valor dele é a soma das contagens dos " +
       "componentes, com possível dupla contagem" : "",
-    temReferencia ? "mira: membro da referência (distância 0)" : "",
+    temReferencia ? (p.referenciaPorItem ? "mira: território de referência" : "mira: membro da referência (distância 0)") : "",
   ].filter(Boolean).join("; ");
   const rotuloDoCanvas = "Mapa de pontos d" + artigo(unidade, true) + " " + unidade.plural + " do resultado. Com o mapa em foco: as setas " +
     "movem a vista; Shift e as setas vão ao ponto vizinho; Enter marca ou desmarca; + e − ampliam ou reduzem; 0 volta ao enquadramento " +
@@ -747,7 +747,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           cores={cores} rampa={rampa}/>
         : <div data-testid="mapa-legenda" data-tipo={p.pintura} className="mapa-legenda" role="group" aria-label="Legenda da cor">
           {p.pintura === "quintis" && <p data-testid="mapa-legenda-quintis" className="mapa-legenda-linha">Cores do mapa: 5 grupos
-            iguais (quintis) {INDICADORES_DO_MAPA[p.indicador]}, calculados pelo motor com {artigo(unidade, true)} {unidade.plural} da
+            iguais (quintis) {INDICADORES_DO_MAPA[p.indicador]}, calculados com {artigo(unidade, true)} {unidade.plural} da
             análise.</p>}
           {p.legendaCor ?? <p>Cor única: nenhuma camada de cor em uso.</p>}</div>}
       <div className="mapa-notas">
@@ -758,8 +758,8 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           " fica fora do mapa e aparece em Não avaliáveis." : ""}</p>
         {simbolos && <p data-testid="mapa-simbolos">{maiuscula(simbolos)}.</p>}
         {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {feminino
-          ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) ao membro mais próximo da referência; a distância é a do
-          motor, em linha reta.</p>}
+          ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
+          (feminino ? "a" : "e") : "ao membro mais próximo da referência"}; a distância é medida em linha reta.</p>}
       </div>
     </div>
   </div>;

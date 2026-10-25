@@ -44,7 +44,9 @@ export default function PainelDetalhes(p: Props) {
   const especie = INDICADORES[p.indicador];
   const temGrupo = p.itens.some(item => item.grupo), temFaixa = p.itens.some(item => item.faixa);
   const temCondicao = p.itens.some(item => item.condicoes), temPosicao = p.itens.some(item => item.ordem?.posicao !== null && item.ordem !== null);
-  const temProxima = p.distancia && p.itens.some(item => item.referencia_mais_proxima?.length);
+  const temProxima = p.distancia && p.itens.some(item => item.referenciaDoItem?.length);
+  // Território de referência por elegibilidade (24/10/2026): a referência é de cada item, a mais próxima ou a mais distante.
+  const porItem = p.resposta.referencia?.tipo === "elegiveis", relacao = p.resposta.referencia?.relacao ?? null;
   const ordenar = (coluna: ColunaTabela) => setOrdenacao(atual => !atual || atual.coluna !== coluna ? { coluna, sentido: "desc" }
     : atual.sentido === "desc" ? { coluna, sentido: "asc" } : null);
   const ordemDe = (coluna: ColunaTabela): "ascending" | "descending" | "none" => !ordenacao || ordenacao.coluna !== coluna ? "none"
@@ -75,7 +77,7 @@ export default function PainelDetalhes(p: Props) {
 
     <div role="tabpanel" id="analise-detalhes-painel-tabela" aria-labelledby="analise-detalhes-aba-tabela" hidden={aba !== "tabela"}
       data-testid="analise-tabela-painel" className="analise-painel-detalhe">
-      <p className="text-xs leading-5 text-slate-600">Os mesmos itens do gráfico, com os valores do motor em {exibirCompetencia(r.competencia)}. A ordem
+      <p className="text-xs leading-5 text-slate-600">Os mesmos itens do gráfico, com os valores em {exibirCompetencia(r.competencia)}. A ordem
         padrão é a do código territorial; clicar num cabeçalho só reordena a tabela, sem criar posições.{p.corteAtivo ? " O que a régua esconde não aparece." : ""}
         {atual.paginas > 1 ? " Com muitos itens, a tabela mostra " + POR_PAGINA + " linhas por vez." : ""}</p>
       <div className="mt-2 overflow-x-auto">
@@ -93,9 +95,10 @@ export default function PainelDetalhes(p: Props) {
               {cabecalho("quantidade", "Profissionais")}
               {cabecalho("densidade", "Densidade")}
               {p.distancia && cabecalho("distancia", "Distância (km)")}
-              {temProxima && <th scope="col">Referência mais próxima</th>}
+              {temProxima && <th scope="col">{porItem ? "Território de referência (" + (relacao === "mais_distante" ? "o mais distante" : "o mais próximo") + ")"
+                : "Referência mais próxima"}</th>}
               {p.variacao && cabecalho("variacao", "Variação (" + especie.rotulo.toLowerCase() + ")")}
-              {p.tendencia && cabecalho("classe", "Classe de tendência")}
+              {p.tendencia && cabecalho("classe", "Tendência")}
               {temGrupo && cabecalho("grupo", "Grupo")}
               {temFaixa && cabecalho("faixa", "Faixa")}
               {temCondicao && cabecalho("condicao", "Condições")}
@@ -126,7 +129,7 @@ export default function PainelDetalhes(p: Props) {
                 <td className="tabular-nums">{formatarIndicador(numero(item.densidade), "densidade", p.indicador === "densidade" ? p.limiares : [])}</td>
                 {p.distancia && <td className="tabular-nums">{numero(item.distancia_km) === null ? "Não avaliável" : formatarNumero(item.distancia_km as number) +
                   (item.tipo === "conjunto" && numero(item.distancia_km_max) !== null ? " a " + formatarNumero(item.distancia_km_max as number) : "")}</td>}
-                {temProxima && <td>{(item.referencia_mais_proxima || []).map(ref => ref.rotulo).join(", ")}</td>}
+                {temProxima && <td>{(item.referenciaDoItem || []).map(ref => ref.rotulo).join(", ")}</td>}
                 {p.variacao && <td className="tabular-nums" data-variacao={variacao ?? ""}>{formatarVariacao(variacao)}
                   {inicial !== null && <span className="block text-[11px] text-slate-500">em {exibirCompetencia(r.competencia_inicial)}:{" "}
                     {formatarNumero(inicial, especie.contagem)}</span>}</td>}
@@ -155,7 +158,7 @@ export default function PainelDetalhes(p: Props) {
     <div role="tabpanel" id="analise-detalhes-painel-nao-avaliaveis" aria-labelledby="analise-detalhes-aba-nao-avaliaveis" hidden={aba !== "nao-avaliaveis"}
       data-testid="analise-nao-avaliaveis" className="analise-painel-detalhe">
       <p className="text-xs leading-5 text-slate-600">Não avaliável não é zero: sem o valor, o item fica fora do gráfico (ou vazado, com contorno tracejado, quando
-        só a camada de cor não tem valor) e aparece aqui com o motivo do motor.{p.fora.some(item => item.aspecto === "mapa")
+        só a camada de cor não tem valor) e aparece aqui com o motivo.{p.fora.some(item => item.aspecto === "mapa")
           ? " Com o mapa à vista, quem não tem coordenada válida fica fora do mapa (no gráfico, continua) e também aparece aqui." : ""}</p>
       {grupos.length ? grupos.map(grupo => <div key={grupo.aspecto} className="mt-2">
         <p className="text-xs font-semibold text-ink">{ASPECTOS[grupo.aspecto]}{grupo.aspecto === "indicador" ? " (" + especie.rotulo.toLowerCase() + ")" : ""}</p>
@@ -173,11 +176,13 @@ export default function PainelDetalhes(p: Props) {
         {p.distancia && <li data-testid="analise-metodo-tpl11">{NOTA_TPL11}</li>}
         {r.tendencia && r.tendencia.janela.length > 0 && <li>Janela da tendência: {r.tendencia.janela.map(exibirCompetencia).join(", ")} (CAP-TEN-01,
           rótulos de DA-15).{r.tendencia.bloqueio ? " " + r.tendencia.bloqueio : ""}</li>}
-        {r.grupos && <li>Grupos por posição ({r.grupos.tipo}) calculados pelo motor (CAP-DIS-02); com empates, os grupos podem ter tamanhos diferentes.</li>}
-        {r.faixas && <li>Faixas digitadas: intervalos [a, b) com as contagens do motor (CAP-DIS-03).</li>}
+        {r.serie && <li data-testid="analise-metodo-serie">Série temporal: {exibirCompetencia(r.serie.inicio)} a {exibirCompetencia(r.serie.fim)}{" "}
+          ({r.serie.competencias.length} competências), com o valor observado em cada uma, sem classificação.</li>}
+        {r.grupos && <li>Grupos por posição ({r.grupos.tipo}) calculados com o método dos quantis (CAP-DIS-02); com empates, os grupos podem ter tamanhos diferentes.</li>}
+        {r.faixas && <li>Faixas digitadas: intervalos [a, b) com as contagens de cada faixa (CAP-DIS-03).</li>}
         {(r.notas || []).map(nota => <li key={"n" + nota}>{nota}</li>)}
         {(r.limitacoes || []).map(codigo => <li key={"l" + codigo} data-limitacao={codigo}>{textoDaLimitacao(codigo)}</li>)}
-        <li>Na tela, os valores aparecem arredondados (duas casas nas medidas contínuas); a precisão integral fica no motor e no CSV.</li>
+        <li>Na tela, os valores aparecem arredondados (duas casas nas medidas contínuas); a precisão integral fica no cálculo e no CSV.</li>
       </ul>
       <p className="mt-2 text-[11px] text-slate-600">{maiuscula(p.rotulos.unidade.plural)} · competência {exibirCompetencia(r.competencia)}
         {r.competencia_inicial ? " · competência inicial " + exibirCompetencia(r.competencia_inicial) : ""} · categoria {r.categoria} · versão da

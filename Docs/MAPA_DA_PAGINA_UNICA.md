@@ -55,8 +55,8 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 | Esmaecido | Item fora da régua ou dos filtros visuais: no mesmo lugar e no mesmo tamanho, bem claro e sem interação. Nunca some. |
 | Fundo | As demais unidades da fonte (os demais municípios do Brasil), em quadradinhos cinza bem claros, sem interação: dão o formato do território. |
 | Anel escuro | Membro de um conjunto. O conjunto não tem ponto: o valor dele é a soma das contagens dos componentes, com possível dupla contagem (RQ-REP-14). A dica do membro diz de qual conjunto ele faz parte. |
-| Mira | Membro da referência da análise espacial (distância 0), a mesma mira do gráfico. |
-| Linha tracejada | Ligação ilustrativa, não é trajeto: de cada município marcado (até 30) ao membro mais próximo da referência, como o motor indicou. O aviso `mapa-ligacoes` diz isso. Não há círculos de "X km". |
+| Mira | Com a referência pelos membros (vinda da conversa pelo nome), o membro da referência da análise espacial (distância 0), a mesma mira do gráfico. Com o território de referência por elegibilidade (24/10/2026), os territórios que ficaram como referência de algum município (`referencia.membros` da resposta), também os de fora da seleção, pelo ponto do fundo: todos, até 30; com mais, só os dos municípios marcados, os mesmos das ligações. A legenda de símbolos diz "mira: território de referência" (`mapa-simbolos`). Os elegíveis não entram como itens do gráfico. |
+| Linha tracejada | Ligação ilustrativa, não é trajeto: de cada município marcado (até 30) ao território de referência dele (o mais próximo ou o mais distante dos elegíveis, desde 24/10/2026) ou, com a referência pelos membros, ao membro mais próximo, como o motor indicou (com os empates). O aviso `mapa-ligacoes` diz isso. Não há círculos de "X km". |
 | Anéis de seleção | Marcado: anel escuro junto ao ponto. Sob o mouse, em foco, tocado ou destacado pelo gráfico ao lado: anel externo. Foco pelo teclado: também o contorno de foco da página. |
 | Nomes | Dos marcados, dos que têm texto extra da área (por exemplo "1º" na ordenação) e, com até 12 pontos no resultado, de todos. Com zoom, mais nomes aparecem, sem cobrir uns aos outros, os pontos nomeados, os botões nem o mapinha; só o texto se move, nunca o ponto. |
 
@@ -118,7 +118,9 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
 - **Planilha sem latitude e longitude** (ou sem referencial autorizado): sem geometria autorizada, não há mapa (RQ-REP-07); a
   tabela continua.
 - **Unidade sem coordenada válida:** fica fora do mapa e aparece em Não avaliáveis, com o motivo do motor; a nota do mapa avisa.
-- **Visão Séries:** a área desliga a vista "Mapa" com o motivo. Na rotatividade, o mapa fica desligado só sem latitude e
+- **Visão Série temporal** (a antiga visão Séries): a área desliga a vista "Mapa" com o motivo ("Na visão Série temporal, cada
+  município é uma linha no tempo: o mapa fica com Tendência e Trajetória."). Ao abrir a Análise de Tendência, a vista é o
+  gráfico, e o mapa continua como alternativa nas visões Tendência e Trajetória. Na rotatividade, o mapa fica desligado só sem latitude e
   longitude na planilha (com coordenadas, ele pinta a permanência da coorte inicial).
 
 ## Regras da SPEC respeitadas
@@ -221,7 +223,9 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   quintis dele e o enquadramento com contexto (os pontos do estado só na parte central do mapa); os quintis escolhidos no
   gráfico, iguais aos do mapa;
   a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
-  do gráfico; o convite depois das Condições; as ligações da análise espacial; o lado a lado em 1.700 px, sem legenda repetida;
+  do gráfico; o convite depois das Condições; a análise espacial com o Território de referência (desde a segunda rodada de
+  24/10/2026: os elegíveis do mesmo estado acima da mediana da população, a referência de cada município entre eles e nunca ele
+  mesmo, as ligações até o território de referência e a mira dele na legenda de símbolos); o lado a lado em 1.700 px, sem legenda repetida;
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
   (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
   convites.

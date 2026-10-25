@@ -51,7 +51,8 @@ INDICADORES = {"density": "densidade", "quantity": "quantidade", "densidade": "d
 ANTIGOS = {"densidade": "density", "quantidade": "quantity"}
 CONTINUIDADE = {"tendencia": "temporal", "espacial": "spatial", "rotatividade": "rotation"}
 TIPOS_GRUPO = {"quart": "quartis", "quint": "quintis", "dec": "decis"}
-VISOES = {"mudanca": "Mudança", "classes": "Classes", "series": "Séries"}
+# Nomes das visões da tendência na tela (24/10/2026): Tendência (as classes), Trajetória (a mudança) e Série temporal.
+VISOES = {"mudanca": "Trajetória", "classes": "Tendência", "series": "Série temporal"}
 ATRIBUTO_TEXTO = {"densidade": "pela densidade", "quantidade": "pela quantidade", "populacao": "pela população",
                   "distancia_km": "pela distância até a referência", "variacao": "pela variação"}
 ORDEM_TEXTO = {"desc": "do maior para o menor", "asc": "do menor para o maior"}
@@ -144,7 +145,9 @@ FAMILIAS_PADROES = ((re.compile(r"\bdistribuic(?:ao|oes)\b"), "distribuicao"), (
                     (re.compile(r"\b(?:rotatividade|permanencia|coorte)\b"), "rotatividade"))
 VISOES_PADROES = (("classes", re.compile(r"\bclasses\b(?!\s+de\s+posicao)")),
                   ("series", re.compile(r"\b(?:series|linhas)\b")),
-                  ("mudanca", re.compile(r"\b(?:mudanca|cometas?)\b")))
+                  ("mudanca", re.compile(r"\b(?:mudanca|cometas?|trajetorias?)\b")))
+# "série temporal" (24/10/2026) é o nome da visão da série histórica: abre a tendência nessa visão.
+SERIE_TEMPORAL = re.compile(r"\bseries?\s+(?:temporal|temporais|historicas?)\b")
 GRUPOS_VISTA = re.compile(r"\b(?:(?:em|por|nos|nas|com)\s+)?(quart|quint|dec)(?:is|il)\b")
 SEM_GRUPOS = re.compile(r"\bsem\s+(?:os\s+)?(?:grupos|quartis|quintis|decis|classes\s+de\s+posicao)\b|"
                         r"\b(?:tire|retire|remova)\s+(?:os\s+)?(?:grupos|quartis|quintis|decis)\b")
@@ -1417,7 +1420,7 @@ def _ordenar(conv, dica, dica_indicador):
         return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use " + _nome_de_exemplo(conv) +
                          " como referência”." + NADA_MUDOU)
     if atributo == "variacao" and conv.ctx["familia"] != "tendencia":
-        return _pergunta("A variação aparece na tendência, na visão Mudança. Peça antes, por exemplo, “mostre a mudança "
+        return _pergunta("A variação aparece na tendência, na visão Trajetória. Peça antes, por exemplo, “mostre a mudança "
                          "anual”." + NADA_MUDOU)
     if quantos is not None and not 1 <= quantos <= 10000:
         return _pergunta("Escolha quantos destacar, entre 1 e 10.000." + NADA_MUDOU)
@@ -1520,15 +1523,18 @@ def _referencia(conv, dica, dica_indicador):
         frases.append("Usei " + rotulos + " como conjunto de referência" + quando + ": o eixo X mostra a distância em "
                       "linha reta (km) até o membro mais próximo.")
     elif criterio:
+        # O critério abre o Território de referência com o atributo citado e, desde 25/10/2026 (decisão 4), o operador do
+        # "maior" ou "menor" ("Maior que" ou "Menor que"): a condição de CAP-SUB-01. A relação (mais próximo ou mais distante),
+        # a delimitação e o valor de corte são da pessoa; nada é escolhido em silêncio nem pela posição na ordem (CAP-REF-01).
         painel["referencia"] = {"membros": [], "criterio": criterio}
-        frases.append("A referência segue o critério " + {"densidade": "densidade", "quantidade": "quantidade",
-                                                          "populacao": "população"}[criterio["atributo"]] + " (" +
-                      ("maior para menor" if criterio["ordem"] == "desc" else "menor para maior") + ")" + quando +
-                      ": a lista de candidatos abre nessa ordem para você usar o primeiro ou escolher outro; com empate "
-                      "na 1ª posição, a escolha é sua.")
+        atributo = {"densidade": "Densidade", "quantidade": "Quantidade", "populacao": "População"}[criterio["atributo"]]
+        operador = "Maior que" if criterio["ordem"] == "desc" else "Menor que"
+        frases.append("Abri o Território de referência" + quando + " com a condição " + atributo + " “" + operador + "”: "
+                      "escolha a relação (mais próximo ou mais distante), a delimitação e o valor de corte, e o eixo X "
+                      "mostra a distância em linha reta (km) até o território de referência de cada " + conv.rot.singular + ".")
     else:
-        frases.append("Abri a análise espacial" + quando + ": escolha a referência pelo nome, por um critério ou por um "
-                      "conjunto, e o eixo X mostra a distância em linha reta (km) até ela.")
+        frases.append("Abri a análise espacial" + quando + ": defina o Território de referência (a relação, a delimitação "
+                      "e a condição) ou diga o nome dele, e o eixo X mostra a distância em linha reta (km) até ele.")
     return _resposta(painel, " ".join(frases))
 
 
@@ -1611,8 +1617,8 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if objetos:
         painel["nivel"] = "estados"
         if funcao == "comparar":
-            frases.append("Mostrei os estados e abri a comparação lado a lado de " + _e(rotulos) + quando + ": maior, menor "
-                          "e diferença vêm do motor.")
+            frases.append("Mostrei os estados e abri a comparação lado a lado de " + _e(rotulos) + quando + ", com o maior, "
+                          "o menor e a diferença.")
         else:
             frases.append("Juntei " + _e(rotulos) + " num conjunto" + quando + ": a bolha soma as contagens estaduais, com "
                           "possível dupla contagem (quem atua em mais de um estado conta em cada um).")
@@ -1625,7 +1631,7 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
         if faltam:
             painel.update(nivel="municipios", municipios={"todos": False, "estados": list(atual["estados"]),
                                                           "ids": sorted(set(atual["ids"]) | set(faltam))})
-        frases.append("Abri a comparação lado a lado de " + _e(rotulos) + quando + ": maior, menor e diferença vêm do motor.")
+        frases.append("Abri a comparação lado a lado de " + _e(rotulos) + quando + ", com o maior, o menor e a diferença.")
         if faltam:
             frases.append("Acrescentei " + _e(conv.cat.rotulo(i) for i in faltam) + " ao gráfico.")
     else:
@@ -1675,8 +1681,8 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
         else:
             frases.append(_frase_de_base(conv, painel, base, quando))
     elif painel["familia"] == "espacial":
-        frases.append("Abri a análise espacial" + quando + ": escolha a referência pelo nome, por um critério ou por um "
-                      "conjunto, e o eixo X mostra a distância em linha reta (km) até ela.")
+        frases.append("Abri a análise espacial" + quando + ": defina o Território de referência (a relação, a delimitação "
+                      "e a condição) ou diga o nome dele, e o eixo X mostra a distância em linha reta (km) até ele.")
     elif painel["familia"] == "rotatividade":
         frases.append("Abri a rotatividade" + quando + ": barras de 100% com a permanência e a saída da coorte inicial.")
     elif painel["familia"] in ("tendencia", "distribuicao"):
@@ -1722,12 +1728,17 @@ def _vista(conv, dica, dica_indicador, funcao=None):
     if encontrado:
         familias.append("distribuicao")
         pedido.consome(*encontrado.span())
+    encontrado = SERIE_TEMPORAL.search(pedido.resto)
+    if encontrado:
+        painel["visao_tendencia"] = "series"
+        familias.append("tendencia")
+        pedido.consome(*encontrado.span())
     for padrao, familia in FAMILIAS_PADROES:
         for encontrado in list(padrao.finditer(pedido.resto)):
             familias.append(familia)
             pedido.consome(*encontrado.span())
     for visao, padrao in VISOES_PADROES:
-        encontrado = padrao.search(pedido.resto)
+        encontrado = None if painel["visao_tendencia"] else padrao.search(pedido.resto)
         if encontrado:
             painel["visao_tendencia"] = visao
             familias.append("tendencia")
@@ -1857,7 +1868,7 @@ def _sem_mapa(conv, painel):
     if (painel["familia"] or ctx["familia"]) == "rotatividade":
         return "A rotatividade ainda não aparece no mapa; a análise fica no gráfico."
     if painel["visao_tendencia"] == "series":
-        return "A visão Séries fica só no gráfico."
+        return "A visão Série temporal fica só no gráfico."
     muda = any(painel[chave] is not None for chave in ("nivel", "municipios", "familia", "visao_tendencia"))
     if ctx.get("mapa_disponivel") is False and not muda:
         return "O mapa não está disponível nesta análise; ela fica no gráfico."

@@ -1,40 +1,42 @@
 import { useMemo, useState } from "react";
 import type { PainelIndicador, PainelItem } from "./painelApi";
 import {
-  INDICADORES, NOMES_FAMILIA_TENDENCIA, barrasDeVelocidade, dominioDasSeries, exibirCompetencia, formatarNumero, larguraDoTexto, marcas,
-  montarSeries, paletaDoGrafico, posicionarRotulos, textoDaMarca, type RotulosTerritoriais,
+  INDICADORES, barrasDeVelocidade, dominioDasSeries, exibirCompetencia, formatarNumero, larguraDoTexto, marcas, montarSeries,
+  paletaDoGrafico, posicionarRotulos, textoDaMarca, umA, type RotulosTerritoriais,
 } from "./painelModel";
 import { useLargura } from "./PainelChart";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 
-// Visão Séries da tendência: linhas por competência (X = competência, no tempo real entre elas; Y = indicador), uma por
-// unidade, até 12. Com mais de 4, pequenos múltiplos na mesma escala. Um ponto por observação do motor; lacunas não são
-// ligadas e não há linha ajustada (Parte 13). As velocidades da unidade em foco vêm do motor (CAP-TEN-01): barras crescendo
-// mostram aceleração; diminuindo, desaceleração. A cor da linha é a família da classe, a mesma da visão Classes. Superfície, tintas,
-// grade, eixo e cores das famílias vêm da paleta do esquema de cor do aparelho (modo escuro, 23/10/2026).
+// Visão Série temporal da Análise de Tendência (24/10/2026, no lugar da visão Séries): a série histórica de cada unidade escolhida,
+// no intervalo pedido (de início, toda a extensão da base, do primeiro ao último período que ela tem), com X = competência, no tempo
+// real entre elas, e Y = indicador. Até 12 unidades; com mais de 4, pequenos múltiplos na mesma escala. Um ponto por valor
+// observado do motor; lacunas não são ligadas, não há linha ajustada (Parte 13) nem classificação: a série não usa a tendência
+// (CAP-TEN-01), e as linhas ficam na cor única do gráfico. Um conjunto com membros diferentes no intervalo fica só com os pontos,
+// sem linha (RQ-REP-15). Superfície, tintas, grade e eixo vêm da paleta do esquema de cor do aparelho (modo escuro, 23/10/2026).
 export const MAX_SERIES = 12;
 
-type Props = { itens: PainelItem[]; janela: string[]; indicador: PainelIndicador; rotulos: RotulosTerritoriais; unidadeTempo: string | null };
+type Props = { itens: PainelItem[]; competencias: string[]; indicador: PainelIndicador; rotulos: RotulosTerritoriais };
 
-export default function PainelSeries({ itens, janela, indicador, rotulos, unidadeTempo }: Props) {
+const observacoesDaSerie = (item: PainelItem) => item.serie?.observacoes ?? [];
+
+export default function PainelSeries({ itens, competencias, indicador, rotulos }: Props) {
   const [ref, largura] = useLargura(800);
   const paleta = paletaDoGrafico(useEsquemaDeCor());
   const [foco, setFoco] = useState<string | null>(null);
   const [ponto, setPonto] = useState<{ serie: string; competencia: string } | null>(null);
   const mostrados = itens.slice(0, MAX_SERIES);
-  const dominio = useMemo(() => dominioDasSeries(mostrados), [mostrados]);
+  const dominio = useMemo(() => dominioDasSeries(mostrados, observacoesDaSerie), [mostrados]);
   const multiplos = mostrados.length > 4;
   const especie = INDICADORES[indicador];
-  const focoEfetivo = mostrados.some(item => item.id === foco) ? foco : mostrados[0]?.id ?? null;
-  const itemFoco = mostrados.find(item => item.id === focoEfetivo) || null;
+  const focoEfetivo = mostrados.some(item => item.id === foco) ? foco : null;
   const colunas = multiplos ? (largura >= 900 ? 3 : largura >= 560 ? 2 : 1) : 1;
   const larguraGrafico = multiplos ? Math.floor((largura - (colunas - 1) * 12) / colunas) : largura;
-  const altura = multiplos ? 180 : Math.round(Math.min(420, Math.max(260, largura * 0.42)));
+  const altura = multiplos ? 180 : Math.round(Math.min(440, Math.max(280, largura * 0.42)));
 
   const desenhar = (grupo: PainelItem[], larguraSvg: number, alturaSvg: number, titulo: string | null) => {
     const esquerda = 52, direita = multiplos ? 12 : 150, topo = 12, base = alturaSvg - 34;
-    const { series, marcasX } = montarSeries({ itens: grupo, janela, dominio, x0: esquerda + 6, x1: larguraSvg - direita, y0: topo + 6,
-      y1: base - 6, paleta });
+    const { series, marcasX } = montarSeries({ itens: grupo, janela: competencias, dominio, x0: esquerda + 6, x1: larguraSvg - direita, y0: topo + 6,
+      y1: base - 6, paleta, observacoesDe: observacoesDaSerie, corUnica: paleta.bolha, ligar: item => item.serie?.comparavel !== false });
     const y = (valor: number) => base - 6 - (base - topo - 12) * ((valor - dominio[0]) / ((dominio[1] - dominio[0]) || 1));
     const ticksY = marcas(dominio, "linear", multiplos ? 3 : 5);
     const passo = Math.max(1, Math.ceil(marcasX.length / (multiplos ? 3 : 8)));
@@ -42,18 +44,20 @@ export default function PainelSeries({ itens, janela, indicador, rotulos, unidad
     const rotulosFim = posicionarRotulos(fins.map(serie => ({ id: serie.id, x: serie.fim!.x, y: serie.fim!.y, r: 4,
       largura: larguraDoTexto(serie.rotulo, 11) })), larguraSvg - 2, 14);
     return <svg width="100%" height={alturaSvg} viewBox={`0 0 ${larguraSvg} ${alturaSvg}`} role="img" className="analise-svg"
-      aria-label={(titulo ? titulo + ": " : "") + "linhas por competência de " + especie.rotulo.toLowerCase() + ", " + grupo.length + " " +
-        (grupo.length === 1 ? rotulos.unidade.singular : rotulos.unidade.plural)}>
+      aria-label={(titulo ? titulo + ": " : "") + "série temporal de " + especie.rotulo.toLowerCase() + ", " + grupo.length + " " +
+        (grupo.length === 1 ? rotulos.unidade.singular : rotulos.unidade.plural) + ", de " + exibirCompetencia(competencias[0]) + " a " +
+        exibirCompetencia(competencias[competencias.length - 1])}>
       {ticksY.map(valor => <line key={"g" + valor} x1={esquerda} x2={larguraSvg - direita} y1={y(valor)} y2={y(valor)} stroke={paleta.grade} strokeWidth={1}/>)}
       <line x1={esquerda} x2={esquerda} y1={topo} y2={base} stroke={paleta.eixo} strokeWidth={1}/>
       <line x1={esquerda} x2={larguraSvg - direita} y1={base} y2={base} stroke={paleta.eixo} strokeWidth={1}/>
       {ticksY.map(valor => <text key={"t" + valor} x={esquerda - 6} y={y(valor) + 4} textAnchor="end" className="analise-marca-texto">{textoDaMarca(valor)}</text>)}
       {marcasX.filter((_, indice) => indice % passo === 0 || indice === marcasX.length - 1).map(marca =>
         <text key={marca.competencia} x={marca.x} y={base + 16} textAnchor="middle" className="analise-marca-texto">{exibirCompetencia(marca.competencia)}</text>)}
-      {series.map(serie => <g key={serie.id} data-testid="analise-serie" data-id={serie.id} data-familia={serie.familia ?? "NAO_AVALIAVEL"}
-        data-pontos={serie.pontos.length} opacity={focoEfetivo && focoEfetivo !== serie.id && !multiplos ? 0.45 : 1}>
-        {serie.caminhos.map((d, indice) => <path key={indice} d={d} fill="none" stroke={serie.cor} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>)}
-        {serie.pontos.map(item => <circle key={item.competencia} cx={item.x} cy={item.y} r={4} fill={serie.cor} stroke={paleta.superficie} strokeWidth={2}
+      {series.map(serie => <g key={serie.id} data-testid="analise-serie" data-id={serie.id} data-comparavel={serie.ligada ? "true" : "false"}
+        data-pontos={serie.pontos.length} opacity={focoEfetivo && focoEfetivo !== serie.id && !multiplos ? 0.3 : 1}>
+        {serie.caminhos.map((d, indice) => <path key={indice} d={d} fill="none" stroke={serie.cor} strokeWidth={focoEfetivo === serie.id ? 3 : 2}
+          strokeLinejoin="round" strokeLinecap="round"/>)}
+        {serie.pontos.map(item => <circle key={item.competencia} cx={item.x} cy={item.y} r={3.5} fill={serie.cor} stroke={paleta.superficie} strokeWidth={1.5}
           data-testid="analise-serie-ponto" data-competencia={item.competencia} data-valor={item.valor}
           onPointerEnter={() => setPonto({ serie: serie.id, competencia: item.competencia })} onPointerLeave={() => setPonto(null)}/>)}
       </g>)}
@@ -65,7 +69,7 @@ export default function PainelSeries({ itens, janela, indicador, rotulos, unidad
       {ponto && series.filter(serie => serie.id === ponto.serie).map(serie => {
         const alvo = serie.pontos.find(item => item.competencia === ponto.competencia);
         if (!alvo) return null;
-        const texto = formatarNumero(alvo.valor, especie.contagem) + " · " + exibirCompetencia(alvo.competencia);
+        const texto = serie.rotulo + " · " + formatarNumero(alvo.valor, especie.contagem) + " · " + exibirCompetencia(alvo.competencia);
         const larguraTexto = larguraDoTexto(texto, 11) + 8;
         const x = Math.min(larguraSvg - larguraTexto - 2, Math.max(2, alvo.x - larguraTexto / 2));
         return <g key="dica" pointerEvents="none" data-testid="analise-serie-dica">
@@ -76,54 +80,59 @@ export default function PainelSeries({ itens, janela, indicador, rotulos, unidad
     </svg>;
   };
 
-  const velocidades = itemFoco?.tendencia?.velocidades ?? [];
-  const barras = barrasDeVelocidade(velocidades.map(item => item.valor), Math.min(520, largura), 90);
-  const porTempo = "por " + (unidadeTempo || "mês");
-  const familiasNaTela = [...new Set(mostrados.map(item => item.tendencia?.avaliavel ? item.tendencia.familia : null))];
-
-  return <section ref={ref} data-testid="analise-series" aria-label="Séries da tendência" className="space-y-3">
-    {itens.length > MAX_SERIES && <p className="text-xs text-amber-900">Mostrando {MAX_SERIES} de {itens.length}: a visão Séries
+  const naoComparaveis = mostrados.filter(item => item.serie?.comparavel === false);
+  return <section ref={ref} data-testid="analise-series" data-competencias={competencias.length} aria-label="Série temporal" className="space-y-3">
+    {itens.length > MAX_SERIES && <p className="text-xs text-amber-900">Mostrando {MAX_SERIES} de {itens.length}: a Série temporal
       desenha até {MAX_SERIES} {rotulos.unidade.plural}. Desmarque alguns para trocar.</p>}
     {multiplos ? <div className="analise-multiplos" style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}>
       {mostrados.map(item => <figure key={item.id} className="m-0 min-w-0 rounded-xl border border-line bg-white p-2">
-        <figcaption className="flex items-baseline justify-between gap-2 px-1 text-xs">
-          <button type="button" className="analise-link truncate text-left font-semibold text-ink" aria-pressed={focoEfetivo === item.id}
-            onClick={() => setFoco(item.id)} title={item.rotulo}>{item.rotulo}</button>
-          <span className="shrink-0 text-[11px] text-slate-600">{item.tendencia?.rotulo ?? "Não avaliável"}</span>
-        </figcaption>
+        <figcaption className="px-1 text-xs"><span className="block truncate font-semibold text-ink" title={item.rotulo}>{item.rotulo}</span></figcaption>
         {desenhar([item], larguraGrafico - 16, altura, item.rotulo)}
       </figure>)}
     </div> : <figure className="m-0">{desenhar(mostrados, largura, altura, null)}</figure>}
-    <div className="analise-legenda">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Cor das linhas: família da classe de tendência">
-        {familiasNaTela.map(familia => <li key={familia ?? "na"} className="flex items-center gap-1.5">
-          <svg width="18" height="8" aria-hidden="true"><line x1="1" x2="17" y1="4" y2="4" stroke={familia ? paleta.tendencia[familia] : paleta.naoAvaliavel} strokeWidth={2}/></svg>
-          {familia ? NOMES_FAMILIA_TENDENCIA[familia] : "Não avaliável"}</li>)}
-      </ul>
-      <p className="max-w-xl">Um ponto por competência observada; lacunas não são ligadas e não há linha ajustada. Eixo vertical: {especie.eixo.toLowerCase()}.</p>
-    </div>
-    {!multiplos && mostrados.length > 1 && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Unidade em foco">
-      {mostrados.map(item => <button key={item.id} type="button" aria-pressed={focoEfetivo === item.id} onClick={() => setFoco(item.id)}
-        className="analise-chip">{item.rotulo}</button>)}
+    {!multiplos && mostrados.length > 1 && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Destacar uma linha">
+      {mostrados.map(item => <button key={item.id} type="button" aria-pressed={focoEfetivo === item.id}
+        onClick={() => setFoco(atual => atual === item.id ? null : item.id)} className="analise-chip">{item.rotulo}</button>)}
     </div>}
-    {itemFoco && <section data-testid="analise-velocidades" data-id={itemFoco.id} aria-label={"Velocidades de " + itemFoco.rotulo}
-      className="rounded-xl border border-line bg-white p-3">
-      <h4 className="text-xs font-bold text-ink">Velocidades de {itemFoco.rotulo} · {itemFoco.tendencia?.rotulo ?? "Não avaliável"}</h4>
-      <p className="mt-1 text-[11px] leading-4 text-slate-600">Variação absoluta {porTempo} entre competências vizinhas, do motor. Barras do mesmo lado
-        e crescendo indicam aceleração; diminuindo, desaceleração; trocando de lado, mudança de direção.</p>
-      {velocidades.length ? <>
-        <svg width={Math.min(520, largura)} height={90} className="mt-2 block max-w-full" aria-hidden="true">
-          <line x1={0} x2={Math.min(520, largura)} y1={barras.base} y2={barras.base} stroke={paleta.eixo} strokeWidth={1}/>
-          {barras.barras.map((barra, indice) => <rect key={indice} x={barra.x} y={barra.y} width={barra.largura} height={barra.altura} rx={2}
-            fill={barra.sinal === 0 ? paleta.tinta2 : paleta.tendencia[itemFoco.tendencia?.familia ?? "NENHUMA"]}/>)}
-        </svg>
-        <ol className="mt-2 grid gap-0.5 text-[11px] text-slate-700 sm:grid-cols-2">
-          {velocidades.map(item => <li key={item.de + item.ate} data-testid="analise-velocidade" data-valor={item.valor}>
-            <span className="font-semibold tabular-nums text-ink">{item.valor > 0 ? "+" : ""}{formatarNumero(item.valor, false)}</span>{" "}
-            {especie.unidade} {porTempo} · {exibirCompetencia(item.de)} a {exibirCompetencia(item.ate)}</li>)}
-        </ol>
-      </> : <p className="mt-2 text-xs text-slate-600">Sem velocidades: a série não tem observações vizinhas suficientes{itemFoco.tendencia?.motivo
-        ? " (" + itemFoco.tendencia.motivo + ")" : ""}.</p>}
-    </section>}
+    {naoComparaveis.length > 0 && <p data-testid="analise-serie-nao-comparavel" className="text-xs text-amber-900">
+      {naoComparaveis.map(item => item.rotulo).join(", ")}: {naoComparaveis[0].serie?.motivo}</p>}
+  </section>;
+}
+
+/** A explicação da Série temporal, no painel ao lado do desenho (24/10/2026). */
+export function LegendaDaSerie({ indicador, rotulos }: { indicador: PainelIndicador; rotulos: RotulosTerritoriais }) {
+  return <div data-testid="analise-serie-legenda" className="analise-explicacao-bloco">
+    <p>Cada linha é {umA(rotulos.unidade)}: um ponto para cada competência com valor, no tempo real entre elas. Eixo vertical:{" "}
+      {INDICADORES[indicador].eixo.toLowerCase()}.</p>
+    <p>Competência sem valor fica sem ponto, e as lacunas não são ligadas. Não há classificação nem linha ajustada: a série mostra os
+      valores como foram observados.</p>
+  </div>;
+}
+
+/** As velocidades da tendência de uma unidade (CAP-TEN-01, do motor): a variação absoluta por unidade de tempo entre períodos
+ * vizinhos, em barras. Ficam no painel ao lado do quadro de setas, para a linha escolhida (24/10/2026; antes, na visão Séries). */
+export function Velocidades({ item, indicador, unidadeTempo }: { item: PainelItem; indicador: PainelIndicador; unidadeTempo: string | null }) {
+  const paleta = paletaDoGrafico(useEsquemaDeCor());
+  const especie = INDICADORES[indicador];
+  const velocidades = item.tendencia?.velocidades ?? [];
+  const largura = 280;
+  const barras = barrasDeVelocidade(velocidades.map(v => v.valor), largura, 80);
+  const porTempo = "por " + (unidadeTempo || "mês");
+  return <section data-testid="analise-velocidades" data-id={item.id} aria-label={"Velocidades de " + item.rotulo} className="analise-explicacao-bloco">
+    <p className="font-semibold text-ink">Velocidades de {item.rotulo} · {item.tendencia?.rotulo ?? "Não avaliável"}</p>
+    <p>Variação absoluta {porTempo} entre períodos vizinhos. Barras do mesmo lado e crescendo indicam aceleração; diminuindo,
+      desaceleração; trocando de lado, mudança de direção.</p>
+    {velocidades.length ? <>
+      <svg width={largura} height={80} className="block max-w-full" aria-hidden="true">
+        <line x1={0} x2={largura} y1={barras.base} y2={barras.base} stroke={paleta.eixo} strokeWidth={1}/>
+        {barras.barras.map((barra, indice) => <rect key={indice} x={barra.x} y={barra.y} width={barra.largura} height={barra.altura} rx={2}
+          fill={barra.sinal === 0 ? paleta.tinta2 : paleta.tendencia[item.tendencia?.familia ?? "NENHUMA"]}/>)}
+      </svg>
+      <ol className="grid gap-0.5">
+        {velocidades.map(v => <li key={v.de + v.ate} data-testid="analise-velocidade" data-valor={v.valor}>
+          <span className="font-semibold tabular-nums text-ink">{v.valor > 0 ? "+" : ""}{formatarNumero(v.valor, false)}</span>{" "}
+          {especie.unidade} {porTempo} · {exibirCompetencia(v.de)} a {exibirCompetencia(v.ate)}</li>)}
+      </ol>
+    </> : <p>Sem velocidades: a série não tem períodos vizinhos com valor{item.tendencia?.motivo ? " (" + item.tendencia.motivo + ")" : ""}.</p>}
   </section>;
 }

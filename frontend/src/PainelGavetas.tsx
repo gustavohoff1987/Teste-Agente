@@ -1,193 +1,190 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, LoaderCircle, Plus, Printer, Trash2, X } from "lucide-react";
-import {
-  pedirReferencias, type AtributoCondicao, type AtributoOrdenacao, type CondicaoPedido, type FonteDoMotor, type OperadorCondicao,
-  type OrdenarPedido, type PainelAtributo, type PainelConjuntoPedido, type PainelCriterio, type PainelIndicador, type PainelItem,
-  type PainelMunicipios,
-  type PainelOrdem, type PainelReferenciaPedido, type PainelResposta, type PainelUniverso, type Premissas, type ReferenciaCandidato,
-  type ReferenciasResposta, type SituacaoCondicao,
+import { Download, FileText, Plus, Printer, Trash2, X } from "lucide-react";
+import type {
+  AtributoCondicao, AtributoOrdenacao, CondicaoPedido, OperadorCondicao, OrdenarPedido, PainelAtributo, PainelConjuntoPedido,
+  PainelCriterio, PainelIndicador, PainelItem, PainelOrdem, PainelReferenciaPedido, PainelResposta, ReferenciaElegivel, RelacaoEspacial,
+  SituacaoCondicao, TipoDelimitacao,
 } from "./painelApi";
 import {
-  ATRIBUTOS, INDICADORES, MAX_CONJUNTOS, NOTA_TPL11, OPERADORES, ORDENS, SIMBOLOS,
-  artigo, baseVazia, escreverLimites, exibirCompetencia, formatarIndicador, formatarNumero, formatarVariacao, generoDe,
-  lerLimites, maiuscula, normalizarBase, numero, ordemNeutra, primeirosColocados, quantos, textoDaContagem, todosOs, umA, variacaoDe,
-  type RotulosTerritoriais, type UnidadeDoCatalogo,
+  ATRIBUTOS, MAX_CONJUNTOS, NOMES_RELACOES, NOTA_TPL11, OPERADORES, ORDENS, REGIOES_DO_BRASIL, SIMBOLOS, UNIDADES_DO_CORTE,
+  artigo, delimitacoesDaFonte, escreverLimites, formatarIndicador, formatarNumero, formatarVariacao, generoDe, lerLimites,
+  lerValorDeCorte, maiuscula, numero, operadorDoCriterio, ordemNeutra, quantos, referenciaElegivel, variacaoDe, type GrupoInfo,
+  type RotulosTerritoriais,
 } from "./painelModel";
 
 // Painéis laterais das funções e das opções das análises. Os valores, as posições, as contagens e as comparações vêm do motor;
 // a tela só lista, marca e pede. Cada painel é um formulário curto: o pedido sai só no botão de aplicar.
 
-const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const TODOS: PainelUniverso = { municipios: { todos: true, estados: [], ids: [] } };
-
-function valorDoCandidato(valor: number | null, atributo: PainelAtributo): string {
-  if (valor === null) return "Não avaliável";
-  return atributo === "populacao" ? formatarNumero(valor, true) + " habitantes" : formatarIndicador(valor, atributo);
-}
-
-// ------------------------------------------------------------------------------------------------ referência (espacial)
+// ------------------------------------------------------------------------------------------------ território de referência
 type ReferenciaProps = {
-  fonte: FonteDoMotor; competencia: string; categoria: string; base: PainelMunicipios; conjuntos: PainelConjuntoPedido[];
-  pedida: PainelReferenciaPedido | null; ativa: PainelResposta["referencia"]; nomes: Map<string, string>; rotulos: RotulosTerritoriais;
-  catalogo: UnidadeDoCatalogo[]; premissas: Premissas; faixas: number[];
-  /** Critério pedido na conversa ("a de maior densidade como referência"): a lista abre nessa ordem, e a escolha é da pessoa. */
+  /** A referência pedida agora (por elegibilidade ou, vinda da conversa, pelos membros). */
+  pedida: PainelReferenciaPedido | null;
+  /** A referência da resposta, quando a distância está à vista. */
+  ativa: PainelResposta["referencia"];
+  nomes: Map<string, string>; rotulos: RotulosTerritoriais; brasil: boolean;
+  /** Os grupos da fonte (os estados na base do Brasil; os valores da coluna-mãe numa planilha). */
+  grupos: GrupoInfo[];
+  /** Sem população na planilha, a densidade e a população não servem de condição. */
+  temPopulacao: boolean;
+  faixas: number[];
+  /** Critério pedido na conversa ("a de maior densidade como referência"): o atributo e o operador dele já vêm escolhidos. */
   criterioInicial?: PainelCriterio | null;
-  onAplicar: (referencia: PainelReferenciaPedido) => void; onRemover: () => void; onFaixas: (limites: number[]) => void;
+  onAplicar: (referencia: ReferenciaElegivel) => void; onRemover: () => void; onFaixas: (limites: number[]) => void;
 };
+type OperadorDoCorte = ">" | "<";
+const OPERADORES_DO_CORTE: { valor: OperadorDoCorte; rotulo: string }[] = [{ valor: ">", rotulo: "Maior que" }, { valor: "<", rotulo: "Menor que" }];
+const NOMES_ATRIBUTOS: Record<PainelAtributo, string> = { densidade: "Densidade", quantidade: "Quantidade", populacao: "População" };
 
-/** Referência por critério (densidade, quantidade ou população, na ordem do motor, CAP-SUB-02), pelo nome ou pelos membros de um
- * conjunto. Com várias, a distância vai até o membro mais próximo (CAP-ESP-02). Faixas de distância opcionais (CAP-ESP-03). */
+/** Território de referência da Análise Espacial (24/10/2026, pedido do responsável, no lugar da referência por critério, pelo
+ * nome ou por um conjunto): um fluxo só. Primeiro, os elegíveis: a delimitação geográfica (os níveis que a fonte tem) e a condição
+ * (densidade, quantidade ou população, maior ou menor que o valor de corte, CAP-SUB-01). Depois, a relação espacial: para cada
+ * território, o mais próximo (CAP-ESP-02) ou o mais distante dos elegíveis, sem ele mesmo, pelas distâncias geodésicas do motor.
+ * Nenhum campo tem valor padrão: o pedido sai só com os cinco escolhidos. Faixas de distância opcionais (CAP-ESP-03). */
 export function GavetaReferencia(p: ReferenciaProps) {
-  const semBase = baseVazia(p.base);
-  const [atributo, setAtributo] = useState<PainelAtributo>(p.criterioInicial?.atributo ?? "densidade");
-  const [ordem, setOrdem] = useState<PainelOrdem>(p.criterioInicial?.ordem ?? "desc");
-  const [universo, setUniverso] = useState<"base" | "todos">(semBase ? "todos" : "base");
-  const [lista, setLista] = useState<{ resposta: ReferenciasResposta; universo: PainelUniverso } | null>(null);
-  const [marcados, setMarcados] = useState<string[]>([]);
-  const [empate, setEmpate] = useState<string[] | null>(null);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState("");
-  const [consulta, setConsulta] = useState("");
+  const anterior = referenciaElegivel(p.pedida) ? p.pedida : null;
+  const [relacao, setRelacao] = useState<RelacaoEspacial | null>(anterior?.relacao ?? null);
+  const [delimitacao, setDelimitacao] = useState<TipoDelimitacao | null>(anterior?.delimitacao.tipo ?? null);
+  const [valores, setValores] = useState<string[]>(anterior?.delimitacao.valores ?? []);
+  const [atributo, setAtributo] = useState<PainelAtributo | null>(anterior?.condicao.atributo ?? p.criterioInicial?.atributo ?? null);
+  const [operador, setOperador] = useState<OperadorDoCorte | null>(anterior
+    ? (anterior.condicao.operador === ">" || anterior.condicao.operador === "<" ? anterior.condicao.operador : null)
+    : operadorDoCriterio(p.criterioInicial));
+  const [valor, setValor] = useState(anterior ? formatarNumero(anterior.condicao.valor, anterior.condicao.atributo !== "densidade") : "");
   const [faixas, setFaixas] = useState(escreverLimites(p.faixas));
-  const procurarEm = semBase ? "todos" : universo;
-  useEffect(() => { setLista(null); setMarcados([]); setEmpate(null); setErro(""); }, [atributo, ordem, procurarEm, p.competencia, p.categoria,
-    JSON.stringify(p.base)]);
   useEffect(() => setFaixas(escreverLimites(p.faixas)), [p.faixas]);
-  // Critério pedido na conversa: o mesmo critério nos seletores e a lista de candidatos já aberta, nessa ordem.
-  const criterioPedido = p.criterioInicial ? p.criterioInicial.atributo + ":" + p.criterioInicial.ordem : "";
-  const [listarPedido, setListarPedido] = useState(false);
+  // Critério pedido na conversa, também depois de o painel abrir: o atributo citado e o operador do "maior" ou "menor" passam a
+  // valer (decisão 4, 25/10/2026); a relação, a delimitação e o valor de corte continuam com a pessoa.
+  const criterioDaConversa = p.criterioInicial ?? null;
   useEffect(() => {
-    if (!p.criterioInicial) return;
-    setAtributo(p.criterioInicial.atributo); setOrdem(p.criterioInicial.ordem); setListarPedido(true);
-  }, [criterioPedido]);  // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!listarPedido || !p.criterioInicial || atributo !== p.criterioInicial.atributo || ordem !== p.criterioInicial.ordem) return;
-    setListarPedido(false);
-    void listar();
-  }, [listarPedido, atributo, ordem]);  // eslint-disable-line react-hooks/exhaustive-deps
-  const unidade = p.rotulos.unidade;
+    if (!criterioDaConversa) return;
+    setAtributo(criterioDaConversa.atributo);
+    setOperador(operadorDoCriterio(criterioDaConversa));
+  }, [criterioDaConversa]);
+  const unidade = p.rotulos.unidade, grupo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
+  const fem = generoDe(unidade) === "f", grupoFem = generoDe(grupo) === "f";
+  const opcoes = useMemo(() => delimitacoesDaFonte({ brasil: p.brasil, comGrupos: p.grupos.length > 0, rotulos: p.rotulos }),
+    [p.brasil, p.grupos.length, p.rotulos]);
+  const escolhaDeValores = delimitacao === "grupos" ? p.grupos.map(item => ({ id: item.id, nome: item.nome + (item.sigla ? " (" + item.sigla + ")" : "") }))
+    : delimitacao === "regioes" ? REGIOES_DO_BRASIL.map(regiao => ({ id: regiao.nome, nome: regiao.nome })) : [];
+  const numeroDoCorte = atributo ? lerValorDeCorte(valor, atributo) : null;
+  const corteInvalido = !!valor.trim() && !!atributo && numeroDoCorte === null;
+  const faltam = [!relacao && "a relação espacial", !delimitacao && "a delimitação",
+    (delimitacao === "grupos" || delimitacao === "regioes") && !valores.length &&
+      (delimitacao === "regioes" ? "as regiões" : (grupoFem ? "as " : "os ") + grupo.plural),
+    !atributo && "o atributo da condição", !operador && "o operador", numeroDoCorte === null && "o valor de corte"].filter(Boolean) as string[];
+  const pronto = !faltam.length;
+  const atributoDisponivel = (a: PainelAtributo) => a === "quantidade" || p.temPopulacao;
+  // A delimitação em palavras, com as mesmas regras do texto do motor ("do estado escolhido (Pará)", "das regiões Norte e Sul").
+  const juntar = (nomes: string[]) => nomes.length < 2 ? nomes.join("") : nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1];
+  const textoDaDelimitacao = (() => {
+    if (!delimitacao) return "";
+    const nomes = escolhaDeValores.filter(item => valores.includes(item.id)).map(item => item.nome);
+    if (delimitacao === "grupos") return nomes.length === 1
+      ? (grupoFem ? "da " : "do ") + grupo.singular + " escolhid" + (grupoFem ? "a" : "o") + " (" + nomes[0] + ")"
+      : (grupoFem ? "das " : "dos ") + grupo.plural + " escolhid" + (grupoFem ? "as" : "os") + (nomes.length ? " (" + juntar(nomes) + ")" : "");
+    if (delimitacao === "regioes") return nomes.length === 1 ? "da Região " + nomes[0] : "das regiões " + juntar(nomes);
+    if (delimitacao === "mesmo_grupo") return (grupoFem ? "da mesma " : "do mesmo ") + grupo.singular + " de cada " + unidade.singular;
+    if (delimitacao === "mesma_regiao") return "da mesma região de cada " + unidade.singular;
+    return p.brasil ? "de todo o Brasil" : "de toda a planilha";
+  })();
+  const previa = pronto && relacao && atributo && operador && numeroDoCorte !== null ? "Para cada " + unidade.singular + ", " +
+    artigo(unidade, false) + " " + unidade.singular + " " + (relacao === "mais_proxima" ? (fem ? "mais próxima" : "mais próximo") : "mais distante") +
+    " entre " + artigo(unidade, true) + " " + unidade.plural + " " + textoDaDelimitacao + " com " + NOMES_ATRIBUTOS[atributo].toLowerCase() + " " +
+    (operador === ">" ? "maior que " : "menor que ") + formatarNumero(numeroDoCorte, atributo !== "densidade") + " " +
+    UNIDADES_DO_CORTE[atributo].unidade + "." : null;
+  const alternarValor = (id: string) => setValores(atual => atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]);
+  function aplicar() {
+    if (!pronto || !relacao || !delimitacao || !atributo || !operador || numeroDoCorte === null) return;
+    p.onAplicar({ relacao, delimitacao: delimitacao === "grupos" || delimitacao === "regioes" ? { tipo: delimitacao, valores: [...valores].sort() }
+      : { tipo: delimitacao }, condicao: { atributo, operador, valor: numeroDoCorte } });
+  }
+  const ativaElegivel = p.ativa?.tipo === "elegiveis" ? p.ativa : null;
 
-  async function listar() {
-    setCarregando(true); setErro(""); setEmpate(null); setMarcados([]);
-    const escolhido: PainelUniverso = procurarEm === "todos" ? TODOS : { municipios: normalizarBase(p.base) };
-    try {
-      const resposta = await pedirReferencias(p.fonte, { competencia: p.competencia, categoria: p.categoria, universo: escolhido,
-        criterio: { atributo, ordem }, ...(Object.keys(p.premissas).length ? { premissas: p.premissas } : {}) });
-      setLista({ resposta, universo: escolhido });
-    } catch (exc) {
-      setErro(exc instanceof Error ? exc.message : "Não foi possível listar os candidatos.");
-    } finally {
-      setCarregando(false);
-    }
-  }
-  function aplicar(membros: string[]) {
-    if (!membros.length) return;
-    // Pela lista do critério, a origem cita a posição vista; escolhidos só pelo nome, a origem é a lista explícita.
-    const daLista = lista && membros.every(id => lista.resposta.candidatos.some(item => item.id === id));
-    if (daLista) {
-      const { atributo: usado, ordem: sentido } = lista!.resposta.criterio;
-      p.onAplicar({ membros, criterio: { atributo: usado, ordem: sentido, universo: lista!.universo } });
-    } else p.onAplicar({ membros });
-  }
-  function usarPrimeiro() {
-    if (!lista) return;
-    const primeiros = primeirosColocados(lista.resposta.candidatos);
-    if (primeiros.length === 1) { setEmpate(null); aplicar([primeiros[0].id]); return; }
-    if (primeiros.length > 1) { setEmpate(primeiros.map(item => item.id)); setMarcados([]); }
-  }
-  const alternar = (id: string) => setMarcados(atual => atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]);
-  const todosCandidatos = lista?.resposta.candidatos ?? [];
-  const candidatos: ReferenciaCandidato[] = empate ? todosCandidatos.filter(item => empate.includes(item.id)) : todosCandidatos;
-  const atributoDaLista = lista?.resposta.criterio.atributo ?? atributo;
-  const naoAvaliaveis = lista?.resposta.nao_avaliaveis ?? [];
-  const achados = useMemo(() => {
-    const termo = sem(consulta.trim());
-    if (!termo) return [];
-    return p.catalogo.filter(item => !item.selection_reason && sem(item.name + " " + item.code + " " + item.label).includes(termo)).slice(0, 12);
-  }, [p.catalogo, consulta]);
-
-  return <section data-testid="analise-referencia" aria-label="Referência da distância" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">Com {umA(unidade)}, a distância é até {generoDe(unidade) === "f" ? "ela" : "ele"}; com vários, eles formam um
-      conjunto de referência, e a distância vai até o membro mais próximo.</p>
+  return <section data-testid="analise-referencia" aria-label="Território de referência" className="space-y-3">
+    <p className="text-xs leading-5 text-slate-600">Defina quais {unidade.plural} podem ser referência e, depois, se a referência de cada{" "}
+      {unidade.singular} é {artigo(unidade, false)} mais próxim{fem ? "a" : "o"} ou {artigo(unidade, false)} mais distante entre el{fem ? "as" : "es"}.{" "}
+      {maiuscula(artigo(unidade, false))} própri{fem ? "a" : "o"} {unidade.singular} nunca é a sua referência.</p>
     {p.pedida && <div data-testid="analise-ref-ativa" className="rounded-xl border border-line bg-slate-50 p-3 text-xs leading-5 text-slate-700">
       {p.ativa ? <>
-        <p><strong className="text-ink">Referência atual:</strong> {p.ativa.membros.map(membro => membro.rotulo).join(", ")}
-          {p.ativa.tipo === "conjunto" ? " (conjunto de referência)" : ""}.</p>
-        {p.ativa.origem && <p>{p.ativa.origem}.</p>}
-      </> : <p><strong className="text-ink">Referência pedida:</strong> {p.pedida.membros.map(id => p.nomes.get(id) || id).join(", ")}. O
-        gráfico com a distância ainda não foi calculado (veja a mensagem acima do gráfico).</p>}
+        {ativaElegivel ? <p><strong className="text-ink">Em uso:</strong> {ativaElegivel.origem}.</p> : <>
+          <p><strong className="text-ink">Referência em uso:</strong> {p.ativa.membros.map(membro => membro.rotulo).join(", ")}
+            {p.ativa.tipo === "conjunto" ? " (conjunto de referência)" : ""}.</p>
+          {p.ativa.origem && <p>{p.ativa.origem}.</p>}
+        </>}
+      </> : <p><strong className="text-ink">Referência pedida:</strong> {referenciaElegivel(p.pedida) ? "o território de referência definido abaixo"
+        : p.pedida.membros.map(id => p.nomes.get(id) || id).join(", ")}. A distância ainda não foi calculada (veja a mensagem acima do gráfico).</p>}
       <button type="button" data-testid="analise-ref-remover" onClick={p.onRemover} className="analise-botao-secundario mt-2">Remover a referência</button>
     </div>}
-    <fieldset className="space-y-2">
-      <legend className="text-xs font-semibold text-ink">Por critério</legend>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <label className="analise-rotulo-campo">Critério
-          <select data-testid="analise-ref-criterio" value={atributo} onChange={event => setAtributo(event.target.value as PainelAtributo)} className="analise-campo">
-            <option value="densidade">Densidade</option><option value="quantidade">Quantidade</option><option value="populacao">População</option>
-          </select>
-        </label>
-        <label className="analise-rotulo-campo">Ordem
-          <select data-testid="analise-ref-ordem" value={ordem} onChange={event => setOrdem(event.target.value as PainelOrdem)} className="analise-campo">
-            <option value="desc">Da maior para a menor</option><option value="asc">Da menor para a maior</option>
-          </select>
-        </label>
-        <label className="analise-rotulo-campo">Procurar em
-          <select data-testid="analise-ref-universo" value={procurarEm} onChange={event => setUniverso(event.target.value as "base" | "todos")} className="analise-campo">
-            <option value="base" disabled={semBase}>Os do gráfico</option><option value="todos">{maiuscula(todosOs(unidade))}</option>
-          </select>
-        </label>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" data-testid="analise-ref-listar" onClick={() => void listar()} disabled={carregando || !p.competencia} className="analise-botao-secundario">
-          {carregando && <LoaderCircle size={14} className="animate-spin" aria-hidden="true"/>}Listar candidatos</button>
-        <button type="button" data-testid="analise-ref-primeiro" onClick={usarPrimeiro} disabled={!primeirosColocados(todosCandidatos).length}
-          className="analise-botao-secundario">Usar o primeiro</button>
+    {p.criterioInicial && !anterior && <p data-testid="analise-ref-da-conversa" className="rounded-lg border border-line bg-white px-3 py-2 text-xs text-slate-700">
+      A conversa pediu a referência pela {p.criterioInicial.ordem === "desc" ? "maior" : "menor"} {NOMES_ATRIBUTOS[p.criterioInicial.atributo].toLowerCase()}:
+      a condição já vem com {NOMES_ATRIBUTOS[p.criterioInicial.atributo]} e "{p.criterioInicial.ordem === "desc" ? "Maior que" : "Menor que"}".
+      Complete a relação, a delimitação e o valor de corte.</p>}
+
+    <fieldset className="analise-ref-passo">
+      <legend>1. Relação espacial</legend>
+      <div role="radiogroup" aria-label="Relação espacial" className="analise-segmentos">
+        {(["mais_proxima", "mais_distante"] as RelacaoEspacial[]).map(item => <button key={item} type="button" role="radio" aria-checked={relacao === item}
+          data-testid={"analise-ref-relacao-" + item} onClick={() => setRelacao(item)}>{NOMES_RELACOES[item]}</button>)}
       </div>
     </fieldset>
-    {erro && <p role="alert" className="text-xs text-rose-800">{erro}</p>}
-    {empate && <p role="status" data-testid="analise-ref-empate" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      Há empate na 1ª posição. Escolha entre os empatados abaixo e use Aplicar referência.</p>}
-    {lista && <div className="space-y-2">
-      <p className="text-xs text-slate-600">Ordem do motor por {ATRIBUTOS[lista.resposta.criterio.atributo]}, {ORDENS[lista.resposta.criterio.ordem]}, em{" "}
-        {exibirCompetencia(lista.resposta.competencia)}; empates ficam na mesma posição.</p>
-      {p.conjuntos.length > 0 && <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">Marcar os membros de um conjunto:
-        {p.conjuntos.map(conjunto => <button key={conjunto.id} type="button" className="analise-chip"
-          onClick={() => setMarcados(conjunto.membros.filter(id => candidatos.some(item => item.id === id)))}>{conjunto.rotulo}</button>)}</p>}
-      <ol data-testid="analise-ref-candidatos" aria-label="Candidatos a referência" className="analise-lista-rolavel">
-        {candidatos.map(item => <li key={item.id} data-testid="analise-ref-candidato" data-id={item.id} data-posicao={item.posicao ?? ""}>
-          <label className="analise-caixa">
-            <input type="checkbox" checked={marcados.includes(item.id)} onChange={() => alternar(item.id)}/>
-            <span className="w-9 shrink-0 tabular-nums text-slate-600">{item.posicao !== null ? item.posicao + "º" : "—"}</span>
-            <span className="min-w-0 flex-1 truncate">{item.rotulo}</span>
-            <span className="shrink-0 tabular-nums text-slate-700">{valorDoCandidato(item.valor, atributoDaLista)}</span>
-          </label>
-        </li>)}
-      </ol>
-      {naoAvaliaveis.length > 0 && !empate && <details className="text-xs text-slate-600">
-        <summary className="cursor-pointer">Não avaliáveis para o critério (sem posição)</summary>
-        <ul className="mt-1 space-y-0.5">{naoAvaliaveis.map(item => <li key={item.id}>{item.rotulo}{item.motivos.length ? ": " + item.motivos.join("; ") : ""}</li>)}</ul>
-      </details>}
-    </div>}
-    <fieldset className="space-y-2">
-      <legend className="text-xs font-semibold text-ink">Pelo nome</legend>
-      <input type="search" data-testid="analise-ref-busca" value={consulta} onChange={event => setConsulta(event.target.value)}
-        placeholder={"Nome ou código " + (generoDe(unidade) === "f" ? "da " : "do ") + unidade.singular} className="analise-campo"/>
-      {achados.length > 0 && <ul className="space-y-0.5">{achados.map(item => <li key={item.id} data-testid="analise-ref-achado" data-id={item.id}>
-        <label className="analise-caixa">
-          <input type="checkbox" checked={marcados.includes(item.id)} onChange={() => alternar(item.id)}/>
-          <span className="min-w-0 flex-1">{item.name ? item.name + (item.state ? " (" + item.state + ")" : "") : item.label}</span>
-        </label>
-      </li>)}</ul>}
+
+    <fieldset className="analise-ref-passo">
+      <legend>2. Delimitação geográfica</legend>
+      <label className="analise-rotulo-campo">Onde procurar a referência
+        <select data-testid="analise-ref-delimitacao" value={delimitacao ?? ""} className="analise-campo"
+          onChange={event => { setDelimitacao((event.target.value || null) as TipoDelimitacao | null); setValores([]); }}>
+          <option value="">Escolha</option>
+          {opcoes.map(opcao => <option key={opcao.tipo} value={opcao.tipo}>{opcao.rotulo}</option>)}
+        </select>
+      </label>
+      {escolhaDeValores.length > 0 && <ul data-testid="analise-ref-valores" className="analise-ref-valores"
+        aria-label={delimitacao === "regioes" ? "Regiões" : maiuscula(grupo.plural)}>
+        {escolhaDeValores.map(item => <li key={item.id}><label className="analise-caixa">
+          <input type="checkbox" data-testid="analise-ref-valor-opcao" data-id={item.id} checked={valores.includes(item.id)} onChange={() => alternarValor(item.id)}/>
+          <span>{item.nome}</span></label></li>)}
+      </ul>}
     </fieldset>
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" data-testid="analise-ref-aplicar" onClick={() => aplicar(marcados)} disabled={!marcados.length} className="analise-botao-primario">
-        Aplicar referência</button>
-      {marcados.length > 0 && <span className="text-xs text-slate-600">{marcados.length === 1 ? "1 marcado" : marcados.length + " marcados: conjunto de referência"}</span>}
-    </div>
+
+    <fieldset className="analise-ref-passo">
+      <legend>3. Condição do território de referência</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="analise-rotulo-campo">Atributo
+          <select data-testid="analise-ref-atributo" value={atributo ?? ""} className="analise-campo"
+            onChange={event => setAtributo((event.target.value || null) as PainelAtributo | null)}>
+            <option value="">Escolha</option>
+            {(["densidade", "quantidade", "populacao"] as PainelAtributo[]).map(item => <option key={item} value={item} disabled={!atributoDisponivel(item)}>
+              {NOMES_ATRIBUTOS[item]}{atributoDisponivel(item) ? "" : " (sem população na planilha)"}</option>)}
+          </select>
+        </label>
+        <div className="analise-rotulo-campo">
+          <span aria-hidden="true">Operador</span>
+          <div role="radiogroup" aria-label="Operador" className="analise-segmentos mt-1">
+            {OPERADORES_DO_CORTE.map(item => <button key={item.valor} type="button" role="radio" aria-checked={operador === item.valor}
+              data-testid={"analise-ref-operador-" + (item.valor === ">" ? "maior" : "menor")} onClick={() => setOperador(item.valor)}>{item.rotulo}</button>)}
+          </div>
+        </div>
+      </div>
+      <label className="analise-rotulo-campo">Valor de corte{atributo ? " (" + UNIDADES_DO_CORTE[atributo].unidade + ")" : ""}
+        <input data-testid="analise-ref-valor" inputMode="decimal" value={valor} onChange={event => setValor(event.target.value)} className="analise-campo"
+          aria-invalid={corteInvalido} aria-describedby="analise-ref-valor-dica"
+          placeholder={atributo === "densidade" ? "2,36" : atributo === "quantidade" ? "500" : atributo ? "50.000" : ""}
+          disabled={!atributo}/>
+      </label>
+      <p id="analise-ref-valor-dica" className={"text-[11px] leading-4 " + (corteInvalido ? "text-rose-800" : "text-slate-600")}>
+        {!atributo ? "Escolha o atributo para informar o valor." : corteInvalido
+          ? (atributo === "densidade" ? "Use um número não negativo, com vírgula decimal (por exemplo, 2,36)." : "Use um número inteiro não negativo.")
+          : UNIDADES_DO_CORTE[atributo].dica}</p>
+    </fieldset>
+
+    {previa ? <p data-testid="analise-ref-previa" className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-ink">{previa}</p>
+      : <p data-testid="analise-ref-falta" className="text-xs text-slate-600">Falta escolher: {faltam.join(", ")}.</p>}
+    <button type="button" data-testid="analise-ref-aplicar" onClick={aplicar} disabled={!pronto} className="analise-botao-primario">
+      Aplicar o território de referência</button>
+
     <fieldset className="space-y-2 border-t border-line pt-3">
       <legend className="text-xs font-semibold text-ink">Faixas de distância (opcional)</legend>
-      <p className="text-[11px] leading-4 text-slate-600">Limites em km, separados por ponto e vírgula (por exemplo, 0; 100; 300). O motor conta quantos ficam
-        em cada faixa (CAP-ESP-03).</p>
+      <p className="text-[11px] leading-4 text-slate-600">Limites em km, separados por ponto e vírgula (por exemplo, 0; 100; 300). A análise conta quantos
+        ficam em cada faixa (CAP-ESP-03).</p>
       <div className="flex flex-wrap gap-2">
         <input data-testid="analise-faixas-distancia" value={faixas} onChange={event => setFaixas(event.target.value)} inputMode="decimal"
           className="analise-campo w-40" aria-label="Limites das faixas de distância (km)"/>
@@ -252,7 +249,7 @@ export function GavetaCondicoes(p: CondicoesProps) {
         onClick={() => { p.onAplicar([]); p.onSoAtende(false); }}>Limpar</button>}
     </div>
     {contagens && p.condicoes.length > 0 && <div className="space-y-2">
-      <ul className="flex flex-wrap gap-1.5" aria-label="Contagens do motor">
+      <ul className="flex flex-wrap gap-1.5" aria-label="Contagens">
         {(["ATENDE", "NAO_ATENDE", "NAO_AVALIAVEL"] as SituacaoCondicao[]).map(situacao => <li key={situacao} data-testid="analise-condicoes-contagem"
           data-situacao={situacao} data-contagem={contagens[situacao] ?? ""} className="analise-contagem">
           <strong className="tabular-nums text-ink">{contagens[situacao] ?? "—"}</strong> {NOMES[situacao].toLowerCase()}</li>)}
@@ -290,7 +287,7 @@ export function GavetaOrdenar(p: OrdenarProps) {
     return "";
   };
   return <section data-testid="analise-ordenar" aria-label="Ordenar" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">O motor ordena pelo indicador e no sentido que você escolher; empates ficam na mesma posição (1, 2, 2, 4).
+    <p className="text-xs leading-5 text-slate-600">A ordem segue o indicador e o sentido que você escolher; empates ficam na mesma posição (1, 2, 2, 4).
       "Os N primeiros" mostra só as posições até N, com todos os empatados no corte.</p>
     <div className="grid gap-2 sm:grid-cols-3">
       <label className="analise-rotulo-campo">Indicador
@@ -316,7 +313,7 @@ export function GavetaOrdenar(p: OrdenarProps) {
       {p.ordenar && <button type="button" data-testid="analise-ordenar-limpar" className="analise-botao-secundario" onClick={() => p.onAplicar(null)}>Limpar</button>}
     </div>
     {ordenacao && p.ordenar && <div className="space-y-1.5">
-      <p className="text-xs text-slate-700">{ordenacao.texto || "Ordem do motor por " + (ATRIBUTOS[ordenacao.atributo] || ordenacao.atributo) + ", " +
+      <p className="text-xs text-slate-700">{ordenacao.texto || "Ordem por " + (ATRIBUTOS[ordenacao.atributo] || ordenacao.atributo) + ", " +
         (ORDENS[ordenacao.ordem as PainelOrdem] || ordenacao.ordem) + "."}{ordenacao.empatesNoCorte ? " Há empate no corte: os empatados entram juntos." : ""}</p>
       <ol data-testid="analise-ordenar-lista" className="analise-lista-rolavel">
         {mostrados.map(item => <li key={item.id} data-id={item.id} data-posicao={item.ordem!.posicao ?? ""} className="flex items-center gap-2 px-2 py-1 text-xs">
@@ -332,12 +329,13 @@ export function GavetaOrdenar(p: OrdenarProps) {
 
 // ------------------------------------------------------------------------------------------------ comparar
 type CompararProps = { itens: PainelItem[]; selecionados: string[]; pedidos: string[]; resposta: PainelResposta | null;
-  indicador: PainelIndicador; distancia: boolean; variacao: boolean; competenciaInicial: string | null; nomes: Map<string, string>;
+  nomes: Map<string, string>; rotulos: RotulosTerritoriais;
   onAlternar: (id: string) => void; onLimpar: () => void; onComparar: (ids: string[]) => void };
-/** Comparar (CAP-CMP-01): 2 ou 3 itens lado a lado, com maior, menor e diferença vindos do motor. */
+/** Comparar (CAP-CMP-01): 2 ou 3 itens lado a lado, com maior, menor e diferença vindos do motor. Desde 24/10/2026, a escolha é
+ * só a orientação e as etiquetas dos itens (os cartões com densidade, população e outros valores saíram: os valores estão no
+ * gráfico, na dica e na tabela); o resultado da comparação continua. */
 export function GavetaComparar(p: CompararProps) {
   const escolhidos = p.selecionados.map(id => p.itens.find(item => item.id === id)).filter((item): item is PainelItem => !!item);
-  const especie = INDICADORES[p.indicador];
   const comparacao = p.resposta?.comparacao;
   const atual = p.pedidos.length >= 2 && [...p.pedidos].sort().join() === [...p.selecionados].sort().join();
   const nome = (id: string) => p.nomes.get(id) || id;
@@ -345,9 +343,11 @@ export function GavetaComparar(p: CompararProps) {
     : atributo === "densidade" || atributo === "quantidade" ? formatarIndicador(valor, atributo)
     : atributo === "populacao" ? formatarNumero(valor, true) + " habitantes" : atributo === "distancia_km" ? formatarNumero(valor) + " km"
     : atributo.startsWith("variacao") ? formatarVariacao(valor) : formatarNumero(valor);
+  const faltam = Math.max(0, 2 - escolhidos.length);
   return <section data-testid="analise-comparar" aria-label="Comparar" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">Clique nas bolhas (ou marque na tabela) para escolher dois ou três itens; os demais esmaecem. O motor
-      diz qual é o maior, o menor e a diferença.</p>
+    <p data-testid="analise-comparar-orientacao" className="text-xs leading-5 text-slate-600">Escolha dois ou três itens: clique nas bolhas do gráfico (ou nas
+      linhas do quadro de setas) ou marque a caixa na tabela dos Detalhes; os demais esmaecem. Depois, use Comparar: o resultado diz qual é o maior,
+      o menor e a diferença.</p>
     {escolhidos.length > 0 ? <ul className="flex flex-wrap gap-1.5" aria-label="Itens escolhidos">
       {escolhidos.map(item => <li key={item.id} data-testid="analise-comparar-item" data-id={item.id} className="analise-etiqueta">
         {item.rotulo}
@@ -355,25 +355,13 @@ export function GavetaComparar(p: CompararProps) {
       </li>)}
       <li><button type="button" onClick={p.onLimpar} className="analise-link text-xs">Limpar a escolha</button></li>
     </ul> : <p className="text-xs text-slate-600">Nenhum item escolhido.</p>}
+    {faltam > 0 && <p className="text-xs text-slate-600">Falta{faltam > 1 ? "m" : ""} {faltam === 1 ? "um item" : "dois itens"} para comparar.</p>}
     {escolhidos.length > 3 && <p className="text-xs text-amber-900">Para comparar lado a lado, deixe até três itens. Com mais, use Juntar.</p>}
     <button type="button" data-testid="analise-comparar-calcular" className="analise-botao-primario"
       disabled={escolhidos.length < 2 || escolhidos.length > 3 || atual} onClick={() => p.onComparar(escolhidos.map(item => item.id))}>
       {atual ? "Comparação em exibição" : "Comparar"}</button>
-    {escolhidos.length > 0 && escolhidos.length <= 3 && <div className="grid gap-2 sm:grid-cols-3">
-      {escolhidos.map(item => <article key={item.id} className="min-w-0 rounded-xl border border-line bg-slate-50 p-3 text-xs">
-        <h4 className="truncate font-semibold text-ink" title={item.rotulo}>{item.rotulo}</h4>
-        {item.tipo === "conjunto" && <p className="text-[11px] text-slate-600">{textoDaContagem(item.contagem)}</p>}
-        <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-slate-700">
-          <dt className="text-slate-500">{especie.rotulo}</dt><dd className="font-semibold text-ink">{formatarIndicador(numero(item[p.indicador]), p.indicador)}</dd>
-          <dt className="text-slate-500">População</dt><dd>{numero(item.populacao) === null ? "Não avaliável" : formatarNumero(item.populacao as number, true)}</dd>
-          {p.distancia && <><dt className="text-slate-500">Distância</dt><dd>{numero(item.distancia_km) === null ? "Não avaliável" : formatarNumero(item.distancia_km as number) + " km"}</dd></>}
-          {p.variacao && <><dt className="text-slate-500">Variação</dt><dd>{formatarVariacao(variacaoDe(item, p.indicador))}
-            {p.competenciaInicial ? <span className="text-slate-500"> desde {exibirCompetencia(p.competenciaInicial)}</span> : null}</dd></>}
-        </dl>
-      </article>)}
-    </div>}
-    {atual && comparacao && <section data-testid="analise-comparacao" aria-label="Comparação do motor" className="space-y-2 rounded-xl border border-line bg-white p-3 text-xs">
-      <h4 className="font-bold text-ink">Comparação do motor</h4>
+    {atual && comparacao && <section data-testid="analise-comparacao" aria-label="Resultado da comparação" className="space-y-2 rounded-xl border border-line bg-white p-3 text-xs">
+      <h4 className="font-bold text-ink">Resultado da comparação</h4>
       {comparacao.linhas.map(linha => <div key={linha.atributo} data-testid="analise-comparacao-linha" data-atributo={linha.atributo} className="space-y-0.5">
         {linha.atributo && <p className="font-semibold text-ink">{maiuscula(ATRIBUTOS[linha.atributo] || linha.atributo)}</p>}
         {linha.maior.length > 0 && <p>Maior: {linha.maior.map(item => item.rotulo + " (" + valorComparado(linha.atributo, item.valor) + ")").join(" e ")}
@@ -390,19 +378,26 @@ export function GavetaComparar(p: CompararProps) {
 
 // ------------------------------------------------------------------------------------------------ juntar
 type JuntarProps = { itens: PainelItem[]; selecionados: string[]; conjuntos: PainelConjuntoPedido[]; rotulos: RotulosTerritoriais;
-  nivelGrupos: boolean; onJuntar: (rotulo: string) => void; onDesfazer: (id: string) => void };
+  nivelGrupos: boolean; onJuntar: (rotulo: string) => void; onDesfazer: (id: string) => void; onAlternar: (id: string) => void };
 /** Juntar (CAP-AGR-01): as unidades escolhidas viram uma bolha agregada pelo motor, com a soma das contagens dos componentes e
- * possível dupla contagem (RQ-REP-14). Estados e municípios nunca se somam: na visão dos grupos, Juntar fica desligado. */
+ * possível dupla contagem (RQ-REP-14). Estados e municípios nunca se somam: na visão dos grupos, Juntar fica desligado. Desde
+ * 24/10/2026, a escolha aparece como no Comparar: a orientação e as etiquetas dos escolhidos, cada uma com o ×. */
 export function GavetaJuntar(p: JuntarProps) {
   const [nome, setNome] = useState("");
   const unidades = p.selecionados.map(id => p.itens.find(item => item.id === id)).filter((item): item is PainelItem => !!item && item.tipo === "municipio");
   const unidade = p.rotulos.unidade;
   return <section data-testid="analise-juntar" aria-label="Juntar" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">Escolha {generoDe(unidade) === "f" ? "duas" : "dois"} ou mais {unidade.plural} no gráfico ou na tabela. O motor devolve uma bolha com a soma
-      das populações e das contagens dos membros: soma das contagens dos componentes, com possível dupla contagem.</p>
+    <p data-testid="analise-juntar-orientacao" className="text-xs leading-5 text-slate-600">Escolha {generoDe(unidade) === "f" ? "duas" : "dois"} ou mais{" "}
+      {unidade.plural}: clique nas bolhas do gráfico ou marque a caixa na tabela dos Detalhes. Juntar faz uma bolha só, com a soma das
+      populações e das contagens dos membros (soma das contagens dos componentes, com possível dupla contagem).</p>
     {p.nivelGrupos ? <p className="text-xs text-amber-900">Na visão dos {(p.rotulos.grupo?.plural || "grupos")}, Juntar fica desligado: {p.rotulos.grupo?.plural || "grupos"} e{" "}
       {unidade.plural} nunca se somam aqui. Abra {unidade.plural} para juntar.</p> : <>
-      <p className="text-xs text-slate-700">{unidades.length ? "Escolhidos: " + unidades.map(item => item.rotulo).join(", ") + "." : "Nenhum escolhido."}</p>
+      {unidades.length ? <ul className="flex flex-wrap gap-1.5" aria-label="Escolhidos para juntar">
+        {unidades.map(item => <li key={item.id} data-testid="analise-juntar-item" data-id={item.id} className="analise-etiqueta">
+          {item.rotulo}
+          <button type="button" aria-label={"Tirar " + item.rotulo} onClick={() => p.onAlternar(item.id)} className="analise-icone"><X size={13} aria-hidden="true"/></button>
+        </li>)}
+      </ul> : <p className="text-xs text-slate-600">Nenhum escolhido.</p>}
       <div className="flex flex-wrap items-end gap-2">
         <label className="analise-rotulo-campo min-w-[12rem] flex-1">Nome do conjunto
           <input data-testid="analise-juntar-nome" value={nome} onChange={event => setNome(event.target.value)} maxLength={60}
@@ -429,7 +424,7 @@ type ExportarProps = { pronto: boolean; onCsv: () => void; onImprimir: () => voi
 /** Exportar (CAP-REP-05/06): CSV com precisão integral, avaliabilidade e motivo; Imprimir/PDF; método e parâmetros. */
 export function GavetaExportar({ pronto, onCsv, onImprimir, onMetodo }: ExportarProps) {
   return <section data-testid="analise-exportar" aria-label="Exportar" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">O CSV traz todos os itens do resultado (com ou sem a régua), com os valores do motor em precisão integral,
+    <p className="text-xs leading-5 text-slate-600">O CSV traz todos os itens do resultado (com ou sem a régua), com os valores em precisão integral,
       a avaliabilidade e o motivo de cada um. Imprimir / PDF leva o título, o gráfico, as legendas e os detalhes.</p>
     <div className="flex flex-col gap-2">
       <button type="button" data-testid="analise-exportar-csv" disabled={!pronto} onClick={onCsv} className="analise-botao-primario justify-start">

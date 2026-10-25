@@ -153,13 +153,15 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   Manaus e Tefé"; "mostre todos os municípios"; "municípios da Região Norte"; "acrescente Belém" e "tire Tefé" (a partir
   dos municípios do gráfico); "volte aos estados" (`nivel: "estados"`) e "volte aos municípios".
 - **Indicador, análise e grupos:** "mostre a quantidade", "a densidade"; "mostre a distribuição", "a tendência", "a
-  análise espacial"; "em quintis", "sem os grupos"; "visão Mudança", "classes", "séries".
+  análise espacial"; "em quintis", "sem os grupos"; "visão Mudança" ou "trajetória" (a visão Trajetória), "classes"
+  (a visão Tendência), "séries" e, desde a segunda rodada de 24/10/2026, "série temporal" ou "séries históricas" (a visão
+  Série temporal). A resposta usa os nomes da tela ("Visão da tendência: Trajetória.").
 - **Competência:** "em junho de 2023"; "em 2023" (com duas competências no ano, a pergunta qual).
 - **Período da tendência** (desde 24/10/2026, sem janela longa): os períodos são sempre os últimos 4 do ritmo, anual ou
   semestral, como no campo Período da tela (`janela_do_ritmo`, o mesmo cálculo de `painelModel.janelaDoRitmo`). O ritmo vem
   de "tendência anual", "semestral", "ano a ano", "a cada ano", "por semestre", "a cada seis meses", "série anual de junho"
-  e "últimos 3 junhos" (anual, e sempre com 4 períodos); "mostre a mudança anual" abre a visão Mudança, entre o primeiro e o
-  último dos 4. Um período com várias competências e sem ritmo ("de 2021 a 2024", "desde 2022", "nos últimos 4 anos",
+  e "últimos 3 junhos" (anual, e sempre com 4 períodos); "mostre a mudança anual" (ou "a trajetória anual") abre a visão
+  Trajetória, entre o primeiro e o último dos 4. Um período com várias competências e sem ritmo ("de 2021 a 2024", "desde 2022", "nos últimos 4 anos",
   mesmo nas leituras divergentes da AT-34, "todas as competências", "mudança entre junho de 2023 e junho de 2024") vira a
   pergunta do ritmo, com um botão por ritmo que a base tem ("Anual" e "Semestral"); cada botão reescreve o pedido com o
   ritmo no lugar do período. O mesmo vale nas condições, na ordenação, em comparar e em juntar ("os 5 municípios com maior
@@ -168,7 +170,13 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   rotatividade, as duas pontas citadas são os períodos da coorte.
 - **Referência da análise espacial:** "use Belém como referência", "distância até Belém", "a referência é Belém"; "use
   Manaus e Belém como conjunto de referência" (o membro mais próximo); "use como referência o município de maior
-  densidade" (critério: a lista de candidatos abre nessa ordem e a escolha final é da pessoa).
+  densidade" (critério: abre o Território de referência com o atributo citado e, desde 25/10/2026, o operador do "maior" ou
+  "menor", também em "mais/menos populosos" e "mais/menos profissionais"; a relação, a delimitação e o valor de corte ficam com
+  a pessoa, sem valor sugerido: "Abri o Território de referência com a condição Densidade “Maior que”: escolha a relação (mais
+  próximo ou mais distante), a delimitação e o valor de corte, …". Nada é escolhido pela posição na ordem: CAP-REF-01 pede uma
+  condição de CAP-SUB-01. Antes de 24/10, a lista de candidatos abria nessa ordem; de 24 a 25/10, o "maior/menor" ficava sem
+  efeito). "Abra a análise espacial" responde "Abri a análise espacial: defina o Território de
+  referência (a relação, a delimitação e a condição) ou diga o nome dele, …".
 - **Ordenar:** "os 5 municípios com maior densidade", "os 3 com menor quantidade", "quais os dez mais populosos?",
   "qual município tem a maior densidade?" (o primeiro), "os 10 primeiros", "top 5", "os 5 mais distantes de Manaus".
   Sem o indicador ("os 10 primeiros") ou sem a direção ("ordene pela densidade"), a conversa pergunta. Empates na
@@ -193,7 +201,7 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   intérprete com o provedor, que a devolve como `show_map` ou `show_chart`. "Amapá" não é o mapa.
 - **Onde o mapa não mostra a análise** pedida, o comando segue sem a vista, e a resposta diz por quê: nos estados (ou nos
   grupos de uma planilha), que não têm um ponto; numa planilha sem latitude e longitude; na rotatividade e na visão
-  Séries, que ficam no gráfico; e quando a área já informou que o mapa não está disponível (`painel_mapa_disponivel:
+  Série temporal, que ficam no gráfico; e quando a área já informou que o mapa não está disponível (`painel_mapa_disponivel:
   false`) e o pedido não muda o nível, as unidades, a análise nem a visão. A área confere de novo e mostra o motivo dela.
 
 ### Ambiguidades e perguntas
@@ -228,7 +236,7 @@ Com a vista citada, a resposta ganha uma frase, conforme a vista em exibição (
 "O mapa continua na tela."; lado a lado, "Deixei só o mapa."); "Voltei ao gráfico." quando o mapa estava na tela (lado a
 lado, "Deixei só o gráfico."; já no gráfico, nada é acrescentado); sem o mapa, o motivo, por exemplo "Os estados não têm
 um ponto no mapa; a análise fica no gráfico. Para ver no mapa, abra os municípios de um estado.", "Sem latitude e
-longitude na planilha, não há mapa; a análise fica no gráfico." ou "A visão Séries fica só no gráfico.".
+longitude na planilha, não há mapa; a análise fica no gráfico." ou "A visão Série temporal fica só no gráfico.".
 
 ### Planilhas de outros países
 

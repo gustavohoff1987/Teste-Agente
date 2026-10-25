@@ -88,7 +88,7 @@ test('vista do desenho pela conversa: o mapa quando a área o tem, o motivo quan
   assert.equal(C.respostaDaVista('graficos', null).pedido, null);
   // A tabela continua nos Detalhes, abaixo do desenho em uso; nada é pedido à área.
   assert.deepEqual(C.respostaDaVista('tabela', NO_GRAFICO),
-    {texto: 'A tabela fica em Detalhes, logo abaixo do gráfico, com os mesmos valores do motor.', pedido: null});
+    {texto: 'A tabela fica em Detalhes, logo abaixo do gráfico, com os mesmos valores.', pedido: null});
   assert.match(C.respostaDaVista('tabela', {...NO_GRAFICO, vista: 'mapa'}).texto, /logo abaixo do mapa/);
   assert.match(C.respostaDaVista('tabela', null).texto, /Detalhes, logo abaixo do gráfico/);
 });

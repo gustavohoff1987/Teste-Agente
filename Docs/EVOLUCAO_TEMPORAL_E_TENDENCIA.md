@@ -6,8 +6,10 @@
 > histórico, assim como `trend.ts`, `TrendVisuals.tsx`, `ResultWorkspace.tsx`, `PeriodSelection.tsx`, os testes
 > `trend.test.mjs` e `visualModels.test.mjs` e os roteiros de navegador citados na seção 7. Continuam o método e os
 > metadados na API (`metadata.tendencia` e `metadata.mudanca`), com os testes do backend (`test_trend.py`). Na
-> página única, a análise Tendência mostra a mudança, as classes e as séries com os últimos 4 períodos do ritmo que a
-> pessoa escolhe, anual ou semestral (desde 24/10/2026, sem janela longa; [área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+> página única, a análise Tendência mostra as visões Tendência (as classes) e Trajetória (a mudança) com os últimos 4
+> períodos do ritmo, anual ou semestral (desde 24/10/2026, sem janela longa; desde a segunda rodada de 24/10/2026, abre no
+> anual), e a visão Série temporal, com a série histórica completa da base ou o intervalo escolhido, sem classificação
+> ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura dos roteiros que saíram está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
 
 Vigência: 19/10/2026 (decisão D6 do responsável pelo produto). Código: `backend/trend.py`,
 `backend/temporal_change.py`, o ramo `temporal` de `backend/main.py` e `backend/representation.py`; na

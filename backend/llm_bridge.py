@@ -95,7 +95,7 @@ _GUIDANCE = {
     "limits": (
         "O Gemini propõe interpretações, mas não executa cálculos, não escolhe nem "
         "estabelece significados dos campos, não inventa métodos e não autoriza agregações. "
-        "Se o modelo estiver indisponível, o motor Python e os controles continuam funcionando."
+        "Se o modelo estiver indisponível, os cálculos e os controles da tela continuam funcionando."
     ),
     "spatial": (
         "A distância espacial utiliza coordenadas e cálculo geodésico. Ela representa "
@@ -111,7 +111,7 @@ _GUIDANCE = {
         "A densidade por 1.000 habitantes é calculada como quantidade de profissionais "
         "dividida pela população correspondente, multiplicada por 1.000. "
         "A população é a da mesma linha, no mesmo território e período de cada quantidade; "
-        "essa premissa é aplicada pelo motor e aparece em \"Método e limitações\"."
+        "essa premissa é aplicada no cálculo e aparece em \"Método e limitações\"."
     ),
 }
 _GENERIC_GREETING = (

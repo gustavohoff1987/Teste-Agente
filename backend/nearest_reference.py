@@ -381,6 +381,115 @@ def nearest_exhaustive(t_lat, t_lon, r_lat, r_lon, *, crs):
     return np.array(best), ties
 
 
+def _normals(lat, lon):
+    """Normal externa do elipsoide em cada ponto (latitude geodésica): a direção em que o ponto é a projeção mais próxima
+    no elipsoide de qualquer ponto exterior."""
+    phi, lam = np.radians(lat), np.radians(lon)
+    return np.column_stack([np.cos(phi) * np.cos(lam), np.cos(phi) * np.sin(lam), np.sin(phi)])
+
+
+def _outer_points(lat, lon, crs):
+    """Cada ponto do elipsoide levado, pela normal, até a esfera de raio a (o semieixo maior), que contém o elipsoide."""
+    _, a, _ = ELLIPSOIDS[crs]
+    p = _ecef(lat, lon, crs)
+    n = _normals(lat, lon)
+    pn = np.einsum("ij,ij->i", p, n)
+    t = -pn + np.sqrt(np.maximum(pn * pn - np.einsum("ij,ij->i", p, p) + a * a, 0.0))
+    return p + t[:, None] * n
+
+
+def extreme_exact(t_lat, t_lon, r_lat, r_lon, *, crs, farthest=False, skip=None):
+    """Para cada alvo, a referência mais próxima (ou, com farthest, a mais distante) entre as referências, com a geodésica
+    (m) no elipsoide do referencial crs e os índices de todas as referências com esse valor exato (empates).
+
+    `skip` (opcional): para cada alvo, o índice de uma referência que não conta para ele (o próprio território, que não é
+    a sua referência), ou -1. Alvo sem nenhuma referência restante: nan e lista vazia.
+
+    As decisões usam só geodésicas calculadas (Karney). Limites servem apenas para não calcular geodésicas que não podem
+    decidir: na mais próxima, a corda 3D (nunca maior que a geodésica), como em nearest_exact; na mais distante, o arco
+    entre os pontos levados pela normal até a esfera de raio a (nunca menor que a geodésica: a projeção no elipsoide
+    convexo não aumenta comprimentos, então a imagem do arco é um caminho na superfície com no máximo esse comprimento).
+    Uma referência só fica sem geodésica quando o limite prova que ela não alcança a melhor já calculada; as margens só
+    ampliam o conjunto calculado contra erros de ponto flutuante."""
+    t_lat, t_lon = np.asarray(t_lat, float), np.asarray(t_lon, float)
+    r_lat, r_lon = np.asarray(r_lat, float), np.asarray(r_lon, float)
+    count, total = len(t_lat), len(r_lat)
+    best = np.full(count, np.nan)
+    ties: list[list[int]] = [[] for _ in range(count)]
+    evaluated = 0
+    if not count or not total:
+        return best, ties, evaluated
+    geod = GEODS[crs]
+    _, a, _ = ELLIPSOIDS[crs]
+    skip = None if skip is None else np.asarray(skip, dtype=int)
+    if farthest:
+        r_out, t_out = _outer_points(r_lat, r_lon, crs), _outer_points(t_lat, t_lon, crs)
+    else:
+        r_out, t_out = _ecef(r_lat, r_lon, crs), _ecef(t_lat, t_lon, crs)
+    for start in range(0, count, CHUNK):
+        stop = min(count, start + CHUNK)
+        size = stop - start
+        if farthest:
+            dot = np.clip(t_out[start:stop] @ r_out.T / (a * a), -1.0, 1.0)
+            cross = np.linalg.norm(np.cross(t_out[start:stop, None, :], r_out[None, :, :]), axis=2) / (a * a)
+            bound = a * np.arctan2(cross, dot)  # limite superior da geodésica
+        else:
+            diff = t_out[start:stop, None, :] - r_out[None, :, :]
+            bound = np.sqrt(np.einsum("ijk,ijk->ij", diff, diff))  # limite inferior da geodésica
+        allowed = np.ones((size, total), dtype=bool)
+        if skip is not None:
+            own = skip[start:stop]
+            mine = np.flatnonzero(own >= 0)
+            allowed[mine, own[mine]] = False
+        distance = np.full((size, total), np.nan)
+        done = ~allowed
+        k = min(FIRST_CANDIDATES, total)
+        ranked = np.where(allowed, -bound if farthest else bound, np.inf)
+        first = np.argpartition(ranked, k - 1, axis=1)[:, :k]
+        rows = np.repeat(np.arange(size), k)
+        cols = first.ravel()
+        keep = allowed[rows, cols]
+        rows, cols = rows[keep], cols[keep]
+        while len(rows):
+            _, _, meters = geod.inv(t_lon[start + rows], t_lat[start + rows], r_lon[cols], r_lat[cols])
+            distance[rows, cols] = meters
+            done[rows, cols] = True
+            evaluated += len(rows)
+            if farthest:
+                limit = np.max(np.where(np.isnan(distance), -np.inf, distance), axis=1)
+                pending = (bound * (1 + 1e-9) + 1e-3 >= limit[:, None]) & ~done
+            else:
+                limit = np.min(np.where(np.isnan(distance), np.inf, distance), axis=1)
+                pending = (bound <= (limit * (1 + 1e-12) + 1e-6)[:, None]) & ~done
+            rows, cols = np.nonzero(pending)
+        for i in range(size):
+            row = distance[i]
+            if np.isnan(row).all():
+                continue
+            value = np.nanmax(row) if farthest else np.nanmin(row)
+            best[start + i] = value
+            ties[start + i] = np.flatnonzero(row == value).tolist()
+    return best, ties, evaluated
+
+
+def extreme_exhaustive(t_lat, t_lon, r_lat, r_lon, *, crs, farthest=False, skip=None):
+    """Referência de teste de extreme_exact: todas as geodésicas, o mesmo critério de extremo, empate e exclusão."""
+    best, ties = [], []
+    for i, (lat, lon) in enumerate(zip(t_lat, t_lon)):
+        _, _, meters = GEODS[crs].inv(np.full(len(r_lat), lon), np.full(len(r_lat), lat), np.asarray(r_lon), np.asarray(r_lat))
+        meters = np.asarray(meters, float)
+        if skip is not None and skip[i] >= 0:
+            meters[skip[i]] = np.nan
+        if not len(meters) or np.isnan(meters).all():
+            best.append(np.nan)
+            ties.append([])
+            continue
+        value = np.nanmax(meters) if farthest else np.nanmin(meters)
+        best.append(value)
+        ties.append(np.flatnonzero(meters == value).tolist())
+    return np.array(best), ties
+
+
 def _not_evaluable(detail=None, scope=None):
     value = {"avaliabilidade": "NAO_AVALIAVEL", "motivo": "DEPENDENCIA_NAO_AVALIAVEL", "referencias": []}
     if detail:
