@@ -35,9 +35,10 @@ Membros sem registros no recorte são bloqueados com motivo, nunca eliminados em
 Ausências temporais nos extremos mantêm a mudança não avaliável.
 
 A inspeção dos arquivos locais confirmou `uf` e `regiao_geografica`, além de
-`municipio` e `cod_ibge`. Uma unidade (`251365`) possui hierarquias divergentes na
-fonte (a coluna `uf` traz PA em 2016/6). Desde 19/10/2026, no perfil oficial ela é selecionável como PB,
-pelo prefixo do código IBGE, com a nota `hierarchy_note`; em bases importadas, unidade com hierarquia
+`municipio` e `cod_ibge`. Uma unidade (`251365`) tinha hierarquias divergentes na
+fonte (a coluna `uf` trazia PA em 2016/6), até a correção da linha em 25/10/2026, a pedido do responsável
+pelo produto. Desde 19/10/2026, no perfil oficial, uma unidade assim é selecionável pelo estado do prefixo
+do código IBGE, com a nota `hierarchy_note`; em bases importadas, unidade com hierarquia
 divergente continua impedida para seleção até esclarecimento. As outras unidades
 não são bloqueadas por esse conflito externo ao seu recorte.
 A regra `brasil-cod-uf-prefix-1` deriva
@@ -142,8 +143,9 @@ Na interface, marcar um membro entre 5.570 leva 76–127 ms até o quadro seguin
 - Validação empírica com os dados reais: `ADT_REAL_DATA_DIR=<pasta> pytest`;
   `ADT_BLOCK1_REAL=1 python backend/tests/ui_block1_smoke.py` com o catálogo real
   instalado (62 municípios, 22 competências); `ui_brazil_smoke.py` e `ui_smoke.py`.
-  A unidade `251365` com hierarquia divergente tem verificação dedicada desde 19/10/2026
-  (`test_territorial_levels.py` e `test_levels_real_data.py`: PB pelo prefixo, selecionável, com nota).
+  A unidade com hierarquia divergente tem verificação dedicada desde 19/10/2026:
+  `test_territorial_levels.py` (sintético: PB pelo prefixo, selecionável, com nota) e
+  `test_levels_real_data.py` (o 251365 na PB; desde a correção de 25/10/2026, sem divergência nem nota).
 - O contrato da interpretação Gemini ainda aceita comparações só por densidade; a
   comparação por quantidade do Bloco 1 depende da gramática local ou dos controles.
   Alterar esse contrato é decisão de governança de LLM, não tomada aqui.

@@ -560,8 +560,9 @@ Diagnóstico de 23/10/2026 com a base versionada (somente leitura), na densidade
 de 2014 a 2024), os 62 municípios do Amazonas ficam todos sem classificação por mudança de direção (desfecho `RES-SCL`;
 Manaus tem 17 subidas e 4 descidas); com os últimos 4 junhos (2021 a 2024), 17 `CRESCIMENTO`, 4
 `CRESCIMENTO_ACELERADO`, 1 `CRESCIMENTO_DESACELERADO`, 2 `DECLINIO_ACELERADO` e 38 `SEM_CLASSIFICACAO`; o Brasil
-inteiro, com as 22, 5.563 `SEM_CLASSIFICACAO` e 7 `CRESCIMENTO`; os 27 estados, com as 22, 22 `SEM_CLASSIFICACAO` e 5
-`CRESCIMENTO`. Em todos esses casos, quem fica sem classificação fica por mudança de direção. A ausência generalizada de
+inteiro, com as 22, 5.563 `SEM_CLASSIFICACAO` e 7 `CRESCIMENTO`; os 27 estados, com as 22, 21 `SEM_CLASSIFICACAO` e 6
+`CRESCIMENTO` (até a correção da base de 25/10/2026, 22 e 5: a Paraíba ficava sem classificação pela queda de junho de 2016,
+efeito da população errada do 251365). Em todos esses casos, quem fica sem classificação fica por mudança de direção. A ausência generalizada de
 classe em janelas longas vem da regra, não de falha no cálculo, e o método não muda.
 `backend/tests/test_painel_tendencia.py` confere cada desfecho de AT-53 num catálogo sintético e esse diagnóstico com a
 base versionada (job `dados-reais`).

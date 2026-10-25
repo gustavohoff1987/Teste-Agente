@@ -47,8 +47,9 @@ contagem de médicos únicos da fonte estadual (`Dados_Estados_Brasil.csv`, regr
 quem atua em mais de um município do estado conta uma vez), nunca a soma dos seus municípios; a população
 do estado é a soma dos seus municípios na competência (regra UF-POP-MUNICIPIOS-1). Quem atua em mais de um
 estado conta em cada um: o estado não é comparado com o total do Brasil, e a soma de estados é sempre a
-soma dos componentes, com possível dupla contagem. A divergência da coluna `uf` em uma competência (o
-251365, declarado PA em 2016/6) vira uma nota, e o município continua selecionável como PB.
+soma dos componentes, com possível dupla contagem. Uma divergência da coluna `uf` vira uma nota, e o
+município continua selecionável pelo estado do código (até a correção de 25/10/2026, o 251365, declarado
+PA em 2016/6; hoje, nenhuma linha da versão governada diverge).
 Em bases importadas, a hierarquia de colunas continua só descritiva: não autoriza agregação, e a unidade
 com hierarquia divergente continua bloqueada para seleção. Detalhes:
 [abrangência territorial](ABRANGENCIA_TERRITORIAL.md).

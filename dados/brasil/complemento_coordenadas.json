@@ -3,7 +3,7 @@
   "identificador": "complemento-coordenadas-ibge-localidades-2022",
   "versao": "1",
   "finalidade": "Coordenadas oficiais de sede municipal para os seis municípios cuja coordenada é inválida na fonte original; aplicadas pelo backend somente onde o ponto original é inválido, sem alterar os arquivos.",
-  "aplica_se_a": {"arquivo": "Dados_Municipios_Brasil.csv", "sha256": "89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512"},
+  "aplica_se_a": {"arquivo": "Dados_Municipios_Brasil.csv", "sha256": "d244906e6d09e65dc55b56c33c8e0131bf88fe66bb26f7faa39f2da384c04f5a"},
   "escopo_temporal": {"competencias": ["201401", "201406", "201501", "201506", "201601", "201606", "201701", "201706", "201801", "201806", "201901", "201906", "202001", "202006", "202101", "202106", "202201", "202206", "202301", "202306", "202401", "202406"]},
   "premissa": {"tipo": "COORDENADA_FIXA_2014_2024", "origem": "decisao_metodologica_do_usuario",
     "descricao": "Uma única coordenada fixa por município nas 22 competências de janeiro e junho de 2014 a 2024, por decisão metodológica do usuário; não é comprovação independente de estabilidade histórica e não se estende a outros municípios."},

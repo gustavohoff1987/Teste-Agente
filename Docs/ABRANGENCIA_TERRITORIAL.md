@@ -130,14 +130,16 @@ supera o total do Brasil em todas as competências).
   2017 (em janeiro de 2014, 7.832 contra 4.640).
 - **Consistência na base atual:** em cada competência, Brasil ≤ soma dos estados ≤ soma dos municípios
   (junho de 2024: 502.495, 539.090 e 817.419).
-- **251365:** PB pelo prefixo do código. Em 2016/6, a fonte declara PA na coluna `uf` (população
-  331.942); a linha entra como está, com a nota `UF_DECLARADA_DIVERGENTE`: "Em {competência}, {n}
-  registro(s) da fonte municipal trazem na coluna uf um estado diferente do indicado pelo código IBGE
-  ({códigos}); o estado segue o código, e os valores entram como estão na fonte." Ela aparece na
-  população do Brasil de 2016 (janeiro e junho), na população da PB em 2016/6 e nos municípios dessa
-  competência. A constante `UF_DIVERGENTE_EXCLUI` (falsa) deixaria a linha fora das somas (a população
-  da PB em 2016/6 ficaria incompleta). Nas bases importadas, a hierarquia divergente continua
-  bloqueando a unidade.
+- **251365:** PB pelo prefixo do código, como em todas as linhas da base. Até a correção de 25/10/2026,
+  a linha de 2016/6 declarava PA na coluna `uf` (com a coordenada e a população, 331.942, de Santarém do
+  Pará) e entrava como estava, com a nota `UF_DECLARADA_DIVERGENTE`; hoje, nenhuma linha da versão
+  governada tem UF diferente da do código. A regra continua para qualquer linha que a tenha: ela entra
+  como está, com a nota "Em {competência}, {n} registro(s) da fonte municipal trazem na coluna uf um
+  estado diferente do indicado pelo código IBGE ({códigos}); o estado segue o código, e os valores entram
+  como estão na fonte.", que aparece na população do Brasil do ano (janeiro e junho), na do estado e nos
+  municípios dessa competência. A constante `UF_DIVERGENTE_EXCLUI` (falsa) deixaria a linha fora das
+  somas (a população do estado ficaria incompleta). Nas bases importadas, a hierarquia divergente
+  continua bloqueando a unidade.
 
 ### 3.3 Municípios
 
@@ -337,7 +339,8 @@ supera o total do Brasil em todas as competências).
   nome, `rotulo_grupo` ("Municípios do Amazonas", "Municípios da Paraíba"), número de municípios e
   `objeto` (com registro na fonte estadual), total de municípios e a matriz por análise (`operacoes`, com
   `texto` e `motivos`; sem a fonte estadual, "estado" sai de `aceita` com o motivo). As listas de municípios continuam em
-  `preflight.territory_choices`, agora com `state_code` e, no 251365, `hierarchy_note`.
+  `preflight.territory_choices`, agora com `state_code` e, no município cuja coluna `uf` diverge do código,
+  `hierarchy_note` (na versão governada atual, nenhum; até 25/10/2026, o 251365).
 - `/api/preflight` com abrangência segue o mesmo roteamento; na rota de níveis devolve o pré-exame da
   fonte municipal inteira mais `capabilities[op].niveis` (`brasil`, `estados`, `municipios` e, quando
   a seleção não cabe, `selecao`), com o pior estado das partes e os motivos prefixados ("Brasil: …").
@@ -408,7 +411,7 @@ supera o total do Brasil em todas as competências).
     marcados"). Escolhido o estado, a lista dele fica à vista, logo abaixo, com rolagem própria:
     - a caixa "Todos os N municípios de …" (`territory-group-check-NN`, rótulo acessível "Municípios do Amazonas (62)",
       tri-estado) e "k de N marcados";
-    - os municípios ("MANAUS [130260]"; no 251365, a nota da UF declarada divergente).
+    - os municípios ("MANAUS [130260]").
 
     Sem estado escolhido, vale o do primeiro município marcado. A linha "Marcados em: AM (2) · PA (1)" leva a cada
     estado com municípios marcados. A seção Estados avisa que cada caixa marca o estado inteiro e que os municípios
@@ -505,17 +508,18 @@ supera o total do Brasil em todas as competências).
   do perfil, conversa (estados, regiões, anos) e privacidade do provedor, representação.
 - `backend/tests/test_build_state_source.py` (CI): conversão da planilha sintética (formato, valores sem
   mudança, recusas sem gravar) e reprodução byte a byte do arquivo versionado, com o SHA-256 do manifesto.
-- `backend/tests/test_levels_real_data.py` (job `dados-reais`, sem pulos, com SHA-256 conferido antes
-  e depois): as 22 densidades do Brasil contra a leitura independente (2,3638 em junho de 2024; 2015
-  com 5.569 municípios e [430607]), a taxa nacional nas rotas antiga e nova, as 594 contagens estaduais e as
-  594 densidades dos estados contra a leitura independente (população dos municípios na competência; as seis
-  lacunas; SP 3,2390 em junho de 2024; PB em 2016/6; as oito notas do DF), Brasil ≤ Σ estados ≤ Σ municípios
-  em cada competência, ranking dos estados, agregação da Região Norte, dos 27 estados e de todos os
-  municípios, 251365 na PB (223 municípios), análise espacial com todos os municípios, as âncoras da
-  tendência (Brasil 22 e 11 observações em Crescimento; SP e RS com as lacunas de população), a comparação
-  com a série anual de junho e valores em 06/2024 (Brasil, AM, SP, RS e três municípios do AM, conferida por
-  leitura independente), o resumo com a série nacional, as regiões contra a coluna `regiao_geografica` e as
-  quatro perguntas da conversa (Minas Gerais, São Paulo, Região Norte e Rio Grande do Sul), com o cálculo.
+- `backend/tests/test_levels_real_data.py` (job `dados-reais`, sem pulos, com SHA-256 conferido antes e
+  depois): as 22 densidades do Brasil contra a leitura independente (2,3638 em junho de 2024; 2015 com 5.569
+  municípios e [430607]), a taxa nacional nas rotas antiga e nova, as 594 contagens estaduais e as 594
+  densidades dos estados contra a leitura independente (população dos municípios na competência; as seis
+  lacunas; SP 3,2390 em junho de 2024; PB em 2016/6, igual a janeiro desde a correção de 25/10/2026; as oito
+  notas do DF), Brasil ≤ Σ estados ≤ Σ municípios em cada competência, ranking dos estados, agregação da
+  Região Norte, dos 27 estados e de todos os municípios, 251365 na PB (223 municípios), análise espacial com
+  todos os municípios, as âncoras da tendência (Brasil 22 e 11 observações em Crescimento; SP e RS com as
+  lacunas de população), a comparação com a série anual de junho e valores em 06/2024 (Brasil, AM, SP, RS e
+  três municípios do AM, conferida por leitura independente), o resumo com a série nacional, as regiões e as
+  UFs da fonte municipal contra o código IBGE, sem exceção, e as quatro perguntas da conversa (Minas Gerais,
+  São Paulo, Região Norte e Rio Grande do Sul), com o cálculo.
 - `backend/tests/test_spatial_por_territorio.py` (CI): território com coordenada inválida, não numérica ou
   ausente não avaliável, referência inválida recusada, coordenadas que mudam entre competências e erro de
   formato. `test_territorial_levels.py` confere a escolha pendente no pré-exame. Com a base real

@@ -284,11 +284,15 @@ def test_real_amazonas_has_no_class_in_the_long_window_by_the_change_of_directio
     assert top["contagens"] == analysis["metadata"]["tendencia"]["contagens"]
     manaus = by_id(body)["code:130260"]["tendencia"]["velocidades"]
     assert (sum(v > 0 for v in manaus), sum(v < 0 for v in manaus)) == (17, 4)
-    # Os estados, com as 22: 5 em crescimento e 22 sem classificação, todos por mudança de direção.
-    states = ok(post(real, nivel="estados", indicador="densidade", competencia="202406",
-                     tendencia={"competencias": ALL22}))["tendencia"]
-    assert states["contagens"] == {**ZERO, "CRESCIMENTO": 5, "SEM_CLASSIFICACAO": 22}
-    assert states["sem_classificacao_por_motivo"] == {"MUDANCA_DE_DIRECAO": 22, "SERIE_ESTAVEL": 0}
+    # Os estados, com as 22: 6 em crescimento e 21 sem classificação, todos por mudança de direção. Até a correção de
+    # 25/10/2026 da linha do 251365 em 2016/6 (com a população de Santarém do Pará), a densidade da PB caía em junho de
+    # 2016 e a série dela ficava sem classificação (eram 5 e 22).
+    states_body = ok(post(real, nivel="estados", indicador="densidade", competencia="202406",
+                          tendencia={"competencias": ALL22}))
+    states = states_body["tendencia"]
+    assert states["contagens"] == {**ZERO, "CRESCIMENTO": 6, "SEM_CLASSIFICACAO": 21}
+    assert states["sem_classificacao_por_motivo"] == {"MUDANCA_DE_DIRECAO": 21, "SERIE_ESTAVEL": 0}
+    assert by_id(states_body)["uf:25"]["tendencia"]["classe"] == "CRESCIMENTO"
 
 
 def test_real_amazonas_has_classes_in_the_last_four_junes_coherent_with_the_speeds(real):

@@ -35,6 +35,69 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-25 · Base municipal: a linha de SANTAREM (PB) em junho de 2016 com a UF, a região, a coordenada e a população certas
+- **Antes:** a linha 21 de `Dados_Municipios_Brasil.csv` (`Norte;PA;SANTAREM;251365;-2,43;-54,72;MEDICINA;2016;6;0;331942`)
+  trazia o código de SANTAREM (PB) com a região, a UF e a coordenada de SANTAREM (PA) e 331.942 habitantes (a população de
+  SANTAREM (PA) no Censo 2022). Em junho de 2016:
+  - SANTAREM (PB) ficava no Pará, no mapa e nas distâncias (análise espacial, referência mais próxima e critérios com
+    distância), com 331.942 habitantes e densidade 0 (nenhum médico na linha);
+  - a população da Paraíba (a soma dos seus municípios, UF-POP-MUNICIPIOS-1) ficava em 4.328.672 (3.999.415 em janeiro), e a
+    densidade do estado, em 1,2750 por 1.000 habitantes;
+  - a população do Brasil de 2016 (BR-POP-JUNHO-1: a de junho, usada também em janeiro) somava 206.413.387, com a densidade do
+    Brasil em 1,6327 em janeiro e 1,6604 em junho;
+  - as análises com o Brasil, a Paraíba ou os municípios nessa competência traziam a nota "Em junho de 2016, 1 registro(s) da
+    fonte municipal trazem na coluna uf um estado diferente do indicado pelo código IBGE (251365); …"
+    (`UF_DECLARADA_DIVERGENTE`), e o pré-exame dava ao 251365 a nota de hierarquia (`hierarchy_note`, só na API);
+  - nove municípios tinham coordenadas válidas que mudam entre competências (o 251365, entre eles).
+- **Agora:** a linha passa a `Nordeste;PB;SANTAREM;251365;-6,484055297;-38,47915221;MEDICINA;2016;6;0;2685`:
+  - **região, UF e coordenada:** as das outras 21 linhas do 251365 (a sede de SANTAREM, PB);
+  - **população:** 2.685, a estimativa do IBGE para 1º de julho de 2016 (na tabela enviada ao TCU, o código 2513653 aparece
+    como Joca Claudino, o nome atual do antigo Santarém da Paraíba), a mesma da linha de janeiro de 2016;
+  - **quantidade:** 0, sem mudança (o responsável confirmou os dados de médicos);
+  - **efeitos em junho de 2016:** SANTAREM (PB) fica na Paraíba, com 2.685 habitantes (densidade 0, como antes); a população da
+    Paraíba volta a 3.999.415, a mesma de janeiro, e a densidade do estado passa a 1,3800; a do Brasil de 2016 passa a
+    206.084.130, com a densidade em 1,6353 em janeiro e 1,6631 em junho. A nota de UF divergente e a nota de hierarquia deixam
+    de aparecer: nenhuma linha da base tem UF ou região diferente das do código IBGE. Os municípios com coordenadas que mudam
+    entre competências passam a oito;
+  - **tendência dos estados com as 22 competências:** a Paraíba passa de Sem classificação (mudança de direção: a densidade
+    caía em junho de 2016 e voltava a subir) a Crescimento; os 27 estados ficam com 6 em Crescimento e 21 sem classificação,
+    todos por mudança de direção (eram 5 e 22);
+  - **nova versão da base:** a fonte municipal tem 9.968.238 bytes e SHA-256 `d244906e6d09…` (antes, 9.968.224 e
+    `89c027c90a2d…`); o manifesto foi regravado (versão `c4d82eeee4e4…`; antes, `68944004901c…`). A camada de coordenadas
+    (`dados/brasil/complemento_coordenadas.json`) passa a se referir a essa versão (`aplica_se_a`), com os mesmos seis pontos
+    (SHA-256 da camada, `4fac87444778…`; antes, `5db726905a91…`): sem isso, ela ficaria `incompativel`, e os seis municípios de
+    ponto inválido na fonte perderiam a coordenada.
+- **Permanece:** as fontes nacional e estadual e os seus SHA-256; as outras 122.533 linhas da fonte municipal; o nome SANTAREM
+  nas 22 linhas do código (o IBGE usa Joca Claudino; a base mantém o nome da fonte); as regras BR-POP-JUNHO-1,
+  UF-POP-MUNICIPIOS-1 e `brasil-cod-uf-prefix-1` e o tratamento de uma linha com UF divergente (entra como está, com a nota;
+  `UF_DIVERGENTE_EXCLUI` continua falso), coberto pelos testes sintéticos de `test_territorial_levels.py`; os 223 municípios
+  da Paraíba; as tendências do Brasil (Crescimento, com 22 e 11 observações) e as dos municípios (a densidade do 251365 em
+  junho de 2016 continua 0); os textos da interface (a `hierarchy_note` não é exibida na tela); nada da base vai ao provedor
+  de IA.
+- **Motivo:** pedido explícito do responsável pelo produto em 25/10/2026, sobre o defeito relatado na entrada seguinte ("trocar
+  pelos valores corretos, se você tiver a fonte. Busque os valores corretos"; "os dados de médicos acredito que estejam
+  corretos").
+  - **Classificação, pela leitura, antes de alterar:** mudança de comportamento (dados versionados), prevista: decorre do pedido
+    e não contraria a SPEC (RQ-DAD-03: conteúdo alterado é uma nova versão, que o manifesto identifica) nem a decisão sobre a
+    UF divergente, que continua valendo para qualquer linha que a tenha.
+  - **Procedimento (AGENTS.md, regra 2):** só a linha 21 substituída (fim de linha CRLF e codificação preservados); manifesto
+    regravado (`python backend/brazil_data.py manifesto --gravar`); diff revisado; `python backend/brazil_data.py diagnostico`
+    com `"integridade": "verificada"`; camada de coordenadas `valido` para a nova versão.
+  - **Fonte dos valores:** a estimativa do IBGE foi conferida por busca na web, sem enviar valor da base (o proxy deste ambiente
+    recusa `*.ibge.gov.br`); a região, a UF e a coordenada vêm das demais linhas do próprio código na base.
+- **Documentação e testes:**
+  - **Documentação:** `README.md` (política dos dados, origem e cobertura e os dez pontos), `Docs/DADOS_BRASIL_VALIDACAO.md`,
+    `Docs/ABRANGENCIA_TERRITORIAL.md`, `Docs/MODELO_TERRITORIAL.md`, `Docs/BLOCO1_RESULTADOS_EXPLORAVEIS.md`,
+    `Docs/BLOCO2_ETAPA2_CRITERIOS_INTEGRACAO.md`, `Docs/MAPA_DA_PAGINA_UNICA.md`, `Docs/PAINEL_INTEGRADO.md` (o diagnóstico
+    de 23/10/2026, com os estados) e o comentário de `UF_DIVERGENTE_EXCLUI` em `backend/territorial_levels.py`.
+  - **Testes mudados de propósito** (os dados mudaram; o defeito estava na base, e não nos testes), em
+    `test_levels_real_data.py` (job `dados-reais`): a densidade do Brasil em janeiro de 2016 (1,6353) e a população de junho de
+    2016 (206.084.130), com a de janeiro conferida à parte (206.084.128, nunca usada); a linha do 251365 em 2016/6 (PB, 2.685);
+    a PB em 2016/6 (3.999.415, a mesma de janeiro); a ausência da nota de UF divergente no Brasil e nos estados e da nota de
+    hierarquia em todos os municípios; as regiões e as UFs da fonte municipal iguais às do código IBGE, sem exceção. Em
+    `test_painel_tendencia.py` (job `dados-reais`): os estados com as 22 competências passam a 6 em Crescimento e 21 sem
+    classificação, com a PB em Crescimento (classe conferida por leitura independente da DA-15, antes e depois).
+
 ### 2026-10-25 · Página única: Desfazer no lugar de Voltar, todas as unidades em análise no mapa, o aviso "Fora do gráfico", bolhas sem esmaecer e legenda de tamanho na proporção exata
 - **Antes:**
   - **Voltar (item 4 do pedido):** o controle global do alto se chamava "Voltar" (`analise-voltar`), com a seta ← (`ArrowLeft`).
@@ -89,7 +152,8 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - O nome de Porto Alegre (item 5): conferido, sem mudança. A base escreve "PORTO ALEGRE" (431490, RS) nas 22 linhas, e a tela
     mostra "PORTO ALEGRE (RS)" na Seleção, no título, na frase-resumo, na dica, na tabela e no mapa. Os nomes da base vêm em
     maiúsculas e sem acento ("SAO PAULO", "UIRAMUTA"); Porto Alegre não tem acento.
-  - Os dados versionados não mudaram, e nada da base vai ao provedor de IA.
+  - Os dados versionados não mudaram nesta entrada (a linha 21 foi corrigida depois, na entrada acima), e nada da base vai ao
+    provedor de IA.
 - **Motivo:** pedido do responsável pelo produto em 25/10/2026 (cinco pontos, na branch de ajustes de UX): municípios de
   Roraima que "não apareciam na análise espacial, na análise de tendência, como se tivesse algum problema nas coordenadas
   geográficas", com a revisão geral das coordenadas ("todos os municípios precisam estar representados ao serem selecionados");
@@ -124,9 +188,10 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     população de SANTAREM (PA), que tem a sua própria linha em junho de 2016 (código 150680). Em junho de 2016, SANTAREM (PB) fica
     no Pará, com 331.942 habitantes e nenhum profissional (densidade 0); a população da Paraíba nessa competência fica em
     4.328.672 (3.999.415 em janeiro), e a do Brasil de 2016, que segue junho (BR-POP-JUNHO-1), também a inclui. A correção muda
-    dados versionados e depende de pedido explícito do responsável (AGENTS.md, regra 2): fica pendente, com duas propostas
+    dados versionados e depende de pedido explícito do responsável (AGENTS.md, regra 2): ficou pendente, com duas propostas
     (tirar a linha, e SANTAREM (PB) fica sem registro em junho de 2016, como os demais municípios sem registro numa competência;
-    ou trocá-la pelos valores certos, com a fonte).
+    ou trocá-la pelos valores certos, com a fonte). O responsável escolheu a segunda: a correção está na entrada acima ("Base
+    municipal: a linha de SANTAREM (PB) em junho de 2016…").
   - **Verificação da proporcionalidade:** com os 15 municípios de Roraima no gráfico, o raio de cada bolha é igual, com duas
     casas, ao da área proporcional à população (BOA VISTA, a maior, no raio máximo; SAO LUIZ, a menor, a 4,37 px). A impressão de
     bolhas maiores tem duas origens: a escala é relativa à maior população do resultado (com só municípios pequenos, o maior

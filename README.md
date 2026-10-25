@@ -252,7 +252,9 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
    `Dados_Estados_Brasil.csv` desde 19/10/2026. SHA-256 dos arquivos versionados:
    `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3` (nacional),
    `7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc` (estadual) e
-   `89c027c90a2db5a4a7a7b5e3282404fb12b2bc30d500a4a79e49b6793749f512` (municipal).
+   `d244906e6d09e65dc55b56c33c8e0131bf88fe66bb26f7faa39f2da384c04f5a` (municipal, desde a correção de
+   25/10/2026 da linha do 251365 em junho de 2016, a pedido do responsável pelo produto; antes,
+   `89c027c90a2d…`).
 2. **Originais preservados.** O aplicativo nunca altera esses arquivos. O instalador relê os
    bytes da origem depois da cópia, e os testes reais comparam o SHA-256 dos originais antes
    e depois de cada execução.
@@ -277,12 +279,15 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
    de produção) não está documentada e permanece pendente. Cobertura: 22 competências (janeiro
    e junho de 2014 a 2024), 22 linhas nacionais, 594 estaduais (27 UFs × 22 competências) e
    122.534 municipais, 5.570 municípios por código IBGE, categoria MEDICINA, quantidade e população
-   estimada sem ausências. A fonte estadual foi gravada por `build_state_source.py` a partir da
+   estimada sem ausências. Correção registrada: em 25/10/2026, a pedido do responsável, a linha do
+   251365 (SANTAREM, PB) em junho de 2016 deixou a região, a UF, a coordenada e a população de
+   Santarém (PA) pelas da PB, com a estimativa do IBGE de 2016 (2.685 habitantes). A fonte estadual
+   foi gravada por `build_state_source.py` a partir da
    planilha `medicos_unicos_municipios_estados_201401_202406.xlsx` (SHA-256 `51aa58879efc…`),
    entregue pelo responsável pelo produto em 19/10/2026, que não fica versionada. Limitações:
    sem população e coordenadas no recorte nacional; sem identificadores individuais; seis
    municípios com coordenadas fora do intervalo em todas as competências da fonte original
-   (substituídas nas análises espaciais pela camada complementar oficial); nove municípios com
+   (substituídas nas análises espaciais pela camada complementar oficial); oito municípios com
    coordenadas válidas que mudam entre competências; coordenadas com vírgula decimal e sem
    referencial geodésico declarado na fonte; nomes homônimos exigem o código. Evidências:
    [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md),
@@ -297,7 +302,8 @@ arquivos fora deste repositório privado.
 
 1. **Onde estão versionados.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv`, na raiz do
    repositório, com `Dados_Estados_Brasil.csv` desde 19/10/2026; identidade em
-   `dados/brasil/manifesto.json` (versão `68944004901c…`; antes da fonte estadual, `819cf4628bff…`).
+   `dados/brasil/manifesto.json` (versão `c4d82eeee4e4…`, desde a correção de 25/10/2026; antes,
+   `68944004901c…` e, antes da fonte estadual, `819cf4628bff…`).
 2. **Caminho usado pelo backend.** Os próprios arquivos da raiz do repositório; uma pasta
    externa apenas com `ADT_BRASIL_DATA_DIR` explícito e versão governada ou fixada.
 3. **Prova de integridade.** Tamanho e SHA-256 de cada arquivo conferidos a cada requisição
@@ -305,9 +311,10 @@ arquivos fora deste repositório privado.
 4. **Cópias antigas.** Não são lidas: `.local/` é ignorada pelo carregador e o teste com uma
    cópia antiga divergente comprova; o instalador só copia a versão governada.
 5. **Camada complementar de coordenadas.** Arquivo versionado
-   `dados/brasil/complemento_coordenadas.json` (versão 1, SHA-256 `5db726905a91…`), validado a
-   cada leitura e aplicado só ao ler coordenadas da base Brasil municipal, na versão da fonte a que
-   se refere (`Dados_Municipios_Brasil.csv`, SHA-256 `89c027c90a2d…`), apenas onde o ponto original
+   `dados/brasil/complemento_coordenadas.json` (versão 1, SHA-256 `4fac87444778…`; até 25/10/2026,
+   `5db726905a91…`), validado a cada leitura e aplicado só ao ler coordenadas da base Brasil municipal,
+   na versão da fonte a que se refere (`Dados_Municipios_Brasil.csv`, SHA-256 `d244906e6d09…`; até
+   25/10/2026, `89c027c90a2d…`, com os mesmos seis pontos), apenas onde o ponto original
    é inválido; os arquivos originais e as bases importadas não são alterados.
 6. **Municípios e competências.** Ananás/TO (170100), Pescaria Brava/SC (421265), Balneário
    Rincão/SC (422000), Jaraguari/MS (500490), Campestre da Serra/RS (430367) e Águas de
@@ -334,7 +341,7 @@ arquivos fora deste repositório privado.
    é aplicada.
 10. **Limitações geográficas que permanecem.** A coordenada dos seis municípios é a mesma nas 22
     competências por premissa do usuário, não por comprovação de estabilidade histórica; bases
-    importadas não recebem o complemento; nove municípios têm coordenadas válidas que mudam entre
+    importadas não recebem o complemento; oito municípios têm coordenadas válidas que mudam entre
     competências (cada competência usa a sua); a fonte original não declara referencial (na
     versão governada, SIRGAS 2000 é premissa interna do perfil, decidida pelo responsável pelo
     produto; a camada oficial é SIRGAS 2000); a distância é geodésica direta,

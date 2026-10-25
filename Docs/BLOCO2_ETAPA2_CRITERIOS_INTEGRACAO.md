@@ -32,7 +32,9 @@ extraídas do GeoPackage oficial de Localidades do Censo 2022, e a camada
 segundo o contrato do validador, que a aceita como `valido`. Não houve autenticação independente
 do arquivo junto ao servidor do IBGE: a verificação é a do usuário, no exemplar que ele forneceu
 (seção 3.5). A pendência geográfica está resolvida: os seis municípios passam a ser avaliáveis
-nas análises espaciais da base Brasil municipal.
+nas análises espaciais da base Brasil municipal. Em 25/10/2026, com a correção de uma linha da fonte
+municipal (o 251365 em junho de 2016), a camada passou a se referir à nova versão (`aplica_se_a`,
+`d244906e6d09…`), com os mesmos seis pontos (SHA-256 da camada, `4fac87444778…`).
 
 ## 2. Origem da base Brasil (U1)
 

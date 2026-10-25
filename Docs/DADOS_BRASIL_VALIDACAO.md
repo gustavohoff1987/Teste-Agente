@@ -34,6 +34,16 @@ ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 > municípios; a população do estado continua vindo dos municípios. Versão governada `68944004901c…`
 > (antes, `819cf4628bff…`; as fontes nacional e municipal não mudaram).
 
+> **Atualização de 25/10/2026: correção de uma linha da fonte municipal.** A pedido do responsável pelo
+> produto, a linha do 251365 (SANTAREM, PB) em junho de 2016, que trazia a região, a UF e a coordenada de
+> Santarém (PA) e 331.942 habitantes (a população de Santarém do Pará no Censo 2022), passou a ter as da PB
+> (as mesmas das outras 21 linhas do código) e a estimativa do IBGE para 2016 (2.685, a mesma de janeiro); a
+> quantidade (0) não mudou. Fonte municipal com SHA-256 `d244906e6d09…` (antes, `89c027c90a2d…`) e versão
+> governada `c4d82eeee4e4…` (antes, `68944004901c…`); a camada de coordenadas passou a se referir a essa
+> versão, com os mesmos seis pontos. Desde então, nenhuma linha tem UF ou região diferente das do código
+> IBGE, e oito municípios (antes, nove) têm coordenadas válidas que mudam entre competências. Detalhes no
+> [registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md).
+
 ## Alterações dos campos e consumidores
 
 | Estrutura anterior nos testes | Estrutura atual | Ajuste |
@@ -123,9 +133,9 @@ separador decimal vira escolha do usuário.
 
 Na versão governada: junho de 2024 soma 212.583.750 habitantes (densidade do Brasil 502.495 ÷ 212.583.750 ×
 1.000 = 2,3638); junho de 2015 não tem o 430607 (CRISTAL DO SUL, RS), e a população de 2015 soma os 5.569
-municípios com registro (204.450.315), com nota; nenhum ano tem população conflitante em junho. A
-população de junho de 2016 inclui a linha do 251365 declarada PA na coluna `uf` (331.942), com nota de
-qualidade da fonte.
+municípios com registro (204.450.315), com nota; nenhum ano tem população conflitante em junho. Junho
+de 2016 soma 206.084.130 habitantes desde a correção de 25/10/2026; antes, 206.413.387, com a linha do
+251365 declarada PA na coluna `uf` (331.942) e a nota de qualidade da fonte.
 
 ### Fonte estadual de médicos únicos (19/10/2026)
 
@@ -160,8 +170,6 @@ do estado conta uma vez no estado, e quem atua em mais de um estado conta em cad
   partir de janeiro de 2018, as duas coincidem. Uma contagem distinta não pode superar a soma das partes:
   as fontes divergem nesse período. Por decisão de integração, os valores entram como estão, com nota no
   resultado; a divergência foi levada ao responsável pelo produto.
-- A população da PB em junho de 2016 inclui a linha do 251365 declarada PA na coluna `uf` (a mesma nota de
-  qualidade da população do Brasil).
 - A soma de estados não identifica pessoas: a agregação de estados é sempre a soma dos componentes, com
   possível dupla contagem.
 
@@ -204,7 +212,7 @@ por regra e a vírgula decimal é verificada nos dados.
 | Comparações e rankings | Densidades e posições conferidas por período/categoria |
 | Evolução temporal | Quantidade nacional; quantidade e densidade municipais; extremos ausentes e zeros respeitados; tendência CAP-TEN-01 igual a uma classificação independente (Fraction) nas séries completa e de junho, com as âncoras Brasil (Crescimento) e ANAMÃ 130008 em densidade de junho de 2021 a 2024 (Aceleração do crescimento) (19/10/2026); densidade do Brasil (BR-POP-JUNHO-1) em Crescimento com 22 observações na série completa e 11 na de junho; densidade dos estados com lacunas onde a população está incompleta (SP com 21 observações e RS com 20 na série completa; RS com 10 na de junho), classes iguais às da leitura independente |
 | Agregação | Soma dos componentes como premissa (perfil oficial ou da análise), rotulada como possível dupla contagem; resultado não identificado como total nacional de pessoas únicas; "Todos os municípios" em junho de 2024 soma 817.419, com a nota de que não é o total do Brasil (502.495); agregação de estados pela soma das contagens estaduais (Região Norte 27.384; os 27 estados 539.090, acima do total do Brasil), sempre soma dos componentes (19/10/2026) |
-| Espacial | Uma competência por vez (as coordenadas de nove municípios mudam entre competências; sem a escolha, a análise pede "Escolha uma competência no período da análise."). Com a camada complementar oficial, a base completa de uma competência é executável, com distâncias iguais à geodésica independente sobre as coordenadas efetivas (13/10/2026). Sem a camada, desde 19/10/2026 os seis municípios com ponto inválido ficam não avaliáveis (COORDENADA_INVALIDA) e os demais têm as mesmas distâncias do subconjunto válido, confrontado com Haversine; antes, o recorte inteiro era recusado |
+| Espacial | Uma competência por vez (as coordenadas de oito municípios mudam entre competências; sem a escolha, a análise pede "Escolha uma competência no período da análise."). Com a camada complementar oficial, a base completa de uma competência é executável, com distâncias iguais à geodésica independente sobre as coordenadas efetivas (13/10/2026). Sem a camada, desde 19/10/2026 os seis municípios com ponto inválido ficam não avaliáveis (COORDENADA_INVALIDA) e os demais têm as mesmas distâncias do subconjunto válido, confrontado com Haversine; antes, o recorte inteiro era recusado |
 | Rotatividade | Bloqueada corretamente: ausência de identificadores individuais longitudinais |
 | Relatórios | Dados e densidades municipais, quantitativos nacionais e exportação CSV |
 

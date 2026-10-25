@@ -90,8 +90,9 @@ municípios de Roraima sumirem da Análise Espacial, "como se tivesse algum prob
    itens do gráfico, saía também do mapa. A revisão das coordenadas da base versionada (as 22 competências, pela rota do
    mapa) achou todas as 5.570 sedes válidas, dentro do Brasil, sem duas no mesmo ponto, com uma só exceção, que não é de
    coordenada da sede: a linha de SANTAREM com o código 251365 (da Paraíba) em junho de 2016, com a UF, a coordenada e a
-   população de Santarém do Pará ([registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md), entrada de 25/10/2026). Os dados não
-   mudaram.
+   população de Santarém do Pará. A pedido do responsável, a linha foi corrigida no mesmo dia, com a UF, a região e a
+   coordenada da Paraíba e a estimativa do IBGE de 2016 (2.685 habitantes); em junho de 2016, o município aparece na Paraíba
+   ([registro de comportamento](REGISTRO_DE_COMPORTAMENTO.md), entradas de 25/10/2026).
 2. **Legenda de tamanho na proporção exata:** nenhuma referência abaixo do mínimo visível (linha "Tamanho", acima).
 
 ## Navegação

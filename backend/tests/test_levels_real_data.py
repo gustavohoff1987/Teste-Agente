@@ -23,8 +23,8 @@ PARTIAL_STATES = {("11", "201501"), ("31", "201501"), ("35", "201501"), ("42", "
                   ("43", "202001")}
 NOTE_2015 = ("Em junho de 2015, a base municipal não tem registro de 1 município (CRISTAL DO SUL, RS, 430607); a "
              "população do Brasil desse ano soma os 5.569 municípios com registro.")
-NOTE_2016 = ("Em junho de 2016, 1 registro(s) da fonte municipal trazem na coluna uf um estado diferente do indicado pelo "
-             "código IBGE (251365); o estado segue o código, e os valores entram como estão na fonte.")
+# Nota UF_DECLARADA_DIVERGENTE: desde a correção de 25/10/2026 (o 251365 em 2016/6), nenhuma linha governada a gera.
+UF_NOTE = "trazem na coluna uf um estado diferente do indicado pelo código IBGE"
 TRACE = "Coordenada complementada (camada oficial)"
 STATE_TYPE = "Unidades distintas: contagem estadual (não é a soma dos municípios)"
 NO_POPULATION = "Não avaliável: população estadual incompleta nesta competência (DENOMINADOR_AUSENTE)"
@@ -150,8 +150,9 @@ def test_real_brazil_density_uses_the_national_count_and_the_june_population(rea
     assert (latest["Quantidade"], latest["População"]) == (502495, 212583750)
     assert round(latest["Densidade por 1.000"], 4) == 2.3638
     assert rows["202401"]["Densidade por 1.000"] == pytest.approx(2.3026924682625083, rel=1e-12)
-    assert rows["201601"]["Densidade por 1.000"] == pytest.approx(1.6326508900316625, rel=1e-12)
-    assert rows["201601"]["Densidade por 1.000"] != pytest.approx(1.6352593636, rel=1e-6)  # nunca a população de janeiro
+    assert rows["201601"]["Densidade por 1.000"] == pytest.approx(1.6352593477236699, rel=1e-12)
+    january_2016 = int(municipal[municipal.period == "201601"].drop_duplicates("cod_ibge").p.sum())
+    assert rows["201601"]["População"] == 206084130 != january_2016 == 206084128  # nunca a população de janeiro
     assert rows["201701"]["Densidade por 1.000"] == pytest.approx(1.6883321334149035, rel=1e-12)
     assert rows["202001"]["Densidade por 1.000"] == pytest.approx(1.8474653692979441, rel=1e-12)
     # 2015: a população de junho soma os 5.569 municípios com registro (430607 ausente), avaliável com limitações.
@@ -173,11 +174,12 @@ def test_real_brazil_density_uses_the_national_count_and_the_june_population(rea
                                "municípios. População: soma das populações estimadas dos municípios com registro em junho "
                                "de cada ano") for note in brazil_density["notes"])
     assert "POPULACAO_NACIONAL_PARCIAL" in brazil_density["metadata"]["evaluability"]["limitacoes"]
-    # 2016: a população de junho inclui a linha do 251365 declarada PA na coluna uf (331.942), com nota.
+    # 2016: a linha do 251365 em junho, corrigida em 25/10/2026, traz a PB e a estimativa do IBGE de 2016 (2.685, a mesma
+    # de janeiro), no lugar do PA e de 331.942; nenhuma nota de UF divergente.
     santarem = municipal[(municipal.cod_ibge == "251365") & (municipal.period == "201606")]
-    assert santarem.uf.tolist() == ["PA"] and santarem.p.tolist() == [331942]
-    assert rows["201606"]["População"] == june_population(municipal, "2016")[0] == 206413387
-    assert NOTE_2016 in brazil_density["notes"]
+    assert santarem.uf.tolist() == ["PB"] and santarem.p.tolist() == [2685]
+    assert rows["201606"]["População"] == june_population(municipal, "2016")[0] == 206084130
+    assert not any(UF_NOTE in note for note in brazil_density["notes"])
 
 
 def test_real_national_reference_is_the_same_in_the_old_and_new_routes(real):
@@ -248,9 +250,10 @@ def test_real_states_use_the_state_source_and_the_population_of_their_municipali
     assert ("São Paulo (SP) em janeiro de 2015: população estadual incompleta, 644 de 645 municípios com registro na fonte "
             "municipal (sem registro: 353286); a população não é estimada e a densidade do estado não é avaliada."
             ) in states_density["notes"]
-    # PB em 2016/6 inclui o 251365 (declarado PA na fonte), pelo prefixo do código IBGE.
-    assert row_of(density, "Paraíba (PB)", "201606")["População"] == 4328672
-    assert NOTE_2016 in states_density["notes"]
+    # PB em 2016/6: os 223 municípios pelo prefixo do código IBGE, com o 251365 corrigido (2.685), a mesma de janeiro.
+    pb = {period: row_of(density, "Paraíba (PB)", period)["População"] for period in ("201601", "201606")}
+    assert pb == {"201601": 3999415, "201606": 3999415}
+    assert not any(UF_NOTE in note for note in states_density["notes"])
     # Contagem estadual acima da soma completa dos seus municípios (DF de 2014 a 2017): nota, e os valores entram como estão.
     above = sorted((sigla, period) for (sigla, period), quantity in counts.items()
                    if populations[(PREFIX[sigla], period)] is not None and
@@ -307,7 +310,8 @@ def test_real_251365_belongs_to_pb_and_state_groups_expand_to_municipalities(rea
     assert block["brasil"]["densidade_nao_avaliavel"] == []
     item = next(choice for choice in real["info"]["preflight"]["territory_choices"] if choice["code"] == "251365")
     assert (item["selection_reason"], item["state"], item["state_code"]) == ("", "PB", "25")
-    assert "PA" in item["hierarchy_note"] and "(PB)" in item["hierarchy_note"]
+    # Desde a correção de 25/10/2026, a coluna uf do 251365 traz PB em todas as competências: nenhum município tem a nota.
+    assert not any("hierarchy_note" in choice for choice in real["info"]["preflight"]["territory_choices"])
     group = analyze(real, "aggregate", {"municipios": {"estados": ["25"]}}, period_filter="202406")
     assert len(group["metadata"]["options"]["territory_ids"]) == 223
     assert "code:251365" in group["metadata"]["options"]["territory_ids"]
@@ -453,12 +457,13 @@ def test_real_density_summary_and_national_series_for_the_card(real):
 
 def test_real_regions_follow_the_first_digit_of_the_ibge_code(real):
     """As Grandes Regiões da conversa ("estados da Região Norte") vêm do primeiro dígito do código IBGE e conferem com a
-    coluna regiao_geografica da fonte municipal; a única exceção é a linha do 251365 em 2016/6, que traz PA na coluna uf
-    (o estado, e a região, seguem o código)."""
+    coluna regiao_geografica da fonte municipal em todas as linhas, e a coluna uf, com o prefixo do código (até a correção de
+    25/10/2026, a linha do 251365 em 2016/6 trazia o Norte e o PA)."""
     from territorial_selection import REGIONS
     municipal = real["municipal"]
     differs = municipal[municipal.cod_ibge.str[0].map(REGIONS) != municipal.regiao_geografica]
-    assert list(zip(differs.cod_ibge, differs.period, differs.uf)) == [("251365", "201606", "PA")]
+    assert differs.empty, list(zip(differs.cod_ibge, differs.period, differs.uf))
+    assert (municipal.uf.map(PREFIX) == municipal.prefix).all()
     assert set(REGIONS.values()) == set(municipal.regiao_geografica)
 
 

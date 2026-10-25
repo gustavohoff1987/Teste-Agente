@@ -47,9 +47,10 @@ METODOS = {"niveis": "NIVEIS-BR-UF-MUN-1", "populacao_nacional": "BR-POP-JUNHO-1
 # Municípios de cada estado pelo prefixo do código IBGE: população dos estados, grupos de municípios e BR-POP-JUNHO-1.
 STATE_MEMBERS = "brasil-cod-uf-prefix-1"
 SIGLAS = {sigla: prefix for prefix, (sigla, _) in STATES.items()}
-# Linha da fonte municipal cuja coluna uf contradiz o prefixo do código (hoje só 251365 em 2016/6). Falso: entra como
-# está, com nota de qualidade (decisão residual 1). Verdadeiro: a linha fica fora das somas (o município passa a
-# ausente naquela competência: a população do estado fica incompleta, e a do Brasil daquele ano, parcial).
+# Linha da fonte municipal cuja coluna uf contradiz o prefixo do código (nenhuma na versão governada desde 25/10/2026;
+# antes, só 251365 em 2016/6). Falso: entra como está, com nota de qualidade (decisão residual 1). Verdadeiro: a linha
+# fica fora das somas (o município passa a ausente naquela competência: a população do estado fica incompleta, e a do
+# Brasil daquele ano, parcial).
 UF_DIVERGENTE_EXCLUI = False
 MAX_IDS = 10000
 _CACHE: dict[tuple, "MunicipalIndex"] = {}
