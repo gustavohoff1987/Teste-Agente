@@ -233,9 +233,31 @@ export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: strin
 
 export type EtapaDaFonte = { tipo: "brasil" | "arquivo" | null; pronta: boolean; colunasPendentes: boolean };
 
+/** Exemplos do que se pode pedir em cada análise (26/10/2026): comandos que a conversa entende, sem nomes de lugar — um
+ * nome fora da análise da pessoa confunde —, alternados conforme a conversa avança. `{unidades}` e `{indicador}` vêm da
+ * tela (os rótulos da fonte e o indicador em uso). */
+const EXEMPLOS_POR_FAMILIA: Record<string, string[]> = {
+  distribuicao: ["os 5 {unidades} com maior {indicador}", "compare o de maior e o de menor {indicador}",
+    "{unidades} com menos de 1 médico por mil", "mostre a tendência anual", "explique esse resultado", "ver no mapa"],
+  tendencia: ["mostre a trajetória anual", "compare o de maior e o de menor {indicador}", "mostre a série temporal",
+    "explique esse resultado", "os 5 {unidades} com maior {indicador}"],
+  espacial: ["use como referência o município de maior densidade", "os 5 mais distantes", "{unidades} a mais de 150 km",
+    "compare o de maior e o de menor {indicador}", "explique esse resultado"],
+  rotatividade: ["explique esse resultado", "mostre a distribuição", "compare o de maior e o de menor {indicador}"],
+};
+
+/** Três exemplos da análise aberta, a partir da posição `variacao` (o número de mensagens da conversa). */
+export function exemplosDaAnalise(contexto: ContextoDoGrafico | null, rotulos: Rotulos | null, variacao = 0): string[] {
+  const lista = EXEMPLOS_POR_FAMILIA[contexto?.familia ?? "distribuicao"] ?? EXEMPLOS_POR_FAMILIA.distribuicao;
+  const unidades = rotulos?.unidade.plural || "municípios", indicador = contexto?.indicador === "quantidade" ? "quantidade" : "densidade";
+  const inicio = ((variacao % lista.length) + lista.length) % lista.length;
+  return [0, 1, 2].map(passo => lista[(inicio + passo) % lista.length].replace("{unidades}", unidades).replace("{indicador}", indicador));
+}
+
 /** Orientação curta da caixa da conversa em cada etapa. Na planilha, os nomes vêm dos rótulos escolhidos (nunca
- * "município" fixo), sempre no plural, sem artigos de gênero. */
-export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico | null, rotulos: Rotulos | null): string {
+ * "município" fixo), sempre no plural, sem artigos de gênero. Os exemplos nunca citam lugares (26/10/2026). */
+export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico | null, rotulos: Rotulos | null,
+  variacao = 0): string {
   // Duas entradas (24/10/2026): os dados do Brasil ou os seus; o modelo de planilha fica na janela de envio.
   if (!fonte.tipo) return "O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?";
   if (!fonte.pronta) {
@@ -248,14 +270,15 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
   if (contexto && ((contexto.nivel === "municipios" && !contexto.municipios.todos && !contexto.municipios.estados.length &&
     !contexto.municipios.ids.length) || (contexto.nivel === "estados" && contexto.estados?.length === 0)))
     return "Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver" +
-      (fonte.tipo === "brasil" ? ", por exemplo “mostre o Pará” ou “todos os estados”." : ".");
+      (fonte.tipo === "brasil" ? ": o nome de um estado ou de municípios, ou “todos os estados”." : ".");
   if (!contexto || contexto.nivel === "estados")
     return grupos ? "Escolha no gráfico quais " + grupos + " abrir, ou me diga quais " + unidades + " quer ver."
       : "Escolha " + unidades + " no gráfico ou me diga quais quer ver.";
-  return fonte.tipo === "brasil"
-    ? "Peça mudanças no gráfico, por exemplo: “mostre o Pará”, “use Belém como referência” ou “compare Manaus e Tefé”."
-    : "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
+  if (fonte.tipo !== "brasil")
+    return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
       (grupos ? " ou voltar ao nível de " + grupos : "") + ".";
+  const [a, b, c] = exemplosDaAnalise(contexto, rotulos, variacao);
+  return "Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “" + a + "”, “" + b + "” ou “" + c + "”.";
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

@@ -853,3 +853,26 @@ test('bolhas: marcar não esmaece as outras; só a pintura apagada fica mais cla
   assert.equal(M.opacidadeDaBolha({visivel: false, apagada: false}), 0);
   assert.equal(M.opacidadeDaBolha.length, 1, 'só a bolha decide: nada da seleção, do mouse ou do foco');
 });
+
+test('destaque da análise: os comparados ou as bases escolhidas ficam inteiros, e as demais bolhas esmaecem', () => {
+  // Pedido de 26/10/2026: comparando alguns dos selecionados (ou com territórios base escolhidos na análise espacial), as
+  // outras bolhas da seleção esmaecem; marcar, sozinho, continua sem esmaecer (teste acima).
+  const noGrafico = new Set(['code:1', 'code:2', 'code:3', 'code:4']);
+  assert.deepEqual(M.destaqueDaAnalise(['code:1', 'code:3'], [], noGrafico), ['code:1', 'code:3']);
+  assert.deepEqual(M.destaqueDaAnalise(['code:1', 'code:9'], [], noGrafico), [], 'comparado fora do gráfico não conta');
+  const par = (base, referencias) => ({base: {id: base}, distancia: 1, motivo: null,
+    referencias: referencias.map(([id, noGrafico, emAnalise]) => ({id, noGrafico, emAnalise}))});
+  const pares = [par('code:2', [['code:4', true, false]]), par('code:3', [['code:9', false, false], ['code:1', false, true]])];
+  // As bases e as referências delas que o gráfico desenha (a de contexto, fora das bolhas, fica de fora).
+  assert.deepEqual(M.destaqueDaAnalise([], pares, noGrafico), ['code:2', 'code:4', 'code:3', 'code:1']);
+  assert.deepEqual(M.destaqueDaAnalise(['code:1', 'code:2'], pares, noGrafico), ['code:1', 'code:2'], 'a comparação é o foco');
+  assert.deepEqual(M.destaqueDaAnalise([], [], noGrafico), []);
+  const destaque = new Set(['code:1']);
+  assert.equal(M.opacidadeComDestaque({id: 'code:1', visivel: true, apagada: false}, destaque), 1);
+  assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: false}, destaque), M.OPACIDADE_FORA_DO_DESTAQUE);
+  assert.equal(M.OPACIDADE_FORA_DO_DESTAQUE, 0.25);
+  assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: true}, destaque), 0.25);
+  assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: false, apagada: false}, destaque), 0, 'sem posição, oculta');
+  assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: true}, null), 0.45, 'sem destaque, a regra de sempre');
+  assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: false}, new Set()), 1);
+});

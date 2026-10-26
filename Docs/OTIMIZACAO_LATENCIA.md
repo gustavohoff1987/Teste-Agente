@@ -27,6 +27,10 @@ outras sete alternativas (seção 7).
 [diagnóstico de 21/10/2026](DIAGNOSTICO_LATENCIA_GEMINI_20261021.md)) não depende deste código e passou a
 ser a maior parte do tempo de uma mensagem interpretada pelo provedor.
 
+**Atualização de 26/10/2026 (conversa na página única).** A parte local de uma pergunta de conversa caiu de 130–800 ms para
+27–63 ms (seção 4.10), sem mudar nenhuma resposta; o pedido de análise antes da escolha dos dados deixou de esperar o
+provedor (o lembrete sai em ~3 ms); e nenhuma chamada nova ao provedor começa depois de 20 s do mesmo pedido.
+
 ## 1. Baseline e ambiente de medição
 
 - **Código de referência**: `a202be1`, extraído com `git archive` para uma pasta temporária
@@ -298,6 +302,40 @@ Aquecimento (U11), num servidor `uvicorn` real:
 
 No clique imediato, a primeira inspeção espera o aquecimento em curso. Antes dessa espera, as duas
 inspeções disputavam o processador e a primeira levava 14,2 s.
+
+### 4.10 Conversa na página única (26/10/2026; dados reais; Gemini simulado)
+
+Pedido do responsável: depois das últimas mudanças da conversa, a preparação das respostas ganhou latência, e o começo sem
+base ficava "processando". Mesma máquina, `TestClient` no próprio processo, base versionada instalada numa pasta temporária
+(somente leitura), transporte do Gemini simulado e instantâneo: as linhas medem só o trabalho local (triagem, cartão,
+conferência, gestor, gramática e, quando a resposta muda o gráfico, o cálculo do gráfico novo pelo motor). Mediana de 3 a 5
+repetições; antes, o código de `dd5743f`; depois, o desta entrega.
+
+| Pedido | Antes | Depois |
+|---|---|---|
+| Sem base: "Compare os municípios do Pará pela densidade" | 10 ms + a espera do Gemini (até 75 s por chamada) | 2,8 ms, sem chamada |
+| Tendência de PORTO ALEGRE (RS): "Não entendi a aceleração." | 141 ms | 29 ms |
+| Tendência: "Explique esse resultado." | 134 ms | 27 ms |
+| 144 municípios do Pará: "Qual deles tem a maior densidade?" | 648 ms | 51 ms |
+| Pará: "quantos municípios estão no gráfico?" | 800 ms | 63 ms |
+| Pará: "Compare Belém e Ananindeua" (com o gráfico novo) | 552 ms | 287 ms |
+| Pará: "compare o de maior e o de menor densidade" (com o gráfico novo) | 451 ms (pedia os nomes) | 134 ms (abre a comparação) |
+
+Causas encontradas pelo perfil (cProfile) e corrigidas sem mudar o resultado:
+- `resumo_painel.places_for` comparava todos os pares de valores a cada número de casas (quadrático: 144 valores, ~20 mil
+  formatações por frase); agora formata cada valor uma vez por número de casas e conta os textos distintos. Equivalência
+  conferida em `test_casas_comuns_sao_as_mesmas_da_comparacao_par_a_par` (309 listas, inclusive inteiros, empates e valores
+  que só se separam em muitas casas);
+- a triagem (`triagem.py`) procurava cada nome do vocabulário em cada texto; agora indexa os nomes pela primeira palavra
+  (`_indice`, guardado entre pedidos) e só confere os que começam por uma palavra do texto, com o mesmo resultado;
+- a proteção dos dados do Brasil (`main._protecao_do_pedido`) copiava a base e calculava o hash a cada pedido; agora fica
+  guardada por versão da base e recorte (até 4);
+- o contexto da investigação (`llm_context`) calculava a impressão da base inteira a cada pedido, e a gramática listava as
+  competências da coluna a cada pedido; as duas ficam guardadas por cópia da fonte (`request_memo.per_source`).
+Tempo de espera do provedor (`llm_bridge.ORCAMENTO_DE_REGENERACAO`): passados 20 s do pedido, nenhuma chamada nova começa
+(nem regeneração nem redação); a chamada em curso mantém o prazo de 75 s (decisão de 21/10/2026). Na tela, a espera tem
+prazo de 100 s e avisos de andamento aos 12 s e aos 45 s. O script da medição ficou fora do repositório (scratchpad da
+sessão), como os demais benchmarks fora do CI.
 
 ## 5. Equivalência de resultados
 

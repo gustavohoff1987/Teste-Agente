@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, Database, FileUp, Info, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
@@ -7,8 +7,9 @@ import { comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa, mem
   pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaDaVista,
   respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa, type ResultView } from "./conversaGrafico";
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
-import { acrescentar, avisoDaResposta, avisoDeFalha, estaNoFim, mensagemDeAviso, novoId, turnosParaEnvio, ultimaResposta,
-  type Aviso, type Mensagem } from "./historicoConversa";
+import { acrescentar, avisoDaResposta, avisoDeDemora, avisoDeFalha, blocosDoTexto, estaNoFim, horaDaMensagem, mensagemDeAviso,
+  novoId, posicaoDaRolagem, turnosParaEnvio, ultimaResposta, type Aviso, type Mensagem, type Trecho,
+  type Turno as TurnoEnviado } from "./historicoConversa";
 
 // Conversa da página única (22/10/2026), sempre na caixa flutuante com o rosto do agente. Antes dos dados, ela pergunta o que
 // a pessoa quer analisar e oferece "Usar dados do Brasil" e "Enviar meus dados" (24/10/2026: a mesma janela de envio da área
@@ -21,7 +22,10 @@ import { acrescentar, avisoDaResposta, avisoDeFalha, estaNoFim, mensagemDeAviso,
 // que esse gráfico mostra?", com a frase-resumo do motor). Desde 26/10/2026, a caixa mostra a conversa inteira, em ordem: as
 // mensagens da pessoa como ela escreveu e as respostas do agente (historicoConversa.ts); a indisponibilidade da conversa aparece
 // como aviso cordial no próprio histórico, sem código nem mensagem técnica. Ao backend vai a janela das mensagens mais recentes
-// (`turnos`), que ele tria antes do provedor; arquivos, linhas e nomes de campo nunca vão ao provedor de IA.
+// (`turnos`), que ele tria antes do provedor; arquivos, linhas e nomes de campo nunca vão ao provedor de IA. Desde 26/10/2026: o
+// pedido de análise antes dos dados recebe na hora o lembrete de escolher a base (sem o provedor) e fica guardado até ela ficar
+// pronta, quando segue pelo caminho completo; a resposta que pede continuação (`continuar`, como "assim que o gráfico estiver
+// pronto, comparo …") é enviada sozinha quando o motor calcula o gráfico novo; nenhum pedido fica girando além do prazo da tela.
 
 /** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
  * mensagem (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
@@ -32,9 +36,13 @@ type Exploration = { handled: boolean; reply?: string; clarification?: string; o
   pending_ids?: string[]; requested_count?: number | null; choices?: Choice[]; criteria_pending_ranking?: string; painel?: unknown;
   /** Gestor de diálogo (26/10/2026): a memória da resposta, quantos estados anteriores a tela desfaz, as ações de tela e a
    * pergunta sem alternativas (modelo da resposta) ou o pedido original de uma pergunta com alternativas. */
-  memoria?: Record<string, unknown>; desfazer?: number; acoes?: unknown; modelo_de_resposta?: string; pedido_original?: string };
+  memoria?: Record<string, unknown>; desfazer?: number; acoes?: unknown; modelo_de_resposta?: string; pedido_original?: string;
+  /** Pedido que a tela envia sozinha quando o motor calcular o gráfico novo (26/10/2026). */
+  continuar?: string };
 type Reply = { exploration?: Exploration; dialogue_action?: string; reply: string; proposal: Proposal;
-  verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown };
+  verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown;
+  /** Pedido de análise antes da escolha dos dados: o lembrete de escolher a base; o pedido fica guardado (26/10/2026). */
+  aguarda_base?: boolean };
 type Status = { configured: boolean; disponivel?: boolean; indisponibilidade?: { tipo?: string; titulo?: string; texto?: string } };
 /** Mensagem do histórico, com a pergunta de esclarecimento e o pedido que a provocou (para as alternativas). */
 type Turn = Mensagem & { clarification?: Clarification; request?: string; fonte?: string };
@@ -68,6 +76,10 @@ type Props = {
 };
 
 const VISTAS = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
+/** Prazos da tela (26/10/2026): o aviso de que o pedido ainda está em andamento, o fim da espera (o backend tem 75 s por
+ * chamada ao provedor e não começa chamada nova depois de 20 s do pedido) e a espera da continuação pelo gráfico novo. */
+const AVISO_DE_ANDAMENTO_MS = 12000, AVISO_DE_DEMORA_MS = 45000, PRAZO_DA_CONVERSA_MS = 100000;
+const ESPERA_DA_CONTINUACAO_MS = 8000, MAX_CONTINUACOES = 2;
 const SEGUIMENTO = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i;
 
 /** Falha da conversa: o status e o detalhe ficam para escolher o aviso cordial; a tela nunca os mostra crus. */
@@ -82,6 +94,20 @@ async function lerResposta(response: Response): Promise<any> {
   catch { throw new ErroDaConversa(response.status); }
   if (!response.ok) throw new ErroDaConversa(response.status, body?.detail);
   return body;
+}
+
+/** Os trechos de um texto da conversa (historicoConversa.blocosDoTexto): o rótulo do começo do parágrafo em negrito e os
+ * exemplos de pedido em destaque. Só realça: o texto é o mesmo. */
+function Trechos({ trechos }: { trechos: Trecho[] }) {
+  return <>{trechos.map((trecho, indice) => trecho.tipo === "texto" ? <Fragment key={indice}>{trecho.texto}</Fragment>
+    : <span key={indice} className={trecho.tipo === "rotulo" ? "chat-rotulo" : "chat-exemplo"}>{trecho.texto}</span>)}</>;
+}
+
+/** A resposta em parágrafos separados; as quebras entre eles continuam no texto, escondidas (o conteúdo não muda). */
+function TextoDaResposta({ texto }: { texto: string }) {
+  return <div className="chat-texto">{blocosDoTexto(texto).map((bloco, indice) => bloco.tipo === "separador"
+    ? <span key={indice} className="chat-separador">{bloco.texto}</span>
+    : <p key={indice}><Trechos trechos={bloco.trechos}/></p>)}</div>;
 }
 
 function textoDoPedido(pedido: PedidoDoChat | null): string {
@@ -104,17 +130,38 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const historico = useRef<HTMLOListElement>(null);
   const noFim = useRef(true);
   const [novidade, setNovidade] = useState(false);
-  const adicionar = (mensagem: Turn) => setTurns(previous => acrescentar(previous, mensagem) as Turn[]);
+  // Lembrete da escolha dos dados (26/10/2026): depois de um pedido de análise sem base, os dois botões da escolha ficam em
+  // destaque até a pessoa escolher.
+  const [lembrete, setLembrete] = useState(false);
+  // Pedido em andamento há algum tempo: 1 depois de 12 s, 2 depois de 45 s (o texto do indicador muda; nada é reenviado).
+  const [demora, setDemora] = useState(0);
+  const adicionar = (mensagem: Turn) => setTurns(previous => acrescentar(previous, { hora: horaDaMensagem(), ...mensagem }) as Turn[]);
   const avisar = (aviso: Aviso) => adicionar(mensagemDeAviso(aviso));
-  /** Falha de rede ou do serviço: o aviso cordial no histórico; a mensagem da pessoa continua onde está. */
-  const avisarFalha = (exc: unknown) => avisar(avisoDeFalha(exc instanceof ErroDaConversa ? exc.status : null,
-    exc instanceof ErroDaConversa ? exc.detalhe : undefined));
+  /** Falha de rede ou do serviço: o aviso cordial no histórico; a mensagem da pessoa continua onde está. A espera
+   * interrompida pelo prazo da tela tem o seu próprio aviso. */
+  const avisarFalha = (exc: unknown) => avisar((exc as { name?: string } | null)?.name === "AbortError" ? avisoDeDemora()
+    : avisoDeFalha(exc instanceof ErroDaConversa ? exc.status : null, exc instanceof ErroDaConversa ? exc.detalhe : undefined));
   useLayoutEffect(() => {
     const lista = historico.current;
     if (!lista) return;
-    if (noFim.current) { lista.scrollTop = lista.scrollHeight; setNovidade(false); }
-    else setNovidade(true);
+    if (!noFim.current) { setNovidade(true); return; }
+    // Quem acompanha o fim vê a mensagem nova junto com a pergunta que a provocou: numa resposta longa, a pergunta fica no
+    // alto e o começo da resposta logo abaixo (posicaoDaRolagem), em vez de a pergunta sumir acima da área visível.
+    const mensagens = lista.querySelectorAll<HTMLElement>('[data-testid="chat-mensagem"]');
+    const nova = mensagens[mensagens.length - 1], anterior = mensagens.length > 1 ? mensagens[mensagens.length - 2] : null;
+    const topo = (item: HTMLElement) => item.getBoundingClientRect().top - lista.getBoundingClientRect().top + lista.scrollTop;
+    lista.scrollTop = nova ? posicaoDaRolagem({ fim: lista.scrollHeight, altura: lista.clientHeight, topoDaNova: topo(nova),
+      topoDaAnterior: anterior ? topo(anterior) : null, alturaDaAnterior: anterior?.offsetHeight ?? 0,
+      anteriorDaPessoa: anterior?.dataset.papel === "usuario" && nova.dataset.papel !== "usuario" }) : lista.scrollHeight;
+    setNovidade(false);
   }, [turns.length, sending]);
+  useEffect(() => {
+    if (!sending) { setDemora(0); return; }
+    const andamento = window.setTimeout(() => setDemora(1), AVISO_DE_ANDAMENTO_MS);
+    const espera = window.setTimeout(() => setDemora(2), AVISO_DE_DEMORA_MS);
+    return () => { window.clearTimeout(andamento); window.clearTimeout(espera); };
+  }, [sending]);
+  useEffect(() => { if (fonteEscolhida) setLembrete(false); }, [fonteEscolhida]);
   function aoRolar() {
     const lista = historico.current;
     if (!lista) return;
@@ -136,6 +183,12 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const pendingRanking = useRef<string | null>(null);
   const pendingRequest = useRef("");
   const pendingPedido = useRef<PedidoDoChat | null>(null);
+  // Continuação pedida pela resposta (26/10/2026), como "assim que o gráfico estiver pronto, comparo …": quando o motor calcula o
+  // gráfico novo (outro resultado em exibição), a tela envia o pedido sozinha, sem mostrá-lo como mensagem da pessoa; sem
+  // gráfico novo em 8 s, segue com o que está na tela. No máximo duas continuações seguidas; um pedido novo da pessoa a cancela.
+  const continuacao = useRef<{ texto: string; resultado: string; fonte: string; passo: number; desde: number } | null>(null);
+  const passoAtual = useRef(0);
+  const [relogioDaContinuacao, setRelogioDaContinuacao] = useState(0);
   // Memória da conversa (26/10/2026) que vai ao gestor de diálogo do backend a cada pedido: o esclarecimento sem resposta, a
   // memória da última resposta e os estados do gráfico antes dos pedidos aplicados pela conversa. Nada dela vai ao provedor.
   const memoria = useRef<MemoriaDaConversa>(memoriaVazia());
@@ -167,20 +220,27 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     memoria.current = memoriaVazia();
   }, [fonteChave]);
   useEffect(() => {
-    if (!pronta || !pendingRequest.current) return;
+    if (!pronta || !pendingRequest.current || sending) return;
     const request = pendingRequest.current, pedido = pendingPedido.current;
     pendingRequest.current = "";
     pendingPedido.current = null;
-    void (async () => {
-      let local: Local | null = null;
-      try { local = await explorar(request); } catch { local = null; }
-      if (local) responder(local, request);
-      else if (pedido) {
-        pedir.current(pedido);
-        responder({ text: "Segui com o seu pedido. " + textoDoPedido(pedido) }, request);
-      }
-    })();
-  }, [pronta, fonteChave]);
+    // O pedido feito antes dos dados segue pelo caminho completo: o intérprete local e, sem resposta local, o comando que já
+    // tinha sido interpretado ou o intérprete contextual (26/10/2026; antes, sem resposta local, o pedido se perdia).
+    void processar(request, turnosParaEnvio(turns), { retomada: true, pedido });
+  }, [pronta, fonteChave, sending]);
+  useEffect(() => {
+    const pendente = continuacao.current;
+    if (!pendente || sending) return;
+    if (pendente.fonte !== fonteChave) { continuacao.current = null; return; }
+    const esperou = Date.now() - pendente.desde;
+    if ((displayedResultId && displayedResultId !== pendente.resultado) || esperou >= ESPERA_DA_CONTINUACAO_MS) {
+      continuacao.current = null;
+      void processar(pendente.texto, turnosParaEnvio(turns), { passo: pendente.passo });
+      return;
+    }
+    const timer = window.setTimeout(() => setRelogioDaContinuacao(valor => valor + 1), ESPERA_DA_CONTINUACAO_MS - esperou + 50);
+    return () => window.clearTimeout(timer);
+  }, [displayedResultId, sending, relogioDaContinuacao, fonteChave]);
 
   function responder(local: Local, request: string) {
     adicionar({ id: novoId("agente"), papel: "agente", texto: local.text, request, fonte: atual.current.fonteChave,
@@ -244,6 +304,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       fonte: atual.current.fonteChave };
     else if ((proposal.operation || proposal.painel) && !proposal.clarification) pendingTerritories.current = null;
     pendingRanking.current = proposal.criteria_pending_ranking || null;
+    if (typeof proposal.continuar === "string" && proposal.continuar.trim() && passoAtual.current < MAX_CONTINUACOES)
+      continuacao.current = { texto: proposal.continuar, resultado: atual.current.displayedResultId,
+        fonte: atual.current.fonteChave, passo: passoAtual.current + 1, desde: Date.now() };
     const pedido = pedidoDoPainel(proposal.painel);
     aplicar(pedido, proposal);
     lembrar(proposal, mensagemAtual.current, !!pedido);
@@ -253,7 +316,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
 
   // A mensagem em interpretação, para a pendência que a resposta deixa ("Compare Rio de Janeiro…" → "Município.").
   const mensagemAtual = useRef("");
-  async function explorar(message: string, choice?: { operation: string; indicator?: "quantity" | "density" | null }): Promise<Local | null> {
+  async function explorar(message: string, choice?: { operation: string; indicator?: "quantity" | "density" | null },
+    signal?: AbortSignal): Promise<Local | null> {
     const origem = atual.current.fonte;
     if (!origem) return null;
     mensagemAtual.current = message;
@@ -263,7 +327,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     const base = opcoes();
     form.append("options", JSON.stringify(choice ? { ...base, conversation_operation_choice: choice.operation,
       exploration_indicator: choice.indicator || base.exploration_indicator } : base));
-    const response = await fetch(apiBase + "/api/exploration/interpret", { method: "POST", body: form });
+    const response = await fetch(apiBase + "/api/exploration/interpret", { method: "POST", body: form, signal });
     const proposal = await lerResposta(response) as Exploration;
     if (pedidoRevision !== revision.current) return { text: "A fonte de dados mudou durante a interpretação. Envie o pedido de novo." };
     if (!proposal.handled) {
@@ -291,6 +355,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     adicionar({ id: novoId("usuario"), papel: "usuario", texto: message });
     noFim.current = true;
     setDraft("");
+    continuacao.current = null;  // o pedido novo da pessoa vale mais que a continuação que ainda esperava o gráfico
     // A escolha da fonte pela conversa é a mesma ação dos botões.
     const escolha = comandoDeFonte(message);
     if (escolha) {
@@ -300,7 +365,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       }
       onEscolherFonte(escolha);
       append(escolha === "brasil" ? "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os territórios na Seleção de " +
-          "Territórios ou me diga quais quer ver, por exemplo “mostre o Pará”."
+          "Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”."
         : "Abri a janela de envio: escolha o arquivo CSV ou Excel. O modelo de planilha também está nela. Depois, confira as colunas " +
           "no painel Colunas, no alto da página.");
       return;
@@ -311,7 +376,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       return;
     }
     if (!pronta && pendingRequest.current && SEGUIMENTO.test(message)) {
-      append("Para continuar, escolha os dados: “Dados do Brasil” ou “Enviar meus dados”.");
+      append("Para continuar, escolha os dados: “Usar dados do Brasil” ou “Enviar meus dados”.");
+      if (!fonteEscolhida) setLembrete(true);
       return;
     }
     // Perguntas sobre o conteúdo da base pública: consulta local, sem o provedor de IA e sem exigir a escolha da fonte.
@@ -345,19 +411,38 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         : "Estou preparando os dados; assim que o gráfico estiver pronto, sigo com o seu pedido.");
       return;
     }
+    await processar(message, janela);
+  }
+
+  /** O caminho completo de um pedido: o da pessoa, o guardado antes dos dados (`retomada`, com o comando que já tinha sido
+   * interpretado, se houver) ou a continuação que uma resposta pediu (`passo`). Os pedidos de apresentação e a análise
+   * anterior ficam na tela; os demais vão ao intérprete local e, sem resposta local, ao contextual (com dados) ou ao
+   * preliminar (sem dados). Nenhum pedido espera mais que o prazo da tela. */
+  async function processar(message: string, janela: TurnoEnviado[],
+    modo: { retomada?: boolean; pedido?: PedidoDoChat | null; passo?: number } = {}) {
+    const prefixo = modo.retomada ? "Com os dados prontos, sigo com o seu pedido. " : "";
     // Pedidos de apresentação (a vista do desenho e a tabela) e a análise anterior: nada é recalculado.
-    if (pronta) {
-      if (previousResultCommand(message)) { append(onAnaliseAnterior()); return; }
+    if (atual.current.fonte) {
+      if (previousResultCommand(message)) { append(prefixo + onAnaliseAnterior()); return; }
       const vista = viewCommand(message);
-      if (vista) { append(aplicarVista(vista)); return; }
+      if (vista) { append(prefixo + aplicarVista(vista)); return; }
     }
     const requestRevision = revision.current;
     const history = turns.filter(turn => turn.papel === "usuario").slice(-4).map(turn => turn.texto);
+    const controle = new AbortController();
+    const prazo = window.setTimeout(() => controle.abort(), PRAZO_DA_CONVERSA_MS);
+    passoAtual.current = modo.passo ?? 0;
     setSending(true);
     try {
-      if (pronta) {
-        const local = await explorar(message);
-        if (local !== null) { responder(local, message); return; }
+      if (atual.current.fonte) {
+        const local = await explorar(message, undefined, controle.signal);
+        if (local !== null) { responder({ ...local, text: prefixo + local.text }, message); return; }
+        if (modo.retomada && modo.pedido) {
+          // O comando interpretado antes dos dados segue direto para o gráfico.
+          aplicar(modo.pedido);
+          responder({ text: "Segui com o seu pedido. " + textoDoPedido(modo.pedido) }, message);
+          return;
+        }
       }
       const origem = atual.current.fonte;
       let response: Response;
@@ -369,10 +454,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         form.append("turnos", JSON.stringify(janela));
         form.append("displayed_result_id", atual.current.displayedResultId);
         form.append("options", JSON.stringify(opcoes()));
-        response = await fetch(apiBase + "/api/llm/interpret-context", { method: "POST", body: form });
+        response = await fetch(apiBase + "/api/llm/interpret-context", { method: "POST", body: form, signal: controle.signal });
       } else {
         response = await fetch(apiBase + "/api/llm/interpret", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history, turnos: janela, context_revision: contextRevision() }) });
+          body: JSON.stringify({ message, history, turnos: janela, context_revision: contextRevision(), lembrar_base: true }),
+          signal: controle.signal });
       }
       const body = await lerResposta(response);
       if (requestRevision !== revision.current) return;
@@ -396,10 +482,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       else {
         const pedido = pedidoDoPainel(validated.painel) ??
           (origem ? null : pedidoDaOperacao(validated.proposal.operation, validated.proposal.indicator));
-        if (!origem && (pedido || validated.proposal.operation)) {
+        if (!origem && validated.aguarda_base) {
+          // Pedido de análise sem base (26/10/2026): o lembrete de escolher os dados, respondido na hora pelo backend, com os
+          // dois botões da escolha em destaque; o pedido fica guardado e segue quando a base estiver pronta.
+          pendingRequest.current = message;
+          pendingPedido.current = null;
+          if (!fonteEscolhida) setLembrete(true);
+          texto = validated.reply;
+        } else if (!origem && (pedido || validated.proposal.operation)) {
           // Pedido antes dos dados: fica guardado e segue quando a base estiver pronta.
           pendingRequest.current = message;
           pendingPedido.current = pedido;
+          if (!fonteEscolhida) setLembrete(true);
           const rotulo = rotuloDoPedido(pedido);
           texto = "Entendi" + (rotulo ? ": " + rotulo : "") + ". Para começar, prefere usar os dados do Brasil ou enviar os " +
             "seus? Depois sigo direto para o gráfico.";
@@ -416,6 +510,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     } catch (exc) {
       if (requestRevision === revision.current) avisarFalha(exc);
     } finally {
+      window.clearTimeout(prazo);
       setSending(false);
     }
   }
@@ -429,6 +524,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     }
     setSending(true);
     memoria.current.pendente = null;  // a escolha em botão responde ao esclarecimento
+    continuacao.current = null;
+    passoAtual.current = 0;
     adicionar({ id: novoId("usuario"), papel: "usuario", texto: "Escolho: " + choice.label });
     noFim.current = true;
     try {
@@ -451,12 +548,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100 disabled:opacity-40">
           {choice.label}</button>)}
     </div>;
-  const guia = guiaDaConversa({ tipo: fonteEscolhida, pronta, colunasPendentes }, contexto, rotulos);
+  // Os exemplos da orientação mudam conforme a conversa avança (26/10/2026), sempre sem nomes de lugar.
+  const pedidosDaPessoa = turns.filter(turno => turno.papel === "usuario").length;
+  const guia = guiaDaConversa({ tipo: fonteEscolhida, pronta, colunasPendentes }, contexto, rotulos, pedidosDaPessoa);
+  const andamento = demora >= 2 ? "O serviço de conversa está demorando mais que o normal; aguarde mais um pouco…"
+    : demora === 1 ? "Ainda estou trabalhando no seu pedido…" : "Interpretando o pedido…";
 
   return <ChatFloatingBox ocupado={sending} ampla={!fonteEscolhida}>
-    <div className="px-4 pt-3" data-testid="painel-chat-guia">
-      <p className="text-sm leading-5 text-slate-700">{guia}</p>
-      {!fonteEscolhida && <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Escolha dos dados na conversa">
+    <div className="px-4 pt-3" data-testid="painel-chat-guia" data-compacta={turns.length ? "true" : "false"}>
+      <p className="text-sm leading-5 text-slate-700"><Trechos trechos={blocosDoTexto(guia).flatMap(bloco =>
+        bloco.tipo === "paragrafo" ? bloco.trechos : [{ tipo: "texto" as const, texto: bloco.texto }])}/></p>
+      {!fonteEscolhida && <div className="chat-escolha-dos-dados mt-2 flex flex-wrap gap-2" role="group"
+        aria-label="Escolha dos dados na conversa" data-lembrete={lembrete ? "true" : "false"}>
         {/* As mesmas duas entradas da área central (24/10/2026); "Enviar meus dados" abre a mesma janela de envio, com o modelo de
             planilha. */}
         <button type="button" data-testid="chat-fonte-brasil" disabled={!privacyAccepted} onClick={() => onEscolherFonte("brasil")}
@@ -483,7 +586,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         {turns.map(turno => {
           const ultimaDoAgente = turno.id === latestReply?.id;
           if (turno.papel === "usuario")
-            return <li key={turno.id} className="chat-mensagem chat-mensagem-usuario" data-testid="chat-mensagem" data-papel="usuario">
+            return <li key={turno.id} className="chat-mensagem chat-mensagem-usuario" data-testid="chat-mensagem" data-papel="usuario"
+              data-hora={turno.hora}>
               <span className="sr-only">Você: </span><p className="whitespace-pre-wrap">{turno.texto}</p></li>;
           if (turno.papel === "aviso")
             return <li key={turno.id} className="chat-mensagem chat-aviso" data-testid="chat-mensagem" data-papel="aviso">
@@ -492,12 +596,13 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
                 <div><strong className="block">{turno.titulo}</strong><p className="whitespace-pre-wrap">{turno.texto}</p></div>
               </div></li>;
           return <li key={turno.id} className="chat-mensagem chat-mensagem-agente" data-testid="chat-mensagem" data-papel="agente">
-            <BrandAvatar size={26}/>
-            <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="latest-reply chat-balao-agente">
-              <span className="sr-only">Agente: </span><p className="whitespace-pre-wrap">{turno.texto}</p></div></li>;
+            <BrandAvatar size={28}/>
+            <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="latest-reply chat-balao-agente"
+              data-hora={turno.hora}>
+              <span className="sr-only">Agente: </span><TextoDaResposta texto={turno.texto}/></div></li>;
         })}
         {sending && <li className="chat-mensagem chat-mensagem-agente chat-processando" role="status" data-testid="chat-processando">
-          <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>Interpretando o pedido…</li>}
+          <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>{andamento}</li>}
       </ol>
       {novidade && <button type="button" data-testid="chat-ir-ao-fim" onClick={irAoFim} className="chat-ir-ao-fim">
         <ArrowDown size={14} aria-hidden="true"/>Ir para a mensagem mais recente</button>}

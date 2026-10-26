@@ -231,8 +231,8 @@ test('orientação da conversa: pergunta na abertura e, na planilha, usa os nome
   // A base carregada abre sem seleção (23/10/2026): a conversa orienta a escolher os territórios, com os nomes da fonte.
   const semSelecao = {...CONTEXTO, municipios: {todos: false, estados: [], ids: []}};
   assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, semSelecao, BRASIL),
-    'Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará” ' +
-    'ou “todos os estados”.');
+    'Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver: o nome de um estado ou ' +
+    'de municípios, ou “todos os estados”.');
   assert.equal(C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, semSelecao, DISTRITOS),
     'Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver.');
   assert.match(C.guiaDaConversa({tipo: 'arquivo', pronta: false, colunasPendentes: true}, null, null), /painel Colunas/);
@@ -243,11 +243,44 @@ test('orientação da conversa: pergunta na abertura e, na planilha, usa os nome
   assert.equal(planilha, 'Escolha no gráfico quais províncias abrir, ou me diga quais distritos quer ver.');
   assert.equal(C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, null,
     {unidade: {singular: 'condado', plural: 'condados'}, grupo: null}), 'Escolha condados no gráfico ou me diga quais quer ver.');
-  assert.match(C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, CONTEXTO, BRASIL), /mostre o Pará/);
+  // Com o gráfico na tela, exemplos do que se pode pedir na análise aberta, sem nomes de lugar (26/10/2026).
+  assert.equal(C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, CONTEXTO, BRASIL),
+    'Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “os 5 municípios com maior densidade”, “compare o de maior e ' +
+    'o de menor densidade” ou “municípios com menos de 1 médico por mil”.');
   const comandos = C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, CONTEXTO, DISTRITOS);
   assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, juntar, usar como referência ou voltar ' +
     'ao nível de províncias.');
   for (const texto of [planilha, comandos]) assert.doesNotMatch(texto, /munic/i);
+});
+
+test('exemplos da conversa: o que cada análise faz, alternados e sem nomes de lugar', () => {
+  const BRASIL = {unidade: {singular: 'município', plural: 'municípios'}, grupo: {singular: 'estado', plural: 'estados'}};
+  const LUGARES = /Pará|Manaus|Tefé|Belém|Amazonas|Anápolis|Porto Alegre|São Paulo/;
+  const vistos = new Set();
+  for (const familia of ['distribuicao', 'tendencia', 'espacial', 'rotatividade', 'outra']) {
+    for (const indicador of ['densidade', 'quantidade']) {
+      for (let variacao = 0; variacao < 8; variacao += 1) {
+        const exemplos = C.exemplosDaAnalise({...CONTEXTO, familia, indicador}, BRASIL, variacao);
+        assert.equal(exemplos.length, 3);
+        assert.equal(new Set(exemplos).size, 3, 'três exemplos diferentes');
+        for (const exemplo of exemplos) {
+          assert.doesNotMatch(exemplo, LUGARES);
+          assert.doesNotMatch(exemplo, /[{}]/, 'sem marcador por preencher');
+          if (/maior e o de menor/.test(exemplo)) assert.match(exemplo, new RegExp(indicador));
+          vistos.add(exemplo);
+        }
+        const guia = C.guiaDaConversa({tipo: 'brasil', pronta: true, colunasPendentes: false}, {...CONTEXTO, familia, indicador},
+          BRASIL, variacao);
+        assert.ok(exemplos.every(exemplo => guia.includes('“' + exemplo + '”')), guia);
+      }
+    }
+  }
+  // A conversa avança e os exemplos mudam; cada um é um comando que a conversa entende.
+  assert.notDeepEqual(C.exemplosDaAnalise(CONTEXTO, BRASIL, 0), C.exemplosDaAnalise(CONTEXTO, BRASIL, 1));
+  for (const comando of ['compare o de maior e o de menor densidade', 'os 5 municípios com maior densidade', 'mostre a tendência anual',
+    'use como referência o município de maior densidade', 'municípios a mais de 150 km', 'explique esse resultado'])
+    assert.ok(vistos.has(comando), comando);
+  assert.deepEqual(C.exemplosDaAnalise(null, null, -1), C.exemplosDaAnalise(null, null, 5), 'posição negativa volta ao fim da lista');
 });
 
 // Memória da conversa (26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend, no campo `conversa`.

@@ -15,14 +15,21 @@ from data_contract import text_values
 from analysis_catalog import OPERATION_LABELS as OPERATIONS  # só as capacidades do contrato do LLM
 from semantic_bridge import preflight
 from conversation_session import fingerprint
+from request_memo import per_source
 from territorial_selection import territory_catalog
+
+
+@per_source()
+def _impressao_dos_dados(frame) -> str:
+    """SHA-256 do conteúdo do quadro. Na cópia íntegra da base do Brasil (a mesma versão em toda requisição), o valor é
+    reaproveitado entre requisições; nas planilhas enviadas, é calculado a cada uma, como antes."""
+    return hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()
 
 
 def investigation_context(frame, mapping, options, eligibility):
     """Snapshot local verificado; os valores nunca integram provider_snapshot."""
     source = fingerprint({"columns": list(frame.columns), "source": frame.attrs.get("source"),
-                          "input_file": frame.attrs.get("input_file"),
-                          "data": hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes()).hexdigest()})
+                          "input_file": frame.attrs.get("input_file"), "data": _impressao_dos_dados(frame)})
     parameters = {key: value for key, value in options.items()
                   if not key.startswith(("conversation_", "exploration_"))}
     selected = []

@@ -559,3 +559,106 @@ def test_defeito_do_gestor_nao_bloqueia_o_pedido(tela, sem_provedor, monkeypatch
     turno = tela.diga("Qual deles apresenta densidade maior?")
     assert turno.status == 200 and turno.corpo.get("degradado") is True  # o caminho anterior, sem o gestor
     assert "Falha no gestor de diálogo" in caplog.text
+
+
+# --------------------------------------------------------------------------------------------- comparação pelos extremos
+# Pedido do responsável (26/10/2026): "compare os municípios de maior e menor densidade" identifica quem tem o maior e o menor
+# valor e abre a comparação no gráfico, sem pedir os nomes; quem entra vem das ordens do motor, com os empates.
+@pytest.mark.parametrize("mensagem", ["compare o de maior e o de menor densidade",
+                                      "Comparar os municípios de maior e menor densidade", "compare os extremos",
+                                      "compare o maior e o menor", "compare o primeiro e o último", "compare os dois maiores",
+                                      "qual a diferença entre o de maior e o de menor densidade?"])
+def test_comparacao_pelos_extremos_e_reconhecida_sem_nomes(mensagem):
+    assert dialogo.reconhecer(mensagem, {}, True) == {"ato": "compara_extremos"}
+
+
+def test_extremos_no_plural_sem_quantidade_e_com_nome_do_grafico():
+    assert dialogo.reconhecer("compare os municípios mais populosos", {}, True) == {"ato": "compara_extremos", "quantos": None}
+    assert dialogo.reconhecer("compare os municípios de menor densidade", {}, True) == {"ato": "compara_extremos",
+                                                                                      "quantos": None}
+    # Com o nome de um território do gráfico, a comparação segue pelos nomes; a diferença sem extremos lê a comparação
+    # aberta.
+    assert dialogo.reconhecer("compare Manaus com o de menor densidade", {}, True, nomes_no_resultado=["MANAUS (AM)"]) is None
+    assert dialogo.reconhecer("qual a diferença entre eles?", {}, True) == {"ato": "diferenca"}
+
+
+def _unidades(tela):
+    return {item["id"]: item for item in tela.resposta["itens"] if item["tipo"] == "municipio"}
+
+
+def test_comparacao_pelos_extremos_abre_a_comparacao_com_as_ordens_do_motor(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS])
+    itens = _unidades(tela)
+    ordem = sorted(itens, key=lambda i: -itens[i]["densidade"])
+    turno = tela.diga("Comparar os municípios de maior e menor densidade")
+    assert turno.aplicado and tela.comparar == [ordem[0], ordem[-1]]
+    assert turno.texto.startswith("Abri a comparação lado a lado com o de maior e o de menor densidade em junho de 2024: ")
+    for unidade in (ordem[0], ordem[-1]):
+        assert itens[unidade]["rotulo"] in turno.texto and number(itens[unidade]["densidade"]) in turno.texto
+    assert "continuar" not in turno.corpo and not set(numeros(turno.texto)) - {
+        number(itens[i]["densidade"]) for i in itens} - {"1.000", "2024"}
+    dois = tela.diga("compare os dois maiores")
+    assert dois.aplicado and tela.comparar == ordem[:2] and "os dois maiores em densidade" in dois.texto
+
+
+def test_extremos_com_empate_entram_juntos(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS, TEFE, AMAZONAS_PA])
+    itens = _unidades(tela)
+    assert itens[TEFE]["densidade"] == itens[AMAZONAS_PA]["densidade"]  # 10 por 1.000 habitantes nos dois
+    turno = tela.diga("compare o de maior e o de menor densidade")
+    assert turno.aplicado and set(tela.comparar) == {MANAUS, TEFE, AMAZONAS_PA}
+    assert "Há empate na posição, e os empatados entram juntos." in turno.texto
+
+
+def test_extremos_de_um_estado_fora_do_grafico_mostram_os_municipios_e_continuam(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS])
+    primeiro = tela.diga("compare o de maior e o de menor densidade do Pará")
+    assert primeiro.aplicado and tela.municipios == {"todos": False, "estados": ["15"], "ids": []}
+    assert primeiro.corpo["continuar"] == "compare o de maior e o de menor densidade"
+    assert primeiro.texto == ("Mostrei os municípios do Pará; assim que o gráfico estiver pronto, comparo o de maior e o de "
+                              "menor densidade.")
+    segundo = tela.continua(primeiro)
+    assert set(_unidades(tela)) == {AMAZONAS_PA, BELEM_PA}
+    assert segundo.aplicado and tela.comparar == [BELEM_PA, AMAZONAS_PA]
+    # A continuação é enviada pela tela: não vira mensagem da pessoa no histórico.
+    assert tela.historico[-1] == "compare o de maior e o de menor densidade do Pará"
+
+
+def test_diferenca_entre_o_maior_e_o_menor_e_lida_quando_o_motor_calcula(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS])
+    pedido = tela.diga("qual a diferença entre o de maior e o de menor densidade?")
+    assert pedido.aplicado and set(tela.comparar) == {MANAUS, TEFE}
+    assert pedido.corpo["continuar"] == "qual a diferença entre eles?"
+    assert pedido.texto.endswith("Assim que o motor calcular a diferença, eu leio para você.")
+    leitura = tela.continua(pedido)
+    assert not leitura.aplicado and set(tela.comparar) == {MANAUS, TEFE}
+    assert number(tela.resposta["comparacao"]["diferencas"][0]["diferenca"]) in leitura.texto
+
+
+def test_extremos_no_plural_perguntam_quantos_e_a_resposta_digitada_compara(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS, BELEM_PA])
+    itens = _unidades(tela)
+    ordem = sorted(itens, key=lambda i: -itens[i]["populacao"])
+    pergunta = tela.diga("compare os municípios mais populosos")
+    assert not pergunta.aplicado and tela.comparar is None
+    assert pergunta.texto == ("A comparação lado a lado mostra 2 ou 3 itens. Quer comparar os dois ou os três maiores em "
+                              "população?")
+    assert [(c["label"], c["draft"], c["send"]) for c in pergunta.alternativas] == [
+        ("Os dois maiores em população", "compare os dois maiores em população", True),
+        ("Os três maiores em população", "compare os três maiores em população", True)]
+    resposta = tela.diga("os três")
+    assert resposta.aplicado and tela.comparar == ordem[:3]
+    assert resposta.texto.startswith("Entendi: Os três maiores em população. Abri a comparação lado a lado")
+
+
+def test_exemplos_das_orientacoes_nao_citam_lugares(tela, sem_provedor):
+    """Os exemplos das orientações mostram o que a função faz, sem nomes de lugar (26/10/2026): um nome fora da análise da
+    pessoa confunde."""
+    tela.seleciona(ids=[MANAUS])
+    textos = {mensagem: tela.diga(mensagem).texto for mensagem in ("desfaz", "qual a diferença?", "inclui mais um")}
+    assert "por exemplo “os 5 municípios com maior densidade” ou “mostre a tendência”" in textos["desfaz"]
+    assert textos["qual a diferença?"].endswith("Diga quais, pelo nome, ou peça, por exemplo, “compare o de maior e o de menor "
+                                                "densidade”.")
+    assert textos["inclui mais um"] == "Qual município você quer incluir? Diga o nome."
+    for texto in textos.values():
+        assert not re.search(r"Manaus|Tefé|Belém|Pará|Anápolis|Porto Alegre", texto), texto

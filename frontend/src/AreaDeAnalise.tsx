@@ -12,7 +12,7 @@ import {
   NOMES_FAMILIA_TENDENCIA, NOMES_RELACOES, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
   artigo, avisoDaFamilia, basesEmUso, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, contextoDoGrafico,
   corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, empilharPasso,
-  dentroDosFiltros, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
+  dentroDosFiltros, destaqueDaAnalise, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica, montarOpcoes,
   apresentacaoDaAba, nomeDaUnidade, normalizarBases, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -595,6 +595,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return pares.filter(par => par.referencias.length > 0 && aVista.has(par.base.id))
       .sort((a, b) => Number(marcadas.has(b.base.id)) - Number(marcadas.has(a.base.id))).slice(0, MAX_LIGACOES);
   }, [pares, visiveis, selecao]);
+  // Destaque da análise (26/10/2026): com a comparação em exibição, só os comparados ficam inteiros no gráfico de bolhas; na
+  // análise espacial com territórios base escolhidos um a um, as bases e as referências delas. As demais bolhas esmaecem.
+  const destaque = useMemo(() => destaqueDaAnalise(def.comparar, todasAsBases ? [] : pares,
+    new Set((resposta?.itens || []).map(item => item.id))), [def.comparar, todasAsBases, pares, resposta]);
   function escolherBases(ids: string[] | null, rotulo: string) {
     const nova = ids === null ? null : normalizarBases(ids, basesDaReferencia);
     if (JSON.stringify(nova) === JSON.stringify(def.territoriosBase ?? null)) return;
@@ -1208,7 +1212,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       legenda={layoutTendencia ? undefined : legendaCor} onAlternar={alternar} ativoExterno={lado ? ativoCruzado : null} onAtivo={lado ? setAtivoCruzado : undefined}/>;
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
-      cometa={cometa} trajetoria={cometa} relacao={relacaoNaTela} pares={paresLigados} basesEscolhidas={!todasAsBases} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
+      cometa={cometa} trajetoria={cometa} relacao={relacaoNaTela} pares={paresLigados} basesEscolhidas={!todasAsBases} destaque={destaque} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}

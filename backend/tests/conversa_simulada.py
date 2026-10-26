@@ -269,6 +269,16 @@ class Tela:
         self.historico.append(mensagem)
         return turno
 
+    def continua(self, turno):
+        """A continuação que a resposta pediu (`continuar`, 26/10/2026): a tela a envia sozinha depois que o motor calcula o
+        gráfico novo, sem mostrá-la como mensagem da pessoa (o histórico da conversa não muda)."""
+        texto = turno.corpo.get("continuar")
+        assert isinstance(texto, str) and texto.strip(), turno
+        historico, turnos = list(self.historico), list(self.turnos)
+        resposta = self.diga(texto)
+        self.historico, self.turnos = historico, turnos
+        return resposta
+
     def seleciona(self, ids=(), estados=(), familia=None, indicador=None, comparar=None):
         """Escolha direta na tela (Seleção de Territórios e ajustes), sem a conversa."""
         self.nivel = "municipios"

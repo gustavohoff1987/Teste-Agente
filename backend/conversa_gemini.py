@@ -10,7 +10,9 @@ verificada, com a mensagem fixa de TPL-08. Sem o provedor (sem chave, em espera 
 sem chamada. Os comandos do gráfico, as decisões de autorização, os cálculos e as validações continuam determinísticos.
 
 Uma chamada por pergunta, em geral: quando a interpretação já veio do Gemini com o campo `resposta` (contrato unificado),
-esse texto é conferido primeiro e só uma violação leva a nova chamada. ADT_CONVERSA_GEMINI=0 desliga a redação.
+esse texto é conferido primeiro e só uma violação leva a nova chamada. ADT_CONVERSA_GEMINI=0 desliga a redação. Desde
+26/10/2026, nenhuma chamada de redação nem regeneração começa depois de 20 s do pedido (llm_bridge.ORCAMENTO_DE_REGENERACAO):
+vale a resposta verificada (com TPL-08 só quando um texto do Gemini foi recusado).
 """
 from __future__ import annotations
 
@@ -68,6 +70,11 @@ async def redigir(*, contexto: dict, refs: fidelidade.Referencias, reserva: str,
         if not ativa():
             return {"texto": reserva, "origem": "DETERMINISTICA", "tentativas": tentativas,
                     "motivo": "indisponivel" if tentativas == 0 else "conferencia"}
+        if llm_bridge.sem_tempo_para_regenerar():
+            if not tentativas:
+                # A interpretação já levou o orçamento do pedido: a resposta verificada responde, sem esperar outra chamada.
+                return {"texto": reserva, "origem": "DETERMINISTICA", "tentativas": 0, "motivo": "tempo"}
+            break  # o pedido já demorou: a reserva verificada responde, sem nova chamada (o texto recusado nunca aparece)
         tentativas += 1
         try:
             saida = await llm_bridge.generate_structured(llm_bridge.SISTEMA_DA_RESPOSTA,

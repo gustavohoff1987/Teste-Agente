@@ -1441,6 +1441,14 @@ def main():
         if comparado.get("comparacao"):
             expect(comparar.get_by_test_id("analise-comparacao")).to_be_visible()
             expect(comparar.get_by_test_id("analise-comparacao-linha").first).to_be_visible()
+        # Com a comparação em exibição (26/10/2026), só os comparados ficam inteiros; as demais bolhas esmaecem a 25%.
+        expect(area.locator(BOLHAS + '[data-destaque="true"]')).to_have_count(2, timeout=30000)
+        destaque = area.locator(BOLHAS).evaluate_all(
+            "els => els.map(e => [e.dataset.id, e.dataset.destaque, e.style.opacity, e.hasAttribute('aria-describedby')])")
+        assert {chave for chave, marca, _, _ in destaque if marca == "true"} == {MANAUS, TEFE}, destaque
+        assert any(marca == "false" for _, marca, _, _ in destaque), destaque
+        # A bolha ativa (com a dica, sob o mouse ou o foco) fica inteira enquanto está ativa.
+        assert all(opacidade == ("1" if marca == "true" else "0.25") for _, marca, opacidade, ativa in destaque if not ativa), destaque
         fecha()
         # Juntar: a mesma forma, com os escolhidos em etiquetas, cada uma com o ×.
         juntar = abre("juntar").get_by_test_id("analise-juntar")

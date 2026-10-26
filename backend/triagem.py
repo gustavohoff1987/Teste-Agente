@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 
 # Marcadores tipados e numerados (RQ-DAD-39): o mesmo valor recebe o mesmo número dentro de um envio ao provedor (a mensagem,
 # a janela da conversa e o contexto vão juntos); valores diferentes recebem números diferentes.
@@ -239,24 +240,45 @@ class Protecao:
     metadados: frozenset = frozenset()
 
 
+@lru_cache(maxsize=32)
+def _indice(valores: frozenset, limite: int) -> dict[str, tuple[str, ...]]:
+    """Os valores com o tamanho mínimo, pela primeira palavra (os mais longos primeiro): uma ocorrência inteira começa numa
+    palavra inteira do texto, então só os valores cuja primeira palavra está no texto são procurados. Montado uma vez por
+    conjunto de valores (a proteção da base é a mesma em todas as mensagens da versão)."""
+    grupos: dict[str, list[str]] = {}
+    for valor in valores:
+        if len(valor) >= max(2, limite):
+            primeira = re.match(r"\w+", valor)
+            grupos.setdefault(primeira.group(0) if primeira else "", []).append(valor)
+    return {chave: tuple(sorted(lista, key=lambda v: (-len(v), v))) for chave, lista in grupos.items()}
+
+
 def _ocorrencias(texto_dobrado: str, valores, limite: int = 0) -> list[tuple[int, int]]:
     """Posições (no texto dobrado) das ocorrências inteiras dos valores, os mais longos primeiro."""
+    indice = _indice(valores if isinstance(valores, frozenset) else frozenset(valores), limite)
+    candidatos = sorted({valor for chave in {*re.findall(r"\w+", texto_dobrado), ""} for valor in indice.get(chave, ())},
+                        key=lambda v: (-len(v), v))
     trechos = []
-    for valor in sorted(valores, key=len, reverse=True):
-        if len(valor) < max(2, limite) or valor not in texto_dobrado:
+    for valor in candidatos:
+        if valor not in texto_dobrado:
             continue
         for m in re.finditer(r"(?<![\w])" + re.escape(valor) + r"(?![\w])", texto_dobrado):
             trechos.append((m.start(), m.end()))
     return trechos
 
 
+@lru_cache(maxsize=4096)
+def _caractere_dobrado(caractere: str) -> str:
+    return dobrar(caractere)
+
+
 def _mapa(texto: str) -> tuple[str, list[int]]:
     """O texto dobrado e, para cada caractere dele, a posição no original."""
     dobrado, origem = [], []
     for posicao, caractere in enumerate(texto):
-        for simples in dobrar(caractere):
-            dobrado.append(simples)
-            origem.append(posicao)
+        simples = _caractere_dobrado(caractere)
+        dobrado.append(simples)
+        origem.extend([posicao] * len(simples))
     return "".join(dobrado), origem
 
 

@@ -56,10 +56,12 @@ def number(value, places=2) -> str:
 
 def places_for(values) -> int:
     """Casas comuns de valores comparados na mesma frase: duas, ou mais só quando dois valores diferentes ficariam com o
-    mesmo texto (preservar a relação, RQ-REP-05)."""
+    mesmo texto (preservar a relação, RQ-REP-05). Só os decimais colidem (o inteiro sai sem casas: "8" e "8,00" já se
+    distinguem); cada um é formatado uma vez por número de casas, e não a cada par (com os 5.570 municípios, a regra par a
+    par fazia milhões de formatações)."""
+    decimais = {value for value in values if isinstance(value, float)}
     places = 2
-    while places < 17 and any(a != b and number(a, places) == number(b, places)
-                              for a in values for b in values if isinstance(a, float) or isinstance(b, float)):
+    while places < 17 and len({number(value, places) for value in decimais}) < len(decimais):
         places += 1
     return places
 

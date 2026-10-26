@@ -45,6 +45,22 @@ INDICATORS = {"density": "Densidade por 1.000 habitantes",
 ALLOWED_MODELS = {"gemini-3.5-flash-lite"}
 MODEL_DEFAULT = "gemini-3.5-flash-lite"
 TIMEOUT_SEGUNDOS = 75.0
+# Chamadas novas só no começo do pedido (26/10/2026): depois de 20 s de conversa no mesmo pedido, nenhuma chamada nova começa
+# (nem regeneração nem redação; a resposta verificada responde). A chamada em curso continua com o prazo de 75 s por operação
+# (decisão de 21/10/2026).
+ORCAMENTO_DE_REGENERACAO = 20.0
+_INICIO_DO_PEDIDO: contextvars.ContextVar[float | None] = contextvars.ContextVar("adt_inicio_do_pedido", default=None)
+
+
+def iniciar_relogio() -> None:
+    """Marca o início do pedido da conversa (as rotas da conversa chamam no começo)."""
+    _INICIO_DO_PEDIDO.set(time.monotonic())
+
+
+def sem_tempo_para_regenerar() -> bool:
+    """Já passou o orçamento de tempo do pedido: nenhuma chamada nova (regeneração ou redação) começa."""
+    inicio = _INICIO_DO_PEDIDO.get()
+    return inicio is not None and time.monotonic() - inicio > ORCAMENTO_DE_REGENERACAO
 # Monitoramento do consumo (sem teto): chamadas reais de hoje e os desfechos. A espera só vem de sinal do provedor.
 _lock = threading.Lock()
 _counter_day = ""
@@ -72,6 +88,9 @@ class ChatRequest(BaseModel):
     # Janela da conversa da tela (mensagens da pessoa e do agente, as mais recentes), só para o contexto do modelo; a tela
     # guarda o histórico inteiro, que nunca vai inteiro ao provedor.
     turnos: list[dict] = Field(default_factory=list, max_length=12)
+    # Página única, sem dados escolhidos (26/10/2026): o pedido de análise recebe na hora o lembrete de escolher a base, sem o
+    # provedor; a tela guarda o pedido e segue com ele quando a base fica pronta. Sem o campo, a interpretação preliminar segue.
+    lembrar_base: bool = False
 
 
 # Respostas sobre o funcionamento do agente são produzidas a partir do catálogo
@@ -866,6 +885,8 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     violacoes: list[str] = []
     response = raw = None
     for tentativa in range(TENTATIVAS):
+        if tentativa and sem_tempo_para_regenerar():
+            break  # o pedido já demorou: a reserva determinística responde, sem nova chamada
         _iniciar_chamada()
         token = _EXAMPLES.set(examples)
         try:

@@ -1197,6 +1197,23 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
  * no mapa. */
 export const opacidadeDaBolha = (bolha: Pick<BolhaDesenho, "visivel" | "apagada">) => !bolha.visivel ? 0 : bolha.apagada ? 0.45 : 1;
 
+/** Destaque da análise (26/10/2026, pedido do responsável): com uma comparação em exibição (2 ou 3 itens no gráfico), os
+ * comparados; sem ela, na análise espacial com territórios base escolhidos um a um, as bases e as referências delas que o
+ * gráfico desenha. As demais bolhas esmaecem (opacidadeComDestaque) para a análise em foco não se misturar com o resto da
+ * seleção; marcar, sozinho, continua sem esmaecer (25/10/2026). Vazio: nada esmaece. Só estado visual: nada vai ao motor. */
+export function destaqueDaAnalise(comparar: readonly string[], bases: readonly ParDaBase[], noGrafico: ReadonlySet<string>): string[] {
+  const comparados = comparar.filter(id => noGrafico.has(id));
+  if (comparados.length >= 2) return [...new Set(comparados)];
+  return [...new Set(bases.flatMap(par => [par.base.id, ...par.referencias.filter(ref => ref.noGrafico || ref.emAnalise).map(ref => ref.id)]))];
+}
+/** Opacidade das bolhas fora do destaque da análise. */
+export const OPACIDADE_FORA_DO_DESTAQUE = 0.25;
+/** Opacidade com o destaque da análise: fora dele, a bolha esmaece, sem nunca ficar mais forte que a pintura dela. */
+export const opacidadeComDestaque = (bolha: Pick<BolhaDesenho, "id" | "visivel" | "apagada">, destaque: ReadonlySet<string> | null) => {
+  const inteira = opacidadeDaBolha(bolha);
+  return destaque && destaque.size > 0 && !destaque.has(bolha.id) ? Math.min(inteira, OPACIDADE_FORA_DO_DESTAQUE) : inteira;
+};
+
 /** Cauda do cometa: triângulo do ponto da competência inicial (fino) até a bolha, em coordenadas relativas ao centro. */
 export function caudaDoCometa(dx: number, dy: number, r: number): string {
   const comprimento = Math.hypot(dx, dy);

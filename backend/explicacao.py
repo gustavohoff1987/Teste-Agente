@@ -290,7 +290,8 @@ def _velocidades(c: Composicao, indice: int) -> None:
 # --------------------------------------------------------------------------------------------- respostas
 def _sem_resultado() -> dict:
     return {"texto": "Ainda não há um gráfico calculado nesta conversa. Escolha os territórios na Seleção de Territórios "
-                     "ou me diga quais quer ver, por exemplo “mostre o Pará”.", "partes": [], "segmentos": [],
+                     "ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”.", "partes": [],
+            "segmentos": [],
             "documentacao": [], "acoes": []}
 
 
@@ -582,7 +583,8 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True) -> d
     qual = "maior" if maior else "menor"
     if atributo == "distancia_km" and body.get("referencia") is None:
         c.text("O gráfico em exibição não tem território de referência, então não há distância para comparar. Escolha a "
-               "referência na Análise Espacial ou peça, por exemplo, “use Belém como referência”.")
+               "referência na Análise Espacial ou peça, por exemplo, “use como referência o município de maior "
+               "densidade”.")
         return verificar(c.resultado(), body)
     if atributo == "variacao" and not body.get("competencia_inicial"):
         c.text("O gráfico em exibição não tem competência inicial, então não há variação calculada. Peça, por exemplo, "

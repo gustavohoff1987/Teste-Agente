@@ -2,6 +2,9 @@
 
 Percorre:
 - perguntas antes dos dados, respondidas sem o provedor de IA (inclusive a descrição dos dados do Brasil);
+- o pedido de análise antes dos dados (26/10/2026), com ou sem o provedor: o lembrete na hora de escolher os dados, sem o
+  intérprete, com os dois botões da escolha em destaque; o pedido fica guardado e segue pelo caminho completo quando a base
+  fica pronta;
 - a escolha da base pela conversa ("usar dados do Brasil"), sem o provedor e sem seleção automática (23/10/2026): nada é
   pedido ao motor até a escolha dos territórios, e a conversa orienta a escolher na Seleção de Territórios ou pela conversa;
 - comandos que mudam o gráfico: o campo `painel` da resposta do intérprete local vira um pedido para a área, que pede ao
@@ -16,6 +19,8 @@ Percorre:
   era isso que eu queria", que desfaz a última mudança da conversa; a resposta digitada a um esclarecimento ("a de
   janeiro"), que escolhe a alternativa como o clique; e "não entendi a aceleração", que abre "Entenda esta análise" da
   Tendência com a classe destacada;
+- a comparação indireta (26/10/2026): "compare o de maior e o de menor densidade" abre a comparação dos extremos do gráfico,
+  pelas ordens do motor, e as demais bolhas esmaecem;
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
 - pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
   continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
@@ -34,8 +39,7 @@ Dois modos, pela suíte (run_ui_checks.py):
 - "conversa" (servidor offline, sem transporte de IA): só os canais locais; o pedido que dependeria do provedor recebe a
   comunicação cordial de indisponibilidade no próprio histórico, sem código nem mensagem técnica, e a página continua
   funcionando;
-- "gemini-simulado" (ADT_FAKE_GEMINI_LOG definido): também o pedido feito antes dos dados, guardado e interpretado de novo
-  quando a base fica pronta; as perguntas de conversa, que seguem para o canal contextual e voltam redigidas pelo Gemini
+- "gemini-simulado" (ADT_FAKE_GEMINI_LOG definido): também as perguntas de conversa, que seguem para o canal contextual e voltam redigidas pelo Gemini
   simulado e aprovadas na conferência de fidelidade; a proposta fora do contrato, que depois das tentativas previstas recebe
   a resposta de reserva; o limite de consultas e a falha temporária simulados, com o aviso certo para cada causa, os
   controles do gráfico funcionando e a recuperação; a ambiguidade material com alternativas em botões (CATALOGO_LOCAL); e a
@@ -48,7 +52,6 @@ import os
 import re
 import tempfile
 import time
-from contextlib import nullcontext
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -174,48 +177,56 @@ def main():
         expect(page.get_by_test_id("current-source")).to_have_count(0)  # a descrição não escolhe a fonte
         assert interpretacoes_no_registro() == antes, "as respostas locais não chamam o intérprete"
 
-        # 2. Pedido antes dos dados. Com o provedor simulado, ele fica guardado até a base ficar pronta; sem provedor, a
-        # conversa responde localmente ou avisa da indisponibilidade, e a página continua funcionando.
+        # 2. Pedido de análise antes dos dados (26/10/2026): com ou sem o provedor, a conversa lembra na hora de escolher os
+        # dados, sem chamar o intérprete, destaca os dois botões da escolha e guarda o pedido até a base ficar pronta. Sem o
+        # provedor, uma conversa livre recebe o aviso cordial de indisponibilidade, e a página continua funcionando.
+        antes = interpretacoes_no_registro()
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
             send(page, "Quero analisar a densidade")
         enviadas.append("Quero analisar a densidade")
         assert event.value.status == 200, event.value.text()[:2000]
-        guardado = "indisponibilidade" not in event.value.json()
-        assert guardado is simulado, event.value.json()
-        if guardado:
-            expect(latest).to_contain_text("Para começar, prefere usar os dados do Brasil ou enviar os seus?")
-            send(page, "certo, quantos tem?")
-            enviadas.append("certo, quantos tem?")
-            expect(latest).to_contain_text("Para continuar, escolha os dados")
-        else:
+        assert json.loads(event.value.request.post_data or "{}").get("lembrar_base") is True, event.value.request.post_data
+        assert event.value.json().get("aguarda_base") is True, event.value.json()
+        assert interpretacoes_no_registro() == antes, "o lembrete da escolha dos dados não chama o intérprete"
+        expect(latest).to_contain_text("Para fazer essa análise, primeiro escolha os dados: use os dados do Brasil ou envie os seus")
+        expect(chat.get_by_role("group", name="Escolha dos dados na conversa")).to_have_attribute("data-lembrete", "true")
+        # Cada mensagem fica no histórico com a hora no balão (sem entrar no texto da mensagem).
+        expect(historico.locator('[data-papel="usuario"]').last).to_have_attribute("data-hora", re.compile(r"^\d{2}:\d{2}$"))
+        send(page, "certo, quantos tem?")
+        enviadas.append("certo, quantos tem?")
+        expect(latest).to_contain_text("Para continuar, escolha os dados")
+        if not simulado:
             # Sem o provedor: o aviso cordial como resposta, no histórico, sem código nem mensagem técnica; a pergunta fica.
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+                send(page, "Me conte uma curiosidade")
+            enviadas.append("Me conte uma curiosidade")
+            assert event.value.status == 200 and "indisponibilidade" in event.value.json(), event.value.json()
             aviso = historico.locator('[data-papel="aviso"]').last
             expect(aviso).to_contain_text("Assistente conversacional temporariamente indisponível")
             expect(aviso).to_contain_text("O recurso de conversa não está disponível neste momento.")
-            expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile("Quero analisar a densidade$"))
+            expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile("Me conte uma curiosidade$"))
             expect(chat.get_by_role("alert")).to_have_count(0)
             expect(chat).not_to_contain_text(re.compile(r"HTTP|\b50[0-9]\b|GEMINI_API_KEY|Gemini não configurado"))
             expect(chat.get_by_test_id("chat-estado-do-servico")).to_contain_text("Os botões, os controles")
 
         # 3. A base escolhida pela conversa, como pelo botão, sem o provedor e sem seleção automática: nada é pedido ao motor
-        # até a escolha dos territórios, e a conversa orienta a escolher. O pedido guardado é interpretado de novo pelo
-        # intérprete local, já com a base. Depois, "todos os estados", o exemplo da orientação, põe os estados no gráfico (E1).
+        # até a escolha dos territórios, e a conversa orienta a escolher. O pedido guardado segue pelo caminho completo,
+        # primeiro o intérprete local, já com a base (com ou sem o provedor). Depois, "todos os estados", o exemplo da
+        # orientação, põe os estados no gráfico (E1).
         chamadas_llm, chamadas_painel = len(llm_calls), len(painel)
-        reinterpretacao = page.expect_request(lambda r: r.url.endswith("/api/exploration/interpret") and
-                                              form_field(r, "message") == "Quero analisar a densidade",
-                                              timeout=180000) if guardado else nullcontext()
-        with reinterpretacao:
+        with page.expect_request(lambda r: r.url.endswith("/api/exploration/interpret") and
+                                 form_field(r, "message") == "Quero analisar a densidade", timeout=180000):
             with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
                 send(page, "usar dados do Brasil")
         assert inspecao.value.status == 200, inspecao.value.text()[:2000]
         assert len(llm_calls) == chamadas_llm, "a escolha da fonte pela conversa é local"
         expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
         expect(guia).to_contain_text("Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais "
-                                     "quer ver, por exemplo “mostre o Pará” ou “todos os estados”.", timeout=60000)
+                                     "quer ver: o nome de um estado ou de municípios, ou “todos os estados”.", timeout=60000)
+        expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
         expect(area).to_have_attribute("data-aba", "territorios")
         page.wait_for_timeout(1000)  # a área informa o contexto do gráfico (sem territórios)
-        if not guardado:
-            assert len(painel) == chamadas_painel, "sem territórios escolhidos, nada é pedido ao motor"
+        assert len(painel) == chamadas_painel, "sem territórios escolhidos, nada é pedido ao motor"
         resposta, _, _, grafico = chat_to_chart("todos os estados", lambda o: o.get("nivel") == "estados")
         assert resposta["painel"].get("nivel") == "estados", resposta["painel"]
         expect(guia).to_contain_text("Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver.")
@@ -290,6 +301,26 @@ def main():
         assert anteriores and anteriores[-1]["pedido"].get("selecao") == [MANAUS, TEFE], anteriores
         expect(latest).to_contain_text("Desfiz a última mudança")
         page.wait_for_timeout(1000)
+
+        # 6b2. Comparação indireta (26/10/2026): "compare o de maior e o de menor densidade" identifica os extremos do gráfico
+        # pelas ordens do motor e abre a comparação, sem pedir os nomes; no gráfico de bolhas, só os comparados ficam
+        # inteiros, e as demais bolhas da seleção esmaecem.
+        valores = dict(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]').evaluate_all(
+            "els => els.map(e => [e.dataset.id, Number(e.dataset.valor)])"))
+        maior, menor = max(valores, key=valores.get), min(valores, key=valores.get)
+        assert len(valores) == 3 and {maior, menor} != {MANAUS, TEFE}, valores  # uma comparação nova, não a que já está aberta
+        resposta, _, _, grafico = chat_to_chart("compare o de maior e o de menor densidade",
+                                                lambda o: set(o.get("comparar") or []) == {maior, menor})
+        assert resposta["painel"].get("selecao") == [maior, menor], resposta["painel"]
+        expect(latest).to_contain_text("Abri a comparação lado a lado com o de maior e o de menor densidade")
+        fora = area.locator('[data-testid="analise-bolha"][data-destaque="false"]')
+        expect(fora).to_have_count(1, timeout=30000)
+        expect(area.locator('[data-testid="analise-bolha"][data-destaque="true"]')).to_have_count(2)
+        assert fora.evaluate_all("els => els.map(e => e.hasAttribute('aria-describedby') ? '0.25' : e.style.opacity)") == [
+            "0.25"], "fora da comparação, a bolha esmaece (a ativa, sob o mouse, fica inteira enquanto está ativa)"
+        assert area.locator('[data-testid="analise-bolha"][data-destaque="true"]').evaluate_all(
+            "els => els.map(e => e.style.opacity)") == ["1", "1"]
+        shot("02a-comparacao-pelos-extremos")
 
         # 6c. Resposta digitada a um esclarecimento: "em 2024" tem duas competências no catálogo; as alternativas aparecem em
         # botões, e a resposta escrita ("a de janeiro") escolhe uma delas, como o clique. "Não era isso" volta à de antes.

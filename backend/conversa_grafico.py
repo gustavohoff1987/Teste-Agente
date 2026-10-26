@@ -21,6 +21,7 @@ import pandas as pd
 
 from criteria_conversation import CLAUSE, OPERATORS, SYMBOL, _value
 from exploration import MONTHS, NUMBER_WORDS, RELATIVE_YEARS, WORDS, _human, _listed, normalize, relative_years
+from request_memo import per_source
 from semantic_bridge import ROLES
 from territorial_selection import REGIONS, STATES, territory_catalog, texts
 
@@ -60,13 +61,16 @@ ORDEM_TEXTO = {"desc": "do maior para o menor", "asc": "do menor para o maior"}
 OPERADOR_TEXTO = {"<": "menor que", "<=": "no máximo", ">": "maior que", ">=": "no mínimo", "=": "igual a",
                   "!=": "diferente de"}
 NADA_MUDOU = " Nada mudou no gráfico."
-SEM_PONTO_UNICO = ("A referência é um município ou um conjunto de municípios: estados não têm um ponto único. Diga os "
-                   "municípios, por exemplo, “use Manaus como referência”." + NADA_MUDOU)
+SEM_PONTO_UNICO = ("A referência é um município ou um conjunto de municípios: estados não têm um ponto único. Diga o "
+                   "nome do município ou peça, por exemplo, “use como referência o município de maior densidade”." + NADA_MUDOU)
 
 
-def _nome_de_exemplo(conv):
-    """Nome de exemplo nas orientações: Manaus na base do Brasil; numa planilha, as reticências (os nomes são os dela)."""
-    return "Manaus" if conv.brasil else "…"
+def _exemplo_de_referencia(conv):
+    """Exemplo de referência nas orientações, sem nome de lugar (26/10/2026: um nome fora da análise da pessoa confunde): a
+    referência por critério, que vale em qualquer seleção."""
+    rot = conv.rot
+    return "“use como referência " + ("a " if rot.feminino else "o ") + rot.singular + \
+        (" de maior densidade”" if conv.brasil else " de maior quantidade”")
 
 
 def _sem_ponto_unico(conv, base_inteira=False):
@@ -79,7 +83,7 @@ def _sem_ponto_unico(conv, base_inteira=False):
     motivo = "a referência não pode ser a base inteira" if base_inteira else \
         ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural + " não têm um ponto único"
     return ("A referência é " + rot.um() + " ou um conjunto de " + rot.plural + ": " + motivo + ". Diga " + rot.os() +
-            " pelo nome, por exemplo, “use … como referência”." + NADA_MUDOU)
+            " pelo nome ou peça, por exemplo, " + _exemplo_de_referencia(conv) + "." + NADA_MUDOU)
 
 # Palavras que acompanham os pedidos sem mudar o que eles pedem.
 NEUTRAS = frozenset("""
@@ -437,6 +441,37 @@ def papeis_escolhidos(options, fields):
     return {**options, "confirmed_roles": list(dict.fromkeys([*atuais, *escolhidos]))}
 
 
+# Pedido de análise antes da escolha dos dados (26/10/2026): sem base, a conversa lembra na hora de escolher os dados (os do
+# Brasil ou os da pessoa), sem o provedor de IA e sem esperar. Pergunta sobre um conceito ("o que é densidade?", "como
+# funciona a análise espacial?") não é pedido de análise: segue para o catálogo.
+OBJETO_DE_ANALISE = re.compile(r"\b(?:densidade|quantidade|quantitativos?|populacao|distribuic(?:ao|oes)|tendencias?|"
+                               r"evoluc(?:ao|oes)|rotatividade|distancias?|variac(?:ao|oes)|trajetorias?|series?\s+tempora\w*|"
+                               r"municipios?|cidades?|estados?|ufs?|capitais|regi(?:ao|oes)|territorios?|nordeste|sudeste|"
+                               r"centro-oeste|medic[oa]s|enfermeir[oa]s|dentistas|profissionais|forca\s+de\s+trabalho|"
+                               r"graficos?|mapas?|tabela|quintis|quartis|decis)\b")
+ACAO_DE_ANALISE = re.compile(r"\b(?:analis(?:e|ar|a|em|ando)|calcul(?:e|ar|a)|list(?:e|ar|a)|quant[oa]s|onde\s+(?:ha|tem|estao|"
+                             r"ficam)|qual\s+(?:e\s+)?a\s+(?:densidade|quantidade|situacao)|como\s+esta(?:o)?)\b")
+CONCEITUAL = re.compile(r"^(?:(?:e|mas|entao|ola|oi|bom\s+dia|boa\s+tarde|boa\s+noite)[\s,]+)*(?:o\s+que\s+(?:e|sao|significa|"
+                        r"quer\s+dizer)|como\s+(?:se\s+)?(?:calcula|funciona|e\s+calculad\w*|interpreto|leio)|qual\s+(?:e\s+)?a\s+"
+                        r"(?:formula|definicao)|explique|explica|me\s+explica|defina|para\s+que\s+serve)\b")
+ESCOLHA_DA_FONTE = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|meus\s+dados|minha\s+planilha|enviar\s+(?:os\s+)?"
+                              r"(?:meus|seus)|upload)\b")
+
+
+def pedido_de_analise(mensagem):
+    """A mensagem pede uma análise (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores)."""
+    texto = normalize(mensagem)
+    if ESCOLHA_DA_FONTE.search(texto):
+        return False  # a escolha dos dados é a mesma ação dos botões, na tela
+    comando = (COMPARAR.search(texto) or JUNTAR.search(texto) or ORDENAR.search(texto) or TOPO.search(texto) or
+               QUAL.search(texto) or PRIMEIROS.search(texto) or TOP.search(texto))
+    if comando:
+        return True
+    if CONCEITUAL.search(texto):
+        return False
+    return bool((VERBO_VISTA.search(texto) or ACAO_DE_ANALISE.search(texto)) and OBJETO_DE_ANALISE.search(texto))
+
+
 def comando_do_grafico(mensagem):
     """Ordenação pedida como pergunta ("quais os 5 com maior densidade?"): é comando do gráfico, não explicação."""
     texto = normalize(mensagem)
@@ -552,6 +587,12 @@ def _periodos(frame, fields):
     coluna = fields.get("period")
     if frame is None or not coluna or coluna not in frame.columns:
         return []
+    return _competencias_da_coluna(frame, coluna)
+
+
+@per_source()
+def _competencias_da_coluna(frame, coluna):
+    """As competências da coluna, em ordem; na base do Brasil, reaproveitadas entre requisições da mesma versão."""
     return sorted(set(texts(frame[coluna]).dropna().astype(str)))
 
 
@@ -916,10 +957,9 @@ def _nova_base(conv, achado, modo):
         return {"todos": False, "estados": sorted(set(atual["estados"]) | set(grupos)),
                 "ids": sorted(set(atual["ids"]) | set(ids))}, citados, None
     if atual is None:
-        return None, citados, _pergunta("Não sei quais " + rot.plural + " estão no gráfico agora. Diga quais mostrar, por "
-                                        "exemplo, " + ("“mostre o Pará”" if conv.brasil else "“mostre " +
-                                                       ("todas as " if rot.feminino else "todos os ") + rot.plural + "”") +
-                                        "." + NADA_MUDOU)
+        return None, citados, _pergunta("Não sei quais " + rot.plural + " estão no gráfico agora. Diga quais mostrar, pelo "
+                                        "nome, ou peça “mostre " + ("todas as " if rot.feminino else "todos os ") + rot.plural +
+                                        "”." + NADA_MUDOU)
     if achado["todos"]:
         return None, citados, _pergunta("O gráfico precisa de pelo menos " + rot.um() + "." + NADA_MUDOU)
     tirar = set(ids) | {membro for chave in grupos for membro in conv.membros_do_grupo(chave)}
@@ -1195,7 +1235,7 @@ def _voltar(conv, dica, dica_indicador):
             base = {"todos": True, "estados": [], "ids": []}
             painel = _painel(nivel="municipios", municipios=base)
             return _resposta(painel, _frase_de_base(conv, painel, base))
-        return _pergunta("De qual estado? Diga, por exemplo, “mostre o Pará”, ou peça “todos os municípios”." + NADA_MUDOU)
+        return _pergunta("De qual estado? Diga o nome do estado ou peça “todos os municípios”." + NADA_MUDOU)
     return None
 
 
@@ -1230,7 +1270,7 @@ def _clausula(conv, encontrado, inicio_local):
                 "alvo": alvo.end() if alvo else None}
     if UNIDADE_METROS.match(resto, depois):
         return {"pergunta": _pergunta("No gráfico, a distância é em km. Diga o valor em quilômetros, por exemplo, “a mais "
-                                      "de 150 km de " + _nome_de_exemplo(conv) + "”." + NADA_MUDOU)}
+                                      "de 150 km”." + NADA_MUDOU)}
     unidade = UNIDADE_MIL_HABITANTES.match(resto, depois)
     if unidade or (re.search(r"\bpopulacao\b", antes) and re.match(r"\s*mil\b", resto[depois:])):
         if "." in valor:
@@ -1311,9 +1351,8 @@ def _condicoes(conv, dica, dica_indicador):
         membros += ids
     membros = list(dict.fromkeys(membros))
     if distancia and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
-        return _pergunta("A distância é medida até a referência. Diga até onde, por exemplo, “a mais de 150 km de " +
-                         _nome_de_exemplo(conv) + "”, ou escolha a referência antes (por exemplo, “use " + _nome_de_exemplo(conv) +
-                         " como referência”)." + NADA_MUDOU)
+        return _pergunta("A distância é medida até a referência. Escolha a referência antes, pelo nome ou, por exemplo, " +
+                         _exemplo_de_referencia(conv) + "; depois, peça “a mais de 150 km”." + NADA_MUDOU)
     achado = _resolve(conv)
     if "pergunta" in achado:
         return achado["pergunta"]
@@ -1439,8 +1478,8 @@ def _ordenar(conv, dica, dica_indicador):
         if objeto:
             return _pergunta(_sem_ponto_unico(conv))
     if atributo == "distancia_km" and not membros and conv.ctx["familia"] != "espacial" and not conv.ctx["referencia"]:
-        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga, por exemplo, “use " + _nome_de_exemplo(conv) +
-                         " como referência”." + NADA_MUDOU)
+        return _pergunta("Para ordenar pela distância, escolha antes a referência: diga o nome ou peça, por exemplo, " +
+                         _exemplo_de_referencia(conv) + "." + NADA_MUDOU)
     if atributo == "variacao" and conv.ctx["familia"] != "tendencia":
         return _pergunta("A variação aparece na tendência, na visão Trajetória. Peça antes, por exemplo, “mostre a mudança "
                          "anual”." + NADA_MUDOU)
@@ -1617,8 +1656,9 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     selecao = ["uf:" + chave for chave in objetos] if objetos else ids
     rotulos = [conv.rotulo_do_estado(chave) for chave in objetos] if objetos else [conv.cat.rotulo(i) for i in ids] \
         if conv.cat is not None else ids
-    exemplo = "“compare MANAUS (AM) e TEFE (AM)”" if conv.brasil and funcao == "comparar" else \
-        "“junte MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM)”" if conv.brasil else "os nomes no mesmo pedido"
+    # Sem nomes de lugar no exemplo (26/10/2026): a comparação pelos extremos do gráfico vale em qualquer seleção.
+    alternativa = (" ou peça, por exemplo, “compare o de maior e o de menor " + (indicador or conv.ctx.get("indicador") or
+                                                                           "densidade") + "”") if funcao == "comparar" else ""
     if len(selecao) < 2:
         if funcao == "comparar" and selecao and not objetos:
             # Uma unidade só: a conversa pergunta a outra e guarda a pendência para a mensagem seguinte.
@@ -1628,11 +1668,12 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
             return resposta
         inicio = ("Identifiquei " + rotulos[0] + ". ") if selecao else ""
         return _pergunta(inicio + "Para " + verbo + ", diga " + ("dois ou três nomes" if funcao == "comparar" else
-                                                                "dois ou mais nomes") + " no mesmo pedido, por exemplo, " +
-                         exemplo + "." + NADA_MUDOU)
+                                                                "dois ou mais nomes") + " no mesmo pedido" + alternativa +
+                         "." + NADA_MUDOU)
     if funcao == "comparar" and len(selecao) > 3:
         return _pergunta("A comparação mostra 2 ou 3 itens lado a lado, e o pedido tem " + str(len(selecao)) + ". Diga até "
-                         "3 nomes ou use Ordenar ou Condições para ver todos." + NADA_MUDOU)
+                         "3 nomes" + alternativa.replace(" ou peça", ", peça") + " ou use Ordenar ou Condições para ver todos." +
+                         NADA_MUDOU)
     painel = _painel(funcao=funcao, selecao=selecao, indicador=indicador)
     _aplica_periodo(painel, periodo)
     quando = _quando(painel, conv.periodos)

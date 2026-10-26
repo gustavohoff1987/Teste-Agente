@@ -254,6 +254,50 @@ def test_numbers_follow_the_presentation_rule():
     assert resumo_painel.places_for([8, 8.004]) == 2  # o inteiro sai sem casas: "8" e "8,00" já se distinguem
 
 
+def _casas_pela_comparacao_par_a_par(values):
+    """A regra das casas como era escrita antes de 26/10/2026 (cada par de valores comparado), para conferir a versão linear."""
+    places = 2
+    while places < 17 and any(a != b and resumo_painel.number(a, places) == resumo_painel.number(b, places)
+                              for a in values for b in values if isinstance(a, float) or isinstance(b, float)):
+        places += 1
+    return places
+
+
+def test_casas_comuns_sao_as_mesmas_da_comparacao_par_a_par():
+    """Desempenho da conversa (26/10/2026): places_for formata cada valor uma vez por número de casas, em vez de comparar
+    todos os pares; o resultado é o mesmo, também com inteiros, empates, negativos e valores que só se separam em muitas
+    casas."""
+    import random
+    sorteio = random.Random(20261026)
+    listas = [[8, 8.004], [8.0, 8], [3, 3], [0.123, 0.124], [1.0000001, 1.0000002], [-2.5, -2.5000004, 2.5], [5570, 5570.0001],
+              [0.004, 0.0041], [10.0, 10.0, 10.000000001]]
+    for _ in range(300):
+        tamanho = sorteio.randint(1, 12)
+        base = sorteio.choice([0.0, 1.0, 8.0, 123.456, 2.36])
+        listas.append([round(base + sorteio.choice([0, 1e-3, 1e-5, 1e-7, 0.5]) * sorteio.randint(0, 3), sorteio.randint(0, 9))
+                       if sorteio.random() < 0.85 else sorteio.randint(0, 9) for _ in range(tamanho)])
+    for valores in listas:
+        assert resumo_painel.places_for(valores) == _casas_pela_comparacao_par_a_par(valores), valores
+
+
+def test_ordem_dos_primeiros_para_a_conversa_conta_os_empates_no_motor():
+    """"Compare os dois maiores" (26/10/2026): as posições pela colocação de competição (1, 1, 3), contadas no motor;
+    todos os empatados na posição de corte entram, e quem não tem valor fica de fora."""
+    corpo = {"indicador": "densidade", "itens": [
+        {"id": "a", "tipo": "municipio", "densidade": 5.0}, {"id": "b", "tipo": "municipio", "densidade": 9.0},
+        {"id": "c", "tipo": "municipio", "densidade": 9.0}, {"id": "d", "tipo": "municipio", "densidade": None},
+        {"id": "e", "tipo": "conjunto", "densidade": 50.0}, {"id": "f", "tipo": "municipio", "densidade": 1.0}]}
+    assert painel.conversation_top(corpo, "densidade", True, 1) == [1, 2]  # empate no primeiro lugar: os dois
+    assert painel.conversation_top(corpo, "densidade", True, 2) == [1, 2]
+    assert painel.conversation_top(corpo, "densidade", True, 3) == [1, 2, 0]
+    assert painel.conversation_top(corpo, "densidade", False, 2) == [5, 0]
+    assert painel.conversation_top(corpo, "densidade", False, 0) == [] and painel.conversation_top(corpo, "outro", True, 2) == []
+    # As mesmas posições extremas da ordem já usada nas perguntas sobre o resultado.
+    ordem = painel.conversation_facts(corpo)["ordem"]["densidade"]
+    assert ordem["maior"] == painel.conversation_top(corpo, "densidade", True, 1)
+    assert ordem["menor"] == painel.conversation_top(corpo, "densidade", False, 1)
+
+
 def test_a_failing_summary_never_breaks_the_chart(repo, monkeypatch, caplog):
     info = inspection()
     first = ok(page(info))

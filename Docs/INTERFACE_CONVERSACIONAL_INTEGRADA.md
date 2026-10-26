@@ -136,20 +136,36 @@ Desde 26/10/2026 (Frente VI da missão de 26/10/2026), a caixa mostra a conversa
 (`chat-mensagem` com `data-papel="usuario"`), e cada resposta do agente, à esquerda, com o rosto (`data-papel="agente"`).
 A comunicação de indisponibilidade da conversa aparece como resposta do sistema, numa faixa suave com o título
 "Assistente conversacional temporariamente indisponível" (`data-papel="aviso"`), no ponto da conversa em que aconteceu.
+- **Visual (26/10/2026).** Letra maior (15 px; 14 px no celular), cada mensagem num balão com contorno e sombra leve (a da
+  pessoa, à direita, no tom de realce; a do agente, à esquerda, com a borda de destaque), a hora no canto do balão (HH:MM,
+  no relógio do navegador, como conteúdo gerado do atributo `data-hora`, fora do texto da mensagem), os parágrafos da
+  resposta separados, o rótulo do começo do parágrafo em negrito ("Maior valor de densidade:") e os exemplos de pedido entre
+  aspas (“…”) em destaque. A tela só realça (`blocosDoTexto`, em `historicoConversa.ts`): o texto da resposta é o mesmo, e as
+  quebras entre parágrafos continuam nele, escondidas.
 - **Rolagem.** O histórico rola sozinho (o campo de mensagem fica sempre à vista), abaixo da orientação, separado dela por
-  uma linha. Quem envia vai ao fim, para ver a resposta; quem está lendo mensagens antigas não é puxado para o fim quando a
-  resposta chega: aparece o botão "Ir para a mensagem mais recente" (`chat-ir-ao-fim`).
-- **Estados.** Enquanto a resposta não chega, "Interpretando o pedido…" fica no fim do histórico (`chat-processando`); uma
-  falha nunca apaga a pergunta: o aviso cordial entra como resposta, sem código HTTP nem mensagem técnica (limite de
-  consultas só quando o provedor o confirmou; nas demais causas, a indisponibilidade).
+  uma linha, com a barra de rolagem visível. Quem envia vai ao fim, para ver a resposta; quando a resposta não cabe junto com
+  a pergunta, a pergunta curta fica no alto e o começo da resposta logo abaixo, como num aplicativo de mensagens
+  (`posicaoDaRolagem`, 26/10/2026; antes, a rolagem ia sempre ao fim, e a pergunta sumia acima da área visível). Quem está
+  lendo mensagens antigas não é puxado quando a resposta chega: aparece o botão "Ir para a mensagem mais recente"
+  (`chat-ir-ao-fim`).
+- **Estados.** Enquanto a resposta não chega, "Interpretando o pedido…" fica no fim do histórico (`chat-processando`); depois
+  de 12 s, "Ainda estou trabalhando no seu pedido…"; depois de 45 s, "O serviço de conversa está demorando mais que o normal;
+  aguarde mais um pouco…". Aos 100 s, a tela interrompe a espera e responde com o aviso "A resposta demorou mais que o
+  esperado" ("Interrompi a espera para você não ficar parado. Tente de novo em instantes ou siga pelos botões e controles da
+  plataforma; o gráfico continua disponível."), sem código nem mensagem técnica (26/10/2026). Uma falha nunca apaga a
+  pergunta: o aviso cordial entra como resposta, sem código HTTP nem mensagem técnica (limite de consultas só quando o
+  provedor o confirmou; nas demais causas, a indisponibilidade).
 - **Sem duplicar.** Cada mensagem tem um identificador único; renderizações e reenvios do mesmo estado não a repetem.
 - **Navegação.** O histórico fica com a caixa, fora da área de análise: trocar a vista, a aba, o indicador, abrir o
   Histórico, a Nova análise e a troca de fonte não o apagam. Nova sessão encerra a conversa, como antes.
 - **Original e cópia triada.** A tela guarda e mostra o texto original; ao backend vai a janela das 8 mensagens mais
   recentes (`turnos`, sem os avisos), que ele tria antes do provedor. O histórico visual não depende do que vai ao provedor
   e não gera chamada ao Gemini.
-- **Tamanhos de tela.** A caixa tem até 400 px de largura e até 74% da altura da janela; no celular, ancorada embaixo,
-  ocupa a largura e até 72% da altura.
+- **Tamanhos de tela.** Desde 26/10/2026, a caixa tem até 440 px de largura (470 px na abertura) e até 84% da altura da
+  janela (no máximo 800 px), e a área da conversa tem pelo menos 220 px; no celular, ancorada embaixo, ocupa a largura e até
+  80% da altura. Depois da primeira mensagem, a orientação do alto fica com letra menor (`data-compacta`), e a conversa ganha
+  a área. A conversa vale para a sessão da aba: quando a sessão termina (Nova sessão, expiração por inatividade ou o servidor
+  reiniciado), a página recomeça limpa, sem guardar o histórico em armazenamento persistente.
 - **Situação do serviço.** Sem o Gemini disponível, uma faixa curta no alto da caixa (`chat-estado-do-servico`) diz que o
   recurso de conversa está temporariamente limitado e que os botões, os controles e os pedidos diretos sobre o gráfico
   continuam; "Verificar de novo" só consulta a situação, sem chamar o provedor.
@@ -162,19 +178,37 @@ planilha também está nela. Depois, confira as colunas no painel Colunas, no al
 recebe "Olá! O que você quer analisar? Prefere usar os dados do Brasil ou enviar os seus?". Depois, ela fica compacta, com uma orientação curta para cada etapa: enquanto os dados do Brasil são
 preparados, "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar."; com os dados prontos
 e sem territórios escolhidos (a base abre sem seleção automática), "Os dados estão prontos. Escolha os territórios na Seleção
-de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará” ou “todos os estados”." (numa planilha, sem os
+de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”." (numa planilha, sem os
 exemplos da base do Brasil; desde 24/10/2026, também no nível Estados sem nenhum estado marcado); nos estados, "Escolha no
 gráfico quais estados abrir, ou me diga quais municípios quer ver." (na
 planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"); e, com as unidades na tela,
-exemplos de pedidos ("mostre o Pará", "use Belém como referência", "compare Manaus e Tefé").
+"Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “…”, “…” ou “…”.", com três exemplos do que a análise aberta
+faz (`exemplosDaAnalise`, 26/10/2026). Os exemplos nunca citam lugares (um nome fora da análise da pessoa confunde), usam o
+indicador em uso e mudam conforme a conversa avança: na Distribuição, “os 5 municípios com maior densidade”, “compare o de
+maior e o de menor densidade”, “municípios com menos de 1 médico por mil”, “mostre a tendência anual”, “explique esse
+resultado” e “ver no mapa”; na Tendência, “mostre a trajetória anual”, “mostre a série temporal” e a comparação pelos
+extremos; na Análise Espacial, “use como referência o município de maior densidade”, “os 5 mais distantes” e “municípios a
+mais de 150 km”; na Rotatividade, “explique esse resultado” e “mostre a distribuição”. Cada exemplo é um comando que a
+conversa entende. Até 26/10/2026, os exemplos eram fixos e citavam lugares ("mostre o Pará", "use Belém como referência",
+"compare Manaus e Tefé"); as respostas do agente que davam exemplos com nomes também passaram a exemplos sem lugares
+(“compare o de maior e o de menor densidade”, “use como referência o município de maior densidade”, “a mais de 150 km”).
 
 **Escolha da fonte pela conversa.** "Usar dados do Brasil" e "enviar meus dados" fazem o mesmo que os botões, sem o provedor
 de IA. Escolhidos os dados do Brasil, a resposta diz "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os
-territórios na Seleção de Territórios ou me diga quais quer ver, por exemplo “mostre o Pará”."
+territórios na Seleção de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os
+estados”."
 
 **Antes dos dados.** Perguntas sobre o agente, a privacidade e os conceitos ("Como se calcula a densidade?") e sobre o
-conteúdo da base do Brasil continuam respondidas localmente. Um pedido analítico feito antes da escolha fica guardado: quando
-a base fica pronta, ele é interpretado de novo, já com a base, e os municípios citados nele vão para o gráfico.
+conteúdo da base do Brasil continuam respondidas localmente. Desde 26/10/2026, um pedido de análise feito antes da escolha
+dos dados (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores; `pedido_de_analise`, em
+`conversa_grafico.py`) recebe na hora, sem o provedor de IA, o lembrete "Para fazer essa análise, primeiro escolha os dados:
+use os dados do Brasil ou envie os seus, em CSV ou Excel. Assim que a base estiver pronta, sigo com o seu pedido." (a tela
+manda `lembrar_base` a `/api/llm/interpret`, que responde com `aguarda_base`), e os dois botões da escolha ficam em destaque
+(`data-lembrete`) até a pessoa escolher; antes, o pedido ia ao intérprete com o provedor e podia ficar esperando até o prazo
+das chamadas. O pedido fica guardado: quando a base fica pronta, ele segue pelo caminho completo (o intérprete local e, sem
+resposta local, o comando já interpretado ou o intérprete contextual), com a resposta começando por "Com os dados prontos,
+sigo com o seu pedido."; antes, sem resposta local, o pedido guardado se perdia. "Certo, quantos tem?" antes da escolha
+recebe "Para continuar, escolha os dados: “Usar dados do Brasil” ou “Enviar meus dados”."
 
 **Com os dados.** Fora os pedidos atendidos na própria tela (a vista do desenho, a tabela, o resumo do que está na tela e a
 análise anterior, descritos abaixo), cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem
@@ -224,6 +258,16 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   valores e a ordem do motor, sem mudar o gráfico), explicações em quatro registros e perguntas sobre o estado da tela. Uma
   explicação de classe da Tendência abre "Entenda esta análise" com a classe destacada
   (`analise-apresentacao-destaque`), sem recalcular;
+- **comparação indireta** (desde 26/10/2026): "compare o de maior e o de menor densidade", "comparar os municípios de maior
+  e menor densidade", "compare os extremos", "compare os dois (três) maiores" e "qual a diferença entre o maior e o menor?"
+  identificam quem entra pelas ordens do motor sobre o gráfico em exibição (com os empates) e abrem a comparação lado a lado,
+  sem pedir os nomes; no gráfico de bolhas, as demais bolhas esmaecem ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)).
+  No plural sem quantidade ("compare os mais populosos"), a conversa pergunta se são os dois ou os três, com as duas
+  alternativas em botões. Com um estado citado que não está no gráfico ("… do Pará"), a resposta mostra primeiro os
+  municípios dele e traz o campo `continuar` (o pedido de continuação); quando o motor calcula o gráfico novo (outro
+  resultado em exibição, ou depois de 8 s sem gráfico novo), a tela envia esse pedido sozinha, sem mostrá-lo como mensagem da
+  pessoa, e a comparação aparece; na pergunta da diferença, a continuação lê a diferença calculada pelo motor. No máximo duas
+  continuações seguidas; um pedido novo da pessoa cancela a que ainda esperava;
 - **vista do desenho** (desde 23/10/2026, com o mapa como segunda vista do gráfico): "ver no mapa", "mostre no mapa", "abra
   o mapa" e "agora o mapa" mandam à área o pedido `{ vista: "mapa" }`, pelo mesmo caminho dos demais comandos, e a conversa
   responde "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."; "volte ao gráfico", "mostre no

@@ -786,14 +786,28 @@ def llm_configuration_status() -> dict:
     return llm_status()
 
 
+ESCOLHA_DOS_DADOS = ("Para fazer essa análise, primeiro escolha os dados: use os dados do Brasil ou envie os seus, em CSV "
+                     "ou Excel. Assim que a base estiver pronta, sigo com o seu pedido.")
+
+
 @app.post("/api/llm/interpret")
 async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = Header(None)) -> dict:
     """Interpretação preliminar, sem acesso a arquivos ou execução analítica."""
     try:
+        llm_bridge.iniciar_relogio()
         if x_adt_session:
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
             capture = sessions.capture(x_adt_session, request.context_revision, {})
         quick = llm_local_response(request)
+        if quick is None and request.lembrar_base and conversa_grafico.pedido_de_analise(request.message):
+            # Pedido de análise antes da escolha dos dados, na página única (26/10/2026): a orientação para escolher a base,
+            # na hora, sem o provedor; a tela guarda o pedido e segue com ele quando a base fica pronta.
+            answer = _system_response(ESCOLHA_DOS_DADOS, None, "")
+            answer.update(aguarda_base=True, note="Pedido de análise antes da escolha dos dados; nada foi interpretado "
+                                                  "pelo provedor nem calculado.")
+            if x_adt_session:
+                sessions.remember(x_adt_session, capture["revision"], answer)
+            return answer
         if quick is not None and _conversa_pelo_modelo(quick):
             # Orientação sobre o agente com o provedor disponível: o Gemini redige a partir do texto do catálogo.
             answer = await _redigida(quick, request.message, request.turnos, {}, None, None, None, {"tipo": "nenhuma"},
@@ -878,7 +892,7 @@ def _resposta_do_dialogo(turno: dict, origem: str = "CANAL_SISTEMICO") -> dict:
     resposta.update(origin=origem, exploration=turno, note="Gestor de diálogo: nenhuma análise executada pela conversa.")
     if turno.get("painel"):
         resposta["painel"] = turno["painel"]
-    for chave in ("memoria", "dialogo", "acoes", "desfazer", "modelo_de_resposta", "redacao"):
+    for chave in ("memoria", "dialogo", "acoes", "desfazer", "modelo_de_resposta", "redacao", "continuar"):
         if chave in turno:
             resposta[chave] = turno[chave]
     return resposta
@@ -947,8 +961,16 @@ def _fichas_da_documentacao(resposta: dict) -> list[str]:
             if any(doc.get("id_doc") in ids for doc in resposta.get("documentation") or [])][:1]
 
 
+# Proteção da triagem da base do Brasil por versão e escopo: os valores da versão não mudam, e montá-la a cada mensagem
+# relia e conferia os arquivos da base (SHA-256) e copiava o quadro inteiro.
+_PROTECOES_DO_BRASIL: dict[tuple[str, str], triagem.Protecao] = {}
+
+
 async def _protecao_do_pedido(file, sheet, dataset, scope, dataset_version, fields) -> triagem.Protecao:
     """A proteção da base do pedido, quando há base; sem base, a triagem só com as unidades federativas."""
+    chave = (dataset_version, scope or "") if dataset == "brazil" and dataset_version and not file else None
+    if chave in _PROTECOES_DO_BRASIL:
+        return _PROTECOES_DO_BRASIL[chave]
     try:
         frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
     except (ValueError, TypeError, HTTPException):
@@ -956,7 +978,12 @@ async def _protecao_do_pedido(file, sheet, dataset, scope, dataset_version, fiel
     if frame is None or frame.empty:
         return triagem.Protecao(liberados=frozenset(triagem.dobrar(n) for par in STATES.values() for n in par))
     papeis = suggested_mapping(frame) if dataset == "brazil" else (fields if isinstance(fields, dict) else {})
-    return protecao_da_fonte(frame, papeis, sheet)
+    protecao = protecao_da_fonte(frame, papeis, sheet)
+    if chave is not None:
+        if len(_PROTECOES_DO_BRASIL) >= 4:
+            _PROTECOES_DO_BRASIL.clear()
+        _PROTECOES_DO_BRASIL[chave] = protecao
+    return protecao
 
 
 async def _redigida(base: dict, mensagem: str, turnos, conversa_tela, grafico, resultado, anterior, fonte, rotulos,
@@ -1019,6 +1046,7 @@ async def llm_interpretation_with_dataset(
     triada, a janela da conversa triada e, na página única, o estado da tela e o resultado agregado em exibição.
     """
     try:
+        llm_bridge.iniciar_relogio()
         janela = _turnos_da_tela(turnos)
         request = ChatRequest(message=message, history=json.loads(history), context_revision=context_revision,
                               displayed_result_id=displayed_result_id, turnos=janela)

@@ -5,7 +5,7 @@ import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta, RelacaoEspacial } from "./painelApi";
 import {
   INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
-  legendaDeTamanhos, montarDica, montarGrafico, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
+  legendaDeTamanhos, montarDica, montarGrafico, opacidadeComDestaque, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
   referenciasDeContexto, type BolhaDesenho, type Corte, type Escala, type PaletaDoGrafico, type ParDaBase, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
@@ -60,6 +60,9 @@ type Props = {
   pares?: ParDaBase[];
   /** As bases foram escolhidas uma a uma (não todos os selecionados): ganham o anel e "· território base" no nome. */
   basesEscolhidas?: boolean;
+  /** Destaque da análise (26/10/2026, painelModel.destaqueDaAnalise): os comparados ou as bases escolhidas e as referências
+   * delas ficam inteiros; as demais bolhas esmaecem. Vazio ou ausente: nada esmaece. */
+  destaque?: string[];
   vista: Vista;
   fase: FaseAnimacao;
   pintura: (item: PainelItem) => Pintura;
@@ -187,11 +190,15 @@ export default function PainelChart(p: Props) {
   // Ordem de desenho estável: as mais populosas atrás. Não depende do mouse, do foco nem do destaque.
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
-  // Marcar não esmaece as outras bolhas (25/10/2026): as marcadas ganham o anel escuro e o nome.
-  const opacidadeDe = opacidadeDaBolha;
+  // Marcar não esmaece as outras bolhas (25/10/2026): as marcadas ganham o anel escuro e o nome. Com o destaque da análise
+  // (26/10/2026), as que ficam fora dele esmaecem; a bolha sob o mouse ou o foco e a referência continuam inteiras.
+  const destaque = useMemo(() => p.destaque?.length ? new Set(p.destaque) : null, [p.destaque]);
+  const opacidadeDe = (bolha: BolhaDesenho) => !destaque || bolha.id === ativo || bolha.id === externo || bolha.referencia
+    ? opacidadeDaBolha(bolha) : opacidadeComDestaque(bolha, destaque);
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || comAnel(bolha.id))) : [];
+    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || comAnel(bolha.id) ||
+    !!destaque?.has(bolha.id))) : [];
   const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
@@ -272,6 +279,7 @@ export default function PainelChart(p: Props) {
       data-condicao={bolha.item.condicoes?.situacao} data-posicao={bolha.item.ordem?.posicao ?? undefined}
       data-referencia={bolha.referencia ? "true" : undefined} data-selecionado={selecionado ? "true" : undefined}
       data-base={idsDasBases.has(bolha.id) ? "true" : undefined}
+      data-destaque={destaque ? (destaque.has(bolha.id) ? "true" : "false") : undefined}
       data-visivel={bolha.visivel ? "true" : "false"}
       style={{ transform: `translate(${bolha.x}px, ${bolha.y}px)`, opacity: opacidadeDe(bolha), pointerEvents: bolha.visivel && interativa ? undefined : "none" }}
       role="button" tabIndex={bolha.visivel && focoEfetivo === bolha.id ? 0 : -1} aria-pressed={bolha.tipo === "estado" ? undefined : selecionado}
@@ -365,7 +373,7 @@ export default function PainelChart(p: Props) {
         <circle r={Math.max(contexto.r + 2, 12)} fill="transparent"/>
       </g>)}
       {leve ? <>
-        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta}
+        <CamadaLeve bolhas={ordem} dentro={dentro!} cometa={p.cometa} distancia={p.distancia} paleta={paleta} esmaecida={!!destaque}
           onAtivar={ativarLeve} onAcionar={id => { const bolha = grafico.bolhas.find(item => item.id === id); if (bolha) acionar(bolha); }}/>
         {especiais.map(bolha => desenharBolha(bolha, "analise-bolha-destaque",
           selecionados.has(bolha.id) || bolha.tipo === "conjunto" || bolha.referencia || bolha.id === focoEfetivo))}
@@ -447,16 +455,20 @@ function LegendaDeTamanho({ maxima, raioMax, paleta }: { maxima: number; raioMax
 
 type CamadaProps = {
   bolhas: BolhaDesenho[]; dentro: Set<string>; cometa: boolean; distancia: boolean; paleta: PaletaDoGrafico;
+  /** Com o destaque da análise, a camada inteira esmaece; as bolhas do destaque são redesenhadas inteiras por cima. */
+  esmaecida?: boolean;
   onAtivar: (id: string | null) => void; onAcionar: (id: string) => void;
 };
 
 /** Modo leve: um círculo simples por bolha (e uma linha fina por rastro), com os mesmos atributos de dados e um único conjunto de
  * eventos no grupo. Não depende do mouse, do foco nem da seleção: passar o mouse não redesenha os milhares de círculos, e marcar
- * não esmaece a camada (25/10/2026). Fora da régua, o círculo só fica oculto. */
-const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, paleta, onAtivar, onAcionar }: CamadaProps) {
+ * não esmaece a camada (25/10/2026); o destaque da análise (a comparação ou as bases escolhidas, 26/10/2026), sim. Fora da
+ * régua, o círculo só fica oculto. */
+const CamadaLeve = memo(function CamadaLeve({ bolhas, dentro, cometa, distancia, paleta, esmaecida, onAtivar, onAcionar }: CamadaProps) {
   const alvo = (event: EventoPonteiro<SVGGElement> | EventoMouse<SVGGElement>) =>
     (event.target as Element).closest?.("[data-id]")?.getAttribute("data-id") ?? null;
-  return <g data-testid="analise-camada-leve" className="analise-camada-leve"
+  return <g data-testid="analise-camada-leve" className="analise-camada-leve" opacity={esmaecida ? 0.3 : undefined}
+    data-esmaecida={esmaecida ? "true" : undefined}
     onPointerMove={event => onAtivar(alvo(event))} onPointerLeave={() => onAtivar(null)}
     onClick={event => { const id = alvo(event); if (id) onAcionar(id); }}>
     {cometa && bolhas.map(bolha => bolha.rastro && <line key={"r" + bolha.id} x1={bolha.x + bolha.rastro.dx} y1={bolha.y + bolha.rastro.dy}

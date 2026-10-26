@@ -79,3 +79,54 @@ test('os textos da tela são os mesmos do backend', () => {
   assert.equal(junta('TEXTO_INDISPONIVEL'), H.TEXTO_INDISPONIVEL);
   assert.ok(backend.includes('TITULO_INDISPONIVEL = "' + H.TITULO_INDISPONIVEL + '"'));
 });
+
+// Ajustes de 26/10/2026: a hora no balão, a resposta em blocos de leitura (sem reescrever o texto), a rolagem que mantém a
+// pergunta à vista numa resposta longa e o aviso do prazo da tela (o pedido não fica girando sem fim).
+test('a hora da mensagem fica no formato HH:MM', () => {
+  assert.equal(H.horaDaMensagem(new Date(2026, 9, 26, 9, 5)), '09:05');
+  assert.equal(H.horaDaMensagem(new Date(2026, 9, 26, 23, 41)), '23:41');
+  assert.match(H.horaDaMensagem(), /^\d{2}:\d{2}$/);
+});
+
+test('a resposta em blocos: parágrafos, rótulo e exemplos realçados, e o texto juntado é o original', () => {
+  const texto = 'Em junho de 2024, o gráfico tem 144 municípios. A densidade vai de 0,27 a 5,70 por 1.000 habitantes.\n\n' +
+    'Maior valor de densidade: OURILANDIA DO NORTE (PA) (5,70 por 1.000 habitantes). Menor valor: BAIAO (PA).\n\n' +
+    'Se quiser, peça, por exemplo, “compare o de maior e o de menor densidade” ou “mostre a tendência anual”.\n- um item\n- outro';
+  const blocos = H.blocosDoTexto(texto);
+  const juntar = lista => lista.map(bloco => bloco.tipo === 'separador' ? bloco.texto : bloco.trechos.map(t => t.texto).join('')).join('');
+  assert.equal(juntar(blocos), texto, 'a tela só realça: o conteúdo é o mesmo');
+  assert.deepEqual(blocos.map(bloco => bloco.tipo), ['paragrafo', 'separador', 'paragrafo', 'separador', 'paragrafo']);
+  assert.deepEqual(blocos[2].trechos[0], {tipo: 'rotulo', texto: 'Maior valor de densidade:'});
+  assert.equal(blocos[0].trechos.some(t => t.tipo === 'rotulo'), false, 'frase comum não vira rótulo');
+  assert.deepEqual(blocos[4].trechos.filter(t => t.tipo === 'exemplo').map(t => t.texto),
+    ['“compare o de maior e o de menor densidade”', '“mostre a tendência anual”']);
+  for (const solto of ['', 'Uma frase só.', '\n\nComeça com linha em branco', 'Aspas “sem fim', 'Fórmula: D(u, p, c) = Q / P'])
+    assert.equal(juntar(H.blocosDoTexto(solto)), solto);
+});
+
+test('a rolagem mantém a pergunta curta à vista quando a resposta é longa', () => {
+  // As duas cabem: vai ao fim.
+  assert.equal(H.posicaoDaRolagem({fim: 1000, altura: 400, topoDaNova: 800, topoDaAnterior: 700, alturaDaAnterior: 60,
+    anteriorDaPessoa: true}), 600);
+  // Resposta longa depois de uma pergunta curta: a pergunta no alto, com o começo da resposta logo abaixo.
+  assert.equal(H.posicaoDaRolagem({fim: 2000, altura: 400, topoDaNova: 1100, topoDaAnterior: 1040, alturaDaAnterior: 50,
+    anteriorDaPessoa: true}), 1032);
+  // A anterior não é pergunta da pessoa (uma continuação): no fim, se a nova cabe; senão, o começo da nova.
+  assert.equal(H.posicaoDaRolagem({fim: 2000, altura: 400, topoDaNova: 1700, topoDaAnterior: 1000, alturaDaAnterior: 600,
+    anteriorDaPessoa: false}), 1600);
+  assert.equal(H.posicaoDaRolagem({fim: 2000, altura: 400, topoDaNova: 1100, topoDaAnterior: 1000, alturaDaAnterior: 90,
+    anteriorDaPessoa: false}), 1092);
+  // Pergunta longa demais para ficar no alto: o começo da resposta.
+  assert.equal(H.posicaoDaRolagem({fim: 2000, altura: 400, topoDaNova: 1300, topoDaAnterior: 1000, alturaDaAnterior: 300,
+    anteriorDaPessoa: true}), 1292);
+  // Nunca fora dos limites da rolagem.
+  assert.equal(H.posicaoDaRolagem({fim: 300, altura: 400, topoDaNova: 100, topoDaAnterior: null, alturaDaAnterior: 0,
+    anteriorDaPessoa: false}), 0);
+});
+
+test('o prazo da tela vira aviso cordial próprio, sem código nem mensagem técnica', () => {
+  const aviso = H.avisoDeDemora();
+  assert.deepEqual(aviso, {tipo: 'tempo', titulo: H.TITULO_DEMORA, texto: H.TEXTO_DEMORA});
+  assert.equal(H.mensagemDeAviso(aviso).papel, 'aviso');
+  assert.ok(!/HTTP|\b\d{3}\b|timeout|Abort/i.test(H.TITULO_DEMORA + H.TEXTO_DEMORA));
+});

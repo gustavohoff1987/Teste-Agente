@@ -3125,18 +3125,10 @@ def conversation_facts(body) -> dict:
     maior e com o menor valor (empates preservados, sem desempate artificial, CAP-SUB-02/DA-18), quantas unidades têm valor
     e quantas não têm. Conjuntos ficam de fora da ordem (somam componentes, com possível dupla contagem)."""
     items = body["itens"]
-    indicator = body["indicador"]
     units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado", "brasil")]
-    values = {"densidade": lambda item: item.get("densidade"), "quantidade": lambda item: item.get("quantidade"),
-              "populacao": lambda item: item.get("populacao"),
-              "distancia_km": lambda item: None if item.get("referencia") else item.get("distancia_km"),
-              "variacao": lambda item: (item.get("variacao_percentual") or {}).get(indicator),
-              "permanencia": lambda item: (item.get("rotatividade") or {}).get("permanencia_percentual")
-              if (item.get("rotatividade") or {}).get("avaliavel") else None}
     order = {}
     for attribute in CONVERSATION_ATTRIBUTES:
-        present = [(values[attribute](items[index]), index) for index in units
-                   if isinstance(values[attribute](items[index]), (int, float))]
+        present = _conversation_values(body, attribute, units)
         if not present:
             order[attribute] = {"maior": [], "menor": [], "com_valor": 0, "sem_valor": len(units)}
             continue
@@ -3146,6 +3138,36 @@ def conversation_facts(body) -> dict:
                             "menor": [index for value, index in present if value == lowest],
                             "com_valor": len(present), "sem_valor": len(units) - len(present)}
     return {"unidades": units, "ordem": order}
+
+
+def _conversation_values(body, attribute, units) -> list:
+    """(valor, posição em `itens`) das unidades com valor no atributo, na ordem dos itens."""
+    items = body["itens"]
+    indicator = body["indicador"]
+    values = {"densidade": lambda item: item.get("densidade"), "quantidade": lambda item: item.get("quantidade"),
+              "populacao": lambda item: item.get("populacao"),
+              "distancia_km": lambda item: None if item.get("referencia") else item.get("distancia_km"),
+              "variacao": lambda item: (item.get("variacao_percentual") or {}).get(indicator),
+              "permanencia": lambda item: (item.get("rotatividade") or {}).get("permanencia_percentual")
+              if (item.get("rotatividade") or {}).get("avaliavel") else None}[attribute]
+    return [(values(items[index]), index) for index in units if isinstance(values(items[index]), (int, float))]
+
+
+def conversation_top(body, attribute: str, highest: bool, count: int) -> list[int]:
+    """As posições em `itens` das unidades nas `count` primeiras colocações do atributo (do maior para o menor, ou o
+    contrário), contadas aqui, no motor, como a ordenação (CAP-SUB-02/DA-18): empates na mesma colocação, sem desempate
+    artificial (1, 1, 3), e todos os empatados na colocação de corte entram. Para "compare os dois maiores" (26/10/2026): o
+    gestor de diálogo só copia as posições. Conjuntos ficam de fora, como em conversation_facts."""
+    import bisect
+    if attribute not in CONVERSATION_ATTRIBUTES or count < 1:
+        return []
+    units = [index for index, item in enumerate(body["itens"]) if item["tipo"] in ("municipio", "estado", "brasil")]
+    present = _conversation_values(body, attribute, units)
+    ordered = sorted(value for value, _ in present)
+    def place(value):
+        return len(ordered) - bisect.bisect_right(ordered, value) + 1 if highest else bisect.bisect_left(ordered, value) + 1
+    chosen = sorted(((place(value), index) for value, index in present if place(value) <= count))
+    return [index for _, index in chosen]
 
 
 # --------------------------------------------------------------------------------------------- sessão

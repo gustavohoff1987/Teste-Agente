@@ -533,6 +533,14 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
 25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
 leve, a camada inteira a 30%; `opacidadeDaBolha`). Só a pintura apagada (não atende, fora dos primeiros) continua mais clara.
+
+**Destaque da análise** (26/10/2026, pedido do responsável). Com uma comparação em exibição (2 ou 3 itens no gráfico, pelo
+painel Comparar ou pela conversa, como "compare o de maior e o de menor densidade"), só os comparados ficam inteiros no
+gráfico de bolhas; as demais bolhas da seleção esmaecem a 25% de opacidade (no modo leve, a camada inteira a 30%, com os
+comparados redesenhados inteiros por cima). Na Análise Espacial com territórios base escolhidos um a um, sem comparação, ficam
+inteiras as bases e as referências delas que o gráfico desenha. A bolha sob o mouse ou o foco e a do território de
+referência continuam inteiras enquanto ativas. Marcar, sozinho, continua sem esmaecer; o mapa não muda. Só estado visual
+(`destaqueDaAnalise` e `opacidadeComDestaque`, em `painelModel.ts`; `data-destaque` em cada bolha): nada vai ao motor.
 Comparar e Juntar agem sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
 comparação, o filtro da classe e os itens marcados, e o Desfazer do alto a desfaz (seção "Desfazer e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
 análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do pedido (com ela, o motor recusaria o pedido com
@@ -540,7 +548,9 @@ análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do
 
 Desde a segunda rodada de 24/10/2026, os painéis **Comparar** e **Juntar** começam por uma orientação objetiva
 (`analise-comparar-orientacao`, "Escolha dois ou três itens: clique nas bolhas do gráfico (ou nas linhas do quadro de setas) ou
-marque a caixa na tabela dos Detalhes…"; `analise-juntar-orientacao`) e mostram os itens escolhidos como etiquetas, cada uma com
+marque a caixa na tabela dos Detalhes. Depois, use Comparar: o resultado diz qual é o maior, o menor e a diferença, e, no
+gráfico de bolhas, os demais esmaecem para destacar os comparados." — até 26/10/2026, "…; os demais esmaecem. Depois, …",
+que ainda descrevia o esmaecimento ao marcar, retirado em 25/10/2026; `analise-juntar-orientacao`) e mostram os itens escolhidos como etiquetas, cada uma com
 o × (`analise-comparar-item`, `analise-juntar-item`), com o que falta ("Falta um item para comparar."). Os cartões grandes com os
 valores de cada item saíram (os valores estão no gráfico, na dica e na tabela); o botão, o título do painel, o nome do conjunto
 e o resultado da comparação continuam.

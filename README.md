@@ -382,10 +382,28 @@ A evolução autorizada do diálogo está registrada em [Evolução conversacion
   duas contagens dão as mesmas competências, o período é aplicado; se divergem, a conversa oferece as duas leituras,
   sem escolher.
 - O pedido feito antes da escolha dos dados é reinterpretado quando a base fica pronta, e os municípios citados nele
-  vão para o gráfico.
+  vão para o gráfico. Desde 26/10/2026, o pedido de análise feito antes da escolha recebe na hora, sem o provedor, o
+  lembrete de escolher os dados (os do Brasil ou os seus, em CSV ou Excel), com os dois botões da escolha em destaque; quando
+  a base fica pronta, ele segue pelo caminho completo ("Com os dados prontos, sigo com o seu pedido.").
 
 Essas continuações não chamam o provedor de IA. Detalhes em
 [interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+
+**Ajustes da conversa (26/10/2026).**
+- **Comparação indireta:** "compare o de maior e o de menor densidade", "compare os extremos", "compare os dois maiores" e
+  "qual a diferença entre o maior e o menor?" identificam os territórios pelas ordens do motor sobre o gráfico em exibição
+  (com os empates) e abrem a comparação, sem pedir os nomes; com um estado citado que não está no gráfico, primeiro os
+  municípios dele, e a tela segue sozinha com a comparação quando o motor calcula (`continuar`).
+- **Exemplos sem lugares:** a orientação da caixa e as respostas dão exemplos do que cada análise faz, alternados conforme
+  a conversa avança, sem nomes de lugar ("os 5 municípios com maior densidade", "use como referência o município de maior
+  densidade").
+- **Histórico e visual:** letra maior, balões com contorno, a hora em cada mensagem, parágrafos separados e exemplos em
+  destaque; numa resposta longa, a pergunta fica à vista no alto, com o começo da resposta abaixo; a caixa é maior.
+- **Destaque no gráfico:** com uma comparação em exibição (ou territórios base escolhidos na Análise Espacial), as demais
+  bolhas esmaecem.
+- **Tempo:** a parte local de uma pergunta caiu para dezenas de milissegundos ([latência](Docs/OTIMIZACAO_LATENCIA.md),
+  seção 4.10); nenhuma chamada nova ao provedor começa depois de 20 s do pedido; a tela avisa aos 12 s e aos 45 s e
+  interrompe a espera aos 100 s, com aviso cordial.
 
 Com o gráfico na tela, "agora a tabela" responde que a tabela fica em Detalhes, logo abaixo do gráfico (ou do mapa), com
 os mesmos valores do motor. Desde 23/10/2026, "ver no mapa" troca o gráfico pelo mapa, a segunda vista do gráfico, e
@@ -434,7 +452,8 @@ ressalvas obrigatórias, juízo, causa, acesso, destaque e previsão só como re
 elementos essenciais da ficha de método sem as afirmações que ela proíbe (distância por estrada, densidade como
 suficiência, variação como causa, grupos de tamanho igual, critério de classe diferente do motor). A frase copiada da
 resposta verificada ou de uma ficha não conta como afirmação nova. Violação leva a nova tentativa com a lista das violações,
-até 2 regenerações; persistindo, aparece a resposta verificada, com a mensagem de TPL-08. Os comandos do gráfico, as
+até 2 regenerações (desde 26/10/2026, nenhuma chamada nova, de redação ou regeneração, começa depois de 20 s do pedido);
+persistindo, aparece a resposta verificada, com a mensagem de TPL-08. Os comandos do gráfico, as
 respostas a esclarecimentos, desfazer, voltar e as recusas de governança continuam determinísticos. Em geral há uma chamada
 por pergunta: o texto que vem com a interpretação é conferido primeiro. Sem o provedor, a resposta verificada responde,
 sem chamada. `ADT_DIALOGO=0` desliga o gestor; `ADT_CONVERSA_GEMINI=0`, só a redação pelo Gemini. Arquitetura, regras e

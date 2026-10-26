@@ -385,8 +385,8 @@ export function GavetaComparar(p: CompararProps) {
   const faltam = Math.max(0, 2 - escolhidos.length);
   return <section data-testid="analise-comparar" aria-label="Comparar" className="space-y-3">
     <p data-testid="analise-comparar-orientacao" className="text-xs leading-5 text-slate-600">Escolha dois ou três itens: clique nas bolhas do gráfico (ou nas
-      linhas do quadro de setas) ou marque a caixa na tabela dos Detalhes; os demais esmaecem. Depois, use Comparar: o resultado diz qual é o maior,
-      o menor e a diferença.</p>
+      linhas do quadro de setas) ou marque a caixa na tabela dos Detalhes. Depois, use Comparar: o resultado diz qual é o maior, o menor e a
+      diferença, e, no gráfico de bolhas, os demais esmaecem para destacar os comparados.</p>
     {escolhidos.length > 0 ? <ul className="flex flex-wrap gap-1.5" aria-label="Itens escolhidos">
       {escolhidos.map(item => <li key={item.id} data-testid="analise-comparar-item" data-id={item.id} className="analise-etiqueta">
         {item.rotulo}

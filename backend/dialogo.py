@@ -12,6 +12,12 @@ restantes). Com ela, o gestor reconhece, sem o provedor:
   ampliar a todos ("e se considerarmos todos?");
 - perguntas sobre o resultado em exibição ("qual deles tem densidade maior?", "e a população?", "qual a diferença?",
   "quantos municípios?"), respondidas com os valores e as ordens do motor (explicacao.py);
+- a comparação pelos extremos ("compare o de maior e o de menor densidade", "compare os dois maiores", "os extremos lado a
+  lado", "qual a diferença entre o maior e o menor?", 26/10/2026): quem entra vem das ordens do motor
+  (painel.conversation_facts e conversation_top), com os empates; com um estado citado que não está no gráfico, a resposta
+  mostra os municípios dele e a tela segue com a comparação (`continuar`) quando o motor calcula; na pergunta da diferença, a
+  tela pede a leitura dela quando o motor calcula; no plural sem quantidade ("compare os mais populosos"), a conversa
+  pergunta se são os dois ou os três;
 - pedidos de explicação progressiva (o resultado, um território, um termo; objetivo, simples, didático ou técnico);
 - verificações (causa, juízo normativo, melhora, acesso, procedência) e perguntas sobre o estado da tela (dados,
   territórios, seleção, mapa, relatório, análise anterior, o que mudou, por que algo não aparece);
@@ -95,6 +101,20 @@ ATRIBUTOS = (("densidade", re.compile(r"\b(?:densidades?|por habitante|por mil|p
              ("permanencia", re.compile(r"\b(?:permanencia|rotatividade|ficaram|sairam)\b")),
              ("quantidade", re.compile(r"\b(?:quantidades?|quantitativos?|numero de (?:medicos|profissionais)|"
                                        r"profissionais|medicos|total de)\b")))
+# Comparação pelos extremos do gráfico (26/10/2026): o verbo de comparar e "o de maior e o de menor", "os extremos", "o
+# primeiro e o último" ou "os dois/três maiores (menores)", sem nomes de território.
+COMPARA = re.compile(r"\b(?:compare|comparar|compara|comparacao|comparando|confronte|confrontar|contraste|contrastar|"
+                     r"versus|vs)\b|\blado a lado\b|\bum (?:do|ao) lado do outro\b|\bfrente a frente\b")
+EXTREMO_ALTO = re.compile(r"\bmaior(?:es)?\b|\bmais (?:alt|populos|distant|longe|medic|profission|habitant)\w*")
+EXTREMO_BAIXO = re.compile(r"\bmenor(?:es)?\b|\bmenos (?:populos|distant|medic|profission|habitant)\w*|"
+                           r"\bmais (?:baix|proxim|perto)\w*")
+EXTREMOS = re.compile(r"\bextremos\b|\bprimeir[oa] e (?:o |a )?ultim[oa]\b")
+PRIMEIROS_N = re.compile(r"\b(?:os|as) (dois|duas|2|tres|3) (?:\w+ ){0,3}?(maior(?:es)?|menor(?:es)?|mais|menos|primeir[oa]s|"
+                         r"ultim[oa]s)\b")
+QUANTOS_N = {"dois": 2, "duas": 2, "2": 2, "tres": 3, "3": 3}
+# No plural, sem quantidade ("compare os mais populosos", "compare os municípios de maior densidade"): a conversa pergunta se
+# são os dois ou os três, com as duas alternativas em botão.
+EXTREMOS_NO_PLURAL = re.compile(r"\b(?:os|as) (?:\w+ ){0,2}?(?:maiores|menores|(?:mais|menos) \w+s|(?:de|com) (?:maior|menor))\b")
 DIFERENCA = re.compile(r"\b(?:diferenca|quanto a mais|quanto maior|quanto menor|distancia entre os valores)\b")
 CONTAGEM = re.compile(r"\bquant[oa]s (?:municipios|territorios|estados|cidades|itens|unidades|bolhas|lugares)\b")
 EXPLICA = re.compile(r"\b(?:explique|explica|explicar|explicacao|me explica|entender|entendi|compreend\w*|"
@@ -379,6 +399,15 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
     # 5. Referência ao resultado anterior numa pergunta ("não, eu estava falando da análise anterior").
     if ANTERIOR_REFERENCIA.search(texto):
         return {"ato": "refere_anterior"}
+    # 5b. Comparação pelos extremos do gráfico, sem nomes ("compare o de maior e o de menor densidade", "qual a diferença
+    # entre o maior e o menor?"); no plural sem quantidade ("compare os mais populosos"), a pergunta de quantos.
+    compara, diferenca = COMPARA.search(texto), DIFERENCA.search(texto)
+    if (compara or diferenca) and not _cita_territorio(texto, nomes_no_resultado or []):
+        alto, baixo = EXTREMO_ALTO.search(texto), EXTREMO_BAIXO.search(texto)
+        if EXTREMOS.search(texto) or PRIMEIROS_N.search(texto) or (alto and baixo):
+            return {"ato": "compara_extremos"}
+        if compara and EXTREMOS_NO_PLURAL.search(texto) and bool(alto) != bool(baixo):
+            return {"ato": "compara_extremos", "quantos": None}
     # 6. Troca, inclusão sem nome, todos.
     if TROCA.search(texto):
         return {"ato": "troca"}
@@ -655,6 +684,11 @@ def _aplica_rascunho(amb: Ambiente, alternativa: dict, original: str) -> dict | 
     rascunho = alternativa.get("rascunho") or alternativa.get("draft")
     if not isinstance(rascunho, str) or not rascunho.strip():
         return None
+    # A alternativa que é uma comparação pelos extremos ("compare os três maiores em população") volta ao próprio gestor.
+    ato = reconhecer(rascunho, None, amb.resultado is not None)
+    if ato and ato.get("ato") == "compara_extremos":
+        return _compara_extremos(ato, Ambiente(rascunho, {}, amb.ctx, amb.resultado, amb.anterior, amb.fonte,
+                                               amb.interpretar, amb.nomes, amb.rotulos))
     return amb.interpretar(rascunho)
 
 
@@ -836,7 +870,7 @@ def _pedido_indireto(ato: dict, amb: Ambiente) -> dict | None:
 def _desfaz(ato: dict, amb: Ambiente) -> dict:
     if not amb.anteriores:
         return _resposta("Ainda não mudei nada no gráfico nesta conversa. O que você queria ver? Pode dizer com outras "
-                         "palavras, por exemplo “compare Manaus e Tefé” ou “mostre a tendência”.",
+                         "palavras, por exemplo “os 5 municípios com maior densidade” ou “mostre a tendência”.",
                          memoria={"ato": "desfaz"})
     anterior = amb.anteriores[-1]
     return _resposta("Desfiz a última mudança e voltei ao que estava antes" + _rotulo_do_estado(anterior) + ". O que você "
@@ -937,9 +971,8 @@ def _troca(ato: dict, amb: Ambiente) -> dict | None:
             painel = _painel(municipios=municipios)
             return _resposta("Troquei " + frase + " no gráfico.", painel=painel, memoria={"ato": "troca"})
         if not saem:
-            return _resposta("Não encontrei no gráfico o território que deve sair. Diga, por exemplo, “troca " +
-                             (rotulo.get(base[0], "Manaus").split(" (")[0].title() if base else "Manaus") +
-                             " por Belém”.", memoria={"ato": "troca"})
+            return _resposta("Não encontrei no gráfico o território que deve sair. Diga quem sai, pelo nome de um dos "
+                             "territórios do gráfico, e quem entra, como em “troca A por B”.", memoria={"ato": "troca"})
     return None
 
 
@@ -962,7 +995,7 @@ def _painel(**campos) -> dict:
 
 def _inclui_sem_nome(ato: dict, amb: Ambiente) -> dict:
     singular = (amb.rotulos.get("unidade") or {}).get("singular") or "município"
-    return _resposta("Qual " + singular + " você quer incluir? Diga o nome, por exemplo “Anápolis”.",
+    return _resposta("Qual " + singular + " você quer incluir? Diga o nome.",
                      modelo_de_resposta="inclua {resposta}", memoria={"ato": "inclui_sem_nome"})
 
 
@@ -1040,6 +1073,105 @@ def _todos_do_estado(ato: dict, amb: Ambiente) -> dict:
                      painel=painel, memoria={"ato": "todos_do_estado"})
 
 
+def _estado_citado(mensagem: str, texto: str) -> str | None:
+    """O código do estado citado ("do Pará", "de SP"), para a comparação pelos extremos dentro dele."""
+    for nome in sorted(ESTADOS_POR_NOME, key=len, reverse=True):
+        if re.search(r"\b" + re.escape(nome) + r"\b", texto):
+            return ESTADOS_POR_NOME[nome]
+    sigla = re.search(r"\b(?:d[eoa]s?|em|no|na)\s+([A-Z]{2})\b", mensagem)
+    return SIGLAS.get(sigla.group(1).lower()) if sigla else None
+
+
+UNIDADES_DOS_ATRIBUTOS = {"densidade": " por 1.000 habitantes", "quantidade": " profissionais", "populacao": " habitantes",
+                          "distancia_km": " km", "variacao": "%", "permanencia": "%"}
+
+
+def _valor_do_atributo(item: dict, atributo: str, indicador: str):
+    if atributo == "variacao":
+        return (item.get("variacao_percentual") or {}).get(indicador)
+    if atributo == "permanencia":
+        return (item.get("rotatividade") or {}).get("permanencia_percentual")
+    return item.get(atributo)
+
+
+def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
+    """Compara, no gráfico, quem tem o maior e o menor valor (ou os dois ou três maiores ou menores), pelas ordens do motor
+    sobre o resultado em exibição, com os empates. Nada é comparado aqui: as posições vêm de painel.conversation_facts e
+    conversation_top; os valores, copiados da resposta do motor."""
+    from painel import conversation_facts, conversation_top
+    from resumo_painel import number, places_for
+    from territorial_levels import group_label, human_period
+    texto = dobra(amb.mensagem)
+    body = amb.resultado or {}
+    atributo = _atributo(texto) or body.get("indicador") or amb.ctx.get("indicador") or "densidade"
+    nome = explicacao.NOMES_DOS_ATRIBUTOS.get(atributo, atributo)
+    topo = PRIMEIROS_N.search(texto)
+    quantos = QUANTOS_N[topo.group(1)] if topo else None
+    maiores = bool(topo) and (topo.group(2).startswith(("maior", "mais", "primeir")) and
+                              not re.search(r"\bmais (?:baix|proxim|perto)", texto))
+    pedido = ((("os dois" if quantos == 2 else "os três") + (" maiores" if maiores else " menores") + " em " + nome)
+              if quantos else "o de maior e o de menor " + nome)
+    memoria = {"ato": "compara_extremos", "atributo": atributo}
+    if "quantos" in ato and not quantos:
+        # "Compare os mais populosos": quantos? A comparação mostra 2 ou 3; cada alternativa é o pedido completo.
+        lado = ("maiores" if EXTREMO_ALTO.search(texto) else "menores") + " em " + nome
+        return _resposta("A comparação lado a lado mostra 2 ou 3 itens. Quer comparar os dois ou os três " + lado + "?",
+                         choices=[{"label": "Os " + quantidade + " " + lado, "draft": "compare os " + quantidade + " " + lado,
+                                   "send": True} for quantidade in ("dois", "três")], memoria=memoria)
+    # "Qual a diferença entre o maior e o menor?": a comparação abre e, quando o motor calcular, a conversa lê a diferença.
+    diferenca = bool(DIFERENCA.search(texto)) and not COMPARA.search(texto)
+    estado = _estado_citado(amb.mensagem, texto)
+    itens = body.get("itens") or []
+    unidades = [item for item in itens if item.get("tipo") in ("municipio", "estado")]
+    if estado:
+        sigla = STATES[estado][0]
+        unidades = [item for item in unidades if item.get("uf") == sigla or str(item.get("rotulo", "")).endswith("(" + sigla + ")")]
+        if len(unidades) < 2:
+            # O estado não está no gráfico: primeiro os municípios dele; a tela segue com a comparação quando o motor
+            # calcular (a continuação lê o gráfico novo, já sem o estado no pedido).
+            painel = _painel(municipios={"todos": False, "estados": [estado], "ids": []}, nivel="municipios")
+            grupo = group_label(estado)
+            return _resposta("Mostrei os " + grupo[0].lower() + grupo[1:] + "; assim que o gráfico estiver pronto, comparo " +
+                             pedido + ".", painel=painel, memoria=memoria,
+                             continuar=("qual a diferença entre " if diferenca else "compare ") + pedido)
+    if len(unidades) < 2:
+        return _resposta("Para comparar " + pedido + ", preciso de pelo menos dois territórios no gráfico. Escolha-os na "
+                         "Seleção de Territórios ou diga o nome de um estado, e eu comparo " + pedido + ".", memoria=memoria)
+    recorte = {**body, "itens": unidades}
+    if quantos:
+        indices = conversation_top(recorte, atributo, maiores, quantos)
+        empate = len(indices) > quantos
+    else:
+        ordem = conversation_facts(recorte)["ordem"].get(atributo) or {"maior": [], "menor": []}
+        indices = list(dict.fromkeys(ordem["maior"] + ordem["menor"]))
+        empate = len(ordem["maior"]) > 1 or len(ordem["menor"]) > 1
+        if ordem["maior"] and ordem["maior"] == ordem["menor"]:
+            indices = []
+    rotulos = [unidades[i]["rotulo"] for i in indices]
+    if len(indices) < 2:
+        return _resposta("No gráfico, não há dois territórios com valores diferentes de " + nome + " para comparar " + pedido +
+                         ". Os territórios sem valor ficam em Não avaliáveis, nos Detalhes.", memoria=memoria)
+    if len(indices) > 3:
+        return _resposta("Há empate: " + ", ".join(rotulos[:-1]) + " e " + rotulos[-1] + " entram em " + pedido +
+                         ", e a comparação mostra até 3 itens lado a lado. Diga quais comparar, pelo nome.", memoria=memoria)
+    indicador = body.get("indicador") or "densidade"
+    valores = [_valor_do_atributo(unidades[i], atributo, indicador) for i in indices]
+    casas = places_for([v for v in valores if isinstance(v, (int, float))])
+    partes = [rotulo + (", com " + number(valor, casas) + UNIDADES_DOS_ATRIBUTOS.get(atributo, "")
+                        if isinstance(valor, (int, float)) else "") for rotulo, valor in zip(rotulos, valores)]
+    quando = (" em " + human_period(str(body["competencia"]))) if body.get("competencia") else ""
+    onde = (" entre os " + group_label(estado)[0].lower() + group_label(estado)[1:]) if estado else ""
+    texto_resposta = ("Abri a comparação lado a lado com " + pedido + onde + quando + ": " + "; ".join(partes) + "." +
+                      (" Há empate na posição, e os empatados entram juntos." if empate else "") +
+                      (" Assim que o motor calcular a diferença, eu leio para você." if diferenca else
+                       " A comparação mostra também a diferença."))
+    painel = _painel(funcao="comparar", selecao=[unidades[i]["id"] for i in indices],
+                     indicador=atributo if atributo in ("densidade", "quantidade") else None)
+    if diferenca:
+        return _resposta(texto_resposta, painel=painel, memoria=memoria, continuar="qual a diferença entre eles?")
+    return _resposta(texto_resposta, painel=painel, memoria=memoria)
+
+
 def _compara(ato: dict, amb: Ambiente) -> dict | None:
     body = amb.resultado
     atributo = ato.get("atributo") or (body or {}).get("indicador") or "densidade"
@@ -1058,8 +1190,8 @@ def _diferenca(ato: dict, amb: Ambiente) -> dict | None:
         return _resposta("A diferença é calculada pela comparação, que ainda não estava aberta: abri a comparação lado a "
                          "lado. O valor da diferença aparece no gráfico e no resumo assim que o motor calcular; depois, "
                          "pergunte de novo e eu leio para você.", painel=painel, memoria={"ato": "diferenca"})
-    return _resposta("A diferença entre dois territórios sai da comparação lado a lado, com 2 ou 3 itens. Diga quais, por "
-                     "exemplo “compare Manaus e Tefé”.", memoria={"ato": "diferenca"})
+    return _resposta("A diferença entre dois territórios sai da comparação lado a lado, com 2 ou 3 itens. Diga quais, pelo "
+                     "nome, ou peça, por exemplo, “compare o de maior e o de menor densidade”.", memoria={"ato": "diferenca"})
 
 
 def _contagem(ato: dict, amb: Ambiente) -> dict:
@@ -1096,9 +1228,10 @@ def _explica(ato: dict, amb: Ambiente) -> dict | None:
         if not body:
             return _explicada(explicacao.explicar_resultado(None), {"ato": "explica"})
         if not alvo:
-            return _resposta("De qual território? Diga o nome, por exemplo “e para " +
-                             (body["itens"][unidades[0]]["rotulo"].split(" (")[0].title() if unidades else "Manaus") +
-                             "?”.", memoria={"ato": "explica", "topico": "territorio", "registro": registro})
+            # O exemplo usa um território do próprio gráfico, nunca um nome fora da análise (26/10/2026).
+            return _resposta("De qual território? Diga o nome" + (", por exemplo “e para " +
+                             body["itens"][unidades[0]]["rotulo"].split(" (")[0].title() + "?”" if unidades else "") +
+                             ".", memoria={"ato": "explica", "topico": "territorio", "registro": registro})
         composicao = explicacao.explicar_territorio(body, alvo[0], registro)
         return _explicada(composicao, {"ato": "explica", "topico": "territorio", "registro": registro, "foco": alvo,
                                        "termos": amb.memoria.get("termos") or []})
@@ -1151,7 +1284,7 @@ def _estado(ato: dict, amb: Ambiente) -> dict:
         else:
             nome = _nome_citado(amb)
             if not nome:
-                return _resposta("De qual território você fala? Diga o nome, por exemplo “por que Belém não aparece?”.",
+                return _resposta("De qual território você fala? Diga o nome dele na pergunta.",
                                  memoria={"ato": "estado"})
     if assunto == "mapa" and amb.ctx.get("motivo_sem_mapa") is None and amb.ctx.get("mapa_disponivel") is None:
         pass
@@ -1260,7 +1393,8 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
         doc("DOC:EXC-11")
         doc("DOC:INV-06")
         texto = ("Essa escolha fica com você: eu não escolho territórios, critérios ou parâmetros no seu lugar. Diga quais "
-                 "quer ver, por exemplo “compare Manaus e Tefé”, ou marque na Seleção de Territórios.")
+                 "quer ver, pelo nome ou por um critério (por exemplo, “os 5 municípios com maior densidade”), ou marque na "
+                 "Seleção de Territórios.")
     else:
         texto = "Não posso fazer isso nesta versão."
     return _resposta(texto, memoria={"ato": "governanca", "tipo": tipo},
@@ -1274,6 +1408,7 @@ EXECUTORES = {
     "todos_do_estado": _todos_do_estado, "compara": _compara, "diferenca": _diferenca, "contagem": _contagem,
     "explica": _explica, "limite": _limite, "refere_anterior": _refere_anterior, "estado": _estado,
     "governanca": _governanca_executa, "corrige_pedido": _corrige_pedido, "pedido_indireto": _pedido_indireto,
+    "compara_extremos": _compara_extremos,
 }
 
 

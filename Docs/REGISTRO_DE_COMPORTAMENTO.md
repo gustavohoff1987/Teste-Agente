@@ -35,6 +35,90 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-26 · Conversa: lembrete da base sem esperar o provedor, comparação indireta pelos extremos, exemplos sem lugares, histórico legível com o novo visual, destaque da comparação no gráfico e menos latência
+- **Classificação (regra 1), pela leitura, antes de codar:** todos os itens decorrem do pedido do responsável de 26/10/2026
+  (ajustes depois da navegação com o Gemini) e passaram nos dois testes.
+  - **Lembrete da base:** mudança prevista. A SPEC pede o pedido preservado sem repetição pela pessoa (AT-64): ele fica
+    guardado e segue quando a base fica pronta; nada na SPEC exige interpretar pelo provedor um pedido de análise feito antes
+    dos dados. O lembrete é da página única (campo `lembrar_base`); sem o campo, a rota responde como antes.
+  - **Comparação indireta:** mudança prevista. A comparação continua CAP-CMP-01 (2 ou 3 itens, maior, menor e diferença do
+    motor); quem entra vem das ordens do motor, com os empates (CAP-SUB-02, DA-18), a pedido explícito da pessoa e dito na
+    resposta, com os valores. A regra de CAP-REF-01 (nada escolhido em silêncio pela posição na ordem) é da referência, que
+    continua por critério, com a relação, a delimitação e o corte escolhidos pela pessoa.
+  - **Exemplos sem lugares, histórico e visual, prazos da tela:** mudanças previstas (textos e apresentação; nenhuma regra
+    da SPEC fixa esses textos; o histórico continua sem armazenamento persistente).
+  - **Destaque da comparação:** mudança prevista. É estado visual (RQ-REP-06); a decisão de 25/10/2026 (marcar não esmaece)
+    continua para a marcação sozinha; o esmaecimento passa a valer só para a análise em foco (comparação em exibição ou
+    territórios base escolhidos), como o responsável pediu.
+  - **Orçamento de 20 s:** mudança prevista. RQ-SIN-05 admite até 2 regenerações; menos chamadas, com a resposta verificada
+    (e TPL-08 quando um texto foi recusado), continuam dentro da regra; o prazo de 75 s por chamada (21/10/2026) não mudou.
+  - **Ganho de desempenho** (casas decimais, triagem, proteção, contexto e competências guardados): sem mudança de
+    comportamento, com equivalência conferida.
+- **Antes:**
+  - **Começo sem base:** "Quero analisar a densidade" ou "compare os municípios do Pará" iam ao intérprete com o provedor,
+    seguido da redação, cada chamada com até 75 s e até 3 tentativas de cada; a caixa podia ficar em "Interpretando o pedido…"
+    por minutos. Quando a base ficava pronta, o pedido guardado ia só ao intérprete local; sem resposta local, se perdia.
+  - **Comparação indireta:** "comparar os municípios de maior e menor densidade" e "qual a diferença entre o de maior e o de
+    menor?" pediam os nomes ("Diga quais, por exemplo “compare Manaus e Tefé”"); "compare os mais populosos" também.
+  - **Exemplos:** a orientação da caixa trazia exemplos fixos com lugares ("mostre o Pará", "use Belém como referência",
+    "compare Manaus e Tefé"), e as respostas do gestor e da gramática citavam Manaus, Tefé, Belém, Anápolis e o Pará.
+  - **Histórico e visual:** letra de 13 px, a resposta do agente sem balão, um parágrafo corrido; a chegada de uma resposta
+    longa levava a rolagem ao fim, e a pergunta da pessoa sumia acima da área visível; caixa de até 400 px e 74% da altura.
+  - **Gráfico:** com uma comparação em exibição ou territórios base escolhidos, todas as bolhas ficavam com a cor inteira; o
+    painel Comparar ainda dizia "os demais esmaecem" ao marcar.
+  - **Tempo:** a parte local de uma pergunta levava 130–800 ms (com 144 municípios, até 800 ms).
+- **Agora:**
+  - **Começo sem base:** o pedido de análise antes da escolha dos dados recebe na hora, sem o provedor, "Para fazer essa
+    análise, primeiro escolha os dados: use os dados do Brasil ou envie os seus, em CSV ou Excel. Assim que a base estiver
+    pronta, sigo com o seu pedido." (`aguarda_base`), e os dois botões da escolha ficam em destaque. Perguntas de conceito,
+    agradecimentos e conversa seguem como antes. Com a base pronta, o pedido guardado segue pelo caminho completo, com "Com os
+    dados prontos, sigo com o seu pedido.".
+  - **Comparação indireta** (`dialogo.py`, ato `compara_extremos`; `painel.conversation_top`): o maior e o menor, os
+    extremos, os dois ou três maiores ou menores, pelas ordens do motor sobre o gráfico em exibição, com os empates; com um
+    estado citado fora do gráfico, primeiro os municípios dele e a continuação (`continuar`), que a tela envia sozinha quando
+    o motor calcula; na pergunta da diferença, a leitura da diferença do motor depois do cálculo; no plural sem quantidade,
+    "Quer comparar os dois ou os três …?", com as alternativas em botões.
+  - **Exemplos:** três exemplos do que a análise aberta faz, sem lugares, com o indicador em uso, alternados conforme a
+    conversa avança (`exemplosDaAnalise`); as respostas dão exemplos pela função ("compare o de maior e o de menor
+    densidade", "use como referência o município de maior densidade", "a mais de 150 km").
+  - **Histórico e visual:** letra de 15 px (14 px no celular), balões com contorno e sombra, a hora em cada mensagem,
+    parágrafos separados, o rótulo do começo em negrito e os exemplos em destaque, sem mudar o texto; numa resposta longa, a
+    pergunta curta fica no alto e o começo da resposta abaixo; caixa de até 440 px e 84% da altura (800 px); orientação
+    compacta depois da primeira mensagem; barra de rolagem visível.
+  - **Gráfico:** com uma comparação em exibição, só os comparados ficam inteiros no gráfico de bolhas, e as demais bolhas
+    esmaecem a 25% (no modo leve, a camada a 30%); com territórios base escolhidos um a um, as bases e as referências delas.
+    O texto do painel Comparar diz isso.
+  - **Tempo:** a parte local de uma pergunta leva 27–63 ms (287 ms numa comparação por nomes, com o gráfico novo); nenhuma
+    chamada nova ao provedor começa depois de 20 s do pedido; a tela avisa aos 12 s e aos 45 s e interrompe a espera aos 100 s
+    ("A resposta demorou mais que o esperado").
+- **Permanece:** cálculos, métodos e resultados do motor; a gramática local e o reconhecimento dos demais atos (as mensagens
+  dos casos versionados, em 330 combinações de mensagem e contexto, com o mesmo ato de antes); a referência por critério
+  (CAP-REF-01); marcar sem esmaecer; o mapa; o modelo
+  `gemini-3.5-flash-lite` e o prazo de 75 s por chamada; nenhum arquivo, registro, identificador ou nome de campo ao
+  provedor; o histórico sem armazenamento persistente (quando a sessão termina, pela Nova sessão, pela expiração ou com o
+  servidor reiniciado, a página recomeça limpa, como antes); os dados versionados.
+- **Motivo:** pedido do responsável de 26/10/2026, depois da navegação com o Gemini: o começo sem base lento ("rodando
+  estático"); a comparação de "maior e menor densidade" que ordenava ou pedia os nomes; exemplos com municípios reais que
+  confundem; a conversa que não ficava à vista como num aplicativo de mensagens; letra miúda e sem contornos; as bolhas da
+  comparação misturadas às demais; e a latência maior depois das últimas mudanças.
+- **Documentação e testes:** `README.md` (ajustes da conversa, começo sem base, orçamento de tempo),
+  `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (histórico, visual, estados, prazos, orientações, começo sem base, comparação
+  indireta), `Docs/DIALOGO_GOVERNADO.md` (orçamento do pedido, comparação pelos extremos), `Docs/PAINEL_INTEGRADO_INTERFACE.md`
+  (destaque da análise, texto do Comparar) e `Docs/OTIMIZACAO_LATENCIA.md` (seção 4.10). Testes novos: em `test_dialogo.py`,
+  a comparação pelos extremos (reconhecimento, ordens do motor, empates, estado fora do gráfico com a continuação, diferença,
+  plural com alternativas e exemplos sem lugares); `test_conversa_tempo.py` (orçamento de 20 s na interpretação e na
+  redação, lembrete sem base sem o provedor, conceito sem lembrete e a rota sem o campo); em `test_painel_resumo.py`, a
+  equivalência de `places_for` com a comparação par a par e `conversation_top` com empates; nos testes do frontend, a hora,
+  os blocos de leitura, a rolagem, o aviso de demora, os exemplos e o destaque da análise; `conversa_simulada.py` ganhou
+  `continua` (a continuação enviada pela tela); `ui_conversa_grafico.py` (lembrete e botões em destaque com e sem o
+  provedor, a hora no balão, o pedido guardado seguindo nos dois modos e a comparação pelos extremos com o esmaecimento),
+  `ui_area_de_analise.py` (Comparar esmaece as demais) e `ui_mapa.py` (base escolhida esmaece as demais). Testes alterados
+  por mudança intencional (o comportamento mudou de propósito; nenhum teste foi afrouxado): os textos esperados das
+  orientações com lugares (`test_conversa_grafico.py`, `conversaGrafico.test.mjs`, a orientação da Seleção em
+  `ui_conversa_grafico.py`); e, em `ui_conversa_grafico.py`, o passo do pedido antes dos dados, que agora recebe o lembrete
+  nos dois modos (o aviso de indisponibilidade sem o provedor passou a ser conferido com uma conversa livre, "Me conte uma
+  curiosidade"), e a conferência "sem territórios, nada é pedido ao motor", que passou a valer nos dois modos.
+
 ### 2026-10-26 · Conversa: Gemini conversa e explica sob conferência de fidelidade, triagem nova, resultados exibidos no contexto, sem teto local de chamadas, indisponibilidade cordial e histórico visível
 - **Classificação (regra 1):** todas as mudanças decorrem do pedido do responsável (missão "Evolução integrada da
   inteligência conversacional", 26/10/2026, autorizações A a H) e passaram no teste de escopo. Compatibilidade: a paráfrase

@@ -23,11 +23,11 @@ de induzir o agente a sair do que a SPEC autoriza. O princípio é **liberdade l
 | Memória da conversa | `frontend/src/conversaGrafico.ts`, `AnalysisAssistant.tsx` | A tela guarda a pergunta de esclarecimento sem resposta (com as alternativas ou o modelo da resposta), a memória da última resposta e os estados do gráfico antes de cada pedido aplicado pela conversa (até 8). Envia tudo no campo `conversa` (os 6 estados mais recentes) e o resultado em exibição em `displayed_result_id`. Aplica o pedido `painel`, o `desfazer` (volta aos estados guardados) e as `acoes` (abrir "Entenda esta análise" com termos destacados). |
 | Gestor de diálogo | `backend/dialogo.py` | `reconhecer` identifica o ato sem o provedor; `executar` responde. Usa a gramática local (`conversa_grafico.py`) para transformar rascunhos em pedidos do gráfico. Nunca calcula. |
 | Explicação verificada | `backend/explicacao.py` | Compõe o texto em partes: conectivos fixos e **segmentos** copiados de caminhos da resposta do motor (valores, rótulos, períodos, notas) ou formas do catálogo governado. `verificar` confere cada segmento contra a resposta antes da exibição; composição adulterada é recusada. |
-| Ordens do motor | `painel.conversation_facts` | O maior e o menor de cada atributo (densidade, quantidade, população, distância, variação, permanência), contados no motor, com os empates preservados. |
+| Ordens do motor | `painel.conversation_facts`, `painel.conversation_top` | O maior e o menor de cada atributo (densidade, quantidade, população, distância, variação, permanência), contados no motor, com os empates preservados; desde 26/10/2026, também os N primeiros (ou últimos) pela colocação de competição (1, 1, 3), com todos os empatados na posição de corte, para a comparação pelos extremos. |
 | Intérprete com o provedor | `backend/llm_bridge.py` | Classifica 16 atos (`dialogue`) e os campos `style`, `subject`, `attribute` e `direction`, todos enumerações, e devolve no mesmo contrato o texto `resposta`, que só aparece depois da conferência. O gestor executa o ato com a memória e o resultado locais (`dialogo.do_interprete`). Sem teto local de chamadas; espera só por sinal do provedor (ver "Disponibilidade"). |
 | Triagem | `backend/triagem.py` | As quatro classes de RQ-DAD-20 antes de qualquer envio: identificadores e nomes sem evidência viram marcadores numerados por tipo; territórios, grupos, regiões e categorias da base, os nomes após marcador territorial, a linguagem funcional, os títulos ("Dr.", "Sra.") e as letras isoladas (símbolos de fórmula, iniciais) ficam. O que já virou marcador num envio continua marcador, com o mesmo número, em todos os textos dele. A mensagem da tela não muda. |
 | Cartão do contexto | `backend/contexto_conversa.py` | A tela, o resultado em exibição (valores formatados como na tela, ordens do motor, classes, notas, disponibilidade), o resultado anterior, a conversa (janela recente e pendência), as funcionalidades da página, a resposta verificada e as fichas pertinentes. Passa pela triagem: o texto da pessoa (mensagem, janela, pendência), completa; o texto do sistema (resultado, resposta verificada, fichas), pelas classes A e C, sem mexer em fórmulas e códigos de método; o nome escrito pela pessoa que a resposta verificada repete continua marcador. |
-| Redação conferida | `backend/conversa_gemini.py` | O Gemini redige a resposta a partir do cartão; conferência; até 2 regenerações com a lista das violações; reserva verificada com TPL-08. |
+| Redação conferida | `backend/conversa_gemini.py` | O Gemini redige a resposta a partir do cartão; conferência; até 2 regenerações com a lista das violações; reserva verificada com TPL-08. Desde 26/10/2026, nenhuma chamada nova (redação ou regeneração) começa depois de 20 s do pedido (`llm_bridge.ORCAMENTO_DE_REGENERACAO`): vale a resposta verificada. |
 | Conferência de fidelidade | `backend/fidelidade.py` | Números, nomes, ordens e classes do motor; nenhuma relação calculada pelo modelo ("o dobro", "três vezes maior"); nenhum número de exemplo documentado de uma ficha usado como valor; juízo, causa, acesso, heterogeneidade, destaque e previsão só como ressalva negativa; ressalvas obrigatórias; afirmação de ação; elementos essenciais e proibições das fichas. A frase copiada da resposta verificada ou de uma ficha não é afirmação nova; o texto da pessoa não é material verificado. |
 | Fichas de método | `backend/definicoes.py` | Formulação autorizada em linguagem simples de cada conceito (densidade, quantidade, distância, referência, grupos, agregação, variação, tendência e as 7 classes, velocidade, comparação, régua, rotatividade), com os elementos essenciais e as afirmações proibidas. |
 
@@ -138,6 +138,11 @@ o funcionamento do agente):
 5. violação leva a nova tentativa com a lista das violações, até 2 regenerações (RQ-SIN-05); persistindo, aparece a resposta
    verificada com a mensagem de TPL-08. O texto rejeitado nunca é exibido. Sem o provedor (sem chave, em espera de cota,
    fora do ar), aparece a resposta verificada, sem chamada.
+6. **orçamento do pedido** (26/10/2026): cada rota da conversa marca o início do pedido (`llm_bridge.iniciar_relogio`);
+   passados 20 s, nenhuma chamada nova ao provedor começa, nem regeneração da interpretação, nem redação, nem regeneração da
+   redação: vale a resposta verificada (com TPL-08 só quando um texto do Gemini foi recusado). A chamada em curso continua
+   com o prazo de 75 s por operação (decisão de 21/10/2026); antes, um pedido podia somar até três chamadas de interpretação
+   e três de redação. Na tela, a espera tem prazo de 100 s, com aviso próprio.
 
 A resposta da API informa a origem (`redacao: {origem: "GEMINI_VALIDADO" | "DETERMINISTICA", tentativas}`). Os marcadores
 da triagem que o modelo repetir voltam ao texto original só na tela.
@@ -156,8 +161,29 @@ do provedor põe a espera que ele informa (`RetryInfo`; por minuto ou de tokens)
 fuso do Pacífico; 5xx, tempo esgotado e rede, uma espera curta (20 s); chave recusada, 5 minutos. Durante a espera, nada é
 chamado. A conversa mostra, no histórico, a comunicação cordial com o título "Assistente conversacional temporariamente
 indisponível": o texto do limite de consultas só quando o provedor o confirmou; o da indisponibilidade nas demais causas.
-Saída fora do contrato depois de 2 regenerações: resposta de reserva ("Não consegui interpretar este pedido com
-segurança…"). Os controles, as análises, os resultados e o histórico continuam.
+Saída fora do contrato depois de 2 regenerações (ou do orçamento de 20 s do pedido): resposta de reserva ("Não consegui
+interpretar este pedido com segurança…"). Os controles, as análises, os resultados e o histórico continuam.
+
+## Comparação pelos extremos (26/10/2026)
+
+Pedido do responsável: "comparar os municípios de maior e menor densidade" identifica quem tem o maior e o menor valor e
+abre a comparação no gráfico, sem ordenar só e sem pedir os nomes. O ato `compara_extremos` (`dialogo.py`) é reconhecido
+sem o provedor quando a mensagem tem o verbo de comparar (ou "diferença") e "o de maior e o de menor", "os extremos", "o
+primeiro e o último" ou "os dois (três) maiores (menores)", sem nome de território do gráfico:
+- quem entra vem das ordens do motor sobre o gráfico em exibição (`conversation_facts` para o maior e o menor;
+  `conversation_top` para os N primeiros), com os empates: empatados entram juntos (até 3, o limite da comparação lado a lado;
+  com mais, a conversa pede os nomes); os valores da resposta são copiados do motor;
+- o atributo é o citado ("densidade", "população", "mais distantes") ou o indicador do gráfico;
+- com um estado citado ("… do Pará") que não está no gráfico, a resposta mostra os municípios dele e traz `continuar`
+  ("compare o de maior e o de menor densidade"): a tela envia a continuação sozinha quando o motor calcula o gráfico novo;
+- na pergunta da diferença ("qual a diferença entre o de maior e o de menor densidade?"), a comparação abre e a continuação
+  ("qual a diferença entre eles?") lê a diferença calculada pelo motor;
+- no plural sem quantidade ("compare os mais populosos"), a pergunta "Quer comparar os dois ou os três maiores em
+  população?", com as duas alternativas em botões; a resposta escrita ("os três") escolhe como o clique, e a alternativa volta
+  ao próprio gestor.
+Os exemplos das orientações e das respostas do gestor e da gramática não citam lugares (26/10/2026): mostram o que a função
+faz ("compare o de maior e o de menor densidade", "use como referência o município de maior densidade", "a mais de
+150 km"), porque um nome fora da análise da pessoa confunde.
 
 ## Avaliação
 

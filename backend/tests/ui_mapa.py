@@ -520,6 +520,11 @@ def main():
         base_marcada = area.locator('[data-testid="analise-bolha"][data-base="true"]')
         expect(base_marcada).to_have_count(1)
         expect(base_marcada).to_have_attribute("data-id", boa_vista)
+        # Com a base escolhida (26/10/2026), ela fica inteira e as demais bolhas da seleção esmaecem no gráfico.
+        expect(base_marcada).to_have_attribute("data-destaque", "true")
+        # (a bolha sob o mouse, com a dica, fica inteira enquanto está ativa)
+        apagadas = area.locator('[data-testid="analise-bolha"][data-visivel="true"][data-destaque="false"]:not([aria-describedby])')
+        assert apagadas.count() > 0 and set(apagadas.evaluate_all("els => els.map(e => e.style.opacity)")) == {"0.25"}
         expect(contexto).to_have_attribute("data-bases", boa_vista)
         aperta(area.get_by_test_id("analise-desenho-mapa"))
         desenhado(15, "quintis")
