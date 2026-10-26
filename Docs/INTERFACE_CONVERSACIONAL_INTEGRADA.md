@@ -183,32 +183,46 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   critério ("a de maior densidade como referência"): o Território de referência abre com o atributo citado e, desde
   25/10/2026, o operador do "maior" ou "menor"; a relação, a delimitação e o valor de corte são escolha da pessoa (a lista de
   candidatos, com "usar o primeiro", saiu em 24/10/2026);
-- **ambiguidades** continuam com alternativas em botões (`CATALOGO_LOCAL`), e nada é calculado. Escolher uma alternativa
-  reinterpreta o pedido com a escolha; se a resposta não trouxer o campo `painel`, a operação escolhida vira a família ou a
+- **ambiguidades** continuam com alternativas em botões (`CATALOGO_LOCAL`), e nada é calculado. Desde 26/10/2026, a
+  resposta também pode ser escrita ("Município.", "a do Pará", "a de janeiro", "o primeiro"): a tela guarda a pergunta com
+  as alternativas e a envia na memória da conversa (`conversa`), e o gestor de diálogo do backend escolhe a alternativa, como
+  o clique ([diálogo governado](DIALOGO_GOVERNADO.md)). Escolher uma alternativa reinterpreta o pedido com a escolha; se a resposta não trouxer o campo `painel`, a operação escolhida vira a família ou a
   função equivalente (densidade e quantitativos → Distribuição com o indicador; evolução → Tendência; espacial e referência
   mais próxima → Análise espacial; comparação → Comparar; agregação → Juntar; ranking → Ordenar; critérios → Condições;
   relatório → Exportar);
 - pendências da conversa continuam: "Compare Manaus" pergunta o outro município, e a resposta seguinte completa o pedido;
   a direção de uma ordenação é perguntada, nunca presumida;
+- **continuidade pelo gestor de diálogo** (desde 26/10/2026): correções ("Não, o estado."; "Não, eu queria a evolução"),
+  "não era isso que eu queria" e "desfaz" (a tela volta ao estado do gráfico antes da última mudança feita pela conversa, da
+  pilha que ela guarda, até 8 estados), "volta para a comparação anterior", trocas ("troca o primeiro pelo segundo"),
+  inclusões e retiradas, perguntas sobre o resultado em exibição ("qual deles tem a maior densidade?", respondidas com os
+  valores e a ordem do motor, sem mudar o gráfico), explicações em quatro registros e perguntas sobre o estado da tela. Uma
+  explicação de classe da Tendência abre "Entenda esta análise" com a classe destacada
+  (`analise-apresentacao-destaque`), sem recalcular;
 - **vista do desenho** (desde 23/10/2026, com o mapa como segunda vista do gráfico): "ver no mapa", "mostre no mapa", "abra
   o mapa" e "agora o mapa" mandam à área o pedido `{ vista: "mapa" }`, pelo mesmo caminho dos demais comandos, e a conversa
   responde "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."; "volte ao gráfico", "mostre no
   gráfico" e "agora o gráfico" mandam `{ vista: "grafico" }` ("Voltei ao gráfico. …"). Quando a área informa que o mapa não
   está disponível (`mapaDisponivel: false`: nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na
   visão Série temporal), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
-  gráfico.". Já na vista pedida, a conversa só diz isso. Essas formas diretas são reconhecidas na tela, sem o intérprete;
+  gráfico.". Desde 26/10/2026, o motivo vai também ao backend local (`painel_motivo_sem_mapa`), para "o que estou vendo no
+  mapa?" responder com ele. Já na vista pedida, a conversa só diz isso. Essas formas diretas são reconhecidas na tela, sem o intérprete;
   trocar de vista é estado visual e não recalcula (RQ-REP-06). Pedidos com mais do que a vista ("mostre o Pará no mapa",
   "onde ficam os municípios com menos de 1 médico por mil?", "a quantidade no gráfico") vão ao intérprete local, que devolve
   o comando com `vista` (ver [conversação incremental](CONVERSACAO_INCREMENTO_FN.md), "Conversa no gráfico"). Pelo
   intérprete com o provedor, os atos `show_map` e `show_chart` têm o mesmo tratamento;
 - "agora a tabela" responde que a tabela fica em Detalhes, abaixo do gráfico (ou do mapa); nada é recalculado;
-- **resumo do que está na tela** (desde 23/10/2026): "o que esse gráfico mostra?", "resuma o gráfico", "explique o
-  resultado", "o que estou vendo?" e variações próximas, sem outro pedido junto, são respondidos na tela com a frase-resumo
-  verificada do motor (`ContextoDoGrafico.resumo`, a mesma da área), como veio, sem paráfrase; sem gráfico calculado, "Ainda
-  não há um gráfico calculado para resumir.". Nada vai ao intérprete nem ao provedor de IA. Um pedido que muda a análise
-  ("o que esse gráfico mostra em 2023?") ou pede outra forma ("explique de forma mais simples") segue para a interpretação;
+- **resumo do que está na tela** (desde 23/10/2026): "o que esse gráfico mostra?", "resuma o gráfico", "o que estou
+  vendo?" e variações próximas, sem outro pedido junto, são respondidos na tela com a frase-resumo verificada do motor
+  (`ContextoDoGrafico.resumo`, a mesma da área), como veio, sem paráfrase; sem gráfico calculado, "Ainda não há um gráfico
+  calculado para resumir.". Nada vai ao intérprete nem ao provedor de IA. Desde 26/10/2026, "explique o resultado" e as
+  demais formas com "explique", "explica", "explicar", "descreva", "descreve" ou "descrever" vão ao gestor de diálogo do backend, que responde com a frase-resumo
+  e os fatos de cada território, copiados do motor e conferidos. Um pedido que muda a análise ("o que esse gráfico mostra
+  em 2023?") ou pede outra forma ("explique de forma mais simples") segue para a interpretação;
 - "volte ao resultado anterior" reabre a análise anterior do Histórico, da mesma fonte, sem recalcular;
-- outras perguntas sobre o que está na tela usam o resultado do gráfico guardado na sessão (`displayed_result_id`).
+- outras perguntas sobre o que está na tela usam o resultado do gráfico guardado na sessão (`displayed_result_id`). Até
+  26/10/2026, a tela enviava esse identificador vazio: lia `result_id` na resposta guardada, que a normalização da área traz
+  como `resultId`. Agora envia o do resultado em exibição.
 
 **Continuidade (desde 21/10/2026).** Um pedido sem territórios usa os que estão no gráfico, e a resposta diz quais. Um
 pedido só com o período ("E nos últimos 5 anos?") continua a análise. "Últimos N anos" e "último ano" (AT-34) são contados
@@ -219,8 +233,10 @@ continuações são resolvidas no backend, sem o provedor de IA. A interpretaç�
 
 **Privacidade.** Nenhum dado, arquivo, nome de campo ou valor da base vai ao provedor de IA. A planilha é reenviada só ao
 backend local; o contexto do gráfico vai ao intérprete local, e o provedor recebe apenas o pedido sanitizado e estados
-enumerados. Sem o provedor, os pedidos sobre o gráfico, a escolha dos dados e as respostas locais continuam disponíveis; a
-caixa avisa que as perguntas livres estão indisponíveis.
+enumerados. A memória da conversa (`conversa`) e o resultado em exibição ficam no backend local. Sem o provedor, os pedidos
+sobre o gráfico, o gestor de diálogo, a escolha dos dados e as respostas locais continuam disponíveis. Com o gráfico na
+tela, o pedido que dependeria do provedor recebe a mensagem de indisponibilidade (TPL-01) com exemplos do que continua
+disponível e "O que você quer ver?"; antes dos dados, a caixa avisa que as perguntas livres estão indisponíveis.
 
 ## Exportação
 

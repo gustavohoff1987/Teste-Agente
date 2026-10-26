@@ -8,7 +8,7 @@ alterações de parâmetros. Não aparece na interface e não é uma ferramenta 
 
 | Parte | Arquivo |
 |---|---|
-| Trajetórias (JSONL, uma por linha, por dimensão A–J) | `backend/biblioteca_conversacional/trajetorias/` |
+| Trajetórias (JSONL, uma por linha, por dimensão A–J; `K_dialogo_governado.jsonl` reúne as do gestor de diálogo) | `backend/biblioteca_conversacional/trajetorias/` |
 | Carga, validação, recuperação e montagem do bloco de exemplos (sem dependência de provedor) | `backend/conversation_library.py` |
 | Integração com o provedor: máscara, envio na instrução de sistema e rastreio | `backend/llm_bridge.py` (`_library_examples`, `_system_instruction`, `library_contract`) |
 | Trajetórias inéditas, só para avaliação (nunca recuperadas) | `backend/tests/biblioteca_ineditas/` |
@@ -55,7 +55,8 @@ ausência de impacto em outros pedidos. Método, resultados, limitações e ferr
   com `operacao`, `SELECAO_TERRITORIAL`, `LIMPA_SELECAO`, `CALCULO`, `HISTORICO`, `NOVA_ANALISE`, `NOVA_SESSAO`).
   O estado mostrado ao modelo antes de cada turno é derivado desses passos (`conversation_library.turns`).
 - `interpretacao` é a saída esperada do intérprete, com os campos do contrato (`operation`, `indicator`, `period`,
-  `category`, `territory`, `intent`, `topic`, `dialogue`, `social_reply`, `candidates`). Período, categoria,
+  `category`, `territory`, `intent`, `topic`, `dialogue`, `social_reply`, `candidates` e, desde 26/10/2026, `style`,
+  `subject`, `attribute` e `direction`, os campos dos atos do gestor de diálogo). Período, categoria,
   território e âncoras são trechos literais da mensagem.
 - `acao` diz o que o sistema faz com o turno (lista fechada em `ACTIONS`); `altera`/`preserva` são as transições
   de contexto; `restricoes` e `contrato` citam as regras aplicáveis (listas fechadas); `doc` cita ids do catálogo
@@ -81,6 +82,13 @@ ausência de impacto em outros pedidos. Método, resultados, limitações e ferr
    compativel --url … --modelo …`, por exemplo Ollama ou llama.cpp).
 5. Uma mudança na biblioteca muda o pedido ao provedor: registre-a em `Docs/REGISTRO_DE_COMPORTAMENTO.md` (regra 1
    do `AGENTS.md`). Não copie trajetórias inéditas para a biblioteca: elas medem a generalização.
+
+O arquivo `K_dialogo_governado.jsonl` (26/10/2026) reúne 10 trajetórias das dimensões C, E, G, H, I e J que cobrem os 16
+atos do gestor de diálogo da página única
+(`answer_choice`, `correction`, `undo`, `previous_state`, `compare_result`, `concept`, `technical`, `reformulate`, `verify`,
+`cause`, `screen_state`, `out_of_scope`, `include`, `replace`, `remove`, `all_units`), em português, inglês e espanhol, com
+as ações `DESFAZ` e `VOLTA_ESTADO` (o intérprete só classifica; o gestor executa com a memória e o resultado locais, ver
+[diálogo governado](DIALOGO_GOVERNADO.md)).
 
 Quando o contrato do intérprete mudar (operações, tópicos, atos de diálogo), atualize as trajetórias afetadas; o
 teste `test_library_is_valid_diverse_and_covers_the_interpreter_contract` falha enquanto houver turnos fora do

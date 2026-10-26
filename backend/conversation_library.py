@@ -72,6 +72,8 @@ ACTIONS = {
     "CONFIRMA_NA_TELA": "O cálculo é uma ação do usuário na preparação; a conversa não executa.",
     "INFORMA_INDISPONIVEL": "A análise não é possível com esta base; o pré-exame informa o motivo.",
     "RECUSA_FORA_DO_ESCOPO": "Pedido fora do escopo (causalidade, previsão, fonte externa, dado pessoal).",
+    "DESFAZ": "Desfaz a última mudança do gráfico feita pela conversa e pergunta o que a pessoa queria.",
+    "VOLTA_ESTADO": "Volta a um estado anterior do gráfico aplicado pela conversa (a comparação anterior, por exemplo).",
 }
 CONTEXT_KEYS = ("fonte", "operacao", "indicador", "territorios", "periodo", "categoria", "resultado",
                 "visualizacao", "criterios", "referencias", "documento")
@@ -386,6 +388,10 @@ def _coherence(turn: dict, interpretation: dict, record: dict, contract: Contrac
         problems.append(f"dialogue {dialogue} exige a ação {views[dialogue]}.")
     if action in ("MUDA_VISUALIZACAO", "REABRE_RESULTADO_ANTERIOR") and dialogue not in views:
         problems.append(f"{action} exige dialogue de visualização ou de resultado anterior.")
+    # Atos do gestor de diálogo (dialogo.py): desfazer e voltar a um estado anterior têm ação própria.
+    for act, required in (("undo", "DESFAZ"), ("previous_state", "VOLTA_ESTADO")):
+        if (dialogue == act) != (action == required):
+            problems.append(f"dialogue {act} e a ação {required} andam juntos.")
     expected = reading_documents(turn["usuario"], state, contract) if action == "LE_RESULTADO" else None
     if expected is not None and dialogue == "explain_result" and turn.get("doc", []) != expected:
         problems.append(f"leitura do resultado: doc deve ser {expected} (formas que o sistema apresenta).")

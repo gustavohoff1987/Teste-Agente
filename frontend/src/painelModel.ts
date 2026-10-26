@@ -41,6 +41,9 @@ export type PedidoDoChat = {
   grupos?: { tipo: string } | null;
   /** Vista do desenho pedida na conversa ("ver no mapa", "volte ao gráfico"): estado visual, não recalcula. */
   vista?: "grafico" | "mapa" | null;
+  /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
+   * destacados. Estado visual: nada é recalculado. */
+  explicar?: { aba: Familia; termos: string[] } | null;
 };
 /** O que está na tela, para a estrutura da página e a conversa. */
 export type ContextoDoGrafico = {
@@ -52,6 +55,8 @@ export type ContextoDoGrafico = {
   vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
   /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */
   mapaDisponivel?: boolean; motivoSemMapa?: string | null;
+  /** Os itens da comparação aberta (2 ou 3 ids), para a conversa trocar a ordem, incluir, tirar e voltar a ela. */
+  comparar?: string[];
 };
 /** Estado salvo no Histórico: reabre sem recalcular. `definicao` é o objeto de `salvarEstado`. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };

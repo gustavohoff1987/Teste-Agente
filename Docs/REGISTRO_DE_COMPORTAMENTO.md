@@ -35,6 +35,97 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-26 · Página única: gestor de diálogo governado, explicação verificada do resultado, redação pelo Gemini sob validador e o resultado em exibição enviado à conversa
+- **Classificação (regra 1):** todas as mudanças abaixo decorrem do pedido do responsável (desafio adversarial de engenharia
+  conversacional, 26/10/2026) ou de defeito encontrado ao cumpri-lo, e passaram nos dois testes. Compatibilidade: a conversa
+  só interpreta e organiza (INV-02, INV-03); números, classes e relações são segmentos copiados do motor e conferidos (C-04,
+  RQ-SIN-02, RQ-SIN-10); explicação de método só com formas literais do catálogo (V-16, RQ-SIN-07); a redação pelo Gemini
+  muda organização e tom, nunca valores, formas ou significado (CAP-SIN-01 "LLM com validação", INV-13, RQ-SIN-04,
+  RQ-SIN-05, RQ-SIN-08); o modo sem provedor usa TPL-01. O que contrariaria a SPEC ou a decisão de 20/10/2026 não foi
+  implementado e ficou como proposta (P-A, P-B e P-C em `Docs/DIALOGO_GOVERNADO.md`).
+- **Antes:**
+  - **Resposta a esclarecimento:** só pelo botão. "Município." depois de "estado ou município?" ia ao intérprete com o
+    provedor; sem ele, "Gemini não configurado".
+  - **Continuidade:** "não era isso que eu queria", "desfaz", "volta para a comparação anterior", "troca o primeiro pelo
+    segundo", "agora inclui mais um", "Não, o estado." e "Não, eu queria a evolução" não tinham tratamento local.
+  - **Perguntas sobre o resultado** ("qual deles tem a maior densidade?", "e em relação à população?"), explicações
+    ("Não entendi a aceleração."), verificações ("isso significa que melhorou?", "qual foi a causa?"), perguntas sobre a tela
+    e tentativas de indução ("muda o valor de X para 10") iam ao provedor; sem ele, erro.
+  - **Resultado em exibição:** a tela enviava `displayed_result_id` vazio, porque lia `sessao.result_id` na resposta guardada,
+    que a normalização da área traz como `sessao.resultId`. A conversa nunca recebia o resultado do gráfico.
+  - **"Explique o resultado"** e as formas com explique, explica, explicar, descreva, descreve ou descrever eram respondidas
+    na tela com a frase-resumo do motor, sem mais fatos e sem memória para as perguntas seguintes.
+  - **Sem o provedor, com o gráfico na tela:** HTTP 503 e o aviso de erro na caixa.
+  - **Intérprete com o provedor:** 12 atos de diálogo, sem os campos `style`, `subject`, `attribute` e `direction`.
+    `dialogue_action` tomava "que" dentro de palavras ("queria") como pergunta sobre o resultado.
+  - **Gramática local:** não reconhecia "contraste", "coteje", "versus", "vs", "um do lado do outro", "frente a frente",
+    "se diferenciam" e "a diferença entre" como comparação; "desses", "destes", "dessas", "destas", "os dois", "as duas", "os
+    três" e "ambos" como os territórios na tela; "compare" sem nomes com 2 ou 3 unidades na tela; "só 2024" (e "somente",
+    "apenas"); "traz", "joga", "bota", "põe", "coloca", "plota" e "desenha" como pedidos de vista. "por" estava entre os
+    verbos de vista.
+  - **Catálogo governado:** a forma "mensagem" de TPL-06 (ADM-FE), TPL-07 (ADM-SC), TPL-01 (LLM_INDISPONIVEL) e TPL-08
+    (REGENERACAO_ESGOTADA) não era materializável.
+  - **Mapa sem disponibilidade:** o motivo ficava só na tela. "Entenda esta análise" não abria pela conversa.
+- **Agora:**
+  - **Gestor de diálogo** (`backend/dialogo.py`), na página única, antes da gramática e do provedor e sem calcular:
+    - resposta escrita a esclarecimentos, como o clique ("Entendi: RIO DE JANEIRO (RJ). …"), com a informação de uma
+      pergunta encadeada lembrada ("Anotei “a do Pará” para quando essa escolha aparecer"); correção da escolha ("Não, o
+      estado.": estado e município não ficam no mesmo gráfico, e a conversa oferece comparar os estados);
+    - continuidade: correção com novo pedido, desfazer (a tela volta ao estado do gráfico de antes da última mudança feita
+      pela conversa; logo depois de uma pergunta, "não era isso" deixa a pergunta de lado e oferece desfazer), voltar (uma
+      mudança como as outras, que "desfaz" reverte), trocar, incluir ("inclui mais um" pergunta qual), tirar e todos;
+    - perguntas sobre o resultado em exibição, com os valores e a ordem do motor (`painel.conversation_facts`, empates
+      preservados) e a diferença da comparação do motor, sem mudar o gráfico;
+    - explicação em quatro registros, com memória do tópico (`backend/explicacao.py`): a frase-resumo e os fatos de cada
+      território; termos da Tendência com as classes, contagens, valores observados e, no técnico, velocidades e a nota do
+      método, e a ação que abre "Entenda esta análise" com a classe destacada (`analise-apresentacao-destaque`); temas com
+      formas liberadas do catálogo (densidade, distância, referência, agregação, quintis) com as formas literais;
+    - verificações com os fatos e as regras governadas (CFG-NOR; TPL-06 com EXC-03, conferindo antes a premissa: "o
+      resultado não mostra queda para …"; TPL-11; notas de procedência do motor);
+    - perguntas sobre a tela (dados, territórios, seleção, mapa, relatório, análise anterior, o que mudou, ausência,
+      disponibilidade) e recusas naturais, com a forma governada e uma alternativa, às tentativas de indução (valores,
+      classificações, método, ocupações, juízos, política, correlação, projeção, pessoas, fontes externas, parâmetros
+      ignorados e escolhas delegadas). `ADT_DIALOGO=0` restaura o caminho anterior.
+  - **API:** `/api/exploration/interpret` aceita `conversa` e `displayed_result_id`; `/api/llm/interpret-context`, `conversa`.
+    As respostas do gestor trazem `memoria`, `dialogo`, `explicacao`, `acoes`, `desfazer`, `modelo_de_resposta`,
+    `pedido_original` e, com a redação pelo Gemini, `redacao`.
+  - **Resultado em exibição:** `resultadoDaSessao` lê `sessao.resultId` (e ainda `result_id`), e a conversa recebe o
+    resultado do gráfico guardado na sessão. Com ele, o intérprete com o provedor passa a receber `has_verified_result`
+    verdadeiro quando há gráfico (só o estado enumerado; nenhum valor).
+  - **"Explique o resultado"** e as formas com explique, explica, explicar, descreva, descreve ou descrever vão ao gestor de
+    diálogo, que responde com a frase-resumo e os fatos de cada território, copiados do motor. "O que esse gráfico mostra?",
+    "resuma o gráfico" e "o que estou vendo?" continuam respondidos na tela.
+  - **Sem o provedor, com o gráfico na tela:** os casos de HTTP 503 viram resposta (HTTP 200, `degradado: true`) com a forma
+    de TPL-01, o motivo (salvo chave ausente), exemplos do que continua disponível e "O que você quer ver?".
+  - **Intérprete com o provedor:** 16 atos novos (`answer_choice`, `correction`, `undo`, `previous_state`, `compare_result`,
+    `concept`, `technical`, `reformulate`, `verify`, `cause`, `screen_state`, `out_of_scope`, `include`, `replace`, `remove`,
+    `all_units`) e os campos `style`, `subject`, `attribute` e `direction`, todos enumerações; o gestor executa o ato. A
+    biblioteca conversacional ganhou 10 trajetórias (`K_dialogo_governado.jsonl`) e as ações `DESFAZ` e `VOLTA_ESTADO`, o
+    que muda os exemplos enviados ao provedor. `dialogue_action` usa limites de palavra.
+  - **Redação pelo Gemini** (`backend/redacao.py`), só a pedido de outra formulação ("de outro jeito", "mais simples", "de
+    forma didática", "explique melhor") e com o provedor configurado: vai o esqueleto com marcadores opacos; o texto volta
+    pelo validador (marcadores exatos, nenhum número, termo de juízo, causa, tendência, acesso, relação, destaque ou
+    heterogeneidade novo, nenhum nome próprio novo); até 2 regenerações; esgotadas, o texto verificado com a mensagem de
+    TPL-08. A pergunta sobre um termo é composta localmente. `ADT_REDACAO_GEMINI=0` desliga.
+  - **Gramática local:** reconhece as formas de comparação, dêixis, "só 2024" e verbos de vista listados acima; "por" saiu
+    dos verbos de vista.
+  - **Catálogo governado:** materializa a forma "mensagem" de TPL-06, TPL-07, TPL-01 e TPL-08 com aquelas evidências.
+  - **Mapa sem disponibilidade:** a tela envia o motivo (`painel_motivo_sem_mapa`) ao backend local, que o usa na resposta.
+- **Permanece:** nenhum cálculo pela conversa; nada da base, nem a memória da conversa, vai ao provedor; as alternativas em
+  botões; as frases-resumo respondidas na tela; "volte ao resultado anterior" pelo Histórico; o caminho fora da página única
+  e antes dos dados (inclusive o HTTP 503 ali); o tratamento de cota, autorização e falhas 429 e 502 do provedor; a lista de
+  temas metodológicos liberados na conversa (a regra das classes da Tendência continua fora, na tela).
+- **Motivo:** pedido do responsável pelo produto (26/10/2026): ampliar a inteligência conversacional sem dar autoridade
+  analítica ao Gemini. O defeito do resultado em exibição foi encontrado pelo roteiro de navegador desta mudança.
+- **Documentação e testes:** `Docs/DIALOGO_GOVERNADO.md` (novo: arquitetura, atos, matriz de cobertura, avaliação antes e
+  depois, propostas), `README.md`, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`, `Docs/CONVERSACAO_INCREMENTO_FN.md` e
+  `Docs/BIBLIOTECA_CONVERSACIONAL.md`. Testes: `backend/tests/test_dialogo.py` (novo), `backend/tests/test_dialogo_adversarial.py`
+  (novo, com a base versionada, job `dados-reais`, sobre os conjuntos de `backend/tests/dialogo_adversarial/` e o simulador
+  `backend/tests/conversa_simulada.py`), `backend/tests/ui_conversa_grafico.py` (passos 6b a 6d e a memória da conversa entre
+  os itens protegidos), `frontend/tests/conversaGrafico.test.mjs` ("Explique o resultado." e "me explica esse gráfico" saíram
+  das frases-resumo da tela, de propósito; o motivo do mapa vai em `painel_motivo_sem_mapa`; memória da conversa) e
+  `frontend/tests/paginaUnica.test.mjs` (`resultadoDaSessao` com a resposta normalizada).
+
 ### 2026-10-25 · Análise Espacial: territórios base cumulativos, cada um ligado à sua referência no gráfico; "Entenda esta análise" recolhido por padrão
 - **Antes:**
   - **Território base único:** um `<select>` (`analise-ref-base`) com "Todos os selecionados (cada um com a sua referência)",

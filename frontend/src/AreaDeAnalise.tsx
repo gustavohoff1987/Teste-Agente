@@ -135,12 +135,17 @@ type EstadoDaInteracao = { def: DefinicaoAnalise; aba: Aba; aberto: string | nul
   selecionados: string[]; filtroClasse: string | null; soAtende: boolean };
 
 /** O corpo da apresentação de uma aba: parágrafos, a lista das classes (na tendência) e a nota. */
-function TextoDaApresentacao({ aba, apresentacao }: { aba: Aba; apresentacao: Apresentacao }) {
+function TextoDaApresentacao({ aba, apresentacao, destaque = [] }: { aba: Aba; apresentacao: Apresentacao; destaque?: string[] }) {
   return <div data-testid="analise-apresentacao" data-aba={aba} className="analise-apresentacao">
     {apresentacao.paragrafos.map((texto, indice) => <p key={indice}>{texto}</p>)}
     {apresentacao.itens && <div data-testid="analise-apresentacao-classes" className="analise-apresentacao-classes">
       <p className="analise-apresentacao-subtitulo">O que significa cada classe</p>
-      <dl>{apresentacao.itens.map(item => <div key={item.termo}><dt>{item.termo}</dt><dd>{item.texto}</dd></div>)}</dl>
+      <dl>{apresentacao.itens.map(item => {
+        // Termo destacado pela conversa ("não entendi a aceleração"): a explicação da tela, aberta e à vista.
+        const destacado = destaque.includes(item.termo);
+        return <div key={item.termo} data-testid={destacado ? "analise-apresentacao-destaque" : undefined}
+          className={destacado ? "analise-apresentacao-destaque" : undefined}><dt>{item.termo}</dt><dd>{item.texto}</dd></div>;
+      })}</dl>
     </div>}
     {apresentacao.nota && <p className="analise-apresentacao-nota">{apresentacao.nota}</p>}
   </div>;
@@ -149,13 +154,28 @@ function TextoDaApresentacao({ aba, apresentacao }: { aba: Aba; apresentacao: Ap
  * pedido do responsável; antes, abria na primeira visita, menos na Tendência), para não ocupar espaço: o desenho fica no alto, e
  * a pessoa abre a explicação quando quiser. Se a pessoa a abre ou fecha, a aba guarda a escolha na sessão da página. */
 const explicacaoAberta = new Map<Aba, boolean>();
-function EntendaEstaAnalise({ aba, apresentacao }: { aba: Aba; apresentacao: Apresentacao }) {
+/** A explicação pedida pela conversa (26/10/2026): abre o "Entenda" da aba e destaca os termos; `n` muda a cada pedido. Cada
+ * pedido abre o quadro uma vez: voltar à aba depois não o reabre se a pessoa o fechou. */
+type ExplicacaoPedida = { n: number; aba: Aba; termos: string[] };
+const explicacaoAtendida = new Map<Aba, number>();
+let explicacoesPedidas = 0;  // numeração única na página, também entre montagens da área (Nova análise, Histórico)
+function EntendaEstaAnalise({ aba, apresentacao, pedida }: { aba: Aba; apresentacao: Apresentacao; pedida?: ExplicacaoPedida | null }) {
   const [aberta, setAberta] = useState(() => explicacaoAberta.get(aba) ?? false);
-  return <details data-testid="analise-entenda" data-aba={aba} open={aberta} className="analise-entenda"
+  const quadro = useRef<HTMLDetailsElement>(null);
+  const destaque = pedida && pedida.aba === aba ? pedida.termos : [];
+  useEffect(() => {
+    if (!pedida || pedida.aba !== aba || explicacaoAtendida.get(aba) === pedida.n) return;
+    explicacaoAtendida.set(aba, pedida.n);
+    explicacaoAberta.set(aba, true);
+    setAberta(true);
+    const alvo = quadro.current?.querySelector(".analise-apresentacao-destaque") ?? quadro.current;
+    alvo?.scrollIntoView?.({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [pedida?.n]);
+  return <details ref={quadro} data-testid="analise-entenda" data-aba={aba} open={aberta} className="analise-entenda"
     onToggle={event => { const valor = event.currentTarget.open; if (valor !== aberta) { explicacaoAberta.set(aba, valor); setAberta(valor); } }}>
     <summary data-testid="analise-entenda-botao"><ChevronDown size={15} aria-hidden="true" className="analise-entenda-seta"/>
       Entenda esta análise<span className="sr-only">: {apresentacao.titulo}</span></summary>
-    <TextoDaApresentacao aba={aba} apresentacao={apresentacao}/>
+    <TextoDaApresentacao aba={aba} apresentacao={apresentacao} destaque={destaque}/>
   </details>;
 }
 
@@ -190,6 +210,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** Aba à vista: a Seleção de Territórios ou uma análise. A análise desenhada é a da definição (def.familia): a Seleção e a aba de
    * uma análise que não pode ser executada mostram a apresentação e o motivo, e o desenho continua com a última análise. */
   const [aba, setAba] = useState<Aba>("territorios");
+  const [explicacaoPedida, setExplicacaoPedida] = useState<ExplicacaoPedida | null>(null);
   const [escala, setEscala] = useState<Escala>("linear");
   const [corte, setCorte] = useState<Corte | null>(null);
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -450,6 +471,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!pedido || pedido.id === ultimoPedido.current) return;
     if (!pronto || iniciado.current !== chaveFonte) { pedidoPendente.current = pedido; return; }
     ultimoPedido.current = pedido.id;
+    const { explicar, ...resto } = pedido.pedido;
+    if (explicar) {
+      // Explicação pedida na conversa: abre "Entenda esta análise" na aba e destaca os termos; não muda o gráfico.
+      const termos = explicar.termos.map(codigo => CLASSES_TENDENCIA.find(classe => classe.codigo === codigo)?.rotulo)
+        .filter((rotulo): rotulo is string => !!rotulo);
+      if (def.familia === explicar.aba) setAba(explicar.aba);
+      setExplicacaoPedida({ n: ++explicacoesPedidas, aba: explicar.aba, termos });
+      if (!Object.values(resto).some(valor => valor !== undefined && valor !== null)) return;
+    }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
@@ -590,7 +620,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const referenciasDaResposta = useMemo(() => referenciaPorItem ? (resposta?.referencia?.membros ?? []).map(m => m.id) : [],
     [referenciaPorItem, resposta]);
   const contexto = useMemo(() => ({ ...contextoDoGrafico(def, idsNaTela, titulo, grupoDe, referenciasDaResposta), vista: vistaExibida,
-    resumo: resumoNaTela, mapaDisponivel: mapa.disponivel, motivoSemMapa: mapa.motivo }),
+    resumo: resumoNaTela, mapaDisponivel: mapa.disponivel, motivoSemMapa: mapa.motivo, comparar: [...def.comparar] }),
   [def, idsNaTela, titulo, grupoDe, referenciasDaResposta, vistaExibida, resumoNaTela, mapa.disponivel, mapa.motivo]);
   const ultimoContexto = useRef("");
   useEffect(() => {
@@ -1492,7 +1522,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto}
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>
-          <EntendaEstaAnalise key={aba} aba={aba} apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
+          <EntendaEstaAnalise key={aba} aba={aba} pedida={explicacaoPedida}
+            apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
           {motivoDaAba && <p data-testid="analise-familia-motivo" role="status" className="analise-motivo">
             <strong className="text-ink">Indisponível com estes dados:</strong> {motivoDaAba.motivo}
             {motivoDaAba.enviarDados && <button type="button" data-testid="analise-enviar-dados" className="analise-botao-secundario ml-2"

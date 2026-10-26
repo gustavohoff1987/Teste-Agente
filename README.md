@@ -361,7 +361,7 @@ O Python também confronta deterministamente os períodos e categorias explicita
 
 **Na página única de análise (desde 22/10/2026):** a conversa mexe no gráfico de bolhas. Quando o pedido toca o gráfico ("mostre o Pará", "use Belém como referência", "os 5 municípios com maior densidade", "compare Manaus e Tefé", "tendência anual", "volte aos estados"), as três rotas devolvem o campo `painel`: o comando com família, indicador, nível, municípios, competência, janela, referência, função, seleção, ordenação, condições e grupos. A conversa só interpreta; os números vêm do motor quando a tela aplica o comando. O estado do gráfico chega em `options`, e o pedido seguinte parte dele. Ambiguidades viram alternativas em botões, sem mudar o gráfico. Nas planilhas de outros países, as respostas usam os nomes das unidades e do grupo (distrito, província). Nada da base vai ao provedor. Formato e frases na seção "Conversa no gráfico" de [Docs/CONVERSACAO_INCREMENTO_FN.md](Docs/CONVERSACAO_INCREMENTO_FN.md).
 
-A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
+A conversa **não envia os arquivos CSV/Excel, seus campos ou registros ao Gemini**. Apenas mensagens digitadas pelo usuário, submetidas a uma camada conservadora de minimização e substituição de identificadores, são enviadas ao provedor. Desde 26/10/2026, a redação pelo Gemini de uma explicação (só a pedido de outra formulação) envia também o esqueleto do texto: os conectivos fixos, com marcadores opacos no lugar de todo valor, nome, competência, classe, nota e forma documental. Isso **não implementa a triagem integral** de entidades nominais, estados e autorizações da SPEC v1.2.4. Não utilize dados pessoais ou sensíveis na conversa.
 
 O LLM classifica também intenções conversacionais e perguntas sobre o agente; o backend responde com textos de catálogo local. Saudações, agradecimentos, ajuda, importação, privacidade, limites e explicação de densidade contam com tratamento determinístico sem consumo de franquia. Perguntas como “O que é possível fazer nessa página?” recebem a orientação correspondente, sem substituir a resposta pela apresentação inicial. A fonte atual aparece no alto da página, num resumo de uma linha, com "Trocar".
 
@@ -386,9 +386,9 @@ os mesmos valores do motor. Desde 23/10/2026, "ver no mapa" troca o gráfico pel
 "volte ao gráfico" desfaz: a conversa manda à área o pedido `{ vista }`, sem recalcular (RQ-REP-06). Onde o mapa não está
 disponível (nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na visão Série temporal), a resposta é o
 motivo informado pela área, e nada muda. Pedidos com a vista junto ("mostre o Pará no mapa", "onde ficam os municípios com
-menos de 1 médico por mil?") mudam o recorte e a vista de uma vez. "O que esse gráfico mostra?", "resuma o gráfico",
-"explique o resultado" e "o que estou vendo?" são respondidos na tela com a frase-resumo verificada do motor, como veio,
-sem o intérprete nem o provedor de IA. "Volte ao resultado anterior" (ou "à seleção anterior") reabre a análise anterior
+menos de 1 médico por mil?") mudam o recorte e a vista de uma vez. "O que esse gráfico mostra?", "resuma o gráfico" e
+"o que estou vendo?" são respondidos na tela com a frase-resumo verificada do motor, como veio, sem o intérprete nem o
+provedor de IA; desde 26/10/2026, "explique o resultado" vai ao gestor de diálogo (abaixo). "Volte ao resultado anterior" (ou "à seleção anterior") reabre a análise anterior
 do Histórico, com os mesmos dados, sem recalcular (RQ-LIN-20). A interface reconhece as formas diretas; as demais chegam
 ao intérprete, que as devolve como atos `show_map`, `show_chart`, `show_table` e `previous_result`, com as mesmas
 respostas. Perguntas conceituais sobre os pontos de corte e as
@@ -396,6 +396,33 @@ classes da distribuição (CAP-DIS-02) e sobre a referência mais próxima (CAP-
 formas governadas do catálogo PT, como densidade, distância e agregação. Tendência, mudança temporal, comparação,
 contagem, ranking, critérios e rotatividade continuam sem explicação metodológica na conversa: suas formas descrevem
 etapas que o protótipo não implementa.
+
+**Diálogo governado (26/10/2026).** Na página única, um gestor de diálogo no backend local (`backend/dialogo.py`) responde
+antes da gramática e do provedor, sem calcular nada:
+- resposta escrita a um esclarecimento ("Município.", "a do Pará", "a de janeiro"), como o clique na alternativa, e a
+  informação dada antes de uma pergunta encadeada, lembrada;
+- continuidade: correções ("Não, o estado."; "Não, eu queria a evolução"), "não era isso que eu queria" e "desfaz" (a tela
+  volta ao estado do gráfico de antes da última mudança da conversa), "volta para a comparação anterior", trocas, inclusões,
+  retiradas e "todos";
+- perguntas sobre o resultado em exibição ("qual deles tem a maior densidade?", "e em relação à população?", "qual a
+  diferença?"), com os valores e a ordem do motor, sem mudar o gráfico;
+- explicação progressiva em quatro registros (objetivo, simples, didático e técnico), com a memória do tópico; numa classe
+  da Tendência, a tela abre "Entenda esta análise" com a classe destacada;
+- verificações ("isso significa que melhorou?", "qual foi a causa dessa queda?"), respondidas com os fatos e as regras
+  governadas (CFG-NOR, TPL-06 com EXC-03, TPL-11), conferindo antes a premissa da pergunta;
+- perguntas sobre a tela (dados, territórios, seleção, mapa, relatório, análise anterior, o que mudou, por que algo não
+  aparece) e recusas naturais, com alternativa, às tentativas de mudar valores, criar classificações, trocar o método,
+  afirmar juízos ou delegar escolhas.
+
+Todo número, classe e relação da resposta é copiado da resposta do motor e conferido antes de aparecer; explicações de
+método só com as formas literais do catálogo governado. A tela envia a memória da conversa (`conversa`) e o resultado em
+exibição (`displayed_result_id`); nada disso vai ao provedor. Com o Gemini configurado, ele também classifica atos do
+diálogo (só enumerações) e, a pedido de outra formulação, reescreve a redação de uma explicação já verificada com
+marcadores opacos no lugar de cada valor, nome e forma, sob validador de saída, até 2 regenerações e a mensagem de TPL-08
+quando elas se esgotam. Sem o provedor, com o gráfico na tela, o pedido não reconhecido recebe a mensagem de
+indisponibilidade (TPL-01) com exemplos do que continua disponível, em vez de erro. `ADT_DIALOGO=0` desliga o gestor;
+`ADT_REDACAO_GEMINI=0`, só a redação. Arquitetura, matriz de cobertura, avaliação adversarial (antes e depois) e propostas
+que dependem de decisão: [diálogo governado](Docs/DIALOGO_GOVERNADO.md).
 
 **Biblioteca de Inteligência Conversacional** (20/10/2026): a cada mensagem que chega ao provedor, o intérprete
 recebe até cinco turnos de trajetórias sintéticas da biblioteca (`backend/biblioteca_conversacional/`), escolhidos
@@ -451,7 +478,9 @@ global de duração da conversa. Quando ele expira, a API mantém HTTP 503 e a t
 "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente.".
 Demais falhas de transporte mantêm HTTP 503 e "Não foi possível alcançar a API Gemini. Tente novamente.".
 Erros HTTP retornados pelo provedor mantêm o tratamento próprio de cota, autorização e falha da API;
-não há nova tentativa automática. O prazo da sessão continua sendo 1.800 segundos.
+não há nova tentativa automática. Na página única, com o gráfico na tela, os casos de HTTP 503 (chave ausente, tempo
+esgotado ou falha de transporte) viram, desde 26/10/2026, resposta com a mensagem de indisponibilidade (TPL-01), o motivo
+e exemplos do que continua disponível, sem erro. O prazo da sessão continua sendo 1.800 segundos.
 Medições de recuperação local, tamanho do pedido e espera remota, com e sem exemplos:
 [diagnóstico de latência do Gemini](Docs/DIAGNOSTICO_LATENCIA_GEMINI_20261021.md).
 
@@ -459,7 +488,7 @@ Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/l
 
 ### Fronteira da SPEC
 
-Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambiguidade e opções), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações), C-04 (verificação determinística), RQ-ARQ-06 (minimização), RQ-ORQ-01 (planos governados). FN-INT-01/02/03 e FN-META-01 têm cobertura **parcial**; alternativas ancoradas e orientações de catálogo não equivalem ao fluxo normativo completo de estados, CFG-DOC/V-16 e validações exaustivas. FN-INT-04, FN-ORQ-01 e CAP-SIN-01 continuam pendentes. Antes de alegar conformidade integral, essas lacunas precisam ser implementadas e auditadas.
+Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambiguidade e opções), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações), C-04 (verificação determinística), RQ-ARQ-06 (minimização), RQ-ORQ-01 (planos governados). FN-INT-01/02/03 e FN-META-01 têm cobertura **parcial**; alternativas ancoradas e orientações de catálogo não equivalem ao fluxo normativo completo de estados, CFG-DOC/V-16 e validações exaustivas. FN-INT-04 e CAP-SIN-01 têm cobertura **parcial** (desde 26/10/2026, a explicação verificada do resultado do gráfico e a redação pelo Gemini sob validador de saída, no [diálogo governado](Docs/DIALOGO_GOVERNADO.md)); FN-ORQ-01 continua pendente. Antes de alegar conformidade integral, essas lacunas precisam ser implementadas e auditadas.
 
 ## Testes
 

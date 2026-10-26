@@ -183,6 +183,10 @@ test('Histórico: a análise em exibição é atualizada, a nova entra no fim, e
   assert.equal(P.resultadoDaSessao({...estado('A'), resposta: {sessao: {registrado: true, result_id: 'r1'}}}), 'r1');
   assert.equal(P.resultadoDaSessao({...estado('A'), resposta: {sessao: {registrado: false, result_id: 'r1'}}}), '');
   assert.equal(P.resultadoDaSessao(null), '');
+  // A resposta guardada pela área é a normalizada por painelApi (sessao.resultId): a conversa recebe o resultado em exibição.
+  assert.equal(P.resultadoDaSessao({...estado('A'), resposta: {sessao: {registrado: true, resultId: 'r2'}}}), 'r2');
+  assert.equal(P.resultadoDaSessao({...estado('A'), resposta: {sessao: {registrado: false, resultId: 'r2'}}}), '');
+  assert.equal(P.resultadoDaSessao({...estado('A'), resposta: {sessao: {registrado: true, resultId: null}}}), '');
   assert.equal(P.dataLocal(new Date(2026, 9, 2)), '2026-10-02');
 });
 

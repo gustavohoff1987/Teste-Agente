@@ -173,6 +173,17 @@ class SessionStore:
             self._audit(session, "RESULTADO_CALCULADO")
             return True
 
+    def panel_before(self, token, result_id):
+        """O resultado do gráfico gravado logo antes de `result_id` nesta sessão (a análise anterior da conversa), com a
+        integridade conferida como em result, ou None (sem anterior, ou `result_id` fora da sessão)."""
+        with self.lock:
+            session = self._get(token)
+            panels = [key for key, record in session.results.items() if record.get("painel")]
+            if result_id not in panels or panels.index(result_id) == 0:
+                return None
+            previous = panels[panels.index(result_id) - 1]
+        return self.result(token, previous)
+
     def result(self, token, result_id):
         with self.lock:
             record = self._get(token).results.get(result_id)

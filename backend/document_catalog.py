@@ -70,6 +70,13 @@ def registry():
                         (ROOT / "IMPLEMENTATION_SPEC.md").read_bytes())
 
 
+# Mensagens sistêmicas de CFG-TPL (forma "mensagem", texto fixo) e o desfecho que cada uma comunica (desafio adversarial,
+# 26/10/2026): o gestor de diálogo só as usa quando o desfecho foi estabelecido pela regra (exclusão de escopo, método não
+# incorporado, componente de linguagem indisponível, regenerações esgotadas).
+TEMPLATE_EVIDENCE = frozenset({("DOC:TPL-06", "ADM-FE"), ("DOC:TPL-07", "ADM-SC"), ("DOC:TPL-01", "LLM_INDISPONIVEL"),
+                               ("DOC:TPL-08", "REGENERACAO_ESGOTADA")})
+
+
 def materialize(id_doc, *, language="PT", form="base", evidence=None):
     """Sem interpolação livre. Variantes só entram com predicado explicitamente implementado."""
     if language != "PT":
@@ -81,7 +88,8 @@ def materialize(id_doc, *, language="PT", form="base", evidence=None):
     if form != "base":
         allowed = ((id_doc, form) == ("DOC:CFG-DOC.comportamento", "insuficiencia") and
                    evidence == "DOCUMENTACAO_INSUFICIENTE") or (
-                   (id_doc, form) == ("DOC:TPL-11", "mensagem") and evidence == "DISTANCIA_VERIFICADA")
+                   (id_doc, form) == ("DOC:TPL-11", "mensagem") and evidence == "DISTANCIA_VERIFICADA") or (
+                   form == "mensagem" and (id_doc, evidence) in TEMPLATE_EVIDENCE)
         if not allowed or record.get("variaveis_tipadas"):
             raise DocumentationError("Condições da forma não demonstradas.")
     return {"text": record["texto_template"], "id_doc": id_doc, "language": language,

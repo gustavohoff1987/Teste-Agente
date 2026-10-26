@@ -11,6 +11,11 @@ Percorre:
   responde com a frase-resumo do motor (`analise-resumo`), como veio;
 - o contexto que vai ao intérprete saindo do gráfico: os municípios na tela, a família, o indicador, a competência, a vista
   e a frase-resumo (esta nunca chega ao provedor);
+- o gestor de diálogo (26/10/2026), no backend local e sem o provedor: a pergunta sobre o resultado em exibição ("Qual deles
+  apresenta densidade maior?"), respondida com os valores do motor e sem recalcular; a troca de ordem da comparação; "não
+  era isso que eu queria", que desfaz a última mudança da conversa; a resposta digitada a um esclarecimento ("a de
+  janeiro"), que escolhe a alternativa como o clique; e "não entendi a aceleração", que abre "Entenda esta análise" da
+  Tendência com a classe destacada;
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
 - pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
   continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
@@ -44,10 +49,14 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
 AMAZONAS = sorted([MANAUS, TEFE, PARINTINS])
 SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
-# Nada disto pode chegar ao provedor: arquivos, colunas, códigos e as chaves do contexto do gráfico.
+# Nada disto pode chegar ao provedor: arquivos, colunas, códigos, as chaves do contexto do gráfico e a memória da conversa
+# (26/10/2026: os estados anteriores do gráfico e o resultado em exibição ficam no backend local). A memória é conferida pela
+# chave JSON, como apareceria escapada dentro de uma mensagem do registro: a palavra solta "anteriores" é legítima no cabeçalho
+# fixo dos exemplos da biblioteca ("Mensagens anteriores:").
 PROTEGIDOS = ("Dados_Municipios_Brasil.csv", "Dados_Brasil.xlsx", "Dados_Estados_Brasil.csv", "cod_ibge", "população_estimada",
               "130260", "130420", "130340", "code:", "condados.csv", "territory_ids", "painel_familia", "painel_vista",
-              "painel_resumo", "painel_mapa_disponivel")
+              "painel_resumo", "painel_mapa_disponivel", "painel_motivo_sem_mapa", '\\"anteriores\\"', '\\"pendente\\"',
+              "displayed_result_id")
 
 
 def provider_log():
@@ -89,6 +98,15 @@ def main():
             resposta = conversa.value.json()
             assert resposta.get("handled") is True and resposta.get("painel"), resposta
             return resposta, options_of(conversa.value.request), conversa.value.request, options_of(grafico.value.request)
+
+        def chat_reply(message, timeout=60000):
+            """Mensagem respondida pelo intérprete local (gestor de diálogo ou gramática): a resposta e o pedido."""
+            with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=timeout) as conversa:
+                send(page, message)
+            assert conversa.value.status == 200, conversa.value.text()[:2000]
+            resposta = conversa.value.json()
+            assert resposta.get("handled") is True, resposta
+            return resposta, conversa.value.request
 
         page.goto(URL)
         accept_privacy(page)
@@ -196,6 +214,80 @@ def main():
         assert set(grafico["comparar"]) == {MANAUS, TEFE}, grafico
         page.wait_for_timeout(1000)
         shot("02-comparacao")
+
+        # 6b. Gestor de diálogo (26/10/2026), no backend local e sem o provedor: a pergunta sobre o resultado em exibição é
+        # respondida com os valores do motor (a tela manda a memória da conversa e o resultado em exibição), sem recalcular;
+        # a troca de ordem muda a comparação; "não era isso que eu queria" desfaz a última mudança feita pela conversa.
+        chamadas = len(painel)
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
+            send(page, "Qual deles apresenta densidade maior?")
+        assert event.value.status == 200 and event.value.json().get("handled") is True, event.value.text()[:2000]
+        assert not event.value.json().get("painel"), event.value.json()
+        assert form_field(event.value.request, "displayed_result_id"), "a tela manda o resultado em exibição"
+        assert "anteriores" in json.loads(form_field(event.value.request, "conversa") or "{}"), "a tela manda a memória"
+        expect(latest).to_contain_text("A maior densidade")
+        expect(latest).to_contain_text("MANAUS (AM)")
+        page.wait_for_timeout(800)
+        assert len(painel) == chamadas, "a pergunta sobre o resultado não recalcula"
+        resposta, conversa, pedido, grafico = chat_to_chart("troca o primeiro pelo segundo",
+                                                            lambda o: o.get("comparar") == [TEFE, MANAUS])
+        assert resposta["painel"].get("selecao") == [TEFE, MANAUS], resposta["painel"]
+        expect(latest).to_contain_text("Troquei a ordem")
+        # A comparação de antes já foi calculada: a área a mostra da memória da tela, sem novo pedido ao motor.
+        resposta, pedido = chat_reply("não era isso que eu queria")
+        assert resposta.get("desfazer") == 1 and (resposta.get("painel") or {}).get("selecao") == [MANAUS, TEFE], resposta
+        anteriores = json.loads(form_field(pedido, "conversa"))["anteriores"]
+        assert anteriores and anteriores[-1]["pedido"].get("selecao") == [MANAUS, TEFE], anteriores
+        expect(latest).to_contain_text("Desfiz a última mudança")
+        page.wait_for_timeout(1000)
+
+        # 6c. Resposta digitada a um esclarecimento: "em 2024" tem duas competências no catálogo; as alternativas aparecem em
+        # botões, e a resposta escrita ("a de janeiro") escolhe uma delas, como o clique. "Não era isso" volta à de antes.
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
+            send(page, "Compare Manaus e Tefé em 2024")
+        assert event.value.json().get("choices"), event.value.json()
+        alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
+        expect(alternativas).to_be_visible()
+        resposta, conversa, pedido, grafico = chat_to_chart("a de janeiro", lambda o: o.get("competencia") == "202401")
+        assert json.loads(form_field(pedido, "conversa")).get("pendente", {}).get("alternativas"), "a pendência vai junto"
+        assert grafico.get("comparar") and set(grafico["comparar"]) == {MANAUS, TEFE}, grafico
+        expect(latest).to_contain_text("Entendi:")
+        expect(chat.get_by_role("group", name="Alternativas de esclarecimento")).to_have_count(0)
+        resposta, _ = chat_reply("não era isso que eu queria")
+        assert (resposta.get("painel") or {}).get("competencia") == "202406" and resposta.get("desfazer") == 1, resposta
+        expect(latest).to_contain_text("Desfiz a última mudança")
+        page.wait_for_timeout(1000)
+
+        # 6d. Explicação pela conversa na Tendência: "não entendi a aceleração" responde com as classes e os valores do motor
+        # e abre "Entenda esta análise" da aba com a classe destacada, sem recalcular. O Desfazer do alto volta à
+        # Distribuição para os passos seguintes.
+        with page.expect_response(lambda r: is_post(r, "/api/painel") and "tendencia" in options_of(r.request),
+                                  timeout=120000) as event:
+            aba = area.get_by_test_id("analise-familia-tendencia")  # pelo teclado: a caixa da conversa pode estar por cima
+            aba.scroll_into_view_if_needed()
+            aba.focus()
+            aba.press("Enter")
+        assert event.value.status == 200, event.value.text()[:2000]
+        expect(area).to_have_attribute("data-familia", "tendencia")
+        entenda = area.get_by_test_id("analise-entenda")
+        expect(entenda).not_to_have_attribute("open", "")
+        page.wait_for_timeout(1000)  # a área informa o novo resultado em exibição
+        chamadas = len(painel)
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
+            send(page, "Não entendi a aceleração.")
+        acoes = event.value.json().get("acoes") or []
+        assert acoes and acoes[0].get("tipo") == "explicar" and acoes[0].get("aba") == "tendencia", event.value.json()
+        expect(latest).to_contain_text("Entenda esta análise")
+        expect(entenda).to_have_attribute("open", "")
+        expect(entenda.get_by_test_id("analise-apresentacao-destaque").first).to_be_visible()
+        page.wait_for_timeout(800)
+        assert len(painel) == chamadas, "a explicação não recalcula"
+        shot("02c-explicacao-pela-conversa")
+        desfazer = page.get_by_test_id("analise-desfazer")
+        desfazer.focus()
+        desfazer.press("Enter")
+        expect(area).to_have_attribute("data-familia", "distribuicao", timeout=60000)
+        page.wait_for_timeout(1500)
 
         # 7. Esclarecimento: a conversa pergunta o outro município e guarda a pendência para a mensagem seguinte.
         with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
@@ -383,7 +475,8 @@ def main():
         assert not failures, failures
         browser.close()
     print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa sem seleção automática, todos os estados, Amazonas, "
-          "mapa e gráfico, resumo, comparação, esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
+          "mapa e gráfico, resumo, comparação, gestor de diálogo (pergunta sobre o resultado, troca, desfazer, resposta digitada e "
+          "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
           (", ambiguidade e minimização (Gemini simulado)." if simulado else " (sem provedor)."))
 
 

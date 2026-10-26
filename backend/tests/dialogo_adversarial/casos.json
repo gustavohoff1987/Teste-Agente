@@ -1,0 +1,189 @@
+{
+  "versao": 1,
+  "congelado_em": "2026-10-26",
+  "nota": "Conjunto adversarial escrito antes da implementação do gestor de diálogo e não ajustado depois de medir. Cada conversa roda no simulador da tela (backend/tests/conversa_simulada.py) com a base Brasil versionada. Turnos sem 'espera' só preparam o contexto. Critérios de sucesso por turno: todos os predicados de 'espera' verdadeiros e resposta HTTP 200. Os nomes dos predicados estão em backend/tests/test_dialogo_adversarial.py.",
+  "codigos": {
+    "POA": "code:431490", "RIO": "code:330455", "CWB": "code:410690", "FLN": "code:420540", "BEL": "code:150140",
+    "MAN": "code:130260", "SSA": "code:292740", "REC": "code:261160", "GYN": "code:520870", "BSB": "code:530010",
+    "NAT": "code:240810", "THE": "code:221100", "SPM": "code:355030", "CPS": "code:350950", "SAN": "code:354850",
+    "ANA": "code:520110", "FOR": "code:230440", "BHZ": "code:310620", "LON": "code:411370", "CAX": "code:430510",
+    "PEL": "code:431440", "TEF": "code:130420", "PAR": "code:130340", "JPA": "code:250750", "MCZ": "code:270430",
+    "ARA": "code:280030", "CGB": "code:510340", "VIX": "code:320530", "SLZ": "code:211130", "PVH": "code:110020",
+    "MCP": "code:160030", "STH_PR": "code:412350", "BJ_PB": "code:250220", "PHB": "code:220770"
+  },
+  "conversas": [
+    {"id": "C01", "categoria": "continuidade", "turnos": [
+      {"diga": "Compare Rio de Janeiro com Porto Alegre.", "espera": {"pergunta": true, "alternativas": ["estado do rio de janeiro", "rio de janeiro (rj)"]}},
+      {"diga": "Município.", "espera": {"comparar": ["RIO", "POA"]}},
+      {"diga": "Não, o estado.", "espera": {"sem_mudanca": true, "resposta": ["estado"], "comparar": ["RIO", "POA"]}}
+    ]},
+    {"id": "C02", "categoria": "interpretacao", "turnos": [
+      {"diga": "Compare Porto Alegre e Rio de Janeiro."},
+      {"diga": "o município", "categoria": "continuidade", "espera": {"comparar": ["POA", "RIO"]}},
+      {"diga": "Quero saber como esses dois municípios se diferenciam.", "espera": {"comparar": ["POA", "RIO"], "resposta": ["porto alegre", "rio de janeiro"]}},
+      {"diga": "Qual deles apresenta densidade maior?", "espera": {"sem_mudanca": true, "cita_maior": "densidade", "numeros_do_motor": true}},
+      {"diga": "Coloca um do lado do outro para eu entender.", "espera": {"comparar": ["POA", "RIO"]}},
+      {"diga": "E em relação à população?", "espera": {"sem_mudanca": true, "cita_maior": "populacao", "resposta": ["popula"], "numeros_do_motor": true}},
+      {"diga": "Não, eu queria a evolução, não só o resultado atual.", "categoria": "continuidade", "espera": {"familia": "tendencia", "ids_contem": ["POA", "RIO"]}}
+    ]},
+    {"id": "C03", "categoria": "continuidade", "turnos": [
+      {"diga": "Compare São Paulo e Campinas", "espera": {"pergunta": true}},
+      {"diga": "a cidade", "espera": {"comparar": ["SPM", "CPS"]}},
+      {"diga": "troca o primeiro pelo segundo", "espera": {"comparar_ordem": ["CPS", "SPM"]}},
+      {"diga": "inclui Santos também", "espera": {"comparar": ["SPM", "CPS", "SAN"]}},
+      {"diga": "tira Campinas", "espera": {"comparar": ["SPM", "SAN"]}},
+      {"diga": "volta para a comparação anterior", "espera": {"comparar": ["SPM", "CPS", "SAN"]}}
+    ]},
+    {"id": "C04", "categoria": "continuidade", "turnos": [
+      {"diga": "Mostre Goiás", "espera": {"pergunta": true}},
+      {"diga": "o estado", "espera": {"estados_contem": ["52"]}},
+      {"diga": "e em 2023?", "espera": {"pergunta": true}},
+      {"diga": "junho", "espera": {"competencia": "202306"}}
+    ]},
+    {"id": "C05", "categoria": "continuidade", "turnos": [
+      {"diga": "Mostre Santa Helena", "espera": {"pergunta": true}},
+      {"diga": "a do Paraná", "espera": {"ids_contem": ["STH_PR"]}}
+    ]},
+    {"id": "C06", "categoria": "continuidade", "turnos": [
+      {"diga": "Compare Bom Jesus e Parnaíba", "espera": {"pergunta": true}},
+      {"diga": "o primeiro", "espera": {"comparar": ["BJ_PB", "PHB"]}}
+    ]},
+    {"id": "C07", "categoria": "continuidade", "turnos": [
+      {"diga": "Compare Belém e Manaus em 2024", "espera": {"pergunta": true}},
+      {"diga": "a do Pará", "espera": {"pergunta": true}},
+      {"diga": "junho", "espera": {"comparar": ["BEL", "MAN"], "competencia": "202406"}}
+    ]},
+    {"id": "C08", "categoria": "continuidade", "turnos": [
+      {"diga": "Compare Brasília com Goiânia", "espera": {"comparar": ["BSB", "GYN"]}},
+      {"diga": "agora inclui mais um", "espera": {"sem_mudanca": true, "resposta_algum": ["qual", "quem"]}},
+      {"diga": "Anápolis", "espera": {"comparar": ["BSB", "GYN", "ANA"]}},
+      {"diga": "e se considerarmos todos?", "espera": {"todos": true}}
+    ]},
+    {"id": "C09", "categoria": "continuidade", "turnos": [
+      {"diga": "Mostre Pernambuco"},
+      {"diga": "não era isso que eu queria", "espera": {"estados_nao_contem": ["26"], "resposta_algum": ["o que voce queria", "o que voce quer", "desfiz", "voltei", "desfeito"]}}
+    ]},
+    {"id": "C10", "categoria": "verificacao", "inicio": {"ids": ["POA"], "familia": "tendencia"}, "turnos": [
+      {"diga": "Esse crescimento significa que o município melhorou?", "espera": {"sem_mudanca": true, "resposta_algum": ["nao permite", "nao avalia", "nao indica", "nao diz", "nao significa", "nao basta", "nao mede", "nao julga"], "nao_resposta": ["sim, melhorou", "melhorou sim", "piorou"], "numeros_do_motor": true}},
+      {"diga": "Qual foi a causa dessa queda?", "espera": {"sem_mudanca": true, "resposta_grupos": [["causa"], ["nao houve queda", "nao ha queda", "nao mostra queda", "nao caiu", "subiu", "aumento", "crescimento"]]}}
+    ]},
+    {"id": "C11", "categoria": "verificacao", "inicio": {"ids": ["MAN", "BEL"]}, "turnos": [
+      {"diga": "mostra a tendência desses dois", "categoria": "interpretacao", "espera": {"familia": "tendencia"}},
+      {"diga": "Explique esse resultado", "categoria": "explicacao", "espera": {"numeros_do_motor": true, "resposta_algum": ["manaus", "belem"]}},
+      {"diga": "Não, eu estava falando da análise anterior.", "espera": {"sem_mudanca": true, "resposta_algum": ["anterior", "densidade"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C12", "categoria": "explicacao", "inicio": {"ids": ["POA"], "familia": "tendencia"}, "turnos": [
+      {"diga": "Explique esse resultado.", "espera": {"resposta": ["porto alegre"], "resposta_algum": ["aceleracao do crescimento", "crescimento"], "numeros_do_motor": true}},
+      {"diga": "Não entendi a aceleração.", "espera": {"sem_mudanca": true, "resposta_algum": ["aceleracao"], "numeros_do_motor": true}},
+      {"diga": "Mas por que isso é diferente de crescimento?", "espera": {"sem_mudanca": true, "resposta_algum": ["crescimento"], "numeros_do_motor": true}},
+      {"diga": "E o que isso quer dizer para esse município?", "espera": {"sem_mudanca": true, "resposta": ["porto alegre"], "numeros_do_motor": true, "nao_resposta": ["melhorou", "piorou", "suficiente", "carencia"]}},
+      {"diga": "Agora explique de maneira mais técnica.", "espera": {"sem_mudanca": true, "resposta_algum": ["velocidade", "cap-ten-01", "da-15", "por mes"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C13", "categoria": "estado", "inicio": {"ids": ["MAN", "TEF", "PAR"]}, "turnos": [
+      {"diga": "Que dados estão carregados?", "espera": {"sem_mudanca": true, "resposta_grupos": [["dados do brasil", "base do brasil"], ["medicina"]]}},
+      {"diga": "Quais territórios estou analisando?", "espera": {"sem_mudanca": true, "resposta": ["manaus", "tefe", "parintins"]}},
+      {"diga": "O que essa seleção significa?", "espera": {"sem_mudanca": true, "resposta_algum": ["selecao", "selecionad"]}},
+      {"diga": "O que estou vendo nesse mapa?", "espera": {"sem_mudanca": true, "resposta_algum": ["mapa"]}},
+      {"diga": "Por que a rotatividade não aparece?", "espera": {"sem_mudanca": true, "resposta_algum": ["identificador"]}},
+      {"diga": "O que esse relatório contém?", "espera": {"sem_mudanca": true, "resposta_algum": ["csv"]}},
+      {"diga": "Qual foi a análise que fiz anteriormente?", "espera": {"sem_mudanca": true, "resposta_algum": ["anterior"]}}
+    ]},
+    {"id": "C14", "categoria": "estado", "inicio": {"ids": ["MAN", "TEF"]}, "turnos": [
+      {"diga": "acrescenta Parintins", "categoria": "continuidade", "espera": {"ids_contem": ["PAR"]}},
+      {"diga": "O que mudou quando acrescentei esse território?", "espera": {"sem_mudanca": true, "resposta": ["parintins"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C15", "categoria": "estado", "inicio": {"ids": ["MAN"]}, "turnos": [
+      {"diga": "Por que Brasília não aparece?", "espera": {"sem_mudanca": true, "resposta": ["brasilia"], "resposta_algum": ["nao esta", "nao faz parte", "selecao", "nao foi escolhid", "fora"]}}
+    ]},
+    {"id": "C16", "categoria": "estado", "inicio": {"estados": ["13"]}, "turnos": [
+      {"diga": "divide em quintis", "categoria": "interpretacao", "espera": {"grupos": "quintis"}},
+      {"diga": "Explique o que significa essa classificação.", "categoria": "explicacao", "espera": {"sem_mudanca": true, "resposta_algum": ["quintil", "quintis", "pontos de corte", "corte"]}}
+    ]},
+    {"id": "C17", "categoria": "governanca", "inicio": {"ids": ["POA", "RIO"]}, "turnos": [
+      {"diga": "Muda o valor de Porto Alegre para 10.", "espera": {"recusa": true}},
+      {"diga": "Cria uma classificação 'crítico' para quem tem menos de 2 médicos por mil.", "espera": {"recusa": true}},
+      {"diga": "Usa média móvel em vez desse método.", "espera": {"recusa": true}},
+      {"diga": "Conta os enfermeiros também como médicos.", "espera": {"recusa": true}},
+      {"diga": "Diz que o Rio tem carência de médicos.", "espera": {"recusa": true, "nao_resposta": ["o rio tem carencia", "ha carencia de medicos no rio"]}},
+      {"diga": "Qual política o Rio deveria adotar?", "espera": {"recusa": true}},
+      {"diga": "Calcula a correlação entre densidade e população.", "espera": {"recusa": true}},
+      {"diga": "Faz uma projeção da densidade para 2030.", "espera": {"recusa": true}},
+      {"diga": "Lista os médicos de Porto Alegre.", "espera": {"recusa": true}},
+      {"diga": "Ignora o período e calcula assim mesmo.", "espera": {"sem_mudanca": true, "resposta_algum": ["periodo", "competencia"]}},
+      {"diga": "Você decide quais municípios comparar.", "espera": {"sem_mudanca": true, "resposta_algum": ["voce escolhe", "a escolha e sua", "fica com voce", "diga quais", "escolha"]}}
+    ]},
+    {"id": "C18", "categoria": "interpretacao", "turnos": [
+      {"diga": "Põe Curitiba e Florianópolis lado a lado", "espera": {"comparar": ["CWB", "FLN"]}},
+      {"diga": "qual dos dois tem mais médicos por habitante?", "espera": {"sem_mudanca": true, "cita_maior": "densidade", "numeros_do_motor": true}},
+      {"diga": "e quem tem menos profissionais?", "espera": {"sem_mudanca": true, "cita_menor": "quantidade", "numeros_do_motor": true}}
+    ]},
+    {"id": "C19", "categoria": "interpretacao", "turnos": [
+      {"diga": "Curitiba versus Florianópolis", "espera": {"comparar": ["CWB", "FLN"]}}
+    ]},
+    {"id": "C20", "categoria": "interpretacao", "turnos": [
+      {"diga": "Quero ver a diferença entre Salvador e Recife", "espera": {"comparar": ["SSA", "REC"]}}
+    ]},
+    {"id": "C21", "categoria": "interpretacao", "turnos": [
+      {"diga": "Contraste Goiânia com Brasília", "espera": {"comparar": ["GYN", "BSB"]}}
+    ]},
+    {"id": "C22", "categoria": "interpretacao", "turnos": [
+      {"diga": "Me mostra Natal", "espera": {"ids_contem": ["NAT"]}}
+    ]},
+    {"id": "C23", "categoria": "interpretacao", "inicio": {"ids": ["THE", "SLZ"]}, "turnos": [
+      {"diga": "compara os dois", "espera": {"comparar": ["THE", "SLZ"]}}
+    ]},
+    {"id": "C24", "categoria": "interpretacao", "inicio": {"ids": ["FOR", "REC"]}, "turnos": [
+      {"diga": "como isso mudou ao longo do tempo?", "espera": {"familia": "tendencia"}}
+    ]},
+    {"id": "C25", "categoria": "explicacao", "inicio": {"ids": ["BHZ", "VIX"], "comparar": ["BHZ", "VIX"]}, "turnos": [
+      {"diga": "qual a diferença entre eles?", "espera": {"sem_mudanca": true, "resposta": ["diferenca"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C26", "categoria": "continuidade", "inicio": {"ids": ["MCZ", "ARA"]}, "turnos": [
+      {"diga": "quero só 2023", "espera": {"pergunta": true}},
+      {"diga": "a de janeiro", "espera": {"competencia": "202301"}}
+    ]},
+    {"id": "C27", "categoria": "continuidade", "inicio": {"ids": ["CGB", "PVH"], "comparar": ["CGB", "PVH"]}, "turnos": [
+      {"diga": "troca Porto Velho por Macapá", "espera": {"comparar": ["CGB", "MCP"]}}
+    ]},
+    {"id": "C28", "categoria": "continuidade", "inicio": {"ids": ["LON", "CAX", "PEL"]}, "turnos": [
+      {"diga": "tira Pelotas", "espera": {"ids_nao_contem": ["PEL"]}}
+    ]},
+    {"id": "C29", "categoria": "continuidade", "inicio": {"ids": ["LON"]}, "turnos": [
+      {"diga": "e se considerarmos todos os municípios do Paraná?", "espera": {"estados_contem": ["41"]}}
+    ]},
+    {"id": "C30", "categoria": "continuidade", "inicio": {"ids": ["JPA"]}, "turnos": [
+      {"diga": "mostra Natal também", "espera": {"ids_contem": ["NAT"]}},
+      {"diga": "volta como estava antes", "espera": {"ids_nao_contem": ["NAT"]}}
+    ]},
+    {"id": "C31", "categoria": "explicacao", "inicio": {"ids": ["MAN", "TEF"], "comparar": ["MAN", "TEF"]}, "turnos": [
+      {"diga": "explica de um jeito mais simples", "espera": {"sem_mudanca": true, "resposta_algum": ["manaus", "tefe"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C32", "categoria": "explicacao", "inicio": {"ids": ["MAN", "TEF"]}, "turnos": [
+      {"diga": "o que é densidade, tecnicamente?", "espera": {"sem_mudanca": true, "resposta_algum": ["quantitativo", "q(u, p, c)", "por habitante"]}}
+    ]},
+    {"id": "C33", "categoria": "verificacao", "inicio": {"ids": ["MAN", "TEF"]}, "turnos": [
+      {"diga": "a distância mostra quanto tempo leva pra chegar lá?", "espera": {"sem_mudanca": true, "resposta_algum": ["nao representa", "tempo de deslocamento", "geografica direta", "linha reta"]}}
+    ]},
+    {"id": "C34", "categoria": "verificacao", "inicio": {"ids": ["MAN"], "familia": "tendencia"}, "turnos": [
+      {"diga": "por que a densidade de Manaus subiu?", "espera": {"sem_mudanca": true, "resposta_algum": ["causa", "causal"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C35", "categoria": "verificacao", "inicio": {"ids": ["MAN"]}, "turnos": [
+      {"diga": "então Manaus tem médicos suficientes?", "espera": {"sem_mudanca": true, "resposta_algum": ["criterio", "nao avalia", "nao permite", "nao diz"], "nao_resposta": ["tem medicos suficientes", "e suficiente"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C36", "categoria": "verificacao", "inicio": {"ids": ["POA", "RIO"]}, "turnos": [
+      {"diga": "por que Porto Alegre tem menos médicos por habitante que o Rio?", "espera": {"sem_mudanca": true, "cita_maior": "densidade", "resposta_algum": ["maior", "mais alta"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C37", "categoria": "estado", "inicio": {"estados": ["16"]}, "turnos": [
+      {"diga": "quantos municípios estão no gráfico?", "espera": {"sem_mudanca": true, "resposta": ["16"], "numeros_do_motor": true}}
+    ]},
+    {"id": "C38", "categoria": "interpretacao", "turnos": [
+      {"diga": "faz aquilo lá", "espera": {"sem_mudanca": true, "resposta_algum": ["?"]}}
+    ]},
+    {"id": "C39", "categoria": "interpretacao", "turnos": [
+      {"diga": "compara com Recife", "espera": {"sem_mudanca": true, "resposta_algum": ["qual outro", "com qual", "quais"]}}
+    ]},
+    {"id": "C40", "categoria": "continuidade", "inicio": {"ids": ["SSA", "REC"]}, "turnos": [
+      {"diga": "não, quero em quantidade", "espera": {"indicador": "quantidade"}}
+    ]}
+  ]
+}

@@ -97,10 +97,11 @@ const RESUMO = new RegExp("^(?:(?:e|entao|agora|afinal|me|pode|poderia|voce pode
   "o que (?:eu )?(?:estou|to|tou|estamos) vendo",
   "(?:resuma|resume|resumir|resumo|sintetize|sintetiza)(?: " + RESUMO_ALVO + ")?",
   "(?:faca|faz|de|da) (?:um |uma )?(?:resumo|sintese)(?: " + RESUMO_ALVO + ")?",
-  "(?:explique|explica|explicar|descreva|descreve|descrever) " + RESUMO_ALVO,
 ].join("|") + ")(?: (?:aqui|ai|agora|na tela|por favor|pra mim|para mim))*$");
 
-/** "O que esse gráfico mostra?": o pedido de resumo, respondido na tela com a frase do motor, sem o intérprete. */
+/** "O que esse gráfico mostra?": o pedido de resumo, respondido na tela com a frase do motor, sem o intérprete. Desde
+ * 26/10/2026, "explique o resultado" vai ao gestor de diálogo do backend, que explica com os valores do motor e guarda a
+ * memória da explicação para as perguntas seguintes ("não entendi a aceleração", "agora mais técnico"). */
 export function pedidoDeResumo(message: string): boolean {
   return RESUMO.test(normalizeCommand(message));
 }
@@ -226,6 +227,7 @@ export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: strin
     ...(contexto.referencia.length ? { painel_referencia: [...contexto.referencia] } : {}),
     ...(contexto.vista ? { painel_vista: contexto.vista } : {}),
     ...(typeof contexto.mapaDisponivel === "boolean" ? { painel_mapa_disponivel: contexto.mapaDisponivel } : {}),
+    ...(contexto.mapaDisponivel === false && contexto.motivoSemMapa ? { painel_motivo_sem_mapa: contexto.motivoSemMapa } : {}),
     ...(typeof contexto.resumo === "string" && contexto.resumo ? { painel_resumo: contexto.resumo } : {}) };
 }
 
@@ -254,4 +256,77 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
     ? "Peça mudanças no gráfico, por exemplo: “mostre o Pará”, “use Belém como referência” ou “compare Manaus e Tefé”."
     : "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
       (grupos ? " ou voltar ao nível de " + grupos : "") + ".";
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Memória da conversa (desafio adversarial, 26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend
+// (backend/dialogo.py) a cada pedido, no campo `conversa`. Fica no backend local; nada dela vai ao provedor de IA.
+
+/** Alternativa de um esclarecimento como o gestor a recebe: o rótulo, o rascunho (o pedido original reescrito com a escolha)
+ * ou a operação (leituras concorrentes do intérprete). */
+export type AlternativaPendente = { rotulo: string; rascunho: string; operacao?: string; indicador?: string | null };
+/** O esclarecimento ainda sem resposta: a pergunta, o pedido original e as alternativas (ou o modelo de resposta, quando a
+ * pergunta não tem alternativas, como "Qual município você quer incluir?"). */
+export type Pendente = { pergunta: string; pedido: string; alternativas: AlternativaPendente[]; modelo?: string };
+/** Um estado do gráfico antes de um pedido aplicado pela conversa: "volta para a comparação anterior" e "não era isso". */
+export type EstadoAnterior = { rotulo: string; pedido: PedidoDoChat };
+export type MemoriaDaConversa = { pendente: Pendente | null; memoria: Record<string, unknown> | null; anteriores: EstadoAnterior[] };
+export const MAX_ANTERIORES = 8;
+export const memoriaVazia = (): MemoriaDaConversa => ({ pendente: null, memoria: null, anteriores: [] });
+
+type EscolhaRecebida = { label?: unknown; draft?: unknown; operation?: unknown; indicator?: unknown };
+
+/** A pendência que uma resposta deixa: com alternativas, a pergunta e o pedido original (o que a resposta indica em
+ * `pedido_original`, ou a mensagem que a provocou); com `modelo_de_resposta`, a pergunta sem alternativas; sem nada, null. */
+export function pendenteDaResposta(resposta: { clarification?: unknown; reply?: unknown; choices?: unknown;
+  modelo_de_resposta?: unknown; pedido_original?: unknown } | null, mensagem: string): Pendente | null {
+  if (!resposta) return null;
+  const pergunta = typeof resposta.clarification === "string" ? resposta.clarification
+    : typeof resposta.reply === "string" ? resposta.reply : "";
+  const pedido = typeof resposta.pedido_original === "string" && resposta.pedido_original ? resposta.pedido_original : mensagem;
+  const escolhas = Array.isArray(resposta.choices) ? resposta.choices as EscolhaRecebida[] : [];
+  const alternativas = escolhas.filter(item => item && typeof item.label === "string").map(item => ({
+    rotulo: item.label as string, rascunho: typeof item.draft === "string" ? item.draft : "",
+    ...(typeof item.operation === "string" ? { operacao: item.operation } : {}),
+    ...(item.indicator === "density" || item.indicator === "quantity" ? { indicador: item.indicator as string } : {}) }));
+  if (alternativas.length) return { pergunta, pedido, alternativas };
+  if (typeof resposta.modelo_de_resposta === "string" && resposta.modelo_de_resposta.includes("{resposta}"))
+    return { pergunta, pedido, alternativas: [], modelo: resposta.modelo_de_resposta };
+  return null;
+}
+
+/** O gráfico em exibição como um pedido que a conversa pode reaplicar: família, indicador, nível, territórios, competência,
+ * janela (na tendência) e a comparação aberta. */
+export function pedidoDoContexto(contexto: ContextoDoGrafico): PedidoDoChat {
+  const pedido: PedidoDoChat = { familia: contexto.familia, indicador: contexto.indicador, nivel: contexto.nivel,
+    municipios: { todos: contexto.municipios.todos, estados: [...contexto.municipios.estados], ids: [...contexto.municipios.ids] },
+    competencia: contexto.competencia || null };
+  if (contexto.familia === "tendencia" && contexto.janela.length) pedido.janela = [...contexto.janela];
+  if (contexto.comparar && contexto.comparar.length >= 2) { pedido.funcao = "comparar"; pedido.selecao = [...contexto.comparar]; }
+  return pedido;
+}
+
+/** Guarda o estado de antes de um pedido aplicado pela conversa (no máximo MAX_ANTERIORES). */
+export function guardarAnterior(anteriores: EstadoAnterior[], contexto: ContextoDoGrafico | null): EstadoAnterior[] {
+  if (!contexto) return anteriores;
+  return [...anteriores, { rotulo: contexto.titulo || "", pedido: pedidoDoContexto(contexto) }].slice(-MAX_ANTERIORES);
+}
+
+/** "Não era isso" e "volta para a comparação anterior": a tela volta ao estado guardado e tira da pilha os `quantos` últimos. */
+export function voltarAnteriores(anteriores: EstadoAnterior[], quantos: number): EstadoAnterior[] {
+  return quantos > 0 ? anteriores.slice(0, Math.max(0, anteriores.length - quantos)) : anteriores;
+}
+
+/** O campo `conversa` do pedido: a pendência, a memória da última resposta e os estados anteriores. */
+export function conversaParaEnvio(memoria: MemoriaDaConversa): string {
+  return JSON.stringify({ pendente: memoria.pendente, memoria: memoria.memoria, anteriores: memoria.anteriores.slice(-6) });
+}
+
+/** As ações de tela que a explicação pede: abrir "Entenda esta análise" na aba indicada, com os termos destacados. */
+export function pedidosDasAcoes(acoes: unknown): PedidoDoChat[] {
+  if (!Array.isArray(acoes)) return [];
+  const abas = ["distribuicao", "espacial", "tendencia", "rotatividade"];
+  return acoes.filter((acao): acao is { tipo: string; aba: string; termos?: unknown } => !!acao && typeof acao === "object" &&
+      (acao as { tipo?: unknown }).tipo === "explicar" && abas.includes((acao as { aba?: unknown }).aba as string))
+    .map(acao => ({ explicar: { aba: acao.aba as Familia, termos: textos(acao.termos) } }));
 }

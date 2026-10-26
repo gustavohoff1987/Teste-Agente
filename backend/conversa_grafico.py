@@ -30,7 +30,7 @@ FAMILIAS = ("distribuicao", "espacial", "tendencia", "rotatividade")
 # pré-exame e do provedor. painel_resumo é a frase-resumo do motor, com valores da base: fica só na conversa local.
 CONTEXTO = ("painel_familia", "painel_indicador", "painel_nivel", "painel_municipios", "painel_competencia",
             "painel_janela", "painel_referencia", "painel_condicoes", "painel_vista", "painel_resumo",
-            "painel_mapa_disponivel", "rotulos", "conversation_pending_ids")
+            "painel_mapa_disponivel", "painel_motivo_sem_mapa", "rotulos", "conversation_pending_ids")
 VISTAS = ("grafico", "mapa", "lado")
 # Operações atuais → família, indicador e função do gráfico (contrato, seção 4).
 OPERACOES = {
@@ -119,11 +119,14 @@ CRESCENTE = re.compile(r"\b(?:crescente|(?:do\s+)?menor(?:es)?\s+(?:para|ao|pro)
                        r"menores\s+primeiro|mais\s+proxim[oa]s?\s+primeiro)\b")
 ALVO_ORDEM = re.compile(r"\s*(?:de|da|do|ate|a|ao|em\s+relacao\s+(?:a|ao))\s+")
 
-COMPARAR = re.compile(r"\b(?:compare|comparar|compara|comparacao|comparando|confronte|confrontar)\b|\blado\s+a\s+lado\b")
+COMPARAR = re.compile(r"\b(?:compare|comparar|compara|comparacao|comparando|confronte|confrontar|contraste|contrastar|"
+                      r"contrasta|coteje|cotejar|versus|vs)\b|\blado\s+a\s+lado\b|\bum\s+(?:do|ao)\s+lado\s+do\s+outro\b|"
+                      r"\bfrente\s+a\s+frente\b|\bse\s+diferenciam\b|\b(?:a|as)\s+diferencas?\s+entre\b")
 JUNTAR = re.compile(r"\b(?:junte|juntar|junta|juntando|juncao|agrupe|agrupar|agrupa|agregue|agregar|agrega|agregacao|"
                     r"some|somar)\b|\b(?:faca|faz|crie|cria|monte|forme|gere)\s+(?:um\s+)?conjunto\b|"
                     r"\b(?:num|em\s+um)\s+(?:so\s+)?conjunto\b")
-DEIXIS = re.compile(r"\b(?:esses|estes|essas|estas|selecionad[oa]s|marcad[oa]s)\b")
+DEIXIS = re.compile(r"\b(?:esses|estes|essas|estas|desses|destes|dessas|destas|selecionad[oa]s|marcad[oa]s|"
+                    r"os\s+dois|as\s+duas|os\s+tres|as\s+tres|ambos|ambas)\b")
 EXPORTAR = re.compile(r"\b(?:exporte|exportar|exporta|exportacao|baixe|baixar|baixa|download|csv|imprima|imprimir|"
                       r"impressao|pdf|relatorio)\b")
 
@@ -159,7 +162,8 @@ ACRESCENTAR = re.compile(r"\b(?:acrescente|acrescentar|acrescenta|adicione|adici
 RETIRAR = re.compile(r"\b(?:tire|tirar|tira|retire|retirar|retira|remova|remover|remove|exclua|excluir|exclui|esconda|"
                      r"esconder)\b")
 VERBO_VISTA = re.compile(r"\b(?:mostre|mostrar|mostra|exiba|exibir|exibe|abra|abrir|abre|veja|ver|visualize|visualizar|"
-                         r"foque|focar|apresente|apresentar|traga|trazer|quero|queria|gostaria)\b")
+                         r"foque|focar|apresente|apresentar|traga|trazer|traz|quero|queria|gostaria|joga|jogue|jogar|bota|"
+                         r"bote|botar|poe|ponha|coloca|coloque|colocar|plota|plote|desenha|desenhe)\b")
 EXPLICACAO = re.compile(r"\b(?:entender|explique|explica|explicar|significa|significado|conceito|definicao|calcula|"
                         r"calculada|calculado|calculo|metodo|formula)\b")
 TAMBEM = re.compile(r"\b(?:tambem|alem\s+disso|adicionalmente|mais\s+uma\s+condicao)\b")
@@ -187,7 +191,7 @@ FOLGA_DO_RITMO = 2  # meses: janeiro e junho ficam a 5 e 7 meses e contam como s
 FAIXA = re.compile(r"\b(?:entre|de|desde|do\s+ano\s+de)\s+((?:19|20)\d{2})\s+(?:e|a|ate|para)\s+((?:19|20)\d{2})\b")
 DESDE = re.compile(r"\b(?:a\s+partir\s+de|desde)\s+((?:19|20)\d{2})\b")
 ATE = re.compile(r"\bate\s+((?:19|20)\d{2})\b")
-ANO = re.compile(r"\b(?:em|de|no|do|para|ano\s+de|ano)\s+((?:19|20)\d{2})\b")
+ANO = re.compile(r"\b(?:em|de|no|do|para|ano\s+de|ano|so|somente|apenas)\s+((?:19|20)\d{2})\b")
 PREFIXO_RELATIVO = re.compile(r"\b(?:(?:n|d)?[oa]s|em|nest[ea]s|ness[ea]s)\s+$")
 
 REGIAO = re.compile(r"\b(?:(?P<unidades>municipios|cidades)\s+(?:da|de|do|na|no)\s+(?:regiao\s+)?|(?:estados|ufs)\s+"
@@ -382,6 +386,8 @@ def contexto(options):
             # Vista em exibição e se o mapa está disponível, como a área informou (a frase-resumo não entra aqui).
             "vista": options.get("painel_vista") if options.get("painel_vista") in VISTAS else None,
             "mapa_disponivel": disponivel if isinstance(disponivel, bool) else None,
+            "motivo_sem_mapa": options.get("painel_motivo_sem_mapa")[:300]
+            if isinstance(options.get("painel_motivo_sem_mapa"), str) else None,
             # Unidade já identificada numa comparação pendente ("compare Manaus" → "com qual outro?").
             "pendentes": [item for item in _textos(options.get("conversation_pending_ids"))
                           if item.startswith(("code:", "name:"))]}
@@ -809,6 +815,21 @@ def _resolve(conv, inicio=0, fim=None):
     achado["ids"] = list(dict.fromkeys(identificador for _, identificador in sorted(achado["ids"])))
     achado["grupos"] = list(dict.fromkeys((chave, sabor) for _, chave, sabor in sorted(achado["grupos"])))
     return achado
+
+
+def nomes_citados(mensagem, frame, fields, settings, ctx, *, brasil, opcoes=None, grupo=None):
+    """Unidades e grupos citados num trecho, pelo mesmo resolvedor dos comandos (para o gestor de diálogo: trocas e
+    inclusões em dialogo.py). Ambiguidade volta como {"pergunta"}, com as alternativas em botões. Nunca calcula."""
+    conv = _Conversa(mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo)
+    achado = _resolve(conv)
+    if "pergunta" in achado:
+        return achado
+    ids, _ = _membros(conv, {"ids": achado["ids"], "grupos": [g for g in achado["grupos"] if g[1] != "objeto"]})
+    nomes, _ = _desconhecidas(conv)
+    return {"ids": ids, "rotulos": {i: conv.cat.rotulo(i) for i in ids} if conv.cat is not None else {},
+            "grupos": [chave for chave, sabor in achado["grupos"] if sabor == "objeto"], "todos": achado["todos"],
+            "desconhecidos": nomes, "estados_de": {i: str(conv.cat.itens[i].get("state_code") or "")
+                                                    for i in ids} if conv.cat is not None else {}}
 
 
 def _membros(conv, achado):
@@ -1587,7 +1608,8 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if objetos and ids:
         return _pergunta("Estados e municípios não ficam no mesmo gráfico: escolha só estados ou só municípios para " +
                          verbo + "." + NADA_MUDOU)
-    if not objetos and not ids and deixis:
+    if not objetos and not ids and (deixis or (funcao == "comparar" and 2 <= len(conv.ctx["ids"]) <= 3)):
+        # "Compare esses" ou só "compare", com 2 ou 3 unidades na tela: as que estão no gráfico (a resposta diz quais).
         ids = list(conv.ctx["ids"])
     if pendente and not objetos:
         ids = list(dict.fromkeys(pendentes + ids))

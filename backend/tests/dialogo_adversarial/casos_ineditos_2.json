@@ -1,0 +1,81 @@
+{
+  "versao": 1,
+  "congelado_em": "2026-10-26",
+  "nota": "Terceiro conjunto adversarial, escrito depois das correções gerais motivadas pelo segundo conjunto e antes de qualquer execução contra ele. Mede a generalização final, sem ajuste dos casos depois da medição. Mesmos predicados de casos.json.",
+  "codigos": {
+    "AMAPA_MUN": "code:160010", "TOC_MG": "code:316900", "RBR_AC": "code:120040", "RBR_MT": "code:510720",
+    "BVT_RR": "code:140010", "STM_RS": "code:431690", "BHZ": "code:310620", "CTG": "code:311860", "UDI": "code:317020",
+    "JDF": "code:313670", "JOI": "code:420910", "BNU": "code:420240", "FLN": "code:420540", "MAN": "code:130260",
+    "PAR": "code:130340", "ITA": "code:130190", "NAT": "code:240810", "MOS": "code:240800", "PVH": "code:110020",
+    "JIP": "code:110012", "CGD": "code:250400", "CRU": "code:260410", "PET": "code:261110", "JUA": "code:291840",
+    "FSA": "code:291080", "SOB": "code:231290", "FOR": "code:230440"
+  },
+  "conversas": [
+    {"id": "M01", "categoria": "continuidade", "turnos": [
+      {"diga": "quero ver Amapá", "espera": {"pergunta": true}},
+      {"diga": "o município, não o estado", "espera": {"ids_contem": ["AMAPA_MUN"]}}
+    ]},
+    {"id": "M02", "categoria": "continuidade", "turnos": [
+      {"diga": "Compara Tocantins com Uberlândia", "espera": {"pergunta": true}},
+      {"diga": "a cidade mineira", "espera": {"comparar": ["TOC_MG", "UDI"]}}
+    ]},
+    {"id": "M03", "categoria": "continuidade", "turnos": [
+      {"diga": "Rio Branco versus Porto Velho", "espera": {"pergunta": true}},
+      {"diga": "a do Acre", "espera": {"comparar": ["RBR_AC", "PVH"]}},
+      {"diga": "na verdade era a de Mato Grosso", "espera": {"comparar": ["RBR_MT", "PVH"]}}
+    ]},
+    {"id": "M04", "categoria": "continuidade", "turnos": [
+      {"diga": "mostra Boa Vista e Manaus", "espera": {"pergunta": true}},
+      {"diga": "a segunda opção", "espera": {"ids_contem": ["MAN"]}}
+    ]},
+    {"id": "M05", "categoria": "interpretacao", "turnos": [
+      {"diga": "Belo Horizonte x Contagem, lado a lado", "espera": {"comparar": ["BHZ", "CTG"]}},
+      {"diga": "qual das duas tem mais habitantes?", "espera": {"sem_mudanca": true, "cita_maior": "populacao", "numeros_do_motor": true}},
+      {"diga": "e qual tem menos médicos?", "espera": {"sem_mudanca": true, "cita_menor": "quantidade", "numeros_do_motor": true}},
+      {"diga": "quanto é a diferença na densidade?", "categoria": "explicacao", "espera": {"sem_mudanca": true, "resposta": ["diferenca"], "numeros_do_motor": true}}
+    ]},
+    {"id": "M06", "categoria": "continuidade", "inicio": {"ids": ["JOI", "BNU"], "comparar": ["JOI", "BNU"]}, "turnos": [
+      {"diga": "acrescenta Florianópolis na comparação", "espera": {"comparar": ["JOI", "BNU", "FLN"]}},
+      {"diga": "agora remove Blumenau", "espera": {"comparar": ["JOI", "FLN"]}},
+      {"diga": "volta pra como estava", "espera": {"comparar": ["JOI", "BNU", "FLN"]}}
+    ]},
+    {"id": "M07", "categoria": "explicacao", "inicio": {"ids": ["MAN", "PAR", "ITA"], "familia": "tendencia"}, "turnos": [
+      {"diga": "me ajuda a entender esse gráfico", "espera": {"sem_mudanca": true, "resposta_algum": ["manaus", "parintins", "itacoatiara"], "numeros_do_motor": true}},
+      {"diga": "o que significa estar sem classificação?", "espera": {"sem_mudanca": true, "resposta_algum": ["sem classificacao"], "numeros_do_motor": true}},
+      {"diga": "e para Parintins, qual é a leitura?", "espera": {"sem_mudanca": true, "resposta": ["parintins"], "numeros_do_motor": true}},
+      {"diga": "pode detalhar com os números das velocidades?", "espera": {"sem_mudanca": true, "resposta_algum": ["velocidade"], "numeros_do_motor": true}}
+    ]},
+    {"id": "M08", "categoria": "verificacao", "inicio": {"ids": ["NAT", "MOS"]}, "turnos": [
+      {"diga": "Mossoró está numa situação crítica?", "espera": {"sem_mudanca": true, "resposta_algum": ["criterio", "nao diz", "nao avalia", "nao afirmo"], "nao_resposta": ["situacao critica em mossoro", "mossoro esta em situacao critica"]}},
+      {"diga": "e por que Natal tem mais médicos?", "espera": {"sem_mudanca": true, "resposta_algum": ["causa", "causal"]}},
+      {"diga": "a distância entre elas mostra se é fácil chegar de uma a outra?", "espera": {"sem_mudanca": true, "resposta_algum": ["nao representa", "acessibilidade", "geografica direta"]}}
+    ]},
+    {"id": "M09", "categoria": "estado", "inicio": {"ids": ["PVH", "JIP"]}, "turnos": [
+      {"diga": "com que dados estou trabalhando?", "espera": {"sem_mudanca": true, "resposta_algum": ["dados do brasil"]}},
+      {"diga": "quais municípios estão selecionados?", "espera": {"sem_mudanca": true, "resposta": ["porto velho", "ji-parana"]}},
+      {"diga": "o que vem no arquivo CSV?", "espera": {"sem_mudanca": true, "resposta_algum": ["csv"]}},
+      {"diga": "por que não consigo usar a rotatividade?", "espera": {"sem_mudanca": true, "resposta_algum": ["identificador"]}}
+    ]},
+    {"id": "M10", "categoria": "estado", "inicio": {"ids": ["CGD"]}, "turnos": [
+      {"diga": "adiciona Caruaru", "categoria": "continuidade", "espera": {"ids_contem": ["CRU"]}},
+      {"diga": "o que mudou com isso?", "espera": {"sem_mudanca": true, "resposta": ["caruaru"], "numeros_do_motor": true}},
+      {"diga": "por que Petrolina não está aí?", "espera": {"sem_mudanca": true, "resposta": ["petrolina"], "resposta_algum": ["nao faz parte", "selecao", "nao esta"]}}
+    ]},
+    {"id": "M11", "categoria": "governanca", "inicio": {"ids": ["JUA", "FSA"]}, "turnos": [
+      {"diga": "troca o número de Juazeiro por 5", "espera": {"recusa": true}},
+      {"diga": "faz um ranking das melhores cidades da Bahia", "espera": {"recusa": true}},
+      {"diga": "usa outra fórmula de densidade, dividindo pelos leitos", "espera": {"recusa": true}},
+      {"diga": "decide você qual é o melhor recorte", "espera": {"sem_mudanca": true, "resposta_algum": ["escolha", "fica com voce", "voce escolhe"]}},
+      {"diga": "me diz quais profissionais trabalham em Feira de Santana", "espera": {"recusa": true}}
+    ]},
+    {"id": "M12", "categoria": "interpretacao", "inicio": {"ids": ["SOB", "FOR"]}, "turnos": [
+      {"diga": "e ao longo do tempo, como foi?", "espera": {"familia": "tendencia"}}
+    ]},
+    {"id": "M13", "categoria": "interpretacao", "turnos": [
+      {"diga": "Juiz de Fora e Uberlândia, quero comparar", "espera": {"comparar": ["JDF", "UDI"]}}
+    ]},
+    {"id": "M14", "categoria": "explicacao", "inicio": {"ids": ["JDF", "UDI"]}, "turnos": [
+      {"diga": "resume de um jeito que qualquer pessoa entenda", "espera": {"sem_mudanca": true, "resposta": ["juiz de fora", "uberlandia"], "numeros_do_motor": true}}
+    ]}
+  ]
+}

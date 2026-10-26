@@ -53,6 +53,9 @@
 .analise-selecao-intro { display: flex; flex-direction: column; gap: 2px; }
 .analise-apresentacao-classes dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 8px 0 0; }
 .analise-apresentacao-classes dl > div { display: grid; grid-template-columns: minmax(150px, 13rem) minmax(0, 1fr); gap: 2px 12px; }
+/* Termo destacado pela conversa (26/10/2026): a explicação que a pessoa pediu, à vista. */
+.analise-apresentacao-classes dl > div.analise-apresentacao-destaque { margin: 0 -6px; padding: 4px 6px; border-radius: 8px;
+  background: var(--cor-realce-destaque); outline: 2px solid var(--cor-borda-suave); }
 .analise-apresentacao-classes dt { color: var(--cor-tinta); font-weight: 650; }
 .analise-apresentacao-classes dd { margin: 0; text-align: justify; hyphens: auto; }
 .analise-apresentacao-nota { margin-top: 10px !important; color: var(--cor-texto-2); font-size: 12.5px; }

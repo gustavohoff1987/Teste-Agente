@@ -3,8 +3,9 @@ import { AlertCircle, Database, FileUp, LoaderCircle, RefreshCw, Send } from "lu
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
-import { comandoDeFonte, guiaDaConversa, normalizeCommand, opcoesDaConversa, pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel,
-  previousResultCommand, respostaDaVista, respostaDoResumo, rotuloDoPedido, viewCommand, type ResultView } from "./conversaGrafico";
+import { comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa, memoriaVazia, normalizeCommand, opcoesDaConversa,
+  pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaDaVista,
+  respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa, type ResultView } from "./conversaGrafico";
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
 
 // Conversa da página única (22/10/2026), sempre na caixa flutuante com o rosto do agente. Antes dos dados, ela pergunta o que
@@ -24,7 +25,10 @@ type Choice = { label: string; draft: string; operation?: string; indicator?: "q
 type Clarification = { code: string; prompt: string; reason: string; source: "CATALOGO_LOCAL"; choices: Choice[]; answered: false };
 type Proposal = { operation: string | null; indicator: "density" | "quantity" | null; territory: string; period: string; category: string };
 type Exploration = { handled: boolean; reply?: string; clarification?: string; operation?: string; pending_operation?: string;
-  pending_ids?: string[]; requested_count?: number | null; choices?: Choice[]; criteria_pending_ranking?: string; painel?: unknown };
+  pending_ids?: string[]; requested_count?: number | null; choices?: Choice[]; criteria_pending_ranking?: string; painel?: unknown;
+  /** Gestor de diálogo (26/10/2026): a memória da resposta, quantos estados anteriores a tela desfaz, as ações de tela e a
+   * pergunta sem alternativas (modelo da resposta) ou o pedido original de uma pergunta com alternativas. */
+  memoria?: Record<string, unknown>; desfazer?: number; acoes?: unknown; modelo_de_resposta?: string; pedido_original?: string };
 type Reply = { exploration?: Exploration; dialogue_action?: string; reply: string; proposal: Proposal;
   verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown };
 type Status = { configured: boolean };
@@ -95,6 +99,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const pendingRanking = useRef<string | null>(null);
   const pendingRequest = useRef("");
   const pendingPedido = useRef<PedidoDoChat | null>(null);
+  // Memória da conversa (26/10/2026) que vai ao gestor de diálogo do backend a cada pedido: o esclarecimento sem resposta, a
+  // memória da última resposta e os estados do gráfico antes dos pedidos aplicados pela conversa. Nada dela vai ao provedor.
+  const memoria = useRef<MemoriaDaConversa>(memoriaVazia());
   // Valores atuais para as respostas assíncronas: a fonte e o gráfico podem mudar enquanto a resposta chega.
   const atual = useRef({ fonte, fonteChave, contexto, displayedResultId });
   atual.current = { fonte, fonteChave, contexto, displayedResultId };
@@ -121,6 +128,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     setError("");
     pendingTerritories.current = null;
     pendingRanking.current = null;
+    memoria.current = memoriaVazia();
   }, [fonteChave]);
   useEffect(() => {
     if (!pronta || !pendingRequest.current) return;
@@ -159,7 +167,26 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     form.append("sheet", origem.sheet);
     form.append("context_revision", String(contextRevision()));
     form.append("mapping", JSON.stringify(origem.mapping));
+    form.append("conversa", conversaParaEnvio(memoria.current));
+    form.append("displayed_result_id", atual.current.displayedResultId);
     return form;
+  }
+  /** O pedido do gráfico que a resposta traz: guarda o estado de antes (ou volta a um estado guardado, quando a resposta
+   * desfaz) e o entrega à área. As ações de tela (abrir "Entenda esta análise") vão pelo mesmo caminho, sem recalcular. */
+  function aplicar(pedido: PedidoDoChat | null, resposta: { desfazer?: unknown; acoes?: unknown } = {}) {
+    if (pedido) {
+      const desfazer = typeof resposta.desfazer === "number" ? resposta.desfazer : 0;
+      memoria.current.anteriores = desfazer ? voltarAnteriores(memoria.current.anteriores, desfazer)
+        : guardarAnterior(memoria.current.anteriores, atual.current.contexto);
+      pedir.current(pedido);
+    }
+    for (const acao of pedidosDasAcoes(resposta.acoes)) pedir.current(acao);
+  }
+  /** A memória que a resposta devolve e a pendência que ela deixa (alternativas ou pergunta com modelo de resposta). */
+  function lembrar(resposta: Exploration | Reply, mensagem: string, aplicou: boolean) {
+    const r = resposta as Exploration;
+    memoria.current.memoria = r.memoria ?? (aplicou ? null : memoria.current.memoria);
+    memoria.current.pendente = pendenteDaResposta(r, mensagem);
   }
   /** Opções do pedido: as da fonte (escolhas da planilha), o contexto do gráfico e as pendências da conversa. */
   function opcoes(): Record<string, unknown> {
@@ -182,14 +209,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     else if ((proposal.operation || proposal.painel) && !proposal.clarification) pendingTerritories.current = null;
     pendingRanking.current = proposal.criteria_pending_ranking || null;
     const pedido = pedidoDoPainel(proposal.painel);
-    if (pedido) pedir.current(pedido);
+    aplicar(pedido, proposal);
+    lembrar(proposal, mensagemAtual.current, !!pedido);
     return { text: proposal.clarification || proposal.reply || (pedido ? textoDoPedido(pedido) : "Pedido recebido; nada foi calculado."),
       ...(proposal.choices?.length ? { choices: proposal.choices } : {}) };
   }
 
+  // A mensagem em interpretação, para a pendência que a resposta deixa ("Compare Rio de Janeiro…" → "Município.").
+  const mensagemAtual = useRef("");
   async function explorar(message: string, choice?: { operation: string; indicator?: "quantity" | "density" | null }): Promise<Local | null> {
     const origem = atual.current.fonte;
     if (!origem) return null;
+    mensagemAtual.current = message;
     const pedidoRevision = revision.current;
     const form = formulario(origem);
     form.append("message", message);
@@ -203,7 +234,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       if (!choice) return null;
       // Escolha explícita entre alternativas, sem o campo `painel` na resposta: a operação escolhida vale no gráfico.
       const pedido = pedidoDaOperacao(choice.operation, choice.indicator);
-      if (pedido) pedir.current(pedido);
+      aplicar(pedido);
       return { text: pedido ? textoDoPedido(pedido) : "Escolha recebida; nada foi calculado." };
     }
     // Escolha respondida pelo intérprete local, mas sem o campo `painel` e sem nova pergunta: vale a operação escolhida.
@@ -261,8 +292,14 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       }
       return;
     }
-    // "O que esse gráfico mostra?": a frase-resumo verificada do motor, como veio, sem o intérprete nem o provedor de IA.
-    if (pedidoDeResumo(message)) { append(respostaDoResumo(pronta ? atual.current.contexto : null)); return; }
+    // "O que esse gráfico mostra?": a frase-resumo verificada do motor, como veio, sem o intérprete nem o provedor de IA. A
+    // memória da conversa lembra que o resultado foi resumido, para as perguntas seguintes ("não entendi a aceleração").
+    if (pedidoDeResumo(message)) {
+      append(respostaDoResumo(pronta ? atual.current.contexto : null));
+      memoria.current.memoria = { ato: "resumo", topico: "resultado", registro: "objetivo" };
+      memoria.current.pendente = null;
+      return;
+    }
     if (fonteEscolhida && !pronta) {
       pendingRequest.current = message;
       append(fonteEscolhida === "arquivo" && colunasPendentes
@@ -309,6 +346,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       const vista = VISTAS.get(validated.dialogue_action || "");
       let texto: string, choices: Choice[] | undefined;
       if (resolved) {
+        mensagemAtual.current = message;
         const local = aceitar({ ...resolved, painel: resolved.painel ?? validated.painel });
         texto = local.text;
         choices = local.choices;
@@ -325,7 +363,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           texto = "Entendi" + (rotulo ? ": " + rotulo : "") + ". Para começar, prefere usar os dados do Brasil ou enviar os " +
             "seus? Depois sigo direto para o gráfico.";
         } else {
-          if (pedido) pedir.current(pedido);
+          aplicar(pedido);
+          lembrar(validated, message, !!pedido);
           texto = validated.reply;
         }
       }
@@ -342,7 +381,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   }
 
   async function escolherAlternativa(choice: Choice, turno: Turn) {
-    if (choice.send && pronta) { void submit(choice.draft); return; }
+    if (choice.send && pronta) { memoria.current.pendente = null; void submit(choice.draft); return; }
     if (!choice.operation || !turno.request || !pronta) {
       setDraft(choice.draft);
       document.getElementById("assistant-input")?.focus();
@@ -350,6 +389,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     }
     setSending(true);
     setError("");
+    memoria.current.pendente = null;  // a escolha em botão responde ao esclarecimento
     setTurns(previous => [...previous, { role: "user", content: "Escolho: " + choice.label }]);
     try {
       const local = await explorar(turno.request, { operation: choice.operation, indicator: choice.indicator });

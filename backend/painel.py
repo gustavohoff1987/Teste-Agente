@@ -3115,6 +3115,39 @@ def _extremes(items, indices, value_of):
     return [min(present)[1], max(present, key=lambda pair: (pair[0], -pair[1]))[1]]
 
 
+CONVERSATION_ATTRIBUTES = ("densidade", "quantidade", "populacao", "distancia_km", "variacao", "permanencia")
+
+
+def conversation_facts(body) -> dict:
+    """Ordem dos valores para as perguntas da conversa sobre o resultado em exibição ("qual deles tem maior densidade?",
+    "e a população?"), contada aqui, no motor, sobre os itens da própria resposta, como summary_facts: o gestor de diálogo
+    (dialogo.py) só copia caminhos e nunca compara valores. Por atributo: as posições em `itens` de todas as unidades com o
+    maior e com o menor valor (empates preservados, sem desempate artificial, CAP-SUB-02/DA-18), quantas unidades têm valor
+    e quantas não têm. Conjuntos ficam de fora da ordem (somam componentes, com possível dupla contagem)."""
+    items = body["itens"]
+    indicator = body["indicador"]
+    units = [index for index, item in enumerate(items) if item["tipo"] in ("municipio", "estado", "brasil")]
+    values = {"densidade": lambda item: item.get("densidade"), "quantidade": lambda item: item.get("quantidade"),
+              "populacao": lambda item: item.get("populacao"),
+              "distancia_km": lambda item: None if item.get("referencia") else item.get("distancia_km"),
+              "variacao": lambda item: (item.get("variacao_percentual") or {}).get(indicator),
+              "permanencia": lambda item: (item.get("rotatividade") or {}).get("permanencia_percentual")
+              if (item.get("rotatividade") or {}).get("avaliavel") else None}
+    order = {}
+    for attribute in CONVERSATION_ATTRIBUTES:
+        present = [(values[attribute](items[index]), index) for index in units
+                   if isinstance(values[attribute](items[index]), (int, float))]
+        if not present:
+            order[attribute] = {"maior": [], "menor": [], "com_valor": 0, "sem_valor": len(units)}
+            continue
+        highest = max(value for value, _ in present)
+        lowest = min(value for value, _ in present)
+        order[attribute] = {"maior": [index for value, index in present if value == highest],
+                            "menor": [index for value, index in present if value == lowest],
+                            "com_valor": len(present), "sem_valor": len(units) - len(present)}
+    return {"unidades": units, "ordem": order}
+
+
 # --------------------------------------------------------------------------------------------- sessão
 @per_source()
 def _source_fingerprint(frame) -> str:

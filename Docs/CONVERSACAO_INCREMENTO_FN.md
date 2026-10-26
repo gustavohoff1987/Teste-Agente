@@ -12,7 +12,7 @@ Nenhum dos contratos FN abaixo foi declarado integralmente atendido.
 | FN-INT-02 | Modelo propõe capacidade/indicador ou até cinco candidatas; cada alternativa exige âncora literal no pedido atual. Slots de período, categoria e território continuam ancorados; nomes municipais são resolvidos localmente após validar a capacidade. Pendência simples de nomes admite continuação na mesma fonte | InterpretaçãoOperacional completa, múltiplos entregáveis, todas as associações de pendências/linhas e regras de admissibilidade |
 | FN-INT-03 | Perguntas padronizadas para capacidades concorrentes, indicador da distribuição, período/categoria não confirmados e município faltante. Escolha estruturada prepara a análise localmente quando há base; demais escolhas preparam rascunho | Seleção completa de formas CFG-DOC/TPL-04, cobertura integral CFG-AMB/CFG-OPC e validação V-16 |
 | FN-META-01 | Formas PT literais com âncoras DOC: para densidade, distância e agregação; catálogo conferido contra o Anexo A; EN bloqueado pela autorização APT-20261016. Orientações legadas continuam locais | Seleção contextual de todas as formas, consultas integrais a C-13 e V-16 integral |
-| FN-INT-04 / CAP-SIN-01 (parciais) | Seleção e parâmetros verificados por sessão; leitura de densidade, quantitativos e comparação por referência ao resultado do backend; segmentos copiados com caminhos e relações já calculadas; preparação explícita de comparação faltante | Síntese analítica abrangente das demais capacidades, múltiplos entregáveis, livre paráfrase metodológica (não autorizada) |
+| FN-INT-04 / CAP-SIN-01 (parciais) | Seleção e parâmetros verificados por sessão; leitura de densidade, quantitativos e comparação por referência ao resultado do backend; segmentos copiados com caminhos e relações já calculadas; preparação explícita de comparação faltante; desde 26/10/2026, na página única, o gestor de diálogo com explicação verificada do resultado do gráfico e a redação pelo Gemini com marcadores e validador de saída ([diálogo governado](DIALOGO_GOVERNADO.md)) | Síntese analítica abrangente das demais capacidades, múltiplos entregáveis, livre paráfrase metodológica (não autorizada; proposta P-B) |
 
 ## Fronteiras preservadas
 
@@ -101,9 +101,15 @@ O estado do gráfico chega em `options`, e o pedido seguinte parte dele:
 | `painel_condicoes` | condições em vigor, no formato de `painel.condicoes` |
 | `painel_vista` | vista do desenho em exibição: `grafico`, `mapa` ou `lado` (desde 23/10/2026) |
 | `painel_mapa_disponivel` | `true` ou `false`: se o mapa pode mostrar a análise agora, como a área informou (desde 23/10/2026) |
+| `painel_motivo_sem_mapa` | o motivo informado pela área quando o mapa não está disponível (desde 26/10/2026), para o gestor de diálogo responder "o que estou vendo no mapa?" |
 | `painel_resumo` | a frase-resumo verificada do motor, como a área a mostra (desde 23/10/2026); traz valores da base e não entra nem no contexto da conversa |
 | `rotulos` | nomes das unidades nas planilhas: `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} ou null}` |
 | `territory_ids`, `exploration_operation`, `conversation_today` | como antes |
+
+Desde 26/10/2026, as rotas da página única recebem também, fora de `options`, a memória da conversa (`conversa`: a pergunta
+de esclarecimento sem resposta, a memória da última resposta e os estados anteriores do gráfico) e o resultado em exibição
+(`displayed_result_id`, lido da sessão com a integridade conferida). Elas servem ao gestor de diálogo
+([diálogo governado](DIALOGO_GOVERNADO.md)), que responde antes da gramática; nada delas vai ao provedor de IA.
 
 Antes do pré-exame e do intérprete, as chaves `painel_*` e `rotulos` saem das opções (`CONTEXTO` em
 `conversa_grafico.py`), e nada delas vai ao provedor de IA; `territory_ids` fica só com municípios (`code:`/`name:`); com
@@ -116,8 +122,14 @@ competência e janela juntas, vale a da família à vista; a família vira a ope
 - Escolha necessária: `{"handled": true, "executed": false, "clarification": "...", "choices": [{"label", "draft",
   "send": true}], "ambiguity"}`, sem `painel`. Cada alternativa envia o pedido completo, já sem a ambiguidade.
 - Pedido que não muda o gráfico (por exemplo, rotatividade sem o identificador individual): só `reply`.
-- Sem comando do gráfico (pergunta livre, explicação): `{"handled": false}`, e o pedido segue para o intérprete
-  com o provedor, como antes.
+- Resposta do gestor de diálogo (desde 26/10/2026): os mesmos campos (`painel` quando o gráfico muda, `clarification` e
+  `choices` quando há escolha, só `reply` quando não muda) e mais `memoria` (o que a tela devolve no pedido seguinte),
+  `dialogo` (o ato reconhecido), `explicacao` (segmentos, formas documentais e origem), `acoes` (por exemplo, abrir "Entenda
+  esta análise" com termos destacados), `desfazer` (quantos estados guardados a tela desfaz), `modelo_de_resposta` (pergunta
+  sem alternativas, como "qual você quer incluir?"), `pedido_original` e, com a redação pelo Gemini, `redacao`.
+- Sem comando do gráfico nem ato do diálogo: `{"handled": false}`, e o pedido segue para o intérprete com o provedor, como
+  antes. Sem o provedor, a página única responde com a forma de TPL-01, exemplos do que continua disponível e "O que você
+  quer ver?" (`degradado: true`), em vez de erro.
 
 ### Formato do `painel`
 

@@ -33,6 +33,9 @@ export type PedidoDoChat = {
   grupos?: { tipo: string } | null;
   /** Vista do desenho pedida na conversa ("ver no mapa", "volte ao gráfico"): estado visual, não recalcula. */
   vista?: "grafico" | "mapa" | null;
+  /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
+   * destacados. Estado visual: nada é recalculado. */
+  explicar?: { aba: Familia; termos: string[] } | null;
 };
 /** O que está no gráfico, informado pela área a cada mudança: é o contexto da conversa. */
 export type ContextoDoGrafico = {
@@ -44,6 +47,8 @@ export type ContextoDoGrafico = {
   vista?: "grafico" | "mapa" | "lado"; resumo?: string | null;
   /** Se o mapa pode ser mostrado agora e, se não, o motivo (estados sem ponto, planilha sem coordenadas, visão Séries). */
   mapaDisponivel?: boolean; motivoSemMapa?: string | null;
+  /** Os itens da comparação aberta (2 ou 3 ids), para a conversa trocar a ordem, incluir, tirar e voltar a ela. */
+  comparar?: string[];
 };
 /** Estado de uma análise, guardado pela área ao calcular: o Histórico o reabre sem recalcular. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };
@@ -393,10 +398,14 @@ export function horaDe(quando: string): string {
   return String(data.getHours()).padStart(2, "0") + ":" + String(data.getMinutes()).padStart(2, "0");
 }
 
-/** Identificador da sessão do resultado em exibição (`resposta.sessao`), para a conversa explicar o que está na tela. */
+/** Identificador da sessão do resultado em exibição (`resposta.sessao`), para a conversa explicar o que está na tela. A resposta
+ * guardada é a normalizada por painelApi (`resultId`); a do motor, como veio, traz `result_id`. Até 26/10/2026 só a segunda forma
+ * era lida, e a conversa nunca recebia o resultado em exibição. */
 export function resultadoDaSessao(estado: EstadoSalvo | null | undefined): string {
-  const sessao = (estado?.resposta as { sessao?: { registrado?: unknown; result_id?: unknown } } | null | undefined)?.sessao;
-  return sessao?.registrado === true && typeof sessao.result_id === "string" ? sessao.result_id : "";
+  const sessao = (estado?.resposta as { sessao?: { registrado?: unknown; resultId?: unknown; result_id?: unknown } } | null | undefined)?.sessao;
+  if (sessao?.registrado !== true) return "";
+  const id = typeof sessao.resultId === "string" ? sessao.resultId : sessao.result_id;
+  return typeof id === "string" ? id : "";
 }
 
 function achatar(valor: unknown, prefixo: string, saida: Record<string, unknown>): Record<string, unknown> {

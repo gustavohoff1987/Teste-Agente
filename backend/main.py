@@ -54,7 +54,9 @@ from combined_criteria import needs as criteria_needs
 from criteria_conversation import criteria_command
 import conversation_library
 import conversa_grafico
+import dialogo
 import painel
+import redacao
 
 
 # Aquecimento em curso: a primeira requisição à base Brasil espera por ele em vez de repetir o mesmo cálculo em paralelo.
@@ -845,6 +847,32 @@ def protected_set(frame: pd.DataFrame, sheet: str) -> frozenset:
     return frozenset(_protected(protected_values(frame, sheet)))
 
 
+def _resposta_do_dialogo(turno: dict, origem: str = "CANAL_SISTEMICO") -> dict:
+    """A resposta do gestor de diálogo no contrato do intérprete contextual: a tela lê o pedido do gráfico, as
+    alternativas e a memória em `exploration`, como as respostas da gramática local."""
+    resposta = _system_response(turno.get("clarification") or turno.get("reply") or "", None, "")
+    resposta.update(origin=origem, exploration=turno, note="Gestor de diálogo: nenhuma análise executada pela conversa.")
+    if turno.get("painel"):
+        resposta["painel"] = turno["painel"]
+    for chave in ("memoria", "dialogo", "acoes", "desfazer", "modelo_de_resposta", "redacao"):
+        if chave in turno:
+            resposta[chave] = turno[chave]
+    return resposta
+
+
+def _degradado(motivo: str) -> dict:
+    """Sem o componente de linguagem (TPL-01), a página única continua: a mensagem diz o que segue disponível e pergunta o
+    que a pessoa quer, em vez de um erro. Nenhuma análise é executada."""
+    from document_catalog import materialize
+    texto = (materialize("DOC:TPL-01", form="mensagem", evidence="LLM_INDISPONIVEL")["text"] +
+             ("" if "não configurado" in motivo else " (" + motivo.rstrip(".") + ".)") + " Não consegui interpretar este "
+             "pedido sem ele. Continuam disponíveis, por exemplo: “compare Manaus e Tefé”, “mostre a tendência”, “qual "
+             "deles tem a maior densidade?”, “explique esse resultado”, “o que estou vendo no mapa?”. O que você quer ver?")
+    resposta = _system_response(texto, None, "")
+    resposta.update(degradado=True, motivo_degradado=motivo)
+    return resposta
+
+
 @app.post("/api/llm/interpret-context")
 async def llm_interpretation_with_dataset(
     file: UploadFile | None = File(None),
@@ -855,7 +883,7 @@ async def llm_interpretation_with_dataset(
     options: str = Form("{}"),
     sheet: str = Form(""),
     dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
-    context_revision: int = Form(0), displayed_result_id: str = Form(""),
+    context_revision: int = Form(0), displayed_result_id: str = Form(""), conversa: str = Form(""),
     x_adt_session: str | None = Header(None),
 ) -> dict:
     """Pré-exame local de uma base e interpretação LLM de um resumo técnico.
@@ -879,6 +907,10 @@ async def llm_interpretation_with_dataset(
         if grafico is not None:
             settings = conversa_grafico.opcoes_do_interprete(settings, grafico)
             fields, grupo_territorial = conversa_grafico.campos_do_mapeamento(fields)
+            turno = await _turno_do_dialogo(message, conversa, settings, grafico, file, mapping, sheet, dataset, scope,
+                                            dataset_version, x_adt_session, displayed_result_id, redacao_permitida=True)
+            if turno is not None:
+                return _resposta_do_dialogo(turno)
         # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
         # O canal local não solicita, valida ou executa análise da base.
         quick = llm_local_response(request)
@@ -934,12 +966,28 @@ async def llm_interpretation_with_dataset(
                 reviewed["blockers"].append("Há mais de um período ou categoria no pedido; escolha o recorte.")
                 reviewed["ambiguous_parameters"] = ambiguous
             return reviewed
-        answer = await llm_interpret(
-            request, eligibility=eligibility, category_constant=declared_category,
-            proposal_reviewer=review_local,
-            conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
-            protected_values=protected_set(frame, sheet),
-        )
+        try:
+            answer = await llm_interpret(
+                request, eligibility=eligibility, category_constant=declared_category,
+                proposal_reviewer=review_local,
+                conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
+                protected_values=protected_set(frame, sheet),
+            )
+        except LLMError as exc:
+            if grafico is None or exc.status != 503:
+                raise
+            return _degradado(str(exc))
+        if grafico is not None and isinstance(answer.get("dialogo_ato"), dict):
+            # O intérprete com o provedor reconheceu um ato do diálogo que a leitura local não cobriu: o gestor o executa.
+            ato = dialogo.do_interprete(answer["dialogo_ato"], message, _conversa_da_tela(conversa))
+            turno = await _turno_do_dialogo(message, conversa, settings, grafico, file, mapping, sheet, dataset, scope,
+                                            dataset_version, x_adt_session, displayed_result_id, ato=ato,
+                                            redacao_permitida=True) if ato else None
+            if turno is not None:
+                answer.update(_resposta_do_dialogo(turno, origem="INTERPRETACAO_LLM"))
+                if x_adt_session:
+                    sessions.remember(x_adt_session, context_revision, answer)
+                return answer
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
         proposed_operation = answer.get("proposal", {}).get("operation")
@@ -1124,7 +1172,8 @@ async def api_preflight(file: UploadFile | None = File(None), mapping: str = For
 async def exploration_interpret(message: str = Form(...), file: UploadFile | None = File(None),
                                mapping: str = Form("{}"), options: str = Form("{}"), sheet: str = Form(""),
                                dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
-                               context_revision: int = Form(0), x_adt_session: str | None = Header(None)):
+                               context_revision: int = Form(0), conversa: str = Form(""),
+                               displayed_result_id: str = Form(""), x_adt_session: str | None = Header(None)):
     try:
         if len(message) > 800:
             raise ValueError("Mensagem acima do limite de 800 caracteres.")
@@ -1139,6 +1188,11 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         grafico = conversa_grafico.contexto(requested)
         if grafico is not None:
             requested = conversa_grafico.opcoes_do_interprete(requested, grafico)
+            # Gestor de diálogo (26/10/2026): memória, continuidade, explicação, verificação e governança, sem o provedor.
+            turno = await _turno_do_dialogo(message, conversa, requested, grafico, file, mapping, sheet, dataset, scope,
+                                            dataset_version, x_adt_session, displayed_result_id)
+            if turno is not None:
+                return turno
         if dialogue_action(message) and not (grafico is not None and conversa_grafico.comando_do_grafico(message)):
             if requested.get("conversation_operation_choice") == "comparisons":
                 message = "Compare esses municípios"  # escolha explícita na alternativa; ainda sem cálculo
@@ -1188,11 +1242,9 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-async def _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, dataset_version, requested, grafico, choice,
-                               x_adt_session, context_revision):
-    """Pedido da página única: a base é lida como na interpretação local e o pedido volta como o comando `painel`
-    (conversa_grafico.py), sem cálculo e sem o provedor de IA. Sem comando reconhecido, {"handled": False} leva o pedido
-    ao intérprete com o provedor, como antes."""
+async def _base_da_conversa(file, mapping, sheet, dataset, scope, dataset_version, requested):
+    """A base da conversa no gráfico, lida como na interpretação local: (quadro, campos, opções com as premissas, opções
+    do pedido, coluna do grupo territorial). Nada dela vai ao provedor de IA."""
     frame, _ = await _request_dataset(file, sheet, dataset, "municipal" if dataset == "brazil" else scope,
                                       dataset_version=dataset_version)
     if frame is None:
@@ -1205,7 +1257,107 @@ async def _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, da
         fields, grupo_territorial = suggested_mapping(frame), None
     else:
         requested = conversa_grafico.papeis_escolhidos(requested, fields)
-    settings = apply_premises(frame, fields, requested)
+    return frame, fields, apply_premises(frame, fields, requested), requested, grupo_territorial
+
+
+def _conversa_da_tela(texto) -> dict:
+    """A memória da conversa que a tela envia (campo `conversa`): pendência, memória da resposta anterior e estados
+    anteriores do gráfico. Fica no backend local; inválida, vale vazia."""
+    try:
+        valor = json.loads(texto) if isinstance(texto, str) and texto.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+    return valor if isinstance(valor, dict) else {}
+
+
+def _resultados_da_conversa(x_adt_session, displayed_result_id):
+    """O resultado do gráfico em exibição e o anterior, lidos da sessão com a integridade conferida (nunca valores do
+    navegador); (None, None) sem sessão ou sem resultado do gráfico."""
+    if not x_adt_session or not displayed_result_id:
+        return None, None
+    try:
+        record = sessions.result(x_adt_session, displayed_result_id)
+    except HTTPException:
+        return None, None
+    if record["result"].get("metadata", {}).get("operation") != painel.OPERATION:
+        return None, None
+    try:
+        anterior = sessions.panel_before(x_adt_session, displayed_result_id)
+    except HTTPException:
+        anterior = None
+    return record["result"], (anterior or {}).get("result")
+
+
+def _descricao_do_brasil() -> str:
+    try:
+        return describe_brazil()["description"]
+    except HTTPException:
+        return ""
+
+
+async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping, sheet, dataset, scope, dataset_version,
+                            x_adt_session, displayed_result_id, ato=None, redacao_permitida=False):
+    """Gestor de diálogo (dialogo.py) da página única, antes da gramática local e do intérprete com o provedor: resposta
+    digitada a esclarecimentos, continuidade, perguntas sobre o resultado em exibição, explicação, verificação, estado da
+    tela e governança. `ato` vem do intérprete com o provedor quando o reconhecimento local não cobre a formulação. None:
+    o pedido segue o caminho de antes. Nunca calcula; nada daqui vai ao provedor de IA."""
+    if not dialogo.ativo() or grafico is None:
+        return None
+    memoria = _conversa_da_tela(conversa)
+    resultado, anterior = _resultados_da_conversa(x_adt_session, displayed_result_id)
+    if ato is None:
+        ato = dialogo.reconhecer(message, memoria, resultado is not None,
+                                 resultado_tendencia=(resultado.get("tendencia") is not None) if resultado else None,
+                                 nomes_no_resultado=[item.get("rotulo", "") for item in (resultado or {}).get("itens") or []
+                                                     if item.get("tipo") in ("municipio", "estado")])
+    if ato is None:
+        return None
+    reformular = ato.get("ato") == "explica" and dialogo.pede_reformulacao(message) and redacao.ativa()
+    if reformular and not redacao_permitida:
+        return None  # a outra formulação segue para o canal contextual, onde a redação governada pelo Gemini é permitida
+    interpretar = nomes = None
+    if ato["ato"] in dialogo.PRECISA_DA_BASE or (ato["ato"] == "estado" and ato.get("assunto") == "ausente"):
+        frame, fields, settings, opcoes, grupo = await _base_da_conversa(file, mapping, sheet, dataset, scope,
+                                                                        dataset_version, requested)
+        brasil = dataset == "brazil"
+
+        def interpretar(texto, dica=None, dica_indicador=None):
+            return conversa_grafico.interpretar(texto, frame, fields, settings, grafico, brasil=brasil, opcoes=opcoes,
+                                                grupo=grupo, dica=dica, dica_indicador=dica_indicador)
+
+        def nomes(texto):
+            return conversa_grafico.nomes_citados(texto, frame, fields, settings, grafico, brasil=brasil, opcoes=opcoes,
+                                                  grupo=grupo)
+    fonte = {"tipo": "brasil", "descricao": _descricao_do_brasil() if ato.get("assunto") == "dados" else ""} \
+        if dataset == "brazil" else {"tipo": "arquivo", "nome": getattr(file, "filename", "") or ""}
+    rotulos = grafico.get("rotulos") or ({"unidade": {"singular": "município", "plural": "municípios"},
+                                          "grupo": {"singular": "estado", "plural": "estados"}} if dataset == "brazil"
+                                         else {})
+    ambiente = dialogo.Ambiente(message, memoria, grafico, resultado, anterior, fonte, interpretar, nomes, rotulos)
+    try:
+        resposta = dialogo.executar(ato, ambiente)
+    except Exception:  # noqa: BLE001 — defeito do gestor (inclusive composição recusada na conferência): registrado no log;
+        # o pedido segue o caminho de antes, que não depende do gestor, em vez de falhar.
+        logging.getLogger(__name__).exception("Falha no gestor de diálogo; o pedido segue o caminho anterior")
+        return None
+    if resposta is None:
+        return None
+    composicao = resposta.pop("_composicao", None)
+    if reformular and composicao is not None:
+        redigida = await redacao.redigir(composicao, message, (resposta.get("memoria") or {}).get("registro") or "objetivo",
+                                         resultado)
+        resposta["reply"] = redigida["texto"]
+        resposta["redacao"] = {chave: redigida[chave] for chave in ("origem", "tentativas")}
+    return resposta
+
+
+async def _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, dataset_version, requested, grafico, choice,
+                               x_adt_session, context_revision):
+    """Pedido da página única: a base é lida como na interpretação local e o pedido volta como o comando `painel`
+    (conversa_grafico.py), sem cálculo e sem o provedor de IA. Sem comando reconhecido, {"handled": False} leva o pedido
+    ao intérprete com o provedor, como antes."""
+    frame, fields, settings, requested, grupo_territorial = await _base_da_conversa(file, mapping, sheet, dataset, scope,
+                                                                                   dataset_version, requested)
     if x_adt_session:
         sessions.capture(x_adt_session, context_revision, investigation_context(frame, fields, settings,
                                                                                preflight(frame, fields, settings)))

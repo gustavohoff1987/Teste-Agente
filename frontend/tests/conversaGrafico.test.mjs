@@ -95,14 +95,16 @@ test('vista do desenho pela conversa: o mapa quando a área o tem, o motivo quan
 
 test('pedido de resumo: a frase-resumo do motor, como veio, sem o intérprete', () => {
   for (const pedido of ['O que esse gráfico mostra?', 'o que o mapa está mostrando?', 'Resuma o gráfico', 'resuma',
-    'Explique o resultado.', 'me explica esse gráfico', 'O que estou vendo?', 'o que eu estou vendo aqui?',
+    'O que estou vendo?', 'o que eu estou vendo aqui?',
     'Pode resumir o gráfico, por favor?', 'faça um resumo do resultado', 'o que mostra este mapa?',
     'E o que esses resultados significam?'])
     assert.equal(C.pedidoDeResumo(pedido), true, pedido);
-  // Pedidos que mudam a análise, perguntas de método e outras perguntas seguem para a interpretação.
+  // Pedidos que mudam a análise, perguntas de método e outras perguntas seguem para a interpretação. Desde 26/10/2026,
+  // "explique o resultado" também segue: o gestor de diálogo do backend explica com os valores do motor e guarda a memória.
   for (const pedido of ['O que esse gráfico mostra em 2023?', 'Explique o resultado de Manaus', 'explique de forma mais simples',
     'explique o resultado de forma simples', 'o que significa densidade?', 'Mostre o gráfico', 'resuma o gráfico do Pará',
-    'o que tem nos dados do Brasil?', 'Compare Manaus e Tefé', 'e agora?', 'Por que esse resultado apareceu?'])
+    'o que tem nos dados do Brasil?', 'Compare Manaus e Tefé', 'e agora?', 'Por que esse resultado apareceu?',
+    'Explique o resultado.', 'me explica esse gráfico'])
     assert.equal(C.pedidoDeResumo(pedido), false, pedido);
   const frase = 'Nos 3 municípios do Amazonas, em junho de 2024, a densidade vai de 1,75 a 5 por 1.000 habitantes.';
   assert.equal(C.respostaDoResumo({...CONTEXTO, resumo: '  ' + frase + ' '}), frase);
@@ -204,7 +206,8 @@ test('contexto do gráfico → opções da conversa: unidades na tela, família,
   // Planilha de outro país: os identificadores "name:" também são do catálogo territorial.
   assert.deepEqual(C.opcoesDaConversa({...CONTEXTO, idsNaTela: ['name:Alfa', 'name:Beta']}, 'h').territory_ids, ['name:Alfa', 'name:Beta']);
   // A vista em exibição, se o mapa está disponível e a frase-resumo do motor vão como a área informou; o backend as tira das
-  // opções antes do pré-exame, do intérprete e do provedor de IA. O motivo sem o mapa fica na tela.
+  // opções antes do pré-exame, do intérprete e do provedor de IA. Desde 26/10/2026, o motivo sem o mapa também vai ao backend
+  // local (painel_motivo_sem_mapa), para a conversa responder "por que o mapa não aparece?"; ele também sai antes do provedor.
   const frase = 'Nos 3 municípios do Amazonas, em junho de 2024, a densidade vai de 1,75 a 5 por 1.000 habitantes.';
   const noMapa = C.opcoesDaConversa({...CONTEXTO, vista: 'mapa', mapaDisponivel: true, motivoSemMapa: null, resumo: frase}, 'h');
   assert.deepEqual([noMapa.painel_vista, noMapa.painel_mapa_disponivel, noMapa.painel_resumo], ['mapa', true, frase]);
@@ -212,7 +215,7 @@ test('contexto do gráfico → opções da conversa: unidades na tela, família,
     motivoSemMapa: 'Os estados não têm um ponto no mapa.', resumo: null}, 'h');
   assert.deepEqual([nosEstados.painel_vista, nosEstados.painel_mapa_disponivel, 'painel_resumo' in nosEstados],
     ['grafico', false, false]);
-  assert.equal(JSON.stringify(nosEstados).includes('não têm um ponto'), false);
+  assert.equal(nosEstados.painel_motivo_sem_mapa, 'Os estados não têm um ponto no mapa.');
   for (const chave of ['painel_vista', 'painel_mapa_disponivel', 'painel_resumo'])
     assert.equal(chave in C.opcoesDaConversa(CONTEXTO, 'h'), false, chave);
 });
@@ -245,4 +248,57 @@ test('orientação da conversa: pergunta na abertura e, na planilha, usa os nome
   assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, juntar, usar como referência ou voltar ' +
     'ao nível de províncias.');
   for (const texto of [planilha, comandos]) assert.doesNotMatch(texto, /munic/i);
+});
+
+// Memória da conversa (26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend, no campo `conversa`.
+test('a pendência de uma resposta guarda a pergunta, o pedido original e as alternativas', () => {
+  const resposta = {clarification: '“Rio de Janeiro” identifica um estado e também um município. Qual você quer?',
+    choices: [{label: 'Estado do Rio de Janeiro', draft: 'Compare o estado RJ Rio de Janeiro com Porto Alegre', send: true},
+      {label: 'RIO DE JANEIRO (RJ)', draft: 'Compare RIO DE JANEIRO (RJ) com Porto Alegre', send: true}]};
+  const pendente = C.pendenteDaResposta(resposta, 'Compare Rio de Janeiro com Porto Alegre.');
+  assert.equal(pendente.pedido, 'Compare Rio de Janeiro com Porto Alegre.');
+  assert.deepEqual(pendente.alternativas.map(item => item.rotulo), ['Estado do Rio de Janeiro', 'RIO DE JANEIRO (RJ)']);
+  assert.equal(pendente.alternativas[1].rascunho, 'Compare RIO DE JANEIRO (RJ) com Porto Alegre');
+  // Uma pergunta repetida pelo gestor traz o pedido original; uma leitura do intérprete traz a operação.
+  assert.equal(C.pendenteDaResposta({...resposta, pedido_original: 'pedido de antes'}, 'a do Pará').pedido, 'pedido de antes');
+  const leitura = C.pendenteDaResposta({reply: 'Qual análise?', choices: [{label: 'Distribuição', draft: 'Quero distribuição.',
+    operation: 'distribution', indicator: 'density'}]}, 'perfil');
+  assert.deepEqual(leitura.alternativas[0], {rotulo: 'Distribuição', rascunho: 'Quero distribuição.', operacao: 'distribution',
+    indicador: 'density'});
+  // Pergunta sem alternativas, com modelo de resposta ("Qual município você quer incluir?" → "inclua {resposta}").
+  assert.deepEqual(C.pendenteDaResposta({reply: 'Qual município você quer incluir?', modelo_de_resposta: 'inclua {resposta}'}, 'inclui mais um'),
+    {pergunta: 'Qual município você quer incluir?', pedido: 'inclui mais um', alternativas: [], modelo: 'inclua {resposta}'});
+  assert.equal(C.pendenteDaResposta({reply: 'Pronto.'}, 'x'), null);
+  assert.equal(C.pendenteDaResposta(null, 'x'), null);
+});
+
+test('os estados anteriores do gráfico viram pedidos que a conversa reaplica, e voltar tira os últimos da pilha', () => {
+  const comparando = {...CONTEXTO, municipios: {todos: false, estados: [], ids: ['code:130260', 'code:130420']},
+    comparar: ['code:130260', 'code:130420']};
+  assert.deepEqual(C.pedidoDoContexto(comparando), {familia: 'distribuicao', indicador: 'densidade', nivel: 'municipios',
+    municipios: {todos: false, estados: [], ids: ['code:130260', 'code:130420']}, competencia: '202406', funcao: 'comparar',
+    selecao: ['code:130260', 'code:130420']});
+  const tendencia = C.pedidoDoContexto({...CONTEXTO, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']});
+  assert.deepEqual(tendencia.janela, ['202106', '202206', '202306', '202406']);
+  assert.equal(tendencia.funcao, undefined);
+  let pilha = [];
+  for (let i = 0; i < 12; i += 1) pilha = C.guardarAnterior(pilha, {...CONTEXTO, titulo: 'estado ' + i});
+  assert.equal(pilha.length, C.MAX_ANTERIORES);
+  assert.equal(pilha.at(-1).rotulo, 'estado 11');
+  assert.equal(C.guardarAnterior(pilha, null), pilha);
+  assert.deepEqual(C.voltarAnteriores(pilha, 2).map(item => item.rotulo), pilha.slice(0, -2).map(item => item.rotulo));
+  assert.equal(C.voltarAnteriores(pilha, 0), pilha);
+  const enviado = JSON.parse(C.conversaParaEnvio({pendente: null, memoria: {ato: 'compara'}, anteriores: pilha}));
+  assert.equal(enviado.anteriores.length, 6);
+  assert.deepEqual(enviado.memoria, {ato: 'compara'});
+});
+
+test('as ações de tela da explicação abrem "Entenda esta análise" com os termos, e o motivo sem mapa fica no backend', () => {
+  assert.deepEqual(C.pedidosDasAcoes([{tipo: 'explicar', aba: 'tendencia', termos: ['CRESCIMENTO_ACELERADO']},
+    {tipo: 'outro', aba: 'tendencia'}, {tipo: 'explicar', aba: 'inexistente'}]),
+    [{explicar: {aba: 'tendencia', termos: ['CRESCIMENTO_ACELERADO']}}]);
+  assert.deepEqual(C.pedidosDasAcoes(null), []);
+  const semMapa = C.opcoesDaConversa({...CONTEXTO, mapaDisponivel: false, motivoSemMapa: 'Os estados não têm um ponto único.'}, '2026-10-26');
+  assert.equal(semMapa.painel_motivo_sem_mapa, 'Os estados não têm um ponto único.');
+  assert.equal(C.opcoesDaConversa({...CONTEXTO, mapaDisponivel: true, motivoSemMapa: null}, '2026-10-26').painel_motivo_sem_mapa, undefined);
 });

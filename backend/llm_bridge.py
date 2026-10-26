@@ -127,6 +127,19 @@ _TOPICS = tuple(dict.fromkeys(("capabilities", "data", "workflow", "privacy", "l
 _VIEWS = {"show_map": "Mapa", "show_chart": "Gráficos", "show_table": "Tabela"}
 _DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge",
              *_VIEWS, "previous_result")
+# Atos do gestor de diálogo da página única (dialogo.py, 26/10/2026): o intérprete só classifica; quem executa é o gestor,
+# com a memória da conversa e o resultado do motor, que nunca chegam ao provedor. Só enumerações atravessam.
+_DIALOGUE_ACTS = ("answer_choice", "correction", "undo", "previous_state", "compare_result", "concept", "technical",
+                  "reformulate", "verify", "cause", "screen_state", "out_of_scope", "include", "replace", "remove",
+                  "all_units")
+_DIALOGUE = (*_DIALOGUE, *_DIALOGUE_ACTS)
+_REGISTERS = ("none", "objetivo", "simples", "didatico", "tecnico")
+_SUBJECTS = ("none", "aceleracao", "desaceleracao", "crescimento", "declinio", "sem_classificacao", "velocidade", "quintil",
+             "densidade", "distancia", "referencia", "agregacao", "comparacao", "dados", "territorios", "selecao", "mapa",
+             "relatorio", "anterior", "mudou", "ausente", "rotatividade", "espacial", "tendencia", "normativo", "melhora",
+             "acesso", "procedencia", "valor", "classe", "metodo", "ocupacao", "juizo", "politica", "correlacao",
+             "projecao", "pessoas", "externas", "parametro", "delegar")
+_ATTRIBUTES = ("none", "densidade", "quantidade", "populacao", "distancia_km", "variacao", "permanencia")
 
 
 class InterpretationCandidate(BaseModel):
@@ -147,6 +160,10 @@ class ModelInterpretation(BaseModel):
     topic: Literal[_TOPICS]
     dialogue: Literal[_DIALOGUE] = "none"
     social_reply: StrictStr = Field(default="", max_length=160)
+    style: Literal[_REGISTERS] = "none"
+    subject: Literal[_SUBJECTS] = "none"
+    attribute: Literal[_ATTRIBUTES] = "none"
+    direction: Literal["none", "maior", "menor"] = "none"
 
     @field_validator("operation")
     @classmethod
@@ -180,9 +197,10 @@ def dialogue_action(message):
     text = _text_key(message).strip(" .!?")
     if re.search(r"(?:explique|explica|explicar|simplifique|entendi).*?(?:simples|entendi)|^nao entendi$|^simplifique$", text):
         return "simplify"
-    if re.search(r"(?:o que|que|como|por que).*?(?:resultado|apareceu|mostrado)|"
-                 r"(?:explique|explica|entender).*?(?:resultado|apareceu)|qual.*(?:maior|menor).*densidade|"
-                 r"(?:por que|porque).*densidade|(?:o que|que).*esse numero|(?:o que|que).*isso significa", text):
+    if re.search(r"\b(?:o que|que|como|por que)\b.*?\b(?:resultado|apareceu|mostrado)\b|"
+                 r"\b(?:explique|explica|entender)\b.*?\b(?:resultado|apareceu)\b|\bqual\b.*\b(?:maior|menor)\b.*\bdensidade\b|"
+                 r"\b(?:por que|porque)\b.*\bdensidade\b|\b(?:o que|que)\b.*\besse numero\b|\b(?:o que|que)\b.*\bisso significa\b",
+                 text):
         return "explain_result"
     if re.fullmatch(r"(?:e agora|continue|o que posso investigar|o que mais|quais os proximos passos|"
                     r"e agora,? o que posso investigar)", text):
@@ -351,6 +369,10 @@ def _schema() -> dict:
             "topic": {"type": "STRING", "enum": list(_TOPICS)},
             "dialogue": {"type": "STRING", "enum": list(_DIALOGUE)},
             "social_reply": {"type": "STRING"},
+            "style": {"type": "STRING", "enum": list(_REGISTERS)},
+            "subject": {"type": "STRING", "enum": list(_SUBJECTS)},
+            "attribute": {"type": "STRING", "enum": list(_ATTRIBUTES)},
+            "direction": {"type": "STRING", "enum": ["none", "maior", "menor"]},
         },
         "required": ["operation", "indicator", "period", "category", "territory", "intent", "topic"],
     }
@@ -397,6 +419,17 @@ _SYSTEM = (
     " Para ver o resultado apresentado em mapa, gráfico ou tabela, use dialogue show_map, show_chart ou show_table;"
     " para voltar ao resultado anterior sem recalcular, previous_result. Perguntas conceituais sobre o método de uma"
     " análise usam o tópico dela, quando houver na enumeração."
+    " Na conversa sobre o gráfico, classifique também o ato do diálogo em dialogue: answer_choice (resposta a uma"
+    " pergunta de esclarecimento anterior), correction (corrige o pedido anterior), undo (não era isso; desfazer),"
+    " previous_state (voltar a um estado anterior do gráfico; subject comparacao quando for a comparação),"
+    " compare_result (qual território tem maior ou menor valor no resultado; attribute e direction), concept (o que"
+    " significa um termo; subject), technical (explicação mais técnica), reformulate (outra formulação; style),"
+    " verify (o resultado permite concluir? subject normativo, melhora, acesso ou procedencia), cause (pergunta pela"
+    " causa), screen_state (pergunta sobre a tela; subject dados, territorios, selecao, mapa, relatorio, anterior,"
+    " mudou, ausente ou a análise indisponível), out_of_scope (pedido fora da autoridade do agente; subject valor,"
+    " classe, metodo, ocupacao, juizo, politica, correlacao, projecao, pessoas, externas, parametro ou delegar),"
+    " include, replace, remove (incluir, trocar, tirar territórios) e all_units (todos). style é o registro"
+    " pedido (simples, didatico, tecnico). Esses campos são enumerações: não escreva nomes, números nem explicações."
 )
 # Exemplos da biblioteca conversacional escolhidos para a mensagem desta requisição (vazio sem biblioteca).
 _EXAMPLES: contextvars.ContextVar[str] = contextvars.ContextVar("adt_conversation_examples", default="")
@@ -441,6 +474,34 @@ async def _call_gemini(sanitized: list[str], model: str, api_key: str) -> dict:
         return json.loads(content)
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         raise LLMError(502, "A API não retornou uma interpretação estruturada válida.") from exc
+
+
+async def generate_structured(system_instruction: str, messages: list[str], schema: dict, max_tokens: int = 900) -> dict:
+    """Chamada genérica ao provedor com resposta JSON no esquema dado (redação governada, redacao.py). Mesmo modelo, mesma
+    chave, mesmo limite local e mesmo transporte da interpretação; quem chama valida a saída antes de exibir (INV-13)."""
+    if not _enabled():
+        raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
+    model = _configured_model()
+    _reserve_request()
+    body = {"systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"role": "user", "parts": [{"text": entry}]} for entry in messages],
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": max_tokens,
+                                 "responseMimeType": "application/json", "responseSchema": schema}}
+    try:
+        async with httpx.AsyncClient(timeout=75.0) as client:
+            response = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"].strip(), "Content-Type": "application/json"},
+                json=body)
+    except (httpx.TimeoutException, httpx.RequestError) as exc:
+        raise LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.") from exc
+    if response.status_code != 200:
+        raise LLMError(502, "A API Gemini não concluiu a solicitação (HTTP " + str(response.status_code) + ").")
+    try:
+        parts = response.json()["candidates"][0]["content"]["parts"]
+        return json.loads("".join(part.get("text", "") for part in parts if isinstance(part, dict)))
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise LLMError(502, "A API não retornou uma redação estruturada válida.") from exc
 
 
 def _anchor(value: Any, user_text: str) -> str:
@@ -531,6 +592,12 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
         topic = raw.get("topic")
         if topic in DOCUMENT_TOPICS and intent in ("SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO"):
             return {**_document_response(topic, simple=raw["dialogue"] == "simplify"), "origin": "INTERPRETACAO_LLM"}
+        if raw["dialogue"] in _DIALOGUE_ACTS:
+            # O gestor de diálogo executa o ato com a memória e o resultado locais; aqui só atravessam enumerações.
+            return {**_system_response("Pedido de continuidade recebido; nada é recalculado pela conversa.", None, ""),
+                    "origin": "INTERPRETACAO_LLM", "dialogue_action": raw["dialogue"],
+                    "dialogo_ato": {"dialogue": raw["dialogue"], "style": raw["style"], "subject": raw["subject"],
+                                    "attribute": raw["attribute"], "direction": raw["direction"]}}
         if raw["dialogue"] in _VIEWS or raw["dialogue"] == "previous_result":
             # A interface abre a aba ou reabre o resultado anterior; nada é recalculado.
             reply = ("Pedido para ver o resultado na aba " + _VIEWS[raw["dialogue"]] + "; nada é recalculado."
