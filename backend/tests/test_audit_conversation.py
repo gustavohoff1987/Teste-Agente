@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import llm_bridge
 from dialogue_guidance import clarification_for
+import main
 from main import app
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -99,19 +100,25 @@ def test_a10_context_is_ready_unless_the_form_says_otherwise(provider, ready):
     {"intent": []}, {"topic": "invented"}, {"operation": "spatial", "indicator": "quantity"},
     {"operation": "rotation", "indicator": "density"}, {"operation": "aggregate", "indicator": "quantity"},
     {"intent": "CONVERSACIONAL"}])
-def test_a12_invalid_response_is_a_controlled_error(provider, patch):
-    install, _ = provider
+def test_a12_invalid_response_is_regenerated_then_answered_by_the_reserve(provider, patch):
+    # Saída fora do contrato (26/10/2026, seção 11.5): nova tentativa com a lista das violações, até 2 vezes (RQ-SIN-05);
+    # persistindo, a resposta determinística de reserva, sem erro técnico, sem nada executado e sem a chave.
+    install, calls = provider
     install({**RAW, **patch})
     response = client.post("/api/llm/interpret", json={"message": "Quero analisar Nurses em 2024"})
-    assert response.status_code == 502, response.text
-    assert "synthetic-offline" not in response.text
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["reserva"] is True and body["reply"] == main.RESERVA_DA_INTERPRETACAO and body["executed"] is False
+    assert len(calls) == 3 and "VIOLACOES_DA_TENTATIVA_ANTERIOR" in " ".join(calls[1][0])
+    assert "synthetic-offline" not in response.text and "HTTP" not in response.text
 
 
 @pytest.mark.parametrize("field", list(RAW))
 def test_a12_required_response_fields(provider, field):
-    install, _ = provider
+    install, calls = provider
     install({k: v for k, v in RAW.items() if k != field})
-    assert client.post("/api/llm/interpret", json={"message": "Quero distribuição"}).status_code == 502
+    response = client.post("/api/llm/interpret", json={"message": "Quero distribuição"})
+    assert response.status_code == 200 and response.json()["reserva"] is True and len(calls) == 3
 
 
 def test_a13_current_period_cannot_be_overwritten_by_previous_period(provider):

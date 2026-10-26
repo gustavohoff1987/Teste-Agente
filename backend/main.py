@@ -43,7 +43,7 @@ import territorial_levels
 from analysis_premises import apply_premises, limitations, premise_notes
 from llm_bridge import ChatRequest, LLMError, interpret as llm_interpret, status as llm_status, local_response as llm_local_response
 from llm_context import review_interpretation, investigation_context, dialogue_projection, screen_reply, bind_local_parameters
-from llm_bridge import dialogue_action, _system_response, _document_response, _protected
+from llm_bridge import dialogue_action, _system_response, _document_response
 from document_catalog import TOPICS
 from conversation_session import sessions, lifespan
 from result_conversation import answer_result
@@ -56,7 +56,12 @@ import conversation_library
 import conversa_grafico
 import dialogo
 import painel
-import redacao
+import conversa_gemini
+import contexto_conversa
+import definicoes
+import llm_bridge
+import triagem
+from territorial_selection import STATES
 
 
 # Aquecimento em curso: a primeira requisição à base Brasil espera por ele em vez de repetir o mesmo cálculo em paralelo.
@@ -788,7 +793,22 @@ async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = H
         if x_adt_session:
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
             capture = sessions.capture(x_adt_session, request.context_revision, {})
-        answer = await llm_interpret(request)
+        quick = llm_local_response(request)
+        if quick is not None and _conversa_pelo_modelo(quick):
+            # Orientação sobre o agente com o provedor disponível: o Gemini redige a partir do texto do catálogo.
+            answer = await _redigida(quick, request.message, request.turnos, {}, None, None, None, {"tipo": "nenhuma"},
+                                     None, triagem.Protecao(), fatos=quick["reply"], pedidas=_fichas_da_documentacao(quick))
+        else:
+            contexto = contexto_conversa.montar(mensagem=request.message, turnos=request.turnos,
+                                                fonte={"tipo": "nenhuma"}) if request.turnos else None
+            try:
+                answer = await llm_interpret(request, contexto=contexto)
+            except LLMError as exc:
+                if exc.causa == "entrada":
+                    raise
+                return _sem_o_modelo(exc)
+            answer = await _redacao_da_interpretacao(answer, request.message, request.turnos, {}, None, None, None,
+                                                     {"tipo": "nenhuma"}, None, triagem.Protecao())
         # Sem base, o comando do gráfico vem só da operação proposta (família, indicador e função); a tela o aplica
         # quando a base fica pronta. Nomes e competências são resolvidos depois, pela conversa local.
         proposal = answer.get("proposal") or {}
@@ -796,6 +816,7 @@ async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = H
                                                               request.message)
         if painel_proposto:
             answer["painel"] = painel_proposto
+        answer = llm_bridge.publico(answer)
         if x_adt_session:
             sessions.remember(x_adt_session, capture["revision"], answer)
         return answer
@@ -835,16 +856,19 @@ def session_result(result_id: str, x_adt_session: str = Header(...)):
     return sessions.result(x_adt_session, result_id)
 
 
-def protected_values(frame: pd.DataFrame, sheet: str) -> list:
-    """Tudo o que identifica a base no texto (colunas, arquivo, planilha e valores): sai antes do provedor de IA."""
-    return [*frame.columns, frame.attrs.get("input_file", {}).get("name", ""), sheet,
-            *(value for column in frame.columns for value in frame[column].dropna().unique())]
+def _colunas_de_texto(frame: pd.DataFrame) -> dict:
+    return {str(coluna): list(frame[coluna].dropna().unique()) for coluna in frame.columns if frame[coluna].dtype == object}
 
 
-@per_source()  # base Brasil: os mesmos valores em toda requisição da versão (cerca de 0,5 s por mensagem)
-def protected_set(frame: pd.DataFrame, sheet: str) -> frozenset:
-    """Os valores protegidos já normalizados para a comparação local da minimização."""
-    return frozenset(_protected(protected_values(frame, sheet)))
+@per_source()  # base Brasil: a mesma proteção em toda requisição da versão
+def protecao_da_fonte(frame: pd.DataFrame, papeis: dict, sheet: str) -> triagem.Protecao:
+    """A proteção da triagem (triagem.py, RQ-DAD-20) para a base carregada: territórios, grupos territoriais, regiões e
+    categorias liberados (classe B), os valores das demais colunas de texto protegidos (classe A) e os nomes das colunas,
+    do arquivo e da planilha tratados como metadados (classe C). As unidades federativas do Brasil são sempre liberadas."""
+    estados = [nome for _sigla, nome in STATES.values()] + [sigla for sigla, _nome in STATES.values()]
+    return triagem.protecao_da_base(_colunas_de_texto(frame), {k: v for k, v in (papeis or {}).items() if isinstance(v, str)},
+                                    nomes_extras=estados,
+                                    metadados_extras=[frame.attrs.get("input_file", {}).get("name", ""), sheet])
 
 
 def _resposta_do_dialogo(turno: dict, origem: str = "CANAL_SISTEMICO") -> dict:
@@ -860,17 +884,120 @@ def _resposta_do_dialogo(turno: dict, origem: str = "CANAL_SISTEMICO") -> dict:
     return resposta
 
 
-def _degradado(motivo: str) -> dict:
-    """Sem o componente de linguagem (TPL-01), a página única continua: a mensagem diz o que segue disponível e pergunta o
-    que a pessoa quer, em vez de um erro. Nenhuma análise é executada."""
-    from document_catalog import materialize
-    texto = (materialize("DOC:TPL-01", form="mensagem", evidence="LLM_INDISPONIVEL")["text"] +
-             ("" if "não configurado" in motivo else " (" + motivo.rstrip(".") + ".)") + " Não consegui interpretar este "
-             "pedido sem ele. Continuam disponíveis, por exemplo: “compare Manaus e Tefé”, “mostre a tendência”, “qual "
-             "deles tem a maior densidade?”, “explique esse resultado”, “o que estou vendo no mapa?”. O que você quer ver?")
-    resposta = _system_response(texto, None, "")
-    resposta.update(degradado=True, motivo_degradado=motivo)
+def _indisponivel(causa: str) -> dict:
+    """Sem o componente de linguagem (seção 11.4 da missão de 26/10/2026): a comunicação cordial, como resposta da
+    conversa, sem código nem mensagem técnica; os controles e as análises continuam. Nada é executado."""
+    aviso = llm_bridge.indisponibilidade(causa)
+    resposta = _system_response(aviso["texto"], None, "")
+    resposta.update(indisponibilidade=aviso, degradado=True,
+                    note="Componente de linguagem indisponível; os controles e as análises da tela continuam.")
     return resposta
+
+
+RESERVA_DA_INTERPRETACAO = ("Não consegui interpretar este pedido com segurança. Pode dizer de outro jeito? Os pedidos sobre o "
+                            "gráfico, como “compare dois territórios” ou “mostre a tendência”, e os botões da tela "
+                            "continuam disponíveis.")
+
+
+def _sem_o_modelo(exc: LLMError) -> dict:
+    """A resposta quando o provedor não serviu: saída fora do contrato depois das tentativas (reserva de interpretação) ou
+    indisponibilidade (cota, rede, configuração), cada uma com o seu tratamento (seção 11.4, item F)."""
+    if exc.causa == "contrato":
+        resposta = _system_response(RESERVA_DA_INTERPRETACAO, None, "")
+        resposta.update(reserva=True, note="Saída do provedor fora do contrato depois das tentativas previstas.")
+        return resposta
+    return _indisponivel(exc.causa)
+
+
+def _conversa_pelo_modelo(rapida: dict | None) -> bool:
+    """Uma orientação do catálogo local que o Gemini pode redigir (o funcionamento do agente, um conceito): com o provedor
+    disponível, sim; saudação e agradecimento continuam com o texto fixo."""
+    if rapida is None or not conversa_gemini.ativa():
+        return False
+    texto = str(rapida.get("reply") or "")
+    return not texto.startswith(("Olá", "De nada"))
+
+
+def _turnos_da_tela(texto) -> list[dict]:
+    """A janela da conversa que a tela envia (campo `turnos`): as mensagens mais recentes da pessoa e do agente."""
+    try:
+        valor = json.loads(texto) if isinstance(texto, str) and texto.strip() else []
+    except json.JSONDecodeError:
+        return []
+    return [t for t in valor if isinstance(t, dict)][-12:] if isinstance(valor, list) else []
+
+
+def _classes_do_resultado(resultado: dict | None) -> list[str]:
+    return list(dict.fromkeys((item.get("tendencia") or {}).get("classe") for item in (resultado or {}).get("itens") or []
+                              if (item.get("tendencia") or {}).get("avaliavel")))
+
+
+VISTAS_DO_INTERPRETE = ("show_map", "show_chart", "show_table", "previous_result")
+TOPICOS_DAS_FICHAS = {"density": "densidade", "spatial": "distancia", "aggregation": "agregacao", "distribution": "grupos",
+                      "nearest": "referencia"}
+
+
+def _fonte_do_cartao(dataset: str) -> dict:
+    return {"tipo": "brasil"} if dataset == "brazil" else {"tipo": "arquivo"}
+
+
+def _fichas_da_documentacao(resposta: dict) -> list[str]:
+    """As fichas de método do tema que a resposta do catálogo explica (densidade, distância, agregação…)."""
+    return [TOPICOS_DAS_FICHAS[t] for t, ids in TOPICS.items()
+            if any(doc.get("id_doc") in ids for doc in resposta.get("documentation") or [])][:1]
+
+
+async def _protecao_do_pedido(file, sheet, dataset, scope, dataset_version, fields) -> triagem.Protecao:
+    """A proteção da base do pedido, quando há base; sem base, a triagem só com as unidades federativas."""
+    try:
+        frame, _ = await _request_dataset(file, sheet, dataset, scope, dataset_version=dataset_version)
+    except (ValueError, TypeError, HTTPException):
+        frame = None
+    if frame is None or frame.empty:
+        return triagem.Protecao(liberados=frozenset(triagem.dobrar(n) for par in STATES.values() for n in par))
+    papeis = suggested_mapping(frame) if dataset == "brazil" else (fields if isinstance(fields, dict) else {})
+    return protecao_da_fonte(frame, papeis, sheet)
+
+
+async def _redigida(base: dict, mensagem: str, turnos, conversa_tela, grafico, resultado, anterior, fonte, rotulos,
+                    protecao, *, fatos: str, termos=(), pedidas=(), acao: bool = False, registro: str = "objetivo",
+                    rascunho: str | None = None, marcadores: dict | None = None) -> dict:
+    """A resposta com o texto redigido pelo Gemini e conferido (conversa_gemini.redigir), ou com a reserva verificada.
+    O cartão leva o resultado em exibição, a tela, a conversa, os fatos verificados e as fichas de método."""
+    fichas_pedidas = [definicoes.FICHAS[i] for i in pedidas if i in definicoes.FICHAS]
+    fichas = list(dict.fromkeys([*fichas_pedidas, *definicoes.pertinentes(
+        mensagem, termos=termos, classes=_classes_do_resultado(resultado), familia=(grafico or {}).get("familia"))]))
+    contexto = contexto_conversa.montar(mensagem=mensagem, turnos=turnos, memoria=conversa_tela, grafico=grafico,
+                                        resultado=resultado, anterior=anterior, fonte=fonte, rotulos=rotulos, fatos=fatos,
+                                        fichas=fichas, protecao=protecao)
+    refs = contexto_conversa.referencias_de_fidelidade(
+        mensagem=mensagem, turnos=turnos, resultado=resultado, anterior=anterior, fatos=fatos, fichas=fichas,
+        pedidas=fichas_pedidas, acao=acao, marcadores={**contexto["numeracao"].originais(), **(marcadores or {})})
+    redigida = await conversa_gemini.redigir(contexto=contexto, refs=refs, reserva=str(base.get("reply") or fatos),
+                                             registro=registro, rascunho=rascunho)
+    resposta = {**base, "reply": redigida["texto"], "redacao": {"origem": redigida["origem"],
+                                                                 "tentativas": redigida["tentativas"]}}
+    if base.get("clarification") and isinstance(base["clarification"], str):
+        resposta["clarification"] = redigida["texto"]
+    return resposta
+
+
+async def _redacao_da_interpretacao(answer: dict, mensagem, turnos, conversa_tela, grafico, resultado, anterior, fonte,
+                                    rotulos, protecao) -> dict:
+    """Interpretação sem comando nem ato executado pelo gestor (conversa, funcionamento do agente, conceito do catálogo, ou
+    ato que o gestor não pôde executar): o texto que o Gemini já redigiu junto com a interpretação é conferido; aprovado,
+    aparece no lugar do texto do catálogo."""
+    rascunho = answer.get("_resposta_modelo") or ""
+    if (not rascunho.strip() or (answer.get("proposal") or {}).get("operation") or answer.get("exploration") or
+            answer.get("painel") or answer.get("clarification") or
+            answer.get("dialogue_action") in ("explain_result", "simplify", "next_steps", "change_selection",
+                                              "change_period", *VISTAS_DO_INTERPRETE)):
+        return answer
+    topico = next((TOPICOS_DAS_FICHAS[t] for t, ids in TOPICS.items()
+                   if any(doc.get("id_doc") in ids for doc in answer.get("documentation") or [])), None)
+    return await _redigida(answer, mensagem, turnos, conversa_tela, grafico, resultado, anterior, fonte, rotulos, protecao,
+                           fatos=str(answer.get("reply") or ""), pedidas=[topico] if topico else [], rascunho=rascunho,
+                           marcadores=answer.get("_marcadores"))
 
 
 @app.post("/api/llm/interpret-context")
@@ -884,16 +1011,17 @@ async def llm_interpretation_with_dataset(
     sheet: str = Form(""),
     dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
     context_revision: int = Form(0), displayed_result_id: str = Form(""), conversa: str = Form(""),
-    x_adt_session: str | None = Header(None),
+    turnos: str = Form("[]"), x_adt_session: str | None = Header(None),
 ) -> dict:
-    """Pré-exame local de uma base e interpretação LLM de um resumo técnico.
+    """Pré-exame local de uma base e interpretação com o provedor, com o cartão do contexto (contexto_conversa.py).
 
-    O arquivo é lido pelo FastAPI apenas; nenhuma linha, coluna ou nome de
-    arquivo é incorporado ao contexto entregue ao provedor.
+    O arquivo é lido pelo FastAPI apenas; nenhuma linha, nome de coluna ou nome de arquivo vai ao provedor. Vão a mensagem
+    triada, a janela da conversa triada e, na página única, o estado da tela e o resultado agregado em exibição.
     """
     try:
+        janela = _turnos_da_tela(turnos)
         request = ChatRequest(message=message, history=json.loads(history), context_revision=context_revision,
-                              displayed_result_id=displayed_result_id)
+                              displayed_result_id=displayed_result_id, turnos=janela)
         if x_adt_session:
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
         fields = json.loads(mapping)
@@ -908,13 +1036,21 @@ async def llm_interpretation_with_dataset(
             settings = conversa_grafico.opcoes_do_interprete(settings, grafico)
             fields, grupo_territorial = conversa_grafico.campos_do_mapeamento(fields)
             turno = await _turno_do_dialogo(message, conversa, settings, grafico, file, mapping, sheet, dataset, scope,
-                                            dataset_version, x_adt_session, displayed_result_id, redacao_permitida=True)
+                                            dataset_version, x_adt_session, displayed_result_id, redacao_permitida=True,
+                                            turnos=janela)
             if turno is not None:
                 return _resposta_do_dialogo(turno)
         # Orientações genéricas não exigem ler nem reenviar um arquivo inteiro.
         # O canal local não solicita, valida ou executa análise da base.
         quick = llm_local_response(request)
         if quick is not None and (not x_adt_session or dialogue_action(message) != "simplify"):
+            if _conversa_pelo_modelo(quick):
+                # Com o provedor disponível, o Gemini redige a orientação a partir do texto do catálogo, com a tela.
+                resultado, anterior = _resultados_da_conversa(x_adt_session, displayed_result_id)
+                protecao = await _protecao_do_pedido(file, sheet, dataset, scope, dataset_version, fields)
+                quick = await _redigida(quick, message, janela, _conversa_da_tela(conversa), grafico, resultado, anterior,
+                                        _fonte_do_cartao(dataset), (grafico or {}).get("rotulos"), protecao,
+                                        fatos=quick["reply"], pedidas=_fichas_da_documentacao(quick))
             if x_adt_session:
                 sessions.revision(x_adt_session, context_revision)
                 sessions.remember(x_adt_session, context_revision, quick)
@@ -966,28 +1102,44 @@ async def llm_interpretation_with_dataset(
                 reviewed["blockers"].append("Há mais de um período ou categoria no pedido; escolha o recorte.")
                 reviewed["ambiguous_parameters"] = ambiguous
             return reviewed
+        # O grupo territorial das planilhas (província, distrito…) é entidade não pessoal, como o território.
+        protecao = protecao_da_fonte(frame, {**fields, **({"grupo_territorial": grupo_territorial} if grupo_territorial
+                                                         else {})}, sheet)
+        resultado_tela, anterior_tela = _resultados_da_conversa(x_adt_session, displayed_result_id)
+        memoria_tela = _conversa_da_tela(conversa)
+        contexto = contexto_conversa.montar(
+            mensagem=message, turnos=janela, memoria=memoria_tela, grafico=grafico, resultado=resultado_tela,
+            anterior=anterior_tela, fonte=_fonte_do_cartao(dataset), rotulos=(grafico or {}).get("rotulos"),
+            protecao=protecao) if grafico is not None or janela else None
         try:
             answer = await llm_interpret(
                 request, eligibility=eligibility, category_constant=declared_category,
                 proposal_reviewer=review_local,
                 conversation_context=dialogue_projection(capture, result_record is not None) if capture else None,
-                protected_values=protected_set(frame, sheet),
+                protecao=protecao, contexto=contexto,
             )
         except LLMError as exc:
-            if grafico is None or exc.status != 503:
+            if exc.causa == "entrada":
                 raise
-            return _degradado(str(exc))
+            return _sem_o_modelo(exc)
         if grafico is not None and isinstance(answer.get("dialogo_ato"), dict):
-            # O intérprete com o provedor reconheceu um ato do diálogo que a leitura local não cobriu: o gestor o executa.
-            ato = dialogo.do_interprete(answer["dialogo_ato"], message, _conversa_da_tela(conversa))
+            # O intérprete com o provedor reconheceu um ato do diálogo que a leitura local não cobriu: o gestor o executa,
+            # e o texto que o Gemini já redigiu é conferido contra a resposta verificada do gestor.
+            ato = dialogo.do_interprete(answer["dialogo_ato"], message, memoria_tela)
             turno = await _turno_do_dialogo(message, conversa, settings, grafico, file, mapping, sheet, dataset, scope,
                                             dataset_version, x_adt_session, displayed_result_id, ato=ato,
-                                            redacao_permitida=True) if ato else None
+                                            redacao_permitida=True, turnos=janela,
+                                            rascunho=answer.get("_resposta_modelo"),
+                                            marcadores=answer.get("_marcadores")) if ato else None
             if turno is not None:
                 answer.update(_resposta_do_dialogo(turno, origem="INTERPRETACAO_LLM"))
+                answer = llm_bridge.publico(answer)
                 if x_adt_session:
                     sessions.remember(x_adt_session, context_revision, answer)
                 return answer
+        answer = await _redacao_da_interpretacao(answer, message, janela, memoria_tela, grafico, resultado_tela,
+                                                 anterior_tela, _fonte_do_cartao(dataset),
+                                                 (grafico or {}).get("rotulos"), protecao)
         # O LLM propõe a capacidade; nomes e IDs são resolvidos exclusivamente no Python,
         # usando a manifestação original e o catálogo local, que nunca segue ao provedor.
         proposed_operation = answer.get("proposal", {}).get("operation")
@@ -1034,8 +1186,9 @@ async def llm_interpretation_with_dataset(
                 answer["proposal"] = _system_response("", None, "")["proposal"]
                 answer.pop("exploration", None)
                 answer.pop("painel", None)
+            answer = llm_bridge.publico(answer)
             sessions.remember(x_adt_session, context_revision, answer)
-        return answer
+        return llm_bridge.publico(answer)
     except LLMError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -1192,7 +1345,7 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
             turno = await _turno_do_dialogo(message, conversa, requested, grafico, file, mapping, sheet, dataset, scope,
                                             dataset_version, x_adt_session, displayed_result_id)
             if turno is not None:
-                return turno
+                return turno  # a resposta do gestor ou ADIAR (pergunta de conversa para o canal com o Gemini)
         if dialogue_action(message) and not (grafico is not None and conversa_grafico.comando_do_grafico(message)):
             if requested.get("conversation_operation_choice") == "comparisons":
                 message = "Compare esses municípios"  # escolha explícita na alternativa; ainda sem cálculo
@@ -1206,8 +1359,9 @@ async def exploration_interpret(message: str = Form(...), file: UploadFile | Non
         # Atendê-la aqui evita que o resolvedor de nomes a transforme em novo pedido de municípios.
         quick = llm_local_response(ChatRequest(message=message, history=[]))
         if quick is not None:
-            if x_adt_session and quick.get("documentation"):
-                return {"handled": False}  # registra o referente documental no contexto da sessão
+            if (x_adt_session and quick.get("documentation")) or _conversa_pelo_modelo(quick):
+                # Registra o referente documental no contexto da sessão, ou o Gemini redige a orientação no canal contextual.
+                return {"handled": False}
             return {"handled": True, "reply": quick["reply"], "executed": False}
         choice = requested.get("conversation_operation_choice")
         if choice is not None:
@@ -1295,12 +1449,34 @@ def _descricao_do_brasil() -> str:
         return ""
 
 
+# Atos do gestor que são perguntas de conversa (o resultado, um conceito, a tela, uma verificação): com o provedor disponível,
+# o Gemini redige a resposta a partir da resposta verificada do gestor. Comandos do gráfico, respostas a esclarecimentos,
+# desfazer, voltar e as recusas de governança continuam com o texto determinístico.
+CONVERSACIONAIS = frozenset(("compara", "diferenca", "contagem", "explica", "limite", "refere_anterior", "estado"))
+ADIAR = {"handled": False}  # intérprete local: a pergunta de conversa segue para o canal com o Gemini
+
+
+def _pedidas_do_ato(ato: dict, resposta: dict) -> list[str]:
+    """As fichas que a resposta precisa explicar: as classes que a explicação destacou e os temas do catálogo pedidos."""
+    pedidas = []
+    for acao in resposta.get("acoes") or []:
+        if isinstance(acao, dict) and acao.get("tipo") == "explicar":
+            pedidas += ["classe:" + codigo for codigo in acao.get("termos") or [] if "classe:" + str(codigo) in definicoes.FICHAS]
+    if ato.get("ato") == "explica" and ato.get("topico") == "conceito":
+        for termo in ato.get("termos") or []:
+            if termo in ("densidade", "distancia", "referencia", "quintil", "agregacao", "velocidade"):
+                pedidas += list(definicoes.DO_TERMO.get(termo, ()))
+    return list(dict.fromkeys(pedidas))
+
+
 async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping, sheet, dataset, scope, dataset_version,
-                            x_adt_session, displayed_result_id, ato=None, redacao_permitida=False):
+                            x_adt_session, displayed_result_id, ato=None, redacao_permitida=False, turnos=None,
+                            rascunho=None, marcadores=None):
     """Gestor de diálogo (dialogo.py) da página única, antes da gramática local e do intérprete com o provedor: resposta
     digitada a esclarecimentos, continuidade, perguntas sobre o resultado em exibição, explicação, verificação, estado da
     tela e governança. `ato` vem do intérprete com o provedor quando o reconhecimento local não cobre a formulação. None:
-    o pedido segue o caminho de antes. Nunca calcula; nada daqui vai ao provedor de IA."""
+    o pedido segue o caminho de antes. ADIAR: pergunta de conversa no intérprete local, com o provedor disponível; ela
+    segue para o canal contextual, onde o Gemini redige a resposta. Nunca calcula."""
     if not dialogo.ativo() or grafico is None:
         return None
     memoria = _conversa_da_tela(conversa)
@@ -1312,10 +1488,11 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
                                                      if item.get("tipo") in ("municipio", "estado")])
     if ato is None:
         return None
-    reformular = ato.get("ato") == "explica" and dialogo.pede_reformulacao(message) and redacao.ativa()
-    if reformular and not redacao_permitida:
-        return None  # a outra formulação segue para o canal contextual, onde a redação governada pelo Gemini é permitida
+    conversacional = ato.get("ato") in CONVERSACIONAIS
+    if conversacional and not redacao_permitida and conversa_gemini.ativa():
+        return dict(ADIAR)
     interpretar = nomes = None
+    frame = fields = grupo = None
     if ato["ato"] in dialogo.PRECISA_DA_BASE or (ato["ato"] == "estado" and ato.get("assunto") == "ausente"):
         frame, fields, settings, opcoes, grupo = await _base_da_conversa(file, mapping, sheet, dataset, scope,
                                                                         dataset_version, requested)
@@ -1342,12 +1519,18 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
         return None
     if resposta is None:
         return None
-    composicao = resposta.pop("_composicao", None)
-    if reformular and composicao is not None:
-        redigida = await redacao.redigir(composicao, message, (resposta.get("memoria") or {}).get("registro") or "objetivo",
-                                         resultado)
-        resposta["reply"] = redigida["texto"]
-        resposta["redacao"] = {chave: redigida[chave] for chave in ("origem", "tentativas")}
+    resposta.pop("_composicao", None)
+    if conversacional and redacao_permitida and (conversa_gemini.ativa() or rascunho):
+        if frame is not None:
+            protecao = protecao_da_fonte(frame, {**fields, **({"grupo_territorial": grupo} if grupo else {})}, sheet)
+        else:
+            protecao = await _protecao_do_pedido(file, sheet, dataset, scope, dataset_version, json.loads(mapping or "{}"))
+        registro = ato.get("registro") or (resposta.get("memoria") or {}).get("registro") or "objetivo"
+        resposta = await _redigida(resposta, message, turnos, memoria, grafico, resultado, anterior, fonte, rotulos,
+                                   protecao, fatos=resposta.get("reply") or "", termos=ato.get("termos") or [],
+                                   pedidas=_pedidas_do_ato(ato, resposta),
+                                   acao=bool(resposta.get("painel") or resposta.get("acoes")), registro=registro,
+                                   rascunho=rascunho, marcadores=marcadores)
     return resposta
 
 

@@ -25,19 +25,29 @@ Percorre:
   "município"; e "Compare Alfa e Beta" muda o gráfico da planilha.
 Nada é calculado pela conversa.
 
+- o histórico da conversa (26/10/2026): as mensagens da pessoa exatamente como ela escreveu e as respostas do agente, em
+  ordem e sem duplicar, preservadas na navegação (vista, abas, Nova análise, planilha); a rolagem que não arrasta quem lê
+  mensagens antigas; a caixa no celular; e a mensagem original na tela, mesmo quando a cópia ao provedor é triada.
+Nada é calculado pela conversa.
+
 Dois modos, pela suíte (run_ui_checks.py):
-- "conversa" (servidor offline, sem transporte de IA): só os canais locais; o pedido que dependeria do provedor antes dos
-  dados recebe a resposta local ou o aviso de indisponibilidade, e a página continua funcionando;
+- "conversa" (servidor offline, sem transporte de IA): só os canais locais; o pedido que dependeria do provedor recebe a
+  comunicação cordial de indisponibilidade no próprio histórico, sem código nem mensagem técnica, e a página continua
+  funcionando;
 - "gemini-simulado" (ADT_FAKE_GEMINI_LOG definido): também o pedido feito antes dos dados, guardado e interpretado de novo
-  quando a base fica pronta; a proposta fora do contrato, recusada com o aviso, e a recuperação na mensagem seguinte; a
-  ambiguidade material com alternativas em botões (CATALOGO_LOCAL), cuja escolha muda o indicador do gráfico; e a
-  conferência de que nada da base chega ao provedor simulado, com os exemplos da biblioteca conversacional mascarados.
+  quando a base fica pronta; as perguntas de conversa, que seguem para o canal contextual e voltam redigidas pelo Gemini
+  simulado e aprovadas na conferência de fidelidade; a proposta fora do contrato, que depois das tentativas previstas recebe
+  a resposta de reserva; o limite de consultas e a falha temporária simulados, com o aviso certo para cada causa, os
+  controles do gráfico funcionando e a recuperação; a ambiguidade material com alternativas em botões (CATALOGO_LOCAL); e a
+  conferência do que chega ao provedor simulado: o resultado agregado em exibição sim; arquivos, colunas, códigos e as chaves
+  internas da tela, não.
 Catálogo sintético do Bloco 1 (AM: MANAUS, TEFE e PARINTINS; SP: FORA; quatro competências). Nunca chama o provedor real.
 """
 import json
 import os
 import re
 import tempfile
+import time
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -49,10 +59,10 @@ OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
 AMAZONAS = sorted([MANAUS, TEFE, PARINTINS])
 SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
-# Nada disto pode chegar ao provedor: arquivos, colunas, códigos, as chaves do contexto do gráfico e a memória da conversa
-# (26/10/2026: os estados anteriores do gráfico e o resultado em exibição ficam no backend local). A memória é conferida pela
-# chave JSON, como apareceria escapada dentro de uma mensagem do registro: a palavra solta "anteriores" é legítima no cabeçalho
-# fixo dos exemplos da biblioteca ("Mensagens anteriores:").
+# Nada disto pode chegar ao provedor: arquivos, colunas, códigos, as chaves do contexto do gráfico e a memória crua da conversa
+# (a tela a manda ao backend local, que monta o cartão triado). A memória é conferida pela chave JSON, como apareceria escapada
+# dentro de uma mensagem do registro: a palavra solta "anteriores" é legítima no cabeçalho fixo dos exemplos da biblioteca
+# ("Mensagens anteriores:"). Desde 26/10/2026, o resultado agregado em exibição (territórios, valores, frase-resumo) pode ir.
 PROTEGIDOS = ("Dados_Municipios_Brasil.csv", "Dados_Brasil.xlsx", "Dados_Estados_Brasil.csv", "cod_ibge", "população_estimada",
               "130260", "130420", "130340", "code:", "condados.csv", "territory_ids", "painel_familia", "painel_vista",
               "painel_resumo", "painel_mapa_disponivel", "painel_motivo_sem_mapa", '\\"anteriores\\"', '\\"pendente\\"',
@@ -108,6 +118,26 @@ def main():
             assert resposta.get("handled") is True, resposta
             return resposta, conversa.value.request
 
+        def pergunta_de_conversa(message, timeout=90000):
+            """Pergunta de conversa (o resultado, um conceito): sem provedor, o gestor responde no intérprete local; com o
+            Gemini (simulado), ela segue para o canal contextual e volta redigida e aprovada na conferência de fidelidade."""
+            rota = "/api/llm/interpret-context" if simulado else "/api/exploration/interpret"
+            with page.expect_response(lambda r: is_post(r, rota), timeout=timeout) as event:
+                send(page, message)
+            assert event.value.status == 200, event.value.text()[:2000]
+            corpo = event.value.json()
+            if simulado:
+                assert (corpo.get("redacao") or {}).get("origem") == "GEMINI_VALIDADO", corpo
+            else:
+                assert corpo.get("handled") is True, corpo
+            return corpo, event.value.request
+
+        def mensagens(papel=None):
+            """O histórico como a pessoa o vê: o texto de cada mensagem, em ordem, sem o rótulo para leitores de tela."""
+            seletor = '[data-testid="chat-mensagem"]' + ('[data-papel="' + papel + '"]' if papel else "")
+            return [re.sub(r"^(?:Você|Agente): ", "", " ".join((t or "").split()))
+                    for t in historico.locator(seletor).all_text_contents()]
+
         page.goto(URL)
         accept_privacy(page)
         area = page.get_by_test_id(AREA["raiz"])
@@ -115,38 +145,57 @@ def main():
         chat = open_chat(page)
         guia = chat.get_by_test_id("painel-chat-guia")
         latest = chat.get_by_test_id("latest-reply")
+        historico = chat.get_by_test_id("chat-historico")
+        enviadas = []  # o que a pessoa escreveu, na ordem, para conferir o histórico no fim
         expect(guia).to_contain_text("O que você quer analisar?")
 
-        # 1. Antes dos dados: perguntas respondidas pelo catálogo local, sem o provedor de IA.
-        antes = provider_log()
+        # 1. Antes dos dados: perguntas respondidas pelo catálogo local, sem o intérprete. Com o Gemini (simulado), a
+        # explicação do método é redigida a partir do texto do catálogo e conferida; o agradecimento continua local.
+        def interpretacoes_no_registro():
+            return sum(1 for linha in provider_log().splitlines() if linha.strip() and '"redacao": true' not in linha)
+        antes = interpretacoes_no_registro()
         for pergunta, trecho in (("Como se calcula a densidade?", "D(u, p, c) = Q(u, p, c) / P(u, p′)"),
                                  ("Muito obrigada pela ajuda!", "De nada")):
             with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
                 send(page, pergunta)
+            enviadas.append(pergunta)
             assert event.value.status == 200, event.value.text()[:2000]
             expect(latest).to_contain_text(trecho)
+            if simulado and pergunta.startswith("Como"):
+                assert event.value.json()["redacao"]["origem"] == "GEMINI_VALIDADO", event.value.json()
+                expect(latest).to_contain_text("Em outras palavras")
+        # A mensagem aparece na hora, exatamente como foi escrita, e a resposta fica abaixo dela.
+        expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile("Muito obrigada pela ajuda!$"))
         with page.expect_response(lambda r: r.url.endswith("/api/brazil/description"), timeout=60000) as event:
             send(page, "O que tem nos dados do Brasil?")
+        enviadas.append("O que tem nos dados do Brasil?")
         assert event.value.status == 200, event.value.text()[:2000]
         expect(latest).to_contain_text("Os dados do Brasil disponíveis nesta plataforma")
         expect(page.get_by_test_id("current-source")).to_have_count(0)  # a descrição não escolhe a fonte
-        assert provider_log() == antes, "as respostas locais não chamam o provedor"
+        assert interpretacoes_no_registro() == antes, "as respostas locais não chamam o intérprete"
 
         # 2. Pedido antes dos dados. Com o provedor simulado, ele fica guardado até a base ficar pronta; sem provedor, a
         # conversa responde localmente ou avisa da indisponibilidade, e a página continua funcionando.
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
             send(page, "Quero analisar a densidade")
-        guardado = event.value.status == 200
-        if simulado:
-            assert guardado, event.value.text()[:2000]
-        else:
-            assert event.value.status in (200, 503), event.value.text()[:2000]
+        enviadas.append("Quero analisar a densidade")
+        assert event.value.status == 200, event.value.text()[:2000]
+        guardado = "indisponibilidade" not in event.value.json()
+        assert guardado is simulado, event.value.json()
         if guardado:
             expect(latest).to_contain_text("Para começar, prefere usar os dados do Brasil ou enviar os seus?")
             send(page, "certo, quantos tem?")
+            enviadas.append("certo, quantos tem?")
             expect(latest).to_contain_text("Para continuar, escolha os dados")
         else:
-            expect(chat.get_by_role("alert")).to_contain_text("Gemini não configurado")
+            # Sem o provedor: o aviso cordial como resposta, no histórico, sem código nem mensagem técnica; a pergunta fica.
+            aviso = historico.locator('[data-papel="aviso"]').last
+            expect(aviso).to_contain_text("Assistente conversacional temporariamente indisponível")
+            expect(aviso).to_contain_text("O recurso de conversa não está disponível neste momento.")
+            expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile("Quero analisar a densidade$"))
+            expect(chat.get_by_role("alert")).to_have_count(0)
+            expect(chat).not_to_contain_text(re.compile(r"HTTP|\b50[0-9]\b|GEMINI_API_KEY|Gemini não configurado"))
+            expect(chat.get_by_test_id("chat-estado-do-servico")).to_contain_text("Os botões, os controles")
 
         # 3. A base escolhida pela conversa, como pelo botão, sem o provedor e sem seleção automática: nada é pedido ao motor
         # até a escolha dos territórios, e a conversa orienta a escolher. O pedido guardado é interpretado de novo pelo
@@ -219,12 +268,13 @@ def main():
         # respondida com os valores do motor (a tela manda a memória da conversa e o resultado em exibição), sem recalcular;
         # a troca de ordem muda a comparação; "não era isso que eu queria" desfaz a última mudança feita pela conversa.
         chamadas = len(painel)
-        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
-            send(page, "Qual deles apresenta densidade maior?")
-        assert event.value.status == 200 and event.value.json().get("handled") is True, event.value.text()[:2000]
-        assert not event.value.json().get("painel"), event.value.json()
-        assert form_field(event.value.request, "displayed_result_id"), "a tela manda o resultado em exibição"
-        assert "anteriores" in json.loads(form_field(event.value.request, "conversa") or "{}"), "a tela manda a memória"
+        corpo, pedido = pergunta_de_conversa("Qual deles apresenta densidade maior?")
+        assert not corpo.get("painel"), corpo
+        assert form_field(pedido, "displayed_result_id"), "a tela manda o resultado em exibição"
+        assert "anteriores" in json.loads(form_field(pedido, "conversa") or "{}"), "a tela manda a memória"
+        if simulado:
+            turnos = json.loads(form_field(pedido, "turnos") or "[]")
+            assert turnos and turnos[-1] == {"papel": "agente", "texto": turnos[-1]["texto"]} and len(turnos) <= 8, turnos
         expect(latest).to_contain_text("A maior densidade")
         expect(latest).to_contain_text("MANAUS (AM)")
         page.wait_for_timeout(800)
@@ -273,10 +323,10 @@ def main():
         expect(entenda).not_to_have_attribute("open", "")
         page.wait_for_timeout(1000)  # a área informa o novo resultado em exibição
         chamadas = len(painel)
-        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
-            send(page, "Não entendi a aceleração.")
-        acoes = event.value.json().get("acoes") or []
-        assert acoes and acoes[0].get("tipo") == "explicar" and acoes[0].get("aba") == "tendencia", event.value.json()
+        corpo, _ = pergunta_de_conversa("Não entendi a aceleração.")
+        acoes = corpo.get("acoes") or []
+        assert acoes and acoes[0].get("tipo") == "explicar" and acoes[0].get("aba") == "tendencia", corpo
+        expect(latest).to_contain_text("ganhou ritmo")  # a regra da classe em palavras (ficha autorizada)
         expect(latest).to_contain_text("Entenda esta análise")
         expect(entenda).to_have_attribute("open", "")
         expect(entenda.get_by_test_id("analise-apresentacao-destaque").first).to_be_visible()
@@ -328,14 +378,16 @@ def main():
         # mensagem seguinte leva o novo indicador no contexto.
         indicador = "density"
         if simulado:
-            # Uma proposta do provedor fora do contrato é recusada (502) com o aviso, nada muda no gráfico, e a mensagem
-            # seguinte funciona.
-            chamadas = len(painel)
+            # Uma proposta do provedor fora do contrato: nova tentativa com as violações, até 2 vezes; persistindo, a resposta
+            # de reserva, sem erro técnico, e nada muda no gráfico. A mensagem seguinte funciona.
+            chamadas, registros = len(painel), interpretacoes_no_registro()
             with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
                 send(page, "Mostre algo invalido")
-            assert event.value.status == 502, event.value.text()[:2000]
+            assert event.value.status == 200 and event.value.json().get("reserva") is True, event.value.text()[:2000]
             assert "fake-offline-key" not in event.value.text()
-            expect(chat.get_by_role("alert")).to_contain_text("fora do contrato")
+            expect(latest).to_contain_text("Não consegui interpretar este pedido com segurança")
+            expect(chat.get_by_role("alert")).to_have_count(0)
+            assert interpretacoes_no_registro() - registros == 3, "a primeira tentativa e só 2 regenerações"
             assert len(painel) == chamadas
             with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
                 send(page, "Analise o perfil dos municipios")
@@ -351,6 +403,39 @@ def main():
             expect(chat.get_by_role("group", name="Alternativas de esclarecimento")).to_have_count(0, timeout=60000)
             page.wait_for_timeout(1000)
             indicador = "quantity"
+
+            # 8b. Limite de consultas e falha temporária simulados (sem chamada real): o aviso certo para cada causa, como
+            # resposta no histórico; durante a espera informada pelo provedor, nada é chamado de novo; os controles do gráfico
+            # e os pedidos diretos continuam; passada a espera, a conversa volta sozinha, sem recarregar a página.
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
+                send(page, "simule limite de consultas agora")
+            assert event.value.json()["indisponibilidade"]["tipo"] == "cota", event.value.json()
+            aviso = historico.locator('[data-papel="aviso"]').last
+            expect(aviso).to_contain_text("Assistente conversacional temporariamente indisponível")
+            expect(aviso).to_contain_text("O limite de consultas ao assistente conversacional foi atingido neste momento.")
+            expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile("simule limite de consultas agora$"))
+            expect(chat).not_to_contain_text(re.compile(r"HTTP|429|RESOURCE_EXHAUSTED|[Qq]uota|rate limit"))
+            registros = len(provider_log().splitlines())
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
+                send(page, "e o que mais dá para fazer com isso?")
+            assert event.value.json()["indisponibilidade"]["tipo"] == "cota", event.value.json()
+            assert len(provider_log().splitlines()) == registros, "durante a espera, nenhuma chamada ao provedor"
+            resposta, _ = chat_reply("Compare Manaus e Tefé")  # o comando direto do gráfico continua, sem o provedor
+            assert resposta.get("painel") and len(provider_log().splitlines()) == registros, resposta
+            page.wait_for_timeout(3500)  # a espera informada pelo provedor (3 s) passou
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
+                send(page, "e o que mais dá para fazer com isso?")
+            assert "indisponibilidade" not in event.value.json(), event.value.json()
+            assert len(provider_log().splitlines()) > registros, "a conversa voltou a chamar o provedor"
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000) as event:
+                send(page, "simule queda do serviço")
+            assert event.value.json()["indisponibilidade"]["tipo"] == "indisponivel", event.value.json()
+            expect(historico.locator('[data-papel="aviso"]').last).to_contain_text(
+                "O recurso de conversa não está disponível neste momento.")
+            expect(historico.locator('[data-papel="aviso"]').last).not_to_contain_text("limite")
+            enviadas.extend(["simule limite de consultas agora", "e o que mais dá para fazer com isso?",
+                             "Compare Manaus e Tefé", "e o que mais dá para fazer com isso?", "simule queda do serviço"])
+            page.wait_for_timeout(3500)
 
         # 9. "Volte aos estados": de volta à porta de entrada, com o indicador do gráfico no contexto. Os estados (todos) já foram
         # calculados no passo 3: a resposta vem da memória da tela, sem novo pedido ao motor; a comparação dos municípios não vai
@@ -457,8 +542,60 @@ def main():
         assert set(grafico["comparar"]) == {"name:Alfa", "name:Beta"}, grafico
         shot("03-planilha")
 
-        # 13. Nada da base chega ao provedor simulado: nem arquivos, colunas e códigos, nem o contexto do gráfico, nem a
-        # frase-resumo do motor, que a tela manda ao backend local (painel_resumo) e ele tira antes do intérprete.
+        # 12b. O histórico da conversa, como a pessoa o vê: tudo o que ela escreveu, exatamente como escreveu, em ordem, sem
+        # duplicar, depois da vista, das abas, da Nova análise e da troca de fonte; a mensagem original fica na tela mesmo
+        # quando a cópia ao provedor é triada; a rolagem não arrasta quem lê o começo; a caixa funciona no celular.
+        original = "Meu CPF é 123.456.789-09; a Maria Quitéria pode ver isso?"
+        send(page, original)  # espera a resposta (o campo volta a aceitar texto)
+        expect(historico.locator('[data-papel="usuario"]').last).to_have_text(re.compile(re.escape(original) + "$"))
+        expect(historico.locator('[data-testid="chat-mensagem"]').last).not_to_have_attribute("data-papel", "usuario")
+        usuario = mensagens("usuario")
+        for texto in ("Como se calcula a densidade?", "Mostre o Amazonas", "Compare Manaus e Tefé em 2024", "a de janeiro",
+                      "Não entendi a aceleração.", "Compare Alfa e Beta", original):
+            assert usuario.count(texto) >= 1, (texto, usuario)
+        posicoes = [usuario.index(texto) for texto in ("Como se calcula a densidade?", "Mostre o Amazonas",
+                                                       "Compare Manaus e Tefé em 2024", "a de janeiro", "Compare Alfa e Beta")]
+        assert posicoes == sorted(posicoes), usuario
+        assert usuario.count("Mostre o Amazonas") == 1 and usuario.count("a de janeiro") == 1, usuario
+        todas = mensagens()
+        pergunta = todas.index("Compare Manaus e Tefé em 2024")
+        assert todas[pergunta + 2] == "a de janeiro" and "Em 2024" in todas[pergunta + 1], todas[pergunta:pergunta + 4]
+        if simulado:
+            assert "123.456.789-09" not in provider_log() and "Maria Quitéria" not in provider_log()
+        historico.evaluate("el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')); }")
+        page.wait_for_timeout(300)
+        topo = historico.evaluate("el => el.scrollTop")
+        send(page, "ver no mapa")  # quem envia vai ao fim, para ver a resposta
+        page.wait_for_timeout(300)
+        assert historico.evaluate("el => el.scrollHeight - el.scrollTop - el.clientHeight") <= 48 and topo == 0
+        if simulado:
+            # Lendo o começo enquanto a resposta chega: a resposta não puxa a pessoa para o fim; o botão leva até ela.
+            chat.locator("#assistant-input").fill("explique de forma lenta o que estou vendo")
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret-context"), timeout=90000):
+                chat.get_by_role("button", name="Enviar mensagem", exact=True).click()
+                page.wait_for_timeout(400)
+                historico.evaluate("el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')); }")
+            page.wait_for_timeout(500)
+            assert historico.evaluate("el => el.scrollTop") < 40, "a resposta não forçou a rolagem"
+            ir = chat.get_by_test_id("chat-ir-ao-fim")
+            expect(ir).to_be_visible()
+            ir.click()
+            expect(ir).to_have_count(0)
+        # A captura de página inteira não guarda a rolagem interna da caixa: a da caixa mostra o histórico como está na tela.
+        page.get_by_test_id("painel-chat").screenshot(path=str(OUTPUT / ("conversa-grafico-05-historico-caixa" + suffix +
+                                                                          ".png")))
+        page.set_viewport_size({"width": 390, "height": 844})
+        expect(historico).to_be_visible()
+        caixa = page.get_by_test_id("painel-chat").bounding_box()
+        assert caixa and caixa["x"] >= 0 and caixa["x"] + caixa["width"] <= 390 + 1, caixa
+        expect(historico.locator('[data-papel="usuario"]').last).to_be_visible()
+        shot("04-historico-celular")
+        page.get_by_test_id("painel-chat").screenshot(path=str(OUTPUT / ("conversa-grafico-06-historico-celular-caixa" +
+                                                                          suffix + ".png")))
+        page.set_viewport_size({"width": 1280, "height": 900})
+
+        # 13. O que chega ao provedor simulado: o resultado agregado em exibição sim (Frente IV); arquivos, colunas, códigos,
+        # as chaves internas da tela e a memória crua da conversa, não.
         if simulado:
             registros = [json.loads(linha) for linha in provider_log().splitlines() if linha.strip()]
             assert len(registros) >= 3, registros
@@ -466,8 +603,7 @@ def main():
             for protegido in PROTEGIDOS:
                 assert protegido not in payload, protegido
             assert contextuais, "o roteiro passa pelo intérprete contextual"
-            for texto in filter(None, [frase, *(options_of(pedido).get("painel_resumo") for pedido in contextuais)]):
-                assert texto not in payload, texto
+            assert "resultado_em_exibicao" in payload and "MANAUS (AM)" in payload, "o cartão leva o resultado em exibição"
             # Exemplos da biblioteca conversacional acompanham os pedidos, mascarados como as mensagens.
             exemplos = [registro["exemplos"] for registro in registros if registro.get("exemplos")]
             assert exemplos and all(bloco.startswith("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL") for bloco in exemplos), registros
@@ -476,8 +612,10 @@ def main():
         browser.close()
     print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa sem seleção automática, todos os estados, Amazonas, "
           "mapa e gráfico, resumo, comparação, gestor de diálogo (pergunta sobre o resultado, troca, desfazer, resposta digitada e "
-          "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior e planilha de condados" +
-          (", ambiguidade e minimização (Gemini simulado)." if simulado else " (sem provedor)."))
+          "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior, planilha de condados e histórico "
+          "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular)" +
+          (", redação conferida, reserva de contrato, limite e queda simulados com recuperação, ambiguidade e triagem "
+           "(Gemini simulado)." if simulado else ", aviso cordial sem o provedor."))
 
 
 if __name__ == "__main__":

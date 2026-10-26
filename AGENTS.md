@@ -57,8 +57,9 @@ documentação e os textos da interface em português do Brasil.
   4. registre a mudança (regra 1);
   5. envie e acompanhe no CI os testes com dados reais (job `dados-reais`, seção 5).
 - Testes com dados reais são somente leitura. Eles conferem os hashes antes e depois.
-- Nenhum dado, arquivo, nome de campo ou valor da base vai para o provedor de IA (README,
-  "Política dos dados do Brasil").
+- Nenhum arquivo, linha, registro individual, identificador, nome de campo ou credencial vai para o provedor de IA.
+  Só vão a mensagem triada, a janela da conversa triada, estados técnicos e os resultados agregados exibidos na tela
+  (decisão de 26/10/2026; README, "Política dos dados do Brasil", e Adendo PAR-20261026 da SPEC).
 
 ## 3. Testes
 
@@ -140,3 +141,5 @@ No Windows, rode o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (
     resumo final; só por pedido explícito do responsável (seção 4).
   - `capturar_telas.py`: capturas das telas principais com a base versionada, para a conferência
     visual; só por pedido explícito do responsável (seção 4).
+  - `validar_gemini_real.py`: amostra pequena e delimitada de conversas com o Gemini real (com `GEMINI_API_KEY`), com
+    teto de chamadas próprio; fora do CI.

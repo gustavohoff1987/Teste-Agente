@@ -5,8 +5,9 @@ mesmo nula, identifica a página única) e recebe, quando o pedido mexe no gráf
 nível, municípios, competência, janela, visão da tendência, referência, função, seleção, ordenação, condições, grupos e,
 desde 23/10/2026, a vista do desenho ("mostre o Pará no mapa", "onde ficam …?": `vista: "mapa"`; "… no gráfico":
 `vista: "grafico"`), que a área aplica como estado visual, sem recalcular. Chave nula: o gráfico mantém o que tem. Nomes e
-códigos são resolvidos só aqui, pelo catálogo territorial local; nada da base vai ao provedor de IA (o estado da tela,
-inclusive a frase-resumo do motor em `painel_resumo`, sai das opções antes do intérprete: CONTEXTO). Ambiguidade vira
+códigos são resolvidos só aqui, pelo catálogo territorial local; as chaves do estado da tela (inclusive a frase-resumo em
+`painel_resumo`) saem das opções antes do pré-exame e do intérprete (CONTEXTO): o que o provedor recebe da tela é o cartão
+triado que o backend monta a partir do resultado da sessão (contexto_conversa.py). Ambiguidade vira
 pergunta com alternativas em botões, sem mudar o gráfico. As respostas dizem o que muda no gráfico, sem valores da base:
 os números vêm do motor depois (/api/painel).
 

@@ -2,6 +2,7 @@
 import socket
 import pytest
 
+import llm_bridge
 import request_memo
 
 
@@ -33,3 +34,11 @@ def fresh_source_memory():
     request_memo.clear_shared()
     yield
     request_memo.clear_shared()
+
+
+@pytest.fixture(autouse=True)
+def fresh_provider_state():
+    # Monitoramento e espera do provedor (cota ou falha simuladas) não passam de um teste a outro.
+    llm_bridge.reiniciar_estado()
+    yield
+    llm_bridge.reiniciar_estado()

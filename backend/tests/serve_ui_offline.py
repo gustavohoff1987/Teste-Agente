@@ -20,10 +20,11 @@ import uvicorn
 
 
 async def forbidden(*args, **kwargs):
-    raise llm_bridge.LLMError(503, "Transporte externo desabilitado no servidor de testes.")
+    raise llm_bridge.LLMError(503, "Transporte externo desabilitado no servidor de testes.", "indisponivel")
 
 
 llm_bridge._call_gemini = forbidden
+llm_bridge.generate_structured = forbidden
 app.mount("/", StaticFiles(directory=ROOT / "frontend" / "dist", html=True), name="ui-offline")
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("ADT_UI_PORT", "18000")), log_level="warning")

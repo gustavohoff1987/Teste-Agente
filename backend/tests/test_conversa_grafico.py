@@ -669,7 +669,10 @@ def test_rota_com_o_provedor_devolve_o_painel_sem_enviar_dados_da_base(monkeypat
     assert body["verification"]["source"] == "BACKEND_PREFLIGHT"
     conteudo = " ".join(enviado)
     assert enviado and "CONTEXTO_VERIFICADO_PELO_BACKEND" in conteudo
-    for proibido in ("Angoche", "Mocuba", "Nampula", "Zambézia", "name:", "painel", "distritos.csv"):
+    # Triagem de 26/10/2026 (RQ-DAD-20/38/39): os distritos da planilha carregada são entidades não pessoais com evidência
+    # (classe B) e ficam na mensagem; o nome do arquivo, os ids internos e as opções da tela não vão ao provedor.
+    assert "Coloque Angoche e Mocuba lado a lado" in conteudo
+    for proibido in ("name:", "painel_", "distritos.csv", "territory_ids"):
         assert proibido not in conteudo, proibido
 
 

@@ -23,7 +23,6 @@ import dialogo
 import explicacao
 import llm_bridge
 import main
-import redacao
 from brazil_data import FILES, GOVERNED_MANIFEST, manifest_from_repository
 from catalog_support import write_state_source
 from conversa_simulada import Tela, dobra
@@ -396,138 +395,139 @@ def test_composicao_adulterada_e_recusada(tela):
         explicacao.verificar(composicao, tela.resposta)
 
 
-def test_sem_o_provedor_o_pedido_desconhecido_recebe_ajuda_e_nao_erro(tela, monkeypatch):
+def test_sem_o_provedor_o_pedido_desconhecido_recebe_a_mensagem_cordial(tela, monkeypatch):
     tela.seleciona(ids=[MANAUS])
     turno = tela.diga("faz aquilo lá")
     assert turno.status == 200 and turno.corpo.get("degradado") is True
-    assert turno.texto.startswith("O componente de linguagem está indisponível.") and turno.texto.endswith("O que você quer ver?")
+    assert turno.corpo["indisponibilidade"] == {"tipo": "indisponivel", "titulo": llm_bridge.TITULO_INDISPONIVEL,
+                                                "texto": llm_bridge.TEXTO_INDISPONIVEL}
+    assert turno.texto == llm_bridge.TEXTO_INDISPONIVEL and not re.search(r"HTTP|\b50[0-9]\b|GEMINI_API_KEY", turno.texto)
 
 
-def test_ato_do_interprete_com_provedor_simulado_e_executado_pelo_gestor(tela, monkeypatch):
-    tela.seleciona(ids=[MANAUS, TEFE])
+def _gemini_simulado(monkeypatch, *respostas, interpretacao=None):
+    """Provedor configurado com chave fictícia e sem rede: a redação devolve as respostas na ordem (dict ou função das
+    entradas); a interpretação, a dada (sem ela, chamá-la é falha do teste)."""
     monkeypatch.setenv("GEMINI_API_KEY", "teste-sem-chave-real")
-    monkeypatch.setattr(llm_bridge, "_counter", 0)
-    monkeypatch.setattr(llm_bridge, "_counter_day", "")
-    enviados = []
+    monkeypatch.delenv("ADT_CONVERSA_GEMINI", raising=False)
+    enviados = {"redacao": [], "interpretacao": []}
 
-    async def provedor(mensagens, *_args):
-        enviados.extend(mensagens)
-        return {"operation": "none", "indicator": "none", "period": "", "category": "", "territory": "",
-                "intent": "CONVERSACIONAL", "topic": "none", "dialogue": "compare_result", "social_reply": "",
-                "candidates": [], "attribute": "populacao", "direction": "maior"}
-    monkeypatch.setattr(llm_bridge, "_call_gemini", provedor)
-    turno = tela.diga("dos dois, onde mora mais gente afinal")
-    itens = {item["id"]: item for item in tela.resposta["itens"]}
-    assert turno.canal == "CONTEXTUAL" and turno.status == 200
-    assert number(itens[MANAUS]["populacao"]) in turno.texto
-    # Ao provedor só foram o pedido sanitizado e estados técnicos: nenhum nome, código ou valor da base.
-    corpo = json.dumps(enviados, ensure_ascii=False)
-    for proibido in ("MANAUS", "Manaus", "TEFE", "130260", "130420", number(itens[MANAUS]["populacao"])):
-        assert proibido not in corpo
+    async def gera(sistema, mensagens, esquema, max_tokens=1200):
+        enviados["redacao"].append({"sistema": sistema, "mensagens": list(mensagens)})
+        resposta = respostas[min(len(enviados["redacao"]), len(respostas)) - 1]
+        return resposta(mensagens) if callable(resposta) else resposta
 
-
-def test_desligar_o_gestor_restaura_o_caminho_anterior(tela, sem_provedor, monkeypatch):
-    monkeypatch.setenv("ADT_DIALOGO", "0")
-    assert tela.diga("Compare Amazonas com Manaus.").alternativas
-    resposta = tela.diga("Município.")
-    assert not resposta.aplicado and resposta.status == 200 and resposta.corpo.get("degradado") is True
-
-
-# --------------------------------------------------------------------------------------------- redação governada (redacao.py)
-ORIGINAL = "Em ⟦1⟧, o gráfico tem ⟦2⟧. A maior densidade é a de ⟦3⟧ (⟦4⟧)."
-MARCADORES = {"⟦1⟧": "junho de 2024", "⟦2⟧": "2 municípios", "⟦3⟧": "MANAUS (AM)", "⟦4⟧": "23,50"}
-
-
-@pytest.mark.parametrize("texto,violacao", [
-    ("Em ⟦1⟧ há ⟦2⟧ no gráfico. ⟦3⟧ tem a maior densidade: ⟦4⟧.", None),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade.", "marcador ⟦4⟧ aparece 0 vez(es)"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ e ⟦3⟧ têm a maior densidade: ⟦4⟧.", "marcador ⟦3⟧ aparece 2 vez(es)"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade: ⟦4⟧ e ⟦5⟧.", "marcadores inexistentes: ⟦5⟧"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade: ⟦4⟧, cerca de 24.", "números fora dos marcadores (V-01)"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade, ⟦4⟧, por causa da capital.", "termo novo de V-04 causalidade"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade, ⟦4⟧, o que é adequado.", "termo novo de V-03 juízo normativo"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade, ⟦4⟧, em aceleração.", "termo novo de V-05 tendência"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade, ⟦4⟧, o dobro de Tefé.", "termo novo de V-07 relação quantitativa"),
-    ("Em ⟦1⟧ há ⟦2⟧, como em Tefé. ⟦3⟧ tem a maior densidade: ⟦4⟧.", "nomes próprios novos (V-02): Tefé"),
-    ("Em ⟦1⟧ há ⟦2⟧. ⟦3⟧ tem a maior densidade: ⟦4⟧. Veja https://exemplo.org", "links ou marcação não permitidos"),
-])
-def test_validador_da_redacao(texto, violacao):
-    violacoes = redacao.validar(texto, ORIGINAL, MARCADORES)
-    if violacao is None:
-        assert violacoes == []
-    else:
-        assert any(v.startswith(violacao) for v in violacoes), violacoes
-
-
-def _redacao_simulada(monkeypatch, *respostas):
-    """Provedor configurado só para a redação: cada chamada devolve a resposta seguinte (função do esqueleto ou dict)."""
-    monkeypatch.setenv("GEMINI_API_KEY", "teste-sem-chave-real")
-    monkeypatch.delenv("ADT_REDACAO_GEMINI", raising=False)
-    enviados = []
-
-    async def gera(sistema, mensagens, esquema, max_tokens=900):
-        enviados.append({"sistema": sistema, "mensagens": list(mensagens)})
-        resposta = respostas[min(len(enviados), len(respostas)) - 1]
-        return resposta(mensagens[0].split("TEXTO:\n", 1)[1].split("\nVIOLACOES_DA_TENTATIVA_ANTERIOR")[0]) \
-            if callable(resposta) else resposta
-
-    async def interprete(*_args, **_kwargs):
-        raise AssertionError("a outra formulação não passa pelo intérprete")
+    async def interprete(mensagens, *_args):
+        enviados["interpretacao"].append(list(mensagens))
+        if interpretacao is None:
+            raise AssertionError("o intérprete não devia ser chamado")
+        return interpretacao(mensagens) if callable(interpretacao) else interpretacao
     monkeypatch.setattr(llm_bridge, "generate_structured", gera)
     monkeypatch.setattr(llm_bridge, "_call_gemini", interprete)
     return enviados
 
 
-def test_outra_formulacao_redigida_pelo_gemini_mantem_os_segmentos_verificados(tela, monkeypatch):
+def _cartao(enviados) -> dict:
+    """O cartão do contexto da última redação, como o provedor o recebeu."""
+    entrada = next(m for m in enviados["redacao"][-1]["mensagens"] if m.startswith("CONTEXTO_DA_CONVERSA: "))
+    return json.loads(entrada[len("CONTEXTO_DA_CONVERSA: "):])
+
+
+def test_ato_do_interprete_com_provedor_simulado_e_executado_pelo_gestor_e_redigido(tela, monkeypatch):
+    tela.seleciona(ids=[MANAUS, TEFE])
+    itens = {item["id"]: item for item in tela.resposta["itens"]}
+    populacao = number(itens[MANAUS]["populacao"])
+    enviados = _gemini_simulado(
+        monkeypatch, interpretacao={
+            "operation": "none", "indicator": "none", "period": "", "category": "", "territory": "",
+            "intent": "CONVERSACIONAL", "topic": "none", "dialogue": "compare_result", "social_reply": "",
+            "candidates": [], "attribute": "populacao", "direction": "maior",
+            "resposta": "Dos dois, quem tem mais habitantes é MANAUS (AM), com " + populacao + " habitantes."})
+    turno = tela.diga("dos dois, onde mora mais gente afinal")
+    assert turno.canal == "CONTEXTUAL" and turno.status == 200
+    # O texto do Gemini veio com a interpretação, passou na conferência (a ordem e o valor são os do motor) e aparece.
+    assert turno.texto == "Dos dois, quem tem mais habitantes é MANAUS (AM), com " + populacao + " habitantes."
+    assert turno.corpo["redacao"] == {"origem": "GEMINI_VALIDADO", "tentativas": 1} and enviados["redacao"] == []
+    # Ao provedor foram o pedido triado e o cartão com o resultado agregado em exibição (autorização D de 26/10/2026):
+    # os nomes e os valores como na tela; nenhum código territorial, nome de coluna ou de arquivo.
+    corpo = json.dumps(enviados["interpretacao"], ensure_ascii=False)
+    assert "MANAUS (AM)" in corpo and populacao in corpo
+    for proibido in ("130260", "130420", "cod_ibge", "população_estimada", "Dados_Municipios_Brasil"):
+        assert proibido not in corpo
+
+
+def test_texto_do_gemini_com_ordem_errada_e_regenerado_e_o_fiel_aparece(tela, monkeypatch):
+    tela.seleciona(ids=[MANAUS, TEFE])
+    enviados = _gemini_simulado(
+        monkeypatch,
+        {"resposta": "A maior densidade é a de MANAUS (AM): 23,50 por 1.000 habitantes; TEFE (AM) fica com 10."},
+        interpretacao={
+            "operation": "none", "indicator": "none", "period": "", "category": "", "territory": "",
+            "intent": "CONVERSACIONAL", "topic": "none", "dialogue": "compare_result", "social_reply": "",
+            "candidates": [], "attribute": "densidade", "direction": "maior",
+            "resposta": "TEFE (AM) tem a maior densidade dos dois."})
+    turno = tela.diga("e entre eles, qual se destaca na densidade?")
+    assert turno.corpo["redacao"] == {"origem": "GEMINI_VALIDADO", "tentativas": 2}
+    assert turno.texto.startswith("A maior densidade é a de MANAUS (AM)")
+    # A nova tentativa leva a violação da primeira, e o texto rejeitado nunca aparece.
+    violacoes = next(m for m in enviados["redacao"][0]["mensagens"] if m.startswith("VIOLACOES_DA_TENTATIVA_ANTERIOR"))
+    assert "V-07" in violacoes and "TEFE (AM) tem a maior" not in turno.texto
+
+
+def test_explicacao_redigida_pelo_gemini_e_conferida_e_esgotada_cai_na_reserva(tela, monkeypatch):
     tela.seleciona(ids=[MANAUS, TEFE, PARINTINS])
-    tela.diga("Explique esse resultado.")
-    deterministico = tela.diga("explica de um jeito mais simples")  # sem o provedor: o texto verificado
-    assert "redacao" not in deterministico.corpo
-    enviados = _redacao_simulada(monkeypatch, lambda esqueleto: {"texto": "Resumindo: " + esqueleto})
-    redigido = tela.diga("explica de um jeito mais simples")
-    assert redigido.canal == "CONTEXTUAL" and not redigido.aplicado
-    assert redigido.corpo["redacao"] == {"origem": "REDACAO_GEMINI_VALIDADA", "tentativas": 1}
-    assert redigido.texto == "Resumindo: " + deterministico.texto
-    # Ao provedor vão só o esqueleto com marcadores, os tipos dos marcadores, o registro e o pedido sanitizado: nenhum nome,
-    # código, competência ou valor; o único número fora dos marcadores é a escala fixa do modelo de frase.
-    corpo = json.dumps(enviados, ensure_ascii=False)
-    assert "⟦1⟧" in corpo and "REGISTRO: simples" in corpo
-    assert set(numeros(re.sub(r"⟦\d+⟧", " ", corpo))) <= {"1.000"}
-    for item in tela.resposta["itens"]:
-        assert dobra(item["rotulo"].split(" (")[0]) not in dobra(corpo) and item["id"].split(":")[1] not in corpo
-    assert "junho" not in dobra(corpo) and "2024" not in corpo
-
-
-def test_redacao_violada_e_regenerada_e_esgotada_cai_no_texto_verificado(tela, monkeypatch):
-    tela.seleciona(ids=[MANAUS, TEFE])
-    tela.diga("Explique esse resultado.")
-    deterministico = tela.diga("explica de forma didática").texto
-    enviados = _redacao_simulada(monkeypatch, lambda esqueleto: {"texto": esqueleto + " Isso é adequado."},
-                                 lambda esqueleto: {"texto": esqueleto.replace("⟦1⟧", "")})
-    turno = tela.diga("explica de forma didática")
-    assert turno.corpo["redacao"] == {"origem": "DETERMINISTICA", "tentativas": 3}
-    assert turno.texto.startswith(deterministico) and turno.texto.endswith(
+    deterministico = tela.diga("Explique esse resultado.")  # sem o provedor: a resposta verificada do gestor
+    assert "redacao" not in deterministico.corpo and deterministico.canal == "LOCAL"
+    enviados = _gemini_simulado(monkeypatch, {"resposta": "Esse resultado mostra que MANAUS (AM) tem médicos suficientes."},
+                                {"resposta": "MANAUS (AM) tem cerca de 24 por 1.000 habitantes."},
+                                {"resposta": "A densidade de Recife é maior."})
+    turno = tela.diga("Explique esse resultado.")
+    assert turno.canal == "CONTEXTUAL" and turno.corpo["redacao"] == {"origem": "DETERMINISTICA", "tentativas": 3}
+    assert turno.texto.startswith(deterministico.texto) and turno.texto.endswith(
         materialize("DOC:TPL-08", form="mensagem", evidence="REGENERACAO_ESGOTADA")["text"])
-    assert "isso e adequado" not in dobra(turno.texto)  # o texto rejeitado nunca é exibido
-    # A segunda tentativa leva a lista das violações da primeira.
-    assert "VIOLACOES_DA_TENTATIVA_ANTERIOR: termo novo de V-03 juízo normativo" in enviados[1]["mensagens"][0]
-    corrigida = _redacao_simulada(monkeypatch, {"texto": "sem marcadores"},
-                                  lambda esqueleto: {"texto": "Passo a passo: " + esqueleto})
-    turno = tela.diga("explica de forma didática")
-    assert turno.corpo["redacao"] == {"origem": "REDACAO_GEMINI_VALIDADA", "tentativas": 2} and len(corrigida) == 2
-    assert turno.texto == "Passo a passo: " + deterministico
+    assert "suficientes" not in turno.texto and "Recife" not in turno.texto
+    assert len(enviados["redacao"]) == 3  # a primeira e só 2 regenerações (RQ-SIN-05)
+    cartao = _cartao(enviados)
+    assert cartao["resultado_em_exibicao"]["frase_resumo_do_motor"] == tela.resposta["resumo"]["texto"]
+    assert cartao["resposta_verificada_do_sistema"] == deterministico.texto
 
 
-def test_provedor_indisponivel_na_redacao_mantem_o_texto_verificado(tela, monkeypatch):
+def test_explicacao_fiel_redigida_pelo_gemini_aparece_com_uma_so_chamada(tela, monkeypatch):
+    tela.seleciona(ids=[MANAUS, TEFE, PARINTINS])
+    texto = ("Em junho de 2024 o gráfico tem 3 municípios. A maior densidade é a de MANAUS (AM), com 23,50 por 1.000 "
+             "habitantes, e a menor, a de TEFE (AM), com 10 por 1.000 habitantes. A densidade compara profissionais e "
+             "população; sozinha, não diz se há médicos suficientes.")
+    enviados = _gemini_simulado(monkeypatch, {"resposta": "não devia ser chamado"}, interpretacao={
+        "operation": "none", "indicator": "none", "period": "", "category": "", "territory": "",
+        "intent": "CONVERSACIONAL", "topic": "none", "dialogue": "reformulate", "style": "simples", "social_reply": "",
+        "candidates": [], "resposta": texto})
+    turno = tela.diga("Me conta o que esse gráfico está dizendo, sem complicar")
+    # A formulação que a leitura local não cobre vai ao intérprete, que já devolve o texto; conferido, ele aparece.
+    assert turno.canal == "CONTEXTUAL" and turno.corpo["redacao"] == {"origem": "GEMINI_VALIDADO", "tentativas": 1}
+    assert turno.texto == texto and len(enviados["interpretacao"]) == 1 and enviados["redacao"] == []
+
+
+def test_paráfrase_da_classe_conserva_o_criterio_do_motor(tela, monkeypatch):
+    tela.seleciona(ids=[MANAUS], familia="tendencia")
+    _gemini_simulado(monkeypatch,
+                     {"resposta": "Aceleração do crescimento quer dizer que o indicador cresceu mais de 10% ao ano."},
+                     {"resposta": "Aceleração do crescimento quer dizer que o indicador subiu em todos os períodos e cada "
+                                  "alta foi do mesmo tamanho ou maior que a anterior: o crescimento ganhou ritmo. Em "
+                                  "MANAUS (AM), os valores foram 15, 17, 20 e 23,50."})
+    turno = tela.diga("Não entendi a aceleração.")
+    assert turno.canal == "CONTEXTUAL" and turno.corpo["redacao"] == {"origem": "GEMINI_VALIDADO", "tentativas": 2}
+    assert "10%" not in turno.texto and "ganhou ritmo" in turno.texto
+    assert turno.corpo.get("acoes")  # a tela continua abrindo "Entenda esta análise" com a classe destacada
+
+
+def test_provedor_indisponivel_na_redacao_mantem_a_resposta_verificada(tela, monkeypatch):
     tela.seleciona(ids=[MANAUS, TEFE])
-    tela.diga("Explique esse resultado.")
-    deterministico = tela.diga("explica de forma didática").texto
+    deterministico = tela.diga("Explique esse resultado.").texto
     monkeypatch.setenv("GEMINI_API_KEY", "teste-sem-chave-real")
 
     async def fora(*_args, **_kwargs):
-        raise llm_bridge.LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.")
+        raise llm_bridge.LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.", "indisponivel")
     monkeypatch.setattr(llm_bridge, "generate_structured", fora)
-    turno = tela.diga("explica de forma didática")
+    turno = tela.diga("Explique esse resultado.")
     assert turno.status == 200 and turno.texto == deterministico
     assert turno.corpo["redacao"] == {"origem": "DETERMINISTICA", "tentativas": 1}
 
@@ -537,15 +537,17 @@ def test_provedor_indisponivel_na_redacao_mantem_o_texto_verificado(tela, monkey
     ("não entendi", True), ("Não entendi a aceleração.", False), ("Mas por que isso é diferente de crescimento?", False),
     ("Explique esse resultado.", False),
 ])
-def test_so_a_outra_formulacao_vai_a_redacao(mensagem, reformula):
+def test_pedido_de_outra_formulacao_e_reconhecido(mensagem, reformula):
     assert dialogo.pede_reformulacao(mensagem) is reformula
 
 
-def test_pergunta_sobre_termo_e_respondida_localmente_mesmo_com_o_provedor(tela, monkeypatch):
-    tela.seleciona(ids=[MANAUS], familia="tendencia")
-    _redacao_simulada(monkeypatch, lambda esqueleto: pytest.fail("a pergunta sobre um termo não vai à redação"))
-    turno = tela.diga("Não entendi a aceleração.")
-    assert turno.canal == "LOCAL" and "Aceleração do crescimento" in turno.texto and "redacao" not in turno.corpo
+def test_comandos_e_governanca_continuam_deterministicos_com_o_provedor(tela, monkeypatch):
+    tela.seleciona(ids=[MANAUS, TEFE])
+    _gemini_simulado(monkeypatch, {"resposta": "não devia ser chamado"})
+    recusa = tela.diga("Muda o valor de Manaus para 50.")
+    assert recusa.canal == "LOCAL" and "redacao" not in recusa.corpo
+    desfaz = tela.diga("Compare Manaus e Tefé")
+    assert desfaz.canal == "LOCAL" and "redacao" not in desfaz.corpo
 
 
 def test_defeito_do_gestor_nao_bloqueia_o_pedido(tela, sem_provedor, monkeypatch, caplog):

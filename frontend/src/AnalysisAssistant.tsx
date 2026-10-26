@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { AlertCircle, Database, FileUp, LoaderCircle, RefreshCw, Send } from "lucide-react";
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowDown, Database, FileUp, Info, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
@@ -7,6 +7,8 @@ import { comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa, mem
   pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaDaVista,
   respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa, type ResultView } from "./conversaGrafico";
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
+import { acrescentar, avisoDaResposta, avisoDeFalha, estaNoFim, mensagemDeAviso, novoId, turnosParaEnvio, ultimaResposta,
+  type Aviso, type Mensagem } from "./historicoConversa";
 
 // Conversa da página única (22/10/2026), sempre na caixa flutuante com o rosto do agente. Antes dos dados, ela pergunta o que
 // a pessoa quer analisar e oferece "Usar dados do Brasil" e "Enviar meus dados" (24/10/2026: a mesma janela de envio da área
@@ -16,8 +18,10 @@ import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } fr
 // `painel`, ele vira um pedido para a área de análise, que muda o gráfico; a conversa não calcula nada. O contexto de cada
 // pedido sai do que está no gráfico (ContextoDoGrafico). Respondidos na própria tela, sem o intérprete: a vista do desenho
 // ("ver no mapa", "volte ao gráfico", que viram um pedido `{ vista }` para a área), "agora a tabela" e o pedido de resumo ("o
-// que esse gráfico mostra?", com a frase-resumo do motor). Nenhum dado, arquivo, nome de campo ou valor da base vai ao
-// provedor de IA: o backend só lhe entrega o pedido sanitizado e estados enumerados.
+// que esse gráfico mostra?", com a frase-resumo do motor). Desde 26/10/2026, a caixa mostra a conversa inteira, em ordem: as
+// mensagens da pessoa como ela escreveu e as respostas do agente (historicoConversa.ts); a indisponibilidade da conversa aparece
+// como aviso cordial no próprio histórico, sem código nem mensagem técnica. Ao backend vai a janela das mensagens mais recentes
+// (`turnos`), que ele tria antes do provedor; arquivos, linhas e nomes de campo nunca vão ao provedor de IA.
 
 /** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
  * mensagem (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
@@ -31,8 +35,9 @@ type Exploration = { handled: boolean; reply?: string; clarification?: string; o
   memoria?: Record<string, unknown>; desfazer?: number; acoes?: unknown; modelo_de_resposta?: string; pedido_original?: string };
 type Reply = { exploration?: Exploration; dialogue_action?: string; reply: string; proposal: Proposal;
   verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown };
-type Status = { configured: boolean };
-type Turn = { role: "user" | "assistant"; content: string; clarification?: Clarification; request?: string; fonte?: string };
+type Status = { configured: boolean; disponivel?: boolean; indisponibilidade?: { tipo?: string; titulo?: string; texto?: string } };
+/** Mensagem do histórico, com a pergunta de esclarecimento e o pedido que a provocou (para as alternativas). */
+type Turn = Mensagem & { clarification?: Clarification; request?: string; fonte?: string };
 type Local = { text: string; choices?: Choice[] };
 
 /** O que acompanha cada pedido ao intérprete (nunca ao provedor de IA): a referência à base do Brasil ou o arquivo enviado
@@ -65,13 +70,17 @@ type Props = {
 const VISTAS = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
 const SEGUIMENTO = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i;
 
+/** Falha da conversa: o status e o detalhe ficam para escolher o aviso cordial; a tela nunca os mostra crus. */
+class ErroDaConversa extends Error {
+  constructor(readonly status: number | null, readonly detalhe?: unknown) { super("Falha da conversa."); }
+}
+
 async function lerResposta(response: Response): Promise<any> {
   const raw = await response.text();
   let body: any;
   try { body = JSON.parse(raw); }
-  catch { throw new Error("Não foi possível interpretar a resposta do serviço (HTTP " + response.status + "). Tente novamente."); }
-  if (!response.ok) throw new Error((typeof body?.detail === "string" ? body.detail : "Falha no processamento da solicitação.") +
-    " (HTTP " + response.status + ")");
+  catch { throw new ErroDaConversa(response.status); }
+  if (!response.ok) throw new ErroDaConversa(response.status, body?.detail);
   return body;
 }
 
@@ -88,9 +97,37 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const latestReply = [...turns].reverse().find(turn => turn.role === "assistant");
+  const latestReply = ultimaResposta(turns);
+  // Rolagem do histórico: a chegada de uma resposta só leva ao fim quem está acompanhando o fim; quem lê mensagens antigas
+  // fica onde está e vê o botão "Ir para a mensagem mais recente".
+  const historico = useRef<HTMLOListElement>(null);
+  const noFim = useRef(true);
+  const [novidade, setNovidade] = useState(false);
+  const adicionar = (mensagem: Turn) => setTurns(previous => acrescentar(previous, mensagem) as Turn[]);
+  const avisar = (aviso: Aviso) => adicionar(mensagemDeAviso(aviso));
+  /** Falha de rede ou do serviço: o aviso cordial no histórico; a mensagem da pessoa continua onde está. */
+  const avisarFalha = (exc: unknown) => avisar(avisoDeFalha(exc instanceof ErroDaConversa ? exc.status : null,
+    exc instanceof ErroDaConversa ? exc.detalhe : undefined));
+  useLayoutEffect(() => {
+    const lista = historico.current;
+    if (!lista) return;
+    if (noFim.current) { lista.scrollTop = lista.scrollHeight; setNovidade(false); }
+    else setNovidade(true);
+  }, [turns.length, sending]);
+  function aoRolar() {
+    const lista = historico.current;
+    if (!lista) return;
+    noFim.current = estaNoFim(lista.scrollTop, lista.scrollHeight, lista.clientHeight);
+    if (noFim.current) setNovidade(false);
+  }
+  function irAoFim() {
+    const lista = historico.current;
+    if (!lista) return;
+    lista.scrollTop = lista.scrollHeight;
+    noFim.current = true;
+    setNovidade(false);
+  }
 
   const revision = useRef(0);
   // Pendências da conversa: municípios que faltam ("Com qual outro município?"), direção da ordenação e o pedido feito antes
@@ -125,7 +162,6 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   useEffect(() => {
     // Outra fonte: as respostas em trânsito e as pendências daquela fonte deixam de valer; a conversa continua.
     revision.current += 1;
-    setError("");
     pendingTerritories.current = null;
     pendingRanking.current = null;
     memoria.current = memoriaVazia();
@@ -147,11 +183,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   }, [pronta, fonteChave]);
 
   function responder(local: Local, request: string) {
-    setTurns(previous => [...previous, { role: "assistant", content: local.text, request, fonte: atual.current.fonteChave,
+    adicionar({ id: novoId("agente"), papel: "agente", texto: local.text, request, fonte: atual.current.fonteChave,
       ...(local.choices?.length ? { clarification: { code: "ESCOLHA_DE_LEITURA", prompt: local.text, reason: "",
-        source: "CATALOGO_LOCAL" as const, choices: local.choices, answered: false as const } } : {}) }]);
+        source: "CATALOGO_LOCAL" as const, choices: local.choices, answered: false as const } } : {}) });
   }
-  const append = (content: string) => setTurns(previous => [...previous, { role: "assistant", content }]);
+  const append = (texto: string) => adicionar({ id: novoId("agente"), papel: "agente", texto });
   /** Pedido de apresentação: a resposta e, quando a vista muda, o pedido `{ vista }` para a área (sem recalcular). */
   function aplicarVista(vista: ResultView): string {
     const resposta = respostaDaVista(vista, atual.current.fonte ? atual.current.contexto : null);
@@ -250,9 +286,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
 
   async function submit(message: string) {
     if (sending || !privacyAccepted || message.length < 2 || message.length > 800) return;
-    setTurns(previous => [...previous, { role: "user", content: message }]);
+    // A mensagem aparece na hora, exatamente como foi escrita, e fica no histórico mesmo que a resposta falhe.
+    const janela = turnosParaEnvio(turns);
+    adicionar({ id: novoId("usuario"), papel: "usuario", texto: message });
+    noFim.current = true;
     setDraft("");
-    setError("");
     // A escolha da fonte pela conversa é a mesma ação dos botões.
     const escolha = comandoDeFonte(message);
     if (escolha) {
@@ -314,7 +352,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       if (vista) { append(aplicarVista(vista)); return; }
     }
     const requestRevision = revision.current;
-    const history = turns.filter(turn => turn.role === "user").slice(-4).map(turn => turn.content);
+    const history = turns.filter(turn => turn.papel === "usuario").slice(-4).map(turn => turn.texto);
     setSending(true);
     try {
       if (pronta) {
@@ -328,20 +366,23 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         form.append("message", message);
         form.append("context_ready", "true");
         form.append("history", JSON.stringify(history));
+        form.append("turnos", JSON.stringify(janela));
         form.append("displayed_result_id", atual.current.displayedResultId);
         form.append("options", JSON.stringify(opcoes()));
         response = await fetch(apiBase + "/api/llm/interpret-context", { method: "POST", body: form });
       } else {
         response = await fetch(apiBase + "/api/llm/interpret", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history, context_revision: contextRevision() }) });
+          body: JSON.stringify({ message, history, turnos: janela, context_revision: contextRevision() }) });
       }
-      const body = await response.json();
+      const body = await lerResposta(response);
       if (requestRevision !== revision.current) return;
-      if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Não foi possível interpretar o pedido.");
+      // Sem o Gemini (limite de consultas, rede, configuração): o aviso cordial como resposta, no mesmo histórico.
+      const aviso = avisoDaResposta(body);
+      if (aviso) { avisar(aviso); void refreshStatus(); return; }
       const validated = body as Reply;
       if (!validated.proposal || validated.executed !== false || !["INTERPRETACAO_LLM", "CANAL_SISTEMICO"].includes(validated.origin) ||
           (!!origem && !!validated.proposal.operation && validated.verification?.source !== "BACKEND_PREFLIGHT"))
-        throw new Error("A resposta não atende ao contrato de interpretação e verificação.");
+        throw new ErroDaConversa(null);
       const resolved = origem && validated.exploration?.handled ? validated.exploration : null;
       const vista = VISTAS.get(validated.dialogue_action || "");
       let texto: string, choices: Choice[] | undefined;
@@ -370,11 +411,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       }
       const clarification: Clarification | undefined = choices?.length ? { code: "ESCOLHA_DE_LEITURA", prompt: texto, reason: "",
         source: "CATALOGO_LOCAL", choices, answered: false } : validated.clarification;
-      setTurns(previous => [...previous, { role: "assistant", content: texto, clarification, request: message,
-        fonte: atual.current.fonteChave }]);
+      adicionar({ id: novoId("agente"), papel: "agente", texto, clarification, request: message, fonte: atual.current.fonteChave });
       void refreshStatus();
     } catch (exc) {
-      if (requestRevision === revision.current) setError(exc instanceof Error ? exc.message : "Não foi possível acessar a API.");
+      if (requestRevision === revision.current) avisarFalha(exc);
     } finally {
       setSending(false);
     }
@@ -388,21 +428,21 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       return;
     }
     setSending(true);
-    setError("");
     memoria.current.pendente = null;  // a escolha em botão responde ao esclarecimento
-    setTurns(previous => [...previous, { role: "user", content: "Escolho: " + choice.label }]);
+    adicionar({ id: novoId("usuario"), papel: "usuario", texto: "Escolho: " + choice.label });
+    noFim.current = true;
     try {
       const local = await explorar(turno.request, { operation: choice.operation, indicator: choice.indicator });
       responder(local || { text: "Escolha recebida; nada foi calculado." }, turno.request);
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Não foi possível aplicar a escolha.");
+      avisarFalha(exc);
     } finally {
       setSending(false);
     }
   }
 
   const ultima = turns.at(-1);
-  const alternativas = ultima?.role === "assistant" && ultima.clarification?.source === "CATALOGO_LOCAL" &&
+  const alternativas = ultima?.papel === "agente" && ultima.clarification?.source === "CATALOGO_LOCAL" &&
     ultima.clarification.choices.length > 0 &&
     <div className="mx-4 mb-3 flex flex-wrap gap-2" role="group" aria-label="Alternativas de esclarecimento">
       {ultima.clarification.choices.map(choice =>
@@ -426,20 +466,44 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
           <FileUp size={16} aria-hidden="true"/>Enviar meus dados</button>
       </div>}
-      {!status?.configured && <div role="status" className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
-        {loadingStatus ? "Preparando a conversa…" : "Perguntas livres estão temporariamente indisponíveis. Os pedidos sobre o " +
-          "gráfico e a escolha dos dados continuam disponíveis."}
+      {(loadingStatus || (status && status.disponivel === false) || !status) &&
+        <div role="status" data-testid="chat-estado-do-servico" className="chat-estado-servico mt-2">
+        {loadingStatus ? "Preparando a conversa…" : <>
+          <strong className="block">{status?.indisponibilidade?.titulo ?? "Assistente conversacional temporariamente indisponível"}</strong>
+          {status?.indisponibilidade?.tipo === "cota" ? "O limite de consultas ao assistente conversacional foi atingido neste momento."
+            : "O recurso de conversa não está disponível neste momento."} Os botões, os controles e os pedidos diretos sobre o
+          gráfico continuam disponíveis.</>}
         {!loadingStatus && <button type="button" onClick={() => { void refreshStatus(); }}
-          className="ml-2 inline-flex items-center gap-1 font-semibold underline"><RefreshCw size={12} aria-hidden="true"/>Tentar novamente</button>}
+          className="ml-2 inline-flex items-center gap-1 font-semibold underline"><RefreshCw size={12} aria-hidden="true"/>Verificar de novo</button>}
       </div>}
+    </div>
+    <div className="chat-historico-moldura">
+      <ol ref={historico} onScroll={aoRolar} className="chat-historico no-print" data-testid="chat-historico" role="log"
+        aria-live="polite" aria-label="Histórico da conversa">
+        {turns.map(turno => {
+          const ultimaDoAgente = turno.id === latestReply?.id;
+          if (turno.papel === "usuario")
+            return <li key={turno.id} className="chat-mensagem chat-mensagem-usuario" data-testid="chat-mensagem" data-papel="usuario">
+              <span className="sr-only">Você: </span><p className="whitespace-pre-wrap">{turno.texto}</p></li>;
+          if (turno.papel === "aviso")
+            return <li key={turno.id} className="chat-mensagem chat-aviso" data-testid="chat-mensagem" data-papel="aviso">
+              <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="chat-aviso-corpo">
+                <Info size={16} aria-hidden="true" className="shrink-0"/>
+                <div><strong className="block">{turno.titulo}</strong><p className="whitespace-pre-wrap">{turno.texto}</p></div>
+              </div></li>;
+          return <li key={turno.id} className="chat-mensagem chat-mensagem-agente" data-testid="chat-mensagem" data-papel="agente">
+            <BrandAvatar size={26}/>
+            <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="latest-reply chat-balao-agente">
+              <span className="sr-only">Agente: </span><p className="whitespace-pre-wrap">{turno.texto}</p></div></li>;
+        })}
+        {sending && <li className="chat-mensagem chat-mensagem-agente chat-processando" role="status" data-testid="chat-processando">
+          <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>Interpretando o pedido…</li>}
+      </ol>
+      {novidade && <button type="button" data-testid="chat-ir-ao-fim" onClick={irAoFim} className="chat-ir-ao-fim">
+        <ArrowDown size={14} aria-hidden="true"/>Ir para a mensagem mais recente</button>}
     </div>
     {alternativas}
     <div className="conversation-dock no-print" data-testid="conversation-dock">
-      {latestReply && <div className="latest-reply" role="status" data-testid="latest-reply">
-        <BrandAvatar size={30}/><div><p className="whitespace-pre-wrap">{latestReply.content}</p></div>
-      </div>}
-      {sending && <p role="status" className="flex items-center gap-2 px-4 pt-2 text-sm text-teal">
-        <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>Interpretando o pedido…</p>}
       <form id="conversation-composer" onSubmit={send} className="conversation-composer space-y-2">
         <div className="conversation-input-shell rounded-2xl border-2 bg-white shadow-sm transition">
           <label className="sr-only" htmlFor="assistant-input">Descreva sua análise ou faça uma pergunta</label>
@@ -459,12 +523,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
             </button>
           </div>
         </div>
-        {error && <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
-          <AlertCircle size={16} className="shrink-0" aria-hidden="true"/>{error}
-        </p>}
         <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
-          <p className="mt-1">As mensagens passam por proteção de identificadores. Arquivos, registros e valores da base não são
-            enviados ao serviço de IA.</p>
+          <p className="mt-1">As mensagens passam por proteção de identificadores antes do serviço de IA. Para explicar, ele recebe os
+            resultados agregados que estão na tela; arquivos, registros individuais e nomes de colunas não são enviados.</p>
         </details>
       </form>
     </div>

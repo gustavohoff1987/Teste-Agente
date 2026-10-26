@@ -6,13 +6,15 @@ de induzir o agente a sair do que a SPEC autoriza. O princípio é **liberdade l
 
 - a conversa interpreta e organiza; **nenhum número, classe, relação, ordem ou nota é produzido pela conversa**: tudo é
   copiado da resposta do motor e conferido antes de aparecer (INV-02, INV-03, C-04);
-- explicação de método só com as **formas literais do catálogo governado** (V-16, RQ-SIN-07). O que o catálogo não libera
-  para a conversa fica de fora, com um ponteiro para a explicação da tela ("Entenda esta análise");
-- o Gemini, quando configurado, **só classifica** atos do diálogo (enumerações) e, a pedido de outra formulação, **reescreve
-  a redação** de uma explicação já verificada, com marcadores opacos e validador de saída (CAP-SIN-01, INV-13, RQ-SIN-04 e
-  RQ-SIN-05). Nenhum dado da base vai ao provedor.
+- explicação de método com as formas literais do catálogo governado ou com as formulações das fichas de método
+  (`backend/definicoes.py`), que o Gemini pode parafrasear sob controle de fidelidade (Adendo PAR-20261026 da SPEC);
+- desde 26/10/2026, **Gemini conversa, motor decide**: com o provedor disponível, as perguntas de conversa vão ao Gemini
+  com o cartão do contexto e a resposta verificada do gestor, e ele redige a resposta; o texto só aparece depois da
+  conferência de fidelidade (CAP-SIN-01, INV-13, RQ-SIN-04 a RQ-SIN-06). Comandos do gráfico, respostas a esclarecimentos,
+  desfazer, voltar e recusas de governança continuam determinísticos. Ao provedor nunca vão arquivos, registros,
+  identificadores ou nomes de campo; vão a mensagem triada, a janela da conversa triada e o resultado agregado em exibição.
 
-`ADT_DIALOGO=0` desliga o gestor e restaura o caminho anterior. `ADT_REDACAO_GEMINI=0` desliga só a redação pelo Gemini.
+`ADT_DIALOGO=0` desliga o gestor e restaura o caminho anterior. `ADT_CONVERSA_GEMINI=0` desliga só a redação pelo Gemini.
 
 ## Arquitetura
 
@@ -22,14 +24,19 @@ de induzir o agente a sair do que a SPEC autoriza. O princípio é **liberdade l
 | Gestor de diálogo | `backend/dialogo.py` | `reconhecer` identifica o ato sem o provedor; `executar` responde. Usa a gramática local (`conversa_grafico.py`) para transformar rascunhos em pedidos do gráfico. Nunca calcula. |
 | Explicação verificada | `backend/explicacao.py` | Compõe o texto em partes: conectivos fixos e **segmentos** copiados de caminhos da resposta do motor (valores, rótulos, períodos, notas) ou formas do catálogo governado. `verificar` confere cada segmento contra a resposta antes da exibição; composição adulterada é recusada. |
 | Ordens do motor | `painel.conversation_facts` | O maior e o menor de cada atributo (densidade, quantidade, população, distância, variação, permanência), contados no motor, com os empates preservados. |
-| Intérprete com o provedor | `backend/llm_bridge.py` | Classifica 16 atos novos (`dialogue`) e os campos `style`, `subject`, `attribute` e `direction`, todos enumerações. O gestor executa o ato com a memória e o resultado locais (`dialogo.do_interprete`). |
-| Redação governada | `backend/redacao.py` | Só para pedidos de outra formulação. Ver "Redação pelo Gemini". |
+| Intérprete com o provedor | `backend/llm_bridge.py` | Classifica 16 atos (`dialogue`) e os campos `style`, `subject`, `attribute` e `direction`, todos enumerações, e devolve no mesmo contrato o texto `resposta`, que só aparece depois da conferência. O gestor executa o ato com a memória e o resultado locais (`dialogo.do_interprete`). Sem teto local de chamadas; espera só por sinal do provedor (ver "Disponibilidade"). |
+| Triagem | `backend/triagem.py` | As quatro classes de RQ-DAD-20 antes de qualquer envio: identificadores e nomes sem evidência viram marcadores numerados por tipo; territórios, grupos, regiões e categorias da base, os nomes após marcador territorial, a linguagem funcional, os títulos ("Dr.", "Sra.") e as letras isoladas (símbolos de fórmula, iniciais) ficam. O que já virou marcador num envio continua marcador, com o mesmo número, em todos os textos dele. A mensagem da tela não muda. |
+| Cartão do contexto | `backend/contexto_conversa.py` | A tela, o resultado em exibição (valores formatados como na tela, ordens do motor, classes, notas, disponibilidade), o resultado anterior, a conversa (janela recente e pendência), as funcionalidades da página, a resposta verificada e as fichas pertinentes. Passa pela triagem: o texto da pessoa (mensagem, janela, pendência), completa; o texto do sistema (resultado, resposta verificada, fichas), pelas classes A e C, sem mexer em fórmulas e códigos de método; o nome escrito pela pessoa que a resposta verificada repete continua marcador. |
+| Redação conferida | `backend/conversa_gemini.py` | O Gemini redige a resposta a partir do cartão; conferência; até 2 regenerações com a lista das violações; reserva verificada com TPL-08. |
+| Conferência de fidelidade | `backend/fidelidade.py` | Números, nomes, ordens e classes do motor; nenhuma relação calculada pelo modelo ("o dobro", "três vezes maior"); nenhum número de exemplo documentado de uma ficha usado como valor; juízo, causa, acesso, heterogeneidade, destaque e previsão só como ressalva negativa; ressalvas obrigatórias; afirmação de ação; elementos essenciais e proibições das fichas. A frase copiada da resposta verificada ou de uma ficha não é afirmação nova; o texto da pessoa não é material verificado. |
+| Fichas de método | `backend/definicoes.py` | Formulação autorizada em linguagem simples de cada conceito (densidade, quantidade, distância, referência, grupos, agregação, variação, tendência e as 7 classes, velocidade, comparação, régua, rotatividade), com os elementos essenciais e as afirmações proibidas. |
 
 Ordem na página única: (1) frases-resumo respondidas na tela ("o que esse gráfico mostra?", "resuma o gráfico", "o que estou
-vendo?"); (2) intérprete local (`/api/exploration/interpret`): gestor de diálogo e, sem ato, a gramática; (3) intérprete
-contextual (`/api/llm/interpret-context`): de novo o gestor (com a redação permitida) e, sem ato, o provedor. Sem o
-provedor, o pedido não reconhecido recebe resposta (HTTP 200) com a forma de TPL-01, exemplos do que continua disponível e
-"O que você quer ver?" (`degradado: true`), em vez de erro.
+vendo?"); (2) intérprete local (`/api/exploration/interpret`): gestor de diálogo e, sem ato, a gramática; com o Gemini
+disponível, as perguntas de conversa e as orientações do catálogo cedem a vez (`handled: false`) ao canal contextual; (3)
+intérprete contextual (`/api/llm/interpret-context`): de novo o gestor, agora com a redação pelo Gemini, e, sem ato, o
+provedor, com o cartão do contexto. Sem o provedor, o pedido que dependeria dele recebe resposta (HTTP 200) com o campo
+`indisponibilidade` e a comunicação cordial (ver "Disponibilidade"), em vez de erro.
 
 ## Atos do diálogo
 
@@ -57,8 +64,10 @@ Sequência de referência, com Porto Alegre na Tendência (base versionada):
 1. **"Explique esse resultado."** A frase-resumo do motor, os fatos de cada território (até 4; com mais, os extremos contados
    no motor) e um convite para continuar.
 2. **"Não entendi a aceleração."** A classe e os fatos que a mostram (a contagem por classe e os valores observados nos 4
-   períodos, do motor) e o ponteiro para "Entenda esta análise", que a tela **abre com a classe destacada**. A regra da classe
-   em palavras não é redigida pela conversa: as formas de CAP-TEN-01 na conversa dependem de decisão (proposta P-C).
+   períodos, do motor), a regra da classe em palavras (a ficha autorizada, o mesmo texto de "Entenda esta análise") e o
+   ponteiro para "Entenda esta análise", que a tela **abre com a classe destacada**. Com o Gemini, a explicação vem com as
+   palavras dele e passa na conferência só se conservar o critério do motor (subiu em todos os períodos e cada alta igual
+   ou maior que a anterior).
 3. **"Mas por que isso é diferente de crescimento?"** As duas classes, a contagem de cada uma no gráfico e os valores.
 4. **"E o que isso quer dizer para esse município?"** Os fatos do território e os limites: descreve como o indicador se
    comportou; não diz por que nem se a situação é adequada.
@@ -99,30 +108,56 @@ troca) e recebe recusa natural com a forma governada e, quando há, uma alternat
 
 Classificação das mudanças pela SPEC:
 
-- **A, compatível e implementada:** todos os atos acima, as explicações com segmentos do motor e formas literais do catálogo, a
-  redação pelo Gemini com marcadores (só organização e tom; RQ-SIN-07 e RQ-SIN-08) e o modo sem provedor com TPL-01.
-- **B, depende de decisão do responsável:** as propostas P-A, P-B e P-C abaixo. Nada delas foi implementado.
+- **A, compatível e implementada:** todos os atos acima e as explicações com segmentos do motor, formas literais do catálogo
+  e formulações das fichas; desde 26/10/2026, também a redação pelo Gemini sob a conferência de fidelidade e a comunicação
+  cordial da indisponibilidade (Adendo PAR-20261026).
+- **B, dependia de decisão do responsável:** as propostas P-A, P-B e P-C, resolvidas em 26/10/2026 (seção "Propostas de
+  26/10/2026").
 - **C, incompatível:** inferência causal, juízo normativo sem critério configurado, projeção, valores fornecidos na conversa e
   métodos fora do catálogo. Continuam recusados; não há proposta para liberá-los.
 
-## Redação pelo Gemini
+## Redação pelo Gemini (26/10/2026)
 
-Quando a pessoa pede outra formulação ("de outro jeito", "mais simples", "de forma didática", "explique melhor") e o provedor
-está configurado, o Gemini reescreve a explicação já composta e verificada:
+Gemini conversa, motor decide. Para cada pergunta de conversa (o resultado em exibição, um conceito, a tela, uma verificação,
+o funcionamento do agente):
 
-- vai ao provedor só o **esqueleto**: o texto com cada segmento trocado por um marcador opaco (⟦1⟧, ⟦2⟧…) e o tipo dele
-  (valor, parâmetro, nota, relação, forma documental), o registro pedido e a mensagem sanitizada. Antes do envio, o
-  esqueleto é conferido: nenhum nome de território do resultado fora dos marcadores;
-- o texto devolvido passa pelo validador: cada marcador exatamente uma vez e nenhum outro; nenhum número fora dos marcadores
-  (V-01); nenhum termo novo de juízo normativo (V-03), causalidade (V-04), tendência (V-05), acessibilidade (V-06), relação
-  quantitativa (V-07), destaque (V-12) ou heterogeneidade (V-13); nenhum nome próprio novo (V-02); tamanho limitado; sem links;
-- violação gera nova tentativa com a lista das violações, até 2 regenerações (RQ-SIN-05); persistindo, vale o texto
-  determinístico verificado com a mensagem de TPL-08. O texto rejeitado nunca é exibido. Provedor indisponível: vale o
-  texto verificado;
-- os marcadores voltam a ser os segmentos verificados: valores, classes, relações e formas metodológicas não mudam.
+1. o gestor de diálogo e o catálogo produzem a **resposta verificada**, que é também a reserva;
+2. o backend monta o **cartão do contexto** (`contexto_conversa.py`): a tela, o resultado agregado em exibição, o resultado
+   anterior, a conversa recente, a pendência, as funcionalidades, a resposta verificada e as fichas de método pertinentes,
+   tudo triado (`triagem.py`; o texto do sistema só pelas classes A e C, com o eco do que a pessoa escreveu protegido);
+3. o Gemini redige a resposta no registro pedido; quando a interpretação já veio dele (formulação que a leitura local não
+   cobre), o texto `resposta` do mesmo contrato é conferido primeiro, sem nova chamada;
+4. a **conferência de fidelidade** (`fidelidade.py`) decide, frase a frase: números (V-01) e nomes (V-02) do contexto; ordens
+   e comparações conferidas com os valores e as ordens do motor (V-07), sem relação multiplicativa que o motor não deu;
+   classe atribuída igual à do motor (V-05); juízo (V-03), causa e especulação causal (V-04), acesso (V-06),
+   heterogeneidade (V-13), destaque (V-12) e previsão só em frase negativa; ressalvas obrigatórias (distância em linha
+   reta, soma das contagens); nenhuma ação que a resposta não fez; ao explicar um conceito, os elementos essenciais da ficha
+   (variáveis, operação, unidade, condição) — os que a resposta verificada traz, quando ela explica — e nenhuma afirmação
+   que a ficha proíbe; o número de um exemplo documentado não vale como valor de território. A frase copiada da resposta
+   verificada ou de uma ficha não conta como afirmação nova. A concordância do próprio modelo nunca é usada como garantia;
+5. violação leva a nova tentativa com a lista das violações, até 2 regenerações (RQ-SIN-05); persistindo, aparece a resposta
+   verificada com a mensagem de TPL-08. O texto rejeitado nunca é exibido. Sem o provedor (sem chave, em espera de cota,
+   fora do ar), aparece a resposta verificada, sem chamada.
 
-A pergunta sobre um termo ("não entendi a aceleração") é explicação de conceito, composta localmente, sem o provedor. A
-resposta da API informa a origem da redação (`redacao: {origem, tentativas}`).
+A resposta da API informa a origem (`redacao: {origem: "GEMINI_VALIDADO" | "DETERMINISTICA", tentativas}`). Os marcadores
+da triagem que o modelo repetir voltam ao texto original só na tela.
+
+**Paráfrase metodológica controlada** (Adendo PAR-20261026 da SPEC). O Gemini pode explicar conceitos com outras palavras,
+mais simples, didáticas ou técnicas, com exemplos e analogias que não mudem o método. Limites, verificados pela conferência:
+distância geodésica não vira distância por estrada; densidade não vira suficiência assistencial; variação temporal não vira
+causa; classe de tendência não ganha critério diferente do motor; grupos por posição não têm tamanho igual por definição;
+conjunto agregado não é contagem de pessoas únicas. Quando a paráfrase não passa, vale a formulação autorizada.
+
+## Disponibilidade (26/10/2026)
+
+Não há teto local de chamadas (o antigo limite de 20 por processo saiu). O consumo é monitorado em `GET /api/llm/status`
+(`requests_used_today`, `monitoramento`: sucesso, cota, indisponível, configuração, contrato, regeneração, em espera). Um 429
+do provedor põe a espera que ele informa (`RetryInfo`; por minuto ou de tokens) ou, na cota diária, até a virada do dia no
+fuso do Pacífico; 5xx, tempo esgotado e rede, uma espera curta (20 s); chave recusada, 5 minutos. Durante a espera, nada é
+chamado. A conversa mostra, no histórico, a comunicação cordial com o título "Assistente conversacional temporariamente
+indisponível": o texto do limite de consultas só quando o provedor o confirmou; o da indisponibilidade nas demais causas.
+Saída fora do contrato depois de 2 regenerações: resposta de reserva ("Não consegui interpretar este pedido com
+segurança…"). Os controles, as análises, os resultados e o histórico continuam.
 
 ## Avaliação
 
@@ -183,32 +218,61 @@ Demonstrações (base versionada, sem o provedor; antes: código anterior; depoi
 | **"Explique esse resultado."** | Na tela: a frase-resumo do motor, sem memória para as perguntas seguintes | A frase-resumo do motor e os fatos de Porto Alegre (densidade, profissionais, habitantes, classe da tendência), com a memória do tópico para "Não entendi a aceleração." |
 | **"Não entendi a aceleração."** | "Gemini não configurado. …" | A classe, a contagem no gráfico e os valores observados de Porto Alegre (7,46; 7,68; 8,43; 9,40), e "Entenda esta análise" aberto com a classe destacada |
 
-## Propostas que dependem de decisão
+### Conferência de fidelidade com a base versionada (26/10/2026)
 
-Nenhuma destas foi implementada. Cada uma deixa a conversa mais natural, mas contraria uma regra vigente.
+**Método.** Duas medições, sem chamada real ao provedor (sem chave no ambiente de desenvolvimento):
+- **Falsos positivos:** os três conjuntos adversariais, com a redação simulada que devolve a resposta verificada do próprio
+  sistema com outra abertura ("Em outras palavras: …"), o texto mais fiel possível. Toda redação deveria aparecer.
+- **Falsos negativos:** 26 rascunhos escritos como paráfrases típicas de um modelo sobre a tela real de Porto Alegre
+  (tendência de junho de 2021 a junho de 2024): 3 fiéis e 23 com juízo, causa, previsão, acesso, destaque, número
+  inventado, relação calculada, critério de classe diferente e ação não feita.
 
-- **P-A. Textos aprovados da tela como formas da conversa.** Hoje a conversa aponta "Entenda esta análise" e abre o quadro com
-  o termo destacado; não reproduz o texto da tela, porque a decisão de 20/10/2026 limita as explicações da conversa ao
-  catálogo governado. Proposta: incluir no catálogo governado (CFG-DOC) as explicações já aprovadas da tela, como formas da
-  conversa. Ajuste de documentação: CFG-DOC e `Docs/DECISAO_CATALOGO_PT_20261016.md`.
-- **P-B. Paráfrase metodológica fiel, com validação semântica.** A redação pelo Gemini mantém as formas do catálogo literais
-  (V-16, RQ-SIN-07: "não permite paráfrase substantivamente livre"). Proposta: admitir paráfrase de formas do catálogo
-  quando um validador semântico confirmar equivalência (variáveis, condições e limites preservados). Exige mudança da SPEC:
-  V-16, RQ-SIN-02, RQ-SIN-07, RQ-SIN-10, CFG-DOC.comportamento e FN-META-01.
-- **P-C. Formas de CAP-TEN-01 na conversa.** A regra das classes da Tendência em palavras depende da decisão pendente sobre
-  CAP-TEN-01.avaliabilidade (formas excluídas da conversa em 20/10/2026). Decidida, a conversa passaria a explicar a regra da
-  classe com a forma governada, além dos fatos.
+| Medição | Antes das correções | Depois |
+|---|---|---|
+| Redações fiéis que caíram na reserva (falsos positivos) | 11 de 60 | 0 de 60 |
+| Rascunhos problemáticos aceitos (falsos negativos) | 10 de 23 (e 2 recusados só por outra regra) | 0 de 23 |
+| Rascunhos fiéis aceitos | 3 de 3 | 3 de 3 |
+
+Passavam: "situação boa", "resultado positivo", "se saiu bem", "médicos de sobra", "bem servida de médicos", "a alta
+reflete investimentos", "encontram médico com facilidade", "se destaca no estado", "mais que o dobro", "nesse ritmo, vai
+passar de 10 … no próximo ano" (o 10 vinha do exemplo documentado da ficha da classe). Caíam na reserva: "Quanto à causa,
+vale a regra do escopo" (lido como causa) e leituras do resultado que citam uma classe (cobradas como definição completa).
+Correções: os padrões de juízo, causa ligada ao fenômeno, acesso, destaque e previsão; a relação multiplicativa fora do
+motor; o número de exemplo documentado como valor; a frase copiada da resposta verificada não conta como afirmação nova; a
+ficha pedida só exige os elementos essenciais quando a resposta verificada a explica. Os rascunhos foram escritos pelo
+agente de desenvolvimento, não pelo Gemini: a taxa real depende do modelo e se mede com `scripts/validar_gemini_real.py`.
+Regressão: `test_fidelidade.py` (as formulações) e, com a base versionada,
+`test_dialogo_adversarial.py::test_redacao_fiel_simulada_passa_na_conferencia_com_a_base_versionada` (nenhuma reserva).
+
+## Propostas de 26/10/2026 (situação)
+
+As três propostas que dependiam de decisão foram resolvidas pela decisão do responsável pelo produto de 26/10/2026 (Adendo
+PAR-20261026 da SPEC):
+- **P-B, paráfrase metodológica fiel:** implementada, com o controle de fidelidade das fichas em vez de equivalência
+  semântica genérica (`definicoes.py`, `fidelidade.py`).
+- **P-C, regra das classes da Tendência na conversa:** implementada pela ficha de cada classe, com o texto aprovado da tela
+  ("Entenda esta análise"), conferido por teste contra `painelModel.DESCRICAO_DAS_CLASSES`.
+- **P-A, textos aprovados da tela como formas da conversa:** atendida para as classes da Tendência; as formas literais do
+  catálogo CFG-DOC continuam as do corpo (atualizá-las exige nova versão governada do catálogo, RQ-DOC-03).
 
 ## Testes
 
 - `backend/tests/test_dialogo.py`: catálogo sintético com homônimos (BELEM no PA e na PB), ambiguidade estado × município
   (AMAZONAS) e período ambíguo (duas competências em 2024). Reconhecimento, conversas pela API (resposta digitada, informação
   lembrada, troca, inclusão, retirada, volta, desfazer), perguntas sobre o resultado com os valores do motor, explicação
-  progressiva da tendência, limites, estado da tela, governança, composição adulterada recusada, modo sem provedor, ato do
-  intérprete com provedor simulado (nada da base no envio), `ADT_DIALOGO=0` e a redação governada.
-- `backend/tests/test_dialogo_adversarial.py`: os três conjuntos adversariais com a base versionada (job `dados-reais`).
+  progressiva da tendência, limites, estado da tela, governança, composição adulterada recusada, modo sem provedor (aviso
+  cordial), ato do intérprete com provedor simulado (o cartão com o resultado agregado, sem códigos, colunas nem arquivo),
+  `ADT_DIALOGO=0` e a redação pelo Gemini (texto fiel aparece; ordem errada, juízo, número ou nome fora do contexto e
+  critério de classe diferente regeneram; esgotadas, a reserva com TPL-08; provedor fora do ar, a reserva).
+- `backend/tests/test_triagem.py`, `test_fidelidade.py` e `test_contexto_conversa.py`: a triagem (os exemplos do diagnóstico
+  e formulações adversariais novas), a conferência e as fichas (inclusive os limites de paráfrase) e o cartão do contexto.
+- `backend/tests/test_llm_bridge.py`: sem teto local depois da antiga marca de 20 chamadas, 429 por minuto, de tokens e
+  diário com espera e aviso cordial, recuperação depois da espera e falha temporária que não vira "limite".
+- `backend/tests/test_dialogo_adversarial.py`: os três conjuntos adversariais com a base versionada (job `dados-reais`) e,
+  com a redação simulada que devolve a resposta verificada, nenhuma reserva por falso positivo da conferência.
 - `backend/tests/ui_conversa_grafico.py` (suítes `conversa` e `gemini-simulado`): na tela, a pergunta sobre o resultado sem
   recalcular, a troca de ordem, "não era isso que eu queria", a resposta digitada a um esclarecimento e "Entenda esta
-  análise" aberto pela conversa; a memória da conversa nunca chega ao provedor simulado.
+  análise" aberto pela conversa; o histórico visível; com o provedor simulado, a redação conferida, a reserva de contrato,
+  o limite e a queda simulados com recuperação, e a memória crua da conversa nunca no envio.
 - `frontend/tests/conversaGrafico.test.mjs` e `paginaUnica.test.mjs`: memória da conversa, pendência, estados anteriores,
   ações e o resultado em exibição.

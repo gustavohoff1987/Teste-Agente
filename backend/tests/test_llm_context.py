@@ -91,9 +91,9 @@ def test_verified_context_does_not_send_base_values_or_labels(monkeypatch):
     assert "Unidade" not in sent[0]
     assert "recognized_roles" in sent[0]
     assert "capabilities" in sent[0]
-    # Período e categoria são recuperados localmente, sem enviar seus valores ao modelo.
-    assert "202406" not in content
-    assert "medicos" not in content.lower()
+    # O pré-exame continua só com enumerações; a mensagem da pessoa preserva o período e a categoria que ela escreveu
+    # (triagem de 26/10/2026: referências temporais e categorias são classe D/B), e o backend os confere localmente.
+    assert sent[-1] == "Quero distribuicao da densidade de medicos por municipios em 202406"
 
 
 def test_nonexistent_period_is_not_treated_as_verified(monkeypatch):
@@ -201,7 +201,9 @@ def test_semantic_proposal_becomes_verified_local_territory_selection(monkeypatc
     assert body["origin"] == "INTERPRETACAO_LLM" and body["executed"] is False
     assert set(body["exploration"]["territory_ids"]) == {"code:m1","code:m2"}
     assert body["exploration"]["options_patch"]["comparison_indicator"] == "density"
-    for secret in ("Manaus","Tefé","privado.csv","populacao","m1","m2"):
+    # Os territórios da base citados na mensagem são classe B e ficam; arquivo, coluna e códigos, não.
+    assert "Coloque Manaus e Tefé lado a lado" in " ".join(sent)
+    for secret in ("privado.csv","populacao","m1","m2"):
         assert secret not in " ".join(sent)
 
 

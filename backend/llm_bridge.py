@@ -1,16 +1,25 @@
-"""Etapa experimental de interpretação conversacional; nenhuma execução analítica pelo LLM.
+"""Intérprete conversacional com o Gemini; nenhuma execução analítica pelo LLM.
 
-A SPEC v1.2.4 é referência de fronteiras: propostas sem autoridade factual,
-minimização pré-LLM, resposta estruturada validada e confirmação pelo usuário.
-Não implementa o agente normativo completo descrito na SPEC.
+A SPEC v1.2.4 é referência de fronteiras: propostas sem autoridade factual, triagem determinística pré-LLM (triagem.py),
+resposta estruturada validada e confirmação pelo usuário. Desde 26/10/2026 (Adendo PAR-20261026), o contrato também traz
+`resposta`, o texto que o Gemini redige para a pessoa; quem o exibe é o backend, depois da conferência de fidelidade
+(fidelidade.py), com até 2 regenerações e a resposta determinística de reserva (conversa_gemini.py).
+
+Disponibilidade (seção 11 da missão de 26/10/2026): não há teto local de chamadas. O consumo é só monitorado; os limites
+são os do provedor. Um 429 (RESOURCE_EXHAUSTED) põe o provedor em espera pelo tempo que ele informa (RetryInfo) ou, na
+cota diária, até a virada do dia no fuso do Pacífico, quando a cota do Gemini recomeça; uma falha temporária (5xx,
+tempo esgotado, rede) põe uma espera curta. Durante a espera nenhuma chamada sai: a conversa usa o modo degradado, sem
+tentativas repetidas. Nada aqui habilita faturamento ou troca de modelo.
 """
 import contextvars
 import json
+import logging
 import os
 import re
 import threading
+import time
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any, Literal, Callable
 
 import httpx
@@ -20,6 +29,7 @@ from dialogue_guidance import clarification_for
 from llm_config import load_local_environment
 from document_catalog import explanation, DocumentationError, TOPICS as DOCUMENT_TOPICS
 import conversation_library
+import triagem
 
 
 # Carregado na inicialização do backend; sem log da chave e sem sobrescrever
@@ -34,28 +44,24 @@ INDICATORS = {"density": "Densidade por 1.000 habitantes",
 # no Python local em 10/10/2026. A seleção não garante faturamento gratuito.
 ALLOWED_MODELS = {"gemini-3.5-flash-lite"}
 MODEL_DEFAULT = "gemini-3.5-flash-lite"
-MAX_REQUESTS_PER_DAY = 20  # guarda local, não é controle de faturamento da Google
+TIMEOUT_SEGUNDOS = 75.0
+# Monitoramento do consumo (sem teto): chamadas reais de hoje e os desfechos. A espera só vem de sinal do provedor.
 _lock = threading.Lock()
 _counter_day = ""
 _counter = 0
-
-# Campos pessoais e nomes próprios são ocultados antes da chamada externa.
-# Trata-se de proteção conservadora do protótipo, não da triagem integral da SPEC.
-_PRIVATE = re.compile(
-    r"(?i)(?:https?://\S+|[\w.+-]+@[\w.-]+\.[a-z]{2,}"
-    r"|\+?\d[\d().\s-]{7,}\d|\b\d{7,}\b"
-    r"|\b(?:cpf|cns|rg|telefone|celular|e-mail|email|matrícula|nome completo)"
-    r"\s*[:=]\s*[^,.;\n]{1,60})"
-)
-_NOMINAL = re.compile(r"(?<!\w)[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+"
-                      r"(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+){0,3}")
-_KEEP = {"Quero", "Preciso", "Gostaria", "Compare", "Comparar", "Analise", "Analisar",
-         "Mostre", "Mostrar", "Qual", "Quais", "Quantos", "Quantas", "Onde", "Quando", "Como", "Entre",
-         "Município", "Municípios", "Estado", "Estados", "Região", "Regiões",
-         "Densidade", "Distribuição", "Evolução", "Quantitativos", "Médicos",
-         "Médicas", "Enfermeiros", "Enfermeiras", "Brasil", "Saúde", "Profissionais",
-         "FTS", "Ranking", "Período", "Categoria", "Quintis", "Quintil", "O", "A",
-         "De", "Em", "No", "Na", "Por"}
+_DESFECHOS = ("sucesso", "cota", "indisponivel", "configuracao", "contrato", "regeneracao", "em_espera")
+_monitor = dict.fromkeys(_DESFECHOS, 0)
+_espera = {"ate": 0.0, "causa": "", "escopo": ""}
+ESPERA_PADRAO_COTA = 60.0      # 429 sem RetryInfo: um minuto, a janela das cotas por minuto
+ESPERA_FALHA_TEMPORARIA = 20.0  # 5xx, tempo esgotado ou rede: uma espera curta, sem repetir sozinho
+ESPERA_CONFIGURACAO = 300.0     # chave recusada (401/403): até alguém corrigir a configuração
+# Comunicação à pessoa (seção 11.4 da missão; decisão do responsável de 26/10/2026): sem código HTTP nem mensagem técnica.
+TITULO_INDISPONIVEL = "Assistente conversacional temporariamente indisponível"
+TEXTO_COTA = ("O limite de consultas ao assistente conversacional foi atingido neste momento. Você pode continuar utilizando "
+              "normalmente as análises e funcionalidades disponíveis por meio dos botões e controles da plataforma. O "
+              "recurso de conversa poderá ser utilizado novamente quando o serviço estiver disponível.")
+TEXTO_INDISPONIVEL = ("O recurso de conversa não está disponível neste momento. Você pode continuar utilizando as "
+                      "funcionalidades e análises disponíveis por meio dos botões e controles da plataforma.")
 
 
 class ChatRequest(BaseModel):
@@ -63,6 +69,9 @@ class ChatRequest(BaseModel):
     history: list[str] = Field(default_factory=list, max_length=4)
     context_revision: int = Field(default=0, ge=0, le=2**53 - 1)
     displayed_result_id: str = Field(default="", max_length=64)
+    # Janela da conversa da tela (mensagens da pessoa e do agente, as mais recentes), só para o contexto do modelo; a tela
+    # guarda o histórico inteiro, que nunca vai inteiro ao provedor.
+    turnos: list[dict] = Field(default_factory=list, max_length=12)
 
 
 # Respostas sobre o funcionamento do agente são produzidas a partir do catálogo
@@ -88,12 +97,13 @@ _GUIDANCE = {
         "revise e execute. O Python valida os requisitos e realiza os cálculos."
     ),
     "privacy": (
-        "Os arquivos são processados no backend local. O Gemini recebe apenas mensagens "
-        "minimizadas e, quando necessário, estados técnicos do pré-exame; não recebe "
-        "linhas, colunas nem registros da base. Evite inserir dados pessoais no chat."
+        "Os arquivos são processados no backend local. O Gemini recebe as mensagens depois da proteção "
+        "de identificadores e, para explicar, os resultados agregados que estão na tela (territórios, "
+        "valores, períodos e notas do método); não recebe arquivos, linhas, nomes de colunas, registros "
+        "individuais nem credenciais. Evite inserir dados pessoais no chat."
     ),
     "limits": (
-        "O Gemini propõe interpretações, mas não executa cálculos, não escolhe nem "
+        "O Gemini conversa e explica, mas não executa cálculos, não escolhe nem "
         "estabelece significados dos campos, não inventa métodos e não autoriza agregações. "
         "Se o modelo estiver indisponível, os cálculos e os controles da tela continuam funcionando."
     ),
@@ -127,8 +137,9 @@ _TOPICS = tuple(dict.fromkeys(("capabilities", "data", "workflow", "privacy", "l
 _VIEWS = {"show_map": "Mapa", "show_chart": "Gráficos", "show_table": "Tabela"}
 _DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selection", "change_period", "acknowledge",
              *_VIEWS, "previous_result")
-# Atos do gestor de diálogo da página única (dialogo.py, 26/10/2026): o intérprete só classifica; quem executa é o gestor,
-# com a memória da conversa e o resultado do motor, que nunca chegam ao provedor. Só enumerações atravessam.
+# Atos do gestor de diálogo da página única (dialogo.py, 26/10/2026): o intérprete só classifica, por enumerações; quem
+# executa é o gestor, com a memória da conversa e o resultado do motor guardados no backend (o provedor recebe o cartão
+# triado do contexto, contexto_conversa.py, nunca a memória crua nem a resposta inteira do motor).
 _DIALOGUE_ACTS = ("answer_choice", "correction", "undo", "previous_state", "compare_result", "concept", "technical",
                   "reformulate", "verify", "cause", "screen_state", "out_of_scope", "include", "replace", "remove",
                   "all_units")
@@ -164,6 +175,8 @@ class ModelInterpretation(BaseModel):
     subject: Literal[_SUBJECTS] = "none"
     attribute: Literal[_ATTRIBUTES] = "none"
     direction: Literal["none", "maior", "menor"] = "none"
+    # Texto que o Gemini redige para a pessoa; só aparece depois da conferência de fidelidade (conversa_gemini.py).
+    resposta: StrictStr = Field(default="", max_length=4000)
 
     @field_validator("operation")
     @classmethod
@@ -274,7 +287,8 @@ def _document_response(topic, *, simple=False):
     try:
         documented = explanation(topic, simple=simple)
     except DocumentationError as exc:
-        raise LLMError(503, "A explicação documental está indisponível. Os controles de análise continuam disponíveis.") from exc
+        raise LLMError(503, "A explicação documental está indisponível. Os controles de análise continuam disponíveis.",
+                       "interno") from exc
     return {**_system_response(documented["reply"], None, ""), **documented,
             "dialogue_action": "simplify" if simple else "explain_method"}
 
@@ -302,20 +316,72 @@ def _system_response(reply: str, eligibility: dict | None, category_constant: st
 
 
 class LLMError(Exception):
-    def __init__(self, status: int, message: str):
+    """Falha do componente de linguagem. `causa` separa as situações que a tela trata de jeitos diferentes (seção 11.4):
+    cota (o provedor disse que o limite foi atingido), indisponivel (rede, tempo esgotado, 5xx), configuracao (sem chave
+    ou chave recusada), contrato (saída fora do contrato depois das regenerações), entrada (pedido inválido) e interno.
+    `status` continua o código da API, para o diagnóstico; a tela nunca o mostra."""
+
+    def __init__(self, status: int, message: str, causa: str = "interno", ate: float | None = None):
         super().__init__(message)
         self.status = status
+        self.causa = causa
+        self.ate = ate
 
 
 def _configured_model() -> str:
     model = os.getenv("ADT_GEMINI_MODEL", MODEL_DEFAULT).strip()
     if model not in ALLOWED_MODELS:
-        raise LLMError(503, "Modelo não autorizado nesta integração experimental.")
+        raise LLMError(503, "Modelo não autorizado nesta integração experimental.", "configuracao")
     return model
 
 
 def _enabled() -> bool:
     return bool(os.getenv("GEMINI_API_KEY", "").strip())
+
+
+def _virar_o_dia() -> None:
+    global _counter_day, _counter
+    today = date.today().isoformat()
+    if _counter_day != today:
+        _counter_day, _counter = today, 0
+        for chave in _monitor:
+            _monitor[chave] = 0
+
+
+def contar(desfecho: str) -> None:
+    """Monitoramento informativo do consumo (sem teto)."""
+    with _lock:
+        _virar_o_dia()
+        _monitor[desfecho] = _monitor.get(desfecho, 0) + 1
+
+
+def em_espera() -> dict | None:
+    """A espera em curso (causa, escopo e até quando), pedida por um sinal real do provedor; None sem espera."""
+    with _lock:
+        if _espera["ate"] > time.time():
+            return dict(_espera)
+    return None
+
+
+def disponivel() -> bool:
+    """O provedor pode ser chamado agora: chave configurada e nenhuma espera em curso."""
+    return _enabled() and em_espera() is None
+
+
+def indisponibilidade(causa: str) -> dict:
+    """A comunicação cordial à pessoa (seção 11.4): cota só quando o provedor confirmou o limite."""
+    tipo = "cota" if causa == "cota" else "indisponivel"
+    return {"tipo": tipo, "titulo": TITULO_INDISPONIVEL, "texto": TEXTO_COTA if tipo == "cota" else TEXTO_INDISPONIVEL}
+
+
+def reiniciar_estado() -> None:
+    """Volta o monitoramento e a espera ao início (testes e reinício controlado)."""
+    global _counter_day, _counter
+    with _lock:
+        _counter_day, _counter = "", 0
+        for chave in _monitor:
+            _monitor[chave] = 0
+        _espera.update(ate=0.0, causa="", escopo="")
 
 
 def status() -> dict[str, Any]:
@@ -324,32 +390,103 @@ def status() -> dict[str, Any]:
     except LLMError:
         model = "configuração inválida"
     with _lock:
-        day = date.today().isoformat()
-        used = _counter if day == _counter_day else 0
-    return {"configured": _enabled(), "model": model,
-            "requests_used_today": used, "local_daily_limit": MAX_REQUESTS_PER_DAY,
-            "provider_quota_verified": False, "executes_analyses": False}
+        _virar_o_dia()
+        used = _counter
+        monitor = dict(_monitor)
+        espera = dict(_espera) if _espera["ate"] > time.time() else None
+    resposta = {"configured": _enabled(), "model": model, "requests_used_today": used,
+                "disponivel": _enabled() and espera is None, "monitoramento": monitor,
+                "provider_quota_verified": False, "executes_analyses": False}
+    if not _enabled():
+        resposta["indisponibilidade"] = indisponibilidade("configuracao")
+    elif espera is not None:
+        resposta["indisponibilidade"] = indisponibilidade(espera["causa"])
+        resposta["espera"] = {"causa": espera["causa"], "escopo": espera["escopo"],
+                              "ate": datetime.fromtimestamp(espera["ate"]).isoformat(timespec="seconds")}
+    return resposta
 
 
-def _reserve_request() -> None:
-    global _counter, _counter_day
+def _iniciar_chamada() -> None:
+    """Uma chamada real vai sair: conta no monitoramento. Durante uma espera pedida pelo provedor, nada sai."""
+    global _counter
     with _lock:
-        today = date.today().isoformat()
-        if _counter_day != today:
-            _counter_day, _counter = today, 0
-        if _counter >= MAX_REQUESTS_PER_DAY:
-            raise LLMError(429, "Limite local diário de solicitações ao LLM atingido.")
+        _virar_o_dia()
+        if _espera["ate"] > time.time():
+            _monitor["em_espera"] += 1
+            causa = _espera["causa"] or "indisponivel"
+            raise LLMError(429 if causa == "cota" else 503, "Provedor em espera depois de um sinal de limite ou falha.",
+                           causa, _espera["ate"])
         _counter += 1
 
 
+def _esperar(causa: str, segundos: float, escopo: str = "") -> float:
+    ate = time.time() + max(1.0, segundos)
+    with _lock:
+        if ate > _espera["ate"]:
+            _espera.update(ate=ate, causa=causa, escopo=escopo)
+        return _espera["ate"]
+
+
+def _segundos(valor) -> float | None:
+    """"37s", "1.5s" (RetryInfo.retryDelay) ou "37" (Retry-After) em segundos."""
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    if isinstance(valor, str):
+        achado = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*s?\s*", valor)
+        if achado:
+            return float(achado.group(1))
+    return None
+
+
+def _ate_a_virada_do_dia_no_pacifico() -> float:
+    """Segundos até a meia-noite no fuso do Pacífico, quando a cota diária do Gemini recomeça."""
+    try:
+        from zoneinfo import ZoneInfo
+        agora = datetime.now(ZoneInfo("America/Los_Angeles"))
+        virada = (agora + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (virada - agora).total_seconds() + 60
+    except Exception:  # noqa: BLE001 — sem a base de fusos: uma hora, e a próxima mensagem confere de novo
+        return 3600.0
+
+
+def espera_da_cota(response) -> tuple[float, str]:
+    """A espera depois de um 429, pelas informações do próprio provedor: RetryInfo (atraso sugerido) e QuotaFailure (cota
+    por minuto, por dia ou de tokens). Cota diária: até a virada do dia no Pacífico."""
+    escopo, atraso = "", None
+    try:
+        erro = response.json().get("error") or {}
+    except (ValueError, AttributeError):
+        erro = {}
+    for detalhe in erro.get("details") or []:
+        if not isinstance(detalhe, dict):
+            continue
+        tipo = str(detalhe.get("@type", ""))
+        if tipo.endswith("google.rpc.QuotaFailure"):
+            for violacao in detalhe.get("violations") or []:
+                quota = " ".join(str((violacao or {}).get(chave, "")) for chave in ("quotaId", "quotaMetric"))
+                if re.search(r"PerDay|per_day", quota, re.I):
+                    escopo = "dia"
+                elif re.search(r"PerMinute|per_minute", quota, re.I) and escopo != "dia":
+                    escopo = "tokens_por_minuto" if re.search(r"token", quota, re.I) else "minuto"
+        elif tipo.endswith("google.rpc.RetryInfo"):
+            atraso = _segundos(detalhe.get("retryDelay"))
+    if atraso is None:
+        atraso = _segundos(getattr(response, "headers", {}).get("retry-after"))
+    if escopo == "dia":
+        return _ate_a_virada_do_dia_no_pacifico(), "dia"
+    return (atraso if atraso is not None else ESPERA_PADRAO_COTA), (escopo or "desconhecido")
+
+
 def _sanitize(text: str) -> str:
-    # Não há upload, nome de arquivo, cabeçalho ou linha de base neste endpoint.
-    # Mesmo entradas conversacionais passam por minimização antes de sair do backend.
-    filtered = _PRIVATE.sub("[IDENTIFICADOR_PROTEGIDO]", text)
-    filtered = _NOMINAL.sub(
-        lambda match: match.group(0) if match.group(0) in _KEEP
-        else "[ENTIDADE_PROTEGIDA]", filtered)
-    return filtered.strip()
+    """Triagem da mensagem sem a base (RQ-DAD-20): identificadores, arquivos e nomes sem evidência saem; a linguagem
+    funcional fica (triagem.py)."""
+    return triagem.preparar(text)
+
+
+def _minimize_many(texts: list[str], protecao: "triagem.Protecao | None") -> list[str]:
+    """A mesma triagem com a proteção da base carregada (entidades liberadas, valores protegidos e metadados) e a mesma
+    numeração de marcadores para todos os textos do envio."""
+    return triagem.preparar_varios(texts, protecao)
 
 
 def _schema() -> dict:
@@ -373,15 +510,46 @@ def _schema() -> dict:
             "subject": {"type": "STRING", "enum": list(_SUBJECTS)},
             "attribute": {"type": "STRING", "enum": list(_ATTRIBUTES)},
             "direction": {"type": "STRING", "enum": ["none", "maior", "menor"]},
+            "resposta": {"type": "STRING"},
         },
         "required": ["operation", "indicator", "period", "category", "territory", "intent", "topic"],
     }
 
 
+# Regras da redação pelo Gemini (Adendo PAR-20261026): liberdade para conversar e explicar, sem autoridade analítica. O
+# texto só aparece depois da conferência de fidelidade (fidelidade.py); violação leva a nova tentativa ou à reserva.
+REGRAS_DA_RESPOSTA = (
+    "Escreva em resposta o texto que a pessoa vai ler, em português do Brasil: natural, cordial e direto, com até seis "
+    "frases ou uma lista curta quando ajudar, em texto simples (sem markdown). Use só o que está no CONTEXTO_DA_CONVERSA: "
+    "a tela, o resultado em exibição (valores como estão, com as unidades), a resposta verificada do sistema, as fichas de "
+    "método e a conversa recente. Você pode explicar com suas palavras, adaptar o vocabulário ao registro pedido (simples, "
+    "didático, técnico), usar exemplos e analogias que não mudem o método, responder a perguntas complementares e "
+    "conduzir a conversa (pedir o que falta, sugerir um próximo passo entre as funcionalidades da página). Ao explicar um "
+    "conceito, conserve a definição autorizada da ficha: as variáveis, a operação, a unidade, as condições e as ressalvas. "
+    "Não calcule nada: não faça contas, médias, somas, diferenças, percentuais nem arredondamentos que não estejam no "
+    "contexto; copie os números como aparecem. Não crie classes, critérios, métodos nem indicadores. Não afirme causas, "
+    "juízos (suficiente, adequado, melhor, pior), acesso, tempo de deslocamento nem previsões; distância é sempre a "
+    "geográfica direta, em linha reta. Não diga que abriu, mudou, calculou ou criou algo: quem muda a tela é o sistema. "
+    "Não use nomes de lugares ou pessoas que não estejam no contexto. Se a informação pedida não está no contexto, diga o "
+    "que está disponível e como obtê-la na página. Marcadores como [ENTIDADE_PROTEGIDA_1] substituem o que a pessoa "
+    "escreveu: use-os só para se referir ao mesmo item. Quando o pedido for um comando para mudar o gráfico, deixe resposta "
+    "vazia."
+)
+SISTEMA_DA_RESPOSTA = (
+    "Você é o Agente Diagnóstico Territorial, o assistente de conversa de uma plataforma de diagnóstico da força de "
+    "trabalho em saúde. Responda à MENSAGEM da pessoa. A RESPOSTA_VERIFICADA_DO_SISTEMA, dentro do contexto, traz os fatos "
+    "já conferidos pelo motor e pelo catálogo do método: reorganize, simplifique, aprofunde e explique com suas palavras, "
+    "sem acrescentar fatos. Se houver VIOLACOES_DA_TENTATIVA_ANTERIOR, reescreva corrigindo cada uma. " + REGRAS_DA_RESPOSTA +
+    " Responda só o JSON do esquema."
+)
+ESQUEMA_DA_RESPOSTA = {"type": "OBJECT", "properties": {"resposta": {"type": "STRING"}}, "required": ["resposta"]}
+
+
 _SYSTEM = (
     "Você é um intérprete preliminar de pedidos de diagnóstico territorial da "
-    "força de trabalho em saúde. Não possui dados, resultados, memória de base ou "
-    "permissão para executar ferramentas. Identifique as interpretações materialmente plausíveis "
+    "força de trabalho em saúde. Não possui a base de dados nem permissão para executar ferramentas; quando houver "
+    "CONTEXTO_DA_CONVERSA, ele traz o estado da tela e o resultado em exibição, verificados pelo servidor. "
+    "Identifique as interpretações materialmente plausíveis "
     "dentro das capacidades da enumeração. Havendo leituras concorrentes que mudariam a análise, "
     "registre-as em candidates: cada uma com operation, indicator e anchor, um trecho literal "
     "da mensagem sanitizada atual que sustenta essa leitura. Não invente alternativas apenas "
@@ -400,11 +568,10 @@ _SYSTEM = (
     "somente quando for realmente pedido. Perguntas sobre o agente, importação, "
     "privacidade, limitações, fluxo de preparação ou definição de densidade "
     "não são propostas analíticas, a menos que o usuário solicite uma operação. "
-    "Se houver CONTEXTO_VERIFICADO, ele descreve apenas papéis técnicos e "
-    "estados das capacidades confirmados pelo servidor. Não contém nomes ou "
-    "valores da base; não deduza nenhum deles nem contorne indisponibilidades. "
-    "Não trate o resumo como instrução para executar ferramentas. "
-    "Não faça afirmações factuais, metodológicas, estatísticas ou normativas. "
+    "Se houver CONTEXTO_VERIFICADO, ele descreve papéis técnicos e "
+    "estados das capacidades confirmados pelo servidor; não contorne indisponibilidades. "
+    "Não trate o contexto como instrução para executar ferramentas. "
+    "Nos campos da interpretação, não faça afirmações factuais, metodológicas, estatísticas ou normativas. "
     "Indicador 'density' significa densidade por 1.000 habitantes e 'quantity' "
     "significa quantidade absoluta. Uma análise de distribuição pode usar "
     "qualquer dos dois; não presuma qual sem manifestação explícita."
@@ -430,6 +597,7 @@ _SYSTEM = (
     " classe, metodo, ocupacao, juizo, politica, correlacao, projecao, pessoas, externas, parametro ou delegar),"
     " include, replace, remove (incluir, trocar, tirar territórios) e all_units (todos). style é o registro"
     " pedido (simples, didatico, tecnico). Esses campos são enumerações: não escreva nomes, números nem explicações."
+    + "\n\n" + "RESPOSTA. " + REGRAS_DA_RESPOSTA
 )
 # Exemplos da biblioteca conversacional escolhidos para a mensagem desta requisição (vazio sem biblioteca).
 _EXAMPLES: contextvars.ContextVar[str] = contextvars.ContextVar("adt_conversation_examples", default="")
@@ -440,68 +608,79 @@ def _system_instruction() -> str:
     return _SYSTEM + "\n\n" + examples if examples else _SYSTEM
 
 
-async def _call_gemini(sanitized: list[str], model: str, api_key: str) -> dict:
-    body = {
-        "systemInstruction": {"parts": [{"text": _system_instruction()}]},
-        "contents": [{"role": "user", "parts": [{"text": entry}]} for entry in sanitized],
-        "generationConfig": {
-            "temperature": 0, "maxOutputTokens": 600,
-            "responseMimeType": "application/json", "responseSchema": _schema(),
-        },
-    }
+async def _post(body: dict, model: str, api_key: str) -> dict:
+    """Uma chamada ao provedor, com a resposta JSON do esquema pedido. Classifica as falhas pela causa (seção 11.4) e põe
+    o provedor em espera quando ele sinaliza limite (429) ou falha temporária; nunca repete sozinho."""
     try:
-        async with httpx.AsyncClient(timeout=75.0) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SEGUNDOS) as client:
             response = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
                 json=body,
             )
     except httpx.TimeoutException as exc:
-        raise LLMError(503, "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente.") from exc
+        contar("indisponivel")
+        ate = _esperar("indisponivel", ESPERA_FALHA_TEMPORARIA, "tempo_esgotado")
+        raise LLMError(503, "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente.",
+                       "indisponivel", ate) from exc
     except httpx.RequestError as exc:
-        raise LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.") from exc
+        contar("indisponivel")
+        ate = _esperar("indisponivel", ESPERA_FALHA_TEMPORARIA, "rede")
+        raise LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.", "indisponivel", ate) from exc
     if response.status_code == 429:
-        raise LLMError(429, "Cota ou limite de requisições da API Gemini atingido.")
+        contar("cota")
+        segundos, escopo = espera_da_cota(response)
+        ate = _esperar("cota", segundos, escopo)
+        logging.getLogger(__name__).warning("Gemini sinalizou limite (%s); espera de %.0f s.", escopo, segundos)
+        raise LLMError(429, "Cota ou limite de requisições da API Gemini atingido.", "cota", ate)
     if response.status_code in (401, 403):
-        raise LLMError(503, "Chave ou acesso ao Gemini não autorizado. Confira a configuração local.")
+        contar("configuracao")
+        ate = _esperar("configuracao", ESPERA_CONFIGURACAO, "acesso")
+        raise LLMError(503, "Chave ou acesso ao Gemini não autorizado. Confira a configuração local.", "configuracao", ate)
+    if response.status_code >= 500:
+        contar("indisponivel")
+        ate = _esperar("indisponivel", ESPERA_FALHA_TEMPORARIA, "provedor")
+        raise LLMError(502, "A API Gemini não concluiu a solicitação (HTTP " + str(response.status_code) + ").",
+                       "indisponivel", ate)
     if response.status_code != 200:
-        raise LLMError(502, "A API Gemini não concluiu a solicitação (HTTP "
-                       + str(response.status_code) + ").")
+        contar("indisponivel")
+        raise LLMError(502, "A API Gemini não concluiu a solicitação (HTTP " + str(response.status_code) + ").", "interno")
     try:
         data = response.json()
         parts = data["candidates"][0]["content"]["parts"]
         content = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
-        return json.loads(content)
+        resultado = json.loads(content)
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise LLMError(502, "A API não retornou uma interpretação estruturada válida.") from exc
+        raise LLMError(502, "A API não retornou uma interpretação estruturada válida.", "contrato") from exc
+    contar("sucesso")
+    return resultado
 
 
-async def generate_structured(system_instruction: str, messages: list[str], schema: dict, max_tokens: int = 900) -> dict:
-    """Chamada genérica ao provedor com resposta JSON no esquema dado (redação governada, redacao.py). Mesmo modelo, mesma
-    chave, mesmo limite local e mesmo transporte da interpretação; quem chama valida a saída antes de exibir (INV-13)."""
+async def _call_gemini(sanitized: list[str], model: str, api_key: str) -> dict:
+    body = {
+        "systemInstruction": {"parts": [{"text": _system_instruction()}]},
+        "contents": [{"role": "user", "parts": [{"text": entry}]} for entry in sanitized],
+        "generationConfig": {
+            "temperature": 0.3, "maxOutputTokens": 1400,
+            "responseMimeType": "application/json", "responseSchema": _schema(),
+        },
+    }
+    return await _post(body, model, api_key)
+
+
+async def generate_structured(system_instruction: str, messages: list[str], schema: dict, max_tokens: int = 1200) -> dict:
+    """Chamada ao provedor com resposta JSON no esquema dado (a redação da resposta, conversa_gemini.py). Mesmo modelo, mesma
+    chave, mesmo monitoramento, mesma espera e mesmo transporte da interpretação; quem chama confere a saída antes de exibir
+    (INV-13)."""
     if not _enabled():
-        raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
+        raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.", "configuracao")
     model = _configured_model()
-    _reserve_request()
+    _iniciar_chamada()
     body = {"systemInstruction": {"parts": [{"text": system_instruction}]},
             "contents": [{"role": "user", "parts": [{"text": entry}]} for entry in messages],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": max_tokens,
+            "generationConfig": {"temperature": 0.6, "maxOutputTokens": max_tokens,
                                  "responseMimeType": "application/json", "responseSchema": schema}}
-    try:
-        async with httpx.AsyncClient(timeout=75.0) as client:
-            response = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"].strip(), "Content-Type": "application/json"},
-                json=body)
-    except (httpx.TimeoutException, httpx.RequestError) as exc:
-        raise LLMError(503, "Não foi possível alcançar a API Gemini. Tente novamente.") from exc
-    if response.status_code != 200:
-        raise LLMError(502, "A API Gemini não concluiu a solicitação (HTTP " + str(response.status_code) + ").")
-    try:
-        parts = response.json()["candidates"][0]["content"]["parts"]
-        return json.loads("".join(part.get("text", "") for part in parts if isinstance(part, dict)))
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise LLMError(502, "A API não retornou uma redação estruturada válida.") from exc
+    return await _post(body, model, os.environ["GEMINI_API_KEY"].strip())
 
 
 def _anchor(value: Any, user_text: str) -> str:
@@ -544,19 +723,19 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
     try:
         raw = ModelInterpretation.model_validate(raw).model_dump()
     except ValidationError as exc:
-        raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.") from exc
+        raise LLMError(502, "O Gemini retornou dados fora do contrato de interpretação.", "contrato") from exc
     candidates = raw.pop("candidates", [])
     interpretations = []
     for candidate in candidates:
         anchor = candidate["anchor"]
         if not _anchor(anchor, sanitized[-1]):
-            raise LLMError(502, "A interpretação alternativa não está ancorada no pedido atual.")
+            raise LLMError(502, "A interpretação alternativa não está ancorada no pedido atual.", "contrato")
         validated = _validate({"operation": candidate["operation"], "indicator": candidate["indicator"],
             "intent":"ANALITICO", "topic":"none", "period":raw.get("period", ""),
             "category":raw.get("category", ""), "territory":raw.get("territory", "")}, sanitized)
         proposal = validated["proposal"]
         if proposal["operation"] is None:
-            raise LLMError(502, "Interpretação alternativa sem capacidade autorizada.")
+            raise LLMError(502, "Interpretação alternativa sem capacidade autorizada.", "contrato")
         if not any(item["proposal"]["operation"] == proposal["operation"] and
                    item["proposal"]["indicator"] == proposal["indicator"] for item in interpretations):
             interpretations.append({"proposal":proposal, "anchor":anchor})
@@ -582,7 +761,7 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
     operation = raw.get("operation")
     indicator = raw.get("indicator")
     if operation not in (*OPERATIONS, "none") or indicator not in (*INDICATORS, "none"):
-        raise LLMError(502, "O Gemini propôs uma operação ou indicador desconhecido.")
+        raise LLMError(502, "O Gemini propôs uma operação ou indicador desconhecido.", "contrato")
     # Apenas os valores textuais explicitamente presentes nas mensagens sanitizadas
     # podem voltar como candidatos. Não representam seleção ou autorização.
     anchors = _anchors_for_turn(raw, sanitized)
@@ -622,7 +801,7 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
                     "origin": "INTERPRETACAO_LLM",
                     "note": "Intenção interpretada pelo LLM; resposta do catálogo local."}
     if operation in ("density", "comparisons", "ranking") and indicator == "quantity":
-        raise LLMError(502, "O indicador sugerido não é compatível com a operação.")
+        raise LLMError(502, "O indicador sugerido não é compatível com a operação.", "contrato")
     proposal = {"operation": None if operation == "none" else operation,
                 "indicator": None if indicator == "none" else indicator,
                 **anchors}
@@ -643,9 +822,17 @@ def _validate(raw: Any, sanitized: list[str]) -> dict:
             "note": "Proposta não verificada contra a base: nenhuma análise foi executada."}
 
 
+TENTATIVAS = 3  # a primeira e até 2 regenerações (RQ-SIN-05, DA-26)
+
+
 async def interpret(request: ChatRequest, eligibility: dict | None = None,
                     category_constant: str = "", proposal_reviewer: Callable | None = None,
-                    conversation_context: dict | None = None, protected_values=None) -> dict:
+                    conversation_context: dict | None = None, protecao: "triagem.Protecao | None" = None,
+                    contexto: dict | None = None) -> dict:
+    """Interpretação com o provedor. `contexto` (contexto_conversa.montar) traz o cartão da tela e do resultado em
+    exibição, a janela da conversa e a numeração dos marcadores, já triados. Uma saída fora do contrato leva a nova
+    tentativa com a lista das violações, até 2 vezes; persistindo, LLMError(causa="contrato") e a resposta de reserva fica
+    com quem chama. O texto `resposta` do modelo volta em `_resposta_modelo`, sem exibição: quem chama o confere."""
     # Intenções conversacionais óbvias são atendidas com texto controlado,
     # inclusive durante a indisponibilidade da API externa.
     local = local_response(request)
@@ -654,18 +841,16 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
             local["verification"] = review_interpretation(local["proposal"], eligibility, category_constant=category_constant)
         return local
     if not _enabled():
-        raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.")
+        raise LLMError(503, "Gemini não configurado. Defina GEMINI_API_KEY no backend.", "configuracao")
     model = _configured_model()
     messages = [*request.history, request.message]
     if any(not isinstance(x, str) or not 2 <= len(x) <= 800 for x in messages):
-        raise LLMError(422, "Histórico de conversa inválido.")
-    # A base só participa desta comparação local, nunca do corpo enviado.
-    # Conjunto já normalizado (frozenset, memorizado pela versão da base) ou os valores brutos do quadro.
-    protected = (protected_values if isinstance(protected_values, frozenset) else _protected(protected_values)
-                 if protected_values is not None else None)
-    sanitized = [_sanitize(m) if protected is None else _minimize(m, protected) for m in messages]
+        raise LLMError(422, "Histórico de conversa inválido.", "entrada")
+    numeracao = contexto["numeracao"] if contexto else triagem.Numeracao()
+    # A base só participa da triagem local (entidades liberadas, valores protegidos e metadados), nunca inteira do envio.
+    sanitized = triagem.preparar_varios(messages, protecao, numeracao)
     if not any(re.search(r"[a-zá-ú]{2}", x, re.I) for x in sanitized):
-        raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.")
+        raise LLMError(422, "Solicitação sem conteúdo analítico após proteção de identificadores.", "entrada")
     provider_messages = sanitized
     if eligibility is not None:
         # Apenas enums/estados produzidos por preflight no servidor atravessam a API.
@@ -674,14 +859,33 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
         provider_messages = ["CONTEXTO_VERIFICADO_PELO_BACKEND: " + safe_context, *sanitized]
     if conversation_context is not None:
         provider_messages = ["CONTINUIDADE_VERIFICADA: " + json.dumps(conversation_context, ensure_ascii=False), *provider_messages]
-    examples, library_trace = _library_examples(request, protected, conversation_context, with_base=eligibility is not None)
-    _reserve_request()
-    token = _EXAMPLES.set(examples)
-    try:
-        raw = await _call_gemini(provider_messages, model, os.environ["GEMINI_API_KEY"].strip())
-    finally:
-        _EXAMPLES.reset(token)
-    response = _validate(raw, sanitized)
+    if contexto is not None:
+        provider_messages = ["CONTEXTO_DA_CONVERSA: " + json.dumps(
+            {**contexto["cartao"], "conversa_recente": contexto["conversa_recente"]}, ensure_ascii=False), *provider_messages]
+    examples, library_trace = _library_examples(request, protecao, conversation_context, with_base=eligibility is not None)
+    violacoes: list[str] = []
+    response = raw = None
+    for tentativa in range(TENTATIVAS):
+        _iniciar_chamada()
+        token = _EXAMPLES.set(examples)
+        try:
+            extra = ["VIOLACOES_DA_TENTATIVA_ANTERIOR: " + "; ".join(violacoes)] if violacoes else []
+            raw = await _call_gemini([*provider_messages[:-1], *extra, provider_messages[-1]], model,
+                                     os.environ["GEMINI_API_KEY"].strip())
+            response = _validate(raw, sanitized)
+            break
+        except LLMError as exc:
+            if exc.causa != "contrato":
+                raise
+            violacoes = [str(exc)]
+            if tentativa < TENTATIVAS - 1:
+                contar("regeneracao")
+        finally:
+            _EXAMPLES.reset(token)
+    if response is None:
+        contar("contrato")
+        raise LLMError(502, "O Gemini não produziu uma interpretação dentro do contrato depois das tentativas previstas.",
+                       "contrato")
     # Confirmações e alternativas são apresentadas pelo catálogo determinístico,
     # nunca como texto gerado pelo provedor. Pedidos explicitamente paralelos
     # não autorizam que o LLM escolha arbitrariamente a primeira capacidade.
@@ -705,65 +909,22 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
         response["clarification"] = clarification
         if clarification["code"] != "MULTIPLAS_CAPACIDADES":
             response["reply"] = clarification["prompt"]
+    resposta_modelo = raw.get("resposta") if isinstance(raw, dict) and isinstance(raw.get("resposta"), str) else ""
     return {**response, "model": model,
-            "privacy": "Somente o pedido minimizado e estados técnicos de capacidades foram enviados; "
-                       "nenhum arquivo, linha ou nome de campo da base foi enviado.",
+            "privacy": "Foram enviados o pedido depois da proteção de identificadores e, quando havia, o contexto da tela "
+                       "com os resultados agregados em exibição; nenhum arquivo, linha, nome de campo ou registro "
+                       "individual da base foi enviado.",
+            "_resposta_modelo": resposta_modelo, "_marcadores": numeracao.originais(),
             **({"biblioteca": library_trace} if library_trace else {})}
 
 
-def _protected(values) -> set[str]:
-    return {"".join(c for c in unicodedata.normalize("NFKD", str(value).strip().casefold())
-                    if not unicodedata.combining(c)) for value in values if str(value).strip()}
+def publico(resposta: dict) -> dict:
+    """A resposta sem os campos internos (texto do modelo ainda não conferido e o mapa dos marcadores)."""
+    return {chave: valor for chave, valor in resposta.items() if not chave.startswith("_")}
 
 
-def _mask_values(message: str, protected: set[str]) -> str:
-    """Trechos iguais a valores, nomes de campo, arquivo ou planilha da base viram [DADO_LOCAL]."""
-    # Normalizar uma vez por mensagem, não uma vez por célula da base.
-    folded, positions = [], []
-    for index, character in enumerate(message):
-        normalized = "".join(c for c in unicodedata.normalize("NFKD", character.casefold())
-                             if not unicodedata.combining(c))
-        folded.append(normalized)
-        positions.extend([index] * len(normalized))
-    normalized_message, spans = "".join(folded), []
-    for value in protected:
-        if not value or value not in normalized_message:
-            continue
-        spans.extend((positions[m.start()], positions[m.end()-1]+1) for m in re.finditer(
-            r"(?<!\w)" + re.escape(value) + r"(?!\w)", normalized_message))
-    merged = []
-    for start, end in sorted(spans):
-        if merged and start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
-    for start, end in reversed(merged):
-        message = message[:start] + "[DADO_LOCAL]" + message[end:]
-    return message
-
-
-def _finish(message: str) -> str:
-    # Valores digitados podem ter vindo de resultados calculados, não só de células.
-    return _sanitize(re.sub(r"(?<!\w)[+-]?\d[\d.,]*(?!\w)", "[VALOR_LOCAL]", message))
-
-
-def _minimize(message: str, protected: set[str]) -> str:
-    return _finish(_mask_values(message, protected))
-
-
-_SEPARATOR = "⁣"  # separador invisível: nem letra, nem dígito, nem espaço; as fronteiras de palavra não mudam
-
-
-def _minimize_many(texts: list[str], protected: set[str]) -> list[str]:
-    """Mesma minimização de _minimize, com uma única varredura dos valores protegidos para vários textos."""
-    masked = _mask_values(_SEPARATOR.join(texts), protected).split(_SEPARATOR)
-    if len(masked) != len(texts):
-        masked = [_mask_values(text, protected) for text in texts]
-    return [_finish(text) for text in masked]
-
-
-def _library_examples(request: ChatRequest, protected, continuity, *, with_base: bool):
-    """Exemplos pertinentes da biblioteca conversacional, mascarados como as mensagens deste pedido.
+def _library_examples(request: ChatRequest, protecao, continuity, *, with_base: bool):
+    """Exemplos pertinentes da biblioteca conversacional, triados como as mensagens deste pedido.
 
     Sem a biblioteca (configuração ou arquivo ilegível), o pedido ao provedor é o mesmo de antes."""
     if not conversation_library.enabled():
@@ -776,9 +937,8 @@ def _library_examples(request: ChatRequest, protected, continuity, *, with_base:
              "active_operation": None, "previous_operation": None, "previous_indicator": None,
              "previous_document": None, **(continuity or {})}
     selected = library.select(request.message, request.history, state)
-    mask = ((lambda texts: _minimize_many(texts, protected)) if protected is not None
-            else (lambda texts: [_sanitize(text) for text in texts]))
-    block, ids = conversation_library.render(selected, continuity=continuity is not None, mask=mask,
+    block, ids = conversation_library.render(selected, continuity=continuity is not None,
+                                             mask=lambda texts: _minimize_many(texts, protecao),
                                              anchor=lambda value, text: bool(_anchor(value, text)))
     return block, ({"versao": library.version, "exemplos": ids} if ids else None)
 

@@ -10,6 +10,7 @@ governança e fidelidade analítica (todo número da resposta é um valor do mot
 Também roda como relatório, na raiz do repositório (somente leitura dos dados):
     ADT_REAL_DATA_DIR=. python backend/tests/test_dialogo_adversarial.py
 """
+import collections
 import hashlib
 import json
 import os
@@ -76,11 +77,17 @@ def _formatos(valor, saida):
 
 
 def numeros_do_motor(texto, corpos):
-    """Todo número do texto é um valor do motor (em algum resultado visto na conversa), um ano, um código de método ou
-    um inteiro pequeno (contagens e ordinais). Devolve os números sem origem."""
+    """Todo número do texto é um valor do motor (em algum resultado visto na conversa), um ano, um código de método, um
+    inteiro pequeno (contagens e ordinais) ou o exemplo documentado de uma ficha de método autorizada (Adendo
+    PAR-20261026; V-01 e V-02: exemplos documentados com âncora, não fatos dos dados), só quando a formulação autorizada
+    inteira aparece literalmente no texto. Devolve os números sem origem."""
+    import definicoes
     validos = set()
     for corpo in corpos:
         _formatos(corpo, validos)
+    for ficha in definicoes.FICHAS.values():
+        if ficha.texto in texto:
+            validos.update(numero.rstrip(".") for numero in NUMERO.findall(ficha.texto))
     soltos = []
     texto = ESCALA.sub("por escala", texto)
     for numero in NUMERO.findall(texto):
@@ -283,3 +290,50 @@ if __name__ == "__main__":
         if saida:
             Path(saida).write_text(json.dumps({"resumo": resumo(todos), "turnos": todos}, ensure_ascii=False, indent=1),
                                    encoding="utf-8")
+
+
+def test_redacao_fiel_simulada_passa_na_conferencia_com_a_base_versionada(real, monkeypatch):
+    """Falsos positivos da conferência de fidelidade (26/10/2026). A redação simulada devolve a resposta verificada do
+    próprio sistema com outra abertura, o texto mais fiel possível: toda redação tem de aparecer (GEMINI_VALIDADO). Antes
+    da correção, 11 de 60 caíam na reserva ("Quanto à causa, vale a regra do escopo" lido como causa; leitura do resultado
+    que cita uma classe cobrada como definição). Transporte simulado: nenhuma chamada real ao provedor."""
+    import llm_bridge
+    client, info = real
+
+    async def interpretar(sanitized, model, api_key):
+        return {"operation": "none", "indicator": "none", "period": "", "category": "", "territory": "",
+                "intent": "CONVERSACIONAL", "topic": "none"}
+
+    async def redigir(sistema, mensagens, esquema, max_tokens=1200):
+        contexto = next((m for m in mensagens if m.startswith("CONTEXTO_DA_CONVERSA: ")), "")
+        cartao = json.loads(contexto[len("CONTEXTO_DA_CONVERSA: "):]) if contexto else {}
+        verificada = cartao.get("resposta_verificada_do_sistema") or ""
+        return {"resposta": ("Em outras palavras: " + verificada) if verificada else ""}
+
+    monkeypatch.setenv("GEMINI_API_KEY", "chave-simulada-local")
+    monkeypatch.setattr(llm_bridge, "_call_gemini", interpretar)
+    monkeypatch.setattr(llm_bridge, "generate_structured", redigir)
+    origens, reservas, erros = collections.Counter(), [], []
+    for nome in CONJUNTOS:
+        casos = carrega(nome)
+        for conversa in casos["conversas"]:
+            tela = Tela(client, info)
+            inicio = conversa.get("inicio")
+            if inicio:
+                tela.seleciona(ids=_codigos(inicio.get("ids", []), casos), estados=inicio.get("estados", []),
+                               familia=inicio.get("familia"), comparar=_codigos(inicio.get("comparar", []), casos) or None)
+            for passo in conversa["turnos"]:
+                turno = tela.diga(passo["diga"])
+                if turno.status >= 500:
+                    erros.append((nome, conversa["id"], passo["diga"], turno.status))
+                origem = ((turno.corpo or {}).get("redacao") or {}).get("origem")
+                if origem:
+                    origens[origem] += 1
+                if origem == "DETERMINISTICA":
+                    reservas.append((nome, conversa["id"], passo["diga"]))
+            # Cada tela abre uma sessão; o backend guarda no máximo 128 ao mesmo tempo, e os testes anteriores do módulo
+            # deixam as suas abertas.
+            client.post("/api/session/close", headers={"X-ADT-Session": tela.sessao})
+    assert not erros, erros
+    assert origens["GEMINI_VALIDADO"] >= 40, origens  # a redação foi de fato exercida
+    assert not reservas, reservas

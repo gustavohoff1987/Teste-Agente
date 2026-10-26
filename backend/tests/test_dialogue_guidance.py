@@ -94,13 +94,26 @@ def test_unmatched_profession_is_a_guided_choice_not_a_user_error():
     assert question["choices"] == []
 
 
-def test_local_meta_topics_do_not_call_gemini_or_execute(monkeypatch):
+def test_local_meta_topics_are_redacted_by_gemini_from_the_catalog_and_greeting_stays_local(monkeypatch):
+    # Desde 26/10/2026 (Frentes III e V): com o provedor disponível, a orientação do catálogo é redigida pelo Gemini a
+    # partir do texto do catálogo e conferida (paráfrase fiel aparece); a saudação continua com o texto fixo, sem chamada.
     async def unexpected(*_args):
-        raise AssertionError("Pergunta do catálogo não deve chamar o Gemini.")
+        raise AssertionError("A orientação do catálogo não passa pelo intérprete.")
+    redigidas = []
+
+    async def redige(sistema, mensagens, esquema, max_tokens=1200):
+        redigidas.append(mensagens)
+        pergunta = mensagens[-1]
+        if "agregação" in pergunta:
+            return {"resposta": "Na agregação, o conjunto soma as contagens dos componentes; por isso a mesma pessoa pode "
+                                "entrar mais de uma vez (possível dupla contagem), e o total não é de pessoas únicas."}
+        return {"resposta": "É a distância em linha reta entre as coordenadas, em km, calculada no elipsoide. Não é a "
+                            "distância por estrada nem o tempo de deslocamento."}
     monkeypatch.setattr(llm_bridge, "_call_gemini", unexpected)
+    monkeypatch.setattr(llm_bridge, "generate_structured", redige)
     for message, expected in (
-        ("Como funciona a agregação territorial?", "sobreposição"),
-        ("O que é distância geodésica?", "direta"),
+        ("Como funciona a agregação territorial?", "dupla contagem"),
+        ("O que é distância geodésica?", "linha reta"),
         ("Olá", "tipo de análise"),
     ):
         result = client.post("/api/llm/interpret", json={"message": message})
@@ -109,6 +122,23 @@ def test_local_meta_topics_do_not_call_gemini_or_execute(monkeypatch):
         assert expected.lower() in payload["reply"].lower()
         assert payload["origin"] == "CANAL_SISTEMICO"
         assert payload["executed"] is False
+        assert ("redacao" in payload) is (message != "Olá")
+    assert len(redigidas) == 2
+    # O texto do catálogo vai como resposta verificada (a referência e a reserva da paráfrase).
+    assert "RESPOSTA_VERIFICADA" not in redigidas[0][0] and "resposta_verificada_do_sistema" in redigidas[0][0]
+
+
+def test_local_meta_topics_without_the_provider_use_the_catalog_without_calls(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    async def unexpected(*_args, **_kwargs):
+        raise AssertionError("Sem o provedor, nada é chamado.")
+    monkeypatch.setattr(llm_bridge, "_call_gemini", unexpected)
+    monkeypatch.setattr(llm_bridge, "generate_structured", unexpected)
+    for message, expected in (("Como funciona a agregação territorial?", "sobreposição"),
+                              ("O que é distância geodésica?", "direta")):
+        payload = client.post("/api/llm/interpret", json={"message": message}).json()
+        assert expected in payload["reply"].lower() and payload["origin"] == "CANAL_SISTEMICO" and "redacao" not in payload
     assert client.get("/api/llm/status").json()["requests_used_today"] == 0
 
 
@@ -177,4 +207,6 @@ def test_unanchored_interpretation_alternatives_are_rejected(monkeypatch):
                     {"operation":"density","indicator":"density","anchor":"pedido inexistente"}]}
     monkeypatch.setattr(llm_bridge,"_call_gemini",provider)
     result = client.post("/api/llm/interpret",json={"message":"Analise o perfil dos municipios"})
-    assert result.status_code == 502 and "ancorada" in result.json()["detail"]
+    # Alternativa sem âncora no pedido é violação do contrato: regenerações e, persistindo, a reserva (nada é proposto).
+    assert result.status_code == 200 and result.json()["reserva"] is True
+    assert result.json()["proposal"]["operation"] is None and result.json()["executed"] is False

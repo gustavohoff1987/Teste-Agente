@@ -132,9 +132,12 @@ def test_protected_dataset_literals_and_dialogue_context_never_leave_backend(mon
     response=request(headers,"Me ajude a estudar Vila Secreta em 202406, MEDICINA, Populacao 1000 no arquivo private.csv")
     assert response.status_code == 200, response.text
     content=" ".join(sent)
-    for value in ("Vila Secreta","202406","MEDICINA","Populacao","1000","private.csv",headers["X-ADT-Session"]):
+    # Triagem de 26/10/2026 (RQ-DAD-20/39): o território da base, o período, a categoria e a quantidade que a pessoa
+    # escreveu ficam (a interpretação precisa deles); o nome do arquivo e o token da sessão nunca vão ao provedor.
+    assert "Vila Secreta em 202406, MEDICINA, Populacao 1000" in content
+    for value in ("private.csv", headers["X-ADT-Session"], "Outra Vila", "Nova Vila", "Codigo"):
         assert value not in content
-    assert "CONTINUIDADE_VERIFICADA" in content
+    assert "[ARQUIVO_1]" in content and "CONTINUIDADE_VERIFICADA" in content
 
 
 def test_greeting_and_general_method_do_not_require_ready_dataset():

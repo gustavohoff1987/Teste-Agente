@@ -185,10 +185,13 @@ def test_provider_minimization_handles_case_and_accents(monkeypatch):
                     intent="CONVERSACIONAL", topic="none", social_reply="Entendi.")
     monkeypatch.setenv("GEMINI_API_KEY", "simulado")
     monkeypatch.setattr(llm_bridge, "_call_gemini", provider)
-    asyncio.run(llm_bridge.interpret(llm_bridge.ChatRequest(message="Vamos investigar Tefé e população"),
-                                    protected_values=["TEFE", "Populacao"]))
+    import triagem
+    # "TEFE" como valor de uma coluna sem papel autorizado (classe A): protegido em qualquer caixa e acento. "Populacao"
+    # como nome de coluna coincide com palavra comum do domínio e fica (Frente I, 26/10/2026).
+    protecao = triagem.protecao_da_base({"Pessoa": ["TEFE"], "Populacao": [10]}, {})
+    asyncio.run(llm_bridge.interpret(llm_bridge.ChatRequest(message="Vamos investigar Tefé e população"), protecao=protecao))
     assert "tefe" not in llm_bridge._text_key(" ".join(sent))
-    assert "populacao" not in llm_bridge._text_key(" ".join(sent))
+    assert "Vamos investigar [IDENTIFICADOR_1] e população" in " ".join(sent)
 
 
 def test_display_preserves_nonzero_and_distinct_values_without_changing_result():

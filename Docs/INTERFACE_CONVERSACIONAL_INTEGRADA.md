@@ -126,8 +126,33 @@ contexto da sessão muda com a fonte em uso.
 
 A conversa fica na caixa flutuante com o rosto do agente, sempre na página: arrastável pelo cabeçalho (mouse, toque e
 teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dentro da janela; no celular, ancorada embaixo.
-Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `latest-reply`). A transcrição fica em memória,
-e a última resposta aparece junto do campo de mensagem.
+Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `latest-reply`, agora na última resposta do
+histórico).
+
+### Histórico da conversa
+
+Desde 26/10/2026 (Frente VI da missão de 26/10/2026), a caixa mostra a conversa inteira, em ordem (`chat-historico`, papel
+`log`): cada mensagem da pessoa aparece na hora, exatamente como ela escreveu, num balão discreto à direita
+(`chat-mensagem` com `data-papel="usuario"`), e cada resposta do agente, à esquerda, com o rosto (`data-papel="agente"`).
+A comunicação de indisponibilidade da conversa aparece como resposta do sistema, numa faixa suave com o título
+"Assistente conversacional temporariamente indisponível" (`data-papel="aviso"`), no ponto da conversa em que aconteceu.
+- **Rolagem.** O histórico rola sozinho (o campo de mensagem fica sempre à vista), abaixo da orientação, separado dela por
+  uma linha. Quem envia vai ao fim, para ver a resposta; quem está lendo mensagens antigas não é puxado para o fim quando a
+  resposta chega: aparece o botão "Ir para a mensagem mais recente" (`chat-ir-ao-fim`).
+- **Estados.** Enquanto a resposta não chega, "Interpretando o pedido…" fica no fim do histórico (`chat-processando`); uma
+  falha nunca apaga a pergunta: o aviso cordial entra como resposta, sem código HTTP nem mensagem técnica (limite de
+  consultas só quando o provedor o confirmou; nas demais causas, a indisponibilidade).
+- **Sem duplicar.** Cada mensagem tem um identificador único; renderizações e reenvios do mesmo estado não a repetem.
+- **Navegação.** O histórico fica com a caixa, fora da área de análise: trocar a vista, a aba, o indicador, abrir o
+  Histórico, a Nova análise e a troca de fonte não o apagam. Nova sessão encerra a conversa, como antes.
+- **Original e cópia triada.** A tela guarda e mostra o texto original; ao backend vai a janela das 8 mensagens mais
+  recentes (`turnos`, sem os avisos), que ele tria antes do provedor. O histórico visual não depende do que vai ao provedor
+  e não gera chamada ao Gemini.
+- **Tamanhos de tela.** A caixa tem até 400 px de largura e até 74% da altura da janela; no celular, ancorada embaixo,
+  ocupa a largura e até 72% da altura.
+- **Situação do serviço.** Sem o Gemini disponível, uma faixa curta no alto da caixa (`chat-estado-do-servico`) diz que o
+  recurso de conversa está temporariamente limitado e que os botões, os controles e os pedidos diretos sobre o gráfico
+  continuam; "Verificar de novo" só consulta a situação, sem chamar o provedor.
 
 **Abertura.** Antes dos dados, a caixa fica aberta e mais larga, perguntando "O que você quer analisar? Prefere usar os dados
 do Brasil ou enviar os seus?", com **Usar dados do Brasil** e **Enviar meus dados**, as mesmas duas entradas da área de
@@ -231,12 +256,12 @@ o período é aplicado; quando divergem, a conversa oferece as duas leituras com
 continuações são resolvidas no backend, sem o provedor de IA. A interpretação conta com exemplos da
 [biblioteca conversacional](BIBLIOTECA_CONVERSACIONAL.md), internos e invisíveis na tela.
 
-**Privacidade.** Nenhum dado, arquivo, nome de campo ou valor da base vai ao provedor de IA. A planilha é reenviada só ao
-backend local; o contexto do gráfico vai ao intérprete local, e o provedor recebe apenas o pedido sanitizado e estados
-enumerados. A memória da conversa (`conversa`) e o resultado em exibição ficam no backend local. Sem o provedor, os pedidos
-sobre o gráfico, o gestor de diálogo, a escolha dos dados e as respostas locais continuam disponíveis. Com o gráfico na
-tela, o pedido que dependeria do provedor recebe a mensagem de indisponibilidade (TPL-01) com exemplos do que continua
-disponível e "O que você quer ver?"; antes dos dados, a caixa avisa que as perguntas livres estão indisponíveis.
+**Privacidade.** Nenhum arquivo, linha, registro individual, identificador, nome de campo ou credencial vai ao provedor de
+IA. A planilha é reenviada só ao backend local; o contexto do gráfico vai ao intérprete local. Ao provedor vão a mensagem
+triada, a janela da conversa triada, estados enumerados e o cartão do contexto montado pelo backend: a tela e o resultado
+agregado em exibição (territórios, valores com as unidades, períodos, classes, notas e a frase-resumo), decisão de
+26/10/2026. Sem o provedor, os pedidos sobre o gráfico, o gestor de diálogo, a escolha dos dados e as respostas locais
+continuam disponíveis; o pedido que dependeria do provedor recebe, no histórico, a comunicação cordial de indisponibilidade.
 
 ## Exportação
 
@@ -265,13 +290,16 @@ A API não mudou com essa saída: `/api/analyze`, `/api/preflight` e as capacida
 - `AnalysisAssistant.tsx` e `ChatFloatingBox.tsx`: a conversa e a caixa flutuante.
 - `conversaGrafico.ts` e `paginaUnica.ts`: funções puras da conversa (campo `painel` → pedido, contexto → opções, comandos) e
   da estrutura (resumo da fonte, rótulos, colunas, Histórico, CSV da sessão), com os tipos do contrato da área.
+- `historicoConversa.ts`: modelo puro do histórico (ordem, ids, janela enviada, rolagem e avisos cordiais).
 - `conversationSession.ts`, `SessionPrivacy.tsx` e `WorkspaceDialog.tsx`: sessão, aceite e diálogos acessíveis.
 - `AreaDeAnalise.tsx` e os `Painel*`: a área de análise.
 
-Testes: `frontend/tests/paginaUnica.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (unitários; este também cobre a
-vista do desenho, o pedido de resumo e as chaves novas do contexto); os roteiros de navegador `backend/tests/ui_pagina_unica.py`
-(suítes `bloco1` e `base-versionada`) e `backend/tests/ui_conversa_grafico.py` (suítes `conversa`, só com os canais locais,
-e `gemini-simulado`, com o provedor simulado e a conferência de que nada da base chega a ele, nem a frase-resumo). Este
+Testes: `frontend/tests/paginaUnica.test.mjs`, `frontend/tests/conversaGrafico.test.mjs` (unitários; este também cobre a
+vista do desenho, o pedido de resumo e as chaves novas do contexto) e `frontend/tests/historicoConversa.test.mjs` (o
+histórico); os roteiros de navegador `backend/tests/ui_pagina_unica.py` (suítes `bloco1` e `base-versionada`) e
+`backend/tests/ui_conversa_grafico.py` (suítes `conversa`, só com os canais locais e o aviso cordial, e `gemini-simulado`,
+com o provedor simulado: redação conferida, reserva de contrato, limite e queda simulados com recuperação e a conferência do
+que chega a ele). Os dois modos conferem o histórico: ordem, sem duplicar, navegação, original na tela, rolagem e celular. Este
 roteiro confere, com os municípios na tela, "ver no mapa" (`area-de-analise` com `data-desenho="mapa"`), "volte ao gráfico"
 (`data-desenho="grafico"`) e "o que esse gráfico mostra?" (a resposta traz o texto de `analise-resumo`) e, nos estados, "ver
 no mapa" respondido com o motivo, sem mudar a vista. O que cobriam os roteiros do fluxo clássico, e onde essa cobertura

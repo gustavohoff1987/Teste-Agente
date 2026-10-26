@@ -21,10 +21,15 @@ def reset_local_limits(monkeypatch):
 def test_without_key_is_degraded_and_keeps_analytical_engine_available():
     status = client.get("/api/llm/status")
     assert status.status_code == 200
-    assert status.json()["configured"] is False
+    assert status.json()["configured"] is False and status.json()["disponivel"] is False
     assert status.json()["executes_analyses"] is False
+    assert status.json()["indisponibilidade"]["tipo"] == "indisponivel"
+    # Sem o provedor, a conversa responde com a comunicação cordial (seção 11.4), sem código nem mensagem técnica.
     response = client.post("/api/llm/interpret", json={"message": "Densidade de médicos"})
-    assert response.status_code == 503
+    assert response.status_code == 200
+    assert response.json()["indisponibilidade"] == {"tipo": "indisponivel", "titulo": llm_bridge.TITULO_INDISPONIVEL,
+                                                    "texto": llm_bridge.TEXTO_INDISPONIVEL}
+    assert response.json()["reply"] == llm_bridge.TEXTO_INDISPONIVEL and "GEMINI_API_KEY" not in response.text
     assert client.get("/api/health").status_code == 200
 
 
@@ -108,28 +113,154 @@ def test_discard_model_invented_entities_and_unknown_schema(monkeypatch):
     assert response.json()["proposal"]["category"] == ""
     assert response.json()["proposal"]["territory"] == ""
 
+    calls = []
+
     async def bad_model(_sent, _model, _key):
+        calls.append(1)
         return {"intent": "ANALITICO", "topic": "none", "operation": "invented_operation", "indicator": "density"}
     monkeypatch.setattr(llm_bridge, "_call_gemini", bad_model)
     invalid = client.post("/api/llm/interpret", json={"message": "Quero analisar médicos em 2024"})
-    assert invalid.status_code == 502
+    # Operação inventada é violação do contrato: 2 regenerações e a resposta de reserva, sem operação proposta.
+    assert invalid.status_code == 200 and invalid.json()["reserva"] is True and len(calls) == 3
+    assert invalid.json()["proposal"]["operation"] is None
 
 
 def test_unknown_model_is_blocked_before_api(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "secret")
     monkeypatch.setenv("ADT_GEMINI_MODEL", "model-billing-unknown")
+
+    async def unexpected(*_args):
+        raise AssertionError("modelo não autorizado não chega ao provedor")
+    monkeypatch.setattr(llm_bridge, "_call_gemini", unexpected)
     response = client.post("/api/llm/interpret", json={"message": "Comparar médicos"})
-    assert response.status_code == 503
-    assert "secret" not in response.text
+    assert response.status_code == 200 and response.json()["indisponibilidade"]["tipo"] == "indisponivel"
+    assert "secret" not in response.text and "model-billing-unknown" not in response.text
 
 
-def test_local_limit_applies_without_network_call(monkeypatch):
+# ---------------------------------------------------------------- sem teto local; cotas reais do provedor (seção 11)
+def _modelo_simples(chamadas):
+    async def modelo(_sent, _model, _key):
+        chamadas.append(1)
+        return {"intent": "ANALITICO", "topic": "none", "operation": "distribution", "indicator": "density",
+                "period": "", "category": "", "territory": ""}
+    return modelo
+
+
+def test_no_local_daily_cap_after_the_old_mark_of_20_calls(monkeypatch):
+    # O teto local de 20 chamadas saiu (26/10/2026): sem outro teto, o consumo só é monitorado. Instrumentado, sem rede.
+    assert not hasattr(llm_bridge, "MAX_REQUESTS_PER_DAY")
     monkeypatch.setenv("GEMINI_API_KEY", "secret")
+    chamadas = []
+    monkeypatch.setattr(llm_bridge, "_call_gemini", _modelo_simples(chamadas))
+    for _ in range(25):
+        assert client.post("/api/llm/interpret", json={"message": "Analisar distribuição"}).status_code == 200
     from datetime import date
     monkeypatch.setattr(llm_bridge, "_counter_day", date.today().isoformat())
-    monkeypatch.setattr(llm_bridge, "_counter", llm_bridge.MAX_REQUESTS_PER_DAY)
-    response = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
-    assert response.status_code == 429
+    monkeypatch.setattr(llm_bridge, "_counter", 5000)
+    assert client.post("/api/llm/interpret", json={"message": "Analisar distribuição"}).json()["proposal"]["operation"] \
+        == "distribution"
+    assert len(chamadas) == 26
+    status = client.get("/api/llm/status").json()
+    assert status["requests_used_today"] == 5001 and "local_daily_limit" not in status and status["disponivel"] is True
+
+
+class _Resposta429:
+    """Resposta HTTP 429 do provedor, como a API do Gemini a devolve (RESOURCE_EXHAUSTED, QuotaFailure e RetryInfo)."""
+
+    def __init__(self, quota_id, retry="37s"):
+        import httpx as _httpx
+        details = [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                    "violations": [{"quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                                    "quotaId": quota_id}]}]
+        if retry:
+            details.append({"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry})
+        self.resposta = _httpx.Response(429, json={"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                                                             "message": "Quota exceeded", "details": details}})
+
+
+def _cliente_http(respostas, chamadas):
+    class Cliente:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            chamadas.append(1)
+            resposta = respostas[min(len(chamadas), len(respostas)) - 1]
+            if isinstance(resposta, Exception):
+                raise resposta
+            return resposta
+    return Cliente
+
+
+def _resposta_ok():
+    return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text":
+        '{"intent":"ANALITICO","topic":"none","operation":"distribution","indicator":"density","period":"",'
+        '"category":"","territory":""}'}]}}]})
+
+
+@pytest.mark.parametrize("quota_id,escopo,minimo,maximo", [
+    ("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "minuto", 36, 38),
+    ("GenerateContentInputTokensPerModelPerMinute-FreeTier", "tokens_por_minuto", 36, 38),
+    ("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "dia", 60, 25 * 3600),
+])
+def test_provider_429_puts_the_provider_on_hold_with_cordial_message_and_no_repeated_calls(monkeypatch, quota_id, escopo,
+                                                                                           minimo, maximo):
+    import time
+    monkeypatch.setenv("GEMINI_API_KEY", "secret")
+    chamadas = []
+    monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", _cliente_http([_Resposta429(quota_id).resposta], chamadas))
+    antes = time.time()
+    primeira = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
+    # Limite confirmado pelo provedor: a mensagem A, sem código, sem "quota", sem "429".
+    assert primeira.status_code == 200 and primeira.json()["indisponibilidade"]["tipo"] == "cota"
+    assert primeira.json()["reply"] == llm_bridge.TEXTO_COTA
+    assert not any(t in primeira.text for t in ("429", "RESOURCE_EXHAUSTED", "Quota", "secret"))
+    status = client.get("/api/llm/status").json()
+    assert status["disponivel"] is False and status["espera"]["causa"] == "cota" and status["espera"]["escopo"] == escopo
+    assert minimo <= llm_bridge.em_espera()["ate"] - antes <= maximo
+    # Durante a espera, nenhuma chamada sai: a próxima mensagem recebe o mesmo aviso, sem tentativa repetida.
+    for _ in range(3):
+        assert client.post("/api/llm/interpret", json={"message": "Analisar distribuição"}).json()[
+            "indisponibilidade"]["tipo"] == "cota"
+    assert chamadas == [1] and status["monitoramento"]["cota"] == 1
+
+
+def test_provider_recovers_after_the_hold_without_restarting_the_session(monkeypatch):
+    import time
+    monkeypatch.setenv("GEMINI_API_KEY", "secret")
+    chamadas = []
+    monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", _cliente_http(
+        [_Resposta429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "2s").resposta, _resposta_ok()], chamadas))
+    assert client.post("/api/llm/interpret", json={"message": "Analisar distribuição"}).json()["indisponibilidade"]
+    agora = time.time()
+    monkeypatch.setattr(llm_bridge.time, "time", lambda: agora + 5)  # passou a espera informada pelo provedor
+    retomada = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
+    assert retomada.status_code == 200 and "indisponibilidade" not in retomada.json()
+    assert retomada.json()["proposal"]["operation"] == "distribution" and chamadas == [1, 1]
+    assert client.get("/api/llm/status").json()["disponivel"] is True
+
+
+@pytest.mark.parametrize("falha,escopo", [(httpx.Response(503, text="overloaded"), "provedor"),
+                                         (httpx.ReadTimeout("lento"), "tempo_esgotado"),
+                                         (httpx.ConnectError("sem rota"), "rede")])
+def test_temporary_unavailability_is_not_reported_as_quota(monkeypatch, falha, escopo):
+    monkeypatch.setenv("GEMINI_API_KEY", "secret")
+    chamadas = []
+    monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", _cliente_http([falha], chamadas))
+    resposta = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
+    assert resposta.status_code == 200 and resposta.json()["indisponibilidade"]["tipo"] == "indisponivel"
+    assert resposta.json()["reply"] == llm_bridge.TEXTO_INDISPONIVEL and "limite" not in resposta.json()["reply"]
+    espera = client.get("/api/llm/status").json()["espera"]
+    assert espera["causa"] == "indisponivel" and espera["escopo"] == escopo
+    assert llm_bridge.em_espera()["ate"] - __import__("time").time() <= llm_bridge.ESPERA_FALHA_TEMPORARIA + 1
+    client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
+    assert chamadas == [1]  # sem repetição automática durante a espera curta
 
 
 def test_request_body_limits():
@@ -198,7 +329,8 @@ def test_http_transport_uses_json_schema_header_and_no_dataset(monkeypatch):
     httpx.ConnectError, httpx.ReadError, httpx.WriteError, httpx.RemoteProtocolError,
 ])
 def test_api_distinguishes_timeout_from_other_transport_errors(monkeypatch, failure):
-    """A API preserva 503, distingue a causa e não expõe o detalhe privado do transporte."""
+    """A conversa responde com o aviso cordial (sem o detalhe privado do transporte), e o diagnóstico técnico distingue o
+    tempo esgotado das demais falhas de transporte."""
     monkeypatch.setenv("GEMINI_API_KEY", "test-private-key")
     calls = []
 
@@ -218,13 +350,10 @@ def test_api_distinguishes_timeout_from_other_transport_errors(monkeypatch, fail
 
     monkeypatch.setattr(llm_bridge.httpx, "AsyncClient", FailingClient)
     response = client.post("/api/llm/interpret", json={"message": "Comparar médicos"})
-    assert response.status_code == 503
-    expected = (
-        "Tempo limite de 75 segundos excedido na comunicação com a API Gemini. Tente novamente."
-        if issubclass(failure, httpx.TimeoutException)
-        else "Não foi possível alcançar a API Gemini. Tente novamente."
-    )
-    assert response.json() == {"detail": expected}
+    assert response.status_code == 200
+    assert response.json()["indisponibilidade"]["texto"] == llm_bridge.TEXTO_INDISPONIVEL
+    expected = "tempo_esgotado" if issubclass(failure, httpx.TimeoutException) else "rede"
+    assert client.get("/api/llm/status").json()["espera"]["escopo"] == expected
     assert "privado" not in response.text and "test-private-key" not in response.text
     assert calls == [1]  # Sem nova tentativa automática ou consumo duplicado.
     assert llm_bridge._EXAMPLES.get() == ""

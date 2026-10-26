@@ -12,12 +12,16 @@ Fundamentação (INV-02, INV-03, RQ-SIN-02/03/07/08):
   distância como acesso (V-06).
 O registro (objetivo, simples, didático ou técnico) muda a organização e o nível de detalhe, nunca os valores, as classes
 ou os limites. Toda composição é conferida por `verificar` antes de sair; uma que não confere não é apresentada.
-Nada daqui vai ao provedor de IA: a redação opcional pelo Gemini (redacao.py) recebe só marcadores opacos.
+Desde 26/10/2026 (Adendo PAR-20261026), a regra de cada classe de tendência em palavras entra como segmento da ficha
+autorizada (definicoes.py, o mesmo texto de "Entenda esta análise"), conferido como as formas do catálogo. A composição é a
+resposta verificada e a reserva: com o provedor disponível, o Gemini a recebe no cartão do contexto e redige a resposta
+com as palavras dele, sob a conferência de fidelidade (conversa_gemini.py, fidelidade.py).
 """
 from __future__ import annotations
 
 import re
 
+import definicoes
 import painel
 from document_catalog import DocumentationError, TOPICS, materialize
 from resumo_painel import Composer, DENSITY_UNIT, number, places_for, relation_text, verify_segment
@@ -67,6 +71,11 @@ class Composicao(Composer):
         self.documentacao.append(form)
         return self._add({"tipo": "EXPLICACAO_METODOLOGICA", "formato": "documento",
                           "caminho": [id_doc, forma, evidencia], "texto": form["text"]})
+
+    def ficha(self, id_ficha: str) -> "Composicao":
+        """A formulação autorizada de uma ficha de método (definicoes.py), como segmento conferido."""
+        return self._add({"tipo": "EXPLICACAO_METODOLOGICA", "formato": "ficha", "caminho": [id_ficha],
+                          "texto": definicoes.FICHAS[id_ficha].texto})
 
     def item(self, atributo: str, qual: str, posicao: int) -> "Composicao":
         """O rótulo da unidade que o motor pôs na ordem (o maior ou o menor valor de um atributo)."""
@@ -137,6 +146,9 @@ def _segmento_confere(segmento: dict, view: dict) -> bool:
         if segmento["formato"] == "documento":
             id_doc, forma, evidencia = segmento["caminho"]
             return materialize(id_doc, form=forma, evidence=evidencia)["text"] == segmento["texto"]
+        if segmento["formato"] == "ficha":
+            ficha = definicoes.FICHAS.get(segmento["caminho"][0])
+            return ficha is not None and ficha.texto == segmento["texto"]
         if segmento["formato"] == "item":
             indice = resolve(view, segmento["caminho"])
             return isinstance(indice, int) and view["itens"][indice]["rotulo"] == segmento["texto"]
@@ -457,9 +469,8 @@ def explicar_conceito(body: dict | None, termos: list[str], registro: str = "obj
 
     Temas com formas liberadas do catálogo governado: as formas literais, com os fatos do resultado. Termos da Análise de
     Tendência: os fatos do resultado que mostram o termo (a classe e os valores observados, do motor; no técnico, as
-    velocidades e a nota do método) e a explicação da tela ("Entenda esta análise"), que a conversa abre e destaca; a regra
-    em palavras não é redigida pela conversa (a decisão sobre as formas de CAP-TEN-01 na conversa está pendente com o
-    responsável)."""
+    velocidades e a nota do método), a regra de cada classe em palavras (a ficha autorizada, o mesmo texto da tela) e a
+    explicação da tela ("Entenda esta análise"), que a conversa abre e destaca."""
     termos = [t for t in termos if t in TERMOS_DA_TENDENCIA or t in TEMAS_DO_CATALOGO]
     catalogo = [t for t in termos if t in TEMAS_DO_CATALOGO]
     tendencia = [t for t in termos if t in TERMOS_DA_TENDENCIA]
@@ -479,7 +490,7 @@ def explicar_conceito(body: dict | None, termos: list[str], registro: str = "obj
     codigos = _codigos_dos_termos(tendencia, body, foco)
     rotulos = {classe["codigo"]: classe["rotulo"] for classe in body["tendencia"].get("classes") or []}
     nomes = [rotulos[codigo] for codigo in codigos if codigo in rotulos]
-    # Só fatos do resultado (as classes e a janela, copiadas do motor): a regra das classes em palavras não é redigida aqui.
+    # Fatos do resultado (as classes e a janela, copiadas do motor) e, abaixo, a regra de cada classe pela ficha autorizada.
     if nomes:
         c.text(("“" + "” e “".join(nomes) + "” são classes diferentes" if len(nomes) > 1 else "“" + nomes[0] +
                 "” é uma das classes") + " da Análise de Tendência deste gráfico, ")
@@ -512,12 +523,15 @@ def explicar_conceito(body: dict | None, termos: list[str], registro: str = "obj
         else:
             c.text("tendência não avaliável")
         c.text(".")
+    for codigo in codigos:
+        if codigo in rotulos and "classe:" + codigo in definicoes.FICHAS:
+            c.text("\n\n").ficha("classe:" + codigo)
     if registro == "tecnico" or "velocidade" in tendencia:
         c.text("\n\nNota do método, como o motor registra: ")
         if not c.notas_que_comecam("Tendência (CAP-TEN-01"):
             c.text("(sem a nota nesta resposta).")
-    c.text("\n\nA regra de cada classe, em palavras simples e com exemplo, está em “Entenda esta análise”, na aba "
-           "Tendência" + (": abri e destaquei " + ("“" + "” e “".join(nomes) + "”") if nomes else ": abri a explicação") + ".")
+    c.text("\n\nA explicação completa, com exemplos, está em “Entenda esta análise”, na aba Tendência" +
+           (": abri e destaquei " + ("“" + "” e “".join(nomes) + "”") if nomes else ": abri a explicação") + ".")
     c.acoes.append({"tipo": "explicar", "aba": "tendencia", "termos": codigos})
     return verificar(c.resultado(), body)
 

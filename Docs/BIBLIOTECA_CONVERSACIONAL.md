@@ -25,10 +25,11 @@ alterações de parâmetros. Não aparece na interface e não é uma ferramenta 
    ativa, documento anterior). Só entram turnos do mesmo modo do pedido (com ou sem base carregada).
 3. `render` monta o bloco: cada exemplo traz a projeção de continuidade (quando o pedido real a leva), as mensagens
    anteriores, a mensagem atual e a saída esperada no contrato do intérprete. Os textos passam pela **mesma
-   minimização das mensagens do usuário** naquele pedido (valores, campos e arquivo da base em uso viram
-   `[DADO_LOCAL]`, números `[VALOR_LOCAL]`, nomes `[ENTIDADE_PROTEGIDA]`). Valores que deixam de ser literais depois
-   da máscara saem da saída; um exemplo de leituras concorrentes cujas âncoras somem fica de fora. Bloco de até 3.600
-   caracteres.
+   triagem das mensagens do usuário** naquele pedido (`backend/triagem.py`, desde 26/10/2026: identificadores e nomes
+   sem evidência viram marcadores numerados, como `[CPF_1]` e `[ENTIDADE_PROTEGIDA_1]`; nomes de campo e de arquivo,
+   `[CAMPO_n]` e `[ARQUIVO_n]`; territórios e categorias da base, períodos e números ficam). Valores que deixam de ser
+   literais depois da triagem saem da saída; um exemplo de leituras concorrentes cujas âncoras somem fica de fora. Bloco
+   de até 3.600 caracteres.
 4. O bloco vai na instrução de sistema, depois das regras de sempre (`_SYSTEM`). A resposta da API traz
    `biblioteca: {versao, exemplos}` com os ids usados. A resposta do provedor passa pelas mesmas validações de antes;
    a biblioteca não muda o que o backend aceita.
@@ -77,8 +78,8 @@ ausência de impacto em outros pedidos. Método, resultados, limitações e ferr
 4. Confira o efeito: `python scripts/biblioteca_conversacional.py consultar "mensagem" [--resultado] [--base]`
    mostra os exemplos escolhidos e o bloco que iria ao modelo (com `--base`, mascarado pela base Brasil versionada,
    somente em leitura). `avaliar` mede a pertinência nas trajetórias inéditas. `comparar` interpreta turnos
-   inéditos sem e com os exemplos num modelo real: o Gemini (com `GEMINI_API_KEY`, dentro do limite local de
-   chamadas) ou Qwen, DeepSeek e Llama num servidor compatível com a API de chat da OpenAI (`--provedor
+   inéditos sem e com os exemplos num modelo real: o Gemini (com `GEMINI_API_KEY`, sem teto local desde 26/10/2026,
+   respeitando a espera que o provedor pedir) ou Qwen, DeepSeek e Llama num servidor compatível com a API de chat da OpenAI (`--provedor
    compativel --url … --modelo …`, por exemplo Ollama ou llama.cpp).
 5. Uma mudança na biblioteca muda o pedido ao provedor: registre-a em `Docs/REGISTRO_DE_COMPORTAMENTO.md` (regra 1
    do `AGENTS.md`). Não copie trajetórias inéditas para a biblioteca: elas medem a generalização.

@@ -35,6 +35,75 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-26 · Conversa: Gemini conversa e explica sob conferência de fidelidade, triagem nova, resultados exibidos no contexto, sem teto local de chamadas, indisponibilidade cordial e histórico visível
+- **Classificação (regra 1):** todas as mudanças decorrem do pedido do responsável (missão "Evolução integrada da
+  inteligência conversacional", 26/10/2026, autorizações A a H) e passaram no teste de escopo. Compatibilidade: a paráfrase
+  metodológica, a redação da conversa pelo LLM, o alcance dos resultados agregados no contexto e o texto da indisponibilidade
+  contrariavam a letra de V-16, RQ-SIN-02/07/10, FN-META-01 e RQ-DEG-02 (TPL-01); o responsável os autorizou expressamente,
+  e a SPEC ganhou o Adendo PAR-20261026 (divergência aprovada). A política dos dados ("nada da base ao provedor") foi
+  ajustada pela autorização D, nos limites de RQ-DAD-23. Nenhuma metodologia, fórmula, indicador, critério ou classe mudou.
+- **Antes:**
+  - **Triagem:** `_sanitize` mascarava toda palavra com inicial maiúscula fora de uma lista curta ("Não era isso que eu
+    queria." perdia o "Não"; "Município." virava marcador), números viravam `[VALOR_LOCAL]` ("Caiu em 2023?" perdia o ano) e
+    valores, nomes de campo e palavras comuns que coincidiam com eles viravam `[DADO_LOCAL]`, inclusive territórios citados.
+  - **Gemini:** só classificava atos (enumerações) e, a pedido de outra formulação, reescrevia um esqueleto com marcadores
+    opacos (`backend/redacao.py`); não via o resultado em exibição nem a conversa; explicações de método só literais.
+  - **Contexto:** a janela eram as 4 últimas mensagens da pessoa; nenhuma resposta do agente, nenhum valor da tela.
+  - **Limite:** `MAX_REQUESTS_PER_DAY = 20` bloqueava a 21ª chamada do dia (HTTP 429 local).
+  - **Falhas:** HTTP 429, 502 e 503 nas rotas da conversa e o texto técnico na caixa ("Gemini não configurado. Defina
+    GEMINI_API_KEY…", "… (HTTP 503)"); saída fora do contrato era HTTP 502; na página única, sem provedor, TPL-01.
+  - **Tela:** só a última resposta do agente aparecia; as mensagens da pessoa sumiam depois do envio.
+- **Agora:**
+  - **Triagem** (`backend/triagem.py`): as quatro classes de RQ-DAD-20; identificadores (CPF, e-mail, telefone com marcador
+    ou formato inequívoco, sequências de 10 ou mais dígitos, valores de colunas sem papel autorizado) e nomes sem evidência
+    viram marcadores numerados por tipo (RQ-DAD-39); nomes de campo e de arquivo, `[CAMPO_n]` e `[ARQUIVO_n]`; negação,
+    verbos, operadores, períodos, quantidades, comparações, territórios, grupos, regiões e categorias da base, unidades
+    federativas, nomes após marcador territorial, títulos ("Dr.", "Sra.") e letras isoladas (símbolos de fórmula) ficam. O
+    que já virou marcador num envio continua marcador, com o mesmo número, em todos os textos dele. A mensagem da tela nunca
+    muda.
+  - **Contexto** (`backend/contexto_conversa.py`): cartão com a tela, o resultado agregado em exibição (valores formatados
+    como na tela, ordens do motor, classes, notas, disponibilidade), o resultado anterior, a janela das 8 mensagens recentes
+    da pessoa e do agente (campo `turnos`), a pendência e as funcionalidades da página; com muitos itens, os extremos. O
+    texto da pessoa passa pela triagem completa; o do sistema (resultado, resposta verificada, fichas), pelas classes A e C,
+    sem transformar fórmulas e códigos de método em marcadores; o nome escrito pela pessoa que a resposta verificada repete
+    continua marcador.
+  - **Gemini conversa, motor decide** (`backend/conversa_gemini.py`, `backend/fidelidade.py`, `backend/definicoes.py`): com
+    o provedor disponível, perguntas de conversa e orientações do catálogo vão a ele com o cartão e a resposta verificada; o
+    texto aparece só se passar na conferência (números, nomes, ordens e classes do motor; nenhuma relação calculada pelo
+    modelo nem número de exemplo documentado usado como valor; juízo, causa, acesso, destaque e previsão só como ressalva;
+    ressalvas obrigatórias; elementos essenciais e proibições das fichas de método; a frase copiada da resposta
+    verificada não conta como afirmação nova); até 2 regenerações;
+    depois, a resposta verificada com TPL-08. O contrato do intérprete ganhou `resposta`. Comandos do gráfico,
+    esclarecimentos, desfazer, voltar e recusas de governança continuam determinísticos. A explicação de uma classe de
+    tendência passa a trazer a regra em palavras (a ficha, o texto da tela). `redacao.py` saiu.
+  - **Sem teto local:** o consumo é monitorado (`/api/llm/status`: `requests_used_today`, `monitoramento`, `disponivel`,
+    `espera`, `indisponibilidade`; `local_daily_limit` saiu). Um 429 põe a espera informada pelo provedor (RetryInfo;
+    minuto ou tokens) ou, na cota diária, até a virada do dia no Pacífico; 5xx, tempo esgotado e rede, 20 s; chave recusada,
+    5 min. Durante a espera nada é chamado.
+  - **Falhas:** as rotas da conversa respondem 200 com `indisponibilidade` (tipo `cota` só com limite confirmado pelo
+    provedor; senão `indisponivel`), e a tela mostra no histórico "Assistente conversacional temporariamente indisponível"
+    com o texto aprovado de cada caso, sem código. Saída fora do contrato: 2 regenerações e a resposta de reserva (200,
+    `reserva: true`). Pedido inválido continua 422.
+  - **Tela** (`frontend/src/historicoConversa.ts`, `AnalysisAssistant.tsx`): o histórico completo, em ordem, com as mensagens
+    da pessoa como ela escreveu, as respostas do agente e os avisos; rolagem que não puxa quem lê mensagens antigas
+    (`chat-ir-ao-fim`); caixa maior (até 400 px e 74% da altura; 72% no celular); faixa de situação do serviço.
+- **Permanece:** cálculos, métodos e resultados do motor; a gramática local e o gestor de diálogo; a biblioteca
+  conversacional; o modelo `gemini-3.5-flash-lite`; nenhum faturamento; nenhum arquivo, registro, identificador ou nome
+  de campo ao provedor; os controles e análises com o provedor indisponível; a CI sem chamadas reais.
+- **Motivo:** missão do responsável de 26/10/2026, a partir de `DIAGNOSTICO_LIBERDADE_CONVERSACIONAL.md`.
+- **Documentação e testes:** SPEC (Adendo PAR-20261026), `README.md` (política dos dados, conversa, disponibilidade),
+  `AGENTS.md` (regra 2), `Docs/DIALOGO_GOVERNADO.md`, `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (histórico da conversa),
+  `Docs/CONVERSACAO_INCREMENTO_FN.md` e `Docs/BIBLIOTECA_CONVERSACIONAL.md`. Testes novos: `test_triagem.py`,
+  `test_fidelidade.py`, `test_contexto_conversa.py`, `frontend/tests/historicoConversa.test.mjs` e, em `test_llm_bridge.py`,
+  sem teto, cotas, espera e recuperação; em `test_dialogo_adversarial.py`, a redação fiel simulada sem reserva por falso
+  positivo da conferência, com a base versionada; `ui_conversa_grafico.py` ganhou o histórico, os avisos cordiais, a redação
+  conferida, a reserva de contrato e o limite e a queda simulados. Testes alterados por mudança intencional (o defeito
+  estava no comportamento antigo, não nos testes): os que esperavam 502/503/429 nas rotas da conversa, o limite local, a
+  máscara de territórios, períodos e categorias da própria mensagem, a redação por marcadores e o "Dr." mascarado; e o
+  verificador de números de `test_dialogo_adversarial.py`, que aceita os números do exemplo documentado de uma ficha
+  autorizada só quando a formulação inteira aparece literalmente na resposta (a explicação de uma classe agora traz a regra
+  em palavras, com o exemplo da tela).
+
 ### 2026-10-26 · Página única: gestor de diálogo governado, explicação verificada do resultado, redação pelo Gemini sob validador e o resultado em exibição enviado à conversa
 - **Classificação (regra 1):** todas as mudanças abaixo decorrem do pedido do responsável (desafio adversarial de engenharia
   conversacional, 26/10/2026) ou de defeito encontrado ao cumpri-lo, e passaram nos dois testes. Compatibilidade: a conversa

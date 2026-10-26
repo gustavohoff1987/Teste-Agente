@@ -80,9 +80,10 @@ def consultar(args):
     escolhidos = acervo.select(args.mensagem, historico, estado)
     if args.base:
         import main
+        from brazil_catalog_profile import suggested_mapping
         quadro = main._brazil_sources().frame("municipal")
-        protegidos = llm_bridge._protected(main.protected_values(quadro, ""))
-        mascara = lambda textos: llm_bridge._minimize_many(textos, protegidos)  # noqa: E731
+        protecao = main.protecao_da_fonte(quadro, suggested_mapping(quadro), "")
+        mascara = lambda textos: llm_bridge._minimize_many(textos, protecao)  # noqa: E731
     else:
         mascara = lambda textos: [llm_bridge._sanitize(texto) for texto in textos]  # noqa: E731
     bloco, ids = biblioteca.render(escolhidos, continuity=args.base, mask=mascara,
@@ -137,7 +138,7 @@ def comparar(args):
         modelo = llm_bridge._configured_model()
 
         def chamar(mensagens):
-            llm_bridge._reserve_request()  # o limite local continua valendo
+            llm_bridge._iniciar_chamada()  # monitoramento e espera por sinal de cota do provedor (sem teto local)
             return asyncio.run(llm_bridge._call_gemini(mensagens, modelo, chave))
     else:
         if not args.url or not args.modelo:

@@ -214,13 +214,22 @@ def test_the_library_never_changes_what_the_backend_accepts(monkeypatch):
 # ------------------------------------------------------------------------------ minimização
 
 def test_masking_many_texts_at_once_equals_masking_each_text():
+    # Triagem de 26/10/2026 (triagem.py): vários textos do mesmo envio, com a mesma numeração dos marcadores, equivalem à
+    # triagem de cada um com essa numeração; identificadores nunca sobram, entidades liberadas e linguagem comum ficam.
+    import triagem
     rng = random.Random(20261020)
     words = ["Saúde", "saude", "norte", "Manaus", "médicos", "2024", "a-b", "quantidade", "x", "São Paulo", "1,5",
-             "12.345", "SÃO PAULO", "e", "de", "Belém", "belem", "CPF: 123.456.789-09", "joao@example.com"]
-    protected = llm_bridge._protected(["Saúde", "norte", "São Paulo", "a-b", "x", "quantidade", "BELÉM"])
+             "12.345", "SÃO PAULO", "e", "de", "Belém", "belem", "CPF: 123.456.789-09", "joao@example.com", "Joaquim"]
+    protecao = triagem.protecao_da_base({"municipio": ["São Paulo", "BELÉM", "Manaus"], "pessoa": ["Joaquim", "x"]},
+                                        {"territory": "municipio"})
     for _ in range(300):
         texts = [" ".join(rng.choice(words) for _ in range(rng.randint(1, 8))) for _ in range(rng.randint(1, 6))]
-        assert llm_bridge._minimize_many(texts, protected) == [llm_bridge._minimize(text, protected) for text in texts]
+        numeracao = triagem.Numeracao()
+        assert llm_bridge._minimize_many(texts, protecao) == [triagem.preparar(t, protecao, numeracao) for t in texts]
+        for original, masked in zip(texts, llm_bridge._minimize_many(texts, protecao)):
+            assert "123.456.789-09" not in masked and "joao@example.com" not in masked and "Joaquim" not in masked
+            for kept in ("Manaus", "2024", "médicos", "quantidade", "norte"):
+                assert masked.count(kept) == original.count(kept)
 
 
 # ------------------------------------------------------------------------------ pertinência e desempenho
@@ -282,18 +291,25 @@ def official():
     paths = [path for path in Path(folder).iterdir() if path.suffix.lower() in (".csv", ".xlsx")]
     before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
     import main
+    from brazil_catalog_profile import suggested_mapping
     frame = main._brazil_sources().frame("municipal")
-    yield llm_bridge._protected(main.protected_values(frame, ""))
+    yield main.protecao_da_fonte(frame, suggested_mapping(frame), "")
     assert before == {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
-def test_examples_with_the_official_base_carry_no_base_value(collection, official):
+def test_examples_with_the_official_base_carry_no_protected_value_or_field_name(collection, official):
+    # Triagem de 26/10/2026: os municípios, as UFs e a categoria da base oficial são entidades não pessoais (classe B) e
+    # ficam nos exemplos; nomes de colunas e valores protegidos não sobram, e triar de novo não muda nada.
+    import triagem
     items = [item for item in collection.turns if library.mode(item["state"]) == "base"]
     texts = [item["turn"]["usuario"] for item in items]
     masked = []
     for start in range(0, len(texts), 64):
         masked += llm_bridge._minimize_many(texts[start:start + 64], official)
-    assert [text for text in masked if llm_bridge._mask_values(text, official) != text] == []
+    assert official.liberados and not official.protegidos
+    campos = [campo for campo in official.metadados if not all(triagem.funcional(p) for p in re.findall(r"[^\W_]+", campo))]
+    assert campos and [text for text in masked if any(campo in triagem.dobrar(text) for campo in campos)] == []
+    assert triagem.preparar_varios(masked, official) == masked
     anchor = lambda value, text: bool(llm_bridge._anchor(value, text))  # noqa: E731
     usable = sum(library._output(item["turn"]["interpretacao"], text, anchor) is not None
                  for item, text in zip(items, masked))

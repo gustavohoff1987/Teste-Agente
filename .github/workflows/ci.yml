@@ -1,7 +1,9 @@
 name: CI Portal Experimental
 on:
   push:
-    branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais]
+    # feat/desafio-adversarial-conversacional: ramo principal de desenvolvimento desde 26/10/2026, sem pull request
+    # (decisão do responsável); o CI precisa rodar no push dele.
+    branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais, feat/desafio-adversarial-conversacional]
   pull_request:
 
 # Um push novo no mesmo ramo cancela a execução anterior. Assim, commits intermediários não

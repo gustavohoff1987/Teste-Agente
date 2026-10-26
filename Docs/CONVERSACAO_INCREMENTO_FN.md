@@ -126,10 +126,12 @@ competência e janela juntas, vale a da família à vista; a família vira a ope
   `choices` quando há escolha, só `reply` quando não muda) e mais `memoria` (o que a tela devolve no pedido seguinte),
   `dialogo` (o ato reconhecido), `explicacao` (segmentos, formas documentais e origem), `acoes` (por exemplo, abrir "Entenda
   esta análise" com termos destacados), `desfazer` (quantos estados guardados a tela desfaz), `modelo_de_resposta` (pergunta
-  sem alternativas, como "qual você quer incluir?"), `pedido_original` e, com a redação pelo Gemini, `redacao`.
-- Sem comando do gráfico nem ato do diálogo: `{"handled": false}`, e o pedido segue para o intérprete com o provedor, como
-  antes. Sem o provedor, a página única responde com a forma de TPL-01, exemplos do que continua disponível e "O que você
-  quer ver?" (`degradado: true`), em vez de erro.
+  sem alternativas, como "qual você quer incluir?"), `pedido_original` e, com a redação pelo Gemini, `redacao`
+  (`origem`: `GEMINI_VALIDADO` ou `DETERMINISTICA`; `tentativas`).
+- Sem comando do gráfico nem ato do diálogo, ou com pergunta de conversa e o Gemini disponível (26/10/2026):
+  `{"handled": false}`, e o pedido segue para o intérprete contextual, com o provedor e o cartão do contexto. Sem o
+  provedor, a resposta traz `indisponibilidade` (`tipo`, `titulo`, `texto`) e a comunicação cordial, com `degradado: true`,
+  em vez de erro.
 
 ### Formato do `painel`
 
@@ -279,13 +281,15 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
 - **Fora da página única**, as respostas anteriores ganham o `painel` equivalente pelo mapeamento acima (comando
   local, critérios combinados e proposta do intérprete). Pedidos de explicação do resultado não trazem `painel`.
 
-**Privacidade:** a conversa no gráfico roda antes do provedor e não o chama. Nada da base vai ao provedor: nomes,
-códigos e competências são resolvidos só no Python, os identificadores continuam protegidos na mensagem enviada, e o
-estado do gráfico (`painel_*`, `rotulos`) não entra no resumo técnico.
+**Privacidade:** a gramática da conversa no gráfico roda antes do provedor e não o chama. Nomes, códigos e competências
+são resolvidos só no Python, e o estado do gráfico (`painel_*`, `rotulos`) não entra no resumo técnico. Desde 26/10/2026,
+quando o pedido segue ao intérprete com o provedor, vão junto a mensagem triada (territórios da base e períodos ficam;
+identificadores e nomes sem evidência viram marcadores) e o cartão do contexto, com a tela e o resultado agregado em
+exibição; nunca arquivos, registros, códigos internos ou nomes de campo ([diálogo governado](DIALOGO_GOVERNADO.md)).
 
 ## Espaço de trabalho
 
-Desde 22/10/2026, a interface é a página única de análise: no alto, o nome do agente, Nova sessão, Nova análise e Histórico e a fonte dos dados; abaixo, a área de análise com o gráfico; a conversa, numa caixa flutuante sempre na página, com a última resposta junto ao campo de mensagem. Não há preparação nem tela de resultados. Os contratos de interpretação descritos aqui permanecem iguais; a resposta passou a levar também o pedido ao gráfico (campo `painel`). A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
+Desde 22/10/2026, a interface é a página única de análise: no alto, o nome do agente, Nova sessão, Nova análise e Histórico e a fonte dos dados; abaixo, a área de análise com o gráfico; a conversa, numa caixa flutuante sempre na página, com o histórico completo da conversa e o campo de mensagem. Não há preparação nem tela de resultados. Os contratos de interpretação descritos aqui permanecem iguais; a resposta passou a levar também o pedido ao gráfico (campo `painel`). A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
 ## Testes
 
@@ -305,8 +309,10 @@ do provedor, nenhuma execução e recuperação contextual ancorada.
 O workflow `.github/workflows/ci.yml` executa backend, build e jornadas de navegador
 registradas em `backend/tests/run_ui_checks.py`. Desde 22/10/2026, a jornada
 `ui_conversa_grafico.py` usa provedor simulado (suíte `gemini-simulado`) para verificar
-o pedido feito antes dos dados, a proposta fora do contrato e a recuperação, a escolha de
-interpretação em botões, nomes pendentes e a análise anterior reaberta sem recálculo;
+o pedido feito antes dos dados, a proposta fora do contrato (2 regenerações e a resposta de
+reserva) e a recuperação, a redação conferida, o limite de consultas e a falha temporária
+simulados, o histórico visível, a escolha de interpretação em botões, nomes pendentes e a
+análise anterior reaberta sem recálculo;
 `ui_pagina_unica.py` confere a página em 390 px sem rolagem horizontal. A jornada
 `ui_semantic_continuity.py`, que fazia essas verificações nas telas clássicas, saiu
 (ver [`backend/tests/legado/README.md`](../backend/tests/legado/README.md)).

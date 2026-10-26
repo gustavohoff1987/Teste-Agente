@@ -18,7 +18,11 @@ restantes). Com ela, o gestor reconhece, sem o provedor:
 - tentativas de induzir respostas indevidas (mudar um valor, criar classe ou método, reconhecer outra ocupação, afirmar
   carência, recomendar política, correlacionar, projetar, listar pessoas, ignorar parâmetro, delegar a escolha).
 O intérprete com o provedor (llm_bridge) devolve os mesmos atos para as formulações que o reconhecimento local não cobre.
-Os comandos do gráfico continuam com a gramática local; os números vêm do motor. Nada daqui vai ao provedor de IA.
+Os comandos do gráfico continuam com a gramática local; os números vêm do motor. Desde 26/10/2026, nas perguntas de
+conversa (o resultado, um conceito, a tela, uma verificação), a resposta daqui é a resposta verificada e a reserva: com o
+provedor disponível, o Gemini a recebe no cartão do contexto e redige com as palavras dele, sob a conferência de
+fidelidade (main._turno_do_dialogo, conversa_gemini.py). A memória da conversa e o resultado completo ficam no backend;
+ao provedor vão o cartão triado e a janela da conversa (contexto_conversa.py).
 """
 from __future__ import annotations
 
@@ -586,13 +590,13 @@ def _explicada(composicao: dict, memoria: dict, **campos) -> dict:
         "origem": "MOTOR_E_CATALOGO_GOVERNADO"}, **campos)
     if composicao.get("acoes"):
         resposta["acoes"] = composicao["acoes"]
-    resposta["_composicao"] = composicao  # para a redação opcional (redacao.py); sai antes da resposta da API
+    resposta["_composicao"] = composicao  # composição verificada; sai antes da resposta da API
     return resposta
 
 
 def pede_reformulacao(mensagem: str) -> bool:
-    """Outra formulação pedida ("de outro jeito", "mais simples", "didático"): a redação opcional pelo Gemini pode ajudar.
-    A pergunta sobre um termo ("não entendi a aceleração") é explicação de conceito, composta aqui, sem o provedor."""
+    """Outra formulação pedida ("de outro jeito", "mais simples", "didático"), não a pergunta sobre um termo ("não entendi
+    a aceleração"), que é explicação de conceito."""
     texto = dobra(mensagem)
     if _termos(texto):
         return False
