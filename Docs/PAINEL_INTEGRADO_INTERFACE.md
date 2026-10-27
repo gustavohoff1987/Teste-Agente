@@ -277,16 +277,21 @@ O que cada análise mostra:
   1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
   2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):
      "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo
-     do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele (`territorios-frase-base` e
-     `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência incompleta", destacado
-     (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}"; no modo marcados, os nomes (até três; depois,
-     "e mais N"). Na referência: "o mais próximo {de onde} com {filtro}" quando o território é fixo (regiões, estados
-     ou a seleção prévia) e, nos demais casos, o recorte no fim: ", na mesma UF", ", na mesma região" ou ", em qualquer
-     estado" (numa planilha, ", na mesma {grupo}" ou ", em toda a planilha"); com um marcado, o nome dele; com mais, "o mais
-     próximo entre …".
+     de cada um, entre os municípios do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele
+     (`territorios-frase-base` e `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência
+     incompleta", destacado (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}"; no modo marcados, os
+     nomes (até três; depois, "e mais N"). Na referência, desde 27/10/2026 (a pedido do responsável: "o mais próximo da Bahia"
+     parecia o mais próximo do estado, e não de cada município da base), sempre de quem é a mais próxima e entre quais:
+     "o mais próximo de cada um, entre os municípios {de onde} com {filtro}", com {de onde} "do Acre", "do Norte e do Nordeste",
+     "da seleção prévia" ou "de todo o país" (numa planilha, "de toda a planilha") e, conforme a base, "do mesmo estado" ou "da
+     mesma região" (numa planilha, "da mesma {grupo}"); com um marcado, o nome dele (conforme a base, "MANAUS (AM), para os
+     municípios do mesmo estado"); com mais, "o mais próximo de cada um, entre MANAUS (AM) e BELEM (PA)" (conforme a base,
+     com ", no mesmo estado" ou ", na mesma região"). Antes, "o mais próximo do Acre com densidade acima de 2", "o mais próximo,
+     em qualquer estado" e "o mais próximo com densidade acima de 1,5, na mesma UF".
   3. **Abas** "1 Base" e "2 Referência" (`territorios-aba-base` e `territorios-aba-referencia`; as setas do teclado trocam),
-     cada uma com um status curto (`territorios-status-base` e `territorios-status-referencia`): a contagem final do motor ou
-     "incompleta". Só a aba ativa aparece; não há aba Distância.
+     cada uma com um status curto (`territorios-status-base` e `territorios-status-referencia`): a contagem final do motor
+     ("40 municípios" na base; na Referência, desde 27/10/2026, como candidatos: "175 candidatos") ou "incompleta". Só a aba
+     ativa aparece; não há aba Distância.
   4. **Rodapé** (`territorios-rodape`): "Calcular" (`territorios-calcular`) e a linha de estado (`territorios-estado`): "A
      consulta mudou. Calcule para atualizar."; com algo pendente, o motivo ("Base incompleta: escolha ao menos uma região.") e
      "Calcular" desligado; com o resultado à vista, "Resultado em dia com a consulta.".
@@ -317,10 +322,18 @@ O que cada análise mostra:
      "Mostrando 100 de N: use a busca pelo nome."); os marcados viram botões removíveis (`marcado`), e o que deixa de passar
      pelas etapas 1 e 2 fica riscado e não entra.
 
-  Embaixo de cada aba, a prévia (`previa`): "N municípios entram na base: …" ou "N municípios podem ser referência: …", com os
-  primeiros nomes. Na aba Referência, a nota "Distância em linha reta (geodésica) até a referência mais próxima de cada
-  município da base." (`territorios-nota-distancia`), a nota TPL-11 e as faixas de distância opcionais (CAP-ESP-03,
-  `analise-faixas-distancia`). Toda contagem, prévia e lista vem do motor (`POST /api/painel/territorios`, pedida 250 ms depois
+  Embaixo de cada aba, a prévia (`previa`): "N municípios entram na base: …" ou, na Referência, "N candidatos a referência:
+  …" (até 27/10/2026, "N municípios podem ser referência: …"), com os primeiros nomes. **Candidatos e referências usadas**
+  (27/10/2026, a pedido do responsável: com PILAO ARCADO (BA) sozinho na base, "175 municípios" na aba Referência parecia a
+  referência, quando só o mais próximo de cada município da base é usado): o conjunto de referências (CAP-REF-01) é dito como
+  candidatos, e a linha `territorios-referencia-usadas`, embaixo da prévia, diz a regra antes do cálculo ("Para cada município
+  da base, só o candidato mais próximo fica como referência."; conforme a base, ", entre os do mesmo estado") e, com o
+  resultado em dia, quais o motor usou (`referencia.membros`, CAP-ESP-02): "Ficou como referência 1 dos 175 candidatos:
+  ITAGUACU DA BAHIA (BA), o mais próximo de PILAO ARCADO (BA)." ou, no exemplo do comando (Norte abaixo de 0,5; Acre acima
+  de 2), "Ficaram como referência 2 dos 3 candidatos: CRUZEIRO DO SUL (AC) e RIO BRANCO (AC), cada um o mais próximo de algum
+  município da base." (sem candidatos, "Sem candidatos, nenhum município da base tem referência."). Na aba Referência, também a nota "Distância em linha reta
+  (geodésica) até a referência mais próxima de cada município da base." (`territorios-nota-distancia`), a nota TPL-11 e as
+  faixas de distância opcionais (CAP-ESP-03, `analise-faixas-distancia`). Toda contagem, prévia e lista vem do motor (`POST /api/painel/territorios`, pedida 250 ms depois
   da última mudança); a tela não seleciona, não conta e não mede distância. A consulta é um objeto só e serializável
   (`ConsultaTerritorios`, a fonte de verdade da janela e do estado salvo), e "Calcular" a leva ao motor em `options.consulta`:
   é um passo do Desfazer ("Calcular a escolha dos territórios"), e a comparação de antes sai (a base pode mudar). A janela não

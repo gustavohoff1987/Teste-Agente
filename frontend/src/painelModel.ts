@@ -1816,23 +1816,30 @@ function fraseDaBase(lado: LadoDaConsulta, c: ContextoDaFrase): string {
   const indicadores = filtrosNaFrase(lado.filtros);
   return maiuscula(c.rotulos.unidade.plural) + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "");
 }
-/** A referência na frase: "o mais próximo do Acre com densidade acima de 2" quando o território é fixo; "o mais próximo com
- * densidade acima de 1,5, na mesma UF" (ou "na mesma região", "em qualquer estado") nos demais casos. */
+/** O recorte da referência conforme a base, na frase: "do mesmo estado" (numa planilha, "da mesma província"), "da mesma região";
+ * com `em`, "no mesmo estado", "na mesma região". Null quando a referência não depende de cada território da base. */
+function recorteDaReferencia(tipo: TipoPartida, c: ContextoDaFrase, em = false): string | null {
+  const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  const feminino = tipo === "mesma_regiao_da_base" || (tipo === "mesma_uf_da_base" && !c.brasil && fem(grupo));
+  const nome = tipo === "mesma_uf_da_base" ? (c.brasil ? "estado" : grupo.singular) : tipo === "mesma_regiao_da_base" ? "região" : null;
+  return nome && (em ? "n" : "d") + (feminino ? "a mesma " : "o mesmo ") + nome;
+}
+/** A referência na frase (27/10/2026, pedido do responsável: "o mais próximo da Bahia" parecia o mais próximo do estado, e não de
+ * cada município da base): "o mais próximo de cada um, entre os municípios do Acre com densidade acima de 2"; "… entre os
+ * municípios de todo o país …"; conforme a base, "… entre os municípios do mesmo estado …" (ou "da mesma região"); com um só
+ * marcado, o nome dele ("MANAUS (AM)"); com vários, "o mais próximo de cada um, entre MANAUS (AM) e BELEM (PA)". */
 function fraseDaReferencia(lado: LadoDaConsulta, c: ContextoDaFrase): string {
-  const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  const tipo = lado.partir_de.tipo;
-  const recorte = tipo === "mesma_uf_da_base" ? (c.brasil ? ", na mesma UF" : ", n" + (fem(grupo) ? "a mesma " : "o mesmo ") + grupo.singular)
-    : tipo === "mesma_regiao_da_base" ? ", na mesma região" : tipo === "pais" ? (c.brasil ? ", em qualquer estado" : ", em toda a planilha") : "";
-  const proximo = fem(unidade) ? "a mais próxima" : "o mais próximo";
+  const unidade = c.rotulos.unidade, f = fem(unidade), tipo = lado.partir_de.tipo;
+  const deCadaUm = (f ? "a mais próxima de cada uma" : "o mais próximo de cada um") + ", entre ";
   if (lado.escolha.modo === "marcados") {
     // Os marcados são fixos: o recorte só diz algo quando é o de cada território da base (mesma UF ou mesma região).
-    const marcados = lado.escolha.municipios;
-    return (marcados.length === 1 ? nomesNaFrase(marcados, c.nomes) : proximo + " entre " + nomesNaFrase(marcados, c.nomes)) +
-      (tipo === "mesma_uf_da_base" || tipo === "mesma_regiao_da_base" ? recorte : "");
+    const marcados = lado.escolha.municipios, recorte = recorteDaReferencia(tipo, c), noRecorte = recorteDaReferencia(tipo, c, true);
+    return marcados.length === 1 ? nomesNaFrase(marcados, c.nomes) + (recorte ? ", para " + artigo(unidade, true) + " " + unidade.plural + " " + recorte : "")
+      : deCadaUm + nomesNaFrase(marcados, c.nomes) + (noRecorte ? ", " + noRecorte : "");
   }
   const indicadores = filtrosNaFrase(lado.filtros);
-  const fixo = tipo === "regioes" || tipo === "ufs" || tipo === "selecao_previa";
-  return proximo + (fixo ? " " + deOnde(lado.partir_de, c) : "") + (indicadores.length ? " com " + emLista(indicadores) : "") + recorte;
+  return deCadaUm + artigo(unidade, true) + " " + unidade.plural + " " + (recorteDaReferencia(tipo, c) ?? deOnde(lado.partir_de, c)) +
+    (indicadores.length ? " com " + emLista(indicadores) : "");
 }
 /** A frase-resumo da janela, no formato "{Base} → referência: {Referência}", montada por modelo a partir da consulta (nunca pelo
  * LLM). Lado incompleto vira "base incompleta" ou "referência incompleta", destacado na tela. */
@@ -1845,6 +1852,35 @@ export function fraseDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFras
   };
 }
 export const textoDaFraseDaConsulta = (frase: Record<Lado, TrechoDaFrase>) => frase.base.texto + " → referência: " + frase.referencia.texto;
+/** Os candidatos à referência (27/10/2026, pedido do responsável: "175 municípios" na aba Referência parecia a referência, quando
+ * só o mais próximo de cada território da base é usado): o conjunto de referências (CAP-REF-01) dito como candidatos, "175
+ * candidatos" (numa unidade feminina, "candidatas"). */
+export const quantosCandidatos = (n: number, unidade: Rotulo) => inteiro.format(n) + (fem(unidade) ? " candidata" : " candidato") + (n === 1 ? "" : "s");
+/** As referências usadas, na aba Referência (27/10/2026). Sem o resultado em dia (`usadas` null), a regra: "Para cada município da
+ * base, só o candidato mais próximo fica como referência." (conforme a base, ", entre os do mesmo estado"). Com ele, as que o motor
+ * usou (`referencia.membros`) entre os candidatos: "Ficou como referência 1 dos 175 candidatos: ITAGUACU DA BAHIA (BA), o mais
+ * próximo de PILAO ARCADO (BA)."; "Ficaram como referência 2 dos 3 candidatos: CRUZEIRO DO SUL (AC) e RIO BRANCO (AC), cada um o
+ * mais próximo de algum município da base." */
+export function textoDasReferenciasUsadas(c: { rotulos: RotulosTerritoriais; brasil: boolean; grupos?: GrupoInfo[]; tipo: TipoPartida;
+  candidatos: number | null; usadas: { referencias: string[]; base: string | null } | null }): string {
+  const unidade = c.rotulos.unidade, f = fem(unidade);
+  const contexto = { rotulos: c.rotulos, brasil: c.brasil, grupos: c.grupos ?? [], nomes: new Map<string, string>() };
+  const recorte = recorteDaReferencia(c.tipo, contexto), noRecorte = recorteDaReferencia(c.tipo, contexto, true);
+  if (!c.usadas) return "Para cada " + unidade.singular + " da base, só " + (f ? "a candidata mais próxima" : "o candidato mais próximo") +
+    " fica como referência" + (recorte ? ", entre " + (f ? "as " : "os ") + recorte : "") + ".";
+  const { referencias, base } = c.usadas, total = c.candidatos;
+  if (total === 0) return "Sem " + (f ? "candidatas" : "candidatos") + ", " + (f ? "nenhuma " : "nenhum ") + unidade.singular + " da base tem referência.";
+  if (!referencias.length) return (f ? "Nenhuma " : "Nenhum ") + (total === null ? (f ? "candidata" : "candidato")
+    : (f ? "das " : "dos ") + quantosCandidatos(total, unidade)) + " ficou como referência de " + umA(unidade) + " da base.";
+  const nomes = referencias.slice(0, NOMES_NA_FRASE), resto = referencias.length - nomes.length;
+  const lista = resto > 0 ? nomes.join(", ") + " e mais " + inteiro.format(resto) : emLista(nomes);
+  const dos = total === null ? quantosCandidatos(referencias.length, unidade) : total === 1 ? (f ? "a única candidata" : "o único candidato")
+    : inteiro.format(referencias.length) + (f ? " das " : " dos ") + quantosCandidatos(total, unidade);
+  const proximo = f ? "a mais próxima" : "o mais próximo";
+  const de = referencias.length > 1 ? ", " + (f ? "cada uma " : "cada um ") + proximo + " de " + (f ? "alguma " : "algum ") + unidade.singular + " da base"
+    : ", " + proximo + " " + (base ? "de " + base : "d" + artigo(unidade, true) + " " + unidade.plural + " da base");
+  return (referencias.length === 1 ? "Ficou" : "Ficaram") + " como referência " + dos + ": " + lista + de + (noRecorte ? " " + noRecorte : "") + ".";
+}
 /** A referência pelo nome pedida na conversa ("distância até Manaus"): os membros viram os marcados da referência, a partir do país;
  * a base continua a da consulta (sem consulta, a inicial). */
 export function consultaComReferenciaMarcada(atual: ConsultaTerritorios | null, membros: string[], comSelecao: boolean): ConsultaTerritorios {

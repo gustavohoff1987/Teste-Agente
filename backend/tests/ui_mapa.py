@@ -385,7 +385,7 @@ def main():
         linha.get_by_test_id("territorios-referencia-filtro-operador").select_option(">")
         linha.get_by_test_id("territorios-referencia-filtro-valor").fill(f"{limiar:,}".replace(",", "."))
         expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
-            "o mais próximo com população acima de " + f"{limiar:,}".replace(",", ".") + ", na mesma UF")
+            "o mais próximo de cada um, entre os municípios do mesmo estado com população acima de " + f"{limiar:,}".replace(",", "."))
         espacial, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
         assert sent["consulta"]["referencia"] == {"partir_de": {"tipo": "mesma_uf_da_base", "regioes": [], "ufs": []},
                                                   "filtros": [{"indicador": "populacao", "operador": ">", "valor": limiar}],
@@ -428,7 +428,7 @@ def main():
         linha.get_by_test_id("territorios-referencia-filtro-indicador").select_option("densidade")
         linha.get_by_test_id("territorios-referencia-filtro-valor").fill("2,36")
         expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
-            "o mais próximo com densidade acima de 2,36, na mesma UF")
+            "o mais próximo de cada um, entre os municípios do mesmo estado com densidade acima de 2,36")
         roraima, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
         assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2.36}], sent
         fecha()
@@ -474,7 +474,7 @@ def main():
         janela.get_by_test_id("territorios-referencia-partir-menu").select_option("pais")
         janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id("territorios-referencia-filtro-valor").fill("2")
         expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
-            "o mais próximo com densidade acima de 2, em qualquer estado")
+            "o mais próximo de cada um, entre os municípios de todo o país com densidade acima de 2")
         brasil, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
         assert sent["consulta"]["referencia"]["partir_de"]["tipo"] == "pais", sent
         assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2}], sent

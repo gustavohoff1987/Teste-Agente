@@ -362,7 +362,7 @@ def main():
         janela_sem_selecao = area.get_by_test_id("analise-painel")
         expect(janela_sem_selecao).to_have_attribute("data-painel", "referencia")
         expect(janela_sem_selecao.get_by_test_id("territorios-frase")).to_have_text(
-            "Municípios de todo o país → referência: o mais próximo, em qualquer estado")
+            "Municípios de todo o país → referência: o mais próximo de cada um, entre os municípios de todo o país")
         fecha()
         expect(area.get_by_test_id("analise-selecao-alterar")).to_have_text("Selecionar os territórios")
         # A explicação se abre e se recolhe; a aba guarda a escolha da pessoa na sessão da página.
@@ -854,7 +854,8 @@ def main():
             frase = janela.get_by_test_id("territorios-frase")
             frase_base, frase_ref = janela.get_by_test_id("territorios-frase-base"), janela.get_by_test_id("territorios-frase-referencia")
             estado, calcular = janela.get_by_test_id("territorios-estado"), janela.get_by_test_id("territorios-calcular")
-            expect(frase).to_have_text("Municípios da seleção prévia → referência: o mais próximo, em qualquer estado")
+            # A referência diz de quem é a mais próxima (27/10/2026): de cada município da base, entre os do conjunto.
+            expect(frase).to_have_text("Municípios da seleção prévia → referência: o mais próximo de cada um, entre os municípios de todo o país")
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
             # A base não tem as opções relativas; nenhum lado filtra pela distância (o filtro saiu em 27/10/2026, a pedido do
@@ -881,6 +882,10 @@ def main():
             def contagem(n):
                 return "—" if n is None else milhar(n) + (" município" if n == 1 else " municípios")
 
+            def candidatos(n):
+                """Na Referência, o conjunto é dito como candidatos (27/10/2026): só o mais próximo de cada um da base é usado."""
+                return "—" if n is None else milhar(n) + (" candidato" if n == 1 else " candidatos")
+
             def confere(lado, corpo):
                 """As contagens das três etapas e a prévia do lado à vista são as do motor (nada é contado na tela)."""
                 c = corpo[lado]["contagens"]
@@ -893,11 +898,11 @@ def main():
                 if previa:
                     expect(janela.get_by_test_id("territorios-" + lado + "-previa")).to_contain_text(
                         contagem(previa["total"]) + (" entra" if previa["total"] == 1 else " entram") if lado == "base"
-                        else contagem(previa["total"]) + (" pode" if previa["total"] == 1 else " podem") + " ser referência")
+                        else candidatos(previa["total"]) + " a referência")
                 # As pendências da janela são as do comando; o que só o motor sabe (o referencial de uma planilha, por exemplo)
                 # não deixa a aba incompleta.
                 status = ("incompleta" if set(corpo[lado]["pendencias"]) & PENDENCIAS_DA_JANELA
-                          else "…" if c["final"] is None else contagem(c["final"]))
+                          else "…" if c["final"] is None else contagem(c["final"]) if lado == "base" else candidatos(c["final"]))
                 expect(janela.get_by_test_id("territorios-status-" + lado)).to_have_text(status)
 
             # Partir de uma região: a etapa espera a região; a pendência desativa "Calcular", aparece no rodapé e no status da aba,
@@ -914,7 +919,7 @@ def main():
             assert corpo["selecao_previa"]["total"] == len([item for item in am["itens"] if item["tipo"] == "municipio"]), corpo
             confere("base", corpo)
             corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-base-regiao").select_option("Norte"))
-            expect(frase).to_have_text("Municípios do Norte → referência: o mais próximo, em qualquer estado")
+            expect(frase).to_have_text("Municípios do Norte → referência: o mais próximo de cada um, entre os municípios de todo o país")
             confere("base", corpo)
             # Filtrar por densidade: a linha nasce sem valor (não corta, mas pendente); o valor, a mediana do Amazonas, com vírgula.
             densidades = sorted(item["densidade"] for item in am["itens"] if item.get("densidade") is not None)
@@ -959,12 +964,15 @@ def main():
                 linha_ref.get_by_test_id("territorios-referencia-filtro-operador").select_option(">")
                 corpo, _ = contagens_da_janela(lambda: linha_ref.get_by_test_id("territorios-referencia-filtro-valor").fill("2"))
                 filtros_ref = [{"indicador": "densidade", "operador": ">", "valor": 2}]
-                texto_ref = "o mais próximo do Acre com densidade acima de 2"
+                texto_ref = "o mais próximo de cada um, entre os municípios do Acre com densidade acima de 2"
             else:
-                texto_ref = "o mais próximo do Amazonas"
+                texto_ref = "o mais próximo de cada um, entre os municípios do Amazonas"
             expect(frase_ref).to_have_text(texto_ref)
             expect(frase).to_have_text(texto_base + " → referência: " + texto_ref)
             confere("referencia", corpo)
+            # Antes de calcular, a aba diz a regra: dos candidatos, só o mais próximo de cada município da base fica como referência.
+            expect(janela.get_by_test_id("territorios-referencia-usadas")).to_have_text(
+                "Para cada município da base, só o candidato mais próximo fica como referência.")
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
             esperada = {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
@@ -1043,6 +1051,19 @@ def main():
                 # etapas 1 e 2 (a do motor), com a densidade; os marcados viram botões; a frase diz os nomes.
                 expect(janela.get_by_test_id("territorios-frase")).to_have_text(texto_base + " → referência: " + texto_ref)
                 expect(estado).to_have_text("Resultado em dia com a consulta.")
+                # Com o resultado em dia, a aba Referência diz quais candidatos ficaram como referência (os membros do motor).
+                usadas = [membro["rotulo"] for membro in resposta_ref["membros"]]
+                total_ref = resposta_ref["contagens"]["referencia"]["final"]
+                aperta(janela.get_by_test_id("territorios-aba-referencia"))
+                linha_usadas = janela.get_by_test_id("territorios-referencia-usadas")
+                if len(usadas) > 1 and total_ref > 1:
+                    expect(linha_usadas).to_contain_text("Ficaram como referência " + milhar(len(usadas)) + " dos " + milhar(total_ref) +
+                                                         " candidatos: " + usadas[0])
+                    expect(linha_usadas).to_contain_text("cada um o mais próximo de algum município da base.")
+                elif usadas:
+                    expect(linha_usadas).to_contain_text("Ficou como referência ")
+                    expect(linha_usadas).to_contain_text(usadas[0])
+                aperta(janela.get_by_test_id("territorios-aba-base"))
                 corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-marcados")))
                 expect(estado).to_have_text("Base incompleta: marque ao menos um município.")
                 lista = corpo["lista"]
@@ -1080,7 +1101,7 @@ def main():
                 corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
                     "territorios-referencia-filtro-valor").fill(milhar(10 ** 9)))
                 assert corpo["referencia"]["contagens"]["final"] == 0, corpo["referencia"]
-                expect(janela.get_by_test_id("territorios-referencia-previa")).to_contain_text("0 municípios podem ser referência")
+                expect(janela.get_by_test_id("territorios-referencia-previa")).to_contain_text("0 candidatos a referência")
                 vazio, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
                 assert vazio["referencia"]["contagens"]["referencia"]["final"] == 0, vazio["referencia"]
                 assert vazio["itens"] and len(vazio["itens"]) == vazio["referencia"]["contagens"]["base"]["final"], vazio["referencia"]
@@ -1089,6 +1110,8 @@ def main():
                 expect(area.get_by_test_id("analise-ref-sem-resultado")).to_contain_text(
                     "Nenhum município pode ser referência com esta escolha dos territórios: não há referência. Mude a aba Referência.")
                 expect(area.locator(BOLHAS)).to_have_count(0)
+                expect(janela.get_by_test_id("territorios-referencia-usadas")).to_have_text(
+                    "Sem candidatos, nenhum município da base tem referência.")
                 fecha()
                 aperta(desfazer)
                 drawn(esperados(proxima, distancia=True))

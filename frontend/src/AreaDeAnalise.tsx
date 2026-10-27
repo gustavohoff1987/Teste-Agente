@@ -1256,6 +1256,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         contexto={"Categoria profissional: " + maiuscula(profissionaisDe(def.categoria)) + " · Competência: " + competenciaPorExtenso(def.competencia)}
         rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} temPopulacao={temPopulacao} nomes={nomes}
         emDia={consultaNaTela} calculando={carregando && def.familia === "espacial"} criterio={criterioDoChat}
+        usadas={consultaNaTela && referenciaDaTela ? { referencias: referenciaDaTela.membros.map(membro => membro.rotulo),
+          base: basesDaReferencia.length === 1 ? basesDaReferencia[0].rotulo : null } : null}
         faixas={def.faixasDistancia} onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}
         onCalcular={calcularConsulta}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}

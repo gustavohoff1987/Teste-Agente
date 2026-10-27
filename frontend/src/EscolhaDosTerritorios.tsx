@@ -6,8 +6,9 @@ import {
   LADOS, MAX_FILTROS, NOMES_DOS_FILTROS, NOMES_DOS_LADOS, NOTA_TPL11, OPERADORES_DO_FILTRO, REGIOES_DO_BRASIL,
   TEXTO_DE_APOIO_DOS_FILTROS, TEXTO_DOS_OPERADORES, UNIDADES_DOS_FILTROS, consultaParaOMotor, escreverLimites, escreverValorDoFiltro,
   formatarIndicador, fraseDaConsulta, generoDe, lerLimites, lerValorDoFiltro, mesmaConsulta, notaDaDistanciaDaConsulta, operadorDoCriterio,
-  pendenciasDaConsulta, quantos, textoDaPendencia, type ConsultaTerritorios, type FiltroDaConsulta, type GrupoInfo, type IndicadorDoFiltro,
-  type Lado, type LadoDaConsulta, type OperadorDoFiltro, type RotulosTerritoriais, type TipoPartida,
+  pendenciasDaConsulta, quantos, quantosCandidatos, textoDaPendencia, textoDasReferenciasUsadas, type ConsultaTerritorios,
+  type FiltroDaConsulta, type GrupoInfo, type IndicadorDoFiltro, type Lado, type LadoDaConsulta, type OperadorDoFiltro,
+  type RotulosTerritoriais, type TipoPartida,
 } from "./painelModel";
 
 // Janela "Escolha dos territórios" da Análise Espacial (27/10/2026, comando Seleção de Territórios; no lugar do painel Território
@@ -31,6 +32,9 @@ export type EscolhaDosTerritoriosProps = {
   rotulos: RotulosTerritoriais; brasil: boolean; grupos: GrupoInfo[]; temPopulacao: boolean; nomes: Map<string, string>;
   /** O resultado da consulta calculada está à vista; `calculando`, o cálculo dela está em curso. */
   emDia: boolean; calculando: boolean;
+  /** As referências que o motor usou no resultado à vista (os nomes, `referencia.membros`) e, com um só território na base, o nome
+   * dele: a aba Referência diz quais candidatos ficaram como referência (27/10/2026). */
+  usadas: { referencias: string[]; base: string | null } | null;
   /** Referência pedida na conversa por critério ("a de maior densidade como referência"): a aba Referência ganha o filtro do
    * atributo e do operador do pedido, com o valor para a pessoa preencher. */
   criterio?: PainelCriterio | null;
@@ -172,19 +176,20 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
 
   const contagem = (valor: number | null | undefined, sufixo = "") => valor === null || valor === undefined
     ? (carregando ? "Contando…" : "—") : quantos(valor, unidade) + sufixo;
+  // Na Referência, o conjunto é dito como candidatos (27/10/2026): só o mais próximo de cada território da base fica como referência.
   const statusDaAba = (lado: Lado) => {
     if (pendencias[lado].length) return "incompleta";
     const final = resposta?.[lado].contagens.final;
-    return final === null || final === undefined ? "…" : quantos(final, unidade);
+    return final === null || final === undefined ? "…" : lado === "base" ? quantos(final, unidade) : quantosCandidatos(final, unidade);
   };
   const previaDoLado = (lado: Lado) => {
     const previa = resposta?.[lado].previa;
     if (pendencias[lado].length && !previa) return "Complete " + (lado === "base" ? "a base" : "a referência") + " para ver quantos entram.";
     if (!previa) return carregando ? "Contando…" : "";
-    const verbo = lado === "base" ? (previa.total === 1 ? " entra na base" : " entram na base")
-      : (previa.total === 1 ? " pode ser referência" : " podem ser referência");
+    const quantosEntram = lado === "base" ? quantos(previa.total, unidade) + (previa.total === 1 ? " entra na base" : " entram na base")
+      : quantosCandidatos(previa.total, unidade) + " a referência";
     const resto = previa.total - previa.nomes.length;
-    return quantos(previa.total, unidade) + verbo + (previa.nomes.length ? ": " + previa.nomes.join(", ") + (resto > 0 ? " e mais " +
+    return quantosEntram + (previa.nomes.length ? ": " + previa.nomes.join(", ") + (resto > 0 ? " e mais " +
       formatarInteiro(resto) : "") : "") + ".";
   };
 
@@ -322,6 +327,9 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
       </fieldset>
 
       <p className="territorios-previa" data-testid={id("previa")}>{previaDoLado(lado)}</p>
+      {lado === "referencia" && !pendencias.referencia.length && <p className="territorios-apoio" data-testid="territorios-referencia-usadas">
+        {textoDasReferenciasUsadas({ rotulos: p.rotulos, brasil: p.brasil, grupos: p.grupos, tipo: l.partir_de.tipo,
+          candidatos: contagens?.final ?? null, usadas: !mudou && p.emDia ? p.usadas : null })}</p>}
       {lado === "referencia" && <div className="territorios-notas">
         <p data-testid="territorios-nota-distancia">{notaDaDistanciaDaConsulta(p.rotulos)}</p>
         <p className="territorios-apoio">{NOTA_TPL11}</p>

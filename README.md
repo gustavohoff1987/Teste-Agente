@@ -630,8 +630,11 @@ territórios**: a base e a referência são territórios irmãos, escolhidos do 
 etapas: **Partir de** (todo o país, uma ou mais regiões, um ou mais estados ou a seleção prévia, a escolha da Seleção de
 Territórios; só na referência, também "conforme a base": a mesma UF ou a mesma região de cada município da base), **Filtrar
 por** (opcional: densidade, população e quantidade, combinados por E) e **Escolher** (todos que atendem ou só os marcados). A janela tem a frase-resumo fixa no alto ("{Base} → referência:
-{Referência}", montada por modelo, nunca pelo LLM), as abas "1 Base" e "2 Referência" e o rodapé com "Calcular" e a linha de
-estado; toda contagem e prévia vem do motor (`POST /api/painel/territorios`). A distância é sempre a geodésica de cada
+{Referência}", montada por modelo, nunca pelo LLM; a referência diz de quem é a mais próxima e entre quais, como "o mais
+próximo de cada um, entre os municípios da Bahia com densidade acima de 1,5"), as abas "1 Base" e "2 Referência" e o rodapé
+com "Calcular" e a linha de estado; toda contagem e prévia vem do motor (`POST /api/painel/territorios`). Na Referência, o
+conjunto aparece como candidatos ("175 candidatos"), e a janela diz quais ficaram como referência no resultado ("Ficou como
+referência 1 dos 175 candidatos: ITAGUACU DA BAHIA (BA), o mais próximo de PILAO ARCADO (BA)."). A distância é sempre a geodésica de cada
 município da base até a referência mais próxima, nunca ele mesmo ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md) e
 [painel integrado](Docs/PAINEL_INTEGRADO.md)); ela aparece no eixo X do resultado, e a janela não filtra por ela (o filtro de
 distância da base saiu no mesmo dia, a pedido do responsável; para separar pela distância, as Condições). O município sem

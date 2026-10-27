@@ -35,6 +35,46 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-27 · Escolha dos territórios: a referência diz de quem é a mais próxima, e a Referência mostra candidatos e usadas
+- **Classificação (regra 1), pela leitura, antes de codar:** relato do responsável na navegação (27/10/2026): base "municípios
+  da Bahia com densidade abaixo de 0,5 e população acima de 10 mil" (só PILAO ARCADO (BA)) e referência "densidade acima de 1,5"
+  na Bahia. A frase "o mais próximo da Bahia com densidade acima de 1,5" deixou a dúvida "é o mais próximo da Bahia ou do
+  município base?", e a aba Referência dizia "175 municípios" quando só um (ITAGUACU DA BAHIA (BA), a 112,20 km) é a
+  referência. Duas mudanças de texto, previstas: decorrem do relato (escopo) e não contrariam a SPEC (compatibilidade): a SPEC
+  não fixa a frase (o exemplo "o mais próximo do Acre com densidade acima de 2" veio do comando do próprio responsável) e
+  distingue o conjunto de referência (CAP-REF-01) da referência mais próxima de cada unidade-alvo (CAP-ESP-02), que a tela
+  passa a mostrar separados. O motor já calculava certo (um só membro usado); nenhum cálculo muda. Terceiro ponto do relato, a
+  bolha de PILAO ARCADO esmaecida: a leitura do código não achou regra que esmaeça a única bolha da base sem Condições
+  ("não atende"), Ordenação ("demais") ou, no mapa, a régua ou os filtros visuais; fica em consulta ao responsável, sem
+  mudança neste commit.
+- **Antes:** na referência, "o mais próximo do Acre com densidade acima de 2" (território fixo), "o mais próximo com densidade
+  acima de 1,5, na mesma UF", "o mais próximo, na mesma região", "o mais próximo, em qualquer estado" (numa planilha, "em toda
+  a planilha" e "na mesma {grupo}") e, com marcados, "o mais próximo entre MANAUS (AM) e BELEM (PA)" ou "MANAUS (AM), na mesma
+  UF". Na aba Referência, o status "175 municípios" e a prévia "175 municípios podem ser referência: …".
+- **Agora:** a referência diz de quem é a mais próxima e entre quais: "o mais próximo de cada um, entre os municípios da Bahia
+  com densidade acima de 1,5"; "… entre os municípios de todo o país" (numa planilha, "de toda a planilha"); conforme a base,
+  "… entre os municípios do mesmo estado …" ou "da mesma região" (numa planilha, "da mesma {grupo}"); com marcados, "o mais
+  próximo de cada um, entre MANAUS (AM) e BELEM (PA)" (conforme a base, com ", no mesmo estado" ou ", na mesma região") e, com
+  um só, "MANAUS (AM)" ou "MANAUS (AM), para os municípios do mesmo estado". Na aba Referência, o conjunto é dito como
+  candidatos: o status "175 candidatos" e a prévia "175 candidatos a referência: …"; embaixo da prévia, a linha
+  `territorios-referencia-usadas` diz a regra antes do cálculo ("Para cada município da base, só o candidato mais próximo fica
+  como referência.") e, com o resultado em dia, quais o motor usou (`referencia.membros`): "Ficou como referência 1 dos 175
+  candidatos: ITAGUACU DA BAHIA (BA), o mais próximo de PILAO ARCADO (BA)." ou, no exemplo do comando, "Ficaram como
+  referência 2 dos 3 candidatos: CRUZEIRO DO SUL (AC) e RIO BRANCO (AC), cada um o mais próximo de algum município da base."
+  (sem candidatos, "Sem candidatos, nenhum município da base tem referência."). A frase nova aparece também no resumo dos ajustes
+  (`analise-referencia-resumo`).
+- **Permanece:** o cálculo (a referência mais próxima de cada município da base, nunca ele mesmo, com os empates), as
+  contagens do motor em cada etapa ("22 municípios", "3 municípios restam"), a base na frase, o resultado, a linha da base e da
+  referência acima do desenho, as notas do motor nos Detalhes, os dados e a SPEC.
+- **Motivo:** relato do responsável (27/10/2026): a frase e a contagem da Referência levavam a ler o conjunto de candidatos
+  como a referência.
+- **Documentação e testes:** `README.md` (referência geográfica mais próxima) e `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a frase,
+  o status das abas, a prévia, candidatos e referências usadas). Testes alterados por mudança intencional de texto (nenhum
+  afrouxado): no frontend, o teste "escolha dos territórios" (as frases novas, o caso da Bahia, os marcados conforme a base,
+  `quantosCandidatos` e `textoDasReferenciasUsadas` em todos os casos); no navegador, `ui_area_de_analise.py` (as frases, o
+  status e a prévia da Referência como candidatos, a regra antes do cálculo, as referências usadas depois dele e "Sem
+  candidatos" na referência vazia) e `ui_mapa.py` (as frases conforme a base e de todo o país).
+
 ### 2026-10-27 · Análise Espacial: sai o filtro de distância da Escolha dos territórios
 - **Classificação (regra 1), pela leitura, antes de codar:** remoção de função pedida pelo responsável (27/10/2026: a distância
   maior ou menor "a gente vai acabar vendo no próprio gráfico", no eixo X). Mudança prevista: decorre do pedido (escopo) e não

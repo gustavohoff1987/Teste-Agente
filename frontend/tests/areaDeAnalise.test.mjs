@@ -606,11 +606,22 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
     ['code:1100205', 'PORTO VELHO (RO)']]);
   const ctx = {rotulos: BR, brasil: true, grupos, nomes};
   const frase = c => M.textoDaFraseDaConsulta(M.fraseDaConsulta(c, ctx));
-  assert.equal(frase(exemplo), 'Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo do Acre com densidade acima de 2');
-  assert.equal(frase(consulta(lado('pais'), lado('pais'))), 'Municípios de todo o país → referência: o mais próximo, em qualquer estado');
+  // A referência diz de quem é a mais próxima (27/10/2026, pedido do responsável: "o mais próximo da Bahia" parecia o mais próximo
+  // do estado): de cada território da base, entre os do conjunto de referências.
+  assert.equal(frase(exemplo), 'Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo de cada um, entre os ' +
+    'municípios do Acre com densidade acima de 2');
+  assert.equal(frase(consulta(lado('pais'), lado('pais'))), 'Municípios de todo o país → referência: o mais próximo de cada um, entre os ' +
+    'municípios de todo o país');
   assert.equal(frase(consulta(lado('pais'), lado('mesma_uf_da_base', {filtros: [f('densidade', '>', 1.5)]}))),
-    'Municípios de todo o país → referência: o mais próximo com densidade acima de 1,5, na mesma UF');
-  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('mesma_regiao_da_base')), ctx).referencia.texto, 'o mais próximo, na mesma região');
+    'Municípios de todo o país → referência: o mais próximo de cada um, entre os municípios do mesmo estado com densidade acima de 1,5');
+  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('mesma_regiao_da_base')), ctx).referencia.texto,
+    'o mais próximo de cada um, entre os municípios da mesma região');
+  // O caso relatado: a base e a referência na Bahia.
+  const comBahia = {...ctx, grupos: [...grupos, {id: '29', nome: 'Bahia', sigla: 'BA', rotuloGrupo: 'Municípios da Bahia', unidades: 417}]};
+  assert.equal(M.textoDaFraseDaConsulta(M.fraseDaConsulta(consulta(lado('ufs', {ufs: ['29'], filtros: [f('densidade', '<', 0.5),
+    f('populacao', '>', 10000)]}), lado('ufs', {ufs: ['29'], filtros: [f('densidade', '>', 1.5)]})), comBahia)),
+    'Municípios da Bahia com densidade abaixo de 0,5 e população acima de 10.000 → referência: o mais próximo de cada um, entre os ' +
+    'municípios da Bahia com densidade acima de 1,5');
   assert.equal(M.fraseDaConsulta(consulta(lado('regioes', {regioes: ['Centro-Oeste'], filtros: [f('populacao', '>', 20000), f('densidade', '<', 1)]}),
     lado('pais')), ctx).base.texto, 'Municípios do Centro-Oeste com população acima de 20.000 e densidade abaixo de 1');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais', {filtros: [f('densidade', '>=', 0.5), f('densidade', '<', 1)]}), lado('pais')), ctx).base.texto,
@@ -622,17 +633,45 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(M.fraseDaConsulta(consulta(lado('ufs', {ufs: ['14', '12', '13', '11']}), lado('selecao_previa', {filtros: [f('quantidade', '>=', 10)]})),
     ctx).base.texto, 'Municípios de Rondônia, do Acre, do Amazonas e de mais 1 estado');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('selecao_previa', {filtros: [f('quantidade', '>=', 10)]})), ctx).referencia.texto,
-    'o mais próximo da seleção prévia com quantidade a partir de 10');
+    'o mais próximo de cada um, entre os municípios da seleção prévia com quantidade a partir de 10');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('pais', {modo: 'marcados', municipios: ['code:1302603']})), ctx).referencia.texto, 'MANAUS (AM)');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('regioes', {regioes: ['Norte', 'Nordeste'], modo: 'marcados',
-    municipios: ['code:1302603', 'code:1501402']})), ctx).referencia.texto, 'o mais próximo entre MANAUS (AM) e BELEM (PA)');
+    municipios: ['code:1302603', 'code:1501402']})), ctx).referencia.texto, 'o mais próximo de cada um, entre MANAUS (AM) e BELEM (PA)');
+  // Os marcados conforme a base: o recorte de cada território da base.
+  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('mesma_uf_da_base', {modo: 'marcados', municipios: ['code:1302603']})), ctx)
+    .referencia.texto, 'MANAUS (AM), para os municípios do mesmo estado');
+  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('mesma_regiao_da_base', {modo: 'marcados', municipios: ['code:1302603',
+    'code:1501402']})), ctx).referencia.texto, 'o mais próximo de cada um, entre MANAUS (AM) e BELEM (PA), na mesma região');
   assert.deepEqual(M.fraseDaConsulta(faltas, ctx), {base: {texto: 'base incompleta', incompleta: true}, referencia: {texto: 'referência incompleta', incompleta: true}});
   // Numa planilha, os rótulos dela.
   const planilha = {rotulos: {...DISTRITOS, unidade: {singular: 'unidade', plural: 'unidades', genero: 'f'}}, brasil: false,
     grupos: [{id: 'Norte', nome: 'Província Norte', sigla: '', rotuloGrupo: '', unidades: 3}], nomes};
   assert.equal(M.textoDaFraseDaConsulta(M.fraseDaConsulta(consulta(lado('ufs', {ufs: ['Norte']}), lado('mesma_uf_da_base')), planilha)),
-    'Unidades de Província Norte → referência: a mais próxima, na mesma província');
-  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('pais')), planilha).referencia.texto, 'a mais próxima, em toda a planilha');
+    'Unidades de Província Norte → referência: a mais próxima de cada uma, entre as unidades da mesma província');
+  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('pais')), planilha).referencia.texto,
+    'a mais próxima de cada uma, entre as unidades de toda a planilha');
+  // Os candidatos e as referências usadas (27/10/2026, pedido do responsável: "175 municípios" na Referência parecia a referência,
+  // quando só o mais próximo de cada território da base é usado).
+  assert.deepEqual([M.quantosCandidatos(175, BR.unidade), M.quantosCandidatos(1, BR.unidade), M.quantosCandidatos(2, planilha.rotulos.unidade)],
+    ['175 candidatos', '1 candidato', '2 candidatas']);
+  const usadas = (tipo, candidatos, referencias, base = null, rotulos = BR) => M.textoDasReferenciasUsadas({rotulos, brasil: rotulos === BR,
+    tipo, candidatos, usadas: referencias && {referencias, base}});
+  assert.equal(usadas('ufs', 175, null), 'Para cada município da base, só o candidato mais próximo fica como referência.');
+  assert.equal(usadas('mesma_uf_da_base', 3455, null),
+    'Para cada município da base, só o candidato mais próximo fica como referência, entre os do mesmo estado.');
+  assert.equal(usadas('ufs', 175, ['ITAGUACU DA BAHIA (BA)'], 'PILAO ARCADO (BA)'),
+    'Ficou como referência 1 dos 175 candidatos: ITAGUACU DA BAHIA (BA), o mais próximo de PILAO ARCADO (BA).');
+  assert.equal(usadas('ufs', 3, ['CRUZEIRO DO SUL (AC)', 'RIO BRANCO (AC)']),
+    'Ficaram como referência 2 dos 3 candidatos: CRUZEIRO DO SUL (AC) e RIO BRANCO (AC), cada um o mais próximo de algum município da base.');
+  assert.equal(usadas('ufs', 3, ['RIO BRANCO (AC)']), 'Ficou como referência 1 dos 3 candidatos: RIO BRANCO (AC), o mais próximo dos ' +
+    'municípios da base.');
+  assert.equal(usadas('mesma_uf_da_base', 3455, ['A', 'B', 'C', 'D']), 'Ficaram como referência 4 dos 3.455 candidatos: A, B, C e mais 1, ' +
+    'cada um o mais próximo de algum município da base no mesmo estado.');
+  assert.equal(usadas('pais', 1, ['MANAUS (AM)'], 'TEFE (AM)'), 'Ficou como referência o único candidato: MANAUS (AM), o mais próximo de TEFE (AM).');
+  assert.equal(usadas('pais', 3, []), 'Nenhum dos 3 candidatos ficou como referência de um município da base.');
+  assert.equal(usadas('ufs', 0, []), 'Sem candidatos, nenhum município da base tem referência.');
+  assert.equal(usadas('mesma_uf_da_base', 2, ['X', 'Y'], null, planilha.rotulos), 'Ficaram como referência 2 das 2 candidatas: X e Y, cada ' +
+    'uma a mais próxima de alguma unidade da base na mesma província.');
   // O pedido: na análise espacial dos municípios, a consulta (como o motor a recebe) e a seleção prévia em `base`; sem seleção, a
   // consulta não espera por ela.
   const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
