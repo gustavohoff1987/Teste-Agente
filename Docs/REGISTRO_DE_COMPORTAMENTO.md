@@ -35,6 +35,25 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-27 · Conversa: o pedido guardado antes dos dados sai com a revisão de contexto da fonte nova
+- **Classificação (regra 1):** correção de um defeito achado pelo CI (execução 409, roteiro `ui_conversa_grafico.py` nas suítes
+  `conversa` e `gemini-simulado`). Mudança prevista: o que o sistema deve fazer continua o documentado em 26/10/2026 (o pedido
+  feito antes dos dados segue sozinho quando a base fica pronta; AT-64, pedido preservado sem repetição); a correção faz a tela
+  cumpri-lo sempre.
+- **Antes:** a revisão de contexto da sessão mudava num efeito da página, que o React roda depois dos efeitos da conversa e da
+  área. O pedido guardado, retomado no mesmo ciclo em que a fonte ficava pronta, saía com a revisão antiga, e a nova revisão
+  chegava antes ao servidor: a conversa respondia "A seleção mudou. Envie o pedido no contexto atual." em vez de seguir com o
+  pedido (dependia da ordem de chegada dos dois pedidos; em 26/10/2026 passou no CI, em 27/10/2026 falhou nas duas suítes).
+- **Agora:** a revisão muda no momento em que a fonte é aplicada (`ativar`, em `App.tsx`), antes de a página desenhar a nova
+  fonte: o pedido guardado e os primeiros pedidos com a fonte já saem com a revisão nova, e as respostas em trânsito da fonte
+  anterior continuam descartadas.
+- **Permanece:** a regra da revisão (uma por fonte em uso), o descarte das respostas tardias, os textos da conversa, o
+  lembrete da base e a sessão temporária.
+- **Motivo:** o CI da execução 409 (passo 3 de `ui_conversa_grafico.py`: "Com os dados prontos, sigo com o seu pedido." não
+  aparecia).
+- **Documentação e testes:** a regra documentada não mudou (`README.md`, ajustes da conversa de 26/10/2026); o roteiro
+  `ui_conversa_grafico.py` (passo 3), sem alteração, confere a retomada nas duas suítes.
+
 ### 2026-10-27 · Análise Espacial: Escolha dos territórios (base e referência irmãs, seletor em três etapas, contagens do motor) no lugar do Território de referência e dos territórios base
 - **Classificação (regra 1), pela leitura, antes de codar:** os itens decorrem do comando do responsável "Seleção de
   Territórios" (27/10/2026).

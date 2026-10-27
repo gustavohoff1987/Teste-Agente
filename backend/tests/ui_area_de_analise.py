@@ -346,7 +346,9 @@ def main():
         page.wait_for_timeout(800)
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
         # A aba de uma análise sem territórios: "Entenda esta análise" recolhido desde a primeira visita (25/10/2026, pedido do
-        # responsável, para não ocupar espaço), os ajustes e o convite a selecionar; a referência e a janela só depois da seleção.
+        # responsável, para não ocupar espaço), os ajustes e o convite a selecionar. Desde a Escolha dos territórios (27/10/2026), a
+        # janela abre sozinha também sem territórios: sem seleção prévia, a base parte de todo o país, e só as contagens da janela
+        # são pedidas, nada da análise.
         aperta(area.get_by_test_id("analise-familia-espacial"))
         entenda = area.get_by_test_id("analise-entenda")
         expect(entenda).to_have_attribute("data-aba", "espacial")
@@ -356,7 +358,11 @@ def main():
         expect(apresentacao).to_contain_text("não é um trajeto por estradas")
         expect(apresentacao).to_contain_text("O próprio município nunca é a sua referência.")
         expect(area.get_by_test_id("analise-vazio")).to_contain_text("Os dados do Brasil foram carregados e estão prontos para a análise.")
-        expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+        janela_sem_selecao = area.get_by_test_id("analise-painel")
+        expect(janela_sem_selecao).to_have_attribute("data-painel", "referencia")
+        expect(janela_sem_selecao.get_by_test_id("territorios-frase")).to_have_text(
+            "Municípios de todo o país → referência: o mais próximo, em qualquer estado")
+        fecha()
         expect(area.get_by_test_id("analise-selecao-alterar")).to_have_text("Selecionar os territórios")
         # A explicação se abre e se recolhe; a aba guarda a escolha da pessoa na sessão da página.
         aperta(entenda.get_by_test_id("analise-entenda-botao"))
@@ -1768,8 +1774,8 @@ def main():
     print("ÁREA DE ANÁLISE PASS: abertura com o nome da plataforma, sem abas, base sem seleção automática, Desfazer sequencial e Limpar "
           "seleção no alto (fixos ao rolar), Seleção por níveis em duas áreas com o × de cada território, seleção cumulativa entre "
           "estados, Voltar aos estados em destaque, abas só com os nomes, Entenda esta análise, eixo do indicador, quintis do mapa no "
-          "pedido, régua, grupos, análise espacial (o Território de referência por elegibilidade quando o motor a oferece, ou o "
-          "motivo: veja as notas), tendência com o Período anual e o Gráfico ao abrir, a explicação ao lado com a "
+          "pedido, régua, grupos, análise espacial (a Escolha dos territórios, também sem territórios, quando o motor oferece a "
+          "distância, ou o motivo: veja as notas), tendência com o Período anual e o Gráfico ao abrir, a explicação ao lado com a "
           "divisória, as visões Tendência, Trajetória e Série temporal, rotatividade com o motivo, funções (Comparar e Juntar sem "
           "cartões), exportação, nenhum \"motor\" nos textos e celular" +
           (" (base versionada)." if real else " (catálogo sintético)."))

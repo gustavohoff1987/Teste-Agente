@@ -539,8 +539,15 @@ def main():
                                arg=[ref_bv["id"], nome_ref], timeout=30000)
         expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território da base ou um município marcado")
         shot("06c-base-e-referencia")
+        # O Desfazer volta um passo por vez: primeiro a vista (trocar para o mapa é um passo), depois o cálculo, sem recalcular (a
+        # resposta dos 15 vem da memória).
         calls = len(painel_calls)
         aperta(area.get_by_test_id("analise-desfazer"))
+        expect(area).to_have_attribute("data-desenho", "grafico")
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
+        aperta(area.get_by_test_id("analise-desfazer"))
+        expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_count(15)
+        aperta(area.get_by_test_id("analise-desenho-mapa"))
         desenhado(15, "quintis")
         assert len(painel_calls) == calls, "o Desfazer volta ao resultado de antes sem recalcular"
 

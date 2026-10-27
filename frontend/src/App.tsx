@@ -145,8 +145,6 @@ function App() {
       .catch(() => { if (alive) setServerStatus("offline"); });
     return () => { alive = false; };
   }, []);
-  // A revisão de contexto da sessão muda com a fonte em uso: as respostas da conversa em trânsito deixam de valer.
-  useEffect(() => { if (ativa) updateContextRevision(); }, [ativa?.chave]);
   // O aviso da página (Histórico, Nova análise, fonte pronta) some sozinho depois de alguns segundos.
   useEffect(() => {
     if (!aviso) return;
@@ -178,6 +176,10 @@ function App() {
   function ativar(nova: FonteAtiva) {
     const anterior = fonteAtual.current;
     fonteAtual.current = nova;
+    // A revisão de contexto da sessão muda com a fonte em uso: as respostas da conversa em trânsito deixam de valer. Muda antes
+    // de a página desenhar a nova fonte (27/10/2026; antes, num efeito da página, que roda depois dos efeitos da conversa e da
+    // área): o pedido guardado antes dos dados e os primeiros pedidos com a fonte já saem com a revisão nova.
+    if (anterior?.chave !== nova.chave) updateContextRevision();
     setAtiva(nova);
     setEscolhendo(false);
     // Troca de fonte: a análise anterior fica no Histórico, e a área recomeça com a nova fonte.
