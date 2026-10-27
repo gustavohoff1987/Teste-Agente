@@ -169,7 +169,7 @@ def main():
             assert response.status == 200, response.text()[:2000]
             return response.json(), sent
 
-        def contagens(action, timeout=120000):
+        def contagens_da_janela(action, timeout=120000):
             """Executa a ação na Escolha dos territórios e devolve a resposta de /api/painel/territorios do primeiro pedido feito
             depois dela (a janela pede 250 ms depois da última mudança) e as opções desse pedido; a tela só mostra o que veio."""
             antes = len(pedidos_territorios)
@@ -898,7 +898,7 @@ def main():
 
             # Partir de uma região: a etapa espera a região; a pendência desativa "Calcular", aparece no rodapé e no status da aba,
             # e o trecho da frase fica destacado. A seleção prévia (os municípios do Amazonas) vai junto, com a contagem do motor.
-            corpo, sent_t = contagens(lambda: menu_base.select_option("regiao"))
+            corpo, sent_t = contagens_da_janela(lambda: menu_base.select_option("regiao"))
             assert sent_t["consulta"]["base"]["partir_de"] == {"tipo": "regioes", "regioes": [], "ufs": []}, sent_t
             assert sent_t["base"] == universo_am and corpo["base"]["pendencias"] == ["escolha ao menos uma região"], (sent_t, corpo)
             expect(estado).to_have_text("Base incompleta: escolha ao menos uma região.")
@@ -909,18 +909,18 @@ def main():
                 "Seleção prévia (" + milhar(corpo["selecao_previa"]["total"]) + ")")
             assert corpo["selecao_previa"]["total"] == len([item for item in am["itens"] if item["tipo"] == "municipio"]), corpo
             confere("base", corpo)
-            corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-base-regiao").select_option("Norte"))
+            corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-base-regiao").select_option("Norte"))
             expect(frase).to_have_text("Municípios do Norte → referência: o mais próximo, em qualquer estado")
             confere("base", corpo)
             # Filtrar por densidade: a linha nasce sem valor (não corta, mas pendente); o valor, a mediana do Amazonas, com vírgula.
             densidades = sorted(item["densidade"] for item in am["itens"] if item.get("densidade") is not None)
             limiar = round(densidades[len(densidades) // 2], 2) or 0.01
-            corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-mais-densidade")))
+            corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-mais-densidade")))
             linha_densidade = janela.get_by_test_id("territorios-base-filtro").first
             expect(linha_densidade.get_by_test_id("territorios-base-filtro-operador")).to_have_value("<")
             expect(estado).to_have_text("Base incompleta: preencha o valor do filtro.")
             assert corpo["base"]["contagens"]["filtros"] == corpo["base"]["contagens"]["partir_de"], corpo  # sem valor, não corta
-            corpo, sent_t = contagens(lambda: linha_densidade.get_by_test_id("territorios-base-filtro-valor").fill(
+            corpo, sent_t = contagens_da_janela(lambda: linha_densidade.get_by_test_id("territorios-base-filtro-valor").fill(
                 numero_br(limiar)))
             assert sent_t["consulta"]["base"]["filtros"] == [{"indicador": "densidade", "operador": "<", "valor": limiar}], sent_t
             expect(frase_base).to_have_text("Municípios do Norte com densidade abaixo de " + numero_br(limiar))
@@ -928,7 +928,7 @@ def main():
             # Filtrar pela distância até a referência mais próxima (só na base): acima de 300 km na base versionada (o exemplo do
             # comando); no catálogo sintético, com todas as sedes no mesmo ponto, até 300 km.
             operador, palavra = (">", "a mais de") if real else ("<=", "a até")
-            corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-mais-distancia")))
+            corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-mais-distancia")))
             linha_distancia = janela.get_by_test_id("territorios-base-filtro").nth(1)
             expect(linha_distancia).to_have_attribute("data-indicador", "distancia")
             expect(linha_distancia).to_contain_text("Distância até a referência mais próxima")
@@ -937,7 +937,7 @@ def main():
                 "els => els.map(e => e.textContent)") == ["acima de", "até"]
             if operador != ">":
                 linha_distancia.get_by_test_id("territorios-base-filtro-operador").select_option(operador)
-            corpo, _ = contagens(lambda: linha_distancia.get_by_test_id("territorios-base-filtro-valor").fill("300"))
+            corpo, _ = contagens_da_janela(lambda: linha_distancia.get_by_test_id("territorios-base-filtro-valor").fill("300"))
             texto_base = "Municípios do Norte com densidade abaixo de " + numero_br(limiar) + " e " + palavra + " 300 km da referência"
             expect(frase_base).to_have_text(texto_base)
             confere("base", corpo)
@@ -954,20 +954,20 @@ def main():
                               "mesma_regiao_da_base"], opcoes
             expect(menu_ref.locator("optgroup")).to_have_attribute("label", "Conforme a base")
             # Um estado: enquanto a referência está incompleta, o filtro de distância da base fica pendente e bloqueia o cálculo.
-            corpo, _ = contagens(lambda: menu_ref.select_option("uf"))
+            corpo, _ = contagens_da_janela(lambda: menu_ref.select_option("uf"))
             expect(estado).to_have_text("Base incompleta: complete a referência para usar o filtro de distância.")
             expect(calcular).to_be_disabled()
             expect(janela.get_by_test_id("territorios-status-referencia")).to_have_text("incompleta")
             assert corpo["base"]["pendencias"] == ["complete a referência para usar o filtro de distância"], corpo["base"]
             assert corpo["referencia"]["pendencias"] == ["escolha ao menos um estado"], corpo["referencia"]
             uf_ref = "12" if real else AM
-            corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-referencia-uf").select_option(uf_ref))
+            corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-referencia-uf").select_option(uf_ref))
             filtros_ref = []
             if real:
-                corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
+                corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
                 linha_ref = janela.get_by_test_id("territorios-referencia-filtro").first
                 linha_ref.get_by_test_id("territorios-referencia-filtro-operador").select_option(">")
-                corpo, _ = contagens(lambda: linha_ref.get_by_test_id("territorios-referencia-filtro-valor").fill("2"))
+                corpo, _ = contagens_da_janela(lambda: linha_ref.get_by_test_id("territorios-referencia-filtro-valor").fill("2"))
                 filtros_ref = [{"indicador": "densidade", "operador": ">", "valor": 2}]
                 texto_ref = "o mais próximo do Acre com densidade acima de 2"
             else:
@@ -1052,7 +1052,7 @@ def main():
                 # etapas 1 e 2 (a do motor), com a densidade; os marcados viram botões; a frase diz os nomes.
                 expect(janela.get_by_test_id("territorios-frase")).to_have_text(texto_base + " → referência: " + texto_ref)
                 expect(estado).to_have_text("Resultado em dia com a consulta.")
-                corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-marcados")))
+                corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-marcados")))
                 expect(estado).to_have_text("Base incompleta: marque ao menos um município.")
                 lista = corpo["lista"]
                 assert lista["lado"] == "base" and lista["total"] == corpo["base"]["contagens"]["filtros"], corpo
@@ -1063,7 +1063,7 @@ def main():
                 nomes_lista = {item["id"]: item["rotulo"] for item in lista["itens"]}
                 if escolhidos:
                     for marcado in escolhidos:
-                        corpo, _ = contagens(lambda: marca(janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' +
+                        corpo, _ = contagens_da_janela(lambda: marca(janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' +
                                                                           marcado + '"]')))
                     expect(janela.get_by_test_id("territorios-base-marcado")).to_have_count(len(escolhidos))
                     expect(janela.get_by_test_id("territorios-frase-base")).to_have_text(
@@ -1082,10 +1082,10 @@ def main():
                 # aparece fora dela, pelo nome, com "sem referência no recorte"; nenhuma distância vira zero.
                 aperta(janela.get_by_test_id("territorios-frase-referencia"))
                 if not real:
-                    contagens(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
+                    contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
                     janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
                         "territorios-referencia-filtro-operador").select_option(">")
-                corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
+                corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
                     "territorios-referencia-filtro-valor").fill(milhar(10 ** 9)))
                 assert corpo["referencia"]["contagens"]["final"] == 0, corpo["referencia"]
                 expect(janela.get_by_test_id("territorios-referencia-previa")).to_contain_text("0 municípios podem ser referência")
