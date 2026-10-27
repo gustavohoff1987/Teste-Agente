@@ -28,9 +28,10 @@ períodos do meio no caminho) e Série temporal (toda a série da base ou o inte
 
 Desde 27/10/2026 (comando Seleção de Territórios), a análise espacial usa a janela Escolha dos territórios: a frase-resumo no
 alto (cada trecho abre a aba dele; o incompleto, destacado), as abas "1 Base" e "2 Referência" (só a ativa à vista), o mesmo seletor
-em três etapas nas duas (Partir de, Filtrar por, Escolher; a distância só na base; as opções conforme a base só na referência), as
-contagens do motor (/api/painel/territorios, conferidas com a resposta), o rodapé com "Calcular" e a linha de estado, os marcados,
-a referência vazia (os de fora da base pela distância não avaliável, pelo nome) e o Desfazer.
+em três etapas nas duas (Partir de, Filtrar por, Escolher; sem filtro de distância, que saiu no mesmo dia: a distância está no
+eixo X; as opções conforme a base só na referência), as contagens do motor (/api/painel/territorios, conferidas com a resposta),
+o rodapé com "Calcular" e a linha de estado, os marcados, a referência vazia (todos sem distância, com o motivo e o aviso) e o
+Desfazer.
 
 Desde 23/10/2026: os ajustes dentro de cada análise (`analise-ajustes`, o painel colado na aba escolhida, com só o que vale para
 ela e o mesmo indicador em todas), a escala na barra junto do desenho (fora dos ajustes, e só quando se aplica), a escolha da vista
@@ -66,7 +67,7 @@ MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "a
 DESFAZER_VAZIO = "Nada para desfazer ainda"
 # O que falta completar na Escolha dos territórios (os textos do comando de 27/10/2026, os mesmos da tela e do motor).
 PENDENCIAS_DA_JANELA = {"escolha ao menos uma região", "escolha ao menos um estado", "preencha o valor do filtro",
-                        "marque ao menos um município", "complete a referência para usar o filtro de distância"}
+                        "marque ao menos um município"}
 # Estilo calculado e caixa de um elemento, para comparar o destaque de dois botões.
 ESTILO = """e => { const s = getComputedStyle(e), c = e.getBoundingClientRect();
   return {fundo: s.backgroundColor, cor: s.color, altura: c.height, fonte: parseFloat(s.fontSize), peso: Number(s.fontWeight)}; }"""
@@ -856,11 +857,14 @@ def main():
             expect(frase).to_have_text("Municípios da seleção prévia → referência: o mais próximo, em qualquer estado")
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
-            # A base não tem as opções relativas; só ela tem o filtro de distância; nada de ranking, OU ou NÃO nesta janela.
+            # A base não tem as opções relativas; nenhum lado filtra pela distância (o filtro saiu em 27/10/2026, a pedido do
+            # responsável: a distância até a referência mais próxima está no eixo X do resultado); nada de ranking, OU ou NÃO.
             menu_base = janela.get_by_test_id("territorios-base-partir-menu")
             opcoes = menu_base.locator("option").evaluate_all("els => els.map(e => e.value)")
             assert opcoes == ["pais", "regiao", "regioes", "uf", "ufs", "selecao_previa"], opcoes
-            expect(janela.get_by_test_id("territorios-base-mais-distancia")).to_have_text("Distância")
+            expect(janela.get_by_test_id("territorios-base-mais-distancia")).to_have_count(0)
+            assert janela.locator('[data-testid^="territorios-base-mais-"]').evaluate_all("els => els.map(e => e.textContent)") == [
+                "Densidade", "População", "Quantidade"]
             apoio = ("Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em Critérios "
                      "combinados.")
             expect(janela.get_by_test_id("territorios-base-apoio-filtros")).to_have_text(apoio)
@@ -925,22 +929,7 @@ def main():
             assert sent_t["consulta"]["base"]["filtros"] == [{"indicador": "densidade", "operador": "<", "valor": limiar}], sent_t
             expect(frase_base).to_have_text("Municípios do Norte com densidade abaixo de " + numero_br(limiar))
             confere("base", corpo)
-            # Filtrar pela distância até a referência mais próxima (só na base): acima de 300 km na base versionada (o exemplo do
-            # comando); no catálogo sintético, com todas as sedes no mesmo ponto, até 300 km.
-            operador, palavra = (">", "a mais de") if real else ("<=", "a até")
-            corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-mais-distancia")))
-            linha_distancia = janela.get_by_test_id("territorios-base-filtro").nth(1)
-            expect(linha_distancia).to_have_attribute("data-indicador", "distancia")
-            expect(linha_distancia).to_contain_text("Distância até a referência mais próxima")
-            expect(linha_distancia.get_by_test_id("territorios-base-filtro-depende")).to_have_text("depende da Referência")
-            assert linha_distancia.get_by_test_id("territorios-base-filtro-operador").locator("option").evaluate_all(
-                "els => els.map(e => e.textContent)") == ["acima de", "até"]
-            if operador != ">":
-                linha_distancia.get_by_test_id("territorios-base-filtro-operador").select_option(operador)
-            corpo, _ = contagens_da_janela(lambda: linha_distancia.get_by_test_id("territorios-base-filtro-valor").fill("300"))
-            texto_base = "Municípios do Norte com densidade abaixo de " + numero_br(limiar) + " e " + palavra + " 300 km da referência"
-            expect(frase_base).to_have_text(texto_base)
-            confere("base", corpo)
+            texto_base = "Municípios do Norte com densidade abaixo de " + numero_br(limiar)
             # O trecho da referência abre a aba dela: o menu tem as opções conforme a base, e não há filtro de distância.
             aperta(frase_ref)
             expect(janela.get_by_test_id("territorios-aba-referencia")).to_have_attribute("aria-selected", "true")
@@ -953,12 +942,13 @@ def main():
             assert opcoes == ["pais", "regiao", "regioes", "uf", "ufs", "selecao_previa", "mesma_uf_da_base",
                               "mesma_regiao_da_base"], opcoes
             expect(menu_ref.locator("optgroup")).to_have_attribute("label", "Conforme a base")
-            # Um estado: enquanto a referência está incompleta, o filtro de distância da base fica pendente e bloqueia o cálculo.
+            # Um estado: enquanto a referência está incompleta, ela fica pendente e bloqueia o cálculo; a base segue completa.
             corpo, _ = contagens_da_janela(lambda: menu_ref.select_option("uf"))
-            expect(estado).to_have_text("Base incompleta: complete a referência para usar o filtro de distância.")
+            expect(estado).to_have_text("Referência incompleta: escolha ao menos um estado.")
             expect(calcular).to_be_disabled()
             expect(janela.get_by_test_id("territorios-status-referencia")).to_have_text("incompleta")
-            assert corpo["base"]["pendencias"] == ["complete a referência para usar o filtro de distância"], corpo["base"]
+            expect(frase_ref).to_have_text("referência incompleta")
+            assert corpo["base"]["pendencias"] == [], corpo["base"]
             assert corpo["referencia"]["pendencias"] == ["escolha ao menos um estado"], corpo["referencia"]
             uf_ref = "12" if real else AM
             corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-referencia-uf").select_option(uf_ref))
@@ -978,8 +968,7 @@ def main():
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
             esperada = {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
-                                 "filtros": [{"indicador": "densidade", "operador": "<", "valor": limiar},
-                                             {"indicador": "distancia", "operador": operador, "valor": 300}],
+                                 "filtros": [{"indicador": "densidade", "operador": "<", "valor": limiar}],
                                  "escolha": {"modo": "todos", "municipios": []}},
                         "referencia": {"partir_de": {"tipo": "ufs", "regioes": [], "ufs": [uf_ref]}, "filtros": filtros_ref,
                                        "escolha": {"modo": "todos", "municipios": []}},
@@ -1016,16 +1005,18 @@ def main():
                 desenhadas = bubbles()
                 for item in proxima["itens"]:
                     refs = referencias_do_item(item)
-                    # Na base: do Norte, abaixo do limiar e com a distância do filtro; a referência mais próxima é uma das
+                    # Na base: do Norte e abaixo do limiar, cada um com a distância no eixo X; a referência mais próxima é uma das
                     # referências (do estado escolhido, com a densidade do filtro) e nunca o próprio município.
                     assert item["id"][5] == "1" and item["densidade"] < limiar, item
                     assert set(refs) <= membros and item["id"] not in refs and refs, (item["id"], refs, sorted(membros))
-                    assert (item["distancia_km"] > 300) if real else (item["distancia_km"] <= 300), item
+                    assert item["distancia_km"] is not None, item
                     if item["id"] in desenhadas:
                         assert float(desenhadas[item["id"]]["distancia"]) == item["distancia_km"], (desenhadas[item["id"]], item)
                 if real:
                     assert proxima["itens"] and all(membro["rotulo"].endswith("(AC)") and membro["densidade"] > 2
                                                     for membro in resposta_ref["membros"]), resposta_ref["membros"]
+                    # Os que ficam a mais de 300 km do Acre (o exemplo do comando) aparecem pela distância do eixo X.
+                    assert any(item["distancia_km"] > 300 for item in proxima["itens"]), proxima["itens"][:3]
                 expect(area.get_by_test_id("analise-nota-distancia")).to_contain_text("linha reta")
                 expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até a referência mais próxima")
                 expect(estado).to_have_text("Resultado em dia com a consulta.")
@@ -1078,8 +1069,9 @@ def main():
                     drawn(esperados(proxima, distancia=True))
                     aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
                     janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-                # Referência sem nenhum município (densidade acima de um bilhão): com o filtro de distância, quem ficaria na base
-                # aparece fora dela, pelo nome, com "sem referência no recorte"; nenhuma distância vira zero.
+                # Referência sem nenhum município (densidade acima de um bilhão): todos os da base entram, sem distância (nunca
+                # zero), com o motivo "sem referência no recorte"; nenhuma bolha no eixo da distância, e o aviso diz o que
+                # aconteceu e o caminho.
                 aperta(janela.get_by_test_id("territorios-frase-referencia"))
                 if not real:
                     contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
@@ -1090,18 +1082,17 @@ def main():
                 assert corpo["referencia"]["contagens"]["final"] == 0, corpo["referencia"]
                 expect(janela.get_by_test_id("territorios-referencia-previa")).to_contain_text("0 municípios podem ser referência")
                 vazio, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
-                assert vazio["itens"] == [] and vazio["referencia"]["contagens"]["referencia"]["final"] == 0, vazio["referencia"]
-                fora = vazio["referencia"]["sem_referencia"]
-                assert len(fora) == vazio["referencia"]["contagens"]["base"]["sem_referencia"] > 0, vazio["referencia"]
-                assert all(entrada["motivo"].startswith("Sem referência no recorte") for entrada in fora), fora[:3]
-                aviso_fora = area.get_by_test_id("analise-sem-referencia-no-recorte")
-                expect(aviso_fora).to_contain_text("fora da base porque o filtro de distância não é avaliável")
-                expect(aviso_fora).to_contain_text(fora[0]["rotulo"] + " (sem referência no recorte)")
+                assert vazio["referencia"]["contagens"]["referencia"]["final"] == 0, vazio["referencia"]
+                assert vazio["itens"] and len(vazio["itens"]) == vazio["referencia"]["contagens"]["base"]["final"], vazio["referencia"]
+                assert all(item["distancia_km"] is None and any(motivo.startswith("Sem referência no recorte") for motivo in
+                                                                item["motivos"]) for item in vazio["itens"]), vazio["itens"][:2]
+                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_contain_text(
+                    "Nenhum município pode ser referência com esta escolha dos territórios: não há referência. Mude a aba Referência.")
                 expect(area.locator(BOLHAS)).to_have_count(0)
                 fecha()
                 aperta(desfazer)
                 drawn(esperados(proxima, distancia=True))
-                expect(area.get_by_test_id("analise-sem-referencia-no-recorte")).to_have_count(0)
+                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
                 notas.append("Escolha dos territórios conferida no navegador: frase, abas, pendências, contagens do motor, Calcular, "
                              "marcados, referência vazia e o Desfazer" +
                              (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))

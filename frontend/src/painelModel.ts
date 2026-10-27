@@ -1671,10 +1671,11 @@ export const regiaoDoEstado = (prefixo: string) => REGIOES_DO_BRASIL.find(regiao
  * /api/painel/territorios). Toda seleção, contagem e distância vem do motor; aqui ficam só o objeto, o que falta completar e a
  * frase. Os municípios são identificados como na base (code:<código IBGE>); as regiões, pelo nome; os estados, pelo prefixo do
  * código (numa planilha, pelo valor da coluna-mãe, como em base.estados). A distância é sempre a geodésica até a referência mais
- * próxima de cada município da base. */
+ * próxima de cada município da base e aparece no eixo X do resultado; o filtro de distância da base saiu no mesmo dia, a pedido do
+ * responsável (para filtrar por ela, as Condições). */
 export type TipoPartida = "pais" | "regioes" | "ufs" | "selecao_previa" | "mesma_uf_da_base" | "mesma_regiao_da_base";
 export type PartirDe = { tipo: TipoPartida; regioes: string[]; ufs: string[] };
-export type IndicadorDoFiltro = "densidade" | "populacao" | "quantidade" | "distancia";
+export type IndicadorDoFiltro = "densidade" | "populacao" | "quantidade";
 export type OperadorDoFiltro = "<" | "<=" | ">" | ">=";
 export type FiltroDaConsulta = { indicador: IndicadorDoFiltro; operador: OperadorDoFiltro; valor: number | null };
 export type EscolhaDaConsulta = { modo: "todos" | "marcados"; municipios: string[] };
@@ -1687,13 +1688,10 @@ export const NOMES_DOS_LADOS: Record<Lado, string> = { base: "Base", referencia:
 export const MAX_FILTROS = 12;
 const DISTANCIA_DA_CONSULTA: DistanciaDaConsulta = { medida: "geodesica", ate: "referencia_mais_proxima" };
 export const OPERADORES_DO_FILTRO: OperadorDoFiltro[] = ["<", "<=", ">", ">="];
-/** A distância até a referência mais próxima usa só "acima de" e "até". */
-export const OPERADORES_DA_DISTANCIA: OperadorDoFiltro[] = [">", "<="];
 export const TEXTO_DOS_OPERADORES: Record<OperadorDoFiltro, string> = { "<": "abaixo de", "<=": "até", ">": "acima de", ">=": "a partir de" };
-export const NOMES_DOS_FILTROS: Record<IndicadorDoFiltro, string> = { densidade: "Densidade", populacao: "População", quantidade: "Quantidade",
-  distancia: "Distância até a referência mais próxima" };
+export const NOMES_DOS_FILTROS: Record<IndicadorDoFiltro, string> = { densidade: "Densidade", populacao: "População", quantidade: "Quantidade" };
 export const UNIDADES_DOS_FILTROS: Record<IndicadorDoFiltro, string> = { densidade: "por 1.000 hab.", populacao: "habitantes",
-  quantidade: "profissionais", distancia: "km" };
+  quantidade: "profissionais" };
 /** O texto de apoio dos filtros (o comando pede que diga onde ficam OU e NÃO). */
 export const TEXTO_DE_APOIO_DOS_FILTROS = "Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em " +
   "Critérios combinados.";
@@ -1724,8 +1722,7 @@ function lerLado(bruto: unknown, lado: Lado): LadoDaConsulta | null {
     const f = comoObjeto(bruto);
     if (!f || typeof f.indicador !== "string" || typeof f.operador !== "string") return null;
     const indicador = f.indicador as IndicadorDoFiltro, operador = f.operador as OperadorDoFiltro;
-    const valido = indicador === "distancia" ? lado === "base" && OPERADORES_DA_DISTANCIA.includes(operador)
-      : ["densidade", "populacao", "quantidade"].includes(indicador) && OPERADORES_DO_FILTRO.includes(operador);
+    const valido = ["densidade", "populacao", "quantidade"].includes(indicador) && OPERADORES_DO_FILTRO.includes(operador);
     if (!valido || (f.valor !== null && (typeof f.valor !== "number" || !Number.isFinite(f.valor) || f.valor < 0))) return null;
     filtros.push({ indicador, operador, valor: f.valor as number | null });
   }
@@ -1770,16 +1767,14 @@ export function pendenciasDoLado(c: ConsultaTerritorios, lado: Lado, rotulos: Ro
   if (partir.tipo === "ufs" && !partir.ufs.length) faltas.push("escolha ao menos " + (fem(grupo) ? "uma " : "um ") + grupo.singular);
   if (filtros.some(filtro => filtro.valor === null)) faltas.push("preencha o valor do filtro");
   if (escolha.modo === "marcados" && !escolha.municipios.length) faltas.push("marque ao menos " + (fem(unidade) ? "uma " : "um ") + unidade.singular);
-  if (lado === "base" && filtros.some(filtro => filtro.indicador === "distancia") && pendenciasDoLado(c, "referencia", rotulos).length)
-    faltas.push("complete a referência para usar o filtro de distância");
   return faltas;
 }
 export const pendenciasDaConsulta = (c: ConsultaTerritorios, rotulos: RotulosTerritoriais): Record<Lado, string[]> =>
   ({ base: pendenciasDoLado(c, "base", rotulos), referencia: pendenciasDoLado(c, "referencia", rotulos) });
 /** "Base incompleta: escolha ao menos uma região." */
 export const textoDaPendencia = (lado: Lado, falta: string) => NOMES_DOS_LADOS[lado] + " incompleta: " + falta + ".";
-/** O valor digitado num filtro: na população e na quantidade, inteiros; na densidade e na distância (km), decimais. */
-export const lerValorDoFiltro = (texto: string, indicador: IndicadorDoFiltro) => lerValorDeCorte(texto, indicador === "distancia" ? "densidade" : indicador);
+/** O valor digitado num filtro: na população e na quantidade, inteiros; na densidade, decimais. */
+export const lerValorDoFiltro = (texto: string, indicador: IndicadorDoFiltro) => lerValorDeCorte(texto, indicador);
 export const escreverValorDoFiltro = (valor: number | null) => valor === null ? "" : ate(6).format(valor);
 
 /** Um trecho da frase-resumo: o texto e se o lado está incompleto (o trecho vira "base incompleta" ou "referência incompleta"). */
@@ -1806,29 +1801,20 @@ function deOnde(partir: PartirDe, c: ContextoDaFrase): string {
   if (ufs.length > NOMES_NA_FRASE) return ufs.slice(0, NOMES_NA_FRASE).map(de).join(", ") + " e de mais " + quantos(ufs.length - NOMES_NA_FRASE, grupo);
   return emLista(ufs.map(de));
 }
-/** Os filtros na frase, com o mesmo indicador junto para a faixa: "densidade a partir de 0,5 e abaixo de 1"; a distância fica à
- * parte: "a mais de 300 km da referência". */
-function filtrosNaFrase(filtros: FiltroDaConsulta[]): { indicadores: string[]; distancia: string | null } {
+/** Os filtros na frase, com o mesmo indicador junto para a faixa: "densidade a partir de 0,5 e abaixo de 1". */
+function filtrosNaFrase(filtros: FiltroDaConsulta[]): string[] {
   const porIndicador = new Map<IndicadorDoFiltro, string[]>();
-  for (const filtro of filtros) {
-    const partes = porIndicador.get(filtro.indicador) ?? [];
-    const valor = escreverValorDoFiltro(filtro.valor);
-    partes.push(filtro.indicador === "distancia" ? (filtro.operador === ">" ? "mais de " : "até ") + valor + " km"
-      : TEXTO_DOS_OPERADORES[filtro.operador] + " " + valor);
-    porIndicador.set(filtro.indicador, partes);
-  }
-  const indicadores = [...porIndicador.entries()].filter(([indicador]) => indicador !== "distancia")
-    .map(([indicador, partes]) => NOMES_DOS_FILTROS[indicador].toLocaleLowerCase("pt-BR") + " " + partes.join(" e "));
-  const distancia = porIndicador.get("distancia");
-  return { indicadores, distancia: distancia ? "a " + distancia.join(" e a ") + " da referência" : null };
+  for (const filtro of filtros)
+    porIndicador.set(filtro.indicador, [...porIndicador.get(filtro.indicador) ?? [],
+      TEXTO_DOS_OPERADORES[filtro.operador] + " " + escreverValorDoFiltro(filtro.valor)]);
+  return [...porIndicador.entries()].map(([indicador, partes]) => NOMES_DOS_FILTROS[indicador].toLocaleLowerCase("pt-BR") + " " + partes.join(" e "));
 }
-/** A base na frase: "Municípios do Norte com densidade abaixo de 0,5 e a mais de 300 km da referência"; sem filtro, "Municípios do
+/** A base na frase: "Municípios do Norte com densidade abaixo de 0,5 e população acima de 20.000"; sem filtro, "Municípios do
  * Norte"; no modo marcados, os nomes (até três; depois, "e mais N"). */
 function fraseDaBase(lado: LadoDaConsulta, c: ContextoDaFrase): string {
   if (lado.escolha.modo === "marcados") return nomesNaFrase(lado.escolha.municipios, c.nomes);
-  const { indicadores, distancia } = filtrosNaFrase(lado.filtros);
-  return maiuscula(c.rotulos.unidade.plural) + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "") +
-    (distancia ? (indicadores.length ? " e " : " ") + distancia : "");
+  const indicadores = filtrosNaFrase(lado.filtros);
+  return maiuscula(c.rotulos.unidade.plural) + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "");
 }
 /** A referência na frase: "o mais próximo do Acre com densidade acima de 2" quando o território é fixo; "o mais próximo com
  * densidade acima de 1,5, na mesma UF" (ou "na mesma região", "em qualquer estado") nos demais casos. */
@@ -1844,7 +1830,7 @@ function fraseDaReferencia(lado: LadoDaConsulta, c: ContextoDaFrase): string {
     return (marcados.length === 1 ? nomesNaFrase(marcados, c.nomes) : proximo + " entre " + nomesNaFrase(marcados, c.nomes)) +
       (tipo === "mesma_uf_da_base" || tipo === "mesma_regiao_da_base" ? recorte : "");
   }
-  const { indicadores } = filtrosNaFrase(lado.filtros);
+  const indicadores = filtrosNaFrase(lado.filtros);
   const fixo = tipo === "regioes" || tipo === "ufs" || tipo === "selecao_previa";
   return proximo + (fixo ? " " + deOnde(lado.partir_de, c) : "") + (indicadores.length ? " com " + emLista(indicadores) : "") + recorte;
 }
@@ -2654,8 +2640,8 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima dele" + (fem(unidade) ? "a" : "") +
       ". Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas: de onde partir (" +
       (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "a planilha inteira, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
-        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros por densidade, população ou quantidade (na base, também pela " +
-      "distância até a referência) e a escolha de todos os que atendem ou só d" + (fem(unidade) ? "as marcadas" : "os marcados") + "." +
+        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros por densidade, população ou quantidade e a escolha de " +
+      "todos os que atendem ou só d" + (fem(unidade) ? "as marcadas" : "os marcados") + "." +
       (c.brasil || c.comGrupos ? " A referência também pode ser procurada n" + (c.brasil ? "o mesmo estado ou na mesma região" : (fem(grupo) ? "a mesma " : "o mesmo ") +
         grupo.singular) + " de cada " + unidade.singular + " da base." : "") + " " + maiuscula(artigo(unidade, false)) + " própri" +
       (fem(unidade) ? "a" : "o") + " " + unidade.singular + " nunca é a sua referência. O eixo horizontal mostra a distância, e o vertical, " +

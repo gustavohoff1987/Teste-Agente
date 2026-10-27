@@ -35,6 +35,49 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-27 · Análise Espacial: sai o filtro de distância da Escolha dos territórios
+- **Classificação (regra 1), pela leitura, antes de codar:** remoção de função pedida pelo responsável (27/10/2026: a distância
+  maior ou menor "a gente vai acabar vendo no próprio gráfico", no eixo X). Mudança prevista: decorre do pedido (escopo) e não
+  contraria a SPEC (compatibilidade). A SPEC não exige o filtro na janela; a distância até a referência mais próxima continua
+  calculada para cada município da base (CAP-ESP-02), à vista no eixo X, e filtrável pelas Condições (CAP-SUB-01, `distancia_km`),
+  pela Ordenação e pelas faixas de distância (CAP-ESP-03). A decisão "seguir a SPEC" de 27/10/2026, sobre o município sem
+  referência no recorte com o filtro (fora da base, listado), perde o objeto; vale a regra sem filtro: ele entra com a distância
+  não avaliável e o motivo.
+- **Antes** (desde `63d492c`): a aba Base tinha "+ Distância" ("Distância até a referência mais próxima", "acima de" ou "até", em
+  km, com o aviso "depende da Referência"); com a referência incompleta, a base ficava pendente ("complete a referência para usar
+  o filtro de distância"); a frase dizia "a mais de N km da referência" ou "a até N km da referência". O motor aceitava
+  `indicador: "distancia"` na base, cortava a base pela distância nas contagens da janela (`/api/painel/territorios`, onde o
+  referencial que faltava virava pendência da base) e no cálculo, e listava em `referencia.sem_referencia` quem ficava de fora
+  porque a distância não era avaliável (na tela, o aviso `analise-sem-referencia-no-recorte`; nas notas, "N municípios ficaram
+  fora da base porque o filtro de distância não é avaliável …"); as contagens da base traziam `sem_referencia`.
+- **Agora:** a aba Base tem os mesmos filtros da Referência (densidade, população e quantidade), e a frase da base não fala de
+  distância; cada lado depende só das próprias etapas. O motor recusa `indicador: "distancia"` com "O filtro de distância saiu da
+  Escolha dos territórios: a distância até a referência mais próxima de cada município da base aparece no eixo X do resultado;
+  para filtrar por ela, use as Condições."; as contagens da janela não medem distância (sem `sem_referencia` e sem a pendência do
+  referencial, que continua pedido no cálculo); a resposta não traz `sem_referencia`; o aviso e a nota de quem ficava fora da
+  base saíram. O município sem referência no próprio recorte continua na base, com a distância não avaliável e o motivo ("Sem
+  referência no recorte: …"), fora do gráfico e no mapa. "Entenda esta análise" não cita mais o filtro.
+- **Permanece:** a distância de cada município da base até a referência mais próxima (geodésica, nunca ele mesmo, com os empates),
+  o eixo X, a dica, a tabela, o CSV, o mapa e as ligações; as Condições com a distância (no exemplo do comando, com a base
+  versionada: dos 40 municípios do Norte com densidade abaixo de 0,5, os 38 a mais de 300 km da referência do Acre atendem a
+  "distância à referência mais próxima > 300 km"); a Ordenação e as faixas de distância; o resto da janela; os dados; a SPEC.
+- **Motivo:** pedido do responsável (27/10/2026): a distância maior ou menor aparece no próprio gráfico, no eixo X, e o filtro
+  na janela não tinha por que existir.
+- **Documentação e testes:** `README.md` (referência geográfica mais próxima), `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o seletor,
+  a frase, o que a janela não tem, o município sem referência no recorte, o pedido e os testes) e `Docs/PAINEL_INTEGRADO.md`
+  (os filtros, as pendências, a seleção, a distância, a resposta e a rota 4). Testes alterados por mudança intencional (o
+  comportamento mudou de propósito; nenhum foi afrouxado): em `test_painel_pagina.py`, as conferências do filtro de distância
+  deram lugar à recusa com a mensagem nova (na validação, na rota das contagens e no teste da referência conforme a base), às
+  Condições com `distancia_km` sobre a consulta (os três estados: quem não tem distância fica `NAO_AVALIAVEL`) e às contagens sem
+  `sem_referencia`; `test_consulta_reference_follows_the_base_and_the_distance_filter_never_hides_a_municipality` passou a se
+  chamar `test_consulta_reference_follows_the_base_and_never_hides_a_municipality` (a mesma cobertura da referência conforme a
+  base, com as Condições no lugar do filtro); o teste do exemplo do comando com a base versionada confere, sem o filtro, que os
+  de mais de 300 km aparecem pela distância do resultado e pelas Condições; o da planilha confere que as contagens não dependem
+  do referencial. No frontend, o teste "escolha dos territórios" (o exemplo sem o filtro, a distância recusada nos dois lados,
+  os filtros só de densidade, população e quantidade, as respostas sem `semReferencia`). No navegador, o passo 9 de
+  `ui_area_de_analise.py` (sem o botão "+ Distância"; a referência incompleta sem prender a base; a referência vazia com todos
+  os da base sem distância e o aviso `analise-ref-sem-resultado`).
+
 ### 2026-10-27 · Conversa: o pedido guardado antes dos dados sai com a revisão de contexto da fonte nova
 - **Classificação (regra 1):** correção de um defeito achado pelo CI (execução 409, roteiro `ui_conversa_grafico.py` nas suítes
   `conversa` e `gemini-simulado`). Mudança prevista: o que o sistema deve fazer continua o documentado em 26/10/2026 (o pedido

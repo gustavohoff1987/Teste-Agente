@@ -276,12 +276,11 @@ O que cada análise mostra:
   da consulta calculada (`analise-referencia-resumo`; antes do primeiro cálculo, "nenhuma ainda"). De cima para baixo:
   1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
   2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):
-     "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 e a mais de 300 km da
-     referência → referência: o mais próximo do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele
-     (`territorios-frase-base` e `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência
-     incompleta", destacado (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}", com o filtro de
-     distância como "a mais de {km} km da referência" ou "a até {km} km da referência"; no modo marcados, os nomes (até três;
-     depois, "e mais N"). Na referência: "o mais próximo {de onde} com {filtro}" quando o território é fixo (regiões, estados
+     "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo
+     do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele (`territorios-frase-base` e
+     `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência incompleta", destacado
+     (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}"; no modo marcados, os nomes (até três; depois,
+     "e mais N"). Na referência: "o mais próximo {de onde} com {filtro}" quando o território é fixo (regiões, estados
      ou a seleção prévia) e, nos demais casos, o recorte no fim: ", na mesma UF", ", na mesma região" ou ", em qualquer
      estado" (numa planilha, ", na mesma {grupo}" ou ", em toda a planilha"); com um marcado, o nome dele; com mais, "o mais
      próximo entre …".
@@ -302,16 +301,17 @@ O que cada análise mostra:
      explicação (`conforme-a-base`: "Para cada município da base, só conta referência no próprio estado. Ex.: um município do
      Acre só procura referência no Acre. É diferente de escolher um estado, que vale igual para todos os municípios da
      base."). A base não tem opções relativas.
-  2. **Filtrar por** (opcional; os filtros valem juntos, E): "+ Densidade", "+ População" e "+ Quantidade" (`mais-densidade`,
-     `mais-populacao` e `mais-quantidade`) e, só na base, "+ Distância" (`mais-distancia`). Cada linha (`filtro`, com
+  2. **Filtrar por** (opcional; os filtros valem juntos, E), igual nos dois lados: "+ Densidade", "+ População" e "+
+     Quantidade" (`mais-densidade`, `mais-populacao` e `mais-quantidade`). Cada linha (`filtro`, com
      `data-indicador`) tem o indicador, o operador ("abaixo de", "até", "acima de" ou "a partir de"), o valor com a unidade
      (por 1.000 hab., habitantes ou profissionais) e o botão de remover; repetir o indicador faz uma faixa ("densidade a
      partir de 0,5 e abaixo de 1"). A densidade aceita vírgula decimal ("2,36"); a população e a quantidade, só inteiros não
      negativos ("50.000" vale 50 mil); o filtro sem valor não corta nada e deixa o lado pendente ("preencha o valor do
-     filtro"). A distância: "Distância até a referência mais próxima", "acima de" ou "até", em km, com o aviso "depende da
-     Referência" (`filtro-depende`); com a referência incompleta, fica pendente e bloqueia o cálculo ("complete a referência
-     para usar o filtro de distância"). O texto de apoio: "Densidade é profissionais por 1.000 habitantes. Os filtros valem
-     juntos (E); OU e NÃO ficam em Critérios combinados." Até 12 filtros por lado.
+     filtro"). O texto de apoio: "Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam
+     em Critérios combinados." Até 12 filtros por lado. O filtro de distância da base ("+ Distância", com "acima de" ou "até",
+     em km), de `63d492c`, saiu no mesmo dia, a pedido do responsável: a distância até a referência mais próxima de
+     cada município da base aparece no eixo X do resultado, e as Condições filtram por ela ("distância à referência mais
+     próxima > 300 km", com os três estados).
   3. **Escolher:** "Todos que atendem (N)" (`todos`) ou "Só os que eu marcar" (`marcados`), com a busca pelo nome (`busca`) e a
      lista só de quem passou pelas etapas 1 e 2, com o estado e a densidade (`lista` e `lista-opcao`; até 100 à vista, com
      "Mostrando 100 de N: use a busca pelo nome."); os marcados viram botões removíveis (`marcado`), e o que deixa de passar
@@ -324,18 +324,18 @@ O que cada análise mostra:
   da última mudança); a tela não seleciona, não conta e não mede distância. A consulta é um objeto só e serializável
   (`ConsultaTerritorios`, a fonte de verdade da janela e do estado salvo), e "Calcular" a leva ao motor em `options.consulta`:
   é um passo do Desfazer ("Calcular a escolha dos territórios"), e a comparação de antes sai (a base pode mudar). A janela não
-  tem OU nem NÃO (ficam em Critérios combinados), ranking ou "os N primeiros", o "mais distante" (saiu em 27/10/2026, por
-  decisão do responsável) nem outra distância que não a geodésica.
+  tem OU nem NÃO (ficam em Critérios combinados), ranking ou "os N primeiros", filtro de distância, o "mais distante" (saiu em
+  27/10/2026, por decisão do responsável) nem outra distância que não a geodésica.
 
   O motor seleciona a base e a referência pela consulta (CAP-SUB-01, o E trivalente) e mede, para cada município da base, a
   geodésica até a referência mais próxima, **nunca ele mesmo** (CAP-REF-01 e CAP-ESP-02), com os empates; só a base entra no
   gráfico (as referências não são itens). Com "Conforme a base", a referência de cada município é procurada só no estado (ou
   na região) dele. Sem referência no próprio recorte, a distância fica não avaliável, com o motivo ("Sem referência no recorte:
   nenhum outro município da referência no mesmo estado (Roraima) em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL,
-  CONJUNTO_REFERENCIAS_VAZIO)"), nunca zero: sem o filtro de distância, o município entra na base com a distância não
-  avaliável; com o filtro, o filtro não é avaliável para ele, e ele fica fora da base, mas aparece no resultado, pelo nome
-  (`analise-sem-referencia-no-recorte`: "1 município ficou fora da base porque o filtro de distância não é avaliável para ele:
-  BOA VISTA (RR) (sem referência no recorte)."). Quando nenhum município da base fica com referência, o aviso
+  CONJUNTO_REFERENCIAS_VAZIO)"), nunca zero: o município continua na base, com a distância não avaliável; fica fora do gráfico
+  (sem posição no eixo da distância, dito no aviso "Fora do gráfico") e, no mapa, no lugar dele (com o filtro de distância de
+  `63d492c`, ele saía da base e era listado no aviso
+  `analise-sem-referencia-no-recorte`, que saiu com o filtro). Quando nenhum município da base fica com referência, o aviso
   `analise-ref-sem-resultado` diz o que aconteceu ("Nenhum município pode ser referência com esta escolha dos territórios: não
   há referência. Mude a aba Referência." ou as causas possíveis), com "Mudar a escolha dos territórios"
   (`analise-ref-sem-resultado-mudar`). Um conjunto (Juntar) não tem distância com a consulta (cada membro tem a sua). Um pedido
@@ -665,7 +665,7 @@ filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só 
   `referencia_do_item` (a referência mais próxima de cada município, com os empates) e `serie` (`{observacoes, comparavel,
   motivo}`); no topo, `nivel`, `indicador`, `tendencia` (com
   `sem_classificacao_por_motivo`), `serie` (o intervalo), `referencia` (desde 27/10/2026, com `tipo: "consulta"`: a consulta normalizada, a base e a
-  referência em palavras, as contagens de cada etapa, `sem_referencia` e os `membros` usados, com os valores), `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`,
+  referência em palavras, as contagens de cada etapa e os `membros` usados, com os valores), `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`,
   `condicoes`, `ordenacao`, `comparacao`, `contexto.brasil`, `disponibilidade`, `sessao`, `rotulos` e `resumo` (`{texto}`, a
   frase-resumo). De `/api/painel/mapa`: `competencia`, `referencial`, `pontos` (`[{id, lat, lon}]`; ponto sem id ou fora do
   intervalo fica de fora) e `sem_coordenada` (`[{id, rotulo, motivo}]`). Campo ausente vira vazio: a resposta de antes continua
@@ -826,7 +826,7 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   anterior à vista); os quintis do mapa no pedido e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo
   teclado e pelo mouse; quartis; a análise espacial com a Escolha dos territórios (desde 27/10/2026: a janela que abre
   sozinha, com o título e o contexto; as duas abas, só a ativa à vista; a frase-resumo, com os trechos que abrem as abas e o
-  incompleto destacado; a base sem as opções relativas e só ela com o filtro de distância; nada de ranking, OU ou NÃO; as
+  incompleto destacado; a base sem as opções relativas; nenhum lado com filtro de distância; nada de ranking, OU ou NÃO; as
   pendências do comando no rodapé e no status da aba, com "Calcular" desligado; as contagens e as prévias iguais às do motor;
   o pedido com a consulta; o eixo X e as distâncias iguais às do motor, nunca até o próprio município; a dica com a referência
   mais próxima; os marcados com a lista do motor; a referência vazia, com quem ficou fora da base pelo nome e sem distância

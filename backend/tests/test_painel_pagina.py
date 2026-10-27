@@ -586,9 +586,8 @@ def test_consulta_selects_the_base_and_measures_the_nearest_reference_without_th
         "consulta": {"base": lado("selecao_previa"), "referencia": lado(filtros=[filtro("densidade", ">", 10)]),
                      "distancia": GEODESICA},
         "base_texto": "da seleção prévia", "texto": "de todo o país com densidade > 10 por 1.000 habitantes",
-        "contagens": {"base": {"partir_de": 5, "filtros": 5, "final": 5, "nao_avaliaveis": 0, "sem_referencia": 0},
+        "contagens": {"base": {"partir_de": 5, "filtros": 5, "final": 5, "nao_avaliaveis": 0},
                       "referencia": {"partir_de": 6, "filtros": 3, "final": 3, "nao_avaliaveis": 0}},
-        "sem_referencia": [],
         "origem": ("Para cada município da base, o município mais próximo entre os municípios de todo o país com densidade > 10 "
                    "por 1.000 habitantes (3 municípios em junho de 2024); o próprio município não é a sua referência. Os "
                    "filtros são escolha do usuário e não têm caráter normativo")}
@@ -638,10 +637,10 @@ def test_consulta_steps_start_from_filters_and_choice_as_in_the_command(repo):
         body = ok(page(info, consulta=consulta(lado(**options), ref)))
         return [item["id"] for item in body["itens"]], body["referencia"]["contagens"]["base"]
     # Todo o país, sem filtro, todos: entram todos os municípios.
-    assert base() == (TODOS, {"partir_de": 6, "filtros": 6, "final": 6, "nao_avaliaveis": 0, "sem_referencia": 0})
+    assert base() == (TODOS, {"partir_de": 6, "filtros": 6, "final": 6, "nao_avaliaveis": 0})
     # Uma região com filtro de densidade: só os do Norte abaixo de 15, e as contagens das etapas.
     assert base(tipo="regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 15)]) == (
-        [MANACAPURU, PARINTINS, NOVO, TEFE], {"partir_de": 6, "filtros": 4, "final": 4, "nao_avaliaveis": 0, "sem_referencia": 0})
+        [MANACAPURU, PARINTINS, NOVO, TEFE], {"partir_de": 6, "filtros": 4, "final": 4, "nao_avaliaveis": 0})
     assert base(tipo="regioes", regioes=["Nordeste"])[0] == []
     assert base(tipo="ufs", ufs=["15"])[0] == [BELEM]
     # Combinada: a região, a população e a densidade valem juntas.
@@ -651,9 +650,9 @@ def test_consulta_steps_start_from_filters_and_choice_as_in_the_command(repo):
     assert base(filtros=[filtro("densidade", ">=", 8), filtro("densidade", "<", 12)])[0] == [MANACAPURU, NOVO, TEFE]
     # Escolha direta: da seleção prévia, só os marcados; marcado que não passa pelos filtros não entra.
     assert base(tipo="selecao_previa", modo="marcados", municipios=[TEFE, MANAUS]) == (
-        [MANAUS, TEFE], {"partir_de": 5, "filtros": 5, "final": 2, "nao_avaliaveis": 0, "sem_referencia": 0})
+        [MANAUS, TEFE], {"partir_de": 5, "filtros": 5, "final": 2, "nao_avaliaveis": 0})
     assert base(tipo="selecao_previa", filtros=[filtro("densidade", ">", 10)], modo="marcados", municipios=[TEFE, MANAUS]) == (
-        [MANAUS], {"partir_de": 5, "filtros": 2, "final": 1, "nao_avaliaveis": 0, "sem_referencia": 0})
+        [MANAUS], {"partir_de": 5, "filtros": 2, "final": 1, "nao_avaliaveis": 0})
     # Filtro não avaliável (NOVO AIRAO sem registro em 2019): fica de fora, contado, e nunca como "não atende".
     early = ok(page(info, competencia="201906", consulta=consulta(lado(filtros=[filtro("densidade", "<", 100)]), lado())))
     assert NOVO not in by_id(early) and early["referencia"]["contagens"]["base"]["nao_avaliaveis"] == 1
@@ -670,11 +669,11 @@ def test_consulta_steps_start_from_filters_and_choice_as_in_the_command(repo):
     assert any(text.startswith("Distância não se aplica ao conjunto") for text in group["motivos"])
 
 
-def test_consulta_reference_follows_the_base_and_the_distance_filter_never_hides_a_municipality(repo):
+def test_consulta_reference_follows_the_base_and_never_hides_a_municipality(repo):
     """A referência conforme a base (o mesmo estado ou a mesma região de cada município da base) restringe, para cada um, quais
     referências contam, sem reduzir a lista; quem fica sem referência no próprio recorte aparece com o motivo, nunca some em
-    silêncio nem ganha distância zero (CAP-ESP-02). No filtro de distância, a decisão de 27/10/2026 segue a SPEC (CAP-SUB-01,
-    AT-68): sem referência no recorte, a distância não é avaliável, e o município fica fora da base, listado com o motivo."""
+    silêncio nem ganha distância zero (CAP-ESP-02). O filtro de distância da base saiu (27/10/2026, a pedido do responsável):
+    a distância de cada um está no resultado (o eixo X), e as Condições filtram por ela, com os três estados (CAP-SUB-01)."""
     info = inspection()
     uf = lado("mesma_uf_da_base", filtros=[filtro("densidade", ">", 10)])
     body = ok(page(info, consulta=consulta(lado(), uf)))
@@ -692,33 +691,26 @@ def test_consulta_reference_follows_the_base_and_the_distance_filter_never_hides
     country = ok(page(info, consulta=consulta(lado(), lado(filtros=[filtro("densidade", ">", 10)]))))
     assert [(item["id"], item["distancia_km"], reference_of(item)) for item in region["itens"]] == [
         (item["id"], item["distancia_km"], reference_of(item)) for item in country["itens"]]
-    # Com o filtro de distância: só quem atende entra; sem referência no recorte e sem coordenada, fora da base, com o motivo.
+    # Todos entram, e o resultado mostra a distância de cada um (ou o motivo); nenhum fica de fora pela distância.
+    assert [item["id"] for item in body["itens"]] == TODOS and "sem_referencia" not in body["referencia"]
+    # A distância do resultado filtra pelas Condições: quem não tem distância (sem coordenada, sem referência no recorte) fica
+    # NAO_AVALIAVEL, nunca "não atende".
     assert km(NOVO, PARINTINS) < 100 < km(MANAUS, PARINTINS) < km(TEFE, PARINTINS)
-    far = ok(page(info, consulta=consulta(lado(filtros=[filtro("distancia", ">", 100)]), uf)))
-    assert [item["id"] for item in far["itens"]] == [MANAUS, PARINTINS, TEFE]
-    assert all(item["distancia_km"] > 100 for item in far["itens"])
-    assert far["referencia"]["contagens"]["base"] == {"partir_de": 6, "filtros": 3, "final": 3, "nao_avaliaveis": 2,
-                                                      "sem_referencia": 2}
-    assert far["referencia"]["sem_referencia"] == [
-        {"id": MANACAPURU, "rotulo": "MANACAPURU (AM)", "uf": "AM",
-         "motivo": "Distância não avaliável em junho de 2024: coordenadas ausentes (SEM_INFORMACAO_ESPACIAL)"},
-        {"id": BELEM, "rotulo": "BELEM (PA)", "uf": "PA", "motivo": missing}]
-    assert ("2 municípios ficaram fora da base porque o filtro de distância não é avaliável para eles (sem referência no recorte "
-            "ou sem coordenada válida): MANACAPURU (AM) e BELEM (PA).") in far["notas"]
-    assert far["referencia"]["base_texto"] == "de todo o país com distância à referência mais próxima > 100 km"
-    near = ok(page(info, consulta=consulta(lado(filtros=[filtro("distancia", "<=", 100)]), uf)))
-    assert [item["id"] for item in near["itens"]] == [NOVO]  # "até" também nunca inclui o não avaliável
-    assert near["referencia"]["contagens"]["base"]["sem_referencia"] == 2
-    # Sem o filtro de distância, todos entram, e o resultado mostra a distância de cada um (ou o motivo).
-    assert [item["id"] for item in body["itens"]] == TODOS and body["referencia"]["sem_referencia"] == []
-    # Referência vazia: nenhuma distância (nunca zero), com o motivo; com o filtro, a base fica vazia, e todos são listados.
+    far = ok(page(info, consulta=consulta(lado(), uf), condicoes=[{"atributo": "distancia_km", "operador": ">", "valor": 100}]))
+    assert {key: item["condicoes"]["situacao"] for key, item in by_id(far).items()} == {
+        MANACAPURU: "NAO_AVALIAVEL", MANAUS: "ATENDE", PARINTINS: "ATENDE", NOVO: "NAO_ATENDE", TEFE: "ATENDE",
+        BELEM: "NAO_AVALIAVEL"}
+    assert far["condicoes"]["contagens"] == {"ATENDE": 3, "NAO_ATENDE": 1, "NAO_AVALIAVEL": 2}
+    # O filtro de distância saiu da consulta: o pedido com ele é recusado, com o caminho.
+    refused(page(info, consulta=consulta(lado(filtros=[filtro("distancia", ">", 100)]), uf)),
+            "O filtro de distância saiu da Escolha dos territórios: a distância até a referência mais próxima de cada município "
+            "da base aparece no eixo X do resultado; para filtrar por ela, use as Condições.")
+    # Referência vazia: nenhuma distância (nunca zero), com o motivo.
     none = ok(page(info, consulta=consulta(lado(), lado("regioes", regioes=["Nordeste"]))))
     assert none["referencia"]["membros"] == [] and none["referencia"]["contagens"]["referencia"]["final"] == 0
     assert all(item["distancia_km"] is None and item["referencia_do_item"] is None for item in none["itens"])
     assert ("Sem referência no recorte: nenhum outro município da referência em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL, "
             "CONJUNTO_REFERENCIAS_VAZIO)") in by_id(none)[TEFE]["motivos"]
-    nobody = ok(page(info, consulta=consulta(lado(filtros=[filtro("distancia", ">", 0)]), lado("regioes", regioes=["Nordeste"]))))
-    assert nobody["itens"] == [] and [entry["id"] for entry in nobody["referencia"]["sem_referencia"]] == TODOS
     # Uma referência sem coordenada válida no recorte (MANACAPURU, densidade 8, entra em "≥ 8"): a distância fica não
     # avaliável, sem trocar pela mais próxima entre as demais (mínimo do conjunto completo, CAP-ESP-02).
     gap = by_id(ok(page(info, consulta=consulta(referencia=lado(filtros=[filtro("densidade", ">=", 8)])))))
@@ -740,15 +732,13 @@ def test_consulta_is_validated_and_incomplete_parts_block_the_calculation(repo):
             (consulta(lado("regioes"), ok_ref), "Base incompleta: escolha ao menos uma região."),
             (consulta(lado(), lado("ufs")), "Referência incompleta: escolha ao menos um estado."),
             (consulta(lado(filtros=[filtro("populacao", ">", None)]), ok_ref), "Base incompleta: preencha o valor do filtro."),
-            (consulta(lado(), lado(modo="marcados")), "Referência incompleta: marque ao menos um município."),
-            (consulta(lado(filtros=[filtro("distancia", ">", 300)]), lado("regioes")),
-             "Base incompleta: complete a referência para usar o filtro de distância.")):
+            (consulta(lado(), lado(modo="marcados")), "Referência incompleta: marque ao menos um município.")):
         refused(page(info, consulta=spec), text)
     # Forma fora do contrato: recusada com o motivo.
     for spec, text in (
             (consulta(lado("mesma_uf_da_base"), ok_ref), "A base não tem as opções relativas"),
-            (consulta(lado(), lado(filtros=[filtro("distancia", ">", 1)])), "A referência não tem o filtro de distância"),
-            (consulta(lado(filtros=[filtro("distancia", "<", 1)]), ok_ref), "Operador do filtro de distância não reconhecido"),
+            (consulta(lado(filtros=[filtro("distancia", ">", 300)]), ok_ref), "O filtro de distância saiu da Escolha dos territórios"),
+            (consulta(lado(), lado(filtros=[filtro("distancia", ">", 1)])), "O filtro de distância saiu da Escolha dos territórios"),
             (consulta(lado(filtros=[filtro("densidade", "=", 1)]), ok_ref), "Operador do filtro não reconhecido"),
             (consulta(lado(filtros=[filtro("distancia_km", ">", 1)]), ok_ref), "Indicador do filtro não reconhecido"),
             (consulta(lado(filtros=[filtro("densidade", ">", -1)]), ok_ref),
@@ -782,12 +772,13 @@ def test_territories_route_counts_each_step_for_the_window_without_starting_the_
     """POST /api/painel/territorios (27/10/2026): o que a janela mostra enquanto a consulta é montada, tudo do motor."""
     info = inspection()
     ref = lado("ufs", ufs=["15"], filtros=[filtro("densidade", ">", 10)])
-    base = lado("regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 15), filtro("distancia", ">", 100)])
+    base = lado("regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 15)])
     body = ok(territorios(info, consulta=consulta(base, ref)))
     assert body["selecao_previa"] == {"total": 5, "nomes": ["MANACAPURU (AM)", "MANAUS (AM)", "PARINTINS (AM)", "NOVO AIRAO (AM)",
                                                             "TEFE (AM)"]}
-    assert body["base"] == {"contagens": {"partir_de": 6, "filtros": 3, "final": 3, "nao_avaliaveis": 1, "sem_referencia": 1},
-                            "pendencias": [], "previa": {"total": 3, "nomes": ["PARINTINS (AM)", "NOVO AIRAO (AM)", "TEFE (AM)"]},
+    assert body["base"] == {"contagens": {"partir_de": 6, "filtros": 4, "final": 4, "nao_avaliaveis": 0},
+                            "pendencias": [], "previa": {"total": 4, "nomes": ["MANACAPURU (AM)", "PARINTINS (AM)", "NOVO AIRAO (AM)",
+                                                                               "TEFE (AM)"]},
                             "marcados": []}
     assert body["referencia"] == {"contagens": {"partir_de": 1, "filtros": 1, "final": 1, "nao_avaliaveis": 0}, "pendencias": [],
                                   "previa": {"total": 1, "nomes": ["BELEM (PA)"]}, "marcados": []}
@@ -796,19 +787,19 @@ def test_territories_route_counts_each_step_for_the_window_without_starting_the_
     panel = ok(page(info, consulta=consulta(base, ref)))
     assert panel["referencia"]["contagens"] == {"base": body["base"]["contagens"], "referencia": body["referencia"]["contagens"]}
     assert len(panel["itens"]) == body["base"]["contagens"]["final"]
-    # Incompleto: a etapa pendente fica sem contagem; o filtro sem valor não corta; o filtro de distância espera a referência.
+    # Incompleto: a etapa pendente fica sem contagem; o filtro sem valor não corta; cada lado só pelas próprias etapas.
     pending = ok(territorios(info, consulta=consulta(lado("regioes"), lado(modo="marcados"))))
-    assert pending["base"]["contagens"] == {"partir_de": None, "filtros": None, "final": None, "nao_avaliaveis": None,
-                                            "sem_referencia": 0}
+    assert pending["base"]["contagens"] == {"partir_de": None, "filtros": None, "final": None, "nao_avaliaveis": None}
     assert pending["base"]["pendencias"] == ["escolha ao menos uma região"] and pending["base"]["previa"] is None
     assert pending["referencia"]["pendencias"] == ["marque ao menos um município"]
     assert pending["referencia"]["contagens"]["final"] is None
     unvalued = ok(territorios(info, consulta=consulta(lado(filtros=[filtro("densidade", "<", None)]), ref)))
     assert unvalued["base"]["contagens"]["filtros"] == 6 and unvalued["base"]["pendencias"] == ["preencha o valor do filtro"]
-    waiting = ok(territorios(info, consulta=consulta(lado(filtros=[filtro("densidade", "<", 15), filtro("distancia", ">", 100)]),
-                                                     lado("ufs"))))
-    assert waiting["base"]["pendencias"] == ["complete a referência para usar o filtro de distância"]
-    assert waiting["base"]["contagens"]["filtros"] == 4  # a distância não corta enquanto a referência está incompleta
+    waiting = ok(territorios(info, consulta=consulta(lado(filtros=[filtro("densidade", "<", 15)]), lado("ufs"))))
+    assert waiting["base"]["pendencias"] == [] and waiting["base"]["contagens"]["filtros"] == 4
+    assert waiting["referencia"]["pendencias"] == ["escolha ao menos um estado"]
+    refused(territorios(info, consulta=consulta(lado(filtros=[filtro("distancia", ">", 100)]), ref)),
+            "O filtro de distância saiu da Escolha dos territórios")
     # Os marcados, com quem passa pelas etapas 1 e 2.
     marked = ok(territorios(info, consulta=consulta(lado("selecao_previa", filtros=[filtro("densidade", ">", 10)], modo="marcados",
                                                          municipios=[TEFE, MANAUS]), ref)))
@@ -1126,11 +1117,11 @@ def test_uploaded_consulta_uses_the_spreadsheet_levels(repo):
     same = lado("mesma_uf_da_base", filtros=[filtro("densidade", ">=", 10)])
     missing = refused(districts(consulta=consulta(lado(), same)), "Confirme o referencial geodésico")
     assert missing["pendencia"]["chave"] == "crs"
-    # Na janela, o que impede medir a distância vira pendência do filtro de distância, e as contagens continuam.
+    # Na janela, as contagens não medem distância: sem o referencial confirmado, as etapas são contadas (ele é pedido no cálculo).
     counting = ok(upload({"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas"},
-                          "consulta": consulta(lado(filtros=[filtro("distancia", ">", 10)]), same)}, path="/api/painel/territorios"))
-    assert counting["base"]["contagens"]["filtros"] == 4
-    assert any(text.startswith("Confirme o referencial geodésico") for text in counting["base"]["pendencias"])
+                          "consulta": consulta(lado(), same)}, path="/api/painel/territorios"))
+    assert counting["base"]["contagens"]["filtros"] == 4 and counting["base"]["pendencias"] == []
+    assert counting["referencia"]["contagens"]["final"] == 4
     body = ok(districts(premissas=premises, consulta=consulta(lado(), same)))
     items = by_id(body)
     assert body["referencia"]["texto"] == "da mesma província de cada distrito da base com densidade ≥ 10 por 1.000 habitantes"
@@ -1398,10 +1389,11 @@ def test_real_consulta_matches_every_geodesic_and_the_series_matches_the_trend(r
 
 
 def test_real_consulta_of_the_command_north_far_from_acre(real):
-    """O exemplo do comando (27/10/2026) na base versionada: municípios do Norte com densidade abaixo de 0,5, a mais de 300 km
-    de um município do Acre com densidade acima de 2. As contagens das etapas batem entre a janela e o cálculo, e cada número
-    vem do motor: a densidade, a distância e a referência de cada item."""
-    spec = consulta(lado("regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 0.5), filtro("distancia", ">", 300)]),
+    """O exemplo do comando (27/10/2026) na base versionada, sem o filtro de distância (retirado no mesmo dia, a pedido do
+    responsável): municípios do Norte com densidade abaixo de 0,5 e, como referência, os do Acre com densidade acima de 2. As
+    contagens das etapas batem entre a janela e o cálculo, e cada número vem do motor: a densidade, a distância e a referência
+    de cada item. Os que ficam a mais de 300 km aparecem pela distância do resultado (o eixo X), e as Condições os separam."""
+    spec = consulta(lado("regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 0.5)]),
                     lado("ufs", ufs=["12"], filtros=[filtro("densidade", ">", 2)]))
     counts = ok(post(real, path="/api/painel/territorios", competencia="202406", consulta=spec))
     body = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", consulta=spec))
@@ -1411,16 +1403,16 @@ def test_real_consulta_of_the_command_north_far_from_acre(real):
     acre = {member["id"] for member in body["referencia"]["membros"]}
     assert acre and all(member["rotulo"].endswith("(AC)") and member["densidade"] > 2 for member in body["referencia"]["membros"])
     for item in body["itens"]:
-        assert item["id"][5] == "1" and item["densidade"] < 0.5 and item["distancia_km"] > 300
-        assert set(reference_of(item)) <= acre
-    # Sem o filtro de distância, entram todos os do Norte abaixo de 0,5, e o resultado mostra a distância de cada um.
-    open_spec = consulta(lado("regioes", regioes=["Norte"], filtros=[filtro("densidade", "<", 0.5)]), spec["referencia"])
-    wider = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", consulta=open_spec))
-    near = [item for item in wider["itens"] if item["distancia_km"] is not None and item["distancia_km"] <= 300]
-    unknown = [item for item in wider["itens"] if item["distancia_km"] is None]
-    assert len(wider["itens"]) == counts["base"]["contagens"]["final"] + len(near) + len(unknown)
-    assert len(unknown) <= counts["base"]["contagens"]["sem_referencia"]
+        assert item["id"][5] == "1" and item["densidade"] < 0.5
+        assert item["distancia_km"] is not None and set(reference_of(item)) <= acre
+    # A distância de cada um está no resultado; as Condições separam os que ficam a mais de 300 km, sem novo recorte da base.
+    far = [item["id"] for item in body["itens"] if item["distancia_km"] > 300]
+    assert 0 < len(far) < len(body["itens"])
+    filtered = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406", consulta=spec,
+                       condicoes=[{"atributo": "distancia_km", "operador": ">", "valor": 300}]))
+    assert sorted(item["id"] for item in filtered["itens"] if item["condicoes"]["situacao"] == "ATENDE") == sorted(far)
+    assert filtered["condicoes"]["contagens"] == {"ATENDE": len(far), "NAO_ATENDE": len(body["itens"]) - len(far),
+                                                  "NAO_AVALIAVEL": 0}
     # Todo o país, sem filtro, todos: entram todos os municípios.
     country = ok(post(real, path="/api/painel/territorios", competencia="202406", consulta=consulta(lado(), lado())))
-    assert country["base"]["contagens"] == {"partir_de": 5570, "filtros": 5570, "final": 5570, "nao_avaliaveis": 0,
-                                            "sem_referencia": 0}
+    assert country["base"]["contagens"] == {"partir_de": 5570, "filtros": 5570, "final": 5570, "nao_avaliaveis": 0}

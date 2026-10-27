@@ -136,9 +136,10 @@ SERIE_METHOD = "SERIE-OBSERVADA-1"
 # Escolha dos territórios (27/10/2026, comando Seleção de Territórios; no lugar do território de referência por
 # elegibilidade de 24/10/2026): base e referência escolhidas do mesmo jeito, num objeto de consulta serializável
 # (`consulta`), em três etapas: de onde partir (o país, regiões, estados ou a seleção prévia; na referência, também o mesmo
-# estado ou a mesma região de cada município da base), filtros por indicador combinados por E (CAP-SUB-01; na base, também
-# a distância até a referência mais próxima) e a escolha (todos os que atendem ou só os marcados). A distância de cada
-# município da base vai sempre até a referência mais próxima (CAP-ESP-02), sem ele mesmo.
+# estado ou a mesma região de cada município da base), filtros por indicador combinados por E (CAP-SUB-01) e a escolha
+# (todos os que atendem ou só os marcados). A distância de cada município da base vai sempre até a referência mais próxima
+# (CAP-ESP-02), sem ele mesmo, e aparece no eixo X do resultado; o filtro de distância da base saiu no mesmo dia, a pedido
+# do responsável (para filtrar por ela, as Condições).
 CONSULTA_KEYS = frozenset(("base", "referencia", "distancia"))
 LADO_KEYS = frozenset(("partir_de", "filtros", "escolha"))
 LADOS = {"base": "Base", "referencia": "Referência"}
@@ -146,7 +147,6 @@ PARTIR_FIXOS = ("pais", "regioes", "ufs", "selecao_previa")
 PARTIR_RELATIVOS = ("mesma_uf_da_base", "mesma_regiao_da_base")
 FILTRO_INDICADORES = ("densidade", "populacao", "quantidade")
 FILTRO_OPERADORES = ("<", "<=", ">", ">=")
-DISTANCIA_OPERADORES = (">", "<=")
 ESCOLHA_MODOS = ("todos", "marcados")
 DISTANCIA_CONSULTA = {"medida": "geodesica", "ate": "referencia_mais_proxima"}
 MAX_FILTROS = 12
@@ -304,9 +304,8 @@ class Spatial:
     nearest: dict = field(default_factory=dict)
     states: dict | None = None  # condição de cada id, lida uma vez do quadro de coordenadas
     # Escolha dos territórios (27/10/2026): o motivo da distância não avaliável de cada alvo (sem referência no recorte,
-    # referência do recorte sem coordenada) e os alvos sem referência no recorte (CONJUNTO_REFERENCIAS_VAZIO).
+    # referência do recorte sem coordenada).
     reasons: dict = field(default_factory=dict)
-    empty: set = field(default_factory=set)
 
     def condition(self, key):
         if self.states is None:
@@ -840,15 +839,14 @@ def _pendencia(ctx, chave):
     return {"regioes": "escolha ao menos uma região",
             "ufs": "escolha ao menos " + group.g("um", "uma") + " " + group.singular,
             "valor": "preencha o valor do filtro",
-            "marcados": "marque ao menos " + unit.g("um", "uma") + " " + unit.singular,
-            "distancia": "complete a referência para usar o filtro de distância"}[chave]
+            "marcados": "marque ao menos " + unit.g("um", "uma") + " " + unit.singular}[chave]
 
 
 def _consulta(raw, ctx):
     """Objeto da consulta da Escolha dos territórios (27/10/2026): base e referência com a mesma forma ({partir_de,
     filtros, escolha}) e a distância, que nesta versão é sempre a geodésica até a referência mais próxima. A forma
-    inválida é recusada com a mensagem; o que só falta completar (região, estado, valor do filtro, marcados, a referência
-    do filtro de distância) vai em `pendencias` de cada lado, na ordem das etapas, e não corta nada até ser completado."""
+    inválida é recusada com a mensagem; o que só falta completar (região, estado, valor do filtro, marcados) vai em
+    `pendencias` de cada lado, na ordem das etapas, e não corta nada até ser completado."""
     if (not isinstance(raw, dict) or set(raw) - CONSULTA_KEYS or not {"base", "referencia"} <= set(raw)):
         raise ValueError("Consulta inválida: use {\"base\": {\"partir_de\", \"filtros\", \"escolha\"}, \"referencia\": "
                          "{\"partir_de\", \"filtros\", \"escolha\"}, \"distancia\": {\"medida\": \"geodesica\", \"ate\": "
@@ -858,8 +856,6 @@ def _consulta(raw, ctx):
                          "mais próxima, {\"medida\": \"geodesica\", \"ate\": \"referencia_mais_proxima\"}.")
     referencia = _lado(raw["referencia"], ctx, "referencia")
     base = _lado(raw["base"], ctx, "base")
-    if any(item["indicador"] == "distancia" for item in base["filtros"]) and referencia["pendencias"]:
-        base["pendencias"].append(_pendencia(ctx, "distancia"))
     return {"base": base, "referencia": referencia, "distancia": dict(DISTANCIA_CONSULTA)}
 
 
@@ -922,9 +918,9 @@ def _partir_de(raw, ctx, lado, pendencias):
 
 
 def _filtros(raw, ctx, lado, pendencias):
-    """Filtros por indicador (CAP-SUB-01 atômicos, combinados por E): densidade, população e quantidade com <, ≤, > ou ≥
-    e, só na base, a distância até a referência mais próxima com > ou ≤ (km). O valor vai como texto decimal canônico;
-    sem valor, o filtro fica pendente."""
+    """Filtros por indicador (CAP-SUB-01 atômicos, combinados por E): densidade, população e quantidade com <, ≤, > ou ≥,
+    iguais nos dois lados. O valor vai como texto decimal canônico; sem valor, o filtro fica pendente. O filtro de distância
+    da base saiu (27/10/2026): a distância até a referência mais próxima aparece no eixo X do resultado."""
     nome = LADOS[lado]
     if raw is None:
         return []
@@ -937,19 +933,15 @@ def _filtros(raw, ctx, lado, pendencias):
             raise ValueError(nome + " da consulta: filtro inválido; use {\"indicador\", \"operador\", \"valor\"}.")
         indicador, operador, valor = item["indicador"], item["operador"], item["valor"]
         if indicador == "distancia":
-            if lado != "base":
-                raise ValueError("A referência não tem o filtro de distância: ele vale só na base, até a referência mais "
-                                 "próxima.")
-            if operador not in DISTANCIA_OPERADORES:
-                raise ValueError("Operador do filtro de distância não reconhecido: use > (acima de) ou <= (até).")
-        elif indicador in FILTRO_INDICADORES:
-            if operador not in FILTRO_OPERADORES:
-                raise ValueError("Operador do filtro não reconhecido: use <, <=, > ou >=.")
-            if indicador in ("densidade", "populacao") and not ctx.density:
-                raise ValueError(_no_population(ctx))
-        else:
-            raise ValueError("Indicador do filtro não reconhecido: use densidade, populacao, quantidade" +
-                             (" ou distancia." if lado == "base" else "."))
+            raise ValueError("O filtro de distância saiu da Escolha dos territórios: a distância até a referência mais "
+                             "próxima de cada " + ctx.labels.unidade.singular + " da base aparece no eixo X do resultado; "
+                             "para filtrar por ela, use as Condições.")
+        if indicador not in FILTRO_INDICADORES:
+            raise ValueError("Indicador do filtro não reconhecido: use densidade, populacao ou quantidade.")
+        if operador not in FILTRO_OPERADORES:
+            raise ValueError("Operador do filtro não reconhecido: use <, <=, > ou >=.")
+        if indicador in ("densidade", "populacao") and not ctx.density:
+            raise ValueError(_no_population(ctx))
         if valor is None or (isinstance(valor, str) and not valor.strip()):
             pendencias.append(_pendencia(ctx, "valor"))
             out.append({"indicador": indicador, "operador": operador, "valor": None})
@@ -1021,7 +1013,7 @@ def _partir_texto(ctx, partir):
 
 def _lado_texto(ctx, spec):
     """O lado da consulta em palavras, com as condições como nas Condições ("densidade < 0,5 por 1.000 habitantes"):
-    "da Região Norte com densidade < 0,5 por 1.000 habitantes e distância à referência mais próxima > 300 km"."""
+    "da Região Norte com densidade < 0,5 por 1.000 habitantes e população > 20000 habitantes"."""
     text = _partir_texto(ctx, spec["partir_de"])
     tree = _filtros_tree(ctx, spec["filtros"])
     if tree is not None:
@@ -1328,87 +1320,44 @@ def _partir_keys(ctx, partir, previa):
     return keys
 
 
-def _distance_table(spatial, keys):
-    """A distância até a referência mais próxima no formato dos critérios combinados: o valor exato (com as referências
-    empatadas) ou não avaliável com o motivo (sem coordenada válida, referência do recorte sem coordenada válida, ou sem
-    referência no recorte, com CONJUNTO_REFERENCIAS_VAZIO)."""
-    out = {}
-    for key in keys:
-        value = spatial.values.get(key)
-        if value is not None:
-            out[key] = {"avaliavel": True, "valor": value, "exato": Fraction(value),
-                        "referencias": list(spatial.nearest.get(key) or []), "alcance": SCOPE_FULL}
-            continue
-        state = spatial.condition(key)
-        motives = [MOTIVES.get(state, "DEPENDENCIA_NAO_AVALIAVEL") if state != "VALIDA" else "DEPENDENCIA_NAO_AVALIAVEL"]
-        if key in spatial.empty:
-            motives.append("CONJUNTO_REFERENCIAS_VAZIO")
-        out[key] = {"avaliavel": False, "motivos": motives}
-    return out
-
-
-def _lado_selecao(ctx, spec, previa, final, spatial=None):
+def _lado_selecao(ctx, spec, previa, final):
     """Um lado da consulta (regras do comando de 27/10/2026): está em partir_de E atende a todos os filtros com valor
     (CAP-SUB-01, três estados, pela mesma avaliação das Condições: o não avaliável nunca entra nem vira "não atende") E,
-    no modo marcados, está entre os marcados. O filtro sem valor não corta; o de distância só entra com as distâncias
-    (`spatial`) e, sem elas, também não corta. `sem_referencia`: os candidatos que ficam de fora porque a distância
-    deles não é avaliável (sem referência no recorte ou sem coordenada válida), para o resultado mostrar o motivo."""
+    no modo marcados, está entre os marcados. O filtro sem valor não corta."""
     if _partir_pendente(spec):
-        return {"partir_de": [], "filtrados": [], "final": [], "fora": [], "sem_referencia": [],
+        return {"partir_de": [], "filtrados": [], "final": [], "fora": [],
                 "contagens": {"partir_de": None, "filtros": None, "final": None, "nao_avaliaveis": None}}
     partir = _partir_keys(ctx, spec["partir_de"], previa)
-    tree = _filtros_tree(ctx, [item for item in spec["filtros"] if item["indicador"] != "distancia" or spatial is not None])
-    states, distance = dict.fromkeys(partir, "ATENDE"), {}
+    tree = _filtros_tree(ctx, spec["filtros"])
+    states = dict.fromkeys(partir, "ATENDE")
     if tree is not None:
         nodes, leaves = tree["nodes"], tree["leaves"]
-        table = {attribute: _distance_table(spatial, partir) if attribute == "distancia" else
-                 _record_values(final, attribute, partir) for attribute in {nodes[own]["atributo"] for own in leaves}}
+        table = {attribute: _record_values(final, attribute, partir) for attribute in {nodes[own]["atributo"] for own in leaves}}
         inputs = {"nodes": nodes, "root": tree["root"], "leaves": leaves, "targets": list(partir), "catalog": {}}
-        own = next((own for own in leaves if nodes[own]["atributo"] == "distancia"), None)
         for record in evaluate(None, None, None, inputs, _Evaluator(table)):
             states[record["elemento"]] = record["estado"]
-            if own is not None:
-                distance[record["elemento"]] = record["nos"][own]["estado"]
     passed = [key for key in partir if states[key] == "ATENDE"]
     escolha = spec["escolha"]
     if escolha["modo"] == "marcados":
         marked, inside = set(escolha["municipios"]), set(passed)
         chosen = [key for key in passed if key in marked]
         fora = [key for key in escolha["municipios"] if key not in inside]
-        candidates = [key for key in partir if key in marked]
     else:
-        chosen, fora, candidates = passed, [], partir
-    missing = [key for key in candidates if states[key] == "NAO_AVALIAVEL" and distance.get(key) == "NAO_AVALIAVEL"]
+        chosen, fora = passed, []
     pending = escolha["modo"] == "marcados" and not escolha["municipios"]
-    return {"partir_de": partir, "filtrados": passed, "final": chosen, "fora": fora, "sem_referencia": missing,
+    return {"partir_de": partir, "filtrados": passed, "final": chosen, "fora": fora,
             "contagens": {"partir_de": len(partir), "filtros": len(passed), "final": None if pending else len(chosen),
                           "nao_avaliaveis": sum(1 for key in partir if states[key] == "NAO_AVALIAVEL")}}
 
 
-def _consulta_selecao(ctx, consulta, previa, final, distancias, erros=None):
-    """Os dois lados da consulta no motor: primeiro a referência; depois a base, com o filtro de distância medido até a
-    referência mais próxima de cada candidato (só com a referência completa). Com `distancias` (o cálculo do gráfico), a
-    distância de cada município da base sai sempre, com ou sem o filtro. Com `erros` (as contagens da janela), o que
-    impede medir a distância (o referencial de uma planilha, por exemplo) vira pendência da base em vez de erro."""
+def _consulta_selecao(ctx, consulta, previa, final, distancias):
+    """Os dois lados da consulta no motor, cada um pelas próprias etapas. Com `distancias` (o cálculo do gráfico) e a
+    referência completa, a distância de cada município da base até a referência mais próxima."""
     ref_spec, base_spec = consulta["referencia"], consulta["base"]
     referencia = _lado_selecao(ctx, ref_spec, previa, final)
-    complete = not ref_spec["pendencias"]
+    base = _lado_selecao(ctx, base_spec, previa, final)
     spatial = None
-    if complete and not _partir_pendente(base_spec) and any(
-            item["indicador"] == "distancia" and item["valor"] is not None for item in base_spec["filtros"]):
-        try:
-            spatial = _consulta_spatial(ctx, ref_spec, referencia["final"],
-                                        _partir_keys(ctx, base_spec["partir_de"], previa))
-        except ChoiceRequired as exc:
-            if erros is None:
-                raise
-            erros.append(str(exc))
-        except ValueError as exc:
-            if erros is None:
-                raise
-            erros.append(str(exc))
-    base = _lado_selecao(ctx, base_spec, previa, final, spatial)
-    if distancias and spatial is None and complete:
+    if distancias and not ref_spec["pendencias"]:
         spatial = _consulta_spatial(ctx, ref_spec, referencia["final"], base["final"])
     return {"base": base, "referencia": referencia, "spatial": spatial}
 
@@ -1441,7 +1390,7 @@ def _consulta_spatial(ctx, spec, references, targets) -> Spatial:
         pools = {}
         for key in valid:
             pools.setdefault(pool_of(key), []).append(key)
-        values, nearest, reasons, empty = {}, {}, {}, []
+        values, nearest, reasons = {}, {}, {}
         for pool, alvos in pools.items():
             members = list(references) if pool[0] == "*" else grouped.get(pool, []) if pool[1] is not None else []
             invalid = [(key, spatial.condition(key)) for key in members if spatial.condition(key) != "VALIDA"]
@@ -1460,14 +1409,12 @@ def _consulta_spatial(ctx, spec, references, targets) -> Spatial:
                     nearest[key] = [members[j] for j in ties[i]]
                 else:
                     reasons[key] = _sem_referencia_text(ctx, pool)
-                    empty.append(key)
-        return {"valores": values, "referencias": nearest, "motivos": reasons, "vazios": empty}
+        return {"valores": values, "referencias": nearest, "motivos": reasons}
 
     entradas = {"referencias": _ids_key(list(references)), "recorte": tipo if tipo in PARTIR_RELATIVOS else "*",
                 "alvos": _ids_key(valid)}
     out = _reaproveitar(ctx, "distancias_consulta", entradas, calcular)
     spatial.values, spatial.nearest, spatial.reasons = out["valores"], out["referencias"], out["motivos"]
-    spatial.empty = set(out["vazios"])
     return spatial
 
 
@@ -1517,9 +1464,8 @@ def _unidade_da_lista(ctx, key, final):
 
 def _consulta_block(ctx, consulta, selecao, spatial, items, final):
     """`referencia` da resposta com a Escolha dos territórios: a consulta normalizada, a base e a referência em palavras,
-    as contagens de cada etapa, os candidatos que ficaram fora da base porque a distância deles não é avaliável (com o
-    motivo) e os territórios que ficaram como referência de algum município (na ordem do código), com a UF, a população,
-    a quantidade e a densidade de cada um, lidas das mesmas medidas dos itens."""
+    as contagens de cada etapa e os territórios que ficaram como referência de algum município (na ordem do código), com
+    a UF, a população, a quantidade e a densidade de cada um, lidas das mesmas medidas dos itens."""
     used = sorted({key for item in items if item["tipo"] == "municipio" for key in spatial.nearest.get(item["id"], [])},
                   key=lambda key: (ctx.catalog[key]["code"], key))
 
@@ -1529,17 +1475,10 @@ def _consulta_block(ctx, consulta, selecao, spatial, items, final):
         return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
                 "populacao": _num(values.get("populacao")), "quantidade": _num(values.get("quantidade")),
                 "densidade": _num(values.get("densidade"))}
-
-    def outside(key):
-        entry = ctx.catalog[key]
-        return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
-                "motivo": _distance_reason(ctx, spatial, key) or _no_record(ctx, ctx.period)}
     base, referencia = selecao["base"], selecao["referencia"]
     return {"tipo": "consulta", "consulta": _consulta_publica(consulta),
             "base_texto": _lado_texto(ctx, consulta["base"]), "texto": _lado_texto(ctx, consulta["referencia"]),
-            "contagens": {"base": {**base["contagens"], "sem_referencia": len(base["sem_referencia"])},
-                          "referencia": dict(referencia["contagens"])},
-            "sem_referencia": [outside(key) for key in base["sem_referencia"][:MAX_LISTA]],
+            "contagens": {"base": dict(base["contagens"]), "referencia": dict(referencia["contagens"])},
             "membros": [member(key) for key in used], "origem": _consulta_origem(ctx, consulta, selecao)}
 
 
@@ -1815,15 +1754,6 @@ def _notes(ctx, base, sets, items, final, initial, spatial, reference):
                          "mínimo do conjunto completo), com todos os empates exatos; uma referência do recorte sem "
                          "coordenada válida deixa a distância não avaliável, sem trocar pela mais próxima entre as demais; "
                          "sem referência no recorte, não há distância (nunca zero).")
-            outside = selecao["base"]["sem_referencia"]
-            if outside:
-                single = len(outside) == 1
-                notes.append(lab.n(len(outside)) + (" ficou" if single else " ficaram") + " fora da base porque o filtro "
-                             "de distância não é avaliável para " + (lab.g("ele", "ela") if single else
-                                                                    lab.g("eles", "elas")) +
-                             " (sem referência no recorte ou sem coordenada válida): " +
-                             _join([_label(ctx.catalog[key]) for key in outside[:5]] +
-                                   (["mais " + str(len(outside) - 5)] if len(outside) > 5 else [])) + ".")
         else:
             notes.append("Referência: " + _join([_label(ctx.catalog[key]) for key in members[:8]]) +
                          (" e mais " + str(len(members) - 8) if len(members) > 8 else "") +
@@ -3306,8 +3236,8 @@ def territorios(sources, mapping, options, frame=None) -> dict:
     lado, as contagens de cada etapa (partir de, filtros, escolha), as pendências, a prévia dos que entram (quantos e os
     primeiros nomes, na ordem do código) e os marcados (com o estado, a densidade e se passam pelas etapas 1 e 2); quando
     pedida, a lista para marcar: os que passaram pelas etapas 1 e 2, pela busca no nome, em ordem alfabética, com o
-    estado e a densidade. Com o filtro de distância e a referência completa, a base é cortada pela distância até a
-    referência mais próxima, a mesma do gráfico. Nada é registrado na sessão e nada vai ao provedor de IA."""
+    estado e a densidade. Nenhuma distância é medida aqui (ela sai no cálculo do gráfico). Nada é registrado na sessão e
+    nada vai ao provedor de IA."""
     ctx = context(sources, mapping, options, TERRITORIOS_KEYS, frame=frame, page=True)
     if options.get("consulta") is None:
         raise ValueError("Envie a consulta da Escolha dos territórios.")
@@ -3315,17 +3245,13 @@ def territorios(sources, mapping, options, frame=None) -> dict:
     previa = _universe(options.get("base"), ctx, "a seleção prévia", allow_empty=True)
     lista = _lista(options.get("lista"))
     final = _measures(ctx, ctx.period)
-    erros = []
-    selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=False, erros=erros)
-    consulta["base"]["pendencias"] = list(dict.fromkeys(consulta["base"]["pendencias"] + erros))
+    selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=False)
     out = {"competencia": ctx.period, "categoria": ctx.category,
            "selecao_previa": {"total": len(previa), "nomes": [_label(ctx.catalog[key]) for key in
                                                                 previa[:NOMES_DA_PREVIA]]}}
     for lado in LADOS:
         spec, sel = consulta[lado], selecao[lado]
         counts = dict(sel["contagens"])
-        if lado == "base":
-            counts["sem_referencia"] = len(sel["sem_referencia"])
         passed = set(sel["filtrados"])
         out[lado] = {"contagens": counts, "pendencias": list(spec["pendencias"]),
                      "previa": None if counts["final"] is None else {

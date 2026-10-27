@@ -629,14 +629,14 @@ SIRGAS 2000 ou WGS 84 no WGS 84, sem arredondamento no cálculo) e cobertura das
 territórios**: a base e a referência são territórios irmãos, escolhidos do mesmo jeito, cada um com o mesmo seletor em três
 etapas: **Partir de** (todo o país, uma ou mais regiões, um ou mais estados ou a seleção prévia, a escolha da Seleção de
 Territórios; só na referência, também "conforme a base": a mesma UF ou a mesma região de cada município da base), **Filtrar
-por** (opcional: densidade, população e quantidade, combinados por E; só na base, a distância até a referência mais próxima) e
-**Escolher** (todos que atendem ou só os marcados). A janela tem a frase-resumo fixa no alto ("{Base} → referência:
+por** (opcional: densidade, população e quantidade, combinados por E) e **Escolher** (todos que atendem ou só os marcados). A janela tem a frase-resumo fixa no alto ("{Base} → referência:
 {Referência}", montada por modelo, nunca pelo LLM), as abas "1 Base" e "2 Referência" e o rodapé com "Calcular" e a linha de
 estado; toda contagem e prévia vem do motor (`POST /api/painel/territorios`). A distância é sempre a geodésica de cada
 município da base até a referência mais próxima, nunca ele mesmo ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md) e
-[painel integrado](Docs/PAINEL_INTEGRADO.md)). Com o filtro de distância, o município sem referência no próprio recorte fica
-fora da base e aparece no resultado, pelo nome, como "sem referência no recorte" (CAP-ESP-02, CAP-SUB-01); sem o filtro, entra
-com a distância não avaliável. Uma referência pelo nome, pedida na conversa, vira os marcados da Referência. No gráfico, cada
+[painel integrado](Docs/PAINEL_INTEGRADO.md)); ela aparece no eixo X do resultado, e a janela não filtra por ela (o filtro de
+distância da base saiu no mesmo dia, a pedido do responsável; para separar pela distância, as Condições). O município sem
+referência no próprio recorte continua na base, com a distância não avaliável e o motivo, "sem referência no recorte"
+(CAP-ESP-02), nunca zero. Uma referência pelo nome, pedida na conversa, vira os marcados da Referência. No gráfico, cada
 referência entra como bolha de contexto no início do eixo (0 km), com os valores do motor, e uma linha tracejada liga cada
 município da base à sua referência mais próxima (até 30 ligações); no mapa, as ligações e a referência dentro do quadro, com o
 nome; acima do desenho, a frase com a base, as referências e as distâncias. De 24 a 26/10/2026, valeu o **Território de

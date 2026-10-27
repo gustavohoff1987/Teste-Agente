@@ -154,18 +154,14 @@ export type PainelItem = {
 export type MembroDaReferencia = { id: string; rotulo: string; uf?: string | null; populacao?: number | null; quantidade?: number | null;
   densidade?: number | null };
 /** Quantos restam em cada etapa de um lado da consulta (do motor): de onde parte, depois dos filtros, no fim (null enquanto a
- * etapa está incompleta), quantos ficaram de fora por um filtro não avaliável e, na base, quantos ficaram de fora porque a
- * distância deles não é avaliável (sem referência no recorte). */
-export type ContagensDoLado = { partirDe: number | null; filtros: number | null; final: number | null; naoAvaliaveis: number | null;
-  semReferencia?: number };
-/** Um município fora da base porque a distância dele não é avaliável, com o motivo do motor. */
-export type ForaPorDistancia = { id: string; rotulo: string; uf: string | null; motivo: string };
+ * etapa está incompleta) e quantos ficaram de fora por um filtro não avaliável. */
+export type ContagensDoLado = { partirDe: number | null; filtros: number | null; final: number | null; naoAvaliaveis: number | null };
 /** A referência da resposta: um município ou um conjunto escolhidos (membros) ou, com a Escolha dos territórios, a consulta
  * calculada, a base e a referência em palavras (do motor), as contagens e os territórios que ficaram como referência mais próxima
  * de algum item. */
 export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "consulta"; membros: MembroDaReferencia[]; origem: string;
   consulta?: ConsultaTerritorios | null; texto?: string; baseTexto?: string;
-  contagens?: { base: ContagensDoLado; referencia: ContagensDoLado }; semReferencia?: ForaPorDistancia[] };
+  contagens?: { base: ContagensDoLado; referencia: ContagensDoLado } };
 export type Contagens = Record<string, number>;
 export type TendenciaTopo = { janela: string[]; contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null;
   bloqueio: string | null; unidadeTempo: string | null;
@@ -422,8 +418,7 @@ function itemDe(bruto: unknown): PainelItem | null {
 /** As contagens de um lado da consulta como o motor as manda. */
 function contagensDe(bruto: unknown): ContagensDoLado {
   const o = objeto(bruto);
-  return { partirDe: num(o?.partir_de), filtros: num(o?.filtros), final: num(o?.final), naoAvaliaveis: num(o?.nao_avaliaveis),
-    ...(num(o?.sem_referencia) !== null ? { semReferencia: num(o?.sem_referencia)! } : {}) };
+  return { partirDe: num(o?.partir_de), filtros: num(o?.filtros), final: num(o?.final), naoAvaliaveis: num(o?.nao_avaliaveis) };
 }
 /** A consulta devolvida pelo motor (a normalizada), com as mesmas regras de forma da tela; o motor só devolve o que aceitou. */
 function consultaDe(bruto: unknown): ConsultaTerritorios | null {
@@ -456,9 +451,7 @@ function referenciaRespostaDe(bruto: unknown): PainelReferenciaResposta | null {
   const contagens = objeto(referencia.contagens);
   return { tipo: "consulta", membros, origem, consulta: consultaDe(referencia.consulta), texto: texto(referencia.texto) ?? "",
     baseTexto: texto(referencia.base_texto) ?? "",
-    contagens: { base: contagensDe(contagens?.base), referencia: contagensDe(contagens?.referencia) },
-    semReferencia: lista(referencia.sem_referencia).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "",
-      rotulo: texto(m!.rotulo) ?? "", uf: texto(m!.uf), motivo: texto(m!.motivo) ?? "" })) };
+    contagens: { base: contagensDe(contagens?.base), referencia: contagensDe(contagens?.referencia) } };
 }
 
 /** A série temporal do topo (`serie`): as competências do intervalo; sem elas, nada. */

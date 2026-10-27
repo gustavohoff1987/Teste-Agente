@@ -950,15 +950,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         cadaUm + " não tem outra referência, ou falta a coordenada de uma referência. O motivo de " + cadaUm + " está em Não avaliáveis, " +
         "nos Detalhes.")
     : null;
-  // Com o filtro de distância, quem ficou fora da base porque a distância não é avaliável (sem referência no recorte, sem coordenada
-  // válida) aparece pelo nome, com o motivo do motor: nunca some em silêncio (27/10/2026; a regra trivalente de CAP-SUB-01).
-  const foraPorDistancia = referenciaDaTela?.semReferencia ?? [];
-  const totalForaPorDistancia = referenciaDaTela?.contagens?.base.semReferencia ?? foraPorDistancia.length;
-  const textoForaPorDistancia = totalForaPorDistancia ? (totalForaPorDistancia === 1 ? "1 " + unidade.singular + " ficou" : formatarNumero(totalForaPorDistancia, true) +
-    " " + unidade.plural + " ficaram") + " fora da base porque o filtro de distância não é avaliável para " + (totalForaPorDistancia === 1
-      ? (fUnidade ? "ela" : "ele") : (fUnidade ? "elas" : "eles")) + ": " + foraPorDistancia.slice(0, 5).map(item => item.rotulo + " (" +
-      (/^Sem referência no recorte/.test(item.motivo) ? "sem referência no recorte" : "distância não avaliável") + ")").join("; ") +
-    (totalForaPorDistancia > 5 ? "; e mais " + formatarNumero(totalForaPorDistancia - 5, true) : "") + "." : null;
   // Fora do gráfico (25/10/2026): quem não tem o valor que o posiciona (o indicador; na análise espacial, a distância até a
   // referência mais próxima; na rotatividade, a coorte) fica dito junto do desenho, pelo nome, com o caminho do motivo, e o mapa
   // mostra essas unidades no lugar delas. Sem nenhuma referência, vale o aviso acima; na Série temporal (que desenha as
@@ -1631,8 +1622,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <SlidersHorizontal size={14} aria-hidden="true"/><span>{semReferencia}{" "}
               <button type="button" data-testid="analise-ref-sem-resultado-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
                 Mudar a escolha dos territórios</button></span></p>}
-          {textoForaPorDistancia && distanciaNaTela && <p data-testid="analise-sem-referencia-no-recorte" role="status" className="analise-aviso-familia">
-            <Crosshair size={14} aria-hidden="true"/><span>{textoForaPorDistancia}</span></p>}
           {foraDoGrafico && <p data-testid="analise-fora-do-grafico" role="status" className="analise-aviso-familia">
             <ChartScatter size={14} aria-hidden="true"/><span>{foraDoGrafico}</span></p>}
           {/* Base e referência (25/10/2026): cada território da base, a referência mais próxima dele e a distância do motor, à vista no

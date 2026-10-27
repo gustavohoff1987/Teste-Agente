@@ -561,17 +561,21 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   // A janela abre com a base na seleção prévia (sem ela, o país) e a referência no país, sem filtros.
   assert.deepEqual(M.consultaInicial({comSelecao: true}), consulta(lado('selecao_previa'), lado('pais')));
   assert.equal(M.consultaInicial({comSelecao: false}).base.partir_de.tipo, 'pais');
-  // O exemplo do comando: municípios do Norte com densidade abaixo de 0,5, a mais de 300 km de um município do Acre com densidade acima de 2.
-  const exemplo = consulta(lado('regioes', {regioes: ['Norte'], filtros: [f('densidade', '<', 0.5), f('distancia', '>', 300)]}),
+  // O exemplo do comando, sem o filtro de distância (retirado em 27/10/2026, a pedido do responsável: a distância até a referência
+  // mais próxima aparece no eixo X do resultado): municípios do Norte com densidade abaixo de 0,5 e, como referência, os do Acre com
+  // densidade acima de 2.
+  const exemplo = consulta(lado('regioes', {regioes: ['Norte'], filtros: [f('densidade', '<', 0.5)]}),
     lado('ufs', {ufs: ['12'], filtros: [f('densidade', '>', 2)]}));
   // Serializa e desserializa sem perda (critério 18), também com o rascunho guardando o que a opção em uso não usa.
   const rascunho = consulta(lado('pais', {regioes: ['Sul'], ufs: ['43'], filtros: [f('populacao', '>=', null)], modo: 'todos',
     municipios: ['code:4314902']}), lado('mesma_uf_da_base', {filtros: [f('quantidade', '<=', 10)], modo: 'marcados', municipios: ['code:1200401']}));
   for (const c of [exemplo, rascunho, M.consultaInicial({comSelecao: true})]) assert.deepEqual(M.lerConsulta(JSON.parse(JSON.stringify(c))), c);
-  // Forma que não confere: null (a distância só na base, as opções relativas só na referência, operador e valor fora do contrato).
+  // Forma que não confere: null (a distância não é filtro em nenhum dos lados, as opções relativas só na referência, operador e
+  // valor fora do contrato).
   assert.equal(M.lerConsulta(consulta(lado('pais'), lado('pais', {filtros: [f('distancia', '>', 1)]}))), null);
   assert.equal(M.lerConsulta(consulta(lado('mesma_uf_da_base'), lado('pais'))), null);
-  assert.equal(M.lerConsulta(consulta(lado('pais', {filtros: [f('distancia', '<', 1)]}), lado('pais'))), null);
+  assert.equal(M.lerConsulta(consulta(lado('pais', {filtros: [f('distancia', '>', 300)]}), lado('pais'))), null);
+  assert.equal(M.lerConsulta(consulta(lado('pais', {filtros: [f('distancia', '<=', 50)]}), lado('pais'))), null);
   assert.equal(M.lerConsulta(consulta(lado('pais', {filtros: [f('densidade', '!=', 1)]}), lado('pais'))), null);
   assert.equal(M.lerConsulta(consulta(lado('pais', {filtros: [f('densidade', '<', -1)]}), lado('pais'))), null);
   assert.equal(M.lerConsulta({...exemplo, distancia: {medida: 'estrada', ate: 'referencia_mais_proxima'}}), null);
@@ -583,12 +587,12 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(M.mesmaConsulta(rascunho, M.consultaParaOMotor(rascunho)), true);
   assert.equal(M.mesmaConsulta(exemplo, null), false);
   assert.equal(M.mesmaConsulta(exemplo, consulta(exemplo.base, lado('ufs', {ufs: ['12'], filtros: [f('densidade', '>', 2.5)]}))), false);
-  // O que falta completar, com os textos do comando (os mesmos do motor), na ordem das etapas; o filtro de distância espera a referência.
+  // O que falta completar, com os textos do comando (os mesmos do motor), na ordem das etapas; cada lado só pelas próprias etapas.
   assert.deepEqual(M.pendenciasDaConsulta(exemplo, BR), {base: [], referencia: []});
-  const faltas = consulta(lado('regioes', {filtros: [f('densidade', '<', null), f('distancia', '>', 300)], modo: 'marcados'}),
+  const faltas = consulta(lado('regioes', {filtros: [f('densidade', '<', null)], modo: 'marcados'}),
     lado('ufs', {filtros: [f('densidade', '>', 2)]}));
   assert.deepEqual(M.pendenciasDaConsulta(faltas, BR), {base: ['escolha ao menos uma região', 'preencha o valor do filtro',
-    'marque ao menos um município', 'complete a referência para usar o filtro de distância'], referencia: ['escolha ao menos um estado']});
+    'marque ao menos um município'], referencia: ['escolha ao menos um estado']});
   assert.equal(M.textoDaPendencia('base', 'escolha ao menos uma região'), 'Base incompleta: escolha ao menos uma região.');
   assert.deepEqual(M.pendenciasDoLado(consulta(lado('ufs'), lado('pais')), 'base', DISTRITOS), ['escolha ao menos uma província']);
   assert.deepEqual(M.pendenciasDoLado(consulta(lado('pais', {modo: 'marcados'}), lado('pais')), 'base', {...DISTRITOS,
@@ -602,8 +606,7 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
     ['code:1100205', 'PORTO VELHO (RO)']]);
   const ctx = {rotulos: BR, brasil: true, grupos, nomes};
   const frase = c => M.textoDaFraseDaConsulta(M.fraseDaConsulta(c, ctx));
-  assert.equal(frase(exemplo), 'Municípios do Norte com densidade abaixo de 0,5 e a mais de 300 km da referência → referência: o mais próximo ' +
-    'do Acre com densidade acima de 2');
+  assert.equal(frase(exemplo), 'Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo do Acre com densidade acima de 2');
   assert.equal(frase(consulta(lado('pais'), lado('pais'))), 'Municípios de todo o país → referência: o mais próximo, em qualquer estado');
   assert.equal(frase(consulta(lado('pais'), lado('mesma_uf_da_base', {filtros: [f('densidade', '>', 1.5)]}))),
     'Municípios de todo o país → referência: o mais próximo com densidade acima de 1,5, na mesma UF');
@@ -616,10 +619,6 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
     ctx).base.texto, 'MANAUS (AM) e BELEM (PA)');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais', {modo: 'marcados', municipios: [...nomes.keys(), 'code:9']}), lado('pais')), ctx).base.texto,
     'MANAUS (AM), BELEM (PA), RIO BRANCO (AC) e mais 2');
-  assert.equal(M.fraseDaConsulta(consulta(lado('pais', {filtros: [f('densidade', '<', 1), f('distancia', '>', 300)]}),
-    lado('pais', {filtros: [f('densidade', '>', 1.5)]})), ctx).base.texto, 'Municípios de todo o país com densidade abaixo de 1 e a mais de 300 km da referência');
-  assert.equal(M.fraseDaConsulta(consulta(lado('pais', {filtros: [f('distancia', '<=', 50)]}), lado('pais')), ctx).base.texto,
-    'Municípios de todo o país a até 50 km da referência');
   assert.equal(M.fraseDaConsulta(consulta(lado('ufs', {ufs: ['14', '12', '13', '11']}), lado('selecao_previa', {filtros: [f('quantidade', '>=', 10)]})),
     ctx).base.texto, 'Municípios de Rondônia, do Acre, do Amazonas e de mais 1 estado');
   assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('selecao_previa', {filtros: [f('quantidade', '>=', 10)]})), ctx).referencia.texto,
@@ -649,7 +648,7 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(M.semTerritorios(semSelecao), false);
   assert.equal(M.bloqueioDoPedido({...semSelecao, familia: 'distribuicao'}, {fonte: 'brasil', rotulos: BR}), M.TEXTO_SEM_SELECAO);
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'espacial'}), {disponivel: true, pendente: false, motivo: ''}), M.TEXTO_ESCOLHA_DA_REFERENCIA);
-  // As Grandes Regiões e o valor digitado: a densidade e a distância com decimais; a população e a quantidade, inteiros.
+  // As Grandes Regiões e o valor digitado: a densidade com decimais; a população e a quantidade, inteiros.
   assert.deepEqual(M.REGIOES_DO_BRASIL.map(r => r.nome), ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste']);
   assert.deepEqual([M.regiaoDoEstado('12'), M.regiaoDoEstado('43'), M.regiaoDoEstado('53')], ['Norte', 'Sul', 'Centro-Oeste']);
   assert.equal(M.lerValorDeCorte('2,36', 'densidade'), 2.36);
@@ -662,37 +661,35 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(M.lerValorDeCorte('-1', 'densidade'), null);
   assert.equal(M.lerValorDeCorte('abc', 'populacao'), null);
   assert.equal(M.lerValorDeCorte('', 'densidade'), null);
-  assert.equal(M.lerValorDoFiltro('300,5', 'distancia'), 300.5);
+  assert.equal(M.lerValorDoFiltro('0,5', 'densidade'), 0.5);
   assert.equal(M.lerValorDoFiltro('20.000', 'populacao'), 20000);
   assert.equal(M.lerValorDoFiltro('2,5', 'quantidade'), null);
   assert.equal(M.UNIDADES_DO_CORTE.densidade.unidade, 'profissionais por 1.000 habitantes');
   assert.equal(M.UNIDADES_DO_CORTE.quantidade.unidade, 'profissionais');
   assert.equal(M.UNIDADES_DO_CORTE.populacao.unidade, 'habitantes');
-  // Os textos fixos da janela: OU e NÃO ficam em Critérios combinados; a distância é a geodésica até a referência mais próxima.
+  // Os textos fixos da janela: OU e NÃO ficam em Critérios combinados; a distância é a geodésica até a referência mais próxima. Os
+  // filtros são os mesmos nos dois lados, sem a distância.
   assert.equal(M.TEXTO_DE_APOIO_DOS_FILTROS, 'Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em ' +
     'Critérios combinados.');
   assert.equal(M.notaDaDistanciaDaConsulta(BR), 'Distância em linha reta (geodésica) até a referência mais próxima de cada município da base.');
-  assert.deepEqual(M.OPERADORES_DA_DISTANCIA.map(op => M.TEXTO_DOS_OPERADORES[op]), ['acima de', 'até']);
+  assert.deepEqual(Object.keys(M.NOMES_DOS_FILTROS), ['densidade', 'populacao', 'quantidade']);
+  assert.equal('OPERADORES_DA_DISTANCIA' in M, false);
   assert.deepEqual(M.OPERADORES_DO_FILTRO.map(op => M.TEXTO_DOS_OPERADORES[op]), ['abaixo de', 'até', 'acima de', 'a partir de']);
-  // A resposta com a consulta: as contagens de cada lado, quem ficou fora da base pela distância não avaliável e a referência mais
-  // próxima de cada item (referencia_do_item).
-  const SEM = 'Sem referência no recorte: nenhum outro município da referência no mesmo estado (Distrito Federal) em junho de 2024 ' +
-    '(DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)';
+  // A resposta com a consulta: as contagens de cada lado e a referência mais próxima de cada item (referencia_do_item).
   const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
     referencia: {tipo: 'consulta', consulta: M.consultaParaOMotor(exemplo), texto: 'do estado escolhido (Acre) com densidade > 2 por 1.000 habitantes',
       base_texto: 'da Região Norte com densidade < 0,5 por 1.000 habitantes', contagens: {
-        base: {partir_de: 450, filtros: 38, final: 38, nao_avaliaveis: 1, sem_referencia: 1},
+        base: {partir_de: 450, filtros: 40, final: 40, nao_avaliaveis: 0},
         referencia: {partir_de: 22, filtros: 3, final: 3, nao_avaliaveis: 0}},
-      sem_referencia: [{id: 'code:5300108', rotulo: 'BRASILIA (DF)', uf: 'DF', motivo: SEM}],
       membros: [{id: 'code:1200203', rotulo: 'CRUZEIRO DO SUL (AC)', uf: 'AC', populacao: 91888, quantidade: 200, densidade: 2.17}],
       origem: 'Para cada município da base, o município mais próximo…'},
     itens: [municipio('code:1300607', 'BENJAMIN CONSTANT (AM)', {distancia_km: 724.17,
       referencia_do_item: {id: 'code:1200203', rotulo: 'CRUZEIRO DO SUL (AC)', empate: []}})]});
   assert.equal(r.referencia.tipo, 'consulta');
   assert.deepEqual(r.referencia.consulta, M.consultaParaOMotor(exemplo));
-  assert.deepEqual(r.referencia.contagens, {base: {partirDe: 450, filtros: 38, final: 38, naoAvaliaveis: 1, semReferencia: 1},
+  assert.deepEqual(r.referencia.contagens, {base: {partirDe: 450, filtros: 40, final: 40, naoAvaliaveis: 0},
     referencia: {partirDe: 22, filtros: 3, final: 3, naoAvaliaveis: 0}});
-  assert.deepEqual(r.referencia.semReferencia, [{id: 'code:5300108', rotulo: 'BRASILIA (DF)', uf: 'DF', motivo: SEM}]);
+  assert.equal('semReferencia' in r.referencia, false);
   assert.equal(r.referencia.texto, 'do estado escolhido (Acre) com densidade > 2 por 1.000 habitantes');
   assert.deepEqual(r.itens[0].referenciaDoItem, [{id: 'code:1200203', rotulo: 'CRUZEIRO DO SUL (AC)'}]);
   const dica = M.montarDica(r.itens[0], {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: true, variacao: false,
@@ -706,14 +703,14 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.deepEqual(M.ligacoesDoMapa(r.itens, ['code:1300607']), [{de: 'code:1300607', para: ['code:1200203']}]);
   // As contagens da janela (POST /api/painel/territorios), nos tipos da tela; nada é calculado aqui.
   const t = A.normalizarTerritorios({competencia: '202406', categoria: 'MEDICINA', selecao_previa: {total: 62, nomes: ['ALVARAES (AM)']},
-    base: {contagens: {partir_de: 450, filtros: 38, final: null, nao_avaliaveis: 0, sem_referencia: 0}, pendencias: ['marque ao menos um município'],
+    base: {contagens: {partir_de: 450, filtros: 40, final: null, nao_avaliaveis: 0}, pendencias: ['marque ao menos um município'],
       previa: null, marcados: []},
     referencia: {contagens: {partir_de: 22, filtros: 3, final: 3, nao_avaliaveis: 0}, pendencias: [],
       previa: {total: 3, nomes: ['BRASILEIA (AC)', 'CRUZEIRO DO SUL (AC)', 'RIO BRANCO (AC)']},
       marcados: [{id: 'code:1200401', rotulo: 'RIO BRANCO (AC)', uf: 'AC', densidade: 2.9, passa: true}]},
     lista: {lado: 'referencia', busca: 'rio', total: 1, limite: 100, itens: [{id: 'code:1200401', rotulo: 'RIO BRANCO (AC)', uf: 'AC', densidade: 2.9}]}});
   assert.deepEqual(t.selecaoPrevia, {total: 62, nomes: ['ALVARAES (AM)']});
-  assert.deepEqual(t.base.contagens, {partirDe: 450, filtros: 38, final: null, naoAvaliaveis: 0, semReferencia: 0});
+  assert.deepEqual(t.base.contagens, {partirDe: 450, filtros: 40, final: null, naoAvaliaveis: 0});
   assert.deepEqual(t.base.pendencias, ['marque ao menos um município']);
   assert.deepEqual(t.referencia.previa, {total: 3, nomes: ['BRASILEIA (AC)', 'CRUZEIRO DO SUL (AC)', 'RIO BRANCO (AC)']});
   assert.deepEqual(t.referencia.marcados, [{id: 'code:1200401', rotulo: 'RIO BRANCO (AC)', uf: 'AC', densidade: 2.9, passa: true}]);
@@ -724,7 +721,7 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.ok(espacial.includes('Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas'), espacial);
   assert.ok(espacial.includes('no mesmo estado ou na mesma região de cada município da base'), espacial);
   assert.ok(espacial.includes('O próprio município nunca é a sua referência'), espacial);
-  assert.ok(!/mais distante|pelo nome|um conjunto deles/.test(espacial), espacial);
+  assert.ok(!/mais distante|pelo nome|um conjunto deles|também pela distância/.test(espacial), espacial);
   assert.ok(M.apresentacaoDaAba('espacial', {rotulos: DISTRITOS, brasil: false, comGrupos: true}).paragrafos[0]
     .includes('a planilha inteira, uma ou mais províncias ou a seleção prévia'));
 });
@@ -735,7 +732,7 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
     '(DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)';
   const r = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',
     referencia: {tipo: 'consulta', texto: 'de todo o país com densidade > 2 por 1.000 habitantes',
-      contagens: {base: {partir_de: 15, filtros: 15, final: 15, nao_avaliaveis: 0, sem_referencia: 0},
+      contagens: {base: {partir_de: 15, filtros: 15, final: 15, nao_avaliaveis: 0},
         referencia: {partir_de: 5570, filtros: 2510, final: 2510, nao_avaliaveis: 0}},
       membros: [{id: 'code:130353', rotulo: 'PRESIDENTE FIGUEIREDO (AM)', uf: 'AM', populacao: 33004, quantidade: 71, densidade: 2.1512543934068598},
         {id: 'code:140010', rotulo: 'BOA VISTA (RR)', uf: 'RR', populacao: 470169, quantidade: 1181, densidade: 2.5118627557325133}],

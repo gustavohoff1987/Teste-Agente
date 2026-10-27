@@ -218,8 +218,8 @@ territórios" (sem ela → 422 "Envie a consulta da Escolha dos territórios.");
 entre 1 e 500.").
 
 Resposta 200: `{competencia, categoria, selecao_previa: {total, nomes}, base, referencia, lista?}`, com cada lado
-`{contagens: {partir_de, filtros, final, nao_avaliaveis, sem_referencia (só na base)}, pendencias, previa: {total, nomes} |
-null, marcados: [{id, rotulo, uf, densidade, passa}]}` e a lista `{lado, busca, total, limite, itens: [{id, rotulo, uf,
+`{contagens: {partir_de, filtros, final, nao_avaliaveis}, pendencias, previa: {total, nomes} | null, marcados: [{id, rotulo,
+uf, densidade, passa}]}` e a lista `{lado, busca, total, limite, itens: [{id, rotulo, uf,
 densidade}]}`.
 
 - As contagens são as de cada etapa: `partir_de` (quantos há de onde o lado parte), `filtros` (quantos atendem a todos os
@@ -227,9 +227,9 @@ densidade}]}`.
 - `previa`: quantos entram e os primeiros nomes (até 8, na ordem do código); `marcados`: cada marcado com o estado, a densidade
   e se passa pelas etapas 1 e 2 (`passa`); `lista`: quem passou pelas etapas 1 e 2, pela busca no nome (sem acentos e sem
   caixa), em ordem alfabética.
-- Com o filtro de distância e a referência completa, a base é cortada pela distância até a referência mais próxima, a mesma
-  do gráfico (`sem_referencia` conta quem fica de fora porque a distância não é avaliável). O que impede medir a distância (o
-  referencial de uma planilha, por exemplo) vira pendência da base, com o texto do motor, em vez de erro.
+- Nenhuma distância é medida nesta rota (ela sai no cálculo do gráfico); por isso, o que só o cálculo pede (o referencial de
+  uma planilha, por exemplo) não aparece aqui. Até a retirada do filtro de distância (27/10/2026, a pedido do responsável), a
+  base era cortada aqui pela distância, com a contagem `sem_referencia`.
 - **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA. Os números vêm das mesmas funções da rota 1.
 
 ### Erros
@@ -354,7 +354,7 @@ Quando pedidos:
 | `comparacao` | `{indicador, itens: [{id, rotulo, tipo, valor, avaliavel, motivos}], maior, menor, diferencas, relacoes, notas}`. Dois itens: `diferencas` = [{a, b, relacao, diferenca}], A e B em ordem de nome, relação A/B (`MAIOR`, `MENOR` ou `IGUALDADE`) e diferença assinada A − B. Três: `relacoes` = [{id, valor, proximo_valor_maior, mesmo_valor}] e `diferencas` vazia (sem diferenças automáticas entre pares, AT-84). `maior` e `menor` são listas de ids (empate: mais de um). Com menos de dois itens com valor, as listas ficam vazias, com a nota. |
 | `rotatividade` | `{inicial, final, universo, avaliaveis, nao_avaliaveis}`. |
 | `serie` | Com `serie` (24/10/2026; seção "Série temporal"): `{janela: {inicio, fim, competencias}, competencias, indicador, unidade_valor, itens_com_valor, itens, rotulo_itens}`. |
-| `referencia` | Com a Escolha dos territórios (27/10/2026; seção "Escolha dos territórios"): `{tipo: "consulta", consulta, base_texto, texto, contagens: {base, referencia}, sem_referencia, membros, origem}`. Com membros escolhidos, a forma do contrato de 21/10. |
+| `referencia` | Com a Escolha dos territórios (27/10/2026; seção "Escolha dos territórios"): `{tipo: "consulta", consulta, base_texto, texto, contagens: {base, referencia}, membros, origem}`. Com membros escolhidos, a forma do contrato de 21/10. |
 
 Itens: os campos do contrato de 21/10 e, sempre, `grupo_territorial` (base do Brasil: o prefixo IBGE do estado, como
 `"13"`; planilha: o valor da coluna `grupo_territorial` ou `null`; estados e conjuntos: `null`). No nível estados, o item
@@ -461,7 +461,8 @@ E os blocos do topo do mesmo pedido (trechos):
 Comando do responsável (Seleção de Territórios, 27/10/2026), no lugar do território de referência por elegibilidade de
 24/10/2026: na análise espacial, a base e a referência são escolhidas do mesmo jeito, num objeto de consulta serializável,
 em três etapas: de onde partir, filtros por indicador combinados por E e a escolha (todos os que atendem ou só os
-marcados). A distância de cada município da base vai sempre até a referência mais próxima, sem ele mesmo. Só na página
+marcados). A distância de cada município da base vai sempre até a referência mais próxima, sem ele mesmo, e aparece no
+eixo X do resultado (a consulta não filtra pela distância; para isso, as Condições). Só na página
 única (com `nivel`) e só no nível municípios (nos níveis estados e Brasil, a recusa de sempre, com o motivo). Com `consulta`,
 `base` é a **seleção prévia** (a escolha da Seleção de Territórios), lida só por `partir_de` `"selecao_previa"`, e os itens
 são os municípios que a consulta seleciona; `referencia` não vai junto (→ 422 "Com a Escolha dos territórios, a referência
@@ -469,8 +470,7 @@ vem da consulta: não envie referencia junto com consulta.").
 
 ```json
 {"consulta": {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
-                       "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5},
-                                   {"indicador": "distancia", "operador": ">", "valor": 300}],
+                       "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5}],
                        "escolha": {"modo": "todos", "municipios": []}},
               "referencia": {"partir_de": {"tipo": "ufs", "regioes": [], "ufs": ["12"]},
                              "filtros": [{"indicador": "densidade", "operador": ">", "valor": 2}],
@@ -496,20 +496,20 @@ vem da consulta: não envie referencia junto com consulta.").
 - **`filtros`:** até 12 `{"indicador", "operador", "valor"}`, CAP-SUB-01 atômicos combinados por E, pela mesma árvore das
   Condições (`parse_tree`, valores exatos, três estados). `indicador`: `densidade` (por 1.000 habitantes), `populacao`
   (habitantes) ou `quantidade`, com `<`, `<=`, `>` ou `>=` (outro → 422 "Operador do filtro não reconhecido: use <, <=, > ou
-  >=."); só na base, `distancia` (km até a referência mais próxima), com `>` ou `<=` (→ 422 "Operador do filtro de distância
-  não reconhecido: use > (acima de) ou <= (até)."; na referência → 422 "A referência não tem o filtro de distância: ele vale
-  só na base, até a referência mais próxima."). `valor`: número não negativo ou texto com vírgula ou ponto decimal; `null`
+  >=."), iguais nos dois lados. `distancia` → 422 "O filtro de distância saiu da Escolha dos territórios: a distância até a
+  referência mais próxima de cada município da base aparece no eixo X do resultado; para filtrar por ela, use as Condições."
+  (o filtro da base existiu em `63d492c` e saiu no mesmo dia, a pedido do responsável; as Condições com `distancia_km` valem
+  com a consulta). `valor`: número não negativo ou texto com vírgula ou ponto decimal; `null`
   (ou vazio) deixa o lado pendente ("preencha o valor do filtro") e não corta nada. Densidade ou população numa planilha sem
   população → 422 com o motivo.
 - **`escolha`:** `{"modo": "todos"}` (o padrão) ou `{"modo": "marcados", "municipios": [...]}` (ids da base, como em
   `base.ids`); a lista no modo todos → 422 "… a lista de marcados vale só no modo marcados."; marcados vazios deixam o lado
   pendente ("marque ao menos um município").
 - **Pendências:** o que só falta completar não é erro de forma: vai em `pendencias` de cada lado na rota 4, e a rota 1
-  recusa com a primeira (→ 422 "Base incompleta: escolha ao menos uma região." ou "Referência incompleta: …"). O filtro de
-  distância com a referência incompleta deixa a base pendente ("complete a referência para usar o filtro de distância").
+  recusa com a primeira (→ 422 "Base incompleta: escolha ao menos uma região." ou "Referência incompleta: …"). Cada lado
+  depende só das próprias etapas.
 - **Seleção** (as regras do comando): cada lado é quem está em `partir_de` E atende a todos os filtros com valor (o não
-  avaliável nunca entra nem vira "não atende") E, no modo marcados, está entre os marcados. Primeiro a referência; depois a
-  base, com o filtro de distância medido até a referência mais próxima de cada candidato.
+  avaliável nunca entra nem vira "não atende") E, no modo marcados, está entre os marcados.
 - **Distância:** para cada município da base com coordenada válida, a geodésica de Karney (no elipsoide do referencial) até a
   referência mais próxima, **sem ele mesmo** (`nearest_reference.extreme_exact`, com todos os empates exatos; CAP-ESP-02, o
   mínimo do conjunto completo). Com `mesma_uf_da_base` ou `mesma_regiao_da_base`, contam só as referências do estado (ou da
@@ -518,16 +518,15 @@ vem da consulta: não envie referencia junto com consulta.").
   junho de 2024: sem coordenada válida na referência MANACAPURU (AM) (SEM_INFORMACAO_ESPACIAL); a mais próxima não é escolhida
   entre as demais (DEPENDENCIA_NAO_AVALIAVEL)"); recorte sem outra referência também, com o motivo ("Sem referência no recorte:
   nenhum outro município da referência no mesmo estado (Roraima) em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL,
-  CONJUNTO_REFERENCIAS_VAZIO)"), nunca distância zero. Com o filtro de distância, esse município fica fora da base (o filtro
-  não é avaliável para ele, CAP-SUB-01) e é listado em `referencia.sem_referencia`, com o motivo; sem o filtro, entra com a
-  distância não avaliável. Num conjunto, a distância não se aplica (cada membro tem a sua). As distâncias ficam na memória do
-  pedido pelas referências, pelo recorte e pelos alvos.
+  CONJUNTO_REFERENCIAS_VAZIO)"), nunca distância zero: o município continua na base, com a distância não avaliável. Num
+  conjunto, a distância não se aplica (cada membro tem a sua). As distâncias ficam na memória do pedido pelas referências, pelo
+  recorte e pelos alvos. Para separar os municípios pela distância, as Condições (`condicoes` com `distancia_km`), com os três
+  estados: quem não tem distância fica `NAO_AVALIAVEL`, nunca "não atende".
 - **Resposta:** os itens são os municípios da base (as referências não entram como itens); por item, `referencia_do_item`. No
   topo, `referencia` com `tipo: "consulta"`: `consulta` (a normalizada, sem as pendências, com os valores dos filtros como
   números), `base_texto` e `texto` (cada lado em palavras, com as condições como nas Condições: "da Região Norte com densidade
-  < 0,5 por 1.000 habitantes e distância à referência mais próxima > 300 km"), `contagens` (`base` e `referencia`, cada uma com
-  `partir_de`, `filtros`, `final` e `nao_avaliaveis`; na base, também `sem_referencia`), `sem_referencia` (até 500
-  `{id, rotulo, uf, motivo}`), `membros` (as referências que ficaram como a mais próxima de algum município, na ordem do
+  < 0,5 por 1.000 habitantes e população > 20000 habitantes"), `contagens` (`base` e `referencia`, cada uma com `partir_de`,
+  `filtros`, `final` e `nao_avaliaveis`), `membros` (as referências que ficaram como a mais próxima de algum município, na ordem do
   código, com `id`, `rotulo`, `uf`, `populacao`, `quantidade` e `densidade` na competência, lidos das mesmas medidas dos itens)
   e a `origem` em palavras ("Para cada município da base, o município mais próximo entre os municípios do estado escolhido
   (Acre) com densidade > 2 por 1.000 habitantes (N municípios em junho de 2024); o próprio município não é a sua referência.

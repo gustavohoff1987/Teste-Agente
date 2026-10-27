@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { LoaderCircle, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { pedirTerritorios, type FonteDoMotor, type MunicipioDaLista, type PainelCriterio, type PainelUniverso, type Premissas,
   type RespostaTerritorios } from "./painelApi";
 import {
-  LADOS, MAX_FILTROS, NOMES_DOS_FILTROS, NOMES_DOS_LADOS, NOTA_TPL11, OPERADORES_DA_DISTANCIA, OPERADORES_DO_FILTRO, REGIOES_DO_BRASIL,
+  LADOS, MAX_FILTROS, NOMES_DOS_FILTROS, NOMES_DOS_LADOS, NOTA_TPL11, OPERADORES_DO_FILTRO, REGIOES_DO_BRASIL,
   TEXTO_DE_APOIO_DOS_FILTROS, TEXTO_DOS_OPERADORES, UNIDADES_DOS_FILTROS, consultaParaOMotor, escreverLimites, escreverValorDoFiltro,
   formatarIndicador, fraseDaConsulta, generoDe, lerLimites, lerValorDoFiltro, mesmaConsulta, notaDaDistanciaDaConsulta, operadorDoCriterio,
   pendenciasDaConsulta, quantos, textoDaPendencia, type ConsultaTerritorios, type FiltroDaConsulta, type GrupoInfo, type IndicadorDoFiltro,
@@ -144,8 +144,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
     mudarLado(lado, { partir_de: { ...atual, [chave]: lista } });
   }
   function adicionarFiltro(lado: Lado, indicador: IndicadorDoFiltro) {
-    const operador: OperadorDoFiltro = indicador === "distancia" ? ">" : "<";
-    mudarFiltros(lado, [...rascunho[lado].filtros, { indicador, operador, valor: null }], [...textos[lado], ""]);
+    mudarFiltros(lado, [...rascunho[lado].filtros, { indicador, operador: "<", valor: null }], [...textos[lado], ""]);
   }
   function mudarFiltro(lado: Lado, indice: number, parte: Partial<FiltroDaConsulta>, texto?: string) {
     const filtros = rascunho[lado].filtros.map((filtro, i) => i === indice ? { ...filtro, ...parte } : filtro);
@@ -194,7 +193,6 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
     const opcao = opcoes[lado];
     const id = (sufixo: string) => "territorios-" + lado + "-" + sufixo;
     const relativa = l.partir_de.tipo === "mesma_uf_da_base" || l.partir_de.tipo === "mesma_regiao_da_base";
-    const referenciaIncompleta = pendencias.referencia.length > 0;
     const marcados: MunicipioDaLista[] = l.escolha.municipios.map(m => dados?.marcados.find(item => item.id === m)
       ?? { id: m, rotulo: nomesConhecidos().get(m) || m, uf: null, densidade: null });
     const lista = resposta?.lista?.lado === lado ? resposta.lista : null;
@@ -251,16 +249,14 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         {l.filtros.map((filtro, indice) => {
           const texto = textos[lado][indice] ?? "";
           const invalido = !!texto.trim() && filtro.valor === null;
-          const distancia = filtro.indicador === "distancia";
           return <div key={indice} className="territorios-filtro" data-testid={id("filtro")} data-indicador={filtro.indicador}>
             <div className="territorios-filtro-linha">
-              {distancia ? <span className="territorios-filtro-nome">{NOMES_DOS_FILTROS.distancia}</span>
-                : <select aria-label="Indicador" data-testid={id("filtro-indicador")} value={filtro.indicador} className="analise-campo"
-                  onChange={event => mudarFiltro(lado, indice, { indicador: event.target.value as IndicadorDoFiltro,
-                    valor: lerValorDoFiltro(texto, event.target.value as IndicadorDoFiltro) })}>
-                  {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <option key={item} value={item}
-                    disabled={item !== "quantidade" && !p.temPopulacao}>{NOMES_DOS_FILTROS[item]}</option>)}
-                </select>}
+              <select aria-label="Indicador" data-testid={id("filtro-indicador")} value={filtro.indicador} className="analise-campo"
+                onChange={event => mudarFiltro(lado, indice, { indicador: event.target.value as IndicadorDoFiltro,
+                  valor: lerValorDoFiltro(texto, event.target.value as IndicadorDoFiltro) })}>
+                {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <option key={item} value={item}
+                  disabled={item !== "quantidade" && !p.temPopulacao}>{NOMES_DOS_FILTROS[item]}</option>)}
+              </select>
               <button type="button" className="analise-icone" data-testid={id("filtro-remover")} aria-label={"Remover o filtro de " +
                 NOMES_DOS_FILTROS[filtro.indicador].toLocaleLowerCase("pt-BR")} onClick={() => removerFiltro(lado, indice)}>
                 <Trash2 size={14} aria-hidden="true"/></button>
@@ -268,16 +264,14 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
             <div className="territorios-filtro-linha">
               <select aria-label="Operador" data-testid={id("filtro-operador")} value={filtro.operador} className="analise-campo"
                 onChange={event => mudarFiltro(lado, indice, { operador: event.target.value as OperadorDoFiltro })}>
-                {(distancia ? OPERADORES_DA_DISTANCIA : OPERADORES_DO_FILTRO).map(operador => <option key={operador} value={operador}>
+                {OPERADORES_DO_FILTRO.map(operador => <option key={operador} value={operador}>
                   {TEXTO_DOS_OPERADORES[operador]}</option>)}
               </select>
               <input aria-label="Valor" data-testid={id("filtro-valor")} inputMode="decimal" value={texto} className="analise-campo"
-                aria-invalid={invalido} placeholder={filtro.indicador === "densidade" ? "0,5" : filtro.indicador === "populacao" ? "20.000"
-                  : filtro.indicador === "quantidade" ? "10" : "300"} onChange={event => digitarValor(lado, indice, event.target.value)}/>
+                aria-invalid={invalido} placeholder={filtro.indicador === "densidade" ? "0,5" : filtro.indicador === "populacao" ? "20.000" : "10"}
+                onChange={event => digitarValor(lado, indice, event.target.value)}/>
               <span className="territorios-unidade">{UNIDADES_DOS_FILTROS[filtro.indicador]}</span>
             </div>
-            {distancia && <p className="territorios-aviso" data-testid={id("filtro-depende")}><TriangleAlert size={13} aria-hidden="true"/>
-              depende da Referência{referenciaIncompleta ? ": complete a referência para usar o filtro de distância" : ""}</p>}
             {invalido && <p className="territorios-erro">{filtro.indicador === "populacao" || filtro.indicador === "quantidade"
               ? "Use um número inteiro não negativo." : "Use um número não negativo, com vírgula decimal (por exemplo, 0,5)."}</p>}
           </div>;
@@ -287,14 +281,10 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
             data-testid={id("mais-" + item)} className="analise-botao-secundario" disabled={l.filtros.length >= MAX_FILTROS ||
               (item !== "quantidade" && !p.temPopulacao)} onClick={() => adicionarFiltro(lado, item)}>
             <Plus size={13} aria-hidden="true"/>{NOMES_DOS_FILTROS[item]}</button>)}
-          {lado === "base" && <button type="button" data-testid={id("mais-distancia")} className="analise-botao-secundario"
-            disabled={l.filtros.length >= MAX_FILTROS} onClick={() => adicionarFiltro(lado, "distancia")}>
-            <Plus size={13} aria-hidden="true"/>Distância</button>}
         </div>
         <p className="territorios-apoio" data-testid={id("apoio-filtros")}>{TEXTO_DE_APOIO_DOS_FILTROS}</p>
         <p className="territorios-contagem" data-testid={id("contagem-filtros")}>{contagem(contagens?.filtros, contagens?.filtros === 1 ? " resta" : " restam")}
-          {!!contagens?.semReferencia && " · " + quantos(contagens.semReferencia, unidade) + " sem referência no recorte (distância não avaliável)"}
-          {!!contagens?.naoAvaliaveis && !contagens?.semReferencia && " · " + quantos(contagens.naoAvaliaveis, unidade) + " com filtro não avaliável"}</p>
+          {!!contagens?.naoAvaliaveis && " · " + quantos(contagens.naoAvaliaveis, unidade) + " com filtro não avaliável"}</p>
       </fieldset>
 
       <fieldset className="territorios-etapa" data-testid={id("escolher")}>
