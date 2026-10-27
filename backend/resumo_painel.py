@@ -257,17 +257,15 @@ def _change_one(c: Composer, body: dict, facts: dict):
 
 
 def _spatial(c: Composer, body: dict, facts: dict):
-    singular, plural, _ = _units(body)
+    singular, plural, article = _units(body)
     reference = body["referencia"]
-    if reference.get("tipo") == "elegiveis":
-        # Território de referência por elegibilidade (24/10/2026): a referência é de cada território; a frase copia a
-        # delimitação e a condição da resposta.
+    if reference.get("tipo") == "consulta":
+        # Escolha dos territórios (27/10/2026): a referência mais próxima é de cada território; a frase copia a descrição
+        # da referência da resposta.
         feminine = (body["rotulos"]["unidade"].get("genero") == "f") if body.get("rotulos") else False
-        relation = ("mais próxima" if feminine else "mais próximo") if reference["relacao"] == "mais_proxima" \
-            else "mais distante"
-        c.text(" Distância em linha reta até o território de referência de cada " + singular + " (" +
-               ("a " if feminine else "o ") + relation + " entre " + ("as " if feminine else "os ") + plural + " ") \
-            .label("referencia", "delimitacao", "texto").text(" com ").label("referencia", "condicao", "texto").text("): ")
+        c.text(" Distância em linha reta até a referência mais próxima de cada " + singular + " (" +
+               ("a mais próxima entre as " if feminine else "o mais próximo entre os ") + plural + " ") \
+            .label("referencia", "texto").text("): ")
     else:
         members = reference["membros"]
         c.text(" Distância em linha reta até " + ("a referência " if len(members) == 1 else
@@ -279,7 +277,9 @@ def _spatial(c: Composer, body: dict, facts: dict):
     extremes = facts["extremos"]["distancia"]
     missing = facts["contagens"]["sem_distancia"]
     if extremes is None and not missing:
-        c.text("só a referência no gráfico.")
+        # Com a Escolha dos territórios, as referências não são itens: sem distância e sem item, a base ficou vazia.
+        c.text(("nenhuma " if article == "as" else "nenhum ") + singular + " na base." if reference.get("tipo") == "consulta"
+               else "só a referência no gráfico.")
     elif extremes is None:
         c.count(singular, plural, "resumo", "contagens", "sem_distancia").text(" sem distância.")
     else:

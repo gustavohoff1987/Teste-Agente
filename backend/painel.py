@@ -1,8 +1,9 @@
 """Painel integrado de bolhas: os números que a tela posiciona, filtra e desenha (Adendo BOL-20261021 da SPEC, contrato do
 painel de 21/10/2026 e contrato da página única de análise de 22/10/2026; ver Docs/PAINEL_INTEGRADO.md).
 
-Rotas POST /api/painel, POST /api/painel/referencias e POST /api/painel/mapa (main.py; o mapa lê as coordenadas
-autorizadas da análise espacial, sem cálculo novo). O pedido de /api/painel tem dois formatos:
+Rotas POST /api/painel, POST /api/painel/referencias, POST /api/painel/mapa (main.py; o mapa lê as coordenadas
+autorizadas da análise espacial, sem cálculo novo) e POST /api/painel/territorios (as contagens da janela Escolha dos
+territórios, 27/10/2026). O pedido de /api/painel tem dois formatos:
 - sem `nivel` (contrato de 21/10/2026): só a base Brasil oficial (fonte municipal), com as chaves e a resposta de então;
 - com `nivel` (página única, 22/10/2026): a base Brasil (municípios ou estados) ou uma planilha enviada, com tendência,
   grupos por posição, faixas, condições, ordenação, comparação, rotatividade, disponibilidade por análise, linha de
@@ -20,6 +21,10 @@ Nada aqui é fórmula nova; cada número vem do motor das análises:
   membro mais próximo do conjunto de referência, pelo mínimo do conjunto completo, com os empates exatos (uma referência
   sem coordenada válida deixa a distância não avaliável), com a camada complementar de coordenadas como na análise
   espacial;
+- escolha dos territórios (`consulta`, 27/10/2026): base e referência por partir de, filtros e escolha, com os filtros
+  pela árvore dos critérios combinados (combined_criteria.parse_tree e evaluate, CAP-SUB-01, três estados, E) e a
+  distância de cada município da base até a referência mais próxima, sem ele mesmo, por nearest_reference.extreme_exact
+  (CAP-ESP-02, com os empates exatos), no estado ou na região de cada município quando a referência é relativa à base;
 - variação percentual: a de temporal_change.change (CAP-TMP-01, DA-14), em aritmética exata com inteiros (_percent);
   base zero não é avaliável;
 - tendência: trend.classify_frame e trend.summarize (CAP-TEN-01, DA-15), as funções da evolução temporal;
@@ -48,6 +53,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from fractions import Fraction
 
 import numpy as np
@@ -55,7 +61,8 @@ import pandas as pd
 
 from analysis_premises import apply_premises, limitations as premise_limitations, premise_notes
 from brazil_catalog_profile import FIELDS, curated_profile, source_identity
-from combined_criteria import band_edges, bands_of, describe, evaluate, parse_tree, ranking_of, select_top
+from combined_criteria import (band_edges, bands_of, decimal_value, describe, evaluate, parse_tree, ranking_of,
+                               select_top)
 from comparison_window import NOTE_PAIRS, NOTE_SET
 from conversation_session import fingerprint
 from data_contract import (CRS_ALIASES, SUPPORTED_CRS, ChoiceRequired, canonical_crs, count_unit_label, period_positions,
@@ -92,7 +99,8 @@ REQUIRED_ROLES = frozenset(("territory", "territory_id", "period", "category", "
 SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
 PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "grupos_mapa", "faixas",
-                       "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos", "estados", "serie"))
+                       "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos", "estados", "serie",
+                       "consulta"))
 PAGE_KEYS = PANEL_KEYS | PAGE_ONLY
 REFERENCE_KEYS = frozenset(("competencia", "categoria", "universo", "criterio", "premissas", "rotulos"))
 ATTRIBUTES = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
@@ -125,15 +133,25 @@ MAX_WINDOW = 80
 # Série temporal (24/10/2026): os valores observados em cada competência de um intervalo, sem classificação.
 MAX_SERIE = 600
 SERIE_METHOD = "SERIE-OBSERVADA-1"
-# Território de referência por elegibilidade (24/10/2026): primeiro os territórios elegíveis (a delimitação e a condição,
-# CAP-REF-01 por CAP-SUB-01), depois o mais próximo (CAP-ESP-02) ou o mais distante (CAP-ESP-01 com CAP-SUB-02 e
-# CAP-SUB-03) de cada território, sem ele mesmo.
-ELIGIBLE_KEYS = frozenset(("relacao", "delimitacao", "condicao"))
-RELATIONS = {"mais_proxima": "mais próximo", "mais_distante": "mais distante"}
-DELIMITATIONS = ("todos", "mesmo_grupo", "grupos", "mesma_regiao", "regioes")
-ELIGIBLE_OPERATORS = ("<", "<=", ">", ">=")
-ELIGIBLE_SHAPE = ("Território de referência inválido: use {\"relacao\": \"mais_proxima\" ou \"mais_distante\", "
-                  "\"delimitacao\": {\"tipo\", \"valores\"}, \"condicao\": {\"atributo\", \"operador\", \"valor\"}}.")
+# Escolha dos territórios (27/10/2026, comando Seleção de Territórios; no lugar do território de referência por
+# elegibilidade de 24/10/2026): base e referência escolhidas do mesmo jeito, num objeto de consulta serializável
+# (`consulta`), em três etapas: de onde partir (o país, regiões, estados ou a seleção prévia; na referência, também o mesmo
+# estado ou a mesma região de cada município da base), filtros por indicador combinados por E (CAP-SUB-01; na base, também
+# a distância até a referência mais próxima) e a escolha (todos os que atendem ou só os marcados). A distância de cada
+# município da base vai sempre até a referência mais próxima (CAP-ESP-02), sem ele mesmo.
+CONSULTA_KEYS = frozenset(("base", "referencia", "distancia"))
+LADO_KEYS = frozenset(("partir_de", "filtros", "escolha"))
+LADOS = {"base": "Base", "referencia": "Referência"}
+PARTIR_FIXOS = ("pais", "regioes", "ufs", "selecao_previa")
+PARTIR_RELATIVOS = ("mesma_uf_da_base", "mesma_regiao_da_base")
+FILTRO_INDICADORES = ("densidade", "populacao", "quantidade")
+FILTRO_OPERADORES = ("<", "<=", ">", ">=")
+DISTANCIA_OPERADORES = (">", "<=")
+ESCOLHA_MODOS = ("todos", "marcados")
+DISTANCIA_CONSULTA = {"medida": "geodesica", "ate": "referencia_mais_proxima"}
+MAX_FILTROS = 12
+MAX_LISTA = 500
+NOMES_DA_PREVIA = 8
 PREMISE_KEYS = ("confirmed_roles", "count_unit", "custom_count_unit", "crs", "number_format", "object_declaration",
                 "category_constant", "duplicate_policy", "component_columns")
 COUNT_UNITS = ("pessoas", "vinculos", "postos", "outro")
@@ -285,10 +303,10 @@ class Spatial:
     referencial: str  # o referencial confirmado (canônico), o das premissas e da chave de execução
     nearest: dict = field(default_factory=dict)
     states: dict | None = None  # condição de cada id, lida uma vez do quadro de coordenadas
-    # Território de referência por elegibilidade: o motivo da distância não avaliável de cada alvo (sem território
-    # elegível, elegível sem coordenada) e a avaliação da condição (contagens e quantos são elegíveis).
+    # Escolha dos territórios (27/10/2026): o motivo da distância não avaliável de cada alvo (sem referência no recorte,
+    # referência do recorte sem coordenada) e os alvos sem referência no recorte (CONJUNTO_REFERENCIAS_VAZIO).
     reasons: dict = field(default_factory=dict)
-    eligible: dict | None = None
+    empty: set = field(default_factory=set)
 
     def condition(self, key):
         if self.states is None:
@@ -797,12 +815,13 @@ def _criterion(raw, ctx, allow_universe):
 
 def _reference(raw, ctx):
     """Referência (CAP-REF-01): um município ou um conjunto de municípios escolhido pelo usuário; o critério só registra
-    a origem. Desde 24/10/2026, também o território de referência por elegibilidade (_eligible_reference)."""
+    a origem. Na página única, a referência da Análise Espacial vem da Escolha dos territórios (`consulta`, 27/10/2026)."""
     unit = ctx.labels.unidade
     if raw is None or raw == {}:
         return None
-    if isinstance(raw, dict) and set(raw) & ELIGIBLE_KEYS:
-        return _eligible_reference(raw, ctx)
+    if isinstance(raw, dict) and set(raw) & {"relacao", "delimitacao", "condicao"}:
+        raise ValueError("O território de referência por elegibilidade foi substituído pela Escolha dos territórios: envie "
+                         "a referência em consulta.referencia (partir_de, filtros e escolha).")
     if not isinstance(raw, dict) or set(raw) - {"membros", "criterio"}:
         raise ValueError("Referência inválida: use {\"membros\", \"criterio\"}.")
     members = raw.get("membros")
@@ -813,108 +832,218 @@ def _reference(raw, ctx):
     return {"membros": list(members), "criterio": _criterion(raw.get("criterio"), ctx, allow_universe=True)}
 
 
-def _eligible_reference(raw, ctx):
-    """Território de referência por elegibilidade (pedido do responsável, 24/10/2026): a relação espacial (o mais
-    próximo ou o mais distante), a delimitação dos territórios elegíveis (a base inteira, o mesmo grupo de cada
-    território, grupos escolhidos e, na base do Brasil, a mesma Grande Região ou regiões escolhidas) e a condição
-    (CAP-SUB-01 atômico: densidade, quantidade ou população, com <, ≤, > ou ≥ e o valor, pela mesma árvore das
-    condições). Nada tem valor padrão: os três vêm do pedido. A referência de cada território é escolhida entre os
-    elegíveis, sem ele mesmo (_eligible_spatial)."""
-    if not isinstance(raw, dict) or set(raw) != ELIGIBLE_KEYS:
-        raise ValueError(ELIGIBLE_SHAPE)
-    relation = raw["relacao"]
-    if not isinstance(relation, str) or relation not in RELATIONS:
-        raise ValueError("Relação espacial não reconhecida: use mais_proxima ou mais_distante.")
-    return {"modo": "elegiveis", "relacao": relation, "delimitacao": _delimitation(raw["delimitacao"], ctx),
-            "condicao": _eligible_condition(raw["condicao"], ctx), "membros": [], "criterio": None}
-
-
-def _delimitation(raw, ctx):
-    """Universo dos elegíveis (CAP-UNI-01 com os níveis que a fonte tem): na base do Brasil, os estados (prefixo do
-    código IBGE) e as Grandes Regiões (o primeiro dígito do código, a regra já usada na conversa e conferida com a coluna
-    regiao_geografica); numa planilha, o grupo da coluna-mãe, quando há. Nenhum nível é presumido."""
-    group = ctx.labels.grupo
-    shape = ("Delimitação inválida: use {\"tipo\": \"todos\", \"mesmo_grupo\", \"grupos\", \"mesma_regiao\" ou \"regioes\", "
-             "\"valores\": [...]}.")
-    if not isinstance(raw, dict) or not isinstance(raw.get("tipo"), str) or set(raw) - {"tipo", "valores"}:
-        raise ValueError(shape)
-    kind, values = raw["tipo"], raw.get("valores")
-    if kind not in DELIMITATIONS:
-        raise ValueError(shape)
-    if kind in ("mesma_regiao", "regioes") and not ctx.brazil:
-        raise ValueError("As regiões (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil: nesta "
-                         "planilha, delimite " + ("pel" + group.g("o", "a") + " " + group.singular + " ou " if
-                                                  ctx.group_column else "") + "pela planilha inteira.")
-    if kind in ("mesmo_grupo", "grupos") and not ctx.brazil and not ctx.group_column:
-        raise ValueError("A planilha não tem a coluna de " + group.singular + " (papel grupo_territorial): delimite pela "
-                         "planilha inteira.")
-    if kind in ("grupos", "regioes"):
-        if (not isinstance(values, list) or not values or len(values) > MAX_IDS or len(set(values)) != len(values) or
-                any(not isinstance(value, str) or not value.strip() for value in values)):
-            raise ValueError("Escolha " + ("as regiões" if kind == "regioes" else group.g("os ", "as ") + group.plural) +
-                             " da delimitação, sem repetir.")
-        known = (set(REGIONS.values()) if kind == "regioes" else set(STATES) if ctx.brazil else
-                 {value for value in ctx.groups.values() if value})
-        unknown = [value for value in values if value not in known]
-        if unknown:
-            raise ValueError(("Regiões" if kind == "regioes" else group.Plural) + " inexistentes na delimitação: " +
-                             ", ".join(value[:40] for value in unknown[:5]) + ".")
-        values = sorted(values)
-    elif values not in (None, []):
-        raise ValueError("A delimitação " + kind + " não leva valores: eles valem só com grupos ou regioes.")
-    else:
-        values = []
-    return {"tipo": kind, "valores": values, "texto": _delimitation_text(ctx, kind, values)}
-
-
-def _delimitation_text(ctx, kind, values):
-    """"da Região Norte", "do mesmo estado de cada município", "dos estados escolhidos (Acre e Amazonas)": o universo dos
-    elegíveis em palavras, com os rótulos da fonte."""
+# --------------------------------------------------------------------------------------------- escolha dos territórios
+def _pendencia(ctx, chave):
+    """Os textos do que falta completar na consulta (comando de 27/10/2026), com os rótulos da fonte: desativam o cálculo
+    e aparecem no rodapé e no status da aba da janela."""
     unit, group = ctx.labels.unidade, ctx.labels.grupo
-    if kind == "todos":
-        return "de todo o Brasil" if ctx.brazil else "de toda a planilha"
-    if kind == "mesmo_grupo":
-        return group.g("do mesmo ", "da mesma ") + group.singular + " de cada " + unit.singular
-    if kind == "mesma_regiao":
-        return "da mesma região de cada " + unit.singular
-    if kind == "regioes":
+    return {"regioes": "escolha ao menos uma região",
+            "ufs": "escolha ao menos " + group.g("um", "uma") + " " + group.singular,
+            "valor": "preencha o valor do filtro",
+            "marcados": "marque ao menos " + unit.g("um", "uma") + " " + unit.singular,
+            "distancia": "complete a referência para usar o filtro de distância"}[chave]
+
+
+def _consulta(raw, ctx):
+    """Objeto da consulta da Escolha dos territórios (27/10/2026): base e referência com a mesma forma ({partir_de,
+    filtros, escolha}) e a distância, que nesta versão é sempre a geodésica até a referência mais próxima. A forma
+    inválida é recusada com a mensagem; o que só falta completar (região, estado, valor do filtro, marcados, a referência
+    do filtro de distância) vai em `pendencias` de cada lado, na ordem das etapas, e não corta nada até ser completado."""
+    if (not isinstance(raw, dict) or set(raw) - CONSULTA_KEYS or not {"base", "referencia"} <= set(raw)):
+        raise ValueError("Consulta inválida: use {\"base\": {\"partir_de\", \"filtros\", \"escolha\"}, \"referencia\": "
+                         "{\"partir_de\", \"filtros\", \"escolha\"}, \"distancia\": {\"medida\": \"geodesica\", \"ate\": "
+                         "\"referencia_mais_proxima\"}}.")
+    if raw.get("distancia") is not None and raw["distancia"] != DISTANCIA_CONSULTA:
+        raise ValueError("Distância da consulta não suportada: nesta versão, só a linha reta (geodésica) até a referência "
+                         "mais próxima, {\"medida\": \"geodesica\", \"ate\": \"referencia_mais_proxima\"}.")
+    referencia = _lado(raw["referencia"], ctx, "referencia")
+    base = _lado(raw["base"], ctx, "base")
+    if any(item["indicador"] == "distancia" for item in base["filtros"]) and referencia["pendencias"]:
+        base["pendencias"].append(_pendencia(ctx, "distancia"))
+    return {"base": base, "referencia": referencia, "distancia": dict(DISTANCIA_CONSULTA)}
+
+
+def _lado(raw, ctx, lado):
+    nome = LADOS[lado]
+    if not isinstance(raw, dict) or set(raw) - LADO_KEYS or "partir_de" not in raw:
+        raise ValueError(nome + " da consulta inválida: use {\"partir_de\", \"filtros\", \"escolha\"}.")
+    pendencias = []
+    partir = _partir_de(raw["partir_de"], ctx, lado, pendencias)
+    filtros = _filtros(raw.get("filtros"), ctx, lado, pendencias)
+    escolha = _escolha(raw.get("escolha"), ctx, lado, pendencias)
+    return {"partir_de": partir, "filtros": filtros, "escolha": escolha, "pendencias": list(dict.fromkeys(pendencias))}
+
+
+def _partir_de(raw, ctx, lado, pendencias):
+    """De onde partir (CAP-UNI-01): o país (na planilha, ela inteira), regiões (só na base do Brasil, pelo primeiro dígito
+    do código IBGE), estados (prefixo do código; na planilha, o grupo da coluna-mãe) ou a seleção prévia; na referência,
+    também o mesmo estado ou a mesma região de cada município da base."""
+    nome, group = LADOS[lado], ctx.labels.grupo
+    tipos = PARTIR_FIXOS + (PARTIR_RELATIVOS if lado == "referencia" else ())
+    if isinstance(raw, dict) and lado == "base" and raw.get("tipo") in PARTIR_RELATIVOS:
+        raise ValueError("A base não tem as opções relativas (mesmo estado ou mesma região de cada município da base): "
+                         "elas valem só na referência.")
+    if not isinstance(raw, dict) or set(raw) - {"tipo", "regioes", "ufs"} or raw.get("tipo") not in tipos:
+        raise ValueError(nome + " da consulta: partir_de inválido; use {\"tipo\": " + ", ".join(
+            "\"" + tipo + "\"" for tipo in tipos) + ", \"regioes\": [...], \"ufs\": [...]}.")
+    tipo = raw["tipo"]
+    values = {}
+    for chave in ("regioes", "ufs"):
+        given = raw.get(chave) or []
+        if (not isinstance(given, list) or len(given) > MAX_IDS or len(set(given)) != len(given) or
+                any(not isinstance(value, str) or not value.strip() or len(value) > 512 for value in given)):
+            raise ValueError(nome + " da consulta: " + chave + " inválidas; envie a lista sem repetir.")
+        if given and tipo != chave:
+            raise ValueError(nome + " da consulta: " + chave + " vale só com o tipo " + chave + ".")
+        values[chave] = given
+    if tipo in ("regioes", "mesma_regiao_da_base") and not ctx.brazil:
+        raise ValueError("As regiões (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil.")
+    if tipo in ("ufs", "mesma_uf_da_base") and not ctx.brazil and not ctx.group_column:
+        raise ValueError("A planilha não tem a coluna de " + group.singular + " (papel grupo_territorial): parta da "
+                         "planilha inteira ou da seleção prévia.")
+    if tipo == "regioes":
+        order = list(REGIONS.values())
+        unknown = [value for value in values["regioes"] if value not in order]
+        if unknown:
+            raise ValueError("Regiões inexistentes na consulta: " + ", ".join(value[:40] for value in unknown[:5]) + ".")
+        if not values["regioes"]:
+            pendencias.append(_pendencia(ctx, "regioes"))
+        values["regioes"] = sorted(values["regioes"], key=order.index)
+    if tipo == "ufs":
+        known = set(STATES) if ctx.brazil else {value for value in ctx.groups.values() if value}
+        unknown = [value for value in values["ufs"] if value not in known]
+        if unknown:
+            raise ValueError(group.Plural + " inexistentes na consulta: " + ", ".join(value[:40] for value in unknown[:5]) +
+                             ".")
+        if not values["ufs"]:
+            pendencias.append(_pendencia(ctx, "ufs"))
+        values["ufs"] = sorted(values["ufs"])
+    return {"tipo": tipo, "regioes": values["regioes"], "ufs": values["ufs"]}
+
+
+def _filtros(raw, ctx, lado, pendencias):
+    """Filtros por indicador (CAP-SUB-01 atômicos, combinados por E): densidade, população e quantidade com <, ≤, > ou ≥
+    e, só na base, a distância até a referência mais próxima com > ou ≤ (km). O valor vai como texto decimal canônico;
+    sem valor, o filtro fica pendente."""
+    nome = LADOS[lado]
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_FILTROS:
+        raise ValueError(nome + " da consulta: envie até " + str(MAX_FILTROS) + " filtros {\"indicador\", \"operador\", "
+                         "\"valor\"}.")
+    out = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) != {"indicador", "operador", "valor"}:
+            raise ValueError(nome + " da consulta: filtro inválido; use {\"indicador\", \"operador\", \"valor\"}.")
+        indicador, operador, valor = item["indicador"], item["operador"], item["valor"]
+        if indicador == "distancia":
+            if lado != "base":
+                raise ValueError("A referência não tem o filtro de distância: ele vale só na base, até a referência mais "
+                                 "próxima.")
+            if operador not in DISTANCIA_OPERADORES:
+                raise ValueError("Operador do filtro de distância não reconhecido: use > (acima de) ou <= (até).")
+        elif indicador in FILTRO_INDICADORES:
+            if operador not in FILTRO_OPERADORES:
+                raise ValueError("Operador do filtro não reconhecido: use <, <=, > ou >=.")
+            if indicador in ("densidade", "populacao") and not ctx.density:
+                raise ValueError(_no_population(ctx))
+        else:
+            raise ValueError("Indicador do filtro não reconhecido: use densidade, populacao, quantidade" +
+                             (" ou distancia." if lado == "base" else "."))
+        if valor is None or (isinstance(valor, str) and not valor.strip()):
+            pendencias.append(_pendencia(ctx, "valor"))
+            out.append({"indicador": indicador, "operador": operador, "valor": None})
+            continue
+        number = decimal_value(valor, "valor do filtro de " + VALUE_TEXT.get(indicador, indicador))
+        out.append({"indicador": indicador, "operador": operador, "valor": format(number.normalize(), "f")})
+    return out
+
+
+def _escolha(raw, ctx, lado, pendencias):
+    """Todos os que atendem às etapas anteriores ou só os marcados (ids da base, como em base.ids)."""
+    nome = LADOS[lado]
+    if raw is None:
+        return {"modo": "todos", "municipios": []}
+    if not isinstance(raw, dict) or set(raw) - {"modo", "municipios"} or raw.get("modo") not in ESCOLHA_MODOS:
+        raise ValueError(nome + " da consulta: escolha inválida; use {\"modo\": \"todos\" ou \"marcados\", \"municipios\": "
+                         "[...]}.")
+    marked = raw.get("municipios") or []
+    if raw["modo"] == "todos":
+        if marked:
+            raise ValueError(nome + " da consulta: a lista de marcados vale só no modo marcados.")
+        return {"modo": "todos", "municipios": []}
+    if not marked:
+        pendencias.append(_pendencia(ctx, "marcados"))
+        return {"modo": "marcados", "municipios": []}
+    _ids(marked, ctx, "marcados da " + nome.lower())
+    return {"modo": "marcados", "municipios": sorted(marked, key=lambda key: (ctx.catalog[key]["code"], key))}
+
+
+def _numero_publico(texto):
+    """O valor canônico do filtro como número do JSON (inteiro quando é inteiro), o mesmo tipo que a tela envia."""
+    if texto is None:
+        return None
+    numero = Decimal(texto)
+    return int(numero) if numero == numero.to_integral_value() else float(numero)
+
+
+def _consulta_publica(consulta):
+    """A consulta normalizada, sem as pendências: a que a resposta devolve e a que entra nas chaves (os valores dos filtros
+    como números, na ordem em que vieram)."""
+    def lado(spec):
+        return {"partir_de": dict(spec["partir_de"]),
+                "filtros": [{**item, "valor": _numero_publico(item["valor"])} for item in spec["filtros"]],
+                "escolha": dict(spec["escolha"])}
+    return {"base": lado(consulta["base"]), "referencia": lado(consulta["referencia"]), "distancia": dict(consulta["distancia"])}
+
+
+def _partir_texto(ctx, partir):
+    """"de todo o país", "da Região Norte", "dos estados escolhidos (Acre e Amazonas)", "da seleção prévia", "do mesmo
+    estado de cada município da base": de onde cada lado parte, com os rótulos da fonte."""
+    unit, group = ctx.labels.unidade, ctx.labels.grupo
+    tipo = partir["tipo"]
+    if tipo == "pais":
+        return "de todo o país" if ctx.brazil else "de toda a planilha"
+    if tipo == "selecao_previa":
+        return "da seleção prévia"
+    if tipo == "mesma_uf_da_base":
+        return group.g("do mesmo ", "da mesma ") + group.singular + " de cada " + unit.singular + " da base"
+    if tipo == "mesma_regiao_da_base":
+        return "da mesma região de cada " + unit.singular + " da base"
+    if tipo == "regioes":
+        values = partir["regioes"]
         return "da Região " + values[0] if len(values) == 1 else "das regiões " + _join(values)
-    names = [STATES[value][1] if ctx.brazil else value for value in values]
+    names = [STATES[value][1] if ctx.brazil else value for value in partir["ufs"]]
     if len(names) == 1:
         return group.g("do ", "da ") + group.singular + " " + group.g("escolhido", "escolhida") + " (" + names[0] + ")"
     return group.g("dos ", "das ") + group.plural + " " + group.g("escolhidos", "escolhidas") + " (" + _join(names) + ")"
 
 
-def _eligible_condition(raw, ctx):
-    """A condição dos elegíveis (CAP-SUB-01 atômico, pela árvore dos critérios combinados): o mesmo operador, o mesmo
-    valor exato e o mesmo texto das Condições ("densidade > 2,36 por 1.000 habitantes")."""
-    if not isinstance(raw, dict) or set(raw) != {"atributo", "operador", "valor"}:
-        raise ValueError("Condição do território de referência inválida: use {\"atributo\", \"operador\", \"valor\"}.")
-    attribute = raw["atributo"]
-    if not isinstance(attribute, str) or attribute not in ATTRIBUTES:
-        raise ValueError("Atributo da condição do território de referência não reconhecido: use densidade, quantidade ou "
-                         "populacao.")
-    if attribute in ("densidade", "populacao") and not ctx.density:
-        raise ValueError(_no_population(ctx))
-    if raw["operador"] not in ELIGIBLE_OPERATORS:
-        raise ValueError("Operador da condição do território de referência não reconhecido: use <, <=, > ou >=.")
-    leaf = {"id": "c1", "attribute": attribute, "operator": raw["operador"], "value": raw["valor"]}
-    nodes, leaves, root = parse_tree(leaf, {"count_unit": ctx.settings.get("count_unit")})
-    return {"atributo": attribute, "operador": raw["operador"], "valor": raw["valor"], "texto": nodes[leaves[0]]["condicao"],
-            "nodes": nodes, "leaves": leaves, "root": root}
+def _lado_texto(ctx, spec):
+    """O lado da consulta em palavras, com as condições como nas Condições ("densidade < 0,5 por 1.000 habitantes"):
+    "da Região Norte com densidade < 0,5 por 1.000 habitantes e distância à referência mais próxima > 300 km"."""
+    text = _partir_texto(ctx, spec["partir_de"])
+    tree = _filtros_tree(ctx, spec["filtros"])
+    if tree is not None:
+        text += " com " + _join([tree["nodes"][own]["condicao"] for own in tree["leaves"]])
+    marked = spec["escolha"]["municipios"] if spec["escolha"]["modo"] == "marcados" else []
+    if marked:
+        names = [_label(ctx.catalog[key]) for key in marked[:3]]
+        text += " (só " + ctx.labels.unidade.g("os marcados", "as marcadas") + ": " + _join(names) + (
+            " e mais " + str(len(marked) - 3) if len(marked) > 3 else "") + ")"
+    return text
 
 
-def _condition_value(condition):
-    """O valor da condição como texto decimal canônico (o da árvore: sem arredondar), para a chave e a resposta."""
-    return condition["nodes"][condition["leaves"][0]]["parametros"]["valor"]
-
-
-def _eligible_normalized(reference):
-    condition, delimitation = reference["condicao"], reference["delimitacao"]
-    return {"modo": "elegiveis", "relacao": reference["relacao"],
-            "delimitacao": {"tipo": delimitation["tipo"], "valores": list(delimitation["valores"])},
-            "condicao": {"atributo": condition["atributo"], "operador": condition["operador"],
-                         "valor": _condition_value(condition)}}
+def _filtros_tree(ctx, filtros):
+    """Os filtros com valor numa árvore E dos critérios combinados (combined_criteria.parse_tree): os mesmos operadores,
+    valores exatos e textos das Condições; sem filtro com valor, None."""
+    leaves = [{"id": "f" + str(i), "attribute": item["indicador"], "operator": item["operador"], "value": item["valor"]}
+              for i, item in enumerate(filtros, start=1) if item["valor"] is not None]
+    if not leaves:
+        return None
+    tree = leaves[0] if len(leaves) == 1 else {"id": "e", "logic": "and", "operands": leaves}
+    nodes, order, root = parse_tree(tree, {"count_unit": ctx.settings.get("count_unit")})
+    return {"nodes": nodes, "leaves": order, "root": root}
 
 
 def _no_population(ctx):
@@ -1159,8 +1288,8 @@ def _spatial(ctx, references, targets) -> Spatial:
 
 
 def _group_key(ctx, key):
-    """Grupo de uma unidade na delimitação: o estado (prefixo do código IBGE) na base do Brasil; numa planilha, o valor
-    da coluna-mãe (sem ela, nenhum)."""
+    """Grupo de uma unidade na consulta: o estado (prefixo do código IBGE) na base do Brasil; numa planilha, o valor da
+    coluna-mãe (sem ela, nenhum)."""
     if ctx.brazil:
         return ctx.catalog[key]["code"][:2] or None
     return (ctx.groups.get(key) or None) if ctx.group_column else None
@@ -1172,133 +1301,225 @@ def _region_key(ctx, key):
     return REGIONS.get(ctx.catalog[key]["code"][:1]) if ctx.brazil else None
 
 
-def _eligibility(ctx, final, condition, keys):
-    """CAP-SUB-01 atômico em cada unidade da base, pela mesma avaliação das Condições (combined_criteria.evaluate, valores
-    exatos, três estados): ATENDE, NAO_ATENDE ou NAO_AVALIAVEL (sem registro ou sem o valor; nunca elegível)."""
-    table = {condition["atributo"]: _record_values(final, condition["atributo"], keys)}
-    inputs = {"nodes": condition["nodes"], "root": condition["root"], "leaves": condition["leaves"], "targets": list(keys),
-              "catalog": {}}
-    return {record["elemento"]: record["estado"] for record in evaluate(None, None, None, inputs, _Evaluator(table))}
+def _catalog_keys(ctx):
+    """As unidades da fonte que a consulta alcança (sem identificação ambígua), na ordem do código (RQ-REP-03)."""
+    return sorted((key for key, entry in ctx.catalog.items() if not entry["selection_reason"]),
+                  key=lambda key: (ctx.catalog[key]["code"], key))
 
 
-def _eligible_spatial(ctx, reference, final, targets) -> Spatial:
-    """Território de referência por elegibilidade (24/10/2026). Primeiro os elegíveis: as unidades da delimitação que
-    atendem à condição na competência. Depois, para cada alvo com coordenada válida e sem ele mesmo entre os elegíveis, a
-    referência mais próxima (CAP-ESP-02, mínimo do conjunto completo) ou a mais distante (as distâncias de CAP-ESP-01
-    ordenadas pela CAP-SUB-02, com a 1ª posição pela CAP-SUB-03), com todos os empates exatos (extreme_exact, só
-    geodésicas de Karney decidem). Como no conjunto de referência: um elegível sem coordenada válida deixa a distância
-    do alvo não avaliável (DEPENDENCIA_NAO_AVALIAVEL), sem trocar pelo extremo entre os demais; sem elegível, também, com
-    o motivo (CONJUNTO_REFERENCIAS_VAZIO), nunca distância zero."""
+def _partir_pendente(spec):
+    partir = spec["partir_de"]
+    return (partir["tipo"] == "regioes" and not partir["regioes"]) or (partir["tipo"] == "ufs" and not partir["ufs"])
+
+
+def _partir_keys(ctx, partir, previa):
+    """As unidades de onde o lado parte; as opções relativas da referência partem do país inteiro (a restrição ao estado
+    ou à região de cada município da base vale na distância, sem reduzir a lista das referências)."""
+    tipo = partir["tipo"]
+    if tipo == "selecao_previa":
+        return list(previa)
+    keys = _catalog_keys(ctx)
+    if tipo == "regioes":
+        chosen = set(partir["regioes"])
+        return [key for key in keys if _region_key(ctx, key) in chosen]
+    if tipo == "ufs":
+        chosen = set(partir["ufs"])
+        return [key for key in keys if _group_key(ctx, key) in chosen]
+    return keys
+
+
+def _distance_table(spatial, keys):
+    """A distância até a referência mais próxima no formato dos critérios combinados: o valor exato (com as referências
+    empatadas) ou não avaliável com o motivo (sem coordenada válida, referência do recorte sem coordenada válida, ou sem
+    referência no recorte, com CONJUNTO_REFERENCIAS_VAZIO)."""
+    out = {}
+    for key in keys:
+        value = spatial.values.get(key)
+        if value is not None:
+            out[key] = {"avaliavel": True, "valor": value, "exato": Fraction(value),
+                        "referencias": list(spatial.nearest.get(key) or []), "alcance": SCOPE_FULL}
+            continue
+        state = spatial.condition(key)
+        motives = [MOTIVES.get(state, "DEPENDENCIA_NAO_AVALIAVEL") if state != "VALIDA" else "DEPENDENCIA_NAO_AVALIAVEL"]
+        if key in spatial.empty:
+            motives.append("CONJUNTO_REFERENCIAS_VAZIO")
+        out[key] = {"avaliavel": False, "motivos": motives}
+    return out
+
+
+def _lado_selecao(ctx, spec, previa, final, spatial=None):
+    """Um lado da consulta (regras do comando de 27/10/2026): está em partir_de E atende a todos os filtros com valor
+    (CAP-SUB-01, três estados, pela mesma avaliação das Condições: o não avaliável nunca entra nem vira "não atende") E,
+    no modo marcados, está entre os marcados. O filtro sem valor não corta; o de distância só entra com as distâncias
+    (`spatial`) e, sem elas, também não corta. `sem_referencia`: os candidatos que ficam de fora porque a distância
+    deles não é avaliável (sem referência no recorte ou sem coordenada válida), para o resultado mostrar o motivo."""
+    if _partir_pendente(spec):
+        return {"partir_de": [], "filtrados": [], "final": [], "fora": [], "sem_referencia": [],
+                "contagens": {"partir_de": None, "filtros": None, "final": None, "nao_avaliaveis": None}}
+    partir = _partir_keys(ctx, spec["partir_de"], previa)
+    tree = _filtros_tree(ctx, [item for item in spec["filtros"] if item["indicador"] != "distancia" or spatial is not None])
+    states, distance = dict.fromkeys(partir, "ATENDE"), {}
+    if tree is not None:
+        nodes, leaves = tree["nodes"], tree["leaves"]
+        table = {attribute: _distance_table(spatial, partir) if attribute == "distancia" else
+                 _record_values(final, attribute, partir) for attribute in {nodes[own]["atributo"] for own in leaves}}
+        inputs = {"nodes": nodes, "root": tree["root"], "leaves": leaves, "targets": list(partir), "catalog": {}}
+        own = next((own for own in leaves if nodes[own]["atributo"] == "distancia"), None)
+        for record in evaluate(None, None, None, inputs, _Evaluator(table)):
+            states[record["elemento"]] = record["estado"]
+            if own is not None:
+                distance[record["elemento"]] = record["nos"][own]["estado"]
+    passed = [key for key in partir if states[key] == "ATENDE"]
+    escolha = spec["escolha"]
+    if escolha["modo"] == "marcados":
+        marked, inside = set(escolha["municipios"]), set(passed)
+        chosen = [key for key in passed if key in marked]
+        fora = [key for key in escolha["municipios"] if key not in inside]
+        candidates = [key for key in partir if key in marked]
+    else:
+        chosen, fora, candidates = passed, [], partir
+    missing = [key for key in candidates if states[key] == "NAO_AVALIAVEL" and distance.get(key) == "NAO_AVALIAVEL"]
+    pending = escolha["modo"] == "marcados" and not escolha["municipios"]
+    return {"partir_de": partir, "filtrados": passed, "final": chosen, "fora": fora, "sem_referencia": missing,
+            "contagens": {"partir_de": len(partir), "filtros": len(passed), "final": None if pending else len(chosen),
+                          "nao_avaliaveis": sum(1 for key in partir if states[key] == "NAO_AVALIAVEL")}}
+
+
+def _consulta_selecao(ctx, consulta, previa, final, distancias, erros=None):
+    """Os dois lados da consulta no motor: primeiro a referência; depois a base, com o filtro de distância medido até a
+    referência mais próxima de cada candidato (só com a referência completa). Com `distancias` (o cálculo do gráfico), a
+    distância de cada município da base sai sempre, com ou sem o filtro. Com `erros` (as contagens da janela), o que
+    impede medir a distância (o referencial de uma planilha, por exemplo) vira pendência da base em vez de erro."""
+    ref_spec, base_spec = consulta["referencia"], consulta["base"]
+    referencia = _lado_selecao(ctx, ref_spec, previa, final)
+    complete = not ref_spec["pendencias"]
+    spatial = None
+    if complete and not _partir_pendente(base_spec) and any(
+            item["indicador"] == "distancia" and item["valor"] is not None for item in base_spec["filtros"]):
+        try:
+            spatial = _consulta_spatial(ctx, ref_spec, referencia["final"],
+                                        _partir_keys(ctx, base_spec["partir_de"], previa))
+        except ChoiceRequired as exc:
+            if erros is None:
+                raise
+            erros.append(str(exc))
+        except ValueError as exc:
+            if erros is None:
+                raise
+            erros.append(str(exc))
+    base = _lado_selecao(ctx, base_spec, previa, final, spatial)
+    if distancias and spatial is None and complete:
+        spatial = _consulta_spatial(ctx, ref_spec, referencia["final"], base["final"])
+    return {"base": base, "referencia": referencia, "spatial": spatial}
+
+
+def _consulta_spatial(ctx, spec, references, targets) -> Spatial:
+    """Distância de cada município da base até a referência mais próxima (CAP-ESP-02, mínimo do conjunto completo, com
+    todos os empates exatos; extreme_exact, só geodésicas de Karney decidem), sem ele mesmo (o próprio município não é a
+    sua referência). Com o mesmo estado ou a mesma região de cada município da base, contam só as referências do estado
+    (ou da região) dele; a lista das referências não muda. Como no conjunto de referência, uma referência do recorte sem
+    coordenada válida deixa a distância não avaliável (DEPENDENCIA_NAO_AVALIAVEL), sem trocar pela mais próxima entre as
+    demais; recorte sem outra referência também, com o motivo (CONJUNTO_REFERENCIAS_VAZIO), nunca distância zero."""
     settings = _spatial_settings(ctx)
     coords = _coordinates(ctx.frame, ctx.mapping, settings, ctx.period)
-    spatial = Spatial(settings, coords, [], [], {}, referencial=_referencial_suportado(settings.get("crs")))
-    condition, delimitation = reference["condicao"], reference["delimitacao"]
-    farthest = reference["relacao"] == "mais_distante"
+    spatial = Spatial(settings, coords, list(references), [], {}, referencial=_referencial_suportado(settings.get("crs")))
+    tipo = spec["partir_de"]["tipo"]
     valid = [key for key in dict.fromkeys(targets) if spatial.condition(key) == "VALIDA"]
-    kind, chosen = delimitation["tipo"], set(delimitation["valores"])
 
     def pool_of(key):
-        if kind == "mesmo_grupo":
+        if tipo == "mesma_uf_da_base":
             return "g", _group_key(ctx, key)
-        if kind == "mesma_regiao":
+        if tipo == "mesma_regiao_da_base":
             return "r", _region_key(ctx, key)
         return "*", None
 
     def calcular():
-        universe = sorted((key for key, entry in ctx.catalog.items() if not entry["selection_reason"]),
-                          key=lambda key: (ctx.catalog[key]["code"], key))
-        states = _eligibility(ctx, final, condition, universe)
-        eligible = [key for key in universe if states[key] == "ATENDE"]
-
-        def members_of(pool):
-            side, value = pool
-            if side == "g":
-                return [key for key in eligible if value is not None and _group_key(ctx, key) == value]
-            if side == "r":
-                return [key for key in eligible if value is not None and _region_key(ctx, key) == value]
-            if kind == "grupos":
-                return [key for key in eligible if _group_key(ctx, key) in chosen]
-            if kind == "regioes":
-                return [key for key in eligible if _region_key(ctx, key) in chosen]
-            return eligible
-
+        grouped = {}
+        if tipo in PARTIR_RELATIVOS:
+            for key in references:
+                grouped.setdefault(pool_of(key), []).append(key)
         pools = {}
         for key in valid:
             pools.setdefault(pool_of(key), []).append(key)
-        values, nearest, reasons = {}, {}, {}
+        values, nearest, reasons, empty = {}, {}, {}, []
         for pool, alvos in pools.items():
-            members = members_of(pool)
+            members = list(references) if pool[0] == "*" else grouped.get(pool, []) if pool[1] is not None else []
             invalid = [(key, spatial.condition(key)) for key in members if spatial.condition(key) != "VALIDA"]
             if invalid:
-                text = _eligible_gap(ctx, invalid)
+                text = _gap_text(ctx, invalid)
                 for key in alvos:
                     reasons[key] = text
                 continue
             index = {key: i for i, key in enumerate(members)}
             best, ties, _ = extreme_exact(coords.loc[alvos, "lat"], coords.loc[alvos, "lon"],
                                           coords.loc[members, "lat"], coords.loc[members, "lon"], crs=spatial.referencial,
-                                          farthest=farthest, skip=[index.get(key, -1) for key in alvos])
+                                          skip=[index.get(key, -1) for key in alvos])
             for i, key in enumerate(alvos):
                 if ties[i]:
                     values[key] = float(best[i]) / 1000
                     nearest[key] = [members[j] for j in ties[i]]
                 else:
-                    reasons[key] = _no_eligible(ctx, reference, pool)
-        counts = {state: sum(value == state for value in states.values()) for state in ("ATENDE", "NAO_ATENDE",
-                                                                                         "NAO_AVALIAVEL")}
-        return {"valores": values, "referencias": nearest, "motivos": reasons,
-                "elegiveis": {"universo": len(universe), "atende": counts["ATENDE"], "nao_atende": counts["NAO_ATENDE"],
-                              "nao_avaliaveis": counts["NAO_AVALIAVEL"]}}
+                    reasons[key] = _sem_referencia_text(ctx, pool)
+                    empty.append(key)
+        return {"valores": values, "referencias": nearest, "motivos": reasons, "vazios": empty}
 
-    entradas = {"relacao": reference["relacao"], "delimitacao": [kind, sorted(chosen)],
-                "condicao": [condition["atributo"], condition["operador"], _condition_value(condition)],
+    entradas = {"referencias": _ids_key(list(references)), "recorte": tipo if tipo in PARTIR_RELATIVOS else "*",
                 "alvos": _ids_key(valid)}
-    out = _reaproveitar(ctx, "distancias_elegiveis", entradas, calcular)
+    out = _reaproveitar(ctx, "distancias_consulta", entradas, calcular)
     spatial.values, spatial.nearest, spatial.reasons = out["valores"], out["referencias"], out["motivos"]
-    spatial.eligible = out["elegiveis"]
+    spatial.empty = set(out["vazios"])
     return spatial
 
 
-def _eligible_gap(ctx, invalid):
+def _gap_text(ctx, invalid):
     names = [_label(ctx.catalog[key]) + " (" + MOTIVES[state] + ")" for key, state in invalid[:5]]
     more = " e mais " + str(len(invalid) - 5) if len(invalid) > 5 else ""
     return ("Distância não avaliável em " + human_period(ctx.period) + ": sem coordenada válida " +
-            ("no território elegível " if len(invalid) == 1 else "nos territórios elegíveis ") + _join(names) + more +
-            "; a referência não é escolhida entre os demais (DEPENDENCIA_NAO_AVALIAVEL)")
+            ("na referência " if len(invalid) == 1 else "nas referências ") + _join(names) + more +
+            "; a mais próxima não é escolhida entre as demais (DEPENDENCIA_NAO_AVALIAVEL)")
 
 
-def _no_eligible(ctx, reference, pool):
-    """Sem território de referência para o alvo: nenhuma outra unidade da delimitação atende à condição (ou, na planilha,
-    a unidade não tem o grupo da coluna-mãe)."""
+def _sem_referencia_text(ctx, pool):
+    """Município da base sem referência no próprio recorte (comando de 27/10/2026): aparece com o motivo, nunca some em
+    silêncio nem ganha distância zero (CAP-ESP-02)."""
     unit, group = ctx.labels.unidade, ctx.labels.grupo
     side, value = pool
     if side in ("g", "r") and value is None:
-        return ("Sem território de referência: " + unit.g("este ", "esta ") + unit.singular + " não tem " +
-                group.singular + " na fonte (DEPENDENCIA_NAO_AVALIAVEL)")
-    where = (group.g("do ", "da ") + group.singular + " " + (STATES[value][1] if ctx.brazil else value) if side == "g" else
-             "da Região " + value if side == "r" else reference["delimitacao"]["texto"])
-    return ("Sem território de referência: nenhum" + unit.g("", "a") + " outr" + unit.g("o", "a") + " " + unit.singular +
-            " " + where + " atende à condição " + reference["condicao"]["texto"] + " em " + human_period(ctx.period) +
+        return ("Sem referência no recorte: " + unit.g("este ", "esta ") + unit.singular + " não tem " +
+                (group.singular if side == "g" else "região") + " na fonte (DEPENDENCIA_NAO_AVALIAVEL)")
+    where = ("" if side == "*" else " " + group.g("no mesmo ", "na mesma ") + group.singular + " (" +
+             (STATES[value][1] if ctx.brazil else value) + ")" if side == "g" else " na mesma região (" + value + ")")
+    return ("Sem referência no recorte: nenhum" + unit.g("", "a") + " outr" + unit.g("o", "a") + " " + unit.singular +
+            " da referência" + where + " em " + human_period(ctx.period) +
             " (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)")
 
 
-def _eligible_origin(ctx, reference, spatial):
-    """Forma de definição e origem do território de referência (CAP-REF-01): a relação, os elegíveis, a condição e
-    quantas unidades da base a atendem na competência."""
+def _consulta_origem(ctx, consulta, selecao):
+    """Forma de definição e origem da referência (CAP-REF-01): os municípios que podem ser referência, quantos são na
+    competência e o recorte de cada município da base."""
     unit = ctx.labels.unidade
-    counts = spatial.eligible or {}
-    relation = (unit.g("mais próximo", "mais próxima") if reference["relacao"] == "mais_proxima" else "mais distante")
-    return ("Para cada " + unit.singular + ", " + unit.g("o", "a") + " " + unit.singular + " " + relation + " entre " +
-            unit.g("os", "as") + " " + unit.plural + " " + reference["delimitacao"]["texto"] + " com " +
-            reference["condicao"]["texto"] + " em " + human_period(ctx.period) + " (" + thousands(counts.get("atende", 0)) +
-            " de " + unit.n(counts.get("universo", 0)) + " da base atendem à condição); " + unit.g("o próprio", "a própria") +
-            " " + unit.singular + " não é a sua referência. A condição é escolha do usuário e não tem caráter normativo")
+    spec = consulta["referencia"]
+    total = selecao["referencia"]["contagens"]["final"] or 0
+    where = (" em todo o país" if ctx.brazil else " em toda a planilha") if spec["partir_de"]["tipo"] in PARTIR_RELATIVOS \
+        else ""
+    return ("Para cada " + unit.singular + " da base, " + unit.g("o", "a") + " " + unit.singular + " " +
+            unit.g("mais próximo", "mais próxima") + " entre " + unit.g("os", "as") + " " + unit.plural + " " +
+            _lado_texto(ctx, spec) + " (" + unit.n(total) + where + " em " + human_period(ctx.period) + "); " +
+            unit.g("o próprio", "a própria") + " " + unit.singular + " não é a sua referência. Os filtros são escolha do "
+            "usuário e não têm caráter normativo")
 
 
-def _eligible_block(ctx, reference, spatial, items, final):
-    """`referencia` da resposta no modo por elegibilidade: a definição, as contagens da condição e os territórios que
-    ficaram como referência de algum item (na ordem do código), com a UF, a população, a quantidade e a densidade de cada
-    um na competência, lidas das mesmas medidas dos itens (25/10/2026: a tela mostra a referência do território base)."""
+def _unidade_da_lista(ctx, key, final):
+    entry, record = ctx.catalog[key], final.records.get(key)
+    return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
+            "densidade": _num(record["valores"]["densidade"]) if record is not None else None}
+
+
+def _consulta_block(ctx, consulta, selecao, spatial, items, final):
+    """`referencia` da resposta com a Escolha dos territórios: a consulta normalizada, a base e a referência em palavras,
+    as contagens de cada etapa, os candidatos que ficaram fora da base porque a distância deles não é avaliável (com o
+    motivo) e os territórios que ficaram como referência de algum município (na ordem do código), com a UF, a população,
+    a quantidade e a densidade de cada um, lidas das mesmas medidas dos itens."""
     used = sorted({key for item in items if item["tipo"] == "municipio" for key in spatial.nearest.get(item["id"], [])},
                   key=lambda key: (ctx.catalog[key]["code"], key))
 
@@ -1308,15 +1529,18 @@ def _eligible_block(ctx, reference, spatial, items, final):
         return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
                 "populacao": _num(values.get("populacao")), "quantidade": _num(values.get("quantidade")),
                 "densidade": _num(values.get("densidade"))}
-    condition, delimitation = reference["condicao"], reference["delimitacao"]
-    return {"tipo": "elegiveis", "relacao": reference["relacao"],
-            "delimitacao": {"tipo": delimitation["tipo"], "valores": list(delimitation["valores"]),
-                            "texto": delimitation["texto"]},
-            "condicao": {"atributo": condition["atributo"], "operador": condition["operador"],
-                         "valor": _condition_value(condition), "texto": condition["texto"]},
-            "elegiveis": dict(spatial.eligible or {}),
-            "membros": [member(key) for key in used],
-            "origem": _eligible_origin(ctx, reference, spatial)}
+
+    def outside(key):
+        entry = ctx.catalog[key]
+        return {"id": key, "rotulo": _label(entry), "uf": entry.get("state") or None,
+                "motivo": _distance_reason(ctx, spatial, key) or _no_record(ctx, ctx.period)}
+    base, referencia = selecao["base"], selecao["referencia"]
+    return {"tipo": "consulta", "consulta": _consulta_publica(consulta),
+            "base_texto": _lado_texto(ctx, consulta["base"]), "texto": _lado_texto(ctx, consulta["referencia"]),
+            "contagens": {"base": {**base["contagens"], "sem_referencia": len(base["sem_referencia"])},
+                          "referencia": dict(referencia["contagens"])},
+            "sem_referencia": [outside(key) for key in base["sem_referencia"][:MAX_LISTA]],
+            "membros": [member(key) for key in used], "origem": _consulta_origem(ctx, consulta, selecao)}
 
 
 def _reference_gap(ctx, spatial):
@@ -1439,11 +1663,11 @@ def _set_item(ctx, spec, final, initial, spatial, reference, changes=None):
             "densidade": _num(values.get("densidade")), "contagem": "SOMA_DOS_COMPONENTES",
             "distancia_km": None, "distancia_km_max": None}
     distance_ok = None
-    if spatial is not None and reference is not None and reference.get("modo") == "elegiveis":
-        # Cada membro tem o seu território de referência: o conjunto não tem um ponto nem uma referência únicos.
+    if spatial is not None and reference is not None and reference.get("modo") == "consulta":
+        # Cada membro tem a sua referência mais próxima: o conjunto não tem um ponto nem uma referência únicos.
         distance_ok = False
-        motives.append("Distância não se aplica ao conjunto: com o território de referência escolhido para cada " +
-                       unit.singular + ", cada membro tem a sua referência, e o conjunto não tem um ponto único")
+        motives.append("Distância não se aplica ao conjunto: com a referência mais próxima de cada " + unit.singular +
+                       ", cada membro tem a sua referência, e o conjunto não tem um ponto único")
     elif spatial is not None:
         distance_ok = False
         found = [spatial.values.get(key) for key in present]
@@ -1580,15 +1804,26 @@ def _notes(ctx, base, sets, items, final, initial, spatial, reference):
         notes.append("Coordenadas da competência " + ctx.period + "; coordenadas de outras competências não são "
                      "tratadas como equivalentes.")
         members = reference["membros"]
-        if reference.get("modo") == "elegiveis":
-            notes.append("Território de referência: " + _eligible_origin(ctx, reference, spatial) + ".")
-            notes.append("Primeiro os elegíveis (CAP-REF-01 pela condição, CAP-SUB-01); depois, para cada " + lab.singular +
-                         ", " + ("a menor distância entre eles (CAP-ESP-02, mínimo do conjunto completo)" if
-                                 reference["relacao"] == "mais_proxima" else
-                                 "a maior distância entre eles (as distâncias de CAP-ESP-01 em ordem decrescente, "
-                                 "CAP-SUB-02, e a 1ª posição, CAP-SUB-03)") + ", com todos os empates exatos. Um elegível "
-                         "sem coordenada válida deixa a distância não avaliável, sem trocar pelo extremo entre os demais; "
-                         "sem elegível, não há distância (nunca zero).")
+        if reference.get("modo") == "consulta":
+            consulta, selecao = reference["consulta"], reference["selecao"]
+            notes.append("Escolha dos territórios. Base: " + lab.g("os ", "as ") + lab.plural + " " +
+                         _lado_texto(ctx, consulta["base"]) + " (" + lab.n(len(base)) + "). Referência: " +
+                         _consulta_origem(ctx, consulta, selecao) + ".")
+            notes.append("Os filtros valem juntos (E, CAP-SUB-01, três estados): " + lab.g("um ", "uma ") + lab.singular +
+                         " com filtro não avaliável não entra, e o não avaliável nunca é tratado como não atende. A "
+                         "distância de cada " + lab.singular + " da base vai até a referência mais próxima (CAP-ESP-02, "
+                         "mínimo do conjunto completo), com todos os empates exatos; uma referência do recorte sem "
+                         "coordenada válida deixa a distância não avaliável, sem trocar pela mais próxima entre as demais; "
+                         "sem referência no recorte, não há distância (nunca zero).")
+            outside = selecao["base"]["sem_referencia"]
+            if outside:
+                single = len(outside) == 1
+                notes.append(lab.n(len(outside)) + (" ficou" if single else " ficaram") + " fora da base porque o filtro "
+                             "de distância não é avaliável para " + (lab.g("ele", "ela") if single else
+                                                                    lab.g("eles", "elas")) +
+                             " (sem referência no recorte ou sem coordenada válida): " +
+                             _join([_label(ctx.catalog[key]) for key in outside[:5]] +
+                                   (["mais " + str(len(outside) - 5)] if len(outside) > 5 else [])) + ".")
         else:
             notes.append("Referência: " + _join([_label(ctx.catalog[key]) for key in members[:8]]) +
                          (" e mais " + str(len(members) - 8) if len(members) > 8 else "") +
@@ -1624,6 +1859,8 @@ def _notes(ctx, base, sets, items, final, initial, spatial, reference):
                                                              for key in spec["membros"]}
         if reference is not None:
             used |= {ctx.catalog[key]["code"] for key in reference["membros"]}
+        if spatial is not None:  # as referências em uso (com a Escolha dos territórios, as mais próximas dos itens)
+            used |= {ctx.catalog[ref]["code"] for key in base for ref in spatial.nearest.get(key, [])}
         for measures in (final, initial):
             if measures is None:
                 continue
@@ -1941,12 +2178,12 @@ def _apply(res, by_id, field_name, out, notas=True):
 
 
 def _reference_members(res):
-    """A referência na chave da memória: os membros escolhidos ou, por elegibilidade, a definição inteira (duas
-    definições diferentes nunca dividem distâncias, condições, ordem ou faixas)."""
+    """A referência na chave da memória: os membros escolhidos ou, com a Escolha dos territórios, a consulta inteira e a
+    seleção prévia que ela usa (duas consultas diferentes nunca dividem distâncias, condições, ordem ou faixas)."""
     if res.reference is None:
         return None
-    if res.reference.get("modo") == "elegiveis":
-        return _eligible_normalized(res.reference)
+    if res.reference.get("modo") == "consulta":
+        return {"consulta": _consulta_publica(res.reference["consulta"]), "selecao_previa": res.reference["previa"]}
     return list(res.reference["membros"])
 
 
@@ -2601,9 +2838,9 @@ def _page_extras(ctx, spec, body, res):
     for item in items:
         item["grupo_territorial"] = _group_of(ctx, item)
     if res.reference is not None:
-        # Por elegibilidade (24/10/2026), o território de referência de cada item (o mais próximo ou o mais distante dos
-        # elegíveis, com os empates) vai em referencia_do_item; com membros escolhidos, o membro mais próximo, como antes.
-        por_item = res.reference.get("modo") == "elegiveis"
+        # Com a Escolha dos territórios (27/10/2026), a referência mais próxima de cada item (com os empates) vai em
+        # referencia_do_item; com membros escolhidos, o membro mais próximo, como antes.
+        por_item = res.reference.get("modo") == "consulta"
         for item in items:
             item["referencia_mais_proxima"] = None if por_item else _nearest_of(ctx, res.spatial, item)
             if por_item:
@@ -2663,6 +2900,7 @@ STATE_REFUSALS = {
             "só para municípios.",
     "conjuntos": "Conjuntos de estados não estão disponíveis no gráfico; marque municípios para formar conjuntos.",
     "referencia": "Não se aplica: estados não têm um ponto único. Para usar a distância, mostre os municípios.",
+    "consulta": "Não se aplica: a Escolha dos territórios mede a distância de cada município; mostre os municípios.",
     "faixas_distancia": "Não se aplica: estados não têm um ponto único; as faixas de distância valem para municípios.",
 }
 
@@ -2821,6 +3059,7 @@ BRAZIL_REFUSALS = {
     "base": "No nível Brasil, a unidade é o país inteiro: base vale só para municípios.",
     "conjuntos": "Não se aplica: o total do Brasil vem pronto da fonte nacional e não é somado a outros territórios.",
     "referencia": BRAZIL_NO_POINT,
+    "consulta": BRAZIL_NO_POINT,
     "faixas_distancia": BRAZIL_NO_POINT,
 }
 BRAZIL_SINGLE = {
@@ -2954,39 +3193,50 @@ def compute(sources, mapping, options, frame=None) -> dict:
     initial_period = _initial_period(ctx, options)
     base = _universe(options.get("base"), ctx, unit.g("os", "as") + " " + unit.plural + " base", allow_empty=True)
     sets = _sets(options.get("conjuntos"), ctx)
-    if not base and not sets:
+    # Escolha dos territórios (27/10/2026): com `consulta`, `base` é a seleção prévia (a escolha da Seleção de Territórios,
+    # lida só por partir_de "selecao_previa"), e os itens são os municípios que a consulta seleciona na base, com a
+    # distância de cada um até a referência mais próxima; as referências não entram como itens.
+    consulta = _consulta(options["consulta"], ctx) if options.get("consulta") is not None else None
+    if consulta is not None:
+        if options.get("referencia") not in (None, {}):
+            raise ValueError("Com a Escolha dos territórios, a referência vem da consulta: não envie referencia junto com "
+                             "consulta.")
+        missing = [LADOS[lado] + " incompleta: " + text for lado in LADOS for text in consulta[lado]["pendencias"]]
+        if missing:
+            raise ValueError(missing[0] + ".")
+    elif not base and not sets:
         raise ValueError("Escolha " + unit.g("os", "as") + " " + unit.plural + " base ou um conjunto para o painel.")
-    reference = _reference(options.get("referencia"), ctx)
-    # Território de referência por elegibilidade (24/10/2026): só na página única; a referência de cada item é escolhida
-    # entre os elegíveis, e eles não entram como itens (a seleção da pessoa continua a mesma).
-    eligible_mode = reference is not None and reference.get("modo") == "elegiveis"
-    if eligible_mode and not page:
-        raise ValueError("O território de referência por elegibilidade vale só no formato da página única (com nivel).")
+    reference = None if consulta is not None else _reference(options.get("referencia"), ctx)
     if page:
-        _page_requirements(ctx, spec, reference, initial_period)
+        _page_requirements(ctx, spec, consulta or reference, initial_period)
     final = _measures(ctx, ctx.period)
     initial = _measures(ctx, initial_period) if initial_period else None
+    spatial, selecao, previa = None, None, base
+    if consulta is not None:
+        selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=True)
+        spatial, base = selecao["spatial"], selecao["base"]["final"]
+        uses = any(consulta[lado]["partir_de"]["tipo"] == "selecao_previa" for lado in LADOS)
+        reference = {"modo": "consulta", "consulta": consulta, "selecao": selecao, "membros": [], "criterio": None,
+                     "previa": _ids_key(previa) if uses else None}
     reference_ids = reference["membros"] if reference is not None else []
-    # Os membros da referência entram como itens (distância zero); a ordem padrão é a do código IBGE (RQ-REP-03).
+    # Os membros escolhidos da referência entram como itens (distância zero); a ordem padrão é a do código IBGE (RQ-REP-03).
     units = sorted(set(base) | set(reference_ids), key=lambda key: (ctx.catalog[key]["code"], key))
-    spatial = None
-    if eligible_mode:
-        spatial = _eligible_spatial(ctx, reference, final, units)
-    elif reference is not None:
+    if consulta is None and reference is not None:
         spatial = _spatial(ctx, reference_ids, units + [key for spec_ in sets for key in spec_["membros"]])
     changes = {}
     items = [_unit_item(ctx, key, final, initial, spatial, set(reference_ids), changes) for key in units]
     items += [_set_item(ctx, spec_, final, initial, spatial, reference, changes) for spec_ in sets]
     block = None
-    if eligible_mode:
-        block = _eligible_block(ctx, reference, spatial, items, final)
+    if consulta is not None:
+        block = _consulta_block(ctx, consulta, selecao, spatial, items, final)
     elif reference is not None:
         block = {"tipo": "municipio" if len(reference_ids) == 1 else "conjunto",
                  "membros": [{"id": key, "rotulo": _label(ctx.catalog[key])} for key in reference_ids],
                  "origem": _origin(ctx, reference, base, final)}
     normalized = {"competencia": ctx.period, "competencia_inicial": initial_period, "categoria": ctx.category,
                   "base": base, "conjuntos": [{**spec_, "membros": sorted(spec_["membros"])} for spec_ in sets],
-                  "referencia": None if reference is None else _eligible_normalized(reference) if eligible_mode else {
+                  "referencia": None if reference is None else {
+                      "consulta": _consulta_publica(consulta), "selecao_previa": reference["previa"]} if consulta else {
                       "membros": sorted(reference_ids),
                       "criterio": None if reference["criterio"] is None else {
                           key: value for key, value in reference["criterio"].items()}}}
@@ -3026,6 +3276,71 @@ def references(sources, mapping, options, frame=None) -> dict:
             "candidatos": [{**unit(key), "valor": _num(values[key]["valor"]), "posicao": positions[key]}
                            for key in ordered],
             "nao_avaliaveis": [{**unit(key), "motivos": list(values[key]["motivos"])} for key in not_evaluable]}
+
+
+# --------------------------------------------------------------------------------------------- escolha dos territórios
+TERRITORIOS_KEYS = frozenset(("competencia", "categoria", "base", "consulta", "lista", "premissas", "rotulos"))
+
+
+def _dobrar(text) -> str:
+    """Texto sem acentos e sem caixa, para a busca pelo nome ("sao" encontra "SÃO" e "São")."""
+    return "".join(ch for ch in unicodedata.normalize("NFKD", str(text)) if not unicodedata.combining(ch)).casefold()
+
+
+def _lista(raw):
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"lado", "busca", "limite"} or raw.get("lado") not in LADOS:
+        raise ValueError("Lista inválida: use {\"lado\": \"base\" ou \"referencia\", \"busca\", \"limite\"}.")
+    busca, limite = raw.get("busca") or "", raw.get("limite", 100)
+    if not isinstance(busca, str) or len(busca) > 120:
+        raise ValueError("Busca inválida: use um texto de até 120 caracteres.")
+    if isinstance(limite, bool) or not isinstance(limite, int) or not 1 <= limite <= MAX_LISTA:
+        raise ValueError("Limite da lista inválido: use um inteiro entre 1 e " + str(MAX_LISTA) + ".")
+    return {"lado": raw["lado"], "busca": busca.strip(), "limite": limite}
+
+
+def territorios(sources, mapping, options, frame=None) -> dict:
+    """POST /api/painel/territorios: o que a janela Escolha dos territórios mostra enquanto a consulta é montada (comando
+    de 27/10/2026), tudo do motor e sem iniciar a análise: a seleção prévia (quantos e os primeiros nomes) e, de cada
+    lado, as contagens de cada etapa (partir de, filtros, escolha), as pendências, a prévia dos que entram (quantos e os
+    primeiros nomes, na ordem do código) e os marcados (com o estado, a densidade e se passam pelas etapas 1 e 2); quando
+    pedida, a lista para marcar: os que passaram pelas etapas 1 e 2, pela busca no nome, em ordem alfabética, com o
+    estado e a densidade. Com o filtro de distância e a referência completa, a base é cortada pela distância até a
+    referência mais próxima, a mesma do gráfico. Nada é registrado na sessão e nada vai ao provedor de IA."""
+    ctx = context(sources, mapping, options, TERRITORIOS_KEYS, frame=frame, page=True)
+    if options.get("consulta") is None:
+        raise ValueError("Envie a consulta da Escolha dos territórios.")
+    consulta = _consulta(options["consulta"], ctx)
+    previa = _universe(options.get("base"), ctx, "a seleção prévia", allow_empty=True)
+    lista = _lista(options.get("lista"))
+    final = _measures(ctx, ctx.period)
+    erros = []
+    selecao = _consulta_selecao(ctx, consulta, previa, final, distancias=False, erros=erros)
+    consulta["base"]["pendencias"] = list(dict.fromkeys(consulta["base"]["pendencias"] + erros))
+    out = {"competencia": ctx.period, "categoria": ctx.category,
+           "selecao_previa": {"total": len(previa), "nomes": [_label(ctx.catalog[key]) for key in
+                                                                previa[:NOMES_DA_PREVIA]]}}
+    for lado in LADOS:
+        spec, sel = consulta[lado], selecao[lado]
+        counts = dict(sel["contagens"])
+        if lado == "base":
+            counts["sem_referencia"] = len(sel["sem_referencia"])
+        passed = set(sel["filtrados"])
+        out[lado] = {"contagens": counts, "pendencias": list(spec["pendencias"]),
+                     "previa": None if counts["final"] is None else {
+                         "total": len(sel["final"]),
+                         "nomes": [_label(ctx.catalog[key]) for key in sel["final"][:NOMES_DA_PREVIA]]},
+                     "marcados": [{**_unidade_da_lista(ctx, key, final), "passa": key in passed}
+                                  for key in spec["escolha"]["municipios"]]}
+    if lista is not None:
+        wanted = _dobrar(lista["busca"])
+        keys = [key for key in selecao[lista["lado"]]["filtrados"]
+                if not wanted or wanted in _dobrar(_label(ctx.catalog[key]))]
+        keys.sort(key=lambda key: (_dobrar(ctx.catalog[key]["name"]), ctx.catalog[key].get("state") or "", key))
+        out["lista"] = {"lado": lista["lado"], "busca": lista["busca"], "total": len(keys), "limite": lista["limite"],
+                        "itens": [_unidade_da_lista(ctx, key, final) for key in keys[:lista["limite"]]]}
+    return out
 
 
 # --------------------------------------------------------------------------------------------- mapa (página única)

@@ -168,6 +168,71 @@
 .analise-ref-valores { display: block; max-height: 12rem; overflow: auto; margin: 0; padding: 4px; columns: 2 150px; column-gap: 8px;
   border: 1px solid var(--cor-borda); border-radius: 10px; background: var(--cor-superficie-suave); list-style: none; }
 .analise-ref-valores > li { break-inside: avoid; }
+/* Escolha dos territórios (27/10/2026): a frase-resumo no alto (cada trecho abre a aba dele; o incompleto fica destacado), as abas
+   "1 Base" e "2 Referência" com o status curto, as três etapas do seletor e o rodapé com "Calcular" e a linha de estado. O painel
+   fica mais largo com a janela aberta. Só variáveis de styles.css: claro e escuro. */
+@media (min-width: 1360px) { .analise-corpo.analise-corpo-com-painel.analise-corpo-territorios { grid-template-columns: minmax(0, 1fr) 400px; } }
+@media (min-width: 1024px) and (max-width: 1359px) { .analise-painel[data-painel="referencia"] { width: 400px; } }
+.territorios { display: flex; flex-direction: column; gap: 10px; color: var(--cor-texto); font-size: 12.5px; }
+.territorios-contexto { margin: -4px 0 0; color: var(--cor-texto-2); font-size: 12px; }
+.territorios-frase { position: sticky; top: 46px; z-index: 1; margin: 0; padding: 9px 10px; border: 1px solid var(--cor-borda-campo);
+  border-radius: 12px; background: var(--cor-superficie-suave); color: var(--cor-tinta); font-size: 13px; line-height: 1.5; }
+.territorios-trecho { display: inline; padding: 0 2px; border-radius: 6px; color: var(--cor-destaque-texto); font-weight: 650; text-align: left;
+  text-decoration: underline; text-decoration-color: var(--cor-borda-campo); text-underline-offset: 3px; }
+.territorios-trecho:hover { background: var(--cor-realce-destaque); }
+.territorios-trecho-incompleto { padding: 1px 6px; border: 1px dashed rgb(var(--tom-amber-800)); background: rgb(var(--tom-amber-50));
+  color: rgb(var(--tom-amber-900)); text-decoration: none; }
+.territorios-abas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.territorios-aba { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid var(--cor-borda-controle);
+  border-radius: 12px; background: var(--cor-superficie); color: var(--cor-tinta); text-align: left; }
+.territorios-aba[aria-selected="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.territorios-aba-nome { font-size: 13px; font-weight: 700; }
+.territorios-aba-status { font-size: 11.5px; opacity: .9; }
+.territorios-aba-incompleta { font-weight: 700; }
+.territorios-seletor { display: flex; flex-direction: column; gap: 8px; }
+.territorios-etapa { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--cor-borda-suave); }
+.territorios-etapa > legend { padding: 0; color: var(--cor-tinta); font-size: 12.5px; font-weight: 700; }
+.territorios-opcional { color: var(--cor-texto-2); font-weight: 500; }
+.territorios-contagem { margin: 0; color: var(--cor-tinta); font-size: 12px; font-weight: 650; }
+.territorios-apoio { margin: 0; color: var(--cor-texto-2); font-size: 11.5px; line-height: 1.45; }
+.territorios-botoes { display: flex; flex-wrap: wrap; gap: 4px; }
+.territorios-botoes > button { min-height: 30px; padding: 4px 9px; border: 1px solid var(--cor-borda-campo); border-radius: 9px; background: var(--cor-superficie);
+  color: var(--cor-tinta); font-size: 12px; font-weight: 600; }
+.territorios-botoes > button[aria-pressed="true"] { border-color: var(--cor-tinta); background: var(--cor-tinta); color: var(--cor-sobre-tinta); }
+.territorios-botoes-ufs { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
+.territorios-filtro { display: flex; flex-direction: column; gap: 4px; padding: 7px 8px; border: 1px solid var(--cor-borda); border-radius: 10px;
+  background: var(--cor-superficie-suave); }
+.territorios-filtro-linha { display: flex; align-items: center; gap: 6px; }
+.territorios-filtro-linha .analise-campo { margin-top: 0; }
+.territorios-filtro-linha > select:first-child { flex: 1 1 auto; }
+.territorios-filtro-linha > input { flex: 1 1 5rem; min-width: 0; }
+.territorios-filtro-nome { flex: 1 1 auto; color: var(--cor-tinta); font-weight: 650; }
+.territorios-unidade { flex-shrink: 0; color: var(--cor-texto-2); font-size: 11.5px; }
+.territorios-aviso { display: flex; align-items: center; gap: 4px; margin: 0; color: rgb(var(--tom-amber-900)); font-size: 11.5px; }
+.territorios-erro { margin: 0; color: rgb(var(--tom-rose-800)); font-size: 11.5px; }
+.territorios-adicionar { display: flex; flex-wrap: wrap; gap: 4px; }
+.territorios-adicionar .analise-botao-secundario { min-height: 30px; padding: 4px 9px; font-size: 12px; }
+.territorios-marcados { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.territorios-marcado { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--cor-tinta); border-radius: 999px;
+  background: var(--cor-tinta); color: var(--cor-sobre-tinta); font-size: 11.5px; font-weight: 600; }
+.territorios-marcado-fora { border-style: dashed; background: var(--cor-superficie); color: var(--cor-texto-2); text-decoration: line-through; }
+.territorios-busca { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--cor-borda-campo); border-radius: 10px;
+  background: var(--cor-superficie); color: var(--cor-texto-2); }
+.territorios-busca input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--cor-tinta); font-size: 12.5px; outline: none; }
+.territorios-lista { max-height: 13rem; overflow: auto; margin: 0; padding: 4px; border: 1px solid var(--cor-borda); border-radius: 10px;
+  background: var(--cor-superficie-suave); list-style: none; }
+.territorios-lista-nome { flex: 1 1 auto; min-width: 0; }
+.territorios-lista-dado { flex-shrink: 0; color: var(--cor-texto-2); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.territorios-previa { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--cor-realce-suave); color: var(--cor-tinta); font-size: 12px;
+  line-height: 1.45; }
+.territorios-notas { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave); }
+.territorios-notas > p { margin: 0; }
+.territorios-faixas { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.territorios-faixas > legend { padding: 0; color: var(--cor-tinta); font-size: 12px; font-weight: 650; }
+.territorios-rodape { position: sticky; bottom: -12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 -12px -12px;
+  padding: 10px 12px; border-top: 1px solid var(--cor-borda-suave); border-radius: 0 0 16px 16px; background: var(--cor-superficie-elevada); }
+.territorios-estado { display: flex; align-items: center; gap: 5px; flex: 1 1 12rem; margin: 0; color: var(--cor-texto-2); font-size: 12px; }
+.territorios-estado-pendente { color: rgb(var(--tom-amber-900)); font-weight: 650; }
 .analise-painel-cabecalho { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 12px; border-bottom: 1px solid var(--cor-borda-suave); background: var(--cor-superficie-elevada); border-radius: 16px 16px 0 0; }
 .analise-painel-corpo { padding: 12px; }

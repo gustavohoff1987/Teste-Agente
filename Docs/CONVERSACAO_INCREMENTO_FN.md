@@ -183,14 +183,17 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   competência por vez: com um período assim, a conversa pede uma competência ou a tendência anual ou semestral. Na
   rotatividade, as duas pontas citadas são os períodos da coorte.
 - **Referência da análise espacial:** "use Belém como referência", "distância até Belém", "a referência é Belém"; "use
-  Manaus e Belém como conjunto de referência" (o membro mais próximo); "use como referência o município de maior
-  densidade" (critério: abre o Território de referência com o atributo citado e, desde 25/10/2026, o operador do "maior" ou
-  "menor", também em "mais/menos populosos" e "mais/menos profissionais"; a relação, a delimitação e o valor de corte ficam com
-  a pessoa, sem valor sugerido: "Abri o Território de referência com a condição Densidade “Maior que”: escolha a relação (mais
-  próximo ou mais distante), a delimitação e o valor de corte, …". Nada é escolhido pela posição na ordem: CAP-REF-01 pede uma
-  condição de CAP-SUB-01. Antes de 24/10, a lista de candidatos abria nessa ordem; de 24 a 25/10, o "maior/menor" ficava sem
-  efeito). "Abra a análise espacial" responde "Abri a análise espacial: defina o Território de
-  referência (a relação, a delimitação e a condição) ou diga o nome dele, …".
+  Manaus e Belém como conjunto de referência" (o membro mais próximo). Desde 27/10/2026, a tela leva os nomes à Escolha dos
+  territórios como os marcados da Referência, a partir do país, e a base continua a da consulta (sem ela, a seleção prévia);
+  como em toda a janela, um município da base nunca é a sua própria referência. "Use como referência o município de maior
+  densidade" (critério: abre a Escolha dos territórios na aba Referência com um filtro do atributo citado e, desde
+  25/10/2026, o operador do "maior" ou "menor" — "acima de" ou "abaixo de" —, também em "mais/menos populosos" e
+  "mais/menos profissionais"; o valor fica com a pessoa, sem valor sugerido: "Abri a Escolha dos territórios com o filtro
+  Densidade “acima de” na Referência: preencha o valor e calcule, …"). Nada é escolhido pela posição na ordem: CAP-REF-01 pede
+  uma condição de CAP-SUB-01. Antes de 24/10, a lista de candidatos abria nessa ordem; de 24 a 25/10, o "maior/menor" ficava
+  sem efeito; de 24 a 26/10, o critério abria o painel Território de referência, com a relação e a delimitação para escolher.
+  "Abra a análise espacial" responde "Abri a análise espacial: faça a Escolha dos territórios (a base e a referência) ou diga
+  o nome da referência, …".
 - **Ordenar:** "os 5 municípios com maior densidade", "os 3 com menor quantidade", "quais os dez mais populosos?",
   "qual município tem a maior densidade?" (o primeiro), "os 10 primeiros", "top 5", "os 5 mais distantes de Manaus".
   Sem o indicador ("os 10 primeiros") ou sem a direção ("ordene pela densidade"), a conversa pergunta. Empates na

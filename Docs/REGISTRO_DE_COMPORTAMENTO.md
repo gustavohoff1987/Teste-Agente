@@ -35,6 +35,131 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-27 · Análise Espacial: Escolha dos territórios (base e referência irmãs, seletor em três etapas, contagens do motor) no lugar do Território de referência e dos territórios base
+- **Classificação (regra 1), pela leitura, antes de codar:** os itens decorrem do comando do responsável "Seleção de
+  Territórios" (27/10/2026).
+  - **Janela, frase-resumo, abas e rodapé (mudança 1):** mudança prevista. A referência continua definida pelo usuário, por
+    lista ou por critério (CAP-REF-01), e a distância continua a geodésica até a referência mais próxima do conjunto completo
+    (CAP-ESP-01 e CAP-ESP-02), com a nota TPL-11; a SPEC não fixa a forma da janela.
+  - **Seletor em três etapas com contagens do motor (mudança 2):** mudança prevista. Partir de é o recorte do universo
+    (CAP-UNI-01); os filtros são condições atômicas combinadas por E, em três estados (CAP-SUB-01); toda contagem vem do motor
+    (RQ-REP-09); a escolha pelos marcados é a lista de CAP-REF-01.
+  - **"Conforme a base" só na referência, sem ranking, sem OU/NÃO, só a geodésica (mudança 3):** mudança prevista (a regra
+    "no mesmo estado de cada município" de 24/10/2026 continua, com o rótulo novo).
+  - **Duas dúvidas levadas ao responsável antes de implementar:** (1) o comando dizia que o município sem referência no
+    próprio recorte "atende a 'acima de' e não atende a 'até'" no filtro de distância, o que contraria CAP-ESP-02 e CAP-SUB-01
+    (conjunto de referências vazio é `NAO_AVALIAVEL`, e o não avaliável nunca vira "atende" nem "não atende"). Decisão:
+    **seguir a SPEC**: com o filtro de distância, o município fica fora da base (o filtro não é avaliável para ele) e aparece
+    no resultado, pelo nome, como "sem referência no recorte", com o motivo; sem o filtro, entra com a distância não
+    avaliável. A SPEC não mudou. (2) A distância vai sempre até a referência mais próxima, e o "mais distante" de 24/10/2026
+    não cabia na janela. Decisão: **tirar o "mais distante"** da janela e do contrato da página (remoção registrada aqui).
+  - **Consequências classificadas junto:** a escolha dos territórios base um a um (só estado visual, 25/10/2026) dá lugar à
+    etapa Escolher da base, que o motor calcula; o esmaecimento das bolhas fora deles (26/10/2026) sai com eles; a referência
+    pelo nome vinda da conversa vira os marcados da Referência; o critério da conversa vira o filtro da Referência (decisão 4
+    de 25/10/2026, mantida). Todas previstas: decorrem do comando e não contrariam a SPEC nem as decisões aprovadas.
+- **Antes:**
+  - **Tela:** o painel "Território de referência" (`GavetaReferencia`): a relação (mais próximo ou mais distante), a
+    delimitação ("No mesmo estado de cada município", estados ou regiões escolhidos, Brasil inteiro), uma condição (um
+    atributo, "Maior que" ou "Menor que" e o valor de corte), o que faltava escolher, a prévia em palavras e "Aplicar o
+    território de referência"; no início do painel, os **Territórios base** ("Todos os selecionados" ou alguns, cumulativos,
+    só estado visual), com o anel "· território base" e, com alguns escolhidos, as demais bolhas esmaecidas. A base era
+    sempre a Seleção de Territórios; sem territórios selecionados, a análise espacial esperava a seleção.
+  - **Motor:** `referencia` com `{relacao, delimitacao, condicao}` (resposta `tipo: "elegiveis"`): os elegíveis eram as
+    unidades da base que atendiam à condição; para cada município, o mais próximo ou o mais distante deles.
+  - **Conversa:** o critério ("use como referência o município de maior densidade") abria o painel com o atributo e "Maior
+    que"/"Menor que" ("Abri o Território de referência com a condição Densidade “Maior que”: escolha a relação …"); a
+    referência pelo nome era a referência por membros (o membro entrava no gráfico, com distância zero e a mira).
+  - **Textos:** título "Densidade de médicos e distância até o território de referência · …"; CSV com "Distância até o
+    território de referência (km)"; frase-resumo "Distância em linha reta até o território de referência de cada município
+    (o mais próximo entre os municípios …)"; "Abri a análise espacial: defina o Território de referência (a relação, a
+    delimitação e a condição) ou diga o nome dele, …".
+- **Agora:**
+  - **Janela "Escolha dos territórios"** (`EscolhaDosTerritorios.tsx`; o botão dos ajustes tem o mesmo nome e, ao lado, a
+    frase da consulta calculada ou "nenhuma ainda"): abre sozinha ao entrar na análise sem consulta calculada; embaixo do
+    título, o contexto ("Categoria profissional: Médicos · Competência: junho de 2024"); a frase-resumo fixa "{Base} →
+    referência: {Referência}", montada por modelo (cada trecho abre a aba dele; o incompleto vira "base incompleta" ou
+    "referência incompleta", destacado); as abas "1 Base" e "2 Referência", com o status curto (a contagem do motor ou
+    "incompleta"), só a ativa à vista, sem aba Distância; o rodapé com "Calcular" e a linha de estado ("A consulta mudou.
+    Calcule para atualizar.", o motivo da pendência com "Calcular" desligado ou "Resultado em dia com a consulta."). Na aba
+    Referência, "Distância em linha reta (geodésica) até a referência mais próxima de cada município da base.", a nota TPL-11
+    e as faixas de distância.
+  - **Seletor igual nos dois lados:** Partir de (Todo o país; uma ou mais regiões; um ou mais estados, com botões; Seleção
+    prévia, com a quantidade e os nomes; só na referência, "Conforme a base": "Mesma UF de cada município da base" e "Mesma
+    região de cada município da base", com a explicação); Filtrar por (opcional, E: "+ Densidade", "+ População", "+
+    Quantidade" e, só na base, "+ Distância", "Distância até a referência mais próxima", "acima de" ou "até", em km, com
+    "depende da Referência"; operadores "abaixo de", "até", "acima de" e "a partir de"; faixas repetindo o indicador; o texto
+    "Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em Critérios combinados.");
+    Escolher ("Todos que atendem (N)" ou "Só os que eu marcar", com a busca pelo nome e a lista só de quem passou pelas etapas
+    1 e 2, com o estado e a densidade; os marcados viram botões removíveis); a contagem do motor depois de cada etapa e a
+    prévia ("N municípios entram na base" ou "N municípios podem ser referência", com os primeiros nomes). As pendências usam
+    os textos do comando: "escolha ao menos uma região", "escolha ao menos um estado", "preencha o valor do filtro", "marque
+    ao menos um município", "complete a referência para usar o filtro de distância".
+  - **Motor:** `options.consulta` (`{base, referencia, distancia}`, um objeto serializável, a fonte de verdade da janela e do
+    estado salvo) no lugar de `referencia` na página; a base pode partir do país, de regiões ou de estados, sem depender da
+    Seleção de Territórios (que vai em `base`, como a seleção prévia). Os itens são só os municípios da base; cada um com a
+    distância até a referência mais próxima, nunca ele mesmo, com os empates (`referencia_do_item`); `referencia` com
+    `tipo: "consulta"` (a consulta normalizada, os textos, as contagens, `sem_referencia`, os `membros` usados e a origem).
+    Com "Conforme a base", só contam as referências do estado (ou da região) de cada município. Sem referência no recorte: o
+    motivo "Sem referência no recorte: nenhum outro município da referência no mesmo estado (Roraima) em junho de 2024
+    (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)"; com o filtro de distância, fora da base e listado (na tela,
+    `analise-sem-referencia-no-recorte`, pelo nome). Rota nova `POST /api/painel/territorios`: as contagens de cada etapa, as
+    pendências, as prévias, os marcados e a lista para marcar, sem iniciar a análise. Validações com mensagem ("Consulta
+    inválida: …", "A base não tem as opções relativas …", "A referência não tem o filtro de distância …", "Base incompleta:
+    …", "Com a Escolha dos territórios, a referência vem da consulta: …"); o pedido antigo por elegibilidade recebe 422 "O
+    território de referência por elegibilidade foi substituído pela Escolha dos territórios: …". O **"mais distante" saiu**.
+  - **Conversa:** o critério abre a janela na aba Referência com o filtro do atributo e "acima de" ou "abaixo de", sem valor
+    ("Abri a Escolha dos territórios com o filtro Densidade “acima de” na Referência: preencha o valor e calcule, …"); a
+    referência pelo nome vira os marcados da Referência, a partir do país (a referência não é mais item do gráfico; um
+    município da base que também é marcado na Referência fica com o mais próximo entre os demais, nunca ele mesmo); "Abri a
+    análise espacial: faça a Escolha dos territórios (a base e a referência) ou diga o nome da referência, …". A explicação
+    sem referência diz "Faça a Escolha dos territórios na Análise Espacial …"; a descrição da plataforma no contexto da
+    conversa fala da distância de cada município da base até a referência mais próxima.
+  - **Textos e desenho:** título "Densidade de médicos e distância até a referência mais próxima · {lugar da base} · …"; CSV
+    com "Distância até a referência mais próxima (km)" e "Referência mais próxima"; frase-resumo "Distância em linha reta até
+    a referência mais próxima de cada município (o mais próximo entre os municípios {referência em palavras}): …" e, com a
+    base vazia, "nenhum município na base."; acima do desenho, "Base: 15 · cada um ligado à sua referência mais próxima por
+    linha tracejada: …" ou "Base: BOA VISTA (RR) · referência mais próxima: …, a … km em linha reta."; legendas "círculo claro
+    com mira: referência fora da base, no início do eixo (0 km)", "mira: referência mais próxima". "Calcular" é um passo do
+    Desfazer ("Calcular a escolha dos territórios") e tira a comparação de antes. O estado salvo de antes vira a consulta
+    equivalente (a referência por elegibilidade, a por membros e os territórios base como marcados da base); com o "mais
+    distante", fica sem consulta. Destaque da análise: só a comparação esmaece as demais bolhas.
+- **Permanece:** as geodésicas de Karney no elipsoide do referencial (`extreme_exact`, empates exatos); o próprio município
+  nunca é a sua referência (24/10/2026); a referência do recorte sem coordenada válida deixa a distância não avaliável, sem
+  trocar pela mais próxima entre as demais; nenhuma distância vira zero; as faixas de distância (CAP-ESP-03), as Condições e a
+  Ordenação pela distância; a referência como bolha de contexto no 0 km, as linhas tracejadas (até 30) e a referência no
+  quadro do mapa, com o nome; a rota 2 (`/api/painel/referencias`) e a referência por membros no contrato da API; a análise
+  espacial de `/api/analyze`; os dados versionados; nada da base vai ao provedor de IA; a SPEC.
+- **Motivo:** comando do responsável "Seleção de Territórios" (27/10/2026): a base aceitava só a escolha por nome, e a
+  referência, só por delimitação e condição; base e referência passam a ser escolhidas do mesmo jeito. Decisões do responsável
+  na consulta de 27/10/2026: seguir a SPEC para o município sem referência no recorte e tirar o "mais distante".
+- **Documentação e testes:** `README.md` (referência geográfica mais próxima, destaque, mapa), `Docs/PAINEL_INTEGRADO_INTERFACE.md`
+  (a análise espacial reescrita, a seção da Seleção de Territórios com o nome dela, os ajustes, o Desfazer, o mapa, o destaque,
+  o título, o pedido e os testes), `Docs/PAINEL_INTEGRADO.md` (seção "Escolha dos territórios" no lugar da referência por
+  elegibilidade, a rota 4, as chaves e a resposta), `Docs/MAPA_DA_PAGINA_UNICA.md` (mira, ligações, anéis, nomes, testes),
+  `Docs/CONVERSACAO_INCREMENTO_FN.md` e `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (a referência pela conversa). Testes
+  novos: em `test_painel_pagina.py`, `test_consulta_steps_start_from_filters_and_choice_as_in_the_command`,
+  `test_consulta_reference_follows_the_base_and_the_distance_filter_never_hides_a_municipality`,
+  `test_consulta_is_validated_and_incomplete_parts_block_the_calculation`,
+  `test_territories_route_counts_each_step_for_the_window_without_starting_the_analysis` e, com a base versionada,
+  `test_real_consulta_of_the_command_north_far_from_acre`. Testes substituídos, com a cobertura transferida:
+  `test_eligible_reference_filters_first_then_takes_the_nearest_without_the_territory_itself` →
+  `test_consulta_selects_the_base_and_measures_the_nearest_reference_without_the_territory_itself`;
+  `test_eligible_reference_takes_the_farthest_and_follows_the_delimitation` → o recorte em
+  `test_consulta_reference_follows_the_base_…` e em `test_consulta_steps_…` (o "mais distante" saiu do produto, e com ele a
+  conferência dele; a recusa do pedido antigo, também com `mais_distante`, fica em `test_consulta_is_validated_…`);
+  `test_eligible_reference_without_eligibles_or_with_an_eligible_without_coordinates` → `test_consulta_reference_follows_the_base_…`
+  (sem referência no recorte e a referência sem coordenada válida); `test_eligible_reference_is_validated_and_has_no_default` →
+  `test_consulta_is_validated_…`; `test_uploaded_eligible_reference_uses_the_spreadsheet_levels` →
+  `test_uploaded_consulta_uses_the_spreadsheet_levels`; `test_real_eligible_reference_matches_every_geodesic_…` →
+  `test_real_consulta_matches_every_geodesic_…`. Nos testes do frontend, "território de referência" →
+  "escolha dos territórios (27/10/2026)" (a consulta inicial, a leitura sem perda, as pendências, a frase por modelo, o pedido
+  e a migração), "territórios base" → "base e referência" (os pares e os textos novos) e o destaque só da comparação.
+  Alterados por mudança intencional (o comportamento mudou de propósito; nenhum teste foi afrouxado): os textos da conversa
+  em `test_conversa_grafico.py`; nos roteiros de navegador, o passo 9 de `ui_area_de_analise.py` (a janela nova, com as
+  contagens conferidas com o motor), os passos 11, 11b e 11c de `ui_mapa.py` (a janela nova; só BOA VISTA na base pela etapa
+  Escolher, agora um novo cálculo, e o Desfazer sem recalcular, no lugar da escolha visual sem pedido) e o passo 7b de
+  `ui_conversa_grafico.py` (o filtro da Referência no lugar do painel antigo).
+
 ### 2026-10-26 · Conversa: lembrete da base sem esperar o provedor, comparação indireta pelos extremos, exemplos sem lugares, histórico legível com o novo visual, destaque da comparação no gráfico e menos latência
 - **Classificação (regra 1), pela leitura, antes de codar:** todos os itens decorrem do pedido do responsável de 26/10/2026
   (ajustes depois da navegação com o Gemini) e passaram nos dois testes.

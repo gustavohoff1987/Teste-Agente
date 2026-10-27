@@ -37,7 +37,8 @@ planilha enviada.
 
 ### Visão geral
 
-- **Rotas:** `POST /api/painel`, `POST /api/painel/referencias` e `POST /api/painel/mapa` (`backend/main.py`). O motor
+- **Rotas:** `POST /api/painel`, `POST /api/painel/referencias`, `POST /api/painel/mapa` e, desde 27/10/2026,
+  `POST /api/painel/territorios` (`backend/main.py`). O motor
   fica em `backend/painel.py`; a frase-resumo da página única, em `backend/resumo_painel.py`.
 - **Base (sem `nivel`):** só a base Brasil oficial (fonte municipal), numa competência e numa categoria. Arquivo importado
   recebe 422: "O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; …". Com `nivel`, ver
@@ -48,7 +49,7 @@ planilha enviada.
 - **Privacidade:** nenhum nome, valor, campo ou arquivo vai ao provedor de IA. As rotas não chamam o Gemini, e nem a
   frase-resumo nem as coordenadas do mapa entram em contexto enviado a ele.
 
-### Formulário (as três rotas)
+### Formulário (as quatro rotas)
 
 Multipart, no padrão de `/api/analyze`:
 
@@ -61,8 +62,8 @@ Multipart, no padrão de `/api/analyze`:
 | `dataset_version` | Versão da inspeção. Integridade conferida pelo manifesto a cada pedido; versão divergente → 422 "A base Brasil foi atualizada. …". |
 | `mapping` | Mapeamento da inspeção. Na base Brasil, o do perfil oficial: código IBGE, município, período, categoria, quantidade e população e, com a referência, latitude e longitude; vazio vale o perfil oficial; papel sem coluna é ignorado. Nas planilhas, ver "Planilhas enviadas". |
 | `options` | JSON descrito em cada rota. Chave desconhecida → 422 "Parâmetro não reconhecido no painel: …". |
-| `geo_version` | Opcional, na rota 1 com referência e no mapa, só na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
-| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2 e 3, aceita e não usada (nada é gravado). |
+| `geo_version` | Opcional, na rota 1 com referência (ou com `consulta`), na rota 4 e no mapa, só na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
+| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2, 3 e 4, aceita e não usada (nada é gravado). |
 | `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`; na página única, grava também o resultado (seção "Sessão"). |
 
 ### Rota 1: `POST /api/painel` (contrato de 21/10/2026)
@@ -168,8 +169,8 @@ Resposta 200: `{criterio, competencia, categoria, candidatos: [{id, rotulo, uf, 
 - Os não avaliáveis (sem registro na competência) ficam em `nao_avaliaveis`, sem posição.
 - "Usar o primeiro" era a seleção por posição (CAP-SUB-03), feita na tela: com empate na 1ª posição, a tela pedia a escolha
   entre os empatados. A rota só lista; não inicia análise nem escolhe a referência. Desde a segunda rodada de 24/10/2026, a
-  tela não usa mais esta rota: o território de referência é definido por elegibilidade (seção "Território de referência por
-  elegibilidade"). A rota continua no contrato, com os testes dela.
+  tela não usa mais esta rota (desde 27/10/2026, a referência vem da Escolha dos territórios, seção "Escolha dos territórios").
+  A rota continua no contrato, com os testes dela.
 
 ### Rota 3: `POST /api/painel/mapa` (23/10/2026)
 
@@ -205,6 +206,31 @@ Resposta 200: `{"competencia", "referencial", "pontos": [{id, lat, lon}], "sem_c
 Com a base versionada de 22/10/2026, em junho de 2024 os 5.570 municípios têm ponto (os seis da camada complementar,
 como ANANAS, pela sede oficial do IBGE); em janeiro de 2015, três municípios sem registro na competência ficam em
 `sem_coordenada`.
+
+### Rota 4: `POST /api/painel/territorios` (27/10/2026)
+
+O que a janela Escolha dos territórios mostra enquanto a consulta é montada, tudo do motor e sem iniciar a análise.
+`options`: `{competencia, categoria, consulta, base?, lista?}` e, com planilha, `premissas` e `rotulos` (as mesmas regras da
+rota 1; chave desconhecida → 422 "Parâmetro não reconhecido no painel: …"). `consulta` tem a forma da seção "Escolha dos
+territórios" (sem ela → 422 "Envie a consulta da Escolha dos territórios."); `base` é a seleção prévia; `lista`,
+`{"lado": "base" | "referencia", "busca", "limite"}`, pede a lista para marcar (busca de até 120 caracteres; `limite` de 1 a
+500, 100 sem ele; forma errada → 422 "Lista inválida: …", "Busca inválida: …" ou "Limite da lista inválido: use um inteiro
+entre 1 e 500.").
+
+Resposta 200: `{competencia, categoria, selecao_previa: {total, nomes}, base, referencia, lista?}`, com cada lado
+`{contagens: {partir_de, filtros, final, nao_avaliaveis, sem_referencia (só na base)}, pendencias, previa: {total, nomes} |
+null, marcados: [{id, rotulo, uf, densidade, passa}]}` e a lista `{lado, busca, total, limite, itens: [{id, rotulo, uf,
+densidade}]}`.
+
+- As contagens são as de cada etapa: `partir_de` (quantos há de onde o lado parte), `filtros` (quantos atendem a todos os
+  filtros com valor) e `final` (depois da escolha; `null` com os marcados vazios); com a etapa 1 pendente, todas `null`.
+- `previa`: quantos entram e os primeiros nomes (até 8, na ordem do código); `marcados`: cada marcado com o estado, a densidade
+  e se passa pelas etapas 1 e 2 (`passa`); `lista`: quem passou pelas etapas 1 e 2, pela busca no nome (sem acentos e sem
+  caixa), em ordem alfabética.
+- Com o filtro de distância e a referência completa, a base é cortada pela distância até a referência mais próxima, a mesma
+  do gráfico (`sem_referencia` conta quem fica de fora porque a distância não é avaliável). O que impede medir a distância (o
+  referencial de uma planilha, por exemplo) vira pendência da base, com o texto do motor, em vez de erro.
+- **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA. Os números vêm das mesmas funções da rota 1.
 
 ### Erros
 
@@ -263,27 +289,28 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 | `estados` | Só no nível estados (24/10/2026): os estados escolhidos, pelos prefixos IBGE (`["29", "42"]`) ou pelos ids (`"uf:29"`), sem repetir; os itens vêm na ordem do código. Sem a lista, todos os estados da fonte estadual, como antes. Fora do nível estados → 422 "A lista estados vale só no nível estados: …"; lista vazia ou repetida → 422 "Estados inválidos: …"; estado sem registro → 422 "Estado sem registro na fonte estadual: …". |
 | `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
-| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. Desde a segunda rodada de 24/10/2026, `referencia` também aceita o **território de referência por elegibilidade** (seção "Território de referência por elegibilidade"), só na página única. |
+| `conjuntos`, `referencia` | Como no contrato de 21/10, só no nível municípios. O território de referência por elegibilidade (24 a 26/10/2026) saiu: o pedido com `relacao`, `delimitacao` ou `condicao` recebe 422 com o caminho novo (seção "Escolha dos territórios"). |
+| `consulta` | Desde 27/10/2026, a **Escolha dos territórios** da análise espacial (seção "Escolha dos territórios"), só no nível municípios e sem `referencia`: a base e a referência em três etapas e a distância até a referência mais próxima. |
 | `competencia_inicial` | Como no contrato de 21/10 (visão Trajetória, antes chamada Mudança, CAP-TMP-01), em todos os níveis. |
 | `tendencia` | `{"competencias": [...]}`: a janela, de 2 a 80 competências distintas e existentes, em qualquer ordem (o motor ordena). Com menos de quatro, o motor devolve o bloqueio (`BLQ-MET`, série insuficiente). |
 | `serie` | Desde a segunda rodada de 24/10/2026: `{"competencias": [...]}`, o intervalo da série temporal, de 2 a 600 competências distintas e existentes, em qualquer ordem (o motor ordena), nos três níveis (seção "Série temporal"). Forma errada → 422 "Série temporal inválida: use {"competencias": [...]}, …"; uma só, repetida ou mais de 600 → 422 "Intervalo da série temporal inválido: …"; competência que a base não tem → 422 "Competência inexistente na série temporal: …". |
 | `grupos` | `{"tipo": "quartis" \| "quintis" \| "decis"}`. |
 | `grupos_mapa` | `{"tipo": "quartis" \| "quintis" \| "decis"}`: os grupos por posição que pintam o mapa (23/10/2026; seção "Grupos do mapa"). A mesma validação de `grupos` (tipo inválido → 422 "Grupos por posição inválidos (grupos_mapa): use {"tipo": "quartis", "quintis" ou "decis"}."), nos níveis municípios e estados e com qualquer outra chave; pode vir junto com `grupos`, e cada um é calculado à parte. No nível Brasil, recusado (o Brasil é um só). |
 | `faixas` | Lista de 2 a 21 limites crescentes e distintos, não negativos, do `indicador` (números ou textos com vírgula ou ponto decimal, como `[0, 1, 2, 5]` ou `["0", "1,5"]`). Intervalos [a, b) e o último fechado. |
-| `faixas_distancia` | A mesma forma, em km. Exige `referencia`. |
-| `condicoes` | Lista de 1 a 12 `{"atributo", "operador", "valor"}` combinados por E. `atributo`: `densidade`, `quantidade`, `populacao` ou `distancia_km` (este exige `referencia`). `operador`: `<`, `<=`, `>`, `>=`, `=` ou `!=`. `valor`: número não negativo ou texto com vírgula ou ponto decimal; densidade por 1.000 habitantes, distância em km. |
-| `ordenar` | `{"atributo", "ordem", "primeiros"}`. `atributo`: `densidade`, `quantidade`, `populacao`, `distancia_km` (exige `referencia`) ou `variacao` (a variação percentual do `indicador`, exige `competencia_inicial`). `ordem`: `desc` ou `asc`. `primeiros` (opcional): inteiro de 1 a 10.000. |
+| `faixas_distancia` | A mesma forma, em km. Exige `referencia` ou `consulta`. |
+| `condicoes` | Lista de 1 a 12 `{"atributo", "operador", "valor"}` combinados por E. `atributo`: `densidade`, `quantidade`, `populacao` ou `distancia_km` (este exige `referencia` ou `consulta`). `operador`: `<`, `<=`, `>`, `>=`, `=` ou `!=`. `valor`: número não negativo ou texto com vírgula ou ponto decimal; densidade por 1.000 habitantes, distância em km. |
+| `ordenar` | `{"atributo", "ordem", "primeiros"}`. `atributo`: `densidade`, `quantidade`, `populacao`, `distancia_km` (exige `referencia` ou `consulta`) ou `variacao` (a variação percentual do `indicador`, exige `competencia_inicial`). `ordem`: `desc` ou `asc`. `primeiros` (opcional): inteiro de 1 a 10.000. |
 | `comparar` | Lista de 2 ou 3 ids distintos de itens da resposta (municípios, unidades, estados ou conjuntos), no `indicador`. Id que não está na resposta → 422 "Itens da comparação fora do gráfico: …". Itens relacionados (um conjunto e um membro dele, ou conjuntos com membros em comum) → 422 "Itens relacionados não são comparados: …". |
 | `rotatividade` | `{"inicial", "final"}`: duas competências existentes, a final depois da inicial. Só na planilha com identificador individual; na base do Brasil → 422 com o motivo da indisponibilidade. |
 | `premissas` | Só nas planilhas (seção "Planilhas enviadas"); na base do Brasil → 422 "Na base do Brasil, as premissas vêm do perfil oficial: …". |
 | `rotulos` | Só nas planilhas; na base do Brasil → 422 "Na base do Brasil, os rótulos são fixos …". |
 
-No nível `estados`, `base`, `conjuntos`, `referencia`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
+No nível `estados`, `base`, `conjuntos`, `referencia`, `consulta`, `faixas_distancia`, `rotatividade`, a condição e a ordenação por
 `distancia_km` são recusados com o motivo (estados não têm um ponto único; a base vale só para municípios; os estados
 escolhidos vão em `estados`).
 
 No nível `brasil` (24/10/2026), pela matriz da decisão D3, valem os valores (densidade e quantidade), a mudança
-(`competencia_inicial`) e a tendência (`tendencia`): `base`, `conjuntos`, `referencia`, `faixas_distancia` e `rotatividade` são
+(`competencia_inicial`) e a tendência (`tendencia`): `base`, `conjuntos`, `referencia`, `consulta`, `faixas_distancia` e `rotatividade` são
 recusados com o motivo ("No nível Brasil, a unidade é o país inteiro: base vale só para municípios."; "Não se aplica: as
 distâncias usam a localização de cada município, e o Brasil não tem um ponto único."), e também `grupos`, `grupos_mapa`,
 `faixas`, `condicoes`, `ordenar` e `comparar` ("Não se aplica: a distribuição agrupa vários territórios, e o Brasil é um
@@ -327,7 +354,7 @@ Quando pedidos:
 | `comparacao` | `{indicador, itens: [{id, rotulo, tipo, valor, avaliavel, motivos}], maior, menor, diferencas, relacoes, notas}`. Dois itens: `diferencas` = [{a, b, relacao, diferenca}], A e B em ordem de nome, relação A/B (`MAIOR`, `MENOR` ou `IGUALDADE`) e diferença assinada A − B. Três: `relacoes` = [{id, valor, proximo_valor_maior, mesmo_valor}] e `diferencas` vazia (sem diferenças automáticas entre pares, AT-84). `maior` e `menor` são listas de ids (empate: mais de um). Com menos de dois itens com valor, as listas ficam vazias, com a nota. |
 | `rotatividade` | `{inicial, final, universo, avaliaveis, nao_avaliaveis}`. |
 | `serie` | Com `serie` (24/10/2026; seção "Série temporal"): `{janela: {inicio, fim, competencias}, competencias, indicador, unidade_valor, itens_com_valor, itens, rotulo_itens}`. |
-| `referencia` | Com o território de referência por elegibilidade (24/10/2026; seção "Território de referência por elegibilidade"): `{tipo: "elegiveis", relacao, delimitacao: {tipo, valores, texto}, condicao: {atributo, operador, valor, texto}, elegiveis: {universo, atende, nao_atende, nao_avaliaveis}, membros, origem}`. Com membros escolhidos, a forma do contrato de 21/10. |
+| `referencia` | Com a Escolha dos territórios (27/10/2026; seção "Escolha dos territórios"): `{tipo: "consulta", consulta, base_texto, texto, contagens: {base, referencia}, sem_referencia, membros, origem}`. Com membros escolhidos, a forma do contrato de 21/10. |
 
 Itens: os campos do contrato de 21/10 e, sempre, `grupo_territorial` (base do Brasil: o prefixo IBGE do estado, como
 `"13"`; planilha: o valor da coluna `grupo_territorial` ou `null`; estados e conjuntos: `null`). No nível estados, o item
@@ -341,8 +368,8 @@ Por item, quando pedidos (o campo vem em todos os itens; `null` fora do universo
 
 | Campo | Forma |
 |---|---|
-| `referencia_mais_proxima` | Com `referencia` por membros: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável, nos conjuntos e com o território de referência por elegibilidade. |
-| `referencia_do_item` | Com o território de referência por elegibilidade (24/10/2026): a mesma forma, `{id, rotulo, empate}`, com o território de referência do item (o mais próximo ou o mais distante dos elegíveis, nunca ele mesmo) e os empatados. `null` sem distância avaliável e nos conjuntos. |
+| `referencia_mais_proxima` | Com `referencia` por membros: `{id, rotulo, empate}`, o membro da referência à menor distância; `empate` lista todos os membros à mesma menor distância (vazia sem empate); `id` é o primeiro deles na ordem da referência. `null` sem distância avaliável, nos conjuntos e com a Escolha dos territórios. |
+| `referencia_do_item` | Com a Escolha dos territórios (27/10/2026): a mesma forma, `{id, rotulo, empate}`, com a referência mais próxima do item (nunca ele mesmo) e as empatadas. `null` sem distância avaliável e nos conjuntos. |
 | `serie` | Com `serie` (24/10/2026): `{observacoes: [{competencia, valor}], comparavel, motivo}`, uma observação por competência do intervalo, na ordem dele; `valor` é `null` sem valor (nunca zero). `comparavel` é falso no conjunto com membros diferentes no intervalo, com o `motivo` ("Série não comparável: …; cada valor vale isoladamente e os pontos não são ligados (INCOMPARABILIDADE)"). |
 | `tendencia` | `{classe, familia, rotulo, motivo, motivo_texto, avaliavel, observacoes, velocidades}`. `classe`: CategoriaTendencia (`CRESCIMENTO`, `CRESCIMENTO_ACELERADO`, `CRESCIMENTO_DESACELERADO`, `DECLINIO`, `DECLINIO_ACELERADO`, `DECLINIO_DESACELERADO`, `SEM_CLASSIFICACAO`) ou `null`; `familia`: `CRESCIMENTO`, `DECLINIO`, `NENHUMA` ou `null` (não avaliável); `rotulo`: o rótulo DA-15 ("Desaceleração do crescimento", "Não avaliável: série insuficiente"); `motivo`: `SERIE_ESTAVEL`, `MUDANCA_DE_DIRECAO`, `SERIE_INSUFICIENTE`, `INCOMPARABILIDADE` ou `null`; `motivo_texto`: o texto do motivo ("3 de 4 observações necessárias"); `observacoes`: [{competencia, valor}] do indicador nas competências com valor (também nos não avaliáveis); `velocidades`: as velocidades do motor (variação do indicador por `unidade_tempo`, o mês nas competências AAAAMM) entre observações consecutivas, na ordem de `observacoes`; vazia quando não avaliável. As observações também desenham os períodos do meio da visão Trajetória. |
 | `grupo` | `{indice, rotulo}` (`indice` de 1 a k, "2º quartil"). |
@@ -429,64 +456,87 @@ E os blocos do topo do mesmo pedido (trechos):
  "sessao": {"registrado": false, "result_id": null, "motivo": "Sem sessão: o pedido não trouxe o cabeçalho X-ADT-Session."}}
 ```
 
-### Território de referência por elegibilidade (24/10/2026)
+### Escolha dos territórios (`consulta`, 27/10/2026)
 
-Pedido do responsável (segunda rodada de 24/10/2026, item 6): na análise espacial, primeiro os territórios **elegíveis**,
-depois o mais próximo ou o mais distante deles, para cada município, sem ele mesmo. Só na página única (com `nivel`) e só no
-nível municípios; sem `nivel` → 422 "O território de referência por elegibilidade vale só no formato da página única (com
-nivel)."; no nível estados, a recusa de sempre ("Não se aplica: estados não têm um ponto único. …").
+Comando do responsável (Seleção de Territórios, 27/10/2026), no lugar do território de referência por elegibilidade de
+24/10/2026: na análise espacial, a base e a referência são escolhidas do mesmo jeito, num objeto de consulta serializável,
+em três etapas: de onde partir, filtros por indicador combinados por E e a escolha (todos os que atendem ou só os
+marcados). A distância de cada município da base vai sempre até a referência mais próxima, sem ele mesmo. Só na página
+única (com `nivel`) e só no nível municípios (nos níveis estados e Brasil, a recusa de sempre, com o motivo). Com `consulta`,
+`base` é a **seleção prévia** (a escolha da Seleção de Territórios), lida só por `partir_de` `"selecao_previa"`, e os itens
+são os municípios que a consulta seleciona; `referencia` não vai junto (→ 422 "Com a Escolha dos territórios, a referência
+vem da consulta: não envie referencia junto com consulta.").
 
 ```json
-{"referencia": {"relacao": "mais_distante",
-                "delimitacao": {"tipo": "regioes", "valores": ["Norte"]},
-                "condicao": {"atributo": "populacao", "operador": ">", "valor": 100000}}}
+{"consulta": {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
+                       "filtros": [{"indicador": "densidade", "operador": "<", "valor": 0.5},
+                                   {"indicador": "distancia", "operador": ">", "valor": 300}],
+                       "escolha": {"modo": "todos", "municipios": []}},
+              "referencia": {"partir_de": {"tipo": "ufs", "regioes": [], "ufs": ["12"]},
+                             "filtros": [{"indicador": "densidade", "operador": ">", "valor": 2}],
+                             "escolha": {"modo": "todos", "municipios": []}},
+              "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}}
 ```
 
-- **Chaves:** exatamente `relacao`, `delimitacao` e `condicao` (outra chave, ou faltando uma → 422 "Território de referência
-  inválido: use {"relacao": …}"). Nenhuma tem valor padrão.
-- **`relacao`:** `"mais_proxima"` (CAP-ESP-02, o mínimo do conjunto completo) ou `"mais_distante"` (as distâncias de CAP-ESP-01
-  em ordem decrescente, CAP-SUB-02, e a 1ª posição, CAP-SUB-03). Outro valor → 422 "Relação espacial não reconhecida: …".
-- **`delimitacao`:** `{"tipo", "valores"}`, o universo dos elegíveis, só com os níveis que a fonte tem (nenhum é presumido):
-  - `todos`: a base inteira ("de todo o Brasil"; numa planilha, "de toda a planilha");
-  - `mesmo_grupo`: o mesmo estado de cada município (o prefixo do código IBGE; numa planilha, o valor da coluna
-    `grupo_territorial`, "da mesma província de cada distrito");
-  - `grupos`: os estados escolhidos (prefixos IBGE) ou, numa planilha, os valores da coluna-mãe ("do estado escolhido
-    (Pará)", "dos estados escolhidos (Acre e Amazonas)");
-  - `mesma_regiao` e `regioes`: só na base do Brasil, as Grandes Regiões pelo primeiro dígito do código IBGE (a regra da
-    conversa, conferida com a coluna `regiao_geografica` da base versionada): "Norte", "Nordeste", "Sudeste", "Sul" e
-    "Centro-Oeste" ("da mesma região de cada município", "da Região Norte", "das regiões Norte e Sul").
-
-  `valores` só com `grupos` e `regioes` (outro tipo com valores → 422 "A delimitação todos não leva valores: …"); vazios ou
-  repetidos → 422 "Escolha os estados da delimitação, sem repetir." (ou "as regiões", "as províncias"); desconhecidos → 422
-  "Estados inexistentes na delimitação: …" (ou "Regiões", "Províncias"). Regiões numa planilha → 422 "As regiões (Norte,
-  Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil: nesta planilha, delimite pela província ou pela planilha
-  inteira."; o grupo numa planilha sem a coluna-mãe → 422 "A planilha não tem a coluna de província (papel
-  grupo_territorial): delimite pela planilha inteira.".
-- **`condicao`:** `{"atributo", "operador", "valor"}`, CAP-SUB-01 atômico pela mesma árvore das Condições (`parse_tree`, valores
-  exatos, três estados): `atributo` `densidade` (por 1.000 habitantes), `quantidade` (na unidade de contagem) ou `populacao`
-  (habitantes); `operador` `<`, `<=`, `>` ou `>=` (outro → 422 "Operador da condição do território de referência não
-  reconhecido: …"); `valor` não negativo. Densidade ou população numa planilha sem população → 422 com o motivo.
-- **Cálculo:** os elegíveis são as unidades da base (na competência) que atendem à condição (`ATENDE`; sem registro ou sem o
-  valor, não avaliável, nunca elegível), dentro da delimitação de cada alvo. Para cada município com coordenada válida, o
-  extremo entre os elegíveis da delimitação dele, **sem ele mesmo**, pelas geodésicas de Karney no elipsoide do referencial
-  (`nearest_reference.extreme_exact`, com todos os empates exatos; limites só poupam geodésicas que não podem decidir: na mais
-  próxima, a corda 3D; na mais distante, o arco entre os pontos levados pela normal até a esfera de raio a, nunca menor que a
-  geodésica). Os elegíveis não entram como itens: a seleção da pessoa continua a mesma. Como no conjunto de referência, um
-  elegível sem coordenada válida deixa a distância do alvo não avaliável, sem trocar pelo extremo entre os demais ("Distância
-  não avaliável em junho de 2024: sem coordenada válida no território elegível MANACAPURU (AM) (SEM_INFORMACAO_ESPACIAL); a
-  referência não é escolhida entre os demais (DEPENDENCIA_NAO_AVALIAVEL)"); sem elegível, também, com o motivo ("Sem território
-  de referência: nenhum outro município da Região Nordeste atende à condição densidade > 10 por 1.000 habitantes em junho de
-  2024 (DEPENDENCIA_NAO_AVALIAVEL, CONJUNTO_REFERENCIAS_VAZIO)"), nunca distância zero. Num conjunto, a distância não se aplica
-  (cada membro tem a sua referência). Duas definições diferentes nunca dividem distâncias na memória do pedido.
-- **Resposta:** `referencia` com `tipo: "elegiveis"`, a definição normalizada, os textos (`delimitacao.texto`, `condicao.texto`
-  como nas Condições), as contagens da condição na base (`elegiveis`), os territórios que ficaram como referência de algum
-  item (`membros`, na ordem do código, com `id` e `rotulo` e, desde 25/10/2026, `uf`, `populacao`, `quantidade` e `densidade`
-  de cada um na competência, lidos das mesmas medidas dos itens, para a tela mostrar a referência dos territórios base) e a
-  `origem` em palavras ("Para cada município, o município mais próximo entre os
-  municípios de todo o Brasil com densidade > 10 por 1.000 habitantes em junho de 2024 (3 de 6 municípios da base atendem à
-  condição); o próprio município não é a sua referência. A condição é escolha do usuário e não tem caráter normativo"); por
-  item, `referencia_do_item`. As notas do método dizem a ordem (primeiro os elegíveis, depois o extremo) e a regra das
-  coordenadas; a frase-resumo cita a definição.
+- **Forma:** `base` e `referencia` obrigatórios, cada um `{partir_de, filtros, escolha}` (sem `partir_de` ou com outra chave →
+  422 "Base da consulta inválida: use {"partir_de", "filtros", "escolha"}." ou "Referência da consulta inválida: …"; a consulta
+  com outra chave → 422 "Consulta inválida: use {"base": …}"). `distancia` é opcional e, nesta versão, só
+  `{"medida": "geodesica", "ate": "referencia_mais_proxima"}` (outra → 422 "Distância da consulta não suportada: nesta versão,
+  só a linha reta (geodésica) até a referência mais próxima, …").
+- **`partir_de`:** `{"tipo", "regioes", "ufs"}` (CAP-UNI-01). `tipo`: `pais` (a base inteira; numa planilha, ela inteira),
+  `regioes` (só na base do Brasil, as Grandes Regiões pelo primeiro dígito do código IBGE: "Norte", "Nordeste", "Sudeste",
+  "Sul" e "Centro-Oeste"), `ufs` (os prefixos IBGE; numa planilha, os valores da coluna `grupo_territorial`) ou
+  `selecao_previa`; só na referência, também `mesma_uf_da_base` e `mesma_regiao_da_base` (na base → 422 "A base não tem as
+  opções relativas (mesmo estado ou mesma região de cada município da base): elas valem só na referência."). As listas vão
+  sem repetir e só com o tipo delas (→ 422 "Base da consulta: regioes vale só com o tipo regioes."); vazias, deixam o lado
+  pendente ("escolha ao menos uma região", "escolha ao menos um estado"); desconhecidas → 422 "Regiões inexistentes na
+  consulta: …" ou "Estados inexistentes na consulta: …". Regiões numa planilha → 422 "As regiões (Norte, Nordeste, Sudeste,
+  Sul e Centro-Oeste) existem só na base do Brasil."; o grupo numa planilha sem a coluna-mãe → 422 "A planilha não tem a
+  coluna de província (papel grupo_territorial): parta da planilha inteira ou da seleção prévia.".
+- **`filtros`:** até 12 `{"indicador", "operador", "valor"}`, CAP-SUB-01 atômicos combinados por E, pela mesma árvore das
+  Condições (`parse_tree`, valores exatos, três estados). `indicador`: `densidade` (por 1.000 habitantes), `populacao`
+  (habitantes) ou `quantidade`, com `<`, `<=`, `>` ou `>=` (outro → 422 "Operador do filtro não reconhecido: use <, <=, > ou
+  >=."); só na base, `distancia` (km até a referência mais próxima), com `>` ou `<=` (→ 422 "Operador do filtro de distância
+  não reconhecido: use > (acima de) ou <= (até)."; na referência → 422 "A referência não tem o filtro de distância: ele vale
+  só na base, até a referência mais próxima."). `valor`: número não negativo ou texto com vírgula ou ponto decimal; `null`
+  (ou vazio) deixa o lado pendente ("preencha o valor do filtro") e não corta nada. Densidade ou população numa planilha sem
+  população → 422 com o motivo.
+- **`escolha`:** `{"modo": "todos"}` (o padrão) ou `{"modo": "marcados", "municipios": [...]}` (ids da base, como em
+  `base.ids`); a lista no modo todos → 422 "… a lista de marcados vale só no modo marcados."; marcados vazios deixam o lado
+  pendente ("marque ao menos um município").
+- **Pendências:** o que só falta completar não é erro de forma: vai em `pendencias` de cada lado na rota 4, e a rota 1
+  recusa com a primeira (→ 422 "Base incompleta: escolha ao menos uma região." ou "Referência incompleta: …"). O filtro de
+  distância com a referência incompleta deixa a base pendente ("complete a referência para usar o filtro de distância").
+- **Seleção** (as regras do comando): cada lado é quem está em `partir_de` E atende a todos os filtros com valor (o não
+  avaliável nunca entra nem vira "não atende") E, no modo marcados, está entre os marcados. Primeiro a referência; depois a
+  base, com o filtro de distância medido até a referência mais próxima de cada candidato.
+- **Distância:** para cada município da base com coordenada válida, a geodésica de Karney (no elipsoide do referencial) até a
+  referência mais próxima, **sem ele mesmo** (`nearest_reference.extreme_exact`, com todos os empates exatos; CAP-ESP-02, o
+  mínimo do conjunto completo). Com `mesma_uf_da_base` ou `mesma_regiao_da_base`, contam só as referências do estado (ou da
+  região) do município; a lista das referências não muda. Como no conjunto de referência, uma referência do recorte sem
+  coordenada válida deixa a distância não avaliável, sem trocar pela mais próxima entre as demais ("Distância não avaliável em
+  junho de 2024: sem coordenada válida na referência MANACAPURU (AM) (SEM_INFORMACAO_ESPACIAL); a mais próxima não é escolhida
+  entre as demais (DEPENDENCIA_NAO_AVALIAVEL)"); recorte sem outra referência também, com o motivo ("Sem referência no recorte:
+  nenhum outro município da referência no mesmo estado (Roraima) em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL,
+  CONJUNTO_REFERENCIAS_VAZIO)"), nunca distância zero. Com o filtro de distância, esse município fica fora da base (o filtro
+  não é avaliável para ele, CAP-SUB-01) e é listado em `referencia.sem_referencia`, com o motivo; sem o filtro, entra com a
+  distância não avaliável. Num conjunto, a distância não se aplica (cada membro tem a sua). As distâncias ficam na memória do
+  pedido pelas referências, pelo recorte e pelos alvos.
+- **Resposta:** os itens são os municípios da base (as referências não entram como itens); por item, `referencia_do_item`. No
+  topo, `referencia` com `tipo: "consulta"`: `consulta` (a normalizada, sem as pendências, com os valores dos filtros como
+  números), `base_texto` e `texto` (cada lado em palavras, com as condições como nas Condições: "da Região Norte com densidade
+  < 0,5 por 1.000 habitantes e distância à referência mais próxima > 300 km"), `contagens` (`base` e `referencia`, cada uma com
+  `partir_de`, `filtros`, `final` e `nao_avaliaveis`; na base, também `sem_referencia`), `sem_referencia` (até 500
+  `{id, rotulo, uf, motivo}`), `membros` (as referências que ficaram como a mais próxima de algum município, na ordem do
+  código, com `id`, `rotulo`, `uf`, `populacao`, `quantidade` e `densidade` na competência, lidos das mesmas medidas dos itens)
+  e a `origem` em palavras ("Para cada município da base, o município mais próximo entre os municípios do estado escolhido
+  (Acre) com densidade > 2 por 1.000 habitantes (N municípios em junho de 2024); o próprio município não é a sua referência.
+  Os filtros são escolha do usuário e não têm caráter normativo"). A frase-resumo cita a referência mais próxima; com a base
+  vazia, "nenhum município na base.".
+- **Pedido antigo:** `referencia` com `relacao`, `delimitacao` ou `condicao` (o território de referência por elegibilidade de
+  24/10/2026, com o "mais distante") → 422 "O território de referência por elegibilidade foi substituído pela Escolha dos
+  territórios: envie a referência em consulta.referencia (partir_de, filtros e escolha)."; a referência por membros
+  (`{membros}`) continua no contrato.
 
 ### Série temporal (24/10/2026)
 

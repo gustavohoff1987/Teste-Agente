@@ -140,21 +140,22 @@ def test_referencia_por_nome_por_conjunto_ou_por_criterio():
     criterio = pedir("use como referência o município de maior densidade")
     assert criterio["painel"] == painel(familia="espacial", referencia={
         "membros": [], "criterio": {"atributo": "densidade", "ordem": "desc"}})
-    # O critério abre o Território de referência com o atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior"
-    # ou "menor"; a relação, a delimitação e o valor de corte são da pessoa (antes de 24/10, a lista de candidatos abria na
-    # ordem para "usar o primeiro", que saiu; de 24 a 25/10, o "maior/menor" ficava sem efeito).
-    assert criterio["reply"] == ("Abri o Território de referência com a condição Densidade “Maior que”: escolha a relação (mais "
-                                 "próximo ou mais distante), a delimitação e o valor de corte, e o eixo X mostra a distância em "
-                                 "linha reta (km) até o território de referência de cada município.")
+    # O critério abre a Escolha dos territórios (27/10/2026) com o filtro do atributo citado na Referência e, desde 25/10/2026
+    # (decisão 4), o operador do "maior" ou "menor"; o valor é da pessoa (antes de 24/10, a lista de candidatos abria na ordem
+    # para "usar o primeiro", que saiu; de 24 a 25/10, o "maior/menor" ficava sem efeito; de 25 a 27/10, abria o Território de
+    # referência, com a relação e a delimitação).
+    assert criterio["reply"] == ("Abri a Escolha dos territórios com o filtro Densidade “acima de” na Referência: preencha o valor "
+                                 "e calcule, e o eixo X mostra a distância em linha reta (km) até a referência mais próxima de cada "
+                                 "município.")
     menor = pedir("use como referência o município de menor densidade")
     assert menor["painel"]["referencia"] == {"membros": [], "criterio": {"atributo": "densidade", "ordem": "asc"}}
-    assert menor["reply"].startswith("Abri o Território de referência com a condição Densidade “Menor que”: ")
+    assert menor["reply"].startswith("Abri a Escolha dos territórios com o filtro Densidade “abaixo de” na Referência: ")
     populosos = pedir("use como referência o município mais populoso")
     assert populosos["painel"]["referencia"] == {"membros": [], "criterio": {"atributo": "populacao", "ordem": "desc"}}
-    assert populosos["reply"].startswith("Abri o Território de referência com a condição População “Maior que”: ")
+    assert populosos["reply"].startswith("Abri a Escolha dos territórios com o filtro População “acima de” na Referência: ")
     assert pedir("abra a análise espacial")["reply"] == (
-        "Abri a análise espacial: defina o Território de referência (a relação, a delimitação e a condição) ou diga o nome "
-        "dele, e o eixo X mostra a distância em linha reta (km) até ele.")
+        "Abri a análise espacial: faça a Escolha dos territórios (a base e a referência) ou diga o nome da referência, e o "
+        "eixo X mostra a distância em linha reta (km) até a referência mais próxima.")
     # Estado não é referência (não tem um ponto único); nome desconhecido é perguntado.
     assert pedir("use o Amazonas como referência") == {"handled": True, "executed": False,
                                                        "clarification": conversa_grafico.SEM_PONTO_UNICO}

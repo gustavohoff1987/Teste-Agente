@@ -326,7 +326,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
       textos.set(ponto.id, texto);
       pedidos.push({ id: ponto.id, x: sx[i], y: sy[i], r: rs[i], largura: larguraDe(texto), obrigatorio });
     }
-    // O território de referência fora do resultado, quando uma ligação chega até ele (o território base e os marcados), ganha o
+    // A referência fora do resultado, quando uma ligação chega até ela (os territórios da base e os marcados), ganha o
     // nome (25/10/2026), com "· referência".
     for (const id of new Set(segRef.current.map(segmento => segmento.para))) {
       const nome = props.nomesDasReferencias?.get(id), pos = c.porId.has(id) ? null : posicaoDe(id);
@@ -733,7 +733,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     base.fundo.length > 0 ? "cinza miúdo ao fundo: " + artigo(unidade, true) + " demais " + unidade.plural + " da fonte, só para situar" : "",
     base.aneis.length > 0 ? "anel escuro: membro de conjunto; o conjunto não tem ponto, e o valor dele é a soma das contagens dos " +
       "componentes, com possível dupla contagem" : "",
-    temReferencia ? (p.referenciaPorItem ? "mira: território de referência" : "mira: membro da referência (distância 0)") : "",
+    temReferencia ? (p.referenciaPorItem ? "mira: referência mais próxima" : "mira: membro da referência (distância 0)") : "",
   ].filter(Boolean).join("; ");
   const rotuloDoCanvas = "Mapa de pontos d" + artigo(unidade, true) + " " + unidade.plural + " do resultado. Com o mapa em foco: as setas " +
     "movem a vista; Shift e as setas vão ao ponto vizinho; Enter marca ou desmarca; + e − ampliam ou reduzem; 0 volta ao enquadramento " +
@@ -783,7 +783,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
           " fica fora do mapa e aparece em Não avaliáveis." : ""}</p>
         {simbolos && <p data-testid="mapa-simbolos">{maiuscula(simbolos)}.</p>}
         {segmentos.length > 0 && <p data-testid="mapa-ligacoes">Linhas tracejadas: ligação ilustrativa, não é trajeto. Cada uma liga {p.comTerritoriosBase
-          ? "um território base ou " : ""}{feminino ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "ao território de referência del" +
+          ? "um território da base ou " : ""}{feminino ? "uma " : "um "}{unidade.singular} marcad{feminino ? "a" : "o"} (até 30) {p.referenciaPorItem ? "à referência mais próxima del" +
           (feminino ? "a" : "e") : "ao membro mais próximo da referência"}; a distância é medida em linha reta.</p>}
       </div>
     </div>

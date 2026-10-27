@@ -9,12 +9,13 @@ executada com os dados; as análises mostram os ajustes delas no mesmo painel. H
 abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Desfazer** (até 25/10/2026, "Voltar") e **Limpar seleção** ficam
 fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
 (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
-(`/api/painel`, `/api/painel/referencias` e `/api/painel/mapa`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
+(`/api/painel`, `/api/painel/referencias`, `/api/painel/mapa` e, desde 27/10/2026, `/api/painel/territorios`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
 estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no README e nos documentos da interface e da conversa.
 
 Código: `frontend/src/AreaDeAnalise.tsx` (a área e o estado), `PainelChart.tsx` (bolhas, dica e legendas), `MapaAnalise.tsx`
 (o mapa) e `transicaoVistas.ts` (a troca animada entre o gráfico e o mapa), montados pelo contrato de `mapaContrato.ts`,
-`PainelTerritorios.tsx` (escolha dos territórios), `PainelSeries.tsx` (visão Série temporal da tendência), `PainelSetas.tsx`
+`PainelTerritorios.tsx` (Seleção de Territórios), `EscolhaDosTerritorios.tsx` (a janela Escolha dos territórios da Análise
+Espacial), `PainelSeries.tsx` (visão Série temporal da tendência), `PainelSetas.tsx`
 (quadro de setas da tendência, na visão Tendência), `PainelRotatividade.tsx` (barras de
 100%), `PainelGavetas.tsx` (painéis das funções), `PainelRuler.tsx` (régua), `PainelDetalhes.tsx` (tabela, não avaliáveis e
 método), `painelModel.ts` (modelo puro), `painelApi.ts` (cliente do motor, único lugar com os nomes de campos) e `analise.css`.
@@ -87,7 +88,7 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 
 O estado vai em `data-estado` da área; a vista do desenho em exibição, em `data-desenho` (`grafico`, `mapa` ou `lado`).
 
-## Escolha dos territórios
+## Seleção de Territórios
 
 Pedido do responsável (22/10/2026): a escolha precisa ser visível e didática, sem adivinhar onde clicar e sem depender de
 digitar o nome de um município. Desde 23/10/2026, a lista fica na aba **Seleção de Territórios**, a primeira da linha das
@@ -97,7 +98,8 @@ ou limpar. O gráfico, o mapa, a frase-resumo e os Detalhes ficam nas análises 
 A aba começa com uma orientação curta, sempre à vista: "Escolha os territórios que entram nas análises. A seleção vale para
 todas elas e pode ser mudada a qualquer momento." As instruções sobre as caixas e os textos técnicos saíram. Cada aba de
 análise mostra o resumo da seleção (`analise-selecao-resumo`) com "Alterar a seleção" (`analise-selecao-alterar`), que volta à
-Seleção. O território de referência da Análise Espacial e o período da Análise de Tendência continuam dentro de cada análise.
+Seleção. A Escolha dos territórios da Análise Espacial (a base e a referência, desde 27/10/2026; a seleção é uma das opções
+de partida) e o período da Análise de Tendência continuam dentro de cada análise.
 
 **Duas áreas lado a lado** (segunda rodada de 24/10/2026, `analise-territorios-colunas`): à esquerda, cerca de metade da
 largura, a busca no alto e a lista para marcar (`analise-territorios-lista`); à direita, o que já está marcado, em tempo real
@@ -175,8 +177,8 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
   começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
   da direita), trocar o nível, abrir a lista de um estado e "Voltar aos estados", abrir um estado pela bolha e o atalho do
   mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
-  um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, o
-  território de referência), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
+  um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, a
+  Escolha dos territórios calculada), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
   os itens marcados no desenho, Limpar filtros, a escala e a vista do desenho, um pedido da conversa e a reabertura do
   Histórico. Cada Desfazer desfaz um passo, na ordem inversa, e devolve a seleção, a aba, a lista aberta, os ajustes, os filtros
   e a vista de antes; o arraste da régua, com passos seguidos em menos de 0,9 s, vira um passo só. A pilha guarda até 80 passos
@@ -239,7 +241,7 @@ Análise de Rotatividade com a base do Brasil, que tem contagens e não pessoas 
 | Análise | Ajustes dentro dela |
 |---|---|
 | Análise de Distribuição | Indicador, Categoria (com mais de uma), Competência, Grupos e faixas |
-| Análise Espacial | Indicador, Categoria, Competência, Território de referência (o definido, em palavras, e o botão que abre o painel "Território de referência") |
+| Análise Espacial | Indicador, Categoria, Competência, Territórios (a frase da consulta calculada, ou "nenhuma ainda", e o botão "Escolha dos territórios", que abre a janela) |
 | Análise de Tendência | Indicador, Categoria, Período (Anual ou Semestral, com as 4 competências usadas; abre no Anual; o ritmo que a base não tem fica desligado, com o motivo) e Visão (Tendência, no quadro de setas, Trajetória e Série temporal; "Primeira", "Última" e "Reproduzir" só na Trajetória). Na Série temporal, o Intervalo da série no lugar do Período |
 | Análise de Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
 | Estados (E1), na Distribuição e na análise que espera os municípios (Espacial e Rotatividade) | Indicador, Competência, Grupos e faixas (o desenho é a distribuição); na Tendência, os da Tendência |
@@ -265,72 +267,103 @@ O que cada análise mostra:
 - **Distribuição** (base, sempre ativa): grupos por posição (nenhum, quartis, quintis ou decis; CAP-DIS-02) ou faixas digitadas
   pela pessoa (CAP-DIS-03, limites como "0; 1; 2; 5"). O grupo e a faixa de cada bolha, os cortes e as contagens vêm do motor.
   Até cinco grupos ganham cor; nos decis, só as linhas de corte.
-- **Análise espacial:** acrescenta o eixo X, a distância em linha reta (km) até o território de referência. Desde a segunda
-  rodada de 24/10/2026, o painel **"Território de referência"** (`analise-referencia`; o título "Referência da distância"
-  saiu) é um fluxo só, no lugar da referência por critério com a lista de candidatos ("Usar o primeiro" e a escolha no
-  empate), pelo nome ou por um conjunto:
-  1. **Relação espacial** (`analise-ref-relacao-mais_proxima` e `analise-ref-relacao-mais_distante`): "Mais próximo" ou "Mais
-     distante".
-  2. **Delimitação geográfica** (`analise-ref-delimitacao`, "Onde procurar a referência"), só com os níveis que a fonte tem: na
-     base do Brasil, "No mesmo estado de cada município", "Estados escolhidos", "Na mesma região de cada município", "Regiões
-     escolhidas" (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) e "No Brasil inteiro"; numa planilha com a coluna-mãe, "Na
-     mesma província de cada distrito", "Províncias escolhidas" e "Na planilha inteira"; sem ela, só a planilha inteira. Os
-     estados, as províncias ou as regiões escolhidos são caixas (`analise-ref-valores`, `analise-ref-valor-opcao`).
-  3. **Condição do território de referência:** o atributo (`analise-ref-atributo`: Densidade, Quantidade ou População; numa
-     planilha sem população, só a Quantidade), o operador (`analise-ref-operador-maior` e `analise-ref-operador-menor`: "Maior
-     que" ou "Menor que") e o valor de corte (`analise-ref-valor`), com a unidade do atributo (profissionais por 1.000
-     habitantes, profissionais ou habitantes) e a validação dele: a densidade aceita vírgula decimal ("2,36"); a quantidade e
-     a população, só inteiros não negativos ("50.000" vale 50 mil); um valor inválido aparece com a orientação, e o pedido não
-     sai.
+- **Análise espacial:** acrescenta o eixo X, a distância em linha reta (km) de cada município da base até a referência mais
+  próxima. Desde 27/10/2026 (comando Seleção de Territórios), a janela **"Escolha dos territórios"**
+  (`EscolhaDosTerritorios.tsx`, `analise-referencia`; no lugar do painel "Território de referência" de 24/10/2026) escolhe a
+  base e a referência do mesmo jeito: são territórios irmãos, cada um com o mesmo seletor em três etapas. A janela abre
+  sozinha ao entrar na análise sem consulta calculada (a base pode partir do país, de regiões ou de estados, sem depender da
+  Seleção de Territórios) e pelo botão "Escolha dos territórios" dos ajustes (`analise-referencia-escolher`), ao lado da frase
+  da consulta calculada (`analise-referencia-resumo`; antes do primeiro cálculo, "nenhuma ainda"). De cima para baixo:
+  1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
+  2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):
+     "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 e a mais de 300 km da
+     referência → referência: o mais próximo do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele
+     (`territorios-frase-base` e `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência
+     incompleta", destacado (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}", com o filtro de
+     distância como "a mais de {km} km da referência" ou "a até {km} km da referência"; no modo marcados, os nomes (até três;
+     depois, "e mais N"). Na referência: "o mais próximo {de onde} com {filtro}" quando o território é fixo (regiões, estados
+     ou a seleção prévia) e, nos demais casos, o recorte no fim: ", na mesma UF", ", na mesma região" ou ", em qualquer
+     estado" (numa planilha, ", na mesma {grupo}" ou ", em toda a planilha"); com um marcado, o nome dele; com mais, "o mais
+     próximo entre …".
+  3. **Abas** "1 Base" e "2 Referência" (`territorios-aba-base` e `territorios-aba-referencia`; as setas do teclado trocam),
+     cada uma com um status curto (`territorios-status-base` e `territorios-status-referencia`): a contagem final do motor ou
+     "incompleta". Só a aba ativa aparece; não há aba Distância.
+  4. **Rodapé** (`territorios-rodape`): "Calcular" (`territorios-calcular`) e a linha de estado (`territorios-estado`): "A
+     consulta mudou. Calcule para atualizar."; com algo pendente, o motivo ("Base incompleta: escolha ao menos uma região.") e
+     "Calcular" desligado; com o resultado à vista, "Resultado em dia com a consulta.".
 
-  Nenhum campo tem valor padrão: até os cinco escolhidos, o painel diz o que falta (`analise-ref-falta`, "Falta escolher: a
-  relação espacial, a delimitação…"); com eles, a prévia em palavras (`analise-ref-previa`, "Para cada município, o município
-  mais próximo entre os municípios da Região Norte com densidade maior que 2,36 profissionais por 1.000 habitantes.") e
-  "Aplicar o território de referência". O motor primeiro filtra os elegíveis (a delimitação e a condição, na competência) e
-  depois escolhe, para cada município, o mais próximo ou o mais distante deles pelas distâncias geodésicas, **nunca ele
-  mesmo**, com os empates; com vários municípios, cada um tem a sua referência (a dica e a tabela dizem qual: "Território de
-  referência (o mais distante)"). Sem coordenada válida, sem elegível ou com um elegível sem coordenada, a distância fica não
-  avaliável, com o motivo do motor ("Sem território de referência: nenhum outro município da Região Nordeste atende à
-  condição …"), nunca zero. Quando nenhum município em análise fica com referência, um aviso acima do desenho
-  (`analise-ref-sem-resultado`) diz o que aconteceu: sem ninguém da base na condição, "Nenhum município da base atende à
-  condição população > 1000000000 habitantes: não há território de referência. Mude o atributo, o operador ou o valor de
-  corte."; senão, as causas possíveis (quem atende fora da delimitação de cada um, só o próprio município na condição ou a
-  coordenada que falta), com o motivo de cada um em Não avaliáveis; "Mudar o território de referência"
-  (`analise-ref-sem-resultado-mudar`) reabre o painel. Trocar a seleção mantém o território de referência, e o painel reabre com a definição em uso
-  ("Mudar"), para ajustar sem recomeçar; "Remover a referência" volta ao eixo único. Um conjunto (Juntar) não tem distância
-  com o território de referência (cada membro tem a sua). Um pedido da conversa por critério ("use como referência o município
-  de maior densidade") abre o painel com o atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior" ou "menor"
-  ("Maior que" ou "Menor que"), com o aviso `analise-ref-da-conversa`; a relação, a delimitação e o valor de corte ficam com a
-  pessoa, sem valor sugerido, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01); uma
-  referência pelo nome, vinda da conversa, continua valendo (a distância até ela). Faixas de distância opcionais
-  (CAP-ESP-03). **Territórios base** (25/10/2026, pedido do responsável, no início do painel; cumulativos desde a terceira
-  rodada do mesmo dia): "Todos os selecionados" (`analise-ref-base-todos`, o padrão, que vale também para quem entrar depois)
-  ou alguns, marcados um a um na lista das unidades em análise (`analise-ref-base`, caixas `analise-ref-base-opcao`; com a
-  referência pelo nome, sem os membros dela; com algumas marcadas, "Todos" fica indeterminado, e marcar todas volta a
-  "Todos"), no painel, não pelo clique no gráfico, que continua só marcando. Com o território de referência aplicado, cada território base aparece ligado ao seu: quando a
-  referência não é desenhada no gráfico (por elegibilidade, a referência costuma ficar fora da seleção), entra uma bolha de
-  contexto (`analise-referencia-da-base`, uma por referência, com `data-bases`), círculo claro com a mira, no início do eixo
-  (0 km), na altura do indicador dela e com o tamanho pela população dela, os valores do motor (`referencia.membros`), com o
-  nome "· referência" e a dica própria (população, profissionais, densidade e a distância até cada base ligada a ela, até 4);
-  uma linha tracejada (`analise-ligacao-base`, com `data-base` e `data-referencia`) liga cada base a ela, e a distância entre
-  as duas no eixo horizontal é a própria distância; no empate, uma linha até cada referência empatada (CAP-ESP-02). As bases
-  escolhidas uma a uma ganham o anel e o nome "· território base"; com todos os selecionados, as bases ficam com o nome de
-  sempre. Até 12 bases têm o nome à vista (e até 12 referências de contexto); com mais, a dica. O gráfico desenha no máximo
-  30 ligações, das bases à vista (dentro da régua e dos filtros), as marcadas primeiro. Com a referência pelo nome, o membro
-  já está no gráfico com a mira, e a linha vai até ele. A bolha de contexto não conta na frase-resumo, nos grupos, na régua,
-  nos filtros, na tabela nem no CSV, e a mesma unidade em análise continua com a sua própria bolha. Acima do desenho,
-  `analise-par-base` diz, com uma base, "Território base: BOA VISTA (RR) · Território de referência (o mais próximo):
-  PRESIDENTE FIGUEIREDO (AM), a 543,82 km em linha reta." (sem referência, o motivo do motor) e, com mais, "Territórios base:
-  4 (todos os selecionados) · cada um ligado ao seu território de referência (o mais próximo) por linha tracejada: …", com os
-  quatro primeiros pares (base → referência, distância) e quantos faltam; quando o gráfico liga menos do que os pares com
-  referência, diz quantas ligações desenha; sem bases, "Nenhum território base: …"; com várias bases e nenhuma com
-  referência, a linha sai (o aviso `analise-ref-sem-resultado` diz o motivo). O botão `analise-par-base-mudar` reabre o
-  painel. O resumo do Território de referência cita as bases só quando escolhidas uma a uma ("· território base: …",
-  "· territórios base: … e …", "· N territórios base" ou "· nenhum território base"). No mapa, as ligações das bases vêm
-  primeiro, e a referência fica no quadro, com o nome. É só estado visual (RQ-REP-06): o pedido ao motor é o mesmo, nada é
-  calculado entre os dois (CAP-REF-01), e cada escolha é um passo do Desfazer ("Incluir BOA VISTA (RR) nos territórios base",
-  "Tirar … dos territórios base", "Todos os selecionados como territórios base", "Nenhum território base") e fica no estado
-  salvo (um território base guardado antes de serem cumulativos vira a lista com ele). A nota TPL-11 aparece sempre junto. Nos estados, a
+  O seletor de cada lado (`territorios-base-*` e `territorios-referencia-*`), com a contagem do motor depois de cada etapa
+  (`contagem-partir`, `contagem-filtros` e `contagem-final`):
+  1. **Partir de** (`partir-menu`): "Todo o país" (numa planilha, "Toda a planilha"), "Uma região" e "Mais de uma região" (os
+     botões das cinco regiões, `regiao-opcao`; só na base do Brasil), "Um estado" e "Mais de um estado" (os botões com as
+     siglas, `uf-opcao`; numa planilha, os grupos dela) e "Seleção prévia (N)", a escolha da Seleção de Territórios, com os
+     nomes (`selecao-previa`; com territórios selecionados, é a opção inicial da base; senão, todo o país). Só na referência, o
+     grupo **"Conforme a base"**: "Mesma UF de cada município da base" e "Mesma região de cada município da base", com a
+     explicação (`conforme-a-base`: "Para cada município da base, só conta referência no próprio estado. Ex.: um município do
+     Acre só procura referência no Acre. É diferente de escolher um estado, que vale igual para todos os municípios da
+     base."). A base não tem opções relativas.
+  2. **Filtrar por** (opcional; os filtros valem juntos, E): "+ Densidade", "+ População" e "+ Quantidade" (`mais-densidade`,
+     `mais-populacao` e `mais-quantidade`) e, só na base, "+ Distância" (`mais-distancia`). Cada linha (`filtro`, com
+     `data-indicador`) tem o indicador, o operador ("abaixo de", "até", "acima de" ou "a partir de"), o valor com a unidade
+     (por 1.000 hab., habitantes ou profissionais) e o botão de remover; repetir o indicador faz uma faixa ("densidade a
+     partir de 0,5 e abaixo de 1"). A densidade aceita vírgula decimal ("2,36"); a população e a quantidade, só inteiros não
+     negativos ("50.000" vale 50 mil); o filtro sem valor não corta nada e deixa o lado pendente ("preencha o valor do
+     filtro"). A distância: "Distância até a referência mais próxima", "acima de" ou "até", em km, com o aviso "depende da
+     Referência" (`filtro-depende`); com a referência incompleta, fica pendente e bloqueia o cálculo ("complete a referência
+     para usar o filtro de distância"). O texto de apoio: "Densidade é profissionais por 1.000 habitantes. Os filtros valem
+     juntos (E); OU e NÃO ficam em Critérios combinados." Até 12 filtros por lado.
+  3. **Escolher:** "Todos que atendem (N)" (`todos`) ou "Só os que eu marcar" (`marcados`), com a busca pelo nome (`busca`) e a
+     lista só de quem passou pelas etapas 1 e 2, com o estado e a densidade (`lista` e `lista-opcao`; até 100 à vista, com
+     "Mostrando 100 de N: use a busca pelo nome."); os marcados viram botões removíveis (`marcado`), e o que deixa de passar
+     pelas etapas 1 e 2 fica riscado e não entra.
+
+  Embaixo de cada aba, a prévia (`previa`): "N municípios entram na base: …" ou "N municípios podem ser referência: …", com os
+  primeiros nomes. Na aba Referência, a nota "Distância em linha reta (geodésica) até a referência mais próxima de cada
+  município da base." (`territorios-nota-distancia`), a nota TPL-11 e as faixas de distância opcionais (CAP-ESP-03,
+  `analise-faixas-distancia`). Toda contagem, prévia e lista vem do motor (`POST /api/painel/territorios`, pedida 250 ms depois
+  da última mudança); a tela não seleciona, não conta e não mede distância. A consulta é um objeto só e serializável
+  (`ConsultaTerritorios`, a fonte de verdade da janela e do estado salvo), e "Calcular" a leva ao motor em `options.consulta`:
+  é um passo do Desfazer ("Calcular a escolha dos territórios"), e a comparação de antes sai (a base pode mudar). A janela não
+  tem OU nem NÃO (ficam em Critérios combinados), ranking ou "os N primeiros", o "mais distante" (saiu em 27/10/2026, por
+  decisão do responsável) nem outra distância que não a geodésica.
+
+  O motor seleciona a base e a referência pela consulta (CAP-SUB-01, o E trivalente) e mede, para cada município da base, a
+  geodésica até a referência mais próxima, **nunca ele mesmo** (CAP-REF-01 e CAP-ESP-02), com os empates; só a base entra no
+  gráfico (as referências não são itens). Com "Conforme a base", a referência de cada município é procurada só no estado (ou
+  na região) dele. Sem referência no próprio recorte, a distância fica não avaliável, com o motivo ("Sem referência no recorte:
+  nenhum outro município da referência no mesmo estado (Roraima) em junho de 2024 (DEPENDENCIA_NAO_AVALIAVEL,
+  CONJUNTO_REFERENCIAS_VAZIO)"), nunca zero: sem o filtro de distância, o município entra na base com a distância não
+  avaliável; com o filtro, o filtro não é avaliável para ele, e ele fica fora da base, mas aparece no resultado, pelo nome
+  (`analise-sem-referencia-no-recorte`: "1 município ficou fora da base porque o filtro de distância não é avaliável para ele:
+  BOA VISTA (RR) (sem referência no recorte)."). Quando nenhum município da base fica com referência, o aviso
+  `analise-ref-sem-resultado` diz o que aconteceu ("Nenhum município pode ser referência com esta escolha dos territórios: não
+  há referência. Mude a aba Referência." ou as causas possíveis), com "Mudar a escolha dos territórios"
+  (`analise-ref-sem-resultado-mudar`). Um conjunto (Juntar) não tem distância com a consulta (cada membro tem a sua). Um pedido
+  da conversa por critério ("use como referência o município de maior densidade") abre a janela na aba Referência com o filtro
+  do atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior" ou "menor" ("acima de" ou "abaixo de"), sem valor: o
+  valor fica com a pessoa, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição; CAP-SUB-01). Uma
+  referência pelo nome, vinda da conversa ("distância até Manaus"), vira os marcados da Referência, a partir do país, e a base
+  continua a da consulta (sem ela, a seleção prévia).
+
+  **Base e referência no desenho** (25/10/2026, pedido do responsável; desde a Escolha dos territórios, a base é a da
+  consulta): cada município da base aparece ligado à sua referência mais próxima. A referência entra como bolha de contexto
+  (`analise-referencia-da-base`, uma por referência, com `data-bases`), círculo claro com a mira, no início do eixo (0 km), na
+  altura do indicador dela e com o tamanho pela população dela, com os valores do motor (`referencia.membros`), o nome "·
+  referência" e a dica própria ("Referência mais próxima de …", com população, profissionais, densidade e a distância até cada
+  município ligado a ela, até 4); uma linha tracejada (`analise-ligacao-base`, com `data-base` e `data-referencia`) liga cada
+  município à sua referência, e a distância entre os dois no eixo horizontal é a própria distância; no empate, uma linha até
+  cada referência empatada (CAP-ESP-02). Até 12 municípios ligados têm o nome à vista (e até 12 referências de contexto); com
+  mais, a dica. O gráfico desenha no máximo 30 ligações, das bolhas à vista (dentro da régua e dos filtros), as marcadas
+  primeiro. A bolha de contexto não conta na frase-resumo, nos grupos, na régua, nos filtros, na tabela nem no CSV, e o
+  município da base que também é referência de outro continua com a sua própria bolha. Acima do desenho, `analise-par-base`
+  diz, com um município na base, "Base: BOA VISTA (RR) · referência mais próxima: PRESIDENTE FIGUEIREDO (AM), a 543,82 km em
+  linha reta." (sem referência, o motivo do motor) e, com mais, "Base: 15 · cada um ligado à sua referência mais próxima por
+  linha tracejada: …", com os quatro primeiros pares (base → referência, distância) e quantos faltam; quando o gráfico liga
+  menos do que os pares com referência, diz quantas ligações desenha; com vários e nenhum com referência, a linha sai (o aviso
+  `analise-ref-sem-resultado` diz o motivo). O botão `analise-par-base-mudar` reabre a janela. No mapa, as ligações dos
+  marcados vêm primeiro, depois as dos outros municípios da base, e a referência fica no quadro, com o nome. Os territórios
+  base escolhidos um a um no painel (25 e 26/10/2026, só estado visual, com o anel e o esmaecimento das demais bolhas) saíram:
+  escolher só alguns é a etapa "Escolher" da base, que o motor calcula. A nota TPL-11 aparece sempre junto. Nos estados, a
   família espera a escolha de municípios (os estados não têm coordenadas). A disponibilidade vem do motor
   (`disponibilidade.espacial`): numa planilha sem coordenadas ou sem um referencial aceito (SIRGAS 2000 ou WGS 84), a aba abre
   com a apresentação e o motivo do motor, sem os ajustes; quando o motor pede a escolha do referencial, a tela mostra as opções
@@ -457,11 +490,11 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   unidades com o mapa disponível; guarda as últimas seis respostas por fonte e competência. Uma pendência do motor (por exemplo,
   o referencial de uma planilha) aparece na área do mapa, com as opções que ele mandar, como as pendências do gráfico.
 - **O que a área entrega ao mapa:** todas as unidades em análise (sem os estados; os conjuntos dão o anel aos membros), também,
-  desde 25/10/2026, as que o gráfico deixa de fora por falta do valor que as posiciona (`itensParaOMapa`): sem distância até o
-  território de referência, sem o valor do indicador ou sem a coorte, cada uma no lugar dela, com a pintura da camada (na análise
+  desde 25/10/2026, as que o gráfico deixa de fora por falta do valor que as posiciona (`itensParaOMapa`): sem distância até a
+  referência, sem o valor do indicador ou sem a coorte, cada uma no lugar dela, com a pintura da camada (na análise
   espacial, o quintil do indicador) ou, sem valor nela, vazada, e com o motivo na dica. Antes, o mapa tinha os mesmos itens do
-  gráfico, e quem ficava sem distância (por exemplo, BOA VISTA (RR), com o território de referência no mesmo estado e densidade
-  acima da taxa do Brasil) sumia também do mapa, embora tivesse coordenada. O que fica fora da régua e dos filtros aparece
+  gráfico, e quem ficava sem distância (por exemplo, BOA VISTA (RR), com a referência no mesmo estado e densidade acima da taxa
+  do Brasil) sumia também do mapa, embora tivesse coordenada. O que fica fora da régua e dos filtros aparece
   esmaecido, não escondido (decisão de 23/10/2026; `dentroDosFiltros`, os mesmos filtros do gráfico); sem o valor do indicador,
   com a régua em uso, também esmaece; a pintura do gráfico quando há uma camada de cor (grupos, faixas, condições,
   ordem, classes ou variação); na Rotatividade, a permanência da coorte inicial em cor contínua (0 a 100%); sem camada de cor
@@ -471,8 +504,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   gráfico, a frase-resumo, a tabela e o CSV não mudam com eles; sem os grupos na resposta (uma análise guardada antes, ou menos
   de duas unidades com valor), a cor única do gráfico (a unidade sem o valor do indicador, vazada). O tamanho pela população (densidade), pela quantidade ou pela coorte
   inicial; o valor do Brasil só como marca de contexto; a mesma dica do gráfico; a referência e as ligações ilustrativas, até
-  30: desde 25/10/2026, as dos territórios base (escolhidos um a um, primeiro; com todos os selecionados, depois dos marcados)
-  e as dos selecionados, até o membro da referência mais próximo; o enquadramento
+  30: as dos marcados primeiro e, desde 25/10/2026, as dos outros municípios da base (com a Escolha dos territórios, toda unidade
+  em análise é da base), até a referência mais próxima de cada um; o enquadramento
   inicial cobre também as referências desenhadas, e a que fica fora do resultado ganha o nome quando uma ligação chega até
   ela. A pergunta "Como pintar o mapa?" (quintis, faixas ou cor
   contínua) saiu em 23/10/2026.
@@ -537,9 +570,9 @@ leve, a camada inteira a 30%; `opacidadeDaBolha`). Só a pintura apagada (não a
 **Destaque da análise** (26/10/2026, pedido do responsável). Com uma comparação em exibição (2 ou 3 itens no gráfico, pelo
 painel Comparar ou pela conversa, como "compare o de maior e o de menor densidade"), só os comparados ficam inteiros no
 gráfico de bolhas; as demais bolhas da seleção esmaecem a 25% de opacidade (no modo leve, a camada inteira a 30%, com os
-comparados redesenhados inteiros por cima). Na Análise Espacial com territórios base escolhidos um a um, sem comparação, ficam
-inteiras as bases e as referências delas que o gráfico desenha. A bolha sob o mouse ou o foco e a do território de
-referência continuam inteiras enquanto ativas. Marcar, sozinho, continua sem esmaecer; o mapa não muda. Só estado visual
+comparados redesenhados inteiros por cima). Na Análise Espacial, desde a Escolha dos territórios (27/10/2026), toda bolha é da
+base: sem comparação, nada esmaece (o esmaecimento das bolhas fora dos territórios base escolhidos um a um, de 26/10/2026,
+saiu com eles). A bolha sob o mouse ou o foco continua inteira enquanto ativa. Marcar, sozinho, continua sem esmaecer; o mapa não muda. Só estado visual
 (`destaqueDaAnalise` e `opacidadeComDestaque`, em `painelModel.ts`; `data-destaque` em cada bolha): nada vai ao motor.
 Comparar e Juntar agem sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
 comparação, o filtro da classe e os itens marcados, e o Desfazer do alto a desfaz (seção "Desfazer e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
@@ -566,8 +599,9 @@ e o resultado da comparação continuam.
   Trajetória, "Trajetória da densidade de médicos · Amazonas · junho de 2021 a junho de 2024", com "Cada bolha é um município. O
   tamanho mostra a população. O rastro sai do valor no primeiro período; os pontos pequenos são os períodos do meio."; na Série
   temporal, "Série temporal da densidade de médicos · Amazonas · janeiro de 2014 a junho de 2024", com "Cada linha é um
-  município, com o valor observado em cada competência do intervalo."; com o território de referência, "Densidade de médicos e
-  distância até o território de referência · Amazonas · junho de 2024". Na Análise de Tendência, o subtítulo e a frase-resumo
+  município, com o valor observado em cada competência do intervalo."; com a Escolha dos territórios, "Densidade de médicos e
+  distância até a referência mais próxima · Amazonas · junho de 2024" (o lugar é o da base da consulta: "Norte", "Acre e
+  Amazonas", "Brasil", com ", com filtros" quando há filtros, ou os marcados; com a seleção prévia, o da Seleção). Na Análise de Tendência, o subtítulo e a frase-resumo
   ficam no painel "Como ler", à direita do desenho.
 - **Desfazer** (`analise-desfazer`) e **Limpar seleção** ficam no alto da área, fora do título (seção "Desfazer e Limpar seleção").
 - **Frase-resumo** (23/10/2026), logo abaixo do subtítulo (`analise-resumo`, lida pelos leitores de tela a cada mudança): o texto
@@ -605,9 +639,10 @@ filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só 
   `"quantidade"`) em todo pedido, porque sem `nivel` o motor responde no contrato de 21/10, que não conhece as chaves da página
   única; no nível estados, `estados` (os prefixos dos estados marcados) quando são só alguns; no nível Brasil, só competência,
   categoria, indicador e, na tendência, a janela; `base`,
-  `conjuntos`, `referencia` (desde a segunda rodada de 24/10/2026, o território de referência por elegibilidade:
-  `{relacao, delimitacao: {tipo, valores?}, condicao: {atributo, operador, valor}}`; vinda da conversa, ainda pode ser
-  `{membros}`), `faixas_distancia`, `competencia_inicial` e `tendencia: {competencias}` (com quatro competências
+  `conjuntos`, `consulta` (desde 27/10/2026, a Escolha dos territórios, no lugar de `referencia`, que a página não manda mais:
+  `{base, referencia, distancia}`, cada lado `{partir_de: {tipo, regioes, ufs}, filtros: [{indicador, operador, valor}],
+  escolha: {modo, municipios}}` e a distância `{medida: "geodesica", ate: "referencia_mais_proxima"}`; `base` continua indo,
+  lida como a seleção prévia), `faixas_distancia`, `competencia_inicial` e `tendencia: {competencias}` (com quatro competências
   ou mais) conforme a família; na visão Série temporal, `serie: {competencias}` (o intervalo; sem escolha, todas as
   competências da base) no lugar da janela, com a competência do pedido igual à última do intervalo; `grupos` ou `faixas` na
   Distribuição; `grupos_mapa: {tipo: "quintis"}` quando a análise não
@@ -627,10 +662,10 @@ filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só 
 - **Campos da resposta lidos:** os de sempre (`itens`, `dominios`, `referencia`, `notas`, `limitacoes`, `versao_base`,
   `chave_execucao`) e, por item, `tipo`, `tendencia`, `grupo`, `grupo_mapa`, `faixa`, `faixa_distancia`,
   `referencia_mais_proxima`, `condicoes`, `ordem` e `rotatividade` e, desde a segunda rodada de 24/10/2026,
-  `referencia_do_item` (o território de referência de cada município, com os empates) e `serie` (`{observacoes, comparavel,
+  `referencia_do_item` (a referência mais próxima de cada município, com os empates) e `serie` (`{observacoes, comparavel,
   motivo}`); no topo, `nivel`, `indicador`, `tendencia` (com
-  `sem_classificacao_por_motivo`), `serie` (o intervalo), `referencia` (com `tipo: "elegiveis"`, a definição, os textos e as
-  contagens da condição), `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`,
+  `sem_classificacao_por_motivo`), `serie` (o intervalo), `referencia` (desde 27/10/2026, com `tipo: "consulta"`: a consulta normalizada, a base e a
+  referência em palavras, as contagens de cada etapa, `sem_referencia` e os `membros` usados, com os valores), `grupos`, `grupos_mapa`, `faixas`, `faixas_distancia`,
   `condicoes`, `ordenacao`, `comparacao`, `contexto.brasil`, `disponibilidade`, `sessao`, `rotulos` e `resumo` (`{texto}`, a
   frase-resumo). De `/api/painel/mapa`: `competencia`, `referencial`, `pontos` (`[{id, lat, lon}]`; ponto sem id ou fora do
   intervalo fica de fora) e `sem_coordenada` (`[{id, rotulo, motivo}]`). Campo ausente vira vazio: a resposta de antes continua
@@ -748,15 +783,16 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   visões (Tendência, Trajetória e Série temporal) e os ajustes de cada uma, o intervalo da Série temporal (a extensão inteira,
   o intervalo escolhido, a leitura da resposta, o CSV com uma coluna por competência e o método), o desenho dela (a cor única
   e o conjunto não comparável só com os pontos), a Trajetória (os períodos do meio no rastro e na dica, sem caminho sem a
-  variação) e o território de referência (a guarda do formato, as delimitações que a fonte tem, o valor de corte pela natureza
-  do atributo, a resposta com `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação); desde 25/10/2026, o mapa
+  variação) e a Escolha dos territórios (desde 27/10/2026, no lugar do território de referência: a consulta inicial, a leitura
+  sem perda e a normalização para o motor, as pendências com os textos do comando, a frase-resumo por modelo, o valor dos
+  filtros pela natureza do indicador, o pedido com `consulta`, a migração do estado salvo de antes, a resposta com
+  `referencia_do_item`, a dica, o CSV, as ligações do mapa e a apresentação); desde 25/10/2026, o mapa
   com todas as unidades em análise (`itensParaOMapa`), os filtros que esmaecem nele (`dentroDosFiltros`), a cor única vazada sem
   o valor do indicador, o aviso "Fora do gráfico" (`textoForaDoDesenho`) e a opacidade das bolhas, que não depende da seleção
-  (`opacidadeDaBolha`); e os territórios base (`basesPossiveis`, `basesEmUso`, `normalizarBases`, `parDaBase`,
-  `paresDasBases`, `referenciasDeContexto`, `textoDoParDaBase`, `textoDosTerritoriosBase`, `resumoDosTerritoriosBase` e
-  `dicaDaReferenciaDeContexto`: todos ou alguns, a referência fora da análise, também em análise e pelo nome, o empate com
-  todas as empatadas, sem referência, a referência de contexto com as bases ligadas, os textos e a dica, o pedido igual com e
-  sem bases, o estado salvo, também o de antes, e a escala do gráfico com as referências de contexto). `frontend/tests/painel.test.mjs` cobre o
+  (`opacidadeDaBolha`); e a base ligada à referência (`basesPossiveis`, `parDaBase`, `paresDasBases`,
+  `referenciasDeContexto`, `textoDoParDaBase`, `textoDosTerritoriosBase` e `dicaDaReferenciaDeContexto`: a referência mais
+  próxima de cada município da base, fora da análise e pelo nome, o empate com todas as empatadas, sem referência, a
+  referência de contexto com as bases ligadas, os textos e a dica e a escala do gráfico com as referências de contexto). `frontend/tests/painel.test.mjs` cobre o
   campo Período: os últimos 4 períodos de cada ritmo (anual, semestral, base mensal, anos), o ritmo indisponível com o motivo e
   o ritmo de uma janela; e, desde a regra sem janela longa (24/10/2026), o ritmo pelos intervalos e a janela que vem da
   conversa (os últimos 4 do ritmo, com o aviso; sem ritmo, o aviso da escolha; nada na rotatividade nem na análise espacial);
@@ -788,12 +824,13 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   atalho); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da resposta (e fora da tela
   quando o indicador à vista não é o do cálculo); marcar e desmarcar, marcar e desmarcar todos (sem seleção, nada da seleção
   anterior à vista); os quintis do mapa no pedido e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo
-  teclado e pelo mouse; quartis; a análise espacial com o Território de referência (o título "Referência da distância" e os
-  controles da lista de candidatos ausentes; sem valor padrão, o que falta escolher; a prévia; o pedido com a relação, a
-  delimitação e a condição; o eixo X e as distâncias iguais às do motor, nunca até o próprio município; o mais distante, nunca
-  mais perto que o mais próximo; sem elegíveis, a mensagem `analise-ref-sem-resultado`, sem distância zero, e "Mudar o
-  território de referência" reabrindo o painel com a definição em uso; o convite ao mapa na base versionada; a recusa e a
-  pendência no catálogo sintético); a tendência (o Anual, ou o único ritmo da base, e o Gráfico ao abrir; "Entenda esta
+  teclado e pelo mouse; quartis; a análise espacial com a Escolha dos territórios (desde 27/10/2026: a janela que abre
+  sozinha, com o título e o contexto; as duas abas, só a ativa à vista; a frase-resumo, com os trechos que abrem as abas e o
+  incompleto destacado; a base sem as opções relativas e só ela com o filtro de distância; nada de ranking, OU ou NÃO; as
+  pendências do comando no rodapé e no status da aba, com "Calcular" desligado; as contagens e as prévias iguais às do motor;
+  o pedido com a consulta; o eixo X e as distâncias iguais às do motor, nunca até o próprio município; a dica com a referência
+  mais próxima; os marcados com a lista do motor; a referência vazia, com quem ficou fora da base pelo nome e sem distância
+  zero; o Desfazer; o convite ao mapa na base versionada; a recusa e a pendência no catálogo sintético); a tendência (o Anual, ou o único ritmo da base, e o Gráfico ao abrir; "Entenda esta
   análise" recolhido; o painel "Como ler" à direita e a divisória pelo teclado, com os limites; as visões Tendência, Trajetória,
   com os pontos dos períodos do meio, e Série temporal, com toda a série e o intervalo escolhido em "De" e "Até", no pedido
   `serie`, e o Método; entre a Tendência e a Trajetória, a troca não pede nada ao motor), com a nota das sem classificação e o

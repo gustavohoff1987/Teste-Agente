@@ -8,8 +8,8 @@
 import type {
   AtributoCondicao, AtributoOrdenacao, CondicaoPedido, FamiliaTendencia, OperadorCondicao, OrdenarPedido, PainelAtributo,
   PainelConjuntoPedido, PainelCriterio, PainelDominio, PainelIndicador, PainelItem, PainelMunicipios, PainelNivel, PainelOpcoes, PainelOrdem,
-  PainelReferenciaPedido, PainelResposta, Posicao, Premissas, ReferenciaElegivel, RelacaoEspacial, Rotulo, RotulosTerritoriais,
-  SituacaoCondicao, TendenciaItem, TendenciaTopo, TipoDelimitacao, TipoGrupos,
+  PainelResposta, Posicao, Premissas, Rotulo, RotulosTerritoriais,
+  SituacaoCondicao, TendenciaItem, TendenciaTopo, TipoGrupos,
 } from "./painelApi";
 import type { PinturaDoMapa, TamanhoDoMapa, VistaDesenho } from "./mapaContrato";
 import type { EsquemaDeCor } from "./esquemaDeCor";
@@ -593,7 +593,7 @@ export function separarItens(itens: PainelItem[], indicador: PainelIndicador, ex
 export const ASPECTOS_FORA_DO_DESENHO: readonly Aspecto[] = ["indicador", "distancia", "rotatividade"];
 
 /** Itens do mapa (25/10/2026): todas as unidades em análise, no lugar delas, também as que o gráfico deixa de fora por falta do
- * valor que as posiciona (o indicador, a distância até o território de referência, a coorte). Nenhum território escolhido some do
+ * valor que as posiciona (o indicador, a distância até a referência mais próxima, a coorte). Nenhum território escolhido some do
  * mapa por isso; só quem não tem coordenada válida fica fora dele, com o motivo do motor. Os estados não têm ponto, e os conjuntos
  * dão o anel aos membros. Na ordem neutra, a do gráfico. */
 export const itensParaOMapa = (itens: PainelItem[]) => [...itens].filter(item => item.tipo !== "estado").sort(ordemNeutra);
@@ -1076,9 +1076,9 @@ export type ParametrosGrafico = {
   trajetoria?: boolean;
   vista: Vista; largura: number; rotuloDistancia: string;
   pintura: (item: PainelItem) => Pintura;
-  /** Valores que o eixo precisa mostrar além dos itens (a linha de contexto do Brasil, a referência do território base). */
+  /** Valores que o eixo precisa mostrar além dos itens (a linha de contexto do Brasil, as referências da base). */
   extras?: number[];
-  /** Populações que a escala de tamanho precisa cobrir além dos itens (a referência do território base, 25/10/2026). */
+  /** Populações que a escala de tamanho precisa cobrir além dos itens (as referências da base, 25/10/2026). */
   extrasPopulacao?: number[];
   /** Modo leve (muitas bolhas): arranjo numa faixa limitada (`arranjarDenso`). */
   denso?: boolean;
@@ -1198,13 +1198,13 @@ export function montarGrafico(p: ParametrosGrafico): Grafico {
 export const opacidadeDaBolha = (bolha: Pick<BolhaDesenho, "visivel" | "apagada">) => !bolha.visivel ? 0 : bolha.apagada ? 0.45 : 1;
 
 /** Destaque da análise (26/10/2026, pedido do responsável): com uma comparação em exibição (2 ou 3 itens no gráfico), os
- * comparados; sem ela, na análise espacial com territórios base escolhidos um a um, as bases e as referências delas que o
- * gráfico desenha. As demais bolhas esmaecem (opacidadeComDestaque) para a análise em foco não se misturar com o resto da
- * seleção; marcar, sozinho, continua sem esmaecer (25/10/2026). Vazio: nada esmaece. Só estado visual: nada vai ao motor. */
-export function destaqueDaAnalise(comparar: readonly string[], bases: readonly ParDaBase[], noGrafico: ReadonlySet<string>): string[] {
+ * comparados. As demais bolhas esmaecem (opacidadeComDestaque) para a análise em foco não se misturar com o resto da seleção;
+ * marcar, sozinho, continua sem esmaecer (25/10/2026). Vazio: nada esmaece. Na Análise Espacial, desde a Escolha dos territórios
+ * (27/10/2026), toda bolha é da base: não há territórios base escolhidos um a um para destacar. Só estado visual: nada vai ao
+ * motor. */
+export function destaqueDaAnalise(comparar: readonly string[], noGrafico: ReadonlySet<string>): string[] {
   const comparados = comparar.filter(id => noGrafico.has(id));
-  if (comparados.length >= 2) return [...new Set(comparados)];
-  return [...new Set(bases.flatMap(par => [par.base.id, ...par.referencias.filter(ref => ref.noGrafico || ref.emAnalise).map(ref => ref.id)]))];
+  return comparados.length >= 2 ? [...new Set(comparados)] : [];
 }
 /** Opacidade das bolhas fora do destaque da análise. */
 export const OPACIDADE_FORA_DO_DESTAQUE = 0.25;
@@ -1463,8 +1463,8 @@ export type ContextoDica = { indicador: PainelIndicador; competencia: string; co
   variacao: boolean; tendencia: boolean; nomes: Map<string, string>; limiares?: number[]; rotulos: RotulosTerritoriais;
   /** Unidades de um grupo (para a ação "Ver os N municípios" na bolha do grupo). */
   unidadesDoGrupo?: (id: string) => number | null;
-  /** Território de referência por elegibilidade (24/10/2026): a relação, para a dica dizer "o mais próximo" ou "o mais distante". */
-  relacao?: RelacaoEspacial | null;
+  /** Com a Escolha dos territórios (27/10/2026), a referência é a mais próxima de cada item. */
+  porItem?: boolean;
   /** Visão Trajetória: cada período da janela com o valor observado. */
   trajetoria?: boolean };
 
@@ -1482,14 +1482,13 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
   const notas: string[] = [];
   if (contexto.distancia) {
     const distancia = numero(item.distancia_km), maxima = numero(item.distancia_km_max);
-    const porItem = !!contexto.relacao;
+    const porItem = !!contexto.porItem;
     linhas.push({ rotulo: item.referencia ? "Distância (membro da referência)" : conjunto && !porItem ? "Distância (membro mais próximo)"
-      : porItem ? "Distância até o território de referência" : "Distância até a referência",
+      : porItem ? "Distância até a referência mais próxima" : "Distância até a referência",
       valor: distancia === null ? "Não avaliável" : formatarNumero(distancia) + " km" });
     if (conjunto && maxima !== null) linhas.push({ rotulo: "Distância (membro mais distante)", valor: formatarNumero(maxima) + " km" });
     if (item.referenciaDoItem?.length && !item.referencia)
-      linhas.push({ rotulo: porItem ? "Território de referência (" + (contexto.relacao === "mais_distante" ? "o mais distante" : "o mais próximo") +
-        (item.referenciaDoItem.length > 1 ? ", empate" : "") + ")"
+      linhas.push({ rotulo: porItem ? "Referência mais próxima" + (item.referenciaDoItem.length > 1 ? " (empate)" : "")
         : item.referenciaDoItem.length > 1 ? "Membros da referência mais próximos (empate)" : "Membro da referência mais próximo",
         valor: item.referenciaDoItem.map(ref => ref.rotulo).join(", ") });
     if (item.faixa_distancia) linhas.push({ rotulo: "Faixa de distância", valor: item.faixa_distancia === "fora" ? "fora das faixas" : item.faixa_distancia.rotulo });
@@ -1612,16 +1611,15 @@ export type Agrupar = { tipo: "nenhum" | TipoGrupos | "faixas"; faixas: number[]
  * unidade só. Trocar de nível não apaga a escolha dos outros. */
 export type DefinicaoAnalise = {
   familia: Familia; indicador: PainelIndicador; nivel: PainelNivel; base: PainelMunicipios; estados: string[]; competencia: string;
-  categoria: string; conjuntos: PainelConjuntoPedido[]; referencia: PainelReferenciaPedido | null; faixasDistancia: number[];
+  categoria: string; conjuntos: PainelConjuntoPedido[];
+  /** A Escolha dos territórios da Análise Espacial (27/10/2026): a consulta calculada (null até o primeiro "Calcular"). O
+   * rascunho fica na janela; aqui, só o que vai ao motor. */
+  consulta: ConsultaTerritorios | null; faixasDistancia: number[];
   janela: string[]; visao: Visao; agrupar: Agrupar; condicoes: CondicaoPedido[]; ordenar: OrdenarPedido | null;
   comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Premissas;
   /** Intervalo da Série temporal (24/10/2026): as competências escolhidas, em ordem; vazio = a extensão inteira da base (do
    * primeiro ao último período que ela tem, lidos dos dados a cada pedido). */
   serie?: string[];
-  /** Territórios base da Análise Espacial (25/10/2026; cumulativos desde a terceira rodada do dia): os territórios em análise
-   * que a tela mostra ligados ao território de referência de cada um; nulo = todos os selecionados (o padrão, também os que
-   * entrarem depois). Só estado visual: não entra no pedido ao motor. */
-  territoriosBase?: string[] | null;
 };
 /** Estado inicial da análise: em qualquer fonte, nenhum território marcado (23/10/2026); a área espera a escolha na Seleção de
  * Territórios ou na conversa. Na planilha sem população, o indicador começa na quantidade (o motor recusa a densidade sem
@@ -1632,9 +1630,9 @@ export function definicaoInicial(p: { tipo: "brasil" | "arquivo" | null; periodo
     // Sem seleção automática (23/10/2026): a base carregada abre sem territórios marcados, no nível dos municípios; a pessoa
     // escolhe na Seleção de Territórios (o Brasil, os estados ou os municípios) ou pela conversa.
     nivel: "municipios", base: { ...BASE_VAZIA }, estados: [], competencia: maisRecente(p.periodos),
-    categoria: p.categoria, conjuntos: [], referencia: null, faixasDistancia: [],
+    categoria: p.categoria, conjuntos: [], consulta: null, faixasDistancia: [],
     janela: [], visao: "classes", agrupar: { tipo: "nenhum", faixas: [] }, condicoes: [], ordenar: null, comparar: [], rotatividade: null,
-    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [], territoriosBase: null };
+    premissas: p.tipo === "arquivo" ? { ...(p.premissas ?? {}) } : {}, serie: [] };
 }
 /** O período com que a Análise de Tendência abre (24/10/2026, pedido do responsável, no lugar de "sem ritmo padrão"): o anual,
  * quando a base tem 4 períodos anuais até a competência mais recente; senão, o único ritmo que a base tem (RQ-GOV-14: um só valor
@@ -1655,28 +1653,253 @@ export function intervaloEntre(periodos: string[], inicio: string, fim: string):
   const escolhidas = todas.filter(c => comparar(c, a) >= 0 && comparar(c, b) <= 0);
   return escolhidas.length === todas.length ? [] : escolhidas;
 }
-/** O território de referência por elegibilidade (24/10/2026), em vez dos membros escolhidos. */
-export const referenciaElegivel = (r: PainelReferenciaPedido | null | undefined): r is ReferenciaElegivel => !!r && "relacao" in r;
-/** "Maior" ou "menor" pedidos na conversa (decisão 4, 25/10/2026): a ordem do critério vira o operador da condição do Território
- * de referência ("maior densidade" é Densidade "Maior que"; "menos populosos", População "Menor que"). O valor de corte, a relação
- * e a delimitação continuam com a pessoa: nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01). */
+/** "Maior" ou "menor" pedidos na conversa (decisão 4, 25/10/2026): a ordem do critério vira o operador do filtro da Referência
+ * na Escolha dos territórios ("maior densidade" é Densidade "acima de"; "menos populosos", População "abaixo de"). O valor continua
+ * com a pessoa: nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição, CAP-SUB-01). */
 export const operadorDoCriterio = (criterio: PainelCriterio | null | undefined): ">" | "<" | null =>
   criterio ? (criterio.ordem === "desc" ? ">" : "<") : null;
 /** As Grandes Regiões da base do Brasil, pelo primeiro dígito do código IBGE do estado (a regra do motor e da conversa). */
 export const REGIOES_DO_BRASIL: { id: string; nome: string }[] = [
   { id: "1", nome: "Norte" }, { id: "2", nome: "Nordeste" }, { id: "3", nome: "Sudeste" }, { id: "4", nome: "Sul" }, { id: "5", nome: "Centro-Oeste" }];
 export const regiaoDoEstado = (prefixo: string) => REGIOES_DO_BRASIL.find(regiao => regiao.id === prefixo.charAt(0))?.nome ?? null;
-/** Textos do território de referência: a relação e a delimitação, com os rótulos da fonte. */
-export const NOMES_RELACOES: Record<RelacaoEspacial, string> = { mais_proxima: "Mais próximo", mais_distante: "Mais distante" };
-export function delimitacoesDaFonte(c: { brasil: boolean; comGrupos: boolean; rotulos: RotulosTerritoriais }): { tipo: TipoDelimitacao; rotulo: string }[] {
+
+// ================================================================================================ escolha dos territórios
+/** Escolha dos territórios (27/10/2026, comando Seleção de Territórios, no lugar do território de referência por elegibilidade):
+ * base e referência escolhidas do mesmo jeito, em três etapas (de onde partir, filtros por indicador combinados por E e a escolha
+ * de todos ou só dos marcados), num objeto de consulta serializável. Ele é a fonte de verdade da janela: os controles leem e
+ * escrevem nele, a frase-resumo sai dele (por modelo, nunca pelo LLM) e o motor o recebe (`consulta` de /api/painel e de
+ * /api/painel/territorios). Toda seleção, contagem e distância vem do motor; aqui ficam só o objeto, o que falta completar e a
+ * frase. Os municípios são identificados como na base (code:<código IBGE>); as regiões, pelo nome; os estados, pelo prefixo do
+ * código (numa planilha, pelo valor da coluna-mãe, como em base.estados). A distância é sempre a geodésica até a referência mais
+ * próxima de cada município da base. */
+export type TipoPartida = "pais" | "regioes" | "ufs" | "selecao_previa" | "mesma_uf_da_base" | "mesma_regiao_da_base";
+export type PartirDe = { tipo: TipoPartida; regioes: string[]; ufs: string[] };
+export type IndicadorDoFiltro = "densidade" | "populacao" | "quantidade" | "distancia";
+export type OperadorDoFiltro = "<" | "<=" | ">" | ">=";
+export type FiltroDaConsulta = { indicador: IndicadorDoFiltro; operador: OperadorDoFiltro; valor: number | null };
+export type EscolhaDaConsulta = { modo: "todos" | "marcados"; municipios: string[] };
+export type LadoDaConsulta = { partir_de: PartirDe; filtros: FiltroDaConsulta[]; escolha: EscolhaDaConsulta };
+export type DistanciaDaConsulta = { medida: "geodesica"; ate: "referencia_mais_proxima" };
+export type ConsultaTerritorios = { base: LadoDaConsulta; referencia: LadoDaConsulta; distancia: DistanciaDaConsulta };
+export type Lado = "base" | "referencia";
+export const LADOS: Lado[] = ["base", "referencia"];
+export const NOMES_DOS_LADOS: Record<Lado, string> = { base: "Base", referencia: "Referência" };
+export const MAX_FILTROS = 12;
+const DISTANCIA_DA_CONSULTA: DistanciaDaConsulta = { medida: "geodesica", ate: "referencia_mais_proxima" };
+export const OPERADORES_DO_FILTRO: OperadorDoFiltro[] = ["<", "<=", ">", ">="];
+/** A distância até a referência mais próxima usa só "acima de" e "até". */
+export const OPERADORES_DA_DISTANCIA: OperadorDoFiltro[] = [">", "<="];
+export const TEXTO_DOS_OPERADORES: Record<OperadorDoFiltro, string> = { "<": "abaixo de", "<=": "até", ">": "acima de", ">=": "a partir de" };
+export const NOMES_DOS_FILTROS: Record<IndicadorDoFiltro, string> = { densidade: "Densidade", populacao: "População", quantidade: "Quantidade",
+  distancia: "Distância até a referência mais próxima" };
+export const UNIDADES_DOS_FILTROS: Record<IndicadorDoFiltro, string> = { densidade: "por 1.000 hab.", populacao: "habitantes",
+  quantidade: "profissionais", distancia: "km" };
+/** O texto de apoio dos filtros (o comando pede que diga onde ficam OU e NÃO). */
+export const TEXTO_DE_APOIO_DOS_FILTROS = "Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em " +
+  "Critérios combinados.";
+/** A nota da aba Referência. */
+export const notaDaDistanciaDaConsulta = (rotulos: RotulosTerritoriais) => "Distância em linha reta (geodésica) até a referência mais " +
+  "próxima de cada " + rotulos.unidade.singular + " da base.";
+
+const ladoInicial = (tipo: TipoPartida): LadoDaConsulta => ({ partir_de: { tipo, regioes: [], ufs: [] }, filtros: [],
+  escolha: { modo: "todos", municipios: [] } });
+/** A consulta com que a janela abre: a base parte da seleção prévia (os territórios já selecionados; sem eles, do país inteiro), e
+ * a referência, do país inteiro, sem filtros. Nada é calculado até "Calcular". */
+export const consultaInicial = (c: { comSelecao: boolean }): ConsultaTerritorios => ({
+  base: ladoInicial(c.comSelecao ? "selecao_previa" : "pais"), referencia: ladoInicial("pais"), distancia: { ...DISTANCIA_DA_CONSULTA } });
+
+const TIPOS_DA_BASE = new Set<string>(["pais", "regioes", "ufs", "selecao_previa"]);
+const TIPOS_DA_REFERENCIA = new Set<string>([...TIPOS_DA_BASE, "mesma_uf_da_base", "mesma_regiao_da_base"]);
+const comoObjeto = (bruto: unknown) => bruto && typeof bruto === "object" && !Array.isArray(bruto) ? bruto as Record<string, unknown> : null;
+const listaDeTextos = (bruto: unknown) => bruto === undefined ? [] : Array.isArray(bruto) && bruto.every(valor => typeof valor === "string")
+  ? [...bruto] as string[] : null;
+function lerLado(bruto: unknown, lado: Lado): LadoDaConsulta | null {
+  const o = comoObjeto(bruto), partir = comoObjeto(o?.partir_de);
+  if (!o || !partir || typeof partir.tipo !== "string" || !(lado === "base" ? TIPOS_DA_BASE : TIPOS_DA_REFERENCIA).has(partir.tipo)) return null;
+  const regioes = listaDeTextos(partir.regioes), ufs = listaDeTextos(partir.ufs);
+  const brutos = o.filtros === undefined ? [] : o.filtros;
+  if (!regioes || !ufs || !Array.isArray(brutos) || brutos.length > MAX_FILTROS) return null;
+  const filtros: FiltroDaConsulta[] = [];
+  for (const bruto of brutos) {
+    const f = comoObjeto(bruto);
+    if (!f || typeof f.indicador !== "string" || typeof f.operador !== "string") return null;
+    const indicador = f.indicador as IndicadorDoFiltro, operador = f.operador as OperadorDoFiltro;
+    const valido = indicador === "distancia" ? lado === "base" && OPERADORES_DA_DISTANCIA.includes(operador)
+      : ["densidade", "populacao", "quantidade"].includes(indicador) && OPERADORES_DO_FILTRO.includes(operador);
+    if (!valido || (f.valor !== null && (typeof f.valor !== "number" || !Number.isFinite(f.valor) || f.valor < 0))) return null;
+    filtros.push({ indicador, operador, valor: f.valor as number | null });
+  }
+  const escolha = o.escolha === undefined ? { modo: "todos" } : comoObjeto(o.escolha);
+  const municipios = listaDeTextos(escolha?.municipios);
+  if (!escolha || (escolha.modo !== "todos" && escolha.modo !== "marcados") || !municipios) return null;
+  return { partir_de: { tipo: partir.tipo as TipoPartida, regioes, ufs }, filtros, escolha: { modo: escolha.modo, municipios } };
+}
+/** Lê uma consulta (estado salvo, pedido futuro da conversa): devolve a mesma consulta, campo a campo, ou null quando a forma não
+ * confere. Serializar e ler de novo não perde nada (critério 18 do comando). */
+export function lerConsulta(bruto: unknown): ConsultaTerritorios | null {
+  const o = comoObjeto(bruto);
+  if (!o) return null;
+  const base = lerLado(o.base, "base"), referencia = lerLado(o.referencia, "referencia"), distancia = comoObjeto(o.distancia);
+  if (!base || !referencia) return null;
+  if (o.distancia !== undefined && (!distancia || distancia.medida !== "geodesica" || distancia.ate !== "referencia_mais_proxima")) return null;
+  return { base, referencia, distancia: { ...DISTANCIA_DA_CONSULTA } };
+}
+const ordemDasRegioes = (nome: string) => REGIOES_DO_BRASIL.findIndex(regiao => regiao.nome === nome);
+function ladoParaOMotor(lado: LadoDaConsulta): LadoDaConsulta {
+  const { tipo } = lado.partir_de;
+  return { partir_de: { tipo, regioes: tipo === "regioes" ? [...new Set(lado.partir_de.regioes)].sort((a, b) => ordemDasRegioes(a) - ordemDasRegioes(b)) : [],
+      ufs: tipo === "ufs" ? [...new Set(lado.partir_de.ufs)].sort(comparar) : [] },
+    filtros: lado.filtros.map(filtro => ({ ...filtro })),
+    escolha: { modo: lado.escolha.modo, municipios: lado.escolha.modo === "marcados" ? [...new Set(lado.escolha.municipios)].sort(comparar) : [] } };
+}
+/** A consulta como o motor a recebe: só o que vale para cada escolha (as regiões com "regiões", os estados com "estados", os
+ * marcados com "Só os que eu marcar"), em ordem. A janela guarda o resto no rascunho, para a troca de opção não perder o que foi
+ * marcado. */
+export const consultaParaOMotor = (c: ConsultaTerritorios): ConsultaTerritorios => ({ base: ladoParaOMotor(c.base),
+  referencia: ladoParaOMotor(c.referencia), distancia: { ...DISTANCIA_DA_CONSULTA } });
+/** A mesma consulta para o motor: "A consulta mudou" só quando muda o que ele calcula. */
+export const mesmaConsulta = (a: ConsultaTerritorios | null | undefined, b: ConsultaTerritorios | null | undefined) =>
+  !!a && !!b && JSON.stringify(consultaParaOMotor(a)) === JSON.stringify(consultaParaOMotor(b));
+/** O que falta completar em cada lado, na ordem das etapas, com os textos do comando (os mesmos do motor): desativam "Calcular" e
+ * aparecem no rodapé e no status da aba. Filtro sem valor não corta nada até ser preenchido. */
+export function pendenciasDoLado(c: ConsultaTerritorios, lado: Lado, rotulos: RotulosTerritoriais): string[] {
+  const unidade = rotulos.unidade, grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  const { partir_de: partir, filtros, escolha } = c[lado];
+  const faltas: string[] = [];
+  if (partir.tipo === "regioes" && !partir.regioes.length) faltas.push("escolha ao menos uma região");
+  if (partir.tipo === "ufs" && !partir.ufs.length) faltas.push("escolha ao menos " + (fem(grupo) ? "uma " : "um ") + grupo.singular);
+  if (filtros.some(filtro => filtro.valor === null)) faltas.push("preencha o valor do filtro");
+  if (escolha.modo === "marcados" && !escolha.municipios.length) faltas.push("marque ao menos " + (fem(unidade) ? "uma " : "um ") + unidade.singular);
+  if (lado === "base" && filtros.some(filtro => filtro.indicador === "distancia") && pendenciasDoLado(c, "referencia", rotulos).length)
+    faltas.push("complete a referência para usar o filtro de distância");
+  return faltas;
+}
+export const pendenciasDaConsulta = (c: ConsultaTerritorios, rotulos: RotulosTerritoriais): Record<Lado, string[]> =>
+  ({ base: pendenciasDoLado(c, "base", rotulos), referencia: pendenciasDoLado(c, "referencia", rotulos) });
+/** "Base incompleta: escolha ao menos uma região." */
+export const textoDaPendencia = (lado: Lado, falta: string) => NOMES_DOS_LADOS[lado] + " incompleta: " + falta + ".";
+/** O valor digitado num filtro: na população e na quantidade, inteiros; na densidade e na distância (km), decimais. */
+export const lerValorDoFiltro = (texto: string, indicador: IndicadorDoFiltro) => lerValorDeCorte(texto, indicador === "distancia" ? "densidade" : indicador);
+export const escreverValorDoFiltro = (valor: number | null) => valor === null ? "" : ate(6).format(valor);
+
+/** Um trecho da frase-resumo: o texto e se o lado está incompleto (o trecho vira "base incompleta" ou "referência incompleta"). */
+export type TrechoDaFrase = { texto: string; incompleta: boolean };
+export type ContextoDaFrase = { rotulos: RotulosTerritoriais; brasil: boolean; grupos: GrupoInfo[]; nomes: Map<string, string> };
+const NOMES_NA_FRASE = 3;
+/** "MANAUS (AM), TEFE (AM), BELEM (PA) e mais 2". */
+function nomesNaFrase(ids: string[], nomes: Map<string, string>): string {
+  const lista = ids.slice(0, NOMES_NA_FRASE).map(id => nomes.get(id) || id);
+  return ids.length > NOMES_NA_FRASE ? lista.join(", ") + " e mais " + (ids.length - NOMES_NA_FRASE) : emLista(lista);
+}
+/** De onde o lado parte, com a preposição: "de todo o país", "do Norte e do Nordeste", "do Acre", "da seleção prévia". */
+function deOnde(partir: PartirDe, c: ContextoDaFrase): string {
+  const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  if (partir.tipo === "pais") return c.brasil ? "de todo o país" : "de toda a planilha";
+  if (partir.tipo === "selecao_previa") return "da seleção prévia";
+  if (partir.tipo === "regioes") return emLista(ladoParaOMotor({ partir_de: partir, filtros: [], escolha: { modo: "todos", municipios: [] } })
+    .partir_de.regioes.map(nome => "do " + nome));
+  const ufs = [...partir.ufs].sort(comparar);
+  const de = (id: string) => {
+    const g = c.grupos.find(item => item.id === id);
+    return g?.rotuloGrupo ? g.rotuloGrupo.split(" ").slice(1).join(" ") : "de " + (g?.nome || id);
+  };
+  if (ufs.length > NOMES_NA_FRASE) return ufs.slice(0, NOMES_NA_FRASE).map(de).join(", ") + " e de mais " + quantos(ufs.length - NOMES_NA_FRASE, grupo);
+  return emLista(ufs.map(de));
+}
+/** Os filtros na frase, com o mesmo indicador junto para a faixa: "densidade a partir de 0,5 e abaixo de 1"; a distância fica à
+ * parte: "a mais de 300 km da referência". */
+function filtrosNaFrase(filtros: FiltroDaConsulta[]): { indicadores: string[]; distancia: string | null } {
+  const porIndicador = new Map<IndicadorDoFiltro, string[]>();
+  for (const filtro of filtros) {
+    const partes = porIndicador.get(filtro.indicador) ?? [];
+    const valor = escreverValorDoFiltro(filtro.valor);
+    partes.push(filtro.indicador === "distancia" ? (filtro.operador === ">" ? "mais de " : "até ") + valor + " km"
+      : TEXTO_DOS_OPERADORES[filtro.operador] + " " + valor);
+    porIndicador.set(filtro.indicador, partes);
+  }
+  const indicadores = [...porIndicador.entries()].filter(([indicador]) => indicador !== "distancia")
+    .map(([indicador, partes]) => NOMES_DOS_FILTROS[indicador].toLocaleLowerCase("pt-BR") + " " + partes.join(" e "));
+  const distancia = porIndicador.get("distancia");
+  return { indicadores, distancia: distancia ? "a " + distancia.join(" e a ") + " da referência" : null };
+}
+/** A base na frase: "Municípios do Norte com densidade abaixo de 0,5 e a mais de 300 km da referência"; sem filtro, "Municípios do
+ * Norte"; no modo marcados, os nomes (até três; depois, "e mais N"). */
+function fraseDaBase(lado: LadoDaConsulta, c: ContextoDaFrase): string {
+  if (lado.escolha.modo === "marcados") return nomesNaFrase(lado.escolha.municipios, c.nomes);
+  const { indicadores, distancia } = filtrosNaFrase(lado.filtros);
+  return maiuscula(c.rotulos.unidade.plural) + " " + deOnde(lado.partir_de, c) + (indicadores.length ? " com " + emLista(indicadores) : "") +
+    (distancia ? (indicadores.length ? " e " : " ") + distancia : "");
+}
+/** A referência na frase: "o mais próximo do Acre com densidade acima de 2" quando o território é fixo; "o mais próximo com
+ * densidade acima de 1,5, na mesma UF" (ou "na mesma região", "em qualquer estado") nos demais casos. */
+function fraseDaReferencia(lado: LadoDaConsulta, c: ContextoDaFrase): string {
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  const mesmo = (fem(grupo) ? "Na mesma " : "No mesmo ") + grupo.singular + " de cada " + unidade.singular;
-  const escolhidos = maiuscula(grupo.plural) + (fem(grupo) ? " escolhidas" : " escolhidos");
-  if (c.brasil) return [{ tipo: "mesmo_grupo", rotulo: mesmo }, { tipo: "grupos", rotulo: escolhidos },
-    { tipo: "mesma_regiao", rotulo: "Na mesma região de cada " + unidade.singular }, { tipo: "regioes", rotulo: "Regiões escolhidas" },
-    { tipo: "todos", rotulo: "No Brasil inteiro" }];
-  return [...(c.comGrupos ? [{ tipo: "mesmo_grupo" as const, rotulo: mesmo }, { tipo: "grupos" as const, rotulo: escolhidos }] : []),
-    { tipo: "todos", rotulo: "Na planilha inteira" }];
+  const tipo = lado.partir_de.tipo;
+  const recorte = tipo === "mesma_uf_da_base" ? (c.brasil ? ", na mesma UF" : ", n" + (fem(grupo) ? "a mesma " : "o mesmo ") + grupo.singular)
+    : tipo === "mesma_regiao_da_base" ? ", na mesma região" : tipo === "pais" ? (c.brasil ? ", em qualquer estado" : ", em toda a planilha") : "";
+  const proximo = fem(unidade) ? "a mais próxima" : "o mais próximo";
+  if (lado.escolha.modo === "marcados") {
+    // Os marcados são fixos: o recorte só diz algo quando é o de cada território da base (mesma UF ou mesma região).
+    const marcados = lado.escolha.municipios;
+    return (marcados.length === 1 ? nomesNaFrase(marcados, c.nomes) : proximo + " entre " + nomesNaFrase(marcados, c.nomes)) +
+      (tipo === "mesma_uf_da_base" || tipo === "mesma_regiao_da_base" ? recorte : "");
+  }
+  const { indicadores } = filtrosNaFrase(lado.filtros);
+  const fixo = tipo === "regioes" || tipo === "ufs" || tipo === "selecao_previa";
+  return proximo + (fixo ? " " + deOnde(lado.partir_de, c) : "") + (indicadores.length ? " com " + emLista(indicadores) : "") + recorte;
+}
+/** A frase-resumo da janela, no formato "{Base} → referência: {Referência}", montada por modelo a partir da consulta (nunca pelo
+ * LLM). Lado incompleto vira "base incompleta" ou "referência incompleta", destacado na tela. */
+export function fraseDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFrase): Record<Lado, TrechoDaFrase> {
+  const pendencias = pendenciasDaConsulta(consulta, c.rotulos);
+  return {
+    base: pendencias.base.length ? { texto: "base incompleta", incompleta: true } : { texto: fraseDaBase(consulta.base, c), incompleta: false },
+    referencia: pendencias.referencia.length ? { texto: "referência incompleta", incompleta: true }
+      : { texto: fraseDaReferencia(consulta.referencia, c), incompleta: false },
+  };
+}
+export const textoDaFraseDaConsulta = (frase: Record<Lado, TrechoDaFrase>) => frase.base.texto + " → referência: " + frase.referencia.texto;
+/** A referência pelo nome pedida na conversa ("distância até Manaus"): os membros viram os marcados da referência, a partir do país;
+ * a base continua a da consulta (sem consulta, a inicial). */
+export function consultaComReferenciaMarcada(atual: ConsultaTerritorios | null, membros: string[], comSelecao: boolean): ConsultaTerritorios {
+  const consulta = atual ?? consultaInicial({ comSelecao });
+  return { ...consulta, referencia: { partir_de: { tipo: "pais", regioes: [], ufs: [] }, filtros: [], escolha: { modo: "marcados", municipios: [...membros] } } };
+}
+/** O lugar do título na Análise Espacial: o da base da consulta ("Norte", "Acre e Amazonas", "Brasil"; com filtros, ", com
+ * filtros"; no modo marcados, quantos são); com a seleção prévia, o da Seleção de Territórios. */
+export function lugarDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFrase & { selecao: Lugar }): Lugar {
+  const { partir_de: partir, filtros, escolha } = consulta.base;
+  const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  let curto: string;
+  if (escolha.modo === "marcados") curto = escolha.municipios.length <= 2 ? emLista(escolha.municipios.map(id => c.nomes.get(id) || id))
+    : quantos(escolha.municipios.length, c.rotulos.unidade);
+  else if (partir.tipo === "pais") curto = c.brasil ? "Brasil" : "Planilha";
+  else if (partir.tipo === "selecao_previa") curto = c.selecao.curto;
+  else if (partir.tipo === "regioes") curto = partir.regioes.length <= 2 ? emLista(partir.regioes) : partir.regioes.length + " regiões";
+  else curto = partir.ufs.length <= 2 ? emLista(partir.ufs.map(id => c.grupos.find(item => item.id === id)?.nome || id)) : quantos(partir.ufs.length, grupo);
+  if (escolha.modo !== "marcados" && filtros.length) curto += ", com filtros";
+  return { lugar: "", curto };
+}
+/** A referência de um estado salvo de antes da Escolha dos territórios (a referência por elegibilidade ou pelos membros, com os
+ * territórios base), na consulta equivalente; o "mais distante" saiu (27/10/2026) e não tem equivalente: fica sem consulta. */
+export function consultaDeAntes(referencia: unknown, territoriosBase: unknown): ConsultaTerritorios | null {
+  const ref = comoObjeto(referencia);
+  if (!ref) return null;
+  const bases = Array.isArray(territoriosBase) ? territoriosBase.filter((id): id is string => typeof id === "string") : null;
+  const base: LadoDaConsulta = { ...ladoInicial("selecao_previa"), ...(bases?.length ? { escolha: { modo: "marcados", municipios: bases } } : {}) };
+  const membros = listaDeTextos(ref.membros);
+  if (membros && membros.length) return { ...consultaComReferenciaMarcada(null, membros, true), base };
+  const delimitacao = comoObjeto(ref.delimitacao), condicao = comoObjeto(ref.condicao);
+  if (ref.relacao !== "mais_proxima" || !delimitacao || !condicao) return null;
+  const valores = listaDeTextos(delimitacao.valores) ?? [];
+  const partir: PartirDe | null = delimitacao.tipo === "todos" ? { tipo: "pais", regioes: [], ufs: [] }
+    : delimitacao.tipo === "mesmo_grupo" ? { tipo: "mesma_uf_da_base", regioes: [], ufs: [] }
+    : delimitacao.tipo === "mesma_regiao" ? { tipo: "mesma_regiao_da_base", regioes: [], ufs: [] }
+    : delimitacao.tipo === "grupos" ? { tipo: "ufs", regioes: [], ufs: valores }
+    : delimitacao.tipo === "regioes" ? { tipo: "regioes", regioes: valores, ufs: [] } : null;
+  if (!partir) return null;
+  return lerConsulta({ base, referencia: { partir_de: partir, filtros: [{ indicador: condicao.atributo, operador: condicao.operador, valor: condicao.valor }],
+    escolha: { modo: "todos", municipios: [] } } });
 }
 /** O valor de corte digitado (vírgula ou ponto decimal; sem separador de milhar ambíguo): número não negativo ou null. Na
  * quantidade e na população, só inteiros (pessoas e habitantes); na densidade, o valor por 1.000 habitantes. */
@@ -1699,6 +1922,13 @@ export const UNIDADES_DO_CORTE: Record<PainelAtributo, { unidade: string; dica: 
  * uma unidade só: escolher o nível já o seleciona. */
 export const semSelecao = (def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">) =>
   def.nivel === "brasil" ? false : def.nivel === "estados" ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
+/** A Análise Espacial com a Escolha dos territórios calculada (27/10/2026): a base vem da consulta (o país, uma região, um
+ * estado...), e a seleção prévia é só uma das opções; sem territórios selecionados, a análise continua. */
+export const consultaEmUso = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | "consulta">) =>
+  def.familia === "espacial" && def.nivel === "municipios" && !!def.consulta;
+/** Nada a analisar: sem seleção no nível em uso e sem a Escolha dos territórios em uso. */
+export const semTerritorios = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | "base" | "estados" | "conjuntos" | "consulta">) =>
+  semSelecao(def) && !consultaEmUso(def);
 /** Limpar seleção (decisão 5, 25/10/2026): tira só os territórios do nível em uso, porque cada nível guarda a sua escolha (em
  * Municípios, os municípios e os conjuntos; em Estados, os estados). No nível Brasil, o país é a própria unidade e não há o que
  * limpar; sem nada marcado no nível em uso, também não. Nos dois casos, null. */
@@ -1738,7 +1968,7 @@ export const TEXTO_DAS_FONTES = "Use os dados do Brasil, já preparados, ou envi
 export function bloqueioDoPedido(def: DefinicaoAnalise, c: { fonte: "brasil" | "arquivo" | null; rotulos: RotulosTerritoriais }): string | null {
   if (!c.fonte) return "Escolha os dados para começar.";
   if (!def.competencia) return "Escolha a competência.";
-  if (semSelecao(def)) return TEXTO_SEM_SELECAO;
+  if (semTerritorios(def)) return TEXTO_SEM_SELECAO;
   return null;
 }
 /** O que falta para a família escolhida aparecer (o gráfico continua com a distribuição enquanto isso). */
@@ -1751,17 +1981,17 @@ export function avisoDaFamilia(def: DefinicaoAnalise, disponivel: Disponivel): s
     return TEXTO_MINIMO_TENDENCIA + " Com " + def.janela.length + " competências, aparece a trajetória entre a primeira e a última.";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final))
     return "Escolha os períodos inicial e final da coorte.";
-  if (def.familia === "espacial" && !def.referencia) return TEXTO_ESCOLHA_DA_REFERENCIA;
+  if (def.familia === "espacial" && !def.consulta) return TEXTO_ESCOLHA_DA_REFERENCIA;
   return null;
 }
-/** O que falta na Análise Espacial sem referência (24/10/2026): o território de referência, num fluxo só. */
-export const TEXTO_ESCOLHA_DA_REFERENCIA = "Defina o território de referência: a relação (mais próximo ou mais distante), a delimitação " +
-  "e a condição.";
+/** O que falta na Análise Espacial sem a Escolha dos territórios calculada (27/10/2026). */
+export const TEXTO_ESCOLHA_DA_REFERENCIA = "Faça a escolha dos territórios: a base e a referência. A distância vai de cada território da " +
+  "base até a referência mais próxima.";
 
 /** Família que o pedido de fato calcula: a escolhida quando disponível e possível no nível; senão, a distribuição. */
 export function familiaCalculada(def: DefinicaoAnalise, disponivel: boolean): Familia {
   if (!disponivel) return "distribuicao";
-  if (def.familia === "espacial" && (!def.referencia || def.nivel !== "municipios")) return "distribuicao";
+  if (def.familia === "espacial" && (!def.consulta || def.nivel !== "municipios")) return "distribuicao";
   if (def.familia === "tendencia" && def.visao !== "series" && def.janela.length < 2) return "distribuicao";
   if (def.familia === "rotatividade" && (!def.rotatividade?.inicial || !def.rotatividade?.final || def.nivel !== "municipios")) return "distribuicao";
   return def.familia;
@@ -1786,8 +2016,9 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   if (def.nivel === "municipios") {
     opcoes.base = { municipios: normalizarBase(def.base, grupoDe) };
     if (def.conjuntos.length) opcoes.conjuntos = def.conjuntos;
-    if (familia === "espacial" && def.referencia) {
-      opcoes.referencia = def.referencia;
+    // A Escolha dos territórios (27/10/2026): `base` continua indo como a seleção prévia, lida pela consulta.
+    if (familia === "espacial" && def.consulta) {
+      opcoes.consulta = consultaParaOMotor(def.consulta);
       if (def.faixasDistancia.length >= 2) opcoes.faixas_distancia = def.faixasDistancia;
     }
     if (familia === "rotatividade" && def.rotatividade) opcoes.rotatividade = def.rotatividade;
@@ -1867,8 +2098,8 @@ function lerCondicao(bruto: unknown): CondicaoPedido | null {
 }
 
 export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia";
-/** `criterio`: a referência pedida por critério (sem membros): o Território de referência abre com o atributo e o operador do
- * pedido (operadorDoCriterio), e a relação, a delimitação e o valor de corte são da pessoa.
+/** `criterio`: a referência pedida por critério (sem membros): a Escolha dos territórios abre na aba Referência com um filtro do
+ * atributo e do operador do pedido (operadorDoCriterio), e o valor é da pessoa.
  * `vista`: a vista do desenho pedida ("ver no mapa", "volte ao gráfico"), só quando ela pode aparecer; estado visual. */
 export type ResultadoPedido = { definicao: DefinicaoAnalise; abrir: FuncaoPainel | null; selecao: string[] | null; mensagens: string[];
   criterio: PainelCriterio | null; vista: "grafico" | "mapa" | null };
@@ -1922,11 +2153,13 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     const criterio = pedido.referencia.criterio as Record<string, unknown> | undefined;
     const valido = criterio && ["densidade", "quantidade", "populacao"].includes(String(criterio.atributo)) && ["desc", "asc"].includes(String(criterio.ordem));
     if (membros.length) {
+      // A referência pelo nome (27/10/2026): os membros viram os marcados da Referência na Escolha dos territórios, a partir do
+      // país, e a base continua a da consulta (sem ela, a seleção prévia).
       proxima = { ...proxima, familia: pedido.familia ?? "espacial", nivel: "municipios",
-        referencia: { membros, ...(valido ? { criterio: { atributo: criterio!.atributo as PainelAtributo, ordem: criterio!.ordem as PainelOrdem } } : {}) } };
+        consulta: consultaComReferenciaMarcada(proxima.consulta, membros, !semSelecao({ ...proxima, nivel: "municipios" })) };
     } else if (valido) {
-      // Referência por critério: abre o Território de referência com o atributo e o operador do pedido (CAP-SUB-01); o valor de
-      // corte, a relação e a delimitação são da pessoa, sem valor sugerido e sem escolher pela posição na ordem.
+      // Referência por critério: abre a Escolha dos territórios com o filtro do atributo e do operador do pedido (CAP-SUB-01); o
+      // valor é da pessoa, sem valor sugerido e sem escolher pela posição na ordem.
       criterioPedido = { atributo: criterio!.atributo as PainelAtributo, ordem: criterio!.ordem as PainelOrdem };
       proxima = { ...proxima, familia: pedido.familia ?? "espacial", nivel: "municipios" };
       abrir = "referencia";
@@ -1985,10 +2218,9 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
 
 /** Contexto do gráfico para a estrutura da página e a conversa. */
 export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], titulo: string, grupoDe: (id: string) => string = prefixoDe,
-  /** Com o território de referência por elegibilidade, os territórios que ficaram como referência (da resposta). */
+  /** Com a Escolha dos territórios, os territórios que ficaram como referência mais próxima de algum item (da resposta). */
   referenciasDaResposta: string[] = []): ContextoDoGrafico {
-  const referencia = def.familia !== "espacial" || !def.referencia ? [] : referenciaElegivel(def.referencia) ? referenciasDaResposta
-    : def.referencia.membros;
+  const referencia = def.familia !== "espacial" || !def.consulta ? [] : referenciasDaResposta;
   return { familia: def.familia, indicador: def.indicador, nivel: def.nivel, municipios: normalizarBase(def.base, grupoDe), estados: def.estados, idsNaTela,
     competencia: def.familia === "tendencia" ? def.janela.at(-1) ?? def.competencia : def.competencia, janela: def.janela,
     referencia, titulo };
@@ -1998,11 +2230,9 @@ export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], ti
 /** Frase que diz o que está na tela (decisão 8): o indicador, onde e quando; o subtítulo explica a leitura. */
 export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia: Familia; visao: Visao; indicador: PainelIndicador;
   nivel: PainelNivel; categoria: string; competencia: string; janela: string[]; rotatividade: { inicial: string; final: string } | null;
-  lugar: Lugar; referencia: string | null; rotulos: RotulosTerritoriais;
+  lugar: Lugar; rotulos: RotulosTerritoriais;
   /** As competências da Série temporal (24/10/2026), quando é a visão em uso. */
-  serie?: string[];
-  /** O território de referência por elegibilidade: a referência é de cada território. */
-  referenciaPorItem?: boolean }): { titulo: string; subtitulo: string } {
+  serie?: string[] }): { titulo: string; subtitulo: string } {
   if (!p.fonte) return { titulo: TITULO_DO_SISTEMA, subtitulo: TEXTO_ESCOLHA_DOS_DADOS };
   const especie = INDICADORES[p.indicador].rotulo;
   const quem = profissionaisDe(p.categoria);
@@ -2013,11 +2243,11 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
   const cadaLinha = p.nivel === "brasil" ? "A linha é o Brasil inteiro" : "Cada linha é " + umA(rotuloBolha);
   const onde = p.lugar.lugar ? " " + p.lugar.lugar : "";
   const periodo = (a: string, b: string) => competenciaPorExtenso(a) + " a " + competenciaPorExtenso(b);
+  // Análise Espacial com a Escolha dos territórios (27/10/2026): a distância é sempre até a referência mais próxima de cada um.
   if (p.familia === "espacial" && p.nivel === "municipios")
-    return { titulo: especie + " de " + quem + " e distância até " + (p.referenciaPorItem ? "o território de referência" : p.referencia || "a referência") +
-      " · " + p.lugar.curto + " · " + competenciaPorExtenso(p.competencia),
-      subtitulo: cadaBolha + (p.referenciaPorItem ? " A posição horizontal é a distância até o território de referência de cada " +
-        rotuloBolha.singular + "." : " A posição horizontal é a distância até a referência.") };
+    return { titulo: especie + " de " + quem + " e distância até a referência mais próxima · " + p.lugar.curto + " · " +
+      competenciaPorExtenso(p.competencia),
+      subtitulo: cadaBolha + " A posição horizontal é a distância até a referência mais próxima de cada " + rotuloBolha.singular + "." };
   if (p.familia === "tendencia" && p.visao === "series" && (p.serie?.length ?? 0) >= 2) {
     const serie = p.serie!;
     return { titulo: "Série temporal da " + especie.toLowerCase() + " de " + quem + " · " + p.lugar.curto + " · " +
@@ -2057,13 +2287,14 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
   const lida = salvo.definicao as DefinicaoAnalise;
   if (!FAMILIAS_VALIDAS.has(lida.familia) || !lida.base || !Array.isArray(lida.janela)) return null;
   // Os estados escolhidos entraram em 24/10/2026: uma definição sem eles abre sem estados marcados; sem o intervalo da Série
-  // temporal (24/10/2026), toda a série. Os territórios base (25/10/2026): a lista guardada ou, de antes de serem cumulativos, o
-  // único escolhido; sem eles, todos os selecionados.
-  const { territorioBase: unicaBase, ...semUnicaBase } = lida as DefinicaoAnalise & { territorioBase?: unknown };
-  const def: DefinicaoAnalise = { ...semUnicaBase, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
-    serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [],
-    territoriosBase: Array.isArray(lida.territoriosBase) ? lida.territoriosBase.filter(id => typeof id === "string")
-      : typeof unicaBase === "string" ? [unicaBase] : null };
+  // temporal (24/10/2026), toda a série. A Escolha dos territórios (27/10/2026): a consulta guardada ou, de antes dela, a
+  // equivalente da referência e dos territórios base de então (consultaDeAntes); o "mais distante" não tem equivalente.
+  const { territorioBase: unicaBase, territoriosBase, referencia, ...resto } = lida as DefinicaoAnalise & { territorioBase?: unknown;
+    territoriosBase?: unknown; referencia?: unknown };
+  const consulta = "consulta" in lida ? lerConsulta(lida.consulta)
+    : consultaDeAntes(referencia, typeof unicaBase === "string" ? [unicaBase] : territoriosBase);
+  const def: DefinicaoAnalise = { ...resto, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
+    serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [], consulta };
   const resposta = estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
   return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
@@ -2099,11 +2330,10 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
     ["População", item => item.populacao], ["Quantidade", item => item.quantidade], ["Densidade por 1.000 habitantes", item => item.densidade],
     ["Tipo de contagem", item => item.tipo === "conjunto" ? textoDaContagem(item.contagem) : ""],
   ];
-  // Com o território de referência por elegibilidade (24/10/2026), a referência é de cada item: a coluna diz qual é.
-  const porItem = resposta.referencia?.tipo === "elegiveis";
-  if (distancia && porItem) colunas.push(["Distância até o território de referência (km)", item => item.distancia_km],
-    ["Território de referência (" + (resposta.referencia?.relacao === "mais_distante" ? "o mais distante" : "o mais próximo") + ")",
-      item => (item.referenciaDoItem || []).map(ref => ref.rotulo).join(" | ")]);
+  // Com a Escolha dos territórios (27/10/2026), a referência mais próxima é de cada item: a coluna diz qual é.
+  const porItem = resposta.referencia?.tipo === "consulta";
+  if (distancia && porItem) colunas.push(["Distância até a referência mais próxima (km)", item => item.distancia_km],
+    ["Referência mais próxima", item => (item.referenciaDoItem || []).map(ref => ref.rotulo).join(" | ")]);
   else if (distancia) colunas.push(["Distância até a referência (km)", item => item.distancia_km], ["Distância do membro mais distante (km)", item => item.distancia_km_max ?? null],
     ["Membro da referência mais próximo", item => (item.referenciaDoItem || []).map(ref => ref.rotulo).join(" | ")],
     ["Membro da referência", item => item.referencia ? "sim" : "não"]);
@@ -2247,38 +2477,27 @@ export function ligacoesDoMapa(itens: PainelItem[], selecionados: string[]): { d
   return ligacoes;
 }
 
-// ================================================================================================ territórios base
-/** A referência de um território base, com os valores do motor: por elegibilidade, os de `referencia.membros`; pelos membros
- * escolhidos, os do próprio item (o membro entra na análise a distância zero). */
+// ================================================================================================ base e referência
+/** A referência de um território da base, com os valores do motor: com a Escolha dos territórios, os de `referencia.membros`;
+ * pelos membros escolhidos (o contrato de antes), os do próprio item (o membro entra na análise a distância zero). */
 export type ReferenciaDaBase = { id: string; rotulo: string; uf: string | null; populacao: number | null; quantidade: number | null;
   densidade: number | null;
   /** A referência já é desenhada no gráfico com a mira (membro escolhido, a distância zero): a ligação vai até ela. */
   noGrafico: boolean;
-  /** A referência também está em análise (por elegibilidade, com a sua própria distância). */
+  /** A referência também está na base (com a sua própria distância). */
   emAnalise: boolean };
-/** Um território base e a referência dele: no empate, todas as empatadas (CAP-ESP-02), a primeira antes. */
+/** Um território da base e a referência mais próxima dele: no empate, todas as empatadas (CAP-ESP-02), a primeira antes. */
 export type ParDaBase = { base: PainelItem; referencias: ReferenciaDaBase[]; distancia: number | null;
   /** Sem referência: o motivo do motor (Não avaliáveis). */
   motivo: string | null };
-/** Uma referência que o gráfico desenha como contexto (por elegibilidade, fora das bolhas da análise), uma vez só, com os
- * territórios base ligados a ela e a distância de cada um, na ordem dos pares. */
+/** Uma referência que o gráfico desenha como contexto (fora das bolhas da base), uma vez só, com os territórios da base ligados a
+ * ela e a distância de cada um, na ordem dos pares. */
 export type ReferenciaDeContexto = { referencia: ReferenciaDaBase; bases: { base: PainelItem; distancia: number | null }[] };
 
-/** As opções do Território base (25/10/2026): as unidades em análise, sem estados nem conjuntos, na ordem dos nomes; com a
- * referência pelo nome, sem os membros dela (eles são a referência). */
+/** Os territórios da base na resposta: as unidades, sem estados nem conjuntos, na ordem dos nomes; com a referência pelo nome (o
+ * contrato de antes), sem os membros dela (eles são a referência). */
 export const basesPossiveis = (itens: PainelItem[]) => itens.filter(item => item.tipo === "municipio" && !item.referencia)
   .map(item => ({ id: item.id, rotulo: item.rotulo })).sort((a, b) => comparar(a.rotulo, b.rotulo) || comparar(a.id, b.id));
-/** Os territórios base em uso, na ordem das opções: nulo, todas elas; senão, as escolhidas que continuam em análise. */
-export function basesEmUso(escolha: string[] | null | undefined, bases: { id: string }[]): string[] {
-  if (!escolha) return bases.map(base => base.id);
-  const escolhidas = new Set(escolha);
-  return bases.filter(base => escolhidas.has(base.id)).map(base => base.id);
-}
-/** A escolha a guardar: com todas as opções marcadas, nulo (todos os selecionados, também os que entrarem depois). */
-export function normalizarBases(ids: string[], bases: { id: string }[]): string[] | null {
-  const marcadas = new Set(ids);
-  return bases.length > 0 && bases.every(base => marcadas.has(base.id)) ? null : bases.filter(base => marcadas.has(base.id)).map(base => base.id);
-}
 
 function referenciaDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">, ref: { id: string; rotulo: string }): ReferenciaDaBase {
   const comoItem = resposta.itens.find(candidato => candidato.id === ref.id && candidato.tipo === "municipio") ?? null;
@@ -2288,10 +2507,10 @@ function referenciaDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">
   return { id: ref.id, rotulo: ref.rotulo, uf: fonte?.uf ?? null, populacao: numero(fonte?.populacao), quantidade: numero(fonte?.quantidade),
     densidade: numero(fonte?.densidade), noGrafico, emAnalise: !!comoItem && !noGrafico };
 }
-/** Um território base da Análise Espacial com a referência dele (25/10/2026, pedido do responsável): a tela mostra a referência
- * no gráfico (bolha de contexto com a mira, no início do eixo, ligada à base) e no mapa. Só estado visual (RQ-REP-06): o pedido
- * ao motor é o mesmo, todo número vem dele, e nada é calculado entre os dois (CAP-REF-01). Nulo sem base ou com a base fora da
- * análise. */
+/** Um território da base da Análise Espacial com a referência mais próxima dele (25/10/2026, pedido do responsável): a tela
+ * mostra a referência no gráfico (bolha de contexto com a mira, no início do eixo, ligada à base) e no mapa. Só estado visual
+ * (RQ-REP-06): todo número vem do motor, e nada é calculado entre os dois (CAP-REF-01). Nulo sem base ou com a base fora da
+ * resposta. */
 export function parDaBase(resposta: Pick<PainelResposta, "itens" | "referencia"> | null, base: string | null | undefined): ParDaBase | null {
   if (!resposta || !base) return null;
   const item = resposta.itens.find(candidato => candidato.id === base && candidato.tipo === "municipio");
@@ -2300,10 +2519,10 @@ export function parDaBase(resposta: Pick<PainelResposta, "itens" | "referencia">
   if (!referencias.length) return { base: item, referencias: [], distancia: null, motivo: motivosDe(item, "distancia")[0] ?? null };
   return { base: item, referencias: referencias.map(ref => referenciaDaBase(resposta, ref)), distancia: numero(item.distancia_km), motivo: null };
 }
-/** Os pares dos territórios base em uso, na ordem deles. */
+/** Os pares dos territórios da base, na ordem deles. */
 export const paresDasBases = (resposta: Pick<PainelResposta, "itens" | "referencia"> | null, bases: string[]) =>
   bases.map(base => parDaBase(resposta, base)).filter((par): par is ParDaBase => !!par);
-/** As referências de contexto do gráfico: as dos pares que o gráfico não desenha como bolha (por elegibilidade), uma vez cada. */
+/** As referências de contexto do gráfico: as dos pares que o gráfico não desenha como bolha, uma vez cada. */
 export function referenciasDeContexto(pares: ParDaBase[]): ReferenciaDeContexto[] {
   const porId = new Map<string, ReferenciaDeContexto>();
   for (const par of pares) for (const referencia of par.referencias) {
@@ -2316,54 +2535,45 @@ export function referenciasDeContexto(pares: ParDaBase[]): ReferenciaDeContexto[
 }
 
 const comE = (nomes: string[]) => nomes.length < 2 ? nomes.join("") : nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1];
-const qualReferencia = (relacao: RelacaoEspacial | null | undefined) =>
-  relacao === "mais_distante" ? " (o mais distante)" : relacao === "mais_proxima" ? " (o mais próximo)" : "";
 
-/** O texto de um território base só: a base, a referência dela e a distância do motor, ou o motivo sem referência. */
-export function textoDoParDaBase(par: ParDaBase, relacao?: RelacaoEspacial | null): string {
+/** O texto de um território da base só: ele, a referência mais próxima e a distância do motor, ou o motivo sem referência. */
+export function textoDoParDaBase(par: ParDaBase): string {
   const [primeira, ...empate] = par.referencias;
-  if (!primeira) return "Território base: " + par.base.rotulo + ". " +
-    (par.motivo ?? "Sem território de referência nesta definição (o motivo está em Não avaliáveis, nos Detalhes).");
-  return "Território base: " + par.base.rotulo + " · Território de referência" + qualReferencia(relacao) + ": " + primeira.rotulo +
+  if (!primeira) return "Base: " + par.base.rotulo + ". " +
+    (par.motivo ?? "Sem referência no recorte (o motivo está em Não avaliáveis, nos Detalhes).");
+  return "Base: " + par.base.rotulo + " · referência mais próxima: " + primeira.rotulo +
     (empate.length ? " (empate com " + comE(empate.map(ref => ref.rotulo)) + ")" : "") +
     (par.distancia !== null ? ", a " + formatarNumero(par.distancia) + " km em linha reta" : "") + ".";
 }
 /** Quantos pares a linha acima do desenho escreve; os outros ficam nas dicas e na tabela. */
 const PARES_NO_TEXTO = 4;
-const parCurto = (par: ParDaBase) => !par.referencias.length ? par.base.rotulo + ": sem território de referência"
+const parCurto = (par: ParDaBase) => !par.referencias.length ? par.base.rotulo + ": sem referência"
   : par.base.rotulo + " → " + par.referencias.map(ref => ref.rotulo).join(" ou ") + (par.referencias.length > 1 ? " (empate)" : "") +
     (par.distancia !== null ? ", " + formatarNumero(par.distancia) + " km" : "");
-/** A linha acima do desenho (`analise-par-base`): com um território base, o par dele; com mais, quantos são e os primeiros pares
- * (base → referência, distância do motor); quando o gráfico liga menos do que os pares com referência, quantas ligações desenha. */
-export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; todos: boolean; ligados: number; relacao?: RelacaoEspacial | null }): string {
-  const { pares, todos, ligados, relacao } = c;
-  if (!pares.length) return "Nenhum território base: o gráfico e o mapa não mostram as ligações até os territórios de referência.";
+/** A linha acima do desenho (`analise-par-base`): com um território na base, o par dele; com mais, quantos são e os primeiros pares
+ * (base → referência mais próxima, distância do motor); quando o gráfico liga menos do que os pares com referência, quantas
+ * ligações desenha. */
+export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; ligados: number }): string {
+  const { pares, ligados } = c;
+  if (!pares.length) return "Nenhum território na base: o gráfico e o mapa não mostram as ligações até a referência.";
   const comReferencia = pares.filter(par => par.referencias.length).length;
   const ligacoes = ligados >= comReferencia ? "" : !ligados ? " Nenhuma ligação à vista no gráfico: " + (comReferencia === 1
-    ? "a bolha do território base está fora" : "as bolhas dos territórios base estão fora") + " da régua ou dos filtros."
+    ? "a bolha da base está fora" : "as bolhas da base estão fora") + " da régua ou dos filtros."
     : " O gráfico desenha " + ligados + " dessas ligações: no máximo " + MAX_LIGACOES + ", e só das bolhas à vista.";
-  if (pares.length === 1) return textoDoParDaBase(pares[0], relacao) + ligacoes;
+  if (pares.length === 1) return textoDoParDaBase(pares[0]) + ligacoes;
   const resto = pares.length - PARES_NO_TEXTO;
-  return "Territórios base: " + pares.length + (todos ? " (todos os selecionados)" : "") + " · cada um ligado ao seu território de referência" +
-    qualReferencia(relacao) + " por linha tracejada: " + pares.slice(0, PARES_NO_TEXTO).map(parCurto).join("; ") +
-    (resto > 0 ? "; e mais " + resto + " (nas dicas e na tabela)" : "") + "." + ligacoes;
-}
-/** O resumo dos territórios base no ajuste do Território de referência: só quando escolhidos um a um (todos é o padrão). */
-export function resumoDosTerritoriosBase(bases: string[], todos: boolean, nomeDe: (id: string) => string): string {
-  if (todos) return "";
-  if (!bases.length) return " · nenhum território base";
-  if (bases.length === 1) return " · território base: " + nomeDe(bases[0]);
-  return bases.length <= 3 ? " · territórios base: " + comE(bases.map(nomeDe)) : " · " + bases.length + " territórios base";
+  return "Base: " + inteiro.format(pares.length) + " · cada um ligado à sua referência mais próxima por linha tracejada: " +
+    pares.slice(0, PARES_NO_TEXTO).map(parCurto).join("; ") + (resto > 0 ? "; e mais " + inteiro.format(resto) + " (nas dicas e na tabela)" : "") +
+    "." + ligacoes;
 }
 
 /** Quantas distâncias a dica de uma referência de contexto lista; as outras ficam na tabela. */
 const DISTANCIAS_NA_DICA = 4;
-/** A dica da bolha de contexto de um território de referência: os valores do motor e a distância até cada território base ligado
- * a ela. */
-export function dicaDaReferenciaDeContexto(contexto: ReferenciaDeContexto, relacao?: RelacaoEspacial | null): Dica {
+/** A dica da bolha de contexto de uma referência: os valores do motor e a distância até cada território da base ligado a ela. */
+export function dicaDaReferenciaDeContexto(contexto: ReferenciaDeContexto): Dica {
   const { referencia: ref, bases } = contexto;
   const nomes = bases.map(item => item.base.rotulo);
-  return { titulo: ref.rotulo, subtitulo: "Território de referência" + qualReferencia(relacao) + " de " +
+  return { titulo: ref.rotulo, subtitulo: "Referência mais próxima de " +
       (nomes.length > 3 ? nomes.slice(0, 3).join(", ") + " e mais " + (nomes.length - 3) : comE(nomes)),
     linhas: [
       { rotulo: "População", valor: ref.populacao === null ? "Não avaliável" : formatarNumero(ref.populacao, true) + " habitantes" },
@@ -2371,10 +2581,10 @@ export function dicaDaReferenciaDeContexto(contexto: ReferenciaDeContexto, relac
       { rotulo: "Densidade", valor: formatarIndicador(ref.densidade, "densidade") },
       ...bases.slice(0, DISTANCIAS_NA_DICA).map(item => ({ rotulo: "Distância até " + item.base.rotulo,
         valor: item.distancia === null ? "Não avaliável" : formatarNumero(item.distancia) + " km" }))],
-    notas: [...(bases.length > DISTANCIAS_NA_DICA ? ["E mais " + (bases.length - DISTANCIAS_NA_DICA) + " territórios base ligados a esta " +
+    notas: [...(bases.length > DISTANCIAS_NA_DICA ? ["E mais " + (bases.length - DISTANCIAS_NA_DICA) + " territórios da base ligados a esta " +
         "referência (as distâncias estão na tabela)."] : []),
-      ref.emAnalise ? "Também está em análise: a outra bolha com este nome mostra a distância até a sua própria referência."
-        : "Fora da seleção: aparece só como território de referência, no início do eixo (0 km)."], acao: null };
+      ref.emAnalise ? "Também está na base: a outra bolha com este nome mostra a distância até a sua própria referência."
+        : "Fora da base: aparece só como referência, no início do eixo (0 km)."], acao: null };
 }
 
 // ================================================================================================ apresentação das abas e da tendência
@@ -2441,13 +2651,15 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Juntar. No mapa, os pontos aparecem em 5 grupos " +
       "iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
-    "Mede a distância em linha reta entre cada " + unidade.singular + " escolhid" + (fem(unidade) ? "a" : "o") + " e o seu território " +
-      "de referência. No Território de referência, você define primeiro quais " + us + " podem ser referência (a delimitação, como " +
-      (c.brasil ? "o mesmo estado, uma região ou o Brasil inteiro" : c.comGrupos ? (fem(grupo) ? "a mesma " : "o mesmo ") + grupo.singular +
-        " ou a planilha inteira" : "a planilha inteira") + ", e uma condição de densidade, quantidade ou população) e depois se a referência de cada " +
-      unidade.singular + " é " + artigo(unidade, false) + " mais próxim" + (fem(unidade) ? "a" : "o") + " ou " + artigo(unidade, false) +
-      " mais distante entre el" + (fem(unidade) ? "as" : "es") + ". " + maiuscula(artigo(unidade, false)) + " própri" + (fem(unidade) ? "a" : "o") +
-      " " + unidade.singular + " nunca é a sua referência. O eixo horizontal mostra a distância, e o vertical, o indicador.",
+    "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima dele" + (fem(unidade) ? "a" : "") +
+      ". Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas: de onde partir (" +
+      (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "a planilha inteira, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
+        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros por densidade, população ou quantidade (na base, também pela " +
+      "distância até a referência) e a escolha de todos os que atendem ou só d" + (fem(unidade) ? "as marcadas" : "os marcados") + "." +
+      (c.brasil || c.comGrupos ? " A referência também pode ser procurada n" + (c.brasil ? "o mesmo estado ou na mesma região" : (fem(grupo) ? "a mesma " : "o mesmo ") +
+        grupo.singular) + " de cada " + unidade.singular + " da base." : "") + " " + maiuscula(artigo(unidade, false)) + " própri" +
+      (fem(unidade) ? "a" : "o") + " " + unidade.singular + " nunca é a sua referência. O eixo horizontal mostra a distância, e o vertical, " +
+      "o indicador.",
     "A distância é medida sobre a superfície da Terra, a partir das coordenadas de cada " + unidade.singular +
       (c.brasil ? " (a sede municipal)" : "") + ", e não é um trajeto por estradas." +
       (c.comGrupos && c.brasil ? " Esta análise usa " + us + ": " + artigo(grupo, true) + " " + grupo.plural + " e o Brasil não têm " +

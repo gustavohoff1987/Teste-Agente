@@ -1584,18 +1584,19 @@ def _referencia(conv, dica, dica_indicador):
         frases.append("Usei " + rotulos + " como conjunto de referência" + quando + ": o eixo X mostra a distância em "
                       "linha reta (km) até o membro mais próximo.")
     elif criterio:
-        # O critério abre o Território de referência com o atributo citado e, desde 25/10/2026 (decisão 4), o operador do
-        # "maior" ou "menor" ("Maior que" ou "Menor que"): a condição de CAP-SUB-01. A relação (mais próximo ou mais distante),
-        # a delimitação e o valor de corte são da pessoa; nada é escolhido em silêncio nem pela posição na ordem (CAP-REF-01).
+        # O critério abre a Escolha dos territórios (27/10/2026) com um filtro do atributo citado na Referência e, desde
+        # 25/10/2026 (decisão 4), o operador do "maior" ou "menor" ("acima de" ou "abaixo de"): a condição de CAP-SUB-01. O
+        # valor é da pessoa; nada é escolhido em silêncio nem pela posição na ordem (CAP-REF-01).
         painel["referencia"] = {"membros": [], "criterio": criterio}
         atributo = {"densidade": "Densidade", "quantidade": "Quantidade", "populacao": "População"}[criterio["atributo"]]
-        operador = "Maior que" if criterio["ordem"] == "desc" else "Menor que"
-        frases.append("Abri o Território de referência" + quando + " com a condição " + atributo + " “" + operador + "”: "
-                      "escolha a relação (mais próximo ou mais distante), a delimitação e o valor de corte, e o eixo X "
-                      "mostra a distância em linha reta (km) até o território de referência de cada " + conv.rot.singular + ".")
+        operador = "acima de" if criterio["ordem"] == "desc" else "abaixo de"
+        frases.append("Abri a Escolha dos territórios" + quando + " com o filtro " + atributo + " “" + operador + "” na "
+                      "Referência: preencha o valor e calcule, e o eixo X mostra a distância em linha reta (km) até a "
+                      "referência mais próxima de cada " + conv.rot.singular + ".")
     else:
-        frases.append("Abri a análise espacial" + quando + ": defina o Território de referência (a relação, a delimitação "
-                      "e a condição) ou diga o nome dele, e o eixo X mostra a distância em linha reta (km) até ele.")
+        frases.append("Abri a análise espacial" + quando + ": faça a Escolha dos territórios (a base e a referência) ou "
+                      "diga o nome da referência, e o eixo X mostra a distância em linha reta (km) até a referência mais "
+                      "próxima.")
     return _resposta(painel, " ".join(frases))
 
 
@@ -1745,8 +1746,9 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
         else:
             frases.append(_frase_de_base(conv, painel, base, quando))
     elif painel["familia"] == "espacial":
-        frases.append("Abri a análise espacial" + quando + ": defina o Território de referência (a relação, a delimitação "
-                      "e a condição) ou diga o nome dele, e o eixo X mostra a distância em linha reta (km) até ele.")
+        frases.append("Abri a análise espacial" + quando + ": faça a Escolha dos territórios (a base e a referência) ou "
+                      "diga o nome da referência, e o eixo X mostra a distância em linha reta (km) até a referência mais "
+                      "próxima.")
     elif painel["familia"] == "rotatividade":
         frases.append("Abri a rotatividade" + quando + ": barras de 100% com a permanência e a saída da coorte inicial.")
     elif painel["familia"] in ("tendencia", "distribuicao"):

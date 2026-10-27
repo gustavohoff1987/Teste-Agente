@@ -3,7 +3,7 @@ desde 24/10/2026), a base do Brasil sem seleção automática e a Seleção de T
 unidade, os estados um a um ou todos, os municípios navegados por estado e cumulativos, a busca no alto, "Marcar todos" e
 "Desmarcar todos"), os estados em bolhas e a bolha que abre os municípios de um estado, o eixo vertical do indicador com o arranjo
 horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
-memória da tela), a régua que só esconde, grupos por posição, a análise espacial com o Território de referência, a tendência, a
+memória da tela), a régua que só esconde, grupos por posição, a análise espacial com a Escolha dos territórios, a tendência, a
 rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Limpar filtros, Exportar (CSV em precisão integral), os
 Detalhes e o celular (abas roláveis e o botão Ferramentas).
 
@@ -20,13 +20,17 @@ de toda a interação, como o Ctrl+Z: a seleção, as abas, os ajustes, os filtr
 quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a vassoura: tira os territórios do nível em uso sem
 apagar os dados nem a escolha dos outros níveis; desligado no nível Brasil, com o motivo); "Voltar aos estados" maior e preenchido, distinto do Desfazer do alto; a Seleção em duas áreas (à esquerda, a busca e a
 lista; à direita, o que entra na análise, estado a estado, com o × de cada município e de cada estado); as abas das análises só
-com o nome; o Território de referência da análise espacial num fluxo só (a relação, a delimitação, o atributo, o operador e o
-valor de corte, sem valores padrão; primeiro os elegíveis, depois o mais próximo ou o mais distante, nunca o próprio território;
-a mensagem quando nenhum território fica com referência); Comparar e Juntar sem os cartões de valores, com a orientação e os
+com o nome; Comparar e Juntar sem os cartões de valores, com a orientação e os
 escolhidos; na tendência, "Entenda esta análise" recolhido, o período Anual (ou o único ritmo da base) e o Gráfico ao abrir, os
 ajustes no alto, o desenho em destaque e a explicação à direita, com a divisória ajustável (mouse e teclado, com limites); a
 coluna "Tendência" (sem "Classe (do motor)") e nenhum "motor" nos textos da área; as visões Tendência, Trajetória (com os
 períodos do meio no caminho) e Série temporal (toda a série da base ou o intervalo escolhido), trocadas sem refazer a seleção.
+
+Desde 27/10/2026 (comando Seleção de Territórios), a análise espacial usa a janela Escolha dos territórios: a frase-resumo no
+alto (cada trecho abre a aba dele; o incompleto, destacado), as abas "1 Base" e "2 Referência" (só a ativa à vista), o mesmo seletor
+em três etapas nas duas (Partir de, Filtrar por, Escolher; a distância só na base; as opções conforme a base só na referência), as
+contagens do motor (/api/painel/territorios, conferidas com a resposta), o rodapé com "Calcular" e a linha de estado, os marcados,
+a referência vazia (os de fora da base pela distância não avaliável, pelo nome) e o Desfazer.
 
 Desde 23/10/2026: os ajustes dentro de cada análise (`analise-ajustes`, o painel colado na aba escolhida, com só o que vale para
 ela e o mesmo indicador em todas), a escala na barra junto do desenho (fora dos ajustes, e só quando se aplica), a escolha da vista
@@ -60,6 +64,9 @@ BOLHAS = '[data-testid="analise-bolha"][data-visivel="true"]'
 MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro",
          "dezembro")
 DESFAZER_VAZIO = "Nada para desfazer ainda"
+# O que falta completar na Escolha dos territórios (os textos do comando de 27/10/2026, os mesmos da tela e do motor).
+PENDENCIAS_DA_JANELA = {"escolha ao menos uma região", "escolha ao menos um estado", "preencha o valor do filtro",
+                        "marque ao menos um município", "complete a referência para usar o filtro de distância"}
 # Estilo calculado e caixa de um elemento, para comparar o destaque de dois botões.
 ESTILO = """e => { const s = getComputedStyle(e), c = e.getBoundingClientRect();
   return {fundo: s.backgroundColor, cor: s.color, altura: c.height, fonte: parseFloat(s.fontSize), peso: Number(s.fontWeight)}; }"""
@@ -122,6 +129,10 @@ def main():
         page.on("request", lambda request: painel_calls.append(request.url) if request.url.endswith("/api/painel") else None)
         page.on("request", lambda request: pedidos.append(request)
                 if request.url.endswith("/api/painel") and request.method == "POST" else None)
+        # As contagens da janela Escolha dos territórios (27/10/2026), pedidas a cada mudança da consulta.
+        pedidos_territorios = []
+        page.on("request", lambda request: pedidos_territorios.append(request)
+                if request.url.endswith("/api/painel/territorios") and request.method == "POST" else None)
         page.goto(URL)
         page.get_by_role("button", name="Li e concordo", exact=True).click()
         area = page.get_by_test_id("area-de-analise")
@@ -157,6 +168,19 @@ def main():
             response, sent = respond(action, timeout, condicao)
             assert response.status == 200, response.text()[:2000]
             return response.json(), sent
+
+        def contagens(action, timeout=120000):
+            """Executa a ação na Escolha dos territórios e devolve a resposta de /api/painel/territorios do primeiro pedido feito
+            depois dela (a janela pede 250 ms depois da última mudança) e as opções desse pedido; a tela só mostra o que veio."""
+            antes = len(pedidos_territorios)
+            with page.expect_response(lambda r: r.url.endswith("/api/painel/territorios") and r.request.method == "POST"
+                                      and any(r.request is pedido for pedido in pedidos_territorios[antes:]),
+                                      timeout=timeout) as event:
+                action()
+            response = event.value
+            assert response.status == 200, response.text()[:2000]
+            page.wait_for_timeout(100)  # a tela desenha a resposta
+            return response.json(), options_of(response.request)
 
         def drawn(ids, timeout=30000):
             page.wait_for_function("ids => JSON.stringify([...document.querySelectorAll('[data-testid=analise-bolha][data-visivel=true]')]"
@@ -772,12 +796,13 @@ def main():
         area.get_by_test_id("analise-agrupar").select_option("nenhum")
         drawn(ids_am)
 
-        # 9. Análise espacial. A disponibilidade vem do motor (`disponibilidade.espacial`). Disponível: o Território de referência
-        # (24/10/2026, segunda rodada, no lugar da referência por critério, pelo nome ou por um conjunto), num fluxo só e sem
-        # valores padrão: a relação, a delimitação, o atributo, o operador e o valor de corte; primeiro os elegíveis (a delimitação
-        # e a condição), depois o mais próximo ou o mais distante de cada município, nunca ele mesmo; X = distância. Indisponível
-        # (por exemplo, quando o referencial, SIRGAS 2000 ou WGS 84, não é premissa da fonte): a aba fica desabilitada, com o motivo
-        # do motor, e nada é pedido.
+        # 9. Análise espacial com a Escolha dos territórios (27/10/2026, comando Seleção de Territórios; no lugar do Território de
+        # referência): base e referência irmãs, cada uma com o mesmo seletor em três etapas (Partir de, Filtrar por, Escolher), a
+        # frase-resumo no alto (cada trecho abre a aba dele; o incompleto fica destacado), as abas "1 Base" e "2 Referência" (só a
+        # ativa à vista) e o rodapé com "Calcular" e a linha de estado. Toda contagem vem do motor (/api/painel/territorios) e é
+        # conferida com a resposta; a distância é sempre a geodésica até a referência mais próxima de cada município da base, nunca
+        # ele mesmo. Indisponível (por exemplo, quando o referencial, SIRGAS 2000 ou WGS 84, não é premissa da fonte): a aba fica
+        # desabilitada, com o motivo do motor, e nada é pedido.
         espacial_motor = (am.get("disponibilidade") or {}).get("espacial") or {}
         if espacial_motor.get("disponivel") is False:
             assert not real, ("a base do Brasil tem as coordenadas: a análise espacial fica disponível", espacial_motor)
@@ -793,194 +818,291 @@ def main():
             expect(area).to_have_attribute("data-familia", "distribuicao")
             page.wait_for_timeout(400)
             assert len(painel_calls) == calls, "a família indisponível não pede nada ao motor"
-            notas.append("análise espacial indisponível no motor neste catálogo: conferidos a aba e o motivo, sem o Território de "
-                         "referência")
+            notas.append("análise espacial indisponível no motor neste catálogo: conferidos a aba e o motivo, sem a Escolha dos "
+                         "territórios")
         else:
             aperta(area.get_by_test_id("analise-familia-espacial"))
-            # Os ajustes da análise espacial: o mesmo indicador, a competência e o Território de referência (o resumo e o botão).
+            # Os ajustes da análise espacial: o mesmo indicador, a competência e a Escolha dos territórios (a frase e o botão, com o
+            # nome da janela).
             expect(ajustes).to_have_attribute("data-familia", "espacial")
             expect(ajustes.get_by_test_id("analise-indicador-densidade")).to_have_attribute("aria-checked", "true")
-            expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text("nenhum ainda")
-            expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_have_text("Definir o território de referência")
+            expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text("nenhuma ainda")
+            expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_have_text("Escolha dos territórios")
             for ausente in ("analise-agrupar", "analise-janela-escolher", "analise-visao-classes", "analise-escala"):
                 expect(ajustes.get_by_test_id(ausente)).to_have_count(0)
-            # Com os municípios na análise, o painel abre sozinho, com o título "Território de referência" (sem "Referência da
-            # distância") e a escolha passo a passo.
+            # Sem consulta calculada, a janela abre sozinha: o título novo, o contexto da análise embaixo dele, a frase-resumo e só
+            # as abas Base e Referência (não há aba Distância), com só a ativa à vista.
             painel_ref = area.get_by_test_id("analise-painel")
             expect(painel_ref).to_have_attribute("data-painel", "referencia")
-            expect(painel_ref.locator("#analise-painel-titulo")).to_have_text("Território de referência")
-            expect(area).not_to_contain_text("Referência da distância")
-            referencia = painel_ref.get_by_test_id("analise-referencia")
-            expect(referencia).to_be_visible()
-            expect(referencia.get_by_test_id("analise-nota-tpl11")).to_contain_text("linha reta")
-            expect(referencia).to_contain_text("O próprio município nunca é a sua referência.")
-            for antigo in ("analise-ref-criterio", "analise-ref-ordem", "analise-ref-listar", "analise-ref-candidatos", "analise-ref-primeiro",
-                           "analise-ref-busca"):
-                expect(referencia.get_by_test_id(antigo)).to_have_count(0)
-            # Nenhum valor padrão: nada escolhido, o pedido não sai, e a tela diz o que falta.
-            relacao_proxima = referencia.get_by_test_id("analise-ref-relacao-mais_proxima")
-            relacao_distante = referencia.get_by_test_id("analise-ref-relacao-mais_distante")
-            expect(relacao_proxima).to_have_text("Mais próximo")
-            expect(relacao_distante).to_have_text("Mais distante")
-            for botao in (relacao_proxima, relacao_distante, referencia.get_by_test_id("analise-ref-operador-maior"),
-                          referencia.get_by_test_id("analise-ref-operador-menor")):
-                expect(botao).to_have_attribute("aria-checked", "false")
-            expect(referencia.get_by_test_id("analise-ref-operador-maior")).to_have_text("Maior que")
-            expect(referencia.get_by_test_id("analise-ref-operador-menor")).to_have_text("Menor que")
-            delimitacao = referencia.get_by_test_id("analise-ref-delimitacao")
-            atributo = referencia.get_by_test_id("analise-ref-atributo")
-            valor_corte = referencia.get_by_test_id("analise-ref-valor")
-            expect(delimitacao).to_have_value("")
-            expect(atributo).to_have_value("")
-            expect(valor_corte).to_be_disabled()  # sem o atributo, o valor de corte espera (a unidade depende dele)
-            expect(referencia.get_by_test_id("analise-ref-falta")).to_have_text(
-                "Falta escolher: a relação espacial, a delimitação, o atributo da condição, o operador, o valor de corte.")
-            aplicar_ref = referencia.get_by_test_id("analise-ref-aplicar")
-            expect(aplicar_ref).to_be_disabled()
-            # A delimitação segue os níveis que a fonte tem: na base do Brasil, o estado, os estados escolhidos, a região, as
-            # regiões escolhidas e o país inteiro.
-            opcoes = delimitacao.locator("option").evaluate_all("els => els.map(e => [e.value, e.textContent])")
-            assert opcoes == [["", "Escolha"], ["mesmo_grupo", "No mesmo estado de cada município"], ["grupos", "Estados escolhidos"],
-                              ["mesma_regiao", "Na mesma região de cada município"], ["regioes", "Regiões escolhidas"],
-                              ["todos", "No Brasil inteiro"]], opcoes
-            delimitacao.select_option("regioes")
-            expect(referencia.get_by_test_id("analise-ref-valor-opcao")).to_have_count(5)  # as cinco Grandes Regiões
-            expect(referencia.get_by_test_id("analise-ref-falta")).to_contain_text("as regiões")
-            # O valor de corte com a unidade e a validação do atributo: a população, um inteiro de habitantes.
-            atributo.select_option("populacao")
-            expect(valor_corte).to_be_enabled()
-            expect(referencia).to_contain_text("Valor de corte (habitantes)")
-            valor_corte.fill("2,5")
-            expect(valor_corte).to_have_attribute("aria-invalid", "true")
-            expect(referencia).to_contain_text("Use um número inteiro não negativo.")
-            # A condição: população maior que a mediana dos municípios do Amazonas, no mesmo estado de cada município. Os elegíveis
-            # saem desta resposta (a dos municípios do Amazonas): quem atende à condição.
-            populacoes = sorted(int(round(item["populacao"])) for item in am["itens"] if item.get("populacao") is not None)
-            limiar = populacoes[len(populacoes) // 2]
-            elegiveis = {item["id"] for item in am["itens"] if item.get("populacao") is not None and item["populacao"] > limiar}
-            assert elegiveis, "algum município do Amazonas atende à condição"
-            delimitacao.select_option("mesmo_grupo")
-            valor_corte.fill(milhar(limiar))  # com o ponto de milhar, como a pessoa escreve
-            aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
-            aperta(relacao_proxima)
-            expect(relacao_proxima).to_have_attribute("aria-checked", "true")
-            expect(valor_corte).not_to_have_attribute("aria-invalid", "true")
-            expect(referencia.get_by_test_id("analise-ref-previa")).to_have_text(
-                "Para cada município, o município mais próximo entre os municípios do mesmo estado de cada município com população "
-                "maior que " + milhar(limiar) + " habitantes.")
-            expect(aplicar_ref).to_be_enabled()
-            calls = len(painel_calls)
-            response, sent = respond(lambda: aperta(aplicar_ref))
-            assert sent["referencia"] == {"relacao": "mais_proxima", "delimitacao": {"tipo": "mesmo_grupo"},
-                                          "condicao": {"atributo": "populacao", "operador": ">", "valor": limiar}}, sent
-            assert sent["base"] == universo_am, ("a seleção continua a mesma", sent)
+            expect(painel_ref.locator("#analise-painel-titulo")).to_have_text("Escolha dos territórios")
+            janela = painel_ref.get_by_test_id("analise-referencia")
+            expect(janela.get_by_test_id("territorios-contexto")).to_have_text(
+                "Categoria profissional: Médicos · Competência: " + formas_da_competencia(am["competencia"])[1])
+            expect(janela.get_by_role("tab")).to_have_count(2)
+            expect(janela.get_by_test_id("territorios-aba-base")).to_contain_text("1 Base")
+            expect(janela.get_by_test_id("territorios-aba-referencia")).to_contain_text("2 Referência")
+            expect(janela.get_by_test_id("territorios-aba-base")).to_have_attribute("aria-selected", "true")
+            expect(janela.get_by_test_id("territorios-base")).to_be_visible()
+            expect(janela.get_by_test_id("territorios-referencia")).to_have_count(0)
+            frase = janela.get_by_test_id("territorios-frase")
+            frase_base, frase_ref = janela.get_by_test_id("territorios-frase-base"), janela.get_by_test_id("territorios-frase-referencia")
+            estado, calcular = janela.get_by_test_id("territorios-estado"), janela.get_by_test_id("territorios-calcular")
+            expect(frase).to_have_text("Municípios da seleção prévia → referência: o mais próximo, em qualquer estado")
+            expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
+            expect(calcular).to_be_enabled()
+            # A base não tem as opções relativas; só ela tem o filtro de distância; nada de ranking, OU ou NÃO nesta janela.
+            menu_base = janela.get_by_test_id("territorios-base-partir-menu")
+            opcoes = menu_base.locator("option").evaluate_all("els => els.map(e => e.value)")
+            assert opcoes == ["pais", "regiao", "regioes", "uf", "ufs", "selecao_previa"], opcoes
+            expect(janela.get_by_test_id("territorios-base-mais-distancia")).to_have_text("Distância")
+            apoio = ("Densidade é profissionais por 1.000 habitantes. Os filtros valem juntos (E); OU e NÃO ficam em Critérios "
+                     "combinados.")
+            expect(janela.get_by_test_id("territorios-base-apoio-filtros")).to_have_text(apoio)
+            texto_janela = janela.evaluate(TEXTOS_DA_AREA).replace(apoio, "")
+            assert not re.search(r"primeir[oa]s|\bOU\b|\bNÃO\b|ranking|mais distante", texto_janela, re.IGNORECASE), texto_janela
+            for antigo in ("analise-ref-relacao-mais_proxima", "analise-ref-relacao-mais_distante", "analise-ref-delimitacao",
+                           "analise-ref-base-passo", "analise-ref-aplicar", "analise-ref-primeiro"):
+                expect(area.get_by_test_id(antigo)).to_have_count(0)
+
+            def numero_br(valor):
+                """O número como a frase o escreve (até 6 casas, sem zeros à direita, vírgula decimal)."""
+                return f"{valor:.6f}".rstrip("0").rstrip(".").replace(".", ",")
+
+            def contagem(n):
+                return "—" if n is None else milhar(n) + (" município" if n == 1 else " municípios")
+
+            def confere(lado, corpo):
+                """As contagens das três etapas e a prévia do lado à vista são as do motor (nada é contado na tela)."""
+                c = corpo[lado]["contagens"]
+                expect(janela.get_by_test_id("territorios-" + lado + "-contagem-partir")).to_have_text(contagem(c["partir_de"]))
+                # Sem contagem (a etapa 1 pendente), só o traço, sem "restam".
+                expect(janela.get_by_test_id("territorios-" + lado + "-contagem-filtros")).to_contain_text(
+                    "—" if c["filtros"] is None else contagem(c["filtros"]) + (" resta" if c["filtros"] == 1 else " restam"))
+                expect(janela.get_by_test_id("territorios-" + lado + "-contagem-final")).to_have_text(contagem(c["final"]))
+                previa = corpo[lado]["previa"]
+                if previa:
+                    expect(janela.get_by_test_id("territorios-" + lado + "-previa")).to_contain_text(
+                        contagem(previa["total"]) + (" entra" if previa["total"] == 1 else " entram") if lado == "base"
+                        else contagem(previa["total"]) + (" pode" if previa["total"] == 1 else " podem") + " ser referência")
+                # As pendências da janela são as do comando; o que só o motor sabe (o referencial de uma planilha, por exemplo)
+                # não deixa a aba incompleta.
+                status = ("incompleta" if set(corpo[lado]["pendencias"]) & PENDENCIAS_DA_JANELA
+                          else "…" if c["final"] is None else contagem(c["final"]))
+                expect(janela.get_by_test_id("territorios-status-" + lado)).to_have_text(status)
+
+            # Partir de uma região: a etapa espera a região; a pendência desativa "Calcular", aparece no rodapé e no status da aba,
+            # e o trecho da frase fica destacado. A seleção prévia (os municípios do Amazonas) vai junto, com a contagem do motor.
+            corpo, sent_t = contagens(lambda: menu_base.select_option("regiao"))
+            assert sent_t["consulta"]["base"]["partir_de"] == {"tipo": "regioes", "regioes": [], "ufs": []}, sent_t
+            assert sent_t["base"] == universo_am and corpo["base"]["pendencias"] == ["escolha ao menos uma região"], (sent_t, corpo)
+            expect(estado).to_have_text("Base incompleta: escolha ao menos uma região.")
+            expect(calcular).to_be_disabled()
+            expect(frase_base).to_have_text("base incompleta")
+            expect(frase_base).to_have_attribute("data-incompleta", "true")
+            expect(menu_base.locator('option[value="selecao_previa"]')).to_have_text(
+                "Seleção prévia (" + milhar(corpo["selecao_previa"]["total"]) + ")")
+            assert corpo["selecao_previa"]["total"] == len([item for item in am["itens"] if item["tipo"] == "municipio"]), corpo
+            confere("base", corpo)
+            corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-base-regiao").select_option("Norte"))
+            expect(frase).to_have_text("Municípios do Norte → referência: o mais próximo, em qualquer estado")
+            confere("base", corpo)
+            # Filtrar por densidade: a linha nasce sem valor (não corta, mas pendente); o valor, a mediana do Amazonas, com vírgula.
+            densidades = sorted(item["densidade"] for item in am["itens"] if item.get("densidade") is not None)
+            limiar = round(densidades[len(densidades) // 2], 2) or 0.01
+            corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-mais-densidade")))
+            linha_densidade = janela.get_by_test_id("territorios-base-filtro").first
+            expect(linha_densidade.get_by_test_id("territorios-base-filtro-operador")).to_have_value("<")
+            expect(estado).to_have_text("Base incompleta: preencha o valor do filtro.")
+            assert corpo["base"]["contagens"]["filtros"] == corpo["base"]["contagens"]["partir_de"], corpo  # sem valor, não corta
+            corpo, sent_t = contagens(lambda: linha_densidade.get_by_test_id("territorios-base-filtro-valor").fill(
+                numero_br(limiar)))
+            assert sent_t["consulta"]["base"]["filtros"] == [{"indicador": "densidade", "operador": "<", "valor": limiar}], sent_t
+            expect(frase_base).to_have_text("Municípios do Norte com densidade abaixo de " + numero_br(limiar))
+            confere("base", corpo)
+            # Filtrar pela distância até a referência mais próxima (só na base): acima de 300 km na base versionada (o exemplo do
+            # comando); no catálogo sintético, com todas as sedes no mesmo ponto, até 300 km.
+            operador, palavra = (">", "a mais de") if real else ("<=", "a até")
+            corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-mais-distancia")))
+            linha_distancia = janela.get_by_test_id("territorios-base-filtro").nth(1)
+            expect(linha_distancia).to_have_attribute("data-indicador", "distancia")
+            expect(linha_distancia).to_contain_text("Distância até a referência mais próxima")
+            expect(linha_distancia.get_by_test_id("territorios-base-filtro-depende")).to_have_text("depende da Referência")
+            assert linha_distancia.get_by_test_id("territorios-base-filtro-operador").locator("option").evaluate_all(
+                "els => els.map(e => e.textContent)") == ["acima de", "até"]
+            if operador != ">":
+                linha_distancia.get_by_test_id("territorios-base-filtro-operador").select_option(operador)
+            corpo, _ = contagens(lambda: linha_distancia.get_by_test_id("territorios-base-filtro-valor").fill("300"))
+            texto_base = "Municípios do Norte com densidade abaixo de " + numero_br(limiar) + " e " + palavra + " 300 km da referência"
+            expect(frase_base).to_have_text(texto_base)
+            confere("base", corpo)
+            # O trecho da referência abre a aba dela: o menu tem as opções conforme a base, e não há filtro de distância.
+            aperta(frase_ref)
+            expect(janela.get_by_test_id("territorios-aba-referencia")).to_have_attribute("aria-selected", "true")
+            expect(janela.get_by_test_id("territorios-base")).to_have_count(0)
+            expect(janela.get_by_test_id("territorios-referencia-mais-distancia")).to_have_count(0)
+            expect(janela.get_by_test_id("territorios-nota-distancia")).to_have_text(
+                "Distância em linha reta (geodésica) até a referência mais próxima de cada município da base.")
+            menu_ref = janela.get_by_test_id("territorios-referencia-partir-menu")
+            opcoes = menu_ref.locator("option").evaluate_all("els => els.map(e => e.value)")
+            assert opcoes == ["pais", "regiao", "regioes", "uf", "ufs", "selecao_previa", "mesma_uf_da_base",
+                              "mesma_regiao_da_base"], opcoes
+            expect(menu_ref.locator("optgroup")).to_have_attribute("label", "Conforme a base")
+            # Um estado: enquanto a referência está incompleta, o filtro de distância da base fica pendente e bloqueia o cálculo.
+            corpo, _ = contagens(lambda: menu_ref.select_option("uf"))
+            expect(estado).to_have_text("Base incompleta: complete a referência para usar o filtro de distância.")
+            expect(calcular).to_be_disabled()
+            expect(janela.get_by_test_id("territorios-status-referencia")).to_have_text("incompleta")
+            assert corpo["base"]["pendencias"] == ["complete a referência para usar o filtro de distância"], corpo["base"]
+            assert corpo["referencia"]["pendencias"] == ["escolha ao menos um estado"], corpo["referencia"]
+            uf_ref = "12" if real else AM
+            corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-referencia-uf").select_option(uf_ref))
+            filtros_ref = []
+            if real:
+                corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
+                linha_ref = janela.get_by_test_id("territorios-referencia-filtro").first
+                linha_ref.get_by_test_id("territorios-referencia-filtro-operador").select_option(">")
+                corpo, _ = contagens(lambda: linha_ref.get_by_test_id("territorios-referencia-filtro-valor").fill("2"))
+                filtros_ref = [{"indicador": "densidade", "operador": ">", "valor": 2}]
+                texto_ref = "o mais próximo do Acre com densidade acima de 2"
+            else:
+                texto_ref = "o mais próximo do Amazonas"
+            expect(frase_ref).to_have_text(texto_ref)
+            expect(frase).to_have_text(texto_base + " → referência: " + texto_ref)
+            confere("referencia", corpo)
+            expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
+            expect(calcular).to_be_enabled()
+            esperada = {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
+                                 "filtros": [{"indicador": "densidade", "operador": "<", "valor": limiar},
+                                             {"indicador": "distancia", "operador": operador, "valor": 300}],
+                                 "escolha": {"modo": "todos", "municipios": []}},
+                        "referencia": {"partir_de": {"tipo": "ufs", "regioes": [], "ufs": [uf_ref]}, "filtros": filtros_ref,
+                                       "escolha": {"modo": "todos", "municipios": []}},
+                        "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+            response, sent = respond(lambda: aperta(calcular))
+            assert sent["consulta"] == esperada and sent["base"] == universo_am and "referencia" not in sent, sent
             if real:
                 assert response.status == 200, response.text()[:2000]
             if response.status == 422:
                 # O motor recusou a distância (catálogo sintético, versão externa). Quando ele oferece a escolha da premissa, a
                 # tela mostra as opções que ele mandou (sem lista fixa) e pede de novo com a escolhida.
                 erro = area.get_by_test_id("analise-erro")
-                corpo = response.json()
-                expect(erro).to_contain_text(str(corpo["detail"])[:60])
-                pendencia = corpo.get("pendencia")
+                corpo_erro = response.json()
+                expect(erro).to_contain_text(str(corpo_erro["detail"])[:60])
+                pendencia = corpo_erro.get("pendencia")
                 if pendencia and pendencia.get("opcoes"):
-                    opcoes = erro.get_by_test_id("analise-pendencia-opcao")
-                    expect(opcoes).to_have_count(len(pendencia["opcoes"]))
-                    for botao, opcao in zip(opcoes.all(), pendencia["opcoes"]):
+                    botoes = erro.get_by_test_id("analise-pendencia-opcao")
+                    expect(botoes).to_have_count(len(pendencia["opcoes"]))
+                    for botao, opcao in zip(botoes.all(), pendencia["opcoes"]):
                         valor = opcao if isinstance(opcao, str) else (opcao.get("valor") or opcao.get("id"))
                         expect(botao).to_have_attribute("data-valor", str(valor))
-                    escolhida = opcoes.first.get_attribute("data-valor")
-                    response, sent = respond(lambda: aperta(opcoes.first))
+                    escolhida = botoes.first.get_attribute("data-valor")
+                    response, sent = respond(lambda: aperta(botoes.first))
                     assert sent.get("premissas", {}).get(pendencia["chave"]) == escolhida, sent
             if response.status == 200:
                 proxima = response.json()
-                referencia_resposta = proxima["referencia"]
-                assert referencia_resposta["tipo"] == "elegiveis" and referencia_resposta["relacao"] == "mais_proxima", referencia_resposta
-                assert referencia_resposta["delimitacao"]["texto"] == "do mesmo estado de cada município", referencia_resposta
-                assert referencia_resposta["elegiveis"]["atende"] >= len(elegiveis), referencia_resposta
+                resposta_ref = proxima["referencia"]
+                assert resposta_ref["tipo"] == "consulta" and resposta_ref["consulta"] == esperada, resposta_ref
+                assert resposta_ref["contagens"] == {"base": corpo["base"]["contagens"], "referencia": corpo["referencia"]["contagens"]}
+                membros = {membro["id"] for membro in resposta_ref["membros"]}
                 expect(eixo_x).to_have_attribute("data-eixo", "distancia")
                 expect(eixo_y).to_have_attribute("data-eixo", "densidade")
                 drawn(esperados(proxima, distancia=True))
                 desenhadas = bubbles()
                 for item in proxima["itens"]:
                     refs = referencias_do_item(item)
-                    # Primeiro os elegíveis: a referência de cada município atende à condição, no mesmo estado, e nunca é ele.
-                    assert set(refs) <= elegiveis and item["id"] not in refs, (item["id"], refs, sorted(elegiveis))
-                    if refs:
-                        assert item.get("distancia_km") is not None, item
-                    else:
-                        # Sem referência (sem coordenada válida ou sem outro elegível): o motivo, nunca distância zero.
-                        assert item.get("distancia_km") is None and item.get("motivos"), item
-                    if not elegiveis - {item["id"]}:
-                        # Só o próprio município atende à condição no estado: sem referência, com o motivo.
-                        assert not refs and any("Sem território de referência" in motivo for motivo in item.get("motivos") or []), item
+                    # Na base: do Norte, abaixo do limiar e com a distância do filtro; a referência mais próxima é uma das
+                    # referências (do estado escolhido, com a densidade do filtro) e nunca o próprio município.
+                    assert item["id"][5] == "1" and item["densidade"] < limiar, item
+                    assert set(refs) <= membros and item["id"] not in refs and refs, (item["id"], refs, sorted(membros))
+                    assert (item["distancia_km"] > 300) if real else (item["distancia_km"] <= 300), item
                     if item["id"] in desenhadas:
                         assert float(desenhadas[item["id"]]["distancia"]) == item["distancia_km"], (desenhadas[item["id"]], item)
-                assert any(referencias_do_item(item) for item in proxima["itens"]), "algum município do Amazonas tem referência"
+                if real:
+                    assert proxima["itens"] and all(membro["rotulo"].endswith("(AC)") and membro["densidade"] > 2
+                                                    for membro in resposta_ref["membros"]), resposta_ref["membros"]
                 expect(area.get_by_test_id("analise-nota-distancia")).to_contain_text("linha reta")
-                expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até o território de referência")
-                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
-                # O resumo nos ajustes diz a relação, a delimitação e a condição, com os textos do motor.
-                expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text(
-                    "Mais próximo · do mesmo estado de cada município · " + referencia_resposta["condicao"]["texto"])
-                expect(ajustes.get_by_test_id("analise-referencia-escolher")).to_have_text("Mudar")
-                # A dica da bolha diz qual é o território de referência dela.
-                com_ref = next(item for item in proxima["itens"] if item["id"] in desenhadas and referencias_do_item(item))
-                fecha()
-                area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
-                area.locator('[data-testid="analise-bolha"][data-id="' + com_ref["id"] + '"]').focus()
-                expect(dica).to_contain_text("Território de referência (o mais próximo")
-                expect(dica).to_contain_text(com_ref["referencia_do_item"]["rotulo"])
-                page.evaluate("document.activeElement && document.activeElement.blur()")
-                # Na análise espacial, o convite ao mapa ("onde ficam?"), com a vista no gráfico.
-                expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
-                expect(area).to_have_attribute("data-desenho", "grafico")
-                sem_bastidor("Análise Espacial")
-                shot("06-espacial")
-                # Reconfigurar sem recomeçar: o painel volta com a escolha em uso; trocar só a relação pede de novo, com a mesma
-                # seleção, e o mais distante fica a pelo menos a distância do mais próximo.
-                aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
-                referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-                expect(referencia.get_by_test_id("analise-ref-relacao-mais_proxima")).to_have_attribute("aria-checked", "true")
-                expect(referencia.get_by_test_id("analise-ref-delimitacao")).to_have_value("mesmo_grupo")
-                expect(referencia.get_by_test_id("analise-ref-atributo")).to_have_value("populacao")
-                expect(referencia.get_by_test_id("analise-ref-ativa")).to_contain_text("Em uso:")
-                aperta(referencia.get_by_test_id("analise-ref-relacao-mais_distante"))
-                distante, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-                assert sent["referencia"]["relacao"] == "mais_distante" and sent["base"] == universo_am, sent
-                assert distante["referencia"]["relacao"] == "mais_distante", distante["referencia"]
-                perto = {item["id"]: item.get("distancia_km") for item in proxima["itens"]}
-                for item in distante["itens"]:
-                    refs = referencias_do_item(item)
-                    assert set(refs) <= elegiveis and item["id"] not in refs, (item["id"], refs)
-                    if item.get("distancia_km") is not None and perto.get(item["id"]) is not None:
-                        assert item["distancia_km"] >= perto[item["id"]], (item["id"], item["distancia_km"], perto[item["id"]])
-                drawn(esperados(distante, distancia=True))
-                expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_contain_text("Mais distante · ")
-                # Sem elegíveis: ninguém da base atende à condição; nenhuma distância vira zero, e a mensagem diz o que aconteceu e
-                # o que fazer. O Desfazer devolve a definição anterior.
-                referencia.get_by_test_id("analise-ref-valor").fill(milhar(10 ** 9))
-                nenhum, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-                assert sent["referencia"]["condicao"]["valor"] == 10 ** 9, sent
-                assert nenhum["referencia"]["elegiveis"]["atende"] == 0, nenhum["referencia"]
-                assert all(item.get("distancia_km") is None and not referencias_do_item(item) for item in nenhum["itens"]), nenhum["itens"]
-                sem_resultado = area.get_by_test_id("analise-ref-sem-resultado")
-                expect(sem_resultado).to_contain_text("Nenhum município da base atende à condição " +
-                                                      nenhum["referencia"]["condicao"]["texto"] + ": não há território de referência.")
+                expect(area.get_by_test_id("analise-titulo")).to_contain_text("e distância até a referência mais próxima")
+                expect(estado).to_have_text("Resultado em dia com a consulta.")
+                expect(calcular).to_be_disabled()
+                expect(ajustes.get_by_test_id("analise-referencia-resumo")).to_have_text(texto_base + " → referência: " + texto_ref)
+                # A dica da bolha diz qual é a referência mais próxima dela.
+                if proxima["itens"]:
+                    com_ref = next((item for item in proxima["itens"] if item["id"] in desenhadas), None)
+                    if com_ref:
+                        fecha()
+                        area.get_by_test_id("analise-grafico").evaluate("e => e.scrollIntoView({block: 'start', behavior: 'instant'})")
+                        area.locator('[data-testid="analise-bolha"][data-id="' + com_ref["id"] + '"]').focus()
+                        expect(dica).to_contain_text("Referência mais próxima")
+                        expect(dica).to_contain_text(com_ref["referencia_do_item"]["rotulo"])
+                        page.evaluate("document.activeElement && document.activeElement.blur()")
+                        expect(area.get_by_test_id("analise-convite-mapa")).to_have_text("Ver onde ficam no mapa")
+                        expect(area).to_have_attribute("data-desenho", "grafico")
+                        sem_bastidor("Análise Espacial")
+                        shot("06-espacial")
+                        aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
+                janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+                estado, calcular = janela.get_by_test_id("territorios-estado"), janela.get_by_test_id("territorios-calcular")
+                # A janela reabre com a consulta em uso. Escolha direta: só os marcados; a lista mostra só quem passou pelas
+                # etapas 1 e 2 (a do motor), com a densidade; os marcados viram botões; a frase diz os nomes.
+                expect(janela.get_by_test_id("territorios-frase")).to_have_text(texto_base + " → referência: " + texto_ref)
+                expect(estado).to_have_text("Resultado em dia com a consulta.")
+                corpo, _ = contagens(lambda: aperta(janela.get_by_test_id("territorios-base-marcados")))
+                expect(estado).to_have_text("Base incompleta: marque ao menos um município.")
+                lista = corpo["lista"]
+                assert lista["lado"] == "base" and lista["total"] == corpo["base"]["contagens"]["filtros"], corpo
+                opcoes_lista = janela.get_by_test_id("territorios-base-lista-opcao")
+                expect(opcoes_lista).to_have_count(len(lista["itens"]))
+                assert opcoes_lista.evaluate_all("els => els.map(e => e.dataset.id)") == [item["id"] for item in lista["itens"]]
+                escolhidos = [item["id"] for item in lista["itens"][:2]]
+                nomes_lista = {item["id"]: item["rotulo"] for item in lista["itens"]}
+                if escolhidos:
+                    for marcado in escolhidos:
+                        corpo, _ = contagens(lambda: marca(janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' +
+                                                                          marcado + '"]')))
+                    expect(janela.get_by_test_id("territorios-base-marcado")).to_have_count(len(escolhidos))
+                    expect(janela.get_by_test_id("territorios-frase-base")).to_have_text(
+                        " e ".join(nomes_lista[marcado] for marcado in escolhidos))
+                    marcados_resposta, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+                    assert sent["consulta"]["base"]["escolha"] == {"modo": "marcados", "municipios": sorted(escolhidos)}, sent
+                    assert sorted(item["id"] for item in marcados_resposta["itens"]) == sorted(escolhidos), marcados_resposta["itens"]
+                    drawn(esperados(marcados_resposta, distancia=True))
+                    expect(desfazer).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
+                    fecha()
+                    aperta(desfazer)
+                    drawn(esperados(proxima, distancia=True))
+                    aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
+                    janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+                # Referência sem nenhum município (densidade acima de um bilhão): com o filtro de distância, quem ficaria na base
+                # aparece fora dela, pelo nome, com "sem referência no recorte"; nenhuma distância vira zero.
+                aperta(janela.get_by_test_id("territorios-frase-referencia"))
+                if not real:
+                    contagens(lambda: aperta(janela.get_by_test_id("territorios-referencia-mais-densidade")))
+                    janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
+                        "territorios-referencia-filtro-operador").select_option(">")
+                corpo, _ = contagens(lambda: janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id(
+                    "territorios-referencia-filtro-valor").fill(milhar(10 ** 9)))
+                assert corpo["referencia"]["contagens"]["final"] == 0, corpo["referencia"]
+                expect(janela.get_by_test_id("territorios-referencia-previa")).to_contain_text("0 municípios podem ser referência")
+                vazio, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+                assert vazio["itens"] == [] and vazio["referencia"]["contagens"]["referencia"]["final"] == 0, vazio["referencia"]
+                fora = vazio["referencia"]["sem_referencia"]
+                assert len(fora) == vazio["referencia"]["contagens"]["base"]["sem_referencia"] > 0, vazio["referencia"]
+                assert all(entrada["motivo"].startswith("Sem referência no recorte") for entrada in fora), fora[:3]
+                aviso_fora = area.get_by_test_id("analise-sem-referencia-no-recorte")
+                expect(aviso_fora).to_contain_text("fora da base porque o filtro de distância não é avaliável")
+                expect(aviso_fora).to_contain_text(fora[0]["rotulo"] + " (sem referência no recorte)")
                 expect(area.locator(BOLHAS)).to_have_count(0)
                 fecha()
-                aperta(sem_resultado.get_by_test_id("analise-ref-sem-resultado-mudar"))
-                expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "referencia")
-                fecha()
-                expect(desfazer).to_have_attribute("title", "Desfazer: aplicar o território de referência")
                 aperta(desfazer)
-                drawn(esperados(distante, distancia=True))
-                expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
-                notas.append("Território de referência conferido no navegador: mais próximo, mais distante, sem elegíveis e o "
-                             "Desfazer" + (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
+                drawn(esperados(proxima, distancia=True))
+                expect(area.get_by_test_id("analise-sem-referencia-no-recorte")).to_have_count(0)
+                notas.append("Escolha dos territórios conferida no navegador: frase, abas, pendências, contagens do motor, Calcular, "
+                             "marcados, referência vazia e o Desfazer" +
+                             (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
             else:
-                notas.append("o motor recusou a distância neste catálogo (código " + str(response.status) + "): conferidos o "
-                             "pedido do Território de referência, a recusa e a volta ao último gráfico calculado")
+                notas.append("o motor recusou a distância neste catálogo (código " + str(response.status) + "): conferidos a "
+                             "janela da Escolha dos territórios, o pedido com a consulta, a recusa e a volta ao último gráfico "
+                             "calculado")
                 if area.get_by_test_id("analise-erro").count():
                     calls = len(painel_calls)
                     aperta(area.get_by_test_id("analise-voltar-calculado"))

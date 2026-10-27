@@ -7,10 +7,10 @@ aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais un
 (`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
 gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
 mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial (até
-o Território de referência de cada município, por elegibilidade, desde a segunda rodada de 24/10/2026), Roraima com todos os
-municípios no mapa, também BOA VISTA, sem território de referência e fora do gráfico, com o aviso pelo nome, e as legendas de
-tamanho na proporção exata (25/10/2026), os territórios base, cumulativos, cada um ligado ao seu território de referência no
-gráfico e no mapa (25/10/2026), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
+a referência mais próxima de cada município da base, na Escolha dos territórios, desde 27/10/2026), Roraima com todos os
+municípios no mapa, também BOA VISTA, sem referência no recorte e fora do gráfico, com o aviso pelo nome, e as legendas de
+tamanho na proporção exata (25/10/2026), cada município da base ligado à referência mais próxima dele no gráfico e no mapa
+(25/10/2026), a escolha direta da base (só os marcados), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
 cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
@@ -367,25 +367,30 @@ def main():
         fecha()
         estado = desenhado(len(desenhaveis_am), "quintis")
 
-        # 11. Análise espacial no mapa: o Território de referência (24/10/2026, segunda rodada, no lugar da referência por critério
-        # com a lista de candidatos): para cada município do Amazonas, o mais próximo entre os municípios do mesmo estado com
-        # população acima da mediana do estado, nunca ele mesmo. A mira marca os territórios de referência, e as ligações
-        # ilustrativas dos marcados (até 30) vão até o território de referência de cada um.
+        # 11. Análise espacial no mapa com a Escolha dos territórios (27/10/2026, no lugar do Território de referência): a base
+        # parte da seleção prévia (os municípios do Amazonas), e a referência, do mesmo estado de cada município da base, com
+        # população acima da mediana do estado; a distância vai até a referência mais próxima, nunca o próprio município. A mira
+        # marca as referências, e as ligações ilustrativas dos marcados (até 30) vão até a referência mais próxima de cada um.
         aperta(area.get_by_test_id("analise-familia-espacial"))
-        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        expect(referencia).to_be_visible()
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        expect(janela).to_be_visible()
+        expect(janela.get_by_test_id("territorios-frase-base")).to_have_text("Municípios da seleção prévia")
         populacoes = sorted(int(round(item["populacao"])) for item in am["itens"] if item.get("populacao") is not None)
         limiar = populacoes[len(populacoes) // 2]
         elegiveis = {item["id"] for item in am["itens"] if item.get("populacao") is not None and item["populacao"] > limiar}
-        aperta(referencia.get_by_test_id("analise-ref-relacao-mais_proxima"))
-        referencia.get_by_test_id("analise-ref-delimitacao").select_option("mesmo_grupo")
-        referencia.get_by_test_id("analise-ref-atributo").select_option("populacao")
-        aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
-        referencia.get_by_test_id("analise-ref-valor").fill(str(limiar))
-        expect(referencia.get_by_test_id("analise-ref-previa")).to_be_visible()
-        espacial, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-        assert sent["referencia"] == {"relacao": "mais_proxima", "delimitacao": {"tipo": "mesmo_grupo"},
-                                      "condicao": {"atributo": "populacao", "operador": ">", "valor": limiar}}, sent
+        aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        janela.get_by_test_id("territorios-referencia-partir-menu").select_option("mesma_uf_da_base")
+        aperta(janela.get_by_test_id("territorios-referencia-mais-populacao"))
+        linha = janela.get_by_test_id("territorios-referencia-filtro").first
+        linha.get_by_test_id("territorios-referencia-filtro-operador").select_option(">")
+        linha.get_by_test_id("territorios-referencia-filtro-valor").fill(f"{limiar:,}".replace(",", "."))
+        expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
+            "o mais próximo com população acima de " + f"{limiar:,}".replace(",", ".") + ", na mesma UF")
+        espacial, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+        assert sent["consulta"]["referencia"] == {"partir_de": {"tipo": "mesma_uf_da_base", "regioes": [], "ufs": []},
+                                                  "filtros": [{"indicador": "populacao", "operador": ">", "valor": limiar}],
+                                                  "escolha": {"modo": "todos", "municipios": []}}, sent
+        assert sent["consulta"]["base"]["partir_de"]["tipo"] == "selecao_previa", sent
         fecha()
         expect(area).to_have_attribute("data-desenho", "mapa")
         com_distancia = [item for item in com_ponto(espacial, pontos_motor) if item.get("distancia_km") is not None]
@@ -398,14 +403,15 @@ def main():
             marca(area.locator('[data-testid="analise-linha"][data-id="' + chave + '"] input[type=checkbox]'))
         ligacoes = mapa.get_by_test_id("mapa-ligacoes")
         expect(ligacoes).to_contain_text("ligação ilustrativa, não é trajeto")
-        expect(ligacoes).to_contain_text("ao território de referência dele")
-        expect(mapa.get_by_test_id("mapa-simbolos")).to_contain_text("mira: território de referência")
+        expect(ligacoes).to_contain_text("à referência mais próxima dele")
+        expect(mapa.get_by_test_id("mapa-simbolos")).to_contain_text("mira: referência mais próxima")
         shot("06-am-espacial")
 
-        # 11b. Nenhum município escolhido some do mapa (25/10/2026). Em Roraima, com o território de referência no mesmo estado e
-        # densidade acima da taxa do Brasil, só BOA VISTA atende à condição, e ela nunca é a sua própria referência: fica sem
-        # distância. No gráfico, sai, com o aviso pelo nome (`analise-fora-do-grafico`); no mapa, continua no lugar dela, com a
-        # cor do quintil do motor, junto dos outros 14. A revisão das coordenadas da mesma data: os 15 municípios têm ponto.
+        # 11b. Nenhum município escolhido some do mapa (25/10/2026). Em Roraima, com a referência no mesmo estado de cada
+        # município e densidade acima da taxa do Brasil, só BOA VISTA passa, e ela nunca é a sua própria referência: fica sem
+        # referência no recorte e sem distância. No gráfico, sai, com o aviso pelo nome (`analise-fora-do-grafico`); no mapa,
+        # continua no lugar dela, com a cor do quintil do motor, junto dos outros 14. A revisão das coordenadas da mesma data: os 15
+        # municípios têm ponto.
         rr, boa_vista = "14", "code:140010"
         aperta(area.get_by_test_id("analise-limpar-selecao"))
         aperta(area.get_by_test_id("analise-aba-territorios"))
@@ -416,18 +422,22 @@ def main():
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-familia", "espacial")
         aperta(area.get_by_test_id("analise-referencia-escolher"))
-        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        aperta(referencia.get_by_test_id("analise-ref-relacao-mais_proxima"))
-        referencia.get_by_test_id("analise-ref-delimitacao").select_option("mesmo_grupo")
-        referencia.get_by_test_id("analise-ref-atributo").select_option("densidade")
-        aperta(referencia.get_by_test_id("analise-ref-operador-maior"))
-        referencia.get_by_test_id("analise-ref-valor").fill("2,36")
-        roraima, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-        assert sent["referencia"]["condicao"] == {"atributo": "densidade", "operador": ">", "valor": 2.36}, sent
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        linha = janela.get_by_test_id("territorios-referencia-filtro").first
+        linha.get_by_test_id("territorios-referencia-filtro-indicador").select_option("densidade")
+        linha.get_by_test_id("territorios-referencia-filtro-valor").fill("2,36")
+        expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
+            "o mais próximo com densidade acima de 2,36, na mesma UF")
+        roraima, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+        assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2.36}], sent
         fecha()
         assert {item["id"] for item in roraima["itens"]} == ids_rr, "os 15 municípios de Roraima na análise"
         sem_distancia = {item["id"] for item in roraima["itens"] if item.get("distancia_km") is None}
         assert sem_distancia == {boa_vista}, sem_distancia
+        [item_bv] = [item for item in roraima["itens"] if item["id"] == boa_vista]
+        assert any(motivo.startswith("Sem referência no recorte: nenhum outro município da referência no mesmo estado (Roraima)")
+                   for motivo in item_bv["motivos"]), item_bv["motivos"]
         aperta(area.get_by_test_id("analise-desenho-grafico"))
         expect(area).to_have_attribute("data-desenho", "grafico")
         page.wait_for_function("ids => JSON.stringify([...document.querySelectorAll('[data-testid=analise-bolha][data-visivel=true]')]"
@@ -453,32 +463,29 @@ def main():
         assert all(abs((r1 / r2) ** 2 - v1 / v2) < 0.02 * (v1 / v2) for v1, r1 in marcas for v2, r2 in marcas), marcas
         shot("06b-roraima-espacial")
 
-        # 11c. Territórios base (25/10/2026, pedido do responsável; cumulativos desde a terceira rodada do dia): com o território de
-        # referência no Brasil inteiro e densidade acima de 2, todos os selecionados são territórios base (o padrão), cada um ligado
-        # ao seu território de referência; o de BOA VISTA fica fora de Roraima. No gráfico, cada referência entra como contexto, com
-        # a mira, no início do eixo (0 km) e com os valores do motor, e uma linha tracejada liga cada base à sua referência; no mapa,
-        # a referência fica dentro do quadro e com o nome. A escolha é cumulativa (todos ou alguns) e só estado visual: nada é pedido
-        # ao motor.
+        # 11c. Base e referência no gráfico e no mapa (25/10/2026; com a Escolha dos territórios, 27/10/2026): com a referência
+        # em todo o país e densidade acima de 2, cada município da base fica ligado à referência mais próxima dele; a de BOA VISTA
+        # fica fora de Roraima. No gráfico, cada referência entra como contexto, com a mira, no início do eixo (0 km) e com os
+        # valores do motor, e uma linha tracejada liga cada município à sua referência; no mapa, a referência fica dentro do quadro
+        # e com o nome. Escolha direta: só BOA VISTA na base (Só os que eu marcar), um passo do Desfazer.
         aperta(area.get_by_test_id("analise-referencia-escolher"))
-        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        referencia.get_by_test_id("analise-ref-delimitacao").select_option("todos")
-        referencia.get_by_test_id("analise-ref-valor").fill("2")
-        brasil, sent = ok(lambda: aperta(referencia.get_by_test_id("analise-ref-aplicar")))
-        assert sent["referencia"]["delimitacao"] == {"tipo": "todos"} and sent["referencia"]["condicao"]["valor"] == 2, sent
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        janela.get_by_test_id("territorios-referencia-partir-menu").select_option("pais")
+        janela.get_by_test_id("territorios-referencia-filtro").first.get_by_test_id("territorios-referencia-filtro-valor").fill("2")
+        expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
+            "o mais próximo com densidade acima de 2, em qualquer estado")
+        brasil, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+        assert sent["consulta"]["referencia"]["partir_de"]["tipo"] == "pais", sent
+        assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2}], sent
         refs = {item["id"]: referencias_do_item(item) for item in brasil["itens"] if item.get("referencia_do_item")}
-        assert set(refs) == ids_rr, sorted(ids_rr - set(refs))  # no Brasil inteiro, os 15 têm território de referência
+        assert set(refs) == ids_rr, sorted(ids_rr - set(refs))  # em todo o país, os 15 têm referência
         ref_bv = {item["id"]: item for item in brasil["itens"]}[boa_vista]["referencia_do_item"]
         assert ref_bv["id"] not in ids_rr, ref_bv
         [membro] = [item for item in brasil["referencia"]["membros"] if item["id"] == ref_bv["id"]]
         assert membro["densidade"] > 2 and membro["populacao"] > 0, membro  # os valores da referência vêm do motor
-        calls = len(painel_calls)
-        expect(referencia.get_by_test_id("analise-ref-base-todos")).to_be_checked()
-        opcoes = referencia.get_by_test_id("analise-ref-base-opcao")
-        expect(opcoes).to_have_count(15)
-        assert all(opcoes.evaluate_all("els => els.map(e => e.checked)")), "todos os selecionados como territórios base"
         par = area.get_by_test_id("analise-par-base")
-        expect(par).to_contain_text("Territórios base: 15 (todos os selecionados) · cada um ligado ao seu território de referência "
-                                    "(o mais próximo) por linha tracejada: ")
+        expect(par).to_contain_text("Base: 15 · cada um ligado à sua referência mais próxima por linha tracejada: ")
         expect(par).to_contain_text("BOA VISTA (RR) → " + ref_bv["rotulo"] + ", ")
         fecha()
         aperta(area.get_by_test_id("analise-desenho-grafico"))
@@ -502,38 +509,40 @@ def main():
         assert len(centros) == 15 and caixa_ref["x"] + caixa_ref["width"] / 2 < min(centros), (caixa_ref, centros)
         expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_count(15)
         simbolos = area.get_by_test_id("analise-simbolos")
-        expect(simbolos).to_contain_text("território de referência fora da seleção, no início do eixo (0 km)")
-        expect(simbolos).to_contain_text("do território base até o seu território de referência")
-        # Cumulativo: tirar todos e escolher só BOA VISTA; cada escolha é um passo do Desfazer.
+        expect(simbolos).to_contain_text("referência fora da base, no início do eixo (0 km)")
+        expect(simbolos).to_contain_text("de cada território da base até a sua referência mais próxima")
+        # Escolha direta: só BOA VISTA na base; a escolha é um passo do Desfazer.
         aperta(area.get_by_test_id("analise-par-base-mudar"))
-        referencia = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        marca(referencia.get_by_test_id("analise-ref-base-todos"))
-        expect(referencia.get_by_test_id("analise-ref-base-todos")).not_to_be_checked()
-        expect(par).to_contain_text("Nenhum território base")
-        expect(ligacoes).to_have_count(0)
-        marca(referencia.locator('[data-testid="analise-ref-base-opcao"][data-id="' + boa_vista + '"]'))
-        expect(par).to_contain_text("Território base: BOA VISTA (RR) · Território de referência (o mais próximo): " + ref_bv["rotulo"] + ", a ")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: incluir BOA VISTA (RR) nos territórios base")
-        expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text(" · território base: BOA VISTA (RR)")
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        aperta(janela.get_by_test_id("territorios-base-marcados"))
+        janela.get_by_test_id("territorios-base-busca").fill("boa vista")
+        opcao_bv = janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' + boa_vista + '"]')
+        expect(opcao_bv).to_have_count(1)
+        marca(opcao_bv)
+        expect(janela.get_by_test_id("territorios-frase-base")).to_have_text("BOA VISTA (RR)")
+        so_bv, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
+        assert sent["consulta"]["base"]["escolha"] == {"modo": "marcados", "municipios": [boa_vista]}, sent
+        assert [item["id"] for item in so_bv["itens"]] == [boa_vista], so_bv["itens"]
+        expect(par).to_contain_text("Base: BOA VISTA (RR) · referência mais próxima: " + ref_bv["rotulo"] + ", a ")
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
+        expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text("BOA VISTA (RR) → referência: ")
         fecha()
         expect(ligacoes).to_have_count(len(refs[boa_vista]))
         base_marcada = area.locator('[data-testid="analise-bolha"][data-base="true"]')
         expect(base_marcada).to_have_count(1)
         expect(base_marcada).to_have_attribute("data-id", boa_vista)
-        # Com a base escolhida (26/10/2026), ela fica inteira e as demais bolhas da seleção esmaecem no gráfico.
-        expect(base_marcada).to_have_attribute("data-destaque", "true")
-        # (a bolha sob o mouse, com a dica, fica inteira enquanto está ativa)
-        apagadas = area.locator('[data-testid="analise-bolha"][data-visivel="true"][data-destaque="false"]:not([aria-describedby])')
-        assert apagadas.count() > 0 and set(apagadas.evaluate_all("els => els.map(e => e.style.opacity)")) == {"0.25"}
         expect(contexto).to_have_attribute("data-bases", boa_vista)
         aperta(area.get_by_test_id("analise-desenho-mapa"))
-        desenhado(15, "quintis")
+        desenhado(1)  # um município só: sem quintis do mapa (exigem duas unidades com valor)
         nome_ref = ref_bv["rotulo"] + " · referência"
         page.wait_for_function("([id, nome]) => (window.__adtMapa.referencias || []).some(r => r.id === id && r.naTela && r.nome === nome)",
                                arg=[ref_bv["id"], nome_ref], timeout=30000)
-        expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território base ou um município marcado")
-        assert len(painel_calls) == calls, "escolher os territórios base não pede nada ao motor"
-        shot("06c-territorios-base")
+        expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território da base ou um município marcado")
+        shot("06c-base-e-referencia")
+        calls = len(painel_calls)
+        aperta(area.get_by_test_id("analise-desfazer"))
+        desenhado(15, "quintis")
+        assert len(painel_calls) == calls, "o Desfazer volta ao resultado de antes sem recalcular"
 
         # 12. Lado a lado (janela de 1.600 px ou mais): gráfico e mapa juntos, sem legenda repetida; ao estreitar, volta ao mapa.
         page.set_viewport_size({"width": 1700, "height": 1000})
@@ -582,8 +591,8 @@ def main():
         browser.close()
     print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
           "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
-          "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência, fora do gráfico com o aviso), "
-          "legendas de tamanho na proporção exata, territórios base cumulativos ligados às referências no gráfico e no mapa, lado a lado, "
+          "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência no recorte, fora do gráfico com o "
+          "aviso), legendas de tamanho na proporção exata, a base ligada às referências no gráfico e no mapa e a escolha direta, lado a lado, "
           "Histórico e "
           "celular (base versionada).")
 

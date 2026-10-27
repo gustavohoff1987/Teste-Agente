@@ -45,8 +45,8 @@ export default function PainelDetalhes(p: Props) {
   const temGrupo = p.itens.some(item => item.grupo), temFaixa = p.itens.some(item => item.faixa);
   const temCondicao = p.itens.some(item => item.condicoes), temPosicao = p.itens.some(item => item.ordem?.posicao !== null && item.ordem !== null);
   const temProxima = p.distancia && p.itens.some(item => item.referenciaDoItem?.length);
-  // Território de referência por elegibilidade (24/10/2026): a referência é de cada item, a mais próxima ou a mais distante.
-  const porItem = p.resposta.referencia?.tipo === "elegiveis", relacao = p.resposta.referencia?.relacao ?? null;
+  // Escolha dos territórios (27/10/2026): a referência é a mais próxima de cada item.
+  const porItem = p.resposta.referencia?.tipo === "consulta";
   const ordenar = (coluna: ColunaTabela) => setOrdenacao(atual => !atual || atual.coluna !== coluna ? { coluna, sentido: "desc" }
     : atual.sentido === "desc" ? { coluna, sentido: "asc" } : null);
   const ordemDe = (coluna: ColunaTabela): "ascending" | "descending" | "none" => !ordenacao || ordenacao.coluna !== coluna ? "none"
@@ -95,8 +95,7 @@ export default function PainelDetalhes(p: Props) {
               {cabecalho("quantidade", "Profissionais")}
               {cabecalho("densidade", "Densidade")}
               {p.distancia && cabecalho("distancia", "Distância (km)")}
-              {temProxima && <th scope="col">{porItem ? "Território de referência (" + (relacao === "mais_distante" ? "o mais distante" : "o mais próximo") + ")"
-                : "Referência mais próxima"}</th>}
+              {temProxima && <th scope="col">{porItem ? "Referência mais próxima" : "Membro da referência mais próximo"}</th>}
               {p.variacao && cabecalho("variacao", "Variação (" + especie.rotulo.toLowerCase() + ")")}
               {p.tendencia && cabecalho("classe", "Tendência")}
               {temGrupo && cabecalho("grupo", "Grupo")}

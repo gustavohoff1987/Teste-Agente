@@ -399,8 +399,8 @@ Essas continuações não chamam o provedor de IA. Detalhes em
   densidade").
 - **Histórico e visual:** letra maior, balões com contorno, a hora em cada mensagem, parágrafos separados e exemplos em
   destaque; numa resposta longa, a pergunta fica à vista no alto, com o começo da resposta abaixo; a caixa é maior.
-- **Destaque no gráfico:** com uma comparação em exibição (ou territórios base escolhidos na Análise Espacial), as demais
-  bolhas esmaecem.
+- **Destaque no gráfico:** com uma comparação em exibição, as demais bolhas esmaecem (o esmaecimento pelos territórios base
+  da Análise Espacial saiu com eles em 27/10/2026, com a Escolha dos territórios).
 - **Tempo:** a parte local de uma pergunta caiu para dezenas de milissegundos ([latência](Docs/OTIMIZACAO_LATENCIA.md),
   seção 4.10); nenhuma chamada nova ao provedor começa depois de 20 s do pedido; a tela avisa aos 12 s e aos 45 s e
   interrompe a espera aos 100 s, com aviso cordial.
@@ -625,16 +625,23 @@ Para cada município-alvo, indica a referência autorizada geograficamente mais 
 código, distância geodésica direta em quilômetros (Karney, no elipsoide do referencial: GRS80 no
 SIRGAS 2000 ou WGS 84 no WGS 84, sem arredondamento no cálculo) e cobertura das referências. A capacidade continua na API
 (`/api/analyze`); o cartão **Referência mais próxima** saiu da interface com as telas clássicas em
-22/10/2026. Na página única, desde a segunda rodada de 24/10/2026, a análise espacial usa o **Território de referência**:
-primeiro os elegíveis (a delimitação geográfica, como o mesmo estado, uma região ou o Brasil inteiro, e uma condição de
-densidade, quantidade ou população com o valor de corte), depois o mais próximo ou o mais distante deles para cada município,
-nunca ele mesmo, pelas mesmas geodésicas ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md) e
-[painel integrado](Docs/PAINEL_INTEGRADO.md)); uma referência pelo nome, pedida na conversa, mostra a distância até ela.
-Desde 25/10/2026, os **Territórios base**, no início do mesmo painel, escolhem quais unidades em análise aparecem ligadas à sua
-referência: todos os selecionados (o padrão) ou alguns, cumulativos. No gráfico, cada referência entra como bolha de contexto
-no início do eixo (0 km), com os valores do motor, e uma linha tracejada liga cada base à sua referência (até 30 ligações); no
-mapa, as ligações e a referência dentro do quadro, com o nome; acima do desenho, a frase com as bases, as referências e as
-distâncias. É só estado visual: o cálculo é o mesmo.
+22/10/2026. Na página única, desde 27/10/2026 (comando Seleção de Territórios), a análise espacial usa a **Escolha dos
+territórios**: a base e a referência são territórios irmãos, escolhidos do mesmo jeito, cada um com o mesmo seletor em três
+etapas: **Partir de** (todo o país, uma ou mais regiões, um ou mais estados ou a seleção prévia, a escolha da Seleção de
+Territórios; só na referência, também "conforme a base": a mesma UF ou a mesma região de cada município da base), **Filtrar
+por** (opcional: densidade, população e quantidade, combinados por E; só na base, a distância até a referência mais próxima) e
+**Escolher** (todos que atendem ou só os marcados). A janela tem a frase-resumo fixa no alto ("{Base} → referência:
+{Referência}", montada por modelo, nunca pelo LLM), as abas "1 Base" e "2 Referência" e o rodapé com "Calcular" e a linha de
+estado; toda contagem e prévia vem do motor (`POST /api/painel/territorios`). A distância é sempre a geodésica de cada
+município da base até a referência mais próxima, nunca ele mesmo ([área de análise](Docs/PAINEL_INTEGRADO_INTERFACE.md) e
+[painel integrado](Docs/PAINEL_INTEGRADO.md)). Com o filtro de distância, o município sem referência no próprio recorte fica
+fora da base e aparece no resultado, pelo nome, como "sem referência no recorte" (CAP-ESP-02, CAP-SUB-01); sem o filtro, entra
+com a distância não avaliável. Uma referência pelo nome, pedida na conversa, vira os marcados da Referência. No gráfico, cada
+referência entra como bolha de contexto no início do eixo (0 km), com os valores do motor, e uma linha tracejada liga cada
+município da base à sua referência mais próxima (até 30 ligações); no mapa, as ligações e a referência dentro do quadro, com o
+nome; acima do desenho, a frase com a base, as referências e as distâncias. De 24 a 26/10/2026, valeu o **Território de
+referência** (primeiro os elegíveis por delimitação e condição, depois o mais próximo ou o mais distante deles), com os
+**Territórios base** escolhidos um a um; o "mais distante" saiu com a Escolha dos territórios.
 Na API, as referências são definidas pelo usuário, por lista de municípios (nome ou código) ou por
 critério simples de densidade (operador e valor por 1.000 habitantes, sem valor sugerido).
 O período é escolhido explicitamente. Na versão governada da base Brasil, o referencial
@@ -737,7 +744,7 @@ resultado ([mapa da página única](Docs/MAPA_DA_PAGINA_UNICA.md)): pontos na se
 cor da camada do gráfico ou, sem cor própria da análise, os 5 grupos iguais (quintis) do motor, sem pergunta (desde
 23/10/2026; a pergunta "Como pintar o mapa?" saiu), tamanho com área proporcional, enquadramento inicial com contexto em volta
 dos pontos, régua que esmaece e as mesmas funções do gráfico. Desde 25/10/2026, o mapa mostra todas as unidades em análise, também
-as que o gráfico deixa de fora por falta do valor que as posiciona (sem território de referência, por exemplo), e o gráfico diz
+as que o gráfico deixa de fora por falta do valor que as posiciona (sem distância até a referência, por exemplo), e o gráfico diz
 quem ficou de fora, pelo nome ("Fora do gráfico, …"). Os estados não têm ponto: no
 nível dos estados, o mapa fica desligado, com o atalho para os municípios; com o Brasil como unidade (24/10/2026), também. A frase-resumo voltou abaixo do título, feita
 pelo motor da página única (`resumo` em `/api/painel`).

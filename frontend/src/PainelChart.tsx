@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardE
   type PointerEvent as EventoPonteiro, type ReactNode, type RefObject } from "react";
 import type { GraficoComMapaProps } from "./mapaContrato";
 import MiniMapa from "./MiniMapa";
-import type { PainelIndicador, PainelItem, PainelResposta, RelacaoEspacial } from "./painelApi";
+import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
 import {
   INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
   legendaDeTamanhos, montarDica, montarGrafico, opacidadeComDestaque, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
@@ -52,16 +52,14 @@ type Props = {
   cometa: boolean;
   /** Visão Trajetória (24/10/2026): os períodos do meio da janela, como pontos pequenos no caminho do cometa e na dica. */
   trajetoria?: boolean;
-  /** Território de referência por elegibilidade: a relação (a dica diz "o mais próximo" ou "o mais distante"). */
-  relacao?: RelacaoEspacial | null;
-  /** Territórios base (25/10/2026; cumulativos desde a terceira rodada do dia): as bases à vista e a referência de cada uma, com os
-   * valores do motor (até MAX_LIGACOES). A referência que o gráfico não desenha entra como contexto, no início do eixo (0 km),
+  /** Escolha dos territórios (27/10/2026): a referência é a mais próxima de cada território da base (a dica e o eixo dizem isso). */
+  porItem?: boolean;
+  /** Base e referência (25/10/2026): os territórios da base à vista e a referência mais próxima de cada um, com os valores do motor
+   * (até MAX_LIGACOES). A referência que o gráfico não desenha entra como contexto, no início do eixo (0 km),
    * ligada às suas bases por linhas tracejadas; não conta, não filtra e não vai à tabela. */
   pares?: ParDaBase[];
-  /** As bases foram escolhidas uma a uma (não todos os selecionados): ganham o anel e "· território base" no nome. */
-  basesEscolhidas?: boolean;
-  /** Destaque da análise (26/10/2026, painelModel.destaqueDaAnalise): os comparados ou as bases escolhidas e as referências
-   * delas ficam inteiros; as demais bolhas esmaecem. Vazio ou ausente: nada esmaece. */
+  /** Destaque da análise (26/10/2026, painelModel.destaqueDaAnalise): os comparados ficam inteiros; as demais bolhas esmaecem.
+   * Vazio ou ausente: nada esmaece. */
   destaque?: string[];
   vista: Vista;
   fase: FaseAnimacao;
@@ -92,7 +90,7 @@ type Props = {
 const siglaDe = (item: PainelItem) => item.uf || (/\(([^()]+)\)\s*$/.exec(item.rotulo) || [])[1] || item.rotulo;
 /** A mira da referência, em volta de um círculo de raio r. */
 const mira = (r: number) => `M${-(r + 9)} 0H${-(r + 3)}M${r + 3} 0H${r + 9}M0 ${-(r + 9)}V${-(r + 3)}M0 ${r + 3}V${r + 9}`;
-/** Prefixo do identificador das bolhas de contexto das referências dos territórios base (não são itens da análise). */
+/** Prefixo do identificador das bolhas de contexto das referências da base (não são itens da análise). */
 const PREFIXO_REFERENCIA = "referencia-da-base:";
 /** Até quantas bases (e quantas referências de contexto) ganham o nome direto; com mais, só a dica. */
 const ROTULOS_DAS_LIGACOES = 12;
@@ -117,7 +115,7 @@ export default function PainelChart(p: Props) {
   const focarDepois = useRef<string | null>(null);
   const leve = p.todos.length > LIMITE_LEVE;
   const desenhaveis = leve ? p.todos : p.itens;
-  // Territórios base (25/10/2026): as referências que o gráfico não desenha (por elegibilidade) entram como contexto, no início do
+  // Base e referência (25/10/2026): as referências (não são itens da análise) entram como contexto, no início do
   // eixo (0 km), na posição do indicador e com o tamanho pela população, os valores do motor; o eixo e a escala de tamanho as cobrem.
   const pares = useMemo(() => p.distancia ? p.pares ?? [] : [], [p.distancia, p.pares]);
   const idsDasBases = useMemo(() => new Set(pares.map(par => par.base.id)), [pares]);
@@ -153,7 +151,6 @@ export default function PainelChart(p: Props) {
     }) : [];
   });
   const comNome = pares.length <= ROTULOS_DAS_LIGACOES, referenciasComNome = contextos.length <= ROTULOS_DAS_LIGACOES;
-  const comAnel = (id: string) => !!p.basesEscolhidas && idsDasBases.has(id);
   const selecionados = useMemo(() => new Set(p.selecionados), [p.selecionados]);
   const competenciaInicial = p.resposta.competencia_inicial || null;
   const especie = INDICADORES[p.indicador];
@@ -176,7 +173,6 @@ export default function PainelChart(p: Props) {
     const nome = bolha.item.rotulo + (bolha.tipo === "conjunto" ? " (soma)" : "");
     const extra = p.extraDoRotulo?.(bolha.item);
     if (extra) return extra + " " + nome;
-    if (comAnel(bolha.id)) return nome + " · território base";
     if (p.vista === "inicial" && p.cometa) return nome + " · " + exibirCompetencia(competenciaInicial);
     if (p.cometa && bolha.variacao !== null) return nome + " · " + formatarVariacao(bolha.variacao);
     if (bolha.referencia) return nome + " · referência";
@@ -197,13 +193,12 @@ export default function PainelChart(p: Props) {
     ? opacidadeDaBolha(bolha) : opacidadeComDestaque(bolha, destaque);
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || comAnel(bolha.id) ||
-    !!destaque?.has(bolha.id))) : [];
+    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || !!destaque?.has(bolha.id))) : [];
   const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
-    nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, relacao: p.relacao ?? null,
-    trajetoria: !!p.trajetoria }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo, p.relacao) : null;
+    nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, porItem: !!p.porItem,
+    trajetoria: !!p.trajetoria }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
   const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 
   function acionar(bolha: BolhaDesenho) {
@@ -255,8 +250,8 @@ export default function PainelChart(p: Props) {
   const temVazada = grafico.bolhas.some(bolha => bolha.vazada && bolha.visivel);
   const simbolos = [temConjunto ? "anel escuro: conjunto (soma das contagens dos componentes, com possível dupla contagem)" : "",
     temReferencia ? "mira: membro da referência (distância 0)" : "",
-    contextos.length ? "círculo claro com mira: território de referência fora da seleção, no início do eixo (0 km)" : "",
-    ligacoes.length ? "linha tracejada: do território base até o seu território de referência; a distância é a do eixo horizontal" : "",
+    contextos.length ? "círculo claro com mira: referência fora da base, no início do eixo (0 km)" : "",
+    ligacoes.length ? "linha tracejada: de cada território da base até a sua referência mais próxima; a distância é a do eixo horizontal" : "",
     temConjunto && p.distancia ? "traço horizontal: do membro mais próximo ao mais distante do conjunto" : "",
     p.cometa ? "rastro: do valor na competência inicial (círculo vazado) até a atual" +
       (p.trajetoria && grafico.bolhas.some(bolha => bolha.trajeto) ? "; pontos pequenos: os valores dos períodos do meio" : "") : "",
@@ -310,7 +305,7 @@ export default function PainelChart(p: Props) {
         stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1.5 : 2} strokeDasharray={bolha.vazada ? "3 2" : undefined}/>
       {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={paleta.tinta} strokeOpacity={0.7} strokeWidth={1.25}/>}
       {bolha.referencia && <path d={mira(bolha.r)} stroke={paleta.tinta} strokeWidth={1.5} strokeLinecap="round"/>}
-      {(selecionado || ativo === bolha.id || externo === bolha.id || comAnel(bolha.id)) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
+      {(selecionado || ativo === bolha.id || externo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
       <circle className="analise-alvo" r={Math.max(bolha.r + 2, 12)} fill="transparent"/>
     </g>;
   };
@@ -357,7 +352,7 @@ export default function PainelChart(p: Props) {
           <line x1={posicaoNoEixo(eixoX, item.valor)} x2={posicaoNoEixo(eixoX, item.valor)} y1={grafico.topo} y2={grafico.base} stroke={paleta.eixo} strokeWidth={1}/>
           <text x={posicaoNoEixo(eixoX, item.valor) + 4} y={grafico.topo + 12} className="analise-linha-texto analise-linha-texto-leve">{item.rotulo}</text>
         </g>)}
-      {/* Territórios base (25/10/2026): as ligações tracejadas até as referências e, fora das bolhas da análise, as referências de
+      {/* Base e referência (25/10/2026): as ligações tracejadas até as referências e, fora das bolhas da análise, as referências de
           contexto (não contam, não filtram, não vão à tabela). */}
       {ligacoes.map(ligacao => <line key={ligacao.base + ">" + ligacao.referencia} data-testid="analise-ligacao-base" data-base={ligacao.base}
         data-referencia={ligacao.referencia} x1={ligacao.x1} y1={ligacao.y1} x2={ligacao.x2} y2={ligacao.y2} stroke={paleta.tinta2}
@@ -365,7 +360,7 @@ export default function PainelChart(p: Props) {
       {contextos.map(contexto => <g key={contexto.id} data-testid="analise-referencia-da-base" data-id={contexto.referencia.id}
         data-bases={contexto.bases.map(item => item.base.id).join(" ")} data-valor={String(contexto.valor)}
         data-populacao={contexto.referencia.populacao ?? ""} data-x={contexto.x.toFixed(1)} role="img"
-        aria-label={contexto.referencia.rotulo + ", território de referência de " + contexto.bases.map(item => item.base.rotulo).join(", ")}
+        aria-label={contexto.referencia.rotulo + ", referência mais próxima de " + contexto.bases.map(item => item.base.rotulo).join(", ")}
         style={{ transform: `translate(${contexto.x}px, ${contexto.y}px)` }}
         onPointerEnter={() => setAtivo(contexto.id)} onPointerLeave={() => setAtivo(atual => atual === contexto.id ? null : atual)}>
         <circle r={contexto.r} fill={paleta.superficie} fillOpacity={0.75} stroke={paleta.tinta} strokeWidth={1.5}/>
@@ -417,7 +412,7 @@ export default function PainelChart(p: Props) {
       {p.legendaCor}
       <div className="min-w-0 max-w-xl space-y-1">
         {notaArranjo && <p data-testid="analise-arranjo-nota">{notaArranjo}</p>}
-        {eixoY && eixoX && <p>Horizontal: {p.relacao ? "distância até o território de referência de cada " + p.rotulos.unidade.singular
+        {eixoY && eixoX && <p>Horizontal: {p.porItem ? "distância até a referência mais próxima de cada " + p.rotulos.unidade.singular
           : "distância até a referência"}; vertical: {especie.rotulo.toLowerCase()}. Sem reta de tendência nem
           correlação: cada bolha é só um par de valores.{leve ? " Com muitas bolhas, elas ficam semitransparentes e podem se sobrepor." : ""}</p>}
         {simbolos && <p data-testid="analise-simbolos">{simbolos}.</p>}

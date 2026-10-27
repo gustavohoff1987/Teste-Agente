@@ -239,9 +239,10 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   `painel_*` e `rotulos` das opções antes do pré-exame e do intérprete: nada delas vai ao provedor de IA, e a frase-resumo,
   que traz valores da base, fica só no backend local;
 - os comandos da conversa incluem os grupos da distribuição ("divida em quintis", "sem os grupos") e a referência por
-  critério ("a de maior densidade como referência"): o Território de referência abre com o atributo citado e, desde
-  25/10/2026, o operador do "maior" ou "menor"; a relação, a delimitação e o valor de corte são escolha da pessoa (a lista de
-  candidatos, com "usar o primeiro", saiu em 24/10/2026);
+  critério ("a de maior densidade como referência"): desde 27/10/2026, a Escolha dos territórios abre na aba Referência com
+  um filtro do atributo citado e, desde 25/10/2026, o operador do "maior" ou "menor" ("acima de" ou "abaixo de"); o valor é
+  escolha da pessoa (a lista de candidatos, com "usar o primeiro", saiu em 24/10/2026; o painel Território de referência, em
+  27/10/2026). A referência pelo nome vira os marcados da Referência;
 - **ambiguidades** continuam com alternativas em botões (`CATALOGO_LOCAL`), e nada é calculado. Desde 26/10/2026, a
   resposta também pode ser escrita ("Município.", "a do Pará", "a de janeiro", "o primeiro"): a tela guarda a pergunta com
   as alternativas e a envia na memória da conversa (`conversa`), e o gestor de diálogo do backend escolhe a alternativa, como

@@ -563,13 +563,14 @@ test('seleção cumulativa entre estados (24/10/2026): marcar na Bahia e depois 
 test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a leitura', () => {
   const t = extra => M.tituloDaAnalise({fonte: 'brasil', familia: 'distribuicao', visao: 'classes', indicador: 'densidade', nivel: 'municipios',
     categoria: 'MEDICINA', competencia: '202406', janela: [], rotatividade: null, lugar: {lugar: 'nos municípios do Amazonas', curto: 'Amazonas'},
-    referencia: null, rotulos: BR, ...extra});
+    rotulos: BR, ...extra});
   assert.deepEqual(t({}), {titulo: 'Densidade de médicos nos municípios do Amazonas · junho de 2024',
     subtitulo: 'Cada bolha é um município. O tamanho mostra a população.'});
   assert.deepEqual(t({nivel: 'estados', lugar: {lugar: 'nos estados', curto: 'Brasil'}}),
     {titulo: 'Densidade de médicos nos estados · junho de 2024', subtitulo: 'Cada bolha é um estado. O tamanho mostra a população.'});
   assert.equal(t({indicador: 'quantidade'}).titulo, 'Quantidade de médicos nos municípios do Amazonas · junho de 2024');
-  assert.equal(t({familia: 'espacial', referencia: 'MANAUS (AM)'}).titulo, 'Densidade de médicos e distância até MANAUS (AM) · Amazonas · junho de 2024');
+  // Análise Espacial com a Escolha dos territórios (27/10/2026): a distância é sempre até a referência mais próxima de cada município.
+  assert.equal(t({familia: 'espacial'}).titulo, 'Densidade de médicos e distância até a referência mais próxima · Amazonas · junho de 2024');
   assert.equal(t({familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}).titulo,
     'Tendência da densidade de médicos · Amazonas · junho de 2021 a junho de 2024');
   // Visões de 24/10/2026: Trajetória (a antiga Mudança) e Série temporal (o intervalo dela, não a janela da tendência).
@@ -579,9 +580,9 @@ test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a 
   assert.deepEqual(t({familia: 'tendencia', visao: 'series', janela: ['202106', '202206', '202306', '202406'], serie: ['201401', '201406', '202406']}),
     {titulo: 'Série temporal da densidade de médicos · Amazonas · janeiro de 2014 a junho de 2024',
       subtitulo: 'Cada linha é um município, com o valor observado em cada competência do intervalo.'});
-  // Território de referência por elegibilidade: a referência é de cada município.
-  assert.deepEqual(t({familia: 'espacial', referenciaPorItem: true}), {titulo: 'Densidade de médicos e distância até o território de referência · Amazonas · junho de 2024',
-    subtitulo: 'Cada bolha é um município. O tamanho mostra a população. A posição horizontal é a distância até o território de referência de cada município.'});
+  assert.deepEqual(t({familia: 'espacial', lugar: {lugar: '', curto: 'Norte, com filtros'}}), {titulo: 'Densidade de médicos e distância até a ' +
+    'referência mais próxima · Norte, com filtros · junho de 2024', subtitulo: 'Cada bolha é um município. O tamanho mostra a população. A ' +
+    'posição horizontal é a distância até a referência mais próxima de cada município.'});
   // Visão Classes: o quadro de setas (as linhas), não as bolhas.
   assert.equal(t({familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}).subtitulo,
     'Cada linha é um município: as setas mostram a alta, a queda ou a pausa de um período para o seguinte.');
@@ -595,7 +596,7 @@ test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a 
   assert.equal(t({nivel: 'estados', lugar: {lugar: 'no Amazonas', curto: 'Amazonas'}, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']}).titulo,
     'Tendência da densidade de médicos · Amazonas · junho de 2021 a junho de 2024');
   assert.equal(M.tituloDaAnalise({fonte: null, familia: 'distribuicao', visao: 'classes', indicador: 'densidade', nivel: 'municipios', categoria: '',
-    competencia: '', janela: [], rotatividade: null, lugar: {lugar: '', curto: ''}, referencia: null, rotulos: BR}).titulo,
+    competencia: '', janela: [], rotatividade: null, lugar: {lugar: '', curto: ''}, rotulos: BR}).titulo,
     'Diagnóstico Territorial da Força de Trabalho na Saúde');  // o nome da plataforma (24/10/2026)
   assert.equal(t({familia: 'rotatividade', rotatividade: {inicial: '202306', final: '202406'}}).titulo,
     'Rotatividade e permanência da coorte inicial · Amazonas · junho de 2023 a junho de 2024');
@@ -662,10 +663,11 @@ test('pedido ao motor com as chaves do contrato: nível e indicador em todo pedi
   assert.deepEqual(M.montarOpcoes(definicao({...am, indicador: 'quantidade', agrupar: {tipo: 'faixas', faixas: [0, 1, 2]}}), 'distribuicao'),
     {competencia: '202406', categoria: 'MEDICINA', ...base, faixas: [0, 1, 2], indicador: 'quantidade'});
   assert.deepEqual(M.montarOpcoes(definicao({...am, agrupar: {tipo: 'faixas', faixas: [1]}}), 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', ...base});
-  const espacial = definicao({...am, familia: 'espacial', referencia: {membros: ['code:130260'], criterio: {atributo: 'densidade', ordem: 'desc'}},
+  // A Análise Espacial leva a Escolha dos territórios (27/10/2026) como o motor a recebe, com a seleção prévia em `base`.
+  const espacial = definicao({...am, familia: 'espacial', consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true),
     faixasDistancia: [0, 100, 300], condicoes: [{atributo: 'densidade', operador: '<', valor: 1}, {atributo: 'distancia_km', operador: '>', valor: 150}]});
   assert.deepEqual(M.montarOpcoes(espacial, 'espacial'), {competencia: '202406', categoria: 'MEDICINA', ...base,
-    referencia: {membros: ['code:130260'], criterio: {atributo: 'densidade', ordem: 'desc'}}, faixas_distancia: [0, 100, 300],
+    consulta: M.consultaParaOMotor(M.consultaComReferenciaMarcada(null, ['code:130260'], true)), faixas_distancia: [0, 100, 300],
     condicoes: [{atributo: 'densidade', operador: '<', valor: 1}, {atributo: 'distancia_km', operador: '>', valor: 150}]});
   assert.deepEqual(M.montarOpcoes(espacial, 'distribuicao'), {competencia: '202406', categoria: 'MEDICINA', ...base,
     condicoes: [{atributo: 'densidade', operador: '<', valor: 1}]});  // sem referência, a condição de distância não vai
@@ -715,7 +717,8 @@ test('o que falta para pedir e o que a família espera; a família calculada enq
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'tendencia', janela: ['202306', '202406']}), ok),
     'A análise de tendência exige quatro observações válidas. Com 2 competências, aparece a trajetória entre a primeira e a última.');
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'espacial'}), ok),
-    'Defina o território de referência: a relação (mais próximo ou mais distante), a delimitação e a condição.');
+    'Faça a escolha dos territórios: a base e a referência. A distância vai de cada território da base até a referência mais próxima.');
+  assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'espacial', consulta: M.consultaInicial({comSelecao: true})}), ok), null);
   // A Série temporal tem o intervalo dela: não espera o período da tendência.
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'tendencia', visao: 'series'}), ok), null);
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'tendencia', visao: 'series'}), true), 'tendencia');
@@ -723,11 +726,11 @@ test('o que falta para pedir e o que a família espera; a família calculada enq
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'tendencia'}), true), 'distribuicao');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'tendencia', janela: ['202306', '202406']}), true), 'tendencia');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial'}), true), 'distribuicao');
-  assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'espacial');
-  assert.equal(M.familiaCalculada(definicao({familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'distribuicao');  // estados
+  assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial', consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true)}), true), 'espacial');
+  assert.equal(M.familiaCalculada(definicao({familia: 'espacial', consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true)}), true), 'distribuicao');  // estados
   assert.equal(M.familiaCalculada(definicao({familia: 'tendencia', janela: ['202306', '202406']}), true), 'tendencia');  // estados
   assert.equal(M.familiaCalculada(definicao({nivel: 'brasil', familia: 'tendencia', janela: ['202306', '202406']}), true), 'tendencia');
-  assert.equal(M.familiaCalculada(definicao({nivel: 'brasil', familia: 'espacial', referencia: {membros: ['code:130260']}}), true), 'distribuicao');
+  assert.equal(M.familiaCalculada(definicao({nivel: 'brasil', familia: 'espacial', consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true)}), true), 'distribuicao');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'rotatividade', rotatividade: {inicial: '202306', final: '202406'}}), false), 'distribuicao');
   assert.equal(M.visaoEfetiva(definicao({...am, janela: ['202306', '202406'], visao: 'classes'})), 'mudanca');
   assert.equal(M.visaoEfetiva(definicao({...am, janela: ['202106', '202206', '202306', '202406'], visao: 'series'})), 'series');
@@ -783,12 +786,19 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   const rot = M.aplicarPedido(def, {familia: 'rotatividade'}, c);
   assert.equal(rot.definicao.familia, 'distribuicao');
   assert.ok(rot.mensagens[0].startsWith('Análise de Rotatividade: A base do Brasil'));  // nomes padronizados (23/10/2026)
+  // A referência pelo nome (27/10/2026): os membros viram os marcados da Referência na Escolha dos territórios, a partir do país; sem
+  // consulta, a base parte da seleção prévia (com seleção) ou do país.
   const ref = M.aplicarPedido(def, {referencia: {membros: ['code:150140']}}, c);
   assert.equal(ref.definicao.familia, 'espacial');
-  assert.deepEqual(ref.definicao.referencia, {membros: ['code:150140']});
+  assert.deepEqual(ref.definicao.consulta.referencia, {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [],
+    escolha: {modo: 'marcados', municipios: ['code:150140']}});
+  assert.equal(ref.definicao.consulta.base.partir_de.tipo, M.semSelecao({...def, nivel: 'municipios'}) ? 'pais' : 'selecao_previa');
   assert.equal(ref.definicao.nivel, 'municipios');
+  assert.equal('referencia' in ref.definicao, false);
   const comCriterio = M.aplicarPedido(def, {referencia: {membros: ['code:150140'], criterio: {atributo: 'densidade', ordem: 'desc'}}}, c);
-  assert.deepEqual(comCriterio.definicao.referencia, {membros: ['code:150140'], criterio: {atributo: 'densidade', ordem: 'desc'}});
+  assert.deepEqual(comCriterio.definicao.consulta, ref.definicao.consulta);  // o critério só registrava a origem dos membros
+  const outraBase = M.aplicarPedido({...def, consulta: M.consultaInicial({comSelecao: false})}, {referencia: {membros: ['code:150140']}}, c);
+  assert.equal(outraBase.definicao.consulta.base.partir_de.tipo, 'pais');  // a base da consulta continua
   // Sem janela longa (24/10/2026): a janela da conversa vale pelo ritmo dos intervalos (aqui, anual), e esta base, com dois
   // junhos, não tem 4 períodos anuais; antes, a janela de duas competências valia como veio. O resto, em "período da tendência".
   const janela = M.aplicarPedido(def, {janela: ['202406', '202306', '209913']}, c);
@@ -953,11 +963,13 @@ test('exportar: CSV com precisão integral, avaliabilidade e motivo; método em 
 });
 
 test('contexto do gráfico para a página e a conversa: família, indicador, universo, unidades na tela, competência e referência', () => {
+  // Com a Escolha dos territórios, a referência do contexto são as referências mais próximas que a resposta trouxe.
   const def = definicao({familia: 'espacial', nivel: 'municipios', base: {todos: false, estados: ['13'], ids: ['code:130260']},
-    referencia: {membros: ['code:130260']}});
-  assert.deepEqual(M.contextoDoGrafico(def, ['code:130260'], 'T'), {familia: 'espacial', indicador: 'densidade', nivel: 'municipios',
-    municipios: {todos: false, estados: ['13'], ids: []}, estados: ['13', '35'], idsNaTela: ['code:130260'], competencia: '202406', janela: [],
-    referencia: ['code:130260'], titulo: 'T'});
+    consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true)});
+  assert.deepEqual(M.contextoDoGrafico(def, ['code:130260'], 'T', M.prefixoDe, ['code:130260']), {familia: 'espacial', indicador: 'densidade',
+    nivel: 'municipios', municipios: {todos: false, estados: ['13'], ids: []}, estados: ['13', '35'], idsNaTela: ['code:130260'], competencia: '202406',
+    janela: [], referencia: ['code:130260'], titulo: 'T'});
+  assert.deepEqual(M.contextoDoGrafico({...def, consulta: null}, ['code:130260'], 'T', M.prefixoDe, ['code:130260']).referencia, []);
   const tendencia = M.contextoDoGrafico(definicao({familia: 'tendencia', janela: ['202306', '202406'], competencia: '202306'}), [], 'T');
   assert.equal(tendencia.competencia, '202406');
   assert.deepEqual(tendencia.referencia, []);
@@ -1080,7 +1092,7 @@ test('comando da conversa: grupos e referência por critério (a lista abre ness
   assert.deepEqual(porCriterio.criterio, {atributo: 'densidade', ordem: 'desc'});
   assert.equal(porCriterio.abrir, 'referencia');
   assert.equal(porCriterio.definicao.familia, 'espacial');
-  assert.equal(porCriterio.definicao.referencia, null);  // nenhuma referência é escolhida no lugar da pessoa
+  assert.equal(porCriterio.definicao.consulta, null);  // nenhuma referência é escolhida no lugar da pessoa
   assert.equal(M.aplicarPedido(def, {referencia: {membros: [], criterio: {atributo: 'x', ordem: 'desc'}}}, c).abrir, null);
 });
 

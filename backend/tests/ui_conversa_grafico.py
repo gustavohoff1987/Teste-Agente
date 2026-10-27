@@ -380,26 +380,28 @@ def main():
         assert options_of(event.value.request).get("conversation_pending_operation") == "comparisons", options_of(event.value.request)
         page.wait_for_timeout(1500)
 
-        # 7b. Território de referência pela conversa (decisão 4, 25/10/2026): o "menor" do pedido vira o operador da condição, com o
-        # atributo citado; a relação, a delimitação e o valor de corte ficam com a pessoa, sem valor sugerido. O Desfazer do alto
-        # (o "Voltar" até 25/10/2026) desfaz o pedido da conversa e devolve a análise de antes, para os passos seguintes.
+        # 7b. Referência pela conversa (decisão 4, 25/10/2026; na Escolha dos territórios desde 27/10/2026): o "menor" do pedido
+        # vira, na aba Referência, um filtro do atributo citado com o operador "abaixo de"; o valor fica com a pessoa, sem valor
+        # sugerido, e a janela mostra a pendência, com "Calcular" desligado. O Desfazer do alto (o "Voltar" até 25/10/2026) desfaz
+        # o pedido da conversa e devolve a análise de antes, para os passos seguintes.
         familia_antes = area.get_attribute("data-familia")
         with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
             send(page, "use como referência o município de menor densidade")
         resposta = event.value.json()
         assert (resposta.get("painel") or {}).get("referencia") == {
             "membros": [], "criterio": {"atributo": "densidade", "ordem": "asc"}}, resposta
-        expect(latest).to_contain_text("com a condição Densidade “Menor que”")
-        referencia = area.get_by_test_id("analise-referencia")
-        expect(referencia).to_be_visible(timeout=60000)
-        expect(referencia.get_by_test_id("analise-ref-da-conversa")).to_contain_text("pela menor densidade")
-        expect(referencia.get_by_test_id("analise-ref-atributo")).to_have_value("densidade")
-        expect(referencia.get_by_test_id("analise-ref-operador-menor")).to_have_attribute("aria-checked", "true")
-        expect(referencia.get_by_test_id("analise-ref-operador-maior")).to_have_attribute("aria-checked", "false")
-        expect(referencia.get_by_test_id("analise-ref-relacao-mais_proxima")).to_have_attribute("aria-checked", "false")
-        expect(referencia.get_by_test_id("analise-ref-valor")).to_have_value("")
-        expect(referencia.get_by_test_id("analise-ref-falta")).to_have_text(
-            "Falta escolher: a relação espacial, a delimitação, o valor de corte.")
+        expect(latest).to_contain_text("com o filtro Densidade “abaixo de” na Referência")
+        janela = area.get_by_test_id("analise-referencia")
+        expect(janela).to_be_visible(timeout=60000)
+        expect(janela.get_by_test_id("territorios-aba-referencia")).to_have_attribute("aria-selected", "true")
+        filtro = janela.get_by_test_id("territorios-referencia-filtro")
+        expect(filtro).to_have_count(1)
+        expect(filtro.get_by_test_id("territorios-referencia-filtro-indicador")).to_have_value("densidade")
+        expect(filtro.get_by_test_id("territorios-referencia-filtro-operador")).to_have_value("<")
+        expect(filtro.get_by_test_id("territorios-referencia-filtro-valor")).to_have_value("")
+        expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text("referência incompleta")
+        expect(janela.get_by_test_id("territorios-estado")).to_have_text("Referência incompleta: preencha o valor do filtro.")
+        expect(janela.get_by_test_id("territorios-calcular")).to_be_disabled()
         shot("02b-referencia-pela-conversa")
         page.get_by_test_id("analise-desfazer").click()
         expect(area).to_have_attribute("data-familia", familia_antes, timeout=60000)

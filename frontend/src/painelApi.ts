@@ -7,6 +7,7 @@
 // desenha. Nada calcula aqui.
 import { contextRevision, sessionFetch as fetch } from "./conversationSession";
 import type { DadosDoMapa } from "./mapaContrato";
+import type { ConsultaTerritorios } from "./painelModel";
 
 // ------------------------------------------------------------------------------------------------ pedido
 export type PainelIndicador = "densidade" | "quantidade";
@@ -31,14 +32,9 @@ export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string
  * conversa usa ("use Manaus como referência"). */
 export type ReferenciaPorMembros = { membros: string[]; criterio?: PainelCriterio & { universo?: PainelUniverso } };
 export type OperadorCondicao = "<" | "<=" | ">" | ">=";
-/** Território de referência (24/10/2026): primeiro os elegíveis (a delimitação e a condição), depois, para cada território, o
- * mais próximo ou o mais distante deles, sem ele mesmo. "grupos" e "regioes" levam os valores escolhidos (os prefixos IBGE dos
- * estados, os nomes das regiões, os valores do grupo da planilha); as regiões existem só na base do Brasil. */
-export type RelacaoEspacial = "mais_proxima" | "mais_distante";
-export type TipoDelimitacao = "todos" | "mesmo_grupo" | "grupos" | "mesma_regiao" | "regioes";
-export type ReferenciaElegivel = { relacao: RelacaoEspacial; delimitacao: { tipo: TipoDelimitacao; valores?: string[] };
-  condicao: { atributo: PainelAtributo; operador: OperadorCondicao; valor: number } };
-export type PainelReferenciaPedido = ReferenciaPorMembros | ReferenciaElegivel;
+/** A referência pelos membros (contrato de 21/10). Na página única, a Análise Espacial manda a Escolha dos territórios
+ * (`consulta`, 27/10/2026), e a referência pelo nome pedida na conversa vira os marcados da Referência. */
+export type PainelReferenciaPedido = ReferenciaPorMembros;
 export type CondicaoPedido = { atributo: AtributoCondicao; operador: OperadorCondicao; valor: number };
 export type OrdenarPedido = { atributo: AtributoOrdenacao; ordem: PainelOrdem; primeiros?: number };
 export type TipoGrupos = "quartis" | "quintis" | "decis";
@@ -57,6 +53,8 @@ export type PainelOpcoes = {
   estados?: string[];
   conjuntos?: PainelConjuntoPedido[];
   referencia?: PainelReferenciaPedido;
+  /** A Escolha dos territórios (27/10/2026): com ela, `base` é a seleção prévia, e os itens são os da base da consulta. */
+  consulta?: ConsultaTerritorios;
   faixas_distancia?: number[];
   competencia_inicial?: string;
   tendencia?: { competencias: string[] };
@@ -143,25 +141,31 @@ export type PainelItem = {
   grupoMapa: Posicao | null;
   faixa: Posicao | "fora" | null;
   faixa_distancia: Posicao | "fora" | null;
-  /** A referência do item: com membros escolhidos, o membro da referência mais próximo (`referencia_mais_proxima` do motor); com o
-   * território de referência por elegibilidade, o mais próximo ou o mais distante dos elegíveis (`referencia_do_item`). Mais de um
-   * quando há empate (explícito). */
+  /** A referência do item: com membros escolhidos, o membro da referência mais próximo (`referencia_mais_proxima` do motor); com a
+   * Escolha dos territórios, a referência mais próxima do item (`referencia_do_item`). Mais de um quando há empate (explícito). */
   referenciaDoItem: { id: string; rotulo: string }[] | null;
   condicoes: CondicoesItem | null;
   ordem: { posicao: number | null } | null;
   rotatividade: RotatividadeItem | null;
   serie: SerieItem | null;
 };
-/** Um território de referência. Por elegibilidade, o motor manda também a UF e os valores dele na competência (25/10/2026),
- * para a tela mostrar a referência do território base; pelos membros escolhidos, os valores vêm no item (distância zero). */
+/** Uma referência. Com a Escolha dos territórios, o motor manda também a UF e os valores dela na competência, para
+ * a tela mostrar a referência de cada território da base; pelos membros escolhidos, os valores vêm no item (distância zero). */
 export type MembroDaReferencia = { id: string; rotulo: string; uf?: string | null; populacao?: number | null; quantidade?: number | null;
   densidade?: number | null };
-/** A referência da resposta: um município ou um conjunto escolhidos (membros) ou, por elegibilidade, a definição (relação,
- * delimitação e condição, com os textos do motor), as contagens da condição e os territórios que ficaram como referência. */
-export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "elegiveis"; membros: MembroDaReferencia[]; origem: string;
-  relacao?: RelacaoEspacial; delimitacao?: { tipo: TipoDelimitacao; valores: string[]; texto: string };
-  condicao?: { atributo: PainelAtributo; operador: OperadorCondicao; valor: string; texto: string };
-  elegiveis?: { universo: number; atende: number; naoAtende: number; naoAvaliaveis: number } };
+/** Quantos restam em cada etapa de um lado da consulta (do motor): de onde parte, depois dos filtros, no fim (null enquanto a
+ * etapa está incompleta), quantos ficaram de fora por um filtro não avaliável e, na base, quantos ficaram de fora porque a
+ * distância deles não é avaliável (sem referência no recorte). */
+export type ContagensDoLado = { partirDe: number | null; filtros: number | null; final: number | null; naoAvaliaveis: number | null;
+  semReferencia?: number };
+/** Um município fora da base porque a distância dele não é avaliável, com o motivo do motor. */
+export type ForaPorDistancia = { id: string; rotulo: string; uf: string | null; motivo: string };
+/** A referência da resposta: um município ou um conjunto escolhidos (membros) ou, com a Escolha dos territórios, a consulta
+ * calculada, a base e a referência em palavras (do motor), as contagens e os territórios que ficaram como referência mais próxima
+ * de algum item. */
+export type PainelReferenciaResposta = { tipo: "municipio" | "conjunto" | "consulta"; membros: MembroDaReferencia[]; origem: string;
+  consulta?: ConsultaTerritorios | null; texto?: string; baseTexto?: string;
+  contagens?: { base: ContagensDoLado; referencia: ContagensDoLado }; semReferencia?: ForaPorDistancia[] };
 export type Contagens = Record<string, number>;
 export type TendenciaTopo = { janela: string[]; contagens: Contagens; familias: Contagens; naoAvaliaveis: number | null;
   bloqueio: string | null; unidadeTempo: string | null;
@@ -415,31 +419,46 @@ function itemDe(bruto: unknown): PainelItem | null {
   };
 }
 
-const RELACOES = new Set<string>(["mais_proxima", "mais_distante"]);
-const DELIMITACOES = new Set<string>(["todos", "mesmo_grupo", "grupos", "mesma_regiao", "regioes"]);
-/** A referência da resposta, com a definição por elegibilidade quando ela vem (24/10/2026). */
+/** As contagens de um lado da consulta como o motor as manda. */
+function contagensDe(bruto: unknown): ContagensDoLado {
+  const o = objeto(bruto);
+  return { partirDe: num(o?.partir_de), filtros: num(o?.filtros), final: num(o?.final), naoAvaliaveis: num(o?.nao_avaliaveis),
+    ...(num(o?.sem_referencia) !== null ? { semReferencia: num(o?.sem_referencia)! } : {}) };
+}
+/** A consulta devolvida pelo motor (a normalizada), com as mesmas regras de forma da tela; o motor só devolve o que aceitou. */
+function consultaDe(bruto: unknown): ConsultaTerritorios | null {
+  const o = objeto(bruto);
+  if (!o) return null;
+  const lado = (valor: unknown) => {
+    const l = objeto(valor), partir = objeto(l?.partir_de), escolha = objeto(l?.escolha);
+    const textos = (v: unknown) => lista(v).filter((x): x is string => typeof x === "string");
+    return { partir_de: { tipo: (texto(partir?.tipo) ?? "pais") as ConsultaTerritorios["base"]["partir_de"]["tipo"], regioes: textos(partir?.regioes),
+      ufs: textos(partir?.ufs) },
+      filtros: lista(l?.filtros).map(f => objeto(f)).filter(Boolean).map(f => ({
+        indicador: texto(f!.indicador) as ConsultaTerritorios["base"]["filtros"][number]["indicador"],
+        operador: texto(f!.operador) as ConsultaTerritorios["base"]["filtros"][number]["operador"],
+        valor: typeof f!.valor === "string" ? Number(f!.valor) : num(f!.valor) })),
+      escolha: { modo: escolha?.modo === "marcados" ? "marcados" as const : "todos" as const, municipios: textos(escolha?.municipios) } };
+  };
+  return { base: lado(o.base), referencia: lado(o.referencia), distancia: { medida: "geodesica", ate: "referencia_mais_proxima" } };
+}
+/** A referência da resposta, com a Escolha dos territórios quando ela vem (27/10/2026). */
 function referenciaRespostaDe(bruto: unknown): PainelReferenciaResposta | null {
   const referencia = objeto(bruto);
   if (!referencia) return null;
   const origem = texto(referencia.origem) ?? "";
-  if (referencia.tipo !== "elegiveis") {
+  if (referencia.tipo !== "consulta") {
     const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "" }));
     return { tipo: referencia.tipo === "conjunto" ? "conjunto" : "municipio", membros, origem };
   }
   const membros = lista(referencia.membros).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "", rotulo: texto(m!.rotulo) ?? "",
     uf: texto(m!.uf), populacao: num(m!.populacao), quantidade: num(m!.quantidade), densidade: num(m!.densidade) }));
-  const delimitacao = objeto(referencia.delimitacao), condicao = objeto(referencia.condicao), elegiveis = objeto(referencia.elegiveis);
-  const relacao = texto(referencia.relacao);
-  const tipo = texto(delimitacao?.tipo);
-  const atributo = texto(condicao?.atributo), operador = texto(condicao?.operador);
-  return { tipo: "elegiveis", membros, origem,
-    relacao: relacao && RELACOES.has(relacao) ? relacao as RelacaoEspacial : undefined,
-    delimitacao: tipo && DELIMITACOES.has(tipo) ? { tipo: tipo as TipoDelimitacao,
-      valores: lista(delimitacao?.valores).filter((v): v is string => typeof v === "string"), texto: texto(delimitacao?.texto) ?? "" } : undefined,
-    condicao: atributo && operador ? { atributo: atributo as PainelAtributo, operador: operador as OperadorCondicao,
-      valor: texto(condicao?.valor) ?? String(num(condicao?.valor) ?? ""), texto: texto(condicao?.texto) ?? "" } : undefined,
-    elegiveis: elegiveis ? { universo: num(elegiveis.universo) ?? 0, atende: num(elegiveis.atende) ?? 0,
-      naoAtende: num(elegiveis.nao_atende) ?? 0, naoAvaliaveis: num(elegiveis.nao_avaliaveis) ?? 0 } : undefined };
+  const contagens = objeto(referencia.contagens);
+  return { tipo: "consulta", membros, origem, consulta: consultaDe(referencia.consulta), texto: texto(referencia.texto) ?? "",
+    baseTexto: texto(referencia.base_texto) ?? "",
+    contagens: { base: contagensDe(contagens?.base), referencia: contagensDe(contagens?.referencia) },
+    semReferencia: lista(referencia.sem_referencia).map(m => objeto(m)).filter(Boolean).map(m => ({ id: texto(m!.id) ?? "",
+      rotulo: texto(m!.rotulo) ?? "", uf: texto(m!.uf), motivo: texto(m!.motivo) ?? "" })) };
 }
 
 /** A série temporal do topo (`serie`): as competências do intervalo; sem elas, nada. */
@@ -662,8 +681,53 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
 
 // ------------------------------------------------------------------------------------------------ chamadas
 export async function pedirPainel(fonte: FonteDoMotor, opcoes: PainelOpcoes, signal?: AbortSignal): Promise<PainelResposta> {
-  const response = await fetch(fonte.apiBase + "/api/painel", { method: "POST", body: formulario(fonte, opcoes, !!opcoes.referencia), signal });
+  const response = await fetch(fonte.apiBase + "/api/painel", { method: "POST",
+    body: formulario(fonte, opcoes, !!opcoes.referencia || !!opcoes.consulta), signal });
   return normalizarResposta(await lerResposta(response), opcoes.nivel ?? "municipios");
+}
+
+// ------------------------------------------------------------------------------------------------ escolha dos territórios
+/** Pedido de /api/painel/territorios (27/10/2026): a consulta em montagem, a seleção prévia (`base`, como no gráfico) e, quando a
+ * janela mostra "Só os que eu marcar", a lista para marcar de um lado, pela busca no nome. */
+export type TerritoriosOpcoes = { competencia: string; categoria: string; consulta: ConsultaTerritorios; base?: PainelUniverso;
+  lista?: { lado: "base" | "referencia"; busca: string; limite: number }; premissas?: Premissas; rotulos?: RotulosTerritoriais };
+/** Um município nas listas da janela: o nome com a UF, a UF e a densidade do motor; nos marcados, se passa pelas etapas 1 e 2. */
+export type MunicipioDaLista = { id: string; rotulo: string; uf: string | null; densidade: number | null; passa?: boolean };
+/** Um lado da janela segundo o motor: as contagens, o que falta completar, a prévia dos que entram (quantos e os primeiros nomes)
+ * e os marcados. */
+export type LadoDosTerritorios = { contagens: ContagensDoLado; pendencias: string[]; previa: { total: number; nomes: string[] } | null;
+  marcados: MunicipioDaLista[] };
+export type RespostaTerritorios = { competencia: string; categoria: string; selecaoPrevia: { total: number; nomes: string[] };
+  base: LadoDosTerritorios; referencia: LadoDosTerritorios;
+  lista: { lado: "base" | "referencia"; busca: string; total: number; limite: number; itens: MunicipioDaLista[] } | null };
+const municipioDaLista = (bruto: unknown): MunicipioDaLista | null => {
+  const o = objeto(bruto);
+  const id = texto(o?.id);
+  return o && id ? { id, rotulo: texto(o.rotulo) ?? id, uf: texto(o.uf), densidade: num(o.densidade),
+    ...(typeof o.passa === "boolean" ? { passa: o.passa } : {}) } : null;
+};
+const ladoDosTerritorios = (bruto: unknown): LadoDosTerritorios => {
+  const o = objeto(bruto), previa = objeto(o?.previa);
+  return { contagens: contagensDe(o?.contagens), pendencias: lista(o?.pendencias).filter((p): p is string => typeof p === "string"),
+    previa: previa ? { total: num(previa.total) ?? 0, nomes: lista(previa.nomes).filter((n): n is string => typeof n === "string") } : null,
+    marcados: lista(o?.marcados).map(municipioDaLista).filter((m): m is MunicipioDaLista => !!m) };
+};
+/** Resposta de /api/painel/territorios nos tipos da tela; nada é calculado aqui: tudo vem do motor. */
+export function normalizarTerritorios(bruto: unknown): RespostaTerritorios {
+  const o = objeto(bruto);
+  if (!o) throw new ErroDoMotor("A resposta da escolha dos territórios não segue o contrato.", 200, null);
+  const previa = objeto(o.selecao_previa), listaBruta = objeto(o.lista);
+  return { competencia: texto(o.competencia) ?? "", categoria: texto(o.categoria) ?? "",
+    selecaoPrevia: { total: num(previa?.total) ?? 0, nomes: lista(previa?.nomes).filter((n): n is string => typeof n === "string") },
+    base: ladoDosTerritorios(o.base), referencia: ladoDosTerritorios(o.referencia),
+    lista: listaBruta ? { lado: listaBruta.lado === "referencia" ? "referencia" : "base", busca: texto(listaBruta.busca) ?? "",
+      total: num(listaBruta.total) ?? 0, limite: num(listaBruta.limite) ?? 0,
+      itens: lista(listaBruta.itens).map(municipioDaLista).filter((m): m is MunicipioDaLista => !!m) } : null };
+}
+/** As contagens da Escolha dos territórios, pedidas pela janela enquanto a consulta é montada (com a versão geográfica). */
+export async function pedirTerritorios(fonte: FonteDoMotor, opcoes: TerritoriosOpcoes, signal?: AbortSignal): Promise<RespostaTerritorios> {
+  const response = await fetch(fonte.apiBase + "/api/painel/territorios", { method: "POST", body: formulario(fonte, opcoes, true), signal });
+  return normalizarTerritorios(await lerResposta(response));
 }
 
 /** Coordenadas autorizadas das unidades na competência (o mesmo formulário de /api/painel, com a versão geográfica): pedidas

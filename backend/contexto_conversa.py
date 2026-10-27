@@ -42,7 +42,8 @@ FUNCIONALIDADES = (
     "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises.",
     "Análise de Distribuição: o indicador de cada território numa competência, em bolhas (tamanho = população) ou no mapa; "
     "grupos por posição (quartis, quintis, decis) e a mudança entre duas competências.",
-    "Análise Espacial: a distância geográfica direta até um território de referência e a referência mais próxima.",
+    "Análise Espacial: a distância geográfica direta de cada município da base até a referência mais próxima, com a base e a "
+    "referência definidas na Escolha dos territórios.",
     "Análise de Tendência: a classe de tendência de cada território em 4 competências, com as visões Tendência, "
     "Trajetória e Série temporal.",
     "Análise de Rotatividade: a permanência e a saída da coorte inicial; exige um identificador da mesma pessoa.",

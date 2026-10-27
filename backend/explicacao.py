@@ -582,8 +582,8 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True) -> d
     nome = NOMES_DOS_ATRIBUTOS[atributo]
     qual = "maior" if maior else "menor"
     if atributo == "distancia_km" and body.get("referencia") is None:
-        c.text("O gráfico em exibição não tem território de referência, então não há distância para comparar. Escolha a "
-               "referência na Análise Espacial ou peça, por exemplo, “use como referência o município de maior "
+        c.text("O gráfico em exibição não tem referência, então não há distância para comparar. Faça a Escolha dos "
+               "territórios na Análise Espacial ou peça, por exemplo, “use como referência o município de maior "
                "densidade”.")
         return verificar(c.resultado(), body)
     if atributo == "variacao" and not body.get("competencia_inicial"):

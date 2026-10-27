@@ -4,23 +4,25 @@ import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Databas
   ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirMapa, pedirPainel, type FonteDoMotor, type MapaOpcoes, type Pendencia, type PainelConjuntoPedido,
-  type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta, type ReferenciaElegivel,
+  type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta,
 } from "./painelApi";
 import {
   ABAS, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, MAX_LIGACOES, NOME_SELECAO, ORDEM_DAS_VISOES, TEXTO_DAS_FONTES,
   TEXTO_ESCOLHA_DOS_DADOS, TEXTO_SEM_SELECAO, TITULO_DO_SISTEMA, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
-  NOMES_FAMILIA_TENDENCIA, NOMES_RELACOES, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
-  artigo, avisoDaFamilia, basesEmUso, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, contextoDoGrafico,
+  NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
+  artigo, avisoDaFamilia, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, consultaEmUso, consultaInicial,
+  contextoDoGrafico, fraseDaConsulta, lugarDaConsulta, mesmaConsulta, normalizarBase, textoDaFraseDaConsulta,
   corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, empilharPasso,
   dentroDosFiltros, destaqueDaAnalise, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
-  limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica, montarOpcoes,
-  apresentacaoDaAba, nomeDaUnidade, normalizarBases, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
-  pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, referenciaElegivel, resumoDosTerritoriosBase, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
-  rotulosEfetivos, salvarEstado, semSelecao, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
+  competenciaPorExtenso, limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
+  montarOpcoes, profissionaisDe,
+  apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
+  pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
+  rotulosEfetivos, salvarEstado, semSelecao, semTerritorios, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
   textoDoMetodo, textoDosTerritoriosBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
-  type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoDaInteracao, type PedidoDoChat,
+  type ConsultaTerritorios, type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoDaInteracao, type PedidoDoChat,
   type UnidadeDoCatalogo, type Visao, type Vista,
 } from "./painelModel";
 import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
@@ -33,7 +35,8 @@ import PainelTerritorios from "./PainelTerritorios";
 import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
-import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJuntar, GavetaOrdenar, GavetaReferencia } from "./PainelGavetas";
+import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJuntar, GavetaOrdenar } from "./PainelGavetas";
+import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
 import "./analise.css";
@@ -90,7 +93,7 @@ const FUNCOES: { chave: FuncaoPainel; rotulo: string; icone: ReactNode }[] = [
   { chave: "exportar", rotulo: "Exportar", icone: <Download size={15} aria-hidden="true"/> },
 ];
 const TITULOS_PAINEL: Record<FuncaoPainel, string> = { regua: "Régua", condicoes: "Condições", ordenar: "Ordenar", comparar: "Comparar",
-  juntar: "Juntar", exportar: "Exportar", referencia: "Território de referência" };
+  juntar: "Juntar", exportar: "Exportar", referencia: "Escolha dos territórios" };
 const VISTAS: { chave: VistaDesenho; rotulo: string; icone: ReactNode }[] = [
   { chave: "grafico", rotulo: "Gráfico", icone: <ChartScatter size={14} aria-hidden="true"/> },
   { chave: "mapa", rotulo: "Mapa", icone: <MapaIcone size={14} aria-hidden="true"/> },
@@ -201,7 +204,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   const [def, setDef] = useState<DefinicaoAnalise>(() => definicaoInicial({ tipo, periodos, categoria: props.categoria, temGrupos: !!niveis,
     temPopulacao, premissas: premissasDaFonte }));
-  /** Referência pedida na conversa por critério: o atributo citado já vem escolhido no Território de referência. */
+  /** Referência pedida na conversa por critério: o filtro do atributo citado já vem na Referência da Escolha dos territórios. */
   const [criterioDoChat, setCriterioDoChat] = useState<{ atributo: "densidade" | "quantidade" | "populacao"; ordem: "desc" | "asc" } | null>(null);
   /** Desfazer (24/10/2026, segunda rodada): os passos da interação, o mais recente no fim. */
   const [passos, setPassos] = useState<PassoDaInteracao<EstadoDaInteracao>[]>([]);
@@ -386,15 +389,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const nomesDoCatalogo = useMemo(() => new Map(municipios.map(item => [item.id, nomeDaUnidade(item)] as [string, string])), [municipios]);
   const lugarDe = useCallback((d: DefinicaoAnalise) => lugarDoUniverso({ nivel: d.nivel, base: d.base, conjuntos: d.conjuntos.length, grupos,
     rotulos, brasil: tipo === "brasil", grupoDe, estados: d.estados, nomes: nomesDoCatalogo }), [grupos, rotulos, tipo, grupoDe, nomesDoCatalogo]);
-  const tituloDe = useCallback((d: DefinicaoAnalise, familia: Familia, r: PainelResposta | null) => {
-    const ref = d.referencia;
-    const porItem = referenciaElegivel(ref);
+  const tituloDe = useCallback((d: DefinicaoAnalise, familia: Familia) => {
+    // Na Análise Espacial com a Escolha dos territórios, o lugar do título é o da base da consulta (27/10/2026).
+    const lugar = familia === "espacial" && d.consulta ? lugarDaConsulta(d.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes,
+      selecao: lugarDe(d) }) : lugarDe(d);
     return tituloDaAnalise({ fonte: tipo, familia, visao: visaoEfetiva(d), indicador: d.indicador, nivel: d.nivel, categoria: d.categoria,
-      competencia: d.competencia, janela: d.janela, rotatividade: d.rotatividade, lugar: lugarDe(d), rotulos,
-      serie: familia === "tendencia" && d.visao === "series" ? intervaloDaSerie(d, periodos) : undefined, referenciaPorItem: porItem,
-      referencia: !ref || referenciaElegivel(ref) ? null : (r?.referencia?.membros.map(m => m.rotulo).join(" e ") ||
-        ref.membros.map(id => nomes.get(id) || id).join(" e ")) });
-  }, [tipo, lugarDe, rotulos, nomes, periodos]);
+      competencia: d.competencia, janela: d.janela, rotatividade: d.rotatividade, lugar, rotulos,
+      serie: familia === "tendencia" && d.visao === "series" ? intervaloDaSerie(d, periodos) : undefined });
+  }, [tipo, lugarDe, rotulos, nomes, periodos, grupos]);
 
   // Histórico: a restauração roda antes do pedido ao motor, para a resposta guardada entrar no cache antes; assim, reabrir
   // uma análise igual ao estado inicial (os estados) não pede de novo. A vista e a cor do mapa voltam como foram guardadas (um
@@ -410,7 +412,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
     setVistaEscolhida(lido.visual.vista ?? "grafico");
     setDef(lido.definicao);
-    setAba(semSelecao(lido.definicao) ? "territorios" : lido.definicao.familia);
+    setAba(semTerritorios(lido.definicao) ? "territorios" : lido.definicao.familia);
     if (lido.resposta && lido.opcoes) {
       cache.current.set(lido.chave, lido.resposta);
       setResposta(lido.resposta);
@@ -423,7 +425,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!fonteMotor || !opcoes) {
       setCarregando(false);
       // Sem territórios escolhidos, nada da seleção anterior fica à vista (nem gráfico, nem mapa, nem frase-resumo).
-      if (fonteMotor && pronto && semSelecao(def)) { setResposta(null); setCalculado(null); setErro(null); }
+      if (fonteMotor && pronto && semTerritorios(def)) { setResposta(null); setCalculado(null); setErro(null); }
       return;
     }
     if (calculado?.chave === chave) { setCarregando(false); setErro(null); return; }
@@ -445,7 +447,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           setCalculado({ chave, def: pedidoDef, familia: pedidoFamilia, opcoes: pedidoOpcoes });
           // Histórico: cada cálculo guarda o estado, que reabre sem recalcular.
           const visual = visualRef.current;
-          salvarRef.current(salvarEstado(tituloDe(pedidoDef, pedidoFamilia, corpo).titulo, { chave, familia: pedidoFamilia, opcoes: pedidoOpcoes,
+          salvarRef.current(salvarEstado(tituloDe(pedidoDef, pedidoFamilia).titulo, { chave, familia: pedidoFamilia, opcoes: pedidoOpcoes,
             definicao: pedidoDef, visual: { escala: visual.escala, corte: null, selecionados: visual.selecionados, vista: visual.vista,
               corContinua: visual.corContinua } }, corpo));
         })
@@ -532,8 +534,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const indicadorNoPedido = !!calculado && pedidoDependeDoIndicador(calculado.opcoes);
   const indicador = indicadorNoPedido ? defDesenho.indicador : def.indicador;
   const distanciaNaTela = familiaDesenho === "espacial" && !!resposta?.referencia;
-  const referenciaPorItem = distanciaNaTela && resposta?.referencia?.tipo === "elegiveis";
-  const relacaoNaTela = referenciaPorItem ? resposta?.referencia?.relacao ?? null : null;
+  // Escolha dos territórios (27/10/2026): a referência é a mais próxima de cada item. O resultado à vista é o da consulta calculada
+  // quando não há cálculo em curso nem erro (a janela diz "Resultado em dia com a consulta.").
+  const referenciaPorItem = distanciaNaTela && resposta?.referencia?.tipo === "consulta";
+  const consultaNaTela = referenciaPorItem && !carregando && !erro && mesmaConsulta(calculado?.def.consulta, def.consulta);
   const serieNaTela = familiaDesenho === "tendencia" && !!resposta?.serie;
   const tendenciaNaTela = familiaDesenho === "tendencia" && !!resposta?.competencia_inicial && !serieNaTela;
   // A visão entre a Tendência e a Trajetória é só estado visual: segue a escolha atual, desde que o motor tenha devolvido a tendência
@@ -581,13 +585,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     [indicador, corte, soAtende, filtroClasse, exibicao.condicoes, exibicao.tendencia]);
   const visiveis = useMemo(() => plotaveis.filter(item => dentroDosFiltros(item, filtrosVisuais)), [plotaveis, filtrosVisuais]);
   const selecao = useMemo(() => selecionados.filter(id => (resposta?.itens || []).some(item => item.id === id)), [selecionados, resposta]);
-  // Territórios base da Análise Espacial (25/10/2026, pedido do responsável; cumulativos desde a terceira rodada do dia): todos os
-  // selecionados (o padrão) ou alguns, escolhidos no painel do Território de referência; cada um aparece ligado ao seu território
-  // de referência no gráfico (a referência como bolha de contexto, no 0 km) e no mapa. Só estado visual: o pedido ao motor é o
-  // mesmo; a base que sai da análise deixa de valer. Clicar numa bolha continua só marcando.
+  // Base e referência da Análise Espacial (25/10/2026, pedido do responsável): cada território da base aparece ligado à referência
+  // mais próxima dele no gráfico (a referência como bolha de contexto, no 0 km) e no mapa. Desde a Escolha dos territórios
+  // (27/10/2026), a base é a da consulta, calculada pelo motor: toda unidade da resposta é da base. Clicar numa bolha continua só
+  // marcando.
   const basesDaReferencia = useMemo(() => resposta ? basesPossiveis(resposta.itens) : [], [resposta]);
-  const todasAsBases = !def.territoriosBase;
-  const idsDasBases = useMemo(() => basesEmUso(def.territoriosBase, basesDaReferencia), [def.territoriosBase, basesDaReferencia]);
+  const idsDasBases = useMemo(() => basesDaReferencia.map(base => base.id), [basesDaReferencia]);
   const pares = useMemo(() => distanciaNaTela && resposta ? paresDasBases(resposta, idsDasBases) : [], [distanciaNaTela, resposta, idsDasBases]);
   // As ligações do gráfico: das bases à vista (dentro da régua e dos filtros), as marcadas primeiro, até MAX_LIGACOES.
   const paresLigados = useMemo(() => {
@@ -595,15 +598,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return pares.filter(par => par.referencias.length > 0 && aVista.has(par.base.id))
       .sort((a, b) => Number(marcadas.has(b.base.id)) - Number(marcadas.has(a.base.id))).slice(0, MAX_LIGACOES);
   }, [pares, visiveis, selecao]);
-  // Destaque da análise (26/10/2026): com a comparação em exibição, só os comparados ficam inteiros no gráfico de bolhas; na
-  // análise espacial com territórios base escolhidos um a um, as bases e as referências delas. As demais bolhas esmaecem.
-  const destaque = useMemo(() => destaqueDaAnalise(def.comparar, todasAsBases ? [] : pares,
-    new Set((resposta?.itens || []).map(item => item.id))), [def.comparar, todasAsBases, pares, resposta]);
-  function escolherBases(ids: string[] | null, rotulo: string) {
-    const nova = ids === null ? null : normalizarBases(ids, basesDaReferencia);
-    if (JSON.stringify(nova) === JSON.stringify(def.territoriosBase ?? null)) return;
-    ajustar(rotulo, { territoriosBase: nova });
-  }
+  // Destaque da análise (26/10/2026): com a comparação em exibição, só os comparados ficam inteiros no gráfico de bolhas. As demais
+  // bolhas esmaecem.
+  const destaque = useMemo(() => destaqueDaAnalise(def.comparar, new Set((resposta?.itens || []).map(item => item.id))),
+    [def.comparar, resposta]);
   const limiteVariacao = useMemo(() => resposta ? limiteDaVariacao(resposta, indicador, plotaveis) : 0, [resposta, indicador, plotaveis]);
   const totalGrupos = resposta?.grupos ? ({ quartis: 4, quintis: 5, decis: 10 } as Record<string, number>)[resposta.grupos.tipo] ?? resposta.grupos.contagens.length : 0;
   const totalFaixas = resposta?.faixas ? Math.max(resposta.faixas.rotulos.length, resposta.faixas.contagens.length) : 0;
@@ -615,7 +613,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const limiares = useMemo(() => corte ? [corte.minimo, corte.maximo] : [], [corte]);
   const dominio = resposta?.dominios[indicador] ?? null;
   const idsNaTela = useMemo(() => visiveis.map(item => item.id), [visiveis]);
-  const { titulo, subtitulo } = tituloDe(def, familiaPedida, resposta);
+  const { titulo, subtitulo } = tituloDe(def, familiaPedida);
   // Frase-resumo do motor, abaixo do subtítulo. Ela fala do indicador do cálculo (o da resposta; numa resposta de antes, o do
   // pedido): se a troca do indicador não pediu nada novo ao motor, a frase sai até voltar o indicador do cálculo ou chegar um
   // cálculo novo, para nunca descrever o outro indicador.
@@ -687,10 +685,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // Ao abrir a Análise de Tendência (24/10/2026): o gráfico como apresentação (o mapa continua como alternativa) e o período anual,
     // que o efeito do período padrão aplica quando a janela está vazia.
     if (familia === "tendencia" && aba !== "tendencia") { setVistaEscolhida("grafico"); setMotivoVistaAberto(false); }
-    // O território de referência é pedido depois da seleção: sem territórios, a aba mostra a apresentação e os ajustes.
-    const comSelecao = def.nivel === "municipios" && !semSelecao(def);
-    if (familia === "espacial" && !def.referencia && comSelecao) abrirPainel("referencia");
-    else if (painel === "referencia") setPainel(null);
+    // A Escolha dos territórios abre ao entrar na Análise Espacial sem consulta calculada (27/10/2026): a base pode partir do país,
+    // de regiões ou de estados, sem depender da Seleção de Territórios.
+    if (familia === "espacial" && !def.consulta && def.nivel === "municipios") abrirPainel("referencia");
+    else if (painel === "referencia" && familia !== "espacial") setPainel(null);
     if (disponivel.pendente) setAviso(NOMES_FAMILIAS[familia] + ": " + disponivel.motivo);
   }
   function teclasAbas(event: KeyboardEvent<HTMLButtonElement>, indice: number) {
@@ -700,9 +698,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     event.preventDefault();
     document.getElementById(idDaAba(ABAS[proxima]))?.focus();
   }
-  /** Com as unidades à vista, a análise espacial que esperava por elas pede o território de referência. */
+  /** Com as unidades à vista, a análise espacial que esperava por elas pede a Escolha dos territórios. */
   function pedirOQueFalta() {
-    if (def.familia === "espacial" && !def.referencia && disponivelDe("espacial").disponivel) abrirPainel("referencia");
+    if (def.familia === "espacial" && !def.consulta && disponivelDe("espacial").disponivel) abrirPainel("referencia");
   }
   /** Mudança feita na Seleção de Territórios: o nível em análise e a escolha de cada nível. Cada uma é um passo do Desfazer; a
    * coletiva (muitos de uma vez) também aparece por escrito junto do que está marcado. */
@@ -806,9 +804,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     mudarConjuntos(def.conjuntos.filter(item => item.id !== id), "Desfazer o conjunto " + (conjunto?.rotulo ?? id));
     setSelecionados(atual => atual.filter(item => item !== id));
   }
-  function aplicarReferencia(referencia: ReferenciaElegivel) {
-    ajustar("Aplicar o território de referência", { referencia, familia: "espacial" });
-    setAviso("Território de referência aplicado: o eixo horizontal passa a ser a distância até a referência de cada " + rotulos.unidade.singular + ".");
+  /** "Calcular" da Escolha dos territórios: a consulta vai à análise (um passo do Desfazer); o motor calcula a base, a referência e
+   * a distância de cada território da base até a referência mais próxima. */
+  function calcularConsulta(consulta: ConsultaTerritorios) {
+    // A base pode mudar com a consulta: a comparação de antes sai (o motor recusa itens fora do gráfico).
+    ajustar("Calcular a escolha dos territórios", { consulta, familia: "espacial", nivel: "municipios", comparar: [] });
+    setAviso("Escolha dos territórios calculada: o eixo horizontal é a distância até a referência mais próxima de cada " + rotulos.unidade.singular + ".");
   }
   function mudarCompetencia(valor: string) { ajustar("Trocar a competência para " + exibirCompetencia(valor), { competencia: valor }); setCorte(null); }
   function reproduzir() {
@@ -828,7 +829,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   /** O Histórico guarda a vista e a cor do mapa escolhidas depois do cálculo (a mesma análise, sem novo pedido). */
   function guardarVisual(parte: { vista?: VistaDesenho }) {
     if (!calculado || !resposta) return;
-    salvarRef.current(salvarEstado(tituloDe(calculado.def, calculado.familia, resposta).titulo, { chave: calculado.chave, familia: calculado.familia,
+    salvarRef.current(salvarEstado(tituloDe(calculado.def, calculado.familia).titulo, { chave: calculado.chave, familia: calculado.familia,
       opcoes: calculado.opcoes, definicao: calculado.def, visual: { escala, corte: null, selecionados, vista: vistaEscolhida, corContinua, ...parte } }, resposta));
   }
   /** Troca a vista do desenho (estado visual: nada é pedido ao motor). Entre o gráfico e o mapa, sem movimento reduzido e com até
@@ -930,30 +931,37 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // ------------------------------------------------------------------------------------------ partes da tela
   const unidade = rotulos.unidade;
-  const semUnidades = semSelecao(def);
+  const semUnidades = semTerritorios(def);
   const estadoTela = !fonte ? "E0" : def.nivel === "estados" || semUnidades ? "E1"
     : painel ? "E4" : def.familia !== "distribuicao" ? "E3" : "E2";
   const totalDeUnidades = niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length;
   const avisoFamilia = pronto ? avisoDaFamilia(def, dispAtual) : null;
-  // Território de referência sem resultado (24/10/2026): nenhum dos territórios em análise ficou com referência (ninguém da base
-  // atende à condição; ou os que atendem ficam fora da delimitação de cada um, só o próprio território atende ou falta a
-  // coordenada de um território). A mensagem diz o que aconteceu, com a condição e as contagens do motor, e o que fazer; o motivo
-  // de cada um, que só o motor sabe, fica em Não avaliáveis.
-  const referenciaDaTela = referenciaPorItem && resposta?.referencia?.tipo === "elegiveis" ? resposta.referencia : null;
+  // Escolha dos territórios sem referência (27/10/2026): nenhum território da base ficou com referência mais próxima (ninguém pode
+  // ser referência; ou o recorte de cada um não tem outra referência; ou falta a coordenada de uma referência). A mensagem diz o
+  // que aconteceu, com as contagens do motor, e o que fazer; o motivo de cada um, que só o motor sabe, fica em Não avaliáveis.
+  const referenciaDaTela = referenciaPorItem && resposta?.referencia?.tipo === "consulta" ? resposta.referencia : null;
   const unidadesComReferencia = referenciaDaTela ? (resposta?.itens || []).filter(item => item.tipo === "municipio") : [];
   const fUnidade = generoDe(unidade) === "f", cadaUm = fUnidade ? "cada uma" : "cada um";
   const semReferencia = referenciaDaTela && unidadesComReferencia.length && unidadesComReferencia.every(item => !item.referenciaDoItem?.length)
-    ? (referenciaDaTela.elegiveis?.atende === 0
-      ? (fUnidade ? "Nenhuma " : "Nenhum ") + unidade.singular + " da base atende à condição " + (referenciaDaTela.condicao?.texto ?? "") +
-        ": não há território de referência. Mude o atributo, o operador ou o valor de corte."
-      : (fUnidade ? "Nenhuma d" : "Nenhum d") + artigo(unidade, true) + " " + unidade.plural + " em análise ficou com território de " +
-        "referência nesta definição: quem atende à condição pode estar fora da delimitação de " + cadaUm + ", só " + artigo(unidade, false) +
-        " própri" + (fUnidade ? "a " : "o ") + unidade.singular + " pode atender, ou falta a coordenada de um território. O motivo de " +
-        cadaUm + " está em Não avaliáveis, nos Detalhes.")
+    ? (referenciaDaTela.contagens?.referencia.final === 0
+      ? (fUnidade ? "Nenhuma " : "Nenhum ") + unidade.singular + " pode ser referência com esta escolha dos territórios: não há referência. " +
+        "Mude a aba Referência."
+      : (fUnidade ? "Nenhuma d" : "Nenhum d") + artigo(unidade, true) + " " + unidade.plural + " da base ficou com referência: o recorte de " +
+        cadaUm + " não tem outra referência, ou falta a coordenada de uma referência. O motivo de " + cadaUm + " está em Não avaliáveis, " +
+        "nos Detalhes.")
     : null;
-  // Fora do gráfico (25/10/2026): quem não tem o valor que o posiciona (o indicador; na análise espacial, a distância até o
-  // território de referência; na rotatividade, a coorte) fica dito junto do desenho, pelo nome, com o caminho do motivo, e o mapa
-  // mostra essas unidades no lugar delas. Sem nenhum território de referência, vale o aviso acima; na Série temporal (que desenha as
+  // Com o filtro de distância, quem ficou fora da base porque a distância não é avaliável (sem referência no recorte, sem coordenada
+  // válida) aparece pelo nome, com o motivo do motor: nunca some em silêncio (27/10/2026; a regra trivalente de CAP-SUB-01).
+  const foraPorDistancia = referenciaDaTela?.semReferencia ?? [];
+  const totalForaPorDistancia = referenciaDaTela?.contagens?.base.semReferencia ?? foraPorDistancia.length;
+  const textoForaPorDistancia = totalForaPorDistancia ? (totalForaPorDistancia === 1 ? "1 " + unidade.singular + " ficou" : formatarNumero(totalForaPorDistancia, true) +
+    " " + unidade.plural + " ficaram") + " fora da base porque o filtro de distância não é avaliável para " + (totalForaPorDistancia === 1
+      ? (fUnidade ? "ela" : "ele") : (fUnidade ? "elas" : "eles")) + ": " + foraPorDistancia.slice(0, 5).map(item => item.rotulo + " (" +
+      (/^Sem referência no recorte/.test(item.motivo) ? "sem referência no recorte" : "distância não avaliável") + ")").join("; ") +
+    (totalForaPorDistancia > 5 ? "; e mais " + formatarNumero(totalForaPorDistancia - 5, true) : "") + "." : null;
+  // Fora do gráfico (25/10/2026): quem não tem o valor que o posiciona (o indicador; na análise espacial, a distância até a
+  // referência mais próxima; na rotatividade, a coorte) fica dito junto do desenho, pelo nome, com o caminho do motivo, e o mapa
+  // mostra essas unidades no lugar delas. Sem nenhuma referência, vale o aviso acima; na Série temporal (que desenha as
   // séries) e com só o mapa à vista, não se aplica.
   const foraDoGrafico = resposta && !semUnidades && !semReferencia && !series && vistaExibida !== "mapa"
     ? textoForaDoDesenho(fora, { rotulos, mapa: mapa.disponivel }) : null;
@@ -981,10 +989,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const cortes: LinhaDeReferencia[] = camadaFinal === "grupos" && resposta?.grupos ? resposta.grupos.cortes.map(valor => ({ valor, rotulo: textoDaMarca(valor) }))
     : camadaFinal === "faixas" ? defDesenho.agrupar.faixas.map(valor => ({ valor, rotulo: textoDaMarca(valor) })) : [];
   const faixasDistancia: LinhaDeReferencia[] = distanciaNaTela ? defDesenho.faixasDistancia.map(valor => ({ valor, rotulo: textoDaMarca(valor) + " km" })) : [];
-  const referenciaDesenhada = defDesenho.referencia;
-  const rotuloDistancia = referenciaPorItem ? "Distância até o território de referência (km)"
-    : referenciaDesenhada && !referenciaElegivel(referenciaDesenhada) && referenciaDesenhada.membros.length > 1
-      ? "Distância até o membro mais próximo da referência (km)" : "Distância até a referência (km)";
+  const rotuloDistancia = referenciaPorItem ? "Distância até a referência mais próxima (km)"
+    : (resposta?.referencia?.membros.length ?? 0) > 1 ? "Distância até o membro mais próximo da referência (km)" : "Distância até a referência (km)";
   /** Texto antes do nome no rótulo direto: a posição do motor na ordenação (até os 12 primeiros), no gráfico e no mapa. */
   const extraDoRotulo = camadaFinal === "ordem" ? (item: PainelItem) => item.ordem?.posicao !== null && item.ordem && (primeiros === null ||
     item.ordem.posicao <= primeiros) && (primeiros ?? 99) <= 12 ? item.ordem.posicao + "º" : null : undefined;
@@ -1088,7 +1094,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }, [series, resposta, selecao]);
 
   // Mapa (MapaProps do contrato): todas as unidades em análise, sem os estados, também as que o gráfico deixa de fora por falta do
-  // valor que as posiciona (25/10/2026: sem território de referência, sem o indicador ou sem a coorte, cada uma no lugar dela, com a
+  // valor que as posiciona (25/10/2026: sem distância até a referência, sem o indicador ou sem a coorte, cada uma no lugar dela, com a
   // pintura da camada ou vazada); a régua e os filtros esmaecem (decisão de 23/10).
   const itensDoMapa = useMemo(() => resposta ? itensParaOMapa(resposta.itens) : [], [resposta]);
   const dentroDoMapa = useMemo(() => new Set(itensDoMapa.filter(item => dentroDosFiltros(item, filtrosVisuais)).map(item => item.id)),
@@ -1116,17 +1122,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       </li>;
     })}
   </ul> : null;
-  // As ligações do mapa, até MAX_LIGACOES: primeiro as dos territórios base escolhidos um a um, depois as das unidades marcadas e,
-  // com todos os selecionados como base, as dos demais, na ordem dos nomes. As bases escolhidas ganham o anel, como as marcadas.
-  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens,
-    [...new Set([...(todasAsBases ? [] : idsDasBases), ...selecao, ...(todasAsBases ? idsDasBases : [])])]) : [],
-  [distanciaNaTela, resposta, selecao, idsDasBases, todasAsBases]);
-  const selecaoDoMapa = useMemo(() => todasAsBases || !pares.length ? selecao : [...new Set([...selecao, ...pares.map(par => par.base.id)])],
-    [todasAsBases, pares, selecao]);
+  // As ligações do mapa, até MAX_LIGACOES: primeiro as das unidades marcadas, depois as dos demais territórios da base, na ordem dos
+  // nomes.
+  const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, [...new Set([...selecao, ...idsDasBases])]) : [],
+  [distanciaNaTela, resposta, selecao, idsDasBases]);
+  const selecaoDoMapa = selecao;
   const nomesDasReferencias = useMemo(() => new Map((resposta?.referencia?.membros ?? []).map(membro => [membro.id, membro.rotulo] as [string, string])),
     [resposta]);
-  // A mira do mapa: os membros da referência; por elegibilidade, os territórios de referência (todos, até MAX_LIGACOES; com mais,
-  // os dos itens marcados, os mesmos das ligações).
+  // A mira do mapa: os membros da referência; com a Escolha dos territórios, as referências mais próximas (todas, até MAX_LIGACOES;
+  // com mais, as das ligações).
   const referenciasDoMapa = useMemo(() => {
     if (!distanciaNaTela) return [];
     const membros = (resposta?.referencia?.membros ?? []).map(membro => membro.id).filter(Boolean);
@@ -1135,8 +1139,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }, [distanciaNaTela, referenciaPorItem, resposta, ligacoes]);
   const dicaDe = useCallback((item: PainelItem) => montarDica(item, { indicador, competencia: resposta?.competencia ?? "",
     competenciaInicial: resposta?.competencia_inicial || null, distancia: distanciaNaTela, variacao: dicaComVariacao && !!resposta?.competencia_inicial,
-    tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo, relacao: relacaoNaTela, trajetoria: cometa }),
-  [indicador, resposta, distanciaNaTela, dicaComVariacao, nomes, limiares, rotulos, unidadesDoGrupo, relacaoNaTela, cometa]);
+    tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo, porItem: referenciaPorItem, trajetoria: cometa }),
+  [indicador, resposta, distanciaNaTela, dicaComVariacao, nomes, limiares, rotulos, unidadesDoGrupo, referenciaPorItem, cometa]);
   // A escala muda só o desenho ("como ver"): fica na barra junto da vista, só quando se aplica (no gráfico, fora da rotatividade
   // e da Série temporal). Linear por padrão; a logarítmica só por escolha e com valores positivos. O mapa não tem escala própria:
   // a cor contínua da rotatividade vai de 0 a 100%.
@@ -1212,7 +1216,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       legenda={layoutTendencia ? undefined : legendaCor} onAlternar={alternar} ativoExterno={lado ? ativoCruzado : null} onAtivo={lado ? setAtivoCruzado : undefined}/>;
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
-      cometa={cometa} trajetoria={cometa} relacao={relacaoNaTela} pares={paresLigados} basesEscolhidas={!todasAsBases} destaque={destaque} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
+      cometa={cometa} trajetoria={cometa} porItem={referenciaPorItem} pares={paresLigados} destaque={destaque} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}
@@ -1253,11 +1257,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       case "regua": return resposta ? <PainelRuler indicador={indicador} dominio={dominio} escala={escala} corte={corte}
         onCorte={novo => { registrar("Ajustar a régua", "continuo:regua"); setCorte(novo); }}
         plural={naVisaoDeGrupos ? rotulos.grupo?.plural ?? "grupos" : unidade.plural}/> : null;
-      case "referencia": return <GavetaReferencia pedida={def.referencia} ativa={distanciaNaTela ? resposta?.referencia ?? null : null} nomes={nomes}
-        rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} temPopulacao={temPopulacao} faixas={def.faixasDistancia}
-        criterioInicial={criterioDoChat} onAplicar={aplicarReferencia} bases={basesDaReferencia} territoriosBase={def.territoriosBase ?? null} onBases={escolherBases}
-        onRemover={() => { ajustar("Remover a referência", { referencia: null, faixasDistancia: [] }); setAviso("Referência removida: volta o eixo único."); }}
-        onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}/>;
+      case "referencia": return <EscolhaDosTerritorios fonte={fonteMotor} aplicada={def.consulta}
+        inicial={consultaInicial({ comSelecao: def.nivel === "municipios" && !semSelecao(def) })}
+        pedido={{ competencia: def.competencia, categoria: def.categoria, base: { municipios: normalizarBase(def.base, grupoDe) },
+          ...(tipo === "arquivo" && Object.keys(def.premissas).length ? { premissas: def.premissas } : {}),
+          ...(tipo === "arquivo" && fonte?.rotulos ? { rotulos: fonte.rotulos } : {}) }}
+        contexto={"Categoria profissional: " + maiuscula(profissionaisDe(def.categoria)) + " · Competência: " + competenciaPorExtenso(def.competencia)}
+        rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} temPopulacao={temPopulacao} nomes={nomes}
+        emDia={consultaNaTela} calculando={carregando && def.familia === "espacial"} criterio={criterioDoChat}
+        faixas={def.faixasDistancia} onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}
+        onCalcular={calcularConsulta}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
         soAtende={soAtende} onSoAtende={valor => { registrar(valor ? "Mostrar só quem atende" : "Mostrar todos"); setSoAtende(valor); }}
         onAplicar={condicoes => ajustar(condicoes.length ? "Aplicar as condições" : "Limpar as condições", { condicoes })}/>;
@@ -1323,20 +1332,15 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         </div>}
       </div>;
       case "referencia": {
-        // O território de referência (24/10/2026): o que está em uso, em palavras, e o botão que abre o fluxo.
-        const pedida = def.referencia;
-        const resumoRef = !pedida ? "nenhum ainda" : referenciaElegivel(pedida)
-          ? NOMES_RELACOES[pedida.relacao] + " · " + (resposta?.referencia?.tipo === "elegiveis" && resposta.referencia.delimitacao?.texto
-            ? resposta.referencia.delimitacao.texto + " · " + (resposta.referencia.condicao?.texto ?? "") : "definido")
-          : resposta?.referencia?.membros.map(m => m.rotulo).join(", ") || pedida.membros.map(id => nomes.get(id) || id).join(", ");
-        const resumoBase = distanciaNaTela && basesDaReferencia.length ? resumoDosTerritoriosBase(idsDasBases, todasAsBases,
-          id => basesDaReferencia.find(base => base.id === id)?.rotulo ?? id) : "";
+        // A Escolha dos territórios (27/10/2026): a frase-resumo da consulta calculada e o botão que abre a janela.
+        const frase = def.consulta ? textoDaFraseDaConsulta(fraseDaConsulta(def.consulta, { rotulos, brasil: tipo === "brasil", grupos, nomes }))
+          : "nenhuma ainda";
         return <div key={qual} data-ajuste={qual} className="flex flex-wrap items-end gap-1.5">
-          <span className="analise-rotulo-campo">Território de referência
-            <span data-testid="analise-referencia-resumo" className="analise-resumo">{resumoRef}{resumoBase}</span>
+          <span className="analise-rotulo-campo">Territórios
+            <span data-testid="analise-referencia-resumo" className="analise-resumo">{frase}</span>
           </span>
           <button type="button" data-testid="analise-referencia-escolher" className="analise-botao-secundario" onClick={() => abrirPainel("referencia")}>
-            {pedida ? "Mudar" : "Definir o território de referência"}</button>
+            Escolha dos territórios</button>
         </div>;
       }
       case "janela": {
@@ -1553,7 +1557,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     </header>
 
     <div ref={corpoRef} className={"analise-corpo" + (layoutTendencia ? " analise-corpo-tendencia" : painel ? " analise-corpo-com-painel" : "") +
-      (lado ? " analise-corpo-lado" : "")} style={layoutTendencia ? { "--analise-largura-lateral": larguraLateral + "px" } as CSSProperties : undefined}>
+      (painel === "referencia" ? " analise-corpo-territorios" : "") + (lado ? " analise-corpo-lado" : "")} style={layoutTendencia ? { "--analise-largura-lateral": larguraLateral + "px" } as CSSProperties : undefined}>
       <div id="analise-centro" className="analise-centro">
         <div className="analise-funcoes analise-nao-imprimir">
           <div className="analise-funcoes-linha">
@@ -1626,18 +1630,18 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {semReferencia && !semUnidades && <p data-testid="analise-ref-sem-resultado" role="status" className="analise-aviso-familia">
             <SlidersHorizontal size={14} aria-hidden="true"/><span>{semReferencia}{" "}
               <button type="button" data-testid="analise-ref-sem-resultado-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
-                Mudar o território de referência</button></span></p>}
+                Mudar a escolha dos territórios</button></span></p>}
+          {textoForaPorDistancia && distanciaNaTela && <p data-testid="analise-sem-referencia-no-recorte" role="status" className="analise-aviso-familia">
+            <Crosshair size={14} aria-hidden="true"/><span>{textoForaPorDistancia}</span></p>}
           {foraDoGrafico && <p data-testid="analise-fora-do-grafico" role="status" className="analise-aviso-familia">
             <ChartScatter size={14} aria-hidden="true"/><span>{foraDoGrafico}</span></p>}
-          {/* Territórios base (25/10/2026): cada base, a referência dela e a distância do motor, à vista no gráfico e no mapa. */}
-          {/* Sem nenhuma referência entre várias bases, o aviso acima já diz o motivo. */}
+          {/* Base e referência (25/10/2026): cada território da base, a referência mais próxima dele e a distância do motor, à vista no
+              gráfico e no mapa. Sem nenhuma referência entre vários, o aviso acima já diz o motivo. */}
           {distanciaNaTela && basesDaReferencia.length > 0 && !semUnidades && (pares.length < 2 || pares.some(par => par.referencias.length > 0)) &&
             <p data-testid="analise-par-base" role="status" className="analise-aviso-familia">
-            <Crosshair size={14} aria-hidden="true"/><span>{textoDosTerritoriosBase({ pares, todos: todasAsBases, ligados: paresLigados.length,
-              relacao: relacaoNaTela })}{" "}
+            <Crosshair size={14} aria-hidden="true"/><span>{textoDosTerritoriosBase({ pares, ligados: paresLigados.length })}{" "}
               <button type="button" data-testid="analise-par-base-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
-                {!pares.length ? "Escolher os territórios base" : pares.length === 1 && !todasAsBases ? "Mudar o território base"
-                  : "Mudar os territórios base"}</button></span></p>}
+                Mudar a escolha dos territórios</button></span></p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">
             <Scale size={14} aria-hidden="true"/>{textoInstrucaoGrupos(rotulos)}</p>}
           {/* Convite ao mapa depois das Condições e na Análise espacial: "onde ficam?" é a pergunta que o mapa responde. */}
