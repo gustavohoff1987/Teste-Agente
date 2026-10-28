@@ -116,6 +116,9 @@ export type PainelItem = {
   tipo: "municipio" | "estado" | "conjunto" | "brasil";
   rotulo: string;
   uf: string | null;
+  /** O grupo da unidade, como o motor devolve (`grupo_territorial`): na base do Brasil, o prefixo da UF; numa planilha, o valor da
+   * coluna-mãe ("Alto Vésper"). Vai na coluna do grupo do CSV (28/10/2026). */
+  grupoTerritorial?: string | null;
   /** Conjunto: identificadores das unidades agregadas, na ordem do pedido. */
   membros?: string[];
   populacao: number | null;
@@ -399,7 +402,7 @@ function itemDe(bruto: unknown): PainelItem | null {
   const avaliavel = objeto(o.avaliavel);
   const ordem = objeto(o.ordem);
   return {
-    id, tipo, rotulo: texto(o.rotulo) ?? id, uf: texto(o.uf),
+    id, tipo, rotulo: texto(o.rotulo) ?? id, uf: texto(o.uf), grupoTerritorial: texto(o.grupo_territorial),
     membros: Array.isArray(o.membros) ? o.membros.filter((m): m is string => typeof m === "string") : undefined,
     populacao: num(o.populacao), quantidade: num(o.quantidade), densidade: num(o.densidade),
     contagem: texto(o.contagem) ?? undefined,

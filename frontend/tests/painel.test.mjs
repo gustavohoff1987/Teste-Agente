@@ -514,7 +514,7 @@ test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2
   assert.deepEqual(lugar('municipios', base(['BA']), DISTRITOS, false, [{id: 'BA', nome: 'Buenos Aires', sigla: '', rotuloGrupo: '', unidades: 12}], () => 'BA'),
     {lugar: 'nos distritos de Buenos Aires', curto: 'Buenos Aires'});
   assert.deepEqual(lugar('municipios', base([], [], true), {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: null}, false),
-    {lugar: 'nas comunas da planilha', curto: 'Planilha'});
+    {lugar: 'nas comunas da planilha', curto: 'Toda a planilha'});
 });
 
 test('seleção cumulativa entre estados (24/10/2026): marcar na Bahia e depois em Santa Catarina mantém os dois', () => {
@@ -602,7 +602,7 @@ test('título dinâmico: diz o indicador, onde e quando; o subtítulo explica a 
     'Rotatividade e permanência da coorte inicial · Amazonas · junho de 2023 a junho de 2024');
   assert.equal(t({fonte: null}).titulo, 'Diagnóstico Territorial da Força de Trabalho na Saúde');
   assert.deepEqual(t({fonte: 'arquivo', categoria: 'ENFERMAGEM', competencia: '2024', rotulos: DISTRITOS,
-    lugar: {lugar: 'nos distritos da planilha', curto: 'Planilha'}}),
+    lugar: {lugar: 'nos distritos da planilha', curto: 'Toda a planilha'}}),
     {titulo: 'Densidade de profissionais de enfermagem nos distritos da planilha · 2024', subtitulo: 'Cada bolha é um distrito. O tamanho mostra a população.'});
   assert.equal(M.profissionaisDe('MEDICINA'), 'médicos');
 });

@@ -342,7 +342,7 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
   /** Nomes das unidades ("PORTO ALEGRE (RS)"): com uma ou duas marcadas, o título diz quais (24/10/2026). */
   nomes?: Map<string, string> }): Lugar {
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  const origem = c.brasil ? "Brasil" : "Planilha";
+  const origem = c.brasil ? "Brasil" : "Toda a planilha";
   if (c.nivel === "brasil") return { lugar: "no Brasil", curto: "Brasil" };
   if (c.nivel === "estados") {
     const escolhidos = c.estados ?? c.grupos.map(item => item.id);
@@ -1895,7 +1895,7 @@ export function lugarDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFras
   let curto: string;
   if (escolha.modo === "marcados") curto = escolha.municipios.length <= 2 ? emLista(escolha.municipios.map(id => c.nomes.get(id) || id))
     : quantos(escolha.municipios.length, c.rotulos.unidade);
-  else if (partir.tipo === "pais") curto = c.brasil ? "Brasil" : "Planilha";
+  else if (partir.tipo === "pais") curto = c.brasil ? "Brasil" : "Toda a planilha";
   else if (partir.tipo === "selecao_previa") curto = c.selecao.curto;
   else if (partir.tipo === "regioes") curto = partir.regioes.length <= 2 ? emLista(partir.regioes) : partir.regioes.length + " regiões";
   else curto = partir.ufs.length <= 2 ? emLista(partir.ufs.map(id => c.grupos.find(item => item.id === id)?.nome || id)) : quantos(partir.ufs.length, grupo);
@@ -2336,9 +2336,13 @@ function celula(valor: unknown): string {
   return '"' + texto.replace(/"/g, '""') + '"';
 }
 /** CSV da análise: todos os itens do resultado, na ordem neutra, com os valores do motor em precisão integral, a
- * avaliabilidade e o motivo (CAP-REP-06). Separador ";" e BOM, como a exportação de sempre. */
-export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indicador: PainelIndicador; rotulos: RotulosTerritoriais }): string {
+ * avaliabilidade e o motivo (CAP-REP-06). Separador ";" e BOM, como a exportação de sempre. A coluna do grupo (28/10/2026): "UF"
+ * na base do Brasil; numa planilha, o nome do grupo dela ("Condado"), com o valor da coluna-mãe que o motor devolve
+ * (`grupo_territorial`), e nenhuma coluna sem grupo. */
+export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indicador: PainelIndicador; rotulos: RotulosTerritoriais;
+  brasil?: boolean }): string {
   const itens = [...resposta.itens].sort(ordemNeutra);
+  const brasil = c.brasil ?? c.rotulos.unidade.singular === "município";
   const distancia = itens.some(item => item.distancia_km !== null || item.avaliavel.distancia !== null);
   const variacao = !!resposta.competencia_inicial;
   const tendencia = itens.some(item => item.tendencia);
@@ -2347,7 +2351,9 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
   const tipoTexto = (tipo: PainelItem["tipo"]) => tipo === "conjunto" ? "conjunto" : tipo === "brasil" ? "país" : tipo === "estado"
     ? (c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular : c.rotulos.unidade.singular;
   const colunas: [string, (item: PainelItem) => unknown][] = [
-    ["Identificador", item => item.id], ["Tipo", item => tipoTexto(item.tipo)], ["Território", item => item.rotulo], ["UF", item => item.uf],
+    ["Identificador", item => item.id], ["Tipo", item => tipoTexto(item.tipo)], ["Território", item => item.rotulo],
+    ...(brasil ? [["UF", item => item.uf] as [string, (item: PainelItem) => unknown]]
+      : c.rotulos.grupo ? [[maiuscula(c.rotulos.grupo.singular), item => item.grupoTerritorial] as [string, (item: PainelItem) => unknown]] : []),
     ["Competência", () => resposta.competencia], ["Categoria", () => resposta.categoria],
     ["População", item => item.populacao], ["Quantidade", item => item.quantidade], ["Densidade por 1.000 habitantes", item => item.densidade],
     ["Tipo de contagem", item => item.tipo === "conjunto" ? textoDaContagem(item.contagem) : ""],
@@ -2392,9 +2398,10 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
   return "﻿" + linhas.join("\r\n");
 }
 /** Método e parâmetros em texto: o título, a frase-resumo do motor (a mesma da tela; sem ela, nada no lugar), o pedido
- * enviado ao motor, as notas, as limitações e a procedência. */
+ * enviado ao motor, as notas, as limitações e a procedência. Numa planilha (28/10/2026), uma linha antes dos parâmetros diz que
+ * as chaves deles são as do contrato da API ("municipios", "estados") e o que elas são nesta planilha. */
 export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: PainelOpcoes | null,
-  resumo: string | null = resposta.resumo?.texto ?? null): string {
+  resumo: string | null = resposta.resumo?.texto ?? null, c?: { rotulos: RotulosTerritoriais; brasil: boolean }): string {
   const linhas = [titulo, ...(resumo ? [resumo] : []), "", "Procedência", "- Competência: " + exibirCompetencia(resposta.competencia) +
     (resposta.competencia_inicial ? " (inicial: " + exibirCompetencia(resposta.competencia_inicial) + ")" : ""),
     "- Categoria: " + resposta.categoria, "- Versão da base: " + (resposta.versao_base || "não informada"),
@@ -2405,9 +2412,17 @@ export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: 
     " (" + resposta.serie.competencias.length + " competências)");
   linhas.push("", "Notas do método", ...resposta.notas.map(nota => "- " + nota));
   if (resposta.limitacoes.length) linhas.push("", "Limitações", ...resposta.limitacoes.map(codigo => "- " + textoDaLimitacao(codigo)));
-  if (opcoes) linhas.push("", "Parâmetros da análise", JSON.stringify(opcoes, null, 2));
+  if (opcoes) linhas.push("", "Parâmetros da análise", ...(c && !c.brasil ? [notaDasChaves(c.rotulos)] : []), JSON.stringify(opcoes, null, 2));
   linhas.push("", "Os valores do CSV estão em precisão integral; na tela, aparecem arredondados.");
   return linhas.join("\n");
+}
+
+/** As chaves dos parâmetros são as do contrato da API, iguais em toda fonte: numa planilha, "municipios" são as unidades dela e
+ * "estados", os grupos. */
+function notaDasChaves(rotulos: RotulosTerritoriais): string {
+  return "Os nomes das chaves abaixo são os do contrato da API, iguais em toda fonte: nesta planilha, “municipios” são " +
+    artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + (rotulos.grupo ? ", e “estados”, " + artigo(rotulos.grupo, true) + " " +
+    rotulos.grupo.plural : "") + ".";
 }
 
 // ================================================================================================ ajustes, vista do desenho e mapa
@@ -2574,9 +2589,10 @@ const parCurto = (par: ParDaBase) => !par.referencias.length ? par.base.rotulo +
     (par.distancia !== null ? ", " + formatarNumero(par.distancia) + " km" : "");
 /** A linha acima do desenho (`analise-par-base`): com um território na base, o par dele; com mais, quantos são e os primeiros pares
  * (base → referência mais próxima, distância do motor); quando o gráfico liga menos do que os pares com referência, quantas
- * ligações desenha. */
-export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; ligados: number }): string {
+ * ligações desenha. Concorda com o gênero da unidade (28/10/2026: "cada uma ligada" nas comunas de uma planilha). */
+export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; ligados: number; rotulos?: RotulosTerritoriais }): string {
   const { pares, ligados } = c;
+  const cadaUm = c.rotulos && fem(c.rotulos.unidade) ? "cada uma ligada" : "cada um ligado";
   if (!pares.length) return "Nenhum território na base: o gráfico e o mapa não mostram as ligações até a referência.";
   const comReferencia = pares.filter(par => par.referencias.length).length;
   const ligacoes = ligados >= comReferencia ? "" : !ligados ? " Nenhuma ligação à vista no gráfico: " + (comReferencia === 1
@@ -2584,7 +2600,7 @@ export function textoDosTerritoriosBase(c: { pares: ParDaBase[]; ligados: number
     : " O gráfico desenha " + ligados + " dessas ligações: no máximo " + MAX_LIGACOES + ", e só das bolhas à vista.";
   if (pares.length === 1) return textoDoParDaBase(pares[0]) + ligacoes;
   const resto = pares.length - PARES_NO_TEXTO;
-  return "Base: " + inteiro.format(pares.length) + " · cada um ligado à sua referência mais próxima por linha tracejada: " +
+  return "Base: " + inteiro.format(pares.length) + " · " + cadaUm + " à sua referência mais próxima por linha tracejada: " +
     pares.slice(0, PARES_NO_TEXTO).map(parCurto).join("; ") + (resto > 0 ? "; e mais " + inteiro.format(resto) + " (nas dicas e na tabela)" : "") +
     "." + ligacoes;
 }
@@ -2673,11 +2689,11 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Juntar. No mapa, os pontos aparecem em 5 grupos " +
       "iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
-    "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima dele" + (fem(unidade) ? "a" : "") +
+    "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
       ". Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas: de onde partir (" +
       (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "a planilha inteira, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
         grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros por densidade, população ou quantidade e a escolha de " +
-      "todos os que atendem ou só d" + (fem(unidade) ? "as marcadas" : "os marcados") + "." +
+      (fem(unidade) ? "todas as que atendem ou só das marcadas" : "todos os que atendem ou só dos marcados") + "." +
       (c.brasil || c.comGrupos ? " A referência também pode ser procurada n" + (c.brasil ? "o mesmo estado ou na mesma região" : (fem(grupo) ? "a mesma " : "o mesmo ") +
         grupo.singular) + " de cada " + unidade.singular + " da base." : "") + " " + maiuscula(artigo(unidade, false)) + " própri" +
       (fem(unidade) ? "a" : "o") + " " + unidade.singular + " nunca é a sua referência. O eixo horizontal mostra a distância, e o vertical, " +

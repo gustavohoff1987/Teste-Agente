@@ -318,6 +318,14 @@ export function contextoDaPlanilha(escolhas: EscolhasDaPlanilha): { mapping: Rec
   return { mapping, options };
 }
 
+/** Mapeamento da planilha para a conversa (28/10/2026): o do pré-exame com o papel `grupo_territorial`, que o backend da conversa
+ * tira antes do pré-exame e usa para reconhecer os grupos pelo nome ("mostre o condado …"). Sem ele, nenhum grupo da planilha era
+ * reconhecido na conversa. */
+export function mapeamentoDaConversa(escolhas: EscolhasDaPlanilha): Record<string, string> {
+  const { mapping } = contextoDaPlanilha(escolhas);
+  return escolhas.mapeamento.grupo_territorial ? { ...mapping, grupo_territorial: escolhas.mapeamento.grupo_territorial } : mapping;
+}
+
 /** Mapeamento da planilha para o motor do gráfico (`FonteDados.mapping`): todos os papéis escolhidos, com o grupo. */
 export function mapeamentoDaPlanilha(mapeamento: Mapeamento): Record<string, string> {
   const resultado: Record<string, string> = {};

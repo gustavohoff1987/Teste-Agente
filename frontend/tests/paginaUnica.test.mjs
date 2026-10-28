@@ -104,7 +104,7 @@ test('pendências: unidade territorial, período, quantidade e o que ela conta, 
   assert.deepEqual(P.pendenciasDasColunas(semNome), ['Diga como se chamam os grupos, no singular e no plural.']);
 });
 
-test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no motor do gráfico, no mapeamento', () => {
+test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no motor do gráfico e na conversa, também no mapeamento', () => {
   let escolhas = P.escolhasIniciais({territory: 'distrito', period: 'ano', count: 'quantidade', latitude: 'lat', longitude: 'lon'});
   escolhas = P.escolherColuna(escolhas, 'grupo_territorial', 'provincia');
   escolhas = {...escolhas, unidadeDeContagem: 'pessoas', referencial: 'SIRGAS2000'};
@@ -114,6 +114,10 @@ test('planilha no pré-exame e na conversa: o grupo vai em hierarchy_columns; no
     hierarchy_columns: {territorio_superior_1: 'provincia'}});
   assert.deepEqual(P.mapeamentoDaPlanilha(escolhas.mapeamento), {territory: 'distrito', grupo_territorial: 'provincia', period: 'ano',
     count: 'quantidade', latitude: 'lat', longitude: 'lon'});
+  // A conversa (28/10/2026) recebe o papel do grupo no mapeamento, que o backend tira antes do pré-exame e usa para reconhecer os
+  // grupos pelo nome ("mostre a província …"); sem grupo, o mapeamento é o do pré-exame.
+  assert.deepEqual(P.mapeamentoDaConversa(escolhas), {...mapping, grupo_territorial: 'provincia'});
+  assert.deepEqual(P.mapeamentoDaConversa(P.escolherColuna(escolhas, 'grupo_territorial', '')), mapping);
   assert.deepEqual(P.premissasDaPlanilha(escolhas), {count_unit: 'pessoas', crs: 'SIRGAS2000'});
   // Só SIRGAS 2000 e WGS 84 (aprovado em 22/10/2026) viram premissa, como informados, sem conversão; outro referencial, ou
   // nenhum, não vira premissa.

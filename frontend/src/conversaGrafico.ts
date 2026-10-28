@@ -274,11 +274,24 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
   if (!contexto || contexto.nivel === "estados")
     return grupos ? "Escolha no gráfico quais " + grupos + " abrir, ou me diga quais " + unidades + " quer ver."
       : "Escolha " + unidades + " no gráfico ou me diga quais quer ver.";
-  if (fonte.tipo !== "brasil")
+  // Numa planilha não há nível acima das unidades no gráfico (28/10/2026: "voltar ao nível de condados" prometia o que a conversa
+  // recusa): com grupos, a orientação oferece ver as unidades de um grupo, que a conversa faz ("mostre o condado …").
+  if (fonte.tipo !== "brasil") {
+    const grupo = rotulos?.grupo;
     return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
-      (grupos ? " ou voltar ao nível de " + grupos : "") + ".";
+      (grupo && grupos ? " ou mostrar " + (rotulos && feminino(rotulos.unidade) ? "as " : "os ") + unidades + " de " +
+        (feminino(grupo) ? "uma " : "um ") + grupo.singular : "") + ".";
+  }
   const [a, b, c] = exemplosDaAnalise(contexto, rotulos, variacao);
   return "Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “" + a + "”, “" + b + "” ou “" + c + "”.";
+}
+
+/** Gênero para a concordância simples (o mesmo critério de painelModel.generoDe, sem importar o módulo: aqui só há tipos): o
+ * informado ou, sem ele, pela terminação (comuna, província: feminino; condado, distrito: masculino). */
+function feminino(rotulo: { singular: string; genero?: string }): boolean {
+  if (rotulo.genero) return rotulo.genero === "f";
+  const palavra = rotulo.singular.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().split(/\s+/)[0] || "";
+  return /(a|ade|cao|sao|giao|gem|ie)$/.test(palavra) && !/(dia|mapa|tema|sistema|problema|planeta)$/.test(palavra);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

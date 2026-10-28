@@ -263,14 +263,30 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   o gênero vem de `genero` ou da terminação da palavra; na base do Brasil, nada muda;
 - o grupo é o valor da coluna-mãe, informada no mapeamento pelo papel `grupo_territorial`: "mostre a província X"
   vira `municipios.estados: ["X"]`; "junte os distritos da província X" junta as unidades do grupo. Esse papel vale
-  só para a conversa: sai do mapeamento antes do pré-exame;
+  só para a conversa: sai do mapeamento antes do pré-exame. Desde 28/10/2026, a página manda o papel no mapeamento da
+  conversa (`mapeamentoDaConversa`, em `paginaUnica.ts`); antes, ele saía também dali, e a conversa não reconhecia o grupo
+  pelo nome numa planilha enviada pela página ("Mostre só o condado Costa Ondina" recebia "Não encontrei “Costa e Ondina”
+  entre as comunas da base."; agora, "Mostrei a densidade nas 4 comunas do condado Costa Ondina.");
 - as unidades citadas pelo nome se resolvem pelo catálogo da planilha (`name:` ou `code:`), sem código IBGE;
 - grupo e unidade com o mesmo nome viram pergunta ("Província Nampula" ou "Distrito Nampula");
-- não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …";
+- não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …". A
+  orientação da caixa da conversa diz o mesmo desde 28/10/2026: "Peça mudanças no gráfico citando comunas pelo nome:
+  comparar, juntar, usar como referência ou mostrar as comunas de um condado." (antes, "… ou voltar ao nível de condados",
+  que a conversa recusava);
 - as orientações também usam os nomes da planilha (23/10/2026): "“distritos com menos de 1 médico por mil habitantes”",
   "cada distrito precisa atender a todas", "A referência é um distrito ou um conjunto de distritos: a referência não pode
   ser a base inteira. …". Os exemplos com nomes da base do Brasil ("Manaus", "o Pará") ficam só nela; numa planilha, dão
-  lugar às reticências ("“use … como referência”") ou a "“mostre todos os distritos”".
+  lugar às reticências ("“use … como referência”") ou a "“mostre todos os distritos”";
+- desde 28/10/2026, também as respostas verificadas (`explicacao.py`) e as do gestor de diálogo (`dialogo.py`) usam os
+  nomes e o gênero da planilha, depois da navegação simulada com uma planilha fictícia de comunas e condados: "Empatadas com a
+  maior densidade em 2024: …", "As demais: …", "Todas as comunas com valor têm a mesma densidade", "A seleção tem as comunas
+  de Alto Vésper e 2 comunas escolhidas uma a uma."; no mapa, "cada ponto é uma comuna, na coordenada informada na planilha"
+  (a "sede municipal" fica na base do Brasil); sem gráfico, "me diga quais quer ver: o nome de um condado ou de comunas, ou
+  “todas as comunas”."; nos exemplos, "“use como referência a comuna de maior densidade”", "“mostre a tendência dessas
+  comunas”", "“mostre as comunas com densidade menor que 1”" e "“as 5 comunas com maior densidade”" (nas recusas de juízo,
+  de classe nova e de escolha delegada e no "desfaz" sem mudança). A pergunta de volta, quando a resposta não escolhe uma
+  das alternativas, pede "o nome ou “o primeiro”, “o segundo”" (a sigla do estado fica na base do Brasil). Na base do
+  Brasil, nada muda.
 
 ### Rotas com o provedor
 

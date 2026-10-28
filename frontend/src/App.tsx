@@ -12,7 +12,7 @@ import WelcomeHero from "./WelcomeHero";
 import WorkspaceDialog from "./WorkspaceDialog";
 import { endSession, sessionFetch as fetch, trackSession, updateContextRevision } from "./conversationSession";
 import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, disponibilidadeDaPlanilha, escolhasIniciais,
-  horaDe, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, registrarEstado, resultadoDaSessao, resumoDaFonte,
+  horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, registrarEstado, resultadoDaSessao, resumoDaFonte,
   type AnaliseGuardada, type ContextoDoGrafico, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
   type PedidoDoChat } from "./paginaUnica";
 import type { Levels } from "./territorialScope";
@@ -102,12 +102,13 @@ function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, es
   const dados: FonteDados = { tipo: "arquivo", apiBase: API, datasetVersion: "", sheet: preparo.aba,
     mapping: mapeamentoDaPlanilha(escolhas.mapeamento), arquivo, nome: arquivo.name, premissas: premissasDaPlanilha(escolhas),
     rotulos: escolhas.rotulos };
-  const { mapping, options } = contextoDaPlanilha(escolhas);
+  const { options } = contextoDaPlanilha(escolhas);
   return { chave: "arquivo:" + preparo.arquivoId + ":" + JSON.stringify([preparo.aba, dados.mapping, dados.premissas, dados.rotulos]),
     dados, resumo: resumoDaFonte({ tipo: "arquivo", nome: arquivo.name, categorias, periodos, rotulos: escolhas.rotulos }),
     periodos, categorias, categoria: categorias[0] || "", municipios: preExame?.territory_choices || [],
     // A conversa recebe também os nomes da unidade e do grupo ("distrito", "província") para responder com eles.
-    conversa: { tipo: "arquivo", datasetVersion: "", arquivo, sheet: preparo.aba, mapping, opcoes: { ...options, rotulos: escolhas.rotulos } },
+    conversa: { tipo: "arquivo", datasetVersion: "", arquivo, sheet: preparo.aba, mapping: mapeamentoDaConversa(escolhas),
+      opcoes: { ...options, rotulos: escolhas.rotulos } },
     catalogo: null, planilha: { arquivoId: preparo.arquivoId, inspecao, escolhas, preExame } };
 }
 

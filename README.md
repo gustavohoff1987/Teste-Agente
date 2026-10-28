@@ -145,8 +145,12 @@ página, mostra o que foi reconhecido e pede só as escolhas que faltam:
 - o que a quantidade conta (pessoas, vínculos, postos ou outra unidade, descrita);
 - sem coluna de categoria, quem são os trabalhadores contados (por exemplo, médicos), que vira o objeto da análise;
 - os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e
-  "distritos", "província" e "províncias"). Eles valem nos textos da página e da conversa: com uma planilha, nenhum
-  texto da estrutura diz "município";
+  "distritos", "província" e "províncias"). Eles valem nos textos da página, das exportações e da conversa, com a
+  concordância do gênero (comuna é feminino: "Todas que atendem", "cada uma ligada à sua referência", "As demais"): com
+  uma planilha, nenhum texto diz "município", "estado", "UF" ou "Brasil", e o lugar de uma planilha inteira é "Toda a
+  planilha". No CSV, a coluna do grupo leva o nome dele (por exemplo, "Condado") onde a base do Brasil tem "UF". Desde
+  28/10/2026, o roteiro de navegador `ui_planilha_ficticia.py` confere isso com uma planilha fictícia feita do modelo
+  (comunas e condados inventados, sem nenhum nome do Brasil);
 - com latitude e longitude, o referencial em que as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84 (este desde
   22/10/2026, pelo Adendo REF-20261022 da SPEC), e o sistema não converte um no outro: a distância é calculada no
   elipsoide do referencial informado (GRS80 ou WGS 84); com outro, ou sem saber qual é, a análise espacial fica
@@ -575,7 +579,7 @@ provedor real de IA.
 | `dados-reais` | Integridade da base Brasil versionada (tamanho e SHA-256 contra `dados/brasil/manifesto.json`) e a suíte completa com os dados reais. Falha se algum teste for pulado. |
 | `frontend` | TypeScript e build de produção. |
 | `ui-conversational` | A conversa agindo no gráfico, sem provedor de IA (suíte `conversa`). |
-| `ui-block1` | A página única com o catálogo sintético do Bloco 1 (suíte `bloco1`, inclusive o modo escuro), a conversa com Gemini simulado (`gemini-simulado`) e a página com a base versionada (`base-versionada`). |
+| `ui-block1` | A página única com o catálogo sintético do Bloco 1 (suíte `bloco1`, inclusive o modo escuro e a planilha fictícia feita do modelo), a conversa com Gemini simulado (`gemini-simulado`) e a página com a base versionada (`base-versionada`). |
 | `governanca` | Toda mudança de comportamento está em [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md) ou foi declarada sem alteração, e todo roteiro de navegador roda no CI. |
 | `resumo` | Quadro único com o resultado de todos os jobs. Falha se qualquer um falhar. |
 

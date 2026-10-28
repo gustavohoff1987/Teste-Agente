@@ -813,7 +813,9 @@ def _repergunta(ato: dict, amb: Ambiente) -> dict:
     else:
         texto = ("Não consegui ligar “" + amb.mensagem.strip() + "” a uma das opções. Qual você quer: " + lista + "? " +
                  ("Pode responder com o mês, por exemplo “junho”." if periodos else
-                  "Pode responder com o nome, a sigla do estado ou “o primeiro”, “o segundo”."))
+                  # Numa planilha (28/10/2026), os grupos não têm sigla: a resposta é o nome ou a posição.
+                  "Pode responder com o nome, a sigla do estado ou “o primeiro”, “o segundo”."
+                  if amb.fonte.get("tipo", "brasil") == "brasil" else "Pode responder com o nome ou “o primeiro”, “o segundo”."))
     return _resposta(texto, choices=[{"label": _rotulo_alternativa(a), "draft": a.get("rascunho") or "", "send": True,
                                       **({"operation": a["operacao"]} if a.get("operacao") else {})}
                                      for a in alternativas], memoria=memoria, clarification=texto,
@@ -867,10 +869,19 @@ def _pedido_indireto(ato: dict, amb: Ambiente) -> dict | None:
     return resposta
 
 
+def _unidades_do_exemplo(amb: Ambiente, quantas: str = "") -> str:
+    """A unidade nos exemplos das respostas, com o artigo (28/10/2026): os nomes da resposta ou da tela, com a concordância
+    ("as 5 comunas"); sem eles, os da base do Brasil ("os 5 municípios")."""
+    unidade = ((amb.resultado or {}).get("rotulos") or {}).get("unidade") or amb.rotulos.get("unidade") or {}
+    artigo = "as" if unidade.get("plural") and explicacao._feminino(unidade) else "os"
+    return " ".join(parte for parte in (artigo, quantas, unidade.get("plural") or "municípios") if parte)
+
+
 def _desfaz(ato: dict, amb: Ambiente) -> dict:
     if not amb.anteriores:
         return _resposta("Ainda não mudei nada no gráfico nesta conversa. O que você queria ver? Pode dizer com outras "
-                         "palavras, por exemplo “os 5 municípios com maior densidade” ou “mostre a tendência”.",
+                         "palavras, por exemplo “" + _unidades_do_exemplo(amb, "5") + " com maior densidade” ou “mostre a "
+                         "tendência”.",
                          memoria={"ato": "desfaz"})
     anterior = amb.anteriores[-1]
     return _resposta("Desfiz a última mudança e voltei ao que estava antes" + _rotulo_do_estado(anterior) + ". O que você "
@@ -1175,7 +1186,7 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
 def _compara(ato: dict, amb: Ambiente) -> dict | None:
     body = amb.resultado
     atributo = ato.get("atributo") or (body or {}).get("indicador") or "densidade"
-    composicao = explicacao.comparar_atributo(body, atributo, ato.get("maior", True))
+    composicao = explicacao.comparar_atributo(body, atributo, ato.get("maior", True), rotulos=amb.rotulos)
     return _explicada(composicao, {"ato": "compara", "atributo": atributo, "maior": ato.get("maior", True)})
 
 
@@ -1195,7 +1206,7 @@ def _diferenca(ato: dict, amb: Ambiente) -> dict | None:
 
 
 def _contagem(ato: dict, amb: Ambiente) -> dict:
-    return _explicada(explicacao.contagem(amb.resultado), {"ato": "contagem"})
+    return _explicada(explicacao.contagem(amb.resultado, rotulos=amb.rotulos), {"ato": "contagem"})
 
 
 def _foco(amb: Ambiente) -> list[int]:
@@ -1226,13 +1237,13 @@ def _explica(ato: dict, amb: Ambiente) -> dict | None:
         unidades = explicacao.indices_das_unidades(body or {})
         alvo = foco or (unidades[:1] if len(unidades) == 1 else [])
         if not body:
-            return _explicada(explicacao.explicar_resultado(None), {"ato": "explica"})
+            return _explicada(explicacao.explicar_resultado(None, rotulos=amb.rotulos), {"ato": "explica"})
         if not alvo:
             # O exemplo usa um território do próprio gráfico, nunca um nome fora da análise (26/10/2026).
             return _resposta("De qual território? Diga o nome" + (", por exemplo “e para " +
                              body["itens"][unidades[0]]["rotulo"].split(" (")[0].title() + "?”" if unidades else "") +
                              ".", memoria={"ato": "explica", "topico": "territorio", "registro": registro})
-        composicao = explicacao.explicar_territorio(body, alvo[0], registro)
+        composicao = explicacao.explicar_territorio(body, alvo[0], registro, rotulos=amb.rotulos)
         return _explicada(composicao, {"ato": "explica", "topico": "territorio", "registro": registro, "foco": alvo,
                                        "termos": amb.memoria.get("termos") or []})
     if topico == "conceito":
@@ -1240,7 +1251,7 @@ def _explica(ato: dict, amb: Ambiente) -> dict | None:
         composicao = explicacao.explicar_conceito(body, termos, registro, foco)
         return _explicada(composicao, {"ato": "explica", "topico": "conceito", "registro": registro, "termos": termos,
                                        "foco": foco})
-    composicao = explicacao.explicar_resultado(body, registro, foco or None)
+    composicao = explicacao.explicar_resultado(body, registro, foco or None, rotulos=amb.rotulos)
     return _explicada(composicao, {"ato": "explica", "topico": "resultado", "registro": registro, "foco": foco})
 
 
@@ -1248,13 +1259,13 @@ def _limite(ato: dict, amb: Ambiente) -> dict:
     body = amb.resultado
     foco = _foco(amb)
     if ato.get("tipo") == "causa" and ato.get("comparativo") and body:
-        comparacao = explicacao.comparar_atributo(body, ato.get("atributo") or body["indicador"], True)
-        causa = explicacao.limite(body, "causa", amb.mensagem, foco)
+        comparacao = explicacao.comparar_atributo(body, ato.get("atributo") or body["indicador"], True, rotulos=amb.rotulos)
+        causa = explicacao.limite(body, "causa", amb.mensagem, foco, rotulos=amb.rotulos)
         texto = comparacao["texto"] + "\n\n" + causa["texto"]
         return _resposta(texto, memoria={"ato": "limite", "tipo": "causa"}, explicacao={
             "segmentos": comparacao["segmentos"] + causa["segmentos"],
             "documentacao": comparacao["documentacao"] + causa["documentacao"], "origem": "MOTOR_E_CATALOGO_GOVERNADO"})
-    composicao = explicacao.limite(body, ato.get("tipo") or "procedencia", amb.mensagem, foco)
+    composicao = explicacao.limite(body, ato.get("tipo") or "procedencia", amb.mensagem, foco, rotulos=amb.rotulos)
     return _explicada(composicao, {"ato": "limite", "tipo": ato.get("tipo")})
 
 
@@ -1289,7 +1300,7 @@ def _estado(ato: dict, amb: Ambiente) -> dict:
     if assunto == "mapa" and amb.ctx.get("motivo_sem_mapa") is None and amb.ctx.get("mapa_disponivel") is None:
         pass
     composicao = explicacao.estado(body, assunto, ctx=amb.ctx, fonte=amb.fonte, anterior=amb.anterior, nome=nome,
-                                   indice=indice)
+                                   indice=indice, rotulos=amb.rotulos)
     return _explicada(composicao, {"ato": "estado", "assunto": assunto})
 
 
@@ -1354,8 +1365,8 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
         juizo = rotulo.group(1) if rotulo else None
         texto = ("Não crio classificações novas" + (" nem rótulos como “" + juizo + "”" if juizo else "") + ": as classes "
                  "saem só dos métodos do motor, e esta versão não tem critério normativo para dizer o que é adequado ou "
-                 "crítico. Posso aplicar o que você descreveu como condição, sem rótulo de juízo: por exemplo, “mostre os "
-                 "municípios com densidade menor que 2”.")
+                 "crítico. Posso aplicar o que você descreveu como condição, sem rótulo de juízo: por exemplo, “mostre " +
+                 _unidades_do_exemplo(amb) + " com densidade menor que 2”.")
     elif tipo == "outro_metodo":
         texto = ("Não troco o método por conta própria. “" + doc("DOC:TPL-07", "mensagem", "ADM-SC") + "” " +
                  SUGESTOES["outro_metodo"])
@@ -1371,9 +1382,9 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
         termo = next((_como_escrito(amb.mensagem, t) for t in JUIZO if t in dobra(amb.mensagem)), "isso")
         texto = ("Não afirmo “" + termo + "”: esta versão não tem critério normativo, e sem ele nenhum resultado é "
                  "qualificado assim. Posso mostrar os valores e aplicar uma condição que você definir, por exemplo, "
-                 "“mostre os municípios com densidade menor que 1”.")
+                 "“mostre " + _unidades_do_exemplo(amb) + " com densidade menor que 1”.")
         if body:
-            composicao = explicacao.limite(body, "normativo", amb.mensagem, _foco(amb))
+            composicao = explicacao.limite(body, "normativo", amb.mensagem, _foco(amb), rotulos=amb.rotulos)
             texto += "\n\n" + composicao["texto"]
     elif tipo in DESCRICAO_EXC:
         id_doc, descricao = DESCRICAO_EXC[tipo]
@@ -1393,8 +1404,8 @@ def _governanca_executa(ato: dict, amb: Ambiente) -> dict:
         doc("DOC:EXC-11")
         doc("DOC:INV-06")
         texto = ("Essa escolha fica com você: eu não escolho territórios, critérios ou parâmetros no seu lugar. Diga quais "
-                 "quer ver, pelo nome ou por um critério (por exemplo, “os 5 municípios com maior densidade”), ou marque na "
-                 "Seleção de Territórios.")
+                 "quer ver, pelo nome ou por um critério (por exemplo, “" + _unidades_do_exemplo(amb, "5") + " com maior "
+                 "densidade”), ou marque na Seleção de Territórios.")
     else:
         texto = "Não posso fazer isso nesta versão."
     return _resposta(texto, memoria={"ato": "governanca", "tipo": tipo},

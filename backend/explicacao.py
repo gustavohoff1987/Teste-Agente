@@ -165,6 +165,21 @@ def unidades(body: dict) -> tuple[str, str, bool]:
     return unidade["singular"], unidade["plural"], unidade.get("genero") == "f"
 
 
+def _feminino(rotulo: dict) -> bool:
+    """Gênero de um rótulo da tela (que pode vir sem "genero"): o informado ou, sem ele, a regra do motor (painel._genero)."""
+    if rotulo.get("genero") in ("m", "f"):
+        return rotulo["genero"] == "f"
+    return bool(rotulo.get("singular")) and painel._genero(rotulo["singular"]) == "f"
+
+
+def _nomes(body: dict | None, rotulos: dict | None = None) -> tuple[str, str, bool]:
+    """Os nomes da unidade para os exemplos: os da resposta; sem ela, os da tela; sem nada, os da base do Brasil."""
+    if body and body.get("rotulos"):
+        return unidades(body)
+    unidade = (rotulos or {}).get("unidade") or {"singular": "município", "plural": "municípios", "genero": "m"}
+    return unidade["singular"], unidade["plural"], _feminino(unidade)
+
+
 def indices_das_unidades(body: dict) -> list[int]:
     return [i for i, item in enumerate(body.get("itens") or []) if item.get("tipo") in ("municipio", "estado", "brasil")]
 
@@ -288,18 +303,26 @@ def _velocidades(c: Composicao, indice: int) -> None:
 
 
 # --------------------------------------------------------------------------------------------- respostas
-def _sem_resultado() -> dict:
+def _sem_resultado(rotulos: dict | None = None) -> dict:
+    """Ainda sem gráfico: na base do Brasil (ou sem os rótulos da tela), o exemplo de sempre; numa planilha (28/10/2026), com os
+    nomes dela ("o nome de um condado ou de comunas, ou “todas as comunas”")."""
+    unidade, grupo = (rotulos or {}).get("unidade") or {}, (rotulos or {}).get("grupo") or {}
+    if not unidade.get("plural") or unidade.get("singular") == "município":
+        exemplo = "o nome de um estado ou de municípios, ou “todos os estados”."
+    else:
+        exemplo = ("o nome de " + ("uma " if _feminino(grupo) else "um ") + grupo["singular"] + " ou de " if grupo.get("singular")
+                   else "o nome de ") + unidade["plural"] + ", ou “" + ("todas as " if _feminino(unidade) else "todos os ") + \
+            unidade["plural"] + "”."
     return {"texto": "Ainda não há um gráfico calculado nesta conversa. Escolha os territórios na Seleção de Territórios "
-                     "ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”.", "partes": [],
-            "segmentos": [],
-            "documentacao": [], "acoes": []}
+                     "ou me diga quais quer ver: " + exemplo, "partes": [], "segmentos": [], "documentacao": [], "acoes": []}
 
 
-def explicar_resultado(body: dict | None, registro: str = "objetivo", foco: list[int] | None = None) -> dict:
+def explicar_resultado(body: dict | None, registro: str = "objetivo", foco: list[int] | None = None,
+                       rotulos: dict | None = None) -> dict:
     """O resultado em exibição, no registro pedido. Sempre a partir da frase-resumo do motor (já verificada) e dos fatos de
     cada território (até 4 por extenso; com mais, os extremos contados no motor)."""
     if not body:
-        return _sem_resultado()
+        return _sem_resultado(rotulos)
     c = Composicao(body)
     registro = registro if registro in REGISTROS else "objetivo"
     unidades_ = indices_das_unidades(body)
@@ -424,11 +447,11 @@ def _convite(c: Composicao, body: dict) -> None:
         c.text("\n\nSe quiser, pergunte " + ", ".join(sugestoes[:-1]) + ", ou peça para " + sugestoes[-1] + ".")
 
 
-def explicar_territorio(body: dict | None, indice: int, registro: str = "objetivo") -> dict:
+def explicar_territorio(body: dict | None, indice: int, registro: str = "objetivo", rotulos: dict | None = None) -> dict:
     """"E o que isso quer dizer para esse município?": os fatos do território, no registro pedido, e o que o resultado
     não diz (sem causa e sem juízo)."""
     if not body:
-        return _sem_resultado()
+        return _sem_resultado(rotulos)
     c = Composicao(body)
     c.text("Para ").label("itens", indice, "rotulo").text(", o resultado ")
     _periodo_do_resultado(c).text(" diz o seguinte: ")
@@ -483,8 +506,10 @@ def explicar_conceito(body: dict | None, termos: list[str], registro: str = "obj
                 "documentacao": [], "acoes": []}
     c = Composicao(body)
     if body.get("tendencia") is None:
+        _, plural_, feminino_ = unidades(body)
         c.text("Esse termo é da Análise de Tendência, e o gráfico em exibição não tem a tendência. Peça, por exemplo, "
-               "“mostre a tendência desses municípios”, e eu explico com os valores do motor.")
+               "“mostre a tendência " + ("dessas " if feminino_ else "desses ") + plural_ + "”, e eu explico com os valores do "
+               "motor.")
         return verificar(c.resultado(), body)
     unidades_ = indices_das_unidades(body)
     foco = [i for i in (foco or []) if i in unidades_] or unidades_[:3]
@@ -572,10 +597,10 @@ def _conceito_do_catalogo(body: dict | None, termos: list[str], registro: str) -
     return verificar(c.resultado(), alvo)
 
 
-def comparar_atributo(body: dict | None, atributo: str, maior: bool = True) -> dict:
+def comparar_atributo(body: dict | None, atributo: str, maior: bool = True, rotulos: dict | None = None) -> dict:
     """"Qual deles tem maior densidade?", "e a população?": a ordem contada no motor, com empates, e os valores."""
     if not body:
-        return _sem_resultado()
+        return _sem_resultado(rotulos)
     c = Composicao(body)
     ordem = c.body["conversa"]["ordem"].get(atributo) or {}
     singular, plural, feminino = unidades(body)
@@ -583,8 +608,8 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True) -> d
     qual = "maior" if maior else "menor"
     if atributo == "distancia_km" and body.get("referencia") is None:
         c.text("O gráfico em exibição não tem referência, então não há distância para comparar. Faça a Escolha dos "
-               "territórios na Análise Espacial ou peça, por exemplo, “use como referência o município de maior "
-               "densidade”.")
+               "territórios na Análise Espacial ou peça, por exemplo, “use como referência " + ("a " if feminino else "o ") +
+               singular + " de maior densidade”.")
         return verificar(c.resultado(), body)
     if atributo == "variacao" and not body.get("competencia_inicial"):
         c.text("O gráfico em exibição não tem competência inicial, então não há variação calculada. Peça, por exemplo, "
@@ -601,16 +626,17 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True) -> d
         c.text(" de " + nome + ".")
         return verificar(c.resultado(), body)
     if empate and len(ordem[qual]) == ordem["com_valor"]:
-        c.text("Todos os " + plural + " com valor têm a mesma " + nome + ": ").valor(ordem[qual][0], atributo).text(".")
+        c.text(("Todas as " if feminino else "Todos os ") + plural + " com valor têm a mesma " + nome + ": ") \
+            .valor(ordem[qual][0], atributo).text(".")
     else:
-        c.text(("Empatados com a " if empate else "A ") + qual + " " + nome + " ")
+        c.text((("Empatadas" if feminino else "Empatados") + " com a " if empate else "A ") + qual + " " + nome + " ")
         _periodo_do_resultado(c).text(": " if empate else " é a de ")
         for k in range(len(ordem[qual])):
             c.text(", " if k else "").item(atributo, qual, k)
         c.text(", com ").valor(ordem[qual][0], atributo).text(".")
         outros = [i for i in unidades_ if i not in ordem[qual]][:4]
         if outros:
-            c.text(" " + ("Os demais" if len(outros) > 1 else "O outro") + ": ")
+            c.text(" " + (("As demais" if feminino else "Os demais") if len(outros) > 1 else ("A outra" if feminino else "O outro")) + ": ")
             for k, indice in enumerate(outros):
                 c.text("; " if k else "").label("itens", indice, "rotulo").text(", ").valor(indice, atributo)
             c.text(".")
@@ -644,9 +670,9 @@ def diferenca(body: dict | None) -> dict | None:
     return verificar(c.resultado(), body)
 
 
-def contagem(body: dict | None) -> dict:
+def contagem(body: dict | None, rotulos: dict | None = None) -> dict:
     if not body:
-        return _sem_resultado()
+        return _sem_resultado(rotulos)
     c = Composicao(body)
     singular, plural, _ = unidades(body)
     c.text("O gráfico tem ").count(singular, plural, "resumo", "contagens", "unidades")
@@ -679,7 +705,7 @@ def _direcoes(body: dict, indices: list[int]) -> dict[int, str]:
     return saida
 
 
-def limite(body: dict | None, tipo: str, mensagem: str = "", foco: list[int] | None = None) -> dict:
+def limite(body: dict | None, tipo: str, mensagem: str = "", foco: list[int] | None = None, rotulos: dict | None = None) -> dict:
     """O que o resultado permite e não permite concluir, com os fatos do motor e as regras governadas:
     - "normativo" (suficiente, falta, excesso, adequado) e "melhora" (melhorou, piorou): CFG-NOR, sem juízo;
     - "causa" (por que caiu, qual a causa): EXC-03/TPL-06, com a conferência do que a pergunta pressupõe;
@@ -717,8 +743,9 @@ def limite(body: dict | None, tipo: str, mensagem: str = "", foco: list[int] | N
         else:
             c.text("Esses números não dizem se há profissionais em número suficiente, insuficiente ou excessivo. ")
         c.text("A regra desta versão: “").documento("DOC:CFG-NOR").text("”")
-        c.text("\n\nSe você tiver um critério, posso aplicá-lo como condição, sem rótulo de juízo: por exemplo, “mostre os "
-               "municípios com densidade menor que 1”.")
+        _, plural_, feminino_ = _nomes(body, rotulos)
+        c.text("\n\nSe você tiver um critério, posso aplicá-lo como condição, sem rótulo de juízo: por exemplo, “mostre " +
+               ("as " if feminino_ else "os ") + plural_ + " com densidade menor que 1”.")
     elif tipo == "acesso":
         c.documento("DOC:TPL-11", forma="mensagem", evidencia="DISTANCIA_VERIFICADA")
         if body and body.get("referencia") is not None and indices:
@@ -738,7 +765,7 @@ def limite(body: dict | None, tipo: str, mensagem: str = "", foco: list[int] | N
 
 # --------------------------------------------------------------------------------------------- estado da aplicação
 def estado(body: dict | None, assunto: str, ctx: dict | None = None, fonte: dict | None = None,
-           anterior: dict | None = None, nome: str = "", indice: int | None = None) -> dict:
+           anterior: dict | None = None, nome: str = "", indice: int | None = None, rotulos: dict | None = None) -> dict:
     """Perguntas sobre o estado da tela: dados carregados, territórios, seleção, mapa, relatório, análise anterior, o que
     mudou, por que algo não aparece e disponibilidade das análises. Só o que a resposta do motor e o contexto da tela
     trazem; o que não está no contexto não é presumido."""
@@ -750,7 +777,7 @@ def estado(body: dict | None, assunto: str, ctx: dict | None = None, fonte: dict
         _dados(c, body, fonte)
     elif assunto == "territorios":
         if not body:
-            return _sem_resultado()
+            return _sem_resultado(rotulos)
         indices = [i for i, item in enumerate(body["itens"])]
         c.text("No gráfico ")
         _periodo_do_resultado(c).text(", " + ("estão " if len(indices) != 1 else "está "))
@@ -763,9 +790,9 @@ def estado(body: dict | None, assunto: str, ctx: dict | None = None, fonte: dict
             c.text(", entre outros (a lista completa fica em Detalhes)")
         c.text(".")
     elif assunto == "selecao":
-        _selecao(c, body, ctx, singular, plural)
+        _selecao(c, body, ctx, singular, plural, feminino)
     elif assunto == "mapa":
-        _mapa(c, body, ctx)
+        _mapa(c, body, ctx, fonte, singular, feminino)
     elif assunto == "relatorio":
         c.text(EXPORTACAO + " Também há “Baixar método e parâmetros (TXT)”. Os três ficam em Exportar, nas Ferramentas da "
                "análise.")
@@ -807,24 +834,25 @@ def _dados(c: Composicao, body: dict | None, fonte: dict | None) -> None:
         _periodo_do_resultado(c).text(".")
 
 
-def _selecao(c: Composicao, body: dict | None, ctx: dict, singular: str, plural: str) -> None:
+def _selecao(c: Composicao, body: dict | None, ctx: dict, singular: str, plural: str, feminino: bool = False) -> None:
     municipios = ctx.get("municipios") or {}
     if ctx.get("nivel") == "estados":
         c.text("A seleção está no nível dos estados")
     elif ctx.get("nivel") == "brasil":
         c.text("A seleção é o Brasil como uma unidade (o total nacional)")
     elif municipios.get("todos"):
-        c.text("A seleção tem todos os " + plural + " da base")
+        c.text("A seleção tem " + ("todas as " if feminino else "todos os ") + plural + " da base")
     else:
         partes = []
         if municipios.get("estados"):
             from territorial_selection import STATES
             nomes = [STATES[chave][1] for chave in municipios["estados"] if chave in STATES] or municipios["estados"]
-            partes.append("os " + plural + " de " + (", ".join(nomes[:-1]) + " e " + nomes[-1] if len(nomes) > 1 else nomes[0]))
+            partes.append(("as " if feminino else "os ") + plural + " de " +
+                          (", ".join(nomes[:-1]) + " e " + nomes[-1] if len(nomes) > 1 else nomes[0]))
         if municipios.get("ids"):
             quantos = len(municipios["ids"])
             partes.append(str(quantos) + " " + (singular if quantos == 1 else plural) + " escolhid" +
-                          ("a" if unidades(c.body)[2] else "o") + ("" if quantos == 1 else "s") + " um a um")
+                          ("a" if feminino else "o") + ("" if quantos == 1 else "s") + (" uma a uma" if feminino else " um a um"))
         c.text("A seleção tem " + (" e ".join(partes) if partes else "nenhum território ainda"))
     c.text(". Ela vale para todas as análises (Distribuição, Análise Espacial, Tendência e Rotatividade) e pode ser mudada a "
            "qualquer momento, na Seleção de Territórios ou pela conversa.")
@@ -832,7 +860,8 @@ def _selecao(c: Composicao, body: dict | None, ctx: dict, singular: str, plural:
         c.text(" No gráfico, isso dá ").count(singular, plural, "resumo", "contagens", "unidades").text(".")
 
 
-def _mapa(c: Composicao, body: dict | None, ctx: dict) -> None:
+def _mapa(c: Composicao, body: dict | None, ctx: dict, fonte: dict | None = None, singular: str = "município",
+          feminino: bool = False) -> None:
     if ctx.get("mapa_disponivel") is False:
         motivo = (ctx.get("motivo_sem_mapa") or "").strip()
         c.text("O mapa não está disponível nesta análise" + (": " + motivo.rstrip(".") if motivo else "") + ".")
@@ -840,8 +869,11 @@ def _mapa(c: Composicao, body: dict | None, ctx: dict) -> None:
     if ctx.get("vista") not in ("mapa", "lado"):
         c.text("O mapa não está na tela agora (a vista é o gráfico). Peça “ver no mapa” para trocar. ")
     # O que é quintil fica com a forma governada (CAP-DIS-02), pedida à parte; aqui, só o que a tela mostra.
-    c.text("No mapa, cada ponto é um município, na coordenada da sede municipal, e a cor mostra o grupo do indicador (os "
-           "quintis do motor). Para a definição dos quintis, pergunte “o que é quintil?”.")
+    brasil = (fonte or {}).get("tipo") == "brasil" if (fonte or {}).get("tipo") else singular == "município"
+    c.text("No mapa, cada ponto é " + ("um município, na coordenada da sede municipal" if brasil else
+                                       ("uma " if feminino else "um ") + singular + ", na coordenada informada na planilha") +
+           ", e a cor mostra o grupo do indicador (os quintis do motor). Para a definição dos quintis, pergunte “o que é "
+           "quintil?”.")
     if body and body.get("grupos_mapa"):
         c.text(" Pontos por grupo: ")
         for k in range(len(body["grupos_mapa"].get("rotulos") or [])):

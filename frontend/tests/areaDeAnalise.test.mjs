@@ -24,6 +24,8 @@ const SEM_REGISTRO = 'Sem registro em junho de 2024 na categoria MEDICINA: valor
 const SEM_PONTO = 'Sem coordenada válida da sede municipal na competência (SEM_INFORMACAO_ESPACIAL)';
 const BR = M.ROTULOS_BRASIL;
 const DISTRITOS = {unidade: {singular: 'distrito', plural: 'distritos'}, grupo: {singular: 'província', plural: 'províncias'}};
+// Planilha fictícia com a unidade feminina (28/10/2026, navegação simulada com comunas agrupadas em condados).
+const COMUNAS = {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: {singular: 'condado', plural: 'condados'}};
 const definicao = (extra = {}) => ({...M.definicaoInicial({tipo: 'brasil', periodos: ['202306', '202406'], categoria: 'MEDICINA', temGrupos: true}), ...extra});
 const resposta = (extra = {}) => ({competencia: '202406', competencia_inicial: null, categoria: 'MEDICINA', versao_base: 'v1', chave_execucao: 'k1',
   nivel: 'municipios', referencia: null, itens: [], dominios: {}, notas: ['Nota do motor.'], limitacoes: [], tendencia: null, grupos: null,
@@ -225,6 +227,12 @@ test('frase-resumo do motor no cliente e no arquivo de método; dados do mapa no
   assert.deepEqual(metodo.split('\n').slice(0, 4), ['Densidade de médicos', 'Frase do motor.', '', 'Procedência']);
   assert.ok(!M.textoDoMetodo(resposta({resumo: {texto: 'Frase do motor.'}}), 'T', null, null).includes('Frase do motor.'));  // fora da tela, fora do arquivo
   assert.deepEqual(M.textoDoMetodo(resposta(), 'T', null).split('\n').slice(0, 2), ['T', '']);
+  // Numa planilha (28/10/2026), as chaves dos parâmetros são ditas com os nomes dela; na base do Brasil, nada muda.
+  const opcoesDoMetodo = {nivel: 'municipios', base: {municipios: {todos: true, estados: [], ids: []}}};
+  assert.ok(M.textoDoMetodo(resposta(), 'T', opcoesDoMetodo, null, {rotulos: COMUNAS, brasil: false}).includes('Parâmetros da análise\n' +
+    'Os nomes das chaves abaixo são os do contrato da API, iguais em toda fonte: nesta planilha, “municipios” são as comunas, e ' +
+    '“estados”, os condados.\n{'));
+  assert.ok(!M.textoDoMetodo(resposta(), 'T', opcoesDoMetodo, null, {rotulos: BR, brasil: true}).includes('contrato da API'));
   const dados = A.normalizarMapa({competencia: '202406', referencial: 'SIRGAS2000',
     pontos: [{id: 'code:130260', lat: -3.1019, lon: -60.025}, {id: 'code:130420', lat: '-3.35', lon: -64.71}, {id: 'code:1', lat: 95, lon: 0}, {lat: 1, lon: 1}],
     sem_coordenada: [{id: 'code:130185', rotulo: 'IRANDUBA (AM)', motivo: SEM_PONTO}, {rotulo: 'sem identificador'}]});
@@ -739,6 +747,21 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.ok(csv[0].includes('"Distância até a referência mais próxima (km)";"Referência mais próxima"'), csv[0]);
   assert.ok(!csv[0].includes('Membro da referência'));
   assert.ok(csv[1].includes('"CRUZEIRO DO SUL (AC)"'));
+  assert.ok(csv[0].startsWith('"Identificador";"Tipo";"Território";"UF";"Competência"'), csv[0]);
+  // A coluna do grupo (28/10/2026): numa planilha, o nome do grupo dela, com a coluna-mãe que o motor devolve (grupo_territorial);
+  // sem grupo, nenhuma coluna; "UF" fica só na base do Brasil.
+  const daPlanilha = A.normalizarResposta({competencia: '2024', categoria: 'Medicina', nivel: 'municipios', indicador: 'densidade',
+    rotulos: {unidade: {singular: 'comuna', plural: 'comunas', genero: 'f'}, grupo: {singular: 'condado', plural: 'condados', genero: 'm'}},
+    itens: [{...municipio('code:SOL-0101', 'Vesperina [SOL-0101]'), uf: null, grupo_territorial: 'Alto Vésper'}]});
+  assert.equal(daPlanilha.itens[0].grupoTerritorial, 'Alto Vésper');
+  const csvDaPlanilha = M.montarCsv(daPlanilha, {familia: 'distribuicao', indicador: 'densidade', rotulos: COMUNAS, brasil: false})
+    .slice(1).split('\r\n');
+  assert.ok(csvDaPlanilha[0].startsWith('"Identificador";"Tipo";"Território";"Condado";"Competência"') && !csvDaPlanilha[0].includes('"UF"'),
+    csvDaPlanilha[0]);
+  assert.ok(csvDaPlanilha[1].startsWith('"code:SOL-0101";"comuna";"Vesperina [SOL-0101]";"Alto Vésper";"2024"'), csvDaPlanilha[1]);
+  const semGrupo = M.montarCsv(daPlanilha, {familia: 'distribuicao', indicador: 'densidade', rotulos: {...COMUNAS, grupo: null},
+    brasil: false}).slice(1).split('\r\n');
+  assert.ok(semGrupo[0].startsWith('"Identificador";"Tipo";"Território";"Competência"'), semGrupo[0]);
   assert.deepEqual(M.ligacoesDoMapa(r.itens, ['code:1300607']), [{de: 'code:1300607', para: ['code:1200203']}]);
   // As contagens da janela (POST /api/painel/territorios), nos tipos da tela; nada é calculado aqui.
   const t = A.normalizarTerritorios({competencia: '202406', categoria: 'MEDICINA', selecao_previa: {total: 62, nomes: ['ALVARAES (AM)']},
@@ -763,6 +786,11 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.ok(!/mais distante|pelo nome|um conjunto deles|também pela distância/.test(espacial), espacial);
   assert.ok(M.apresentacaoDaAba('espacial', {rotulos: DISTRITOS, brasil: false, comGrupos: true}).paragrafos[0]
     .includes('a planilha inteira, uma ou mais províncias ou a seleção prévia'));
+  assert.ok(espacial.includes('a referência mais próxima dele.') && espacial.includes('todos os que atendem ou só dos marcados'), espacial);
+  // Com a unidade feminina (28/10/2026): "dela" (antes saía "delea") e "todas as que atendem ou só das marcadas".
+  const comunas = M.apresentacaoDaAba('espacial', {rotulos: COMUNAS, brasil: false, comGrupos: true}).paragrafos.join(' ');
+  assert.ok(comunas.includes('entre cada comuna da base e a referência mais próxima dela.'), comunas);
+  assert.ok(comunas.includes('todas as que atendem ou só das marcadas') && !/delea|todos os que/.test(comunas), comunas);
 });
 
 test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cada território da base ligado à referência mais próxima, com os valores do motor', () => {
@@ -850,6 +878,9 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
     /^Base: 5 · cada um ligado à sua referência mais próxima por linha tracejada: .+; e mais 1 \(nas dicas e na tabela\)\. O gráfico desenha 2 dessas ligações: no máximo 30, e só das bolhas à vista\.$/);
   assert.equal(M.textoDosTerritoriosBase({pares: [], ligados: 0}),
     'Nenhum território na base: o gráfico e o mapa não mostram as ligações até a referência.');
+  // Com a unidade feminina (28/10/2026), "cada uma ligada"; com os rótulos do Brasil, como antes.
+  assert.ok(M.textoDosTerritoriosBase({pares, ligados: 3, rotulos: COMUNAS}).startsWith('Base: 4 · cada uma ligada à sua referência mais próxima'));
+  assert.ok(M.textoDosTerritoriosBase({pares, ligados: 3, rotulos: BR}).startsWith('Base: 4 · cada um ligado à sua referência mais próxima'));
   // Pelos membros escolhidos (o contrato de 21/10), o membro já está no gráfico, a distância zero, com a mira: os valores vêm do
   // item, a ligação vai até a bolha dele, e ele não entra como contexto.
   const pelosMembros = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'municipios', indicador: 'densidade',

@@ -31,8 +31,9 @@ export function GavetaCondicoes(p: CondicoesProps) {
   const mudar = (indice: number, parte: Partial<Rascunho>) => setLinhas(atual => atual.map((linha, i) => i === indice ? { ...linha, ...parte } : linha));
   const NOMES: Record<SituacaoCondicao, string> = { ATENDE: "Atendem a todas", NAO_ATENDE: "Não atendem", NAO_AVALIAVEL: "Sem dado para avaliar" };
   return <section data-testid="analise-condicoes" aria-label="Seleção por condições" className="space-y-3">
-    <p className="text-xs leading-5 text-slate-600">Separa {artigo(unidade, true)} {unidade.plural} que atendem a todas as condições escolhidas, os que não atendem
-      e os que não têm dado para avaliar. Por exemplo: menos de 1 profissional por 1.000 habitantes e mais de 150 km da referência.</p>
+    <p className="text-xs leading-5 text-slate-600">Separa {artigo(unidade, true)} {unidade.plural} que atendem a todas as condições escolhidas,{" "}
+      {artigo(unidade, true)} que não atendem e {artigo(unidade, true)} que não têm dado para avaliar. Por exemplo: menos de 1 profissional por
+      1.000 habitantes e mais de 150 km da referência.</p>
     <ol className="space-y-2">
       {linhas.map((linha, indice) => <li key={indice} data-testid="analise-condicao" className="flex flex-wrap items-end gap-1.5">
         <label className="analise-rotulo-campo min-w-[8rem] flex-1">Indicador

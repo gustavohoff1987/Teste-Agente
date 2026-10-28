@@ -317,7 +317,8 @@ O que cada análise mostra:
      em km), de `63d492c`, saiu no mesmo dia, a pedido do responsável: a distância até a referência mais próxima de
      cada município da base aparece no eixo X do resultado, e as Condições filtram por ela ("distância à referência mais
      próxima > 300 km", com os três estados).
-  3. **Escolher:** "Todos que atendem (N)" (`todos`) ou "Só os que eu marcar" (`marcados`), com a busca pelo nome (`busca`) e a
+  3. **Escolher:** "Todos que atendem (N)" (`todos`) ou "Só os que eu marcar" (`marcados`) (com uma unidade de nome feminino,
+     desde 28/10/2026, "Todas que atendem (N)" e "Só as que eu marcar"), com a busca pelo nome (`busca`) e a
      lista só de quem passou pelas etapas 1 e 2, com o estado e a densidade (`lista` e `lista-opcao`; até 100 à vista, com
      "Mostrando 100 de N: use a busca pelo nome."); os marcados viram botões removíveis (`marcado`), e o que deixa de passar
      pelas etapas 1 e 2 fica riscado e não entra.
@@ -371,7 +372,7 @@ O que cada análise mostra:
   município da base que também é referência de outro continua com a sua própria bolha. Acima do desenho, `analise-par-base`
   diz, com um município na base, "Base: BOA VISTA (RR) · referência mais próxima: PRESIDENTE FIGUEIREDO (AM), a 543,82 km em
   linha reta." (sem referência, o motivo do motor) e, com mais, "Base: 15 · cada um ligado à sua referência mais próxima por
-  linha tracejada: …", com os quatro primeiros pares (base → referência, distância) e quantos faltam; quando o gráfico liga
+  linha tracejada: …" (numa planilha de comunas, desde 28/10/2026, "cada uma ligada"), com os quatro primeiros pares (base → referência, distância) e quantos faltam; quando o gráfico liga
   menos do que os pares com referência, diz quantas ligações desenha; com vários e nenhum com referência, a linha sai (o aviso
   `analise-ref-sem-resultado` diz o motivo). O botão `analise-par-base-mudar` reabre a janela. No mapa, as ligações dos
   marcados vêm primeiro, depois as dos outros municípios da base, e a referência fica no quadro, com o nome. Os territórios
@@ -574,7 +575,7 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
 | Comparar | 2 ou 3 itens lado a lado, com maior, menor e diferença do motor (CAP-CMP-01) | `comparar` |
 | Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
-| Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela | Nenhum |
+| Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo; Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
 
 A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
 25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
@@ -614,7 +615,9 @@ e o resultado da comparação continuam.
   temporal, "Série temporal da densidade de médicos · Amazonas · janeiro de 2014 a junho de 2024", com "Cada linha é um
   município, com o valor observado em cada competência do intervalo."; com a Escolha dos territórios, "Densidade de médicos e
   distância até a referência mais próxima · Amazonas · junho de 2024" (o lugar é o da base da consulta: "Norte", "Acre e
-  Amazonas", "Brasil", com ", com filtros" quando há filtros, ou os marcados; com a seleção prévia, o da Seleção). Na Análise de Tendência, o subtítulo e a frase-resumo
+  Amazonas", "Brasil", com ", com filtros" quando há filtros, ou os marcados; com a seleção prévia, o da Seleção). Numa planilha,
+  o lugar da planilha inteira é "Toda a planilha" desde 28/10/2026 (antes, "Planilha"): "Tendência da densidade de médicos ·
+  Toda a planilha · dezembro de 2022 a junho de 2024". Na Análise de Tendência, o subtítulo e a frase-resumo
   ficam no painel "Como ler", à direita do desenho.
 - **Desfazer** (`analise-desfazer`) e **Limpar seleção** ficam no alto da área, fora do título (seção "Desfazer e Limpar seleção").
 - **Frase-resumo** (23/10/2026), logo abaixo do subtítulo (`analise-resumo`, lida pelos leitores de tela a cada mudança): o texto
@@ -759,6 +762,31 @@ No escuro, a magnitude fica na luminosidade ao contrário do claro: o maior grup
 mais claros. Como no claro, o neutro é cinza de propósito (fica abaixo de 3:1 da superfície), com o alívio da legenda com as
 contagens e da tabela; o que é vazado continua tracejado, e nenhum significado depende só da cor.
 
+## Os nomes de uma planilha
+
+Numa planilha enviada, a página fala com os nomes dados no painel "Colunas" (a unidade e o grupo, no singular e no plural)
+e com o gênero deles (o informado ou, sem ele, a terminação: comuna e província, feminino; condado e distrito, masculino).
+Em 28/10/2026, uma navegação simulada com uma planilha fictícia feita do modelo (16 comunas em 4 condados, nomes
+inventados e conferidos contra os 5.307 nomes de municípios e estados da base do Brasil) percorreu a Seleção, as quatro
+análises, as funções, os Detalhes, as exportações, a Escolha dos territórios, "Entenda esta análise" e a conversa. Ficaram
+corrigidos os textos que ainda diziam o que é próprio da base do Brasil ou não concordavam com a unidade:
+
+- a ajuda das Condições: "Separa as comunas que atendem a todas as condições escolhidas, as que não atendem e as que não têm
+  dado para avaliar." (antes, "os que não atendem");
+- a Escolha dos territórios: "Todas que atendem (N)" e "Só as que eu marcar";
+- a linha da base acima do desenho: "cada uma ligada à sua referência mais próxima";
+- "Entenda esta análise" na Análise Espacial: "a referência mais próxima dela" (antes, "delea") e "a escolha de todas as que
+  atendem ou só das marcadas";
+- o lugar de uma planilha inteira nos títulos: "Toda a planilha" (antes, "Planilha");
+- o CSV: a coluna do grupo com o nome dele ("Condado") e o valor da coluna-mãe (antes, "UF", vazia numa planilha);
+- o método: a linha que explica as chaves do contrato da API ("municipios", "estados") nesta planilha.
+
+Continuam como estão, de propósito: os exemplos explicativos do painel "Colunas" ("A unidade de cada linha: município,
+distrito, condado…"), a escolha "Usar dados do Brasil" (a fonte), as chaves do contrato no JSON dos parâmetros, os "três
+estados" da avaliação das condições (CAP-SUB-01) e o "estado atual do gráfico" (não são territórios), e o masculino genérico
+de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma regra
+([CONVERSACAO_INCREMENTO_FN.md](CONVERSACAO_INCREMENTO_FN.md#planilhas-de-outros-países)).
+
 ## Limitações desta entrega e próximos passos
 
 - A conversa e o Histórico dependem da estrutura da página (frente B1); a área entrega o contexto, o estado salvo e aplica o
@@ -859,6 +887,14 @@ contagens e da tabela; o que é vazado continua tracejado, e nenhum significado 
   roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor
   (detalhes em [MAPA_DA_PAGINA_UNICA.md](MAPA_DA_PAGINA_UNICA.md#testes)).
+- **Navegador, planilha fictícia:** `backend/tests/ui_planilha_ficticia.py`, na suíte `bloco1` (desde 28/10/2026), baixa o
+  modelo pela janela de envio, preenche-o com 16 comunas inventadas em 4 condados (com códigos, coordenadas e cinco
+  competências), envia, dá os nomes no painel "Colunas" e percorre a Seleção, a Distribuição (Condições, CSV com a coluna
+  "Condado" e o método com a nota das chaves), a Análise Espacial (a Escolha dos territórios com "Mesmo condado de cada comuna da
+  base", o cálculo, a linha da base e "Entenda esta análise"), a Tendência ("Toda a planilha" no título) e a conversa (a
+  orientação, "As demais", o condado reconhecido pelo nome e nenhum nível acima das comunas). No fim, confere que nada do que
+  esteve à vista, nem os atributos lidos por leitores de tela, traz município, UF, IBGE, Brasil, sede municipal ou as formas de
+  concordância de antes.
 - **Navegador, modo escuro:** `backend/tests/ui_modo_escuro.py`, na suíte `bloco1`, com o navegador no escuro
   (`color_scheme="dark"`): o aviso de privacidade, a página com o banner, as entradas dos dados, as abas e a apresentação, a
   conversa, a base sem seleção, os estados e o Amazonas com fundo escuro e textos a 4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a

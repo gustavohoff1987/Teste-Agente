@@ -43,10 +43,12 @@ SUITES = {
     },
     "bloco1": {
         "descricao": "Página única com catálogo sintético: abertura, estados, Histórico, Nova análise, planilha enviada, "
-                     "celular, a área de análise (famílias, territórios em lista, funções e detalhes) e o modo escuro "
-                     "(o navegador no escuro; a impressão clara)",
+                     "celular, a área de análise (famílias, territórios em lista, funções e detalhes), o modo escuro "
+                     "(o navegador no escuro; a impressão clara) e uma planilha fictícia feita do modelo (os nomes dela "
+                     "em todos os lugares, sem município, estado nem Brasil)",
         "catalogo": "bloco1", "servidor": "offline",
-        "roteiros": [("ui_pagina_unica.py", {}), ("ui_area_de_analise.py", {}), ("ui_modo_escuro.py", {})],
+        "roteiros": [("ui_pagina_unica.py", {}), ("ui_area_de_analise.py", {}), ("ui_modo_escuro.py", {}),
+                     ("ui_planilha_ficticia.py", {})],
     },
     "gemini-simulado": {
         "descricao": "Conversa agindo no gráfico com um transporte Gemini simulado: ambiguidade em botões e nada da base ao provedor",

@@ -297,9 +297,9 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         <div role="radiogroup" aria-label={"Escolher (" + NOMES_DOS_LADOS[lado] + ")"} className="analise-segmentos">
           <button type="button" role="radio" aria-checked={l.escolha.modo === "todos"} data-testid={id("todos")}
             onClick={() => mudarLado(lado, { escolha: { ...l.escolha, modo: "todos" } })}>
-            Todos que atendem{contagens?.filtros !== null && contagens?.filtros !== undefined ? " (" + formatarInteiro(contagens.filtros) + ")" : ""}</button>
+            {femUnidade ? "Todas" : "Todos"} que atendem{contagens?.filtros !== null && contagens?.filtros !== undefined ? " (" + formatarInteiro(contagens.filtros) + ")" : ""}</button>
           <button type="button" role="radio" aria-checked={l.escolha.modo === "marcados"} data-testid={id("marcados")}
-            onClick={() => mudarLado(lado, { escolha: { ...l.escolha, modo: "marcados" } })}>Só os que eu marcar</button>
+            onClick={() => mudarLado(lado, { escolha: { ...l.escolha, modo: "marcados" } })}>Só {femUnidade ? "as" : "os"} que eu marcar</button>
         </div>
         {l.escolha.modo === "marcados" && <>
           {marcados.length > 0 && <ul className="territorios-marcados" aria-label="Marcados">

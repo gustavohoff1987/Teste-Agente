@@ -248,8 +248,9 @@ test('orientação da conversa: pergunta na abertura e, na planilha, usa os nome
     'Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “os 5 municípios com maior densidade”, “compare o de maior e ' +
     'o de menor densidade” ou “municípios com menos de 1 médico por mil”.');
   const comandos = C.guiaDaConversa({tipo: 'arquivo', pronta: true, colunasPendentes: false}, CONTEXTO, DISTRITOS);
-  assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, juntar, usar como referência ou voltar ' +
-    'ao nível de províncias.');
+  // Numa planilha não há nível acima das unidades (28/10/2026): a orientação oferece ver os distritos de uma província.
+  assert.equal(comandos, 'Peça mudanças no gráfico citando distritos pelo nome: comparar, juntar, usar como referência ou mostrar ' +
+    'os distritos de uma província.');
   for (const texto of [planilha, comandos]) assert.doesNotMatch(texto, /munic/i);
 });
 
@@ -281,6 +282,22 @@ test('exemplos da conversa: o que cada análise faz, alternados e sem nomes de l
     'use como referência o município de maior densidade', 'municípios a mais de 150 km', 'explique esse resultado'])
     assert.ok(vistos.has(comando), comando);
   assert.deepEqual(C.exemplosDaAnalise(null, null, -1), C.exemplosDaAnalise(null, null, 5), 'posição negativa volta ao fim da lista');
+});
+
+test('guia de uma planilha (28/10/2026): os nomes dela, sem prometer um nível acima das unidades', () => {
+  // Numa planilha não há nível dos grupos no gráfico: a orientação oferece ver as unidades de um grupo ("mostre o condado …"),
+  // com a concordância dos nomes; sem grupo, nada sobre grupos.
+  const pronta = {tipo: 'arquivo', pronta: true, colunasPendentes: false};
+  const contexto = {...CONTEXTO, municipios: {todos: true, estados: [], ids: []}};
+  const comunas = {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: {singular: 'condado', plural: 'condados'}};
+  assert.equal(C.guiaDaConversa(pronta, contexto, comunas, 0),
+    'Peça mudanças no gráfico citando comunas pelo nome: comparar, juntar, usar como referência ou mostrar as comunas de um condado.');
+  const distritos = {unidade: {singular: 'distrito', plural: 'distritos'}, grupo: {singular: 'província', plural: 'províncias'}};
+  assert.equal(C.guiaDaConversa(pronta, contexto, distritos, 0),
+    'Peça mudanças no gráfico citando distritos pelo nome: comparar, juntar, usar como referência ou mostrar os distritos de uma província.');
+  assert.equal(C.guiaDaConversa(pronta, contexto, {...comunas, grupo: null}, 0),
+    'Peça mudanças no gráfico citando comunas pelo nome: comparar, juntar, usar como referência.');
+  assert.doesNotMatch(C.guiaDaConversa(pronta, contexto, comunas, 0), /nível/);
 });
 
 // Memória da conversa (26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend, no campo `conversa`.

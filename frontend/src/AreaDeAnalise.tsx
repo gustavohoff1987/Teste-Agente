@@ -896,12 +896,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   }, [def.nivel]);
   function exportarCsv() {
     if (!resposta) return;
-    baixar("analise_" + (resposta.competencia || "grafico") + ".csv", montarCsv(resposta, { familia: familiaDesenho, indicador, rotulos }), "text/csv;charset=utf-8");
+    baixar("analise_" + (resposta.competencia || "grafico") + ".csv", montarCsv(resposta, { familia: familiaDesenho, indicador, rotulos,
+      brasil: tipo === "brasil" }), "text/csv;charset=utf-8");
   }
   function exportarMetodo() {
     if (!resposta) return;
-    baixar("metodo_" + (resposta.competencia || "grafico") + ".txt", textoDoMetodo(resposta, titulo, calculado?.opcoes ?? null, resumoNaTela),
-      "text/plain;charset=utf-8");
+    baixar("metodo_" + (resposta.competencia || "grafico") + ".txt", textoDoMetodo(resposta, titulo, calculado?.opcoes ?? null, resumoNaTela,
+      { rotulos, brasil: tipo === "brasil" }), "text/plain;charset=utf-8");
   }
   /** A divisória entre o desenho e a explicação da tendência: arrastar (ou as setas, com o foco nela) muda a largura do painel da
    * explicação, entre LATERAL_MIN e a metade da área (no máximo LATERAL_MAX). */
@@ -1630,7 +1631,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
               gráfico e no mapa. Sem nenhuma referência entre vários, o aviso acima já diz o motivo. */}
           {distanciaNaTela && basesDaReferencia.length > 0 && !semUnidades && (pares.length < 2 || pares.some(par => par.referencias.length > 0)) &&
             <p data-testid="analise-par-base" role="status" className="analise-aviso-familia">
-            <Crosshair size={14} aria-hidden="true"/><span>{textoDosTerritoriosBase({ pares, ligados: paresLigados.length })}{" "}
+            <Crosshair size={14} aria-hidden="true"/><span>{textoDosTerritoriosBase({ pares, ligados: paresLigados.length, rotulos })}{" "}
               <button type="button" data-testid="analise-par-base-mudar" className="analise-link" onClick={() => abrirPainel("referencia")}>
                 Mudar a escolha dos territórios</button></span></p>}
           {resposta?.nivel === "estados" && def.nivel === "estados" && <p data-testid="analise-instrucao" className="analise-instrucao">

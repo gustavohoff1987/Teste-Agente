@@ -35,6 +35,62 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Planilha enviada: os nomes dela em todos os lugares, com a concordância, e o grupo reconhecido na conversa
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026): testar com dados fictícios,
+  preenchendo o modelo de planilha, enviando-o e navegando como usuário, se onde a base do Brasil diz município, estado e
+  Brasil a planilha mostra os nomes dela, "mantendo a organização natural semântica das frases". A navegação simulada
+  (16 comunas inventadas em 4 condados, nenhum nome do Brasil) achou textos que não seguiam os nomes ou a concordância da
+  planilha, um recurso da conversa que não funcionava numa planilha enviada pela página e textos próprios da base do Brasil.
+  Todas as correções são mudanças previstas: decorrem do pedido (escopo) e não contrariam a SPEC nem divergência aprovada
+  (compatibilidade): a SPEC não fixa esses textos, a CAP-REP-06 não exige uma coluna "UF" e o reconhecimento do grupo pelo
+  nome já estava descrito em `Docs/CONVERSACAO_INCREMENTO_FN.md` ("mostre a província X"). Ficaram como estão, de propósito:
+  os exemplos explicativos do painel "Colunas", a escolha "Usar dados do Brasil", as chaves do contrato da API no JSON dos
+  parâmetros (agora explicadas por uma linha), os "três estados" da CAP-SUB-01, o "estado atual do gráfico" e o masculino
+  genérico de "os dois" e "os três" dos itens.
+- **Antes:** numa planilha de comunas (feminino), a ajuda das Condições dizia "os que não atendem"; a Escolha dos territórios,
+  "Todos que atendem (N)" e "Só os que eu marcar"; a linha da base, "cada um ligado à sua referência mais próxima"; "Entenda
+  esta análise" da Análise Espacial, "a referência mais próxima delea" e "todos os que atendem"; os títulos, "· Planilha ·"; o
+  CSV tinha a coluna "UF", vazia; o método mostrava as chaves "municipios" e "estados" sem explicação. Na conversa, a
+  orientação oferecia "voltar ao nível de condados", que a conversa recusa; "Mostre só o condado Costa Ondina" respondia
+  "Não encontrei “Costa e Ondina” entre as comunas da base.", porque a página não mandava o papel `grupo_territorial` no
+  mapeamento da conversa; as respostas verificadas diziam "Empatados", "Os demais", "Todos os comunas com valor", "todos os
+  comunas da base", "os comunas de Alto Vésper" e "2 comunas escolhidas um a um"; no mapa, "cada ponto é um município, na coordenada da sede municipal"; sem gráfico, o exemplo "o nome de um estado ou de
+  municípios"; nos exemplos, "o município de maior densidade", "desses municípios", "os municípios com densidade menor que 1"
+  e, nas recusas de juízo, de classe nova e de escolha delegada e no "desfaz" sem mudança, "os municípios"/"os 5 municípios";
+  a pergunta de volta de uma escolha pedia "a sigla do estado".
+- **Agora:** a ajuda das Condições diz "Separa as comunas que atendem a todas as condições escolhidas, as que não atendem e as
+  que não têm dado para avaliar."; a Escolha dos territórios, "Todas que atendem (N)" e "Só as que eu marcar"; a linha da
+  base, "cada uma ligada"; "Entenda esta análise", "a referência mais próxima dela" e "a escolha de todas as que atendem ou só
+  das marcadas"; o lugar de uma planilha inteira é "Toda a planilha" ("Tendência da densidade de médicos · Toda a planilha ·
+  …"); o CSV tem a coluna do grupo com o nome dele ("Condado") e o valor da coluna-mãe (o motor já devolvia
+  `grupo_territorial`), sem coluna quando a planilha não tem grupo; o método traz, antes dos parâmetros, "Os nomes das chaves
+  abaixo são os do contrato da API, iguais em toda fonte: nesta planilha, “municipios” são as comunas, e “estados”, os
+  condados.". Na conversa, a orientação diz "… ou mostrar as comunas de um condado."; a página manda `grupo_territorial` no
+  mapeamento da conversa (`mapeamentoDaConversa`), e "mostre só o condado Costa Ondina" mostra as 4 comunas dele; as respostas
+  usam os nomes e o gênero da planilha ("Empatadas", "As demais", "Todas as comunas com valor", "todas as comunas da base",
+  "as comunas de Alto Vésper", "2 comunas escolhidas uma a uma"); no mapa, "cada ponto é uma comuna, na coordenada informada na planilha"; sem gráfico, "o nome de um
+  condado ou de comunas, ou “todas as comunas”."; os exemplos, "a comuna de maior densidade", "dessas comunas", "as comunas
+  com densidade menor que 1" e "as 5 comunas com maior densidade"; a pergunta de volta pede "o nome ou “o primeiro”, “o
+  segundo”".
+- **Permanece:** a base do Brasil (os mesmos textos, "UF" no CSV e a sede municipal no mapa); os cálculos, as contagens e as
+  respostas do motor; o pré-exame (o grupo continua em `hierarchy_columns`, fora do mapeamento); o contrato da API; os dados e
+  a SPEC.
+- **Motivo:** pedido do responsável (28/10/2026): numa planilha de outro lugar, município, estado e Brasil são nomes da
+  organização brasileira e devem dar lugar aos nomes da planilha, com o mesmo sentido das frases.
+- **Documentação e testes:** `README.md` (os nomes da planilha em todos os lugares, o CSV e o job `ui-block1`),
+  `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a Escolha dos territórios, a linha da base, o título, a exportação, a seção nova "Os
+  nomes de uma planilha" e o roteiro novo) e `Docs/CONVERSACAO_INCREMENTO_FN.md` (o grupo no mapeamento da conversa, a
+  orientação e as respostas). Testes novos: `backend/tests/test_rotulos_da_planilha.py` (uma planilha fictícia de comunas e
+  condados no motor: os extremos, a seleção e o mapa, os exemplos sem gráfico e com ele, as recusas e a pergunta de volta, com
+  comunas, distritos e a base do Brasil) e o roteiro de navegador `backend/tests/ui_planilha_ficticia.py`, registrado na suíte
+  `bloco1` (baixa o modelo pela tela, preenche-o com 16 comunas inventadas, envia e percorre a página, conferindo que nada à
+  vista traz município, UF, IBGE, Brasil ou as concordâncias de antes). No frontend, testes novos em
+  `areaDeAnalise.test.mjs` (a nota das chaves no método, "dela" e "todas as que atendem", "cada uma ligada", a coluna
+  "Condado" no CSV e nenhuma coluna sem grupo), em `conversaGrafico.test.mjs` (a orientação de uma planilha) e em
+  `paginaUnica.test.mjs` (`mapeamentoDaConversa`). Alterados por mudança intencional de texto, nenhum afrouxado:
+  `painel.test.mjs` ("Planilha" passou a "Toda a planilha") e `conversaGrafico.test.mjs` (a orientação de uma planilha de
+  distritos: "… ou mostrar os distritos de uma província.").
+
 ### 2026-10-27 · Escolha dos territórios: a referência diz de quem é a mais próxima, e a Referência mostra candidatos e usadas
 - **Classificação (regra 1), pela leitura, antes de codar:** relato do responsável na navegação (27/10/2026): base "municípios
   da Bahia com densidade abaixo de 0,5 e população acima de 10 mil" (só PILAO ARCADO (BA)) e referência "densidade acima de 1,5"
