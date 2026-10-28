@@ -73,6 +73,13 @@ test('escala com piso: nenhuma letra abaixo de 11 px; abaixo de 12 px, só rótu
   assert.equal(tamanho(regra('src/analise.css', '.analise-rotulo-campo')), 13, 'os rótulos dos campos (antes, 11,5 px)');
   assert.match(regra('src/analise.css', '.analise-rotulo-campo'), /font-weight:\s*600/, 'a hierarquia vem do peso');
   assert.equal(tamanho(regra('src/analise.css', '.analise-frase-resumo')), 15, 'a frase-resumo do motor, texto de leitura');
+  // Com a letra maior, os campos dos ajustes na altura do seletor segmentado (40 px) e, na gaveta Condições, o Indicador na linha
+  // toda e a Condição e o Valor na seguinte: nenhum campo corta o texto.
+  assert.match(regra('src/analise.css', '.analise-ajustes .analise-campo'), /min-height:\s*40px/);
+  const gavetas = ler('src/PainelGavetas.tsx');
+  assert.match(gavetas, /<label className="analise-rotulo-campo basis-full">Indicador/);
+  assert.match(gavetas, /<label className="analise-rotulo-campo min-w-\[7rem\] flex-1">Condição/);
+  assert.match(gavetas, /<label className="analise-rotulo-campo min-w-\[7rem\] flex-1">Valor/);
   // Os números dos eixos e da rampa do mapa não crescem além de 11,5 px: a margem do eixo e o afastamento dos rótulos são fixos.
   assert.equal(tamanho(regra('src/mapa.css', '.mapa-rampa-textos')), 11.5);
   assert.match(regra('src/mapa.css', '.mapa-rampa-textos'), /height:\s*16px/, 'a caixa da rampa cabe a letra');

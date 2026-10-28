@@ -35,6 +35,21 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Tipografia: campos dos ajustes alinhados e a gaveta Condições sem cortar o texto
+- **Classificação (regra 1), pela leitura, antes de codar:** ajuste da mudança anterior (`ee9789d`), achado na conferência visual
+  depois dela: com a letra maior, a gaveta Condições cortava o Indicador ("Densi…") e a Condição ("< menor qu…"), como já acontecia
+  em parte antes, e os campos dos ajustes ficavam 4 px abaixo do seletor segmentado vizinho (36 contra 40 px), com os rótulos
+  desalinhados. Mudança de comportamento (o que se vê na tela) prevista: decorre do pedido de estética do responsável (escopo) e não
+  contraria a SPEC (compatibilidade). Nenhum texto, valor ou fluxo muda.
+- **Antes:** na gaveta Condições, os três campos numa linha (o Indicador com o que sobrava, 76 px na gaveta de 312 px); nos ajustes,
+  os campos com 36 px de altura mínima.
+- **Agora:** o Indicador ocupa a linha toda, e a Condição e o Valor dividem a linha seguinte; os campos dos ajustes têm 40 px, a altura
+  do seletor segmentado, e os rótulos ficam na mesma linha.
+- **Permanece:** os campos, as opções, a validação, o pedido ao motor e a letra da escala tipográfica.
+- **Motivo:** conferência visual da mudança de tipografia (28/10/2026).
+- **Documentação e testes:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (seção "Tipografia"); `frontend/tests/tipografia.test.mjs` confere a
+  altura dos campos dos ajustes e o arranjo dos campos da gaveta Condições.
+
 ### 2026-10-28 · Tipografia: a Inter embutida, a escala com piso, a marca em destaque e os balões do agente inteiros
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026): "da Força de Trabalho na Saúde"
   muito miúdo, que pode aumentar "um pouquinho", continuar menor que "Agente Diagnóstico Territorial" e ganhar uma estética

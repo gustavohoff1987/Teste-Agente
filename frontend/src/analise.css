@@ -70,8 +70,8 @@
 .analise-campo { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 7px 9px; border: 1px solid var(--cor-borda-campo);
   border-radius: 10px; background: var(--cor-superficie); color: var(--cor-tinta); font-size: 14px; }
 .analise-campo[aria-invalid="true"] { border-color: rgb(var(--tom-rose-600)); }
-/* Nos ajustes, os campos na altura do seletor segmentado vizinho (28/10/2026): os rótulos alinham. */
-.analise-ajustes .analise-campo { min-height: 36px; }
+/* Nos ajustes, os campos na altura do seletor segmentado vizinho (40 px, 28/10/2026): os rótulos alinham. */
+.analise-ajustes .analise-campo { min-height: 40px; }
 .analise-resumo { display: block; margin-top: 4px; padding: 7px 0; color: var(--cor-tinta); font-size: 14px; font-weight: 600; }
 .analise-segmentos { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--cor-borda-campo); border-radius: 12px;
   background: var(--cor-superficie-suave); }

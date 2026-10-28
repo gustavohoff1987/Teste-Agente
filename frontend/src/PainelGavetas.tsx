@@ -36,18 +36,18 @@ export function GavetaCondicoes(p: CondicoesProps) {
       1.000 habitantes e mais de 150 km da referência.</p>
     <ol className="space-y-2">
       {linhas.map((linha, indice) => <li key={indice} data-testid="analise-condicao" className="flex flex-wrap items-end gap-1.5">
-        <label className="analise-rotulo-campo min-w-[8rem] flex-1">Indicador
+        <label className="analise-rotulo-campo basis-full">Indicador
           <select data-testid="analise-condicao-atributo" value={linha.atributo} onChange={event => mudar(indice, { atributo: event.target.value as AtributoCondicao })} className="analise-campo">
             <option value="densidade">Densidade</option><option value="quantidade">Quantidade</option><option value="populacao">População</option>
             <option value="distancia_km" disabled={!p.espacial}>Distância até a referência (km){p.espacial ? "" : " · só na análise espacial"}</option>
           </select>
         </label>
-        <label className="analise-rotulo-campo w-28">Condição
+        <label className="analise-rotulo-campo min-w-[7rem] flex-1">Condição
           <select data-testid="analise-condicao-operador" value={linha.operador} onChange={event => mudar(indice, { operador: event.target.value as OperadorCondicao })} className="analise-campo">
             {(Object.keys(OPERADORES) as OperadorCondicao[]).map(op => <option key={op} value={op}>{SIMBOLOS[op]} {OPERADORES[op]}</option>)}
           </select>
         </label>
-        <label className="analise-rotulo-campo w-28">Valor ({UNIDADES[linha.atributo]})
+        <label className="analise-rotulo-campo min-w-[7rem] flex-1">Valor ({UNIDADES[linha.atributo]})
           <input data-testid="analise-condicao-valor" inputMode="decimal" value={linha.valor} onChange={event => mudar(indice, { valor: event.target.value })}
             className="analise-campo" aria-invalid={!!linha.valor.trim() && lerNumero(linha.valor) === null}/>
         </label>

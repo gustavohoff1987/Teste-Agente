@@ -714,8 +714,10 @@ ao motor nem latência nova; com a auditoria independente de um agente especiali
   motor, com `text-wrap: pretty`, e as mensagens da conversa). Nenhum texto fica abaixo de 12 px, exceto os rótulos em caixa alta com
   espaçamento (11,5 px; 11 px no sobretítulo do banner no celular) e os números dos eixos e da rampa do mapa (11,5 px, em algarismos
   tabulares), que não crescem porque a margem do eixo e o afastamento dos rótulos são fixos. Os rótulos dos campos passam a 13 px em
-  seminegrito (a hierarquia vem do peso), e, nos ajustes, os campos têm a altura do seletor segmentado vizinho (36 px). No
-  Tailwind, o `text-xs` passa de 12 para 13 px, e nenhuma classe de tamanho arbitrário fica abaixo de 12 px.
+  seminegrito (a hierarquia vem do peso), e, nos ajustes, os campos têm a altura do seletor segmentado vizinho (40 px), com os
+  rótulos na mesma linha. Na gaveta Condições, o Indicador ocupa a linha toda, e a Condição e o Valor dividem a linha seguinte:
+  com a letra maior, nenhum campo corta o texto (antes, "Densi…" e "< menor qu…" na gaveta de 340 px). No Tailwind, o `text-xs`
+  passa de 12 para 13 px, e nenhuma classe de tamanho arbitrário fica abaixo de 12 px.
 - **A marca:** "Agente Diagnóstico Territorial" em 20 px (antes 19), peso 750; abaixo, "da Força de Trabalho na Saúde" em 14 px
   (antes 12 px, em cinza), menor que o nome, em seminegrito, no turquesa de texto da identidade (`--cor-destaque-texto`, a 4,5:1 ou
   mais nos dois esquemas), com o "da" mais leve, no tom de apoio (`pagina-marca-de`); no celular, 17 e 13 px. O rosto do agente
