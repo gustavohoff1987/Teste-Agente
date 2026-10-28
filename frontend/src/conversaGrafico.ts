@@ -21,6 +21,16 @@ export function comandoDeFonte(message: string): "brasil" | "arquivo" | null {
   return null;
 }
 
+/** A resposta à fonte que a conversa ofereceu antes dos dados (28/10/2026): "sim" (e afins) escolhe a fonte oferecida;
+ * "não", a outra fica em destaque; o resto segue o caminho de sempre. */
+export function respostaAOferta(message: string): "sim" | "nao" | null {
+  const texto = normalizeCommand(message);
+  if (/^(?:sim|ok|okay|pode|pode ser|pode sim|pode usar|claro|claro que sim|isso|quero|vamos|bora|certo|beleza|perfeito|aceito|por favor|uhum|aham|use|usa|usar)(?: (?:sim|pode|por favor|quero|obrigad[oa]|pode usar|use|usar))*$/.test(texto))
+    return "sim";
+  if (/^(?:nao|nao obrigad[oa]|nao quero|agora nao|melhor nao|prefiro nao)$/.test(texto)) return "nao";
+  return null;
+}
+
 /** Pedidos de apresentação que a interface reconhece sozinha, sem recalcular: a vista do desenho (o mapa voltou em
  * 23/10/2026 como segunda vista do gráfico) e a tabela, que fica nos Detalhes. */
 export type ResultView = "mapa" | "graficos" | "tabela";

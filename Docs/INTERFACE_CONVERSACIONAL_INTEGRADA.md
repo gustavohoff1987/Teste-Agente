@@ -203,7 +203,8 @@ conversa entende. Até 26/10/2026, os exemplos eram fixos e citavam lugares ("mo
 **Escolha da fonte pela conversa.** "Usar dados do Brasil" e "enviar meus dados" fazem o mesmo que os botões, sem o provedor
 de IA. Escolhidos os dados do Brasil, a resposta diz "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os
 territórios na Seleção de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os
-estados”."
+estados”."; desde 28/10/2026, com um pedido guardado (abaixo), "Dados do Brasil escolhidos. Vou prepará-los e, em seguida,
+sigo com o seu pedido."
 
 **Antes dos dados.** Perguntas sobre o agente, a privacidade e os conceitos ("Como se calcula a densidade?") e sobre o
 conteúdo da base do Brasil continuam respondidas localmente. Desde 26/10/2026, um pedido de análise feito antes da escolha
@@ -211,11 +212,35 @@ dos dados (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios
 `conversa_grafico.py`) recebe na hora, sem o provedor de IA, o lembrete "Para fazer essa análise, primeiro escolha os dados:
 use os dados do Brasil ou envie os seus, em CSV ou Excel. Assim que a base estiver pronta, sigo com o seu pedido." (a tela
 manda `lembrar_base` a `/api/llm/interpret`, que responde com `aguarda_base`), e os dois botões da escolha ficam em destaque
-(`data-lembrete`) até a pessoa escolher; antes, o pedido ia ao intérprete com o provedor e podia ficar esperando até o prazo
+(`data-lembrete`) até a pessoa escolher (desde 28/10/2026, com a fonte que o pedido indica, a oferta dela; veja abaixo); antes, o pedido ia ao intérprete com o provedor e podia ficar esperando até o prazo
 das chamadas. O pedido fica guardado: quando a base fica pronta, ele segue pelo caminho completo (o intérprete local e, sem
 resposta local, o comando já interpretado ou o intérprete contextual), com a resposta começando por "Com os dados prontos,
 sigo com o seu pedido."; antes, sem resposta local, o pedido guardado se perdia. "Certo, quantos tem?" antes da escolha
 recebe "Para continuar, escolha os dados: “Usar dados do Brasil” ou “Enviar meus dados”."
+
+**A fonte oferecida antes dos dados (28/10/2026).** O pedido feito antes da escolha dos dados é lido de novo para ver se diz
+de qual fonte precisa, ainda na hora e sem o provedor (`pedido_antes_dos_dados`, em `conversa_grafico.py`):
+- **Lugares do Brasil:** um estado pelo nome, uma região ("Nordeste", "região Sul") ou o próprio Brasil; a sigla de um
+  estado em maiúsculas ("SP") só diz que o pedido é sobre o Brasil ("Para esse pedido, posso usar os dados do Brasil…"),
+  porque, com a base escolhida, a conversa procura os estados pelo nome. Os nomes são os da regra governada da fonte municipal do Brasil (`STATES` e `REGIONS`), que a conversa já
+  reconhece com a base escolhida. A resposta oferece os dados do Brasil: "Para analisar o Acre, posso usar os dados do Brasil:
+  escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os seus, em CSV ou Excel. Assim que a base estiver
+  pronta, sigo com o seu pedido." (`fonte_sugerida: "brasil"`). O botão "Usar dados do Brasil" aparece na resposta, e no alto
+  só ele fica em destaque (`data-lembrete="brasil"`). "Sim", "pode" ou o botão escolhem os dados do Brasil, como o botão do
+  alto; "não" deixa "Enviar meus dados" em destaque. Qualquer outra mensagem esquece a oferta.
+- **Os dados da pessoa** ("minha planilha", "meus dados"): a oferta do envio, com o botão "Enviar meus dados" na resposta
+  (`fonte_sugerida: "arquivo"`); "sim" abre a janela de envio.
+- **Os dados do Brasil citados como fonte** ("quero analisar Pernambuco com os dados do Brasil"): a escolha deles, como o
+  botão (`fonte_escolhida: "brasil"`), com "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu
+  pedido."
+- **Sem nada disso**, o lembrete de 26/10/2026. "Quero analisar X" vale como pedido de análise com qualquer objeto, e a
+  pergunta sobre o que o agente faz ("você consegue analisar planilhas?") não vale.
+
+Nomes de municípios, inclusive capitais, não são reconhecidos antes da escolha: não há catálogo de cidades (CFG-TER), e a base
+não é lida antes de ser escolhida. "Quero analisar Recife" recebe o lembrete de escolher os dados. Em todos os casos, o pedido
+fica guardado e segue pelo caminho completo quando a base fica pronta. Antes, "quero analisar o acre" ou "quero analisar
+pernambuco" não eram reconhecidos como pedido de análise: iam ao intérprete com o provedor, demoravam e voltavam "Não
+identifiquei uma análise inequívoca. Qual análise deseja realizar sobre a força de trabalho na saúde?".
 
 **Com os dados.** Fora os pedidos atendidos na própria tela (a vista do desenho, a tabela, o resumo do que está na tela e a
 análise anterior, descritos abaixo), cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem

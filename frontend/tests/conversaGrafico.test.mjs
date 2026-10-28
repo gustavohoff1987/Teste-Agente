@@ -30,6 +30,16 @@ test('comandos aceitam acentos, pontuação e espaços; a escolha da fonte é a 
   assert.equal(C.comandoDeFonte('Compare Manaus e Tefé'), null);
 });
 
+test('antes dos dados, "sim" escolhe a fonte oferecida pela conversa e "não" fica com a outra (28/10/2026)', () => {
+  for (const sim of ['sim', 'Sim!', 'pode', 'pode ser', 'ok', 'claro', 'sim, por favor', 'pode usar', 'quero', 'Isso.'])
+    assert.equal(C.respostaAOferta(sim), 'sim', sim);
+  for (const nao of ['não', 'Não, obrigado.', 'agora não', 'prefiro não'])
+    assert.equal(C.respostaAOferta(nao), 'nao', nao);
+  // O resto segue o caminho de sempre: um pedido novo, uma resposta com mais do que "sim" ou "não", uma pergunta.
+  for (const outra of ['quero analisar o Acre', 'sim, mas só o Acre', 'certo, quantos tem?', 'não sei', 'Me conte uma curiosidade'])
+    assert.equal(C.respostaAOferta(outra), null, outra);
+});
+
 test('pedidos de apresentação e de análise anterior só valem quando a mensagem não diz mais do que isso', () => {
   assert.equal(C.viewCommand('Mostra isso num gráfico'), 'graficos');
   assert.equal(C.viewCommand('agora a tabela, por favor'), 'tabela');

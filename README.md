@@ -388,7 +388,10 @@ A evolução autorizada do diálogo está registrada em [Evolução conversacion
 - O pedido feito antes da escolha dos dados é reinterpretado quando a base fica pronta, e os municípios citados nele
   vão para o gráfico. Desde 26/10/2026, o pedido de análise feito antes da escolha recebe na hora, sem o provedor, o
   lembrete de escolher os dados (os do Brasil ou os seus, em CSV ou Excel), com os dois botões da escolha em destaque; quando
-  a base fica pronta, ele segue pelo caminho completo ("Com os dados prontos, sigo com o seu pedido.").
+  a base fica pronta, ele segue pelo caminho completo ("Com os dados prontos, sigo com o seu pedido."). Desde 28/10/2026,
+  um pedido que cita um estado, uma região ou o próprio Brasil recebe na hora a oferta dos dados do Brasil, com o botão na
+  resposta, e "sim" os escolhe; os dados da pessoa citados recebem a oferta do envio; os dados do Brasil citados como fonte
+  são escolhidos, como pelo botão.
 
 Essas continuações não chamam o provedor de IA. Detalhes em
 [interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).

@@ -57,8 +57,8 @@ import time
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import (AREA, URL, accept_privacy, form_field, history_label, is_post, offline, open_chat, options_of, send,
-                        uploaded_filename)
+from ui_support import (AREA, PRIVACIDADE, URL, accept_privacy, end_session, form_field, history_label, is_post, offline,
+                        open_chat, options_of, send, uploaded_filename)
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
@@ -181,8 +181,23 @@ def main():
 
         # 2. Pedido de análise antes dos dados (26/10/2026): com ou sem o provedor, a conversa lembra na hora de escolher os
         # dados, sem chamar o intérprete, destaca os dois botões da escolha e guarda o pedido até a base ficar pronta. Sem o
-        # provedor, uma conversa livre recebe o aviso cordial de indisponibilidade, e a página continua funcionando.
+        # provedor, uma conversa livre recebe o aviso cordial de indisponibilidade, e a página continua funcionando. Desde
+        # 28/10/2026, um pedido que cita um estado do Brasil recebe na hora a oferta dos dados do Brasil, com o botão dela na
+        # resposta e só o botão "Usar dados do Brasil" do alto em destaque; a mensagem seguinte esquece a oferta.
         antes = interpretacoes_no_registro()
+        with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+            send(page, "quero analisar o Amazonas")
+        enviadas.append("quero analisar o Amazonas")
+        assert event.value.status == 200, event.value.text()[:2000]
+        assert event.value.json().get("aguarda_base") is True and event.value.json().get("fonte_sugerida") == "brasil", \
+            event.value.json()
+        assert interpretacoes_no_registro() == antes, "a oferta dos dados do Brasil não chama o intérprete"
+        expect(latest).to_contain_text("Para analisar o Amazonas, posso usar os dados do Brasil: escolha “Usar dados do Brasil” "
+                                       "ou responda “sim”.")
+        escolha_dos_dados = chat.get_by_role("group", name="Escolha dos dados na conversa")
+        alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
+        expect(escolha_dos_dados).to_have_attribute("data-lembrete", "brasil")
+        expect(alternativas.get_by_role("button", name="Usar dados do Brasil", exact=True)).to_be_visible()
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
             send(page, "Quero analisar a densidade")
         enviadas.append("Quero analisar a densidade")
@@ -191,7 +206,8 @@ def main():
         assert event.value.json().get("aguarda_base") is True, event.value.json()
         assert interpretacoes_no_registro() == antes, "o lembrete da escolha dos dados não chama o intérprete"
         expect(latest).to_contain_text("Para fazer essa análise, primeiro escolha os dados: use os dados do Brasil ou envie os seus")
-        expect(chat.get_by_role("group", name="Escolha dos dados na conversa")).to_have_attribute("data-lembrete", "true")
+        expect(escolha_dos_dados).to_have_attribute("data-lembrete", "true")
+        expect(alternativas).to_have_count(0)
         # Cada mensagem fica no histórico com a hora no balão (sem entrar no texto da mensagem).
         expect(historico.locator('[data-papel="usuario"]').last).to_have_attribute("data-hora", re.compile(r"^\d{2}:\d{2}$"))
         send(page, "certo, quantos tem?")
@@ -223,6 +239,8 @@ def main():
         assert inspecao.value.status == 200, inspecao.value.text()[:2000]
         assert len(llm_calls) == chamadas_llm, "a escolha da fonte pela conversa é local"
         expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
+        # Com o pedido guardado, a escolha diz que ele segue (28/10/2026), em vez de mandar escolher os territórios.
+        expect(historico).to_contain_text("Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido.")
         expect(guia).to_contain_text("Os dados estão prontos. Escolha os territórios na Seleção de Territórios ou me diga quais "
                                      "quer ver: o nome de um estado ou de municípios, ou “todos os estados”.", timeout=60000)
         expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
@@ -658,13 +676,46 @@ def main():
             # Exemplos da biblioteca conversacional acompanham os pedidos, mascarados como as mensagens.
             exemplos = [registro["exemplos"] for registro in registros if registro.get("exemplos")]
             assert exemplos and all(bloco.startswith("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL") for bloco in exemplos), registros
+        # 14. Começo sem base numa sessão nova (28/10/2026): o pedido que cita um estado do Brasil recebe a oferta dos dados do
+        # Brasil, sem o intérprete; "sim" (na primeira sessão) e o botão "Usar dados do Brasil" da resposta (na segunda)
+        # escolhem os dados do Brasil, como o botão do alto, e o pedido guardado segue quando a base fica pronta: os
+        # municípios do Amazonas no gráfico.
+        for aceite in ("sim", "botao"):
+            end_session(page)
+            expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
+            accept_privacy(page)
+            expect(page.get_by_test_id("current-source")).to_have_count(0)
+            antes = interpretacoes_no_registro()
+            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+                send(page, "quero analisar o Amazonas")
+            assert event.value.json().get("fonte_sugerida") == "brasil", event.value.json()
+            assert interpretacoes_no_registro() == antes, "a oferta dos dados do Brasil não chama o intérprete"
+            expect(latest).to_contain_text("Para analisar o Amazonas, posso usar os dados do Brasil")
+            expect(chat.get_by_role("group", name="Escolha dos dados na conversa")).to_have_attribute("data-lembrete", "brasil")
+            with page.expect_response(lambda r: is_post(r, "/api/painel") and (
+                    options_of(r.request).get("base") or {}).get("municipios", {}).get("estados") == ["13"],
+                    timeout=180000) as grafico:
+                with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
+                    if aceite == "sim":
+                        send(page, "sim")
+                    else:
+                        chat.get_by_role("group", name="Alternativas de esclarecimento").get_by_role(
+                            "button", name="Usar dados do Brasil", exact=True).click()
+            assert inspecao.value.status == 200 and grafico.value.status == 200, (inspecao.value.status, grafico.value.status)
+            expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
+            expect(historico).to_contain_text("Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido.")
+            expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
+            expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
+        shot("06-comeco-sem-base-oferta")
+
         assert not analyze_calls, "a conversa não aciona as telas clássicas de /api/analyze"
         assert not failures, failures
         browser.close()
     print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa sem seleção automática, todos os estados, Amazonas, "
           "mapa e gráfico, resumo, comparação, gestor de diálogo (pergunta sobre o resultado, troca, desfazer, resposta digitada e "
           "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior, planilha de condados e histórico "
-          "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular)" +
+          "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular), oferta dos dados do Brasil antes da "
+          "escolha (\"sim\" e o botão da resposta)" +
           (", redação conferida, reserva de contrato, limite e queda simulados com recuperação, ambiguidade e triagem "
            "(Gemini simulado)." if simulado else ", aviso cordial sem o provedor."))
 

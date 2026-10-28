@@ -4,8 +4,9 @@ import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
 import { comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa, memoriaVazia, normalizeCommand, opcoesDaConversa,
-  pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaDaVista,
-  respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa, type ResultView } from "./conversaGrafico";
+  pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaAOferta,
+  respostaDaVista, respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa,
+  type ResultView } from "./conversaGrafico";
 import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
 import { acrescentar, avisoDaResposta, avisoDeDemora, avisoDeFalha, blocosDoTexto, estaNoFim, horaDaMensagem, mensagemDeAviso,
   novoId, posicaoDaRolagem, turnosParaEnvio, ultimaResposta, type Aviso, type Mensagem, type Trecho,
@@ -24,8 +25,10 @@ import { acrescentar, avisoDaResposta, avisoDeDemora, avisoDeFalha, blocosDoText
 // como aviso cordial no próprio histórico, sem código nem mensagem técnica. Ao backend vai a janela das mensagens mais recentes
 // (`turnos`), que ele tria antes do provedor; arquivos, linhas e nomes de campo nunca vão ao provedor de IA. Desde 26/10/2026: o
 // pedido de análise antes dos dados recebe na hora o lembrete de escolher a base (sem o provedor) e fica guardado até ela ficar
-// pronta, quando segue pelo caminho completo; a resposta que pede continuação (`continuar`, como "assim que o gráfico estiver
-// pronto, comparo …") é enviada sozinha quando o motor calcula o gráfico novo; nenhum pedido fica girando além do prazo da tela.
+// pronta, quando segue pelo caminho completo (desde 28/10/2026, com lugares do Brasil ou os dados da pessoa citados, a oferta
+// dessa fonte, com o botão dela na resposta e "sim" para escolhê-la); a resposta que pede continuação (`continuar`, como
+// "assim que o gráfico estiver pronto, comparo …") é enviada sozinha quando o motor calcula o gráfico novo; nenhum pedido fica
+// girando além do prazo da tela.
 
 /** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
  * mensagem (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
@@ -42,7 +45,10 @@ type Exploration = { handled: boolean; reply?: string; clarification?: string; o
 type Reply = { exploration?: Exploration; dialogue_action?: string; reply: string; proposal: Proposal;
   verification?: { source: string }; clarification?: Clarification; executed: boolean; origin: string; painel?: unknown;
   /** Pedido de análise antes da escolha dos dados: o lembrete de escolher a base; o pedido fica guardado (26/10/2026). */
-  aguarda_base?: boolean };
+  aguarda_base?: boolean;
+  /** Com o lembrete (28/10/2026): a fonte oferecida (lugares do Brasil ou os dados da pessoa citados) ou a escolhida (os
+   * dados do Brasil citados como fonte, como o botão). */
+  fonte_sugerida?: "brasil" | "arquivo"; fonte_escolhida?: "brasil" | "arquivo" };
 type Status = { configured: boolean; disponivel?: boolean; indisponibilidade?: { tipo?: string; titulo?: string; texto?: string } };
 /** Mensagem do histórico, com a pergunta de esclarecimento e o pedido que a provocou (para as alternativas). */
 type Turn = Mensagem & { clarification?: Clarification; request?: string; fonte?: string };
@@ -80,6 +86,10 @@ const VISTAS = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart",
  * chamada ao provedor e não começa chamada nova depois de 20 s do pedido) e a espera da continuação pelo gráfico novo. */
 const AVISO_DE_ANDAMENTO_MS = 12000, AVISO_DE_DEMORA_MS = 45000, PRAZO_DA_CONVERSA_MS = 100000;
 const ESPERA_DA_CONTINUACAO_MS = 8000, MAX_CONTINUACOES = 2;
+/** A fonte oferecida antes dos dados, como alternativa da resposta: o mesmo que o botão do alto (28/10/2026). */
+const OPCAO_DA_FONTE: Record<"brasil" | "arquivo", Choice> = {
+  brasil: { label: "Usar dados do Brasil", draft: "usar dados do Brasil", send: true },
+  arquivo: { label: "Enviar meus dados", draft: "enviar meus dados", send: true } };
 const SEGUIMENTO = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i;
 
 /** Falha da conversa: o status e o detalhe ficam para escolher o aviso cordial; a tela nunca os mostra crus. */
@@ -131,8 +141,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const noFim = useRef(true);
   const [novidade, setNovidade] = useState(false);
   // Lembrete da escolha dos dados (26/10/2026): depois de um pedido de análise sem base, os dois botões da escolha ficam em
-  // destaque até a pessoa escolher.
-  const [lembrete, setLembrete] = useState(false);
+  // destaque até a pessoa escolher; desde 28/10/2026, com uma fonte oferecida, só o botão dela.
+  const [lembrete, setLembrete] = useState<false | "ambos" | "brasil" | "arquivo">(false);
   // Pedido em andamento há algum tempo: 1 depois de 12 s, 2 depois de 45 s (o texto do indicador muda; nada é reenviado).
   const [demora, setDemora] = useState(0);
   const adicionar = (mensagem: Turn) => setTurns(previous => acrescentar(previous, { hora: horaDaMensagem(), ...mensagem }) as Turn[]);
@@ -161,7 +171,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     const espera = window.setTimeout(() => setDemora(2), AVISO_DE_DEMORA_MS);
     return () => { window.clearTimeout(andamento); window.clearTimeout(espera); };
   }, [sending]);
-  useEffect(() => { if (fonteEscolhida) setLembrete(false); }, [fonteEscolhida]);
+  useEffect(() => { if (fonteEscolhida) { setLembrete(false); sugestao.current = null; } }, [fonteEscolhida]);
   function aoRolar() {
     const lista = historico.current;
     if (!lista) return;
@@ -183,6 +193,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const pendingRanking = useRef<string | null>(null);
   const pendingRequest = useRef("");
   const pendingPedido = useRef<PedidoDoChat | null>(null);
+  // A fonte oferecida pela última resposta antes dos dados (28/10/2026): "sim" a escolhe; qualquer outra mensagem a esquece.
+  const sugestao = useRef<"brasil" | "arquivo" | null>(null);
   // Continuação pedida pela resposta (26/10/2026), como "assim que o gráfico estiver pronto, comparo …": quando o motor calcula o
   // gráfico novo (outro resultado em exibição), a tela envia o pedido sozinha, sem mostrá-lo como mensagem da pessoa; sem
   // gráfico novo em 8 s, segue com o que está na tela. No máximo duas continuações seguidas; um pedido novo da pessoa a cancela.
@@ -356,18 +368,33 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     noFim.current = true;
     setDraft("");
     continuacao.current = null;  // o pedido novo da pessoa vale mais que a continuação que ainda esperava o gráfico
-    // A escolha da fonte pela conversa é a mesma ação dos botões.
-    const escolha = comandoDeFonte(message);
+    // A escolha da fonte pela conversa é a mesma ação dos botões; desde 28/10/2026, também o "sim" à fonte oferecida.
+    const oferecida = sugestao.current;
+    sugestao.current = null;
+    const resposta = !fonteEscolhida && oferecida ? respostaAOferta(message) : null;
+    const escolha = comandoDeFonte(message) ?? (resposta === "sim" ? oferecida : null);
     if (escolha) {
       if (escolha === "brasil" && fonteEscolhida === "brasil") {
         append(pronta ? "Os dados do Brasil já estão em uso." : "Estou preparando os dados do Brasil.");
         return;
       }
       onEscolherFonte(escolha);
-      append(escolha === "brasil" ? "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os territórios na Seleção de " +
-          "Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”."
+      // Com um pedido guardado, ele segue quando a base fica pronta (28/10/2026; antes, a resposta mandava escolher os
+      // territórios, e o pedido seguia mesmo assim).
+      append(escolha === "brasil" ? (pendingRequest.current
+          ? "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido."
+          : "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os territórios na Seleção de " +
+          "Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”.")
         : "Abri a janela de envio: escolha o arquivo CSV ou Excel. O modelo de planilha também está nela. Depois, confira as colunas " +
           "no painel Colunas, no alto da página.");
+      return;
+    }
+    if (resposta === "nao") {
+      setLembrete(oferecida === "brasil" ? "arquivo" : "brasil");
+      append(oferecida === "brasil" ? "Tudo bem. Para usar os seus dados, escolha “Enviar meus dados”: a janela de envio aceita " +
+          "CSV ou Excel e traz o modelo de planilha. Assim que a base estiver pronta, sigo com o seu pedido."
+        : "Tudo bem. Se quiser, use os dados do Brasil: escolha “Usar dados do Brasil”. Assim que a base estiver pronta, sigo " +
+          "com o seu pedido.");
       return;
     }
     const normalized = normalizeCommand(message);
@@ -377,7 +404,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     }
     if (!pronta && pendingRequest.current && SEGUIMENTO.test(message)) {
       append("Para continuar, escolha os dados: “Usar dados do Brasil” ou “Enviar meus dados”.");
-      if (!fonteEscolhida) setLembrete(true);
+      if (!fonteEscolhida) setLembrete("ambos");
       return;
     }
     // Perguntas sobre o conteúdo da base pública: consulta local, sem o provedor de IA e sem exigir a escolha da fonte.
@@ -484,16 +511,23 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           (origem ? null : pedidoDaOperacao(validated.proposal.operation, validated.proposal.indicator));
         if (!origem && validated.aguarda_base) {
           // Pedido de análise sem base (26/10/2026): o lembrete de escolher os dados, respondido na hora pelo backend, com os
-          // dois botões da escolha em destaque; o pedido fica guardado e segue quando a base estiver pronta.
+          // dois botões da escolha em destaque; o pedido fica guardado e segue quando a base estiver pronta. Desde 28/10/2026,
+          // com uma fonte oferecida, o botão dela em destaque e na resposta ("sim" também a escolhe); com os dados do Brasil
+          // citados como fonte, a escolha deles, como o botão.
           pendingRequest.current = message;
           pendingPedido.current = null;
-          if (!fonteEscolhida) setLembrete(true);
+          if (validated.fonte_escolhida) onEscolherFonte(validated.fonte_escolhida);
+          else if (!fonteEscolhida) {
+            setLembrete(validated.fonte_sugerida ?? "ambos");
+            sugestao.current = validated.fonte_sugerida ?? null;
+            if (validated.fonte_sugerida) choices = [OPCAO_DA_FONTE[validated.fonte_sugerida]];
+          }
           texto = validated.reply;
         } else if (!origem && (pedido || validated.proposal.operation)) {
           // Pedido antes dos dados: fica guardado e segue quando a base estiver pronta.
           pendingRequest.current = message;
           pendingPedido.current = pedido;
-          if (!fonteEscolhida) setLembrete(true);
+          if (!fonteEscolhida) setLembrete("ambos");
           const rotulo = rotuloDoPedido(pedido);
           texto = "Entendi" + (rotulo ? ": " + rotulo : "") + ". Para começar, prefere usar os dados do Brasil ou enviar os " +
             "seus? Depois sigo direto para o gráfico.";
@@ -516,7 +550,12 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   }
 
   async function escolherAlternativa(choice: Choice, turno: Turn) {
-    if (choice.send && pronta) { memoria.current.pendente = null; void submit(choice.draft); return; }
+    // A fonte oferecida antes dos dados (28/10/2026) é escolhida como pela conversa, antes de a base ficar pronta.
+    if (choice.send && (pronta || comandoDeFonte(choice.draft))) {
+      memoria.current.pendente = null;
+      void submit(choice.draft);
+      return;
+    }
     if (!choice.operation || !turno.request || !pronta) {
       setDraft(choice.draft);
       document.getElementById("assistant-input")?.focus();
@@ -559,7 +598,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       <p className="text-sm leading-5 text-slate-700"><Trechos trechos={blocosDoTexto(guia).flatMap(bloco =>
         bloco.tipo === "paragrafo" ? bloco.trechos : [{ tipo: "texto" as const, texto: bloco.texto }])}/></p>
       {!fonteEscolhida && <div className="chat-escolha-dos-dados mt-2 flex flex-wrap gap-2" role="group"
-        aria-label="Escolha dos dados na conversa" data-lembrete={lembrete ? "true" : "false"}>
+        aria-label="Escolha dos dados na conversa" data-lembrete={lembrete === "ambos" ? "true" : lembrete || "false"}>
         {/* As mesmas duas entradas da área central (24/10/2026); "Enviar meus dados" abre a mesma janela de envio, com o modelo de
             planilha. */}
         <button type="button" data-testid="chat-fonte-brasil" disabled={!privacyAccepted} onClick={() => onEscolherFonte("brasil")}

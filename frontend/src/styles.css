@@ -447,10 +447,16 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .chat-processando { align-items:center; color:var(--cor-destaque-texto); font-size:14px; font-weight:600; }
 /* Depois da primeira mensagem, a orientação ocupa menos espaço e a conversa ganha a área. */
 .painel-chat [data-testid="painel-chat-guia"][data-compacta="true"] p { font-size:13px; line-height:1.45; }
-/* Lembrete da escolha dos dados: os dois botões em destaque até a pessoa escolher. */
-.chat-escolha-dos-dados[data-lembrete="true"] button { box-shadow:0 0 0 3px var(--cor-enviar-anel); border-width:2px; }
+/* Lembrete da escolha dos dados: os dois botões em destaque até a pessoa escolher; com uma fonte oferecida pela conversa
+   (28/10/2026), só o botão dela. */
+.chat-escolha-dos-dados[data-lembrete="true"] button,
+.chat-escolha-dos-dados[data-lembrete="brasil"] [data-testid="chat-fonte-brasil"],
+.chat-escolha-dos-dados[data-lembrete="arquivo"] [data-testid="chat-fonte-arquivo"] {
+  box-shadow:0 0 0 3px var(--cor-enviar-anel); border-width:2px; }
 @media (prefers-reduced-motion: no-preference) {
-  .chat-escolha-dos-dados[data-lembrete="true"] button { animation:chat-lembrete 1.6s ease-in-out 3; }
+  .chat-escolha-dos-dados[data-lembrete="true"] button,
+  .chat-escolha-dos-dados[data-lembrete="brasil"] [data-testid="chat-fonte-brasil"],
+  .chat-escolha-dos-dados[data-lembrete="arquivo"] [data-testid="chat-fonte-arquivo"] { animation:chat-lembrete 1.6s ease-in-out 3; }
 }
 @keyframes chat-lembrete { 50% { box-shadow:0 0 0 6px var(--cor-enviar-anel); } }
 .chat-ir-ao-fim { position:absolute; left:50%; bottom:8px; display:inline-flex; align-items:center; gap:4px; padding:4px 10px;

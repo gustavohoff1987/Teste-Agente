@@ -35,6 +35,56 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Conversa antes da escolha dos dados: a oferta da fonte que o pedido indica, na hora e sem o provedor
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026, com duas capturas): antes de
+  escolher os dados, "quero analisar o acre" e "quero analisar pernambuco" demoravam e voltavam "Não identifiquei uma análise
+  inequívoca. Qual análise deseja realizar sobre a força de trabalho na saúde?". A conversa deve perceber que o pedido é sobre
+  os dados do Brasil e oferecê-los como opção; sem termos do Brasil, pedir que se escolham os dados ou se envie o arquivo, sem
+  demora. Todos os itens são mudança de comportamento e previstos:
+  - **Escopo:** decorrem do pedido.
+  - **Compatibilidade:**
+    - CFG-TER (nenhum catálogo de cidades ou territórios): só os nomes da regra governada da fonte municipal do Brasil
+      (`STATES` e `REGIONS`), que a conversa já usa com a base escolhida; nenhum nome de município, nenhuma hierarquia nova.
+    - RQ-DEG-02 e AT-101 (nenhuma capacidade acionada por intenção presumida): nada é calculado; a fonte só é escolhida
+      quando a pessoa a cita ou aceita a oferta, e o pedido segue pelo caminho completo quando a base fica pronta.
+    - Nada da mensagem vai ao provedor nesse caminho.
+- **Antes:**
+  - o pedido antes da escolha só era reconhecido com um verbo de análise e um objeto da lista (densidade, municípios,
+    estados, gráfico…). "Quero analisar o acre", "e a Bahia?" e "quero analisar Recife" iam ao intérprete com o provedor e
+    à redação, e a resposta podia levar dezenas de segundos;
+  - "quero analisar Pernambuco com os dados do Brasil" e "quero analisar minha planilha" também iam ao provedor;
+  - o lembrete era o mesmo para todo pedido, com os dois botões em destaque;
+  - escolhidos os dados do Brasil pela conversa com um pedido guardado, a resposta mandava escolher os territórios, e o pedido
+    seguia mesmo assim.
+- **Agora** (`conversa_grafico.pedido_antes_dos_dados`, na rota `/api/llm/interpret` com `lembrar_base`, sem o provedor):
+  - **Lugares do Brasil** (um estado pelo nome, uma região, o próprio Brasil; a sigla em maiúsculas só diz que o pedido é
+    sobre o Brasil, sem nomear o estado, porque com a base a conversa procura os estados pelo nome): "Para analisar o
+    Acre, posso usar os dados do Brasil: escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os seus, em CSV
+    ou Excel. Assim que a base estiver pronta, sigo com o seu pedido." (`fonte_sugerida: "brasil"`). O botão aparece na
+    resposta, e no alto só ele fica em destaque. "Sim" ou o botão escolhem os dados do Brasil, e "não" destaca "Enviar meus
+    dados".
+  - **Os dados da pessoa citados:** a oferta do envio, com o botão "Enviar meus dados" (`fonte_sugerida: "arquivo"`).
+  - **Os dados do Brasil citados como fonte:** a escolha deles, como o botão (`fonte_escolhida: "brasil"`), com "Dados do
+    Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido.". O mesmo texto vale para a escolha pela
+    conversa com um pedido guardado.
+  - **Sem nada disso:** o lembrete de 26/10/2026. "Quero analisar X" vale com qualquer objeto, e a pergunta sobre o que o
+    agente faz não vale.
+- **Permanece:**
+  - perguntas de conceito, agradecimentos, a descrição dos dados do Brasil e a conversa livre seguem como antes;
+  - o pedido guardado segue pelo caminho completo quando a base fica pronta;
+  - sem `lembrar_base`, a interpretação preliminar continua;
+  - nomes de municípios, inclusive capitais, não são reconhecidos antes da escolha, e o pedido recebe o lembrete.
+- **Motivo:** pedido do responsável de 28/10/2026.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` ("A fonte oferecida antes dos dados") e `README.md`.
+  - **pytest:** `backend/tests/test_conversa_tempo.py` confere a oferta com lugares do Brasil, o lembrete sem eles, a fonte
+    citada e os casos sem falso positivo ("para", a preposição; siglas numa mensagem em maiúsculas; "sul" sem "região"; um
+    município). Dois pedidos com estados saíram do teste do lembrete e foram para o da oferta: a mudança é proposital.
+  - **Unidade da tela:** `frontend/tests/conversaGrafico.test.mjs` confere a resposta à oferta.
+  - **Navegador:** `backend/tests/ui_conversa_grafico.py` confere a oferta e o destaque (passo 2), o texto da escolha com o
+    pedido guardado (passo 3) e, em duas sessões novas, "sim" e o botão da resposta, com o pedido guardado seguindo até o
+    gráfico (passo 14).
+
 ### 2026-10-28 · Conversa: a proximidade confere se a Análise Espacial existe, e o valor do extremo leva as casas que o separam do vizinho
 - **Classificação (regra 1), pela leitura, antes de codar:** dois achados da conferência da mudança anterior (`02eacda`); ambos
   são mudança de comportamento (o texto e o caminho da resposta) e previstos: decorrem do pedido de 28/10/2026, que pede

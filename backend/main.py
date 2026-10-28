@@ -799,12 +799,18 @@ async def llm_interpretation(request: ChatRequest, x_adt_session: str | None = H
             sessions.event(x_adt_session, "ENVIO_MENSAGEM")
             capture = sessions.capture(x_adt_session, request.context_revision, {})
         quick = llm_local_response(request)
-        if quick is None and request.lembrar_base and conversa_grafico.pedido_de_analise(request.message):
+        antes_dos_dados = conversa_grafico.pedido_antes_dos_dados(request.message) \
+            if quick is None and request.lembrar_base else None
+        if antes_dos_dados is not None:
             # Pedido de análise antes da escolha dos dados, na página única (26/10/2026): a orientação para escolher a base,
-            # na hora, sem o provedor; a tela guarda o pedido e segue com ele quando a base fica pronta.
-            answer = _system_response(ESCOLHA_DOS_DADOS, None, "")
+            # na hora, sem o provedor; a tela guarda o pedido e segue com ele quando a base fica pronta. Desde 28/10/2026, com
+            # lugares do Brasil ou os dados da pessoa citados, a oferta dessa fonte (`fonte_sugerida`); com os dados do Brasil
+            # citados como fonte, a escolha deles (`fonte_escolhida`), como o botão.
+            answer = _system_response(antes_dos_dados["texto"] or ESCOLHA_DOS_DADOS, None, "")
             answer.update(aguarda_base=True, note="Pedido de análise antes da escolha dos dados; nada foi interpretado "
                                                   "pelo provedor nem calculado.")
+            if antes_dos_dados["fonte"]:
+                answer["fonte_escolhida" if antes_dos_dados["escolhida"] else "fonte_sugerida"] = antes_dos_dados["fonte"]
             if x_adt_session:
                 sessions.remember(x_adt_session, capture["revision"], answer)
             return answer

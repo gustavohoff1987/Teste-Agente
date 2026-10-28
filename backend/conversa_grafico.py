@@ -492,10 +492,70 @@ CONCEITUAL = re.compile(r"^(?:(?:e|mas|entao|ola|oi|bom\s+dia|boa\s+tarde|boa\s+
                         r"(?:formula|definicao)|explique|explica|me\s+explica|defina|para\s+que\s+serve)\b")
 ESCOLHA_DA_FONTE = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|meus\s+dados|minha\s+planilha|enviar\s+(?:os\s+)?"
                               r"(?:meus|seus)|upload)\b")
+# Desde 28/10/2026: "quero analisar X" é pedido de análise com qualquer objeto, e a pergunta sobre o que o agente faz não é.
+ANALISAR = re.compile(r"\banalis(?:e|ar|a|em|ando)\b")
+CAPACIDADE = re.compile(r"\b(?:voce|vc|o\s+agente|a\s+plataforma|a\s+ferramenta|o\s+sistema)\s+(?:consegue|pode|sabe|faz|"
+                        r"analisa|calcula|e\s+capaz)\b|\bo\s+que\s+(?:da|e\s+possivel|posso|consigo)\b|\b(?:da|e\s+possivel)\s+"
+                        r"(?:para\s+)?analisar\b|\bcomo\s+(?:eu\s+)?(?:faco|posso|consigo|devo)\s+(?:para\s+)?analisar\b|"
+                        r"\bque\s+tipos?\s+de\s+analises?\b")
+
+# Lugares do Brasil antes da escolha dos dados (28/10/2026): os estados e as regiões da regra governada da fonte municipal do
+# Brasil (STATES e REGIONS, os mesmos que a conversa reconhece com a base escolhida) e o próprio Brasil mostram que o pedido é
+# sobre os dados do Brasil, e a conversa os oferece. Nenhum catálogo novo de lugares (CFG-TER): sem a base escolhida, nomes de
+# municípios não são reconhecidos, e o pedido recebe o lembrete de escolher os dados.
+_ESTADOS_PELO_NOME = {normalize(nome).replace("-", " "): codigo for codigo, (_, nome) in STATES.items()}
+_ESTADOS_PELA_SIGLA = frozenset(sigla for sigla, _ in STATES.values())
+_REGIOES_PELO_NOME = {normalize(nome).replace("-", " "): nome for nome in REGIONS.values()}
+# "Pará" só com o acento ou depois de "estado do": sem acento, "para" é a preposição.
+ESTADO_NO_TEXTO = re.compile(r"\b(" + "|".join(re.escape(nome) for nome in sorted(
+    (nome for nome in _ESTADOS_PELO_NOME if nome != "para"), key=len, reverse=True)) + r"|estado\s+do\s+para)\b")
+PARA_COM_ACENTO = re.compile(r"(?<!\w)pará(?!\w)", re.IGNORECASE)
+# Norte e Sul, que também são direções e partes de nomes, só com a palavra "região".
+REGIAO_NO_TEXTO = re.compile(r"\b(?:(nordeste|sudeste|centro oeste)|regi(?:ao|oes)\s+(?:do\s+)?(norte|sul))\b")
+SIGLA_NO_TEXTO = re.compile(r"(?<![^\W\d_])([A-Z]{2})(?![^\W\d_])")
+BRASIL_NO_TEXTO = re.compile(r"\b(?:brasil|brasileir[oa]s?)\b")
+DADOS_DO_BRASIL = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|base\s+brasileira)\b")
+DADOS_DA_PESSOA = re.compile(r"\b(?:meus\s+dados|minha\s+planilha|minhas\s+planilhas|meu\s+arquivo|meus\s+arquivos|minha\s+base|"
+                             r"enviar\s+(?:os\s+)?(?:meus|seus)|upload)\b")
+OFERTA_DO_BRASIL = ("posso usar os dados do Brasil: escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os "
+                    "seus, em CSV ou Excel. Assim que a base estiver pronta, sigo com o seu pedido.")
+OFERTA_DO_ARQUIVO = ("Para analisar os seus dados, escolha “Enviar meus dados” ou responda “sim”: a janela de envio aceita CSV "
+                     "ou Excel e traz o modelo de planilha. Assim que a base estiver pronta, sigo com o seu pedido.")
+BRASIL_ESCOLHIDO = "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido."
+
+
+def lugares_do_brasil(mensagem):
+    """Os estados e as regiões do Brasil citados pelo nome, na ordem da mensagem e sem repetir (("estado", código) ou
+    ("regiao", nome)), e se o pedido cita o Brasil: o próprio nome ou a sigla de um estado, em maiúsculas, numa mensagem que
+    não está toda em maiúsculas. A sigla só diz que o pedido é sobre o Brasil: com a base escolhida, a conversa procura os
+    estados pelo nome."""
+    original = str(mensagem or "").strip()
+    texto = normalize(original).replace("-", " ")
+    achados = [(encontrado.start(), ("estado", "15" if encontrado.group(1).startswith("estado") else
+                                     _ESTADOS_PELO_NOME[encontrado.group(1)])) for encontrado in ESTADO_NO_TEXTO.finditer(texto)]
+    achados += [(encontrado.start(), ("estado", "15")) for encontrado in PARA_COM_ACENTO.finditer(original)]
+    achados += [(encontrado.start(), ("regiao", _REGIOES_PELO_NOME[encontrado.group(1) or encontrado.group(2)]))
+                for encontrado in REGIAO_NO_TEXTO.finditer(texto)]
+    sigla = any(letra.islower() for letra in original) and any(
+        encontrado.group(1) in _ESTADOS_PELA_SIGLA for encontrado in SIGLA_NO_TEXTO.finditer(original))
+    return {"lugares": list(dict.fromkeys(lugar for _, lugar in sorted(achados))),
+            "brasil": bool(BRASIL_NO_TEXTO.search(texto)) or sigla}
+
+
+def _lugar_com_artigo(lugar):
+    """"o Acre", "Pernambuco", "a Bahia", "o Nordeste": o artigo sai da preposição dos rótulos dos estados ("Municípios do
+    Acre")."""
+    tipo, chave = lugar
+    if tipo == "regiao":
+        return "o " + chave
+    from territorial_levels import group_label  # importação tardia: o módulo de níveis é mais pesado
+    preposicao, nome = group_label(chave)[len("Municípios "):].split(" ", 1)
+    return {"do": "o ", "da": "a "}.get(preposicao, "") + nome
 
 
 def pedido_de_analise(mensagem):
-    """A mensagem pede uma análise (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores)."""
+    """A mensagem pede uma análise (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores;
+    desde 28/10/2026, também qualquer mensagem que cite um lugar do Brasil e "quero analisar X" com qualquer objeto)."""
     texto = normalize(mensagem)
     if ESCOLHA_DA_FONTE.search(texto):
         return False  # a escolha dos dados é a mesma ação dos botões, na tela
@@ -503,9 +563,38 @@ def pedido_de_analise(mensagem):
                QUAL.search(texto) or PRIMEIROS.search(texto) or TOP.search(texto))
     if comando:
         return True
-    if CONCEITUAL.search(texto):
+    achados = lugares_do_brasil(mensagem)
+    if achados["lugares"] or achados["brasil"]:
+        return True
+    if CONCEITUAL.search(texto) or CAPACIDADE.search(texto):
         return False
+    if ANALISAR.search(texto):
+        return True
     return bool((VERBO_VISTA.search(texto) or ACAO_DE_ANALISE.search(texto)) and OBJETO_DE_ANALISE.search(texto))
+
+
+def pedido_antes_dos_dados(mensagem):
+    """O pedido feito antes da escolha dos dados, na página única (28/10/2026). None: não é pedido de análise (segue para o
+    catálogo ou o provedor, como antes). Senão, o que a conversa responde na hora, sem o provedor, com `fonte` e `texto`:
+    com os dados do Brasil citados como fonte, a escolha deles (`escolhida`); com os dados da pessoa citados, a oferta do
+    envio; com lugares do Brasil, a oferta dos dados do Brasil; sem nada disso, o lembrete de escolher os dados (`texto`
+    None, e a rota usa o de 26/10/2026)."""
+    texto = normalize(mensagem)
+    for padrao, fonte in ((DADOS_DO_BRASIL, "brasil"), (DADOS_DA_PESSOA, "arquivo")):
+        citado = padrao.search(texto)
+        if citado:
+            if not pedido_de_analise(texto[:citado.start()] + " " + texto[citado.end():]):
+                return None
+            return {"fonte": fonte, "escolhida": fonte == "brasil",
+                    "texto": BRASIL_ESCOLHIDO if fonte == "brasil" else OFERTA_DO_ARQUIVO}
+    if not pedido_de_analise(mensagem):
+        return None
+    achados = lugares_do_brasil(mensagem)
+    if achados["lugares"] or achados["brasil"]:
+        quem = ("Para analisar " + _e(_lugar_com_artigo(lugar) for lugar in achados["lugares"])) if achados["lugares"] \
+            else "Para esse pedido"
+        return {"fonte": "brasil", "escolhida": False, "texto": quem + ", " + OFERTA_DO_BRASIL}
+    return {"fonte": None, "escolhida": False, "texto": None}
 
 
 def comando_do_grafico(mensagem):
