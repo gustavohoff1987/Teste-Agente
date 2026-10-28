@@ -16,6 +16,7 @@
   --tom-ink: 14 40 64;
   --tom-ink-realce: 29 77 113;
   --tom-teal: 12 135 146;
+  --tom-teal-texto: 12 107 116;
   --tom-canvas: 245 248 251;
   --tom-line: 223 235 240;
   --tom-borda-padrao: 229 231 235;
@@ -68,7 +69,7 @@
   --cor-texto-2: #52606d;
   --cor-texto-apoio: #52677a;
   --cor-texto-desligado: #5b6b78;
-  --cor-texto-3: #6b8494;
+  --cor-texto-3: #587080;
   /* Destaque (identidade): textos, ações e foco */
   --cor-destaque: rgb(var(--tom-teal));
   --cor-destaque-texto: #0c6b74;
@@ -113,6 +114,7 @@
     --tom-ink: 230 229 223;
     --tom-ink-realce: 207 206 199;
     --tom-teal: 79 189 198;
+    --tom-teal-texto: 111 203 210;
     --tom-canvas: 13 13 13;
     --tom-line: 46 46 43;
     --tom-borda-padrao: 46 46 43;
@@ -187,17 +189,32 @@
   }
 }
 
-:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--cor-texto);
-  background: var(--cor-pagina); }
+/* Tipografia (28/10/2026): a Inter vem embutida no próprio app (tipografia/, subconjuntos latino e latino estendido, com os eixos
+   de peso e de tamanho óptico; licença OFL em tipografia/LICENCA-OFL.txt), sem nenhuma requisição externa. Antes, a página pedia a
+   Inter sem carregá-la, e cada aparelho mostrava a fonte do sistema. Com font-display: swap, o texto aparece na hora, na fonte do
+   sistema, e troca quando a Inter chega (uma vez; depois, do cache); o subconjunto estendido só baixa quando a página tem letras
+   dele (planilhas de outros países). O tamanho óptico deixa os títulos mais justos e as letras pequenas mais abertas. */
+@font-face { font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+  src: url("./tipografia/inter-latin-opsz-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+  src: url("./tipografia/inter-latin-ext-opsz-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+:root { font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--cor-texto); background: var(--cor-pagina); }
 html { scroll-behavior: smooth; }
 body { min-width: 320px; margin: 0; }
 button, select, input { font: inherit; }
+/* Texto de exemplo dos campos a 4,5:1 ou mais (28/10/2026; o do preflight, cinza-400, dava 2,5:1). */
+::placeholder { color: var(--cor-texto-3); opacity: 1; }
 .grid > * { min-width: 0; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--cor-foco); outline-offset: 3px; }
 summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foco); outline-offset: 3px; }
-.data-table th { text-align: left; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--cor-texto-3); white-space: nowrap; }
+.data-table th { text-align: left; font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--cor-texto-3); white-space: nowrap; }
 .data-table th, .data-table td { padding: 13px 16px; border-bottom: 1px solid var(--cor-borda-suave); }
-.data-table td { font-size: 13px; white-space: nowrap; }
+.data-table td { font-size: 14px; white-space: nowrap; }
 .data-table tbody tr:hover { background: var(--cor-realce-suave); }
 .section-anchor { scroll-margin-top: 94px; }
 .privacy-dialog { background-color: var(--cor-superficie-elevada); }
@@ -219,15 +236,19 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .pagina-cabecalho > .workspace-hero { margin-top: 12px; }
 .pagina-acoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px 16px; margin-top: 14px; }
 .pagina-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.pagina-marca { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--cor-tinta); text-decoration: none; border-radius: 12px; }
+.pagina-marca { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--cor-tinta); text-decoration: none; border-radius: 12px; }
 .pagina-marca > svg { flex-shrink: 0; }
-.pagina-marca strong { display: block; font-size: 19px; font-weight: 750; line-height: 1.2; letter-spacing: -.02em; }
-.pagina-marca small { display: block; font-size: 12px; color: var(--cor-texto-apoio); }
-.pagina-aviso { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--cor-destaque); }
+/* A marca (28/10/2026): o nome do agente, maior e mais justo, e, abaixo, "da Força de Trabalho na Saúde" maior que antes (14 px, antes
+   12 px em cinza) e menor que o nome, no turquesa da identidade, em seminegrito, com o "da" mais leve, no tom de apoio. */
+.pagina-marca strong { display: block; font-size: 20px; font-weight: 750; line-height: 1.15; letter-spacing: -.018em; }
+.pagina-marca small { display: block; margin-top: 3px; color: var(--cor-destaque-texto); font-size: 14px; font-weight: 600; line-height: 1.3;
+  letter-spacing: .004em; }
+.pagina-marca-de { color: var(--cor-texto-apoio); font-weight: 450; }
+.pagina-aviso { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--cor-destaque-texto); }
 .pagina-aviso:empty { margin: 0; }
 .pagina-principal { width: 100%; max-width: 1920px; margin: 0 auto; padding: 12px 20px 24px; min-width: 0; }
-.pagina-rodape { width: 100%; max-width: 1920px; margin: 24px auto 0; padding: 16px 20px 24px; border-top: 1px solid var(--cor-borda); font-size: 12px;
-  color: rgb(var(--tom-slate-400)); }
+.pagina-rodape { width: 100%; max-width: 1920px; margin: 24px auto 0; padding: 16px 20px 24px; border-top: 1px solid var(--cor-borda); font-size: 13px;
+  color: var(--cor-texto-apoio); }
 
 .main-navigation { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; align-items: stretch; margin: 0; }
 
@@ -240,35 +261,35 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   background-image: radial-gradient(var(--hero-ponto) .65px, transparent .65px); background-size: 19px 19px;
   mask-image: linear-gradient(to right, transparent 30%, black); }
 .hero-copy { position: relative; z-index: 1; flex: 1; min-width: 0; }
-.hero-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--hero-sobretitulo); font-size: 10px; font-weight: 700;
-  letter-spacing: .15em; }
+.hero-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--hero-sobretitulo); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .15em; text-transform: uppercase; }
 .hero-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: var(--hero-marca); box-shadow: 0 0 0 4px var(--hero-marca-anel); }
-.hero-copy h1 { margin: 0; font-size: clamp(25px, 2.5vw, 35px); font-weight: 750; line-height: 1.16; letter-spacing: -.04em; }
+.hero-copy h1 { margin: 0; font-size: clamp(25px, 2.5vw, 35px); font-weight: 750; line-height: 1.16; letter-spacing: -.03em; }
 .hero-copy h1 > span { color: var(--hero-destaque); }
-.hero-description { max-width: 840px; margin: 8px 0 0; color: var(--hero-descricao); font-size: clamp(13px, 1.1vw, 15px); line-height: 1.45; }
+.hero-description { max-width: 840px; margin: 8px 0 0; color: var(--hero-descricao); font-size: clamp(14px, 1.15vw, 16px); line-height: 1.5; }
 .main-navigation > button, .main-navigation summary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 16px; border: 2px solid var(--cor-borda-nav); border-radius: 12px; background: var(--cor-superficie); color: var(--cor-tinta); font-size: 14px; font-weight: 650; cursor: pointer; list-style: none; }
 .main-navigation > button:hover:not(:disabled), .main-navigation summary:hover { background: var(--cor-realce); }
 .main-navigation > button:disabled { opacity: .45; cursor: not-allowed; }
 .main-navigation summary::-webkit-details-marker { display: none; }
 .history-menu { position: relative; overflow: visible; border: 0; border-radius: 12px; }
 .history-list { position: absolute; top: calc(100% + 8px); right: 0; width: min(440px, calc(100vw - 40px)); border: 2px solid var(--cor-borda-nav); border-radius: 12px; z-index: 40; background: var(--cor-superficie-elevada); box-shadow: 0 12px 30px var(--cor-sombra); }
-.historico-contagem { display: inline-flex; min-width: 20px; height: 20px; align-items: center; justify-content: center; padding: 0 6px; border-radius: 999px; background: var(--cor-realce); font-size: 11px; }
+.historico-contagem { display: inline-flex; min-width: 20px; height: 20px; align-items: center; justify-content: center; padding: 0 6px; border-radius: 999px; background: var(--cor-realce); font-size: 12px; }
 
 /* Fonte dos dados e painel "Colunas" da planilha enviada. */
 .fonte-barra { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding: 10px 14px; border: 1px solid var(--cor-borda-cartao); border-radius: 16px; background: var(--cor-superficie); box-shadow: 0 6px 20px var(--cor-sombra-suave); }
 .fonte-atual, .fonte-escolha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.fonte-rotulo { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--cor-texto-apoio); }
-.fonte-resumo { min-width: 0; font-size: 14px; font-weight: 650; color: var(--cor-tinta); }
+.fonte-rotulo { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--cor-texto-apoio); }
+.fonte-resumo { min-width: 0; font-size: 15px; font-weight: 650; color: var(--cor-tinta); }
 .fonte-preparo { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .fonte-preparo > * { max-width: 100%; }
-.fonte-diagnostico { font-size: 11px; line-height: 1.6; color: rgb(var(--tom-slate-500)); }
+.fonte-diagnostico { font-size: 12px; line-height: 1.6; color: rgb(var(--tom-slate-500)); }
 .colunas-painel { width: 100%; padding: 12px 14px; border: 2px solid var(--cor-borda-painel); border-radius: 16px; background: var(--cor-superficie); }
 .colunas-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 14px; }
-.colunas-campo { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; color: rgb(var(--tom-slate-700)); }
+.colunas-campo { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 13px; color: rgb(var(--tom-slate-700)); }
 .colunas-campo > span { font-weight: 650; color: var(--cor-tinta); }
-.colunas-campo small { font-size: 11px; line-height: 1.35; color: rgb(var(--tom-slate-500)); }
+.colunas-campo small { font-size: 12px; line-height: 1.35; color: rgb(var(--tom-slate-500)); }
 .colunas-bloco { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--cor-borda); border-radius: 12px; }
-.colunas-bloco legend { padding: 0 4px; font-size: 12px; font-weight: 700; color: var(--cor-tinta); }
+.colunas-bloco legend { padding: 0 4px; font-size: 13px; font-weight: 700; color: var(--cor-tinta); }
 
 /* Conversa: última resposta e campo de mensagem, dentro da caixa flutuante. */
 .conversation-dock, .conversation-composer { min-width: 0; max-width: 100%; }
@@ -280,8 +301,8 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .conversation-composer { padding: 10px 16px; margin: auto; width: 100%; }
 .conversation-composer textarea { padding: 10px 12px; min-height: 44px; }
 .conversation-composer .pb-3 { padding-bottom: 6px; }
-.conversation-composer details { font-size: 10px; }
-.latest-reply { display: flex; gap: 10px; align-items: flex-start; padding: 10px 18px 0; font-size: 13px; line-height: 1.5; }
+.conversation-composer details { font-size: 12px; }
+.latest-reply { display: flex; gap: 10px; align-items: flex-start; padding: 10px 18px 0; font-size: 14px; line-height: 1.5; }
 .latest-reply > svg { flex-shrink: 0; }
 .latest-reply > div { max-height: 140px; overflow: auto; width: 100%; }
 
@@ -293,26 +314,29 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   border-radius: 12px; background: var(--cor-destaque); color: var(--cor-sobre-tinta); font-size: 14px; font-weight: 700; }
 .envio-escolher:hover { background: var(--cor-destaque-realce); }
 .envio-modelo { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--cor-borda-cartao); border-radius: 14px; background: var(--cor-superficie); }
-.envio-modelo-baixar { display: inline-flex; margin-top: 8px; color: var(--cor-destaque-texto); font-size: 13px; font-weight: 650; text-decoration: underline;
+.envio-modelo-baixar { display: inline-flex; margin-top: 8px; color: var(--cor-destaque-texto); font-size: 14px; font-weight: 650; text-decoration: underline;
   text-underline-offset: 2px; }
-.dialog-actions button { padding: 10px 14px; border: 2px solid var(--cor-borda-nav); border-radius: 10px; font-size: 13px; font-weight: 650; }
+.dialog-actions button { padding: 10px 14px; border: 2px solid var(--cor-borda-nav); border-radius: 10px; font-size: 14px; font-weight: 650; }
 .dialog-actions button:hover:not(:disabled) { background: var(--cor-realce); }
 .dialog-actions button:disabled { opacity: .4; }
 @media (max-width: 639px) {
   .pagina-cabecalho { padding: 10px 10px 0; }
-  .pagina-marca strong { font-size: 16px; }
+  .pagina-marca strong { font-size: 17px; }
+  .pagina-marca small { font-size: 13px; }
   .workspace-hero { padding: 18px 18px; border-radius: 20px; }
   .hero-copy h1 { font-size: 24px; }
-  .hero-eyebrow { font-size: 9px; letter-spacing: .1em; }
+  .hero-eyebrow { font-size: 11px; letter-spacing: .1em; }
   .pagina-principal { padding: 10px 10px 16px; }
   .pagina-rodape { padding: 12px 10px 240px; }
   .main-navigation { gap: 6px; }
-  .main-navigation > button, .main-navigation summary { padding: 8px 11px; font-size: 12px; min-height: 40px; }
+  .main-navigation > button, .main-navigation summary { padding: 8px 11px; font-size: 13px; min-height: 40px; }
   .history-list { position: fixed; left: 12px; right: 12px; top: auto; width: auto; }
   .fonte-barra { padding: 10px; }
   .colunas-grade { grid-template-columns: minmax(0, 1fr); }
   .conversation-composer { padding: 8px; }
-  .latest-reply { padding: 8px 10px 0; font-size: 12px; }
+  /* Abaixo de 16 px, o celular dá zoom ao focar o campo. */
+  .conversation-composer textarea { font-size: 16px; }
+  .latest-reply { padding: 8px 10px 0; font-size: 13px; }
   .latest-reply > div { max-height: 90px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -344,12 +368,12 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .painel-rastro { animation:painel-rastro .5s ease .55s both; }
 .painel-reproduzindo .painel-rastro { animation-delay:1.35s; }
 @keyframes painel-rastro { from { opacity:0; } to { opacity:1; } }
-.painel-rotulo { font-size:12px; font-weight:600; fill:var(--grafico-tinta); paint-order:stroke; stroke:var(--grafico-superficie); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
-.painel-marca-texto { font-size:11px; fill:var(--grafico-tinta-2); font-variant-numeric:tabular-nums; }
-.painel-eixo-titulo { font-size:12px; font-weight:600; fill:var(--grafico-tinta-2); }
+.painel-rotulo { font-size:12.5px; font-weight:600; fill:var(--grafico-tinta); paint-order:stroke; stroke:var(--grafico-superficie); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
+.painel-marca-texto { font-size:11.5px; fill:var(--grafico-tinta-2); font-variant-numeric:tabular-nums; }
+.painel-eixo-titulo { font-size:12.5px; font-weight:600; fill:var(--grafico-tinta-2); }
 .painel-dica { position:absolute; z-index:10; pointer-events:none; padding:8px 10px; border:1px solid var(--cor-borda); border-radius:12px; background:var(--cor-superficie-elevada); box-shadow:0 14px 45px var(--cor-sombra); }
-.painel-soltar { position:absolute; inset:6px; display:flex; align-items:center; justify-content:center; border:2px dashed var(--grafico-serie); border-radius:14px; background:var(--cor-realce-destaque); color:var(--cor-tinta); font-size:13px; font-weight:650; pointer-events:none; }
-.painel-legenda { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 24px; margin-top:6px; font-size:11px; line-height:1.45; color:var(--grafico-tinta-2); }
+.painel-soltar { position:absolute; inset:6px; display:flex; align-items:center; justify-content:center; border:2px dashed var(--grafico-serie); border-radius:14px; background:var(--cor-realce-destaque); color:var(--cor-tinta); font-size:14px; font-weight:650; pointer-events:none; }
+.painel-legenda { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 24px; margin-top:6px; font-size:12px; line-height:1.45; color:var(--grafico-tinta-2); }
 .painel-trilho { position:relative; height:36px; margin-top:4px; touch-action:none; cursor:pointer; }
 .painel-trilho::before { content:""; position:absolute; left:0; right:0; top:17px; height:2px; border-radius:2px; background:var(--grafico-trilho); }
 .painel-faixa-corte { position:absolute; top:16px; height:4px; border-radius:2px; background:var(--grafico-serie); }
@@ -402,9 +426,14 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .chat-balao-agente { min-width:0; padding:10px 14px 7px; border:1px solid var(--cor-borda-cartao);
   border-left:3px solid var(--cor-destaque); border-radius:4px 18px 18px 18px; background:var(--cor-superficie-elevada);
   box-shadow:0 1px 3px var(--cor-sombra); }
+/* O balão do agente também leva a classe da antiga "última resposta" (latest-reply), cujas regras cortavam a resposta longa em
+   140 px (90 px no celular), com rolagem dentro do balão, punham a hora numa coluna ao lado do texto e deixavam a letra menor que a
+   da pessoa (28/10/2026, corrigido): o balão mostra a resposta inteira, na letra das mensagens, com a hora embaixo. */
+.chat-balao-agente.latest-reply { display:block; font-size:inherit; line-height:inherit; }
+.chat-balao-agente.latest-reply > div { max-height:none; overflow:visible; }
 /* A hora fica no próprio balão, sem entrar no texto da mensagem (vem do atributo, como conteúdo gerado). */
 .chat-mensagem-usuario[data-hora]::after, .chat-balao-agente[data-hora]::after { content:attr(data-hora); display:block;
-  margin-top:3px; color:var(--cor-texto-apoio); font-size:11px; line-height:1.2; text-align:right; }
+  margin-top:3px; color:var(--cor-texto-apoio); font-size:12px; line-height:1.2; text-align:right; font-variant-numeric:tabular-nums; }
 .chat-texto p { white-space:pre-wrap; }
 .chat-texto p + p { margin-top:10px; }
 .chat-separador { display:none; }
@@ -414,8 +443,8 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .chat-aviso { align-self:stretch; }
 .chat-aviso-corpo { display:flex; gap:8px; padding:10px 12px; border:1px solid rgb(var(--tom-amber-300));
   border-left-width:4px; border-radius:10px; background:rgb(var(--tom-amber-50)); color:rgb(var(--tom-amber-900));
-  font-size:13.5px; line-height:1.5; }
-.chat-processando { align-items:center; color:var(--cor-destaque-texto); font-size:13.5px; font-weight:600; }
+  font-size:14px; line-height:1.5; }
+.chat-processando { align-items:center; color:var(--cor-destaque-texto); font-size:14px; font-weight:600; }
 /* Depois da primeira mensagem, a orientação ocupa menos espaço e a conversa ganha a área. */
 .painel-chat [data-testid="painel-chat-guia"][data-compacta="true"] p { font-size:13px; line-height:1.45; }
 /* Lembrete da escolha dos dados: os dois botões em destaque até a pessoa escolher. */
@@ -426,10 +455,10 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 @keyframes chat-lembrete { 50% { box-shadow:0 0 0 6px var(--cor-enviar-anel); } }
 .chat-ir-ao-fim { position:absolute; left:50%; bottom:8px; display:inline-flex; align-items:center; gap:4px; padding:4px 10px;
   border:1px solid var(--cor-borda-cartao); border-radius:999px; background:var(--cor-superficie-elevada); color:var(--cor-texto);
-  font-size:11px; font-weight:650; box-shadow:0 4px 12px var(--cor-sombra-suave); transform:translateX(-50%); }
+  font-size:12px; font-weight:650; box-shadow:0 4px 12px var(--cor-sombra-suave); transform:translateX(-50%); }
 .chat-ir-ao-fim:focus-visible { outline:3px solid var(--cor-foco); outline-offset:2px; }
 .chat-estado-servico { padding:8px 10px; border-radius:8px; background:rgb(var(--tom-amber-50)); color:rgb(var(--tom-amber-900));
-  font-size:11px; line-height:1.4; }
+  font-size:13px; line-height:1.4; }
 /* A orientação fica acima do histórico, separada por uma linha: a mensagem cortada pela rolagem passa por baixo dela. */
 .painel-chat [data-testid="painel-chat-guia"] { flex-shrink:0; padding-bottom:10px; border-bottom:1px solid var(--cor-borda-suave); }
 .painel-chat .conversation-dock { flex-shrink:0; border-top:1px solid var(--cor-borda-suave); }
@@ -437,6 +466,7 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   .painel-chat { width:auto; max-height:80dvh; }
   .chat-historico-moldura { min-height:160px; }
   .chat-mensagem { font-size:14px; }
+  .chat-estado-servico { font-size:12px; }
 }
 
 /* Caixa da conversa mais larga na abertura, antes dos dados (decisão de 22/10/2026). */

@@ -1227,7 +1227,7 @@ export function caudaDoCometa(dx: number, dy: number, r: number): string {
 export type Rotulo2 = { dx: number; dy: number; ancora: "start" | "end" };
 /** Rótulos diretos seletivos: à direita da bolha (à esquerda perto da borda), deslocados na vertical quando colidem. */
 export function posicionarRotulos(itens: { id: string; x: number; y: number; r: number; largura: number }[], limite: number,
-  altura = 15): Map<string, Rotulo2> {
+  altura = 16): Map<string, Rotulo2> {
   const ocupados: { x0: number; x1: number; y0: number; y1: number }[] = [];
   const saida = new Map<string, Rotulo2>();
   for (const item of [...itens].sort((a, b) => a.y - b.y || a.x - b.x || comparar(a.id, b.id))) {
@@ -1241,8 +1241,9 @@ export function posicionarRotulos(itens: { id: string; x: number; y: number; r: 
   }
   return saida;
 }
-/** Largura aproximada de um texto de 12 px (Inter), só para afastar rótulos. */
-export const larguraDoTexto = (texto: string, tamanho = 12) => Math.ceil(texto.length * tamanho * 0.56) + 4;
+/** Largura aproximada de um texto de 12,5 px (Inter, o rótulo das bolhas desde a escala tipográfica de 28/10/2026), só para
+ * afastar rótulos. */
+export const larguraDoTexto = (texto: string, tamanho = 12.5) => Math.ceil(texto.length * tamanho * 0.56) + 4;
 
 // ================================================================================================ tendência: séries e velocidades
 /** Posição no tempo de cada competência: meses desde a primeira (AAAAMM; janeiro e junho ficam a 5 e 7 meses, como são) ou a

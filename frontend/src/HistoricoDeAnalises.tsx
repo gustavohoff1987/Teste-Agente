@@ -50,7 +50,7 @@ export default function HistoricoDeAnalises({ itens, desabilitado, onAbrir }: Pr
                   (item.emExibicao ? "border-blue-200 bg-blue-50" : "border-line bg-white hover:border-blue-200 hover:bg-slate-50")}>
                 <span className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-ink">{item.titulo}</span>
-                  {item.emExibicao && <span className="text-xs font-semibold text-teal">Em exibição</span>}
+                  {item.emExibicao && <span className="text-xs font-semibold text-teal-texto">Em exibição</span>}
                 </span>
                 <span className="mt-1 block text-xs text-slate-500">{[item.quando, item.fonte].filter(Boolean).join(" · ")}</span>
                 {!item.mesmaFonte && <span className="mt-1 block text-xs text-slate-500" data-testid="historico-outra-fonte">

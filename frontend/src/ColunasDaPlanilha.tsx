@@ -96,13 +96,13 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
           </select>
         </label>}
       </div>
-      <p className="mt-1 text-[11px] leading-4 text-slate-600" data-testid="colunas-referencial-ajuda">Informe o referencial em que
+      <p className="mt-1 text-[12px] leading-4 text-slate-600" data-testid="colunas-referencial-ajuda">Informe o referencial em que
         as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84. O sistema não converte um no outro. Com outro referencial, ou sem
         saber qual é, a análise espacial fica indisponível: nada é presumido.</p>
     </fieldset>}
     <fieldset className="colunas-bloco" data-testid="colunas-nomes">
       <legend>Nomes</legend>
-      <p className="text-[11px] leading-4 text-slate-600">Como se chamam as unidades{rotulos.grupo ? " e os grupos" : ""} desta planilha?
+      <p className="text-[12px] leading-4 text-slate-600">Como se chamam as unidades{rotulos.grupo ? " e os grupos" : ""} desta planilha?
         Os nomes aparecem nos textos do gráfico e da conversa.</p>
       <div className="colunas-grade mt-1">
         {nome("unidade", "singular", "Unidade, no singular")}
@@ -113,7 +113,7 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
     </fieldset>
     <div className="colunas-bloco" data-testid="colunas-disponibilidade" aria-live="polite">
       <h3 className="text-sm font-bold text-ink">O que esta planilha permite</h3>
-      {conferindo ? <p role="status" className="text-xs text-teal">Conferindo as colunas…</p>
+      {conferindo ? <p role="status" className="text-xs text-teal-texto">Conferindo as colunas…</p>
         : erro ? <p role="alert" className="text-xs text-rose-800">{erro}</p>
         : <ul className="mt-1 space-y-0.5 text-xs leading-5 text-slate-700">
           {disponibilidade.map(item => <li key={item.familia} data-testid={"colunas-disponibilidade-" + item.familia}

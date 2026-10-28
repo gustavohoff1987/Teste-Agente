@@ -33,7 +33,7 @@ type Tela = { sx: Float32Array; sy: Float32Array; r: Float32Array };
 type Ativo = { id: string; origem: "mouse" | "teclado" | "toque" | "busca" } | null;
 type Area = { latMin: number; latMax: number; lonMin: number; lonMax: number };
 
-const FONTE_NOME = "600 12px Inter, ui-sans-serif, system-ui, sans-serif";
+const FONTE_NOME = "600 12px \"Inter Variable\", Inter, ui-sans-serif, system-ui, sans-serif";
 const PASSO_TECLADO = 60;
 const ZOOM_BOTAO = 1.6, ZOOM_TECLADO = 1.5;
 /** Caixa dos botões de zoom (canto superior direito): os nomes não passam por baixo deles. */
@@ -130,6 +130,13 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
     const { w, h } = tamanho.current;
     return enquadrar(limitesComContexto(quadroLimitesRef.current, limitesTodosRef.current), w, h);
   }, []);
+  // A Inter embutida (28/10/2026) pode chegar depois do primeiro desenho (font-display: swap): as larguras dos nomes medidas com a
+  // fonte de reserva saem da memória, e o mapa redesenha os nomes com a Inter, sem esconder nem sobrepor nomes por medida errada.
+  useEffect(() => {
+    let vivo = true;
+    void document.fonts?.ready.then(() => { if (vivo) { larguras.current.clear(); agendar(); } });
+    return () => { vivo = false; };
+  }, [agendar]);
   const limitesDeZoom = useCallback(() => {
     const { w, h } = tamanho.current;
     const inicial = vistaInicial().escala, todos = enquadrar(limitesTodosRef.current, w, h).escala;

@@ -130,8 +130,8 @@ export default function PainelTerritorios(p: Props) {
     <label className="analise-caixa">
       <input type="checkbox" checked={unidadeMarcada(p.base, item.id, temGrupos ? grupoDaUnidade(item) : "")} onChange={() => alternar(item)}/>
       <span className="min-w-0 flex-1">{comGrupo ? nomeDaUnidade(item) : item.name || item.label}</span>
-      {comGrupo && temGrupos ? <span className="shrink-0 text-[11px] text-slate-500">{nomeDoGrupo(grupoDaUnidade(item))}</span>
-        : item.code && <span className="shrink-0 text-[11px] text-slate-500">{item.code}</span>}
+      {comGrupo && temGrupos ? <span className="shrink-0 text-[12px] text-slate-500">{nomeDoGrupo(grupoDaUnidade(item))}</span>
+        : item.code && <span className="shrink-0 text-[12px] text-slate-500">{item.code}</span>}
     </label>
   </li>;
   const caixaDoEstado = (grupo: GrupoInfo, testid: string) => <li key={grupo.id} data-testid={testid} data-id={grupo.id}>
@@ -151,7 +151,7 @@ export default function PainelTerritorios(p: Props) {
             aria-label={textoTodasAsUnidadesDoGrupo(p.rotulos, grupo)} onChange={() => alternarGrupo(grupo)}/>
           <span className="min-w-0">
             <span className="block font-semibold text-ink">{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span>
-            {n > 0 && <span className="block text-[11px] text-slate-600">{(inteiro ? (generoF ? "Todas as " : "Todos os ") + total : n + " de " + total) +
+            {n > 0 && <span className="block text-[12px] text-slate-600">{(inteiro ? (generoF ? "Todas as " : "Todos os ") + total : n + " de " + total) +
               (generoF ? " marcadas" : " marcados")}</span>}
           </span>
         </label>

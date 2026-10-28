@@ -38,8 +38,8 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import expect, sync_playwright
-from ui_support import (AREA, PRIVACIDADE, URL, accept_privacy, form_field, history_label, is_post,
-                        no_horizontal_scroll, offline, options_of, uploaded_filename)
+from ui_support import (AREA, PRIVACIDADE, URL, accept_privacy, fonte_embutida_carregada, form_field, history_label, is_post,
+                        letras_miudas, no_horizontal_scroll, offline, options_of, uploaded_filename)
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
@@ -140,6 +140,14 @@ def main():
         accept_privacy(page)
         expect(privacidade).to_have_count(0)
         expect(page.get_by_test_id("pagina-marca")).to_contain_text("Agente Diagnóstico Territorial")
+        # Tipografia (28/10/2026): a Inter embutida, carregada do próprio servidor; a marca com "da Força de Trabalho na Saúde" maior
+        # que antes (14 px, antes 12) e menor que o nome do agente; nenhuma letra à vista abaixo do piso da escala, conversa inclusive.
+        assert fonte_embutida_carregada(page), "a Inter embutida não carregou"
+        marca = page.get_by_test_id("pagina-marca")
+        expect(marca.locator("small")).to_have_text("da Força de Trabalho na Saúde")
+        nome_px, subtitulo_px = (marca.locator(parte).evaluate("e => parseFloat(getComputedStyle(e).fontSize)") for parte in ("strong", "small"))
+        assert 13.5 <= subtitulo_px < nome_px, ("a marca", subtitulo_px, nome_px)
+        assert not letras_miudas(page), ("abertura", letras_miudas(page))
         banner = page.get_by_test_id("pagina-banner")
         expect(banner.get_by_role("heading", level=1)).to_have_text("Transforme dados em diagnósticos territoriais.")
         expect(banner).to_contain_text("FORÇA DE TRABALHO NA SAÚDE")
@@ -238,6 +246,8 @@ def main():
             assert len([item for item in e1["itens"] if item.get("tipo") == "estado"]) == 27, len(e1["itens"])
         expect(chat.get_by_test_id("painel-chat-guia")).to_contain_text(
             "Escolha no gráfico quais estados abrir, ou me diga quais municípios quer ver.")
+        page.wait_for_timeout(600)
+        assert not letras_miudas(page), ("estados, com a fonte, a área, o gráfico e a conversa", letras_miudas(page))
         shot("02-estados")
 
         # 3. Histórico e Nova análise: a análise fica guardada; a nova recomeça com os mesmos dados e sem territórios (nada é

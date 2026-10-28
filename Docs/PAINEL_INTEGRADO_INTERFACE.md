@@ -694,6 +694,55 @@ filtros, páginas e a vista do desenho (gráfico, mapa ou lado a lado) são só 
   - o motivo da tendência aparece na tela em palavras, sem o código (dica e Não avaliáveis); o código fica só no CSV
     ("Mudança de direção (MUDANCA_DE_DIRECAO)").
 
+## Tipografia
+
+Desde 28/10/2026 (pedido do responsável: a marca e as letras pequenas, em todas as camadas, inclusive a conversa, sem prejuízo
+ao motor nem latência nova; com a auditoria independente de um agente especialista em interface):
+
+- **Fonte:** a Inter 4, variável (eixos de peso e de tamanho óptico), embutida no próprio app em `frontend/src/tipografia/`: o
+  subconjunto latino (73 KB, o único que o português usa) e o latino estendido (133 KB, baixado só quando a página tem letras dele,
+  como nomes de planilhas de outros países), com a licença OFL ao lado (`LICENCA-OFL.txt`; origem: o pacote
+  `@fontsource-variable/inter` 5.2.8). `font-display: swap`: o texto aparece na hora, na fonte do sistema, e troca quando a Inter
+  chega (uma vez; depois, do cache). Nenhuma requisição externa (os roteiros de navegador bloqueiam a rede de fora). Antes, as folhas
+  pediam a Inter sem carregá-la: cada aparelho mostrava a fonte do sistema (no Windows, a Segoe UI), e os pesos 650 e 750 viravam
+  600, 700 ou 900. O tamanho óptico deixa os títulos mais justos e as letras pequenas mais abertas; por isso, o título do banner
+  passou de −0,04 para −0,03 em, o nome da marca para −0,018 em e o nome da plataforma na abertura para −0,01 em. Saiu a suavização
+  `-webkit-font-smoothing: antialiased`, que no Mac afina o texto escuro pequeno.
+- **Escala por papéis, em pixels inteiros, com piso:** legenda 12 px (o que tinha de 10 a 11,5 px: notas, apoios, legendas, rótulos
+  das abas e da janela "Escolha dos territórios"); apoio 13 px (o que tinha 12 e 12,5 px: funções, segmentos, subtítulos, avisos,
+  botões); corpo 14 px (13 e 13,5 px: campos, células da tabela, apresentação, controles do alto); leitura 15 px (a frase-resumo do
+  motor, com `text-wrap: pretty`, e as mensagens da conversa). Nenhum texto fica abaixo de 12 px, exceto os rótulos em caixa alta com
+  espaçamento (11,5 px; 11 px no sobretítulo do banner no celular) e os números dos eixos e da rampa do mapa (11,5 px, em algarismos
+  tabulares), que não crescem porque a margem do eixo e o afastamento dos rótulos são fixos. Os rótulos dos campos passam a 13 px em
+  seminegrito (a hierarquia vem do peso), e, nos ajustes, os campos têm a altura do seletor segmentado vizinho (36 px). No
+  Tailwind, o `text-xs` passa de 12 para 13 px, e nenhuma classe de tamanho arbitrário fica abaixo de 12 px.
+- **A marca:** "Agente Diagnóstico Territorial" em 20 px (antes 19), peso 750; abaixo, "da Força de Trabalho na Saúde" em 14 px
+  (antes 12 px, em cinza), menor que o nome, em seminegrito, no turquesa de texto da identidade (`--cor-destaque-texto`, a 4,5:1 ou
+  mais nos dois esquemas), com o "da" mais leve, no tom de apoio (`pagina-marca-de`); no celular, 17 e 13 px. O rosto do agente
+  passa de 40 a 44 px, na altura das duas linhas.
+- **Banner e fonte dos dados:** o sobretítulo em 11,5 px (antes 10), a descrição de 14 a 16 px (antes de 13 a 15) e o resumo da fonte
+  em 15 px (antes 14).
+- **Área de análise:** o título em peso 700, −0,015 em e `text-wrap: balance`; as abas dos Detalhes em 14 px; as funções com 36 px de
+  altura.
+- **Desenho:** os rótulos das bolhas e os títulos dos eixos em 12,5 px (antes 12), os textos das linhas em 12 px (antes 11); a largura
+  estimada para afastar os rótulos (`larguraDoTexto`) usa o novo tamanho, com 16 px entre linhas de rótulos (antes 15); os nomes no
+  mapa, desenhados no canvas, continuam em 12 px, agora na Inter embutida, e são medidos de novo quando a fonte chega; as legendas em
+  12 px, e a legenda do tamanho mais larga (14rem), para não quebrar em quatro linhas.
+- **Contraste no claro dos textos pequenos:** o turquesa da identidade dava 4,3:1 no branco como texto; os textos em turquesa
+  ("Dados do Brasil prontos.", os avisos de estado, "Trocar", os botões da conversa, "Em exibição") usam o turquesa de texto (no
+  Tailwind, `text-teal-texto`, pela variável `--tom-teal-texto`, igual a `--cor-destaque-texto` nos dois esquemas). O cinza dos
+  cabeçalhos de tabela e do texto de exemplo dos campos passa de #6b8494 (3,9:1) a #587080; o rodapé sai do slate-400 (2,4:1) para o
+  tom de apoio; o texto de exemplo dos campos (`::placeholder`) usa esse cinza, no lugar do cinza do preflight (2,5:1).
+- **Conversa:** a letra das mensagens continua (15 px; 14 no celular, desde 26/10/2026), agora também nos balões do agente, que
+  herdavam a classe da antiga "última resposta" (`latest-reply`): a letra deles ficava menor que a da pessoa, a resposta longa era
+  cortada em 140 px (90 no celular), com rolagem dentro do balão, e a hora ficava numa coluna ao lado do texto; agora o balão mostra a
+  resposta inteira, com a hora embaixo. Sobem o nome do agente no cabeçalho da caixa (15 px, antes 14), a linha de apoio dele (12 px,
+  em slate-600; antes 11 px), o aviso de serviço indisponível (13 px; 12 no celular; antes 11), a hora no balão (12 px, algarismos
+  tabulares), "Enter para enviar · Shift + Enter para nova linha" e "Privacidade da conversa" (12 px, antes 11 e 10) e o campo de
+  mensagem (15 px; 16 no celular, onde menos que isso faz o aparelho dar zoom ao focar).
+- **Desempenho:** só CSS e um arquivo de fonte servido pelo próprio app; nenhum cálculo novo no navegador nem no motor, e nenhum texto,
+  valor ou fluxo mudou.
+
 ## Acessibilidade
 
 - **Teclado:** as abas (a Seleção e as análises) e as abas dos Detalhes com setas, Home e End; da aba escolhida, Tab leva ao
@@ -887,6 +936,14 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   roteiro próprio.
 - **Navegador, mapa:** `backend/tests/ui_mapa.py`, na suíte `base-versionada`, confere o mapa contra as respostas do motor
   (detalhes em [MAPA_DA_PAGINA_UNICA.md](MAPA_DA_PAGINA_UNICA.md#testes)).
+- **Tipografia:** `frontend/tests/tipografia.test.mjs` confere a Inter embutida (as duas regras `@font-face` com os arquivos do app,
+  `font-display: swap`, a licença e nenhuma URL externa nas folhas nem na página), o piso e os inteiros da escala nas três folhas e
+  nas classes do Tailwind, a marca, a conversa (os balões do agente sem o corte da antiga "última resposta", o campo de mensagem e os
+  textos de apoio), a largura estimada dos rótulos com o tamanho da folha, a nova medida dos nomes do mapa quando a fonte chega e o
+  contraste no claro dos textos pequenos (o turquesa e o cinza de texto a 4,5:1 ou mais, sem `text-teal` em texto). No navegador,
+  `ui_pagina_unica.py` (suítes `bloco1` e `base-versionada`) confere a Inter carregada do próprio servidor, a marca ("da Força de
+  Trabalho na Saúde" com 13,5 px ou mais e menor que o nome) e nenhuma letra à vista abaixo do piso (caixa alta e números de eixo à
+  parte), na abertura (com a conversa) e com os estados no gráfico.
 - **Navegador, planilha fictícia:** `backend/tests/ui_planilha_ficticia.py`, na suíte `bloco1` (desde 28/10/2026), baixa o
   modelo pela janela de envio, preenche-o com 16 comunas inventadas em 4 condados (com códigos, coordenadas e cinco
   competências), envia, dá os nomes no painel "Colunas" e percorre a Seleção, a Distribuição (Condições, CSV com a coluna

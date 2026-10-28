@@ -69,6 +69,27 @@ def send(page, message, timeout=90000):
     expect(chat.locator("#assistant-input")).to_be_enabled(timeout=timeout)
 
 
+# Tipografia (28/10/2026): o piso da escala (nada abaixo de 11 px; abaixo de 12 px, só rótulos em caixa alta e números de eixo, em
+# algarismos tabulares) em tudo o que está à vista, inclusive os textos do SVG, e a Inter embutida, carregada do próprio servidor
+# (os roteiros bloqueiam a rede externa).
+LETRAS_MIUDAS = """() => [...document.querySelectorAll('body *')].filter(e => e.getClientRects().length &&
+    getComputedStyle(e).visibility !== 'hidden' && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+  .map(e => { const s = getComputedStyle(e); return {texto: e.textContent.trim().slice(0, 60), px: parseFloat(s.fontSize),
+    micro: s.textTransform === 'uppercase' || s.fontVariantNumeric.includes('tabular-nums')}; })
+  .filter(x => x.px < 11 || (x.px < 12 && !x.micro))"""
+
+
+def letras_miudas(page):
+    """Textos à vista abaixo do piso da escala tipográfica; a lista vazia quer dizer que tudo está no piso ou acima."""
+    return page.evaluate(LETRAS_MIUDAS)
+
+
+def fonte_embutida_carregada(page):
+    """A Inter embutida (@font-face "Inter Variable", servida pelo próprio app) foi carregada; sem a regra, não há o que carregar."""
+    return page.evaluate("""async () => { await document.fonts.ready;
+      return [...document.fonts].some(f => f.family.replace(/["']/g, '') === 'Inter Variable' && f.status === 'loaded'); }""")
+
+
 def end_session(page):
     page.get_by_test_id("nav-new-session").click()
     expect(page.get_by_test_id("new-session-confirmation")).to_be_visible()

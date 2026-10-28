@@ -136,6 +136,13 @@ Desde 26/10/2026 (Frente VI da missão de 26/10/2026), a caixa mostra a conversa
 (`chat-mensagem` com `data-papel="usuario"`), e cada resposta do agente, à esquerda, com o rosto (`data-papel="agente"`).
 A comunicação de indisponibilidade da conversa aparece como resposta do sistema, numa faixa suave com o título
 "Assistente conversacional temporariamente indisponível" (`data-papel="aviso"`), no ponto da conversa em que aconteceu.
+- **Tipografia (28/10/2026).** A letra das mensagens (15 px; 14 no celular) passa a valer também nos balões do agente, que
+  herdavam a classe da antiga "última resposta" (`latest-reply`): a letra deles era menor que a da pessoa, a resposta longa era
+  cortada em 140 px (90 no celular), com rolagem dentro do balão, e a hora ficava ao lado do texto; agora o balão mostra a
+  resposta inteira, com a hora embaixo. Sobem os textos de apoio da caixa: o nome do agente no cabeçalho (15 px), a linha de
+  apoio dele (12 px), o aviso de serviço indisponível (13 px; 12 no celular), a hora (12 px), "Enter para enviar" e
+  "Privacidade da conversa" (12 px) e o campo de mensagem (15 px; 16 no celular, sem zoom ao focar), na Inter embutida no app
+  ([tipografia](PAINEL_INTEGRADO_INTERFACE.md#tipografia)).
 - **Visual (26/10/2026).** Letra maior (15 px; 14 px no celular), cada mensagem num balão com contorno e sombra leve (a da
   pessoa, à direita, no tom de realce; a do agente, à esquerda, com a borda de destaque), a hora no canto do balão (HH:MM,
   no relógio do navegador, como conteúdo gerado do atributo `data-hora`, fora do texto da mensagem), os parágrafos da

@@ -74,7 +74,7 @@ export function GavetaCondicoes(p: CondicoesProps) {
         <input type="checkbox" data-testid="analise-condicoes-so-atende" checked={p.soAtende} onChange={event => p.onSoAtende(event.target.checked)}/>
         <span>Mostrar no gráfico só quem atende (filtro visual, sem novo cálculo)</span>
       </label>
-      {(p.resposta?.condicoes?.textos || []).map(texto => <p key={texto} className="text-[11px] text-slate-600">{texto}</p>)}
+      {(p.resposta?.condicoes?.textos || []).map(texto => <p key={texto} className="text-[12px] text-slate-600">{texto}</p>)}
     </div>}
   </section>;
 }
@@ -138,7 +138,7 @@ export function GavetaOrdenar(p: OrdenarProps) {
           <span className="shrink-0 tabular-nums text-slate-700">{valorDe(item)}</span>
         </li>)}
       </ol>
-      {limite === null && posicionados.length > 20 && <p className="text-[11px] text-slate-600">Os 20 primeiros; a ordem completa fica na tabela (coluna Posição).</p>}
+      {limite === null && posicionados.length > 20 && <p className="text-[12px] text-slate-600">Os 20 primeiros; a ordem completa fica na tabela (coluna Posição).</p>}
     </div>}
   </section>;
 }
@@ -223,7 +223,7 @@ export function GavetaJuntar(p: JuntarProps) {
           onClick={() => { p.onJuntar(nome); setNome(""); }} className="analise-botao-primario">Juntar escolhidos</button>
       </div>
     </>}
-    {p.conjuntos.length >= MAX_CONJUNTOS && <p className="text-[11px] text-amber-900">O gráfico aceita até {MAX_CONJUNTOS} conjuntos.</p>}
+    {p.conjuntos.length >= MAX_CONJUNTOS && <p className="text-[12px] text-amber-900">O gráfico aceita até {MAX_CONJUNTOS} conjuntos.</p>}
     {p.conjuntos.length > 0 && <ul className="space-y-1" aria-label="Conjuntos">
       {p.conjuntos.map(conjunto => <li key={conjunto.id} data-testid="analise-conjunto" data-id={conjunto.id}
         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs">
@@ -250,7 +250,7 @@ export function GavetaExportar({ pronto, onCsv, onImprimir, onMetodo }: Exportar
       <button type="button" data-testid="analise-exportar-metodo" disabled={!pronto} onClick={onMetodo} className="analise-botao-secundario justify-start">
         <FileText size={15} aria-hidden="true"/>Baixar método e parâmetros (TXT)</button>
     </div>
-    <p className="text-[11px] leading-4 text-slate-600">A sessão é temporária: para guardar a análise, exporte agora ou use o Histórico.</p>
+    <p className="text-[12px] leading-4 text-slate-600">A sessão é temporária: para guardar a análise, exporte agora ou use o Histórico.</p>
   </section>;
 }
 

@@ -395,7 +395,7 @@ export default function PainelChart(p: Props) {
     {dica && posicaoDica && <div role="tooltip" id="analise-dica" data-testid="analise-dica" className="analise-dica"
       style={{ left: posicaoDica.left, top: posicaoDica.top, width: larguraDica }}>
       <strong className="block text-sm text-ink">{dica.titulo}</strong>
-      <span className="block text-[11px] text-slate-600">{dica.subtitulo}</span>
+      <span className="block text-[12px] text-slate-600">{dica.subtitulo}</span>
       {dica.acao && <span data-testid="analise-dica-acao" className="analise-dica-acao">{dica.acao} ›
         <span className="block font-normal text-slate-600">Clique na bolha ou tecle Enter.</span></span>}
       <dl className="mt-1.5 space-y-0.5">
@@ -404,7 +404,7 @@ export default function PainelChart(p: Props) {
           <dd className="text-xs"><span className="font-semibold text-ink">{linha.valor}</span> <span className="text-slate-500">· {linha.rotulo}</span></dd>
         </div>)}
       </dl>
-      {dica.notas.map(nota => <p key={nota} className="mt-1 text-[11px] leading-4 text-slate-600">{nota}</p>)}
+      {dica.notas.map(nota => <p key={nota} className="mt-1 text-[12px] leading-4 text-slate-600">{nota}</p>)}
       {miniNaDica && <div className="mt-1.5"><MiniMapa pontos={p.pontosDoMapa!} destaque={destaqueDoMini!} tamanho={96}/></div>}
     </div>}
     <figcaption className="analise-legenda">
@@ -444,7 +444,7 @@ function LegendaDeTamanho({ maxima, raioMax, paleta }: { maxima: number; raioMax
         <text x={2 * maior + 11} y={y} className="analise-marca-texto">{item.texto}</text>
       </g>)}
     </svg>
-    <span className="max-w-[9rem] leading-4">Área proporcional à população; as muito pequenas ficam no tamanho mínimo visível.</span>
+    <span className="max-w-[14rem] leading-[1.4]">Área proporcional à população; as muito pequenas ficam no tamanho mínimo visível.</span>
   </div>;
 }
 

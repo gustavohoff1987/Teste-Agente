@@ -40,13 +40,13 @@ export default function BarraDaFonte({ desabilitado, ativa, escolhendo, preparo,
       <p data-testid="current-source" className="fonte-resumo">{ativa.resumo}</p>
       {!escolhendo && !preparo && <div className="no-print flex flex-wrap gap-2">
         <button type="button" data-testid="fonte-trocar" onClick={onTrocar} disabled={desabilitado}
-          className={BOTAO + " border border-teal bg-white text-teal hover:bg-cyan-50"}><RefreshCw size={15} aria-hidden="true"/>Trocar</button>
+          className={BOTAO + " border border-teal bg-white text-teal-texto hover:bg-cyan-50"}><RefreshCw size={15} aria-hidden="true"/>Trocar</button>
         {onColunas && <button type="button" data-testid="colunas-abrir" onClick={onColunas} disabled={desabilitado}
           className={BOTAO + " border border-line bg-white text-ink hover:bg-slate-50"}><Columns3 size={15} aria-hidden="true"/>Colunas</button>}
       </div>}
     </div>}
     {preparo && <div className="fonte-preparo" data-testid="fonte-preparo">
-      {preparo.lendo && <p role="status" className="flex items-center gap-2 text-sm text-teal">
+      {preparo.lendo && <p role="status" className="flex items-center gap-2 text-sm text-teal-texto">
         <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>
         {preparo.tipo === "brasil" ? "Preparando os dados do Brasil…" : "Lendo " + preparo.nome + "…"}</p>}
       {preparo.erro && <p role="alert" data-testid="fonte-erro" className="text-sm text-rose-800">{preparo.erro}</p>}

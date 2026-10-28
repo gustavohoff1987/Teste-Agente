@@ -35,6 +35,49 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Tipografia: a Inter embutida, a escala com piso, a marca em destaque e os balões do agente inteiros
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026): "da Força de Trabalho na Saúde"
+  muito miúdo, que pode aumentar "um pouquinho", continuar menor que "Agente Diagnóstico Territorial" e ganhar uma estética
+  diferenciada ("parecendo uma simples digitação de máquina de escrever"); o mesmo para as letras pequenas em geral, em todas as
+  camadas, inclusive a conversa, sem prejuízo ao motor nem às funcionalidades e sem latência nova. Itens (todos mudança de
+  comportamento, o que se vê na tela, e previstos: decorrem do pedido, escopo, e não contrariam a SPEC nem divergência aprovada,
+  compatibilidade): a fonte; a escala; a marca; a conversa; e, achados na auditoria independente de um agente especialista em
+  interface, os balões do agente cortados e os textos pequenos abaixo de 4,5:1 no modo claro, que a legibilidade pedida inclui. A
+  SPEC não fixa tipografia; a "ampliação experimental da tipografia operacional" de 18/10/2026 (`3575484`) saiu na reversão em bloco
+  da tentativa de simplificação, não por decisão sobre a letra; a letra das mensagens da conversa (15/14 px, 26/10/2026) continua e
+  passa a valer também nos balões do agente. Nenhum texto, valor, cálculo, fluxo ou contrato muda.
+- **Antes:** as folhas pediam a fonte "Inter" sem carregá-la: cada aparelho mostrava a fonte do sistema (no Windows, a Segoe UI), e
+  os pesos 650 e 750 viravam 600, 700 ou 900. Cerca de 150 declarações de tamanho de letra entre 9 e 12 px (sobretítulo do banner a
+  10 px, "Privacidade da conversa" a 10 px, notas, legendas, rótulos de campos, aviso de serviço e cabeçalho da conversa a 11 e
+  11,5 px; `text-xs` a 12 px). A marca: "Agente Diagnóstico Territorial" a 19 px e "da Força de Trabalho na Saúde" a 12 px, em cinza.
+  Os balões do agente herdavam a classe da antiga "última resposta" (`latest-reply`): letra de 13 px (a da pessoa, 15 px), resposta
+  longa cortada em 140 px (90 px no celular), com rolagem dentro do balão, e a hora numa coluna ao lado do texto. No claro, textos em
+  turquesa a 4,3:1 no branco, cabeçalhos de tabela em #6b8494 (3,9:1), rodapé em slate-400 (2,4:1) e texto de exemplo dos campos a
+  2,5:1.
+- **Agora:** a Inter 4 variável (peso e tamanho óptico) vem embutida no app (`frontend/src/tipografia/`, subconjuntos latino e
+  latino estendido, licença OFL), com `font-display: swap` e nenhuma requisição externa; sem a suavização que afina o texto no Mac.
+  Escala por papéis, em pixels inteiros: legenda 12 px, apoio 13, corpo 14, leitura 15 (a frase-resumo); piso de 12 px, com 11,5 px só
+  em rótulos em caixa alta e nos números dos eixos e da rampa do mapa; rótulos de campos em 13 px seminegrito; `text-xs` do Tailwind
+  12 → 13 px. A marca: o nome em 20 px e "da Força de Trabalho na Saúde" em 14 px, seminegrito, no turquesa de texto da identidade,
+  com o "da" mais leve, no tom de apoio (17 e 13 px no celular); o rosto do agente em 44 px. No desenho, rótulos das bolhas e títulos
+  dos eixos em 12,5 px, com a largura estimada dos rótulos ajustada; nomes no mapa em 12 px na Inter, medidos de novo quando a fonte
+  chega. Na conversa, os balões do agente mostram a resposta inteira, em 15 px, com a hora embaixo; sobem o cabeçalho da caixa
+  (15 px), a linha de apoio (12 px), o aviso de serviço (13 px; 12 no celular), a hora (12 px), "Enter para enviar" e "Privacidade da
+  conversa" (12 px) e o campo de mensagem (15 px; 16 no celular, sem zoom ao focar). No claro, os textos pequenos em turquesa usam o
+  turquesa de texto (`text-teal-texto`), o cinza de apoio passa a #587080, o rodapé usa o tom de apoio e o texto de exemplo dos
+  campos, esse cinza.
+- **Permanece:** os textos, os valores, os cálculos do motor, os fluxos, as cores da identidade nas bordas e fundos, o modo escuro
+  (variáveis e contraste), a letra das mensagens da conversa, a impressão clara, o celular sem rolagem horizontal e os contratos da
+  API.
+- **Motivo:** pedido do responsável (28/10/2026), com a preocupação de não perder desempenho: só CSS e um arquivo de fonte do próprio
+  app, carregado uma vez.
+- **Documentação e testes:** `README.md` (interface), `Docs/PAINEL_INTEGRADO_INTERFACE.md` (seção nova "Tipografia" e os testes) e
+  `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (a tipografia da conversa e os balões). Testes novos:
+  `frontend/tests/tipografia.test.mjs` (a fonte embutida e sem URL externa, o piso e os inteiros nas folhas e no Tailwind, a marca, a
+  conversa, os balões, a largura estimada dos rótulos, a nova medida dos nomes do mapa e o contraste no claro dos textos pequenos) e,
+  em `backend/tests/ui_pagina_unica.py`, a Inter carregada do próprio servidor, a marca e nenhuma letra à vista abaixo do piso
+  (auxiliares `fonte_embutida_carregada` e `letras_miudas` em `ui_support.py`). Nenhum teste afrouxado.
+
 ### 2026-10-28 · Planilha enviada: os nomes dela em todos os lugares, com a concordância, e o grupo reconhecido na conversa
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026): testar com dados fictícios,
   preenchendo o modelo de planilha, enviando-o e navegando como usuário, se onde a base do Brasil diz município, estado e

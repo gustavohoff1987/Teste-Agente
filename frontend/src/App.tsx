@@ -383,8 +383,9 @@ function App() {
         <a href="#topo" className="pagina-marca" data-testid="pagina-marca"
           onClick={event => { event.preventDefault(); window.scrollTo({ top: 0, behavior:
             window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }}>
-          <BrandAvatar size={40}/>
-          <span className="min-w-0"><strong>Agente Diagnóstico Territorial</strong><small>da Força de Trabalho na Saúde</small></span>
+          <BrandAvatar size={44}/>
+          <span className="min-w-0"><strong>Agente Diagnóstico Territorial</strong>
+            <small><span className="pagina-marca-de">da</span> Força de Trabalho na Saúde</small></span>
         </a>
       </div>
       <WelcomeHero/>

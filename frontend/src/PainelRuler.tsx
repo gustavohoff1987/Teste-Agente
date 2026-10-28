@@ -101,7 +101,7 @@ export default function PainelRuler({ indicador, dominio, escala, corte, onCorte
         {cursor("minimo")}
         {cursor("maximo")}
       </div>
-      <div className="flex justify-between text-[11px] tabular-nums text-slate-500" aria-hidden="true">
+      <div className="flex justify-between text-[12px] tabular-nums text-slate-500" aria-hidden="true">
         <span>{texto(inicio)}</span><span>{texto(fim)}</span>
       </div>
     </div>

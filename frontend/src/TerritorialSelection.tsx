@@ -48,7 +48,7 @@ export default function TerritorialSelection({items, selected, onChange, disable
     {(query || state) && <div className="mt-3 space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <span role="status">{matches.length} correspondências · até 40 exibidas</span>
-        {!!matches.length && <button type="button" disabled={disabled} className="rounded-md border bg-white px-2 py-2 font-semibold text-teal disabled:opacity-40"
+        {!!matches.length && <button type="button" disabled={disabled} className="rounded-md border bg-white px-2 py-2 font-semibold text-teal-texto disabled:opacity-40"
           onClick={()=>onChange([...new Set([...selected, ...matches.filter(item=>!item.selection_reason).map(item=>item.id)])])}>Adicionar todas as correspondências válidas</button>}
       </div>
       <div className="max-h-52 overflow-y-auto rounded-lg border border-line bg-white p-2">
@@ -62,7 +62,7 @@ export default function TerritorialSelection({items, selected, onChange, disable
     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
       <strong aria-live="polite">{selected.length} selecionados</strong>
       {!!selected.length && <button type="button" disabled={disabled} onClick={()=>onChange([])}
-        className="min-h-9 rounded-lg border bg-white px-3 text-teal disabled:opacity-40">Limpar seleção</button>}
+        className="min-h-9 rounded-lg border bg-white px-3 text-teal-texto disabled:opacity-40">Limpar seleção</button>}
     </div>
     {!!selected.length && <ul aria-label={listLabel} className="mt-2 flex max-h-44 flex-wrap gap-2 overflow-y-auto">
       {selected.map(id=>{

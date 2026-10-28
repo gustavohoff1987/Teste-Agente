@@ -42,7 +42,7 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos }
     const passo = Math.max(1, Math.ceil(marcasX.length / (multiplos ? 3 : 8)));
     const fins = series.filter(serie => serie.fim);
     const rotulosFim = posicionarRotulos(fins.map(serie => ({ id: serie.id, x: serie.fim!.x, y: serie.fim!.y, r: 4,
-      largura: larguraDoTexto(serie.rotulo, 11) })), larguraSvg - 2, 14);
+      largura: larguraDoTexto(serie.rotulo, 12) })), larguraSvg - 2, 15);
     return <svg width="100%" height={alturaSvg} viewBox={`0 0 ${larguraSvg} ${alturaSvg}`} role="img" className="analise-svg"
       aria-label={(titulo ? titulo + ": " : "") + "série temporal de " + especie.rotulo.toLowerCase() + ", " + grupo.length + " " +
         (grupo.length === 1 ? rotulos.unidade.singular : rotulos.unidade.plural) + ", de " + exibirCompetencia(competencias[0]) + " a " +
@@ -70,7 +70,7 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos }
         const alvo = serie.pontos.find(item => item.competencia === ponto.competencia);
         if (!alvo) return null;
         const texto = serie.rotulo + " · " + formatarNumero(alvo.valor, especie.contagem) + " · " + exibirCompetencia(alvo.competencia);
-        const larguraTexto = larguraDoTexto(texto, 11) + 8;
+        const larguraTexto = larguraDoTexto(texto, 12) + 8;
         const x = Math.min(larguraSvg - larguraTexto - 2, Math.max(2, alvo.x - larguraTexto / 2));
         return <g key="dica" pointerEvents="none" data-testid="analise-serie-dica">
           <rect x={x} y={Math.max(0, alvo.y - 28)} width={larguraTexto} height={20} rx={6} fill={paleta.dica} stroke={paleta.eixo}/>

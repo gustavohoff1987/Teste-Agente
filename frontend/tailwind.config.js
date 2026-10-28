@@ -11,11 +11,15 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
-      fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+      fontFamily: { sans: ["Inter Variable", "Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+      /** Escala tipográfica (28/10/2026): o text-xs dos textos de apoio sobe de 12 para 13 px, como a escala das folhas de estilo
+       * (src/styles.css, src/analise.css e src/mapa.css); o text-sm (14 px) e os maiores continuam. */
+      fontSize: { xs: ["13px", { lineHeight: "18px" }] },
       colors: {
         white: tom("white"),
         ink: { DEFAULT: tom("ink"), realce: tom("ink-realce") },
-        teal: tom("teal"),
+        /** O turquesa como texto (28/10/2026): o da identidade (teal) dá 4,3:1 no branco; o de texto, 5,9:1 ou mais nos dois esquemas. */
+        teal: { DEFAULT: tom("teal"), texto: tom("teal-texto") },
         canvas: tom("canvas"),
         line: tom("line"),
         slate: tons("slate", [50, 100, 400, 500, 600, 700]),

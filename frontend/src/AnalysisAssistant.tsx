@@ -545,7 +545,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       {ultima.clarification.choices.map(choice =>
         <button key={choice.label} type="button" disabled={sending || (ultima.fonte ?? "") !== fonteChave}
           onClick={() => void escolherAlternativa(choice, ultima)}
-          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal hover:bg-cyan-100 disabled:opacity-40">
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-xs font-semibold text-teal-texto hover:bg-cyan-100 disabled:opacity-40">
           {choice.label}</button>)}
     </div>;
   // Os exemplos da orientação mudam conforme a conversa avança (26/10/2026), sempre sem nomes de lugar.
@@ -563,10 +563,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         {/* As mesmas duas entradas da área central (24/10/2026); "Enviar meus dados" abre a mesma janela de envio, com o modelo de
             planilha. */}
         <button type="button" data-testid="chat-fonte-brasil" disabled={!privacyAccepted} onClick={() => onEscolherFonte("brasil")}
-          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal-texto hover:bg-cyan-50 disabled:opacity-40">
           <Database size={16} aria-hidden="true"/>Usar dados do Brasil</button>
         <button type="button" data-testid="chat-fonte-arquivo" disabled={!privacyAccepted} onClick={() => onEscolherFonte("arquivo")}
-          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal hover:bg-cyan-50 disabled:opacity-40">
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-teal bg-white px-3 py-2 text-sm font-semibold text-teal-texto hover:bg-cyan-50 disabled:opacity-40">
           <FileUp size={16} aria-hidden="true"/>Enviar meus dados</button>
       </div>}
       {(loadingStatus || (status && status.disponivel === false) || !status) &&
@@ -618,9 +618,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
               event.preventDefault(); event.currentTarget.form?.requestSubmit();
             }}}
             placeholder={pronta ? "Peça uma mudança no gráfico ou faça uma pergunta…" : "Descreva sua análise ou faça uma pergunta…"}
-            className="block min-h-[64px] w-full resize-none rounded-t-2xl border-0 bg-transparent px-4 py-4 text-sm leading-6 text-ink focus:outline-none"/>
+            className="block min-h-[64px] w-full resize-none rounded-t-2xl border-0 bg-transparent px-4 py-4 text-[15px] leading-6 text-ink focus:outline-none"/>
           <div className="flex items-center justify-between gap-3 px-3 pb-3">
-            <span className="text-[11px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
+            <span className="text-[12px] text-slate-500">Enter para enviar · Shift + Enter para nova linha</span>
             <button type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"
               disabled={!privacyAccepted || draft.trim().length < 2 || sending}
               className="conversation-send inline-flex h-10 w-10 items-center justify-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-40">
@@ -628,7 +628,7 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
             </button>
           </div>
         </div>
-        <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
+        <details className="text-[12px] text-slate-500"><summary className="cursor-pointer">Privacidade da conversa</summary>
           <p className="mt-1">As mensagens passam por proteção de identificadores antes do serviço de IA. Para explicar, ele recebe os
             resultados agregados que estão na tela; arquivos, registros individuais e nomes de colunas não são enviados.</p>
         </details>

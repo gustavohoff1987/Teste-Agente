@@ -997,7 +997,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (camadaFinal === "variacao") {
       return <div data-testid={id("analise-legenda-cor")} data-camada="variacao" className="max-w-xs">
         <div className="h-2.5 rounded-full" style={{ background: gradienteDaVariacao(paleta) }} aria-hidden="true"/>
-        <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-600" aria-hidden="true">
+        <div className="relative mt-1 h-4 text-[12px] tabular-nums text-slate-600" aria-hidden="true">
           {([[0, -limiteVariacao], [50, 0], [100, limiteVariacao]] as const).map(([posicao, valor]) =>
             <span key={posicao} className="absolute whitespace-nowrap" style={{ left: posicao + "%", transform: posicao === 0 ? "none" : posicao === 100 ? "translateX(-100%)" : "translateX(-50%)" }}>
               {valor === 0 ? "0,00%" : formatarVariacao(valor)}</span>)}

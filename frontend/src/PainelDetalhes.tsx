@@ -130,7 +130,7 @@ export default function PainelDetalhes(p: Props) {
                   (item.tipo === "conjunto" && numero(item.distancia_km_max) !== null ? " a " + formatarNumero(item.distancia_km_max as number) : "")}</td>}
                 {temProxima && <td>{(item.referenciaDoItem || []).map(ref => ref.rotulo).join(", ")}</td>}
                 {p.variacao && <td className="tabular-nums" data-variacao={variacao ?? ""}>{formatarVariacao(variacao)}
-                  {inicial !== null && <span className="block text-[11px] text-slate-500">em {exibirCompetencia(r.competencia_inicial)}:{" "}
+                  {inicial !== null && <span className="block text-[12px] text-slate-500">em {exibirCompetencia(r.competencia_inicial)}:{" "}
                     {formatarNumero(inicial, especie.contagem)}</span>}</td>}
                 {p.tendencia && <td data-classe={item.tendencia?.classe ?? ""}>{item.tendencia?.rotulo ?? "Não avaliável"}</td>}
                 {temGrupo && <td>{item.grupo?.rotulo ?? "Não avaliável"}</td>}
@@ -183,7 +183,7 @@ export default function PainelDetalhes(p: Props) {
         {(r.limitacoes || []).map(codigo => <li key={"l" + codigo} data-limitacao={codigo}>{textoDaLimitacao(codigo)}</li>)}
         <li>Na tela, os valores aparecem arredondados (duas casas nas medidas contínuas); a precisão integral fica no cálculo e no CSV.</li>
       </ul>
-      <p className="mt-2 text-[11px] text-slate-600">{maiuscula(p.rotulos.unidade.plural)} · competência {exibirCompetencia(r.competencia)}
+      <p className="mt-2 text-[12px] text-slate-600">{maiuscula(p.rotulos.unidade.plural)} · competência {exibirCompetencia(r.competencia)}
         {r.competencia_inicial ? " · competência inicial " + exibirCompetencia(r.competencia_inicial) : ""} · categoria {r.categoria} · versão da
         base {String(r.versao_base || "").slice(0, 12)} · chave de execução {String(r.chave_execucao || "").slice(0, 12)}
         {r.sessao?.registrado ? " · registrado na sessão" : ""}</p>

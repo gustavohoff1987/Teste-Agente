@@ -13,9 +13,9 @@
 .mapa-busca { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 5px 9px;
   border: 1px solid var(--mapa-controle-borda); border-radius: 10px; background: var(--mapa-painel); color: var(--mapa-controle-texto); }
 .mapa-busca input { width: 16rem; max-width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: inherit;
-  font-size: 12.5px; }
+  font-size: 13px; }
 .mapa-busca:focus-within { outline: 3px solid var(--mapa-foco); outline-offset: 1px; }
-.mapa-busca-aviso { color: var(--mapa-texto-apoio); font-size: 12px; }
+.mapa-busca-aviso { color: var(--mapa-texto-apoio); font-size: 13px; }
 
 /* ------------------------------------------------------------------------------------------- área do desenho */
 .mapa-quadro { position: relative; min-width: 0; height: 460px; overflow: hidden; border: 1px solid var(--mapa-borda); border-radius: 14px;
@@ -24,7 +24,7 @@
 .mapa-canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--mapa-foco); }
 .mapa-carregando .mapa-canvas { opacity: .55; transition: opacity .2s ease; }
 .mapa-vazio { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px 64px;
-  color: var(--mapa-texto-apoio); font-size: 13px; text-align: center; pointer-events: none; }
+  color: var(--mapa-texto-apoio); font-size: 14px; text-align: center; pointer-events: none; }
 
 /* Controles: canto superior direito. */
 .mapa-controles { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
@@ -43,21 +43,21 @@
 /* Dica: a mesma do gráfico, contida na área do mapa. */
 .mapa-dica { position: absolute; z-index: 4; max-width: min(270px, calc(100% - 8px)); padding: 8px 10px; border: 1px solid var(--mapa-borda);
   border-radius: 12px; background: var(--mapa-painel); box-shadow: 0 14px 45px var(--mapa-sombra); color: var(--mapa-tinta2);
-  font-size: 12px; line-height: 1.4; pointer-events: none; }
+  font-size: 13px; line-height: 1.4; pointer-events: none; }
 .mapa-dica-titulo { display: block; color: var(--mapa-controle-texto); font-size: 14px; font-weight: 650; }
-.mapa-dica-subtitulo { display: block; color: var(--mapa-texto-apoio); font-size: 11px; }
+.mapa-dica-subtitulo { display: block; color: var(--mapa-texto-apoio); font-size: 12px; }
 .mapa-dica-linhas { margin: 6px 0 0; }
 .mapa-dica-linhas dd { margin: 0 0 2px; }
 .mapa-dica-valor { color: var(--mapa-controle-texto); font-weight: 600; }
 .mapa-dica-rotulo { color: var(--mapa-texto-apoio); }
-.mapa-dica-nota { margin: 4px 0 0; color: var(--mapa-texto-apoio); font-size: 11px; line-height: 1.35; }
+.mapa-dica-nota { margin: 4px 0 0; color: var(--mapa-texto-apoio); font-size: 12px; line-height: 1.35; }
 
 /* ------------------------------------------------------------------------------------------- legendas e notas */
-.mapa-legendas { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; color: var(--mapa-tinta2); font-size: 11px; line-height: 1.45; }
+.mapa-legendas { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; color: var(--mapa-tinta2); font-size: 12px; line-height: 1.45; }
 .mapa-legendas p { margin: 0; }
 .mapa-legenda-tamanho { display: flex; align-items: flex-end; gap: 8px; }
-.mapa-legenda-tamanho-texto { max-width: 11rem; line-height: 1.35; }
-.mapa-legenda-texto { fill: var(--mapa-tinta2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mapa-legenda-tamanho-texto { max-width: 14rem; line-height: 1.4; }
+.mapa-legenda-texto { fill: var(--mapa-tinta2); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .mapa-legenda { min-width: 0; }
 .mapa-legenda-continua { width: min(320px, 100%); }
 .mapa-legenda-titulo { color: var(--mapa-controle-texto); font-weight: 650; }
@@ -68,7 +68,7 @@
 .mapa-rampa-extremo { position: absolute; bottom: -3px; height: 7px; border-left: 2px solid var(--mapa-tinta); }
 .mapa-rampa-marca { position: absolute; bottom: -3px; height: 6px; border-left: 1px solid var(--mapa-tinta2); }
 .mapa-rampa-brasil { position: absolute; top: -4px; height: 18px; border-left: 2px dashed var(--mapa-tinta); }
-.mapa-rampa-textos { position: relative; height: 14px; margin-top: 3px; color: var(--mapa-muda); font-size: 10px; font-variant-numeric: tabular-nums; }
+.mapa-rampa-textos { position: relative; height: 16px; margin-top: 3px; color: var(--mapa-muda); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .mapa-rampa-textos span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 .mapa-extremos { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .mapa-legenda-brasil { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px !important; }
