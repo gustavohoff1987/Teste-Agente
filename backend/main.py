@@ -1513,7 +1513,9 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
         ato = dialogo.reconhecer(message, memoria, resultado is not None,
                                  resultado_tendencia=(resultado.get("tendencia") is not None) if resultado else None,
                                  nomes_no_resultado=[item.get("rotulo", "") for item in (resultado or {}).get("itens") or []
-                                                     if item.get("tipo") in ("municipio", "estado")])
+                                                     if item.get("tipo") in ("municipio", "estado")],
+                                 resultado_consulta=((resultado.get("referencia") or {}).get("tipo") == "consulta")
+                                 if resultado else None)
     if ato is None:
         return None
     conversacional = ato.get("ato") in CONVERSACIONAIS
@@ -1526,9 +1528,10 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
                                                                         dataset_version, requested)
         brasil = dataset == "brazil"
 
-        def interpretar(texto, dica=None, dica_indicador=None):
+        def interpretar(texto, dica=None, dica_indicador=None, base_marcada=None):
             return conversa_grafico.interpretar(texto, frame, fields, settings, grafico, brasil=brasil, opcoes=opcoes,
-                                                grupo=grupo, dica=dica, dica_indicador=dica_indicador)
+                                                grupo=grupo, dica=dica, dica_indicador=dica_indicador,
+                                                base_marcada=base_marcada)
 
         def nomes(texto):
             return conversa_grafico.nomes_citados(texto, frame, fields, settings, grafico, brasil=brasil, opcoes=opcoes,

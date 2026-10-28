@@ -26,13 +26,13 @@ from semantic_bridge import ROLES
 from territorial_selection import REGIONS, STATES, territory_catalog, texts
 
 CHAVES = ("familia", "indicador", "nivel", "municipios", "competencia", "janela", "visao_tendencia", "referencia",
-          "funcao", "selecao", "ordenar", "condicoes", "grupos", "vista")
+          "funcao", "selecao", "ordenar", "condicoes", "grupos", "vista", "consulta")
 FAMILIAS = ("distribuicao", "espacial", "tendencia", "rotatividade")
 # Estado do gráfico enviado pela tela (contrato, seção 4, e extensões documentadas); sai das opções do intérprete, do
 # pré-exame e do provedor. painel_resumo é a frase-resumo do motor, com valores da base: fica só na conversa local.
 CONTEXTO = ("painel_familia", "painel_indicador", "painel_nivel", "painel_municipios", "painel_competencia",
             "painel_janela", "painel_referencia", "painel_condicoes", "painel_vista", "painel_resumo",
-            "painel_mapa_disponivel", "painel_motivo_sem_mapa", "rotulos", "conversation_pending_ids")
+            "painel_mapa_disponivel", "painel_motivo_sem_mapa", "painel_consulta", "rotulos", "conversation_pending_ids")
 VISTAS = ("grafico", "mapa", "lado")
 # Operações atuais → família, indicador e função do gráfico (contrato, seção 4).
 OPERACOES = {
@@ -358,6 +358,40 @@ def _base_valida(valor):
     return {"todos": bool(valor.get("todos")), "estados": _textos(valor.get("estados")), "ids": _textos(valor.get("ids"))}
 
 
+TIPOS_DE_PARTIDA = ("pais", "regioes", "ufs", "selecao_previa", "mesma_uf_da_base", "mesma_regiao_da_base")
+INDICADORES_DO_FILTRO = ("densidade", "populacao", "quantidade")
+OPERADORES_DO_FILTRO = ("<", "<=", ">", ">=")
+DISTANCIA_DA_CONSULTA = {"medida": "geodesica", "ate": "referencia_mais_proxima"}
+
+
+def _consulta_da_tela(valor):
+    """A Escolha dos territórios em exibição (`painel_consulta`, 28/10/2026), para a conversa trocar só o que a pessoa pede
+    (o recorte da referência, por exemplo) e manter o resto. Forma inválida vale como ausente; o motor confere de novo."""
+    if not isinstance(valor, dict):
+        return None
+    lados = {}
+    for lado in ("base", "referencia"):
+        bruto = valor.get(lado)
+        partir = bruto.get("partir_de") if isinstance(bruto, dict) else None
+        if not isinstance(partir, dict) or partir.get("tipo") not in TIPOS_DE_PARTIDA or \
+                (lado == "base" and str(partir["tipo"]).startswith("mesma_")):
+            return None
+        filtros = [{"indicador": item["indicador"], "operador": item["operador"],
+                    "valor": item.get("valor") if isinstance(item.get("valor"), (int, float)) and
+                    not isinstance(item.get("valor"), bool) else None}
+                   for item in (bruto.get("filtros") if isinstance(bruto.get("filtros"), list) else [])
+                   if isinstance(item, dict) and item.get("indicador") in INDICADORES_DO_FILTRO and
+                   item.get("operador") in OPERADORES_DO_FILTRO]
+        escolha = bruto.get("escolha") if isinstance(bruto.get("escolha"), dict) else {}
+        marcados = _textos(escolha.get("municipios")) if escolha.get("modo") == "marcados" else []
+        lados[lado] = {"partir_de": {"tipo": partir["tipo"], "regioes": _textos(partir.get("regioes"), 50),
+                                     "ufs": _textos(partir.get("ufs"), 50)},
+                       "filtros": filtros[:8],
+                       "escolha": {"modo": "marcados" if escolha.get("modo") == "marcados" else "todos",
+                                   "municipios": marcados}}
+    return {**lados, "distancia": dict(DISTANCIA_DA_CONSULTA)}
+
+
 def contexto(options):
     """Estado do gráfico enviado pela tela da página única; None nas demais telas (sem a chave painel_familia)."""
     if not isinstance(options, dict) or "painel_familia" not in options:
@@ -393,6 +427,8 @@ def contexto(options):
             "mapa_disponivel": disponivel if isinstance(disponivel, bool) else None,
             "motivo_sem_mapa": options.get("painel_motivo_sem_mapa")[:300]
             if isinstance(options.get("painel_motivo_sem_mapa"), str) else None,
+            # A Escolha dos territórios em exibição (28/10/2026), só na Análise Espacial.
+            "consulta": _consulta_da_tela(options.get("painel_consulta")) if familia == "espacial" else None,
             # Unidade já identificada numa comparação pendente ("compare Manaus" → "com qual outro?").
             "pendentes": [item for item in _textos(options.get("conversation_pending_ids"))
                           if item.startswith(("code:", "name:"))]}
@@ -663,8 +699,11 @@ def _nivel(palavras, todos):
 class _Conversa:
     """Pedido, contexto do gráfico, catálogo, competências e vocabulário de uma requisição."""
 
-    def __init__(self, mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo_coluna):
+    def __init__(self, mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo_coluna, base_marcada=None):
         self.pedido = _Pedido(mensagem)
+        # O extremo do gráfico que o gestor de diálogo já resolveu pelas ordens do motor (28/10/2026): a base da proximidade.
+        self.base_marcada = [item for item in base_marcada if isinstance(item, str)] if isinstance(base_marcada, list) \
+            else None
         self.ctx = ctx if isinstance(ctx, dict) else contexto({"painel_familia": None})
         self.fields = fields if isinstance(fields, dict) else {}
         self.opcoes = opcoes if isinstance(opcoes, dict) else {}
@@ -1327,7 +1366,12 @@ def _condicoes(conv, dica, dica_indicador):
             return _resposta(_painel(funcao="condicoes"), "Abri Condições: diga a condição, por exemplo, “" +
                              conv.rot.plural + " com menos de 1 médico por mil habitantes”.")
         return None
-    if re.search(r"\bou\b", pedido.resto[achadas[0][0].start():achadas[-1][1]["fim"]]):
+    # O "ou" das próprias condições ("maior ou igual a", "igual ou superior a") não é o OU entre duas condições.
+    sem_operadores = pedido.resto
+    for encontrado, _ in achadas:
+        sem_operadores = sem_operadores[:encontrado.start(1)] + " " * (encontrado.end(1) - encontrado.start(1)) + \
+            sem_operadores[encontrado.end(1):]
+    if re.search(r"\bou\b", sem_operadores[achadas[0][0].start():achadas[-1][1]["fim"]]):
         return _pergunta("No gráfico, as condições se combinam com “e”: cada " + conv.rot.singular + " precisa atender a "
                          "todas. Peça só com “e” ou uma condição de cada vez." + NADA_MUDOU)
     for encontrado, clausula in achadas:
@@ -1381,6 +1425,331 @@ def _condicoes(conv, dica, dica_indicador):
     if len(itens) > len(textos):
         frases.append("As condições anteriores continuam.")
     return _resposta(painel, " ".join(frases))
+
+
+# --------------------------------------------------------------------------------------------- proximidade
+# Referência mais próxima pela conversa (28/10/2026): "o mais próximo (de X | a ele | de cada um) com <condição>" vira a
+# Escolha dos territórios da Análise Espacial (campo `consulta`): a condição é da referência (CAP-REF-01, por critério de
+# CAP-SUB-01, com a relação e o corte da pessoa), nunca as Condições do gráfico. "Os 5 mais próximos" segue na ordenação, e a
+# distância em km ("a mais de 150 km"), nas Condições.
+PROXIMIDADE = re.compile(r"\bmais\s+(?:proxim[oa]s?|pert[oa]s?)\b|\bmenor(?:es)?\s+distancias?\b|"
+                         r"\breferencias?\s+mais\s+proximas?\b")
+CADA = re.compile(r"\b(?:de|para|a|ao)\s+cada\b|\bcada\s+(?:um|uma)\s+(?:deles|delas)\b")
+# O extremo do gráfico como base ("o município de menor densidade", "o mais populoso"): quem o resolve é o gestor de
+# diálogo, pelas ordens do motor sobre o resultado em exibição, com os empates (dialogo.py, ato "proximidade").
+EXTREMO_DA_BASE = re.compile(r"\bd?[oa]\s+(?:[a-z]+\s+)?(?:(?:de|com)\s+(?:a\s+)?(?:maior|menor)\s+(?:densidade|quantidade|"
+                             r"populacao|numero\s+de\s+(?:medicos|profissionais))|(?:de|com)\s+(?:a\s+)?(?:densidade|"
+                             r"quantidade|populacao)\s+mais\s+(?:alta|baixa)|(?:mais|menos)\s+(?:populos[oa]|habitad[oa]|"
+                             r"dens[oa])|com\s+(?:mais|menos)\s+(?:medicos|profissionais|habitantes))\b")
+# Onde procurar a referência (partir_de da Escolha dos territórios), quando a pessoa diz.
+REFERENCIA_NO_PAIS = re.compile(r"\b(?:em\s+todo\s+o\s+(?:pais|brasil|territorio(?:\s+nacional)?)|"
+                                r"n[oa]\s+(?:pais|brasil|planilha)(?:\s+(?:todo|toda|inteiro|inteira))?|"
+                                r"em\s+toda\s+a\s+planilha|em\s+qualquer\s+(?:lugar|estado|regiao|parte)|"
+                                r"fora\s+d[oa]\s+(?:estado|selecao|grafico))\b")
+REFERENCIA_NA_REGIAO = re.compile(r"\b(?:n?a\s+mesma|dentro\s+da\s+(?:mesma|propria))\s+regiao\b")
+REFERENCIA_NA_SELECAO = re.compile(r"\b(?:n[ao]|d[ao]|dentro\s+d[ao])\s+(?:minha\s+|propria\s+)?(?:selecao|grafico)\b|"
+                                   r"\bentre\s+(?:os|as)\s+(?:do\s+grafico|selecionad[oa]s|da\s+selecao)\b")
+# Palavras que acompanham a troca do recorte ("e se procurar em todo o país?") sem pedir outra coisa.
+NEUTRAS_DO_RECORTE = frozenset("""
+procure procura procurar busque busca buscar pesquise pesquisar proximo proxima proximos proximas perto se fosse for
+olhar olhando dentro fora ela ele deles delas dele dela isso mesmo mesma
+""".split())
+
+
+def _recorte_dito(conv):
+    """O recorte da referência dito no pedido (consumido): o país, o mesmo grupo (estado, província…) ou a mesma região de
+    cada um da base, ou a seleção em análise; None quando a pessoa não diz."""
+    pedido = conv.pedido
+    grupo = _alternativas(*(("estado", "uf") if conv.brasil else ()), conv.rot.grupo_singular)
+    mesmo_grupo = re.compile(r"\b(?:n[oa]\s+mesm[oa]|dentro\s+d[oa]\s+(?:mesm[oa]|propri[oa])|d[oa]\s+mesm[oa])\s+(?:" +
+                             grupo + r")\b|\bdentro\s+d[oa]\s+(?:" + grupo + r")\b")
+    for tipo, padrao in (("mesma_regiao_da_base", REFERENCIA_NA_REGIAO), ("mesma_uf_da_base", mesmo_grupo),
+                         ("pais", REFERENCIA_NO_PAIS), ("selecao_previa", REFERENCIA_NA_SELECAO)):
+        encontrado = padrao.search(pedido.resto)
+        if encontrado:
+            pedido.consome(*encontrado.span())
+            return {"tipo": tipo, "regioes": [], "ufs": []}
+    return None
+
+
+def _recorte_impossivel(conv, recorte):
+    """O recorte que a fonte não tem (a região numa planilha; o mesmo grupo sem a coluna dele): a pergunta, sem mudar nada."""
+    if not recorte or conv.brasil:
+        return None
+    rot = conv.rot
+    if recorte["tipo"] == "mesma_regiao_da_base":
+        return _pergunta("As regiões (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil. Diga onde "
+                         "procurar a referência: " + (("na mesma " if rot.grupo_feminino else "no mesmo ") +
+                                                      rot.grupo_singular + " ou " if conv.cat.grupos else "") +
+                         "em toda a planilha." + NADA_MUDOU)
+    if recorte["tipo"] == "mesma_uf_da_base" and not conv.cat.grupos:
+        return _pergunta("A planilha não tem a coluna " + ("da " if rot.grupo_feminino else "do ") + rot.grupo_singular +
+                         " de cada " + rot.singular + ": procure a referência em toda a planilha ou na seleção." +
+                         NADA_MUDOU)
+    return None
+
+
+def _regioes_ditas(conv):
+    """As regiões citadas ("na Região Norte"), consumidas, só na base do Brasil."""
+    if not conv.brasil:
+        return []
+    regioes = []
+    for encontrado in list(REGIAO.finditer(conv.pedido.resto)):
+        alvo = re.sub(r"[\s-]+", " ", encontrado["regiao"])
+        regioes += [nome for nome in REGIONS.values() if normalize(nome).replace("-", " ") == alvo]
+        conv.pedido.consome(*encontrado.span())
+    return list(dict.fromkeys(regioes))
+
+
+def _lado(partir, filtros=(), marcados=None):
+    """Um lado da Escolha dos territórios, na forma de painelModel.ConsultaTerritorios."""
+    return {"partir_de": {"tipo": partir["tipo"], "regioes": list(partir.get("regioes") or []),
+                          "ufs": list(partir.get("ufs") or [])},
+            "filtros": [{"indicador": item["atributo"], "operador": item["operador"], "valor": item["valor"]}
+                        for item in filtros],
+            "escolha": {"modo": "marcados", "municipios": list(marcados)} if marcados else {"modo": "todos",
+                                                                                        "municipios": []}}
+
+
+def _onde_procura(conv, partir, selecao_texto):
+    """"da seleção (Tocantins)", "de todo o país", "do mesmo estado de cada um": de onde a referência parte, em palavras."""
+    rot, tipo = conv.rot, partir["tipo"]
+    if tipo == "selecao_previa":
+        return "da seleção" + (" (" + selecao_texto + ")" if selecao_texto else "")
+    if tipo == "pais":
+        return "de todo o país" if conv.brasil else "de toda a planilha"
+    if tipo == "mesma_uf_da_base":
+        return ("da mesma " if rot.grupo_feminino else "do mesmo ") + rot.grupo_singular + " de cada um"
+    if tipo == "mesma_regiao_da_base":
+        return "da mesma região de cada um"
+    if tipo == "regioes":
+        return ("da Região " if len(partir["regioes"]) == 1 else "das regiões ") + _e(partir["regioes"])
+    return _dos_grupos(conv, partir["ufs"])
+
+
+def _texto_da_selecao(conv, atual):
+    """A seleção em análise em poucas palavras ("Tocantins", "3 municípios"), para dizer de onde a referência parte."""
+    if atual is None:
+        return ""
+    if atual["todos"]:
+        return ("todas as " if conv.rot.feminino else "todos os ") + conv.rot.plural
+    if atual["estados"] and not atual["ids"]:
+        if conv.brasil:
+            return _e(STATES[chave][1] if chave in STATES else chave for chave in atual["estados"])
+        return _e(str(conv.cat.grupos.get(chave, {}).get("nome", chave)) for chave in atual["estados"])
+    return conv.rot.unidades(len(conv.cat.membros(atual)))
+
+
+def _proximidade(conv, dica, dica_indicador):
+    """Referência mais próxima pela conversa (28/10/2026). A base: o extremo que o gestor de diálogo já resolveu no gráfico
+    (`base_marcada`), os citados pelo nome, cada um dos municípios de um grupo citado ou, sem nada disso, cada um da seleção
+    em análise (com as condições ditas antes de "de cada um"). A referência: os que atendem às condições do pedido, de onde a
+    pessoa disser (o país, o mesmo estado ou a mesma região de cada um, um estado, uma região, a seleção) ou, sem dizer, da
+    seleção em análise quando ela tem outros municípios além da base (o universo já estabelecido na conversa); fora disso, do
+    país. A resposta diz a base, a referência e de onde ela parte, e oferece a troca."""
+    pedido = conv.pedido
+    sinal = PROXIMIDADE.search(pedido.resto)
+    if sinal is None or conv.cat is None:
+        return None
+    achadas, inicio_local = [], 0
+    for encontrado in list(CLAUSE.finditer(pedido.resto)):
+        clausula = _clausula(conv, encontrado, inicio_local)
+        if clausula is None:
+            continue
+        if "pergunta" in clausula:
+            return clausula["pergunta"]
+        achadas.append((encontrado, clausula))
+        inicio_local = clausula["fim"]
+    # "Os 5 mais próximos" é ordenação; o número de uma condição ("abaixo de 1 e o mais próximo") e "cada um" não contam.
+    sem_numeros = pedido.resto
+    for encontrado, clausula in achadas:
+        sem_numeros = sem_numeros[:encontrado.start()] + " " * (clausula["fim"] - encontrado.start()) + \
+            sem_numeros[clausula["fim"]:]
+    topo = TOPO.search(re.sub(r"\bcada\s+(?:um|uma)\b", " ", sem_numeros))
+    if (topo and topo["n"] not in ("um", "uma")) or PRIMEIROS.search(sem_numeros) or TOP.search(sem_numeros):
+        return None
+    if any(clausula["item"]["atributo"] == "distancia_km" for _, clausula in achadas):
+        return None  # "a mais de 150 km da referência": distância como condição, nas Condições
+    extremo = EXTREMO_DA_BASE.search(pedido.resto)
+    if not achadas and conv.base_marcada is None:
+        return None  # sem a condição da referência: a referência pelo nome e a ordenação seguem como antes
+    rot = conv.rot
+    if extremo and conv.base_marcada is None:
+        # O extremo é lido nas ordens do motor sobre o gráfico em exibição, entre todos os dele (o gestor de diálogo): sem o
+        # gráfico calculado, ou entre só os que atendem a uma condição, a conversa explica em vez de escolher.
+        quem = pedido.trecho(*extremo.span()).strip()
+        return _pergunta("Para achar " + quem + ", eu leio as ordens do motor entre " + ("todas as " if rot.feminino else
+                                                                                        "todos os ") + rot.plural +
+                         " do gráfico em exibição, sem outra condição. Com " + rot.os() + " no gráfico, peça, por exemplo, “" +
+                         quem + " e " + ("a mais próxima dela" if rot.feminino else "o mais próximo dele") +
+                         " com densidade acima de 2”." + NADA_MUDOU)
+    if any(clausula["item"]["operador"] not in OPERADORES_DO_FILTRO for _, clausula in achadas):
+        return _pergunta("Na referência, a condição usa “menor que”, “no máximo”, “maior que” ou “no mínimo”. Diga a "
+                         "condição com um deles." + NADA_MUDOU)
+    # Condições antes de "de cada um" são da base ("os municípios com densidade abaixo de 1 e o mais próximo de cada um com
+    # densidade acima de 2"); as demais, da referência.
+    cada = CADA.search(pedido.resto)
+    antes = [clausula for encontrado, clausula in achadas if encontrado.start() < sinal.start()]
+    depois = [clausula for encontrado, clausula in achadas if encontrado.start() > sinal.start()]
+    da_base, da_referencia = (antes, depois) if cada and antes and depois and conv.base_marcada is None else \
+        ([], antes + depois)
+    for encontrado, clausula in achadas:
+        pedido.consome(encontrado.start(), clausula["fim"])
+    pedido.consome(*sinal.span())
+    if extremo:
+        pedido.consome(*extremo.span())
+    if cada:
+        pedido.consome(*cada.span())
+    periodo, pergunta = _periodo_da_funcao(conv, espacial=True)
+    if pergunta:
+        return pergunta
+    recorte = _recorte_dito(conv)
+    sem_recorte = _recorte_impossivel(conv, recorte)
+    if sem_recorte:
+        return sem_recorte
+    regioes = _regioes_ditas(conv)
+    achado = _resolve(conv)
+    if "pergunta" in achado:
+        return achado["pergunta"]
+    nomes, _ = _desconhecidas(conv)
+    if nomes and dica is None:
+        return _nao_encontrado(conv, nomes)
+    if re.search(r"\d", pedido.resto):
+        # Um número que nenhuma condição levou ("com uns 2 médicos"): a referência não pode ficar sem ele em silêncio.
+        return _pergunta("Não identifiquei a condição da referência com segurança. Diga, por exemplo, “" +
+                         ("a mais próxima" if rot.feminino else "o mais próximo") + " com densidade de no mínimo 1,5 por "
+                         "mil habitantes” ou “com mais de 50 mil habitantes”." + NADA_MUDOU)
+    atual = conv.base_atual()
+    selecao = conv.cat.membros(atual) if atual is not None else set()
+    grupos = [chave for chave, _ in achado["grupos"]]
+    grupos_da_base = [chave for chave, sabor in achado["grupos"] if sabor == "municipios" or cada]
+    # A base.
+    if conv.base_marcada is not None:
+        marcados = list(conv.base_marcada)
+    else:
+        marcados = list(achado["ids"])
+    if marcados:
+        base = _lado({"tipo": "selecao_previa" if set(marcados) <= selecao else "pais"}, marcados=marcados)
+        grupos_da_referencia = grupos
+    elif grupos_da_base:
+        base = _lado({"tipo": "ufs", "ufs": sorted(grupos_da_base)}, filtros=[c["item"] for c in da_base])
+        grupos_da_referencia = [chave for chave in grupos if chave not in grupos_da_base]
+    elif achado["todos"]:
+        base = _lado({"tipo": "pais"}, filtros=[c["item"] for c in da_base])
+        grupos_da_referencia = grupos
+    elif selecao:
+        base = _lado({"tipo": "selecao_previa"}, filtros=[c["item"] for c in da_base])
+        grupos_da_referencia = grupos
+    else:
+        return _pergunta("De onde medir a distância? Diga " + rot.os() + " pelo nome ou escolha " + rot.os() + " na Seleção "
+                         "de Territórios, e eu procuro " + ("a mais próxima" if rot.feminino else "o mais próximo") +
+                         " de cada " + ("uma" if rot.feminino else "um") + "." + NADA_MUDOU)
+    # A referência: de onde a pessoa disser; sem dizer, da seleção em análise, quando ela tem outros além da base.
+    if recorte:
+        partir = recorte
+    elif regioes:
+        partir = {"tipo": "regioes", "regioes": regioes}
+    elif grupos_da_referencia:
+        partir = {"tipo": "ufs", "ufs": sorted(grupos_da_referencia)}
+    elif base["partir_de"]["tipo"] == "ufs":
+        partir = dict(base["partir_de"])
+    elif base["partir_de"]["tipo"] == "selecao_previa" and selecao - set(marcados):
+        partir = {"tipo": "selecao_previa"}
+    else:
+        partir = {"tipo": "pais"}
+    referencia = _lado(partir, filtros=[c["item"] for c in da_referencia])
+    consulta = {"base": base, "referencia": referencia, "distancia": dict(DISTANCIA_DA_CONSULTA)}
+    painel = _painel(familia="espacial", nivel="municipios", consulta=consulta)
+    _aplica_periodo(painel, periodo)
+    # A resposta: a base, a referência, de onde ela parte e a troca do recorte.
+    selecao_texto = _texto_da_selecao(conv, atual)
+    rotulos = [conv.cat.rotulo(i) for i in marcados]
+    if marcados:
+        quem = (_listed(rotulos) if len(rotulos) <= 3 else
+                rot.unidades(len(rotulos)) + " (" + ", ".join(rotulos[:3]) + " e mais " + str(len(rotulos) - 3) + ")")
+        base_texto = "com " + quem + " na base"
+    else:
+        onde = _onde_procura(conv, base["partir_de"], selecao_texto)
+        base_texto = "com " + ("cada uma das " if rot.feminino else "cada um dos ") + rot.plural + " " + onde + \
+            (" com " + _e(clausula["texto"] for clausula in da_base) if da_base else "") + " na base"
+    criterios = " com " + _e(clausula["texto"] for clausula in da_referencia) if da_referencia else ""
+    mais_proximo = ("a mais próxima" if rot.feminino else "o mais próximo")
+    texto = ("Abri a Análise Espacial" + _quando(painel) + " " + base_texto + " e, na referência, " + rot.os() + " " +
+             _onde_procura(conv, partir, selecao_texto) + criterios + ": o eixo X mostra a distância em linha reta (km) "
+             "até " + mais_proximo + " " + ("delas" if rot.feminino else "deles") + ", sem contar " +
+             ("a própria" if rot.feminino else "o próprio") + " " + rot.singular + ".")
+    resposta = _resposta(painel, texto)
+    if marcados and len(marcados) <= 5:
+        # A leitura da referência mais próxima vem depois do cálculo (a continuação), já com as trocas do recorte.
+        resposta["reply"] += " Assim que o motor calcular, digo qual é " + mais_proximo + " e a distância."
+        resposta["continuar"] = "qual a referência mais próxima?"
+        return resposta
+    trocas = _trocas_de_recorte(conv, partir, selecao)
+    if trocas:
+        resposta["choices"] = trocas
+    return resposta
+
+
+def _trocas_de_recorte(conv, partir, selecao):
+    """As trocas do recorte da referência em botões (até duas), cada uma o pedido completo da troca."""
+    rot = conv.rot
+    trocas = []
+    if partir["tipo"] != "pais" and (not selecao or len(selecao) < len(conv.cat.itens)):
+        trocas.append(_escolha("Procurar em todo o país" if conv.brasil else "Procurar em toda a planilha",
+                               "procure a referência " + ("em todo o país" if conv.brasil else "em toda a planilha")))
+    if partir["tipo"] != "mesma_uf_da_base" and (conv.brasil or conv.cat.grupos):
+        mesmo = ("na mesma " if rot.grupo_feminino else "no mesmo ") + rot.grupo_singular
+        trocas.append(_escolha("Só " + mesmo + " de cada um", "procure a referência " + mesmo))
+    return trocas[:2]
+
+
+def _recorte_da_referencia(conv, dica, dica_indicador):
+    """"E em todo o país?", "procure no mesmo estado", "só na seleção" (28/10/2026): com a Escolha dos territórios em
+    exibição, troca só de onde a referência parte; a base, as condições e os marcados continuam."""
+    consulta = conv.ctx.get("consulta")
+    pedido = conv.pedido
+    palavras = re.findall(r"[a-z0-9]+", pedido.resto)
+    # Só a troca do recorte: com palavra da referência ("procure a referência no mesmo estado") ou elíptica e curta ("e em
+    # todo o país?"); "mostre todos os municípios do Brasil" é outro pedido.
+    if not consulta or CLAUSE.search(pedido.resto) or len(palavras) > 10 or conv.todos.search(pedido.resto) or not (
+            re.search(r"\b(?:referencias?|proxim[oa]s?|pert[oa]|procur\w*|busc\w*|pesquis\w*)\b", pedido.resto) or
+            (len(palavras) <= 6 and not VERBO_VISTA.search(pedido.resto))):
+        return None
+    recorte = _recorte_dito(conv)
+    regioes = [] if recorte else _regioes_ditas(conv)
+    achado = {"ids": [], "grupos": [], "todos": False}
+    if not recorte and not regioes:
+        if not re.search(r"\b(?:referencias?|proxim[oa]s?|procur\w*|busc\w*)\b", pedido.resto):
+            return None
+        achado = _resolve(conv)
+        if "pergunta" in achado:
+            return achado["pergunta"]
+        if achado["ids"] or achado["todos"] or not achado["grupos"]:
+            return None
+    restantes = [palavra for palavra in re.findall(r"[a-z0-9]+", pedido.resto)
+                 if palavra not in conv.neutras and palavra not in NEUTRAS_DO_RECORTE]
+    if restantes:
+        return None
+    rot = conv.rot
+    sem_recorte = _recorte_impossivel(conv, recorte)
+    if sem_recorte:
+        return sem_recorte
+    partir = recorte or ({"tipo": "regioes", "regioes": regioes, "ufs": []} if regioes else
+                         {"tipo": "ufs", "regioes": [], "ufs": sorted(chave for chave, _ in achado["grupos"])})
+    nova = {**consulta, "referencia": {**consulta["referencia"], "partir_de": {"tipo": partir["tipo"],
+                                                                                "regioes": list(partir.get("regioes") or []),
+                                                                                "ufs": list(partir.get("ufs") or [])}}}
+    painel = _painel(familia="espacial", nivel="municipios", consulta=nova)
+    atual = conv.base_atual()
+    texto = ("Agora a referência parte " + _onde_procura(conv, partir, _texto_da_selecao(conv, atual)) +
+             "; a base e as condições continuam.")
+    marcados = consulta["base"]["escolha"]["municipios"] if consulta["base"]["escolha"]["modo"] == "marcados" else []
+    resposta = _resposta(painel, texto)
+    if marcados and len(marcados) <= 5:
+        resposta["reply"] += " Assim que o motor calcular, digo " + ("qual é a mais próxima" if rot.feminino else
+                                                                     "qual é o mais próximo") + " e a distância."
+        resposta["continuar"] = "qual a referência mais próxima?"
+    return resposta
 
 
 def _atributo_e_ordem(palavra, direcao):
@@ -1963,16 +2332,21 @@ def _com_vista(conv, resposta, vista):
 
 # --------------------------------------------------------------------------------------------- entrada
 def interpretar(mensagem, frame, fields, settings, ctx, *, brasil, opcoes=None, grupo=None, dica=None,
-                dica_indicador=None):
+                dica_indicador=None, base_marcada=None):
     """Pedido da página única → {"painel", "reply"}, pergunta com alternativas ou {"handled": False}. Nunca calcula.
 
     dica: operação já interpretada (proposta do intérprete ou alternativa escolhida em botão); sem palavra do gráfico no
     pedido, ela decide o comando. A vista citada ("no mapa", "onde ficam …?", "no gráfico") acompanha o comando; sozinha
-    ("ver no mapa"), é atendida na tela, e aqui segue sem comando."""
-    conv = _Conversa(mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo)
+    ("ver no mapa"), é atendida na tela, e aqui segue sem comando.
+
+    base_marcada: os municípios que o gestor de diálogo já identificou como o extremo do gráfico ("o de menor densidade"),
+    para a base da proximidade (28/10/2026)."""
+    conv = _Conversa(mensagem, frame, fields, settings, ctx, brasil, opcoes, grupo, base_marcada)
     dica = dica if isinstance(dica, str) and dica in OPERACOES else None
     vista = _pedido_de_vista(conv)
-    for comando in (_voltar, _condicoes, _ordenar, _referencia, _comparar_ou_juntar, _exportar, _vista):
+    # A proximidade vem antes das Condições: em "o mais próximo com densidade ≥ 1,5", a condição é da referência.
+    for comando in (_voltar, _proximidade, _recorte_da_referencia, _condicoes, _ordenar, _referencia,
+                    _comparar_ou_juntar, _exportar, _vista):
         resposta = comando(conv, dica, dica_indicador)
         if resposta is not None:
             return _com_vista(conv, resposta, vista)

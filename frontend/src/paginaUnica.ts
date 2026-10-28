@@ -36,6 +36,8 @@ export type PedidoDoChat = {
   /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
    * destacados. Estado visual: nada é recalculado. */
   explicar?: { aba: Familia; termos: string[] } | null;
+  /** A Escolha dos territórios completa pedida na conversa (28/10/2026), que a área confere campo a campo. */
+  consulta?: object | null;
 };
 /** O que está no gráfico, informado pela área a cada mudança: é o contexto da conversa. */
 export type ContextoDoGrafico = {
@@ -49,6 +51,8 @@ export type ContextoDoGrafico = {
   mapaDisponivel?: boolean; motivoSemMapa?: string | null;
   /** Os itens da comparação aberta (2 ou 3 ids), para a conversa trocar a ordem, incluir, tirar e voltar a ela. */
   comparar?: string[];
+  /** A Escolha dos territórios da Análise Espacial em exibição (28/10/2026), para a conversa trocar só o que a pessoa pedir. */
+  consulta?: object | null;
 };
 /** Estado de uma análise, guardado pela área ao calcular: o Histórico o reabre sem recalcular. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };

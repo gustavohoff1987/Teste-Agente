@@ -39,6 +39,21 @@ def test_cartao_leva_a_tela_e_o_resultado_em_exibicao_como_na_tela():
     assert any("Juntar" in f for f in cartao["funcionalidades_da_pagina"])
 
 
+def test_cartao_leva_a_referencia_mais_proxima_da_escolha_dos_territorios_com_os_empates():
+    """Com a Escolha dos territórios (27/10/2026), a referência mais próxima de cada item vem em referencia_do_item, com os
+    empates; desde 28/10/2026, o cartão e a conferência de fidelidade a trazem (antes, só a referência da análise antiga)."""
+    manaus, tefe = (dict(item) for item in BODY["itens"])
+    manaus["referencia_do_item"] = {"id": "code:130340", "rotulo": "PARINTINS (AM)", "empate": []}
+    tefe["referencia_do_item"] = {"id": "code:130250", "rotulo": "MANACAPURU (AM)", "empate": [
+        {"id": "code:130250", "rotulo": "MANACAPURU (AM)"}, {"id": "code:130185", "rotulo": "IRANDUBA (AM)"}]}
+    body = {**BODY, "itens": [manaus, tefe]}
+    itens = {item["nome"]: item for item in montar(resultado=body)["cartao"]["resultado_em_exibicao"]["itens"]}
+    assert itens["MANAUS (AM)"]["referencia_mais_proxima"] == "PARINTINS (AM)"
+    assert itens["TEFE (AM)"]["referencias_mais_proximas_empatadas"] == ["MANACAPURU (AM)", "IRANDUBA (AM)"]
+    nomes = contexto_conversa.referencias_de_fidelidade(mensagem="Qual o mais próximo?", resultado=body).nomes
+    assert {"PARINTINS (AM)", "MANACAPURU (AM)", "IRANDUBA (AM)"} <= set(nomes)
+
+
 def test_cartao_nao_leva_identificadores_colunas_nem_arquivos():
     texto = json.dumps(montar(fatos="Veja Dados_Municipios_Brasil.csv e a coluna cod_ibge.")["cartao"], ensure_ascii=False)
     for proibido in ("code:130260", "code:130420", "130260", "Dados_Municipios_Brasil.csv", "cod_ibge"):

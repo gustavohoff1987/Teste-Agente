@@ -932,6 +932,37 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
   assert.ok(alto.eixoY.dominio[1] >= 40, String(alto.eixoY.dominio));
 });
 
+test('conversa (28/10/2026): a Escolha dos territórios pedida vale como a feita na janela; a inválida vira mensagem; o contexto leva a consulta', () => {
+  const c = {periodos: ['202306', '202406'], nomes: new Map(), temGrupos: true,
+    disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR})};
+  const lado = (tipo, {filtros = [], modo = 'todos', municipios = []} = {}) => ({partir_de: {tipo, regioes: [], ufs: []}, filtros,
+    escolha: {modo, municipios}});
+  // "O município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5": o extremo na base (marcado) e, na
+  // referência, os da seleção com a condição.
+  const pedida = {base: lado('selecao_previa', {modo: 'marcados', municipios: ['code:171888']}),
+    referencia: lado('selecao_previa', {filtros: [{indicador: 'densidade', operador: '>=', valor: 1.5}]}),
+    distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}};
+  const tocantins = definicao({base: {todos: false, estados: ['17'], ids: []}, comparar: ['code:170210', 'code:172100']});
+  const r = M.aplicarPedido(tocantins, {familia: 'espacial', nivel: 'municipios', consulta: JSON.parse(JSON.stringify(pedida))}, c);
+  assert.deepEqual([r.definicao.familia, r.definicao.nivel, r.mensagens, r.abrir], ['espacial', 'municipios', [], null]);
+  assert.deepEqual(r.definicao.comparar, []);  // a base passa a ser a da consulta: a comparação de antes sai
+  assert.deepEqual(r.definicao.consulta, M.lerConsulta(pedida));
+  assert.deepEqual(r.definicao.base, tocantins.base);  // a seleção prévia continua
+  assert.equal(M.consultaEmUso(r.definicao), true);
+  assert.equal(M.familiaCalculada(r.definicao, true), 'espacial');
+  // Forma que não confere: nada muda, e a mensagem diz o motivo.
+  const invalida = M.aplicarPedido(tocantins, {consulta: {...pedida, base: lado('mesma_uf_da_base')}}, c);
+  assert.deepEqual([invalida.definicao.familia, invalida.definicao.consulta, invalida.mensagens],
+    ['distribuicao', null, ['A Escolha dos territórios pedida não foi reconhecida.']]);
+  // A seleção prévia sem territórios escolhidos: aplica e avisa (nada é escolhido em silêncio).
+  const semSelecao = M.aplicarPedido(definicao(), {consulta: pedida}, c);
+  assert.deepEqual(semSelecao.mensagens, ['A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de Territórios.']);
+  // O contexto da conversa leva a consulta em uso (para "e em todo o país?"), só na Análise Espacial com a consulta.
+  assert.deepEqual(M.contextoDoGrafico(r.definicao, [], 'Título').consulta, M.consultaParaOMotor(r.definicao.consulta));
+  assert.equal(M.contextoDoGrafico(tocantins, [], 'Título').consulta, null);
+  assert.equal(M.contextoDoGrafico({...r.definicao, familia: 'distribuicao'}, [], 'Título').consulta, null);
+});
+
 test('decisões 4 e 5 (25/10/2026): "maior/menor" da conversa vira o operador, e Limpar seleção tira só o nível em uso', () => {
   // Decisão 4: a ordem do critério da conversa vira o operador da condição; o valor de corte, a relação e a delimitação ficam com
   // a pessoa (nenhum território é escolhido pela posição na ordem).

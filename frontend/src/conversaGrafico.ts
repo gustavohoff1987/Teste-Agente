@@ -157,6 +157,9 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   if (grupos && ["quartis", "quintis", "decis", "nenhum"].includes(grupos.tipo as string)) pedido.grupos = { tipo: grupos.tipo as string };
   // Vista do desenho pedida junto com o comando ("mostre o Pará no mapa"): estado visual, que a área aplica sem recalcular.
   if (p.vista === "grafico" || p.vista === "mapa") pedido.vista = p.vista;
+  // A Escolha dos territórios pedida na conversa (28/10/2026): a área a confere campo a campo (painelModel.lerConsulta).
+  const consulta = objeto(p.consulta);
+  if (consulta) pedido.consulta = consulta;
   return Object.keys(pedido).length ? pedido : null;
 }
 
@@ -225,6 +228,7 @@ export function opcoesDaConversa(contexto: ContextoDoGrafico | null, hoje: strin
     painel_municipios: contexto.municipios, ...(contexto.competencia ? { painel_competencia: contexto.competencia } : {}),
     ...(contexto.janela.length ? { painel_janela: [...contexto.janela] } : {}),
     ...(contexto.referencia.length ? { painel_referencia: [...contexto.referencia] } : {}),
+    ...(contexto.consulta ? { painel_consulta: contexto.consulta } : {}),
     ...(contexto.vista ? { painel_vista: contexto.vista } : {}),
     ...(typeof contexto.mapaDisponivel === "boolean" ? { painel_mapa_disponivel: contexto.mapaDisponivel } : {}),
     ...(contexto.mapaDisponivel === false && contexto.motivoSemMapa ? { painel_motivo_sem_mapa: contexto.motivoSemMapa } : {}),

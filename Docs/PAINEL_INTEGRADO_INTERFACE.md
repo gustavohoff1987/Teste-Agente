@@ -273,7 +273,12 @@ O que cada análise mostra:
   base e a referência do mesmo jeito: são territórios irmãos, cada um com o mesmo seletor em três etapas. A janela abre
   sozinha ao entrar na análise sem consulta calculada (a base pode partir do país, de regiões ou de estados, sem depender da
   Seleção de Territórios) e pelo botão "Escolha dos territórios" dos ajustes (`analise-referencia-escolher`), ao lado da frase
-  da consulta calculada (`analise-referencia-resumo`; antes do primeiro cálculo, "nenhuma ainda"). De cima para baixo:
+  da consulta calculada (`analise-referencia-resumo`; antes do primeiro cálculo, "nenhuma ainda"). Desde 28/10/2026, a
+  conversa também preenche a consulta inteira (campo `consulta` do comando, conferido por `lerConsulta`): "o de menor
+  densidade e o mais próximo dele com densidade de no mínimo 1,5 por mil habitantes" calcula a Análise Espacial com o
+  extremo do gráfico na base e a condição na referência, como se a pessoa tivesse feito a escolha na janela; a área envia a
+  consulta em exibição à conversa (`painel_consulta`), para "e em todo o país?" trocar só de onde a referência parte. De cima
+  para baixo:
   1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
   2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):
      "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo

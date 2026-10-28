@@ -240,11 +240,18 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   (`conversation_today`, para "últimos N anos"). O estado do gráfico vai também como está: `painel_indicador`,
   `painel_nivel`, `painel_municipios` (a escolha das unidades, inclusive "Todos"), `painel_competencia`, `painel_janela`,
   `painel_referencia` e, desde 23/10/2026, `painel_vista` (`grafico`, `mapa` ou `lado`), `painel_mapa_disponivel` (se o
-  mapa pode mostrar a análise agora) e `painel_resumo` (a frase-resumo do motor). Antes de o gráfico informar o contexto,
+  mapa pode mostrar a análise agora) e `painel_resumo` (a frase-resumo do motor); desde 28/10/2026, na Análise Espacial,
+  `painel_consulta` (a Escolha dos territórios em exibição, para "e em todo o país?" trocar só de onde a referência parte). Antes de o gráfico informar o contexto,
   `painel_familia` vai nulo: a conversa responde no formato do gráfico, nunca com orientações das telas que saíram. Numa
   planilha, vão também as escolhas das colunas e os nomes da unidade e do grupo (`rotulos`). O backend tira as chaves
   `painel_*` e `rotulos` das opções antes do pré-exame e do intérprete: nada delas vai ao provedor de IA, e a frase-resumo,
   que traz valores da base, fica só no backend local;
+- desde 28/10/2026, o pedido de proximidade com uma condição ("o mais próximo de X com densidade acima de 2", "o de menor
+  densidade e o mais próximo dele com densidade de no mínimo 1,5 por mil habitantes") vira a Escolha dos territórios da
+  Análise Espacial (campo `consulta` do comando; a área o confere com `lerConsulta`), e não as Condições: o extremo vai para
+  a base, pelas ordens do motor, e a condição para a referência; quando o motor calcula, a conversa lê a referência mais
+  próxima e a distância e oferece, em botões, "Procurar em todo o país" e "Só no mesmo estado de cada um"
+  ([conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md), [diálogo governado](DIALOGO_GOVERNADO.md));
 - os comandos da conversa incluem os grupos da distribuição ("divida em quintis", "sem os grupos") e a referência por
   critério ("a de maior densidade como referência"): desde 27/10/2026, a Escolha dos territórios abre na aba Referência com
   um filtro do atributo citado e, desde 25/10/2026, o operador do "maior" ou "menor" ("acima de" ou "abaixo de"); o valor é

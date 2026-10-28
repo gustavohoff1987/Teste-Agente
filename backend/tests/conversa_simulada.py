@@ -56,6 +56,7 @@ class Tela:
         self.estados = None
         self.competencia, self.janela = competencia, list(BRASIL_JUNHOS)
         self.comparar, self.referencia, self.ordenar, self.condicoes, self.grupos = None, None, None, None, None
+        self.consulta = None  # Escolha dos territórios da Análise Espacial (28/10/2026: também pela conversa)
         self.vista = "grafico"
         self.resposta, self.result_id = None, ""
         self.pendente = None  # esclarecimento com alternativas ainda sem resposta
@@ -71,7 +72,7 @@ class Tela:
                 "municipios": json.loads(json.dumps(self.municipios)), "estados": self.estados,
                 "competencia": self.competencia, "janela": list(self.janela), "comparar": self.comparar,
                 "referencia": self.referencia, "ordenar": self.ordenar, "condicoes": self.condicoes, "grupos": self.grupos,
-                "vista": self.vista}
+                "consulta": self.consulta, "vista": self.vista}
 
     def _restaura(self, estado):
         for chave, valor in estado.items():
@@ -115,6 +116,11 @@ class Tela:
             self.janela, self.familia, mudou = list(painel["janela"])[-4:], "tendencia", True
         if painel.get("familia") in ("distribuicao", "espacial", "tendencia", "rotatividade"):
             self.familia, mudou = painel["familia"], True
+        if isinstance(painel.get("consulta"), dict):
+            # Como painelModel.aplicarPedido (lerConsulta): a consulta pedida vale como veio, na Análise Espacial.
+            self.consulta, self.familia, self.nivel, mudou = json.loads(json.dumps(painel["consulta"])), "espacial", \
+                "municipios", True
+            self.comparar = None  # a base passa a ser a da consulta: a comparação de antes sai
         selecao = [s for s in painel.get("selecao") or [] if isinstance(s, str)]
         if painel.get("funcao") == "comparar" and 2 <= len(selecao) <= 3:
             self.comparar, mudou = selecao, True
@@ -151,12 +157,15 @@ class Tela:
             opcoes["comparar"] = self.comparar
         if self.grupos and self.familia == "distribuicao":
             opcoes["grupos"] = {"tipo": self.grupos["tipo"]}
+        if self.familia == "espacial" and self.consulta:
+            opcoes["consulta"] = self.consulta
         return opcoes
 
     def calcula(self):
         """Pede o gráfico ao motor com a sessão, como a área de análise."""
         if self.nivel == "municipios" and not (self.municipios["todos"] or self.municipios["estados"] or
-                                               self.municipios["ids"]):
+                                               self.municipios["ids"]) and not (self.familia == "espacial" and
+                                                                                 self.consulta):
             self.resposta, self.result_id = None, ""
             return None
         resposta = self.client.post("/api/painel", headers={"X-ADT-Session": self.sessao}, data={
@@ -191,6 +200,7 @@ class Tela:
                            "painel_municipios": self.municipios, "painel_competencia": self.competencia,
                            "painel_vista": self.vista, "painel_mapa_disponivel": self.nivel == "municipios",
                            **({"painel_janela": list(self.janela)} if self.familia == "tendencia" else {}),
+                           **({"painel_consulta": self.consulta} if self.familia == "espacial" and self.consulta else {}),
                            **({"painel_resumo": self.resposta["resumo"]["texto"]} if self.resposta.get("resumo") else {})})
         if self.pendencia_territorial:
             opcoes.update(conversation_pending_operation=self.pendencia_territorial["operation"],

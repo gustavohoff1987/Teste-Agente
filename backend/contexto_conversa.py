@@ -42,8 +42,11 @@ FUNCIONALIDADES = (
     "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises.",
     "Análise de Distribuição: o indicador de cada território numa competência, em bolhas (tamanho = população) ou no mapa; "
     "grupos por posição (quartis, quintis, decis) e a mudança entre duas competências.",
-    "Análise Espacial: a distância geográfica direta de cada município da base até a referência mais próxima, com a base e a "
-    "referência definidas na Escolha dos territórios.",
+    "Análise Espacial: a distância geográfica direta (em linha reta) de cada município da base até a referência mais próxima, "
+    "sem contar o próprio município, com a base e a referência definidas na Escolha dos territórios: cada lado parte do país, "
+    "de regiões, de estados ou da seleção prévia (a referência também do mesmo estado ou da mesma região de cada município "
+    "da base), com filtros de densidade, população ou quantidade (<, ≤, >, ≥, combinados por E) e com todos ou só os "
+    "marcados.",
     "Análise de Tendência: a classe de tendência de cada território em 4 competências, com as visões Tendência, "
     "Trajetória e Série temporal.",
     "Análise de Rotatividade: a permanência e a saída da coorte inicial; exige um identificador da mesma pessoa.",
@@ -56,6 +59,10 @@ FUNCIONALIDADES = (
     "“Entenda esta análise”, em cada aba, explica a análise com exemplo.",
     "A conversa muda o gráfico com pedidos (“compare Manaus e Tefé”, “mostre a tendência”, “ver no mapa”), explica o "
     "resultado em exibição e os conceitos, e responde sobre a tela; não calcula nada por conta própria.",
+    "Pela conversa, a referência mais próxima vira a Escolha dos territórios: “o de menor densidade e o mais próximo dele com "
+    "densidade de no mínimo 1,5 por mil habitantes” (o extremo pelas ordens do motor na base; a condição na referência), “o "
+    "mais próximo de cada município com mais de 50 mil habitantes”; “e em todo o país?” ou “no mesmo estado” trocam só de "
+    "onde a referência parte. A condição de um pedido de proximidade é da referência, não das Condições do gráfico.",
 )
 
 
@@ -93,9 +100,14 @@ def _item(body: dict, item: dict, casas: dict) -> dict:
             saida["papel"] = "território de referência"
         elif isinstance(item.get("distancia_km"), (int, float)):
             saida["distancia_geografica_direta"] = _com_unidade("distancia_km", item["distancia_km"])
-            proxima = (item.get("referencia_mais_proxima") or {}).get("rotulo")
-            if proxima:
-                saida["referencia_mais_proxima"] = proxima
+            # Com a Escolha dos territórios (27/10/2026), a referência mais próxima de cada item vem em referencia_do_item,
+            # com os empates (28/10/2026: antes, o cartão não a trazia).
+            proxima = item.get("referencia_mais_proxima") or item.get("referencia_do_item") or {}
+            empatadas = [str(outra.get("rotulo")) for outra in proxima.get("empate") or [] if outra.get("rotulo")]
+            if empatadas:
+                saida["referencias_mais_proximas_empatadas"] = empatadas
+            elif proxima.get("rotulo"):
+                saida["referencia_mais_proxima"] = proxima["rotulo"]
     tendencia = item.get("tendencia")
     if isinstance(tendencia, dict) and body.get("tendencia") is not None:
         if tendencia.get("avaliavel"):
@@ -304,9 +316,10 @@ def referencias_de_fidelidade(*, mensagem: str, turnos=None, resultado=None, ant
             nomes.add(rotulo)
             nomes.add(rotulo.split(" (")[0])
             tem_conjunto = tem_conjunto or item.get("tipo") == "conjunto"
-            proxima = (item.get("referencia_mais_proxima") or {}).get("rotulo")
-            if proxima:
-                nomes.add(str(proxima))
+            proxima = item.get("referencia_mais_proxima") or item.get("referencia_do_item") or {}
+            for outra in [proxima, *(proxima.get("empate") or [])]:
+                if outra.get("rotulo"):
+                    nomes.add(str(outra["rotulo"]))
             valores = {chave: item.get(chave) for chave in ("densidade", "quantidade", "populacao")}
             valores["distancia_km"] = None if item.get("referencia") else item.get("distancia_km")
             valores["variacao"] = (item.get("variacao_percentual") or {}).get(indicador)

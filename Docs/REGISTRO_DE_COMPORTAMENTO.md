@@ -35,6 +35,97 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Conversa: o pedido de proximidade vira a Escolha dos territórios, com o extremo do gráfico na base, a leitura da referência mais próxima e mais contexto da tela
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026). Depois de "quero analisar a
+  força de trabalho do estado de Tocantins", a frase "quero identificar o município de menor densidade e o mais próximo a ele
+  com densidade de no mínimo 1,5 médicos por mil habitantes" aplicava a condição nas Condições do gráfico, na Análise de
+  Distribuição. O agente precisa interpretar a intenção, correlacioná-la com as funcionalidades da tela e ter mais contexto de
+  interface. Todos os itens são mudança de comportamento e previstos: decorrem do pedido (escopo) e não contrariam a SPEC nem
+  divergência aprovada (compatibilidade).
+  - **Proximidade com condição → Escolha dos territórios:**
+    - a referência sai do critério de CAP-SUB-01 ancorado na mensagem, com a relação e o corte da pessoa (CAP-REF-01; AT-02:
+      nenhum critério, limiar ou referência criado pelo LLM);
+    - a mais próxima vem com os empates, sem a própria (CAP-ESP-02).
+  - **Extremo do gráfico na base:**
+    - as ordens do motor, com os empates (CAP-SUB-02, DA-18), a pedido explícito e dito na resposta com o valor, como na
+      comparação indireta aprovada em 26/10/2026;
+    - a regra "nada escolhido pela posição na ordem" é da referência, que continua por critério.
+  - **De onde a referência parte:**
+    - o que a pessoa disser ou, sem dizer, a seleção em análise (o universo já estabelecido na conversa, como CAP-CMP-01 usa o
+      universo inequívoco da linha);
+    - isso é dito na resposta, com a troca em botão; a delimitação continua da pessoa (registro de 26/10/2026).
+  - **Leitura da referência mais próxima e explicação do território com ela:** cópias verificadas da resposta do motor, com a
+    ressalva TPL-11 (V-06).
+  - **Contexto da tela:**
+    - a consulta em exibição (`painel_consulta`) fica no backend local, como as demais chaves `painel_*`;
+    - o cartão do Gemini e as orientações passam a descrever a Escolha dos territórios e os pedidos que a conversa entende;
+    - nenhum dado novo vai ao provedor: a referência mais próxima já fazia parte do resultado em exibição, que o cartão leva
+      desde 26/10/2026.
+  - **"Pelo menos" e "igual ou superior a" como o mínimo**, e o "ou" da própria condição fora da pergunta do "e" (correção:
+    "maior ou igual a 2" virava a pergunta).
+  - **Textos de capacidade sem o "carrossel"**, que saiu da tela em 22/10/2026.
+- **Antes:**
+  - **Proximidade:** "o mais próximo … com densidade de no mínimo 1,5" ia às Condições ("Apliquei a condição densidade ≥ 1,5 …:
+    o gráfico separa quem atende a ela …"). Com um nome ("qual o município mais próximo de X com densidade acima de 2?"), o
+    gestor respondia a menor densidade do gráfico. O comando da conversa não descrevia a Escolha dos territórios: só abria a
+    janela, com o critério sem valor, ou marcava a referência pelo nome.
+  - **Leitura:** "qual é o mais próximo?" comparava as distâncias da base. A referência mais próxima de cada item na Escolha
+    dos territórios (`referencia_do_item`) não aparecia na explicação do território nem no cartão do Gemini.
+  - **Tela e textos:** a tela não informava à conversa a consulta em exibição. "Pelo menos 1,5" não era condição, e "maior ou
+    igual a" virava a pergunta do "e". As orientações falavam em "carrossel" e em "Importar seus dados".
+- **Agora:**
+  - **Extremo do gráfico + proximidade** (gestor de diálogo, ato `proximidade`): o extremo vem das ordens do motor sobre o
+    gráfico em exibição, com os empates, e vai para a base da Escolha dos territórios; a condição vai para a referência. A
+    resposta diz o extremo, com o valor ("Entre os 139 municípios do gráfico, em junho de 2024, o de menor densidade é …"), e o
+    que abriu.
+    - Com até 5 na base, a continuação ("qual a referência mais próxima?") lê, quando o motor calcula, a referência mais
+      próxima, a distância em linha reta e a densidade dela, com os botões "Procurar em todo o país" e "Só no mesmo estado de
+      cada um".
+    - Com um estado citado fora do gráfico, primeiro os municípios dele.
+    - Com uma condição antes do pedido de proximidade, ou sem o gráfico calculado, a conversa explica, sem escolher.
+  - **Proximidade sem o extremo** (gramática, antes das Condições): "o mais próximo de X com …", "para cada município, o mais
+    próximo com …" e "os municípios com densidade abaixo de 1 e o mais próximo de cada um com densidade acima de 2" viram a
+    Escolha dos territórios.
+    - A referência parte de onde a pessoa disser ("em todo o país", "no mesmo estado", "na mesma região", uma região, um
+      estado, "na seleção"); sem dizer, da seleção quando ela tem outros municípios além da base; senão, do país.
+    - "Os 3 mais próximos" continua na ordenação, e "a mais de 150 km", nas Condições.
+    - Um número que nenhuma condição levou vira pergunta.
+  - **Troca do recorte:** com a Escolha dos territórios em exibição, "e em todo o país?", "procure a referência no mesmo estado",
+    "e na mesma região?" e "só na seleção" trocam só de onde a referência parte.
+  - **Contrato:** o comando da conversa ganha o campo `consulta`, que a área confere (`lerConsulta`) e aplica na Análise
+    Espacial; a comparação de antes sai, porque o motor recusa itens da comparação fora do gráfico. A tela envia
+    `painel_consulta`. O intérprete com o provedor ganha a enumeração `nearest_reference`, e a biblioteca conversacional, a
+    trajetória F-0321 (`F_combinacoes.jsonl`), que a usa (a biblioteca cobre todas as enumerações do contrato).
+  - **Leitura e explicação:** "qual é o mais próximo?", com a Escolha dos territórios em exibição, é a leitura verificada; a
+    explicação do território e o cartão do Gemini trazem a referência mais próxima de cada item, com os empates.
+  - **Condições e textos:** "pelo menos", "igual ou superior a" e "igual ou maior que" são ≥; "igual ou inferior a" e "igual ou
+    menor que" são ≤. As orientações de capacidade, de dados e de fluxo descrevem a página única ("Enviar meus dados", Seleção
+    de Territórios, abas, a conversa), com um exemplo de proximidade.
+- **Permanece:**
+  - **Referência:** pelo nome, por conjunto e por critério sem valor (a janela com o filtro e o valor da pessoa); nada é
+    escolhido pela posição na ordem.
+  - **Outras funções:** a comparação pelos extremos, a ordenação, as Condições (inclusive a distância), o OU recusado entre
+    condições.
+  - **Motor e provedor:** o motor e os cálculos; nada da base vai ao provedor.
+- **Motivo:** pedido do responsável de 28/10/2026: o agente deve compreender a intenção e correlacioná-la com todas as
+  funcionalidades disponíveis e com o contexto da interface.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/DIALOGO_GOVERNADO.md` ("Atos do diálogo", "Proximidade pela conversa"),
+    `Docs/CONVERSACAO_INCREMENTO_FN.md` (`painel_consulta`, campo `consulta`, Condições, proximidade e troca do recorte),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`, `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Análise Espacial) e `README.md`.
+  - **pytest:**
+    - `backend/tests/test_conversa_grafico.py`: a proximidade com condição, de onde a referência parte, a base e a referência
+      com condições, a ordenação intocada, o número sem condição, o extremo sem o gestor, a troca do recorte, "pelo menos" e
+      "igual ou superior a", e `painel_consulta` que não chega ao provedor;
+    - `backend/tests/test_dialogo.py`: o reconhecimento, o caso do responsável de ponta a ponta com a leitura copiada do motor,
+      as trocas do recorte, o empate, o estado fora do gráfico e a explicação do território;
+    - `backend/tests/test_contexto_conversa.py`: o cartão com a referência mais próxima e os empates.
+  - **Unidade:** `frontend/tests/areaDeAnalise.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (a consulta pedida, a
+    inválida, sem seleção e o contexto); em `frontend/tests/painel.test.mjs`, o contexto do gráfico passa a esperar a chave
+    `consulta` (mudança proposital, deste registro).
+  - **Navegador:** `backend/tests/ui_conversa_grafico.py` (passo 7c: o pedido na tela, a continuação e "Procurar em todo o
+    país").
+
 ### 2026-10-28 · Tipografia: campos dos ajustes alinhados e a gaveta Condições sem cortar o texto
 - **Classificação (regra 1), pela leitura, antes de codar:** ajuste da mudança anterior (`ee9789d`), achado na conferência visual
   depois dela: com a letra maior, a gaveta Condições cortava o Indicador ("Densi…") e a Condição ("< menor qu…"), como já acontecia

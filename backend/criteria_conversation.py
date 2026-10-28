@@ -11,7 +11,10 @@ import re
 from exploration import normalize
 
 # Vocabulário de operadores (CFG-VOC), expressões mais longas primeiro.
-OPERATORS = [("maior ou igual a", ">="), ("menor ou igual a", "<="), ("diferente de", "!="), ("igual a", "="),
+# "pelo menos" e "igual ou superior a" (28/10/2026) são outras formas do mínimo; "igual ou inferior a", do máximo.
+OPERATORS = [("maior ou igual a", ">="), ("menor ou igual a", "<="), ("igual ou superior a", ">="), ("igual ou maior que", ">="),
+             ("igual ou maior a", ">="), ("igual ou inferior a", "<="), ("igual ou menor que", "<="),
+             ("igual ou menor a", "<="), ("pelo menos", ">="), ("diferente de", "!="), ("igual a", "="),
              ("no maximo", "<="), ("no minimo", ">="), ("a partir de", ">="), ("ate", "<="),
              ("abaixo de", "<"), ("menos de", "<"), ("inferior a", "<"), ("menor do que", "<"), ("menor que", "<"),
              ("acima de", ">"), ("mais de", ">"), ("superior a", ">"), ("maior do que", ">"), ("maior que", ">")]

@@ -966,13 +966,14 @@ test('contexto do gráfico para a página e a conversa: família, indicador, uni
   // Com a Escolha dos territórios, a referência do contexto são as referências mais próximas que a resposta trouxe.
   const def = definicao({familia: 'espacial', nivel: 'municipios', base: {todos: false, estados: ['13'], ids: ['code:130260']},
     consulta: M.consultaComReferenciaMarcada(null, ['code:130260'], true)});
+  // Desde 28/10/2026, o contexto leva também a consulta em uso (para "e em todo o país?" trocar só de onde a referência parte).
   assert.deepEqual(M.contextoDoGrafico(def, ['code:130260'], 'T', M.prefixoDe, ['code:130260']), {familia: 'espacial', indicador: 'densidade',
     nivel: 'municipios', municipios: {todos: false, estados: ['13'], ids: []}, estados: ['13', '35'], idsNaTela: ['code:130260'], competencia: '202406',
-    janela: [], referencia: ['code:130260'], titulo: 'T'});
+    janela: [], referencia: ['code:130260'], titulo: 'T', consulta: M.consultaParaOMotor(def.consulta)});
   assert.deepEqual(M.contextoDoGrafico({...def, consulta: null}, ['code:130260'], 'T', M.prefixoDe, ['code:130260']).referencia, []);
   const tendencia = M.contextoDoGrafico(definicao({familia: 'tendencia', janela: ['202306', '202406'], competencia: '202306'}), [], 'T');
   assert.equal(tendencia.competencia, '202406');
-  assert.deepEqual(tendencia.referencia, []);
+  assert.deepEqual([tendencia.referencia, tendencia.consulta], [[], null]);
 });
 
 test('cliente do motor: a resposta normalizada para a tela (tendência, grupos, faixas, condições, ordem, comparação, rotulos)', () => {

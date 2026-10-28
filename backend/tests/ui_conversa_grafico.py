@@ -21,6 +21,9 @@ Percorre:
   Tendência com a classe destacada;
 - a comparação indireta (26/10/2026): "compare o de maior e o de menor densidade" abre a comparação dos extremos do gráfico,
   pelas ordens do motor, e as demais bolhas esmaecem;
+- a proximidade pela conversa (28/10/2026): "o de menor densidade e o mais próximo dele com densidade acima de 0" abre a
+  Análise Espacial com a Escolha dos territórios (o extremo na base, a condição na referência), a continuação lê a referência
+  mais próxima e a distância, e "Procurar em todo o país" troca só de onde a referência parte;
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
 - pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
   continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
@@ -68,8 +71,8 @@ SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
 # ("Mensagens anteriores:"). Desde 26/10/2026, o resultado agregado em exibição (territórios, valores, frase-resumo) pode ir.
 PROTEGIDOS = ("Dados_Municipios_Brasil.csv", "Dados_Brasil.xlsx", "Dados_Estados_Brasil.csv", "cod_ibge", "população_estimada",
               "130260", "130420", "130340", "code:", "condados.csv", "territory_ids", "painel_familia", "painel_vista",
-              "painel_resumo", "painel_mapa_disponivel", "painel_motivo_sem_mapa", '\\"anteriores\\"', '\\"pendente\\"',
-              "displayed_result_id")
+              "painel_resumo", "painel_mapa_disponivel", "painel_motivo_sem_mapa", "painel_consulta", '\\"anteriores\\"',
+              '\\"pendente\\"', "displayed_result_id")
 
 
 def provider_log():
@@ -404,6 +407,45 @@ def main():
         expect(janela.get_by_test_id("territorios-calcular")).to_be_disabled()
         shot("02b-referencia-pela-conversa")
         page.get_by_test_id("analise-desfazer").click()
+        expect(area).to_have_attribute("data-familia", familia_antes, timeout=60000)
+        page.wait_for_timeout(1500)
+
+        # 7c. Proximidade pela conversa (28/10/2026, pedido do responsável): "o de menor densidade e o mais próximo dele com
+        # densidade acima de 0" abre a Análise Espacial com a Escolha dos territórios (o extremo do gráfico, pelas ordens do
+        # motor, na base; a condição na referência), nunca as Condições; quando o motor calcula, a tela envia a continuação, e a
+        # conversa lê a referência mais próxima e a distância. "Procurar em todo o país" troca só de onde a referência parte (a
+        # tela envia a consulta em exibição, `painel_consulta`). O Desfazer do alto devolve a análise de antes.
+        valores = dict(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]').evaluate_all(
+            "els => els.map(e => [e.dataset.id, Number(e.dataset.valor)])"))
+        menor = min(valores, key=valores.get)
+        leitura = "qual a referência mais próxima?"
+        with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret") and
+                                  form_field(r.request, "message") == leitura, timeout=120000) as continuacao:
+            resposta, _, _, grafico = chat_to_chart("o de menor densidade e o mais próximo dele com densidade acima de 0",
+                                                    lambda o: bool(o.get("consulta")))
+        consulta = resposta["painel"]["consulta"]
+        assert consulta["base"]["escolha"] == {"modo": "marcados", "municipios": [menor]}, consulta
+        assert consulta["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 0}], consulta
+        assert not resposta["painel"].get("condicoes") and not grafico.get("condicoes"), resposta["painel"]
+        assert grafico["consulta"]["base"] == consulta["base"] and not grafico.get("comparar"), grafico
+        expect(area).to_have_attribute("data-familia", "espacial", timeout=60000)
+        assert (options_of(continuacao.value.request).get("painel_consulta") or {}).get("base") == consulta["base"]
+        expect(latest).to_contain_text("O município mais próximo de ", timeout=60000)
+        expect(latest).to_contain_text(" km em linha reta")
+        expect(latest).to_contain_text("A distância apresentada é geográfica direta.")
+        alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
+        with page.expect_response(lambda r: is_post(r, "/api/painel") and (
+                (options_of(r.request).get("consulta") or {}).get("referencia") or {}).get("partir_de", {}).get("tipo") == "pais",
+                timeout=120000):
+            alternativas.get_by_role("button", name="Procurar em todo o país").click()
+        expect(latest).to_contain_text("entre os municípios de todo o país", timeout=120000)
+        shot("02d-proximidade-pela-conversa")
+        desfazer = page.get_by_test_id("analise-desfazer")
+        for _ in range(2):  # o pedido de proximidade e a troca do recorte: dois passos do Desfazer
+            passos = int(desfazer.get_attribute("data-passos") or "0")
+            desfazer.focus()
+            desfazer.press("Enter")
+            expect(desfazer).to_have_attribute("data-passos", str(passos - 1), timeout=30000)
         expect(area).to_have_attribute("data-familia", familia_antes, timeout=60000)
         page.wait_for_timeout(1500)
 

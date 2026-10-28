@@ -44,6 +44,9 @@ export type PedidoDoChat = {
   /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
    * destacados. Estado visual: nada é recalculado. */
   explicar?: { aba: Familia; termos: string[] } | null;
+  /** A Escolha dos territórios completa pedida na conversa (28/10/2026: "o de menor densidade e o mais próximo dele com
+   * densidade de no mínimo 1,5"): a base, a referência e de onde cada uma parte, conferidas por lerConsulta. */
+  consulta?: object | null;
 };
 /** O que está na tela, para a estrutura da página e a conversa. */
 export type ContextoDoGrafico = {
@@ -57,6 +60,9 @@ export type ContextoDoGrafico = {
   mapaDisponivel?: boolean; motivoSemMapa?: string | null;
   /** Os itens da comparação aberta (2 ou 3 ids), para a conversa trocar a ordem, incluir, tirar e voltar a ela. */
   comparar?: string[];
+  /** A Escolha dos territórios da Análise Espacial em exibição (28/10/2026), para a conversa trocar só o que a pessoa pedir
+   * ("e em todo o país?"). Fica no backend local, como as demais chaves painel_*. */
+  consulta?: ConsultaTerritorios | null;
 };
 /** Estado salvo no Histórico: reabre sem recalcular. `definicao` é o objeto de `salvarEstado`. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };
@@ -2188,6 +2194,16 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
       abrir = "referencia";
     }
   }
+  // A Escolha dos territórios pedida na conversa (28/10/2026): vale como se a pessoa a tivesse feito na janela, na Análise Espacial.
+  if (pedido.consulta) {
+    const consulta = lerConsulta(pedido.consulta);
+    if (consulta) {
+      if (LADOS.some(lado => consulta[lado].partir_de.tipo === "selecao_previa") && semSelecao({ ...proxima, nivel: "municipios" }))
+        mensagens.push("A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de Territórios.");
+      // A base passa a ser a da consulta: a comparação de antes sai (o motor recusa itens da comparação fora do gráfico).
+      proxima = { ...proxima, familia: "espacial", nivel: "municipios", consulta, comparar: [] };
+    } else mensagens.push("A Escolha dos territórios pedida não foi reconhecida.");
+  }
   if (pedido.grupos && typeof pedido.grupos === "object") {
     const tipo = (pedido.grupos as { tipo?: unknown }).tipo;
     if (tipo === "quartis" || tipo === "quintis" || tipo === "decis" || tipo === "nenhum")
@@ -2246,7 +2262,7 @@ export function contextoDoGrafico(def: DefinicaoAnalise, idsNaTela: string[], ti
   const referencia = def.familia !== "espacial" || !def.consulta ? [] : referenciasDaResposta;
   return { familia: def.familia, indicador: def.indicador, nivel: def.nivel, municipios: normalizarBase(def.base, grupoDe), estados: def.estados, idsNaTela,
     competencia: def.familia === "tendencia" ? def.janela.at(-1) ?? def.competencia : def.competencia, janela: def.janela,
-    referencia, titulo };
+    referencia, titulo, consulta: consultaEmUso(def) ? consultaParaOMotor(def.consulta!) : null };
 }
 
 // ================================================================================================ título

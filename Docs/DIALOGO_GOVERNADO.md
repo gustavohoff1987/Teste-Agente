@@ -50,6 +50,8 @@ provedor, com o cartão do contexto. Sem o provedor, o pedido que dependeria del
 | Trocar, incluir, tirar | "Troca o primeiro pelo segundo.", "troca Porto Velho por Macapá", "põe João Pessoa no lugar de Natal", "inclui Parintins", "Agora inclui mais um." (pergunta qual), "tira Tefé" | Muda a comparação ou os territórios em análise. |
 | Todos | "E se considerarmos todos?", "todos os municípios do Paraná" | Todos os municípios (ou os do estado citado). |
 | Pedido em forma de pergunta | "e ao longo do tempo, como foi?" | A tendência dos mesmos territórios. |
+| Proximidade a partir do extremo (28/10/2026) | "Quero identificar o município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 médicos por mil habitantes", "o mais populoso e o mais próximo dele com densidade acima de 3" | O extremo vem das ordens do motor sobre o gráfico em exibição, com os empates, e vai para a base; a condição vai para a referência, e o pedido vira a Escolha dos territórios da Análise Espacial (ver "Proximidade pela conversa"). |
+| Referência mais próxima (28/10/2026) | "Qual é o mais próximo?", "qual a referência mais próxima?" (também a continuação do pedido acima) | Com a Escolha dos territórios em exibição, a referência mais próxima de cada um da base, a distância em linha reta e a densidade da referência, copiadas do motor, com os empates e a ressalva TPL-11; botões trocam de onde a referência parte. Sem a Escolha dos territórios, a comparação das distâncias, como antes. |
 | Pergunta sobre o resultado | "Qual deles apresenta densidade maior?", "E em relação à população?" (herda a direção), "quem tem menos profissionais?", "qual a diferença entre eles?", "quantos municípios estão no gráfico?" | Os valores e a ordem do motor; a diferença assinada que a comparação do motor calculou (sem comparação aberta, abre a comparação). Não muda o gráfico. |
 | Explicação | "Explique esse resultado.", "Não entendi a aceleração.", "Mas por que isso é diferente de crescimento?", "E o que isso quer dizer para esse município?", "Agora explique de maneira mais técnica." | Registros objetivo, simples, didático e técnico, com memória do tópico. Ver "Explicação progressiva". |
 | Verificação e limites | "Esse crescimento significa que o município melhorou?", "então Manaus tem médicos suficientes?", "Qual foi a causa dessa queda?", "a distância mostra o tempo de viagem?", "esse número é confiável?" | Os fatos do resultado e a regra governada: CFG-NOR (juízo normativo), TPL-06 com EXC-03 (causa), TPL-11 (acesso), notas do motor (procedência). Antes de tratar a causa, confere a premissa ("o resultado não mostra queda para …"). |
@@ -185,6 +187,33 @@ Os exemplos das orientações e das respostas do gestor e da gramática não cit
 faz ("compare o de maior e o de menor densidade", "use como referência o município de maior densidade", "a mais de
 150 km"), porque um nome fora da análise da pessoa confunde.
 
+## Proximidade pela conversa (28/10/2026)
+
+Pedido do responsável: depois de "quero analisar a força de trabalho do estado de Tocantins", a frase "quero identificar o
+município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 médicos por mil habitantes" aplicava a
+condição nas Condições do gráfico ("Apliquei a condição densidade ≥ 1,5…"), na Análise de Distribuição. A análise pedida é
+espacial, e o agente precisa correlacionar a intenção com as funcionalidades da tela:
+- o ato `proximidade` (`dialogo.py`) é reconhecido sem o provedor quando a mensagem pede "o mais próximo" (ou "mais perto",
+  "menor distância") e cita um extremo do gráfico ("o de menor densidade", "o mais populoso", "a de densidade mais baixa",
+  "com menos médicos"), sem uma condição antes do pedido de proximidade. O extremo vem das ordens do motor sobre o gráfico em
+  exibição (`conversation_facts`, com os empates, como na comparação pelos extremos) e vai para a base;
+- a gramática (`conversa_grafico._proximidade`, com `base_marcada`) monta a Escolha dos territórios (campo `consulta` do
+  comando): a condição da mensagem é da referência (CAP-REF-01, por critério de CAP-SUB-01, com a relação e o corte da
+  pessoa); de onde a referência parte é o que a pessoa disser ("em todo o país", "no mesmo estado", "na mesma região", um
+  estado, uma região, "na seleção") ou, sem dizer, a seleção em análise (o universo já estabelecido na conversa), quando ela
+  tem outros municípios além da base; senão, o país;
+- a resposta diz o extremo, com o valor e a competência ("Entre os 139 municípios do gráfico, em junho de 2024, o de menor
+  densidade é …"), e o que abriu; a continuação ("qual a referência mais próxima?") é enviada pela tela quando o motor
+  calcula e lê a referência mais próxima, a distância em linha reta e a densidade dela, copiadas da resposta
+  (`explicacao.referencia_proxima`, verificada), com os botões "Procurar em todo o país" e "Só no mesmo estado de cada um";
+- com um estado citado que não está no gráfico ("o de menor densidade do Pará e o mais próximo dele…"), a resposta mostra os
+  municípios dele e traz `continuar` com o mesmo pedido;
+- com uma condição antes do pedido de proximidade ("o de menor densidade entre os com população acima de 10 mil…"), nada é
+  escolhido: a gramática explica que o extremo é lido entre todos os do gráfico, sem outra condição;
+- sem o gráfico calculado, a gramática explica do mesmo jeito; o intérprete com o provedor também pode classificar o ato
+  (enumeração `nearest_reference`, com a trajetória F-0321 na biblioteca conversacional), e nomes e valores continuam
+  resolvidos no backend.
+
 ## Avaliação
 
 **Método.** Conversas adversariais em `backend/tests/dialogo_adversarial/`, executadas pelo simulador da tela
@@ -290,6 +319,10 @@ PAR-20261026 da SPEC):
   cordial), ato do intérprete com provedor simulado (o cartão com o resultado agregado, sem códigos, colunas nem arquivo),
   `ADT_DIALOGO=0` e a redação pelo Gemini (texto fiel aparece; ordem errada, juízo, número ou nome fora do contexto e
   critério de classe diferente regeneram; esgotadas, a reserva com TPL-08; provedor fora do ar, a reserva).
+- `backend/tests/test_dialogo.py` (28/10/2026): a proximidade a partir do extremo — reconhecimento, a Escolha dos
+  territórios com o extremo na base e a condição na referência, a leitura da referência mais próxima copiada do motor, as
+  trocas do recorte em botões, o empate no extremo, o estado fora do gráfico com a continuação e a explicação do território
+  com a referência mais próxima.
 - `backend/tests/test_triagem.py`, `test_fidelidade.py` e `test_contexto_conversa.py`: a triagem (os exemplos do diagnóstico
   e formulações adversariais novas), a conferência e as fichas (inclusive os limites de paráfrase) e o cartão do contexto.
 - `backend/tests/test_llm_bridge.py`: sem teto local depois da antiga marca de 20 chamadas, 429 por minuto, de tokens e

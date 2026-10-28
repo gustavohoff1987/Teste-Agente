@@ -103,6 +103,7 @@ O estado do gráfico chega em `options`, e o pedido seguinte parte dele:
 | `painel_mapa_disponivel` | `true` ou `false`: se o mapa pode mostrar a análise agora, como a área informou (desde 23/10/2026) |
 | `painel_motivo_sem_mapa` | o motivo informado pela área quando o mapa não está disponível (desde 26/10/2026), para o gestor de diálogo responder "o que estou vendo no mapa?" |
 | `painel_resumo` | a frase-resumo verificada do motor, como a área a mostra (desde 23/10/2026); traz valores da base e não entra nem no contexto da conversa |
+| `painel_consulta` | a Escolha dos territórios em exibição na Análise Espacial (desde 28/10/2026), no formato do campo `consulta` do comando, para a conversa trocar só o que a pessoa pedir ("e em todo o país?"); forma inválida vale como ausente |
 | `rotulos` | nomes das unidades nas planilhas: `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} ou null}` |
 | `territory_ids`, `exploration_operation`, `conversation_today` | como antes |
 
@@ -153,6 +154,7 @@ Todas as chaves vêm sempre; **nula quer dizer "o gráfico mantém o que tem"**.
 | `condicoes` | a lista inteira, combinada com "e": `[{"atributo": densidade, distancia_km, populacao ou quantidade, "operador": <, <=, >, >=, = ou !=, "valor": número}]` |
 | `grupos` | `{"tipo": quartis, quintis, decis ou nenhum}` (extensão do contrato: os grupos por posição da distribuição) |
 | `vista` | `mapa` ou `grafico` (desde 23/10/2026): a vista do desenho citada junto com o comando; estado visual, que a área aplica sem recalcular (RQ-REP-06) |
+| `consulta` | a Escolha dos territórios completa (desde 28/10/2026): `{"base", "referencia", "distancia"}`, cada lado `{"partir_de": {"tipo", "regioes", "ufs"}, "filtros": [{"indicador", "operador", "valor"}], "escolha": {"modo", "municipios"}}`, no formato do motor; a área a confere (`painelModel.lerConsulta`) e a aplica na Análise Espacial, como se a pessoa a tivesse feito na janela |
 
 Mapeamento das operações atuais: `density` → distribuição com densidade; `counts` → distribuição com quantidade;
 `distribution` → distribuição (com `grupos` quando o pedido diz quartis, quintis ou decis); `temporal` → tendência;
@@ -200,7 +202,26 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   posição de corte também entram.
 - **Condições:** "municípios com menos de 1 médico por mil e a mais de 150 km de Manaus" (densidade < 1 e distância >
   150 km, com Manaus como referência); "população acima de 50 mil habitantes"; "quantidade de médicos menor que 2";
-  "agora também …" acrescenta às condições em vigor.
+  "agora também …" acrescenta às condições em vigor. Desde 28/10/2026, "pelo menos" e "igual ou superior a" (ou "igual ou
+  maior que") também são o mínimo (≥), e "igual ou inferior a" (ou "igual ou menor que"), o máximo (≤); o "ou" da própria
+  condição ("maior ou igual a", "igual ou superior a") deixou de virar a pergunta do "e".
+- **Referência mais próxima com condição** (desde 28/10/2026): "qual o município mais próximo de Manaus com densidade acima
+  de 2?", "para cada município, o mais próximo com mais de 50 mil habitantes", "os municípios com densidade abaixo de 1 e o
+  mais próximo de cada um com densidade acima de 2" e, com o extremo do gráfico, "o de menor densidade e o mais próximo dele
+  com densidade de no mínimo 1,5 por mil habitantes" (o extremo vem do gestor de diálogo, pelas ordens do motor) viram a
+  Escolha dos territórios da Análise Espacial (campo `consulta`), antes das Condições: a condição é da referência (CAP-REF-01,
+  por critério de CAP-SUB-01), nunca as Condições do gráfico. A base: os citados pelo nome, o extremo, cada um dos
+  municípios de um estado citado ("de cada município do Pará") ou, sem nada disso, cada um da seleção, com as condições ditas
+  antes de "de cada um". A referência parte de onde a pessoa disser ("em todo o país", "no mesmo estado", "na mesma
+  região", "na Região Sudeste", "no Pará", "na seleção") ou, sem dizer, da seleção em análise quando ela tem outros
+  municípios além da base; senão, do país. A resposta diz a base, a referência e de onde ela parte; com até 5 na base, traz
+  `continuar` ("qual a referência mais próxima?"), e a leitura vem quando o motor calcula; com mais, as trocas do recorte
+  vêm em botões. "Os 3 mais próximos de Manaus" continua na ordenação, e "a mais de 150 km", nas Condições; um número que
+  nenhuma condição levou vira pergunta, e o extremo sem o gráfico calculado é explicado, nunca escolhido.
+- **Troca do recorte da referência** (desde 28/10/2026): com a Escolha dos territórios em exibição (`painel_consulta`), "e em
+  todo o país?", "procure a referência no mesmo estado", "e na mesma região?" ou "só na seleção" trocam só de onde a
+  referência parte; a base, as condições e os marcados continuam. "Mostre todos os municípios do Brasil" e "e no Pará?"
+  continuam pedidos de outros territórios.
 - **Comparar e juntar:** "compare Manaus e Tefé", "coloque … lado a lado" (2 ou 3 itens; o município fora do gráfico
   entra nele); "compare o Pará e o Amazonas" (estados, no nível dos estados); "compare esses municípios" (os do
   gráfico); "junte Manaus, Iranduba e Manacapuru", "junte os municípios do Amazonas" (soma dos componentes, com

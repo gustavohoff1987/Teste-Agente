@@ -651,6 +651,113 @@ def test_extremos_no_plural_perguntam_quantos_e_a_resposta_digitada_compara(tela
     assert resposta.texto.startswith("Entendi: Os três maiores em população. Abri a comparação lado a lado")
 
 
+# --------------------------------------------------------------------------------------------- proximidade pela conversa
+# Pedido do responsável (28/10/2026): "quero identificar o município de menor densidade e o mais próximo a ele com densidade de
+# no mínimo 1,5 médicos por mil habitantes" ia às Condições do gráfico. O extremo vem das ordens do motor sobre o gráfico em
+# exibição (com os empates, como na comparação pelos extremos), a condição é da referência (CAP-REF-01, por critério de
+# CAP-SUB-01) e o pedido vira a Escolha dos territórios da Análise Espacial; quando o motor calcula, a conversa lê a referência
+# mais próxima e a distância, copiadas da resposta.
+@pytest.mark.parametrize("mensagem", [
+    "quero identificar o município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 médicos por mil "
+    "habitantes", "o mais populoso e o mais próximo dele com densidade acima de 3",
+    "a cidade com a densidade mais baixa e a mais próxima dela com mais de 50 mil habitantes"])
+def test_proximidade_a_partir_do_extremo_e_reconhecida(mensagem):
+    assert dialogo.reconhecer(mensagem, {}, True) == {"ato": "proximidade"}
+    assert dialogo.reconhecer(mensagem, {}, False) is None  # sem gráfico calculado, a gramática explica
+
+
+def test_proximidade_com_condicao_e_sem_extremo_segue_para_a_gramatica():
+    # "Qual o mais próximo de Manaus com densidade acima de 2?" não é pergunta sobre o resultado em exibição.
+    assert dialogo.reconhecer("qual o município mais próximo de Manaus com densidade acima de 2?", {}, True) is None
+    # A pergunta pela referência mais próxima, com a Escolha dos territórios em exibição, é a leitura; sem ela, como antes.
+    assert dialogo.reconhecer("qual o mais próximo?", {}, True, resultado_consulta=True) == {"ato": "referencia_proxima"}
+    assert dialogo.reconhecer("qual a referência mais próxima?", {}, True, resultado_consulta=True) == {
+        "ato": "referencia_proxima"}
+    assert dialogo.reconhecer("qual o mais próximo?", {}, True)["ato"] == "compara"
+    # O intérprete com o provedor também pode classificar (enumeração nearest_reference); nomes e valores ficam aqui.
+    assert dialogo.do_interprete({"dialogue": "nearest_reference"}, "o de menor densidade e o mais perto dele com densidade "
+                                 "acima de 2", {}) == {"ato": "proximidade"}
+    assert dialogo.do_interprete({"dialogue": "nearest_reference"}, "e qual é a mais próxima?", {}) == {
+        "ato": "referencia_proxima"}
+    assert dialogo.do_interprete({"dialogue": "nearest_reference"}, "a mais perto de Manaus com densidade acima de 2",
+                                 {}) is None
+
+
+def test_proximidade_a_partir_do_extremo_abre_a_escolha_e_le_a_referencia_mais_proxima(tela, sem_provedor):
+    tela.seleciona(estados=["13"])
+    itens = _unidades(tela)
+    assert min(itens, key=lambda i: itens[i]["densidade"]) == TEFE  # 10 por 1.000 habitantes
+    pedido = tela.diga("o município de menor densidade e o mais próximo dele com densidade de no mínimo 11 médicos por mil "
+                       "habitantes")
+    assert pedido.aplicado and tela.familia == "espacial"
+    assert tela.consulta == {
+        "base": {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
+                 "escolha": {"modo": "marcados", "municipios": [TEFE]}},
+        "referencia": {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []},
+                       "filtros": [{"indicador": "densidade", "operador": ">=", "valor": 11}],
+                       "escolha": {"modo": "todos", "municipios": []}},
+        "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+    assert pedido.texto == ("Entre os 3 municípios do gráfico, em junho de 2024, o de menor densidade é TEFE (AM), com 10 por "
+                            "1.000 habitantes. Abri a Análise Espacial com TEFE (AM) na base e, na referência, os municípios da "
+                            "seleção (Amazonas) com densidade ≥ 11 por mil habitantes: o eixo X mostra a distância em linha "
+                            "reta (km) até o mais próximo deles, sem contar o próprio município. Assim que o motor calcular, "
+                            "digo qual é o mais próximo e a distância.")
+    assert pedido.corpo["continuar"] == "qual a referência mais próxima?"
+    # O motor calculou: a base é TEFE, e a referência mais próxima dele entre os do Amazonas com densidade ≥ 11 é PARINTINS.
+    assert tela.ids_no_grafico() == [TEFE]
+    item = tela.resposta["itens"][0]
+    assert item["referencia_do_item"]["id"] == PARINTINS and item["referencia_do_item"]["empate"] == []
+    leitura = tela.continua(pedido)
+    distancia = number(item["distancia_km"])
+    densidade = number(next(m for m in tela.resposta["referencia"]["membros"] if m["id"] == PARINTINS)["densidade"])
+    assert leitura.texto == ("O município mais próximo de TEFE (AM) entre os municípios da seleção prévia com densidade ≥ 11 "
+                             "por 1.000 habitantes, em junho de 2024, é PARINTINS (AM), a " + distancia + " km em linha reta "
+                             "(densidade de " + densidade + " por 1.000 habitantes). A distância apresentada é geográfica "
+                             "direta. Não representa distância viária, tempo de deslocamento ou acessibilidade real.")
+    assert not set(numeros(leitura.texto)) - {distancia, densidade, "11", "1.000", "2024"}
+    assert [(c["label"], c["draft"]) for c in leitura.alternativas] == [
+        ("Procurar em todo o país", "procure a referência em todo o país"),
+        ("Só no mesmo estado de cada um", "procure a referência no mesmo estado")]
+    assert tela.historico[-1].startswith("o município de menor densidade")  # a continuação não vira mensagem da pessoa
+    # A troca do recorte mantém a base e a condição; a leitura vem de novo, com a outra troca em botão.
+    pais = tela.diga("procure a referência em todo o país")
+    assert pais.aplicado and tela.consulta["referencia"]["partir_de"]["tipo"] == "pais"
+    assert tela.consulta["base"]["escolha"]["municipios"] == [TEFE]
+    assert tela.consulta["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">=", "valor": 11}]
+    nova = tela.continua(pais)
+    assert "entre os municípios de todo o país com densidade ≥ 11 por 1.000 habitantes" in nova.texto
+    assert [c["label"] for c in nova.alternativas] == ["Só no mesmo estado de cada um"]
+    assert tela.diga("qual o mais próximo?").texto == nova.texto
+    # A explicação do território também diz a referência mais próxima da Escolha dos territórios (antes, ficava de fora).
+    assert ("distância geográfica direta até a referência: " + number(tela.resposta["itens"][0]["distancia_km"]) +
+            " km (PARINTINS (AM))") in tela.diga("como está Tefé?").texto
+
+
+def test_proximidade_com_empate_no_extremo_e_estado_fora_do_grafico(tela, sem_provedor):
+    tela.seleciona(ids=[MANAUS, TEFE, AMAZONAS_PA])
+    empate = tela.diga("o de menor densidade e o mais próximo dele com densidade acima de 20")
+    assert tela.consulta["base"]["escolha"]["municipios"] == [TEFE, AMAZONAS_PA]
+    assert empate.texto.startswith("Entre os 3 municípios do gráfico, em junho de 2024, há empate na menor densidade: TEFE "
+                                   "(AM), com 10 por 1.000 habitantes e AMAZONAS (PA), com 10 por 1.000 habitantes. Os dois "
+                                   "entram na base. Abri a Análise Espacial com TEFE (AM) e AMAZONAS (PA) na base")
+    leitura = tela.continua(empate)
+    assert leitura.texto.startswith("Referência mais próxima de cada município da base, em junho de 2024, entre os "
+                                    "municípios da seleção prévia com densidade > 20 por 1.000 habitantes:\n• TEFE (AM): MANAUS "
+                                    "(AM), a ")
+    assert "\n• AMAZONAS (PA): MANAUS (AM), a " in leitura.texto
+    # O estado citado que não está no gráfico: primeiro os municípios dele; a continuação refaz o pedido no gráfico novo.
+    tela.seleciona(estados=["13"], familia="distribuicao")
+    estado = tela.diga("o município de menor densidade do Pará e o mais próximo dele com densidade acima de 15")
+    assert estado.texto == ("Mostrei os municípios do Pará; assim que o gráfico estiver pronto, procuro o de menor densidade e "
+                            "o mais próximo dele.")
+    assert tela.municipios == {"todos": False, "estados": ["15"], "ids": []} and tela.familia == "distribuicao"
+    refeito = tela.continua(estado)
+    assert tela.consulta["base"]["escolha"]["municipios"] == [AMAZONAS_PA]
+    assert tela.consulta["referencia"]["partir_de"] == {"tipo": "ufs", "regioes": [], "ufs": ["15"]}
+    leitura = tela.continua(refeito)
+    assert "é BELEM (PA), a " in leitura.texto
+
+
 def test_exemplos_das_orientacoes_nao_citam_lugares(tela, sem_provedor):
     """Os exemplos das orientações mostram o que a função faz, sem nomes de lugar (26/10/2026): um nome fora da análise da
     pessoa confunde."""

@@ -100,20 +100,21 @@ _GUIDANCE = {
         "Posso ajudar com densidade por 1.000 habitantes, quantitativos, distribuição, "
         "comparações territoriais, evolução temporal, agregações, distâncias geodésicas, "
         "rankings, rotatividade, relatórios, referência mais próxima e critérios combinados. "
-        "Os resultados podem ser explorados em tabelas, gráficos e mapas quando há localização disponível. "
-        "Escolha uma opção no carrossel ou descreva "
-        "seu objetivo. Cada análise depende dos requisitos disponíveis na sua base."
+        "Os resultados podem ser explorados em gráficos, mapas e tabelas quando há localização disponível. "
+        "Na conversa, peça direto ao gráfico, por exemplo “compare o de maior e o de menor densidade”, “mostre a "
+        "tendência” ou “o de menor densidade e o mais próximo dele com densidade de no mínimo 1,5 por mil habitantes”. "
+        "Cada análise depende dos requisitos disponíveis na sua base."
     ),
     "data": (
-        "Você pode usar os dados brasileiros já configurados ou importar CSV, XLS ou XLSX. "
-        "Em 'Importar seus dados', baixe a estrutura recomendada para conhecer os campos "
-        "e a hierarquia territorial. Os nomes de colunas podem ser associados durante "
-        "a preparação. Nenhum cálculo acontece apenas por importar."
+        "Você pode usar os dados do Brasil já configurados ou enviar CSV, XLS ou XLSX em “Enviar meus dados”. "
+        "Na janela de envio, baixe o modelo de planilha (a estrutura recomendada) para conhecer os campos "
+        "e a hierarquia territorial. Os nomes de colunas podem ser associados no painel Colunas. "
+        "Nenhum cálculo acontece apenas por enviar."
     ),
     "workflow": (
-        "Escolha um tipo de análise no carrossel da conversa. Em seguida, confira "
-        "a identificação dos dados e os parâmetros; por último, "
-        "revise e execute. O Python valida os requisitos e realiza os cálculos."
+        "Escolha os dados (“Dados do Brasil” ou “Enviar meus dados”), selecione os territórios na Seleção de "
+        "Territórios e abra a análise nas abas da área de análise, com os ajustes ao lado do gráfico; ou peça na "
+        "conversa. O Python valida os requisitos e realiza os cálculos."
     ),
     "privacy": (
         "Os arquivos são processados no backend local. O Gemini recebe as mensagens depois da proteção "
@@ -147,7 +148,7 @@ _GENERIC_GREETING = (
     "Olá! Sou o Agente Diagnóstico Territorial. Posso ajudar a explorar dados "
     "sobre a força de trabalho na saúde, explicar as análises disponíveis "
     "e orientar sua preparação. Que tipo de análise você deseja fazer? "
-    "Você pode escolher no carrossel ou descrever seu objetivo."
+    "Descreva seu objetivo ou escolha os dados para começar."
 )
 _INTENTS = ("ANALITICO", "SOBRE_O_AGENTE", "CONCEITUAL_DOMINIO", "CONVERSACIONAL")
 # Tópicos de orientação local e tópicos metodológicos respondidos pelas formas governadas (document_catalog.TOPICS).
@@ -161,7 +162,7 @@ _DIALOGUE = ("none", "explain_result", "simplify", "next_steps", "change_selecti
 # triado do contexto, contexto_conversa.py, nunca a memória crua nem a resposta inteira do motor).
 _DIALOGUE_ACTS = ("answer_choice", "correction", "undo", "previous_state", "compare_result", "concept", "technical",
                   "reformulate", "verify", "cause", "screen_state", "out_of_scope", "include", "replace", "remove",
-                  "all_units")
+                  "all_units", "nearest_reference")
 _DIALOGUE = (*_DIALOGUE, *_DIALOGUE_ACTS)
 _REGISTERS = ("none", "objetivo", "simples", "didatico", "tecnico")
 _SUBJECTS = ("none", "aceleracao", "desaceleracao", "crescimento", "declinio", "sem_classificacao", "velocidade", "quintil",
@@ -614,7 +615,9 @@ _SYSTEM = (
     " causa), screen_state (pergunta sobre a tela; subject dados, territorios, selecao, mapa, relatorio, anterior,"
     " mudou, ausente ou a análise indisponível), out_of_scope (pedido fora da autoridade do agente; subject valor,"
     " classe, metodo, ocupacao, juizo, politica, correlacao, projecao, pessoas, externas, parametro ou delegar),"
-    " include, replace, remove (incluir, trocar, tirar territórios) e all_units (todos). style é o registro"
+    " include, replace, remove (incluir, trocar, tirar territórios), all_units (todos) e nearest_reference (o"
+    " território mais próximo do extremo do gráfico, como o de menor densidade, com uma condição, ou a pergunta pela"
+    " referência mais próxima já calculada na Análise Espacial; a condição é da referência). style é o registro"
     " pedido (simples, didatico, tecnico). Esses campos são enumerações: não escreva nomes, números nem explicações."
     + "\n\n" + "RESPOSTA. " + REGRAS_DA_RESPOSTA
 )

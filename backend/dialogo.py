@@ -116,6 +116,11 @@ QUANTOS_N = {"dois": 2, "duas": 2, "2": 2, "tres": 3, "3": 3}
 # são os dois ou os três, com as duas alternativas em botão.
 EXTREMOS_NO_PLURAL = re.compile(r"\b(?:os|as) (?:\w+ ){0,2}?(?:maiores|menores|(?:mais|menos) \w+s|(?:de|com) (?:maior|menor))\b")
 DIFERENCA = re.compile(r"\b(?:diferenca|quanto a mais|quanto maior|quanto menor|distancia entre os valores)\b")
+# A referência mais próxima no gráfico em exibição, com a Escolha dos territórios (28/10/2026): "qual é o mais próximo?",
+# "qual a referência mais próxima de X?", "e a distância?" (também a continuação do pedido de proximidade).
+REFERENCIA_PROXIMA = re.compile(r"\b(?:qual|quais|quem)\b(?:\s+\w+){0,6}?\s+(?:referencias?\s+mais\s+proximas?|"
+                                r"mais\s+proxim[oa]s?|mais\s+pert[oa]s?)\b|\bqual\s+(?:e\s+)?a\s+referencia\b|"
+                                r"^(?:e\s+)?(?:qual\s+(?:e\s+)?)?a\s+distancia(?:\s+(?:ate\s+(?:ela|ele|elas|eles)|dela|dele))?$")
 CONTAGEM = re.compile(r"\bquant[oa]s (?:municipios|territorios|estados|cidades|itens|unidades|bolhas|lugares)\b")
 EXPLICA = re.compile(r"\b(?:explique|explica|explicar|explicacao|me explica|entender|entendi|compreend\w*|"
                      r"nao ficou claro|como assim|o que (?:e|sao|significa|significam|quer dizer|querem dizer)|"
@@ -339,9 +344,10 @@ def _registro(texto: str, anterior: str | None = None) -> str:
 
 
 def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, resultado_tendencia: bool | None = None,
-               nomes_no_resultado: list[str] | None = None) -> dict | None:
+               nomes_no_resultado: list[str] | None = None, resultado_consulta: bool | None = None) -> dict | None:
     """O ato do diálogo, reconhecido sem o provedor, ou None (a mensagem segue para a gramática e o intérprete).
-    resultado_tendencia: se o resultado em exibição já é a tendência (None quando não se sabe)."""
+    resultado_tendencia: se o resultado em exibição já é a tendência (None quando não se sabe); resultado_consulta: se ele é
+    a Análise Espacial com a Escolha dos territórios (28/10/2026)."""
     conversa = conversa if isinstance(conversa, dict) else {}
     interrogativa = mensagem.strip().endswith("?")
     texto = dobra(mensagem).strip(" .!?")
@@ -408,6 +414,23 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
             return {"ato": "compara_extremos"}
         if compara and EXTREMOS_NO_PLURAL.search(texto) and bool(alto) != bool(baixo):
             return {"ato": "compara_extremos", "quantos": None}
+    # 5c. A referência mais próxima a partir do extremo do gráfico (28/10/2026): "o município de menor densidade e o mais
+    # próximo a ele com densidade de no mínimo 1,5 por mil habitantes". A base sai das ordens do motor, com os empates; a
+    # referência, da condição. Com uma condição antes do pedido de proximidade, segue para a gramática, que explica.
+    from conversa_grafico import CLAUSE as CLAUSULA, EXTREMO_DA_BASE, PROXIMIDADE
+    proximidade = PROXIMIDADE.search(texto)
+    extremo_da_base = EXTREMO_DA_BASE.search(texto)
+    if proximidade and tem_resultado and not compara and extremo_da_base and \
+            not any(clausula.start() < proximidade.start() for clausula in CLAUSULA.finditer(texto)):
+        return {"ato": "proximidade"}
+    if proximidade and CLAUSULA.search(texto) and not extremo_da_base:
+        return None  # pedido novo de proximidade com a condição da referência ("o mais próximo de X com …"): a gramática
+    # 5d. "Qual é o mais próximo?" com a Escolha dos territórios em exibição: a referência mais próxima de cada um da base,
+    # lida do motor (sem uma condição nova e sem um nome fora do gráfico, que são pedidos novos).
+    if resultado_consulta and REFERENCIA_PROXIMA.search(texto) and not CLAUSULA.search(texto) and \
+            not EXTREMO_DA_BASE.search(texto) and (not re.search(r"[A-Z]", mensagem[1:]) or
+                                                   _cita_territorio(texto, nomes_no_resultado or [])):
+        return {"ato": "referencia_proxima"}
     # 6. Troca, inclusão sem nome, todos.
     if TROCA.search(texto):
         return {"ato": "troca"}
@@ -655,7 +678,7 @@ class Ambiente:
 
 
 PRECISA_DA_BASE = frozenset(("responde_pendente", "corrige_escolha", "completa_pendente", "troca", "inclui", "tira",
-                             "corrige_pedido", "pedido_indireto"))
+                             "corrige_pedido", "pedido_indireto", "proximidade"))
 
 
 def executar(ato: dict, amb: Ambiente) -> dict | None:
@@ -686,9 +709,10 @@ def _aplica_rascunho(amb: Ambiente, alternativa: dict, original: str) -> dict | 
         return None
     # A alternativa que é uma comparação pelos extremos ("compare os três maiores em população") volta ao próprio gestor.
     ato = reconhecer(rascunho, None, amb.resultado is not None)
-    if ato and ato.get("ato") == "compara_extremos":
-        return _compara_extremos(ato, Ambiente(rascunho, {}, amb.ctx, amb.resultado, amb.anterior, amb.fonte,
-                                               amb.interpretar, amb.nomes, amb.rotulos))
+    if ato and ato.get("ato") in ("compara_extremos", "proximidade"):
+        executor = _compara_extremos if ato["ato"] == "compara_extremos" else _proximidade
+        return executor(ato, Ambiente(rascunho, {}, amb.ctx, amb.resultado, amb.anterior, amb.fonte, amb.interpretar,
+                                      amb.nomes, amb.rotulos))
     return amb.interpretar(rascunho)
 
 
@@ -1183,6 +1207,114 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
     return _resposta(texto_resposta, painel=painel, memoria=memoria)
 
 
+def _proximidade(ato: dict, amb: Ambiente) -> dict | None:
+    """O extremo do gráfico como base da Análise Espacial e a referência mais próxima dele (28/10/2026). A base sai das
+    ordens do motor sobre o resultado em exibição (painel.conversation_facts, com os empates, como na comparação pelos
+    extremos: a pedido explícito e dita na resposta, com o valor); a referência, as condições, o período e de onde a
+    referência parte são da gramática (conversa_grafico._proximidade, com `base_marcada`). A continuação lê a referência
+    mais próxima quando o motor calcular. Nada é calculado aqui."""
+    from conversa_grafico import EXTREMO_DA_BASE
+    from painel import conversation_facts
+    from resumo_painel import number, places_for
+    from territorial_levels import group_label, human_period
+    texto = dobra(amb.mensagem)
+    extremo = EXTREMO_DA_BASE.search(texto)
+    if extremo is None or amb.interpretar is None:
+        return None
+    trecho = extremo.group(0)
+    atributo = "populacao" if re.search(r"populos|habitad|populacao|habitantes", trecho) else \
+        "quantidade" if re.search(r"quantidade|numero de|medicos|profissionais", trecho) else "densidade"
+    maior = bool(re.search(r"\bmaior\b|\bmais\s+(?:alta|populos|habitad|dens|medicos|profissionais|habitantes)", trecho))
+    qual = "maior" if maior else "menor"
+    nome = explicacao.NOMES_DOS_ATRIBUTOS[atributo]
+    memoria = {"ato": "proximidade", "atributo": atributo, "maior": maior}
+    body = amb.resultado or {}
+    singular, plural, feminino = explicacao._nomes(body, amb.rotulos)
+    os_, o_ = ("as", "a") if feminino else ("os", "o")
+    unidades = [item for item in body.get("itens") or [] if item.get("tipo") == "municipio"]
+    estado = _estado_citado(amb.mensagem, texto) if amb.fonte.get("tipo", "brasil") == "brasil" else None
+    if estado:
+        sigla = STATES[estado][0]
+        unidades = [item for item in unidades if item.get("uf") == sigla or
+                    str(item.get("rotulo", "")).endswith("(" + sigla + ")")]
+        if not unidades:
+            # O estado não está no gráfico: primeiro os municípios dele; a continuação refaz o pedido no gráfico novo.
+            grupo = group_label(estado)
+            painel = _painel(municipios={"todos": False, "estados": [estado], "ids": []}, nivel="municipios")
+            return _resposta("Mostrei os " + grupo[0].lower() + grupo[1:] + "; assim que o gráfico estiver pronto, procuro o "
+                             "de " + qual + " " + nome + " e " + o_ + " mais próxim" + o_ + " dele.", painel=painel,
+                             memoria=memoria, continuar=amb.mensagem)
+    if body.get("nivel") == "estados" or not unidades:
+        return _resposta("A distância da Análise Espacial é medida entre " + os_ + " " + plural + ", e o gráfico em exibição "
+                         "não tem " + os_ + " " + plural + " para achar o de " + qual + " " + nome + ". Escolha " + os_ +
+                         " " + plural + " na Seleção de Territórios e peça de novo." + " Nada mudou no gráfico.",
+                         memoria=memoria)
+    ordem = conversation_facts({**body, "itens": unidades})["ordem"].get(atributo) or {}
+    indices = ordem.get(qual) or []
+    if not indices:
+        return _resposta("Nenhum" + ("a " if feminino else " ") + singular + " do gráfico tem valor de " + nome + " para "
+                         "achar o de " + qual + " " + nome + ". Nada mudou no gráfico.", memoria=memoria)
+    escolhidos = [unidades[i] for i in indices]
+    resolvido = amb.interpretar(amb.mensagem, base_marcada=[item["id"] for item in escolhidos])
+    if not isinstance(resolvido, dict) or not resolvido.get("handled"):
+        return None
+    painel = resolvido.get("painel")
+    if resolvido.get("clarification") or not isinstance(painel, dict) or not painel.get("consulta"):
+        return resolvido  # a pergunta da gramática (a condição, o valor, o período), com as alternativas
+    valores = [_valor_do_atributo(item, atributo, body.get("indicador") or "densidade") for item in escolhidos]
+    casas = places_for([valor for valor in valores if isinstance(valor, (int, float))])
+    partes = [item["rotulo"] + ", com " + number(valor, casas) + UNIDADES_DOS_ATRIBUTOS[atributo] for item, valor in
+              zip(escolhidos, valores)]
+    quando = (", em " + human_period(str(body["competencia"]))) if body.get("competencia") else ""
+    if len(unidades) == 1:
+        abertura = "No gráfico há só " + ("uma " if feminino else "um ") + singular + quando + ": " + partes[0] + "."
+    elif len(escolhidos) == 1:
+        abertura = "Entre " + os_ + " " + number(len(unidades), 0) + " " + plural + " do gráfico" + quando + ", " + o_ + \
+            " de " + qual + " " + nome + " é " + partes[0] + "."
+    else:
+        juntos = ("As duas" if feminino else "Os dois") if len(escolhidos) == 2 else ("Todas" if feminino else "Todos")
+        abertura = "Entre " + os_ + " " + number(len(unidades), 0) + " " + plural + " do gráfico" + quando + \
+            ", há empate na " + qual + " " + nome + ": " + "; ".join(partes[:-1]) + " e " + partes[-1] + ". " + juntos + \
+            " entram na base."
+    resposta = _resposta(abertura + " " + resolvido["reply"], painel=painel, memoria=memoria)
+    for chave in ("continuar", "choices"):
+        if resolvido.get(chave):
+            resposta[chave] = resolvido[chave]
+    return resposta
+
+
+def _trocas_do_recorte(body: dict | None, brasil: bool) -> list[dict]:
+    """As trocas de onde a referência parte, em botões, depois da leitura da referência mais próxima (28/10/2026): cada uma
+    é o pedido completo da troca, que a gramática aplica à Escolha dos territórios em exibição."""
+    referencia = (body or {}).get("referencia") or {}
+    partir = ((referencia.get("consulta") or {}).get("referencia") or {}).get("partir_de") or {}
+    grupo = ((body or {}).get("rotulos") or {}).get("grupo") or {"singular": "estado"}
+    feminino = explicacao._feminino(grupo)
+    trocas = []
+    if partir.get("tipo") and partir["tipo"] != "pais":
+        lugar = "em todo o país" if brasil else "em toda a planilha"
+        trocas.append({"label": "Procurar " + lugar, "draft": "procure a referência " + lugar, "send": True})
+    if partir.get("tipo") and partir["tipo"] != "mesma_uf_da_base" and \
+            any(item.get("grupo_territorial") for item in (body or {}).get("itens") or []):
+        mesmo = ("na mesma " if feminino else "no mesmo ") + str(grupo.get("singular") or "estado")
+        trocas.append({"label": "Só " + mesmo + " de cada um", "draft": "procure a referência " + mesmo, "send": True})
+    return trocas
+
+
+def _referencia_proxima(ato: dict, amb: Ambiente) -> dict | None:
+    """"Qual é o mais próximo?" com a Escolha dos territórios em exibição: a leitura verificada do motor
+    (explicacao.referencia_proxima), com as trocas de onde a referência parte. Sem a consulta, a comparação das distâncias,
+    como antes."""
+    composicao = explicacao.referencia_proxima(amb.resultado, _foco(amb))
+    if composicao is None:
+        return _compara({"atributo": "distancia_km", "maior": False}, amb)
+    resposta = _explicada(composicao, {"ato": "referencia_proxima", "atributo": "distancia_km"})
+    trocas = _trocas_do_recorte(amb.resultado, amb.fonte.get("tipo", "brasil") == "brasil")
+    if trocas:
+        resposta["choices"] = trocas
+    return resposta
+
+
 def _compara(ato: dict, amb: Ambiente) -> dict | None:
     body = amb.resultado
     atributo = ato.get("atributo") or (body or {}).get("indicador") or "densidade"
@@ -1419,7 +1551,7 @@ EXECUTORES = {
     "todos_do_estado": _todos_do_estado, "compara": _compara, "diferenca": _diferenca, "contagem": _contagem,
     "explica": _explica, "limite": _limite, "refere_anterior": _refere_anterior, "estado": _estado,
     "governanca": _governanca_executa, "corrige_pedido": _corrige_pedido, "pedido_indireto": _pedido_indireto,
-    "compara_extremos": _compara_extremos,
+    "compara_extremos": _compara_extremos, "proximidade": _proximidade, "referencia_proxima": _referencia_proxima,
 }
 
 
@@ -1456,6 +1588,14 @@ def do_interprete(ato: dict, mensagem: str, conversa: dict) -> dict | None:
     if tipo == "compare_result":
         atributo = ato.get("attribute") if ato.get("attribute") in explicacao.NOMES_DOS_ATRIBUTOS else None
         return {"ato": "compara", "atributo": atributo, "maior": ato.get("direction") != "menor"}
+    if tipo == "nearest_reference":
+        # A referência mais próxima (28/10/2026): com o extremo do gráfico citado, o pedido de proximidade; sem ele, a leitura
+        # da referência mais próxima do gráfico em exibição (que, sem a Escolha dos territórios, compara as distâncias).
+        from conversa_grafico import CLAUSE as CLAUSULA, EXTREMO_DA_BASE
+        texto = dobra(mensagem)
+        if EXTREMO_DA_BASE.search(texto):
+            return {"ato": "proximidade"}
+        return None if CLAUSULA.search(texto) else {"ato": "referencia_proxima"}  # com condição: a gramática
     if tipo in ("concept", "technical", "reformulate"):
         termos = [assunto] if assunto in TERMOS_DO_INTERPRETE else []
         if tipo == "technical":

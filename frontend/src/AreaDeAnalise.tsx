@@ -487,8 +487,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // O pedido da conversa também é um passo do Desfazer (24/10/2026): Desfazer devolve o que estava antes dele.
     registrar("Aplicar o pedido da conversa");
-    // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise.
-    if (pedido.pedido.funcao !== "comparar") resultado.definicao.comparar = comparacaoQueContinua(def, resultado.definicao, grupoDe);
+    // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise (com a Escolha dos
+    // territórios pedida na conversa, 28/10/2026, a base é a da consulta, e a comparação de antes sai).
+    if (pedido.pedido.funcao !== "comparar" && !(pedido.pedido.consulta && resultado.definicao.consulta))
+      resultado.definicao.comparar = comparacaoQueContinua(def, resultado.definicao, grupoDe);
     setDef(resultado.definicao);
     if (resultado.selecao) setSelecionados(resultado.selecao);
     if (resultado.abrir) setPainel(resultado.abrir);

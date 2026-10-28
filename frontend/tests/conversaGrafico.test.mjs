@@ -352,3 +352,15 @@ test('as ações de tela da explicação abrem "Entenda esta análise" com os te
   assert.equal(semMapa.painel_motivo_sem_mapa, 'Os estados não têm um ponto único.');
   assert.equal(C.opcoesDaConversa({...CONTEXTO, mapaDisponivel: true, motivoSemMapa: null}, '2026-10-26').painel_motivo_sem_mapa, undefined);
 });
+
+test('proximidade pela conversa (28/10/2026): o campo consulta chega à área como veio, e a consulta em exibição vai em painel_consulta', () => {
+  const consulta = {base: {partir_de: {tipo: 'selecao_previa', regioes: [], ufs: []}, filtros: [], escolha: {modo: 'marcados', municipios: ['code:171888']}},
+    referencia: {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [{indicador: 'densidade', operador: '>=', valor: 1.5}],
+      escolha: {modo: 'todos', municipios: []}}, distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}};
+  assert.deepEqual(C.pedidoDoPainel({familia: 'espacial', nivel: 'municipios', consulta}),
+    {familia: 'espacial', nivel: 'municipios', consulta});
+  assert.equal(C.pedidoDoPainel({consulta: 'texto'}), null);
+  const opcoes = C.opcoesDaConversa({...CONTEXTO, familia: 'espacial', consulta}, '2026-10-28');
+  assert.deepEqual(opcoes.painel_consulta, consulta);
+  assert.equal('painel_consulta' in C.opcoesDaConversa(CONTEXTO, '2026-10-28'), false);
+});

@@ -243,9 +243,20 @@ def _fatos_da_unidade(c: Composicao, indice: int, registro: str, com_nome: bool 
             c.text("; é a referência")
         elif isinstance(item.get("distancia_km"), (int, float)):
             c.text("; distância geográfica direta até a referência: ").valor(indice, "distancia_km")
-            proxima = item.get("referencia_mais_proxima") or {}
+            # Com a Escolha dos territórios, a referência mais próxima de cada item vem em referencia_do_item (28/10/2026).
+            campo = "referencia_mais_proxima" if item.get("referencia_mais_proxima") else "referencia_do_item"
+            proxima = item.get(campo) or {}
             if proxima.get("rotulo") and registro != "simples":
-                c.text(" (").label("itens", indice, "referencia_mais_proxima", "rotulo").text(")")
+                empate = proxima.get("empate") or []
+                c.text(" (")
+                for k in range(len(empate)):
+                    c.text("" if not k else " e " if k == len(empate) - 1 else ", ").label("itens", indice, campo, "empate",
+                                                                                           k, "rotulo")
+                if empate:
+                    c.text(", empatadas")
+                else:
+                    c.label("itens", indice, campo, "rotulo")
+                c.text(")")
     tendencia = item.get("tendencia")
     if body.get("tendencia") is not None and isinstance(tendencia, dict):
         if tendencia.get("avaliavel"):
@@ -595,6 +606,93 @@ def _conceito_do_catalogo(body: dict | None, termos: list[str], registro: str) -
     if "distancia" in termos or "referencia" in termos:
         c.text("\n\n").documento("DOC:TPL-11", forma="mensagem", evidencia="DISTANCIA_VERIFICADA")
     return verificar(c.resultado(), alvo)
+
+
+def referencia_proxima(body: dict | None, foco: list[int] | None = None) -> dict | None:
+    """"Qual é o mais próximo?" na Análise Espacial com a Escolha dos territórios (28/10/2026): para cada unidade da base em
+    foco (as citadas; sem citação, todas, quando são até 5), a referência mais próxima que o motor achou
+    (`referencia_do_item`, com os empates), a distância em linha reta e a densidade da referência (bloco `referencia`), ou
+    o motivo do não avaliável; com mais de 5 na base e nenhuma citada, a de menor distância (ordem do motor). Sem a consulta
+    no resultado, None: a pergunta segue como antes (a comparação das distâncias)."""
+    referencia = (body or {}).get("referencia") or {}
+    if not body or referencia.get("tipo") != "consulta":
+        return None
+    c = Composicao(body)
+    singular, plural, feminino = unidades(body)
+    o, os_ = ("a", "as") if feminino else ("o", "os")
+    base = indices_das_unidades(body)
+    if not base:
+        c.text("Nenhum" + ("a " if feminino else " ") + singular + " da base atende à Escolha dos territórios ")
+        _periodo_do_resultado(c).text(". Confira a base na janela Escolha dos territórios, na Análise Espacial.")
+        return verificar(c.resultado(), body)
+    alvo = [indice for indice in foco or [] if indice in base] or (base if len(base) <= 5 else [])
+    membros = {membro.get("id"): j for j, membro in enumerate(referencia.get("membros") or [])}
+
+    def leitura(indice, com_nome):
+        """"Y, a 52 km em linha reta (densidade de 2,17 por 1.000 habitantes)", o empate ou o motivo."""
+        item = body["itens"][indice]
+        proxima = item.get("referencia_do_item") or {}
+        if com_nome:
+            c.label("itens", indice, "rotulo").text(": ")
+        if not (proxima.get("rotulo") and isinstance(item.get("distancia_km"), (int, float))):
+            motivo = next((k for k, texto in enumerate(item.get("motivos") or [])
+                           if str(texto).startswith(("Distância não avaliável", "Sem referência"))), None)
+            c.text("sem distância avaliável")
+            if motivo is not None:
+                c.text(" (").label("itens", indice, "motivos", motivo, kind="VALOR").text(")")
+            return
+        empate = proxima.get("empate") or []
+        if empate:
+            c.text("há empate entre ")
+            for k in range(len(empate)):
+                c.text("" if not k else " e " if k == len(empate) - 1 else ", ")
+                c.label("itens", indice, "referencia_do_item", "empate", k, "rotulo")
+            c.text(", " + ("ambas" if feminino and len(empate) == 2 else "ambos" if len(empate) == 2 else
+                           "todas" if feminino else "todos") + " a ")
+            c.number("itens", indice, "distancia_km").text(" km em linha reta")
+            return
+        c.label("itens", indice, "referencia_do_item", "rotulo").text(", a ")
+        c.number("itens", indice, "distancia_km").text(" km em linha reta")
+        j = membros.get(proxima.get("id"))
+        if j is not None and isinstance((referencia["membros"][j] or {}).get("densidade"), (int, float)):
+            c.text(" (densidade de ").number("referencia", "membros", j, "densidade").text(" " + DENSITY_UNIT + ")")
+
+    if len(alvo) == 1:
+        indice = alvo[0]
+        if (body["itens"][indice].get("referencia_do_item") or {}).get("rotulo"):
+            c.text(o.upper() + " " + singular + " mais próxim" + o + " de ").label("itens", indice, "rotulo")
+            c.text(" entre " + os_ + " " + plural + " ").label("referencia", "texto").text(", ")
+            _periodo_do_resultado(c).text(", ")
+            c.text("é " if not (body["itens"][indice]["referencia_do_item"].get("empate")) else "")
+            leitura(indice, False)
+        else:
+            c.label("itens", indice, "rotulo").text(", ")
+            _periodo_do_resultado(c).text(": ")
+            leitura(indice, False)
+        c.text(".")
+    elif alvo:
+        c.text("Referência mais próxima de cada " + singular + " da base, ")
+        _periodo_do_resultado(c).text(", entre " + os_ + " " + plural + " ").label("referencia", "texto").text(":")
+        for indice in alvo:
+            c.text("\n• ")
+            leitura(indice, True)
+            c.text(";")
+        c.parts[-1] = {"texto": "."}
+    else:
+        menor = (c.body["conversa"]["ordem"].get("distancia_km") or {}).get("menor") or []
+        c.text("Com ").number("referencia", "contagens", "base", "final").text(" " + plural + " na base, ")
+        if not menor:
+            c.text("nenhum" + ("a" if feminino else "") + " tem distância avaliável ")
+            _periodo_do_resultado(c).text("; os motivos estão em Não avaliáveis, nos Detalhes.")
+            return verificar(c.resultado(), body)
+        c.text(o + " de menor distância até a referência mais próxima ")
+        _periodo_do_resultado(c).text(", entre " + os_ + " " + plural + " ").label("referencia", "texto").text(", é ")
+        for k, indice in enumerate(menor[:3]):
+            c.text("" if not k else " e " if k == len(menor[:3]) - 1 else ", ")
+            leitura(indice, True)
+        c.text(". Para ver " + o + " de outr" + o + " " + singular + ", diga o nome.")
+    c.text(" ").documento("DOC:TPL-11", forma="mensagem", evidencia="DISTANCIA_VERIFICADA")
+    return verificar(c.resultado(), body)
 
 
 def comparar_atributo(body: dict | None, atributo: str, maior: bool = True, rotulos: dict | None = None) -> dict:

@@ -211,6 +211,128 @@ def test_condicoes_combinadas_com_a_referencia_da_distancia():
                                              {"atributo": "populacao", "operador": ">", "valor": 10000}]
 
 
+# ----------------------------------------------------------------------------------- proximidade (28/10/2026)
+def lado(tipo, filtros=(), marcados=None, ufs=(), regioes=()):
+    """Um lado da Escolha dos territórios, na forma de painelModel.ConsultaTerritorios."""
+    return {"partir_de": {"tipo": tipo, "regioes": list(regioes), "ufs": list(ufs)},
+            "filtros": [{"indicador": indicador, "operador": operador, "valor": valor}
+                        for indicador, operador, valor in filtros],
+            "escolha": {"modo": "marcados", "municipios": list(marcados)} if marcados else {"modo": "todos",
+                                                                                        "municipios": []}}
+
+
+def consulta(base, referencia):
+    return {"base": base, "referencia": referencia, "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+
+
+def test_proximidade_com_condicao_vira_a_escolha_dos_territorios_e_nao_as_condicoes():
+    """Pedido do responsável (28/10/2026): "o mais próximo … com densidade de no mínimo 1,5" ia às Condições do gráfico. A
+    condição é da referência (CAP-REF-01, por critério de CAP-SUB-01), e o pedido vira a Escolha dos territórios."""
+    manaus = pedir("qual o município mais próximo de Manaus com densidade acima de 2?")
+    assert manaus["painel"] == painel(familia="espacial", nivel="municipios", consulta=consulta(
+        lado("selecao_previa", marcados=["code:130260"]), lado("selecao_previa", filtros=[("densidade", ">", 2)])))
+    assert manaus["reply"] == ("Abri a Análise Espacial com MANAUS (AM) na base e, na referência, os municípios da seleção "
+                               "(Amazonas) com densidade > 2 por mil habitantes: o eixo X mostra a distância em linha reta (km) "
+                               "até o mais próximo deles, sem contar o próprio município. Assim que o motor calcular, digo qual "
+                               "é o mais próximo e a distância.")
+    # A leitura da referência mais próxima vem depois do cálculo, pela continuação, já com as trocas do recorte.
+    assert manaus["continuar"] == "qual a referência mais próxima?" and "choices" not in manaus
+    # De onde a referência parte, quando a pessoa diz; sem dizer, da seleção (o universo estabelecido na conversa).
+    for frase, partir in (("em todo o país", lado("pais")), ("no mesmo estado", lado("mesma_uf_da_base")),
+                          ("na mesma região", lado("mesma_regiao_da_base")),
+                          ("na Região Sudeste", lado("regioes", regioes=["Sudeste"])), ("no Pará", lado("ufs", ufs=["15"]))):
+        referencia = pedir("o mais próximo de Manaus com densidade acima de 2 " + frase)["painel"]["consulta"]["referencia"]
+        assert referencia["partir_de"] == partir["partir_de"], frase
+        assert referencia["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2}], frase
+    # "pelo menos" é o mínimo (≥), como "no mínimo" (28/10/2026).
+    assert pedir("o mais próximo de Manaus com pelo menos 1,5 médicos por mil habitantes em todo o país")["painel"][
+        "consulta"]["referencia"] == lado("pais", filtros=[("densidade", ">=", 1.5)])
+    # Fora da seleção, a base parte do país, e a referência também.
+    assert pedir("o mais próximo de Belém com densidade acima de 2")["painel"]["consulta"] == consulta(
+        lado("pais", marcados=["code:150140"]), lado("pais", filtros=[("densidade", ">", 2)]))
+
+
+def test_proximidade_para_cada_um_com_as_condicoes_da_base_e_da_referencia():
+    cada = pedir("para cada município, o mais próximo com mais de 50 mil habitantes")
+    assert cada["painel"]["consulta"] == consulta(lado("selecao_previa"),
+                                                  lado("selecao_previa", filtros=[("populacao", ">", 50000)]))
+    assert cada["reply"] == ("Abri a Análise Espacial com cada um dos municípios da seleção (Amazonas) na base e, na "
+                             "referência, os municípios da seleção (Amazonas) com população > 50.000 habitantes: o eixo X "
+                             "mostra a distância em linha reta (km) até o mais próximo deles, sem contar o próprio município.")
+    # Sem continuação (são vários na base): as trocas do recorte vêm em botões, cada uma o pedido completo.
+    assert "continuar" not in cada
+    assert [(escolha["label"], escolha["draft"]) for escolha in cada["choices"]] == [
+        ("Procurar em todo o país", "procure a referência em todo o país"),
+        ("Só no mesmo estado de cada um", "procure a referência no mesmo estado")]
+    # As condições antes de "de cada um" são da base; as depois, da referência.
+    assert pedir("os municípios com densidade abaixo de 1 e o mais próximo de cada um com densidade acima de 2")["painel"][
+        "consulta"] == consulta(lado("selecao_previa", filtros=[("densidade", "<", 1)]),
+                                lado("selecao_previa", filtros=[("densidade", ">", 2)]))
+    assert pedir("o mais próximo de cada município do Pará com densidade acima de 2")["painel"]["consulta"] == consulta(
+        lado("ufs", ufs=["15"]), lado("ufs", ufs=["15"], filtros=[("densidade", ">", 2)]))
+
+
+def test_proximidade_nao_toma_a_ordenacao_nem_escolhe_o_extremo_sem_o_gestor():
+    # "Os 3 mais próximos" continua na ordenação pela distância até a referência citada.
+    assert pedir("os 3 municípios mais próximos de Manaus")["painel"] == painel(
+        familia="espacial", referencia={"membros": ["code:130260"]}, funcao="ordenar",
+        ordenar={"atributo": "distancia_km", "ordem": "asc", "primeiros": 3})
+    # Um número que nenhuma condição levou: a pergunta, sem tirar uma condição em silêncio.
+    duvida = pedir("o mais próximo de Manaus com densidade acima de 2 e uns 3 hospitais")
+    assert "painel" not in duvida and duvida["clarification"].startswith("Não identifiquei a condição da referência")
+    # O extremo ("o de menor densidade") é lido pelo gestor de diálogo nas ordens do motor; a gramática sozinha explica.
+    extremo = pedir("o de menor densidade e o mais próximo dele com densidade acima de 2")
+    assert "painel" not in extremo and extremo["clarification"].startswith(
+        "Para achar o de menor densidade, eu leio as ordens do motor entre todos os municípios do gráfico em exibição")
+    # Com o extremo que o gestor já resolveu (base_marcada), a base é ele.
+    frame, campos, ajustes = brasil()
+    ctx = conversa_grafico.contexto(CONTEXTO)
+    marcada = conversa_grafico.interpretar(
+        "o de menor densidade e o mais próximo dele com densidade de no mínimo 1,5 médicos por mil habitantes", frame,
+        campos, ajustes, ctx, brasil=True, opcoes=conversa_grafico.opcoes_do_interprete(CONTEXTO, ctx),
+        base_marcada=["code:130340"])
+    assert marcada["painel"]["consulta"] == consulta(lado("selecao_previa", marcados=["code:130340"]),
+                                                     lado("selecao_previa", filtros=[("densidade", ">=", 1.5)]))
+    assert marcada["reply"].startswith("Abri a Análise Espacial com PARINTINS (AM) na base e, na referência, os municípios "
+                                       "da seleção (Amazonas) com densidade ≥ 1,5 por mil habitantes")
+
+
+def test_pelo_menos_e_igual_ou_superior_sao_o_minimo_tambem_nas_condicoes():
+    """Outras formas do mínimo e do máximo (28/10/2026), nas Condições e na referência."""
+    assert pedir("municípios com pelo menos 2 médicos por mil habitantes")["painel"]["condicoes"] == [
+        {"atributo": "densidade", "operador": ">=", "valor": 2}]
+    assert pedir("municípios com densidade igual ou superior a 3")["painel"]["condicoes"] == [
+        {"atributo": "densidade", "operador": ">=", "valor": 3}]
+    # O "ou" da própria condição não é o OU entre condições (antes, "maior ou igual a" virava a pergunta do "e").
+    assert pedir("municípios com densidade maior ou igual a 2")["painel"]["condicoes"] == [
+        {"atributo": "densidade", "operador": ">=", "valor": 2}]
+    assert pedir("municípios com população igual ou inferior a 20000 habitantes")["painel"]["condicoes"] == [
+        {"atributo": "populacao", "operador": "<=", "valor": 20000}]
+
+
+def test_troca_do_recorte_da_referencia_na_escolha_em_exibicao():
+    atual = consulta(lado("selecao_previa", marcados=["code:130340"]),
+                     lado("selecao_previa", filtros=[("densidade", ">=", 1.5)]))
+    tela = {"painel_familia": "espacial", "painel_consulta": atual}
+    pais = pedir("e em todo o país?", **tela)
+    assert pais["painel"] == painel(familia="espacial", nivel="municipios", consulta={
+        **atual, "referencia": {**atual["referencia"], "partir_de": {"tipo": "pais", "regioes": [], "ufs": []}}})
+    assert pais["reply"] == ("Agora a referência parte de todo o país; a base e as condições continuam. Assim que o motor "
+                             "calcular, digo qual é o mais próximo e a distância.")
+    assert pais["continuar"] == "qual a referência mais próxima?"
+    for frase, tipo in (("procure a referência no mesmo estado", "mesma_uf_da_base"),
+                        ("e na mesma região?", "mesma_regiao_da_base"), ("só na seleção", "selecao_previa")):
+        assert pedir(frase, **tela)["painel"]["consulta"]["referencia"]["partir_de"]["tipo"] == tipo, frase
+    # Outro pedido continua outro pedido; sem a Escolha dos territórios em exibição, a troca não se aplica.
+    assert pedir("mostre todos os municípios do Brasil", **tela)["painel"]["municipios"] == {"todos": True, "estados": [],
+                                                                                           "ids": []}
+    assert pedir("e no Pará?", **tela)["painel"]["municipios"] == {"todos": False, "estados": ["15"], "ids": []}
+    assert pedir("e em todo o país?") == {"handled": False}
+    # A consulta da tela que não confere vale como ausente (o motor confere de novo).
+    assert conversa_grafico.contexto({**CONTEXTO, **tela, "painel_consulta": {"base": {}}})["consulta"] is None
+    assert conversa_grafico.contexto({**CONTEXTO, "painel_consulta": atual})["consulta"] is None  # só na Análise Espacial
+
+
 def test_comparar_e_juntar_municipios_nomeados():
     body = pedir("compare Manaus e Tefé")
     assert body["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:130420"])
@@ -709,7 +831,10 @@ def test_vista_e_resumo_nunca_chegam_ao_interprete_nem_ao_provedor(monkeypatch):
     monkeypatch.setattr(main, "preflight", pre_exame_registrado)
     monkeypatch.setattr(conversa_grafico, "interpretar", interpretar_registrado)
     frase = "Nos 5 distritos, em 2024, a densidade vai de 4,321 a 9,876 por 1.000 habitantes."
-    opcoes = {**CONTEXTO_PLANILHA, "painel_vista": "mapa", "painel_mapa_disponivel": True, "painel_resumo": frase}
+    # Desde 28/10/2026, também a Escolha dos territórios em exibição (painel_consulta) fica só na conversa local.
+    escolha = consulta(lado("pais", marcados=["name:Quelimane"]), lado("pais", filtros=[("densidade", ">", 2)]))
+    opcoes = {**CONTEXTO_PLANILHA, "painel_vista": "mapa", "painel_mapa_disponivel": True, "painel_resumo": frase,
+              "painel_consulta": escolha}
     caminho_local = planilha("mostre a quantidade no mapa", opcoes)
     assert caminho_local["painel"] == painel(indicador="quantidade")
     assert caminho_local["reply"] == ("Troquei o indicador para a quantidade. Sem latitude e longitude na planilha, não há "
@@ -721,10 +846,12 @@ def test_vista_e_resumo_nunca_chegam_ao_interprete_nem_ao_provedor(monkeypatch):
     assert resposta.json()["painel"]["funcao"] == "comparar"
     assert enviado and len(recebidas) >= 4, recebidas
     for registro in recebidas:
-        assert not {"painel_vista", "painel_mapa_disponivel", "painel_resumo"} & set(registro), sorted(registro)
+        assert not {"painel_vista", "painel_mapa_disponivel", "painel_resumo", "painel_consulta"} & set(registro), \
+            sorted(registro)
         assert frase not in json.dumps(registro, ensure_ascii=False, default=str)
     conteudo = " ".join(enviado)
-    for proibido in (frase, "4,321", "9,876", "painel_resumo", "painel_vista", "painel_mapa_disponivel"):
+    for proibido in (frase, "4,321", "9,876", "painel_resumo", "painel_vista", "painel_mapa_disponivel", "painel_consulta",
+                     "name:Quelimane"):
         assert proibido not in conteudo, proibido
 
 
