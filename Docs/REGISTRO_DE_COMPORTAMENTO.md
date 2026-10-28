@@ -35,6 +35,42 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-28 · Conversa: a proximidade confere se a Análise Espacial existe, e o valor do extremo leva as casas que o separam do vizinho
+- **Classificação (regra 1), pela leitura, antes de codar:** dois achados da conferência da mudança anterior (`02eacda`); ambos
+  são mudança de comportamento (o texto e o caminho da resposta) e previstos: decorrem do pedido de 28/10/2026, que pede
+  correlacionar a intenção com as funcionalidades disponíveis (escopo), e não contrariam a SPEC (compatibilidade).
+  - **Disponibilidade:** no CI, com o catálogo sintético (sem o referencial geodésico governado), a conversa respondia "Abri a
+    Análise Espacial…", e a tela voltava à Distribuição com o aviso, porque essa base não tem a análise. Prometer uma
+    funcionalidade indisponível contraria o próprio pedido.
+  - **Casas decimais:** no Tocantins, o de menor densidade (SANTA MARIA DO TOCANTINS, 0,3668 por 1.000 habitantes) e o seguinte
+    (ABREULANDIA, 0,3748) apareciam os dois como "0,37": quem lesse poderia achar que houve empate e que um foi escolhido em
+    silêncio. RQ-REP-05 pede preservar a relação entre valores comparados.
+- **Antes:**
+  - o pedido de proximidade abria a Escolha dos territórios mesmo numa base sem a Análise Espacial;
+  - com um nome e o gráfico calculado ("o mais próximo de X com …"), o pedido ia direto à gramática;
+  - "qual é o mais próximo?" numa base sem a análise comparava distâncias que não existem;
+  - o extremo saía sempre com duas casas.
+- **Agora:**
+  - **Disponibilidade:** com o gráfico calculado, todo pedido de proximidade passa pelo gestor de diálogo, que confere a
+    disponibilidade da Análise Espacial informada pelo motor no resultado em exibição (no nível dos municípios). Sem ela, a
+    resposta diz o motivo ("A Análise Espacial não está disponível nesta base: …. Nada mudou no gráfico."), também na leitura
+    da referência mais próxima. Com ela, o caminho é o mesmo: o extremo ou a gramática. O ato `nearest_reference` do
+    intérprete com o provedor, quando a frase traz a condição da referência, segue o mesmo caminho (antes, ia à gramática).
+  - **Casas decimais:** o valor do extremo leva as casas que o separam do seguinte na ordem do motor ("com 0,367 por 1.000
+    habitantes"); sem colisão, continuam duas.
+- **Permanece:** quem é o extremo (as ordens do motor, com os empates), a consulta, a leitura da referência mais próxima e,
+  sem o gráfico calculado, a gramática direto.
+- **Motivo:** o pedido de 28/10/2026; RQ-REP-05; a falha do roteiro de navegador da conversa no CI 417 (o passo pedia a
+  Análise Espacial ao motor numa base que não a tem).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/DIALOGO_GOVERNADO.md` e `Docs/CONVERSACAO_INCREMENTO_FN.md`.
+  - **pytest:** `backend/tests/test_dialogo.py` confere o motivo sem a análise (com o extremo, com um nome e na leitura), o
+    pedido pelo nome pelo gestor e as casas com valores vizinhos que colidiriam em duas casas.
+  - **Navegador:**
+    - `backend/tests/ui_conversa_grafico.py` (passo 7c, catálogo sintético): o motivo, sem pedido ao motor;
+    - `backend/tests/ui_area_de_analise.py`, com a base versionada: o caso do responsável de ponta a ponta (a consulta pedida
+      ao motor, a continuação com a leitura e "Procurar em todo o país").
+
 ### 2026-10-28 · Conversa: o pedido de proximidade vira a Escolha dos territórios, com o extremo do gráfico na base, a leitura da referência mais próxima e mais contexto da tela
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026). Depois de "quero analisar a
   força de trabalho do estado de Tocantins", a frase "quero identificar o município de menor densidade e o mais próximo a ele
@@ -123,8 +159,8 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - **Unidade:** `frontend/tests/areaDeAnalise.test.mjs` e `frontend/tests/conversaGrafico.test.mjs` (a consulta pedida, a
     inválida, sem seleção e o contexto); em `frontend/tests/painel.test.mjs`, o contexto do gráfico passa a esperar a chave
     `consulta` (mudança proposital, deste registro).
-  - **Navegador:** `backend/tests/ui_conversa_grafico.py` (passo 7c: o pedido na tela, a continuação e "Procurar em todo o
-    país").
+  - **Navegador:** `backend/tests/ui_conversa_grafico.py` (passo 7c). Desde a entrada seguinte, o passo confere o motivo no
+    catálogo sintético, e o fluxo completo fica em `backend/tests/ui_area_de_analise.py`, com a base versionada.
 
 ### 2026-10-28 · Tipografia: campos dos ajustes alinhados e a gaveta Condições sem cortar o texto
 - **Classificação (regra 1), pela leitura, antes de codar:** ajuste da mudança anterior (`ee9789d`), achado na conferência visual

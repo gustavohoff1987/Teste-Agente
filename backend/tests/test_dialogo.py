@@ -666,9 +666,12 @@ def test_proximidade_a_partir_do_extremo_e_reconhecida(mensagem):
     assert dialogo.reconhecer(mensagem, {}, False) is None  # sem gráfico calculado, a gramática explica
 
 
-def test_proximidade_com_condicao_e_sem_extremo_segue_para_a_gramatica():
-    # "Qual o mais próximo de Manaus com densidade acima de 2?" não é pergunta sobre o resultado em exibição.
-    assert dialogo.reconhecer("qual o município mais próximo de Manaus com densidade acima de 2?", {}, True) is None
+def test_proximidade_com_condicao_e_sem_extremo_passa_pelo_gestor_so_com_o_grafico_calculado():
+    # "Qual o mais próximo de Manaus com densidade acima de 2?" não é pergunta sobre o resultado em exibição: com o gráfico
+    # calculado, o gestor confere se a Análise Espacial existe e passa à gramática; sem ele, a gramática direto.
+    assert dialogo.reconhecer("qual o município mais próximo de Manaus com densidade acima de 2?", {}, True) == {
+        "ato": "proximidade", "extremo": False}
+    assert dialogo.reconhecer("qual o município mais próximo de Manaus com densidade acima de 2?", {}, False) is None
     # A pergunta pela referência mais próxima, com a Escolha dos territórios em exibição, é a leitura; sem ela, como antes.
     assert dialogo.reconhecer("qual o mais próximo?", {}, True, resultado_consulta=True) == {"ato": "referencia_proxima"}
     assert dialogo.reconhecer("qual a referência mais próxima?", {}, True, resultado_consulta=True) == {
@@ -680,7 +683,7 @@ def test_proximidade_com_condicao_e_sem_extremo_segue_para_a_gramatica():
     assert dialogo.do_interprete({"dialogue": "nearest_reference"}, "e qual é a mais próxima?", {}) == {
         "ato": "referencia_proxima"}
     assert dialogo.do_interprete({"dialogue": "nearest_reference"}, "a mais perto de Manaus com densidade acima de 2",
-                                 {}) is None
+                                 {}) == {"ato": "proximidade", "extremo": False}
 
 
 def test_proximidade_a_partir_do_extremo_abre_a_escolha_e_le_a_referencia_mais_proxima(tela, sem_provedor):
@@ -756,6 +759,62 @@ def test_proximidade_com_empate_no_extremo_e_estado_fora_do_grafico(tela, sem_pr
     assert tela.consulta["referencia"]["partir_de"] == {"tipo": "ufs", "regioes": [], "ufs": ["15"]}
     leitura = tela.continua(refeito)
     assert "é BELEM (PA), a " in leitura.texto
+
+
+def test_proximidade_pelo_nome_com_o_grafico_calculado(tela, sem_provedor):
+    tela.seleciona(estados=["13"])
+    pedido = tela.diga("qual o município mais próximo de Manaus com densidade acima de 11?")
+    assert pedido.aplicado and pedido.corpo["dialogo"]["ato"] == "proximidade"
+    assert tela.consulta["base"]["escolha"] == {"modo": "marcados", "municipios": [MANAUS]}
+    assert tela.consulta["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 11}]
+    leitura = tela.continua(pedido)
+    assert leitura.texto.startswith("O município mais próximo de MANAUS (AM) entre os municípios da seleção prévia com "
+                                    "densidade > 11 por 1.000 habitantes, em junho de 2024, é PARINTINS (AM), a ")
+
+
+def test_proximidade_sem_a_analise_espacial_na_base_diz_o_motivo():
+    """Sem a Análise Espacial na base (aqui, sem o referencial geodésico), a conversa diz o motivo que o motor informou no
+    resultado em exibição, sem prometer a análise nem mudar o gráfico (28/10/2026)."""
+    motivo = ("A distância do painel precisa do referencial geodésico SIRGAS 2000, premissa governada da versão oficial da "
+              "base Brasil; nesta versão da base ele não está estabelecido, e nenhum referencial é presumido.")
+    body = {"nivel": "municipios", "indicador": "densidade", "competencia": "202406", "referencia": None,
+            "disponibilidade": {"espacial": {"disponivel": False, "motivo": motivo, "pendencia": None}},
+            "itens": [{"id": "code:1", "tipo": "municipio", "rotulo": "ALFA (AM)", "densidade": 0.5},
+                      {"id": "code:2", "tipo": "municipio", "rotulo": "BETA (AM)", "densidade": 2.5}]}
+
+    def interpretar(*_args, **_kwargs):
+        raise AssertionError("sem a Análise Espacial, nada vai à gramática")
+    esperado = "A Análise Espacial não está disponível nesta base: " + motivo[:-1] + ". Nada mudou no gráfico."
+    for mensagem, ato in (("o de menor densidade e o mais próximo dele com densidade acima de 1", {"ato": "proximidade"}),
+                          ("o mais próximo de Alfa com densidade acima de 1", {"ato": "proximidade", "extremo": False})):
+        amb = dialogo.Ambiente(mensagem, {}, {}, body, None, {"tipo": "brasil"}, interpretar, None, {})
+        resposta = dialogo._proximidade(ato, amb)
+        assert resposta["reply"] == esperado and "painel" not in resposta, mensagem
+    leitura = dialogo._referencia_proxima({"ato": "referencia_proxima"}, dialogo.Ambiente(
+        "qual o mais próximo?", {}, {}, body, None, {"tipo": "brasil"}, None, None, {}))
+    assert leitura["reply"] == esperado
+
+
+def test_proximidade_mostra_as_casas_que_separam_o_extremo_do_vizinho():
+    """O valor do extremo leva as casas que o separam do seguinte na ordem do motor (RQ-REP-05): na base versionada,
+    0,367 e 0,375 por 1.000 habitantes no Tocantins apareciam os dois como "0,37"."""
+    def unidade(codigo, rotulo, densidade):
+        return {"id": "code:" + codigo, "tipo": "municipio", "rotulo": rotulo, "densidade": densidade, "populacao": 1000,
+                "quantidade": 1}
+    body = {"nivel": "municipios", "indicador": "densidade", "competencia": "202406",
+            "itens": [unidade("1", "ALFA (TO)", 0.36683785766691124), unidade("2", "BETA (TO)", 0.3748125937031484),
+                      unidade("3", "GAMA (TO)", 1.2)]}
+    pedidos = []
+
+    def interpretar(texto, dica=None, dica_indicador=None, base_marcada=None):
+        pedidos.append(base_marcada)
+        return {"handled": True, "painel": {"consulta": {"base": {}, "referencia": {}}}, "reply": "Abri a Análise Espacial."}
+    amb = dialogo.Ambiente("o de menor densidade e o mais próximo dele com densidade acima de 1", {}, {}, body, None,
+                           {"tipo": "brasil"}, interpretar, None, {})
+    resposta = dialogo._proximidade({"ato": "proximidade"}, amb)
+    assert pedidos == [["code:1"]]
+    assert resposta["reply"] == ("Entre os 3 municípios do gráfico, em junho de 2024, o de menor densidade é ALFA (TO), com "
+                                 "0,367 por 1.000 habitantes. Abri a Análise Espacial.")
 
 
 def test_exemplos_das_orientacoes_nao_citam_lugares(tela, sem_provedor):

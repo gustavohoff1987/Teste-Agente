@@ -56,7 +56,7 @@ import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline
+from ui_support import URL, form_field, is_post, offline, open_chat, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 MANAUS, TEFE, PARINTINS = "code:130260", "code:130420", "code:130340"
@@ -1779,6 +1779,68 @@ def main():
             caixa_d["width"] >= 0.85 * caixa_t["width"], ("uma coluna só, com a largura do painel", caixa_d, caixa_e, caixa_t)
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
         page.set_viewport_size({"width": 1440, "height": 900})
+
+        if real:
+            # Proximidade pela conversa (28/10/2026, pedido do responsável), com a base versionada: depois de "quero analisar a
+            # força de trabalho do estado de Tocantins", o pedido do município de menor densidade e do mais próximo dele com
+            # densidade de no mínimo 1,5 abre a Análise Espacial com a Escolha dos territórios (o extremo, pelas ordens do motor,
+            # na base; a condição na referência), nunca as Condições; quando o motor calcula, a tela envia a continuação, e a
+            # conversa lê a referência mais próxima e a distância; "Procurar em todo o país" troca só de onde a referência parte
+            # (a tela envia a consulta em exibição, `painel_consulta`). Tudo pelos canais locais, sem o provedor de IA.
+            # Parte da seleção vazia: Limpar seleção tira os municípios e o conjunto dos passos anteriores.
+            if limpar.is_enabled():
+                aperta(limpar)
+            expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+            aba_analise("distribuicao")
+            tocantins, _ = ok(lambda: send(page, "quero analisar a força de trabalho do estado de Tocantins"),
+                              condicao=lambda o: ((o.get("base") or {}).get("municipios") or {}).get("estados") == ["17"])
+            assert len([item for item in tocantins["itens"] if item["tipo"] == "municipio"]) == 139, len(tocantins["itens"])
+            menor = min((item for item in tocantins["itens"] if item["tipo"] == "municipio" and item["densidade"] is not None),
+                        key=lambda item: item["densidade"])
+            leitura = "qual a referência mais próxima?"
+            pedido = ("quero identificar o município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 "
+                      "médicos por mil habitantes")
+            with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret") and
+                                      form_field(r.request, "message") == leitura, timeout=180000) as continuacao:
+                with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret") and
+                                          form_field(r.request, "message") == pedido, timeout=180000) as conversa:
+                    espacial, enviado = ok(lambda: send(page, pedido), condicao=lambda o: bool(o.get("consulta")))
+            # O comando da conversa: a Análise Espacial com a consulta, sem as Condições (o defeito relatado).
+            resposta = conversa.value.json()
+            assert resposta.get("handled") is True and (resposta.get("dialogo") or {}).get("ato") == "proximidade", resposta
+            assert resposta["painel"]["familia"] == "espacial" and not resposta["painel"].get("condicoes"), resposta["painel"]
+            assert "o de menor densidade é " + menor["rotulo"] in resposta["reply"], resposta["reply"]
+            assert "Abri a Análise Espacial" in resposta["reply"], resposta["reply"]
+            consulta = enviado["consulta"]
+            assert consulta["base"]["escolha"] == {"modo": "marcados", "municipios": [menor["id"]]}, consulta
+            assert consulta["base"]["partir_de"]["tipo"] == "selecao_previa", consulta
+            assert consulta["referencia"]["partir_de"]["tipo"] == "selecao_previa", consulta
+            assert consulta["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">=", "valor": 1.5}], consulta
+            assert not enviado.get("condicoes") and not enviado.get("comparar"), enviado
+            expect(area).to_have_attribute("data-familia", "espacial", timeout=60000)
+            assert [item["id"] for item in espacial["itens"] if item["tipo"] == "municipio"] == [menor["id"]], espacial["itens"]
+            da_base = next(item for item in espacial["itens"] if item["id"] == menor["id"])
+            proxima = da_base.get("referencia_do_item")
+            assert proxima and da_base.get("distancia_km") is not None, da_base
+            assert (options_of(continuacao.value.request).get("painel_consulta") or {}).get("base") == consulta["base"]
+            chat = open_chat(page)
+            ultima = chat.get_by_test_id("latest-reply")
+            expect(ultima).to_contain_text("O município mais próximo de " + menor["rotulo"], timeout=60000)
+            expect(ultima).to_contain_text(proxima["rotulo"])
+            expect(ultima).to_contain_text(" km em linha reta")
+            expect(ultima).to_contain_text("A distância apresentada é geográfica direta.")
+            alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
+            with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret") and
+                                      form_field(r.request, "message") == leitura, timeout=180000):
+                pais, enviado = ok(lambda: alternativas.get_by_role("button", name="Procurar em todo o país").click(),
+                                   condicao=lambda o: ((o.get("consulta") or {}).get("referencia") or {}).get(
+                                       "partir_de", {}).get("tipo") == "pais")
+            assert enviado["consulta"]["base"] == consulta["base"], enviado["consulta"]
+            assert enviado["consulta"]["referencia"]["filtros"] == consulta["referencia"]["filtros"], enviado["consulta"]
+            expect(ultima).to_contain_text("entre os municípios de todo o país", timeout=60000)
+            shot("14-proximidade-pela-conversa")
+            notas.append("Proximidade pela conversa conferida no navegador: o extremo na base, a condição na referência, a "
+                         "leitura da referência mais próxima e a troca do recorte")
 
         assert not llm_calls, llm_calls
         assert not failures, failures

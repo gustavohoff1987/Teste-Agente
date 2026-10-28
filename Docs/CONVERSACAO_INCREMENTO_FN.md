@@ -217,7 +217,9 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   municípios além da base; senão, do país. A resposta diz a base, a referência e de onde ela parte; com até 5 na base, traz
   `continuar` ("qual a referência mais próxima?"), e a leitura vem quando o motor calcula; com mais, as trocas do recorte
   vêm em botões. "Os 3 mais próximos de Manaus" continua na ordenação, e "a mais de 150 km", nas Condições; um número que
-  nenhuma condição levou vira pergunta, e o extremo sem o gráfico calculado é explicado, nunca escolhido.
+  nenhuma condição levou vira pergunta, e o extremo sem o gráfico calculado é explicado, nunca escolhido. Com o gráfico
+  calculado, o pedido passa antes pelo gestor de diálogo, que confere se a Análise Espacial existe nesta base (a
+  disponibilidade do resultado em exibição); sem ela, a resposta diz o motivo, sem mudar o gráfico.
 - **Troca do recorte da referência** (desde 28/10/2026): com a Escolha dos territórios em exibição (`painel_consulta`), "e em
   todo o país?", "procure a referência no mesmo estado", "e na mesma região?" ou "só na seleção" trocam só de onde a
   referência parte; a base, as condições e os marcados continuam. "Mostre todos os municípios do Brasil" e "e no Pará?"

@@ -203,13 +203,18 @@ espacial, e o agente precisa correlacionar a intenção com as funcionalidades d
   estado, uma região, "na seleção") ou, sem dizer, a seleção em análise (o universo já estabelecido na conversa), quando ela
   tem outros municípios além da base; senão, o país;
 - a resposta diz o extremo, com o valor e a competência ("Entre os 139 municípios do gráfico, em junho de 2024, o de menor
-  densidade é …"), e o que abriu; a continuação ("qual a referência mais próxima?") é enviada pela tela quando o motor
+  densidade é …"), e o que abriu; o valor leva as casas que o separam do seguinte na ordem do motor (RQ-REP-05: no
+  Tocantins, 0,367 e 0,375 por 1.000 habitantes, que com duas casas seriam os dois "0,37"); a continuação ("qual a referência mais próxima?") é enviada pela tela quando o motor
   calcula e lê a referência mais próxima, a distância em linha reta e a densidade dela, copiadas da resposta
   (`explicacao.referencia_proxima`, verificada), com os botões "Procurar em todo o país" e "Só no mesmo estado de cada um";
 - com um estado citado que não está no gráfico ("o de menor densidade do Pará e o mais próximo dele…"), a resposta mostra os
   municípios dele e traz `continuar` com o mesmo pedido;
 - com uma condição antes do pedido de proximidade ("o de menor densidade entre os com população acima de 10 mil…"), nada é
   escolhido: a gramática explica que o extremo é lido entre todos os do gráfico, sem outra condição;
+- com o gráfico calculado, todo pedido de proximidade (com o extremo ou com um nome, "o mais próximo de X com …") passa pelo
+  gestor, que confere a disponibilidade da Análise Espacial que o motor informou no resultado em exibição: numa base sem ela
+  (sem coordenadas, sem o referencial geodésico, com o referencial por confirmar), a resposta diz o motivo, sem prometer a
+  análise e sem mudar o gráfico, e a leitura "qual é o mais próximo?" também;
 - sem o gráfico calculado, a gramática explica do mesmo jeito; o intérprete com o provedor também pode classificar o ato
   (enumeração `nearest_reference`, com a trajetória F-0321 na biblioteca conversacional), e nomes e valores continuam
   resolvidos no backend.
@@ -321,8 +326,10 @@ PAR-20261026 da SPEC):
   critério de classe diferente regeneram; esgotadas, a reserva com TPL-08; provedor fora do ar, a reserva).
 - `backend/tests/test_dialogo.py` (28/10/2026): a proximidade a partir do extremo — reconhecimento, a Escolha dos
   territórios com o extremo na base e a condição na referência, a leitura da referência mais próxima copiada do motor, as
-  trocas do recorte em botões, o empate no extremo, o estado fora do gráfico com a continuação e a explicação do território
-  com a referência mais próxima.
+  trocas do recorte em botões, o empate no extremo, o estado fora do gráfico com a continuação, a explicação do território
+  com a referência mais próxima, o pedido pelo nome, o motivo numa base sem a Análise Espacial e as casas do extremo.
+- `backend/tests/ui_area_de_analise.py` (base versionada): o caso do responsável no navegador, da consulta pedida ao motor à
+  leitura e a "Procurar em todo o país"; `ui_conversa_grafico.py` (catálogo sintético, sem a Análise Espacial): o motivo.
 - `backend/tests/test_triagem.py`, `test_fidelidade.py` e `test_contexto_conversa.py`: a triagem (os exemplos do diagnóstico
   e formulações adversariais novas), a conferência e as fichas (inclusive os limites de paráfrase) e o cartão do contexto.
 - `backend/tests/test_llm_bridge.py`: sem teto local depois da antiga marca de 20 chamadas, 429 por minuto, de tokens e
