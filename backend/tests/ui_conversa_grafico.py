@@ -716,8 +716,12 @@ def main():
         accept_privacy(page)
         expect(page.get_by_test_id("current-source")).to_have_count(0)
         retidas = {"/api/llm/interpret": [], "/api/inspect": []}
+
+        def retem(lista):
+            # Um parâmetro só: com dois, o Playwright passa o pedido como segundo argumento.
+            return lambda route: lista.append(route)
         for rota, lista in retidas.items():
-            page.route("**" + rota, lambda route, lista=lista: lista.append(route))
+            page.route("**" + rota, retem(lista))
 
         def espera_retida(rota):
             for _ in range(100):
