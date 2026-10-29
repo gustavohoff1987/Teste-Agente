@@ -11,7 +11,7 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def reset_local_limits(monkeypatch):
+def reset_counter_and_environment(monkeypatch):
     monkeypatch.setattr(llm_bridge, "_counter", 0)
     monkeypatch.setattr(llm_bridge, "_counter_day", "")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -123,13 +123,34 @@ def test_unknown_model_is_blocked_before_api(monkeypatch):
     assert "secret" not in response.text
 
 
-def test_local_limit_applies_without_network_call(monkeypatch):
+def test_no_local_limit_only_the_provider_quota(monkeypatch):
+    """Sem limite local (29/10/2026): muito depois das antigas 20 chamadas do dia, o pedido ainda vai ao provedor e é
+    contado; o único limite é a cota do Google, cujo 429 chega com a mensagem de cota."""
     monkeypatch.setenv("GEMINI_API_KEY", "secret")
     from datetime import date
     monkeypatch.setattr(llm_bridge, "_counter_day", date.today().isoformat())
-    monkeypatch.setattr(llm_bridge, "_counter", llm_bridge.MAX_REQUESTS_PER_DAY)
+    monkeypatch.setattr(llm_bridge, "_counter", 500)
+    sent = []
+
+    async def fake_model(messages, _model, _key):
+        sent.append(messages)
+        return {"intent": "ANALITICO", "topic": "none", "operation": "none", "indicator": "none",
+                "period": "", "category": "", "territory": ""}
+    monkeypatch.setattr(llm_bridge, "_call_gemini", fake_model)
+    response = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
+    assert response.status_code == 200, response.text
+    assert len(sent) == 1
+    status = client.get("/api/llm/status").json()
+    assert status["requests_used_today"] == 501
+    assert "local_daily_limit" not in status
+
+    async def quota_exhausted(_messages, _model, _key):
+        raise llm_bridge.LLMError(429, "Cota ou limite de requisições da API Gemini atingido.")
+    monkeypatch.setattr(llm_bridge, "_call_gemini", quota_exhausted)
     response = client.post("/api/llm/interpret", json={"message": "Analisar distribuição"})
     assert response.status_code == 429
+    assert response.json()["detail"] == "Cota ou limite de requisições da API Gemini atingido."
+    assert client.get("/api/llm/status").json()["requests_used_today"] == 502
 
 
 def test_request_body_limits():

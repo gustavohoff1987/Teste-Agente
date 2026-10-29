@@ -76,8 +76,8 @@ ausência de impacto em outros pedidos. Método, resultados, limitações e ferr
 4. Confira o efeito: `python scripts/biblioteca_conversacional.py consultar "mensagem" [--resultado] [--base]`
    mostra os exemplos escolhidos e o bloco que iria ao modelo (com `--base`, mascarado pela base Brasil versionada,
    somente em leitura). `avaliar` mede a pertinência nas trajetórias inéditas. `comparar` interpreta turnos
-   inéditos sem e com os exemplos num modelo real: o Gemini (com `GEMINI_API_KEY`, dentro do limite local de
-   chamadas) ou Qwen, DeepSeek e Llama num servidor compatível com a API de chat da OpenAI (`--provedor
+   inéditos sem e com os exemplos num modelo real: o Gemini (com `GEMINI_API_KEY`, gastando a cota do projeto no
+   Google: 10 turnos = 20 chamadas) ou Qwen, DeepSeek e Llama num servidor compatível com a API de chat da OpenAI (`--provedor
    compativel --url … --modelo …`, por exemplo Ollama ou llama.cpp).
 5. Uma mudança na biblioteca muda o pedido ao provedor: registre-a em `Docs/REGISTRO_DE_COMPORTAMENTO.md` (regra 1
    do `AGENTS.md`). Não copie trajetórias inéditas para a biblioteca: elas medem a generalização.

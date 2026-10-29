@@ -34,7 +34,8 @@ INDICATORS = {"density": "Densidade por 1.000 habitantes",
 # no Python local em 10/10/2026. A seleção não garante faturamento gratuito.
 ALLOWED_MODELS = {"gemini-3.5-flash-lite"}
 MODEL_DEFAULT = "gemini-3.5-flash-lite"
-MAX_REQUESTS_PER_DAY = 20  # guarda local, não é controle de faturamento da Google
+# Sem limite local de chamadas (desde 29/10/2026): o único limite é a cota do projeto da chave no Google. O contador
+# só informa quantas chamadas este processo fez no dia (GET /api/llm/status).
 _lock = threading.Lock()
 _counter_day = ""
 _counter = 0
@@ -308,19 +309,17 @@ def status() -> dict[str, Any]:
     with _lock:
         day = date.today().isoformat()
         used = _counter if day == _counter_day else 0
-    return {"configured": _enabled(), "model": model,
-            "requests_used_today": used, "local_daily_limit": MAX_REQUESTS_PER_DAY,
+    return {"configured": _enabled(), "model": model, "requests_used_today": used,
             "provider_quota_verified": False, "executes_analyses": False}
 
 
-def _reserve_request() -> None:
+def _count_request() -> None:
+    """Conta a chamada ao provedor no dia. Não barra nada: esgotada a cota do Google, o 429 dele vem de _call_gemini."""
     global _counter, _counter_day
     with _lock:
         today = date.today().isoformat()
         if _counter_day != today:
             _counter_day, _counter = today, 0
-        if _counter >= MAX_REQUESTS_PER_DAY:
-            raise LLMError(429, "Limite local diário de solicitações ao LLM atingido.")
         _counter += 1
 
 
@@ -608,7 +607,7 @@ async def interpret(request: ChatRequest, eligibility: dict | None = None,
     if conversation_context is not None:
         provider_messages = ["CONTINUIDADE_VERIFICADA: " + json.dumps(conversation_context, ensure_ascii=False), *provider_messages]
     examples, library_trace = _library_examples(request, protected, conversation_context, with_base=eligibility is not None)
-    _reserve_request()
+    _count_request()
     token = _EXAMPLES.set(examples)
     try:
         raw = await _call_gemini(provider_messages, model, os.environ["GEMINI_API_KEY"].strip())

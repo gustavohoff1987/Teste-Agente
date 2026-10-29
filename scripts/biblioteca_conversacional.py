@@ -12,7 +12,7 @@ Uso, na raiz do repositório, com as dependências do backend instaladas:
 
 Só o comando "comparar" chama um modelo: turnos inéditos sem base, cada um interpretado sem e com os exemplos,
 comparados com a interpretação esperada e com o contrato do intérprete ("aceita"). Com o Gemini, exige
-GEMINI_API_KEY e respeita o limite local de 20 chamadas por dia do processo (10 turnos = 20 chamadas). "consultar" mostra o bloco que iria ao modelo (com --base, mascarado pela base Brasil versionada, somente
+GEMINI_API_KEY e gasta a cota do projeto no Google (10 turnos = 20 chamadas). "consultar" mostra o bloco que iria ao modelo (com --base, mascarado pela base Brasil versionada, somente
 em leitura).
 """
 import argparse
@@ -137,7 +137,6 @@ def comparar(args):
         modelo = llm_bridge._configured_model()
 
         def chamar(mensagens):
-            llm_bridge._reserve_request()  # o limite local continua valendo
             return asyncio.run(llm_bridge._call_gemini(mensagens, modelo, chave))
     else:
         if not args.url or not args.modelo:

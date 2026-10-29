@@ -54,7 +54,6 @@ async def measure_pair_request(examples: str, trace: dict | None, pair: int, pos
     llm_bridge.httpx.AsyncClient = MeasuredClient
     started = perf_counter()
     try:
-        llm_bridge._reserve_request()
         await llm_bridge._call_gemini(
             [llm_bridge._sanitize(MESSAGE)], llm_bridge._configured_model(),
             os.environ["GEMINI_API_KEY"].strip())

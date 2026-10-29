@@ -436,7 +436,7 @@ Se `configured: False` persistir, confirme se o arquivo está precisamente em `b
 
 **Alternativa sem arquivo persistente:** uma variável `GEMINI_API_KEY` definida manualmente no PowerShell ainda funciona e tem prioridade, mas dura somente naquela sessão de terminal. Para produção, cadastre a chave como **segredo do ambiente da hospedagem**, não envie `.env` à plataforma nem configure a chave no React.
 
-O backend utiliza por padrão `gemini-3.5-flash-lite`. Os limites e o faturamento do Google variam e não são verificados pelo protótipo. O contador local de 20 solicitações por processo **não é um controle de custo ou segurança contra abuso**.
+O backend utiliza por padrão `gemini-3.5-flash-lite`. **Não há limite local de chamadas** (desde 29/10/2026; antes, 20 por dia em cada processo, somando todos os usuários): o único limite é a cota do projeto da chave no Google, que o protótipo não verifica e que o Google pode mudar; o valor do seu projeto aparece no painel de limites do Google AI Studio. Com uma chave de projeto sem faturamento, vale a cota gratuita: esgotada, a conversa mostra "Cota ou limite de requisições da API Gemini atingido.", nada é cobrado e o resto do sistema continua. Com faturamento ativo, nada no protótipo limita as chamadas nem o custo, e não há proteção contra abuso. `GET /api/llm/status` informa em `requests_used_today` quantas chamadas ao Gemini este processo fez no dia; as respostas locais (saudações, ajuda, gramática local) não chamam o provedor e não contam.
 
 O timeout técnico do cliente HTTP do Gemini é de **75 segundos** (desde 21/10/2026; antes, 22).
 Esse prazo vale por operação de conexão, leitura, escrita e espera por conexão do HTTPX, não como limite
