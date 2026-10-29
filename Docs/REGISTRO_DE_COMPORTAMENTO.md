@@ -35,32 +35,19 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
-### 2026-10-29 · Gemini sem limite local de chamadas: vale só a cota do Google
-- **Antes:** cada processo do backend aceitava até 20 chamadas por dia ao Gemini (`MAX_REQUESTS_PER_DAY`), somando
-  todos os usuários. A 21ª recebia HTTP 429 "Limite local diário de solicitações ao LLM atingido." sem sair para o
-  Google. O contador zerava na virada do dia do servidor e a cada reinício do processo. `GET /api/llm/status` trazia
+### 2026-10-29 · Reversão de `9cf13f8` (Gemini sem limite local), enviado por engano a este ramo
+- **Antes** (em `9cf13f8`): não havia limite local de chamadas ao Gemini, e `GET /api/llm/status` não trazia
+  `local_daily_limit`.
+- **Agora:** volta o comportamento de `67e64a5`. Cada processo aceita até 20 chamadas por dia ao Gemini, e a 21ª recebe
+  HTTP 429 "Limite local diário de solicitações ao LLM atingido."; `GET /api/llm/status` volta a trazer
   `local_daily_limit: 20`.
-- **Agora:** não há limite local. Toda mensagem que precisa do Gemini vai ao Google, e o único limite é a cota do
-  projeto da chave (na cota gratuita, o valor do painel de limites do Google AI Studio). Esgotada a cota, o Google
-  responde 429 e a conversa mostra "Cota ou limite de requisições da API Gemini atingido.", como já acontecia.
-  `GET /api/llm/status` deixa de trazer `local_daily_limit`; `requests_used_today` continua contando as chamadas do
-  processo no dia, inclusive as recusadas pelo Google.
-- **Permanece:** as respostas locais (saudações, ajuda, privacidade, gramática local) não chamam o provedor e não
-  contam; modelo, timeout de 75 segundos, regenerações, minimização, biblioteca e tratamento dos erros do provedor;
-  o motor e as análises. Nada da base vai ao provedor. A SPEC e o workflow de CI não foram alterados.
-- **Motivo:** pedido explícito do responsável em 29/10/2026, para a publicação do sistema, em que o limite por
-  processo valeria para todos os usuários juntos. Classificação prévia: mudança prevista. Escopo: o pedido;
-  compatibilidade: a SPEC não fixa limite de chamadas ao provedor (CFG-OPR, seção 4.4.24, RQ-DEG-10 e DA-26 fixam só
-  regenerações, novas tentativas e o timeout técnico), e nenhuma divergência aprovada trata dele. A orientação de
-  preservar as 20 chamadas por dia em `Docs/EVOLUCAO_CONVERSACIONAL_20261016.md` valia para aquela avaliação, como o
-  timeout de 22 segundos, substituído em 21/10/2026.
-- **Documentação e testes:** README (seção do Gemini) e `Docs/BIBLIOTECA_CONVERSACIONAL.md`; os scripts
-  `scripts/biblioteca_conversacional.py` e `scripts/diagnosticar_latencia_gemini.py` deixam de aplicar o limite; o
-  servidor de teste `backend/tests/serve_ui_fake_gemini.py` deixa de citá-lo. Em `backend/tests/test_llm_bridge.py`,
-  `test_local_limit_applies_without_network_call` dá lugar a `test_no_local_limit_only_the_provider_quota`: com 500
-  chamadas já feitas no dia, o pedido ainda chega ao provedor e é contado, o status não traz `local_daily_limit`, e a
-  cota esgotada do Google chega como HTTP 429 com a mensagem de cota. Os documentos datados de 16/10 e 21/10 que
-  citam o limite (avaliação e diagnósticos) ficam como registro do que valia naquelas datas.
+- **Permanece:** todo o resto. Código, testes, scripts e documentos ficam iguais aos de `67e64a5`, com exceção desta
+  entrada.
+- **Motivo:** `9cf13f8` foi enviado ao ramo errado. O ramo de desenvolvimento é `feat/desafio-adversarial-conversacional`,
+  onde a mudança pedida já existe desde 26/10/2026 (`dd5743f`). Reversão pedida pelo responsável em 29/10/2026.
+- **Documentação e testes:** as mudanças de `9cf13f8` foram revertidas (README, `Docs/BIBLIOTECA_CONVERSACIONAL.md`,
+  `backend/tests/test_llm_bridge.py`, `backend/tests/serve_ui_fake_gemini.py` e os dois scripts de `scripts/`), e a
+  entrada de `9cf13f8` dá lugar a esta. Os testes voltam aos de `67e64a5`, que cobrem o comportamento restaurado.
 
 ### 2026-10-24 · Página única: correções da revisão da rodada de interface (Desfazer, Voltar, conjuntos, filtro de classe e textos)
 - **Antes** (desde `0874349`):

@@ -1,6 +1,7 @@
 """Servidor local de verificação: build Vite + API reais; só o transporte Gemini é simulado.
 
-Executar na raiz:
+Executar na raiz, um novo processo a cada execução de ui_integration_smoke.py
+(o limite local é de 20 solicitações por processo):
     python backend/tests/serve_ui_fake_gemini.py
 Nenhuma rede externa. Cada payload que seria enviado ao provedor (mensagens e exemplos da biblioteca
 conversacional) é registrado em JSONL (ADT_FAKE_GEMINI_LOG) para conferir a minimização: sem arquivos, colunas,
