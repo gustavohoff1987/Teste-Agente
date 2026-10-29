@@ -2367,10 +2367,15 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
   const condicoes = itens.some(item => item.condicoes), ordem = itens.some(item => item.ordem), rotatividade = itens.some(item => item.rotatividade);
   const tipoTexto = (tipo: PainelItem["tipo"]) => tipo === "conjunto" ? "conjunto" : tipo === "brasil" ? "país" : tipo === "estado"
     ? (c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular : c.rotulos.unidade.singular;
+  // O nome do grupo não repete outro cabeçalho (29/10/2026): com os nomes sugeridos pelo modelo de planilha, unidade e grupo
+  // se chamam "território", e o CSV tinha duas colunas "Território".
+  const fixos = ["Identificador", "Tipo", "Território", "Competência", "Categoria", "População", "Quantidade"].map(sem);
+  const nomeDoGrupo = c.rotulos.grupo ? maiuscula(c.rotulos.grupo.singular) : "";
+  const cabecalhoDoGrupo = fixos.includes(sem(nomeDoGrupo)) ? nomeDoGrupo + " (grupo)" : nomeDoGrupo;
   const colunas: [string, (item: PainelItem) => unknown][] = [
     ["Identificador", item => item.id], ["Tipo", item => tipoTexto(item.tipo)], ["Território", item => item.rotulo],
     ...(brasil ? [["UF", item => item.uf] as [string, (item: PainelItem) => unknown]]
-      : c.rotulos.grupo ? [[maiuscula(c.rotulos.grupo.singular), item => item.grupoTerritorial] as [string, (item: PainelItem) => unknown]] : []),
+      : c.rotulos.grupo ? [[cabecalhoDoGrupo, item => item.grupoTerritorial] as [string, (item: PainelItem) => unknown]] : []),
     ["Competência", () => resposta.competencia], ["Categoria", () => resposta.categoria],
     ["População", item => item.populacao], ["Quantidade", item => item.quantidade], ["Densidade por 1.000 habitantes", item => item.densidade],
     ["Tipo de contagem", item => item.tipo === "conjunto" ? textoDaContagem(item.contagem) : ""],

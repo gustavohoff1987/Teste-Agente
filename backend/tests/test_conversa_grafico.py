@@ -310,6 +310,26 @@ def test_pelo_menos_e_igual_ou_superior_sao_o_minimo_tambem_nas_condicoes():
         {"atributo": "populacao", "operador": "<=", "valor": 20000}]
 
 
+def test_ou_entre_condicoes_vira_a_pergunta_tambem_antes_de_uma_condicao_incompleta():
+    """Correção de 29/10/2026: com o "ou" antes de uma condição sem o indicador ("maior ou igual a 2 ou menor que 1"), o
+    gráfico aplicava só a primeira, em silêncio; na proximidade, o "ou" virava "e"."""
+    for frase in ("municípios com densidade maior que 2 ou menor que 1",
+                  "municípios com densidade maior ou igual a 2 ou menor que 1"):
+        duvida = pedir(frase)
+        assert "painel" not in duvida and "combinam com “e”" in duvida["clarification"], frase
+    for frase in ("o mais próximo de Manaus com densidade acima de 2 ou população acima de 50 mil habitantes",
+                  "o mais próximo de Manaus com densidade maior ou igual a 2 ou menor que 1"):
+        duvida = pedir(frase)
+        assert "painel" not in duvida and duvida["clarification"].startswith(
+            "Na Escolha dos territórios, as condições de cada lado se combinam com “e”"), frase
+    # O "ou" do próprio operador continua uma condição só.
+    assert pedir("o mais próximo de Manaus com densidade maior ou igual a 2")["painel"]["consulta"]["referencia"][
+        "filtros"] == [{"indicador": "densidade", "operador": ">=", "valor": 2}]
+    assert pedir("municípios com densidade igual ou superior a 3 e população acima de 1000 habitantes")["painel"][
+        "condicoes"] == [{"atributo": "densidade", "operador": ">=", "valor": 3},
+                         {"atributo": "populacao", "operador": ">", "valor": 1000}]
+
+
 def test_troca_do_recorte_da_referencia_na_escolha_em_exibicao():
     atual = consulta(lado("selecao_previa", marcados=["code:130340"]),
                      lado("selecao_previa", filtros=[("densidade", ">=", 1.5)]))
@@ -331,6 +351,43 @@ def test_troca_do_recorte_da_referencia_na_escolha_em_exibicao():
     # A consulta da tela que não confere vale como ausente (o motor confere de novo).
     assert conversa_grafico.contexto({**CONTEXTO, **tela, "painel_consulta": {"base": {}}})["consulta"] is None
     assert conversa_grafico.contexto({**CONTEXTO, "painel_consulta": atual})["consulta"] is None  # só na Análise Espacial
+    # Um lugar com a palavra da referência troca o recorte dela; sem a palavra, troca a base, como "e no Pará?".
+    assert pedir("procure a referência na Região Sul", **tela)["painel"]["consulta"]["referencia"]["partir_de"] == {
+        "tipo": "regioes", "regioes": ["Sul"], "ufs": []}
+    assert pedir("procure no Pará", **tela)["painel"]["consulta"]["referencia"]["partir_de"] == {
+        "tipo": "ufs", "regioes": [], "ufs": ["15"]}
+    assert pedir("região Sul", **tela)["painel"]["municipios"] == {"todos": False, "estados": ["41"], "ids": []}
+    assert pedir("os municípios do Nordeste", **tela)["painel"]["municipios"] == {"todos": False, "estados": ["24", "25"],
+                                                                                 "ids": []}
+    # A tela aceita até 12 filtros por lado, como o motor: a troca do recorte mantém todos (antes, só os 8 primeiros).
+    doze = consulta(lado("selecao_previa"), lado("selecao_previa", filtros=[("densidade", ">", k) for k in range(12)]))
+    assert pedir("e em todo o país?", painel_familia="espacial", painel_consulta=doze)["painel"]["consulta"][
+        "referencia"]["filtros"] == doze["referencia"]["filtros"]
+
+
+def test_referencia_pelo_nome_na_escolha_em_exibicao_e_os_pedidos_de_antes():
+    """Correção de 29/10/2026: com a referência escolhida pelo nome em exibição, a proximidade e a troca do recorte liam os
+    nomes ao procurar e não os devolviam, e "use Tefé como referência" só abria a análise espacial; "região Sul" trocava o
+    recorte da referência e a deixava vazia (Manaus fora do Sul)."""
+    pelo_nome = consulta(lado("selecao_previa"), lado("pais", marcados=["code:130260"]))
+    tela = {"painel_familia": "espacial", "painel_consulta": pelo_nome, "painel_referencia": ["code:130260"]}
+    for frase in ("use Tefé como referência", "a referência é Tefé"):
+        tefe = pedir(frase, **tela)
+        assert tefe["painel"] == painel(familia="espacial", referencia={"membros": ["code:130420"]}), frase
+        assert tefe["reply"].startswith("Usei TEFE (AM) como referência"), frase
+    assert pedir("os 3 mais próximos de Manaus", **tela)["painel"] == painel(
+        familia="espacial", referencia={"membros": ["code:130260"]}, funcao="ordenar",
+        ordenar={"atributo": "distancia_km", "ordem": "asc", "primeiros": 3})
+    assert pedir("compare Tefé com o mais próximo", **tela)["clarification"] == (
+        "Identifiquei TEFE (AM). Com qual outro município você quer comparar? Diga um ou dois nomes. Nada mudou no gráfico.")
+    assert pedir("região Sul", **tela)["painel"]["municipios"] == {"todos": False, "estados": ["41"], "ids": []}
+    assert pedir("os municípios da região Norte", **tela)["painel"]["municipios"] == {"todos": False,
+                                                                                     "estados": ["13", "15"], "ids": []}
+    # A referência pelo nome não depende de onde se procura: a pergunta, sem esvaziá-la.
+    assert pedir("procure no Pará", **tela) == {
+        "handled": True, "executed": False, "clarification": "A referência é MANAUS (AM), escolhida pelo nome. Para a "
+        "referência partir do Pará, diga a condição dela, por exemplo, “o mais próximo com densidade acima de 2”. Nada mudou "
+        "no gráfico."}
 
 
 def test_comparar_e_juntar_municipios_nomeados():

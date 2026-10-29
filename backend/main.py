@@ -1503,6 +1503,14 @@ def _pedidas_do_ato(ato: dict, resposta: dict) -> list[str]:
     return list(dict.fromkeys(pedidas))
 
 
+def _consulta_por_criterio(resultado: dict) -> bool:
+    """O resultado em exibição é a Escolha dos territórios com a referência por critério; a escolhida pelo nome ("use Manaus
+    como referência") segue a comparação das distâncias até ela, como antes (correção de 29/10/2026)."""
+    referencia = resultado.get("referencia") or {}
+    escolha = (((referencia.get("consulta") or {}).get("referencia") or {}).get("escolha") or {})
+    return referencia.get("tipo") == "consulta" and escolha.get("modo") != "marcados"
+
+
 async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping, sheet, dataset, scope, dataset_version,
                             x_adt_session, displayed_result_id, ato=None, redacao_permitida=False, turnos=None,
                             rascunho=None, marcadores=None):
@@ -1520,8 +1528,7 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
                                  resultado_tendencia=(resultado.get("tendencia") is not None) if resultado else None,
                                  nomes_no_resultado=[item.get("rotulo", "") for item in (resultado or {}).get("itens") or []
                                                      if item.get("tipo") in ("municipio", "estado")],
-                                 resultado_consulta=((resultado.get("referencia") or {}).get("tipo") == "consulta")
-                                 if resultado else None)
+                                 resultado_consulta=_consulta_por_criterio(resultado) if resultado else None)
     if ato is None:
         return None
     conversacional = ato.get("ato") in CONVERSACIONAIS

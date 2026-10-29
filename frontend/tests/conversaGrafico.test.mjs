@@ -31,10 +31,15 @@ test('comandos aceitam acentos, pontuação e espaços; a escolha da fonte é a 
 });
 
 test('antes dos dados, "sim" escolhe a fonte oferecida pela conversa e "não" fica com a outra (28/10/2026)', () => {
-  for (const sim of ['sim', 'Sim!', 'pode', 'pode ser', 'ok', 'claro', 'sim, por favor', 'pode usar', 'quero', 'Isso.'])
+  for (const sim of ['sim', 'Sim!', 'pode', 'pode ser', 'ok', 'claro', 'sim, por favor', 'pode usar', 'quero', 'Isso.',
+    // Correção de 29/10/2026: o "sim" com complemento, como a pessoa responde.
+    'sim, claro', 'Sim, pode usar os dados do Brasil', 'sim, use os dados do Brasil', 'Sim, quero usar os dados do Brasil',
+    'ok, pode ser'])
     assert.equal(C.respostaAOferta(sim), 'sim', sim);
-  for (const nao of ['não', 'Não, obrigado.', 'agora não', 'prefiro não'])
+  for (const nao of ['não', 'Não, obrigado.', 'agora não', 'prefiro não', 'não, prefiro enviar os meus',
+    'Não, prefiro enviar os meus dados'])
     assert.equal(C.respostaAOferta(nao), 'nao', nao);
+  assert.equal(C.respostaAOferta('obrigado'), null, 'agradecer não é aceitar');
   // O resto segue o caminho de sempre: um pedido novo, uma resposta com mais do que "sim" ou "não", uma pergunta.
   for (const outra of ['quero analisar o Acre', 'sim, mas só o Acre', 'certo, quantos tem?', 'não sei', 'Me conte uma curiosidade'])
     assert.equal(C.respostaAOferta(outra), null, outra);
@@ -308,6 +313,11 @@ test('guia de uma planilha (28/10/2026): os nomes dela, sem prometer um nível a
   assert.equal(C.guiaDaConversa(pronta, contexto, {...comunas, grupo: null}, 0),
     'Peça mudanças no gráfico citando comunas pelo nome: comparar, juntar, usar como referência.');
   assert.doesNotMatch(C.guiaDaConversa(pronta, contexto, comunas, 0), /nível/);
+  // Com os nomes que o modelo de planilha sugere (territorio_analise e territorio_superior_1), unidade e grupo se chamam
+  // "território": sem "os territórios de um território" (29/10/2026).
+  const territorios = {unidade: {singular: 'território', plural: 'territórios'}, grupo: {singular: 'Território', plural: 'Territórios'}};
+  assert.equal(C.guiaDaConversa(pronta, contexto, territorios, 0),
+    'Peça mudanças no gráfico citando territórios pelo nome: comparar, juntar, usar como referência.');
 });
 
 // Memória da conversa (26/10/2026): o que a tela guarda e manda ao gestor de diálogo do backend, no campo `conversa`.
@@ -341,6 +351,15 @@ test('os estados anteriores do gráfico viram pedidos que a conversa reaplica, e
   const tendencia = C.pedidoDoContexto({...CONTEXTO, familia: 'tendencia', janela: ['202106', '202206', '202306', '202406']});
   assert.deepEqual(tendencia.janela, ['202106', '202206', '202306', '202406']);
   assert.equal(tendencia.funcao, undefined);
+  // A Escolha dos territórios em uso volta com o estado (29/10/2026): "desfaz" depois de "e em todo o país?" devolve a
+  // referência de antes; fora da Análise Espacial, nada de consulta.
+  const lado = (tipo, filtros = [], municipios = []) => ({partir_de: {tipo, regioes: [], ufs: []}, filtros,
+    escolha: {modo: municipios.length ? 'marcados' : 'todos', municipios}});
+  const consulta = {base: lado('selecao_previa', [], ['code:130340']),
+    referencia: lado('selecao_previa', [{indicador: 'densidade', operador: '>=', valor: 1.5}]),
+    distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}};
+  assert.deepEqual(C.pedidoDoContexto({...CONTEXTO, familia: 'espacial', consulta}).consulta, consulta);
+  assert.equal(C.pedidoDoContexto({...CONTEXTO, consulta}).consulta, undefined);
   let pilha = [];
   for (let i = 0; i < 12; i += 1) pilha = C.guardarAnterior(pilha, {...CONTEXTO, titulo: 'estado ' + i});
   assert.equal(pilha.length, C.MAX_ANTERIORES);

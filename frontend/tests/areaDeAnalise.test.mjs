@@ -762,6 +762,13 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   const semGrupo = M.montarCsv(daPlanilha, {familia: 'distribuicao', indicador: 'densidade', rotulos: {...COMUNAS, grupo: null},
     brasil: false}).slice(1).split('\r\n');
   assert.ok(semGrupo[0].startsWith('"Identificador";"Tipo";"Território";"Competência"'), semGrupo[0]);
+  // O nome do grupo que repete outro cabeçalho (29/10/2026): com os nomes que o modelo de planilha sugere, unidade e grupo se
+  // chamam "território", e o CSV tinha duas colunas "Território".
+  const territorios = {unidade: {singular: 'território', plural: 'territórios', genero: 'm'},
+    grupo: {singular: 'território', plural: 'territórios', genero: 'm'}};
+  const repetido = M.montarCsv(daPlanilha, {familia: 'distribuicao', indicador: 'densidade', rotulos: territorios, brasil: false})
+    .slice(1).split('\r\n');
+  assert.ok(repetido[0].startsWith('"Identificador";"Tipo";"Território";"Território (grupo)";"Competência"'), repetido[0]);
   assert.deepEqual(M.ligacoesDoMapa(r.itens, ['code:1300607']), [{de: 'code:1300607', para: ['code:1200203']}]);
   // As contagens da janela (POST /api/painel/territorios), nos tipos da tela; nada é calculado aqui.
   const t = A.normalizarTerritorios({competencia: '202406', categoria: 'MEDICINA', selecao_previa: {total: 62, nomes: ['ALVARAES (AM)']},

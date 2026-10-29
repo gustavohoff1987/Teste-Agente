@@ -195,6 +195,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   const pendingPedido = useRef<PedidoDoChat | null>(null);
   // A fonte oferecida pela última resposta antes dos dados (28/10/2026): "sim" a escolhe; qualquer outra mensagem a esquece.
   const sugestao = useRef<"brasil" | "arquivo" | null>(null);
+  // A fonte escolhida agora, para a resposta que chega depois de um clique nos botões da escolha (29/10/2026): o valor da
+  // renderização em que o pedido saiu já não vale.
+  const escolhidaAgora = useRef(fonteEscolhida);
+  escolhidaAgora.current = fonteEscolhida;
   // Continuação pedida pela resposta (26/10/2026), como "assim que o gráfico estiver pronto, comparo …": quando o motor calcula o
   // gráfico novo (outro resultado em exibição), a tela envia o pedido sozinha, sem mostrá-lo como mensagem da pessoa; sem
   // gráfico novo em 8 s, segue com o que está na tela. No máximo duas continuações seguidas; um pedido novo da pessoa a cancela.
@@ -516,13 +520,19 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           // citados como fonte, a escolha deles, como o botão.
           pendingRequest.current = message;
           pendingPedido.current = null;
-          if (validated.fonte_escolhida) onEscolherFonte(validated.fonte_escolhida);
-          else if (!fonteEscolhida) {
-            setLembrete(validated.fonte_sugerida ?? "ambos");
-            sugestao.current = validated.fonte_sugerida ?? null;
-            if (validated.fonte_sugerida) choices = [OPCAO_DA_FONTE[validated.fonte_sugerida]];
+          if (escolhidaAgora.current) {
+            // A fonte escolhida nos botões enquanto a resposta chegava (29/10/2026): a escolha da pessoa vale, sem outra
+            // escolha nem a oferta de novo (um "sim" a ela tomaria o lugar do pedido guardado).
+            texto = "Assim que a base estiver pronta, sigo com o seu pedido.";
+          } else {
+            if (validated.fonte_escolhida) onEscolherFonte(validated.fonte_escolhida);
+            else {
+              setLembrete(validated.fonte_sugerida ?? "ambos");
+              sugestao.current = validated.fonte_sugerida ?? null;
+              if (validated.fonte_sugerida) choices = [OPCAO_DA_FONTE[validated.fonte_sugerida]];
+            }
+            texto = validated.reply;
           }
-          texto = validated.reply;
         } else if (!origem && (pedido || validated.proposal.operation)) {
           // Pedido antes dos dados: fica guardado e segue quando a base estiver pronta.
           pendingRequest.current = message;

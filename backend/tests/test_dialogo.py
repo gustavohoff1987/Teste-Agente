@@ -817,6 +817,83 @@ def test_proximidade_mostra_as_casas_que_separam_o_extremo_do_vizinho():
                                  "0,367 por 1.000 habitantes. Abri a Análise Espacial.")
 
 
+# Correção de 29/10/2026 (revisão dos commits de 28/10): com "o mais próximo" e uma condição, os limites, a explicação, o
+# estado da tela e incluir viravam pedido de proximidade e abriam a Escolha dos territórios; cada um volta à sua resposta.
+@pytest.mark.parametrize("mensagem,ato", [
+    ("o mais próximo com densidade acima de 20 é suficiente?", {"ato": "limite", "tipo": "normativo"}),
+    ("qual a distância de carro até o mais próximo com pelo menos 20 médicos por mil habitantes?",
+     {"ato": "limite", "tipo": "acesso"}),
+    ("de onde vem a distância até o mais próximo com mais de 900 habitantes?", {"ato": "limite", "tipo": "procedencia"}),
+    ("como é calculada a distância até o mais próximo com densidade acima de 5?",
+     {"ato": "explica", "topico": "conceito", "termos": ["densidade", "distancia"], "registro": "objetivo"}),
+    ("por que o mais próximo com densidade acima de 20 não aparece?", {"ato": "estado", "assunto": "ausente"}),
+    ("inclua o mais próximo com densidade acima de 2", {"ato": "inclui", "condicional": True})])
+def test_perguntas_governadas_com_o_mais_proximo_e_uma_condicao_nao_viram_proximidade(mensagem, ato):
+    assert dialogo.reconhecer(mensagem, {}, True, resultado_consulta=True) == ato
+
+
+def test_quantos_mais_proximos_e_a_ordenacao_e_o_para_sem_acento_e_a_preposicao():
+    # "Os 3 mais próximos de Tefé" é a ordenação pela distância até Tefé, não a leitura da referência de cada um.
+    assert dialogo.reconhecer("quais os 3 mais próximos de Tefé?", {}, True, nomes_no_resultado=["TEFE (AM)"],
+                              resultado_consulta=True) is None
+    assert dialogo.reconhecer("qual o mais próximo de Tefé?", {}, True, nomes_no_resultado=["TEFE (AM)"],
+                              resultado_consulta=True) == {"ato": "referencia_proxima"}
+    # Sem acento, "para" é a preposição; o Pará, com o acento ou depois de "do" ou "no".
+    for mensagem, codigo in (("o de menor densidade do Pará", "15"), ("o de menor densidade do Para", "15"),
+                             ("para o município de menor densidade, qual o mais próximo com densidade acima de 5?", None),
+                             ("compare o de maior e o de menor densidade para mim", None)):
+        assert dialogo._estado_citado(mensagem, dialogo.dobra(mensagem)) == codigo, mensagem
+    # A referência escolhida pelo nome não depende de onde se procura: sem as trocas do recorte em botões.
+    itens = [{"id": TEFE, "tipo": "municipio", "grupo_territorial": "13"}]
+    pelo_nome = {"itens": itens, "referencia": {"tipo": "consulta", "consulta": {"referencia": {
+        "partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []},
+        "escolha": {"modo": "marcados", "municipios": [MANAUS]}}}}}
+    assert dialogo._trocas_do_recorte(pelo_nome, True) == []
+    por_criterio = {"itens": itens, "referencia": {"tipo": "consulta", "consulta": {"referencia": {
+        "partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "escolha": {"modo": "todos", "municipios": []}}}}}
+    assert [troca["label"] for troca in dialogo._trocas_do_recorte(por_criterio, True)] == [
+        "Procurar em todo o país", "Só no mesmo estado de cada um"]
+
+
+def test_referencia_pelo_nome_em_exibicao_segue_a_comparacao_das_distancias(tela, sem_provedor):
+    """Correção de 29/10/2026: com a referência escolhida pelo nome (a tela leva "use Manaus como referência" à Escolha dos
+    territórios, painelModel.consultaComReferenciaMarcada), "qual o mais próximo?" lia a referência mais próxima de cada um,
+    que é sempre ela, e oferecia trocas do recorte que a deixariam vazia; volta a ser a comparação das distâncias até ela."""
+    tela.seleciona(estados=["13"])
+    tela.consulta = {"base": {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
+                              "escolha": {"modo": "todos", "municipios": []}},
+                     "referencia": {"partir_de": {"tipo": "pais", "regioes": [], "ufs": []}, "filtros": [],
+                                    "escolha": {"modo": "marcados", "municipios": [MANAUS]}},
+                     "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+    tela.familia = "espacial"
+    tela.calcula()
+    assert tela.resposta["referencia"]["tipo"] == "consulta"
+    distancia = number(next(i for i in tela.resposta["itens"] if i["id"] == PARINTINS)["distancia_km"])
+    proximo = tela.diga("qual o mais próximo?")
+    assert proximo.corpo["dialogo"]["ato"] == "compara" and not proximo.alternativas
+    assert proximo.texto.startswith("A menor distância até a referência em junho de 2024 é a de PARINTINS (AM), com " +
+                                    distancia + " km.")
+    # Quantos é a ordenação pela distância até o nome dito, como antes de 28/10/2026.
+    tres = tela.diga("quais os 2 mais próximos de Tefé?")
+    assert tres.corpo["painel"]["referencia"] == {"membros": [TEFE]}
+    assert tres.corpo["painel"]["ordenar"] == {"atributo": "distancia_km", "ordem": "asc", "primeiros": 2}
+
+
+def test_desfazer_pela_conversa_devolve_a_escolha_dos_territorios_de_antes(tela, sem_provedor):
+    """Correção de 29/10/2026: o estado guardado para desfazer não levava a Escolha dos territórios, e "desfaz" depois de
+    "procure a referência em todo o país" deixava a referência no país."""
+    tela.seleciona(estados=["13"])
+    pedido = tela.diga("o município de menor densidade e o mais próximo dele com densidade de no mínimo 11 médicos por mil "
+                       "habitantes")
+    tela.continua(pedido)
+    assert tela.diga("procure a referência em todo o país").aplicado
+    assert tela.consulta["referencia"]["partir_de"]["tipo"] == "pais"
+    volta = tela.diga("desfaz")
+    assert volta.aplicado and volta.texto.startswith("Desfiz a última mudança")
+    assert tela.consulta["referencia"]["partir_de"]["tipo"] == "selecao_previa"
+    assert tela.consulta["base"]["escolha"]["municipios"] == [TEFE]
+
+
 def test_exemplos_das_orientacoes_nao_citam_lugares(tela, sem_provedor):
     """Os exemplos das orientações mostram o que a função faz, sem nomes de lugar (26/10/2026): um nome fora da análise da
     pessoa confunde."""

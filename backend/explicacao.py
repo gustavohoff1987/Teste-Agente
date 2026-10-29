@@ -180,6 +180,14 @@ def _nomes(body: dict | None, rotulos: dict | None = None) -> tuple[str, str, bo
     return unidade["singular"], unidade["plural"], _feminino(unidade)
 
 
+def _nomes_da_unidade(body: dict | None, rotulos: dict | None = None) -> tuple[str, str, bool]:
+    """Os nomes da unidade territorial (nunca os do grupo) para os exemplos de pedido: no gráfico dos estados, a referência, as
+    condições e a tendência dos exemplos continuam nos municípios, como antes de 28/10/2026 (correção de 29/10/2026)."""
+    unidade = ((body or {}).get("rotulos") or {}).get("unidade") or (rotulos or {}).get("unidade") or \
+        {"singular": "município", "plural": "municípios", "genero": "m"}
+    return unidade["singular"], unidade["plural"], _feminino(unidade)
+
+
 def indices_das_unidades(body: dict) -> list[int]:
     return [i for i, item in enumerate(body.get("itens") or []) if item.get("tipo") in ("municipio", "estado", "brasil")]
 
@@ -318,7 +326,8 @@ def _sem_resultado(rotulos: dict | None = None) -> dict:
     """Ainda sem gráfico: na base do Brasil (ou sem os rótulos da tela), o exemplo de sempre; numa planilha (28/10/2026), com os
     nomes dela ("o nome de um condado ou de comunas, ou “todas as comunas”")."""
     unidade, grupo = (rotulos or {}).get("unidade") or {}, (rotulos or {}).get("grupo") or {}
-    if not unidade.get("plural") or unidade.get("singular") == "município":
+    # Os nomes da base do Brasil são município e estado; uma planilha de municípios por região de saúde tem os seus.
+    if not unidade.get("plural") or (unidade.get("singular") == "município" and grupo.get("singular", "estado") == "estado"):
         exemplo = "o nome de um estado ou de municípios, ou “todos os estados”."
     else:
         exemplo = ("o nome de " + ("uma " if _feminino(grupo) else "um ") + grupo["singular"] + " ou de " if grupo.get("singular")
@@ -517,7 +526,7 @@ def explicar_conceito(body: dict | None, termos: list[str], registro: str = "obj
                 "documentacao": [], "acoes": []}
     c = Composicao(body)
     if body.get("tendencia") is None:
-        _, plural_, feminino_ = unidades(body)
+        _, plural_, feminino_ = _nomes_da_unidade(body)
         c.text("Esse termo é da Análise de Tendência, e o gráfico em exibição não tem a tendência. Peça, por exemplo, "
                "“mostre a tendência " + ("dessas " if feminino_ else "desses ") + plural_ + "”, e eu explico com os valores do "
                "motor.")
@@ -705,9 +714,11 @@ def comparar_atributo(body: dict | None, atributo: str, maior: bool = True, rotu
     nome = NOMES_DOS_ATRIBUTOS[atributo]
     qual = "maior" if maior else "menor"
     if atributo == "distancia_km" and body.get("referencia") is None:
+        # A referência é sempre uma unidade (o município), também no gráfico dos estados.
+        singular_, _, feminino_ = _nomes_da_unidade(body)
         c.text("O gráfico em exibição não tem referência, então não há distância para comparar. Faça a Escolha dos "
-               "territórios na Análise Espacial ou peça, por exemplo, “use como referência " + ("a " if feminino else "o ") +
-               singular + " de maior densidade”.")
+               "territórios na Análise Espacial ou peça, por exemplo, “use como referência " + ("a " if feminino_ else "o ") +
+               singular_ + " de maior densidade”.")
         return verificar(c.resultado(), body)
     if atributo == "variacao" and not body.get("competencia_inicial"):
         c.text("O gráfico em exibição não tem competência inicial, então não há variação calculada. Peça, por exemplo, "
@@ -841,7 +852,7 @@ def limite(body: dict | None, tipo: str, mensagem: str = "", foco: list[int] | N
         else:
             c.text("Esses números não dizem se há profissionais em número suficiente, insuficiente ou excessivo. ")
         c.text("A regra desta versão: “").documento("DOC:CFG-NOR").text("”")
-        _, plural_, feminino_ = _nomes(body, rotulos)
+        _, plural_, feminino_ = _nomes_da_unidade(body, rotulos)
         c.text("\n\nSe você tiver um critério, posso aplicá-lo como condição, sem rótulo de juízo: por exemplo, “mostre " +
                ("as " if feminino_ else "os ") + plural_ + " com densidade menor que 1”.")
     elif tipo == "acesso":

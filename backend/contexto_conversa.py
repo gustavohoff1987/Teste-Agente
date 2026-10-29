@@ -60,9 +60,10 @@ FUNCIONALIDADES = (
     "A conversa muda o gráfico com pedidos (“compare Manaus e Tefé”, “mostre a tendência”, “ver no mapa”), explica o "
     "resultado em exibição e os conceitos, e responde sobre a tela; não calcula nada por conta própria.",
     "Pela conversa, a referência mais próxima vira a Escolha dos territórios: “o de menor densidade e o mais próximo dele com "
-    "densidade de no mínimo 1,5 por mil habitantes” (o extremo pelas ordens do motor na base; a condição na referência), “o "
-    "mais próximo de cada município com mais de 50 mil habitantes”; “e em todo o país?” ou “no mesmo estado” trocam só de "
-    "onde a referência parte. A condição de um pedido de proximidade é da referência, não das Condições do gráfico.",
+    "densidade de no mínimo um valor” (o extremo pelas ordens do motor na base; a condição, com o valor dito pela pessoa, na "
+    "referência), “o mais próximo de cada município com população acima de um valor”; “e em todo o país?” ou “no mesmo "
+    "estado” trocam só de onde a referência parte. A condição de um pedido de proximidade é da referência, não das "
+    "Condições do gráfico.",
 )
 
 

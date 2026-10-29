@@ -21,13 +21,19 @@ export function comandoDeFonte(message: string): "brasil" | "arquivo" | null {
   return null;
 }
 
-/** A resposta à fonte que a conversa ofereceu antes dos dados (28/10/2026): "sim" (e afins) escolhe a fonte oferecida;
- * "não", a outra fica em destaque; o resto segue o caminho de sempre. */
+/** A resposta à fonte que a conversa ofereceu antes dos dados (28/10/2026): "sim" (e afins, como "sim, claro" ou "sim, pode
+ * usar os dados do Brasil") escolhe a fonte oferecida; "não" (também "não, prefiro enviar os meus"), a outra fica em destaque;
+ * o resto segue o caminho de sempre. */
+const PALAVRAS_DO_SIM = new Set(["sim", "ok", "okay", "pode", "claro", "isso", "quero", "vamos", "bora", "certo", "beleza",
+  "perfeito", "aceito", "uhum", "aham", "use", "usa", "usar", "obrigado", "obrigada"]);
 export function respostaAOferta(message: string): "sim" | "nao" | null {
-  const texto = normalizeCommand(message);
-  if (/^(?:sim|ok|okay|pode|pode ser|pode sim|pode usar|claro|claro que sim|isso|quero|vamos|bora|certo|beleza|perfeito|aceito|por favor|uhum|aham|use|usa|usar)(?: (?:sim|pode|por favor|quero|obrigad[oa]|pode usar|use|usar))*$/.test(texto))
-    return "sim";
-  if (/^(?:nao|nao obrigad[oa]|nao quero|agora nao|melhor nao|prefiro nao)$/.test(texto)) return "nao";
+  const texto = normalizeCommand(message).replace(/(?:^| )(?:(?:os|esses|estes) )?dados(?: do brasil)?$|(?:^| )(?:a )?base do brasil$/, "")
+    .replace(/\bclaro que sim\b|\bpode ser\b|\bpode sim\b|\bcom certeza\b|\bpor favor\b/g, "sim").trim();
+  const palavras = texto.split(" ").filter(Boolean);
+  if (palavras.length && palavras.every(palavra => PALAVRAS_DO_SIM.has(palavra)) &&
+      palavras.some(palavra => palavra !== "obrigado" && palavra !== "obrigada")) return "sim";
+  if (/^(?:nao|nao obrigad[oa]|nao quero|agora nao|melhor nao|prefiro nao)$/.test(texto) ||
+      /^nao(?: obrigad[oa])? (?:prefiro|vou|quero) (?:enviar|mandar|usar) (?:os )?meus$/.test(texto)) return "nao";
   return null;
 }
 
@@ -291,7 +297,10 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
   // Numa planilha não há nível acima das unidades no gráfico (28/10/2026: "voltar ao nível de condados" prometia o que a conversa
   // recusa): com grupos, a orientação oferece ver as unidades de um grupo, que a conversa faz ("mostre o condado …").
   if (fonte.tipo !== "brasil") {
-    const grupo = rotulos?.grupo;
+    // Com o mesmo nome para unidade e grupo ("território", os nomes sugeridos pelo modelo), sem "os territórios de um
+    // território" (29/10/2026).
+    const grupo = rotulos?.grupo && rotulos.grupo.singular.trim().toLowerCase() !== rotulos.unidade.singular.trim().toLowerCase()
+      ? rotulos.grupo : null;
     return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
       (grupo && grupos ? " ou mostrar " + (rotulos && feminino(rotulos.unidade) ? "as " : "os ") + unidades + " de " +
         (feminino(grupo) ? "uma " : "um ") + grupo.singular : "") + ".";
@@ -353,6 +362,8 @@ export function pedidoDoContexto(contexto: ContextoDoGrafico): PedidoDoChat {
     competencia: contexto.competencia || null };
   if (contexto.familia === "tendencia" && contexto.janela.length) pedido.janela = [...contexto.janela];
   if (contexto.comparar && contexto.comparar.length >= 2) { pedido.funcao = "comparar"; pedido.selecao = [...contexto.comparar]; }
+  // A Escolha dos territórios em uso (29/10/2026): "não era isso" depois de "e em todo o país?" devolve a consulta de antes.
+  if (contexto.familia === "espacial" && contexto.consulta) pedido.consulta = contexto.consulta;
   return pedido;
 }
 

@@ -112,6 +112,8 @@ EXTREMOS = re.compile(r"\bextremos\b|\bprimeir[oa] e (?:o |a )?ultim[oa]\b")
 PRIMEIROS_N = re.compile(r"\b(?:os|as) (dois|duas|2|tres|3) (?:\w+ ){0,3}?(maior(?:es)?|menor(?:es)?|mais|menos|primeir[oa]s|"
                          r"ultim[oa]s)\b")
 QUANTOS_N = {"dois": 2, "duas": 2, "2": 2, "tres": 3, "3": 3}
+# Quantos ("os 3 mais próximos", "quais os dois"): pedido de ordenação, não a leitura da referência de cada um.
+QUANTOS = re.compile(r"\b(?:\d+|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\b")
 # No plural, sem quantidade ("compare os mais populosos", "compare os municípios de maior densidade"): a conversa pergunta se
 # são os dois ou os três, com as duas alternativas em botão.
 EXTREMOS_NO_PLURAL = re.compile(r"\b(?:os|as) (?:\w+ ){0,2}?(?:maiores|menores|(?:mais|menos) \w+s|(?:de|com) (?:maior|menor))\b")
@@ -420,18 +422,23 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
     from conversa_grafico import CLAUSE as CLAUSULA, EXTREMO_DA_BASE, PROXIMIDADE
     proximidade = PROXIMIDADE.search(texto)
     extremo_da_base = EXTREMO_DA_BASE.search(texto)
+    # Os limites, a explicação, o estado da tela, incluir, tirar e trocar vencem, mesmo com "o mais próximo" e uma condição
+    # ("o mais próximo com densidade acima de 20 é suficiente?"; correção de 29/10/2026).
+    proximidade = proximidade if proximidade and not _pergunta_governada(texto, memoria, interrogativa) else None
     if proximidade and tem_resultado and not compara and extremo_da_base and \
             not any(clausula.start() < proximidade.start() for clausula in CLAUSULA.finditer(texto)):
         return {"ato": "proximidade"}
-    if proximidade and CLAUSULA.search(texto) and not extremo_da_base:
+    if proximidade and tem_resultado and not compara and CLAUSULA.search(texto) and not extremo_da_base:
         # Pedido novo de proximidade com a condição da referência ("o mais próximo de X com …"): com o gráfico calculado, o
-        # gestor confere se a Análise Espacial existe nesta base e passa à gramática; sem ele, a gramática direto.
-        return {"ato": "proximidade", "extremo": False} if tem_resultado and not compara else None
-    # 5d. "Qual é o mais próximo?" com a Escolha dos territórios em exibição: a referência mais próxima de cada um da base,
-    # lida do motor (sem uma condição nova e sem um nome fora do gráfico, que são pedidos novos).
+        # gestor confere se a Análise Espacial existe nesta base e passa à gramática; sem ele, os passos seguintes e a
+        # gramática, como antes.
+        return {"ato": "proximidade", "extremo": False}
+    # 5d. "Qual é o mais próximo?" com a Escolha dos territórios por critério em exibição: a referência mais próxima de cada
+    # um da base, lida do motor (sem uma condição nova, sem um nome fora do gráfico e sem quantos, que são pedidos novos: "os
+    # 3 mais próximos de Tefé" é a ordenação; correção de 29/10/2026).
     if resultado_consulta and REFERENCIA_PROXIMA.search(texto) and not CLAUSULA.search(texto) and \
-            not EXTREMO_DA_BASE.search(texto) and (not re.search(r"[A-Z]", mensagem[1:]) or
-                                                   _cita_territorio(texto, nomes_no_resultado or [])):
+            not EXTREMO_DA_BASE.search(texto) and not QUANTOS.search(texto) and \
+            (not re.search(r"[A-Z]", mensagem[1:]) or _cita_territorio(texto, nomes_no_resultado or [])):
         return {"ato": "referencia_proxima"}
     # 6. Troca, inclusão sem nome, todos.
     if TROCA.search(texto):
@@ -484,6 +491,14 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
         return explicar
     # 10. Perguntas sobre o resultado em exibição.
     return _pergunta_sobre_resultado(texto, memoria, interrogativa)
+
+
+def _pergunta_governada(texto: str, memoria: dict, interrogativa: bool) -> bool:
+    """A mensagem que os passos 6 a 9 respondem (trocar, incluir, tirar, o estado da tela, os limites e a explicação), que
+    não vira pedido de proximidade mesmo com "o mais próximo" e uma condição (correção de 29/10/2026)."""
+    return bool(TROCA.search(texto) or INCLUI.search(texto) or TIRA.search(texto) or CAUSA.search(texto) or
+                _assunto_de_estado(texto) or _verificacao(texto, memoria, interrogativa) or _explicacao(texto, memoria) or
+                (EXPLICA.search(texto) and (_termos(texto) or CLASSIFICACAO.search(texto))))
 
 
 def _como_escrito(mensagem: str, termo: str) -> str:
@@ -1094,11 +1109,13 @@ def _tira(ato: dict, amb: Ambiente) -> dict | None:
 
 
 def _todos(ato: dict, amb: Ambiente) -> dict:
-    plural = (amb.rotulos.get("unidade") or {}).get("plural") or "municípios"
+    unidade = amb.rotulos.get("unidade") or {}
+    plural = unidade.get("plural") or "municípios"
+    todos = "todas as " if unidade.get("plural") and explicacao._feminino(unidade) else "todos os "  # "todas as comunas"
     painel = _painel(municipios={"todos": True, "estados": [], "ids": []}, nivel="municipios")
     comparacao = " A comparação mostra só 2 ou 3 itens; com todos, ela sai do desenho." if \
         _ids_da_comparacao(amb.resultado) else ""
-    return _resposta("Mostrei todos os " + plural + " da base, na mesma análise." + comparacao, painel=painel,
+    return _resposta("Mostrei " + todos + plural + " da base, na mesma análise." + comparacao, painel=painel,
                      memoria={"ato": "todos"})
 
 
@@ -1111,8 +1128,12 @@ def _todos_do_estado(ato: dict, amb: Ambiente) -> dict:
 
 
 def _estado_citado(mensagem: str, texto: str) -> str | None:
-    """O código do estado citado ("do Pará", "de SP"), para a comparação pelos extremos dentro dele."""
+    """O código do estado citado ("do Pará", "de SP"), para a comparação pelos extremos dentro dele. Sem acento, "para" é a
+    preposição: o Pará só com o acento ou depois de "do", "no" ou "estado do" (correção de 29/10/2026)."""
     for nome in sorted(ESTADOS_POR_NOME, key=len, reverse=True):
+        if nome == "para" and not (re.search(r"(?<!\w)pará(?!\w)", mensagem, re.IGNORECASE) or
+                                   re.search(r"\b(?:do|no)\s+para\b", texto)):
+            continue
         if re.search(r"\b" + re.escape(nome) + r"\b", texto):
             return ESTADOS_POR_NOME[nome]
     sigla = re.search(r"\b(?:d[eoa]s?|em|no|na)\s+([A-Z]{2})\b", mensagem)
@@ -1172,8 +1193,13 @@ def _compara_extremos(ato: dict, amb: Ambiente) -> dict:
                              pedido + ".", painel=painel, memoria=memoria,
                              continuar=("qual a diferença entre " if diferenca else "compare ") + pedido)
     if len(unidades) < 2:
+        # O grupo dos nomes da tela (sem coluna de grupo, nenhum); o motor sempre devolve um, genérico ("grupo").
+        grupo = (amb.rotulos.get("grupo") if amb.rotulos.get("unidade") else
+                 (body.get("rotulos") or {}).get("grupo") or {"singular": "estado"}) or {}
+        nome_do_grupo = (" ou diga o nome de " + ("uma " if explicacao._feminino(grupo) else "um ") + grupo["singular"]) \
+            if grupo.get("singular") else ""
         return _resposta("Para comparar " + pedido + ", preciso de pelo menos dois territórios no gráfico. Escolha-os na "
-                         "Seleção de Territórios ou diga o nome de um estado, e eu comparo " + pedido + ".", memoria=memoria)
+                         "Seleção de Territórios" + nome_do_grupo + ", e eu comparo " + pedido + ".", memoria=memoria)
     recorte = {**body, "itens": unidades}
     if quantos:
         indices = conversation_top(recorte, atributo, maiores, quantos)
@@ -1320,6 +1346,8 @@ def _trocas_do_recorte(body: dict | None, brasil: bool) -> list[dict]:
     """As trocas de onde a referência parte, em botões, depois da leitura da referência mais próxima (28/10/2026): cada uma
     é o pedido completo da troca, que a gramática aplica à Escolha dos territórios em exibição."""
     referencia = (body or {}).get("referencia") or {}
+    if (((referencia.get("consulta") or {}).get("referencia") or {}).get("escolha") or {}).get("modo") == "marcados":
+        return []  # a referência escolhida pelo nome não depende de onde se procura (correção de 29/10/2026)
     partir = ((referencia.get("consulta") or {}).get("referencia") or {}).get("partir_de") or {}
     grupo = ((body or {}).get("rotulos") or {}).get("grupo") or {"singular": "estado"}
     feminino = explicacao._feminino(grupo)

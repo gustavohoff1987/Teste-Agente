@@ -708,6 +708,45 @@ def main():
             expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
         shot("06-comeco-sem-base-oferta")
 
+        # 15. A escolha nos botões enquanto a resposta chegava (29/10/2026): com a resposta e o preparo da base retidos, o clique
+        # em "Usar dados do Brasil" vem antes da resposta, que não oferece a fonte de novo (sem o botão nem o "sim", que tomaria
+        # o lugar do pedido guardado); com a base pronta, o pedido guardado segue até o gráfico.
+        end_session(page)
+        expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
+        accept_privacy(page)
+        expect(page.get_by_test_id("current-source")).to_have_count(0)
+        retidas = {"/api/llm/interpret": [], "/api/inspect": []}
+        for rota, lista in retidas.items():
+            page.route("**" + rota, lambda route, lista=lista: lista.append(route))
+
+        def espera_retida(rota):
+            for _ in range(100):
+                if retidas[rota]:
+                    return retidas[rota][0]
+                page.wait_for_timeout(100)
+            raise AssertionError("o pedido a " + rota + " não foi retido")
+        open_chat(page).locator("#assistant-input").fill("quero analisar o Amazonas")
+        chat.get_by_role("button", name="Enviar mensagem", exact=True).click()
+        resposta_retida = espera_retida("/api/llm/interpret")
+        chat.get_by_test_id("chat-fonte-brasil").click()
+        preparo_retido = espera_retida("/api/inspect")
+        with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+            resposta_retida.continue_()
+        page.unroute("**/api/llm/interpret")
+        assert event.value.json().get("fonte_sugerida") == "brasil", event.value.json()
+        expect(historico).to_contain_text("Assim que a base estiver pronta, sigo com o seu pedido.")
+        expect(chat.get_by_role("group", name="Alternativas de esclarecimento")).to_have_count(0)
+        expect(historico).not_to_contain_text("posso usar os dados do Brasil")
+        with page.expect_response(lambda r: is_post(r, "/api/painel") and (
+                options_of(r.request).get("base") or {}).get("municipios", {}).get("estados") == ["13"],
+                timeout=180000) as grafico:
+            preparo_retido.continue_()
+            page.unroute("**/api/inspect")
+        assert grafico.value.status == 200, grafico.value.status
+        expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
+        expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
+
         assert not analyze_calls, "a conversa não aciona as telas clássicas de /api/analyze"
         assert not failures, failures
         browser.close()
@@ -715,7 +754,7 @@ def main():
           "mapa e gráfico, resumo, comparação, gestor de diálogo (pergunta sobre o resultado, troca, desfazer, resposta digitada e "
           "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior, planilha de condados e histórico "
           "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular), oferta dos dados do Brasil antes da "
-          "escolha (\"sim\" e o botão da resposta)" +
+          "escolha (\"sim\" e o botão da resposta; a escolha nos botões enquanto a resposta chegava)" +
           (", redação conferida, reserva de contrato, limite e queda simulados com recuperação, ambiguidade e triagem "
            "(Gemini simulado)." if simulado else ", aviso cordial sem o provedor."))
 

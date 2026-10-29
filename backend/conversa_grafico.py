@@ -361,6 +361,7 @@ def _base_valida(valor):
 TIPOS_DE_PARTIDA = ("pais", "regioes", "ufs", "selecao_previa", "mesma_uf_da_base", "mesma_regiao_da_base")
 INDICADORES_DO_FILTRO = ("densidade", "populacao", "quantidade")
 OPERADORES_DO_FILTRO = ("<", "<=", ">", ">=")
+MAX_FILTROS = 12  # o limite do motor (painel.MAX_FILTROS) e da tela, por lado
 DISTANCIA_DA_CONSULTA = {"medida": "geodesica", "ate": "referencia_mais_proxima"}
 
 
@@ -386,7 +387,7 @@ def _consulta_da_tela(valor):
         marcados = _textos(escolha.get("municipios")) if escolha.get("modo") == "marcados" else []
         lados[lado] = {"partir_de": {"tipo": partir["tipo"], "regioes": _textos(partir.get("regioes"), 50),
                                      "ufs": _textos(partir.get("ufs"), 50)},
-                       "filtros": filtros[:8],
+                       "filtros": filtros[:MAX_FILTROS],
                        "escolha": {"modo": "marcados" if escolha.get("modo") == "marcados" else "todos",
                                    "municipios": marcados}}
     return {**lados, "distancia": dict(DISTANCIA_DA_CONSULTA)}
@@ -492,8 +493,11 @@ CONCEITUAL = re.compile(r"^(?:(?:e|mas|entao|ola|oi|bom\s+dia|boa\s+tarde|boa\s+
                         r"(?:formula|definicao)|explique|explica|me\s+explica|defina|para\s+que\s+serve)\b")
 ESCOLHA_DA_FONTE = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|meus\s+dados|minha\s+planilha|enviar\s+(?:os\s+)?"
                               r"(?:meus|seus)|upload)\b")
-# Desde 28/10/2026: "quero analisar X" é pedido de análise com qualquer objeto, e a pergunta sobre o que o agente faz não é.
-ANALISAR = re.compile(r"\banalis(?:e|ar|a|em|ando)\b")
+# Desde 28/10/2026: "quero analisar X" é pedido de análise com qualquer objeto, e a pergunta sobre o que o agente faz não é. Só
+# o verbo conta: "analise"/"analisa" no começo da mensagem (o imperativo); no meio, "análise" é o substantivo ("obrigado pela
+# análise", "a análise é feita pelo Gemini?"), que sozinho não pede nada (correção de 29/10/2026).
+ANALISAR = re.compile(r"\banalis(?:ar|em|ando)\b|^(?:(?:por\s+favor|ola|oi|bom\s+dia|boa\s+tarde|boa\s+noite)[\s,]+)*"
+                      r"analis[ea]\b")
 CAPACIDADE = re.compile(r"\b(?:voce|vc|o\s+agente|a\s+plataforma|a\s+ferramenta|o\s+sistema)\s+(?:consegue|pode|sabe|faz|"
                         r"analisa|calcula|e\s+capaz)\b|\bo\s+que\s+(?:da|e\s+possivel|posso|consigo)\b|\b(?:da|e\s+possivel)\s+"
                         r"(?:para\s+)?analisar\b|\bcomo\s+(?:eu\s+)?(?:faco|posso|consigo|devo)\s+(?:para\s+)?analisar\b|"
@@ -504,16 +508,35 @@ CAPACIDADE = re.compile(r"\b(?:voce|vc|o\s+agente|a\s+plataforma|a\s+ferramenta|
 # sobre os dados do Brasil, e a conversa os oferece. Nenhum catálogo novo de lugares (CFG-TER): sem a base escolhida, nomes de
 # municípios não são reconhecidos, e o pedido recebe o lembrete de escolher os dados.
 _ESTADOS_PELO_NOME = {normalize(nome).replace("-", " "): codigo for codigo, (_, nome) in STATES.items()}
-_ESTADOS_PELA_SIGLA = frozenset(sigla for sigla, _ in STATES.values())
 _REGIOES_PELO_NOME = {normalize(nome).replace("-", " "): nome for nome in REGIONS.values()}
 # "Pará" só com o acento ou depois de "estado do": sem acento, "para" é a preposição.
 ESTADO_NO_TEXTO = re.compile(r"\b(" + "|".join(re.escape(nome) for nome in sorted(
     (nome for nome in _ESTADOS_PELO_NOME if nome != "para"), key=len, reverse=True)) + r"|estado\s+do\s+para)\b")
 PARA_COM_ACENTO = re.compile(r"(?<!\w)pará(?!\w)", re.IGNORECASE)
-# Norte e Sul, que também são direções e partes de nomes, só com a palavra "região".
-REGIAO_NO_TEXTO = re.compile(r"\b(?:(nordeste|sudeste|centro oeste)|regi(?:ao|oes)\s+(?:do\s+)?(norte|sul))\b")
-SIGLA_NO_TEXTO = re.compile(r"(?<![^\W\d_])([A-Z]{2})(?![^\W\d_])")
-BRASIL_NO_TEXTO = re.compile(r"\b(?:brasil|brasileir[oa]s?)\b")
+# A região de um estado ("região sul do Pará", "nordeste de Minas") é parte do estado, não a região do país.
+_DE_UM_ESTADO = (r"\s+(?:do|da|de|dos|das)\s+(?:" + "|".join(re.escape(nome) for nome in sorted(
+    _ESTADOS_PELO_NOME, key=len, reverse=True)) + r"|minas)\b")
+_NOME_DE_REGIAO = r"(?:norte|sul|nordeste|sudeste|centro oeste)"
+# Norte e Sul, que também são direções e partes de nomes, só com a palavra "região"; "regiões Norte e Sul" cita as duas.
+REGIAO_COM_A_PALAVRA = re.compile(r"\bregi(?:ao|oes)\s+(?:do\s+|da\s+)?(" + _NOME_DE_REGIAO + r"(?:\s*(?:,|e)\s*" +
+                                  _NOME_DE_REGIAO + r")*)\b(?!" + _DE_UM_ESTADO + ")")
+REGIAO_SOZINHA = re.compile(r"\b(nordeste|sudeste|centro oeste)\b(?!" + _DE_UM_ESTADO + ")")
+# O Brasil pelo nome; "brasileiro(a)" é adjetivo ("você é brasileiro?"), e siglas colidem com as da saúde ("MS", "RN", "PA").
+BRASIL_NO_TEXTO = re.compile(r"\bbrasil\b")
+# O que acompanha um lugar num pedido: um verbo de ver ou de analisar, um objeto da análise ou o pedido dos dados; sem isso,
+# só uma menção curta ("e a Bahia?", "agora Pernambuco"). "Moro em São Paulo" não é pedido (correção de 29/10/2026).
+PEDIDO_DE_DADOS = re.compile(r"\b(?:dados|numeros|informacoes|indicadores|situacao|panorama|retrato|diagnostico|cenario)\b")
+DESEJO = re.compile(r"\b(?:quero|queria|gostaria)\b")
+# Palavras de território e de direção só acompanham o lugar ("o estado de Pernambuco", "região sul do Pará"); sozinhas, não
+# fazem do lugar um pedido ("moro no estado de São Paulo").
+TERRITORIAL = re.compile(r"\b(?:municipios?|cidades?|estados?|ufs?|capita(?:l|is)|regi(?:ao|oes)|territorios?)\b")
+_SO_ACOMPANHA = frozenset("e o a os as agora entao que tal no na nos nas em de do da dos das sobre quero queria gostaria por "
+                          "favor ola oi bom dia boa tarde noite tambem so apenas municipio municipios cidade cidades estado "
+                          "estados uf ufs capital capitais regiao regioes territorio territorios norte sul leste oeste "
+                          "nordeste sudeste noroeste sudoeste centro interior litoral".split())
+NEGACAO = re.compile(r"\b(?:nao|sem|nunca|nem)\b")
+# A fonte escolhida pela frase: "com os dados do Brasil", "usando a base do Brasil" (num pedido afirmativo, sem pergunta).
+USO_DA_FONTE = re.compile(r"\b(?:com|usando|use|usar|utilizando|utilize|utilizar|a\s+partir\s+d[oa]s?)\s+(?:os\s+|a\s+)?$")
 DADOS_DO_BRASIL = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|base\s+brasileira)\b")
 DADOS_DA_PESSOA = re.compile(r"\b(?:meus\s+dados|minha\s+planilha|minhas\s+planilhas|meu\s+arquivo|meus\s+arquivos|minha\s+base|"
                              r"enviar\s+(?:os\s+)?(?:meus|seus)|upload)\b")
@@ -524,22 +547,40 @@ OFERTA_DO_ARQUIVO = ("Para analisar os seus dados, escolha “Enviar meus dados�
 BRASIL_ESCOLHIDO = "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido."
 
 
+def _texto_original(mensagem):
+    """A mensagem como a pessoa a escreveu, em NFC: as posições valem para ela e para o texto normalizado."""
+    return unicodedata.normalize("NFC", str(mensagem or "")).strip()
+
+
 def lugares_do_brasil(mensagem):
     """Os estados e as regiões do Brasil citados pelo nome, na ordem da mensagem e sem repetir (("estado", código) ou
-    ("regiao", nome)), e se o pedido cita o Brasil: o próprio nome ou a sigla de um estado, em maiúsculas, numa mensagem que
-    não está toda em maiúsculas. A sigla só diz que o pedido é sobre o Brasil: com a base escolhida, a conversa procura os
-    estados pelo nome."""
-    original = str(mensagem or "").strip()
+    ("regiao", nome)), e se o próprio Brasil é citado pelo nome."""
+    original = _texto_original(mensagem)
     texto = normalize(original).replace("-", " ")
     achados = [(encontrado.start(), ("estado", "15" if encontrado.group(1).startswith("estado") else
                                      _ESTADOS_PELO_NOME[encontrado.group(1)])) for encontrado in ESTADO_NO_TEXTO.finditer(texto)]
     achados += [(encontrado.start(), ("estado", "15")) for encontrado in PARA_COM_ACENTO.finditer(original)]
-    achados += [(encontrado.start(), ("regiao", _REGIOES_PELO_NOME[encontrado.group(1) or encontrado.group(2)]))
-                for encontrado in REGIAO_NO_TEXTO.finditer(texto)]
-    sigla = any(letra.islower() for letra in original) and any(
-        encontrado.group(1) in _ESTADOS_PELA_SIGLA for encontrado in SIGLA_NO_TEXTO.finditer(original))
-    return {"lugares": list(dict.fromkeys(lugar for _, lugar in sorted(achados))),
-            "brasil": bool(BRASIL_NO_TEXTO.search(texto)) or sigla}
+    for encontrado in REGIAO_COM_A_PALAVRA.finditer(texto):
+        achados += [(encontrado.start(1) + nome.start(), ("regiao", _REGIOES_PELO_NOME[nome.group(0)]))
+                    for nome in re.finditer(_NOME_DE_REGIAO, encontrado.group(1))]
+    achados += [(encontrado.start(), ("regiao", _REGIOES_PELO_NOME[encontrado.group(1)]))
+                for encontrado in REGIAO_SOZINHA.finditer(texto)]
+    return {"lugares": list(dict.fromkeys(lugar for _, lugar in sorted(achados))), "brasil": bool(BRASIL_NO_TEXTO.search(texto))}
+
+
+def _pedido_com_lugar(original, texto):
+    """Um lugar do Brasil num pedido: com um verbo de ver ou de analisar, um objeto da análise, o pedido dos dados ou, sem
+    nada disso, numa menção curta ("e a Bahia?")."""
+    achados = lugares_do_brasil(original)
+    if not (achados["lugares"] or achados["brasil"]):
+        return False
+    if VERBO_VISTA.search(DESEJO.sub(" ", texto)) or ACAO_DE_ANALISE.search(texto) or ANALISAR.search(texto) or \
+            OBJETO_DE_ANALISE.search(TERRITORIAL.sub(" ", texto)) or PEDIDO_DE_DADOS.search(texto):
+        return True
+    sem_lugares = BRASIL_NO_TEXTO.sub(" ", ESTADO_NO_TEXTO.sub(" ", normalize(PARA_COM_ACENTO.sub(" ", original))
+                                                                .replace("-", " ")))
+    sem_lugares = REGIAO_SOZINHA.sub(" ", REGIAO_COM_A_PALAVRA.sub(" ", sem_lugares))
+    return all(palavra in _SO_ACOMPANHA for palavra in re.findall(r"[a-z]+", sem_lugares))
 
 
 def _lugar_com_artigo(lugar):
@@ -554,23 +595,24 @@ def _lugar_com_artigo(lugar):
 
 
 def pedido_de_analise(mensagem):
-    """A mensagem pede uma análise (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores;
-    desde 28/10/2026, também qualquer mensagem que cite um lugar do Brasil e "quero analisar X" com qualquer objeto)."""
-    texto = normalize(mensagem)
+    """A mensagem pede uma análise (comparar, ordenar, juntar, os N maiores, ver ou analisar territórios e indicadores).
+    Desde 28/10/2026, também um lugar do Brasil num pedido e "quero analisar X" com qualquer objeto; a pergunta de conceito,
+    a conversa e a pergunta sobre o que o agente faz não são (correção de 29/10/2026)."""
+    original = _texto_original(mensagem)
+    texto = normalize(original)
     if ESCOLHA_DA_FONTE.search(texto):
         return False  # a escolha dos dados é a mesma ação dos botões, na tela
     comando = (COMPARAR.search(texto) or JUNTAR.search(texto) or ORDENAR.search(texto) or TOPO.search(texto) or
                QUAL.search(texto) or PRIMEIROS.search(texto) or TOP.search(texto))
     if comando:
         return True
-    achados = lugares_do_brasil(mensagem)
-    if achados["lugares"] or achados["brasil"]:
-        return True
-    if CONCEITUAL.search(texto) or CAPACIDADE.search(texto):
+    if CONCEITUAL.search(texto):
         return False
-    if ANALISAR.search(texto):
+    if (VERBO_VISTA.search(texto) or ACAO_DE_ANALISE.search(texto)) and OBJETO_DE_ANALISE.search(texto):
+        return True  # a regra de 26/10/2026, antes das novas
+    if _pedido_com_lugar(original, texto):
         return True
-    return bool((VERBO_VISTA.search(texto) or ACAO_DE_ANALISE.search(texto)) and OBJETO_DE_ANALISE.search(texto))
+    return not CAPACIDADE.search(texto) and bool(ANALISAR.search(texto))
 
 
 def pedido_antes_dos_dados(mensagem):
@@ -579,22 +621,35 @@ def pedido_antes_dos_dados(mensagem):
     com os dados do Brasil citados como fonte, a escolha deles (`escolhida`); com os dados da pessoa citados, a oferta do
     envio; com lugares do Brasil, a oferta dos dados do Brasil; sem nada disso, o lembrete de escolher os dados (`texto`
     None, e a rota usa o de 26/10/2026)."""
-    texto = normalize(mensagem)
+    original = _texto_original(mensagem)
+    texto = normalize(original)
     for padrao, fonte in ((DADOS_DO_BRASIL, "brasil"), (DADOS_DA_PESSOA, "arquivo")):
         citado = padrao.search(texto)
         if citado:
-            if not pedido_de_analise(texto[:citado.start()] + " " + texto[citado.end():]):
+            # A fonte negada ("sem os dados do Brasil", "não quero…") ou numa pergunta ("Pernambuco está nos dados do
+            # Brasil?", "meus dados ficam no Brasil?") segue o caminho de antes: nada é escolhido nem oferecido sozinho.
+            if NEGACAO.search(texto) or texto.endswith("?"):
                 return None
-            return {"fonte": fonte, "escolhida": fonte == "brasil",
-                    "texto": BRASIL_ESCOLHIDO if fonte == "brasil" else OFERTA_DO_ARQUIVO}
-    if not pedido_de_analise(mensagem):
+            resto = original[:citado.start()] + " " + original[citado.end():]
+            if not pedido_de_analise(resto):
+                return None
+            if fonte == "arquivo":
+                return {"fonte": "arquivo", "escolhida": False, "texto": OFERTA_DO_ARQUIVO}
+            if USO_DA_FONTE.search(texto[:citado.start()]):
+                return {"fonte": "brasil", "escolhida": True, "texto": BRASIL_ESCOLHIDO}
+            return _oferta_do_brasil(resto)
+    if not pedido_de_analise(original):
         return None
-    achados = lugares_do_brasil(mensagem)
+    achados = lugares_do_brasil(original)
     if achados["lugares"] or achados["brasil"]:
-        quem = ("Para analisar " + _e(_lugar_com_artigo(lugar) for lugar in achados["lugares"])) if achados["lugares"] \
-            else "Para esse pedido"
-        return {"fonte": "brasil", "escolhida": False, "texto": quem + ", " + OFERTA_DO_BRASIL}
+        return _oferta_do_brasil(original)
     return {"fonte": None, "escolhida": False, "texto": None}
+
+
+def _oferta_do_brasil(mensagem):
+    lugares = lugares_do_brasil(mensagem)["lugares"]
+    quem = ("Para analisar " + _e(_lugar_com_artigo(lugar) for lugar in lugares)) if lugares else "Para esse pedido"
+    return {"fonte": "brasil", "escolhida": False, "texto": quem + ", " + OFERTA_DO_BRASIL}
 
 
 def comando_do_grafico(mensagem):
@@ -1438,6 +1493,20 @@ def _clausula(conv, encontrado, inicio_local):
             "fim": alvo.end() if alvo else fim, "alvo": alvo.end() if alvo else None}
 
 
+# O "ou" entre duas condições, e não o das próprias condições ("maior ou igual a", "igual ou superior a"), também antes de uma
+# condição que não se completou ("maior ou igual a 2 ou menor que 1"; correção de 29/10/2026).
+OU_DO_OPERADOR = re.compile(r"\b(?:maior|menor)\s+ou\s+igual\b|\bigual\s+ou\s+(?:superior|inferior|maior|menor)\b")
+OU_OUTRA_CONDICAO = re.compile(r"\bou\s+(?:(?:a|o|com|que|tenham?|sejam?|densidade|populacao|quantidade|distancia|tambem)\s+)"
+                               r"{0,3}(?:maior|menor|acima|abaixo|mais\s+de|menos\s+de|superior|inferior|igual|pelo\s+menos|"
+                               r"no\s+minimo|no\s+maximo|ate|entre|[<>]=?)")
+
+
+def _ou_entre_condicoes(resto, achadas):
+    sem_operadores = OU_DO_OPERADOR.sub(lambda encontrado: " " * len(encontrado.group(0)), resto)
+    inicio, fim = achadas[0][0].start(), achadas[-1][1]["fim"]
+    return bool(re.search(r"\bou\b", sem_operadores[inicio:fim]) or OU_OUTRA_CONDICAO.search(sem_operadores[inicio:]))
+
+
 def _condicoes(conv, dica, dica_indicador):
     """Condições (CAP-SUB-01), combinadas com "e": quem atende a todas, quem não atende e quem não tem dado."""
     pedido = conv.pedido
@@ -1455,12 +1524,7 @@ def _condicoes(conv, dica, dica_indicador):
             return _resposta(_painel(funcao="condicoes"), "Abri Condições: diga a condição, por exemplo, “" +
                              conv.rot.plural + " com menos de 1 médico por mil habitantes”.")
         return None
-    # O "ou" das próprias condições ("maior ou igual a", "igual ou superior a") não é o OU entre duas condições.
-    sem_operadores = pedido.resto
-    for encontrado, _ in achadas:
-        sem_operadores = sem_operadores[:encontrado.start(1)] + " " * (encontrado.end(1) - encontrado.start(1)) + \
-            sem_operadores[encontrado.end(1):]
-    if re.search(r"\bou\b", sem_operadores[achadas[0][0].start():achadas[-1][1]["fim"]]):
+    if _ou_entre_condicoes(pedido.resto, achadas):
         return _pergunta("No gráfico, as condições se combinam com “e”: cada " + conv.rot.singular + " precisa atender a "
                          "todas. Peça só com “e” ou uma condição de cada vez." + NADA_MUDOU)
     for encontrado, clausula in achadas:
@@ -1675,6 +1739,9 @@ def _proximidade(conv, dica, dica_indicador):
     if any(clausula["item"]["operador"] not in OPERADORES_DO_FILTRO for _, clausula in achadas):
         return _pergunta("Na referência, a condição usa “menor que”, “no máximo”, “maior que” ou “no mínimo”. Diga a "
                          "condição com um deles." + NADA_MUDOU)
+    if achadas and _ou_entre_condicoes(pedido.resto, achadas):
+        return _pergunta("Na Escolha dos territórios, as condições de cada lado se combinam com “e”: cada " + rot.singular +
+                         " precisa atender a todas. Peça só com “e” ou uma condição de cada vez." + NADA_MUDOU)
     # Condições antes de "de cada um" são da base ("os municípios com densidade abaixo de 1 e o mais próximo de cada um com
     # densidade acima de 2"); as demais, da referência.
     cada = CADA.search(pedido.resto)
@@ -1798,18 +1865,20 @@ def _recorte_da_referencia(conv, dica, dica_indicador):
     consulta = conv.ctx.get("consulta")
     pedido = conv.pedido
     palavras = re.findall(r"[a-z0-9]+", pedido.resto)
-    # Só a troca do recorte: com palavra da referência ("procure a referência no mesmo estado") ou elíptica e curta ("e em
-    # todo o país?"); "mostre todos os municípios do Brasil" é outro pedido.
-    if not consulta or CLAUSE.search(pedido.resto) or len(palavras) > 10 or conv.todos.search(pedido.resto) or not (
-            re.search(r"\b(?:referencias?|proxim[oa]s?|pert[oa]|procur\w*|busc\w*|pesquis\w*)\b", pedido.resto) or
-            (len(palavras) <= 6 and not VERBO_VISTA.search(pedido.resto))):
+    referencia_dita = re.search(r"\b(?:referencias?|proxim[oa]s?|pert[oa]|procur\w*|busc\w*|pesquis\w*)\b", pedido.resto)
+    # Só a troca do recorte: com palavra da referência ("procure a referência no mesmo estado", "procure no Pará") ou, curta e
+    # sem verbo de ver, com um recorte que só a referência tem ("e em todo o país?", "no mesmo estado", "só na seleção"). Um
+    # lugar sem palavra da referência ("região Sul", "os municípios do Nordeste") troca a base, como antes (correção de
+    # 29/10/2026); "mostre todos os municípios do Brasil" é outro pedido.
+    if not consulta or CLAUSE.search(pedido.resto) or len(palavras) > 10 or conv.todos.search(pedido.resto) or (
+            not referencia_dita and (len(palavras) > 6 or VERBO_VISTA.search(pedido.resto))):
         return None
     recorte = _recorte_dito(conv)
+    if not recorte and not referencia_dita:
+        return None
     regioes = [] if recorte else _regioes_ditas(conv)
     achado = {"ids": [], "grupos": [], "todos": False}
     if not recorte and not regioes:
-        if not re.search(r"\b(?:referencias?|proxim[oa]s?|procur\w*|busc\w*)\b", pedido.resto):
-            return None
         achado = _resolve(conv)
         if "pergunta" in achado:
             return achado["pergunta"]
@@ -1825,6 +1894,14 @@ def _recorte_da_referencia(conv, dica, dica_indicador):
         return sem_recorte
     partir = recorte or ({"tipo": "regioes", "regioes": regioes, "ufs": []} if regioes else
                          {"tipo": "ufs", "regioes": [], "ufs": sorted(chave for chave, _ in achado["grupos"])})
+    escolha = consulta["referencia"].get("escolha") or {}
+    if escolha.get("modo") == "marcados" and escolha.get("municipios"):
+        # A referência escolhida pelo nome não depende de onde se procura: trocar o recorte a deixaria vazia.
+        return _pergunta("A referência é " + _e(conv.cat.rotulo(i) for i in escolha["municipios"]) + ", escolhida pelo "
+                         "nome. Para a referência partir " + _onde_procura(conv, partir, _texto_da_selecao(
+                             conv, conv.base_atual())) + ", diga a condição dela, por exemplo, “" +
+                         ("a mais próxima" if rot.feminino else "o mais próximo") + " com densidade acima de 2”." +
+                         NADA_MUDOU)
     nova = {**consulta, "referencia": {**consulta["referencia"], "partir_de": {"tipo": partir["tipo"],
                                                                                 "regioes": list(partir.get("regioes") or []),
                                                                                 "ufs": list(partir.get("ufs") or [])}}}
@@ -2436,9 +2513,14 @@ def interpretar(mensagem, frame, fields, settings, ctx, *, brasil, opcoes=None, 
     # A proximidade vem antes das Condições: em "o mais próximo com densidade ≥ 1,5", a condição é da referência.
     for comando in (_voltar, _proximidade, _recorte_da_referencia, _condicoes, _ordenar, _referencia,
                     _comparar_ou_juntar, _exportar, _vista):
+        resto = conv.pedido.resto
         resposta = comando(conv, dica, dica_indicador)
         if resposta is not None:
             return _com_vista(conv, resposta, vista)
+        if comando in (_proximidade, _recorte_da_referencia):
+            # Os dois de 28/10/2026 consomem nomes e recortes ao procurar; quando não atendem o pedido, os comandos
+            # seguintes o leem inteiro, como antes deles ("use Tefé como referência"; correção de 29/10/2026).
+            conv.pedido.resto = resto
     if dica is not None:
         return _com_vista(conv, _resposta(painel_da_operacao(dica, dica_indicador, mensagem), "Abri " + {
             "distribuicao": "a distribuição", "espacial": "a análise espacial", "tendencia": "a tendência",

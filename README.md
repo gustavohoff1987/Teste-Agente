@@ -147,8 +147,11 @@ página, mostra o que foi reconhecido e pede só as escolhas que faltam:
 - os nomes da unidade e do grupo, no singular e no plural, sugeridos pelo nome da coluna ("distrito" e
   "distritos", "província" e "províncias"). Eles valem nos textos da página, das exportações e da conversa, com a
   concordância do gênero (comuna é feminino: "Todas que atendem", "cada uma ligada à sua referência", "As demais"): com
-  uma planilha, nenhum texto diz "município", "estado", "UF" ou "Brasil", e o lugar de uma planilha inteira é "Toda a
-  planilha". No CSV, a coluna do grupo leva o nome dele (por exemplo, "Condado") onde a base do Brasil tem "UF". Desde
+  uma planilha, os textos não chamam as unidades e os grupos de "município", "estado" ou "UF", nem a planilha de "Brasil",
+  e o lugar de uma planilha inteira é "Toda a planilha". Ficam, de propósito, a escolha "Usar dados do Brasil", os
+  exemplos do painel "Colunas", as chaves do contrato da API no JSON dos parâmetros e os "três estados" da avaliação das
+  condições, que não são territórios. No CSV, a coluna do grupo leva o nome dele (por exemplo, "Condado") onde a base do
+  Brasil tem "UF"; com o mesmo nome da unidade (o modelo sugere "território" para as duas), "Território (grupo)". Desde
   28/10/2026, o roteiro de navegador `ui_planilha_ficticia.py` confere isso com uma planilha fictícia feita do modelo
   (comunas e condados inventados, sem nenhum nome do Brasil);
 - com latitude e longitude, o referencial em que as coordenadas foram coletadas: SIRGAS 2000 ou WGS 84 (este desde
@@ -390,8 +393,9 @@ A evolução autorizada do diálogo está registrada em [Evolução conversacion
   lembrete de escolher os dados (os do Brasil ou os seus, em CSV ou Excel), com os dois botões da escolha em destaque; quando
   a base fica pronta, ele segue pelo caminho completo ("Com os dados prontos, sigo com o seu pedido."). Desde 28/10/2026,
   um pedido que cita um estado, uma região ou o próprio Brasil recebe na hora a oferta dos dados do Brasil, com o botão na
-  resposta, e "sim" os escolhe; os dados da pessoa citados recebem a oferta do envio; os dados do Brasil citados como fonte
-  são escolhidos, como pelo botão.
+  resposta, e "sim" os escolhe; os dados da pessoa citados recebem a oferta do envio; os dados do Brasil citados como fonte,
+  num pedido afirmativo, são escolhidos, como pelo botão. Perguntas de conceito, sobre o agente e conversa, mesmo com um
+  lugar, seguem como antes (correção de 29/10/2026).
 
 Essas continuações não chamam o provedor de IA. Detalhes em
 [interface conversacional](Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md).

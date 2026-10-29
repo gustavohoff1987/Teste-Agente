@@ -93,7 +93,10 @@ def test_texto_recusado_nao_e_regenerado_depois_do_orcamento(monkeypatch, proibi
 # qualquer objeto, inclusive um município, que sem a base não é reconhecido como lugar do Brasil (CFG-TER).
 @pytest.mark.parametrize("mensagem", ["Quero analisar a densidade", "quais os 5 municípios com maior densidade?",
                                       "compare o de maior e o de menor densidade", "quero analisar Recife",
-                                      "quero analisar"])
+                                      "quero analisar",
+                                      # O pedido educado continua pedido, como em 26/10/2026 (correção de 29/10/2026).
+                                      "Você pode mostrar a densidade dos municípios?", "vc pode calcular a densidade?",
+                                      "Dá para analisar a densidade?", "quero analisar a região do norte de Minas"])
 def test_pedido_de_analise_sem_base_recebe_na_hora_o_lembrete_de_escolher_os_dados(proibido, mensagem):
     inicio = time.perf_counter()
     resposta = client.post("/api/llm/interpret", json={"message": mensagem, "lembrar_base": True})
@@ -113,8 +116,12 @@ def test_pedido_de_analise_sem_base_recebe_na_hora_o_lembrete_de_escolher_os_dad
     ("mostre a tendência em Minas Gerais", "Para analisar Minas Gerais"), ("e a Bahia?", "Para analisar a Bahia"),
     ("olá, quero analisar pernambuco", "Para analisar Pernambuco"),
     ("como está a região Nordeste e o Distrito Federal?", "Para analisar o Nordeste e o Distrito Federal"),
-    ("quero ver SP e RJ", "Para esse pedido"),
-    ("você consegue analisar Pernambuco?", "Para analisar Pernambuco"), ("qual a densidade no Brasil?", "Para esse pedido")])
+    ("você consegue analisar Pernambuco?", "Para analisar Pernambuco"), ("qual a densidade no Brasil?", "Para esse pedido"),
+    ("dados de pernambuco", "Para analisar Pernambuco"), ("agora Pernambuco", "Para analisar Pernambuco"),
+    # A região de um estado é parte dele; "regiões Norte e Sul" cita as duas (correção de 29/10/2026).
+    ("região sul do Pará", "Para analisar o Pará"), ("quero comparar as regiões Norte e Sul", "Para analisar o Norte e o Sul"),
+    # A fonte citada sem a preposição de uso é oferecida, não escolhida.
+    ("quero analisar Pernambuco, dados do Brasil", "Para analisar Pernambuco")])
 def test_pedido_sem_base_com_lugar_do_brasil_recebe_na_hora_a_oferta_dos_dados_do_brasil(proibido, mensagem, quem):
     """Antes da escolha dos dados (28/10/2026): um estado ou uma região do Brasil (os nomes da regra governada da fonte
     municipal) ou o próprio Brasil mostram que o pedido é sobre os dados do Brasil; a resposta os oferece na hora, sem o
@@ -136,6 +143,8 @@ def test_pedido_sem_base_com_a_fonte_citada_escolhe_os_dados_do_brasil_ou_oferec
                                                     "lembrar_base": True}).json()
     assert corpo["aguarda_base"] is True and corpo["fonte_escolhida"] == "brasil" and "fonte_sugerida" not in corpo
     assert corpo["reply"] == "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido."
+    for escolha in ("quero ver o Pará com os dados do Brasil", "mostre o Pará usando a base do Brasil"):
+        assert conversa_grafico.pedido_antes_dos_dados(escolha)["escolhida"] is True, escolha  # o acento do Pará fica
     corpo = client.post("/api/llm/interpret", json={"message": "quero analisar minha planilha de enfermeiros",
                                                     "lembrar_base": True}).json()
     assert corpo["aguarda_base"] is True and corpo["fonte_sugerida"] == "arquivo" and "fonte_escolhida" not in corpo
@@ -150,9 +159,11 @@ def test_lugares_do_brasil_sem_catalogo_novo_e_sem_falsos_positivos():
     lugares = conversa_grafico.lugares_do_brasil
     assert lugares("quero analisar para entender a densidade")["lugares"] == []  # "para", a preposição
     assert lugares("estado do para")["lugares"] == lugares("o Pará")["lugares"] == [("estado", "15")]
-    assert lugares("SE EU QUISER ANALISAR") == {"lugares": [], "brasil": False}  # tudo em maiúsculas: nenhuma sigla
-    # A sigla só diz que o pedido é sobre o Brasil: com a base escolhida, a conversa procura os estados pelo nome.
-    assert lugares("quero ver SP e RJ") == {"lugares": [], "brasil": True}
+    # Siglas não contam (correção de 29/10/2026): colidem com as da saúde ("MS", "RN", "PA"), e a conversa com a base procura
+    # os estados pelo nome; "brasileiro" é adjetivo.
+    assert lugares("SE EU QUISER ANALISAR") == lugares("quero ver SP e RJ") == lugares("Os dados são do MS?") == {
+        "lugares": [], "brasil": False}
+    assert lugares("Você é brasileiro?") == {"lugares": [], "brasil": False}
     assert lugares("o sul do país e o Rio Grande do Sul")["lugares"] == [("estado", "43")]  # "sul" sozinho não é a região
     assert lugares("região sul e Mato Grosso do Sul")["lugares"] == [("regiao", "Sul"), ("estado", "50")]
     # Nenhum catálogo de cidades (CFG-TER): sem a base escolhida, o nome de um município não é lugar do Brasil, e o pedido
@@ -163,6 +174,27 @@ def test_lugares_do_brasil_sem_catalogo_novo_e_sem_falsos_positivos():
     for conversa in ("você consegue analisar planilhas?", "o que você analisa?", "Me conte uma curiosidade",
                      "O que é densidade?", "me mostre como funciona o agente"):
         assert conversa_grafico.pedido_antes_dos_dados(conversa) is None, conversa
+
+
+@pytest.mark.parametrize("mensagem", [
+    # A fonte negada ou numa pergunta: nada é escolhido nem oferecido sozinho.
+    "Não quero analisar Pernambuco com os dados do Brasil", "quero analisar Pernambuco sem os dados do Brasil",
+    "Posso analisar Pernambuco sem usar os dados do Brasil?", "Pernambuco está nos dados do Brasil?",
+    "Os dados do Brasil incluem o Acre?", "Quero saber se a base do Brasil cobre Pernambuco", "Meus dados ficam no Brasil?",
+    # Pergunta de conceito, sobre o agente, sobre a base e conversa com um lugar, o Brasil ou uma sigla.
+    "O que é densidade no Brasil?", "O que é densidade em Pernambuco?", "Explique a tendência na Bahia", "Você é brasileiro?",
+    "A ferramenta é brasileira?", "Quem acessa os dados brasileiros?", "Bom dia, sou enfermeira de Pernambuco",
+    "Moro em São Paulo", "Moro no estado de São Paulo", "Oi! Estou no Rio de Janeiro",
+    "Quais profissões os dados brasileiros têm?", "Os dados são do MS?",
+    "O que é RN?", "quero ver SP e RJ",
+    # O substantivo "análise" sozinho não pede nada.
+    "Obrigado pela análise!", "A análise é feita pelo Gemini?", "Posso exportar a análise em PDF?",
+    "Quero entender a análise espacial", "Me fale sobre a análise espacial", "Que análise você recomenda para começar?",
+    "Qual análise devo fazer primeiro?", "Ele analisa planilhas?"])
+def test_antes_dos_dados_o_que_nao_e_pedido_segue_o_caminho_de_antes(mensagem):
+    """Correção de 29/10/2026 (revisão de b1090df): estas mensagens iam ao catálogo ou ao provedor antes de 28/10/2026 e
+    passaram, por engano, à oferta, à escolha dos dados do Brasil ou ao lembrete; voltam ao caminho de antes."""
+    assert conversa_grafico.pedido_antes_dos_dados(mensagem) is None
 
 
 @pytest.mark.parametrize("mensagem,trecho", [("O que é densidade?", "Fórmula: D(u, p, c)"),

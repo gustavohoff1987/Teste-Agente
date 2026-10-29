@@ -580,7 +580,7 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
 | Comparar | 2 ou 3 itens lado a lado, com maior, menor e diferença do motor (CAP-CMP-01) | `comparar` |
 | Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
-| Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo; Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
+| Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo (desde 29/10/2026, com o nome de outra coluna, como o "território" que o modelo sugere para a unidade e o grupo, "Território (grupo)"); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
 
 A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
 25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
@@ -834,7 +834,9 @@ corrigidos os textos que ainda diziam o que é próprio da base do Brasil ou nã
 - "Entenda esta análise" na Análise Espacial: "a referência mais próxima dela" (antes, "delea") e "a escolha de todas as que
   atendem ou só das marcadas";
 - o lugar de uma planilha inteira nos títulos: "Toda a planilha" (antes, "Planilha");
-- o CSV: a coluna do grupo com o nome dele ("Condado") e o valor da coluna-mãe (antes, "UF", vazia numa planilha);
+- o CSV: a coluna do grupo com o nome dele ("Condado") e o valor da coluna-mãe (antes, "UF", vazia numa planilha); desde
+  29/10/2026, quando o nome do grupo repete outro cabeçalho, como com os nomes que o modelo de planilha sugere (unidade e
+  grupo "território"), a coluna é "Território (grupo)" (antes, o CSV tinha duas colunas "Território");
 - o método: a linha que explica as chaves do contrato da API ("municipios", "estados") nesta planilha.
 
 Continuam como estão, de propósito: os exemplos explicativos do painel "Colunas" ("A unidade de cada linha: município,

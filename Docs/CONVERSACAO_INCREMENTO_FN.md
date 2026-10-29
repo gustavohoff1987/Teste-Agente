@@ -204,7 +204,9 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   150 km, com Manaus como referência); "população acima de 50 mil habitantes"; "quantidade de médicos menor que 2";
   "agora também …" acrescenta às condições em vigor. Desde 28/10/2026, "pelo menos" e "igual ou superior a" (ou "igual ou
   maior que") também são o mínimo (≥), e "igual ou inferior a" (ou "igual ou menor que"), o máximo (≤); o "ou" da própria
-  condição ("maior ou igual a", "igual ou superior a") deixou de virar a pergunta do "e".
+  condição ("maior ou igual a", "igual ou superior a") deixou de virar a pergunta do "e". Desde 29/10/2026, o "ou" antes de
+  uma condição sem o indicador ("densidade maior que 2 ou menor que 1", "maior ou igual a 2 ou menor que 1") também vira a
+  pergunta do "e"; antes, só a primeira condição era aplicada, em silêncio.
 - **Referência mais próxima com condição** (desde 28/10/2026): "qual o município mais próximo de Manaus com densidade acima
   de 2?", "para cada município, o mais próximo com mais de 50 mil habitantes", "os municípios com densidade abaixo de 1 e o
   mais próximo de cada um com densidade acima de 2" e, com o extremo do gráfico, "o de menor densidade e o mais próximo dele
@@ -219,11 +221,22 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   vêm em botões. "Os 3 mais próximos de Manaus" continua na ordenação, e "a mais de 150 km", nas Condições; um número que
   nenhuma condição levou vira pergunta, e o extremo sem o gráfico calculado é explicado, nunca escolhido. Com o gráfico
   calculado, o pedido passa antes pelo gestor de diálogo, que confere se a Análise Espacial existe nesta base (a
-  disponibilidade do resultado em exibição); sem ela, a resposta diz o motivo, sem mudar o gráfico.
+  disponibilidade do resultado em exibição); sem ela, a resposta diz o motivo, sem mudar o gráfico. Correções de 29/10/2026:
+  com "ou" entre as condições da referência, a pergunta do "e" ("Na Escolha dos territórios, as condições de cada lado se
+  combinam com “e”…"; antes, o "ou" virava "e"); e, quando a proximidade ou a troca do recorte não atendem o pedido, os
+  comandos seguintes o leem inteiro, como antes delas: com a Escolha dos territórios em exibição, "use Tefé como referência"
+  e "a referência é Tefé" escolhem Tefé, "os 3 mais próximos de Manaus" ordena e "compare Tefé com o mais próximo" pergunta
+  o outro (antes, os nomes lidos ao procurar se perdiam, e a resposta só abria a análise espacial).
 - **Troca do recorte da referência** (desde 28/10/2026): com a Escolha dos territórios em exibição (`painel_consulta`), "e em
   todo o país?", "procure a referência no mesmo estado", "e na mesma região?" ou "só na seleção" trocam só de onde a
   referência parte; a base, as condições e os marcados continuam. "Mostre todos os municípios do Brasil" e "e no Pará?"
-  continuam pedidos de outros territórios.
+  continuam pedidos de outros territórios. Desde 29/10/2026, um lugar só troca o recorte da referência com a palavra dela
+  ("procure a referência na Região Sul", "procure no Pará"); sem ela, "região Sul" e "os municípios do Nordeste" mostram os
+  municípios da região, como "e no Pará?" (antes, trocavam o recorte da referência). Com a referência escolhida pelo nome
+  ("use Manaus como referência"), trocar de onde ela parte a deixaria vazia: a conversa pergunta a condição ("A referência é
+  MANAUS (AM), escolhida pelo nome. Para a referência partir do Pará, diga a condição dela, por exemplo, “o mais próximo com
+  densidade acima de 2”. Nada mudou no gráfico."). A troca mantém os até 12 filtros de cada lado que a tela e o motor
+  aceitam (antes, só os 8 primeiros).
 - **Comparar e juntar:** "compare Manaus e Tefé", "coloque … lado a lado" (2 ou 3 itens; o município fora do gráfico
   entra nele); "compare o Pará e o Amazonas" (estados, no nível dos estados); "compare esses municípios" (os do
   gráfico); "junte Manaus, Iranduba e Manacapuru", "junte os municípios do Amazonas" (soma dos componentes, com
@@ -289,7 +302,10 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   só para a conversa: sai do mapeamento antes do pré-exame. Desde 28/10/2026, a página manda o papel no mapeamento da
   conversa (`mapeamentoDaConversa`, em `paginaUnica.ts`); antes, ele saía também dali, e a conversa não reconhecia o grupo
   pelo nome numa planilha enviada pela página ("Mostre só o condado Costa Ondina" recebia "Não encontrei “Costa e Ondina”
-  entre as comunas da base."; agora, "Mostrei a densidade nas 4 comunas do condado Costa Ondina.");
+  entre as comunas da base."; agora, "Mostrei a densidade nas 4 comunas do condado Costa Ondina."). Com isso, os nomes dos
+  grupos, como os das unidades, ficam na mensagem triada que pode ir ao provedor (RQ-DAD-20: os territórios e os grupos
+  territoriais da base carregada não são dado pessoal); antes, viravam marcadores ("Mostre só o condado [IDENTIFICADOR_1]").
+  Esse efeito foi registrado depois, em 29/10/2026;
 - as unidades citadas pelo nome se resolvem pelo catálogo da planilha (`name:` ou `code:`), sem código IBGE;
 - grupo e unidade com o mesmo nome viram pergunta ("Província Nampula" ou "Distrito Nampula");
 - não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …". A
@@ -309,7 +325,15 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   comunas”", "“mostre as comunas com densidade menor que 1”" e "“as 5 comunas com maior densidade”" (nas recusas de juízo,
   de classe nova e de escolha delegada e no "desfaz" sem mudança). A pergunta de volta, quando a resposta não escolhe uma
   das alternativas, pede "o nome ou “o primeiro”, “o segundo”" (a sigla do estado fica na base do Brasil). Na base do
-  Brasil, nada muda.
+  Brasil, nada muda;
+- correções de 29/10/2026 (revisão de 28/10): "mostre todas" responde "Mostrei todas as comunas da base, na mesma análise."
+  (antes, "todos os comunas"); a comparação pelos extremos com menos de dois territórios no gráfico sugere "diga o nome de
+  um condado" e, sem coluna de grupo, só a Seleção de Territórios (antes, "de um estado"); uma planilha de municípios
+  agrupados por região de saúde recebe "o nome de uma região de saúde ou de municípios, ou “todos os municípios”" (antes, o
+  exemplo da base do Brasil); com o mesmo nome para unidade e grupo (o "território" que o modelo sugere para as duas), a
+  orientação não oferece "os territórios de um território". Na base do Brasil, no gráfico dos estados, os exemplos de pedido voltaram a citar os municípios ("use como
+  referência o município de maior densidade", "mostre a tendência desses municípios", "mostre os municípios com densidade
+  menor que 1"), como antes de 28/10/2026: a referência, as condições e a tendência dos exemplos são de municípios.
 
 ### Rotas com o provedor
 

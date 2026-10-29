@@ -45,13 +45,13 @@ provedor, com o cartão do contexto. Sem o provedor, o pedido que dependeria del
 | Resposta a esclarecimento | "Município.", "a cidade", "o estado", "a do Pará", "PB", "o primeiro", "junho", "a de janeiro" | Escolhe a alternativa pendente e aplica o pedido original com ela ("Entendi: …"). Informação dada antes de uma pergunta encadeada é lembrada ("Anotei “a do Pará” para quando essa escolha aparecer"). Sem escolha clara, repete a pergunta; "deixa pra lá" cancela. |
 | Correção da escolha | "Não, o estado." | Troca pela alternativa restante. Estado e município não ficam no mesmo gráfico: a comparação continua e a conversa oferece comparar os estados. |
 | Correção com novo pedido | "Não, eu queria a evolução, não só o resultado atual." | Aplica o pedido corrigido ("Entendi a correção. Abri a tendência…"). |
-| Desfazer | "Não era isso que eu queria.", "desfaz" | Volta ao estado do gráfico antes da última mudança feita pela conversa. Logo depois de uma pergunta (nada mudou), "não era isso" deixa a pergunta de lado e oferece desfazer a mudança anterior. |
+| Desfazer | "Não era isso que eu queria.", "desfaz" | Volta ao estado do gráfico antes da última mudança feita pela conversa. Logo depois de uma pergunta (nada mudou), "não era isso" deixa a pergunta de lado e oferece desfazer a mudança anterior. Desde 29/10/2026, o estado guardado leva a Escolha dos territórios em uso: "desfaz" depois de "e em todo o país?" devolve a referência de antes (antes, ela ficava no país). |
 | Voltar | "Volta para a comparação anterior.", "volta como estava antes" | Reaplica o estado anterior pedido. A volta é uma mudança como as outras: "desfaz" logo depois retorna ao estado de antes da volta. |
 | Trocar, incluir, tirar | "Troca o primeiro pelo segundo.", "troca Porto Velho por Macapá", "põe João Pessoa no lugar de Natal", "inclui Parintins", "Agora inclui mais um." (pergunta qual), "tira Tefé" | Muda a comparação ou os territórios em análise. |
 | Todos | "E se considerarmos todos?", "todos os municípios do Paraná" | Todos os municípios (ou os do estado citado). |
 | Pedido em forma de pergunta | "e ao longo do tempo, como foi?" | A tendência dos mesmos territórios. |
 | Proximidade a partir do extremo (28/10/2026) | "Quero identificar o município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 médicos por mil habitantes", "o mais populoso e o mais próximo dele com densidade acima de 3" | O extremo vem das ordens do motor sobre o gráfico em exibição, com os empates, e vai para a base; a condição vai para a referência, e o pedido vira a Escolha dos territórios da Análise Espacial (ver "Proximidade pela conversa"). |
-| Referência mais próxima (28/10/2026) | "Qual é o mais próximo?", "qual a referência mais próxima?" (também a continuação do pedido acima) | Com a Escolha dos territórios em exibição, a referência mais próxima de cada um da base, a distância em linha reta e a densidade da referência, copiadas do motor, com os empates e a ressalva TPL-11; botões trocam de onde a referência parte. Sem a Escolha dos territórios, a comparação das distâncias, como antes. |
+| Referência mais próxima (28/10/2026) | "Qual é o mais próximo?", "qual a referência mais próxima?" (também a continuação do pedido acima) | Com a Escolha dos territórios por critério em exibição, a referência mais próxima de cada um da base, a distância em linha reta e a densidade da referência, copiadas do motor, com os empates e a ressalva TPL-11; botões trocam de onde a referência parte. Com a referência escolhida pelo nome ("use Manaus como referência") ou sem a Escolha dos territórios, a comparação das distâncias até ela, como antes (correção de 29/10/2026). "Os 3 mais próximos de Tefé" é a ordenação. |
 | Pergunta sobre o resultado | "Qual deles apresenta densidade maior?", "E em relação à população?" (herda a direção), "quem tem menos profissionais?", "qual a diferença entre eles?", "quantos municípios estão no gráfico?" | Os valores e a ordem do motor; a diferença assinada que a comparação do motor calculou (sem comparação aberta, abre a comparação). Não muda o gráfico. |
 | Explicação | "Explique esse resultado.", "Não entendi a aceleração.", "Mas por que isso é diferente de crescimento?", "E o que isso quer dizer para esse município?", "Agora explique de maneira mais técnica." | Registros objetivo, simples, didático e técnico, com memória do tópico. Ver "Explicação progressiva". |
 | Verificação e limites | "Esse crescimento significa que o município melhorou?", "então Manaus tem médicos suficientes?", "Qual foi a causa dessa queda?", "a distância mostra o tempo de viagem?", "esse número é confiável?" | Os fatos do resultado e a regra governada: CFG-NOR (juízo normativo), TPL-06 com EXC-03 (causa), TPL-11 (acesso), notas do motor (procedência). Antes de tratar a causa, confere a premissa ("o resultado não mostra queda para …"). |
@@ -219,6 +219,20 @@ espacial, e o agente precisa correlacionar a intenção com as funcionalidades d
   (enumeração `nearest_reference`, com a trajetória F-0321 na biblioteca conversacional), e nomes e valores continuam
   resolvidos no backend.
 
+Correções de 29/10/2026 (revisão dos commits de 28/10), cada uma com o comportamento de antes da proximidade:
+- os limites, a explicação, o estado da tela, trocar, incluir e tirar vencem o pedido de proximidade, mesmo com "o mais
+  próximo" e uma condição: "o mais próximo com densidade acima de 20 é suficiente?" é o limite normativo; "qual a distância
+  de carro até o mais próximo com …", o de acesso; "como é calculada a distância até o mais próximo com …", a explicação;
+  "inclua o mais próximo com densidade acima de 2", a inclusão (antes, todos abriam a Escolha dos territórios);
+- "os 3 mais próximos de Tefé" é a ordenação pela distância até Tefé, não a leitura da referência de cada um;
+- com a referência escolhida pelo nome em exibição, "qual o mais próximo?" é a comparação das distâncias até ela ("A menor
+  distância até a referência … é a de …"), sem os botões das trocas do recorte, que a deixariam vazia; antes, a leitura
+  dizia a própria referência como a mais próxima de cada um;
+- sem acento, "para" é a preposição: o Pará só com o acento ou depois de "do" ou "no" ("para o município de menor
+  densidade, qual o mais próximo…" mostrava os municípios do Pará);
+- o mapa de funcionalidades do cartão do contexto descreve a proximidade sem números ("com densidade de no mínimo um
+  valor"): os exemplos "1,5" e "50 mil" entravam nos números aceitos pela conferência de fidelidade.
+
 ## Avaliação
 
 **Método.** Conversas adversariais em `backend/tests/dialogo_adversarial/`, executadas pelo simulador da tela
@@ -328,6 +342,10 @@ PAR-20261026 da SPEC):
   territórios com o extremo na base e a condição na referência, a leitura da referência mais próxima copiada do motor, as
   trocas do recorte em botões, o empate no extremo, o estado fora do gráfico com a continuação, a explicação do território
   com a referência mais próxima, o pedido pelo nome, o motivo numa base sem a Análise Espacial e as casas do extremo.
+- `backend/tests/test_dialogo.py` (29/10/2026): as perguntas governadas com "o mais próximo" e uma condição, "os 3 mais
+  próximos" como ordenação, o "para" sem acento, a referência pelo nome em exibição (a comparação das distâncias, sem as
+  trocas do recorte) e o "desfaz" que devolve a Escolha dos territórios de antes; `test_contexto_conversa.py`: o mapa de
+  funcionalidades sem números de exemplo.
 - `backend/tests/ui_area_de_analise.py` (base versionada): o caso do responsável no navegador, da consulta pedida ao motor à
   leitura e a "Procurar em todo o país"; `ui_conversa_grafico.py` (catálogo sintético, sem a Análise Espacial): o motivo.
 - `backend/tests/test_triagem.py`, `test_fidelidade.py` e `test_contexto_conversa.py`: a triagem (os exemplos do diagnóstico

@@ -99,3 +99,11 @@ def test_janela_da_conversa_e_limitada_e_o_resultado_grande_vai_pelos_extremos()
     resultado = montar(resultado=grande)["cartao"]["resultado_em_exibicao"]
     assert "itens" not in resultado and resultado["quantidade_de_itens"] == 39
     assert resultado["extremos_por_atributo"]["densidade"]["maior"][0]["nome"] == "M39 (AM)"
+
+
+def test_exemplos_do_mapa_de_funcionalidades_nao_viram_numeros_verificados():
+    """Correção de 29/10/2026: os exemplos da proximidade no mapa de funcionalidades ("no mínimo 1,5", "mais de 50 mil") iam
+    aos textos da conferência de fidelidade, e um 1,5 ou um 50 numa redação passava como valor verificado."""
+    assert not {1.5, 50.0, 50000.0} & contexto_conversa.referencias_de_fidelidade(mensagem="qual o mais próximo?").numeros()
+    proximidade = next(frase for frase in contexto_conversa.FUNCIONALIDADES if frase.startswith("Pela conversa, a referência"))
+    assert "no mínimo um valor" in proximidade and not any(caractere.isdigit() for caractere in proximidade)

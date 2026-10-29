@@ -89,6 +89,8 @@ class Tela:
             pedido["janela"] = list(self.janela)
         if self.comparar:
             pedido.update(funcao="comparar", selecao=list(self.comparar))
+        if self.familia == "espacial" and self.consulta:
+            pedido["consulta"] = json.loads(json.dumps(self.consulta))  # como conversaGrafico.pedidoDoContexto (29/10/2026)
         return pedido
 
     def rotulo_do_estado(self):

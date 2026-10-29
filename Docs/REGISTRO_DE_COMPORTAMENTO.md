@@ -35,6 +35,139 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-10-29 · Revisão dos commits de 28/10/2026: as regressões da conversa e dos nomes da planilha corrigidas
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (29/10/2026): "Analise o repositório e
+  verifique se os últimos commits não causaram algum prejuízo". A revisão de `3636244`, `ee9789d`, `e71cda5`, `02eacda`,
+  `61ff073`, `b1090df` e `3d749be` (checagens objetivas e três revisões independentes, cada achado confirmado por sonda
+  própria antes da correção) achou regressões em `b1090df`, `02eacda`/`61ff073` e `3636244` e lacunas que o registro de
+  `3636244` dava como corrigidas. Cada correção devolve o comportamento de antes do commit que o mudou sem querer, ou cumpre
+  o que o registro do próprio commit prometia. Todas são mudança de comportamento e previstas: decorrem do pedido de
+  verificação e dos pedidos de 28/10/2026 (escopo) e não contrariam a SPEC nem divergência aprovada (compatibilidade).
+  Sem prejuízo: a tipografia (`ee9789d`, `e71cda5`), `3d749be`, os dados versionados, a SPEC, o workflow do CI, os testes
+  (nenhum enfraquecido) e o tempo de resposta da conversa (o mesmo antes e depois, na média do mesmo roteiro).
+- **Antes:**
+  - **Antes da escolha dos dados (`b1090df`):**
+    - a fonte citada numa negação ou numa pergunta era escolhida sozinha: "quero analisar Pernambuco sem os dados do Brasil"
+      e "Pernambuco está nos dados do Brasil?" escolhiam os dados do Brasil;
+    - a pergunta de conceito, a conversa e o adjetivo com um lugar recebiam a oferta ("O que é densidade em Pernambuco?",
+      "Moro no estado de São Paulo", "Você é brasileiro?"), e as siglas também ("Os dados são do MS?", "O que é RN?"), que
+      colidem com as da saúde;
+    - o substantivo "análise" valia como pedido ("Obrigado pela análise!", "A análise é feita pelo Gemini?" recebiam o
+      lembrete), e o pedido educado ("Você pode mostrar a densidade dos municípios?") tinha perdido o lembrete de 26/10/2026
+      e ia ao provedor;
+    - "sim, claro", "Sim, pode usar os dados do Brasil" e "ok, pode ser" não aceitavam a oferta, e "não, prefiro enviar os
+      meus" não a recusava;
+    - com a fonte citada, o resto da mensagem perdia os acentos, e "quero ver o Pará com os dados do Brasil" ia ao provedor;
+      a região de um estado ("região sul do Pará") virava a Região Sul do país, e "regiões Norte e Sul" só citava o Norte;
+    - a resposta que chegava depois de um clique nos botões da escolha oferecia a fonte de novo, com o botão (um "sim" a
+      ela tomaria o lugar do pedido guardado), ou a escolhia outra vez.
+  - **Proximidade pela conversa (`02eacda`, `61ff073`):**
+    - com a Escolha dos territórios em exibição, a proximidade e a troca do recorte liam os nomes ao procurar e não os
+      devolviam: "use Tefé como referência" e "a referência é Tefé" só abriam a análise espacial, "os 3 mais próximos de
+      Manaus" ordenava sem Manaus como referência e "compare Tefé com o mais próximo" perdia Tefé;
+    - "região Sul" e "os municípios da região Norte" trocavam o recorte da referência, e a escolhida pelo nome ficava vazia
+      (Manaus fora do Sul); "procure no Pará" também;
+    - com "o mais próximo" e uma condição, os limites ("… é suficiente?", "a distância de carro até …"), a explicação ("como
+      é calculada a distância até …"), o estado da tela ("por que … não aparece?") e incluir abriam a Escolha dos territórios;
+    - "os 3 mais próximos de Tefé" lia a referência de cada um, e, com a referência escolhida pelo nome, "qual o mais
+      próximo?" dizia a própria referência como a mais próxima de cada um, com o botão "Só no mesmo estado de cada um", que a
+      deixaria vazia;
+    - "para", a preposição, virava o Pará ("para o município de menor densidade, qual o mais próximo…"; já acontecia na
+      comparação pelos extremos);
+    - "densidade maior ou igual a 2 ou menor que 1" aplicava só a primeira condição, em silêncio (com "maior que 2 ou menor
+      que 1", já antes de 28/10/2026), e, na proximidade, o "ou" entre as condições da referência virava "e";
+    - "desfaz" pela conversa depois de "e em todo o país?" deixava a referência no país: o estado guardado não levava a
+      Escolha dos territórios;
+    - a troca do recorte mantinha só os 8 primeiros filtros de cada lado (a tela e o motor aceitam 12);
+    - o mapa de funcionalidades do cartão do contexto trazia "1,5" e "50 mil", que a conferência de fidelidade aceitava como
+      números verificados numa redação.
+  - **Nomes da planilha (`3636244`):**
+    - na base do Brasil, no gráfico dos estados, três exemplos de pedido diziam "estado(s)" ("use como referência o estado de
+      maior densidade", "mostre a tendência desses estados", "mostre os estados com densidade menor que 1"), contra o
+      "Permanece: a base do Brasil (os mesmos textos…)" do registro de 28/10/2026;
+    - numa planilha de comunas, "mostre todas" respondia "Mostrei todos os comunas da base" (o registro de 28/10/2026 o dava
+      como corrigido); a comparação pelos extremos com menos de dois territórios dizia "diga o nome de um estado"; uma
+      planilha de municípios por região de saúde recebia o exemplo da base do Brasil;
+    - com os nomes que o modelo de planilha sugere (unidade e grupo "território"), o CSV tinha duas colunas "Território", e a
+      orientação oferecia "mostrar os territórios de um território";
+    - o README dizia que, com uma planilha, nenhum texto diz "município", "estado", "UF" ou "Brasil", sem as exceções que o
+      próprio registro listava.
+- **Agora:**
+  - **Antes da escolha dos dados:** a fonte citada só é escolhida num pedido afirmativo, com a preposição de uso ("com os
+    dados do Brasil", "usando a base do Brasil"); sem ela ("Pernambuco, dados do Brasil"), a oferta; negada ou numa
+    pergunta, nada é escolhido nem oferecido. Um lugar só conta num pedido: com um verbo de ver ou de analisar, um objeto da
+    análise, o pedido dos dados ("dados de Pernambuco") ou numa menção curta ("e a Bahia?", "agora Pernambuco"). Siglas,
+    "brasileiro" e o substantivo "análise" sozinho não contam ("analise" e "analisa", só no começo da mensagem). As
+    mensagens que não são pedido seguem o caminho de antes de 28/10/2026 (o catálogo ou o provedor), e o pedido educado
+    recebe o lembrete. O "sim" com complemento aceita a oferta, e "não, prefiro enviar os meus (dados)" a recusa. O Pará
+    acentuado fica, a região de um estado conta como o estado, e "regiões Norte e Sul" citam as duas. Com a fonte escolhida
+    nos botões enquanto a resposta chegava, a escolha da pessoa vale: "Assim que a base estiver pronta, sigo com o seu
+    pedido.", sem outra escolha nem a oferta de novo.
+  - **Proximidade:** os comandos seguintes leem o pedido inteiro quando a proximidade e a troca do recorte não o atendem
+    ("use Tefé como referência" escolhe Tefé; "os 3 mais próximos de Manaus" ordena pela distância até Manaus; "compare Tefé
+    com o mais próximo" pergunta o outro). Um lugar só troca o recorte da referência com a palavra dela ("procure a
+    referência na Região Sul", "procure no Pará"); sem ela, mostra os municípios do lugar, como "e no Pará?". Com a
+    referência escolhida pelo nome, a troca do recorte vira pergunta: "A referência é MANAUS (AM), escolhida pelo nome. Para a
+    referência partir do Pará, diga a condição dela, por exemplo, “o mais próximo com densidade acima de 2”. Nada mudou no
+    gráfico.". Os limites, a explicação, o estado da tela, trocar, incluir e tirar vencem o pedido de proximidade; "os 3
+    mais próximos de Tefé" é a ordenação; com a referência escolhida pelo nome, "qual o mais próximo?" é a comparação das
+    distâncias até ela ("A menor distância até a referência … é a de …"), sem os botões das trocas do recorte. O Pará só
+    com o acento ou depois de "do" ou "no". O "ou" antes de uma condição sem o indicador vira a pergunta do "e" nas
+    Condições ("No gráfico, as condições se combinam com “e”…") e, na proximidade, "Na Escolha dos territórios, as
+    condições de cada lado se combinam com “e”…". O estado guardado para desfazer leva a Escolha dos territórios em uso
+    (`pedidoDoContexto`), e "desfaz" devolve a referência de antes. A troca do recorte mantém os até 12 filtros de cada
+    lado. O mapa de funcionalidades descreve a proximidade sem números ("com densidade de no mínimo um valor").
+  - **Nomes da planilha:** no gráfico dos estados da base do Brasil, os exemplos voltam a citar os municípios ("use como
+    referência o município de maior densidade"), como antes de 28/10/2026. Numa planilha, "Mostrei todas as comunas da
+    base, na mesma análise."; a comparação pelos extremos sugere "diga o nome de um condado" (sem coluna de grupo, só a
+    Seleção de Territórios); a planilha de municípios por região de saúde recebe "o nome de uma região de saúde ou de
+    municípios, ou “todos os municípios”."; com o mesmo nome para unidade e grupo, a coluna do grupo no CSV é "Território
+    (grupo)", e a orientação não oferece "os territórios de um território". O README lista as exceções.
+- **Permanece:** os cálculos, as respostas do motor, o contrato da API, os dados versionados e a SPEC; o que os commits de
+  28/10/2026 trouxeram de propósito (a oferta dos dados do Brasil para os pedidos com lugares, o "sim" e o botão dela; a
+  proximidade a partir do extremo, com uma condição e pelo nome; a troca do recorte da referência por critério; os nomes da
+  planilha nos demais lugares); nomes de municípios continuam sem reconhecimento antes da escolha dos dados.
+- **Motivo:** pedido do responsável de 29/10/2026.
+- **Documentação e testes:**
+  - **Documentação:** `README.md` (o pedido antes dos dados; as exceções dos nomes da planilha e a coluna do grupo no CSV),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` ("A fonte oferecida antes dos dados"), `Docs/DIALOGO_GOVERNADO.md`
+    (Desfazer, a referência mais próxima e as correções da proximidade), `Docs/CONVERSACAO_INCREMENTO_FN.md` (Condições, a
+    referência mais próxima com condição, a troca do recorte e as planilhas) e `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o CSV).
+  - **pytest:**
+    - `test_conversa_tempo.py`: o pedido educado com o lembrete; "dados de Pernambuco", "agora Pernambuco", a região de um
+      estado e "regiões Norte e Sul" com a oferta; o Pará acentuado com a fonte citada; e um teste novo com 29 mensagens que
+      seguem o caminho de antes (a fonte negada ou numa pergunta, conceito, conversa, adjetivo, siglas e o substantivo
+      "análise"). Por mudança proposital: "quero ver SP e RJ" saiu do teste da oferta e foi para o novo (as siglas deixaram
+      de contar), e o teste dos lugares passou a esperar nenhuma sigla e nenhum adjetivo.
+    - `test_conversa_grafico.py`: a referência pelo nome em exibição com os pedidos de antes, os lugares com e sem a palavra
+      da referência, os 12 filtros e o "ou" antes de uma condição incompleta, nas Condições e na proximidade.
+    - `test_dialogo.py`: as perguntas governadas com "o mais próximo" e uma condição, "os 3 mais próximos", o "para" sem
+      acento, as trocas do recorte sem a referência pelo nome, a comparação das distâncias com a referência pelo nome e o
+      "desfaz" com a Escolha dos territórios; `conversa_simulada.py` guarda a consulta no estado, como a tela.
+    - `test_contexto_conversa.py`: o mapa de funcionalidades sem números de exemplo.
+    - `test_rotulos_da_planilha.py`: os exemplos no gráfico dos estados, "todas as comunas", a comparação pelos extremos com
+      e sem grupo e a planilha de municípios por região de saúde.
+  - **Unidade da tela:** `conversaGrafico.test.mjs` (o "sim" e o "não" com complemento; a orientação com o mesmo nome para
+    unidade e grupo; `pedidoDoContexto` com a consulta) e `areaDeAnalise.test.mjs` (a coluna "Território (grupo)").
+  - **Navegador:** `ui_conversa_grafico.py`, passo 15: a resposta retida até o clique em "Usar dados do Brasil" não oferece
+    a fonte de novo, e o pedido guardado segue até o gráfico.
+
+### 2026-10-29 · `3636244` · Registro posterior: numa planilha enviada, os nomes dos grupos ficam na mensagem triada
+- **Classificação (regra 1):** mudança de comportamento de `3636244` (28/10/2026) que o registro daquele dia não citou,
+  achada na revisão de 29/10/2026 e registrada como pede o item 3 de "Como cumprir a regra". Prevista: decorre do pedido
+  daquele dia (escopo) e segue a triagem de RQ-DAD-20, em que os territórios, os grupos territoriais, as regiões e as
+  categorias da base carregada ficam na mensagem triada (compatibilidade), como na base do Brasil.
+- **Antes:** a página não mandava a coluna do grupo no mapeamento da conversa, e o nome de um grupo digitado na conversa
+  chegava ao provedor como marcador ("Mostre só o condado [IDENTIFICADOR_1] e compare Vesperina e Lumbral").
+- **Agora:** com o grupo no mapeamento da conversa (`mapeamentoDaConversa`), a triagem reconhece os nomes dos grupos como
+  territórios da base, e eles ficam na mensagem triada que pode ir ao provedor ("Mostre só o condado Alto Vésper …"), como
+  os nomes das unidades.
+- **Permanece:** arquivos, linhas, registros individuais, identificadores, nomes de campo e credenciais não vão ao provedor;
+  nomes sem evidência na base continuam marcadores.
+- **Motivo:** completar o registro de `3636244`.
+- **Documentação e testes:** `Docs/CONVERSACAO_INCREMENTO_FN.md` (o grupo no mapeamento da conversa, agora com a triagem).
+  Nenhum código muda com este registro.
+
 ### 2026-10-28 · Conversa antes da escolha dos dados: a oferta da fonte que o pedido indica, na hora e sem o provedor
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (28/10/2026, com duas capturas): antes de
   escolher os dados, "quero analisar o acre" e "quero analisar pernambuco" demoravam e voltavam "Não identifiquei uma análise

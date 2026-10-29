@@ -220,27 +220,41 @@ recebe "Para continuar, escolha os dados: “Usar dados do Brasil” ou “Envia
 
 **A fonte oferecida antes dos dados (28/10/2026).** O pedido feito antes da escolha dos dados é lido de novo para ver se diz
 de qual fonte precisa, ainda na hora e sem o provedor (`pedido_antes_dos_dados`, em `conversa_grafico.py`):
-- **Lugares do Brasil:** um estado pelo nome, uma região ("Nordeste", "região Sul") ou o próprio Brasil; a sigla de um
-  estado em maiúsculas ("SP") só diz que o pedido é sobre o Brasil ("Para esse pedido, posso usar os dados do Brasil…"),
-  porque, com a base escolhida, a conversa procura os estados pelo nome. Os nomes são os da regra governada da fonte municipal do Brasil (`STATES` e `REGIONS`), que a conversa já
-  reconhece com a base escolhida. A resposta oferece os dados do Brasil: "Para analisar o Acre, posso usar os dados do Brasil:
+- **Lugares do Brasil num pedido:** um estado pelo nome, uma região ("Nordeste", "região Sul", "regiões Norte e Sul") ou o
+  próprio Brasil, com um verbo de ver ou de analisar, um objeto da análise ("densidade", "municípios") ou o pedido dos dados
+  ("dados de Pernambuco"), ou numa menção curta ("e a Bahia?", "agora Pernambuco"). Os nomes são os da regra governada da
+  fonte municipal do Brasil (`STATES` e `REGIONS`), que a conversa já reconhece com a base escolhida; a região de um estado
+  ("região sul do Pará") conta como o estado. Siglas não contam, porque colidem com as da saúde ("MS", "RN", "PA"), e
+  "brasileiro" é adjetivo. A resposta oferece os dados do Brasil: "Para analisar o Acre, posso usar os dados do Brasil:
   escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os seus, em CSV ou Excel. Assim que a base estiver
   pronta, sigo com o seu pedido." (`fonte_sugerida: "brasil"`). O botão "Usar dados do Brasil" aparece na resposta, e no alto
-  só ele fica em destaque (`data-lembrete="brasil"`). "Sim", "pode" ou o botão escolhem os dados do Brasil, como o botão do
-  alto; "não" deixa "Enviar meus dados" em destaque. Qualquer outra mensagem esquece a oferta.
+  só ele fica em destaque (`data-lembrete="brasil"`). "Sim", "pode", "sim, claro", "sim, pode usar os dados do Brasil" ou o
+  botão escolhem os dados do Brasil, como o botão do alto; "não" (também "não, prefiro enviar os meus") deixa "Enviar meus
+  dados" em destaque. Qualquer outra mensagem esquece a oferta.
 - **Os dados da pessoa** ("minha planilha", "meus dados"): a oferta do envio, com o botão "Enviar meus dados" na resposta
   (`fonte_sugerida: "arquivo"`); "sim" abre a janela de envio.
-- **Os dados do Brasil citados como fonte** ("quero analisar Pernambuco com os dados do Brasil"): a escolha deles, como o
-  botão (`fonte_escolhida: "brasil"`), com "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu
-  pedido."
-- **Sem nada disso**, o lembrete de 26/10/2026. "Quero analisar X" vale como pedido de análise com qualquer objeto, e a
-  pergunta sobre o que o agente faz ("você consegue analisar planilhas?") não vale.
+- **Os dados do Brasil citados como fonte, num pedido afirmativo** ("quero analisar Pernambuco com os dados do Brasil",
+  "usando a base do Brasil"): a escolha deles, como o botão (`fonte_escolhida: "brasil"`), com "Dados do Brasil escolhidos.
+  Vou prepará-los e, em seguida, sigo com o seu pedido." Sem a preposição de uso ("Pernambuco, dados do Brasil"), a oferta.
+  Com a fonte negada ("sem os dados do Brasil", "não quero…") ou numa pergunta ("Pernambuco está nos dados do Brasil?",
+  "meus dados ficam no Brasil?"), nada é escolhido nem oferecido: a mensagem segue o caminho de antes.
+- **Sem nada disso**, o lembrete de 26/10/2026, que continua valendo para o pedido educado ("você pode mostrar a densidade
+  dos municípios?"). "Quero analisar X" (o verbo; "analise" só no começo da mensagem) vale como pedido de análise com
+  qualquer objeto; o substantivo "análise" sozinho ("obrigado pela análise", "a análise é feita pelo Gemini?") e a pergunta
+  sobre o que o agente faz ("você consegue analisar planilhas?") não valem.
+- **Seguem como antes** (o catálogo ou o provedor): a pergunta de conceito, mesmo com um lugar ("o que é densidade em
+  Pernambuco?"), a pergunta sobre o agente ou a privacidade e a conversa ("moro em São Paulo").
 
 Nomes de municípios, inclusive capitais, não são reconhecidos antes da escolha: não há catálogo de cidades (CFG-TER), e a base
 não é lida antes de ser escolhida. "Quero analisar Recife" recebe o lembrete de escolher os dados. Em todos os casos, o pedido
-fica guardado e segue pelo caminho completo quando a base fica pronta. Antes, "quero analisar o acre" ou "quero analisar
+fica guardado e segue pelo caminho completo quando a base fica pronta. Se a pessoa escolhe a fonte nos botões enquanto a
+resposta chega, a escolha dela vale: a resposta diz "Assim que a base estiver pronta, sigo com o seu pedido.", sem escolher
+outra fonte nem oferecer de novo a escolhida (29/10/2026; antes, a oferta e o botão voltavam, e um "sim" a ela tomaria o
+lugar do pedido guardado). Antes, "quero analisar o acre" ou "quero analisar
 pernambuco" não eram reconhecidos como pedido de análise: iam ao intérprete com o provedor, demoravam e voltavam "Não
-identifiquei uma análise inequívoca. Qual análise deseja realizar sobre a força de trabalho na saúde?".
+identifiquei uma análise inequívoca. Qual análise deseja realizar sobre a força de trabalho na saúde?". A correção de
+29/10/2026 (revisão do commit de 28/10/2026) devolveu ao caminho de antes as perguntas e conversas que tinham passado por
+engano à oferta, à escolha ou ao lembrete; antes dela, a fonte citada numa negação ou numa pergunta era escolhida sozinha.
 
 **Com os dados.** Fora os pedidos atendidos na própria tela (a vista do desenho, a tabela, o resumo do que está na tela e a
 análise anterior, descritos abaixo), cada pedido vai primeiro ao intérprete local (`POST /api/exploration/interpret`); sem

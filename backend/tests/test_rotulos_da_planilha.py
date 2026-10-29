@@ -143,3 +143,42 @@ def test_respostas_da_conversa_usam_a_unidade_da_planilha():
         "Pode responder com o nome, a sigla do estado ou “o primeiro”, “o segundo”.")
     brasil = dialogo.Ambiente("desfaz", {}, {}, None, fonte={"tipo": "brasil"}, rotulos=BRASIL)
     assert "“os 5 municípios com maior densidade”" in dialogo.executar({"ato": "desfaz"}, brasil)["reply"]
+
+
+def test_correcoes_de_29_10_nomes_da_unidade_e_do_grupo():
+    """Revisão de 3636244 (29/10/2026): no gráfico dos estados da base do Brasil, os exemplos de pedido voltam a citar os
+    municípios (a referência, as condições e a tendência são de municípios); numa planilha, "mostre todas" concorda com a
+    unidade e a comparação pelos extremos cita o grupo dela (sem coluna de grupo, nenhum); uma planilha de municípios por
+    região de saúde recebe os nomes dela, não o exemplo da base do Brasil."""
+    estados = {"nivel": "estados", "indicador": "densidade", "competencia": "202406", "referencia": None, "tendencia": None,
+               "rotulos": {"unidade": {"singular": "município", "plural": "municípios", "genero": "m"},
+                           "grupo": {"singular": "estado", "plural": "estados", "genero": "m"}},
+               "itens": [{"id": "uf:13", "tipo": "estado", "rotulo": "Amazonas", "densidade": 1.2},
+                         {"id": "uf:15", "tipo": "estado", "rotulo": "Pará", "densidade": 0.9}]}
+    assert "“use como referência o município de maior densidade”" in explicacao.comparar_atributo(
+        estados, "distancia_km")["texto"]
+    assert "“mostre a tendência desses municípios”" in explicacao.explicar_conceito(estados, ["aceleracao"])["texto"]
+    assert "“mostre os municípios com densidade menor que 1”" in explicacao.limite(
+        estados, "normativo", "tem médicos suficientes?")["texto"]
+    comunas = resposta(COMUNAS)
+    amb = dialogo.Ambiente("mostre todas", {}, {}, comunas, fonte={"tipo": "arquivo", "nome": "solaria.csv"}, rotulos=COMUNAS)
+    assert dialogo.executar({"ato": "todos"}, amb)["reply"] == "Mostrei todas as comunas da base, na mesma análise."
+
+    def extremos(rotulos, body):
+        amb = dialogo.Ambiente("compare o de maior e o de menor densidade", {}, {}, body, fonte={"tipo": "arquivo"},
+                               rotulos=rotulos)
+        return dialogo.executar({"ato": "compara_extremos"}, amb)["reply"]
+    uma = {"todos": False, "estados": [], "ids": ["name:Lumbral"]}
+    pedido = "Para comparar o de maior e o de menor densidade, preciso de pelo menos dois territórios no gráfico. "
+    assert extremos(COMUNAS, resposta(COMUNAS, uma)) == (
+        pedido + "Escolha-os na Seleção de Territórios ou diga o nome de um condado, e eu comparo o de maior e o de menor "
+        "densidade.")
+    sem_grupo = {"unidade": COMUNAS["unidade"], "grupo": None}
+    assert extremos(sem_grupo, resposta(sem_grupo, uma)) == (
+        pedido + "Escolha-os na Seleção de Territórios, e eu comparo o de maior e o de menor densidade.")
+    saude = {"unidade": {"singular": "município", "plural": "municípios"},
+             "grupo": {"singular": "região de saúde", "plural": "regiões de saúde"}}
+    assert explicacao.explicar_resultado(None, rotulos=saude)["texto"].endswith(
+        "me diga quais quer ver: o nome de uma região de saúde ou de municípios, ou “todos os municípios”.")
+    assert explicacao.explicar_resultado(None, rotulos=BRASIL)["texto"].endswith(
+        "me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”.")
