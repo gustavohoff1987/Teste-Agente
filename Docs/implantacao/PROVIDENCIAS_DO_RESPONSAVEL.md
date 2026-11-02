@@ -42,10 +42,13 @@ aprovação dele na interface do GitHub. O agente nunca aprova execuções pende
 - **V-4.** Só então: no ambiente `gemini-real`, "Add environment secret" → `GEMINI_API_KEY`, colando a chave direto do AI
   Studio (nunca no chat, no terminal do Claude Code ou num arquivo). Nunca como segredo do repositório nem de outro ambiente.
 - **V-5.** O agente envia uma etiqueta `validacao-gemini-real-AAAAMMDD` ao commit verificado e acompanha. O primeiro job
-  (`conferir-protecao`, sem ambiente) encerra a execução sem nenhuma chamada se o ambiente não existir, não tiver revisor,
-  aceitar outras etiquetas ou ramos, ou se o commit não pertencer ao ramo `implantacao/cloud-run-pages`.
+  (`conferir-protecao`, sem ambiente) encerra a execução sem nenhuma chamada se o repositório não estiver público, se o
+  ambiente não existir, não tiver revisor, aceitar outras etiquetas ou ramos, ou se o commit não pertencer ao ramo
+  `implantacao/cloud-run-pages`.
 - **V-6.** Aprovar o job `validacao` na interface do GitHub (Actions → a execução → "Review deployments"). O job faz no máximo
-  20 chamadas reais somadas, para num 429 real e publica só um relatório sanitizado.
+  20 chamadas reais somadas, com pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 por minuto),
+  para num 429 real e publica só um relatório sanitizado. O resumo dele sai também nas anotações da execução, que o agente lê
+  pela API pública do GitHub sem login (o log e o artefato exigem autenticação).
 - **V-7.** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real`.
 
 ## Fase 2 (cada operação com AUTORIZO F2-n)

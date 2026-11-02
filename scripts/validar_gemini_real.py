@@ -9,10 +9,11 @@ na conferência de fidelidade; DETERMINISTICA, quando valeu a reserva) e o núme
 Economia de franquia: o roteiro nunca passa de --max-chamadas chamadas reais (padrão 14), contadas pelo monitoramento do
 backend; desde 01/11/2026, o teto é rígido: uma mensagem só começa se o saldo cobrir o máximo dela (a primeira chamada e 2
 regenerações). Um sinal de limite do provedor encerra a amostra. Nada habilita faturamento. Sem GEMINI_API_KEY, nada é
-enviado e o roteiro diz isso.
+enviado e o roteiro diz isso. Desde 02/11/2026, --intervalo espaça o início das mensagens (a validação real pelo contêiner usa
+10 s, por causa do limite por minuto do nível gratuito), e cada turno registra o tempo da resposta (tempo_s).
 
 Uso, na raiz do repositório:
-    GEMINI_API_KEY=... python scripts/validar_gemini_real.py [--max-chamadas 14]
+    GEMINI_API_KEY=... python scripts/validar_gemini_real.py [--max-chamadas 14] [--intervalo 0]
 O relatório fica em .local/validacao-gemini/ (JSON) e é impresso no terminal.
 """
 import argparse
@@ -49,6 +50,7 @@ TRIAGEM = ["Não era isso que eu queria.", "Município.", "Caiu em 2023?", "Comp
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--max-chamadas", type=int, default=14)
+    parser.add_argument("--intervalo", type=float, default=0.0, help="segundos mínimos entre o início de duas mensagens")
     args = parser.parse_args()
     if not os.getenv("GEMINI_API_KEY", "").strip():
         print("Defina GEMINI_API_KEY para a validação real; nada foi enviado ao provedor.")
@@ -68,6 +70,7 @@ def main() -> int:
     info = client.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()
     tela = Tela(client, info)
     inicio = llm_bridge.status()["requests_used_today"]
+    ultimo = None
     for cenario, mensagem, preparo in CENARIOS:
         usadas = llm_bridge.status()["requests_used_today"] - inicio
         if usadas + llm_bridge.TENTATIVAS > args.max_chamadas:
@@ -77,9 +80,13 @@ def main() -> int:
         if preparo == "tendencia" and tela.comparar:
             tela.familia = "tendencia"
             tela.calcula()
+        if ultimo is not None and args.intervalo > 0:
+            time.sleep(max(0.0, args.intervalo - (time.monotonic() - ultimo)))
+        ultimo = time.monotonic()
         turno = tela.diga(mensagem)
+        tempo = round(time.monotonic() - ultimo, 2)
         corpo = turno.corpo
-        registro = {"cenario": cenario, "mensagem": mensagem, "canal": turno.canal, "status": turno.status,
+        registro = {"cenario": cenario, "mensagem": mensagem, "tempo_s": tempo, "canal": turno.canal, "status": turno.status,
                     "texto": turno.texto, "redacao": corpo.get("redacao"), "indisponibilidade": corpo.get("indisponibilidade"),
                     "reserva": corpo.get("reserva", False), "mudou_o_grafico": turno.aplicado,
                     "chamadas_acumuladas": llm_bridge.status()["requests_used_today"] - inicio}

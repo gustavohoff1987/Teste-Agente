@@ -3,7 +3,9 @@ name: Validação real do Gemini
 # O envio de uma etiqueta validacao-gemini-real-* aciona: primeiro a conferência da proteção (o repositório público, o
 # ambiente, o revisor, as etiquetas e o commit no ramo de preparação), sem ambiente e sem segredos;
 # depois, só se ela passar, o job no ambiente gemini-real, que espera a aprovação do responsável. A chave existe apenas
-# como segredo desse ambiente. No máximo 20 chamadas reais somadas; um 429 real encerra. Uma execução por autorização.
+# como segredo desse ambiente. No máximo 20 chamadas reais somadas, com 10 s entre o início das mensagens (o nível gratuito
+# tem cerca de 10 por minuto); um 429 real encerra. Uma execução por autorização. O resumo sanitizado sai também nas
+# anotações da execução, que a API pública do GitHub entrega sem login (o log e o artefato, não).
 on:
   push:
     tags: ["validacao-gemini-real-*"]
@@ -75,14 +77,17 @@ jobs:
               sleep 1
             done
           done
-      - name: Validação pelo caminho HTTP do contêiner (teto de 20 chamadas reais somadas)
+      - name: Validação pelo caminho HTTP do contêiner (teto de 20 chamadas reais somadas, 10 s entre as mensagens)
         run: >-
           python .github/scripts/validar_gemini_conteiner.py --url http://127.0.0.1:18080
-          --url-chave-invalida http://127.0.0.1:18081 --teto 20 --saida "$RUNNER_TEMP/relatorio"
+          --url-chave-invalida http://127.0.0.1:18081 --teto 20 --intervalo 10 --saida "$RUNNER_TEMP/relatorio"
       - name: Padrão de chave do Google no relatório, antes do envio
         id: chave
         if: ${{ !cancelled() }}
         run: python .github/scripts/verificar_chave_google.py "$RUNNER_TEMP/relatorio"
+      - name: Resumo sanitizado nas anotações da execução (sem textos; o padrão de chave conferido de novo)
+        if: ${{ !cancelled() && steps.chave.outcome == 'success' }}
+        run: python .github/scripts/anotar_validacao.py "$RUNNER_TEMP/relatorio/validacao-gemini-real.json"
       - name: Relatório sanitizado (status, tempos, origem do texto, tentativas e chamadas)
         if: ${{ !cancelled() && steps.chave.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2

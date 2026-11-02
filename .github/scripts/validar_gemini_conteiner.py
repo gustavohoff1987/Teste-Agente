@@ -15,6 +15,11 @@ se o saldo não cobrir esse máximo. Um 429 real encerra a validação na hora.
    precisa aparecer como problema de configuração.
 O relatório publicado (--saida) é sanitizado: status, tempos, origem do texto, tentativas e chamadas usadas; nenhum texto de
 mensagem ou resposta, nenhuma chave. Antes do envio, o workflow confere o padrão de chave do Google nele.
+
+Desde 02/11/2026 (comando de ajustes antes da Fase 2): as mensagens começam com pelo menos --intervalo segundos entre si
+(padrão 10; o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real encerra a validação); o roteiro registra o
+tempo de cada mensagem; uma falha técnica inesperada encerra a validação com o relatório gravado, só com o tipo do erro (o
+detalhe fica no log). O resumo do relatório sai também nas anotações da execução (anotar_validacao.py).
 """
 import argparse
 import json
@@ -22,6 +27,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -54,7 +60,26 @@ class Interrompida(Exception):
     """Um 429 real, ou outro motivo que encerra a validação sem novas chamadas."""
 
 
-def validar(http, orcamento: Orcamento, etapas: list) -> None:
+class Ritmo:
+    """O intervalo mínimo entre o início de duas mensagens ao provedor (o nível gratuito tem cerca de 10 chamadas por
+    minuto; um 429 real encerra a validação)."""
+
+    def __init__(self, intervalo: float, relogio=time.monotonic, dormir=time.sleep):
+        self.intervalo, self.relogio, self.dormir, self.ultimo = max(0.0, intervalo), relogio, dormir, None
+
+    def esperar(self) -> None:
+        """Espera o que faltar do intervalo desde o último início e marca este."""
+        if self.ultimo is not None:
+            falta = self.intervalo - (self.relogio() - self.ultimo)
+            if falta > 0:
+                self.dormir(falta)
+        self.marcar()
+
+    def marcar(self) -> None:
+        self.ultimo = self.relogio()
+
+
+def validar(http, orcamento: Orcamento, etapas: list, ritmo: Ritmo | None = None) -> None:
     """Percorre o caminho HTTP real do contêiner, mensagem a mensagem, dentro do teto. `http` faz os pedidos (httpx.Client
     ou o simulado dos testes)."""
     def usadas():
@@ -63,6 +88,8 @@ def validar(http, orcamento: Orcamento, etapas: list) -> None:
     def mensagem(etapa, rota, **kwargs):
         if not orcamento.cabe():
             raise Interrompida(f"teto: o saldo ({orcamento.saldo()}) não cobre a etapa {etapa}")
+        if ritmo is not None:
+            ritmo.esperar()
         antes, inicio = usadas(), time.monotonic()
         resposta = http.post(rota, **kwargs)
         chamadas = usadas() - antes
@@ -102,23 +129,29 @@ def validar(http, orcamento: Orcamento, etapas: list) -> None:
     mensagem("pergunta conceitual", "/api/llm/interpret", json={"message": "O que é densidade?"})
 
 
-def amostra_do_roteiro(orcamento: Orcamento, etapas: list, pasta: Path) -> None:
-    """scripts/validar_gemini_real.py com o saldo (menos 1, reservada à chave inválida); só os números vão ao relatório."""
+def amostra_do_roteiro(orcamento: Orcamento, etapas: list, pasta: Path, ritmo: Ritmo | None = None) -> None:
+    """scripts/validar_gemini_real.py com o saldo (menos 1, reservada à chave inválida) e o mesmo intervalo entre as
+    mensagens; só os números vão ao relatório."""
     saldo = orcamento.saldo() - 1
     if saldo < MAXIMO_POR_MENSAGEM:
         etapas.append({"etapa": "roteiro validar_gemini_real.py", "pulado": f"saldo de {saldo} chamada(s)"})
         return
+    if ritmo is not None:
+        ritmo.esperar()  # a primeira mensagem do roteiro não cola na última do caminho HTTP
     saida = pasta / "saida-do-roteiro.txt"  # fica fora do relatório publicado (tem os textos das respostas)
     with saida.open("w", encoding="utf-8") as arquivo:
-        feito = subprocess.run([sys.executable, str(RAIZ / "scripts" / "validar_gemini_real.py"), "--max-chamadas", str(saldo)],
+        feito = subprocess.run([sys.executable, str(RAIZ / "scripts" / "validar_gemini_real.py"), "--max-chamadas", str(saldo),
+                                "--intervalo", str(ritmo.intervalo if ritmo is not None else 0)],
                                cwd=RAIZ, stdout=arquivo, stderr=subprocess.STDOUT, timeout=1800)
+    if ritmo is not None:
+        ritmo.marcar()  # a mensagem seguinte conta o intervalo a partir do fim do roteiro
     relatorios = sorted((RAIZ / ".local" / "validacao-gemini").glob("relatorio-*.json"))
     dados = json.loads(relatorios[-1].read_text(encoding="utf-8")) if relatorios else {}
     chamadas = (dados.get("resumo") or {}).get("chamadas_reais", 0)
     orcamento.registrar(chamadas)
     etapas.append({"etapa": "roteiro validar_gemini_real.py", "codigo": feito.returncode, "chamadas": chamadas,
-                   "turnos": [{"cenario": t.get("cenario"), "status": t.get("status"), "canal": t.get("canal"),
-                               "origem": (t.get("redacao") or {}).get("origem"),
+                   "turnos": [{"cenario": t.get("cenario"), "status": t.get("status"), "tempo_s": t.get("tempo_s"),
+                               "canal": t.get("canal"), "origem": (t.get("redacao") or {}).get("origem"),
                                "tentativas": (t.get("redacao") or {}).get("tentativas"),
                                "indisponibilidade": (t.get("indisponibilidade") or {}).get("tipo")}
                               for t in dados.get("turnos") or []]})
@@ -126,16 +159,20 @@ def amostra_do_roteiro(orcamento: Orcamento, etapas: list, pasta: Path) -> None:
         raise Interrompida("429 real do provedor no roteiro: a validação para aqui")
 
 
-def chave_invalida(http, orcamento: Orcamento, etapas: list) -> None:
+def chave_invalida(http, orcamento: Orcamento, etapas: list, ritmo: Ritmo | None = None) -> None:
     """Uma chamada com a chave propositalmente inválida (o provedor recusa sem consumir cota): problema de configuração."""
     if not orcamento.cabe(1):
         etapas.append({"etapa": "chave inválida", "pulado": "sem saldo"})
         return
+    if ritmo is not None:
+        ritmo.esperar()
+    inicio = time.monotonic()
     resposta = http.post("/api/llm/interpret", json={"message": "Analisar distribuição da densidade"})
+    tempo = round(time.monotonic() - inicio, 2)
     status = http.get("/api/llm/status").json()
     orcamento.registrar(status.get("requests_used_today", 1))
     espera = status.get("espera") or {}
-    etapas.append({"etapa": "chave inválida", "status": resposta.status_code,
+    etapas.append({"etapa": "chave inválida", "status": resposta.status_code, "tempo_s": tempo,
                    "indisponibilidade": (resposta.json().get("indisponibilidade") or {}).get("tipo"),
                    "causa": espera.get("causa"), "escopo": espera.get("escopo"),
                    "mensagem_de_configuracao": espera.get("causa") == "configuracao"})
@@ -146,6 +183,8 @@ def main(argv=None) -> int:
     parser.add_argument("--url", required=True)
     parser.add_argument("--url-chave-invalida", required=True)
     parser.add_argument("--teto", type=int, default=20)
+    parser.add_argument("--intervalo", type=float, default=10.0,
+                        help="segundos mínimos entre o início de duas mensagens ao provedor (padrão 10)")
     parser.add_argument("--saida", type=Path, required=True)
     argumentos = parser.parse_args(argv)
     if not chave_configurada():
@@ -153,16 +192,23 @@ def main(argv=None) -> int:
         return 1
     import httpx
     argumentos.saida.mkdir(parents=True, exist_ok=True)
-    orcamento, etapas, motivo = Orcamento(argumentos.teto), [], None
+    orcamento, etapas, motivo, ritmo = Orcamento(argumentos.teto), [], None, Ritmo(argumentos.intervalo)
     with httpx.Client(base_url=argumentos.url, timeout=180) as http:
         try:
-            validar(http, orcamento, etapas)
-            amostra_do_roteiro(orcamento, etapas, argumentos.saida.parent)
+            validar(http, orcamento, etapas, ritmo)
+            amostra_do_roteiro(orcamento, etapas, argumentos.saida.parent, ritmo)
         except Interrompida as exc:
             motivo = str(exc)
+        except Exception as exc:  # o relatório sai mesmo assim, só com o tipo do erro; o detalhe fica no log
+            traceback.print_exc()
+            motivo = f"falha técnica ({type(exc).__name__}) depois de {len(etapas)} etapa(s)"
     if motivo is None or "teto" in motivo:
-        with httpx.Client(base_url=argumentos.url_chave_invalida, timeout=180) as invalida:
-            chave_invalida(invalida, orcamento, etapas)
+        try:
+            with httpx.Client(base_url=argumentos.url_chave_invalida, timeout=180) as invalida:
+                chave_invalida(invalida, orcamento, etapas, ritmo)
+        except Exception as exc:
+            traceback.print_exc()
+            motivo = f"falha técnica ({type(exc).__name__}) na chave inválida"
     relatorio = {"teto": argumentos.teto, "chamadas_usadas": orcamento.usadas, "interrompida": motivo, "etapas": etapas,
                  "data": time.strftime("%Y-%m-%d %H:%M:%S")}
     (argumentos.saida / "validacao-gemini-real.json").write_text(json.dumps(relatorio, ensure_ascii=False, indent=1),

@@ -2,7 +2,8 @@
 - a proteção dos ambientes antes dos workflows protegidos (validacao-gemini-real.yml, imagem.yml e pages.yml): a execução para
   quando o repositório não está público (desde 02/11/2026), o ambiente não existe, não tem revisor, aceita outras etiquetas ou
   ramos, o gatilho não é a etiqueta ou o commit não pertence ao ramo de preparação;
-- a validação real pelo contêiner: sem o segredo, nenhum pedido; o teto rígido de chamadas; um 429 real encerra;
+- a validação real pelo contêiner: sem o segredo, nenhum pedido; o teto rígido de chamadas; um 429 real encerra; as mensagens
+  espaçadas; o resumo nas anotações da execução, sem textos e sem o padrão de chave (desde 02/11/2026);
 - o padrão de chave do Google: achado por arquivo e contagem, nunca mostrado;
 - os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual.
 """
@@ -28,6 +29,7 @@ def carregar(nome):
 protecao = carregar("conferir_protecao")
 validacao = carregar("validar_gemini_conteiner")
 chave = carregar("verificar_chave_google")
+anotar = carregar("anotar_validacao")
 
 REPO, AMBIENTE, PADRAO, RAMO = "gustavohoff1987/Teste-Agente", "gemini-real", "validacao-gemini-real-*", "implantacao/cloud-run-pages"
 COMMIT, REF = "a" * 40, "refs/tags/validacao-gemini-real-20261102"
@@ -212,6 +214,77 @@ def test_o_relatorio_da_validacao_nao_leva_textos(tmp_path):
     assert any(e.get("origem") == "GEMINI_VALIDADO" for e in etapas)
 
 
+def test_o_ritmo_espaca_o_inicio_das_mensagens():
+    agora, esperas = [100.0], []
+
+    def dormir(segundos):
+        esperas.append(segundos)
+        agora[0] += segundos
+    ritmo = validacao.Ritmo(10, relogio=lambda: agora[0], dormir=dormir)
+    ritmo.esperar()  # a primeira não espera
+    agora[0] += 3
+    ritmo.esperar()  # 3 s depois da anterior: espera os 7 que faltam
+    agora[0] += 12
+    ritmo.esperar()  # 12 s depois: segue
+    assert esperas == [7.0]
+
+
+def test_cada_mensagem_da_validacao_passa_pelo_ritmo():
+    class Contador:
+        intervalo = 10
+
+        def __init__(self):
+            self.inicios = 0
+
+        def esperar(self):
+            self.inicios += 1
+
+        def marcar(self):
+            pass
+    contador = Contador()
+    validacao.validar(ContainerSimulado([]), validacao.Orcamento(20), [], contador)
+    assert contador.inicios == 4  # a interpretação, a pergunta, a explicação mais simples e a pergunta conceitual
+
+
+RELATORIO_SANITIZADO = {
+    "teto": 20, "chamadas_usadas": 17, "interrompida": None, "data": "2026-11-02 12:00:00", "etapas": [
+        {"etapa": "estado do provedor", "configurado": True, "modelo": "gemini-3.5-flash-lite", "disponivel": True},
+        {"etapa": "autenticação e modelo (interpretação)", "status": 200, "tempo_s": 2.1, "chamadas": 1,
+         "origem": "GEMINI_VALIDADO", "tentativas": 1, "indisponibilidade": None},
+        {"etapa": "roteiro validar_gemini_real.py", "codigo": 0, "chamadas": 12, "turnos": [
+            {"cenario": "B continuidade", "status": 200, "tempo_s": 3.4, "canal": "conversa", "origem": "GEMINI_VALIDADO",
+             "tentativas": 1, "indisponibilidade": None}]},
+        {"etapa": "chave inválida", "status": 200, "tempo_s": 0.4, "indisponibilidade": "configuracao",
+         "causa": "configuracao", "escopo": "global", "mensagem_de_configuracao": True}]}
+
+
+def test_o_resumo_da_validacao_vai_as_anotacoes_em_ate_quatro(tmp_path, capsys):
+    arquivo = tmp_path / "validacao-gemini-real.json"
+    arquivo.write_text(json.dumps(RELATORIO_SANITIZADO, ensure_ascii=False), encoding="utf-8")
+    assert anotar.main([str(arquivo)]) == 0
+    linhas = capsys.readouterr().out.splitlines()
+    assert len(linhas) == 4 and all(linha.startswith("::notice title=Validação real%3A ") for linha in linhas)
+    assert "chamadas reais usadas 17; sem interrupção" in linhas[0]
+    assert "autenticação e modelo (interpretação): status 200, tempo_s 2.1, chamadas 1" in linhas[1]
+    assert "%0A- B continuidade: status 200, tempo_s 3.4, canal conversa" in linhas[2]
+    assert "mensagem_de_configuracao True" in linhas[3]
+
+
+def test_anotacao_com_o_padrao_de_chave_nao_sai(tmp_path, capsys):
+    classica = "AIza" + "Sy" + "D" * 33  # montada aqui, como nos testes do padrão
+    arquivo = tmp_path / "validacao-gemini-real.json"
+    arquivo.write_text(json.dumps({**RELATORIO_SANITIZADO, "interrompida": "erro " + classica}), encoding="utf-8")
+    assert anotar.main([str(arquivo)]) == 1
+    saida = capsys.readouterr().out
+    assert classica not in saida and "1 anotação(ões) omitida(s)" in saida
+    assert saida.count("::notice") == 3
+
+
+def test_sem_relatorio_a_anotacao_avisa(tmp_path, capsys):
+    assert anotar.main([str(tmp_path / "ausente.json")]) == 1
+    assert "sem relatório" in capsys.readouterr().out
+
+
 # ---------------------------------------------------------------------------------------------- padrão de chave
 
 def test_padrao_de_chave_achado_por_arquivo_e_contagem_sem_mostrar_o_trecho(tmp_path, capsys):
@@ -262,6 +335,15 @@ def test_o_job_protegido_so_vem_depois_da_conferencia_da_protecao(nome, ambiente
     assert f"environment: {ambiente}" in texto or f"name: {ambiente}" in texto
     bloco = texto.split("environment:", 1)[0]
     assert "conferir-protecao" in bloco or "conferir-protecao" in texto.split("needs:", 1)[1][:200]
+
+
+def test_a_validacao_real_espaca_as_mensagens_e_anota_o_resumo_depois_do_padrao_de_chave():
+    texto, _ = gatilhos("validacao-gemini-real.yml")
+    assert "--teto 20 --intervalo 10" in texto
+    posicao = texto.index("anotar_validacao.py")
+    assert texto.index("verificar_chave_google.py") < posicao
+    passo = texto[texto.rindex("- name:", 0, posicao):posicao]
+    assert "steps.chave.outcome == 'success'" in passo
 
 
 def test_teste_de_gatilho_sem_ambiente_sem_segredos_e_sem_build():

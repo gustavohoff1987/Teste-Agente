@@ -191,8 +191,12 @@ falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesad
 - **Validação real (preparada, não executada):** `validacao-gemini-real.yml` com o job `conferir-protecao` (sem ambiente e
   sem segredos) e o job `validacao` (ambiente `gemini-real`), teto de 20 chamadas somadas, 429 real encerra, chave inválida
   noutro contêiner e relatório sanitizado conferido contra o padrão de chave. O mecanismo é demonstrado por testes com
-  respostas simuladas da API (`test_implantacao.py`): para sem chamadas quando o ambiente não existe, não tem revisor, aceita
-  outras etiquetas ou ramos, o gatilho não é a etiqueta ou o commit não pertence ao ramo; sem o segredo, nenhum pedido sai.
+  respostas simuladas da API (`test_implantacao.py`): para sem chamadas quando o repositório não está público (desde
+  02/11/2026), o ambiente não existe, não tem revisor, aceita outras etiquetas ou ramos, o gatilho não é a etiqueta ou o
+  commit não pertence ao ramo; sem o segredo, nenhum pedido sai. Desde 02/11/2026, as mensagens começam com pelo menos 10 s
+  entre si (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real encerra a validação), o roteiro registra o
+  tempo de cada mensagem e o resumo sanitizado sai também nas anotações da execução (`anotar_validacao.py`), legíveis pela API
+  pública do GitHub sem login.
   **A validação real depende de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI"** (providências V-1 a V-7).
 - **Chamadas por mensagem (medidas):** 1 por mensagem numa conversa típica, 0 nas respondidas localmente ("Obrigado!") e até 3
   com as regenerações.
