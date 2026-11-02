@@ -72,6 +72,9 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
   do roteiro.
 - **P-2 (com F2-0).** No Console (Faturamento → Orçamentos e alertas), conferir, sem alterar: a trava (spend cap) de R$ 11 por
   mês só do Cloud Run, com alertas de 50, 80 e 100%, e o orçamento só de alertas de R$ 11, com 25, 50, 75 e 100%.
+  **Concluída em 02/11/2026:** o responsável conferiu no Console o limite de gastos mensal de R$ 11 do projeto, com status
+  Configurado, só do Cloud Run e com alertas de 50, 80 e 100%, e o orçamento geral de alertas de R$ 11 por mês, com 25, 50,
+  75 e 100%. Nada foi alterado.
 - **P-3 (antes de F2-5).** Criar o ambiente `producao`: revisor obrigatório = você; "Prevent self-review" desativado; regra
   de implantação só por etiquetas `imagem-*`; variáveis do ambiente (não secretas) `GCP_PROVEDOR_DE_IDENTIDADE` e
   `GCP_CONTA_DE_ENVIO_DE_IMAGEM`, com os valores que o F2-3 imprime.

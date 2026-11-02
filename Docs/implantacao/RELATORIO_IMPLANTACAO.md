@@ -374,7 +374,8 @@ Em ordem, com o porquê. O passo a passo está em [PROVIDENCIAS_DO_RESPONSAVEL.m
 | V-1 a V-6 | Validação real do Gemini | feita, com sucesso (seção M) | sem ela, o parecer não podia ser "Pronto para implantação" |
 | V-7 | Apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` | feita em 02/11/2026: o ambiente está sem segredos (conferido com o `gh`) | a validação acabou; era só a cópia no GitHub, e a chave continua válida |
 | P-1 | Instalar o gcloud e autenticá-lo | feita em 02/11/2026: versão 591.0.0, conta `mister.hoff87@gmail.com`, projeto `agente-diagnostico-territorial`, configuração `default` (conferido só em leitura) | toda a Fase 2 usa o gcloud |
-| P-2 a P-9 | A trava e os alertas, os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
+| P-2 | Conferir a trava e os alertas no Console | feita em 02/11/2026: limite de R$ 11 do Cloud Run (Configurado; 50, 80 e 100%) e orçamento de alertas de R$ 11 (25, 50, 75 e 100%), sem alteração | a Fase 2 só começa com o controle de gastos confirmado |
+| P-3 a P-9 | Os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
 
 ## K. Roteiro da Fase 2
 
@@ -621,8 +622,9 @@ fixada no repositório.
 
 | Operação | Situação |
 |---|---|
-| F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL dependem da P-2 (abaixo) |
-| F2-1 a F2-13 | não iniciadas |
+| F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL confirmados pela P-2 |
+| F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
+| F2-2 a F2-13 | não iniciadas |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -644,5 +646,16 @@ da própria lista de APIs também. Teste novo em `test_implantacao.py`. A F2-0 f
 mesmo resultado e os três itens explícitos. (Na conferência manual das listagens, o `gcloud` sem extensão no Git Bash falha
 por montar mal o caminho do SDK; o certo é o `gcloud.cmd`, que é o que o script encontra.)
 
-Ponto de retomada: a confirmação da P-2 pelo responsável e "AUTORIZO F2-1" (habilitar as APIs).
+**P-2 (02/11/2026), concluída pelo responsável no Console:** o limite de gastos mensal de R$ 11 do projeto, com status
+Configurado, só do Cloud Run, com alertas de 50, 80 e 100%; e o orçamento geral de alertas de R$ 11 por mês, com 25, 50, 75
+e 100%. As configurações financeiras não foram alteradas.
+
+**F2-1 (02/11/2026).** `gcloud services enable` das sete APIs no projeto de hospedagem `agente-diagnostico-territorial`
+(operação `acf.p2-338451103854-4c947d6e-…`, concluída com sucesso). Conferência só em leitura: `run`, `artifactregistry`,
+`secretmanager`, `iam`, `iamcredentials`, `sts` e `cloudresourcemanager` ligadas; `cloudbuild` e `containerscanning`
+desligadas. O Google ligou junto, como dependências, `containerregistry.googleapis.com` e `pubsub.googleapis.com`, sem custo
+sem uso e não usadas pelo roteiro. Nenhum recurso criado; o projeto da chave do Gemini não foi tocado.
+
+Ponto de retomada: "AUTORIZO F2-2" (repositório do Artifact Registry, registros de auditoria e política de limpeza em
+simulação).
 
