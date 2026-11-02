@@ -136,6 +136,11 @@ No Windows, rode o pytest com `PYTHONUTF8=1` e uma pasta temporária gravável (
   - `legado/`: roteiros obsoletos, que não rodam.
 - `README.md`, `Docs/` e [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md): documentação.
 - `.github/workflows/ci.yml` e `.github/scripts/verificar_governanca.py`: CI e governança.
+- Implantação (Cloud Run + GitHub Pages, desde 01/11/2026): `Dockerfile`, `.dockerignore` e `backend/requirements-conteiner.txt`
+  (a imagem); `.github/workflows/` `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só por
+  etiqueta e só com autorização; `.github/scripts/` com as medições do contêiner, a conferência da proteção dos ambientes, a
+  validação real e o padrão de chave do Google; `scripts/implantacao/verificacao_previa.py`; e
+  [`Docs/implantacao/`](Docs/implantacao/RELATORIO_IMPLANTACAO.md) (relatório, providências do responsável e roteiro da Fase 2).
 - `scripts/`: ferramentas de desenvolvimento, fora do produto e do CI.
   - `verificar_tudo.py`: verificação completa local, na ordem, com o resultado de cada passo e um
     resumo final; só por pedido explícito do responsável (seção 4).
