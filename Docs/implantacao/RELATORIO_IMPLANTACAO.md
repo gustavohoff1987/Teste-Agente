@@ -5,10 +5,17 @@ Comando de implantação de 01/11/2026 (`COMANDO_IMPLANTACAO_REVISADO (1).txt`),
 teste de gatilho e validação real do Gemini, de 02/11/2026 (`COMANDO_AJUSTES_PRE_FASE2.txt`). Ramo `implantacao/cloud-run-pages`.
 
 **Situação (02/11/2026):** a Fase 1 está concluída (execução 41375485808, commit `b8ae7fb`, os 8 jobs em sucesso). O comando de
-ajustes antes da Fase 2 está em execução: os ajustes das seções 2 a 5 estão feitos (seção M); faltam o CI do último commit, o
-teste de gatilho e a validação real do Gemini. **Conclusão estimada do comando: 35%** (seção M). Nada foi publicado: nenhum
-recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente, nenhum merge e nenhum pull request. **Parecer:
-Pronto com ressalvas** (seção L).
+ajustes antes da Fase 2 também:
+- os ajustes das seções 2 a 5 estão feitos e verificados (execução 41492208661, commit `381523a`, os 8 jobs em sucesso);
+- o teste de gatilho passou (seção H);
+- a validação real do Gemini foi feita com sucesso (execução 41506330654: 15 chamadas reais de 20, sem 429; seção M).
+
+**Conclusão: 100% das etapas do comando**; resta ao responsável o V-7 (apagar o segredo do ambiente `gemini-real`).
+
+Nada foi publicado: nenhum recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente (o ambiente e o segredo
+foram criados pelo responsável), nenhum merge e nenhum pull request. As únicas chamadas reais ao Gemini foram as 15 da
+validação autorizada. **Parecer: Pronto com ressalvas** (seção L). A única ressalva é a varredura de segredos e a proteção de
+push, desativadas.
 
 ## A. Base escolhida, commit e evidências
 
@@ -191,7 +198,11 @@ falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesad
   regenerações (3 chamadas) e a reserva; tempo esgotado aos 75 s, 503 e 500 (espera por indisponibilidade); 429 por minuto
   (RetryInfo de 3 s) e o retorno depois da espera; chave inválida (400 `API_KEY_INVALID`) e recusada (403), como configuração;
   429 por dia (QuotaFailure), com espera até a virada do dia no horário do Pacífico; e o motor funcionando sem o Gemini.
-- **Validação real (preparada, não executada):** `validacao-gemini-real.yml` com o job `conferir-protecao` (sem ambiente e
+- **Validação real (02/11/2026): feita, com sucesso.** Execução 41506330654: 15 chamadas reais de 20, sem interrupção e
+  sem nenhum 429; as 10 respostas redigidas pelo Gemini passaram na conferência de fidelidade (8 na primeira tentativa, 2
+  depois de uma regeneração), em 1,03 a 3,93 s (mediana de 1,5 s); a chave inválida apareceu como problema de configuração.
+  Detalhes na seção M.
+- **Validação real (preparada na Fase 1, executada em 02/11/2026):** `validacao-gemini-real.yml` com o job `conferir-protecao` (sem ambiente e
   sem segredos) e o job `validacao` (ambiente `gemini-real`), teto de 20 chamadas somadas, 429 real encerra, chave inválida
   noutro contêiner e relatório sanitizado conferido contra o padrão de chave. O mecanismo é demonstrado por testes com
   respostas simuladas da API (`test_implantacao.py`): para sem chamadas quando o repositório não está público (desde
@@ -200,9 +211,10 @@ falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesad
   entre si (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real encerra a validação), o roteiro registra o
   tempo de cada mensagem e o resumo sanitizado sai também nas anotações da execução (`anotar_validacao.py`), legíveis pela API
   pública do GitHub sem login.
-  **A validação real depende de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI"** (providências V-1 a V-7).
+  A validação real dependia de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" (providências V-1 a V-7), concedida em 02/11/2026.
 - **Chamadas por mensagem (medidas):** 1 por mensagem numa conversa típica, 0 nas respondidas localmente ("Obrigado!") e até 3
-  com as regenerações.
+  com as regenerações. Na validação real: 1 nas redigidas pelo Gemini na primeira tentativa, 2 nas duas com regeneração, 0
+  nas respondidas pelo canal sistêmico ou localmente.
 - **Capacidade frente ao nível gratuito:** cerca de 10 requisições por minuto e 500 por dia por projeto (a conferir no AI
   Studio, P-4): cerca de 10 mensagens por minuto e 500 por dia, somando todos os usuários. Sem teto local (decisão de
   26/10/2026): a proteção é a espera após o 429 e a resposta determinística de reserva.
@@ -293,8 +305,11 @@ interações: cerca de 5.700 horas de aba por mês.
   `test_implantacao.py` conferem que só há os gatilhos previstos, sem `workflow_dispatch`, `repository_dispatch` ou
   `workflow_run`. O `teste-gatilho.yml` está pronto e só roda depois de "AUTORIZO O TESTE DE GATILHO", concedida em
   02/11/2026.
-- **Teste de gatilho (02/11/2026): pendente.** Etiqueta `teste-gatilho-20261102` no último commit verificado, a execução de
-  `teste-gatilho.yml` conferida pela API pública e a etiqueta apagada em seguida (seção M).
+- **Teste de gatilho (02/11/2026): comprovado.** A etiqueta `teste-gatilho-20261102`, enviada às 18:02:12 UTC ao último
+  commit verificado (`381523a`, execução 41492208661 em PASS), acionou em 1 s a execução 41496728825 do `teste-gatilho.yml`,
+  que não está no ramo padrão. O job `registrar` terminou em sucesso em 31 s e registrou `ref: refs/tags/teste-gatilho-20261102`,
+  `commit: 381523ae7403…` e `evento: push`. A etiqueta foi apagada em seguida no GitHub e na cópia local, e o apagamento não
+  iniciou nenhuma execução. Os workflows protegidos usam o mesmo mecanismo (`push` de etiqueta com o padrão de cada um).
 - **Se um gatilho não funcionar:** parar e apresentar as alternativas — ramo dedicado de acionamento com regra de ramo no
   ambiente; os arquivos de workflow no `main` (exige autorização para modificar o `main`); ou a validação real executada pelo
   responsável num terminal separado, com `scripts/validar_gemini_real.py`.
@@ -309,6 +324,7 @@ o padrão de chave nos arquivos alterados); os testes completos rodaram só no G
 | 41369463989 | `2863e47` | 6 de 8 jobs em sucesso; o `conteiner` falhou em três pontos (abaixo) e, com ele, o `resumo` |
 | 41372746893 | `41b97bb` | os 8 jobs em sucesso; os 6 roteiros de navegador do contêiner e da sessão passaram |
 | 41375485808 | `b8ae7fb` | os 8 jobs em sucesso; a medição sem nenhum problema, com o pior caso de memória a 72,7% dos 2 GiB |
+| 41492208661 | `381523a` (ajustes de 02/11/2026) | os 8 jobs em sucesso: `backend` 1.237 aprovados e 63 pulados (os de dados reais); `dados-reais` 1.300 aprovados e nenhum pulado; `frontend`, 160 testes do Node e nenhuma falha; navegador, contêiner e governança em ordem. Os 12 testes novos são a conferência do repositório público, o ritmo das mensagens, as anotações e o passo do workflow |
 
 Na execução 41375485808: `backend`, 1.225 testes aprovados e 63 pulados (os de dados reais, que rodam no job seguinte);
 `dados-reais`, 1.288 aprovados e nenhum pulado; `frontend`, os 160 testes do Node e o build; navegador, os 8 roteiros do
@@ -343,11 +359,12 @@ Em ordem, com o porquê. O passo a passo está em [PROVIDENCIAS_DO_RESPONSAVEL.m
 |---|---|---|---|
 | 1 | Decidir a divergência da RQ-FLX-17 | resolvida: opção (a) | a sessão pode se perder antes dos 30 minutos com mínimo 0 instâncias (seção F) |
 | 2 | Decidir a política dos dados com o repositório público | resolvida: a caracterização e o repositório público no README | o README dizia que o repositório devia ser privado; o Pages e as proteções dos ambientes dependem de ele ser público no plano gratuito |
-| 3 | Conferir ou ativar a varredura de segredos e a proteção de push | pendente; não conferível sem autenticação | barram o envio acidental de uma chave ao repositório público |
-| 4 | Conferir e descartar o `stash@{0}` | pendente; o stash ainda existe | guarda um `backend/.env` com a chave; um `stash pop` seguido de commit a publicaria |
-| 5 | Instalar o `gh` (opcional) | pendente; não instalado | sem ele, o agente só lê a API pública, sem o log e os artefatos das execuções |
-| 6 | Teste de gatilho | autorizado; o resultado na seção H | comprova que uma etiqueta aciona um workflow que não está no ramo padrão, antes de a validação real e a Fase 2 dependerem disso |
-| V-1 a V-7 | Validação real do Gemini | autorizada; o andamento na seção M | sem ela, o parecer não pode ser "Pronto para implantação"; V-2, V-4, V-6 e V-7 são do responsável |
+| 3 | Ativar a varredura de segredos e a proteção de push | pendente; desativadas (conferidas com o `gh`) | barram o envio acidental de uma chave ao repositório público |
+| 4 | Descartar o `stash@{0}`, depois de extrair os três scripts soltos de `.local/`, e proteger o `main` localmente | feita em 02/11/2026, com a autorização do responsável (seção M) | o stash guardava o `backend/.env` com a chave, que um `stash pop` seguido de commit publicaria; o `main` não tem `.gitignore` |
+| 5 | Instalar o `gh` | feita em 02/11/2026 | com ele, o agente lê o log e os artefatos das execuções |
+| 6 | Teste de gatilho | feito: comprovado (seção H) | comprova que uma etiqueta aciona um workflow que não está no ramo padrão, antes de a validação real e a Fase 2 dependerem disso |
+| V-1 a V-6 | Validação real do Gemini | feita, com sucesso (seção M) | sem ela, o parecer não podia ser "Pronto para implantação" |
+| V-7 | Apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` | **pendente** | a validação acabou; é só a cópia no GitHub, e a chave continua válida |
 | P-1 | Instalar o gcloud (de preferência fora dos dados móveis) e autenticá-lo | pendente; não instalado | toda a Fase 2 usa o gcloud |
 | P-2 a P-9 | A trava e os alertas, os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
 
@@ -368,25 +385,42 @@ como desfazer cada operação, e os custos fora da trava. A concorrência (40) e
 - as conferências na interface ficam com o responsável, no navegador, e as do agente, só pela API (F2-9 a F2-11; P-9);
 - o gcloud não está instalado (P-1).
 
-## L. Parecer
+## L. Parecer (revisto em 02/11/2026)
 
-**Pronto com ressalvas.** Tudo o que a Fase 1 pede está implementado e verificado no CI com o Gemini simulado: a imagem
-roda com 1 CPU e 2 GiB, parte em cerca de 10 s com o aquecimento antes da porta, dá as mesmas respostas da referência em
-todas as famílias, recusa o que deve recusar antes de ler, mantém a saúde respondendo sob carga e cabe na memória no pior caso
-medido (72,7% dos 2 GiB depois do ajuste do teto das sessões); a interface aberta pelo Pages trata os estados A a G.
+**Pronto com ressalvas**, com uma única ressalva, que depende do responsável.
+- **O que a Fase 1 pede** está implementado e verificado no CI com o Gemini simulado:
+  - a imagem roda com 1 CPU e 2 GiB e parte em cerca de 10 s, com o aquecimento antes da porta;
+  - dá as mesmas respostas da referência em todas as famílias;
+  - recusa o que deve recusar antes de ler e mantém a saúde respondendo sob carga;
+  - cabe na memória no pior caso medido: 72,7% dos 2 GiB, depois do ajuste do teto das sessões;
+  - a interface aberta pelo Pages trata os estados A a G.
+- **A validação real do Gemini**, que faltava, foi feita com sucesso em 02/11/2026 (seção M):
+  - 15 chamadas reais de 20, sem 429;
+  - todas as respostas redigidas pelo Gemini passaram na conferência de fidelidade;
+  - a chave inválida foi tratada como problema de configuração.
+- **O gatilho por etiqueta** está comprovado (seção H).
 
-Ressalvas, que impedem o "Pronto para implantação":
-1. a validação real do Gemini está em andamento (autorizada em 02/11/2026; seção M); pelo comando de 01/11/2026, sem ela o
-   parecer não pode ser "Pronto para implantação";
-2. os gatilhos por etiqueta ainda não foram comprovados (o teste de gatilho, autorizado, roda depois do CI do último commit);
-3. a varredura de segredos e a proteção de push não puderam ser conferidas sem autenticação (em 01/11/2026, desativadas), e o
-   stash local com a chave ainda existe (providências 3 e 4);
-4. as medições são do runner do GitHub: a partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
-   trava só se confirmam no Cloud Run (F2-8 e F2-12);
-5. um XLSX de 15 MB leva cerca de 34 s por análise no runner, porque é reenviado e lido de novo a cada pedido: é o principal
-   risco de espera para quem o usa e de consumo da trava (o CSV do mesmo tamanho leva cerca de 5 s).
+Ressalva que impede o "Pronto para implantação":
+1. a varredura de segredos e a proteção de push estão desativadas (conferidas com o `gh`; providência 3). Com o repositório
+   público e a chave passando por segredos do GitHub e do Secret Manager, elas barram o envio acidental de uma chave. Quando
+   estiverem ativadas, o parecer passa a "Pronto para implantação".
 
-Resolvidas em 02/11/2026: a divergência da RQ-FLX-17 (opção a) e a política dos dados com o repositório público.
+Riscos que só se confirmam na Fase 2 e não impedem o início dela:
+- **Medições:** são do runner do GitHub. A partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
+  trava só se confirmam no Cloud Run (F2-8 e F2-12).
+- **Planilha XLSX de 15 MB:** leva cerca de 34 s por análise no runner, porque é reenviada e lida de novo a cada pedido. É o
+  principal risco de espera para quem a usa e de consumo da trava; o CSV do mesmo tamanho leva cerca de 5 s.
+- **Nível gratuito do Gemini:** tem cerca de 10 chamadas por minuto para todos os usuários juntos. Acima disso, a conversa
+  espera e usa a resposta determinística de reserva (decisão de 26/10/2026, sem teto local).
+
+Pré-requisito da Fase 2: o gcloud instalado e autenticado (P-1), de preferência fora dos dados móveis.
+
+Resolvidas em 02/11/2026:
+- a validação real do Gemini;
+- o gatilho por etiqueta;
+- a divergência da RQ-FLX-17 (opção a);
+- a política dos dados com o repositório público;
+- o stash local com a chave (descartado, com o `main` protegido localmente).
 
 ## M. Ajustes antes da Fase 2, teste de gatilho e validação real (02/11/2026)
 
@@ -414,31 +448,134 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 | 2 | `DADOS_BRASIL_VALIDACAO.md`, `BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md` e `OTIMIZACAO_LATENCIA.md` (nota de atualização na análise de 12/10/2026), no mesmo sentido; nenhum documento menciona a data de extração; as duas anotações da biblioteca conversacional | `4e30a97` |
 | 3 | `conferir_protecao.py`: o job `conferir-protecao` dos três workflows protegidos encerra a execução, sem chamadas nem envio, se o repositório não estiver público (a primeira conferência); os testes cobrem o repositório privado, interno, com visibilidade incoerente, ausente ou ilegível | `4e30a97` |
 | 5 e 7 | Validação real: pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real a encerraria), o tempo de cada mensagem, a falha técnica com o relatório gravado e o resumo sanitizado em até quatro anotações da execução (`anotar_validacao.py`), com os testes | `19f2fa5` |
-| 1, 2 e 5 | A divergência aprovada da RQ-FLX-17 no registro, no README e na seção F; as providências atualizadas (1 e 2 resolvidas; 3 a 6 pelas conferências abaixo) | o commit deste relatório |
-| 4 | O roteiro (F2-2, F2-5, F2-6, F2-8 a F2-11, o F2-13 novo e os custos), a P-1 com a instalação do gcloud e a P-9 nova | o commit deste relatório |
+| 1, 2 e 5 | A divergência aprovada da RQ-FLX-17 no registro, no README e na seção F; as providências atualizadas (1 e 2 resolvidas; 3 a 6 pelas conferências abaixo) | `381523a` |
+| 4 | O roteiro (F2-2, F2-5, F2-6, F2-8 a F2-11, o F2-13 novo e os custos), a P-1 com a instalação do gcloud e a P-9 nova | `381523a` |
+| 5 a 7 | As orientações complementares (o `gh`, a segurança do repositório e o stash), os resultados do teste de gatilho e da validação real, o parecer revisto, as providências e, no F2-2, a remoção do arquivo temporário com a política do projeto | o commit deste relatório |
 
 **Conferências da seção 5 (só leitura)**
 
 | Conferência | Resultado em 02/11/2026 |
 |---|---|
 | GitHub CLI (`gh`) | não instalado (nem no PATH, nem nas pastas de instalação, nem no `winget`) |
-| Acesso à API do GitHub | só a API pública sem autenticação, até 60 consultas por hora; nenhum token extraído de armazenamento de credenciais. Ela entrega o repositório, as execuções, os jobs, as anotações e os ambientes, mas não o log dos jobs (403) nem os artefatos (401) |
-| Varredura de segredos e proteção de push | não conferíveis sem autenticação: o bloco `security_and_analysis` não vem na resposta pública. Em 01/11/2026, desativadas |
-| Stash com `backend/.env` | não descartado: `git stash list` mostra `stash@{0}: On main: !!GitHub_Desktop<main>` (só a lista, sem abrir o conteúdo) |
+| Acesso à API do GitHub | até a instalação do `gh`, só a API pública sem autenticação, até 60 consultas por hora; nenhum token extraído de armazenamento de credenciais. Ela entrega o repositório, as execuções, os jobs, as anotações e os ambientes, mas não o log dos jobs (403) nem os artefatos (401). Depois, o `gh` autenticado (abaixo) |
+| Varredura de segredos e proteção de push | sem autenticação, não conferíveis (o bloco `security_and_analysis` não vem na resposta pública); com o `gh`, **desativadas** (abaixo) |
+| Stash com `backend/.env` | não descartado: `git stash list` mostra `stash@{0}: On main: !!GitHub_Desktop<main>`; o exame só pelos metadados está abaixo |
 | gcloud (P-1) | não instalado (`gcloud --version`: comando não encontrado); nenhuma autenticação |
 | Repositório | público (`private: false`, `visibility: public`) |
+
+**Orientações complementares do responsável (02/11/2026): GitHub CLI e stash local**
+
+- **`gh` disponível e autenticado.** O responsável instalou e autenticou o GitHub CLI num PowerShell separado. Nesta sessão, o
+  executável não está no PATH (herdado de antes da instalação) e é usado pelo caminho completo,
+  `C:\Program Files\GitHub CLI\gh.exe`, versão 2.103.3, sem reiniciar o Claude Code. `gh auth status`, com as linhas do token
+  filtradas: conta `gustavohoff1987`, credencial no cofre do sistema (keyring), escopos `gist`, `read:org`, `repo` e
+  `workflow`, protocolo HTTPS. Nenhum token foi exibido, copiado ou extraído. Passa a ser a forma preferida de consultar as
+  execuções, os logs e os artefatos.
+- **Segurança do repositório, com o `gh` (permissão de administrador):** a varredura de segredos (`secret_scanning`), a
+  proteção de push (`secret_scanning_push_protection`), os padrões genéricos (`secret_scanning_non_provider_patterns`), a
+  verificação de validade (`secret_scanning_validity_checks`) e as atualizações de segurança do Dependabot estão
+  **desativadas**. O agente não as altera: ativar a varredura e a proteção de push continua sendo a providência 3.
+- **Stash `stash@{0}`, só pelos metadados e nomes**, sem abrir conteúdo nem calcular nada sobre os arquivos `.env`. Criado
+  pelo GitHub Desktop em 17/10/2026, 19:25 (−03), no `main` (`6284151`, que só tem a SPEC e nenhum `.gitignore`); commits
+  `73427d3` (cópia de trabalho) e `17d88e5` (índice, idêntico à cópia de trabalho), nenhum enviado ao GitHub. Guarda 11.114
+  arquivos, todos como adicionados em relação ao `main`:
+
+  | Categoria | Arquivos |
+  |---|---|
+  | `frontend/node_modules` (dependências instaladas; o `npm ci` as recria) | 10.001 |
+  | `.local/`: caches do npm (382), logs de execuções do Actions baixados em 17/10 (257), temporários do pytest (252), saídas de roteiros de interface, de execuções e de investigações (`ui*`, `run*`, `remediation*` e outras, com cópias da base do Brasil; 117) e três scripts soltos (`integrity_exploration.py`, `test_investigation_ui.py`, `update_view_controls.py`) | 1.011 (sem os `.env`) |
+  | caches do Python (`__pycache__`) | 69 |
+  | `frontend/dist` e `frontend/.vite` (build e cache) | 8 |
+  | arquivos `.env`: `backend/.env` e 24 nos temporários do pytest em `.local/` | 25 |
+  | código, testes ou documentação do produto | **nenhum** |
+
+  Nove arquivos guardados (as cópias de `Dados_Brasil.xlsx`, uma linha de base de integridade e uma imagem do build) têm a
+  mesma versão em algum ramo; os demais só existem no stash, e todos são artefatos locais que o `.gitignore` deste ramo ignora
+  (`.local/`, `node_modules/`, `__pycache__/`, `frontend/dist/`).
+- **Proteção do `backend/.env` contra commit:** neste ramo, o `.gitignore` o ignora (`git check-ignore`: linha 10, `.env`;
+  também `.env.*`, com exceção de `.env.example`), e ele não está no índice. Não há proteção no `main`, que não tem
+  `.gitignore`: foi assim que, em 17/10, o GitHub Desktop pôs o `.env` e os artefatos no stash ao trocar de ramo. Um
+  `git stash pop` ou `apply` neste ramo devolveria o `backend/.env` já adicionado ao índice, e o `.gitignore` não impede o
+  commit de arquivo já adicionado.
+- **Recomendação:** havia evidência suficiente para descartar o stash. Ele não guardava código, testes nem documentação do
+  produto, só artefatos locais que se recriam ou que só têm valor de histórico, e o `.env`, cuja chave continua no AI Studio.
+  O que podia merecer preservação: os três scripts soltos de `.local/`.
+- **Feito com a autorização expressa do responsável (02/11/2026):**
+  1. os três scripts foram extraídos para `.local/`, pelos identificadores dos objetos, sem exibir o conteúdo:
+     `integrity_exploration.py` (1.707 bytes), `test_investigation_ui.py` (516) e `update_view_controls.py` (2.192). Nenhum
+     existia lá antes, e o `git hash-object` dos gravados confere com os do stash. Padrão de chave: 3 arquivos examinados,
+     nenhuma ocorrência;
+  2. o `stash@{0}` (`73427d3e2b`, conferido logo antes) foi descartado, e a lista de stashes está vazia. Os objetos dele ficam
+     no banco local do git, sem nenhuma referência, até a coleta de lixo do próprio git; nunca foram enviados ao GitHub;
+  3. `.env`, `.env.*` e `.local/` estão no `.git/info/exclude`, local e não versionado, que vale para todos os ramos. Num
+     repositório sem `.gitignore`, como o `main`, elas ignoram o `backend/.env`, os `.env.*` e o `.local/`; neste ramo, o
+     `.gitignore` tem precedência e continua deixando o `.env.example` versionável. Nenhum arquivo rastreado foi afetado.
+- **Anotações da validação real (decisão técnica):** ficam como estão (`19f2fa5`, já verificado pelos testes). Retirá-las
+  seria mais uma alteração no workflow e mais uma execução do CI, contra a orientação de evitar alterações desnecessárias.
+  Elas só repetem o relatório sanitizado, já conferido contra o padrão de chave. Com o `gh`, a fonte principal do resultado
+  passa a ser o artefato e o log da execução, e as anotações servem de conferência rápida. O espaçamento de 10 s entre as
+  mensagens não depende do acesso. Ele evita o 429 real do nível gratuito e continua necessário.
 
 **Andamento**
 
 | Etapa | Situação | Peso |
 |---|---|---|
 | Ajustes das seções 2 a 5 | feitos | 35% |
-| CI do último commit | em andamento | 15% |
-| Teste de gatilho | pendente | 10% |
-| Validação real (V-2 a V-7) | pendente | 30% |
-| Relatório final e parecer revisto | pendente | 10% |
-| **Conclusão estimada** | **35%** | |
+| CI do último commit | PASS: execução 41492208661, `381523a`, os 8 jobs | 15% |
+| Teste de gatilho | comprovado: execução 41496728825; etiqueta apagada | 10% |
+| Validação real (V-2 a V-6) | feita, com sucesso: execução 41506330654 | 30% |
+| Relatório final e parecer revisto | este relatório (seção L) | 10% |
+| **Conclusão** | **100% das etapas do comando**; resta ao responsável o V-7 (apagar o segredo do ambiente) | |
 
-**Teste de gatilho:** pendente (seção H).
+**Teste de gatilho:** comprovado em 02/11/2026 (seção H). A etiqueta `teste-gatilho-20261102` no `381523a` acionou a execução
+41496728825 em 1 s, que terminou com sucesso em 31 s; a etiqueta foi apagada.
 
-**Validação real do Gemini:** pendente; as chamadas usadas, os desfechos e os tempos entram aqui.
+**Validação real do Gemini (02/11/2026), passo a passo:**
+- **V-2 e V-3:** o responsável criou o ambiente `gemini-real`. A conferência, só em leitura pelo `gh`, encontrou:
+  - o revisor obrigatório `gustavohoff1987`, com "Prevent self-review" e o bypass de administradores desativados
+    (`can_admins_bypass: false`);
+  - implantações só por regras próprias (`custom_branch_policies: true`, `protected_branches: false`), com uma única regra, a
+    etiqueta `validacao-gemini-real-*`, e nenhuma de ramo;
+  - nenhum segredo nem variável no ambiente ou no repositório, e nenhum outro ambiente.
+
+  A função `conferir()` do `conferir_protecao.py`, a mesma do job `conferir-protecao`, foi rodada localmente com a API real
+  pelo `gh`, sem enviar etiqueta, para a etiqueta `validacao-gemini-real-20261102` no `381523a`. Ela conferiu as cinco
+  condições: o repositório público, o ambiente, o revisor, a regra da etiqueta e o commit no ramo.
+- **V-4:** o responsável cadastrou a chave atual como segredo `GEMINI_API_KEY` do ambiente. O `gh` conferiu só o nome e a
+  data (19:00:04 UTC), e não há segredo no repositório.
+- **V-5:** a etiqueta `validacao-gemini-real-20261102` foi enviada às 19:03:17 UTC ao `381523a` e acionou a execução
+  41506330654. O job `conferir-protecao` passou em 8 s, e o job `validacao` esperou a aprovação, sem nenhuma chamada antes
+  dela.
+- **V-6:** o responsável aprovou às 19:23 UTC. O job `validacao` levou 4 min (19:23:22 a 19:27:21 UTC), assim:
+  - dependências fixadas, 15 s;
+  - a imagem do mesmo commit, 22 s, sem envio a registro;
+  - os dois contêineres de 1 CPU e 2 GiB prontos, 10 s;
+  - a validação, 3 min 1 s.
+  
+  Todos os passos terminaram em sucesso. O resultado vem de três fontes, que coincidem:
+  - o artefato `validacao-gemini-real`, baixado com o `gh` para uma pasta nova e conferido de novo: nenhuma ocorrência do
+    padrão de chave;
+  - o log, em que a chave só aparece mascarada (`***`);
+  - as quatro anotações.
+- **V-7, pendente com o responsável:** apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real`. É só a cópia no GitHub; a
+  chave continua válida.
+
+**Resultado da validação real**
+
+| Medida | Resultado |
+|---|---|
+| Chamadas reais | **15 de 20**: 3 pelo caminho HTTP do contêiner, 11 no roteiro e 1 com a chave inválida. Sem interrupção e sem nenhum 429 |
+| Ritmo | 18 mensagens em 3 min 1 s, com pelo menos 10 s entre o início de duas, abaixo do limite de cerca de 10 chamadas por minuto do nível gratuito |
+| Provedor | configurado, modelo `gemini-3.5-flash-lite`, disponível |
+| Autenticação e modelo | a interpretação pelo Gemini em 1,12 s, com 1 chamada |
+| Caminho HTTP: a pergunta sobre o resultado e a explicação mais simples | respondidas pelo canal sistêmico, sem chamada (0,42 s e 0,53 s), todas com status 200 |
+| Caminho HTTP: a pergunta conceitual | redigida pelo Gemini e aprovada na conferência de fidelidade na segunda tentativa (1 regeneração): 3,93 s, 2 chamadas |
+| Roteiro `validar_gemini_real.py` | 13 mensagens, todas com status 200, código 0. 9 redigidas pelo Gemini e aprovadas na conferência (`GEMINI_VALIDADO`): continuidade, explicação do resultado, explicação progressiva (3), outra formulação, paráfrase metodológica (2) e governança. 8 passaram na primeira tentativa e 1 na segunda, em 1,03 a 2,50 s. 3 foram respondidas localmente, sem chamada (0,01 a 3,52 s; entre elas, o pedido de recomendar uma política, do cenário de governança). A pergunta de cobertura veio pelo canal contextual, sem texto redigido pelo Gemini (3,15 s); pela contagem, ela usou a 11ª chamada do roteiro |
+| Reserva determinística | nenhuma: todo texto do Gemini apresentado passou na conferência |
+| Chave propositalmente inválida (outro contêiner) | a recusa do provedor apareceu como problema de configuração (`causa: configuracao`, escopo `acesso`), sem detalhe técnico, em 0,14 s |
+| Tempos das respostas redigidas pelo Gemini | de 1,03 a 3,93 s, com mediana de 1,5 s (10 respostas); a mais longa foi a que precisou de regeneração |
+| Sigilo | relatório, anotações e log sem nenhuma ocorrência do padrão de chave; nenhum texto de mensagem ou de resposta no relatório publicado |
+
+Observação de manutenção: a execução avisou que a ação `actions/upload-artifact` fixada (v4.6.2) é de Node.js 20 e roda
+forçada no Node.js 24 do GitHub. Não afetou o resultado; a troca por uma versão para Node.js 24 fica para quando ela estiver
+fixada no repositório.

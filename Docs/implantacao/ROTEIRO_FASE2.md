@@ -81,6 +81,7 @@ politica["auditConfigs"] = outras + [{"service": "artifactregistry.googleapis.co
 json.dump(politica, open("politica-do-projeto.json", "w", encoding="utf-8"), indent=1)
 PY
 gcloud projects set-iam-policy $PROJETO politica-do-projeto.json --format="value(etag)"   # sem exibir os bindings
+rm -f politica-do-projeto.json   # tem os membros do projeto: não fica no disco nem entra em commit
 cat > politica-de-limpeza.json <<'JSON'
 [
   {"name": "manter-em-uso-e-anterior", "action": {"type": "Keep"},

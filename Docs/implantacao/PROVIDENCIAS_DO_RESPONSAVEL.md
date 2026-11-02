@@ -16,26 +16,30 @@ interface do GitHub. O agente nunca aprova execuções pendentes, nem pela API.
    dados pessoais ou sensíveis), a procedência (dados oficiais do Ministério da Saúde, com extração autorizada), a natureza
    (agregados por território e competência, redistribuição permitida) e o repositório público estão no README ("Política dos
    dados do Brasil"). Os workflows protegidos param se o repositório não estiver público.
-3. **Varredura de segredos e proteção de push do GitHub: não conferidas em 02/11/2026.** Sem o `gh` e sem token, a API
-   pública não mostra essa configuração (o bloco `security_and_analysis` só aparece para quem administra o repositório). Em
-   01/11/2026 estavam desativadas. Conferir ou ativar em Settings → Code security → Secret Protection (varredura) e Push
-   protection, gratuitas em repositório público; o agente não as altera.
-4. **Stash local do GitHub Desktop com `backend/.env`: ainda existe.** Em 02/11/2026, `git stash list` (só a lista, sem abrir
-   o conteúdo) mostra `stash@{0}: On main: !!GitHub_Desktop<main>`. Em 01/11/2026 ele guardava um `backend/.env` com
-   `GEMINI_API_KEY` (o valor não foi exibido) e **nunca foi enviado** ao GitHub. Recomendação: conferir o resto do stash e
-   descartá-lo (`git stash drop stash@{0}`), para que um `stash pop` seguido de commit não publique a chave.
-5. **GitHub CLI (`gh`): não instalado** (02/11/2026). Sem ele, o agente consulta só a API pública do GitHub sem autenticação
-   (até 60 consultas por hora; ela entrega os estados das execuções, as anotações e os ambientes, mas não o log nem os
-   artefatos) e nunca extrai tokens do Git Credential Manager nem de outro armazenamento. Para regularizar (opcional):
-   `winget install GitHub.cli` e `gh auth login`.
-6. **Teste de gatilho: autorizado em 02/11/2026** ("AUTORIZO O TESTE DE GATILHO"). O agente envia uma etiqueta
-   `teste-gatilho-AAAAMMDD` ao último commit verificado, confere a execução de `teste-gatilho.yml` (só registra o ref e o
-   commit, sem ambiente, segredos ou build) e apaga a etiqueta. O resultado está no relatório, seção H.
+3. **Varredura de segredos e proteção de push do GitHub: desativadas** (conferidas com o `gh` em 02/11/2026, com permissão
+   de administrador; também os padrões genéricos, a verificação de validade e as atualizações de segurança do Dependabot).
+   Ativar em Settings → Code security → Secret Protection (varredura) e Push protection, gratuitas em repositório público; o
+   agente não as altera.
+4. **Stash local do GitHub Desktop (`stash@{0}`, 17/10/2026): resolvido em 02/11/2026, com a sua autorização expressa.**
+   O exame só dos metadados e dos nomes (relatório, seção M) mostrou que ele não guardava código, testes nem documentação do
+   produto: eram 11.114 arquivos locais, como `frontend/node_modules`, `.local/`, caches e build, e 25 arquivos `.env`, entre
+   eles o `backend/.env` com a chave, nunca enviados ao GitHub. Os três scripts soltos foram extraídos para `.local/`, sem
+   nenhuma ocorrência do padrão de chave, e o stash foi descartado. `.env`, `.env.*` e `.local/` entraram no
+   `.git/info/exclude`, que protege também o `main`, que não tem `.gitignore`.
+5. **GitHub CLI (`gh`): instalado e autenticado pelo responsável em 02/11/2026** (conta `gustavohoff1987`). Nesta sessão do
+   Claude Code, ele é usado pelo caminho completo (`C:\Program Files\GitHub CLI\gh.exe`), sem exibir o token. Antes dele, o
+   agente usou só a API pública sem autenticação e nunca extraiu tokens do Git Credential Manager nem de outro armazenamento.
+6. **Teste de gatilho: feito em 02/11/2026** ("AUTORIZO O TESTE DE GATILHO"). A etiqueta `teste-gatilho-20261102` no último
+   commit verificado (`381523a`) acionou o `teste-gatilho.yml` (execução 41496728825, sucesso; só registra o ref e o commit,
+   sem ambiente, segredos ou build), e a etiqueta foi apagada. Detalhes no relatório, seção H.
 
-## Validação real do Gemini (autorizada em 02/11/2026)
+## Validação real do Gemini (feita em 02/11/2026; falta o V-7)
 
 A chave atual é mantida: na validação, como segredo do ambiente protegido `gemini-real`; na Fase 2, no Secret Manager (P-4).
 Criar, trocar, desativar ou revogar a chave não faz parte deste trabalho.
+
+**Situação:** V-1 a V-6 feitos em 02/11/2026. A execução 41506330654 terminou em sucesso, com 15 chamadas reais de 20 e
+nenhum 429 (relatório, seção M). **Falta o V-7**, que é seu.
 
 - **V-1.** "AUTORIZO A VALIDAÇÃO REAL DO GEMINI": concedida em 02/11/2026, para uma execução com chamadas reais, logo depois
   do sucesso do teste de gatilho. Uma execução que termine antes da primeira chamada real (por exemplo, na conferência da
@@ -54,8 +58,8 @@ Criar, trocar, desativar ou revogar a chave não faz parte deste trabalho.
   20 chamadas reais somadas, com pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 por minuto),
   para num 429 real e publica só um relatório sanitizado. O resumo dele sai também nas anotações da execução, que o agente lê
   pela API pública do GitHub sem login (o log e o artefato exigem autenticação).
-- **V-7.** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` (Settings → Environments → `gemini-real` →
-  o segredo → remover). É só a cópia no GitHub: a chave continua válida.
+- **V-7 (pendente).** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` (Settings → Environments →
+  `gemini-real` → o segredo → remover). É só a cópia no GitHub: a chave continua válida.
 
 ## Fase 2 (cada operação com AUTORIZO F2-n)
 
