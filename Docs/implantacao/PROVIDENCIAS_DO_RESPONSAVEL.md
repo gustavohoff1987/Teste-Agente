@@ -16,10 +16,10 @@ interface do GitHub. O agente nunca aprova execuções pendentes, nem pela API.
    dados pessoais ou sensíveis), a procedência (dados oficiais do Ministério da Saúde, com extração autorizada), a natureza
    (agregados por território e competência, redistribuição permitida) e o repositório público estão no README ("Política dos
    dados do Brasil"). Os workflows protegidos param se o repositório não estiver público.
-3. **Varredura de segredos e proteção de push do GitHub: desativadas** (conferidas com o `gh` em 02/11/2026, com permissão
-   de administrador; também os padrões genéricos, a verificação de validade e as atualizações de segurança do Dependabot).
-   Ativar em Settings → Code security → Secret Protection (varredura) e Push protection, gratuitas em repositório público; o
-   agente não as altera.
+3. **Varredura de segredos e proteção de push do GitHub: ativadas pelo responsável em 02/11/2026.** Conferidas com o `gh`, só
+   em leitura: `secret_scanning` e `secret_scanning_push_protection` ativados, nenhum alerta aberto. Seguem desativados, como
+   opcionais, os padrões genéricos, a verificação de validade e as atualizações de segurança do Dependabot (Settings → Code
+   security); o agente não os altera.
 4. **Stash local do GitHub Desktop (`stash@{0}`, 17/10/2026): resolvido em 02/11/2026, com a sua autorização expressa.**
    O exame só dos metadados e dos nomes (relatório, seção M) mostrou que ele não guardava código, testes nem documentação do
    produto: eram 11.114 arquivos locais, como `frontend/node_modules`, `.local/`, caches e build, e 25 arquivos `.env`, entre
@@ -33,13 +33,13 @@ interface do GitHub. O agente nunca aprova execuções pendentes, nem pela API.
    commit verificado (`381523a`) acionou o `teste-gatilho.yml` (execução 41496728825, sucesso; só registra o ref e o commit,
    sem ambiente, segredos ou build), e a etiqueta foi apagada. Detalhes no relatório, seção H.
 
-## Validação real do Gemini (feita em 02/11/2026; falta o V-7)
+## Validação real do Gemini (feita em 02/11/2026)
 
 A chave atual é mantida: na validação, como segredo do ambiente protegido `gemini-real`; na Fase 2, no Secret Manager (P-4).
 Criar, trocar, desativar ou revogar a chave não faz parte deste trabalho.
 
-**Situação:** V-1 a V-6 feitos em 02/11/2026. A execução 41506330654 terminou em sucesso, com 15 chamadas reais de 20 e
-nenhum 429 (relatório, seção M). **Falta o V-7**, que é seu.
+**Situação:** V-1 a V-7 feitos em 02/11/2026. A execução 41506330654 terminou em sucesso, com 15 chamadas reais de 20 e
+nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-real` (V-7, conferido com o `gh`).
 
 - **V-1.** "AUTORIZO A VALIDAÇÃO REAL DO GEMINI": concedida em 02/11/2026, para uma execução com chamadas reais, logo depois
   do sucesso do teste de gatilho. Uma execução que termine antes da primeira chamada real (por exemplo, na conferência da
@@ -58,7 +58,7 @@ nenhum 429 (relatório, seção M). **Falta o V-7**, que é seu.
   20 chamadas reais somadas, com pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 por minuto),
   para num 429 real e publica só um relatório sanitizado. O resumo dele sai também nas anotações da execução, que o agente lê
   pela API pública do GitHub sem login (o log e o artefato exigem autenticação).
-- **V-7 (pendente).** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` (Settings → Environments →
+- **V-7 (feito).** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` (Settings → Environments →
   `gemini-real` → o segredo → remover). É só a cópia no GitHub: a chave continua válida.
 
 ## Fase 2 (cada operação com AUTORIZO F2-n)

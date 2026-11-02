@@ -10,12 +10,14 @@ ajustes antes da Fase 2 também:
 - o teste de gatilho passou (seção H);
 - a validação real do Gemini foi feita com sucesso (execução 41506330654: 15 chamadas reais de 20, sem 429; seção M).
 
-**Conclusão: 100% das etapas do comando**; resta ao responsável o V-7 (apagar o segredo do ambiente `gemini-real`).
+**Conclusão: 100% das etapas do comando.** O responsável apagou o segredo do ambiente `gemini-real` (V-7) e ativou a
+varredura de segredos e a proteção de push (providência 3), ambas conferidas com o `gh` em 02/11/2026. O último CI do ramo
+está em sucesso (seção I).
 
-Nada foi publicado: nenhum recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente (o ambiente e o segredo
-foram criados pelo responsável), nenhum merge e nenhum pull request. As únicas chamadas reais ao Gemini foram as 15 da
-validação autorizada. **Parecer: Pronto com ressalvas** (seção L). A única ressalva é a varredura de segredos e a proteção de
-push, desativadas.
+Nada foi publicado: nenhum recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente (o ambiente, o segredo e
+as proteções foram configurados pelo responsável), nenhum merge e nenhum pull request. As únicas chamadas reais ao Gemini
+foram as 15 da validação autorizada. **Parecer: Pronto para implantação** (seção L). A Fase 2 pode começar, operação por
+operação, com "AUTORIZO F2-n", depois do gcloud instalado e autenticado (P-1).
 
 ## A. Base escolhida, commit e evidências
 
@@ -325,6 +327,7 @@ o padrão de chave nos arquivos alterados); os testes completos rodaram só no G
 | 41372746893 | `41b97bb` | os 8 jobs em sucesso; os 6 roteiros de navegador do contêiner e da sessão passaram |
 | 41375485808 | `b8ae7fb` | os 8 jobs em sucesso; a medição sem nenhum problema, com o pior caso de memória a 72,7% dos 2 GiB |
 | 41492208661 | `381523a` (ajustes de 02/11/2026) | os 8 jobs em sucesso: `backend` 1.237 aprovados e 63 pulados (os de dados reais); `dados-reais` 1.300 aprovados e nenhum pulado; `frontend`, 160 testes do Node e nenhuma falha; navegador, contêiner e governança em ordem. Os 12 testes novos são a conferência do repositório público, o ritmo das mensagens, as anotações e o passo do workflow |
+| 41510828308 | `da65a1c` (relatório de 02/11/2026) | os 8 jobs em sucesso |
 
 Na execução 41375485808: `backend`, 1.225 testes aprovados e 63 pulados (os de dados reais, que rodam no job seguinte);
 `dados-reais`, 1.288 aprovados e nenhum pulado; `frontend`, os 160 testes do Node e o build; navegador, os 8 roteiros do
@@ -359,12 +362,12 @@ Em ordem, com o porquê. O passo a passo está em [PROVIDENCIAS_DO_RESPONSAVEL.m
 |---|---|---|---|
 | 1 | Decidir a divergência da RQ-FLX-17 | resolvida: opção (a) | a sessão pode se perder antes dos 30 minutos com mínimo 0 instâncias (seção F) |
 | 2 | Decidir a política dos dados com o repositório público | resolvida: a caracterização e o repositório público no README | o README dizia que o repositório devia ser privado; o Pages e as proteções dos ambientes dependem de ele ser público no plano gratuito |
-| 3 | Ativar a varredura de segredos e a proteção de push | pendente; desativadas (conferidas com o `gh`) | barram o envio acidental de uma chave ao repositório público |
+| 3 | Ativar a varredura de segredos e a proteção de push | feita em 02/11/2026; as duas ativadas, conferidas com o `gh`, nenhum alerta aberto | barram o envio acidental de uma chave ao repositório público |
 | 4 | Descartar o `stash@{0}`, depois de extrair os três scripts soltos de `.local/`, e proteger o `main` localmente | feita em 02/11/2026, com a autorização do responsável (seção M) | o stash guardava o `backend/.env` com a chave, que um `stash pop` seguido de commit publicaria; o `main` não tem `.gitignore` |
 | 5 | Instalar o `gh` | feita em 02/11/2026 | com ele, o agente lê o log e os artefatos das execuções |
 | 6 | Teste de gatilho | feito: comprovado (seção H) | comprova que uma etiqueta aciona um workflow que não está no ramo padrão, antes de a validação real e a Fase 2 dependerem disso |
 | V-1 a V-6 | Validação real do Gemini | feita, com sucesso (seção M) | sem ela, o parecer não podia ser "Pronto para implantação" |
-| V-7 | Apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` | **pendente** | a validação acabou; é só a cópia no GitHub, e a chave continua válida |
+| V-7 | Apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` | feita em 02/11/2026: o ambiente está sem segredos (conferido com o `gh`) | a validação acabou; era só a cópia no GitHub, e a chave continua válida |
 | P-1 | Instalar o gcloud (de preferência fora dos dados móveis) e autenticá-lo | pendente; não instalado | toda a Fase 2 usa o gcloud |
 | P-2 a P-9 | A trava e os alertas, os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
 
@@ -387,7 +390,8 @@ como desfazer cada operação, e os custos fora da trava. A concorrência (40) e
 
 ## L. Parecer (revisto em 02/11/2026)
 
-**Pronto com ressalvas**, com uma única ressalva, que depende do responsável.
+**Pronto para implantação.** Revisto depois de o responsável ativar as proteções do repositório; antes, era "Pronto com
+ressalvas", com uma única ressalva, a varredura de segredos e a proteção de push desativadas.
 - **O que a Fase 1 pede** está implementado e verificado no CI com o Gemini simulado:
   - a imagem roda com 1 CPU e 2 GiB e parte em cerca de 10 s, com o aquecimento antes da porta;
   - dá as mesmas respostas da referência em todas as famílias;
@@ -400,10 +404,12 @@ como desfazer cada operação, e os custos fora da trava. A concorrência (40) e
   - a chave inválida foi tratada como problema de configuração.
 - **O gatilho por etiqueta** está comprovado (seção H).
 
-Ressalva que impede o "Pronto para implantação":
-1. a varredura de segredos e a proteção de push estão desativadas (conferidas com o `gh`; providência 3). Com o repositório
-   público e a chave passando por segredos do GitHub e do Secret Manager, elas barram o envio acidental de uma chave. Quando
-   estiverem ativadas, o parecer passa a "Pronto para implantação".
+- **As proteções do repositório**, conferidas com o `gh` em 02/11/2026, estão ativas: a varredura de segredos
+  (`secret_scanning`) e a proteção de push (`secret_scanning_push_protection`), sem nenhum alerta aberto. Com o repositório
+  público e a chave passando por segredos do GitHub e do Secret Manager, elas barram o envio acidental de uma chave. Seguem
+  desativados, como opcionais, os padrões genéricos, a verificação de validade e as atualizações de segurança do Dependabot.
+
+Nenhuma ressalva impede a implantação. A Fase 2 continua dependendo, operação por operação, de "AUTORIZO F2-n".
 
 Riscos que só se confirmam na Fase 2 e não impedem o início dela:
 - **Medições:** são do runner do GitHub. A partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
@@ -416,11 +422,12 @@ Riscos que só se confirmam na Fase 2 e não impedem o início dela:
 Pré-requisito da Fase 2: o gcloud instalado e autenticado (P-1), de preferência fora dos dados móveis.
 
 Resolvidas em 02/11/2026:
-- a validação real do Gemini;
+- a validação real do Gemini, com o segredo do ambiente `gemini-real` apagado depois (V-7);
 - o gatilho por etiqueta;
 - a divergência da RQ-FLX-17 (opção a);
 - a política dos dados com o repositório público;
-- o stash local com a chave (descartado, com o `main` protegido localmente).
+- o stash local com a chave (descartado, com o `main` protegido localmente);
+- a varredura de segredos e a proteção de push (ativadas pelo responsável).
 
 ## M. Ajustes antes da Fase 2, teste de gatilho e validação real (02/11/2026)
 
@@ -458,7 +465,7 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 |---|---|
 | GitHub CLI (`gh`) | não instalado (nem no PATH, nem nas pastas de instalação, nem no `winget`) |
 | Acesso à API do GitHub | até a instalação do `gh`, só a API pública sem autenticação, até 60 consultas por hora; nenhum token extraído de armazenamento de credenciais. Ela entrega o repositório, as execuções, os jobs, as anotações e os ambientes, mas não o log dos jobs (403) nem os artefatos (401). Depois, o `gh` autenticado (abaixo) |
-| Varredura de segredos e proteção de push | sem autenticação, não conferíveis (o bloco `security_and_analysis` não vem na resposta pública); com o `gh`, **desativadas** (abaixo) |
+| Varredura de segredos e proteção de push | sem autenticação, não conferíveis (o bloco `security_and_analysis` não vem na resposta pública); com o `gh`, desativadas; depois, **ativadas** pelo responsável e conferidas de novo, sem nenhum alerta aberto (abaixo) |
 | Stash com `backend/.env` | não descartado: `git stash list` mostra `stash@{0}: On main: !!GitHub_Desktop<main>`; o exame só pelos metadados está abaixo |
 | gcloud (P-1) | não instalado (`gcloud --version`: comando não encontrado); nenhuma autenticação |
 | Repositório | público (`private: false`, `visibility: public`) |
@@ -474,7 +481,10 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 - **Segurança do repositório, com o `gh` (permissão de administrador):** a varredura de segredos (`secret_scanning`), a
   proteção de push (`secret_scanning_push_protection`), os padrões genéricos (`secret_scanning_non_provider_patterns`), a
   verificação de validade (`secret_scanning_validity_checks`) e as atualizações de segurança do Dependabot estão
-  **desativadas**. O agente não as altera: ativar a varredura e a proteção de push continua sendo a providência 3.
+  **desativadas**. O agente não as altera: ativar a varredura e a proteção de push continua sendo a providência 3. Depois da
+  validação real, o responsável ativou as duas: com o `gh`, `secret_scanning` e `secret_scanning_push_protection` aparecem
+  ativados e não há nenhum alerta aberto. Os padrões genéricos, a verificação de validade e as atualizações de segurança do
+  Dependabot seguem desativados, como opcionais.
 - **Stash `stash@{0}`, só pelos metadados e nomes**, sem abrir conteúdo nem calcular nada sobre os arquivos `.env`. Criado
   pelo GitHub Desktop em 17/10/2026, 19:25 (−03), no `main` (`6284151`, que só tem a SPEC e nenhum `.gitignore`); commits
   `73427d3` (cópia de trabalho) e `17d88e5` (índice, idêntico à cópia de trabalho), nenhum enviado ao GitHub. Guarda 11.114
@@ -525,7 +535,7 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 | Teste de gatilho | comprovado: execução 41496728825; etiqueta apagada | 10% |
 | Validação real (V-2 a V-6) | feita, com sucesso: execução 41506330654 | 30% |
 | Relatório final e parecer revisto | este relatório (seção L) | 10% |
-| **Conclusão** | **100% das etapas do comando**; resta ao responsável o V-7 (apagar o segredo do ambiente) | |
+| **Conclusão** | **100% das etapas do comando**; o V-7 e a providência 3 também feitos pelo responsável | |
 
 **Teste de gatilho:** comprovado em 02/11/2026 (seção H). A etiqueta `teste-gatilho-20261102` no `381523a` acionou a execução
 41496728825 em 1 s, que terminou com sucesso em 31 s; a etiqueta foi apagada.
@@ -557,8 +567,8 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
     padrão de chave;
   - o log, em que a chave só aparece mascarada (`***`);
   - as quatro anotações.
-- **V-7, pendente com o responsável:** apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real`. É só a cópia no GitHub; a
-  chave continua válida.
+- **V-7, feito pelo responsável:** o segredo `GEMINI_API_KEY` saiu do ambiente `gemini-real`, que está sem segredos
+  (conferido com o `gh`, só pelos nomes). Era só a cópia no GitHub; a chave continua válida.
 
 **Resultado da validação real**
 
