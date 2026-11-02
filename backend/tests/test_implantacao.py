@@ -1,7 +1,7 @@
 """Mecanismos da implantação (01/11/2026; Docs/implantacao/), conferidos com respostas simuladas, sem rede e sem chave:
 - a proteção dos ambientes antes dos workflows protegidos (validacao-gemini-real.yml, imagem.yml e pages.yml): a execução para
-  quando o ambiente não existe, não tem revisor, aceita outras etiquetas ou ramos, o gatilho não é a etiqueta ou o commit não
-  pertence ao ramo de preparação;
+  quando o repositório não está público (desde 02/11/2026), o ambiente não existe, não tem revisor, aceita outras etiquetas ou
+  ramos, o gatilho não é a etiqueta ou o commit não pertence ao ramo de preparação;
 - a validação real pelo contêiner: sem o segredo, nenhum pedido; o teto rígido de chamadas; um 429 real encerra;
 - o padrão de chave do Google: achado por arquivo e contagem, nunca mostrado;
 - os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual.
@@ -35,8 +35,11 @@ REVISOR = {"type": "required_reviewers", "prevent_self_review": False,
            "reviewers": [{"type": "User", "reviewer": {"login": "responsavel"}}]}
 
 
-def api_simulada(ambiente=None, politicas=None, comparacao="behind", status_do_ambiente=200):
-    """A API do GitHub simulada: o ambiente, as regras de implantação dele e a comparação do commit com o ramo."""
+def api_simulada(ambiente=None, politicas=None, comparacao="behind", status_do_ambiente=200, repositorio=None,
+                 status_do_repositorio=200):
+    """A API do GitHub simulada: a visibilidade do repositório, o ambiente, as regras de implantação dele e a comparação do
+    commit com o ramo."""
+    repositorio = repositorio if repositorio is not None else {"full_name": REPO, "private": False, "visibility": "public"}
     ambiente = ambiente if ambiente is not None else {
         "name": AMBIENTE, "protection_rules": [REVISOR, {"type": "branch_policy"}],
         "deployment_branch_policy": {"protected_branches": False, "custom_branch_policies": True}}
@@ -45,6 +48,8 @@ def api_simulada(ambiente=None, politicas=None, comparacao="behind", status_do_a
 
     def api(caminho):
         pedidos.append(caminho)
+        if caminho == f"/repos/{REPO}":
+            return (status_do_repositorio, repositorio if status_do_repositorio == 200 else {"message": "Forbidden"})
         if caminho == f"/repos/{REPO}/environments/{AMBIENTE}":
             return (status_do_ambiente, ambiente if status_do_ambiente == 200 else {"message": "Not Found"})
         if caminho.startswith(f"/repos/{REPO}/environments/{AMBIENTE}/deployment-branch-policies"):
@@ -57,11 +62,21 @@ def api_simulada(ambiente=None, politicas=None, comparacao="behind", status_do_a
 
 
 def test_protecao_confere_quando_tudo_esta_como_previsto():
-    assert protecao.conferir(api_simulada(), REPO, AMBIENTE, PADRAO, RAMO, COMMIT, REF) == []
+    api = api_simulada()
+    assert protecao.conferir(api, REPO, AMBIENTE, PADRAO, RAMO, COMMIT, REF) == []
+    assert api.pedidos[0] == f"/repos/{REPO}"  # a visibilidade é a primeira conferência
     assert protecao.conferir(api_simulada(comparacao="identical"), REPO, AMBIENTE, PADRAO, RAMO, COMMIT, REF) == []
 
 
 @pytest.mark.parametrize("caso,api,ref,trecho", [
+    ("o repositório é privado", api_simulada(repositorio={"private": True, "visibility": "private"}), REF,
+     "não está público"),
+    ("o repositório é interno", api_simulada(repositorio={"private": True, "visibility": "internal"}), REF,
+     "não está público"),
+    ("visibilidade incoerente", api_simulada(repositorio={"private": False, "visibility": "internal"}), REF,
+     "não está público"),
+    ("visibilidade ausente", api_simulada(repositorio={"full_name": REPO}), REF, "não está público"),
+    ("visibilidade ilegível", api_simulada(status_do_repositorio=403), REF, "visibilidade do repositório"),
     ("o ambiente não existe", api_simulada(status_do_ambiente=404), REF, "não existe"),
     ("sem revisor obrigatório", api_simulada(ambiente={"name": AMBIENTE, "protection_rules": [{"type": "branch_policy"}],
                                                         "deployment_branch_policy": {"protected_branches": False,
@@ -100,6 +115,18 @@ def test_protecao_sai_com_erro_e_nada_segue(monkeypatch, capsys):
     monkeypatch.setenv("GITHUB_REF", REF)
     assert protecao.main(["--ambiente", AMBIENTE, "--etiquetas", PADRAO, "--ramo", RAMO]) == 1
     assert "nada segue" in capsys.readouterr().out
+
+
+def test_repositorio_que_nao_esta_publico_encerra_a_execucao_mesmo_com_o_ambiente_em_ordem(monkeypatch, capsys):
+    """O caso dos três workflows protegidos, que chamam todos o mesmo script antes do job com ambiente."""
+    monkeypatch.setattr(protecao, "api_do_github", api_simulada(repositorio={"private": True, "visibility": "private"}))
+    monkeypatch.setenv("GITHUB_REPOSITORY", REPO)
+    monkeypatch.setenv("GITHUB_SHA", COMMIT)
+    monkeypatch.setenv("GITHUB_REF", REF)
+    assert protecao.main(["--ambiente", AMBIENTE, "--etiquetas", PADRAO, "--ramo", RAMO]) == 1
+    saida = capsys.readouterr().out
+    assert "::error title=Proteção do ambiente gemini-real::o repositório" in saida and "não está público" in saida
+    assert "1 problema(s); nada segue" in saida
 
 
 # ---------------------------------------------------------------------------------------------- validação real

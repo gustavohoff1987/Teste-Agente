@@ -482,6 +482,12 @@ Nenhuma destas recomendações foi implementada; todas exigem decisão.
 
 ## 11. Proposta separada: acesso seguro aos dados reais no Claude Code web
 
+> **Atualização de 02/11/2026.** O repositório é público, e a política dos dados do Brasil mudou por decisão do
+> responsável pelo produto: as bases são agregados de natureza pública, dados oficiais do Ministério da Saúde com
+> extração autorizada, e a redistribuição desses agregados está permitida
+> ([README](../README.md#política-dos-dados-do-brasil)). A análise abaixo reflete a situação de 12/10/2026; a forma A
+> (arquivos versionados no repositório) continua em uso.
+
 ### Situação encontrada
 
 Em 12/10/2026 23:20 (−03), o commit `a202be1` ("Add files via upload — Base de Dados do

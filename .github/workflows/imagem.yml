@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
         with:
           persist-credentials: false
-      - name: Ambiente producao, revisor, etiquetas e o commit no ramo de preparação (só leitura)
+      - name: Repositório público, ambiente producao, revisor, etiquetas e o commit no ramo de preparação (só leitura)
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-

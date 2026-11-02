@@ -189,7 +189,7 @@ desse teste: elas são verificadas pelos jobs `dados-reais` e `ui-block1` (suít
 
 ### Origem da base Brasil (administração)
 
-O backend lê diretamente os três arquivos versionados na raiz deste repositório privado,
+O backend lê diretamente os três arquivos versionados na raiz deste repositório,
 `Dados_Brasil.xlsx`, `Dados_Estados_Brasil.csv` e `Dados_Municipios_Brasil.csv`, conferindo a cada
 requisição o tamanho e o SHA-256 de cada um contra o manifesto governado `dados/brasil/manifesto.json`. Não há cópia
 intermediária nem fallback: `.local/` não é lida. Arquivo alterado ou manifesto ausente,
@@ -223,13 +223,13 @@ Uma instalação externa continua possível para outra infraestrutura: `ADT_BRAS
 aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
 --destination <pasta nova>` (o instalador copia apenas a versão governada e recusa sobrescrever).
 Ela só é aceita com a versão governada ou com a versão fixada exatamente em
-`ADT_BRASIL_DATA_VERSION`; versão divergente é recusada. Não publique cópias em outros
-repositórios nem no diretório público do frontend. O diagnóstico técnico também está em
+`ADT_BRASIL_DATA_VERSION`; versão divergente é recusada. Não coloque cópias no diretório público
+do frontend. O diagnóstico técnico também está em
 `GET /api/brazil/source` e na área “Diagnóstico técnico da fonte” da interface (sem conteúdo).
 
 Para a operação online, a imagem do contêiner leva os arquivos versionados e o manifesto, com o mesmo contrato de versão,
-integridade e granularidade ([hospedagem](#hospedagem-cloud-run-e-github-pages)). Os dados devem continuar fora dos arquivos
-públicos do frontend e de qualquer repositório público. A preparação da implantação está pronta desde 01/11/2026 (Fase 1, em
+integridade e granularidade ([hospedagem](#hospedagem-cloud-run-e-github-pages)). Os dados continuam fora dos arquivos
+públicos do frontend. A preparação da implantação está pronta desde 01/11/2026 (Fase 1, em
 [Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md)); o provisionamento e a publicação (Fase 2) dependem de
 autorização do responsável, operação por operação, e não foram executados.
 
@@ -259,10 +259,15 @@ Detalhes e cobertura: [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.m
 
 ### Política dos dados do Brasil
 
-Situação vigente em 13/10/2026, enquanto esta for a política de distribuição:
+Caracterização das bases, por decisão do responsável pelo produto em 02/11/2026:
+
+> As bases de dados utilizadas pelo Agente Diagnóstico Territorial da Força de Trabalho na Saúde são constituídas por
+> informações agregadas, de natureza pública, que não expõem dados pessoais ou sensíveis de cidadãos.
+
+Situação vigente desde 02/11/2026:
 
 1. **Versionamento.** `Dados_Brasil.xlsx` e `Dados_Municipios_Brasil.csv` estão versionados
-   na raiz deste repositório privado desde o commit `a202be1` (12/10/2026), e
+   na raiz do repositório desde o commit `a202be1` (12/10/2026), e
    `Dados_Estados_Brasil.csv` desde 19/10/2026. SHA-256 dos arquivos versionados:
    `7caa74d7a49f2f7cd2adf87b1c0546f7755ec0291dcb0ffbfae7c387dceb91d3` (nacional),
    `7f64a828389d91228b30247787817701c8ffccdeee8b81234282c77926f936bc` (estadual) e
@@ -291,12 +296,15 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
    agregados efetivamente exibidos (territórios, indicadores, valores com as unidades, períodos,
    classes, notas e a frase-resumo do motor), montados pelo backend (`backend/contexto_conversa.py`).
    Nunca a base inteira.
-8. **Repositório privado.** O repositório deve permanecer privado enquanto esta for a política
-   de distribuição. Torná-lo público, ou ampliar o acesso de leitura, expõe os dados e todas as
-   versões guardadas no histórico.
-9. **Origem, cobertura e limitações.** Origem registrada: envio dos arquivos ao repositório no
-   commit `a202be1`; a procedência primária (instituição produtora, data de extração e método
-   de produção) não está documentada e permanece pendente. Cobertura: 22 competências (janeiro
+8. **Repositório público.** O repositório `gustavohoff1987/Teste-Agente` é público. O GitHub Pages
+   da interface e as proteções dos ambientes da implantação (revisor obrigatório e regras de
+   etiqueta) dependem disso no plano gratuito do GitHub; os workflows protegidos param, sem
+   chamadas nem envio, se ele não estiver público ([hospedagem](#hospedagem-cloud-run-e-github-pages)).
+9. **Origem, natureza, cobertura e limitações.** Procedência: dados oficiais do Ministério da
+   Saúde, com extração autorizada; os arquivos chegaram ao repositório no commit `a202be1`.
+   Natureza: os arquivos versionados e os resultados servidos pelo backend são agregados por
+   território e competência, sem registros individuais nem identificadores; a redistribuição
+   desses agregados está permitida. Cobertura: 22 competências (janeiro
    e junho de 2014 a 2024), 22 linhas nacionais, 594 estaduais (27 UFs × 22 competências) e
    122.534 municipais, 5.570 municípios por código IBGE, categoria MEDICINA, quantidade e população
    estimada sem ausências. Correção registrada: em 25/10/2026, a pedido do responsável, a linha do
@@ -313,10 +321,6 @@ Situação vigente em 13/10/2026, enquanto esta for a política de distribuiçã
    [validação da base Brasil](Docs/DADOS_BRASIL_VALIDACAO.md),
    [proposta de acesso aos dados reais](Docs/OTIMIZACAO_LATENCIA.md#11-proposta-separada-acesso-seguro-aos-dados-reais-no-claude-code-web)
    e [Bloco 2, Etapa 1](Docs/BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md).
-
-**Licença e autorização de redistribuição: pendentes.** O repositório não registra a licença
-das fontes nem autorização para redistribuí-las. Até esse registro, não redistribua os
-arquivos fora deste repositório privado.
 
 ### Origem, integridade e coordenadas — dez pontos (Bloco 2, Etapa 2)
 
@@ -597,7 +601,10 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   aviso de sessão expirada ou indisponível. A divergência com a RQ-FLX-17 aguarda a decisão do responsável (relatório, seção F).
 - **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só
   por etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e
-  [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)).
+  [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)). Nos três primeiros, o job `conferir-protecao` encerra a execução
+  antes de qualquer chamada, envio ou publicação se o repositório não estiver público (desde 02/11/2026), se o ambiente não
+  existir, não tiver revisor obrigatório ou aceitar outras etiquetas ou ramos, ou se o commit não pertencer ao ramo de
+  preparação.
 - **Testes:** `backend/tests/test_hospedagem.py` e `test_implantacao.py` (pytest), `frontend/tests/conexao.test.mjs` e os
   roteiros `ui_hospedagem.py`, `ui_conexao.py` e `ui_sessao.py` (job `conteiner`).
 

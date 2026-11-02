@@ -1,6 +1,7 @@
 name: Validação real do Gemini
 # Só depois de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" e das providências V-1 a V-7 (Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md).
-# O envio de uma etiqueta validacao-gemini-real-* aciona: primeiro a conferência da proteção, sem ambiente e sem segredos;
+# O envio de uma etiqueta validacao-gemini-real-* aciona: primeiro a conferência da proteção (o repositório público, o
+# ambiente, o revisor, as etiquetas e o commit no ramo de preparação), sem ambiente e sem segredos;
 # depois, só se ela passar, o job no ambiente gemini-real, que espera a aprovação do responsável. A chave existe apenas
 # como segredo desse ambiente. No máximo 20 chamadas reais somadas; um 429 real encerra. Uma execução por autorização.
 on:
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
         with:
           persist-credentials: false
-      - name: Ambiente gemini-real, revisor, etiquetas e o commit no ramo de preparação (só leitura, nenhuma chamada)
+      - name: Repositório público, ambiente gemini-real, revisor, etiquetas e o commit no ramo de preparação (só leitura, nenhuma chamada)
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-

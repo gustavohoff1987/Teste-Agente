@@ -3,11 +3,13 @@ seções 1.2 e 6.3 do comando de implantação): validacao-gemini-real.yml (ambi
 validacao-gemini-real-*), imagem.yml (producao, imagem-*) e pages.yml (github-pages, publicacao-pages-*).
 
 Exige, nesta ordem:
-1. o gatilho é uma etiqueta com o padrão do ambiente;
-2. o ambiente existe (o job deste script não usa ambiente: se ele não existir, nada o cria);
-3. o ambiente tem revisor obrigatório;
-4. as implantações no ambiente só são aceitas por etiquetas com exatamente esse padrão (nenhum ramo, nenhuma outra etiqueta);
-5. o commit da etiqueta pertence ao ramo de preparação (a restrição de ramo destes workflows, que só rodam por etiqueta).
+1. o repositório está público (desde 02/11/2026; no plano gratuito do GitHub, o Pages e as proteções dos ambientes dependem
+   disso);
+2. o gatilho é uma etiqueta com o padrão do ambiente;
+3. o ambiente existe (o job deste script não usa ambiente: se ele não existir, nada o cria);
+4. o ambiente tem revisor obrigatório;
+5. as implantações no ambiente só são aceitas por etiquetas com exatamente esse padrão (nenhum ramo, nenhuma outra etiqueta);
+6. o commit da etiqueta pertence ao ramo de preparação (a restrição de ramo destes workflows, que só rodam por etiqueta).
 Qualquer falha encerra a execução (código 1) antes do job protegido: nenhuma chamada ao provedor, nenhuma imagem enviada,
 nenhuma publicação. Mostra só nomes, contagens e estados; nenhum segredo é lido.
 
@@ -44,6 +46,11 @@ def api_do_github(caminho: str) -> tuple[int, dict]:
 def conferir(api, repositorio: str, ambiente: str, padrao: str, ramo: str, commit: str, ref: str) -> list[str]:
     """Os problemas da proteção (lista vazia quando tudo confere). `api(caminho)` devolve (status, corpo)."""
     problemas = []
+    status, dados = api(f"/repos/{repositorio}")
+    if status != 200:
+        problemas.append(f"não foi possível ler a visibilidade do repositório {repositorio} (HTTP {status})")
+    elif dados.get("private") is not False or dados.get("visibility") != "public":
+        problemas.append(f"o repositório {repositorio} não está público (visibilidade: {dados.get('visibility') or 'desconhecida'})")
     etiqueta = ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else ""
     if not etiqueta or not fnmatch.fnmatchcase(etiqueta, padrao):
         problemas.append(f"o gatilho ({ref or 'vazio'}) não é uma etiqueta {padrao}")

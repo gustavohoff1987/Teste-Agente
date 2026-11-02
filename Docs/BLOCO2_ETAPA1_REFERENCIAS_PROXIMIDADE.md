@@ -343,8 +343,8 @@ Limitações:
   falhavam no baseline e não fazem parte da CI;
 - um arquivo importado precisa permanecer no disco durante a sessão, porque cada pré-exame o
   reenvia (comportamento preexistente);
-- procedência primária, licença e autorização de redistribuição da base Brasil seguem pendentes
-  (ver README).
+- a procedência e a autorização de redistribuição da base Brasil, então pendentes, foram registradas
+  em 02/11/2026 (README, "Política dos dados do Brasil").
 
 ## 13. Pendências para a Etapa 2
 

@@ -5,7 +5,7 @@ As fontes são lidas sem alteração. Os dados residentes e as evidências de na
 ficam em `.local/`, ignorada pelo Git; não houve publicação dos arquivos.
 
 > **Atualização de 13/10/2026.** Desde o commit `a202be1` (12/10/2026), os dois arquivos
-> originais estão versionados na raiz do repositório privado. As menções a fontes fora do
+> originais estão versionados na raiz do repositório. As menções a fontes fora do
 > Git refletem a situação de 10/10/2026. A política vigente está no README, em
 > [Política dos dados do Brasil](../README.md#política-dos-dados-do-brasil); as cópias
 > instaladas continuam em `.local/`, ignorada pelo Git.
@@ -63,7 +63,7 @@ exportação registram a regra, os campos de origem, o recorte e a versão lógi
 
 ## Uma base lógica, sem misturar granularidades
 
-O catálogo `brazil_data.py` administra três fontes privadas (nacional, estadual e municipal). A interface
+O catálogo `brazil_data.py` administra três fontes versionadas (nacional, estadual e municipal). A interface
 mostra somente "Dados do Brasil". A base é examinada uma vez, no recorte municipal, com o bloco dos níveis.
 Na página única (22/10/2026), o gráfico começa pelos 27 estados e abre os municípios de um estado
 ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); até essa data, a caixa "Abrangência territorial" das
@@ -144,8 +144,7 @@ de 2016 soma 206.084.130 habitantes desde a correção de 25/10/2026; antes, 206
 em 19/10/2026, com o pedido de integrar a contagem estadual à base. A aba "Estados" traz o título "MÉDICOS
 ÚNICOS POR ESTADO", o subtítulo "Contagem distinta de chaves dentro da UF e competência — NÃO soma de
 municípios" e uma tabela larga: uma linha por competência e uma coluna por UF. A planilha não fica
-versionada; a procedência primária da contagem (sistema de origem e chave de unicidade) segue a mesma
-pendência das demais fontes (README, ponto 9).
+versionada; a procedência é a mesma das demais fontes (README, ponto 9).
 
 **Conversão.** `backend/build_state_source.py` confere a estrutura e grava os mesmos valores, sem somar,
 estimar ou corrigir, em `Dados_Estados_Brasil.csv` (`uf;periodo_ano;periodo_mes;categoria_profissional;contagem`,
@@ -174,7 +173,7 @@ do estado conta uma vez no estado, e quem atua em mais de um estado conta em cad
   possível dupla contagem.
 
 Limites: a comparabilidade temporal é premissa do perfil, não comprovação metodológica da
-fonte, cuja procedência primária segue pendente (README, ponto 9). O mesmo vale para o
+fonte (procedência no README, ponto 9). O mesmo vale para o
 referencial SIRGAS 2000, que não certifica o datum original. Outro referencial informado para esta base, inclusive o
 WGS 84 (aceito nas planilhas desde 22/10/2026), é recusado com o motivo: usá-lo exigiria transformação, que não existe
 (RQ-DAD-27). As duas premissas de distância só
@@ -238,7 +237,7 @@ alterar os arquivos; ver a atualização no início deste documento.)
 | Navegador: carrossel | Passou; dez análises, teclado, roda, gestos, seleção sem execução e responsividade |
 | Navegador: catálogo Brasil | Passou; 22 linhas nacionais exportadas, 5.570 municípios no filtro, troca de recorte e retorno ao upload internacional |
 | Navegador: upload municipal real | Passou; 122.534 linhas exportadas conferidas com Decimal, filtros, metadados, falha simulada de pré-exame e tela de 390 px |
-| Integridade e Git | Originais e cópias com hashes idênticos; dados privados ignorados, nenhum CSV/XLS/XLSX rastreado pelo Git |
+| Integridade e Git | Originais e cópias com hashes idênticos; dados residentes ignorados, nenhum CSV/XLS/XLSX rastreado pelo Git |
 
 Os quatro fluxos de navegador terminaram sem erros JavaScript. No upload municipal,
 o maior desvio absoluto na densidade exportada foi `5,91025063785 × 10⁻¹⁵`.
