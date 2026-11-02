@@ -14,13 +14,16 @@ Mede e confere:
   (/api/inspect) e no processamento com a geração do resultado (/api/painel);
 - sessões pela API: a consulta não renova, a interação renova, o encerramento é imediato, o reinício perde as sessões; o tempo
   de cada consulta e de cada pré-verificação do CORS (base do custo faturável);
-- memória das sessões: os resultados guardados até os tetos (32 MiB por sessão, 256 MiB no total, em JSON) e a memória real;
+- memória das sessões: os resultados do gráfico guardados até o teto total (256 MiB em JSON; cada sessão guarda os 8 mais
+  recentes, abaixo dos 32 MiB por sessão), a memória real e, com as sessões cheias, os envios de planilha (CSV de 14,9 MB,
+  XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo);
 - Gemini simulado: sucesso, demora, tempo esgotado (75 s), 5xx, 401/403, chave inválida, 429 por minuto e por dia no formato
   real (RetryInfo e QuotaFailure), saída fora do contrato (regeneração) e o motor funcionando sem o Gemini; chamadas contadas
   por /api/llm/status;
 - concorrência: 1, 5, 10 e 20 usuários simulados (abertura, análises leves e pesadas, planilha e conversa com o Gemini
-  simulado de 2 a 20 s), com as vagas padrão (2) e com 1 vaga; latência, fila, ocupados, latência de /api/health durante as
-  operações pesadas e memória;
+  simulado de 2 a 20 s; a abertura em paralelo e a consulta da sessão a cada 30 s, como na página), com as vagas padrão (2) e
+  com 1 vaga; latência, fila, ocupados, pedidos simultâneos (base da concorrência do Cloud Run), latência de /api/health
+  durante as operações pesadas e memória;
 - gravações fora de /tmp (docker diff) e o encerramento limpo com SIGTERM.
 
 Saída: medicoes.json e medicoes.md em --saida (artefato do job). Sai com 1 se algum requisito falhou.
@@ -424,11 +427,17 @@ def desfecho(status: int) -> str:
 
 
 def processar(c: Conteiner, http: httpx.Client, caminho: Path, inspecao: dict) -> dict:
-    mapeamento = {**{k: v for k, v in (inspecao.get("suggested_mapping") or {}).items() if k == "period"},
+    from semantic_bridge import ROLES
+    sugerido = inspecao.get("suggested_mapping") or {}
+    mapeamento = {**{k: v for k, v in sugerido.items() if k == "period"},
                   **{papel: coluna for papel, coluna in PAPEIS.items() if coluna in inspecao.get("columns", [])}}
+    # Os papéis fora do mapeamento sugerido são os que a pessoa escolhe no seletor do painel Colunas (confirmed_roles), como o
+    # código territorial, que o nome da coluna nunca estabelece.
+    escolhidos = [papel for papel in mapeamento if papel in ROLES and papel not in sugerido]
     periodos = inspecao.get("periods") or []
     opcoes = {"nivel": "municipios", "indicador": "densidade", "competencia": periodos[-1] if periodos else "",
-              "rotulos": ROTULOS, "premissas": {"count_unit": "pessoas"}, "base": {"municipios": {"todos": True}}}
+              "rotulos": ROTULOS, "premissas": {"count_unit": "pessoas", "confirmed_roles": escolhidos},
+              "base": {"municipios": {"todos": True}}}
     resposta, linha = medir_pedido(c, http, "POST", "/api/painel", files={"file": (caminho.name, caminho.read_bytes())},
                                    data={"mapping": json.dumps(mapeamento), "options": json.dumps(opcoes),
                                          "context_revision": "0"})
@@ -502,9 +511,10 @@ def medir_sessoes_api(c: Conteiner, problemas: list) -> dict:
         time.sleep(3)
         depois = http.get("/api/session", headers=cabecalho).json()["expires_in"]
         renovado = http.post("/api/session/interact", headers=cabecalho, json={"kind": "NAVEGACAO_CONTROLE_EFETIVO"}).json()
-        resultado.update(prazo_inicial_s=inicial, prazo_depois_de_consultar_s=round(depois, 1),
+        resultado.update(prazo_inicial_s=round(inicial, 1), prazo_depois_de_consultar_s=round(depois, 1),
                          prazo_depois_da_interacao_s=round(renovado["expires_in"], 1))
-        if not (inicial == 1800 and depois <= inicial - 2.5 and renovado["expires_in"] >= 1799):
+        # O prazo restante vem em segundos com fração (1.800 menos o tempo desde a última interação).
+        if not (inicial > 1799 and depois <= inicial - 2.5 and renovado["expires_in"] >= 1799):
             problemas.append("a consulta renovou o prazo ou a interação não renovou: " + json.dumps(resultado))
         consultas, preverificacoes = [], []
         for _ in range(30):
@@ -551,38 +561,44 @@ def medir_sessoes_api(c: Conteiner, problemas: list) -> dict:
 
 # ------------------------------------------------------------------------------------------------ memória das sessões
 
+TETO_TOTAL_DAS_SESSOES = 256 * MIB
+
+
 def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
+    """Os resultados do gráfico guardados nas sessões até o teto total (256 MiB em JSON; cada sessão guarda os 8 mais recentes
+    do gráfico, cerca de 20 MB, abaixo do teto de 32 MiB por sessão), a memória real ocupada e, com as sessões cheias, os
+    envios de planilha: CSV de 14,9 MB, XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo (as duas vagas)."""
     from fastapi.testclient import TestClient
+    import conversation_session
     import main
     import painel
     c = Conteiner(imagem, "adt-medicao-sessoes")
     try:
         c.subir()
         base = c.memoria()["atual"]
+        guarda = conversation_session.PANEL_KEEP
         with cliente() as http:
             info = http.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()
             periodos = sorted(info["periods"])
-            registrados, recusados, bytes_registrados, passos = 0, 0, 0, []
-            for numero in range(14):
+            registrados, recusados, bytes_registrados, passos, teto_atingido = 0, 0, 0, [], False
+            for numero in range(40):
                 token = http.post("/api/session").json()["token"]
-                recusou_logo = False
-                for k in range(4):
-                    competencia = periodos[(numero * 4 + k) % len(periodos)]
+                for k in range(guarda):
+                    competencia = periodos[(numero * guarda + k) % len(periodos)]
                     resposta = http.post("/api/painel", headers={"X-ADT-Session": token}, data={
                         "dataset": "brazil", "scope": "municipal", "dataset_version": info["source"]["version"],
                         "context_revision": "0", "mapping": json.dumps(info["suggested_mapping"]),
                         "options": json.dumps({"nivel": "municipios", "indicador": "densidade", "competencia": competencia,
                                                "base": {"municipios": {"todos": True}}})})
-                    corpo = resposta.json()
-                    if (corpo.get("sessao") or {}).get("registrado"):
-                        registrados += 1
-                        bytes_registrados += len(resposta.content)
-                    else:
+                    registrado = bool((resposta.json().get("sessao") or {}).get("registrado"))
+                    passos.append({"sessao": numero + 1, "registrado": registrado, "memoria_mb": mb(c.memoria()["atual"])})
+                    if not registrado:
                         recusados += 1
-                        recusou_logo = recusou_logo or k == 0
-                    passos.append({"sessao": numero + 1, "registrado": bool((corpo.get("sessao") or {}).get("registrado")),
-                                   "memoria_mb": mb(c.memoria()["atual"])})
-                if recusou_logo:
+                        teto_atingido = teto_atingido or k == 0
+                        break
+                    registrados += 1
+                    bytes_registrados += len(resposta.content)
+                if teto_atingido:
                     break  # o teto total já não aceita nem o primeiro resultado de uma sessão nova
             # Calibração: o resultado guardado na sessão (painel.session_record) em proporção à resposta.
             amostra = TestClient(main.app).post("/api/painel", data={
@@ -594,22 +610,46 @@ def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
                                       default=str).encode())
             proporcao = guardado / len(amostra.content)
         cheia = c.memoria()
-        with tempfile.TemporaryDirectory(prefix="adt-sessoes-") as temporaria, cliente() as http, Amostrador(c) as pico_upload:
-            arquivo = P.csv_exato(Path(temporaria) / "planilha.csv", 14_900_000)
-            status_upload = http.post("/api/inspect", files={"file": (arquivo.name, arquivo.read_bytes())}).status_code
-        json_guardado = bytes_registrados * proporcao
+        envios = {}
+
+        def enviar(caminho):
+            with cliente() as proprio:
+                inicio = time.monotonic()
+                resposta = proprio.post("/api/inspect", files={"file": (caminho.name, caminho.read_bytes())})
+                return {"arquivo": caminho.name, "status": resposta.status_code, "tempo_s": round(time.monotonic() - inicio, 2)}
+        with tempfile.TemporaryDirectory(prefix="adt-sessoes-") as temporaria:
+            csv = P.csv_exato(Path(temporaria) / "planilha.csv", 14_900_000)
+            xlsx = P.xlsx_exato(Path(temporaria) / "planilha.xlsx", 15_000_000)
+            for rotulo, arquivos in (("CSV de 14,9 MB", [csv]), ("XLSX de 15.000.000 bytes", [xlsx]),
+                                     ("dois XLSX de 15.000.000 bytes ao mesmo tempo", [xlsx, xlsx])):
+                with Amostrador(c) as amostra, concurrent.futures.ThreadPoolExecutor(len(arquivos)) as executor:
+                    feitos = list(executor.map(enviar, arquivos))
+                envios[rotulo] = {"envios": feitos, "memoria_max_mb": mb(amostra.maximo)}
+                if any(item["status"] != 200 for item in feitos):
+                    problemas.append(f"com as sessões cheias, o envio ({rotulo}) não foi aceito: " + json.dumps(feitos))
+                if c.oom() or not c.rodando():
+                    break
+        # No teto, o gráfico de uma sessão abre espaço tirando os mais antigos dela: o guardado não passa do teto total.
+        json_guardado = min(bytes_registrados * proporcao, TETO_TOTAL_DAS_SESSOES) if teto_atingido else \
+            bytes_registrados * proporcao
         real = (cheia["atual"] or 0) - (base or 0)
+        final = c.memoria() if c.rodando() else {"pico": None}  # memory.peak: o pico de verdade, desde a partida
+        pico = max([cheia["pico"] or 0, final["pico"] or 0, *[(item["memoria_max_mb"] or 0) * MIB for item in envios.values()]])
         resultado = {"memoria_base_mb": mb(base), "memoria_com_as_sessoes_mb": mb(cheia["atual"]), "pico_mb": mb(cheia["pico"]),
-                     "resultados_registrados": registrados, "resultados_recusados": recusados,
-                     "json_guardado_estimado_mb": mb(json_guardado), "memoria_real_das_sessoes_mb": mb(real),
+                     "teto_total_atingido": teto_atingido, "resultados_registrados": registrados,
+                     "resultados_recusados": recusados, "json_guardado_estimado_mb": mb(json_guardado),
+                     "memoria_real_das_sessoes_mb": mb(real),
                      "memoria_por_mb_de_json": round(real / json_guardado, 2) if json_guardado else None,
-                     "upload_de_14_9_mb_com_as_sessoes_cheias": {"status": status_upload,
-                                                                 "memoria_max_mb": mb(pico_upload.maximo)},
+                     "envios_com_as_sessoes_cheias": envios, "pico_com_os_envios_mb": mb(pico),
+                     "pico_com_os_envios_pct_de_2_gib": round(100 * pico / LIMITE_MEMORIA, 1),
                      "oom": c.oom(), "passos": passos}
+        if not teto_atingido:
+            problemas.append("as sessões não chegaram ao teto total de 256 MiB (a medição não alcançou a condição pedida)")
         if c.oom() or not c.rodando():
-            problemas.append("falta de memória com as sessões cheias")
-        elif max(pico_upload.maximo, cheia["pico"] or 0) > 0.9 * LIMITE_MEMORIA:
-            problemas.append("as sessões cheias com um upload chegam a mais de 90% dos 2 GiB")
+            problemas.append("falta de memória com as sessões cheias e os envios de planilha")
+        elif pico > 0.9 * LIMITE_MEMORIA:
+            problemas.append(f"as sessões cheias com os envios de planilha chegam a {resultado['pico_com_os_envios_pct_de_2_gib']}% "
+                             "dos 2 GiB (acima de 90%)")
         return resultado
     finally:
         c.remover()
@@ -708,11 +748,13 @@ def medir_gemini(imagem: str, problemas: list) -> list[dict]:
 # ------------------------------------------------------------------------------------------------ concorrência
 
 class Usuario:
-    """Um usuário simulado: abre a página, escolhe a base e percorre análises leves e pesadas, uma planilha e a conversa com o
-    Gemini simulado (2 a 20 s), com pausas curtas, até o fim da janela."""
+    """Um usuário simulado: abre a página (os pedidos da abertura saem juntos, como no navegador), escolhe a base e percorre
+    análises leves e pesadas, uma planilha e a conversa com o Gemini simulado (2 a 20 s), com pausas curtas, até o fim da
+    janela; a consulta da sessão sai a cada 30 s, em paralelo, como na página. `voo` conta os pedidos em andamento de todos os
+    usuários (o máximo é a base da concorrência do Cloud Run)."""
 
-    def __init__(self, numero: int, info: dict, planilha: bytes, registros: list, lock: threading.Lock):
-        self.n, self.info, self.planilha, self.registros, self.lock = numero, info, planilha, registros, lock
+    def __init__(self, numero: int, info: dict, planilha: bytes, registros: list, lock: threading.Lock, voo: dict):
+        self.n, self.info, self.planilha, self.registros, self.lock, self.voo = numero, info, planilha, registros, lock, voo
         self.sorteio = random.Random(numero)
         self.http = cliente()
         self.token = ""
@@ -729,27 +771,50 @@ class Usuario:
                                    "status": resposta.status_code if resposta is not None else None, "ocupado": ocupado,
                                    "erro": erro})
 
-    def pedir(self, passo: str, metodo: str, rota: str, sessao: bool = False, **kwargs):
+    def pedir(self, passo: str, metodo: str, rota: str, sessao: bool = False, http: httpx.Client | None = None, **kwargs):
         cabecalhos = {"X-ADT-Session": self.token} if sessao and self.token else {}
+        with self.lock:
+            self.voo["atual"] += 1
+            self.voo["max"] = max(self.voo["max"], self.voo["atual"])
         inicio = time.monotonic()
         try:
-            resposta = self.http.request(metodo, rota, headers=cabecalhos, **kwargs)
+            resposta = (http or self.http).request(metodo, rota, headers=cabecalhos, **kwargs)
         except httpx.HTTPError as exc:
             self.registrar(passo, inicio, None, type(exc).__name__)
             return None
+        finally:
+            with self.lock:
+                self.voo["atual"] -= 1
         self.registrar(passo, inicio, resposta)
         return resposta
+
+    def abrir(self):
+        """A abertura da página: a saúde, a sessão, o estado do Gemini e a descrição da base saem juntos."""
+        pedidos = (("abertura: saúde", "GET", "/api/health"), ("abertura: sessão", "POST", "/api/session"),
+                   ("abertura: estado do Gemini", "GET", "/api/llm/status"),
+                   ("abertura: descrição da base", "GET", "/api/brazil/description"))
+        with concurrent.futures.ThreadPoolExecutor(len(pedidos)) as executor:
+            def um(pedido):
+                with cliente() as proprio:
+                    return self.pedir(*pedido, http=proprio)
+            respostas = list(executor.map(um, pedidos))
+        sessao = respostas[1]
+        self.token = sessao.json().get("token", "") if sessao is not None and sessao.status_code == 200 else ""
+
+    def consultar_a_sessao(self, parar: threading.Event):
+        with cliente() as proprio:
+            while not parar.wait(30):
+                self.pedir("consulta da sessão (a cada 30 s)", "GET", "/api/session", True, http=proprio)
 
     def painel(self, rota="/api/painel", **opcoes):
         return {"dataset": "brazil", "scope": "municipal", "dataset_version": self.info["source"]["version"],
                 "context_revision": "0", "mapping": json.dumps(self.info["suggested_mapping"]), "options": json.dumps(opcoes)}
 
     def rodar(self, fim: float):
-        self.pedir("abertura: saúde", "GET", "/api/health")
-        sessao = self.pedir("abertura: sessão", "POST", "/api/session")
-        self.token = sessao.json().get("token", "") if sessao is not None and sessao.status_code == 200 else ""
-        self.pedir("abertura: estado do Gemini", "GET", "/api/llm/status")
-        self.pedir("abertura: descrição da base", "GET", "/api/brazil/description")
+        self.abrir()
+        parar = threading.Event()
+        consulta = threading.Thread(target=self.consultar_a_sessao, args=(parar,), daemon=True)
+        consulta.start()
         amazonas = {"municipios": {"estados": ["13"]}}
         passos = [
             ("base do Brasil (exame)", lambda: self.pedir("base do Brasil (exame)", "POST", "/api/inspect",
@@ -780,11 +845,13 @@ class Usuario:
             passos[indice][1]()
             indice = (indice + 1) % len(passos)
             time.sleep(self.sorteio.uniform(0.2, 1.0))
+        parar.set()
+        consulta.join(60)
         self.http.close()
 
 
 def rodada(c: Conteiner, usuarios: int, info: dict, planilha: bytes, duracao: float) -> dict:
-    registros, lock, saude = [], threading.Lock(), []
+    registros, lock, saude, voo = [], threading.Lock(), [], {"atual": 0, "max": 0}
     parar = threading.Event()
 
     def sondar():
@@ -804,7 +871,7 @@ def rodada(c: Conteiner, usuarios: int, info: dict, planilha: bytes, duracao: fl
         with concurrent.futures.ThreadPoolExecutor(usuarios) as executor:
             futuros = []
             for numero in range(usuarios):
-                futuros.append(executor.submit(Usuario(numero, info, planilha, registros, lock).rodar, fim))
+                futuros.append(executor.submit(Usuario(numero, info, planilha, registros, lock, voo).rodar, fim))
                 time.sleep(min(0.1, 2.0 / usuarios))
             for futuro in futuros:
                 futuro.result()
@@ -813,7 +880,7 @@ def rodada(c: Conteiner, usuarios: int, info: dict, planilha: bytes, duracao: fl
     por_passo = {}
     for registro in registros:
         por_passo.setdefault(registro["passo"], []).append(registro)
-    return {"usuarios": usuarios, "duracao_s": duracao, "pedidos": len(registros),
+    return {"usuarios": usuarios, "duracao_s": duracao, "pedidos": len(registros), "simultaneos_max": voo["max"],
             "ocupados_503": sum(r["ocupado"] for r in registros),
             "erros": sum(1 for r in registros if r["status"] is None or (r["status"] >= 500 and not r["ocupado"])),
             "status": {str(s): sum(1 for r in registros if r["status"] == s) for s in sorted({r["status"] for r in registros
@@ -899,16 +966,17 @@ def resumo_markdown(relatorio: dict) -> str:
                           f"{item.get('chamadas', item.get('mensagens', ''))} | {item.get('espera', '')} | {item['ok']} |")
         linhas.append("")
     if relatorio.get("concorrencia"):
-        linhas += ["## Concorrência", "", "| Vagas | Usuários | Pedidos | Ocupados (503) | Erros | /api/health p50/p95/máx (ms) | "
-                   "Memória máx. (MB) | Pesada: todos os municípios p50/p95/máx (s) | Conversa p95 (s) |",
-                   "|---|---|---|---|---|---|---|---|---|"]
+        linhas += ["## Concorrência", "", "| Vagas | Usuários | Pedidos | Simultâneos (máx.) | Ocupados (503) | Erros | "
+                   "/api/health p50/p95/máx (ms) | Memória máx. (MB) | Pesada: todos os municípios p50/p95/máx (s) | "
+                   "Conversa p95 (s) |", "|---|---|---|---|---|---|---|---|---|---|"]
         for item in relatorio["concorrencia"]:
             pesada = item["por_passo"].get("pesada: todos os municípios", {})
             conversa = item["por_passo"].get("conversa (Gemini simulado de 2 a 20 s)", {})
             saude = item["saude_ms"]
-            linhas.append(f"| {item['vagas']} | {item['usuarios']} | {item['pedidos']} | {item['ocupados_503']} | {item['erros']} | "
-                          f"{saude.get('p50')}/{saude.get('p95')}/{saude.get('max')} | {item['memoria_max_mb']} | "
-                          f"{pesada.get('p50')}/{pesada.get('p95')}/{pesada.get('max')} | {conversa.get('p95')} |")
+            linhas.append(f"| {item['vagas']} | {item['usuarios']} | {item['pedidos']} | {item.get('simultaneos_max')} | "
+                          f"{item['ocupados_503']} | {item['erros']} | {saude.get('p50')}/{saude.get('p95')}/{saude.get('max')} | "
+                          f"{item['memoria_max_mb']} | {pesada.get('p50')}/{pesada.get('p95')}/{pesada.get('max')} | "
+                          f"{conversa.get('p95')} |")
         linhas.append("")
     linhas += ["## Gravações fora de /tmp (docker diff)", "", "```", "\n".join(relatorio.get("gravacoes_fora_de_tmp") or ["(nenhuma)"]),
                "```", "", f"Encerramento com SIGTERM: {relatorio.get('encerramento')}", "",
