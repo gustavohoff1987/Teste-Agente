@@ -388,7 +388,9 @@ como desfazer cada operação, e os custos fora da trava. A concorrência (40) e
   de um dia;
 - a marcação `em-uso` e `anterior` a cada implantação e reversão (F2-6);
 - as exclusões só no F2-13, operação nova com autorização própria, depois de uma simulação com pelo menos três versões que
-  preserve as duas imagens;
+  preserve as duas imagens. **Revisto em 02/11/2026 pelo responsável:** a F2-2 fica só com o repositório, e a política de
+  limpeza, a simulação e os registros `DATA_WRITE` ficam adiados (F2-13, só se necessária). Sem limpeza automática, nada é
+  apagado; as etiquetas `em-uso` e `anterior` da F2-6 continuam;
 - o 404 de `/docs` sem `curl -f` e o CORS pelos cabeçalhos, sem `Access-Control-Allow-Origin` para uma origem estranha e com
   ele para `https://gustavohoff1987.github.io` (F2-8);
 - as conferências na interface ficam com o responsável, no navegador, e as do agente, só pela API (F2-9 a F2-11; P-9);
@@ -624,7 +626,7 @@ fixada no repositório.
 |---|---|
 | F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL confirmados pela P-2 |
 | F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
-| F2-2 — repositório do Artifact Registry, auditoria e limpeza em simulação | **feita** com "AUTORIZO F2-2" (abaixo) |
+| F2-2 — repositório do Artifact Registry | executada com o escopo anterior (abaixo); escopo simplificado pelo responsável; a retirada dos registros `DATA_WRITE` e da política de limpeza aguarda "AUTORIZO F2-2" |
 | F2-3 a F2-13 | não iniciadas |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
@@ -673,5 +675,11 @@ sem uso e não usadas pelo roteiro. Nenhum recurso criado; o projeto da chave do
   - Contorno: executar os comandos pelo PowerShell e usar scripts em arquivo. O roteiro registra isso em "Execução no
     Windows".
 
-Ponto de retomada: "AUTORIZO F2-3" (contas de serviço e federação de identidade restrita ao ambiente `producao`).
+**F2-2, escopo simplificado (02/11/2026).** Depois da execução, o responsável decidiu manter só o repositório. Adiou os
+registros de auditoria `DATA_WRITE` e a política de limpeza (em simulação ou com exclusões) e preservou os registros de
+auditoria padrão. A mensagem chegou quando a operação já tinha terminado. O roteiro foi atualizado (F2-2 e F2-13), e a
+retirada dos dois itens já aplicados foi apresentada para autorização. O repositório fica.
+
+Ponto de retomada: "AUTORIZO F2-2" (escopo simplificado: retirar a entrada `DATA_WRITE` do Artifact Registry e as três
+regras da política de limpeza, mantendo o repositório); depois, a F2-3.
 

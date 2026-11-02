@@ -37,7 +37,7 @@ s; a operação pesada mais longa medida, dois XLSX de 15 MB juntos, levou 71 s,
 ## Execução no Windows (registrada na F2-2, 02/11/2026)
 
 Os blocos abaixo estão em sintaxe bash. Neste computador, o gcloud é o `gcloud.cmd`, que fica fora do PATH das sessões
-abertas antes da instalação: `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdkin\gcloud.cmd`.
+abertas antes da instalação: `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`.
 - Pelo Git Bash, o `cmd.exe` interpreta mal o caminho com espaços quando outro argumento também vem entre aspas.
 - O agente executa os comandos pelo PowerShell (`& $G ...`), com `CLOUDSDK_CORE_DISABLE_PROMPTS=1`.
 - Os trechos em Python vão em arquivos, porque o PowerShell perde as aspas de scripts passados em linha.
@@ -73,64 +73,43 @@ Não habilitar: Cloud Build (`cloudbuild.googleapis.com`; a imagem é construíd
 **Efeito:** as APIs ficam disponíveis; nada roda. **Custo:** nenhum. **Desfazer:** `gcloud services disable <api> --project=$PROJETO`
 (só depois de remover os recursos que a usam).
 
-## F2-2 — Repositório do Artifact Registry, registros de auditoria e política de limpeza em simulação
+## F2-2 — Repositório do Artifact Registry
+
+Escopo simplificado por decisão do responsável (02/11/2026): só o repositório. Os registros de auditoria `DATA_WRITE` e a
+política de limpeza ficam adiados para uma etapa posterior, se efetivamente necessária (F2-13). Os registros de auditoria
+padrão do Google Cloud ficam como estão.
 
 ```bash
 gcloud artifacts repositories create $REPOSITORIO --project=$PROJETO --location=$REGIAO --repository-format=docker \
   --description="Imagens do serviço de análise do Agente Diagnóstico Territorial da Força de Trabalho na Saúde"
-# Registros de auditoria de acesso a dados, tipo gravação (DATA_WRITE), do Artifact Registry: o resultado da simulação só
-# aparece neles, e eles vêm desligados. A política do projeto é lida, recebe só a entrada do Artifact Registry em
-# auditConfigs (bindings e etag ficam como estão) e é gravada de volta; o etag recusa a gravação se a política mudou no
-# meio (então, repetir do início).
-gcloud projects get-iam-policy $PROJETO --format=json > politica-do-projeto.json
-python - <<'PY'
-import json
-politica = json.load(open("politica-do-projeto.json", encoding="utf-8"))
-outras = [c for c in politica.get("auditConfigs", []) if c.get("service") != "artifactregistry.googleapis.com"]
-politica["auditConfigs"] = outras + [{"service": "artifactregistry.googleapis.com", "auditLogConfigs": [{"logType": "DATA_WRITE"}]}]
-json.dump(politica, open("politica-do-projeto.json", "w", encoding="utf-8"), indent=1)
-PY
-gcloud projects set-iam-policy $PROJETO politica-do-projeto.json --format="value(etag)"   # sem exibir os bindings
-rm -f politica-do-projeto.json   # tem os membros do projeto: não fica no disco nem entra em commit
-cat > politica-de-limpeza.json <<'JSON'
-[
-  {"name": "manter-em-uso-e-anterior", "action": {"type": "Keep"},
-   "condition": {"tagState": "tagged", "tagPrefixes": ["em-uso", "anterior"]}},
-  {"name": "manter-a-mais-recente", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 1}},
-  {"name": "apagar-as-demais-depois-de-1-dia", "action": {"type": "Delete"}, "condition": {"tagState": "any", "olderThan": "86400s"}}
-]
-JSON
-gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
-  --policy=politica-de-limpeza.json --dry-run
+gcloud artifacts repositories describe $REPOSITORIO --project=$PROJETO --location=$REGIAO   # conferência, só leitura
 ```
 
-- **Proteção por etiqueta (regra Keep):** `em-uso` marca a imagem que o serviço usa, e `anterior`, a que estava em uso antes
-  dela, a da reversão (a marcação, a cada implantação e reversão, está no F2-6). Uma regra Keep vence a Delete: as duas nunca
-  são apagadas. A mais recente também fica: é a enviada no F2-5 e ainda não implantada.
-- **Simulação (dry run), sem exclusões:** o Artifact Registry aplica as políticas num processo periódico do Google, e as
-  mudanças fazem efeito em cerca de um dia. Na simulação, ele só registra o que apagaria: `BatchDeleteVersions` com
-  `validateOnly: true`, nos registros de auditoria de acesso a dados (por isso o `DATA_WRITE` acima). As exclusões só são
-  habilitadas no F2-13, com autorização própria.
-- **Onde consultar o resultado da simulação** (pelo menos um dia depois de mudar a política ou de enviar uma imagem): no
-  Console, Logging → Explorador de registros, com o filtro abaixo (registro `cloudaudit.googleapis.com/data_access`); ou:
+- **Sem política de limpeza, nada é apagado automaticamente.** A imagem em produção e a anterior, a da reversão, ficam
+  preservadas e marcadas com as etiquetas `em-uso` e `anterior` a cada implantação e reversão (F2-6).
+- **Imagens antigas:** saem só à mão, por decisão do responsável, com `gcloud artifacts docker images delete "$IMG@<digest>"`.
+  Nunca a marcada com `em-uso` ou `anterior`.
+
+**Efeito:** um repositório de imagens no Artifact Registry, sem acesso público. **Custo:** a franquia do Artifact Registry é
+de 0,5 GB por mês, e cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI, relatório, seção C).
+Sem limpeza automática, as versões se acumulam a cada envio. A franquia comporta umas 3 a 4 imagens; acima dela, o custo é de
+cerca de US$ 0,10 por GB por mês, **fora da trava do Cloud Run**. **Desfazer:**
+`gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens).
+
+**Execução de 02/11/2026:** a primeira autorização da F2-2 foi executada com o escopo anterior, antes da decisão de
+simplificar. Ela incluiu os registros `DATA_WRITE` do Artifact Registry e a política de limpeza em simulação. A retirada dos
+dois, mantido o repositório, foi apresentada ao responsável como a F2-2 de escopo simplificado (relatório, seção N):
 
 ```bash
-gcloud logging read 'protoPayload.serviceName="artifactregistry.googleapis.com"
-  AND protoPayload.methodName="google.devtools.artifactregistry.v1.ArtifactRegistry.BatchDeleteVersions"
-  AND protoPayload.request.parent="projects/'$PROJETO'/locations/'$REGIAO'/repositories/'$REPOSITORIO'/packages/-"
-  AND protoPayload.request.validateOnly=true' --project=$PROJETO --freshness=7d \
-  --format="table(timestamp, protoPayload.request.names)"   # as versões que a política apagaria
+# Registros DATA_WRITE: a política do projeto é lida, perde só a entrada do Artifact Registry em auditConfigs (bindings e
+# etag intactos) e é gravada de volta; o arquivo temporário fica fora do repositório e é apagado em seguida.
+gcloud projects get-iam-policy $PROJETO --format=json > politica-do-projeto.json
+#   (retirar de auditConfigs a entrada com service artifactregistry.googleapis.com)
+gcloud projects set-iam-policy $PROJETO politica-do-projeto.json --format="value(etag)" && rm -f politica-do-projeto.json
+# Política de limpeza: as três regras saem, e o repositório fica sem política.
+gcloud artifacts repositories delete-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
+  --policynames=manter-em-uso-e-anterior,manter-a-mais-recente,apagar-as-demais-depois-de-1-dia
 ```
-
-**Efeito:** um repositório de imagens no Artifact Registry, sem acesso público; os registros de auditoria de gravação de dados
-do Artifact Registry ligados no projeto; a política de limpeza só em simulação (nada é apagado). **Custo:** a franquia do
-Artifact Registry é de 0,5 GB por mês; cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI,
-relatório, seção C): a imagem em uso, a anterior e a mais recente cabem nela. Sem exclusões até o F2-13, as versões se
-acumulam a cada envio; acima da franquia, cerca de US$ 0,10 por GB por mês. Os registros de auditoria de gravação são poucos
-(os envios de imagem e as simulações) e cabem na franquia de 50 GiB do Cloud Logging. Tudo isso fica **fora da trava do Cloud
-Run**. **Desfazer:** `gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens);
-os registros de auditoria, com a mesma leitura e gravação da política do projeto, sem a entrada do Artifact Registry em
-`auditConfigs`.
 
 ## F2-3 — Contas de serviço e federação de identidade restrita ao ambiente `producao`
 
@@ -185,8 +164,8 @@ git tag imagem-$(date +%Y%m%d)-1 <commit verificado> && git push origin imagem-$
 
 O workflow `imagem.yml` confere o repositório público, a proteção do ambiente e o commit no ramo, constrói a imagem do commit,
 repete o teste rápido do contêiner (saúde, exame da base, documentação desligada, padrão de chave) e a envia ao Artifact
-Registry pela federação. O **digest** sai no resumo da execução, para o F2-6. Até a marcação do F2-6, a imagem nova fica
-protegida pela regra da mais recente (F2-2). **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
+Registry pela federação. O **digest** sai no resumo da execução, para o F2-6. Sem política de limpeza, nada é apagado
+automaticamente (F2-2). **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
 Registry (`gcloud artifacts docker images delete "$IMG@<digest>"`), nunca a marcada com `em-uso` ou `anterior`.
 
 ## F2-6 — Implantar no Cloud Run, ainda sem acesso público
@@ -212,8 +191,9 @@ curl -fsS http://127.0.0.1:18080/api/health
   abrir (relatório, seção C). Sem sonda de vida: o serviço não reinicia por demora de uma operação pesada.
 - `gen2`: o mesmo controle de memória (cgroup v2) medido no CI.
 
-**Marcação das imagens, a cada implantação** (depois de a revisão nova responder; a política de limpeza preserva as duas
-etiquetas, F2-2):
+**Marcação das imagens, a cada implantação** (depois de a revisão nova responder; as etiquetas identificam a imagem em
+produção e a da reversão, que nunca saem na remoção manual de imagens antigas e que uma política de limpeza futura, se
+adotada, terá de preservar):
 
 ```bash
 EM_USO=$(gcloud artifacts docker images describe "$IMG:em-uso" --format='value(image_summary.digest)' 2>/dev/null)
@@ -235,8 +215,8 @@ gcloud artifacts docker tags list "$IMG"
 ```
 
 As duas etiquetas ficam sempre nas duas imagens usadas por último: a reversão troca uma pela outra, e a imagem retirada fica
-preservada como `anterior` até a implantação seguinte. Uma reversão de mais de um passo pode não ser possível depois do F2-13
-(a imagem de antes da anterior pode ter sido apagada).
+preservada como `anterior` até a implantação seguinte. Enquanto não houver limpeza automática, as imagens mais antigas também
+ficam, até a remoção manual.
 
 **Efeito:** o serviço existe, só para quem tem permissão. **Custo:** entra na trava (tempo de instância ativa). **Desfazer:**
 `gcloud run services delete $SERVICO --project=$PROJETO --region=$REGIAO`.
@@ -319,31 +299,20 @@ Faturamento → Relatórios, filtrado pelo Cloud Run. Tempo faturável das consu
 "Billable container instance time" e "Request count" por rota (`/api/session`). Comparar com a estimativa do relatório
 (seção F e G).
 
-## F2-13 — Habilitar as exclusões automáticas da política de limpeza (só com AUTORIZO F2-13)
+## F2-13 — Política de limpeza do Artifact Registry (adiada; só se necessária, com AUTORIZO F2-13)
 
-Operação nova (comando de 02/11/2026, seção 4), com autorização própria. Antes:
-
-1. pelo menos três versões no repositório: `gcloud artifacts docker images list "$IMG" --include-tags`;
-2. uma simulação posterior a elas (consulta do F2-2, pelo menos um dia depois do último envio) que confirme a preservação:
-   nenhum dos digests de `em-uso` e de `anterior` (`gcloud artifacts docker tags list "$IMG"`) aparece em
-   `protoPayload.request.names`. Se a simulação apontar qualquer um dos dois, parar e revisar a política com o responsável.
-
-```bash
-gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
-  --policy=politica-de-limpeza.json --no-dry-run
-```
-
-**Efeito:** a partir do processo periódico seguinte (cerca de um dia), as versões sem `em-uso` nem `anterior`, que não sejam a
-mais recente e tenham mais de 1 dia, são apagadas. **Custo:** reduz o armazenamento. **Desfazer:** voltar à simulação com o
-mesmo comando e `--dry-run` (as versões já apagadas não voltam).
+Adiada por decisão do responsável (02/11/2026). Se o armazenamento crescer a ponto de justificá-la, a operação será
+apresentada de novo, com a política, os custos e a reversão. Ela terá de preservar a imagem em produção e a anterior
+(etiquetas `em-uso` e `anterior`, F2-6), e a validação dela será definida nessa apresentação. Até lá, nenhuma política de
+limpeza, nenhuma simulação e nenhum registro de auditoria `DATA_WRITE`; as imagens antigas saem só à mão (F2-2).
 
 ## Custos fora da trava (estimativas; conferir no Console)
 
 | Item | Franquia | Uso esperado | Acima da franquia |
 |---|---|---|---|
-| Artifact Registry (armazenamento) | 0,5 GB/mês | depois do F2-13, 3 versões de cerca de 126 MiB (em uso, anterior e a mais recente); antes dele, as versões se acumulam a cada envio | cerca de US$ 0,10 por GB/mês |
+| Artifact Registry (armazenamento) | 0,5 GB/mês | cerca de 126 MiB por imagem; sem limpeza automática, as versões se acumulam até a remoção manual (a franquia comporta umas 3 a 4) | cerca de US$ 0,10 por GB/mês |
 | Secret Manager | 6 versões ativas e 10 mil acessos/mês | 1 versão; 1 acesso por partida de instância | US$ 0,06 por versão/mês; US$ 0,03 por 10 mil acessos |
-| Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run, o log do Uvicorn (sem o log de acesso) e os registros de auditoria de gravação de dados do Artifact Registry (F2-2) | cerca de US$ 0,50 por GiB |
+| Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run, o log do Uvicorn (sem o log de acesso) | cerca de US$ 0,50 por GiB |
 | Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios transfere cerca de 0,2 MiB com gzip (2,3 MiB sem compressão) e a análise mais pesada (evolução e tendência), 3,8 MiB; uma sessão típica, de 1 a 5 MiB | conforme a tabela de rede do Google |
 | Cloud Build | não usado | — | — |
 | Varredura de vulnerabilidades | não habilitada | — | cobrada por imagem |
