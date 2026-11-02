@@ -6,7 +6,8 @@
 // - iniciando (B): a verificação demora ou a primeira falhou, e a tentativa curta está em curso (partida a frio);
 // - online: o serviço respondeu;
 // - ocupado (C): o próprio serviço respondeu que está no limite (resposta legível, com `ocupado`): aviso, sem a mensagem de
-//   indisponibilidade total;
+//   indisponibilidade total. Sai com a resposta de uma rota com limite (ROTAS_COM_LIMITE) ou sozinho; a saúde e a sessão
+//   respondem mesmo com o serviço no limite e não o tiram;
 // - indisponivel (A): a tentativa curta também falhou. Novas tentativas automáticas, com intervalo progressivo e teto, em
 //   pausa enquanto a aba está oculta, e o botão "Tentar novamente" (G).
 // A conversa sem o Gemini (D), a sessão expirada (E) e os erros de validação (F) têm o tratamento próprio de cada tela e
@@ -48,6 +49,11 @@ export const INTERVALOS_MS = [5000, 10000, 20000, 40000, 60000, 120000];
 /** O aviso de ocupado sai sozinho depois disso, se nenhuma outra resposta de ocupado chegar. */
 export const DURACAO_DO_OCUPADO_MS = 20000;
 export const DURACAO_DO_RESTABELECIMENTO_MS = 6000;
+/** As rotas que esperam vaga ou contam nos pedidos da sessão (backend/carga.py, PESADAS e CONVERSA; test_hospedagem.py
+ * confere a lista): só a resposta de uma delas mostra que o serviço deixou de estar no limite. */
+export const ROTAS_COM_LIMITE: ReadonlySet<string> = new Set(["/api/inspect", "/api/preflight", "/api/analyze", "/api/painel",
+  "/api/painel/referencias", "/api/painel/territorios", "/api/painel/mapa", "/api/brazil/description", "/api/llm/interpret",
+  "/api/llm/interpret-context", "/api/exploration/interpret"]);
 
 export type Relogio = { agendar: (acao: () => void, ms: number) => unknown; cancelar: (id: unknown) => void };
 const RELOGIO_DO_NAVEGADOR: Relogio = { agendar: (acao, ms) => setTimeout(acao, ms), cancelar: id => clearTimeout(id as number) };
@@ -67,8 +73,8 @@ export type Monitor = {
   falhaDeRede: () => void;
   /** O serviço respondeu que está no limite (503 com `ocupado`). */
   ocupado: (texto?: string) => void;
-  /** O serviço respondeu (qualquer resposta legível que não seja de ocupado). */
-  respondeu: () => void;
+  /** O serviço respondeu (qualquer resposta legível que não seja de ocupado); `comLimite`: a rota é de ROTAS_COM_LIMITE. */
+  respondeu: (comLimite: boolean) => void;
   /** O botão "Tentar novamente". */
   tentarAgora: () => void;
   /** A aba ficou oculta ou voltou à vista. */
@@ -156,7 +162,10 @@ export function criarMonitor({ verificar, aoMudar, relogio = RELOGIO_DO_NAVEGADO
       mudar({ fase: "ocupado", tentativas: 0, esgotadas: false, textoOcupado: texto?.trim() || TEXTO_OCUPADO });
       fimDoOcupado = relogio.agendar(() => { fimDoOcupado = null; if (estado.fase === "ocupado") online(); }, DURACAO_DO_OCUPADO_MS);
     },
-    respondeu: () => { if (estado.fase !== "online") online(); },
+    respondeu: (comLimite: boolean) => {
+      if (estado.fase === "online" || (estado.fase === "ocupado" && !comLimite)) return;
+      online();
+    },
     tentarAgora: () => { cancelarProxima(); void verificarAgora("manual"); },
     visibilidade: (agora: boolean) => {
       if (agora === !estado.pausada) return;
@@ -180,6 +189,14 @@ function urlDe(entrada: unknown): string {
   if (entrada && typeof entrada === "object" && "href" in entrada) return String((entrada as URL).href);
   if (entrada && typeof entrada === "object" && "url" in entrada) return String((entrada as Request).url);
   return "";
+}
+
+/** O caminho a partir de `/api/`, sem a consulta, de uma URL absoluta ou relativa. */
+function caminhoDe(url: string): string {
+  let caminho = url.split(/[?#]/)[0];
+  try { caminho = new URL(url, "http://local").pathname; } catch { /* fica o texto sem a consulta */ }
+  const inicio = caminho.indexOf("/api/");
+  return inicio < 0 ? caminho : caminho.slice(inicio);
 }
 
 function abortado(erro: unknown): boolean {
@@ -208,7 +225,7 @@ export function observarRespostas(monitor: Monitor, apiBase: string,
         if (corpo?.ocupado === true) { monitor.ocupado(typeof corpo.detail === "string" ? corpo.detail : undefined); return resposta; }
       } catch { /* corpo que não é JSON: uma resposta comum */ }
     }
-    monitor.respondeu();
+    monitor.respondeu(ROTAS_COM_LIMITE.has(caminhoDe(url)));
     return resposta;
   };
   alvo.fetch = observado as typeof fetch;

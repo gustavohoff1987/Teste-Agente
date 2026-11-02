@@ -581,8 +581,10 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   chegam como falha de rede), o título "Serviço temporariamente indisponível" e o texto institucional, no diálogo de abertura
   ou no alto da página; a interface continua abrindo pelo Pages. B. Partida a frio: a verificação que demora mais de 3 s, ou a
   primeira que falha, mostra que o serviço está iniciando. C. Ocupado: a resposta do próprio serviço no limite mostra o aviso
-  de ocupado; o gráfico e o mapa tentam de novo sozinhos (até 2 vezes, no tempo indicado), e a conversa mostra o aviso na
-  própria conversa. D. A conversa sem o Gemini continua como antes. E. A sessão expirada ou perdida (inclusive num reinício do
+  de ocupado, que sai quando uma rota que espera vaga ou conta nos pedidos da sessão volta a responder (as operações pesadas e
+  a conversa) ou 20 s depois do último ocupado; a verificação de saúde e a consulta da sessão respondem mesmo no limite e não o
+  tiram. O gráfico e o mapa tentam de novo sozinhos (até 2 vezes, no tempo indicado), e a conversa mostra o aviso na própria
+  conversa. D. A conversa sem o Gemini continua como antes. E. A sessão expirada ou perdida (inclusive num reinício do
   serviço) recarrega com o aviso de sempre, distinto de A. F. Os erros de validação mostram a mensagem própria, sem "(HTTP
   nnn)" no fim (antes, com o código). G. Novas tentativas automáticas a 5, 10, 20, 40, 60 e 120 s, em pausa com a aba oculta,
   o botão "Tentar novamente" e o aviso "Conexão restabelecida." quando o serviço volta. A consulta da sessão a cada 30 s não

@@ -174,14 +174,16 @@ test('falha de rede durante o uso: a verificação silenciosa mantém a tela; s�
   assert.ok(!m.fases().includes('iniciando'), 'durante o uso, sem o aviso de partida');
 });
 
-test('ocupado (C): o aviso com o texto do serviço, sem a indisponibilidade; sai com a próxima resposta ou sozinho', async () => {
+test('ocupado (C): o aviso com o texto do serviço, sem a indisponibilidade; sai com a resposta de uma rota com limite ou sozinho', async () => {
   const m = montar([true]);
   m.monitor.iniciar();
   await m.relogio.avancar(0);
   m.monitor.ocupado('Muitas solicitações agora.');
   assert.equal(m.ultimo().fase, 'ocupado');
   assert.equal(m.ultimo().textoOcupado, 'Muitas solicitações agora.');
-  m.monitor.respondeu();
+  m.monitor.respondeu(false);
+  assert.equal(m.ultimo().fase, 'ocupado', 'a sessão e a saúde respondem mesmo com o serviço no limite: o aviso fica');
+  m.monitor.respondeu(true);
   assert.equal(m.ultimo().fase, 'online');
   m.monitor.ocupado();
   assert.equal(m.ultimo().textoOcupado, C.TEXTO_OCUPADO);
@@ -193,7 +195,7 @@ test('ocupado (C): o aviso com o texto do serviço, sem a indisponibilidade; sai
 test('a observação dos pedidos: falha de rede, abortado, ocupado e resposta comum, sem mudar o resultado do pedido', async () => {
   const chamadas = [];
   const monitor = {falhaDeRede: () => chamadas.push('falha'), ocupado: texto => chamadas.push('ocupado:' + texto),
-    respondeu: () => chamadas.push('respondeu')};
+    respondeu: comLimite => chamadas.push('respondeu:' + comLimite)};
   const respostas = {
     'https://api.exemplo/api/rede': () => Promise.reject(new TypeError('Failed to fetch')),
     'https://api.exemplo/api/abortado': () => Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'})),
@@ -201,6 +203,8 @@ test('a observação dos pedidos: falha de rede, abortado, ocupado e resposta co
       {status: 503, headers: {'content-type': 'application/json'}})),
     'https://api.exemplo/api/plataforma': () => Promise.resolve(new Response('<html>', {status: 503})),
     'https://api.exemplo/api/ok': () => Promise.resolve(new Response('{}', {status: 200})),
+    'https://api.exemplo/api/painel/mapa?v=1': () => Promise.resolve(new Response('{}', {status: 200})),
+    'https://api.exemplo/api/session': () => Promise.resolve(new Response('{}', {status: 200})),
     'https://outro.exemplo/x': () => Promise.resolve(new Response('{}', {status: 200})),
   };
   const alvo = {fetch(url) { return respostas[url](); }};
@@ -213,8 +217,24 @@ test('a observação dos pedidos: falha de rede, abortado, ocupado e resposta co
   assert.equal((await ocupado.json()).detail, 'Ocupado agora.', 'o corpo continua legível para quem pediu');
   assert.equal((await alvo.fetch('https://api.exemplo/api/plataforma')).status, 503);
   assert.equal((await alvo.fetch('https://api.exemplo/api/ok')).status, 200);
+  await alvo.fetch('https://api.exemplo/api/painel/mapa?v=1');
+  await alvo.fetch('https://api.exemplo/api/session');
   await alvo.fetch('https://outro.exemplo/x');
-  assert.deepEqual(chamadas, ['falha', 'ocupado:Ocupado agora.', 'respondeu', 'respondeu']);
+  assert.deepEqual(chamadas, ['falha', 'ocupado:Ocupado agora.', 'respondeu:false', 'respondeu:false', 'respondeu:true',
+    'respondeu:false'], 'só a rota com limite (o mapa, com a consulta) conta como rota com limite');
   desfazer();
   assert.equal(alvo.fetch, original);
+});
+
+test('a observação no mesmo endereço da página (sem apiBase): o caminho relativo da rota com limite', async () => {
+  const chamadas = [];
+  const monitor = {falhaDeRede: () => chamadas.push('falha'), ocupado: () => chamadas.push('ocupado'),
+    respondeu: comLimite => chamadas.push(comLimite)};
+  const alvo = {fetch: () => Promise.resolve(new Response('{}', {status: 200}))};
+  C.observarRespostas(monitor, '', alvo);
+  await alvo.fetch('/api/inspect');
+  await alvo.fetch('/api/session/interact');
+  await alvo.fetch(new URL('http://127.0.0.1:5173/api/llm/interpret-context'));
+  assert.deepEqual(chamadas, [true, false, true]);
+  assert.ok(C.ROTAS_COM_LIMITE.has('/api/painel') && !C.ROTAS_COM_LIMITE.has('/api/health'));
 });

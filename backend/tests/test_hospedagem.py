@@ -1,14 +1,15 @@
 """Hospedagem no Cloud Run com a interface no GitHub Pages (01/11/2026; Docs/implantacao/).
 
 Confere: o limite de 15 MB (15.000.000 bytes) no backend, independente da tela; a recusa das planilhas malformadas e das com
-expansão desproporcional; as vagas das operações pesadas, com a resposta de ocupado legível pelo navegador e o pedido
-abandonado na fila; os pedidos por sessão, sem encerrar a sessão; o CORS restrito; a documentação da API desligável; o
+expansão desproporcional; as vagas das operações pesadas, com a resposta de ocupado legível pelo navegador (e as rotas com
+limite que a interface conhece) e o pedido abandonado na fila; os pedidos por sessão, sem encerrar a sessão; o CORS restrito; a documentação da API desligável; o
 aquecimento antes de a porta abrir; o endereço de teste do provedor só na própria máquina; e o provedor simulado por HTTP, no
 formato real da API (cota por minuto e por dia, chave inválida e recusada, falha e saída fora do contrato).
 """
 import asyncio
 import io
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -209,6 +210,15 @@ def test_pedidos_demais_da_mesma_sessao_recusam_so_o_novo_sem_encerrar_a_sessao(
         tarefa.join(30)
     assert resultado["primeiro"].status_code == 422
     assert client.post("/api/painel/territorios", data={}, headers={"X-ADT-Session": token}).status_code == 422
+
+
+def test_a_interface_conhece_as_rotas_com_limite_do_servico():
+    """O aviso de ocupado da interface só sai com a resposta de uma rota que espera vaga ou conta nos pedidos da sessão
+    (ROTAS_COM_LIMITE, em frontend/src/conexao.ts): a lista de lá é a desta proteção."""
+    fonte = (BACKEND.parent / "frontend" / "src" / "conexao.ts").read_text(encoding="utf-8")
+    trecho = re.search(r"ROTAS_COM_LIMITE[^=]*=\s*new Set\(\[(.*?)\]\)", fonte, re.S)
+    assert trecho, "ROTAS_COM_LIMITE não encontrada em conexao.ts"
+    assert set(re.findall(r'"(/api/[^"]+)"', trecho.group(1))) == carga.PESADAS | carga.CONVERSA
 
 
 def test_pedido_abandonado_na_fila_sai_sem_calcular():

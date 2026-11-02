@@ -35,6 +35,27 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-01 · Estados da conexão: o aviso de ocupado não some com as respostas que não esperam vaga
+- **Classificação (regra 1), pela leitura, antes de codar:** falha do roteiro `ui_conexao.py` no job `conteiner` (execução
+  41369463989, commit `2863e47`): o exame da base respondido como ocupado mostrou a mensagem na barra da fonte, mas o aviso de
+  ocupado não ficou à vista. O defeito é do produto: a resposta da interação da sessão, que sai junto com o exame e não espera
+  vaga, tirava o aviso no mesmo instante. A correção é mudança de comportamento e prevista: decorre do estado C (ocupado) do
+  item 2 da seção 4 do comando de implantação, em implementação (escopo), e não contraria a SPEC nem divergência aprovada, que
+  não tratam desse aviso (compatibilidade).
+- **Antes:** (desde a entrada abaixo, ainda só no ramo `implantacao/cloud-run-pages`) qualquer resposta legível do serviço
+  tirava o aviso de ocupado, inclusive a consulta da sessão a cada 30 s, a interação da sessão e o estado do Gemini, que
+  respondem mesmo com o serviço no limite; o aviso podia sumir no instante em que aparecia.
+- **Agora:** o aviso de ocupado sai quando responde, sem ocupado, uma rota que espera vaga ou conta nos pedidos da sessão
+  (exame, pré-exame, análise, gráfico, mapa, contagens da escolha dos territórios, descrição da base e as três rotas da
+  conversa: a lista de `backend/carga.py`), ou 20 s depois do último ocupado. As demais respostas não o tiram e continuam a
+  tirar os avisos de partida e de indisponibilidade.
+- **Permanece:** o texto do aviso, a nova tentativa sozinha do gráfico e do mapa, o aviso na conversa, os demais estados (A, B
+  e D a G) e a proteção de carga do serviço.
+- **Motivo:** defeito encontrado pelo roteiro de navegador na primeira execução do job `conteiner`.
+- **Documentação e testes:** `README.md` ("Estados da conexão", C); `conexao.test.mjs` (a sessão e a saúde não tiram o aviso,
+  a rota com limite tira; o caminho da URL com consulta e o relativo); `test_hospedagem.py` (a lista das rotas com limite na
+  interface é a de `carga.py`); `ui_conexao.py` sem mudança (o roteiro já esperava o aviso à vista).
+
 ### 2026-11-01 · Hospedagem no Cloud Run e no GitHub Pages (Fase 1): 15 MB, proteção de carga, estados da conexão e configuração de produção
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 01/11/2026 (comando de implantação,
   Fase 1, seção 4, itens 1 a 9, e seções 6 a 10). Todos os itens abaixo são mudança de comportamento e previstos: decorrem do
