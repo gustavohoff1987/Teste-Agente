@@ -35,6 +35,28 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-02 · Sessão de 30 minutos na hospedagem: divergência aprovada da RQ-FLX-17, registrada sem alteração do código
+- **Classificação (regra 1), pela leitura:** com as sessões em memória e o Cloud Run com mínimo 0 e máximo 1 instância, uma
+  sessão pode se perder antes dos 1.800 s (instância encerrada por ociosidade ou trocada pela plataforma, nova revisão, falta
+  de memória, suspensão pela trava de gastos), o que contraria a RQ-FLX-17: "Reconexão tecnicamente possível antes da
+  expiração mantém a mesma sessão e snapshot" (falha no teste de compatibilidade). A divergência foi apresentada ao
+  responsável pelo produto no relatório da Fase 1 (`Docs/implantacao/RELATORIO_IMPLANTACAO.md`, seção F), com as
+  alternativas; em 02/11/2026, ele adotou a opção (a), registrar a divergência sem alterar o código (comando de ajustes antes
+  da Fase 2, seção 1). Divergência aprovada.
+- **Antes:** a divergência estava descrita e aguardava a decisão (README, "Sessões"; relatório, seção F).
+- **Agora:** na hospedagem (Cloud Run com mínimo 0 instâncias, sessões em memória, sem banco), a perda da sessão antes dos 30
+  minutos é aceita: a interface mostra "A sessão anterior expirou ou ficou indisponível no servidor." e começa outra, sem
+  confundir com a indisponibilidade do serviço. As análises não exportadas e a conversa da sessão perdida não são recuperadas.
+- **Permanece:** o código, a TPL-09 e a SPEC; o prazo de 1.800 s, o que o renova e o que não o renova, o encerramento
+  imediato, a consulta da sessão a cada 30 s (que mantém a instância ativa enquanto a aba consulta), o mínimo 0 instâncias e
+  a decisão de não usar banco.
+- **Motivo:** decisão do responsável pelo produto em 02/11/2026. As demais alternativas não foram adotadas: (b) complementar
+  o aviso, que exigiria alterar a TPL-09; (c) mínimo de 1 instância, cerca de US$ 20 por mês, acima da trava de R$ 11; (d)
+  persistir as sessões, contrária à decisão de não usar banco.
+- **Documentação e testes:** `README.md` ("Sessões", na hospedagem), `Docs/implantacao/RELATORIO_IMPLANTACAO.md` (seção F) e
+  `Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md` (providência 1, resolvida). Sem mudança de código nem de testes:
+  `ui_sessao.py` (aba congelada) e `ui_conexao.py` (reinício do contêiner) já reproduzem a perda e o aviso.
+
 ### 2026-11-01 · Sessões: o teto total dos resultados guardados passa de 256 para 128 MiB (memória da hospedagem)
 - **Classificação (regra 1), pela leitura, antes de codar:** a medição do job `conteiner` (execução 41372746893, commit
   `41b97bb`) encheu as sessões até o teto total de 256 MiB em JSON (104 gráficos de todos os municípios em 13 sessões; o

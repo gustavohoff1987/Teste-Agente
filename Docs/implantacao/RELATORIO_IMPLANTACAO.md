@@ -1,13 +1,14 @@
-# Relatório da implantação — Fase 1 (preparação e validação)
+# Relatório da implantação — Fase 1 (preparação e validação) e ajustes antes da Fase 2
 
 Agente Diagnóstico Territorial da Força de Trabalho na Saúde — Google Cloud Run (serviço de análise) e GitHub Pages (interface).
-Comando de implantação de 01/11/2026 (`COMANDO_IMPLANTACAO_REVISADO (1).txt`), Fase 1. Ramo `implantacao/cloud-run-pages`.
+Comando de implantação de 01/11/2026 (`COMANDO_IMPLANTACAO_REVISADO (1).txt`), Fase 1, e comando de ajustes antes da Fase 2,
+teste de gatilho e validação real do Gemini, de 02/11/2026 (`COMANDO_AJUSTES_PRE_FASE2.txt`). Ramo `implantacao/cloud-run-pages`.
 
-**Situação:** Fase 1 concluída. A preparação está implementada e verificada no CI: execução 41375485808, commit `b8ae7fb`, os 8
-jobs em sucesso. **Conclusão da Fase 1:** 100% do que ela inclui (seção 0 do comando). A validação real do Gemini, o teste de
-gatilho e a Fase 2 são operações restritas, que dependem de autorização, e não foram executadas (seção J). **Nada foi
-publicado**: nenhuma chamada real ao Gemini, nenhum recurso no Google Cloud, nenhuma configuração ou etiqueta no GitHub, nenhum
-merge e nenhum pull request. **Parecer: Pronto com ressalvas** (seção L).
+**Situação (02/11/2026):** a Fase 1 está concluída (execução 41375485808, commit `b8ae7fb`, os 8 jobs em sucesso). O comando de
+ajustes antes da Fase 2 está em execução: os ajustes das seções 2 a 5 estão feitos (seção M); faltam o CI do último commit, o
+teste de gatilho e a validação real do Gemini. **Conclusão estimada do comando: 35%** (seção M). Nada foi publicado: nenhum
+recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente, nenhum merge e nenhum pull request. **Parecer:
+Pronto com ressalvas** (seção L).
 
 ## A. Base escolhida, commit e evidências
 
@@ -27,11 +28,12 @@ principal de desenvolvimento declarado no `ci.yml` desde 26/10/2026 e tem o CI v
 Nenhuma alteração relevante fica de fora. A escolha não se apoiou na data dos commits.
 
 Repositório: `gustavohoff1987/Teste-Agente`, público, ramo padrão `main`, sem Pages, sem ambientes, sem segredos e sem
-variáveis do Actions (lidos pela API em 01/11/2026); único workflow ativo, o `ci.yml`.
+variáveis do Actions (lidos pela API em 01/11/2026); único workflow ativo, o `ci.yml`. Em 02/11/2026, pela API pública sem
+autenticação: público (`private: false`, `visibility: public`), sem Pages e sem ambientes.
 
 Commits da Fase 1 no ramo: `938717d` (hospedagem: serviço, interface, contêiner e verificações), `04e22dd` (documentação da
-implantação), `2863e47` (roteiros com o serviço noutro endereço), `b75fa65` (aviso de ocupado), `41b97bb` (medições) e
-`b8ae7fb` (teto total das sessões), além do commit deste relatório.
+implantação), `2863e47` (roteiros com o serviço noutro endereço), `b75fa65` (aviso de ocupado), `41b97bb` (medições),
+`b8ae7fb` (teto total das sessões) e `5aad80b` (este relatório). Commits dos ajustes de 02/11/2026: seção M.
 
 ## B. Arquivos, classificação das mudanças e mecanismos preservados
 
@@ -61,8 +63,9 @@ implantação), `2863e47` (roteiros com o serviço noutro endereço), `b75fa65` 
 `serve_ui_offline.py`, `test_brazil_cache.py` ajustados); `scripts/implantacao/verificacao_previa.py`;
 `scripts/validar_gemini_real.py` (teto rígido); `Docs/implantacao/`.
 
-**Divergências apresentadas:** a da RQ-FLX-17 (seção F), não implementada, aguarda decisão. Nenhuma divergência aprovada
-foi contrariada; a SPEC (inclusive a TPL-09) não foi alterada.
+**Divergências:** a da RQ-FLX-17 (seção F), apresentada na Fase 1, foi aprovada pelo responsável em 02/11/2026, opção (a):
+registrada, sem alteração do código (registro de comportamento, entrada de 02/11/2026). Nenhuma divergência aprovada foi
+contrariada; a SPEC (inclusive a TPL-09) não foi alterada. A classificação dos ajustes de 02/11/2026 está na seção M.
 
 **Mecanismos preservados:** os contratos analíticos e metodológicos, as fórmulas, os parâmetros, os critérios estatísticos e
 as regras espaciais (as análises pelo contêiner são idênticas às da referência, seção C); a governança da autoridade analítica
@@ -233,13 +236,14 @@ falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesad
    por hora de aba aberta com sessão ativa e 6 s até a expiração de 30 minutos: cerca de 0,02% da trava por hora de aba.
 5. **Testes:** `ui_sessao.py` e `ui_conexao.py` passaram (seção I).
 
-**Divergência confirmada (aguarda decisão):** a RQ-FLX-17 garante que "a reconexão tecnicamente possível antes da expiração
+**Divergência aprovada em 02/11/2026:** a RQ-FLX-17 garante que "a reconexão tecnicamente possível antes da expiração
 mantém a mesma sessão"; com sessões em memória e mínimo 0 instâncias, a perda antes do prazo é possível nos casos dos itens
 2 e 3. Riscos: perder análises não exportadas e a conversa; a interface avisa e começa outra sessão, sem confundir com a
-indisponibilidade do serviço. Alternativas: (a) registrar a divergência sem alterar o código — **recomendada**, a menos
-complexa, coerente com as decisões de não ter banco nem instância mínima; (b) complementar o aviso, o que exige alterar a
-TPL-09 (fora do autorizado); (c) instância mínima, cerca de US$ 20 por mês, acima da trava de R$ 11; (d) persistência das
-sessões, contrária à decisão de não usar banco.
+indisponibilidade do serviço. Alternativas apresentadas: (a) registrar a divergência sem alterar o código, a recomendada, a
+menos complexa, coerente com as decisões de não ter banco nem instância mínima; (b) complementar o aviso, o que exige alterar
+a TPL-09; (c) instância mínima, cerca de US$ 20 por mês, acima da trava de R$ 11; (d) persistência das sessões, contrária à
+decisão de não usar banco. **O responsável adotou a opção (a)**: a divergência está no registro de comportamento (entrada de
+02/11/2026) e no README ("Sessões"), sem mudança no código, na TPL-09 ou na SPEC.
 
 ## G. Custos
 
@@ -287,7 +291,10 @@ interações: cerca de 5.700 horas de aba por mês.
 - **Gatilhos por etiqueta** (`validacao-gemini-real-*`, `imagem-*`, `publicacao-pages-*`): não podem ser comprovados na Fase 1
   (enviar etiquetas não está autorizado). A sintaxe dos workflows passou no actionlint (job `conteiner`), e os testes de
   `test_implantacao.py` conferem que só há os gatilhos previstos, sem `workflow_dispatch`, `repository_dispatch` ou
-  `workflow_run`. O `teste-gatilho.yml` está pronto e só roda depois de "AUTORIZO O TESTE DE GATILHO".
+  `workflow_run`. O `teste-gatilho.yml` está pronto e só roda depois de "AUTORIZO O TESTE DE GATILHO", concedida em
+  02/11/2026.
+- **Teste de gatilho (02/11/2026): pendente.** Etiqueta `teste-gatilho-20261102` no último commit verificado, a execução de
+  `teste-gatilho.yml` conferida pela API pública e a etiqueta apagada em seguida (seção M).
 - **Se um gatilho não funcionar:** parar e apresentar as alternativas — ramo dedicado de acionamento com regra de ramo no
   ambiente; os arquivos de workflow no `main` (exige autorização para modificar o `main`); ou a validação real executada pelo
   responsável num terminal separado, com `scripts/validar_gemini_real.py`.
@@ -330,15 +337,36 @@ por ociosidade e a troca de instâncias, o consumo efetivo da trava e o tráfego
 
 ## J. Providências que dependem do responsável
 
-Em ordem, com o porquê, em [PROVIDENCIAS_DO_RESPONSAVEL.md](PROVIDENCIAS_DO_RESPONSAVEL.md): as decisões da Fase 1 (a
-divergência da RQ-FLX-17, a política dos dados com o repositório público, a varredura de segredos e a proteção de push, o
-stash local, o `gh` e o teste de gatilho), a validação real (V-1 a V-7) e a Fase 2 (P-1 a P-8).
+Em ordem, com o porquê. O passo a passo está em [PROVIDENCIAS_DO_RESPONSAVEL.md](PROVIDENCIAS_DO_RESPONSAVEL.md).
+
+| Ordem | Providência | Situação em 02/11/2026 | Por quê |
+|---|---|---|---|
+| 1 | Decidir a divergência da RQ-FLX-17 | resolvida: opção (a) | a sessão pode se perder antes dos 30 minutos com mínimo 0 instâncias (seção F) |
+| 2 | Decidir a política dos dados com o repositório público | resolvida: a caracterização e o repositório público no README | o README dizia que o repositório devia ser privado; o Pages e as proteções dos ambientes dependem de ele ser público no plano gratuito |
+| 3 | Conferir ou ativar a varredura de segredos e a proteção de push | pendente; não conferível sem autenticação | barram o envio acidental de uma chave ao repositório público |
+| 4 | Conferir e descartar o `stash@{0}` | pendente; o stash ainda existe | guarda um `backend/.env` com a chave; um `stash pop` seguido de commit a publicaria |
+| 5 | Instalar o `gh` (opcional) | pendente; não instalado | sem ele, o agente só lê a API pública, sem o log e os artefatos das execuções |
+| 6 | Teste de gatilho | autorizado; o resultado na seção H | comprova que uma etiqueta aciona um workflow que não está no ramo padrão, antes de a validação real e a Fase 2 dependerem disso |
+| V-1 a V-7 | Validação real do Gemini | autorizada; o andamento na seção M | sem ela, o parecer não pode ser "Pronto para implantação"; V-2, V-4, V-6 e V-7 são do responsável |
+| P-1 | Instalar o gcloud (de preferência fora dos dados móveis) e autenticá-lo | pendente; não instalado | toda a Fase 2 usa o gcloud |
+| P-2 a P-9 | A trava e os alertas, os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
 
 ## K. Roteiro da Fase 2
 
-[ROTEIRO_FASE2.md](ROTEIRO_FASE2.md): F2-0 a F2-12, com os comandos revisados e não executados, o efeito, o custo esperado e
+[ROTEIRO_FASE2.md](ROTEIRO_FASE2.md): F2-0 a F2-13, com os comandos revisados e não executados, o efeito, o custo esperado e
 como desfazer cada operação, e os custos fora da trava. A concorrência (40) e o timeout (150 s) do F2-6 vêm da medição
-(seção C).
+(seção C). Ajustes de 02/11/2026 (seção 4 do comando):
+- a política de limpeza do Artifact Registry protege por etiqueta (regra Keep) a imagem em uso e a anterior, a da reversão, e
+  começa em simulação (F2-2), com os registros de auditoria de gravação de dados do Artifact Registry ligados no próprio F2-2:
+  pela documentação do Google, o resultado da simulação só aparece neles, e o processo periódico do Google faz efeito em cerca
+  de um dia;
+- a marcação `em-uso` e `anterior` a cada implantação e reversão (F2-6);
+- as exclusões só no F2-13, operação nova com autorização própria, depois de uma simulação com pelo menos três versões que
+  preserve as duas imagens;
+- o 404 de `/docs` sem `curl -f` e o CORS pelos cabeçalhos, sem `Access-Control-Allow-Origin` para uma origem estranha e com
+  ele para `https://gustavohoff1987.github.io` (F2-8);
+- as conferências na interface ficam com o responsável, no navegador, e as do agente, só pela API (F2-9 a F2-11; P-9);
+- o gcloud não está instalado (P-1).
 
 ## L. Parecer
 
@@ -348,13 +376,69 @@ todas as famílias, recusa o que deve recusar antes de ler, mantém a saúde res
 medido (72,7% dos 2 GiB depois do ajuste do teto das sessões); a interface aberta pelo Pages trata os estados A a G.
 
 Ressalvas, que impedem o "Pronto para implantação":
-1. a validação real do Gemini não foi feita (depende de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" e de V-1 a V-7); pelo comando,
-   sem ela o parecer não pode ser "Pronto para implantação";
-2. a divergência da RQ-FLX-17 aguarda a decisão do responsável (seção F);
-3. a política dos dados do Brasil diz que o repositório deve ser privado, e ele é público por decisão do responsável; a
-   varredura de segredos e a proteção de push estão desativadas (providências 2 e 3);
-4. os gatilhos por etiqueta não foram comprovados (o teste de gatilho depende de autorização);
-5. as medições são do runner do GitHub: a partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
+1. a validação real do Gemini está em andamento (autorizada em 02/11/2026; seção M); pelo comando de 01/11/2026, sem ela o
+   parecer não pode ser "Pronto para implantação";
+2. os gatilhos por etiqueta ainda não foram comprovados (o teste de gatilho, autorizado, roda depois do CI do último commit);
+3. a varredura de segredos e a proteção de push não puderam ser conferidas sem autenticação (em 01/11/2026, desativadas), e o
+   stash local com a chave ainda existe (providências 3 e 4);
+4. as medições são do runner do GitHub: a partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
    trava só se confirmam no Cloud Run (F2-8 e F2-12);
-6. um XLSX de 15 MB leva cerca de 34 s por análise no runner, porque é reenviado e lido de novo a cada pedido: é o principal
+5. um XLSX de 15 MB leva cerca de 34 s por análise no runner, porque é reenviado e lido de novo a cada pedido: é o principal
    risco de espera para quem o usa e de consumo da trava (o CSV do mesmo tamanho leva cerca de 5 s).
+
+Resolvidas em 02/11/2026: a divergência da RQ-FLX-17 (opção a) e a política dos dados com o repositório público.
+
+## M. Ajustes antes da Fase 2, teste de gatilho e validação real (02/11/2026)
+
+**Decisões do responsável (seção 1 do comando):** a caracterização das bases ("informações agregadas, de natureza pública, que
+não expõem dados pessoais ou sensíveis de cidadãos"), a procedência (dados oficiais do Ministério da Saúde, com extração
+autorizada), a natureza (agregados por território e competência, sem registros individuais nem identificadores;
+redistribuição permitida), o repositório público, a opção (a) para a RQ-FLX-17 e a chave atual mantida.
+
+**Classificação (regra 1 do AGENTS.md), pela leitura, antes de codar:**
+- a política dos dados no README e nos documentos: documentação, sem mudança de comportamento (o sistema, os dados versionados
+  e a interface continuam iguais); a SPEC não trata de licença, privacidade do repositório nem data de extração, e nada nela é
+  contrariado;
+- as duas anotações internas da biblioteca conversacional (B-0190 e B-0299): arquivo do produto, sem mudança de
+  comportamento (não são exibidas nem enviadas ao provedor);
+- a conferência do repositório público, o ritmo, os tempos e as anotações da validação real: workflows e scripts de
+  implantação, fora do produto;
+- a opção (a) da RQ-FLX-17: divergência aprovada, no registro de comportamento;
+- o roteiro e as providências: documentação.
+
+**Ajustes feitos**
+
+| Seção do comando | Ajuste | Commit |
+|---|---|---|
+| 2 | README, "Política dos dados do Brasil": a caracterização com o texto exato; item 8, o repositório público (o Pages e as proteções dos ambientes dependem disso no plano gratuito); item 9, a procedência e a natureza, sem a pendência da procedência; sem a pendência da licença e da redistribuição; "Origem da base Brasil" e a operação online sem tratar o repositório como privado. Ficam o manifesto, os originais preservados, os arquivos fora do frontend, nenhum registro ao Gemini e a governança metodológica; as salvaguardas das planilhas enviadas não mudam | `4e30a97` |
+| 2 | `DADOS_BRASIL_VALIDACAO.md`, `BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md` e `OTIMIZACAO_LATENCIA.md` (nota de atualização na análise de 12/10/2026), no mesmo sentido; nenhum documento menciona a data de extração; as duas anotações da biblioteca conversacional | `4e30a97` |
+| 3 | `conferir_protecao.py`: o job `conferir-protecao` dos três workflows protegidos encerra a execução, sem chamadas nem envio, se o repositório não estiver público (a primeira conferência); os testes cobrem o repositório privado, interno, com visibilidade incoerente, ausente ou ilegível | `4e30a97` |
+| 5 e 7 | Validação real: pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real a encerraria), o tempo de cada mensagem, a falha técnica com o relatório gravado e o resumo sanitizado em até quatro anotações da execução (`anotar_validacao.py`), com os testes | `19f2fa5` |
+| 1, 2 e 5 | A divergência aprovada da RQ-FLX-17 no registro, no README e na seção F; as providências atualizadas (1 e 2 resolvidas; 3 a 6 pelas conferências abaixo) | o commit deste relatório |
+| 4 | O roteiro (F2-2, F2-5, F2-6, F2-8 a F2-11, o F2-13 novo e os custos), a P-1 com a instalação do gcloud e a P-9 nova | o commit deste relatório |
+
+**Conferências da seção 5 (só leitura)**
+
+| Conferência | Resultado em 02/11/2026 |
+|---|---|
+| GitHub CLI (`gh`) | não instalado (nem no PATH, nem nas pastas de instalação, nem no `winget`) |
+| Acesso à API do GitHub | só a API pública sem autenticação, até 60 consultas por hora; nenhum token extraído de armazenamento de credenciais. Ela entrega o repositório, as execuções, os jobs, as anotações e os ambientes, mas não o log dos jobs (403) nem os artefatos (401) |
+| Varredura de segredos e proteção de push | não conferíveis sem autenticação: o bloco `security_and_analysis` não vem na resposta pública. Em 01/11/2026, desativadas |
+| Stash com `backend/.env` | não descartado: `git stash list` mostra `stash@{0}: On main: !!GitHub_Desktop<main>` (só a lista, sem abrir o conteúdo) |
+| gcloud (P-1) | não instalado (`gcloud --version`: comando não encontrado); nenhuma autenticação |
+| Repositório | público (`private: false`, `visibility: public`) |
+
+**Andamento**
+
+| Etapa | Situação | Peso |
+|---|---|---|
+| Ajustes das seções 2 a 5 | feitos | 35% |
+| CI do último commit | em andamento | 15% |
+| Teste de gatilho | pendente | 10% |
+| Validação real (V-2 a V-7) | pendente | 30% |
+| Relatório final e parecer revisto | pendente | 10% |
+| **Conclusão estimada** | **35%** | |
+
+**Teste de gatilho:** pendente (seção H).
+
+**Validação real do Gemini:** pendente; as chamadas usadas, os desfechos e os tempos entram aqui.

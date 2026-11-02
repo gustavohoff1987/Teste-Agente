@@ -1,12 +1,14 @@
 # Roteiro da Fase 2 — implantação do Agente Diagnóstico Territorial da Força de Trabalho na Saúde
 
-Google Cloud Run (serviço de análise) e GitHub Pages (interface). **Nada aqui foi executado.** Cada operação F2-n só acontece
-depois de o responsável pelo produto escrever **AUTORIZO F2-n**, que vale só para aquela operação, na ordem abaixo
-(seção 13 do comando de implantação de 01/11/2026). Antes de cada uma, o agente apresenta de novo os comandos exatos, o
-efeito, o custo esperado e como desfazer. Sem teste de carga. Qualquer passo fora desta lista, que amplie recursos ou que
-possa gerar custo não previsto, para e volta ao responsável.
+Google Cloud Run (serviço de análise) e GitHub Pages (interface). **Nada aqui foi executado.** Cada operação F2-n (F2-0 a
+F2-13) só acontece depois de o responsável pelo produto escrever **AUTORIZO F2-n**, que vale só para aquela operação, na ordem
+abaixo (seção 13 do comando de implantação de 01/11/2026; ajustes do comando de 02/11/2026, seção 4). Antes de cada uma, o
+agente apresenta de novo os comandos exatos, o efeito, o custo esperado e como desfazer. Sem teste de carga. Qualquer passo
+fora desta lista, que amplie recursos ou que possa gerar custo não previsto, para e volta ao responsável. As conferências na
+interface publicada (F2-9 a F2-11) são do responsável, no navegador; o agente confere só pela API (`curl`), sem instalar
+navegador de teste no computador do responsável.
 
-As providências do responsável (P-1 a P-8, V-1 a V-7) estão em [PROVIDENCIAS_DO_RESPONSAVEL.md](PROVIDENCIAS_DO_RESPONSAVEL.md);
+As providências do responsável (P-1 a P-9, V-1 a V-7) estão em [PROVIDENCIAS_DO_RESPONSAVEL.md](PROVIDENCIAS_DO_RESPONSAVEL.md);
 o que foi medido e o parecer, em [RELATORIO_IMPLANTACAO.md](RELATORIO_IMPLANTACAO.md).
 
 ## Valores fixos
@@ -21,6 +23,7 @@ SA_EXECUCAO=adt-execucao@$PROJETO.iam.gserviceaccount.com        # identidade do
 SA_IMAGEM=adt-envio-imagem@$PROJETO.iam.gserviceaccount.com      # identidade do GitHub Actions para enviar a imagem
 ORIGEM=https://gustavohoff1987.github.io        # a origem do Pages (sem caminho), a única no CORS
 NUMERO=$(gcloud projects describe $PROJETO --format='value(projectNumber)')
+IMG=$REGIAO-docker.pkg.dev/$PROJETO/$REPOSITORIO/$IMAGEM   # a imagem no Artifact Registry (etiquetas em-uso e anterior)
 ```
 
 Recursos do serviço (decisões que não mudam): 1 vCPU, 2 GiB, mínimo 0 e máximo 1 instância, cobrança por requisição
@@ -60,25 +63,63 @@ Não habilitar: Cloud Build (`cloudbuild.googleapis.com`; a imagem é construíd
 **Efeito:** as APIs ficam disponíveis; nada roda. **Custo:** nenhum. **Desfazer:** `gcloud services disable <api> --project=$PROJETO`
 (só depois de remover os recursos que a usam).
 
-## F2-2 — Repositório do Artifact Registry com política de limpeza
+## F2-2 — Repositório do Artifact Registry, registros de auditoria e política de limpeza em simulação
 
 ```bash
 gcloud artifacts repositories create $REPOSITORIO --project=$PROJETO --location=$REGIAO --repository-format=docker \
   --description="Imagens do serviço de análise do Agente Diagnóstico Territorial da Força de Trabalho na Saúde"
+# Registros de auditoria de acesso a dados, tipo gravação (DATA_WRITE), do Artifact Registry: o resultado da simulação só
+# aparece neles, e eles vêm desligados. A política do projeto é lida, recebe só a entrada do Artifact Registry em
+# auditConfigs (bindings e etag ficam como estão) e é gravada de volta; o etag recusa a gravação se a política mudou no
+# meio (então, repetir do início).
+gcloud projects get-iam-policy $PROJETO --format=json > politica-do-projeto.json
+python - <<'PY'
+import json
+politica = json.load(open("politica-do-projeto.json", encoding="utf-8"))
+outras = [c for c in politica.get("auditConfigs", []) if c.get("service") != "artifactregistry.googleapis.com"]
+politica["auditConfigs"] = outras + [{"service": "artifactregistry.googleapis.com", "auditLogConfigs": [{"logType": "DATA_WRITE"}]}]
+json.dump(politica, open("politica-do-projeto.json", "w", encoding="utf-8"), indent=1)
+PY
+gcloud projects set-iam-policy $PROJETO politica-do-projeto.json --format="value(etag)"   # sem exibir os bindings
 cat > politica-de-limpeza.json <<'JSON'
 [
-  {"name": "manter-as-2-mais-recentes", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 2}},
+  {"name": "manter-em-uso-e-anterior", "action": {"type": "Keep"},
+   "condition": {"tagState": "tagged", "tagPrefixes": ["em-uso", "anterior"]}},
+  {"name": "manter-a-mais-recente", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 1}},
   {"name": "apagar-as-demais-depois-de-1-dia", "action": {"type": "Delete"}, "condition": {"tagState": "any", "olderThan": "86400s"}}
 ]
 JSON
 gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
-  --policy=politica-de-limpeza.json --no-dry-run
+  --policy=politica-de-limpeza.json --dry-run
 ```
 
-**Efeito:** um repositório privado de imagens; ficam as 2 versões mais recentes (a em uso e a anterior, para o rollback).
-**Custo:** a franquia é de 0,5 GB por mês; cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI,
-relatório, seção C), então 2 versões ficam dentro dela. Acima, cerca de US$ 0,10 por GB por mês, **fora da trava do Cloud Run**. **Desfazer:**
-`gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens).
+- **Proteção por etiqueta (regra Keep):** `em-uso` marca a imagem que o serviço usa, e `anterior`, a que estava em uso antes
+  dela, a da reversão (a marcação, a cada implantação e reversão, está no F2-6). Uma regra Keep vence a Delete: as duas nunca
+  são apagadas. A mais recente também fica: é a enviada no F2-5 e ainda não implantada.
+- **Simulação (dry run), sem exclusões:** o Artifact Registry aplica as políticas num processo periódico do Google, e as
+  mudanças fazem efeito em cerca de um dia. Na simulação, ele só registra o que apagaria: `BatchDeleteVersions` com
+  `validateOnly: true`, nos registros de auditoria de acesso a dados (por isso o `DATA_WRITE` acima). As exclusões só são
+  habilitadas no F2-13, com autorização própria.
+- **Onde consultar o resultado da simulação** (pelo menos um dia depois de mudar a política ou de enviar uma imagem): no
+  Console, Logging → Explorador de registros, com o filtro abaixo (registro `cloudaudit.googleapis.com/data_access`); ou:
+
+```bash
+gcloud logging read 'protoPayload.serviceName="artifactregistry.googleapis.com"
+  AND protoPayload.methodName="google.devtools.artifactregistry.v1.ArtifactRegistry.BatchDeleteVersions"
+  AND protoPayload.request.parent="projects/'$PROJETO'/locations/'$REGIAO'/repositories/'$REPOSITORIO'/packages/-"
+  AND protoPayload.request.validateOnly=true' --project=$PROJETO --freshness=7d \
+  --format="table(timestamp, protoPayload.request.names)"   # as versões que a política apagaria
+```
+
+**Efeito:** um repositório de imagens no Artifact Registry, sem acesso público; os registros de auditoria de gravação de dados
+do Artifact Registry ligados no projeto; a política de limpeza só em simulação (nada é apagado). **Custo:** a franquia do
+Artifact Registry é de 0,5 GB por mês; cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI,
+relatório, seção C): a imagem em uso, a anterior e a mais recente cabem nela. Sem exclusões até o F2-13, as versões se
+acumulam a cada envio; acima da franquia, cerca de US$ 0,10 por GB por mês. Os registros de auditoria de gravação são poucos
+(os envios de imagem e as simulações) e cabem na franquia de 50 GiB do Cloud Logging. Tudo isso fica **fora da trava do Cloud
+Run**. **Desfazer:** `gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens);
+os registros de auditoria, com a mesma leitura e gravação da política do projeto, sem a entrada do Artifact Registry em
+`auditConfigs`.
 
 ## F2-3 — Contas de serviço e federação de identidade restrita ao ambiente `producao`
 
@@ -131,10 +172,11 @@ o job). O commit é o último do ramo `implantacao/cloud-run-pages` com o CI em 
 git tag imagem-$(date +%Y%m%d)-1 <commit verificado> && git push origin imagem-$(date +%Y%m%d)-1
 ```
 
-O workflow `imagem.yml` confere a proteção do ambiente e o commit no ramo, constrói a imagem do commit, repete o teste rápido
-do contêiner (saúde, exame da base, documentação desligada, padrão de chave) e a envia ao Artifact Registry pela federação. O
-**digest** sai no resumo da execução, para o F2-6. **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
-Registry (`gcloud artifacts docker images delete <imagem>@<digest>`).
+O workflow `imagem.yml` confere o repositório público, a proteção do ambiente e o commit no ramo, constrói a imagem do commit,
+repete o teste rápido do contêiner (saúde, exame da base, documentação desligada, padrão de chave) e a envia ao Artifact
+Registry pela federação. O **digest** sai no resumo da execução, para o F2-6. Até a marcação do F2-6, a imagem nova fica
+protegida pela regra da mais recente (F2-2). **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
+Registry (`gcloud artifacts docker images delete "$IMG@<digest>"`), nunca a marcada com `em-uso` ou `anterior`.
 
 ## F2-6 — Implantar no Cloud Run, ainda sem acesso público
 
@@ -158,10 +200,35 @@ curl -fsS http://127.0.0.1:18080/api/health
 - A sonda de partida espera a porta até 240 s (24 × 10 s), o limite do Cloud Run; o aquecimento termina antes de a porta
   abrir (relatório, seção C). Sem sonda de vida: o serviço não reinicia por demora de uma operação pesada.
 - `gen2`: o mesmo controle de memória (cgroup v2) medido no CI.
+
+**Marcação das imagens, a cada implantação** (depois de a revisão nova responder; a política de limpeza preserva as duas
+etiquetas, F2-2):
+
+```bash
+EM_USO=$(gcloud artifacts docker images describe "$IMG:em-uso" --format='value(image_summary.digest)' 2>/dev/null)
+[ -n "$EM_USO" ] && gcloud artifacts docker tags add "$IMG@$EM_USO" "$IMG:anterior"   # na primeira implantação, não há
+gcloud artifacts docker tags add "$IMG@sha256:<digest do F2-5>" "$IMG:em-uso"            # o gcloud cria ou atualiza a etiqueta
+gcloud artifacts docker tags list "$IMG"                                                  # em-uso e anterior nos digests certos
+```
+
+**Reversão** (voltar à imagem `anterior`) e a marcação correspondente:
+
+```bash
+EM_USO=$(gcloud artifacts docker images describe "$IMG:em-uso" --format='value(image_summary.digest)')
+ANTERIOR=$(gcloud artifacts docker images describe "$IMG:anterior" --format='value(image_summary.digest)')
+gcloud run revisions list --service=$SERVICO --project=$PROJETO --region=$REGIAO   # a revisão com a imagem $ANTERIOR
+gcloud run services update-traffic $SERVICO --project=$PROJETO --region=$REGIAO --to-revisions=<revisão anterior>=100
+gcloud artifacts docker tags add "$IMG@$ANTERIOR" "$IMG:em-uso"
+gcloud artifacts docker tags add "$IMG@$EM_USO" "$IMG:anterior"
+gcloud artifacts docker tags list "$IMG"
+```
+
+As duas etiquetas ficam sempre nas duas imagens usadas por último: a reversão troca uma pela outra, e a imagem retirada fica
+preservada como `anterior` até a implantação seguinte. Uma reversão de mais de um passo pode não ser possível depois do F2-13
+(a imagem de antes da anterior pode ter sido apagada).
+
 **Efeito:** o serviço existe, só para quem tem permissão. **Custo:** entra na trava (tempo de instância ativa). **Desfazer:**
-`gcloud run services delete $SERVICO --project=$PROJETO --region=$REGIAO`. **Rollback** de uma revisão nova:
-`gcloud run revisions list --service=$SERVICO --project=$PROJETO --region=$REGIAO` e
-`gcloud run services update-traffic $SERVICO --project=$PROJETO --region=$REGIAO --to-revisions=<revisão anterior>=100`.
+`gcloud run services delete $SERVICO --project=$PROJETO --region=$REGIAO`.
 
 ## F2-7 — Liberar o acesso público
 
@@ -180,13 +247,20 @@ temporariamente indisponível".
 ```bash
 URL=$(gcloud run services describe $SERVICO --project=$PROJETO --region=$REGIAO --format='value(status.url)')
 curl -fsS "$URL/api/health"
-curl -fsS -o /dev/null -w '%{http_code}\n' "$URL/docs"                                   # 404
+curl -sS -o /dev/null -w '%{http_code}\n' "$URL/docs"                    # 404 (sem -f, que esconderia o código)
 curl -fsS -X POST -d "dataset=brazil&scope=municipal" "$URL/api/inspect" -o /dev/null -w '%{http_code}\n'   # 200
-curl -s -o /dev/null -w '%{http_code}\n' -H "Origin: https://exemplo.invalid" "$URL/api/health"   # 200, sem CORS
+# CORS, pelos cabeçalhos da resposta:
+curl -sS -o /dev/null -D - -H "Origin: https://exemplo.invalid" "$URL/api/health" | grep -i '^access-control-allow-origin' \
+  || echo "sem Access-Control-Allow-Origin para a origem estranha (o esperado)"
+curl -sS -o /dev/null -D - -H "Origin: $ORIGEM" "$URL/api/health" | grep -i '^access-control-allow-origin'
+#   esperado: access-control-allow-origin: https://gustavohoff1987.github.io
+curl -sS -o /dev/null -D - -X OPTIONS -H "Origin: $ORIGEM" -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type,x-adt-session" "$URL/api/inspect" | grep -i '^access-control-allow'
+#   a pré-verificação do navegador: a origem do Pages, os métodos e os dois cabeçalhos da interface
 ```
 
-Uma análise (o gráfico dos estados) e um envio pequeno (CSV de 100 KB) pelo mesmo caminho. **Custo:** segundos de instância
-(trava).
+Uma análise (o gráfico dos estados) e um envio pequeno (CSV de 100 KB) pelo mesmo caminho, pela API. **Custo:** segundos de
+instância (trava).
 
 ## F2-9 — Publicar a interface
 
@@ -198,19 +272,33 @@ Providências: **P-6** (Pages ativado com origem GitHub Actions e o ambiente `gi
 git tag publicacao-pages-$(date +%Y%m%d)-1 <commit verificado> && git push origin publicacao-pages-$(date +%Y%m%d)-1
 ```
 
-O workflow `pages.yml` confere a proteção, faz `npm ci`, os testes, o TypeScript e o build com `ADT_BASE_DA_PAGINA=/Teste-Agente/`
-e a variável, confere o padrão de chave no build e publica em `https://gustavohoff1987.github.io/Teste-Agente/`. **Custo:**
-nenhum (o Pages não cobra). **Desfazer:** Settings → Pages → desativar (a interface sai do ar; o serviço continua).
+O workflow `pages.yml` confere o repositório público e a proteção, faz `npm ci`, os testes, o TypeScript e o build com
+`ADT_BASE_DA_PAGINA=/Teste-Agente/` e a variável, confere o padrão de chave no build e publica em
+`https://gustavohoff1987.github.io/Teste-Agente/`.
+
+- **Conferência na interface (responsável, P-9):** no navegador, a página abre com o nome oficial, o diálogo de abertura, um
+  gráfico e o mapa respondem, e a conversa responde.
+- **Conferência do agente, só pela API:** `curl -sS -o /dev/null -w '%{http_code}\n' https://gustavohoff1987.github.io/Teste-Agente/`
+  (200) e `curl -fsS "$URL/api/health"`.
+
+**Custo:** nenhum (o Pages não cobra). **Desfazer:** Settings → Pages → desativar (a interface sai do ar; o serviço continua).
 
 ## F2-10 — Teste de produção com o Gemini real (até 5 chamadas)
 
-Pela interface publicada: uma pergunta sobre um resultado, uma explicação mais simples e uma pergunta conceitual, conferindo
-em `"$URL/api/llm/status"` (`requests_used_today`, sem a chave) que não passaram de 5 chamadas. **Custo:** nível gratuito do
-`gemini-3.5-flash-lite`, sem faturamento no projeto da chave.
+- **Na interface (responsável, P-9):** pela página publicada, no navegador, uma pergunta sobre um resultado, uma explicação
+  mais simples e uma pergunta conceitual.
+- **Conferência do agente, só pela API:** `curl -fsS "$URL/api/llm/status"` antes e depois (`requests_used_today`, sem a chave):
+  no máximo 5 chamadas a mais.
+
+**Custo:** nível gratuito do `gemini-3.5-flash-lite`, sem faturamento no projeto da chave.
 
 ## F2-11 — Suspender temporariamente o acesso, conferir a mensagem institucional e restaurar
 
-O mesmo par de comandos do F2-7 (remover e, depois de conferir a mensagem na interface, adicionar de novo o `allUsers`).
+- **Agente:** remove o `allUsers` (o desfazer do F2-7) e confere pela API que o serviço recusa o acesso:
+  `curl -sS -o /dev/null -w '%{http_code}\n' "$URL/api/health"` (403).
+- **Responsável (P-9):** no navegador, a interface mostra "Serviço temporariamente indisponível", com o texto institucional.
+- **Agente:** adiciona de novo o `allUsers` (o comando do F2-7) e confere o 200 em `/api/health`.
+
 **Custo:** nenhum.
 
 ## F2-12 — Conferência final (só leitura)
@@ -220,13 +308,31 @@ Faturamento → Relatórios, filtrado pelo Cloud Run. Tempo faturável das consu
 "Billable container instance time" e "Request count" por rota (`/api/session`). Comparar com a estimativa do relatório
 (seção F e G).
 
+## F2-13 — Habilitar as exclusões automáticas da política de limpeza (só com AUTORIZO F2-13)
+
+Operação nova (comando de 02/11/2026, seção 4), com autorização própria. Antes:
+
+1. pelo menos três versões no repositório: `gcloud artifacts docker images list "$IMG" --include-tags`;
+2. uma simulação posterior a elas (consulta do F2-2, pelo menos um dia depois do último envio) que confirme a preservação:
+   nenhum dos digests de `em-uso` e de `anterior` (`gcloud artifacts docker tags list "$IMG"`) aparece em
+   `protoPayload.request.names`. Se a simulação apontar qualquer um dos dois, parar e revisar a política com o responsável.
+
+```bash
+gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
+  --policy=politica-de-limpeza.json --no-dry-run
+```
+
+**Efeito:** a partir do processo periódico seguinte (cerca de um dia), as versões sem `em-uso` nem `anterior`, que não sejam a
+mais recente e tenham mais de 1 dia, são apagadas. **Custo:** reduz o armazenamento. **Desfazer:** voltar à simulação com o
+mesmo comando e `--dry-run` (as versões já apagadas não voltam).
+
 ## Custos fora da trava (estimativas; conferir no Console)
 
 | Item | Franquia | Uso esperado | Acima da franquia |
 |---|---|---|---|
-| Artifact Registry (armazenamento) | 0,5 GB/mês | 2 versões de cerca de 126 MiB | cerca de US$ 0,10 por GB/mês |
+| Artifact Registry (armazenamento) | 0,5 GB/mês | depois do F2-13, 3 versões de cerca de 126 MiB (em uso, anterior e a mais recente); antes dele, as versões se acumulam a cada envio | cerca de US$ 0,10 por GB/mês |
 | Secret Manager | 6 versões ativas e 10 mil acessos/mês | 1 versão; 1 acesso por partida de instância | US$ 0,06 por versão/mês; US$ 0,03 por 10 mil acessos |
-| Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run e o log do Uvicorn (sem o log de acesso) | cerca de US$ 0,50 por GiB |
+| Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run, o log do Uvicorn (sem o log de acesso) e os registros de auditoria de gravação de dados do Artifact Registry (F2-2) | cerca de US$ 0,50 por GiB |
 | Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios transfere cerca de 0,2 MiB com gzip (2,3 MiB sem compressão) e a análise mais pesada (evolução e tendência), 3,8 MiB; uma sessão típica, de 1 a 5 MiB | conforme a tabela de rede do Google |
 | Cloud Build | não usado | — | — |
 | Varredura de vulnerabilidades | não habilitada | — | cobrada por imagem |

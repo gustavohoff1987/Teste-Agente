@@ -598,7 +598,8 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   dos 2 GiB; com o teto novo, a 72,7%. No teto, o gráfico é calculado e mostrado, sem a referência para a conversa, e nenhuma
   sessão é encerrada. Com mínimo 0 instâncias, uma sessão pode se perder antes dos 30 minutos (instância encerrada por
   ociosidade ou trocada pela plataforma, nova revisão, falta de memória, suspensão pela trava de gastos); a interface mostra o
-  aviso de sessão expirada ou indisponível. A divergência com a RQ-FLX-17 aguarda a decisão do responsável (relatório, seção F).
+  aviso de sessão expirada ou indisponível. É divergência aprovada da RQ-FLX-17 desde 02/11/2026 (opção a: registrada, sem
+  alteração do código; [registro de comportamento](Docs/REGISTRO_DE_COMPORTAMENTO.md)).
 - **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só
   por etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e
   [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)). Nos três primeiros, o job `conferir-protecao` encerra a execução
