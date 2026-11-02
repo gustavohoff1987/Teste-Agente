@@ -413,6 +413,28 @@ def test_verificacao_previa_tudo_previsto_so_com_as_conferencias_manuais():
     assert any(i[0] == "MANUAL" and "trava de R$ 11" in i[1] for i in itens)
 
 
+def test_verificacao_previa_nao_toma_listagem_que_falhou_por_nenhum_recurso():
+    """Primeira execução real do F2-0 (02/11/2026): com as APIs desligadas, as listagens falham; antes, isso passava calado."""
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        if args[:2] in {("run", "services"), ("artifacts", "repositories")}:
+            return 1, "ERROR: permission denied"
+        if args[:2] == ("services", "list"):
+            return 0, "run.googleapis.com\nartifactregistry.googleapis.com\n"
+        return simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    falhas = {nome for situacao, nome, _ in itens if situacao == "FALHA"}
+    assert {"serviços do Cloud Run", "repositórios do Artifact Registry"} <= falhas
+    assert ("OK", "segredos") in {(s, n) for s, n, _ in itens}  # Secret Manager desligado: nenhum segredo possível
+    assert any(n == "segredos" and "desligada" in d for _, n, d in itens)
+
+    def apis_ilegiveis(*args):
+        return (1, "ERROR: forbidden") if args[:2] == ("services", "list") else simulado(*args)
+    itens = previa.verificar(apis_ilegiveis, "agente-diagnostico-territorial", "us-central1")
+    assert ("FALHA", "APIs habilitadas") in {(s, n) for s, n, _ in itens}
+
+
 def test_verificacao_previa_aponta_projeto_recursos_e_limites_fora_do_previsto():
     itens = previa.verificar(gcloud_simulado(projeto="outro", maximo="3", memoria="4Gi", orcamento=False,
                                              extras=("cloudbuild.googleapis.com",)), "agente-diagnostico-territorial", "us-east1")

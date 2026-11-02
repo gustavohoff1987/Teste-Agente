@@ -6,7 +6,9 @@ MANUAL para: a conta autenticada, o projeto e a região, a conta de faturamento,
 e 100%), a trava de R$ 11 do Cloud Run (MANUAL: conferida no Console, P-2), as APIs habilitadas, os recursos não previstos
 (serviços do Cloud Run, repositórios do Artifact Registry, contas de serviço, segredos e pools de identidade) e, se o serviço
 já existir, mínimo 0, máximo 1, 1 vCPU, 2 GiB, cobrança por requisição, sem aumento de CPU na partida, concorrência e timeout.
-Nada é criado, alterado ou apagado; nenhum valor de segredo é lido.
+Nada é criado, alterado ou apagado; nenhum valor de segredo é lido. Desde 02/11/2026 (primeira execução do F2-0), uma
+listagem que falha não passa mais por "nenhum recurso": com a API do recurso desligada (antes do F2-1), o item diz isso; com
+a API ligada, a falha da listagem é FALHA.
 
 Uso: python scripts/implantacao/verificacao_previa.py [--projeto agente-diagnostico-territorial] [--regiao us-central1]
 Sai com 1 se alguma verificação falhar.
@@ -23,6 +25,8 @@ CONTAS_PREVISTAS = {"adt-execucao", "adt-envio-imagem"}
 SEGREDOS_PREVISTOS = {"gemini-api-key"}
 APIS_NAO_PREVISTAS = {"cloudbuild.googleapis.com": "Cloud Build (a imagem é construída no GitHub Actions)",
                       "containerscanning.googleapis.com": "varredura de vulnerabilidades (cobrada à parte)"}
+API_DE = {"serviços do Cloud Run": "run.googleapis.com", "repositórios do Artifact Registry": "artifactregistry.googleapis.com",
+          "segredos": "secretmanager.googleapis.com"}
 
 
 def gcloud(*args) -> tuple[int, str]:
@@ -80,11 +84,26 @@ def verificar(rodar, projeto: str, regiao: str) -> list[tuple[str, str, str]]:
     item("MANUAL", "trava de R$ 11 do Cloud Run (alertas de 50, 80 e 100%)",
          "conferir no Console, Faturamento → Orçamentos e alertas, sem alterar (P-2)")
     codigo, apis = rodar("services", "list", "--enabled", "--project=" + projeto, "--format=value(config.name)")
-    habilitadas = set(apis.split()) if codigo == 0 else set()
+    apis_lidas = codigo == 0
+    habilitadas = set(apis.split()) if apis_lidas else set()
+    if not apis_lidas:
+        item("FALHA", "APIs habilitadas", "a listagem falhou: " + apis.strip()[:200])
     for api, motivo in APIS_NAO_PREVISTAS.items():
         if api in habilitadas:
             item("ATENÇÃO", "API não prevista habilitada", f"{api}: {motivo}")
-    servicos = em_json(rodar, "run", "services", "list", "--project=" + projeto, "--region=" + regiao) or []
+
+    def listar(rotulo, *args):
+        """A listagem de um tipo de recurso: None (sem consulta) com a API desligada; [] e FALHA se a listagem falhar."""
+        if apis_lidas and API_DE[rotulo] not in habilitadas:
+            item("OK", rotulo, f"API {API_DE[rotulo]} desligada: nenhum recurso possível (antes do F2-1)")
+            return None
+        dados = em_json(rodar, *args)
+        if dados is None:
+            item("FALHA", rotulo, "a listagem falhou (permissão ou API); nada pode ser dado como inexistente")
+            return []
+        return dados
+
+    servicos = listar("serviços do Cloud Run", "run", "services", "list", "--project=" + projeto, "--region=" + regiao) or []
     for servico in servicos:
         nome = (servico.get("metadata") or {}).get("name", "")
         if nome != SERVICO:
@@ -104,7 +123,8 @@ def verificar(rodar, projeto: str, regiao: str) -> list[tuple[str, str, str]]:
             item("OK" if str(obtido) == previsto else "FALHA", "serviço: " + rotulo, f"{obtido} (esperado {previsto})")
         item("OK", "serviço: concorrência e timeout",
              f"{especificacao.get('containerConcurrency')} e {especificacao.get('timeoutSeconds')} s (ver o roteiro)")
-    repositorios = em_json(rodar, "artifacts", "repositories", "list", "--project=" + projeto, "--location=" + regiao) or []
+    repositorios = listar("repositórios do Artifact Registry", "artifacts", "repositories", "list", "--project=" + projeto,
+                          "--location=" + regiao) or []
     for repositorio in repositorios:
         nome = (repositorio.get("name") or "").split("/")[-1]
         if nome != REPOSITORIO:
@@ -113,8 +133,8 @@ def verificar(rodar, projeto: str, regiao: str) -> list[tuple[str, str, str]]:
     for email in (contas.split() if codigo == 0 else []):
         if email.split("@")[0] not in CONTAS_PREVISTAS:
             item("ATENÇÃO", "conta de serviço não prevista", email)
-    codigo, segredos = rodar("secrets", "list", "--project=" + projeto, "--format=value(name)")
-    for nome in (segredos.split() if codigo == 0 else []):
+    segredos = listar("segredos", "secrets", "list", "--project=" + projeto) or []
+    for nome in (s.get("name", "") for s in segredos):
         if nome.split("/")[-1] not in SEGREDOS_PREVISTOS:
             item("ATENÇÃO", "segredo não previsto", nome.split("/")[-1])
     codigo, pools = rodar("iam", "workload-identity-pools", "list", "--location=global", "--project=" + projeto,

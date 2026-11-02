@@ -332,6 +332,7 @@ o padrão de chave nos arquivos alterados); os testes completos rodaram só no G
 | 41492208661 | `381523a` (ajustes de 02/11/2026) | os 8 jobs em sucesso: `backend` 1.237 aprovados e 63 pulados (os de dados reais); `dados-reais` 1.300 aprovados e nenhum pulado; `frontend`, 160 testes do Node e nenhuma falha; navegador, contêiner e governança em ordem. Os 12 testes novos são a conferência do repositório público, o ritmo das mensagens, as anotações e o passo do workflow |
 | 41510828308 | `da65a1c` (relatório de 02/11/2026) | os 8 jobs em sucesso |
 | 41516575786 | `4d32bb4` (parecer revisto) | os 8 jobs em sucesso |
+| 41529991952 | `c762c2e` (limites do Gemini, P-1 e segurança) | os 8 jobs em sucesso |
 
 Na execução 41375485808: `backend`, 1.225 testes aprovados e 63 pulados (os de dados reais, que rodam no job seguinte);
 `dados-reais`, 1.288 aprovados e nenhum pulado; `frontend`, os 160 testes do Node e o build; navegador, os 8 roteiros do
@@ -613,15 +614,35 @@ fixada no repositório.
   local; os três scripts preservados em `.local/`; o `gh` autenticado na conta `gustavohoff1987`. A chave no AI Studio foi
   mantida, segundo o responsável.
 - **CI:** o último commit antes deste comando, `4d32bb4`, passou nos 8 jobs (execução 41516575786). O commit destas
-  atualizações é só de documentação e comentários; o resultado do CI dele fica registrado na próxima atualização desta seção.
+  atualizações (`c762c2e`), só de documentação e comentários, passou nos 8 jobs (execução 41529991952).
 
 **Fase 2: registro das operações** (cada uma só depois de "AUTORIZO F2-n"; o roteiro está em
 [ROTEIRO_FASE2.md](ROTEIRO_FASE2.md))
 
 | Operação | Situação |
 |---|---|
-| F2-0 — verificação prévia (só leitura) | aguardando "AUTORIZO F2-0" (com a P-2, a trava e os alertas conferidos no Console pelo responsável) |
+| F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL dependem da P-2 (abaixo) |
 | F2-1 a F2-13 | não iniciadas |
 
-Ponto de retomada: apresentar e pedir a autorização da F2-0. Nenhuma operação da Fase 2 foi executada.
+**F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
+`CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
+- **OK:** conta `mister.hoff87@gmail.com`, projeto `agente-diagnostico-territorial`, região `us-central1`, conta de
+  faturamento vinculada (`018DD6-38822B-764E9C`).
+- **Nenhum recurso da implantação ainda:** as APIs do Cloud Run, do Artifact Registry e do Secret Manager estão desligadas
+  (então não há serviço, repositório nem segredo); nenhuma conta de serviço criada e nenhum pool de identidade.
+- **APIs:** o Cloud Build e o Container Scanning (não previstos) estão desligados. Ligadas, as que o Google habilita por padrão
+  num projeto novo (BigQuery e afins, Cloud Logging, Monitoring, Trace, Storage, Datastore, Dataform, Dataplex e as de
+  gerenciamento): sem custo sem uso, e nenhuma é usada pela implantação além do Logging e do Monitoring do Cloud Run.
+- **MANUAL (P-2):** o orçamento de alertas de R$ 11 (a listagem pelo gcloud exige a API de orçamentos, que não está
+  habilitada no projeto, e nada foi habilitado para isso) e a trava de R$ 11 do Cloud Run: conferência do responsável no
+  Console.
+
+**Problema encontrado e corrigido na primeira execução:** o script tomava uma listagem que falhava por "nenhum recurso" (as
+listagens do Cloud Run, do Artifact Registry e do Secret Manager falham com as APIs desligadas, e uma falha de permissão
+passaria do mesmo jeito). Agora, com a API desligada, o item diz isso; com a API ligada, a falha da listagem é FALHA; a falha
+da própria lista de APIs também. Teste novo em `test_implantacao.py`. A F2-0 foi repetida com o script corrigido, com o
+mesmo resultado e os três itens explícitos. (Na conferência manual das listagens, o `gcloud` sem extensão no Git Bash falha
+por montar mal o caminho do SDK; o certo é o `gcloud.cmd`, que é o que o script encontra.)
+
+Ponto de retomada: a confirmação da P-2 pelo responsável e "AUTORIZO F2-1" (habilitar as APIs).
 
