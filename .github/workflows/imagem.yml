@@ -1,0 +1,90 @@
+name: Imagem do contêiner (Artifact Registry)
+# Fase 2, operação F2-5 (Docs/implantacao/ROTEIRO_FASE2.md): só com "AUTORIZO F2-5" e as providências P-3 e P-5. O envio de
+# uma etiqueta imagem-* aciona: primeiro a conferência da proteção, sem ambiente; depois, só se ela passar, o job no ambiente
+# producao, que espera a aprovação do responsável, constrói a imagem do commit verificado, repete o teste rápido do contêiner
+# e a envia ao Artifact Registry pela federação de identidade (sem chave de conta de serviço). A federação só aceita tokens
+# deste repositório emitidos para o ambiente producao. A imagem leva o commit no nome e é implantada pelo digest.
+on:
+  push:
+    tags: ["imagem-*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: imagem
+  cancel-in-progress: false
+
+env:
+  PROJETO: agente-diagnostico-territorial
+  REGIAO: us-central1
+  REPOSITORIO: agente-diagnostico-territorial
+  IMAGEM: servico-de-analise
+
+jobs:
+  conferir-protecao:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Ambiente producao, revisor, etiquetas e o commit no ramo de preparação (só leitura)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/scripts/conferir_protecao.py --ambiente producao
+          --etiquetas "imagem-*" --ramo implantacao/cloud-run-pages
+
+  imagem:
+    needs: conferir-protecao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: producao
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Imagem do commit verificado
+        run: docker build --pull -t "adt:$GITHUB_SHA" .
+      - name: Teste rápido do contêiner (1 CPU, 2 GiB, sem chave)
+        run: |
+          docker run -d --name adt-teste --cpus=1 --memory=2g --memory-swap=2g --tmpfs /tmp:rw,size=1g,mode=1777 \
+            -p 127.0.0.1:18080:8080 -e GEMINI_API_KEY= "adt:$GITHUB_SHA" > /dev/null
+          for _ in $(seq 1 300); do
+            if curl -fsS http://127.0.0.1:18080/api/health > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18080/api/health
+          curl -fsS -o /dev/null -X POST -d "dataset=brazil&scope=municipal" http://127.0.0.1:18080/api/inspect
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/docs)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/openapi.json)" = "404"
+          docker run --rm --entrypoint python -v "$PWD/.github/scripts:/verificacao:ro" "adt:$GITHUB_SHA" \
+            /verificacao/verificar_chave_google.py --raiz-da-imagem /
+          docker rm -f adt-teste > /dev/null
+      - name: Federação de identidade do Google (ambiente producao, sem chave permanente)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_PROVEDOR_DE_IDENTIDADE }}
+          service_account: ${{ vars.GCP_CONTA_DE_ENVIO_DE_IMAGEM }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3.0.1
+      - name: Envio ao Artifact Registry e o digest para a implantação
+        run: |
+          destino="$REGIAO-docker.pkg.dev/$PROJETO/$REPOSITORIO/$IMAGEM:$GITHUB_SHA"
+          gcloud auth configure-docker "$REGIAO-docker.pkg.dev" --quiet
+          docker tag "adt:$GITHUB_SHA" "$destino"
+          docker push "$destino"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$destino")"
+          echo "Imagem enviada: $digest"
+          {
+            echo "### Imagem enviada"
+            echo ""
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- digest (para o gcloud run deploy --image): \`$digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"

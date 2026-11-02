@@ -215,3 +215,14 @@ test('CSV da análise em exibição: todos os campos do motor, em precisão inte
     grupoMapa: {indice: 3, rotulo: '3º quintil'}, grupo_mapa: {indice: 3, rotulo: '3º quintil'}}]});
   assert.equal(comMapa.split('\r\n')[0], '﻿"id";"densidade";"grupo.indice";"grupo.rotulo"');
 });
+
+test('o arquivo enviado: 15 MB (15.000.000 bytes) é o limite, conferido antes do envio e com a mesma mensagem', () => {
+  assert.equal(P.LIMITE_DO_ARQUIVO, 15_000_000);
+  assert.equal(P.recusaDoArquivo('dados.csv', 15_000_000), null);
+  assert.equal(P.recusaDoArquivo('dados.xlsx', 14_900_000), null);
+  assert.equal(P.recusaDoArquivo('dados.XLS', 1), null);
+  assert.equal(P.recusaDoArquivo('dados.csv', 15_000_001),
+    'Arquivo acima de 15 MB, o limite desta versão; a planilha não foi processada.');
+  assert.equal(P.recusaDoArquivo('dados.pdf', 10), 'Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.');
+  assert.doesNotMatch(P.recusaDoArquivo('dados.csv', 40_000_000), /HTTP|30 MB/);
+});

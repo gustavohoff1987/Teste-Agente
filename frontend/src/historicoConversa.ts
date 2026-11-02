@@ -9,7 +9,7 @@ export type Papel = "usuario" | "agente" | "aviso";
  * do sistema no mesmo histórico, na ordem em que aconteceu. `hora` (HH:MM, no relógio do navegador) aparece no balão. */
 export type Mensagem = { id: string; papel: Papel; texto: string; titulo?: string; origem?: string; hora?: string };
 export type Turno = { papel: "usuario" | "agente"; texto: string };
-export type Aviso = { tipo: "cota" | "indisponivel" | "entrada" | "tempo"; titulo?: string; texto: string };
+export type Aviso = { tipo: "cota" | "indisponivel" | "entrada" | "tempo" | "ocupado"; titulo?: string; texto: string };
 
 /** Textos da comunicação cordial (seção 11.4 da missão de 26/10/2026), os mesmos do backend (llm_bridge.py). */
 export const TITULO_INDISPONIVEL = "Assistente conversacional temporariamente indisponível";
@@ -18,6 +18,10 @@ export const TEXTO_COTA = "O limite de consultas ao assistente conversacional fo
   "de conversa poderá ser utilizado novamente quando o serviço estiver disponível.";
 export const TEXTO_INDISPONIVEL = "O recurso de conversa não está disponível neste momento. Você pode continuar utilizando as " +
   "funcionalidades e análises disponíveis por meio dos botões e controles da plataforma.";
+/** O serviço respondeu que está no limite (01/11/2026; 503 com `ocupado`): a mensagem continua no campo para reenviar. */
+export const TITULO_OCUPADO = "Serviço ocupado";
+export const TEXTO_OCUPADO = "O Agente Diagnóstico Territorial da Força de Trabalho na Saúde está atendendo muitas " +
+  "solicitações neste momento. Aguarde alguns segundos e tente novamente; a sua sessão e as suas análises continuam.";
 /** Pedido que passou do prazo da tela (26/10/2026): a conversa não fica girando sem fim. */
 export const TITULO_DEMORA = "A resposta demorou mais que o esperado";
 export const TEXTO_DEMORA = "Interrompi a espera para você não ficar parado. Tente de novo em instantes ou siga pelos botões e " +
@@ -105,9 +109,12 @@ export function posicaoDaRolagem(medidas: { fim: number; altura: number; topoDaN
   return fim - topoDaNova + folga <= altura ? maximo : em(topoDaNova);
 }
 
-/** O aviso cordial para uma falha da conversa, sem código HTTP nem mensagem técnica: limite de consultas só quando o serviço
- * confirmou (429); pedido inválido (422) com a orientação do próprio backend, sem o código; o resto, indisponibilidade. */
-export function avisoDeFalha(status: number | null, detalhe?: unknown): Aviso {
+/** O aviso cordial para uma falha da conversa, sem código HTTP nem mensagem técnica: o serviço ocupado (503 com `ocupado`),
+ * com o texto dele; limite de consultas só quando o serviço confirmou (429); pedido inválido (422) com a orientação do próprio
+ * backend, sem o código; o resto, indisponibilidade. */
+export function avisoDeFalha(status: number | null, detalhe?: unknown, ocupado = false): Aviso {
+  if (ocupado) return { tipo: "ocupado", titulo: TITULO_OCUPADO,
+    texto: typeof detalhe === "string" && detalhe.trim() && !/HTTP|Traceback|Error|Exception/.test(detalhe) ? detalhe.trim() : TEXTO_OCUPADO };
   if (status === 429) return { tipo: "cota", titulo: TITULO_INDISPONIVEL, texto: TEXTO_COTA };
   if ((status === 422 || status === 409) && typeof detalhe === "string" && detalhe.trim() &&
       !/HTTP|Traceback|Error|Exception|RESOURCE_EXHAUSTED|quota|rate limit/i.test(detalhe))

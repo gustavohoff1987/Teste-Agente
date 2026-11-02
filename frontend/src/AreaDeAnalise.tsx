@@ -84,6 +84,8 @@ export type AreaDeAnaliseProps = {
 };
 
 const MAX_CACHE = 6;
+/** Repetições automáticas de um pedido recusado por ocupado (01/11/2026). */
+const MAX_REPETICOES_OCUPADO = 2;
 const FUNCOES: { chave: FuncaoPainel; rotulo: string; icone: ReactNode }[] = [
   { chave: "regua", rotulo: "Régua", icone: <Ruler size={15} aria-hidden="true"/> },
   { chave: "condicoes", rotulo: "Condições", icone: <Filter size={15} aria-hidden="true"/> },
@@ -248,6 +250,17 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [carregandoMapa, setCarregandoMapa] = useState(false);
   const [erroMapa, setErroMapa] = useState<{ chave: string; mensagem: string; pendencia: Pendencia | null } | null>(null);
   const [tentativaMapa, setTentativaMapa] = useState(0);
+  // Ocupado (01/11/2026): o serviço respondeu que está no limite (503 com `ocupado`). O pedido é repetido sozinho, depois do
+  // tempo que o serviço indica, no máximo MAX_REPETICOES_OCUPADO vezes por gráfico ou mapa; depois, fica o "Tentar novamente".
+  const repeticoesOcupado = useRef(new Map<string, number>());
+  const repetirSeOcupado = (exc: unknown, chave: string, repetir: () => void): (() => void) | undefined => {
+    if (!(exc instanceof ErroDoMotor) || !exc.ocupado) return undefined;
+    const vezes = repeticoesOcupado.current.get(chave) ?? 0;
+    if (vezes >= MAX_REPETICOES_OCUPADO) return undefined;
+    repeticoesOcupado.current.set(chave, vezes + 1);
+    const id = window.setTimeout(repetir, (exc.tenteEm ?? 5) * 1000);
+    return () => window.clearTimeout(id);
+  };
   /** Largura do painel da explicação ao lado do desenho da tendência (a divisória a ajusta). */
   const [larguraLateral, setLarguraLateral] = useState(LATERAL_INICIAL);
   const cache = useRef(new Map<string, PainelResposta>());
@@ -435,12 +448,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       return;
     }
     const controle = new AbortController(), pedidoDef = def, pedidoFamilia = familiaPedida, pedidoOpcoes = opcoes;
+    let cancelarRepeticao: (() => void) | undefined;
     setCarregando(true);
     setErro(null);
     const timer = window.setTimeout(() => {
       pedirPainel(fonteMotor, pedidoOpcoes, controle.signal)
         .then(corpo => {
           if (controle.signal.aborted) return;
+          repeticoesOcupado.current.delete("painel:" + chave);
           cache.current.set(chave, corpo);
           while (cache.current.size > MAX_CACHE) cache.current.delete(cache.current.keys().next().value as string);
           setResposta(corpo);
@@ -455,10 +470,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           if (controle.signal.aborted) return;
           setErro({ mensagem: exc instanceof Error ? exc.message : "Não foi possível montar o gráfico.",
             pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null });
+          cancelarRepeticao = repetirSeOcupado(exc, "painel:" + chave, () => setTentativa(valor => valor + 1));
         })
         .finally(() => { if (!controle.signal.aborted) setCarregando(false); });
     }, 150);
-    return () => { controle.abort(); window.clearTimeout(timer); };
+    return () => { controle.abort(); window.clearTimeout(timer); cancelarRepeticao?.(); };
   }, [chave, tentativa]);
 
   function voltarAoCalculado() {
@@ -644,11 +660,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const pedidoMapa: MapaOpcoes = { competencia: competenciaDoMapa, categoria: categoriaDoMapa,
       ...(tipo === "arquivo" && Object.keys(def.premissas).length ? { premissas: def.premissas } : {}),
       ...(tipo === "arquivo" && fonte?.rotulos ? { rotulos: fonte.rotulos } : {}) };
+    let cancelarRepeticao: (() => void) | undefined;
     setCarregandoMapa(true);
     setErroMapa(null);
     pedirMapa(fonteMotor, pedidoMapa, controle.signal)
       .then(dados => {
         if (controle.signal.aborted) return;
+        repeticoesOcupado.current.delete("mapa:" + chavePedida);
         cacheMapa.current.set(chavePedida, dados);
         while (cacheMapa.current.size > MAX_CACHE) cacheMapa.current.delete(cacheMapa.current.keys().next().value as string);
         setDadosDoMapa({ chave: chavePedida, dados });
@@ -657,9 +675,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         if (controle.signal.aborted) return;
         setErroMapa({ chave: chavePedida, mensagem: exc instanceof Error ? exc.message : "Não foi possível obter os pontos do mapa.",
           pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null });
+        cancelarRepeticao = repetirSeOcupado(exc, "mapa:" + chavePedida, () => setTentativaMapa(valor => valor + 1));
       })
       .finally(() => { if (!controle.signal.aborted) setCarregandoMapa(false); });
-    return () => controle.abort();
+    return () => { controle.abort(); cancelarRepeticao?.(); };
   }, [querMapa, chaveMapa, tentativaMapa]);
 
   // ------------------------------------------------------------------------------------------ ações

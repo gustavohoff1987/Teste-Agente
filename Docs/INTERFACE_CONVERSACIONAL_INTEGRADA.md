@@ -26,7 +26,7 @@ resume a mudança.
 3. **Fonte dos dados:**
    - antes dos dados, as entradas ficam na área de análise e na conversa, com as mesmas ações: desde 24/10/2026, só **Usar
      dados do Brasil** e **Enviar meus dados**. "Enviar meus dados" abre sempre a mesma **janela de envio** ("Enviar meus
-     dados", `envio-de-dados`), com o que enviar (CSV, XLS ou XLSX, até 30 MB), "Escolher o arquivo" e o **modelo de planilha**
+     dados", `envio-de-dados`), com o que enviar (CSV, XLS ou XLSX, até 15 MB; até 01/11/2026, 30 MB), "Escolher o arquivo" e o **modelo de planilha**
      (a estrutura recomendada, com as colunas descritas, para consultar ou baixar em XLSX); "Cancelar" fecha sem mudar nada. O
      botão "Modelo de planilha XLSX" saiu da área e da conversa: o modelo fica na janela. Não há botões de fonte no alto da
      página;
@@ -61,7 +61,7 @@ cumulativos (ver o documento da área).
 
 ### Planilha enviada: o painel "Colunas"
 
-"Enviar meus dados" aceita CSV, XLS e XLSX de até 30 MB, de qualquer país. Outro formato é recusado com "Formato não
+"Enviar meus dados" aceita CSV, XLS e XLSX de até 15 MB (15.000.000 bytes, conferidos também pelo backend; até 01/11/2026, 30 MB), de qualquer país. Outro formato é recusado com "Formato não
 reconhecido. Selecione um arquivo CSV, XLS ou XLSX.". Um arquivo Excel com várias abas pergunta "Qual aba deseja
 utilizar?" antes das colunas. A estrutura é a mesma da base do Brasil; só os nomes se adaptam (distrito, condado, província).
 

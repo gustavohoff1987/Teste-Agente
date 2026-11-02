@@ -1,0 +1,94 @@
+name: Validação real do Gemini
+# Só depois de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" e das providências V-1 a V-7 (Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md).
+# O envio de uma etiqueta validacao-gemini-real-* aciona: primeiro a conferência da proteção, sem ambiente e sem segredos;
+# depois, só se ela passar, o job no ambiente gemini-real, que espera a aprovação do responsável. A chave existe apenas
+# como segredo desse ambiente. No máximo 20 chamadas reais somadas; um 429 real encerra. Uma execução por autorização.
+on:
+  push:
+    tags: ["validacao-gemini-real-*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validacao-gemini-real
+  cancel-in-progress: false
+
+jobs:
+  conferir-protecao:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Ambiente gemini-real, revisor, etiquetas e o commit no ramo de preparação (só leitura, nenhuma chamada)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/scripts/conferir_protecao.py --ambiente gemini-real
+          --etiquetas "validacao-gemini-real-*" --ramo implantacao/cloud-run-pages
+
+  validacao:
+    needs: conferir-protecao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: gemini-real
+    permissions:
+      contents: read
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Sem o segredo, nada é enviado
+        run: |
+          if [ -z "${GEMINI_API_KEY// /}" ]; then
+            echo "::error title=Segredo vazio::GEMINI_API_KEY do ambiente gemini-real está vazio; nenhuma chamada foi feita."
+            exit 1
+          fi
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.11"
+      - name: Dependências fixadas da imagem
+        run: |
+          pip install --no-deps -r backend/requirements-conteiner.txt
+          pip check
+      - name: Imagem do mesmo commit (sem envio a registro)
+        run: docker build --pull -t adt:validacao .
+      # A chave entra só no contêiner, pelo nome da variável (docker run -e GEMINI_API_KEY): o valor não aparece na linha de
+      # comando nem no log. Nenhum docker inspect, env ou printenv neste job.
+      - name: Contêiner com a chave e outro com uma chave propositalmente inválida (1 CPU e 2 GiB cada)
+        run: |
+          docker run -d --name adt-gemini --cpus=1 --memory=2g --memory-swap=2g --tmpfs /tmp:rw,size=1g,mode=1777 \
+            -p 127.0.0.1:18080:8080 -e GEMINI_API_KEY adt:validacao > /dev/null
+          docker run -d --name adt-chave-invalida --cpus=1 --memory=2g --memory-swap=2g --tmpfs /tmp:rw,size=1g,mode=1777 \
+            -p 127.0.0.1:18081:8080 -e GEMINI_API_KEY=chave-propositalmente-invalida adt:validacao > /dev/null
+          for porta in 18080 18081; do
+            for _ in $(seq 1 300); do
+              if curl -fsS "http://127.0.0.1:$porta/api/health" > /dev/null 2>&1; then break; fi
+              sleep 1
+            done
+          done
+      - name: Validação pelo caminho HTTP do contêiner (teto de 20 chamadas reais somadas)
+        run: >-
+          python .github/scripts/validar_gemini_conteiner.py --url http://127.0.0.1:18080
+          --url-chave-invalida http://127.0.0.1:18081 --teto 20 --saida "$RUNNER_TEMP/relatorio"
+      - name: Padrão de chave do Google no relatório, antes do envio
+        id: chave
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/verificar_chave_google.py "$RUNNER_TEMP/relatorio"
+      - name: Relatório sanitizado (status, tempos, origem do texto, tentativas e chamadas)
+        if: ${{ !cancelled() && steps.chave.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: validacao-gemini-real
+          path: ${{ runner.temp }}/relatorio/validacao-gemini-real.json
+          retention-days: 30
+      - name: Contêineres removidos
+        if: ${{ always() }}
+        run: docker rm -f adt-gemini adt-chave-invalida > /dev/null 2>&1 || true

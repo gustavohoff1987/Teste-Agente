@@ -630,13 +630,42 @@ def _system_instruction() -> str:
     return _SYSTEM + "\n\n" + examples if examples else _SYSTEM
 
 
+def _chave_invalida(response) -> bool:
+    """A chave recusada pela API (HTTP 400, INVALID_ARGUMENT com o motivo API_KEY_INVALID, desde 01/11/2026): o mesmo
+    tratamento de configuração de 401 e 403. Só o motivo e o status entram na decisão; nada da resposta é registrado."""
+    if getattr(response, "status_code", None) != 400:
+        return False
+    try:
+        erro = response.json().get("error") or {}
+    except (ValueError, AttributeError):
+        return False
+    motivos = {str((detalhe or {}).get("reason", "")) for detalhe in erro.get("details") or [] if isinstance(detalhe, dict)}
+    return "API_KEY_INVALID" in motivos or "API key not valid" in str(erro.get("message", ""))
+
+
+ENDERECO_DO_PROVEDOR = "https://generativelanguage.googleapis.com"
+
+
+def _endereco() -> str:
+    """O endereço fixo da API Gemini. Só para os testes com o provedor simulado por HTTP (o contêiner no CI),
+    ADT_GEMINI_ENDERECO_DE_TESTE aponta para um servidor local; qualquer outro endereço é ignorado, e a chave nunca sai
+    para um destino que não seja o provedor ou a própria máquina."""
+    from urllib.parse import urlparse
+    teste = os.getenv("ADT_GEMINI_ENDERECO_DE_TESTE", "").strip().rstrip("/")
+    if teste:
+        partes = urlparse(teste)
+        if partes.scheme == "http" and partes.hostname in ("127.0.0.1", "localhost", "::1") and not partes.path:
+            return teste
+    return ENDERECO_DO_PROVEDOR
+
+
 async def _post(body: dict, model: str, api_key: str) -> dict:
     """Uma chamada ao provedor, com a resposta JSON do esquema pedido. Classifica as falhas pela causa (seção 11.4) e põe
     o provedor em espera quando ele sinaliza limite (429) ou falha temporária; nunca repete sozinho."""
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SEGUNDOS) as client:
             response = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                f"{_endereco()}/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
                 json=body,
             )
@@ -655,7 +684,7 @@ async def _post(body: dict, model: str, api_key: str) -> dict:
         ate = _esperar("cota", segundos, escopo)
         logging.getLogger(__name__).warning("Gemini sinalizou limite (%s); espera de %.0f s.", escopo, segundos)
         raise LLMError(429, "Cota ou limite de requisições da API Gemini atingido.", "cota", ate)
-    if response.status_code in (401, 403):
+    if response.status_code in (401, 403) or _chave_invalida(response):
         contar("configuracao")
         ate = _esperar("configuracao", ESPERA_CONFIGURACAO, "acesso")
         raise LLMError(503, "Chave ou acesso ao Gemini não autorizado. Confira a configuração local.", "configuracao", ate)

@@ -14,6 +14,12 @@ from playwright.sync_api import expect
 
 URL = os.getenv("ADT_UI_URL", "http://127.0.0.1:5173/")
 assert urlparse(URL).hostname in ("127.0.0.1", "localhost", "::1")
+# O serviço de análise: o mesmo endereço da página nos servidores de teste; noutro endereço na hospedagem simulada (suíte
+# "conteiner": a página como no GitHub Pages e o serviço no contêiner, como no Cloud Run).
+API = os.getenv("ADT_UI_API_URL", URL).rstrip("/") + "/"
+assert urlparse(API).hostname in ("127.0.0.1", "localhost", "::1")
+# Respostas simuladas pelos roteiros (route.fulfill) precisam do CORS quando o serviço fica noutro endereço.
+CORS = {"Access-Control-Allow-Origin": "{0.scheme}://{0.netloc}".format(urlparse(URL))}
 
 # Área de análise (frente B2): só a raiz. O resto da área é conferido pelo roteiro dela (ui_area_de_analise.py).
 AREA = {"raiz": "area-de-analise"}

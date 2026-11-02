@@ -44,7 +44,7 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   (`analise-abertura`, com `analise-fonte-brasil` e `analise-fonte-arquivo`) e na conversa, com as mesmas ações; não há botões
   de fonte no alto da página. "Enviar meus dados" abre a **janela de envio** (`envio-de-dados`, em `JanelaDeEnvio.tsx`), a mesma
   em todas as entradas (a abertura, a conversa, o "Trocar" da fonte e o "Enviar meus dados" da Rotatividade): o que enviar (CSV,
-  XLS ou XLSX, até 30 MB, uma linha por território, categoria e período), "Escolher o arquivo" (`envio-escolher-arquivo`) e o
+  XLS ou XLSX, até 15 MB, uma linha por território, categoria e período), "Escolher o arquivo" (`envio-escolher-arquivo`) e o
   **modelo de planilha** (`envio-modelo`), com as colunas descritas e "Baixar o modelo de planilha (XLSX)"
   (`envio-modelo-baixar`); "Cancelar" (`envio-cancelar`) fecha sem mudar nada. O arquivo escolhido segue a preparação de sempre
   (as validações de formato e de tamanho, a aba e o painel Colunas). O botão "Modelo de planilha XLSX" da abertura

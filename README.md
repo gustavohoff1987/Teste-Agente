@@ -31,7 +31,8 @@ npm run dev
 ```
 
 Abrir `http://localhost:5173`. O Vite encaminha `/api` ao FastAPI local.
-Documentação da API: `http://localhost:8000/docs`.
+Documentação da API: `http://localhost:8000/docs`. Desde 01/11/2026, `ADT_DOCUMENTACAO_DA_API=0` desliga `/docs`, `/redoc` e
+`/openapi.json`; a imagem do contêiner de produção já vem assim ([hospedagem](#hospedagem-cloud-run-e-github-pages)).
 
 ## Duas formas de carregar dados
 
@@ -136,8 +137,13 @@ continua restrita a uma competência, para não tratar pessoas observadas em mes
 diferentes como pessoas únicas. Fora do perfil governado, as premissas metodológicas são aplicadas
 pelo backend e registradas no resultado; nenhuma confirmação é pedida.
 
-**Enviar meus dados** aceita CSV, XLS e XLSX de qualquer país, até 30 MB, com a escolha da aba quando o
-arquivo tem mais de uma. A planilha é lida com a estrutura da base do Brasil: unidade territorial (município,
+**Enviar meus dados** aceita CSV, XLS e XLSX de qualquer país, até 15 MB (15.000.000 bytes; até 01/11/2026, 30 MB), com a
+escolha da aba quando o arquivo tem mais de uma. O limite é conferido na tela, antes do envio ("Arquivo acima de 15 MB, o limite
+desta versão; a planilha não foi processada."), e pelo backend, independentemente da tela ("Arquivo acima do limite de 15 MB;
+nenhum dado foi analisado.", HTTP 413). O backend também recusa, antes de ler, o XLSX cujo conteúdo descompactado cresce de
+forma desproporcional ao arquivo (mais de 100 vezes, com um piso de 10 MB, ou mais de 150 MB) e o CSV com mais de 6 milhões
+de células, com o motivo e o texto da TPL-13; a planilha malformada continua recebendo "Não foi possível interpretar este
+arquivo Excel…". A planilha é lida com a estrutura da base do Brasil: unidade territorial (município,
 distrito, condado…), código, grupo territorial (estado, província…), período, categoria, quantidade, população,
 latitude e longitude, e o identificador individual para a rotatividade. O painel curto **"Colunas"**, no alto da
 página, mostra o que foi reconhecido e pede só as escolhas que faltam:
@@ -207,10 +213,11 @@ Para responder mais rápido, o backend guarda por processo o quadro interpretado
 e, sobre ele, os resultados que dependem só da versão: perfis das colunas, pré-exame, perfil da fonte e
 catálogo territorial. A integridade continua conferida a cada requisição, antes de qualquer reaproveitamento.
 Cada requisição recebe a sua cópia. Uma versão nova nunca reaproveita a anterior, e uploads nunca são guardados.
-`ADT_BRASIL_CACHE_MAX_MB=0` desliga tudo isso. Ao iniciar, o servidor também faz em segundo plano a primeira
-inspeção da base e carrega a biblioteca conversacional; a primeira requisição à base espera esse
-aquecimento em curso. `ADT_AQUECIMENTO=0` desliga o aquecimento. Medições e salvaguardas:
-[otimização de latência](Docs/OTIMIZACAO_LATENCIA.md).
+`ADT_BRASIL_CACHE_MAX_MB=0` desliga tudo isso. Ao iniciar, o servidor também faz a primeira inspeção da base e carrega a
+biblioteca conversacional; desde 01/11/2026, esse aquecimento termina antes de a porta abrir (no Cloud Run, com cobrança por
+requisição, só há CPU garantida na partida e durante as requisições), e a duração vai para o log do servidor. Até então, ele
+corria em segundo plano, com a primeira requisição à base esperando o aquecimento em curso. `ADT_AQUECIMENTO=0` desliga o
+aquecimento. Medições e salvaguardas: [otimização de latência](Docs/OTIMIZACAO_LATENCIA.md).
 
 Uma instalação externa continua possível para outra infraestrutura: `ADT_BRASIL_DATA_DIR`
 aponta para uma pasta preparada por `python backend/install_brazil_data.py --source .
@@ -220,11 +227,11 @@ Ela só é aceita com a versão governada ou com a versão fixada exatamente em
 repositórios nem no diretório público do frontend. O diagnóstico técnico também está em
 `GET /api/brazil/source` e na área “Diagnóstico técnico da fonte” da interface (sem conteúdo).
 
-Para uma futura operação online, será necessário disponibilizar as fontes autorizadas
-ao backend e configurar esse diretório ou adaptar o carregador para outra origem,
-preservando o contrato de versão, integridade e granularidade. Os dados devem continuar
-fora dos arquivos públicos do frontend e de qualquer repositório público. A escolha de infraestrutura, o
-provisionamento e a publicação ficam para uma etapa futura; não foram implementados.
+Para a operação online, a imagem do contêiner leva os arquivos versionados e o manifesto, com o mesmo contrato de versão,
+integridade e granularidade ([hospedagem](#hospedagem-cloud-run-e-github-pages)). Os dados devem continuar fora dos arquivos
+públicos do frontend e de qualquer repositório público. A preparação da implantação está pronta desde 01/11/2026 (Fase 1, em
+[Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md)); o provisionamento e a publicação (Fase 2) dependem de
+autorização do responsável, operação por operação, e não foram executados.
 
 Campos `periodo_ano` e `periodo_mes` são preservados e compõem **Período (ano e mês)**
 em memória, no formato AAAAMM (ano × 100 + mês), reconhecido por regra conclusiva: componentes
@@ -528,7 +535,9 @@ continuar utilizando normalmente as análises e funcionalidades disponíveis por
 recurso de conversa poderá ser utilizado novamente quando o serviço estiver disponível."; nas demais causas (chave ausente
 ou recusada, tempo esgotado, rede, falha do provedor): "O recurso de conversa não está disponível neste momento. Você pode
 continuar utilizando as funcionalidades e análises disponíveis por meio dos botões e controles da plataforma." A causa
-técnica fica no diagnóstico (`/api/llm/status` e o log do servidor). Uma saída fora do contrato, depois de 2 regenerações,
+técnica fica no diagnóstico (`/api/llm/status` e o log do servidor); desde 01/11/2026, a chave recusada pela API como inválida
+(HTTP 400, `API_KEY_INVALID`, a resposta real a uma chave errada) conta como problema de configuração, como 401 e 403, com a
+mesma espera de 5 minutos. Uma saída fora do contrato, depois de 2 regenerações,
 recebe uma resposta de reserva ("Não consegui interpretar este pedido com segurança…"). Os controles, as análises e o
 histórico continuam. O prazo da sessão continua sendo 1.800 segundos.
 Medições de recuperação local, tamanho do pedido e espera remota, com e sem exemplos:
@@ -539,6 +548,54 @@ Rotas experimentais: `GET /api/llm/status` (nunca retorna a chave), `POST /api/l
 ### Fronteira da SPEC
 
 Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambiguidade e opções), RQ-DAD-20 e RQ-PRV-02 (privacidade), INV-02/03/16 (autoridade factual), RQ-ESC-01/04 (escopo FTS), RQ-GOV-14 (decisões e confirmações), C-04 (verificação determinística), RQ-ARQ-06 (minimização), RQ-ORQ-01 (planos governados). FN-INT-01/02/03 e FN-META-01 têm cobertura **parcial**; alternativas ancoradas e orientações de catálogo não equivalem ao fluxo normativo completo de estados, CFG-DOC/V-16 e validações exaustivas. FN-INT-04 e CAP-SIN-01 têm cobertura **parcial** (desde 26/10/2026, a explicação verificada do resultado do gráfico e a redação da conversa pelo Gemini sob a conferência de fidelidade, com paráfrase metodológica controlada pelo Adendo PAR-20261026, no [diálogo governado](Docs/DIALOGO_GOVERNADO.md)); FN-ORQ-01 continua pendente. Antes de alegar conformidade integral, essas lacunas precisam ser implementadas e auditadas.
+
+## Hospedagem: Cloud Run e GitHub Pages
+
+Preparação de 01/11/2026 (Fase 1). O que foi feito, o que foi medido e o que depende do responsável pelo produto ficam em
+[Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md); nada foi publicado. O serviço de análise (o backend) vai para o
+Google Cloud Run, numa instância de 1 vCPU e 2 GiB (mínimo 0, máximo 1, cobrança por requisição), e a interface, para o GitHub
+Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o serviço por HTTPS noutro endereço.
+
+- **Contêiner:** `Dockerfile` na raiz, com Python 3.11 slim fixado por digest e as dependências exatas de
+  `backend/requirements-conteiner.txt`; usuário sem privilégios; um processo Uvicorn em `0.0.0.0:$PORT`; encerramento limpo
+  com SIGTERM; verificação de saúde por `/api/health`. O `.dockerignore` deixa de fora `.env`, testes, interface e o histórico
+  do Git. A imagem é construída e verificada só no GitHub Actions.
+- **Configuração:** `ADT_ALLOWED_ORIGINS` (na hospedagem, só `https://gustavohoff1987.github.io`; sem a variável, o servidor
+  local do Vite). O CORS aceita só os cabeçalhos que a interface envia (`Content-Type` e `X-ADT-Session`), com a
+  pré-verificação válida por 2 h (antes, 10 min e qualquer cabeçalho). `ADT_DOCUMENTACAO_DA_API=0` (já na imagem) desliga a
+  documentação da API. `GEMINI_API_KEY` vem do Secret Manager. Na interface, `VITE_API_BASE_URL` (o endereço do serviço) e,
+  no build do Pages, `ADT_BASE_DA_PAGINA=/Teste-Agente/`.
+- **Partida:** o aquecimento (a inspeção da base do Brasil e a biblioteca conversacional) termina antes de a porta abrir.
+- **Proteção de carga** (`backend/carga.py`): o pedido acima de 15 MB mais a margem do formulário é recusado com 413 antes de
+  qualquer leitura. As operações pesadas (exame, pré-exame, análise, gráfico, mapa, contagens da escolha dos territórios e a
+  descrição da base) correm em vagas, fora do laço de eventos: 2 ao mesmo tempo, até 8 na fila, até 20 s de espera
+  (`ADT_PESADAS_SIMULTANEAS`, `ADT_PESADAS_FILA`, `ADT_PESADAS_ESPERA_S`). Nas rotas da conversa, a leitura da base também
+  ocupa uma vaga, mas a espera pelo Gemini não. Cada sessão tem até 6 pedidos pesados ou da conversa em andamento
+  (`ADT_PEDIDOS_POR_SESSAO`). Sem vaga, a resposta é 503 com `ocupado: true`, `tente_em` e a mensagem cordial ("O Agente
+  Diagnóstico Territorial da Força de Trabalho na Saúde está atendendo muitas solicitações neste momento…"), legível pelo
+  navegador. O pedido abandonado na fila sai sem calcular. Nenhum limite encerra uma sessão: só o pedido novo é recusado. Os
+  contadores ficam na memória do processo e recomeçam com o contêiner. O CORS não é autenticação: a API continua acessível
+  diretamente, e nada aqui confia em cabeçalhos de IP enviados pelo cliente.
+- **Estados da conexão** (`frontend/src/conexao.ts` e `AvisoDaConexao.tsx`), sem códigos HTTP, mensagens do provedor, valores
+  ou detalhes da infraestrutura. A. Serviço inacessível: depois de uma tentativa curta (as respostas da plataforma sem CORS
+  chegam como falha de rede), o título "Serviço temporariamente indisponível" e o texto institucional, no diálogo de abertura
+  ou no alto da página; a interface continua abrindo pelo Pages. B. Partida a frio: a verificação que demora mais de 3 s, ou a
+  primeira que falha, mostra que o serviço está iniciando. C. Ocupado: a resposta do próprio serviço no limite mostra o aviso
+  de ocupado; o gráfico e o mapa tentam de novo sozinhos (até 2 vezes, no tempo indicado), e a conversa mostra o aviso na
+  própria conversa. D. A conversa sem o Gemini continua como antes. E. A sessão expirada ou perdida (inclusive num reinício do
+  serviço) recarrega com o aviso de sempre, distinto de A. F. Os erros de validação mostram a mensagem própria, sem "(HTTP
+  nnn)" no fim (antes, com o código). G. Novas tentativas automáticas a 5, 10, 20, 40, 60 e 120 s, em pausa com a aba oculta,
+  o botão "Tentar novamente" e o aviso "Conexão restabelecida." quando o serviço volta. A consulta da sessão a cada 30 s não
+  mudou. O título da página e o rodapé trazem o nome oficial completo.
+- **Sessões:** continuam em memória, sem banco. Com mínimo 0 instâncias, uma sessão pode se perder antes dos 30 minutos
+  (instância encerrada por ociosidade ou trocada pela plataforma, nova revisão, falta de memória, suspensão pela trava de
+  gastos); a interface mostra o aviso de sessão expirada ou indisponível. A divergência com a RQ-FLX-17 aguarda a decisão do
+  responsável (relatório, seção F).
+- **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só
+  por etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e
+  [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)).
+- **Testes:** `backend/tests/test_hospedagem.py` e `test_implantacao.py` (pytest), `frontend/tests/conexao.test.mjs` e os
+  roteiros `ui_hospedagem.py`, `ui_conexao.py` e `ui_sessao.py` (job `conteiner`).
 
 ## Testes
 
@@ -588,6 +645,7 @@ provedor real de IA.
 | `ui-conversational` | A conversa agindo no gráfico, sem provedor de IA (suíte `conversa`). |
 | `ui-block1` | A página única com o catálogo sintético do Bloco 1 (suíte `bloco1`, inclusive o modo escuro e a planilha fictícia feita do modelo), a conversa com Gemini simulado (`gemini-simulado`) e a página com a base versionada (`base-versionada`). |
 | `governanca` | Toda mudança de comportamento está em [`Docs/REGISTRO_DE_COMPORTAMENTO.md`](Docs/REGISTRO_DE_COMPORTAMENTO.md) ou foi declarada sem alteração, e todo roteiro de navegador roda no CI. |
+| `conteiner` | Desde 01/11/2026: a sintaxe dos workflows (actionlint); a imagem do contêiner construída (sem envio a registro) e verificada nas condições do Cloud Run (1 CPU, 2 GiB sem swap, `/tmp` em memória), com as medições de partida, memória, análises idênticas à referência, planilhas, sessões, Gemini simulado e concorrência (artefato `medicoes-do-conteiner`); o padrão de chave do Google na imagem, nos builds e nos artefatos; e, pelo navegador, a interface como no GitHub Pages com o serviço noutro endereço (suíte `conteiner`) e a sessão temporária (suíte `sessao`). Ver [hospedagem](#hospedagem-cloud-run-e-github-pages). |
 | `resumo` | Quadro único com o resultado de todos os jobs. Falha se qualquer um falhar. |
 
 As jornadas de navegador rodam pelo executor único `backend/tests/run_ui_checks.py`. Ele prepara
@@ -811,6 +869,6 @@ A interface é a página única de análise (22/10/2026): a Seleção de Territ�
 - nenhuma confirmação de colunas e campos (19/10/2026): a proposta não é apresentada para confirmação e a escolha no seletor substitui a confirmação (RQ-DAD-05, RQ-DAD-06); coordenadas sem confirmação, com o seletor vazio quando o reconhecimento não é conclusivo (RQ-DAD-25, na parte "requer confirmação do usuário"; a validade por elemento segue a SPEC); a identidade da pessoa (contagem de pessoas distintas e rotatividade) é estabelecida pela coluna de identificador individual, escolhida no seletor ou reconhecida pelo nome do vocabulário, sem regra de identidade autorizada nem declaração (RQ-DAD-35, CAP-ROT-01); aditividade e comparabilidade viram premissas com nota e limitação, e, na base importada, o significado longitudinal da chave territorial é verificado nos dados, não estabelecido por regra, metadado ou confirmação (RQ-DAD-36, CFG-TER); a interação "Confirmar significado de campo" da tabela de interação (L274) não existe;
 - a densidade do Brasil de 2015 (regra BR-POP-JUNHO-1) é avaliável com limitações (`POPULACAO_NACIONAL_PARCIAL`): a população de junho soma os 5.569 municípios com registro, sem o 430607, enquanto o numerador continua sendo a contagem nacional inteira, em vez de NAO_AVALIAVEL por DENOMINADOR_AUSENTE e sem exclusão do ausente (CAP-IND-02 L1742, DA-10, INV-04, AT-08; a densidade parcial da CAP-AGR-01, L1751, exige o mesmo suporte no numerador e no denominador) (19/10/2026).
 
-Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite experimental é de 30 MB. Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
+Uploads são processados em memória por requisição e não são persistidos pelo aplicativo. O arquivo é reenviado a cada análise; o limite é de 15 MB (15.000.000 bytes) por arquivo desde 01/11/2026 (antes, o limite experimental de 30 MB), e cada nova análise lê o arquivo de novo (a leitura de um XLSX é bem mais lenta que a de um CSV do mesmo tamanho; medições em [Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md)). Evite bases pessoais e sensíveis no protótipo. Para arquivos muito grandes, será preciso processamento incremental/local, sessão segura e proteção de dados aprofundada.
 
 Amostras da interface são exemplos ilustrativos, **não diagnósticos reais**. Métodos não podem inventar limiares normativos nem presumir unicidade dos profissionais no agregado.

@@ -130,3 +130,16 @@ test('o prazo da tela vira aviso cordial próprio, sem código nem mensagem téc
   assert.equal(H.mensagemDeAviso(aviso).papel, 'aviso');
   assert.ok(!/HTTP|\b\d{3}\b|timeout|Abort/i.test(H.TITULO_DEMORA + H.TEXTO_DEMORA));
 });
+
+test('ocupado (01/11/2026): o aviso próprio, com o texto do serviço, nunca o de indisponibilidade nem o de cota', () => {
+  const aviso = H.avisoDeFalha(503, 'O serviço está atendendo muitas solicitações neste momento.', true);
+  assert.deepEqual(aviso, {tipo: 'ocupado', titulo: H.TITULO_OCUPADO,
+    texto: 'O serviço está atendendo muitas solicitações neste momento.'});
+  assert.equal(H.avisoDeFalha(503, 'Traceback: HTTP 503', true).texto, H.TEXTO_OCUPADO);
+  assert.equal(H.avisoDeFalha(503, undefined, true).texto, H.TEXTO_OCUPADO);
+  assert.equal(H.avisoDeFalha(503).tipo, 'indisponivel', 'sem o sinal de ocupado, a indisponibilidade de sempre');
+  const mensagem = H.mensagemDeAviso(aviso);
+  assert.equal(mensagem.papel, 'aviso');
+  assert.equal(mensagem.titulo, H.TITULO_OCUPADO);
+  assert.ok(!/HTTP|\b\d{3}\b/i.test(H.TITULO_OCUPADO + H.TEXTO_OCUPADO));
+});

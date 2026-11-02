@@ -92,9 +92,10 @@ const OPCAO_DA_FONTE: Record<"brasil" | "arquivo", Choice> = {
   arquivo: { label: "Enviar meus dados", draft: "enviar meus dados", send: true } };
 const SEGUIMENTO = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,.! ]*|pode calcular[?.! ]*|quantos? tem[?.! ]*|certo[,.! ]+quantos? tem[?.! ]*|e agora[?.! ]*|continue[?.! ]*)$/i;
 
-/** Falha da conversa: o status e o detalhe ficam para escolher o aviso cordial; a tela nunca os mostra crus. */
+/** Falha da conversa: o status e o detalhe ficam para escolher o aviso cordial; a tela nunca os mostra crus. `ocupado`: o
+ * serviço respondeu que está no limite (01/11/2026). */
 class ErroDaConversa extends Error {
-  constructor(readonly status: number | null, readonly detalhe?: unknown) { super("Falha da conversa."); }
+  constructor(readonly status: number | null, readonly detalhe?: unknown, readonly ocupado = false) { super("Falha da conversa."); }
 }
 
 async function lerResposta(response: Response): Promise<any> {
@@ -102,7 +103,7 @@ async function lerResposta(response: Response): Promise<any> {
   let body: any;
   try { body = JSON.parse(raw); }
   catch { throw new ErroDaConversa(response.status); }
-  if (!response.ok) throw new ErroDaConversa(response.status, body?.detail);
+  if (!response.ok) throw new ErroDaConversa(response.status, body?.detail, body?.ocupado === true);
   return body;
 }
 
@@ -150,7 +151,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   /** Falha de rede ou do serviço: o aviso cordial no histórico; a mensagem da pessoa continua onde está. A espera
    * interrompida pelo prazo da tela tem o seu próprio aviso. */
   const avisarFalha = (exc: unknown) => avisar((exc as { name?: string } | null)?.name === "AbortError" ? avisoDeDemora()
-    : avisoDeFalha(exc instanceof ErroDaConversa ? exc.status : null, exc instanceof ErroDaConversa ? exc.detalhe : undefined));
+    : avisoDeFalha(exc instanceof ErroDaConversa ? exc.status : null, exc instanceof ErroDaConversa ? exc.detalhe : undefined,
+      exc instanceof ErroDaConversa && exc.ocupado));
   useLayoutEffect(() => {
     const lista = historico.current;
     if (!lista) return;

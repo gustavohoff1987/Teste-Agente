@@ -1,0 +1,33 @@
+# Contexto da imagem do contêiner (Dockerfile): só o que o serviço lê em execução. Nada de segredos, testes, interface,
+# histórico do Git, dependências locais ou documentos que o backend não usa.
+.git
+.github
+.local
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/node_modules
+**/.venv
+**/venv
+**/env
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+test-results
+frontend
+backend/tests
+backend/.env
+scripts
+Docs
+!Docs/CFG_DOC_CATALOG.yaml
+*.whl
+*.md
+!IMPLEMENTATION_SPEC.md
+pytest.ini
+Dockerfile
+.dockerignore
+.gitignore

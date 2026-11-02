@@ -480,3 +480,18 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 @media (max-width: 639px) {
   .painel-chat[data-ampla="true"] { width: auto; }
 }
+
+/* Estados da conexão (01/11/2026; conexao.ts e AvisoDaConexao.tsx): indisponível (A), iniciando (B), ocupado (C) e
+   restabelecida (G). As cores vêm dos tons do esquema claro e do escuro. */
+.conexao { margin: 8px 16px 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+.privacy-dialog .conexao { margin: 0 0 16px; }
+.conexao-indisponivel { border: 1px solid rgb(var(--tom-rose-200)); background: rgb(var(--tom-rose-50)); color: rgb(var(--tom-rose-800)); }
+.conexao-indisponivel h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+.conexao-indisponivel p { margin: 0 0 6px; }
+.conexao-nota { font-size: 12px; }
+.conexao-indisponivel button { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; padding: 6px 12px;
+  border: 1px solid currentColor; border-radius: 10px; background: transparent; color: inherit; font-size: 13px; font-weight: 650; }
+.conexao-indisponivel button:focus-visible { outline: 3px solid var(--cor-foco); outline-offset: 2px; }
+.conexao-iniciando, .conexao-restabelecida { display: flex; align-items: center; gap: 8px; background: var(--cor-realce-suave);
+  color: var(--cor-tinta); }
+.conexao-ocupado { border: 1px solid rgb(var(--tom-amber-200)); background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); }

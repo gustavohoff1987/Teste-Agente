@@ -18,6 +18,12 @@ from main import app
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+if os.environ.get("ADT_SESSAO_PRAZO_DE_TESTE"):
+    # Só neste servidor de teste (suíte "sessao" do run_ui_checks.py): o prazo de inatividade reduzido, para o roteiro
+    # ui_sessao.py ver a expiração sem esperar 30 minutos. O produto continua com os 1.800 s fixos da SPEC (RQ-FLX-17).
+    import conversation_session
+    conversation_session.TIMEOUT = int(os.environ["ADT_SESSAO_PRAZO_DE_TESTE"])
+
 
 async def forbidden(*args, **kwargs):
     raise llm_bridge.LLMError(503, "Transporte externo desabilitado no servidor de testes.", "indisponivel")

@@ -4,6 +4,17 @@
 // organizam o que o backend devolveu e o que a pessoa escolheu. Sem importações: os testes unitários
 // (frontend/tests/paginaUnica.test.mjs) transpilam este arquivo sozinho.
 
+/** Limite do arquivo enviado (01/11/2026; antes, 30 MB): 15 MB, 15.000.000 bytes, o mesmo conferido pelo backend
+ * (carga.MAX_UPLOAD_BYTES), que recusa o arquivo maior por conta própria. */
+export const LIMITE_DO_ARQUIVO = 15_000_000;
+
+/** O motivo de recusar o arquivo escolhido antes de enviá-lo (formato ou tamanho), ou null. */
+export function recusaDoArquivo(nome: string, tamanho: number): string | null {
+  if (!/\.(csv|xls|xlsx)$/i.test(nome)) return "Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.";
+  if (tamanho > LIMITE_DO_ARQUIVO) return "Arquivo acima de 15 MB, o limite desta versão; a planilha não foi processada.";
+  return null;
+}
+
 /** As quatro famílias de análise da área. */
 export type Familia = "distribuicao" | "espacial" | "tendencia" | "rotatividade";
 export type Indicador = "densidade" | "quantidade";

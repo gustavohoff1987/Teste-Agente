@@ -2,8 +2,10 @@ name: CI Portal Experimental
 on:
   push:
     # feat/desafio-adversarial-conversacional: ramo principal de desenvolvimento desde 26/10/2026, sem pull request
-    # (decisão do responsável); o CI precisa rodar no push dele.
-    branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais, feat/desafio-adversarial-conversacional]
+    # (decisão do responsável); o CI precisa rodar no push dele. implantacao/cloud-run-pages: o ramo de preparação da
+    # implantação (Cloud Run + GitHub Pages, 01/11/2026), também sem merge nem pull request.
+    branches: [main, feat/portal-uma-pagina-v1, feat/novos-blocos-incrementais, feat/desafio-adversarial-conversacional,
+               implantacao/cloud-run-pages]
   pull_request:
 
 # Um push novo no mesmo ramo cancela a execução anterior. Assim, commits intermediários não
@@ -130,11 +132,70 @@ jobs:
       - name: Mudanças de comportamento registradas e jornadas de navegador no CI
         run: python .github/scripts/verificar_governanca.py
 
+  # Hospedagem (01/11/2026; Docs/implantacao/): a imagem do contêiner nas condições do Cloud Run (1 CPU, 2 GiB sem swap e
+  # /tmp em memória), construída aqui e nunca enviada a registro, e a interface como no GitHub Pages (/Teste-Agente/, com o
+  # serviço noutro endereço). Confere a sintaxe dos workflows e o padrão de chave do Google na imagem, no build e nos
+  # artefatos; mede partida, memória, análises, planilhas, sessões, Gemini simulado e concorrência (artefato
+  # "medicoes-do-conteiner"); roda pelo navegador a hospedagem simulada e a sessão temporária. A CPU do runner não é a vCPU
+  # do Google: nada daqui é confirmação na nuvem.
+  conteiner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      ADT_CONTEINER_IMAGEM: adt:ci
+      ADT_CONTEINER_NOME: adt-api-ui
+      ADT_CONTEINER_PORTA: "18080"
+      ADT_PAGES_DIST: ${{ github.workspace }}/frontend/dist-pages
+      ADT_BROWSER_CHANNEL: chrome
+    steps:
+      - uses: actions/checkout@v5
+      - name: Sintaxe dos workflows (actionlint)
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color -shellcheck= -pyflakes=
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Dependências fixadas da imagem (as mesmas da referência em processo) e o navegador dos roteiros
+        run: |
+          pip install --no-deps -r backend/requirements-conteiner.txt
+          pip check
+          pip install "playwright>=1.50,<2"
+      - name: Imagem do contêiner (sem envio a registro)
+        run: docker build --pull -t "$ADT_CONTEINER_IMAGEM" .
+      - name: Interface no build de sempre e como no GitHub Pages (/Teste-Agente/, serviço noutro endereço)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          ADT_BASE_DA_PAGINA=/Teste-Agente/ VITE_API_BASE_URL=http://127.0.0.1:18080 npx --no-install vite build --outDir dist-pages
+      - name: Padrão de chave do Google na imagem e nos builds da interface
+        run: |
+          python .github/scripts/verificar_chave_google.py frontend/dist frontend/dist-pages
+          docker run --rm --entrypoint python -v "$PWD/.github/scripts:/verificacao:ro" "$ADT_CONTEINER_IMAGEM" \
+            /verificacao/verificar_chave_google.py --raiz-da-imagem /
+      - name: Medições nas condições do Cloud Run (partida, memória, análises, planilhas, sessões, Gemini simulado e concorrência)
+        run: python .github/scripts/medir_conteiner.py --imagem "$ADT_CONTEINER_IMAGEM" --saida "$RUNNER_TEMP/medicoes"
+      - name: Navegador - hospedagem simulada (contêiner e Pages) e a sessão temporária
+        if: ${{ !cancelled() }}
+        run: python backend/tests/run_ui_checks.py --suite conteiner --suite sessao
+      - name: Padrão de chave do Google nos artefatos
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/verificar_chave_google.py "$RUNNER_TEMP/medicoes" .local/ui-validation
+      - name: Medições (artefato)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: medicoes-do-conteiner
+          path: ${{ runner.temp }}/medicoes
+          retention-days: 30
+
   # Quadro único com o resultado de cada verificação. Falha se qualquer uma falhar, de modo que
   # basta exigir "resumo" na proteção do ramo para exigir todas.
   resumo:
     if: ${{ !cancelled() }}
-    needs: [backend, dados-reais, frontend, ui-conversational, ui-block1, governanca]
+    needs: [backend, dados-reais, frontend, ui-conversational, ui-block1, governanca, conteiner]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -152,6 +213,7 @@ jobs:
               "ui-conversational": "Navegador: jornada conversacional",
               "ui-block1": "Navegador: Blocos 1 a 3, Gemini simulado e base versionada",
               "governanca": "Governança: registro de comportamento e jornadas no CI",
+              "conteiner": "Contêiner nas condições do Cloud Run e hospedagem simulada (Pages)",
           }
           rotulo = {"success": "✅ passou", "failure": "❌ falhou", "cancelled": "⏹️ cancelado", "skipped": "⏭️ não executado"}
           resultados = json.loads(os.environ["RESULTADOS"])

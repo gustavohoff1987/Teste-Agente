@@ -38,8 +38,8 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from playwright.sync_api import expect, sync_playwright
-from ui_support import (AREA, PRIVACIDADE, URL, accept_privacy, fonte_embutida_carregada, form_field, history_label, is_post,
-                        letras_miudas, no_horizontal_scroll, offline, options_of, uploaded_filename)
+from ui_support import (API, AREA, CORS, PRIVACIDADE, URL, accept_privacy, fonte_embutida_carregada, form_field, history_label,
+                        is_post, letras_miudas, no_horizontal_scroll, offline, options_of, uploaded_filename)
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 SEM_MUNICIPIO = re.compile("munic", re.IGNORECASE)
@@ -476,7 +476,7 @@ def main():
         assert token, "o gráfico leva a sessão temporária"
         navigation.get_by_test_id("nav-new-session").click()
         dialogo = page.get_by_test_id("new-session-confirmation")
-        page.route("**/api/session/close", lambda route: route.fulfill(status=503, body="indisponível"), times=1)
+        page.route("**/api/session/close", lambda route: route.fulfill(status=503, body="indisponível", headers=CORS), times=1)
         dialogo.get_by_test_id("confirm-new-session").click()
         expect(dialogo.get_by_role("alert")).to_contain_text("Não foi possível encerrar")
         expect(page.get_by_test_id("current-source")).to_contain_text("distritos.csv")
@@ -485,7 +485,7 @@ def main():
         assert fechada.value.status == 200, fechada.value.text()[:500]
         expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
         expect(page.get_by_test_id("session-ended-notice")).to_contain_text("A sessão anterior foi encerrada")
-        assert context.request.get(URL.rstrip("/") + "/api/session", headers={"X-ADT-Session": token}).status == 410
+        assert context.request.get(API + "api/session", headers={"X-ADT-Session": token}).status == 410
         accept_privacy(page)
         expect(historico).to_have_count(0)  # sem dados, sem a navegação
         expect(area.get_by_test_id("analise-abertura")).to_be_visible()

@@ -35,6 +35,86 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-01 · Hospedagem no Cloud Run e no GitHub Pages (Fase 1): 15 MB, proteção de carga, estados da conexão e configuração de produção
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 01/11/2026 (comando de implantação,
+  Fase 1, seção 4, itens 1 a 9, e seções 6 a 10). Todos os itens abaixo são mudança de comportamento e previstos: decorrem do
+  pedido (escopo) e não contrariam a SPEC nem divergência aprovada (compatibilidade). A SPEC não fixa o tamanho máximo do
+  arquivo (o README chamava os 30 MB de limite experimental), não trata da indisponibilidade do serviço inteiro, da
+  documentação da API, do CORS nem do aquecimento. A recusa nova de planilhas desproporcionais usa o texto da TPL-13, como
+  a RQ-DAD-43 pede para a impossibilidade técnica de materialização integral (sem truncar nem analisar parte). O prazo da
+  sessão (1.800 s), o que a renova e a TPL-09 não mudam. Ficou de fora, para decisão do responsável, a divergência da
+  RQ-FLX-17 com as sessões em memória e mínimo 0 instâncias (Docs/implantacao/RELATORIO_IMPLANTACAO.md, seção F).
+- **Antes:**
+  - o arquivo enviado ia até 30 MiB (31.457.280 bytes), com "30 MB" nos textos e nas recusas, e o pedido inteiro era lido antes
+    de qualquer conferência do tamanho;
+  - um XLSX pequeno que se expandisse muito ao ser aberto, ou um CSV com milhões de células minúsculas, era lido inteiro;
+  - as rotas pesadas (exame, pré-exame, análise, gráfico, mapa, contagens da escolha dos territórios) corriam no próprio laço
+    de eventos: enquanto uma calculava, `/api/health`, a consulta da sessão e a conversa esperavam; não havia limite de
+    operações pesadas simultâneas nem por sessão, e nenhuma resposta de ocupado;
+  - o CORS aceitava qualquer cabeçalho pedido, com a pré-verificação válida por 10 min; `/docs`, `/redoc` e `/openapi.json`
+    ficavam sempre abertos;
+  - o aquecimento da partida corria em segundo plano, depois de a porta abrir;
+  - a chave do Gemini recusada como inválida (HTTP 400, `API_KEY_INVALID`) contava como falha interna, sem a espera de
+    configuração; o endereço do provedor era só o do Google;
+  - a interface verificava `/api/health` uma vez ao abrir, sem nova tentativa, e mostrava "Serviço de análise temporariamente
+    indisponível." numa faixa pequena; as falhas de rede no gráfico apareciam com o texto técnico do navegador ("Failed to
+    fetch"), e as mensagens de erro terminavam com o código, como "(HTTP 422)";
+  - o título da página e o rodapé diziam "Agente Diagnóstico Territorial".
+- **Agora:**
+  - **15 MB (15.000.000 bytes) por arquivo**, conferidos na tela antes do envio ("Arquivo acima de 15 MB, o limite desta
+    versão; a planilha não foi processada.") e pelo backend, independentemente da tela: o pedido acima de 15 MB mais 2 MiB de
+    formulário recebe 413 antes de qualquer leitura, e o arquivo acima de 15.000.000 bytes, 413 com "Arquivo acima do limite de
+    15 MB; nenhum dado foi analisado." As fontes versionadas da base do Brasil mantêm o limite próprio (30 MiB);
+  - **planilhas desproporcionais recusadas antes da leitura:** o XLSX cujo conteúdo descompactado passa de 100 vezes o arquivo
+    (com um piso de 10 MB) ou de 150 MB ("A planilha cresce demais quando é aberta: …") e o CSV com mais de 6 milhões de células
+    ("A planilha tem células demais para esta versão: …"), ambos seguidos do texto da TPL-13; a malformada continua com "Não
+    foi possível interpretar este arquivo Excel…";
+  - **proteção de carga** (`backend/carga.py`): as rotas pesadas são síncronas e correm fora do laço de eventos, em vagas (2 ao
+    mesmo tempo, fila de 8, espera de até 20 s); nas rotas da conversa, a leitura da base ocupa uma vaga só enquanto dura; cada
+    sessão tem até 6 pedidos pesados ou da conversa em andamento. Sem vaga, 503 com `{"detail", "ocupado": true, "tente_em":
+    5}` e `Retry-After`, legível pelo navegador; o pedido abandonado na fila sai sem calcular. Nenhum limite encerra a sessão.
+    O resultado de cada rota é o mesmo de antes;
+  - **CORS** só com `Content-Type` e `X-ADT-Session`, pré-verificação válida por 2 h; `ADT_ALLOWED_ORIGINS` ignora espaços e
+    itens vazios; **`ADT_DOCUMENTACAO_DA_API=0`** desliga `/docs`, `/redoc` e `/openapi.json` (a imagem de produção já vem
+    assim);
+  - **o aquecimento termina antes de a porta abrir**, com a duração no log do servidor;
+  - **a chave inválida (400 `API_KEY_INVALID`) é problema de configuração**, como 401 e 403; **`ADT_GEMINI_ENDERECO_DE_TESTE`**
+    aponta o provedor para um servidor simulado na própria máquina (só `http` em 127.0.0.1, localhost ou ::1; qualquer outro
+    endereço é ignorado);
+  - **estados da conexão na interface** (`conexao.ts`, `AvisoDaConexao.tsx`): A, "Serviço temporariamente indisponível" com o
+    texto institucional ("O Agente Diagnóstico Territorial da Força de Trabalho na Saúde está temporariamente indisponível. Por
+    favor, tente acessar novamente mais tarde. Agradecemos sua compreensão."), depois de uma tentativa curta, no diálogo de
+    abertura ou no alto da página; B, "O serviço está iniciando…" quando a verificação demora mais de 3 s ou falha a primeira
+    vez; C, o aviso de ocupado com o texto do serviço, e o gráfico e o mapa repetem o pedido sozinhos até 2 vezes (a conversa
+    mostra o aviso "Serviço ocupado" na própria conversa); G, novas tentativas a 5, 10, 20, 40, 60 e 120 s, em pausa com a aba
+    oculta, o botão "Tentar novamente" e "Conexão restabelecida." D (a conversa sem o Gemini) e E (a sessão expirada ou perdida)
+    continuam como antes. F: as mensagens de erro não trazem mais o código HTTP, e a falha de rede no gráfico, no mapa e na
+    escolha dos territórios diz "Não foi possível acessar o serviço de análise. Tente novamente em instantes.";
+  - o título da página e o rodapé trazem o nome oficial completo, "Agente Diagnóstico Territorial da Força de Trabalho na
+    Saúde"; o `base` do Vite é configurável (`ADT_BASE_DA_PAGINA`, "/" por padrão, "/Teste-Agente/" no Pages).
+- **Permanece:** os cálculos, as respostas do motor e o contrato analítico de cada rota (as mesmas respostas, byte a byte, sem
+  as recusas novas); a sessão em memória, com o prazo de 1.800 s, o catálogo de interações que o renova e a consulta a cada
+  30 s, que não renova; os limites de 32 MiB por sessão e 256 MiB no total (em JSON) dos resultados guardados; o tratamento
+  da conversa sem o Gemini; os dados versionados; a SPEC; o teto local de chamadas continua inexistente (decisão de
+  26/10/2026).
+- **Motivo:** pedido do responsável de 01/11/2026 (preparação da implantação no Cloud Run, com 1 vCPU e 2 GiB, e da interface
+  no GitHub Pages).
+- **Documentação e testes:**
+  - **Documentação:** `README.md` (seção "Hospedagem: Cloud Run e GitHub Pages", o limite de 15 MB, o aquecimento, a
+    documentação da API, a chave inválida e o job `conteiner`), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`,
+    `Docs/PAINEL_INTEGRADO.md` e `Docs/PAINEL_INTEGRADO_INTERFACE.md` (15 MB), `Docs/OTIMIZACAO_LATENCIA.md` (U11), a nota da
+    trajetória de dados da biblioteca conversacional (15 MB) e `Docs/implantacao/`.
+  - **pytest:** `test_hospedagem.py` (novo: os 15.000.000 e 15.000.001 bytes, o pedido grande recusado antes da leitura, o
+    XLSX desproporcional, o malformado e o truncado, as células demais, as vagas com fila e desistência, o ocupado legível com a
+    saúde respondendo, os pedidos por sessão sem encerrar a sessão, o pedido abandonado na fila, o CORS, a documentação
+    desligada, o endereço de teste e o provedor simulado por HTTP no formato real: sucesso, 429 por minuto e por dia, chave
+    inválida e recusada, 503 e saída fora do contrato) e `test_brazil_cache.py` (o aquecimento já terminou antes do primeiro
+    pedido; o teste mudou porque o comportamento mudou de propósito).
+  - **Node:** `conexao.test.mjs` (novo), `paginaUnica.test.mjs` (o limite de 15 MB) e `historicoConversa.test.mjs` (o aviso de
+    ocupado).
+  - **Navegador:** `ui_conexao.py`, `ui_hospedagem.py` e `ui_sessao.py` (novos, suítes `conteiner` e `sessao`, job
+    `conteiner`); `ui_pagina_unica.py` passa também pela hospedagem simulada (a resposta simulada do encerramento leva o CORS).
+
 ### 2026-10-29 · Revisão dos commits de 28/10/2026: as regressões da conversa e dos nomes da planilha corrigidas
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (29/10/2026): "Analise o repositório e
   verifique se os últimos commits não causaram algum prejuízo". A revisão de `3636244`, `ee9789d`, `e71cda5`, `02eacda`,

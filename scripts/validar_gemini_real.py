@@ -6,9 +6,10 @@ continuidade, explicação do resultado, explicação progressiva, outra formula
 funcional e governança. Cada resposta mostra o canal, a origem do texto (GEMINI_VALIDADO, quando o texto do Gemini passou
 na conferência de fidelidade; DETERMINISTICA, quando valeu a reserva) e o número de tentativas.
 
-Economia de franquia: o roteiro para antes de passar de --max-chamadas chamadas reais (padrão 14), contadas pelo
-monitoramento do backend; um sinal de limite do provedor encerra a amostra. Nada habilita faturamento. Sem GEMINI_API_KEY,
-nada é enviado e o roteiro diz isso.
+Economia de franquia: o roteiro nunca passa de --max-chamadas chamadas reais (padrão 14), contadas pelo monitoramento do
+backend; desde 01/11/2026, o teto é rígido: uma mensagem só começa se o saldo cobrir o máximo dela (a primeira chamada e 2
+regenerações). Um sinal de limite do provedor encerra a amostra. Nada habilita faturamento. Sem GEMINI_API_KEY, nada é
+enviado e o roteiro diz isso.
 
 Uso, na raiz do repositório:
     GEMINI_API_KEY=... python scripts/validar_gemini_real.py [--max-chamadas 14]
@@ -69,8 +70,9 @@ def main() -> int:
     inicio = llm_bridge.status()["requests_used_today"]
     for cenario, mensagem, preparo in CENARIOS:
         usadas = llm_bridge.status()["requests_used_today"] - inicio
-        if usadas >= args.max_chamadas:
-            print("Teto da amostra atingido (" + str(usadas) + " chamadas); o restante fica de fora.")
+        if usadas + llm_bridge.TENTATIVAS > args.max_chamadas:
+            print("Teto da amostra (" + str(usadas) + " de " + str(args.max_chamadas) + " chamadas; a próxima mensagem pode "
+                  "usar até " + str(llm_bridge.TENTATIVAS) + "): o restante fica de fora.")
             break
         if preparo == "tendencia" and tela.comparar:
             tela.familia = "tendencia"

@@ -1,0 +1,27 @@
+name: Teste de gatilho por etiqueta
+# Só depois de "AUTORIZO O TESTE DE GATILHO" (Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md): comprova que um push de
+# etiqueta aciona um workflow que não está no ramo padrão. Sem ambiente, sem segredos, sem build: só registra o ref e o
+# commit. A etiqueta de teste é apagada depois.
+on:
+  push:
+    tags: ["teste-gatilho-*"]
+
+permissions: {}
+
+jobs:
+  registrar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Ref e commit que acionaram
+        run: |
+          echo "ref: $GITHUB_REF"
+          echo "commit: $GITHUB_SHA"
+          echo "evento: $GITHUB_EVENT_NAME"
+          {
+            echo "### Teste de gatilho por etiqueta"
+            echo ""
+            echo "- ref: \`$GITHUB_REF\`"
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- evento: \`$GITHUB_EVENT_NAME\`"
+          } >> "$GITHUB_STEP_SUMMARY"

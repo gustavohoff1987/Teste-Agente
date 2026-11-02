@@ -8,11 +8,14 @@ import ColunasDaPlanilha from "./ColunasDaPlanilha";
 import HistoricoDeAnalises from "./HistoricoDeAnalises";
 import JanelaDeEnvio from "./JanelaDeEnvio";
 import SessionPrivacy, { useSessionPrivacy } from "./SessionPrivacy";
+import AvisoDaConexao, { useConexao } from "./AvisoDaConexao";
 import WelcomeHero from "./WelcomeHero";
 import WorkspaceDialog from "./WorkspaceDialog";
+import { NOME_OFICIAL } from "./conexao";
 import { endSession, sessionFetch as fetch, trackSession, updateContextRevision } from "./conversationSession";
 import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, disponibilidadeDaPlanilha, escolhasIniciais,
-  horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, registrarEstado, resultadoDaSessao, resumoDaFonte,
+  horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, recusaDoArquivo, registrarEstado,
+  resultadoDaSessao, resumoDaFonte,
   type AnaliseGuardada, type ContextoDoGrafico, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
   type PedidoDoChat } from "./paginaUnica";
 import type { Levels } from "./territorialScope";
@@ -48,17 +51,15 @@ type Preparo = { geracao: number; arquivoId: number; tipo: "brasil" | "arquivo";
   lendo: boolean; erro: string; inspecao: Inspecao | null; escolhas: EscolhasDaPlanilha | null; preExame: PreExame | null;
   conferindo: boolean; erroDoPreExame: string; pendencias: string[] | null };
 
+// As mensagens de erro da tela trazem o motivo, em português, sem código HTTP (01/11/2026; antes, "(HTTP 422)" no fim).
 async function lerResposta(response: Response): Promise<any> {
   const raw = await response.text();
   let body: any;
   try { body = JSON.parse(raw); }
   catch {
-    throw new Error("Não foi possível interpretar a resposta do serviço (HTTP " + response.status + "). Tente novamente ou procure suporte.");
+    throw new Error("Não foi possível interpretar a resposta do serviço. Tente novamente ou procure suporte.");
   }
-  if (!response.ok) {
-    const message = typeof body?.detail === "string" ? body.detail : "Falha no processamento da solicitação.";
-    throw new Error(message + " (HTTP " + response.status + ")");
-  }
+  if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Falha no processamento da solicitação.");
   return body;
 }
 
@@ -115,7 +116,8 @@ function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, es
 function App() {
   const privacy = useSessionPrivacy();
   useEffect(() => { if (privacy.accepted) return trackSession(); }, [privacy.accepted]);
-  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
+  // Estados da conexão (01/11/2026): partida, indisponível, ocupado e restabelecida, com as novas tentativas (conexao.ts).
+  const conexao = useConexao(API);
   const [ativa, setAtiva] = useState<FonteAtiva | null>(null);
   const [preparo, setPreparo] = useState<Preparo | null>(null);
   const [escolhendo, setEscolhendo] = useState(false);
@@ -139,13 +141,7 @@ function App() {
   const fonteAtual = useRef<FonteAtiva | null>(ativa);
   fonteAtual.current = ativa;
 
-  useEffect(() => {
-    document.title = "Agente Diagnóstico Territorial";
-    let alive = true;
-    fetch(API + "/api/health").then(async response => { await lerResposta(response); if (alive) setServerStatus("online"); })
-      .catch(() => { if (alive) setServerStatus("offline"); });
-    return () => { alive = false; };
-  }, []);
+  useEffect(() => { document.title = NOME_OFICIAL; }, []);
   // O aviso da página (Histórico, Nova análise, fonte pronta) some sozinho depois de alguns segundos.
   useEffect(() => {
     if (!aviso) return;
@@ -222,7 +218,6 @@ function App() {
     try {
       const inspecao = await inspecionar(null, "");
       if (minha !== geracao.current) return;
-      setServerStatus("online");
       setPreparo(null);
       ativar(fonteDoBrasil(inspecao));
       setAviso("Dados do Brasil prontos.");
@@ -238,7 +233,6 @@ function App() {
     try {
       const inspecao = await inspecionar(arquivo, aba);
       if (minha !== geracao.current) return;
-      setServerStatus("online");
       setPreparo(atual => atual && atual.geracao === minha ? { ...atual, aba, lendo: false, erro: "", inspecao,
         escolhas: inspecao.requires_sheet ? null : escolhasIniciais(inspecao.suggested_mapping), preExame: inspecao.preflight } : atual);
     } catch (exc) {
@@ -252,12 +246,9 @@ function App() {
     const minha = ++geracao.current;
     setEscolhendo(false);
     const base = novoPreparo(minha, "arquivo", arquivo);
-    if (!/\.(csv|xls|xlsx)$/i.test(arquivo.name)) {
-      setPreparo({ ...base, lendo: false, erro: "Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX." });
-      return;
-    }
-    if (arquivo.size > 30 * 1024 * 1024) {
-      setPreparo({ ...base, lendo: false, erro: "Arquivo acima de 30 MB, o limite experimental desta versão; a planilha não foi processada." });
+    const recusa = recusaDoArquivo(arquivo.name, arquivo.size);  // formato e limite de 15 MB, antes do envio
+    if (recusa) {
+      setPreparo({ ...base, lendo: false, erro: recusa });
       return;
     }
     setPreparo(base);
@@ -358,7 +349,8 @@ function App() {
   const colunasEmPreparo = preparo?.escolhas && preparo.inspecao && !preparo.inspecao.requires_sheet ? preparo : null;
 
   return <div id="topo" className="pagina min-h-screen bg-canvas">
-    {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}/>}
+    {!privacy.accepted && <SessionPrivacy onAccept={privacy.accept}>
+      <AvisoDaConexao estado={conexao.estado} onTentar={conexao.tentar}/></SessionPrivacy>}
     {confirmarSessao && <WorkspaceDialog id="new-session-confirmation" title="Deseja iniciar uma nova sessão?" busy={encerrando}
       onClose={() => setConfirmarSessao(false)}>
       <p className="mt-4 text-sm leading-6">Ao iniciar uma nova sessão, a conversa, as análises do Histórico e a fonte de dados atual
@@ -415,8 +407,7 @@ function App() {
       </BarraDaFonte>
       <p role="status" data-testid="pagina-aviso" className="pagina-aviso no-print">{aviso}</p>
     </header>
-    {serverStatus === "offline" && <div role="status" className="no-print mx-4 rounded-lg bg-rose-50 px-4 py-2 text-xs text-rose-800">
-      Serviço de análise temporariamente indisponível.</div>}
+    {privacy.accepted && <AvisoDaConexao estado={conexao.estado} onTentar={conexao.tentar}/>}
     <main className="pagina-principal">
       <AreaDeAnalise key={"area-" + montagem.n} fonte={ativa?.dados ?? null} periodos={ativa?.periodos ?? VAZIO}
         categorias={ativa?.categorias ?? VAZIO} categoria={ativa?.categoria ?? ""} niveis={ativa?.niveis}
@@ -430,7 +421,7 @@ function App() {
       displayedResultId={resultadoDaSessao(estadoEmExibicao)} onEscolherFonte={onEscolherFonte} onPedido={onPedido}
       onAnaliseAnterior={analiseAnteriorDaConversa}/>
     <footer className="pagina-rodape no-print">
-      <p>Agente Diagnóstico Territorial · Protótipo experimental v0.1</p>
+      <p>{NOME_OFICIAL} · Protótipo experimental v0.1</p>
     </footer>
   </div>;
 }

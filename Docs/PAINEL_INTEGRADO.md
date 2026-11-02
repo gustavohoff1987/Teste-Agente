@@ -56,7 +56,7 @@ Multipart, no padrão de `/api/analyze`:
 | Campo | Uso |
 |---|---|
 | `dataset` | `brazil` para a base do Brasil. Vazio com `file` (planilha enviada, só com `nivel` na rota 1). |
-| `file` | Planilha enviada (CSV, XLSX ou XLS, até 30 MB), lida como em `/api/analyze`; nada é guardado. |
+| `file` | Planilha enviada (CSV, XLSX ou XLS, até 15 MB, ou 15.000.000 bytes; até 01/11/2026, 30 MB), lida como em `/api/analyze`; nada é guardado. |
 | `sheet` | Aba da planilha, quando o arquivo tem mais de uma (sem ela, 422 "Escolha a planilha (aba) do arquivo …"). |
 | `scope` | `municipal` (ou `auto`, que no painel é municipal). Ignorado com planilha. |
 | `dataset_version` | Versão da inspeção. Integridade conferida pelo manifesto a cada pedido; versão divergente → 422 "A base Brasil foi atualizada. …". |
@@ -65,6 +65,12 @@ Multipart, no padrão de `/api/analyze`:
 | `geo_version` | Opcional, na rota 1 com referência (ou com `consulta`), na rota 4 e no mapa, só na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
 | `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2, 3 e 4, aceita e não usada (nada é gravado). |
 | `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`; na página única, grava também o resultado (seção "Sessão"). |
+
+Recusas da proteção de carga (desde 01/11/2026; `backend/carga.py` e README, "Hospedagem"), nas quatro rotas, como em
+`/api/inspect`, `/api/preflight`, `/api/analyze` e `/api/brazil/description`: o pedido acima de 15 MB mais 2 MiB de formulário
+→ 413 "Arquivo acima do limite de 15 MB; nenhum dado foi analisado.", antes de qualquer leitura; sem vaga para a operação
+pesada (2 ao mesmo tempo, fila de 8, espera de até 20 s) ou com 6 pedidos da mesma sessão em andamento → 503 com
+`{"detail": "<mensagem cordial>", "ocupado": true, "tente_em": 5}` e `Retry-After: 5`. Nenhuma das duas encerra a sessão.
 
 ### Rota 1: `POST /api/painel` (contrato de 21/10/2026)
 

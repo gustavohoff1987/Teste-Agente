@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 const SESSION_KEY = "adt:privacy-accepted:v1";
 
@@ -24,7 +24,8 @@ export function useSessionPrivacy() {
   return { accepted, accept };
 }
 
-export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
+/** `children`: o aviso da conexão (AvisoDaConexao), que aparece no alto do diálogo enquanto o serviço não responde. */
+export default function SessionPrivacy({ onAccept, children }: { onAccept: () => void; children?: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [endedReason] = useState(() => {
     try { return sessionStorage.getItem("adt:session-ended"); } catch { return null; }
@@ -46,6 +47,7 @@ export default function SessionPrivacy({ onAccept }: { onAccept: () => void }) {
   return <dialog ref={dialogRef} aria-labelledby="privacy-declaration"
     onCancel={event => event.preventDefault()}
     className="privacy-dialog no-print m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-3xl border border-line p-6 text-ink shadow-2xl sm:p-8">
+    {children}
     {endedReason && <p role="status" data-testid="session-ended-notice" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
       {endedReason === "closed" ? "A sessão anterior foi encerrada." : "A sessão anterior expirou ou ficou indisponível no servidor."}
       {" "}Os resultados e a investigação temporária foram descartados. Eles não podem ser reabertos nesta nova sessão.

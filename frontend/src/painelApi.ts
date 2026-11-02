@@ -223,10 +223,28 @@ export type Pendencia = { chave: string; texto: string; opcoes: { valor: string;
 export class ErroDoMotor extends Error {
   status: number;
   pendencia: Pendencia | null;
-  constructor(mensagem: string, status: number, pendencia: Pendencia | null) {
+  /** O serviço respondeu que está no limite (503 com `ocupado`, 01/11/2026): a tela avisa e tenta de novo depois de `tenteEm` s. */
+  ocupado: boolean;
+  tenteEm: number | null;
+  constructor(mensagem: string, status: number, pendencia: Pendencia | null, ocupado = false, tenteEm: number | null = null) {
     super(mensagem);
     this.status = status;
     this.pendencia = pendencia;
+    this.ocupado = ocupado;
+    this.tenteEm = tenteEm;
+  }
+}
+
+/** A mensagem da falha de rede (o serviço não respondeu): sem o texto técnico do navegador. */
+export const SEM_ACESSO_AO_SERVICO = "Não foi possível acessar o serviço de análise. Tente novamente em instantes.";
+
+/** fetch dos pedidos ao motor: a falha de rede vira ErroDoMotor com a mensagem da tela; o pedido abortado continua abortado. */
+async function buscar(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (exc) {
+    if ((exc as { name?: unknown } | null)?.name === "AbortError") throw exc;
+    throw new ErroDoMotor(SEM_ACESSO_AO_SERVICO, 0, null);
   }
 }
 
@@ -274,22 +292,23 @@ function lerPendencia(bruto: unknown): Pendencia | null {
   return { chave, texto: texto(p.texto) ?? "", opcoes };
 }
 
-/** Mesma leitura de readApiResponse: corpo JSON ou erro com a mensagem do motor (em português), o código HTTP e a pendência. */
+/** Mesma leitura de readApiResponse: corpo JSON ou erro com a mensagem do motor (em português), a pendência e, quando o
+ * serviço está no limite, `ocupado`. O código HTTP fica no erro (status), fora da mensagem da tela (01/11/2026). */
 async function lerResposta(response: Response): Promise<unknown> {
   const raw = await response.text();
   let body: unknown;
   try { body = JSON.parse(raw); }
   catch {
-    throw new ErroDoMotor("Não foi possível interpretar a resposta do serviço (HTTP " + response.status + "). Tente novamente ou " +
-      "procure suporte.", response.status, null);
+    throw new ErroDoMotor("Não foi possível interpretar a resposta do serviço. Tente novamente ou procure suporte.",
+      response.status, null);
   }
   if (!response.ok) {
     const corpo = objeto(body);
     const detail = corpo?.detail;
     const detalhe = objeto(detail);
     const mensagem = typeof detail === "string" ? detail : texto(detalhe?.detail) ?? texto(detalhe?.mensagem) ?? "Falha no processamento da solicitação.";
-    throw new ErroDoMotor(mensagem + " (HTTP " + response.status + ")", response.status,
-      lerPendencia(corpo?.pendencia ?? detalhe?.pendencia));
+    throw new ErroDoMotor(mensagem, response.status, lerPendencia(corpo?.pendencia ?? detalhe?.pendencia),
+      corpo?.ocupado === true, num(corpo?.tente_em));
   }
   return body;
 }
@@ -677,7 +696,7 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
 
 // ------------------------------------------------------------------------------------------------ chamadas
 export async function pedirPainel(fonte: FonteDoMotor, opcoes: PainelOpcoes, signal?: AbortSignal): Promise<PainelResposta> {
-  const response = await fetch(fonte.apiBase + "/api/painel", { method: "POST",
+  const response = await buscar(fonte.apiBase + "/api/painel", { method: "POST",
     body: formulario(fonte, opcoes, !!opcoes.referencia || !!opcoes.consulta), signal });
   return normalizarResposta(await lerResposta(response), opcoes.nivel ?? "municipios");
 }
@@ -722,14 +741,14 @@ export function normalizarTerritorios(bruto: unknown): RespostaTerritorios {
 }
 /** As contagens da Escolha dos territórios, pedidas pela janela enquanto a consulta é montada (com a versão geográfica). */
 export async function pedirTerritorios(fonte: FonteDoMotor, opcoes: TerritoriosOpcoes, signal?: AbortSignal): Promise<RespostaTerritorios> {
-  const response = await fetch(fonte.apiBase + "/api/painel/territorios", { method: "POST", body: formulario(fonte, opcoes, true), signal });
+  const response = await buscar(fonte.apiBase + "/api/painel/territorios", { method: "POST", body: formulario(fonte, opcoes, true), signal });
   return normalizarTerritorios(await lerResposta(response));
 }
 
 /** Coordenadas autorizadas das unidades na competência (o mesmo formulário de /api/painel, com a versão geográfica): pedidas
  * só quando o mapa aparece ou o gráfico mostra unidades com o mapa disponível. */
 export async function pedirMapa(fonte: FonteDoMotor, opcoes: MapaOpcoes, signal?: AbortSignal): Promise<DadosDoMapa> {
-  const response = await fetch(fonte.apiBase + "/api/painel/mapa", { method: "POST", body: formulario(fonte, opcoes, true), signal });
+  const response = await buscar(fonte.apiBase + "/api/painel/mapa", { method: "POST", body: formulario(fonte, opcoes, true), signal });
   return normalizarMapa(await lerResposta(response));
 }
 

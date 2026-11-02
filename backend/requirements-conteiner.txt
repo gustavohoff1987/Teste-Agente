@@ -1,0 +1,38 @@
+# Dependências da imagem do contêiner (Dockerfile; hospedagem no Cloud Run, 01/11/2026), com as versões exatas, para que a
+# imagem seja reprodutível. São as versões que o CI instalou no último commit verde da base (b50272d, 29/10/2026, execução
+# 40948024661), sem as de teste (pytest e as dela, xlwt). Instaladas com --no-deps e conferidas com pip check: uma
+# dependência que faltar aqui quebra a construção, em vez de entrar sem versão fixada. Ao atualizar, atualize todas juntas,
+# e o job "conteiner" do CI confere a imagem e a referência em processo com as mesmas versões.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.10.23
+click==8.5.0
+et-xmlfile==2.0.0
+fastapi==0.162.0
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.9.0
+httpx==0.28.1
+idna==3.20
+numpy==2.4.6
+openpyxl==3.1.5
+opentelemetry-api==1.45.2
+packaging==26.3
+pandas==2.3.3
+pydantic==2.14.2
+pydantic-core==2.50.2
+pyproj==3.7.2
+python-dateutil==3.0.0
+python-dotenv==1.2.4
+python-multipart==0.0.32
+pytz==2026.6
+pyyaml==6.0.3
+six==1.17.0
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.6
+uvicorn==0.54.0
+uvloop==0.23.0
+xlrd==2.0.2

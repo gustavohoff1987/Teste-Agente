@@ -62,8 +62,25 @@ SUITES = {
         "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"})],
     },
+    # Hospedagem (01/11/2026; Docs/implantacao/): as duas suítes rodam no job "conteiner" do CI.
+    "sessao": {
+        "descricao": "Sessão temporária (RQ-FLX-17, TPL-09): consulta sem renovação, interação com renovação, expiração "
+                     "(prazo reduzido só neste servidor de teste), encerramento explícito e a aba congelada, como um aparelho "
+                     "em repouso",
+        "catalogo": "bloco1", "servidor": "offline", "ambiente": {"ADT_SESSAO_PRAZO_DE_TESTE": "45"},
+        "roteiros": [("ui_sessao.py", {})],
+    },
+    "conteiner": {
+        "descricao": "A imagem do contêiner nas condições do Cloud Run (1 CPU, 2 GiB) e a interface como no GitHub Pages "
+                     "(/Teste-Agente/, noutro endereço, com CORS): recursos estáticos, envio e downloads, estados da conexão "
+                     "com o serviço parado e restabelecido, reinício com a sessão aberta e a página única com a base versionada",
+        "catalogo": "imagem", "servidor": "conteiner", "pronto": "/Teste-Agente/", "caminho": "Teste-Agente/",
+        "partida_s": 300, "api": "http://127.0.0.1:18080/",
+        "roteiros": [("ui_hospedagem.py", {}), ("ui_conexao.py", {}), ("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}),
+                     ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"})],
+    },
 }
-SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py"}
+SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py", "conteiner": "serve_ui_conteiner.py"}
 FIXTURES = {"bloco1": "prepare_block1_catalog.py"}
 GITHUB = os.environ.get("GITHUB_ACTIONS") == "true"
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 127.0.0.1 nunca passa por proxy
@@ -83,29 +100,33 @@ def free_port():
 def base_env():
     env = dict(os.environ, PYTHONUNBUFFERED="1")
     env["NO_PROXY"] = env["no_proxy"] = ",".join(filter(None, ["127.0.0.1", "localhost", env.get("NO_PROXY", "")]))
-    for key in ("ADT_BRASIL_DATA_DIR", "ADT_BRASIL_DATA_VERSION", "ADT_BLOCK1_REAL", "ADT_FAKE_GEMINI_LOG", "ADT_UI_URL"):
+    for key in ("ADT_BRASIL_DATA_DIR", "ADT_BRASIL_DATA_VERSION", "ADT_BLOCK1_REAL", "ADT_FAKE_GEMINI_LOG", "ADT_UI_URL",
+                "ADT_UI_API_URL", "ADT_SESSAO_PRAZO_DE_TESTE"):
         env.pop(key, None)  # cada suíte declara explicitamente a sua origem de dados
+    # O processo do servidor nunca carrega backend/.env: sem chave, mesmo numa máquina que tenha uma.
+    env["GEMINI_API_KEY"] = ""
     return env
 
 
-def start_server(kind, env, log_path):
+def start_server(kind, env, log_path, ready="/api/health", deadline_s=90):
+    """Sobe o servidor da suíte e espera `ready` responder 200 (a saúde da API, ou a página na hospedagem simulada)."""
     port = free_port()
     env = dict(env, ADT_UI_PORT=str(port))
     log = open(log_path, "w", encoding="utf-8")
     process = subprocess.Popen([sys.executable, str(TESTS / SERVERS[kind])], cwd=ROOT, env=env,
                                stdout=log, stderr=subprocess.STDOUT)
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + deadline_s
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"o servidor {SERVERS[kind]} encerrou com código {process.returncode}")
         try:
-            with LOCAL.open(f"http://127.0.0.1:{port}/api/health", timeout=2) as response:
+            with LOCAL.open(f"http://127.0.0.1:{port}{ready}", timeout=2) as response:
                 if response.status == 200:
                     return process, port, log
         except OSError:
             time.sleep(0.3)
     stop_server(process, log)
-    raise RuntimeError(f"o servidor {SERVERS[kind]} não respondeu em 90 s")
+    raise RuntimeError(f"o servidor {SERVERS[kind]} não respondeu em {deadline_s} s")
 
 
 def stop_server(process, log):
@@ -142,9 +163,13 @@ def run_suite(name, workdir, only=None):
         env["ADT_BRASIL_DATA_DIR"] = str(catalog)
     if suite["servidor"] == "gemini-simulado":
         env["ADT_FAKE_GEMINI_LOG"] = str(workdir / ("gemini-simulado-" + name + ".jsonl"))
+    env.update(suite.get("ambiente", {}))  # do servidor e dos roteiros da suíte
+    if suite.get("api"):
+        env["ADT_UI_API_URL"] = suite["api"]
     server_log = workdir / ("servidor-" + name + ".log")
     try:
-        process, port, log = start_server(suite["servidor"], env, server_log)
+        process, port, log = start_server(suite["servidor"], env, server_log, suite.get("pronto", "/api/health"),
+                                          suite.get("partida_s", 90))
     except (RuntimeError, OSError) as exc:
         message = "servidor não iniciou: " + str(exc)
         print(message + "\n" + tail(server_log), flush=True)
@@ -156,7 +181,8 @@ def run_suite(name, workdir, only=None):
             started = time.monotonic()
             try:
                 code = subprocess.run([sys.executable, str(TESTS / script)], cwd=ROOT, timeout=TIMEOUT,
-                                      env=dict(env, ADT_UI_URL=f"http://127.0.0.1:{port}/", **extra)).returncode
+                                      env=dict(env, ADT_UI_URL=f"http://127.0.0.1:{port}/{suite.get('caminho', '')}",
+                                               **extra)).returncode
                 status, detail = ("passou", "") if code == 0 else ("falhou", f"código de saída {code}")
             except subprocess.TimeoutExpired:
                 status, detail = "falhou", f"tempo esgotado ({TIMEOUT} s)"

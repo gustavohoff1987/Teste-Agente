@@ -12,7 +12,7 @@ type Props = { apiBase: string; onArquivo: (arquivo: File | undefined) => void; 
 export default function JanelaDeEnvio({ apiBase, onArquivo, onFechar }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   return <WorkspaceDialog id="envio-de-dados" title="Enviar meus dados" onClose={onFechar}>
-    <p className="mt-4 text-sm leading-6">Envie uma planilha em CSV ou Excel (XLS ou XLSX), de até 30 MB, com uma linha por território,
+    <p className="mt-4 text-sm leading-6">Envie uma planilha em CSV ou Excel (XLS ou XLSX), de até 15 MB, com uma linha por território,
       categoria profissional e período. Depois do envio, você confere as colunas antes de começar a análise.</p>
     <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="sr-only" tabIndex={-1} data-testid="fonte-arquivo-input"
       aria-label="Arquivo CSV ou Excel" onChange={event => { const arquivo = event.target.files?.[0]; event.target.value = ""; onArquivo(arquivo); }}/>

@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import threading
+import time
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -28,6 +29,8 @@ from fastapi.responses import JSONResponse
 import httpx
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from starlette.concurrency import run_in_threadpool
+import carga
 from semantic_bridge import candidates, normalize_headers, preflight, suggested_columns, ROLES, EXACT, OPERATIONS
 from data_contract import (ChoiceRequired, validate_operation, rotation_data, period_positions, resolve_convention, scoped,
                            text_values, count_unit_label, canonical_crs, comparison_window as comparison_window_periods)
@@ -68,12 +71,15 @@ from territorial_selection import STATES
 _WARM_DONE = threading.Event()
 _WARM_DONE.set()  # sem a partida do servidor (testes, scripts), nada espera
 _WARMING = contextvars.ContextVar("adt_aquecimento", default=False)
+PARTIDA: dict = {}  # tempos do último aquecimento (segundos), para o diagnóstico da partida
 
 
 def _warm_up():
-    """Aquecimento na partida, em segundo plano: a biblioteca conversacional e a mesma inspeção da base Brasil que a
-    interface pede primeiro, pelo próprio app (mesmas regras e memória da versão). Nada é exibido nem registrado na
-    sessão; uma falha equivale a não aquecer, e a primeira requisição calcula como antes."""
+    """Aquecimento na partida, antes de a porta abrir (desde 01/11/2026; antes, em segundo plano): a biblioteca
+    conversacional e a mesma inspeção da base Brasil que a interface pede primeiro, pelo próprio app (mesmas regras e
+    memória da versão). Nada é exibido nem registrado na sessão; uma falha equivale a não aquecer, e a primeira requisição
+    calcula como antes. A duração vai para o log do servidor, sem nenhum conteúdo."""
+    inicio = time.monotonic()
     token = _WARMING.set(True)
     try:
         async def inspect_brazil():
@@ -85,30 +91,59 @@ def _warm_up():
     finally:
         _WARMING.reset(token)
         _WARM_DONE.set()
+    base = time.monotonic()
     try:
         if conversation_library.enabled():
             conversation_library.library()  # só as mensagens ao provedor usam a biblioteca: depois da base
     except (OSError, ValueError, KeyError, TypeError):
         pass  # o pedido ao provedor segue sem exemplos, como em _library_examples
+    fim = time.monotonic()
+    PARTIDA.update(base_s=round(base - inicio, 3), biblioteca_s=round(fim - base, 3), total_s=round(fim - inicio, 3))
+    logging.getLogger("uvicorn.error").info("Aquecimento concluído em %.1f s (base do Brasil %.1f s; biblioteca "
+                                            "conversacional %.1f s).", fim - inicio, base - inicio, fim - base)
 
 
 @asynccontextmanager
 async def _lifespan(application):
-    # ADT_AQUECIMENTO=0 desliga (partida sem cálculo antecipado).
+    # ADT_AQUECIMENTO=0 desliga (partida sem cálculo antecipado). Desde 01/11/2026, o aquecimento termina antes de a porta
+    # abrir: o Uvicorn só aceita conexões depois da partida, e no Cloud Run, com cobrança por requisição, só há CPU
+    # garantida na partida e durante as requisições (um aquecimento depois de a porta abrir poderia ficar sem CPU).
     if os.getenv("ADT_AQUECIMENTO", "1").strip() != "0":
         _WARM_DONE.clear()
-        threading.Thread(target=_warm_up, name="aquecimento", daemon=True).start()
+        await asyncio.to_thread(_warm_up)
     async with lifespan(application):
         yield
 
 
-app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0", lifespan=_lifespan)
+def _origens_autorizadas() -> list[str]:
+    """ADT_ALLOWED_ORIGINS, separadas por vírgula (na hospedagem, só a origem do GitHub Pages); sem a variável, o
+    servidor local do Vite."""
+    valor = os.getenv("ADT_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    return [origem.strip() for origem in valor.split(",") if origem.strip()]
+
+
+def _documentacao_da_api() -> dict:
+    """/docs, /redoc e /openapi.json: ligados no desenvolvimento; ADT_DOCUMENTACAO_DA_API=0 os desliga (a imagem de
+    produção já vem assim)."""
+    if os.getenv("ADT_DOCUMENTACAO_DA_API", "1").strip() == "0":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {}
+
+
+app = FastAPI(title="Agente Diagnóstico Territorial — Teste", version="0.1.0", lifespan=_lifespan, **_documentacao_da_api())
+# Proteção de carga (carga.py): tamanho do pedido, vagas das operações pesadas e pedidos por sessão. Acrescentada antes do
+# CORS, fica por dentro dele: as recusas (413 e 503 com `ocupado`) chegam ao navegador com os cabeçalhos do CORS. O
+# aquecimento da partida passa direto.
+app.add_middleware(carga.ProtecaoDeCarga, ignorar=_WARMING.get)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ADT_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
+    allow_origins=_origens_autorizadas(),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    # Só os cabeçalhos que a interface envia; a pré-verificação vale por 2 h no navegador (o máximo do Chrome), o que
+    # poupa uma requisição a cada consulta da sessão.
+    allow_headers=["Content-Type", "X-ADT-Session"],
+    max_age=7200,
 )
 # Catálogo, recorte territorial e hierarquia repetidos numa requisição são calculados uma vez.
 app.add_middleware(RequestMemoMiddleware)
@@ -116,7 +151,15 @@ app.add_middleware(RequestMemoMiddleware)
 # passa de 10 MB. Nível 1, o mais rápido (cerca de 0,08 s para 10 MB, com um quinto do tamanho); abaixo de 64 KB, sem
 # compressão. O corpo descomprimido é o mesmo, byte a byte.
 app.add_middleware(GZipMiddleware, minimum_size=64 * 1024, compresslevel=1)
-MAX_UPLOAD_BYTES = 30 * 1024 * 1024
+
+
+@app.exception_handler(carga.Ocupado)
+async def _ocupado(_request, exc: carga.Ocupado):
+    return JSONResponse(status_code=503, content=carga.corpo_ocupado(exc.texto),
+                        headers={"Retry-After": str(carga.TENTE_EM_SEGUNDOS), "Cache-Control": "no-store"})
+
+
+MAX_UPLOAD_BYTES = carga.MAX_UPLOAD_BYTES  # 15 MB (15.000.000 bytes) por arquivo enviado
 ALIASES = EXACT
 ANALYSES = OPERATIONS
 
@@ -132,11 +175,14 @@ def suggest(columns: list[str]) -> dict[str, str]:
     return candidates(pd.DataFrame(columns=[str(x) for x in columns]))[0]
 
 
-def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.DataFrame | None, list[str]]:
+def read_dataset(contents: bytes, filename: str, sheet: str = "",
+                 limite_de_bytes: int = MAX_UPLOAD_BYTES) -> tuple[pd.DataFrame | None, list[str]]:
+    """O quadro do arquivo (CSV, XLS ou XLSX). O limite de bytes é o do arquivo enviado (15 MB); as fontes versionadas da
+    base do Brasil passam o limite próprio delas (brazil_data.MAX_BYTES)."""
     if not contents:
         raise ValueError("O arquivo está vazio.")
-    if len(contents) > MAX_UPLOAD_BYTES:
-        raise ValueError("Arquivo maior que o limite experimental de 30 MB; nenhum dado foi analisado.")
+    if len(contents) > limite_de_bytes:
+        raise ValueError(carga.TEXTO_ARQUIVO_GRANDE)
     extension = filename.lower().rsplit(".", 1)[-1]
     if extension == "csv":
         text = None
@@ -170,12 +216,18 @@ def read_dataset(contents: bytes, filename: str, sheet: str = "") -> tuple[pd.Da
                 if len(record) != len(header):
                     raise ValueError(f"CSV inconsistente na linha {records.line_num}: número de campos diferente do cabeçalho.")
                 rows.append(record)
+                if len(rows) % 10000 == 0:
+                    # Células demais para a memória do serviço (carga.py): o arquivo inteiro é recusado, sem análise parcial.
+                    carga.conferir_csv(len(rows), len(header))
+            carga.conferir_csv(len(rows), len(header))
             frame = pd.DataFrame(rows, columns=header)
             frame = frame.replace(r"^\s*$", pd.NA, regex=True)
         except (csv.Error, StopIteration) as exc:
             raise ValueError("Não foi possível interpretar a estrutura do CSV.") from exc
         return compose_period(normalize_headers(frame)), []
     if extension in ("xlsx", "xls"):
+        if extension == "xlsx":
+            carga.conferir_xlsx(contents)  # expansão desproporcional ao tamanho do arquivo: recusado antes da leitura
         try:
             engine = "openpyxl" if extension == "xlsx" else "xlrd"
             book = pd.ExcelFile(io.BytesIO(contents), engine=engine)
@@ -621,10 +673,12 @@ def _comparison_with_window(data: pd.DataFrame, mapping: dict, options: dict, me
     return result
 
 
-async def _read_upload(file: UploadFile) -> bytes:
-    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+def _read_upload(file: UploadFile) -> bytes:
+    """Os bytes do arquivo enviado, lidos do arquivo temporário do formulário (fora do laço de eventos), até o limite."""
+    file.file.seek(0)
+    contents = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Arquivo acima do limite experimental de 30 MB.")
+        raise HTTPException(status_code=413, detail=carga.TEXTO_ARQUIVO_GRANDE)
     return contents
 
 
@@ -652,7 +706,8 @@ def _brazil_frame(raw: bytes, filename: str, source: dict) -> pd.DataFrame | Non
             frame = _BRAZIL_FRAMES[key].copy()
     reused = frame is not None
     if frame is None:
-        parsed, _ = read_dataset(raw, filename)
+        from brazil_data import MAX_BYTES as LIMITE_DAS_FONTES
+        parsed, _ = read_dataset(raw, filename, limite_de_bytes=LIMITE_DAS_FONTES)
         if parsed is None:
             return None
         limit = _brazil_cache_limit_bytes()
@@ -735,25 +790,39 @@ def _brazil_sources(version: str = "") -> BrazilSources:
     return BrazilSources(version)
 
 
-async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version="", with_sources=False):
+def _dataset_do_pedido(file, sheet, dataset, scope, operation="", dataset_version="", with_sources=False):
     """Quadro do pedido (base Brasil ou arquivo importado). Com with_sources, devolve também as fontes Brasil
-    da mesma leitura verificada (None nos uploads)."""
+    da mesma leitura verificada (None nos uploads). Síncrono: as rotas pesadas o chamam fora do laço de eventos, numa vaga
+    de carga.py; as rotas da conversa, por _request_dataset."""
     if bool(file) == bool(dataset):
         raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
     if dataset:
         if dataset != "brazil":
             raise ValueError("Base de dados não reconhecida.")
         if not _WARM_DONE.is_set() and not _WARMING.get():
-            await asyncio.to_thread(_WARM_DONE.wait, 60)  # o aquecimento já calcula o mesmo; no limite, segue sem ele
+            _WARM_DONE.wait(60)  # o aquecimento já calcula o mesmo; no limite, segue sem ele
         selected = selected_scope(scope, operation)
         sources = _brazil_sources(dataset_version)
         frame = sources.frame(selected)
         return (frame, [], sources) if with_sources else (frame, [])
-    raw = await _read_upload(file)
+    raw = _read_upload(file)
     frame, sheets = read_dataset(raw, file.filename or "", sheet)
     if frame is not None:
         frame.attrs["input_file"] = {"name": file.filename, "sha256": hashlib.sha256(raw).hexdigest(), "sheet": sheet}
     return (frame, sheets, None) if with_sources else (frame, sheets)
+
+
+async def _request_dataset(file, sheet, dataset, scope, operation="", dataset_version="", with_sources=False):
+    """O mesmo quadro de _dataset_do_pedido, para as rotas da conversa: a leitura ocupa uma vaga de operação pesada
+    (carga.py) só enquanto dura, fora do laço de eventos; a espera pelo provedor de IA não ocupa vaga. Sem vaga, Ocupado
+    (503 com `ocupado`)."""
+    if not await carga.VAGAS.entrar():
+        raise carga.Ocupado()
+    try:
+        return await run_in_threadpool(_dataset_do_pedido, file, sheet, dataset, scope, operation, dataset_version,
+                                       with_sources)
+    finally:
+        carga.VAGAS.sair()
 
 
 @app.get("/api/modelo/estrutura-recomendada")
@@ -1284,11 +1353,13 @@ def describe_brazil() -> dict:
         raise HTTPException(status_code=422, detail="Os dados do Brasil não estão disponíveis para consulta.") from exc
 
 
+# As rotas pesadas (carga.PESADAS) são síncronas desde 01/11/2026: o FastAPI as executa fora do laço de eventos, e
+# carga.ProtecaoDeCarga lhes dá uma vaga antes de começar. O resultado é o mesmo de antes, byte a byte.
 @app.post("/api/inspect")
-async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
-                  dataset: str = Form(""), scope: str = Form("auto"), operation: str = Form("")):
+def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
+            dataset: str = Form(""), scope: str = Form("auto"), operation: str = Form("")):
     try:
-        frame, sheets, sources = await _request_dataset(file, sheet, dataset, scope, operation, with_sources=True)
+        frame, sheets, sources = _dataset_do_pedido(file, sheet, dataset, scope, operation, with_sources=True)
         if frame is None:
             return {"requires_sheet": True, "sheets": sheets, "columns": [], "row_count": 0, "suggested_mapping": {},
                     "column_profiles": [], "periods": [], "categories": [], "territories": [], "preflight": None,
@@ -1325,12 +1396,12 @@ async def inspect(file: UploadFile | None = File(None), sheet: str = Form(""),
 
 
 @app.post("/api/preflight")
-async def api_preflight(file: UploadFile | None = File(None), mapping: str = Form("{}"),
-                        options: str = Form("{}"), sheet: str = Form(""),
-                        dataset: str = Form(""), scope: str = Form("auto"),
-                        operation: str = Form(""), dataset_version: str = Form("")):
+def api_preflight(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                  options: str = Form("{}"), sheet: str = Form(""),
+                  dataset: str = Form(""), scope: str = Form("auto"),
+                  operation: str = Form(""), dataset_version: str = Form("")):
     try:
-        frame, _, sources = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version, with_sources=True)
+        frame, _, sources = _dataset_do_pedido(file, sheet, dataset, scope, operation, dataset_version, with_sources=True)
         if frame is None:
             raise ValueError("Selecione uma planilha para concluir o exame.")
         fields = json.loads(mapping)
@@ -1594,16 +1665,16 @@ async def _conversa_no_grafico(message, file, mapping, sheet, dataset, scope, da
 
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
-                  options: str = Form("{}"), sheet: str = Form(""),
-                  dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
-                  geo_version: str = Form(""), context_revision: int = Form(0),
-                  x_adt_session: str | None = Header(None)):
+def analyze(file: UploadFile | None = File(None), operation: str = Form(...), mapping: str = Form("{}"),
+            options: str = Form("{}"), sheet: str = Form(""),
+            dataset: str = Form(""), scope: str = Form("auto"), dataset_version: str = Form(""),
+            geo_version: str = Form(""), context_revision: int = Form(0),
+            x_adt_session: str | None = Header(None)):
     try:
         if x_adt_session:
             sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
-        frame, _, sources = await _request_dataset(file, sheet, dataset, scope, operation, dataset_version,
-                                                   with_sources=True)
+        frame, _, sources = _dataset_do_pedido(file, sheet, dataset, scope, operation, dataset_version,
+                                               with_sources=True)
         if frame is None:
             raise ValueError("Selecione a planilha Excel antes de executar.")
         fields = json.loads(mapping)
@@ -1700,17 +1771,17 @@ def _seal(result, frame, fields, settings, operation, x_adt_session, context_rev
     return result
 
 
-async def _panel_request(file, sheet, dataset, scope, dataset_version, mapping, options, uploads_allowed):
+def _panel_request(file, sheet, dataset, scope, dataset_version, mapping, options, uploads_allowed):
     """Pedido do painel integrado. A base Brasil oficial (fonte municipal) é lida e verificada como em /api/analyze
     (integridade pelo manifesto; versão divergente recusada). A planilha enviada é lida como em /api/analyze (limite de
-    30 MB, planilha escolhida, nada persistido); só vale quando `uploads_allowed` aceita o pedido (página única)."""
+    15 MB, planilha escolhida, nada persistido); só vale quando `uploads_allowed` aceita o pedido (página única)."""
     if file is not None:
         fields, requested = json.loads(mapping), json.loads(options)
         if not isinstance(fields, dict) or not isinstance(requested, dict) or not uploads_allowed(requested):
             raise ValueError(painel.OFFICIAL_ONLY)
         if dataset:
             raise ValueError("Escolha uma base do catálogo ou importe um arquivo.")
-        frame, _ = await _request_dataset(file, sheet, "", "auto")
+        frame, _ = _dataset_do_pedido(file, sheet, "", "auto")
         if frame is None:
             raise ValueError("Escolha a planilha (aba) do arquivo antes de pedir o gráfico.")
         return frame, None, fields, requested
@@ -1721,7 +1792,7 @@ async def _panel_request(file, sheet, dataset, scope, dataset_version, mapping, 
     fields, requested = json.loads(mapping), json.loads(options)
     if not isinstance(fields, dict) or not isinstance(requested, dict):
         raise ValueError("Parâmetros do painel inválidos.")
-    frame, _, sources = await _request_dataset(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
+    frame, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version, with_sources=True)
     return frame, sources, fields, requested
 
 
@@ -1773,10 +1844,10 @@ def _panel_session(x_adt_session, context_revision, body, frame, fields, request
 
 
 @app.post("/api/painel")
-async def integrated_panel(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
-                           sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
-                           dataset_version: str = Form(""), geo_version: str = Form(""), context_revision: int = Form(0),
-                           x_adt_session: str | None = Header(None)):
+def integrated_panel(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                     sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                     dataset_version: str = Form(""), geo_version: str = Form(""), context_revision: int = Form(0),
+                     x_adt_session: str | None = Header(None)):
     """Painel integrado de bolhas (Docs/PAINEL_INTEGRADO.md): população, quantidade, densidade, distância até a
     referência e variação de cada município e conjunto, calculadas pelo motor; a tela só posiciona, filtra e desenha.
     Com `nivel` (página única): estados, planilhas enviadas, tendência, grupos, faixas, condições, ordenação, comparação,
@@ -1784,8 +1855,8 @@ async def integrated_panel(file: UploadFile | None = File(None), mapping: str = 
     try:
         if x_adt_session:
             sessions.event(x_adt_session, "CONFIRMACAO")  # evento de sessão: execução pedida pelo usuário
-        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
-                                                                 options, painel.is_page)
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, painel.is_page)
         if sources is not None and geo_version and (requested.get("referencia") or requested.get("consulta")):
             geo = _geo_identity(frame, "nearest", {})
             if geo is not None and geo_version != _geo_token(geo):
@@ -1805,15 +1876,15 @@ async def integrated_panel(file: UploadFile | None = File(None), mapping: str = 
 
 
 @app.post("/api/painel/referencias")
-async def integrated_panel_references(file: UploadFile | None = File(None), mapping: str = Form("{}"),
-                                      options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
-                                      scope: str = Form("municipal"), dataset_version: str = Form(""),
-                                      context_revision: int = Form(0)):
+def integrated_panel_references(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                                options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
+                                scope: str = Form("municipal"), dataset_version: str = Form(""),
+                                context_revision: int = Form(0)):
     """Candidatos à referência do painel, na ordem do critério (CAP-SUB-02), com empates na mesma posição e não
     avaliáveis à parte, na base Brasil ou numa planilha enviada. Só lista: não inicia análise nem escolhe a referência."""
     try:
-        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
-                                                                 options, lambda requested: True)
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, lambda requested: True)
         return JSONResponse(painel.references(sources, fields, requested, frame=None if sources is not None else frame))
     except ChoiceRequired as exc:
         return _panel_pending(exc)
@@ -1822,17 +1893,17 @@ async def integrated_panel_references(file: UploadFile | None = File(None), mapp
 
 
 @app.post("/api/painel/territorios")
-async def integrated_panel_territories(file: UploadFile | None = File(None), mapping: str = Form("{}"),
-                                       options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
-                                       scope: str = Form("municipal"), dataset_version: str = Form(""),
-                                       geo_version: str = Form(""), context_revision: int = Form(0)):
+def integrated_panel_territories(file: UploadFile | None = File(None), mapping: str = Form("{}"),
+                                 options: str = Form("{}"), sheet: str = Form(""), dataset: str = Form(""),
+                                 scope: str = Form("municipal"), dataset_version: str = Form(""),
+                                 geo_version: str = Form(""), context_revision: int = Form(0)):
     """Contagens da janela Escolha dos territórios (Docs/PAINEL_INTEGRADO.md, "Rota 4"): de cada lado da consulta (base e
     referência), quantos municípios restam em cada etapa, as pendências, a prévia dos que entram, os marcados e, quando
     pedida, a lista para marcar. Base Brasil ou planilha enviada. Só calcula a seleção: não inicia a análise, nada é
     registrado na sessão e nada vai ao provedor de IA."""
     try:
-        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
-                                                                 options, lambda requested: True)
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, lambda requested: True)
         if sources is not None and geo_version:
             geo = _geo_identity(frame, "nearest", {})
             if geo is not None and geo_version != _geo_token(geo):
@@ -1846,16 +1917,16 @@ async def integrated_panel_territories(file: UploadFile | None = File(None), map
 
 
 @app.post("/api/painel/mapa")
-async def integrated_panel_map(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
-                               sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
-                               dataset_version: str = Form(""), geo_version: str = Form(""),
-                               context_revision: int = Form(0)):
+def integrated_panel_map(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                         sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                         dataset_version: str = Form(""), geo_version: str = Form(""),
+                         context_revision: int = Form(0)):
     """Coordenadas autorizadas do mapa da página única (Docs/PAINEL_INTEGRADO.md, "Rota 3"): o ponto de cada unidade
     da fonte na competência, o mesmo que a análise espacial usa para medir as distâncias, ou o motivo de não ter ponto.
     Base Brasil ou planilha enviada. Só lê: nada é registrado na sessão e nada vai ao provedor de IA."""
     try:
-        frame, sources, fields, requested = await _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
-                                                                 options, lambda requested: True)
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, lambda requested: True)
         if sources is not None and geo_version:
             geo = _geo_identity(frame, "nearest", {})
             if geo is not None and geo_version != _geo_token(geo):

@@ -159,8 +159,10 @@ def test_warm_up_prepares_the_first_inspection_without_changing_it(catalog, monk
     main._BRAZIL_FRAMES.clear()
     monkeypatch.setenv("ADT_AQUECIMENTO", "1")
     try:
-        with TestClient(main.app) as client:  # a partida do servidor dispara o aquecimento em segundo plano
-            body = client.post("/api/inspect", data=INSPECT).json()  # espera o aquecimento em curso
+        with TestClient(main.app) as client:  # a partida do servidor faz o aquecimento antes de atender (01/11/2026)
+            # Antes do primeiro pedido, o aquecimento já terminou: no servidor real, a porta só abre depois dele.
+            assert main._WARM_DONE.is_set() and main.PARTIDA["total_s"] >= main.PARTIDA["base_s"] >= 0
+            body = client.post("/api/inspect", data=INSPECT).json()
             assert main._WARM_DONE.is_set()
         assert body == expected and request_memo._SHARED
         called = []
