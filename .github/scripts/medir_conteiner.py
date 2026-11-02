@@ -14,9 +14,9 @@ Mede e confere:
   (/api/inspect) e no processamento com a geração do resultado (/api/painel);
 - sessões pela API: a consulta não renova, a interação renova, o encerramento é imediato, o reinício perde as sessões; o tempo
   de cada consulta e de cada pré-verificação do CORS (base do custo faturável);
-- memória das sessões: os resultados do gráfico guardados até o teto total (256 MiB em JSON; cada sessão guarda os 8 mais
-  recentes, abaixo dos 32 MiB por sessão), a memória real e, com as sessões cheias, os envios de planilha (CSV de 14,9 MB,
-  XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo);
+- memória das sessões: os resultados do gráfico guardados até o teto total (TETO_TOTAL_DOS_RESULTADOS de
+  conversation_session, em JSON; cada sessão guarda os 8 mais recentes, abaixo dos 32 MiB por sessão), a memória real e,
+  com as sessões cheias, os envios de planilha (CSV de 14,9 MB, XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo);
 - Gemini simulado: sucesso, demora, tempo esgotado (75 s), 5xx, 401/403, chave inválida, 429 por minuto e por dia no formato
   real (RetryInfo e QuotaFailure), saída fora do contrato (regeneração) e o motor funcionando sem o Gemini; chamadas contadas
   por /api/llm/status;
@@ -561,13 +561,11 @@ def medir_sessoes_api(c: Conteiner, problemas: list) -> dict:
 
 # ------------------------------------------------------------------------------------------------ memória das sessões
 
-TETO_TOTAL_DAS_SESSOES = 256 * MIB
-
-
 def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
-    """Os resultados do gráfico guardados nas sessões até o teto total (256 MiB em JSON; cada sessão guarda os 8 mais recentes
-    do gráfico, cerca de 20 MB, abaixo do teto de 32 MiB por sessão), a memória real ocupada e, com as sessões cheias, os
-    envios de planilha: CSV de 14,9 MB, XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo (as duas vagas)."""
+    """Os resultados do gráfico guardados nas sessões até o teto total (TETO_TOTAL_DOS_RESULTADOS, em JSON; cada sessão
+    guarda os 8 mais recentes do gráfico, cerca de 20 MB, abaixo do teto de 32 MiB por sessão), a memória real ocupada e, com
+    as sessões cheias, os envios de planilha: CSV de 14,9 MB, XLSX de 15.000.000 bytes e dois desses XLSX ao mesmo tempo (as
+    duas vagas)."""
     from fastapi.testclient import TestClient
     import conversation_session
     import main
@@ -576,7 +574,7 @@ def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
     try:
         c.subir()
         base = c.memoria()["atual"]
-        guarda = conversation_session.PANEL_KEEP
+        guarda, teto = conversation_session.PANEL_KEEP, conversation_session.TETO_TOTAL_DOS_RESULTADOS
         with cliente() as http:
             info = http.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"}).json()
             periodos = sorted(info["periods"])
@@ -630,7 +628,7 @@ def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
                 if c.oom() or not c.rodando():
                     break
         # No teto, o gráfico de uma sessão abre espaço tirando os mais antigos dela: o guardado não passa do teto total.
-        json_guardado = min(bytes_registrados * proporcao, TETO_TOTAL_DAS_SESSOES) if teto_atingido else \
+        json_guardado = min(bytes_registrados * proporcao, teto) if teto_atingido else \
             bytes_registrados * proporcao
         real = (cheia["atual"] or 0) - (base or 0)
         final = c.memoria() if c.rodando() else {"pico": None}  # memory.peak: o pico de verdade, desde a partida
@@ -644,7 +642,7 @@ def medir_memoria_das_sessoes(imagem: str, problemas: list) -> dict:
                      "pico_com_os_envios_pct_de_2_gib": round(100 * pico / LIMITE_MEMORIA, 1),
                      "oom": c.oom(), "passos": passos}
         if not teto_atingido:
-            problemas.append("as sessões não chegaram ao teto total de 256 MiB (a medição não alcançou a condição pedida)")
+            problemas.append(f"as sessões não chegaram ao teto total de {mb(teto)} MiB (a medição não alcançou a condição pedida)")
         if c.oom() or not c.rodando():
             problemas.append("falta de memória com as sessões cheias e os envios de planilha")
         elif pico > 0.9 * LIMITE_MEMORIA:

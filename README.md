@@ -589,9 +589,12 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   nnn)" no fim (antes, com o código). G. Novas tentativas automáticas a 5, 10, 20, 40, 60 e 120 s, em pausa com a aba oculta,
   o botão "Tentar novamente" e o aviso "Conexão restabelecida." quando o serviço volta. A consulta da sessão a cada 30 s não
   mudou. O título da página e o rodapé trazem o nome oficial completo.
-- **Sessões:** continuam em memória, sem banco. Com mínimo 0 instâncias, uma sessão pode se perder antes dos 30 minutos
-  (instância encerrada por ociosidade ou trocada pela plataforma, nova revisão, falta de memória, suspensão pela trava de
-  gastos); a interface mostra o aviso de sessão expirada ou indisponível. A divergência com a RQ-FLX-17 aguarda a decisão do
+- **Sessões:** continuam em memória, sem banco. Os resultados guardados têm teto de 32 MiB por sessão e de 128 MiB no total,
+  em JSON (antes, 256 MiB): no CI, com as sessões no teto antigo e dois XLSX de 15 MB ao mesmo tempo, a memória chegou a 89,6%
+  dos 2 GiB. No teto, o gráfico é calculado e mostrado, sem a referência para a conversa, e nenhuma sessão é encerrada. Com
+  mínimo 0 instâncias, uma sessão pode se perder antes dos 30 minutos (instância encerrada por ociosidade ou trocada pela
+  plataforma, nova revisão, falta de memória, suspensão pela trava de gastos); a interface mostra o aviso de sessão expirada
+  ou indisponível. A divergência com a RQ-FLX-17 aguarda a decisão do
   responsável (relatório, seção F).
 - **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só
   por etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e

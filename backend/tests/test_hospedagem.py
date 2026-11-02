@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
 import carga
+import conversation_session
 import llm_bridge
 import main
 import serve_gemini_http
@@ -219,6 +220,27 @@ def test_a_interface_conhece_as_rotas_com_limite_do_servico():
     trecho = re.search(r"ROTAS_COM_LIMITE[^=]*=\s*new Set\(\[(.*?)\]\)", fonte, re.S)
     assert trecho, "ROTAS_COM_LIMITE não encontrada em conexao.ts"
     assert set(re.findall(r'"(/api/[^"]+)"', trecho.group(1))) == carga.PESADAS | carga.CONVERSA
+
+
+def test_no_teto_total_dos_resultados_so_o_novo_resultado_fica_sem_gravar(monkeypatch):
+    """Os tetos dos resultados guardados, em JSON: 32 MiB por sessão e, desde 01/11/2026, 128 MiB no total (antes, 256 MiB).
+    No teto total, o resultado novo de outra sessão não é gravado (o cálculo segue para a tela), o gráfico novo de uma sessão
+    tira o mais antigo dela, e nenhuma sessão é encerrada."""
+    assert conversation_session.TETO_DA_SESSAO == 32 * 1024 * 1024
+    assert conversation_session.TETO_TOTAL_DOS_RESULTADOS == 128 * 1024 * 1024
+    monkeypatch.setattr(conversation_session, "TETO_TOTAL_DOS_RESULTADOS", 3000)
+    loja = conversation_session.SessionStore()
+    primeira, segunda = loja.create()["token"], loja.create()["token"]
+
+    def resultado(numero):
+        return {"result_id": f"r{numero}", "rows": ["x" * 1000]}
+    assert loja.record_result(primeira, 0, resultado(1), {})
+    assert loja.record_panel(primeira, 0, resultado(2), {})
+    assert not loja.record_result(segunda, 0, resultado(3), {})
+    assert not loja.record_panel(segunda, 0, resultado(4), {})
+    assert loja.record_panel(primeira, 0, resultado(5), {})
+    assert set(loja.sessions[primeira].results) == {"r1", "r5"}
+    assert set(loja.sessions) == {primeira, segunda}
 
 
 def test_pedido_abandonado_na_fila_sai_sem_calcular():

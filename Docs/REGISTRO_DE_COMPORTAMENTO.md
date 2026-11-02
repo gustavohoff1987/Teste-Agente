@@ -35,6 +35,29 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-01 · Sessões: o teto total dos resultados guardados passa de 256 para 128 MiB (memória da hospedagem)
+- **Classificação (regra 1), pela leitura, antes de codar:** a medição do job `conteiner` (execução 41372746893, commit
+  `41b97bb`) encheu as sessões até o teto total de 256 MiB em JSON (104 gráficos de todos os municípios em 13 sessões; o
+  primeiro da 14ª já não coube) e achou 812,9 MiB de memória real nas sessões (3,18 vezes o JSON); com elas cheias, dois XLSX de 15.000.000 bytes enviados
+  ao mesmo tempo levaram o contêiner a 1.834,8 MiB, 89,6% dos 2 GiB, a 0,4 ponto do alerta de 90% da medição. Com uma
+  instância só, a falta de memória reinicia o serviço e perde todas as sessões. É mudança de comportamento e prevista:
+  decorre do item 7 da seção 4 do comando de implantação ("ajuste dos limites de memória já existentes das sessões, se a
+  medição mostrar necessidade"; escopo) e não contraria a SPEC, que não fixa esses tetos, nem divergência aprovada
+  (compatibilidade).
+- **Antes:** os resultados guardados nas sessões iam até 256 MiB no total (em JSON), além dos 32 MiB e 64 resultados por
+  sessão e dos 8 gráficos mais recentes de cada sessão.
+- **Agora:** o teto total é de **128 MiB** (`TETO_TOTAL_DOS_RESULTADOS` em `backend/conversation_session.py`); a estimativa
+  do pior caso medido cai para cerca de 1.430 MiB (70% dos 2 GiB), a conferir no próprio job. No teto, como antes, o gráfico
+  é calculado e mostrado, sem a referência para a conversa (`sessao.registrado` falso), o gráfico novo de uma sessão tira o
+  mais antigo dela, e nenhuma sessão é encerrada.
+- **Permanece:** os 32 MiB e 64 resultados por sessão, os 8 gráficos por sessão, as 128 sessões, o prazo de 1.800 s e o que o
+  renova, as vagas e a fila das operações pesadas e o limite de 15 MB por arquivo.
+- **Motivo:** medição nas condições do Cloud Run (seção 8 do comando; `Docs/implantacao/RELATORIO_IMPLANTACAO.md`, seção C).
+- **Documentação e testes:** `README.md` ("Sessões", na hospedagem), `Docs/ANALISE_EXPLORATORIA_INTEGRADA.md`,
+  `Docs/EVOLUCAO_CONVERSACIONAL_20261016.md`; `test_hospedagem.py` (os tetos, o resultado novo de outra sessão sem gravar no
+  teto total, o gráfico mais antigo da própria sessão dando lugar e nenhuma sessão encerrada); a medição do job `conteiner`
+  usa o teto do código e falha se não o atingir ou se o pico passar de 90% dos 2 GiB.
+
 ### 2026-11-01 · Estados da conexão: o aviso de ocupado não some com as respostas que não esperam vaga
 - **Classificação (regra 1), pela leitura, antes de codar:** falha do roteiro `ui_conexao.py` no job `conteiner` (execução
   41369463989, commit `2863e47`): o exame da base respondido como ocupado mostrou a mensagem na barra da fonte, mas o aviso de

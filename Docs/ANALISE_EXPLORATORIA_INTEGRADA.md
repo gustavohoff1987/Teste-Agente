@@ -6,8 +6,8 @@
 > `DistributionResults`, `CriteriaResults` e `TerritoryMap`, com `investigation.ts` e o roteiro
 > `ui_investigation.py`) saiu do produto e fica como histórico. Continuam: o Histórico da sessão, que reabre cada
 > análise guardada como estava, sem recalcular ([interface conversacional integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md)); a referência da análise em
-> exibição enviada à conversa; os limites do servidor (64 referências ou 32 MiB por sessão, teto global de 256 MiB e
-> 128 sessões); e o aviso de descarte depois do encerramento ou da perda da sessão. A cobertura do roteiro que saiu
+> exibição enviada à conversa; os limites do servidor (64 referências ou 32 MiB por sessão, teto global de 128 MiB desde
+> 01/11/2026, antes 256 MiB, e 128 sessões); e o aviso de descarte depois do encerramento ou da perda da sessão. A cobertura do roteiro que saiu
 > está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
 
 A investigação reúne as análises concluídas **somente na memória da aba e da sessão atual**.
@@ -48,7 +48,9 @@ campos, registros e visualizações não são enviados ao Gemini como fonte de v
 visual permanece distinta da seleção analítica; só a ação explícita de reutilização muda a preparação.
 
 O limite existente do servidor continua em 64 referências ou 32 MiB por sessão, com teto global
-de 256 MiB e 128 sessões. Quando o cálculo não cabe nesse registro, permanece consultável e
+de 128 MiB (256 MiB até 01/11/2026, reduzido para a hospedagem com 2 GiB; ver
+[relatório da implantação](implantacao/RELATORIO_IMPLANTACAO.md), seção C) e 128 sessões. Quando o cálculo não cabe nesse
+registro, permanece consultável e
 exportável na aba e a tela informa que sua referência conversacional está indisponível.
 Não há banco novo, login, salvamento permanente, descarte automático de análises anteriores
 para abrir espaço nem alteração do prazo de 1.800 segundos sem interação efetiva.

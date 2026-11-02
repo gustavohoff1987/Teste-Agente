@@ -13,6 +13,11 @@ from fastapi import HTTPException
 
 TIMEOUT = 1800
 PANEL_KEEP = 8  # resultados do gráfico (POST /api/painel) guardados por sessão: os mais recentes
+# Tetos dos resultados guardados, em JSON: por sessão e no total do processo. O total passou de 256 para 128 MiB em
+# 01/11/2026 (hospedagem com 2 GiB): no CI, com as sessões no teto de 256 MiB e dois XLSX de 15 MB ao mesmo tempo, a memória
+# chegou a 89,6% do limite (Docs/implantacao/RELATORIO_IMPLANTACAO.md, seção C).
+TETO_DA_SESSAO = 32 * 1024 * 1024
+TETO_TOTAL_DOS_RESULTADOS = 128 * 1024 * 1024
 INTERACTIONS = frozenset(("ENVIO_MENSAGEM", "UPLOAD", "ESCOLHA_ARQUIVO", "ESCOLHA_PLANILHA", "CONFIRMACAO",
     "ALTERACAO_FILTRO_ANALITICO", "ALTERACAO_SELECAO_ANALITICA", "MUDANCA_PARAMETRO", "NAVEGACAO_CONTROLE_EFETIVO",
     "REVELACAO_EXPLICITA", "SOLICITACAO_RELATORIO", "EXPORTACAO"))
@@ -136,8 +141,8 @@ class SessionStore:
             session = self._get(token)
             size = len(json.dumps(result, ensure_ascii=False, default=str).encode())
             # Falhar somente a referência conversacional; nunca perder o cálculo.
-            if len(session.results) >= 64 or session.size + size > 32 * 1024 * 1024 or sum(
-                    s.size for s in self.sessions.values()) + size > 256 * 1024 * 1024:
+            if len(session.results) >= 64 or session.size + size > TETO_DA_SESSAO or sum(
+                    s.size for s in self.sessions.values()) + size > TETO_TOTAL_DOS_RESULTADOS:
                 return False
             session.results[result["result_id"]] = {"result": deepcopy(result), "context": deepcopy(context),
                                                    "integrity": fingerprint(result)}
@@ -159,8 +164,8 @@ class SessionStore:
             panels = [key for key, record in session.results.items() if record.get("painel")]
 
             def full():
-                return (len(session.results) >= 64 or session.size + size > 32 * 1024 * 1024 or
-                        sum(s.size for s in self.sessions.values()) + size > 256 * 1024 * 1024)
+                return (len(session.results) >= 64 or session.size + size > TETO_DA_SESSAO or
+                        sum(s.size for s in self.sessions.values()) + size > TETO_TOTAL_DOS_RESULTADOS)
 
             while panels and (len(panels) >= keep or full()):
                 session.size -= session.results.pop(panels.pop(0))["tamanho"]

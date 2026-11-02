@@ -40,7 +40,7 @@ variáveis do Actions (lidos pela API em 01/11/2026); único workflow ativo, o `
 | 4. Nome oficial completo | `index.html`, `App.tsx` (título e rodapé), mensagem institucional |
 | 5. CORS restrito | `main.py`: `ADT_ALLOWED_ORIGINS` (produção: só `https://gustavohoff1987.github.io`; desenvolvimento: o Vite local), só `Content-Type` e `X-ADT-Session`, pré-verificação de 2 h |
 | 6. `/docs`, `/redoc` e `/openapi.json` fora em produção | `ADT_DOCUMENTACAO_DA_API=0`, já no `Dockerfile` |
-| 7. Limites de memória, por sessão e fila de operações pesadas | `carga.py`: vagas (2), fila (8), espera (20 s), 6 pedidos por sessão, 503 com `ocupado`; as rotas pesadas fora do laço de eventos. Os tetos de memória das sessões (32/256 MiB) ficam como estão até a medição (seção C) |
+| 7. Limites de memória, por sessão e fila de operações pesadas | `carga.py`: vagas (2), fila (8), espera (20 s), 6 pedidos por sessão, 503 com `ocupado`; as rotas pesadas fora do laço de eventos. `conversation_session.py`: o teto total dos resultados guardados passou de 256 para 128 MiB pela medição (seção C); os 32 MiB por sessão ficam |
 | 8. Recusa de planilhas malformadas ou desproporcionais | `carga.conferir_xlsx` (100 vezes com piso de 10 MB, ou 150 MB) e `conferir_csv` (6 milhões de células), com a TPL-13 |
 | 9. Aquecimento antes da porta | `main._lifespan` (a porta do Uvicorn só abre depois), com a duração no log |
 | Seção 6.3 (mensagem de configuração) | `llm_bridge`: a chave inválida (400 `API_KEY_INVALID`) é problema de configuração, como 401/403 |
