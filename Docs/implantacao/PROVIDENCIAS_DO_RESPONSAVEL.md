@@ -55,7 +55,7 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
   ambiente não existir, não tiver revisor, aceitar outras etiquetas ou ramos, ou se o commit não pertencer ao ramo
   `implantacao/cloud-run-pages`.
 - **V-6.** Aprovar o job `validacao` na interface do GitHub (Actions → a execução → "Review deployments"). O job faz no máximo
-  20 chamadas reais somadas, com pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 por minuto),
+  20 chamadas reais somadas, com pelo menos 10 s entre o início das mensagens (precaução da validação; o nível gratuito admite 15 por minuto),
   para num 429 real e publica só um relatório sanitizado. O resumo dele sai também nas anotações da execução, que o agente lê
   pela API pública do GitHub sem login (o log e o artefato exigem autenticação).
 - **V-7 (feito).** Ao final, apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` (Settings → Environments →
@@ -63,13 +63,13 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
 
 ## Fase 2 (cada operação com AUTORIZO F2-n)
 
-- **P-1 (antes de F2-0).** O gcloud **não está instalado** neste computador (`gcloud --version`, 02/11/2026; não houve
-  autenticação). Para instalar no Windows: baixar e executar o instalador do Google Cloud CLI
-  (`https://dl.google.com/dl/cloudsdk/channels/rapid/GoogleCloudSDKInstaller.exe`, da página "Install the gcloud CLI" do
-  Google), com o Python embutido, que é o padrão. **O download é grande** (o pacote do Linux tem 94,4 MB; o do Windows, com o
-  Python embutido, não tem tamanho publicado e tende a ser maior): faça-o, de preferência, fora dos dados móveis. Depois:
-  `gcloud --version`; `gcloud auth login` com a conta Google dona do projeto; `gcloud config set project
-  agente-diagnostico-territorial`; conferir com `gcloud config list`.
+- **P-1 (antes de F2-0): concluída em 02/11/2026.** O responsável instalou o Google Cloud CLI no Windows e concluiu o
+  `gcloud init`. O agente conferiu só em leitura (`gcloud --version`, `gcloud auth list`, `gcloud config list` e
+  `gcloud config configurations list`): versão 591.0.0, conta `mister.hoff87@gmail.com` ativa, projeto
+  `agente-diagnostico-territorial`, configuração `default` ativa. O executável não está no PATH das sessões do Claude Code
+  abertas antes da instalação: o agente usa o caminho completo
+  (`%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`). A região `us-central1` vai explícita em cada comando
+  do roteiro.
 - **P-2 (com F2-0).** No Console (Faturamento → Orçamentos e alertas), conferir, sem alterar: a trava (spend cap) de R$ 11 por
   mês só do Cloud Run, com alertas de 50, 80 e 100%, e o orçamento só de alertas de R$ 11, com 25, 50, 75 e 100%.
 - **P-3 (antes de F2-5).** Criar o ambiente `producao`: revisor obrigatório = você; "Prevent self-review" desativado; regra
@@ -79,8 +79,9 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
   atual copiada do AI Studio; nunca por linha de comando, chat ou terminal do Claude Code. No projeto da chave (AI Studio /
   Google Cloud do projeto da chave): restringir a chave à Generative Language API (APIs e serviços → Credenciais → a chave →
   Restrições de API) e confirmar que o projeto continua sem faturamento (Faturamento → "Este projeto não tem uma conta de
-  faturamento"). Conferir no AI Studio os limites do nível gratuito do `gemini-3.5-flash-lite` (cerca de 10 por minuto e 500
-  por dia).
+  faturamento"). Limites do nível gratuito do `gemini-3.5-flash-lite`, conferidos pelo responsável no AI Studio em 02/11/2026, no
+  projeto da chave em uso: 15 requisições por minuto, 250 mil tokens por minuto e 500 requisições por dia (o provedor pode
+  mudá-los).
 - **P-5 (em F2-5).** Aprovar, no ambiente `producao`, o job de envio da imagem.
 - **P-6 (antes de F2-9).** Settings → Pages → Build and deployment → Source: **GitHub Actions**, sem usar os modelos de
   workflow sugeridos pela página (gravariam no `main`). No ambiente `github-pages` (criado pelo Pages): revisor obrigatório =

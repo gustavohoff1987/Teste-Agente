@@ -4,7 +4,7 @@ name: Validação real do Gemini
 # ambiente, o revisor, as etiquetas e o commit no ramo de preparação), sem ambiente e sem segredos;
 # depois, só se ela passar, o job no ambiente gemini-real, que espera a aprovação do responsável. A chave existe apenas
 # como segredo desse ambiente. No máximo 20 chamadas reais somadas, com 10 s entre o início das mensagens (o nível gratuito
-# tem cerca de 10 por minuto); um 429 real encerra. Uma execução por autorização. O resumo sanitizado sai também nas
+# admite 15 por minuto; os 10 s são precaução desta validação); um 429 real encerra. Uma execução por autorização. O resumo sanitizado sai também nas
 # anotações da execução, que a API pública do GitHub entrega sem login (o log e o artefato, não).
 on:
   push:

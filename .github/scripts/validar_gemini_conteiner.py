@@ -17,7 +17,7 @@ O relatório publicado (--saida) é sanitizado: status, tempos, origem do texto,
 mensagem ou resposta, nenhuma chave. Antes do envio, o workflow confere o padrão de chave do Google nele.
 
 Desde 02/11/2026 (comando de ajustes antes da Fase 2): as mensagens começam com pelo menos --intervalo segundos entre si
-(padrão 10; o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real encerra a validação); o roteiro registra o
+(padrão 10, precaução desta validação; o nível gratuito admite 15 chamadas por minuto, e um 429 real a encerra); o roteiro registra o
 tempo de cada mensagem; uma falha técnica inesperada encerra a validação com o relatório gravado, só com o tipo do erro (o
 detalhe fica no log). O resumo do relatório sai também nas anotações da execução (anotar_validacao.py).
 """

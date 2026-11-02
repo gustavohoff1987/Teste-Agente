@@ -17,7 +17,8 @@ está em sucesso (seção I).
 Nada foi publicado: nenhum recurso no Google Cloud, nenhuma configuração do GitHub feita pelo agente (o ambiente, o segredo e
 as proteções foram configurados pelo responsável), nenhum merge e nenhum pull request. As únicas chamadas reais ao Gemini
 foram as 15 da validação autorizada. **Parecer: Pronto para implantação** (seção L). A Fase 2 pode começar, operação por
-operação, com "AUTORIZO F2-n", depois do gcloud instalado e autenticado (P-1).
+operação, com "AUTORIZO F2-n"; o gcloud está instalado e autenticado (P-1, conferida em 02/11/2026). Próxima operação: F2-0
+(verificação prévia, só leitura), com P-2 (a trava e os alertas conferidos no Console pelo responsável).
 
 ## A. Base escolhida, commit e evidências
 
@@ -210,15 +211,17 @@ falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesad
   respostas simuladas da API (`test_implantacao.py`): para sem chamadas quando o repositório não está público (desde
   02/11/2026), o ambiente não existe, não tem revisor, aceita outras etiquetas ou ramos, o gatilho não é a etiqueta ou o
   commit não pertence ao ramo; sem o segredo, nenhum pedido sai. Desde 02/11/2026, as mensagens começam com pelo menos 10 s
-  entre si (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real encerra a validação), o roteiro registra o
+  entre si (precaução desta validação, não um limite da aplicação: o nível gratuito admite 15 chamadas por minuto, e um
+  429 real encerra a validação), o roteiro registra o
   tempo de cada mensagem e o resumo sanitizado sai também nas anotações da execução (`anotar_validacao.py`), legíveis pela API
   pública do GitHub sem login.
   A validação real dependia de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" (providências V-1 a V-7), concedida em 02/11/2026.
 - **Chamadas por mensagem (medidas):** 1 por mensagem numa conversa típica, 0 nas respondidas localmente ("Obrigado!") e até 3
   com as regenerações. Na validação real: 1 nas redigidas pelo Gemini na primeira tentativa, 2 nas duas com regeneração, 0
   nas respondidas pelo canal sistêmico ou localmente.
-- **Capacidade frente ao nível gratuito:** cerca de 10 requisições por minuto e 500 por dia por projeto (a conferir no AI
-  Studio, P-4): cerca de 10 mensagens por minuto e 500 por dia, somando todos os usuários. Sem teto local (decisão de
+- **Capacidade frente ao nível gratuito:** 15 requisições por minuto (RPM), 250 mil tokens por minuto (TPM) e 500
+  requisições por dia (RPD) para o `gemini-3.5-flash-lite`, conferidos pelo responsável no AI Studio em 02/11/2026, no projeto
+  da chave em uso (o provedor pode mudá-los): cerca de 15 mensagens por minuto e 500 por dia, somando todos os usuários. Sem teto local (decisão de
   26/10/2026): a proteção é a espera após o 429 e a resposta determinística de reserva.
 - **Segurança da chave:** o histórico público (5 ramos e 8 pull requests) não tem nenhuma ocorrência dos padrões de chave do
   Google; o padrão do comando (`AIza` + 35) não cobre o formato da chave em uso (`AQ.`), e a verificação confere os dois. Uma
@@ -328,6 +331,7 @@ o padrão de chave nos arquivos alterados); os testes completos rodaram só no G
 | 41375485808 | `b8ae7fb` | os 8 jobs em sucesso; a medição sem nenhum problema, com o pior caso de memória a 72,7% dos 2 GiB |
 | 41492208661 | `381523a` (ajustes de 02/11/2026) | os 8 jobs em sucesso: `backend` 1.237 aprovados e 63 pulados (os de dados reais); `dados-reais` 1.300 aprovados e nenhum pulado; `frontend`, 160 testes do Node e nenhuma falha; navegador, contêiner e governança em ordem. Os 12 testes novos são a conferência do repositório público, o ritmo das mensagens, as anotações e o passo do workflow |
 | 41510828308 | `da65a1c` (relatório de 02/11/2026) | os 8 jobs em sucesso |
+| 41516575786 | `4d32bb4` (parecer revisto) | os 8 jobs em sucesso |
 
 Na execução 41375485808: `backend`, 1.225 testes aprovados e 63 pulados (os de dados reais, que rodam no job seguinte);
 `dados-reais`, 1.288 aprovados e nenhum pulado; `frontend`, os 160 testes do Node e o build; navegador, os 8 roteiros do
@@ -368,7 +372,7 @@ Em ordem, com o porquê. O passo a passo está em [PROVIDENCIAS_DO_RESPONSAVEL.m
 | 6 | Teste de gatilho | feito: comprovado (seção H) | comprova que uma etiqueta aciona um workflow que não está no ramo padrão, antes de a validação real e a Fase 2 dependerem disso |
 | V-1 a V-6 | Validação real do Gemini | feita, com sucesso (seção M) | sem ela, o parecer não podia ser "Pronto para implantação" |
 | V-7 | Apagar o segredo `GEMINI_API_KEY` do ambiente `gemini-real` | feita em 02/11/2026: o ambiente está sem segredos (conferido com o `gh`) | a validação acabou; era só a cópia no GitHub, e a chave continua válida |
-| P-1 | Instalar o gcloud (de preferência fora dos dados móveis) e autenticá-lo | pendente; não instalado | toda a Fase 2 usa o gcloud |
+| P-1 | Instalar o gcloud e autenticá-lo | feita em 02/11/2026: versão 591.0.0, conta `mister.hoff87@gmail.com`, projeto `agente-diagnostico-territorial`, configuração `default` (conferido só em leitura) | toda a Fase 2 usa o gcloud |
 | P-2 a P-9 | A trava e os alertas, os ambientes `producao` e `github-pages`, o segredo no Secret Manager e a restrição da chave, o Pages, as aprovações, as autorizações F2-n e as conferências no navegador | pendentes | cada operação da Fase 2 depende delas (seção K) |
 
 ## K. Roteiro da Fase 2
@@ -386,7 +390,7 @@ como desfazer cada operação, e os custos fora da trava. A concorrência (40) e
 - o 404 de `/docs` sem `curl -f` e o CORS pelos cabeçalhos, sem `Access-Control-Allow-Origin` para uma origem estranha e com
   ele para `https://gustavohoff1987.github.io` (F2-8);
 - as conferências na interface ficam com o responsável, no navegador, e as do agente, só pela API (F2-9 a F2-11; P-9);
-- o gcloud não está instalado (P-1).
+- o gcloud: não instalado em 02/11/2026 de manhã; instalado e autenticado depois pelo responsável (P-1).
 
 ## L. Parecer (revisto em 02/11/2026)
 
@@ -416,10 +420,11 @@ Riscos que só se confirmam na Fase 2 e não impedem o início dela:
   trava só se confirmam no Cloud Run (F2-8 e F2-12).
 - **Planilha XLSX de 15 MB:** leva cerca de 34 s por análise no runner, porque é reenviada e lida de novo a cada pedido. É o
   principal risco de espera para quem a usa e de consumo da trava; o CSV do mesmo tamanho leva cerca de 5 s.
-- **Nível gratuito do Gemini:** tem cerca de 10 chamadas por minuto para todos os usuários juntos. Acima disso, a conversa
+- **Nível gratuito do Gemini:** admite 15 chamadas por minuto e 500 por dia para todos os usuários juntos (conferido em
+  02/11/2026; o provedor pode mudar). Acima disso, a conversa
   espera e usa a resposta determinística de reserva (decisão de 26/10/2026, sem teto local).
 
-Pré-requisito da Fase 2: o gcloud instalado e autenticado (P-1), de preferência fora dos dados móveis.
+Pré-requisito da Fase 2: o gcloud instalado e autenticado (P-1) — feito em 02/11/2026.
 
 Resolvidas em 02/11/2026:
 - a validação real do Gemini, com o segredo do ambiente `gemini-real` apagado depois (V-7);
@@ -454,7 +459,7 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 | 2 | README, "Política dos dados do Brasil": a caracterização com o texto exato; item 8, o repositório público (o Pages e as proteções dos ambientes dependem disso no plano gratuito); item 9, a procedência e a natureza, sem a pendência da procedência; sem a pendência da licença e da redistribuição; "Origem da base Brasil" e a operação online sem tratar o repositório como privado. Ficam o manifesto, os originais preservados, os arquivos fora do frontend, nenhum registro ao Gemini e a governança metodológica; as salvaguardas das planilhas enviadas não mudam | `4e30a97` |
 | 2 | `DADOS_BRASIL_VALIDACAO.md`, `BLOCO2_ETAPA1_REFERENCIAS_PROXIMIDADE.md` e `OTIMIZACAO_LATENCIA.md` (nota de atualização na análise de 12/10/2026), no mesmo sentido; nenhum documento menciona a data de extração; as duas anotações da biblioteca conversacional | `4e30a97` |
 | 3 | `conferir_protecao.py`: o job `conferir-protecao` dos três workflows protegidos encerra a execução, sem chamadas nem envio, se o repositório não estiver público (a primeira conferência); os testes cobrem o repositório privado, interno, com visibilidade incoerente, ausente ou ilegível | `4e30a97` |
-| 5 e 7 | Validação real: pelo menos 10 s entre o início das mensagens (o nível gratuito tem cerca de 10 chamadas por minuto, e um 429 real a encerraria), o tempo de cada mensagem, a falha técnica com o relatório gravado e o resumo sanitizado em até quatro anotações da execução (`anotar_validacao.py`), com os testes | `19f2fa5` |
+| 5 e 7 | Validação real: pelo menos 10 s entre o início das mensagens (precaução desta validação; o nível gratuito admite 15 chamadas por minuto, e um 429 real a encerraria), o tempo de cada mensagem, a falha técnica com o relatório gravado e o resumo sanitizado em até quatro anotações da execução (`anotar_validacao.py`), com os testes | `19f2fa5` |
 | 1, 2 e 5 | A divergência aprovada da RQ-FLX-17 no registro, no README e na seção F; as providências atualizadas (1 e 2 resolvidas; 3 a 6 pelas conferências abaixo) | `381523a` |
 | 4 | O roteiro (F2-2, F2-5, F2-6, F2-8 a F2-11, o F2-13 novo e os custos), a P-1 com a instalação do gcloud e a P-9 nova | `381523a` |
 | 5 a 7 | As orientações complementares (o `gh`, a segurança do repositório e o stash), os resultados do teste de gatilho e da validação real, o parecer revisto, as providências e, no F2-2, a remoção do arquivo temporário com a política do projeto | o commit deste relatório |
@@ -467,7 +472,7 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 | Acesso à API do GitHub | até a instalação do `gh`, só a API pública sem autenticação, até 60 consultas por hora; nenhum token extraído de armazenamento de credenciais. Ela entrega o repositório, as execuções, os jobs, as anotações e os ambientes, mas não o log dos jobs (403) nem os artefatos (401). Depois, o `gh` autenticado (abaixo) |
 | Varredura de segredos e proteção de push | sem autenticação, não conferíveis (o bloco `security_and_analysis` não vem na resposta pública); com o `gh`, desativadas; depois, **ativadas** pelo responsável e conferidas de novo, sem nenhum alerta aberto (abaixo) |
 | Stash com `backend/.env` | não descartado: `git stash list` mostra `stash@{0}: On main: !!GitHub_Desktop<main>`; o exame só pelos metadados está abaixo |
-| gcloud (P-1) | não instalado (`gcloud --version`: comando não encontrado); nenhuma autenticação |
+| gcloud (P-1) | de manhã, não instalado; depois, instalado pelo responsável e conferido só em leitura: Google Cloud SDK 591.0.0, conta `mister.hoff87@gmail.com` ativa, projeto `agente-diagnostico-territorial`, configuração `default` ativa (usado pelo caminho completo, fora do PATH da sessão) |
 | Repositório | público (`private: false`, `visibility: public`) |
 
 **Orientações complementares do responsável (02/11/2026): GitHub CLI e stash local**
@@ -575,7 +580,7 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 | Medida | Resultado |
 |---|---|
 | Chamadas reais | **15 de 20**: 3 pelo caminho HTTP do contêiner, 11 no roteiro e 1 com a chave inválida. Sem interrupção e sem nenhum 429 |
-| Ritmo | 18 mensagens em 3 min 1 s, com pelo menos 10 s entre o início de duas, abaixo do limite de cerca de 10 chamadas por minuto do nível gratuito |
+| Ritmo | 18 mensagens em 3 min 1 s, com pelo menos 10 s entre o início de duas, abaixo do limite de 15 chamadas por minuto do nível gratuito; o intervalo foi precaução do teste, não limite da aplicação |
 | Provedor | configurado, modelo `gemini-3.5-flash-lite`, disponível |
 | Autenticação e modelo | a interpretação pelo Gemini em 1,12 s, com 1 chamada |
 | Caminho HTTP: a pergunta sobre o resultado e a explicação mais simples | respondidas pelo canal sistêmico, sem chamada (0,42 s e 0,53 s), todas com status 200 |
@@ -589,3 +594,34 @@ redistribuição permitida), o repositório público, a opção (a) para a RQ-FL
 Observação de manutenção: a execução avisou que a ação `actions/upload-artifact` fixada (v4.6.2) é de Node.js 20 e roda
 forçada no Node.js 24 do GitHub. Não afetou o resultado; a troca por uma versão para Node.js 24 fica para quando ela estiver
 fixada no repositório.
+
+## N. Comando consolidado: atualizações finais e continuidade da Fase 2 (02/11/2026)
+
+**Atualizações documentais e conferências (seções 1 a 4 do comando), só em leitura:**
+- **Limites do Gemini:** conferidos pelo responsável no AI Studio em 02/11/2026, no projeto da chave em uso, para o
+  `gemini-3.5-flash-lite` no nível gratuito: 15 requisições por minuto (RPM), 250 mil tokens por minuto (TPM) e 500
+  requisições por dia (RPD). O provedor pode mudá-los. As referências a "cerca de 10 por minuto" foram trocadas nos documentos
+  e nos comentários das ferramentas de validação. Os 10 s entre as mensagens da validação real foram precaução daquele teste,
+  não limite da aplicação. Nenhum código da integração, tratamento de 429, governança conversacional ou configuração de
+  infraestrutura mudou, e a validação real não foi repetida.
+- **P-1 concluída:** Google Cloud SDK 591.0.0, conta `mister.hoff87@gmail.com` ativa, projeto `agente-diagnostico-territorial`,
+  configuração `default` ativa (`gcloud --version`, `auth list`, `config list` e `config configurations list`). O executável
+  está fora do PATH desta sessão e é usado pelo caminho completo. Nenhum recurso do Google Cloud foi criado, alterado ou
+  consultado além disso.
+- **Segurança do GitHub (com o `gh`):** repositório público; varredura de segredos e proteção de push ativadas; nenhum alerta
+  aberto; o ambiente `gemini-real` continua configurado e sem segredos (V-7); nenhum segredo de repositório; nenhum stash
+  local; os três scripts preservados em `.local/`; o `gh` autenticado na conta `gustavohoff1987`. A chave no AI Studio foi
+  mantida, segundo o responsável.
+- **CI:** o último commit antes deste comando, `4d32bb4`, passou nos 8 jobs (execução 41516575786). O commit destas
+  atualizações é só de documentação e comentários; o resultado do CI dele fica registrado na próxima atualização desta seção.
+
+**Fase 2: registro das operações** (cada uma só depois de "AUTORIZO F2-n"; o roteiro está em
+[ROTEIRO_FASE2.md](ROTEIRO_FASE2.md))
+
+| Operação | Situação |
+|---|---|
+| F2-0 — verificação prévia (só leitura) | aguardando "AUTORIZO F2-0" (com a P-2, a trava e os alertas conferidos no Console pelo responsável) |
+| F2-1 a F2-13 | não iniciadas |
+
+Ponto de retomada: apresentar e pedir a autorização da F2-0. Nenhuma operação da Fase 2 foi executada.
+
