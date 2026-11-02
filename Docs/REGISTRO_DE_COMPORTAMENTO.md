@@ -46,8 +46,8 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   (compatibilidade).
 - **Antes:** os resultados guardados nas sessões iam até 256 MiB no total (em JSON), além dos 32 MiB e 64 resultados por
   sessão e dos 8 gráficos mais recentes de cada sessão.
-- **Agora:** o teto total é de **128 MiB** (`TETO_TOTAL_DOS_RESULTADOS` em `backend/conversation_session.py`); a estimativa
-  do pior caso medido cai para cerca de 1.430 MiB (70% dos 2 GiB), a conferir no próprio job. No teto, como antes, o gráfico
+- **Agora:** o teto total é de **128 MiB** (`TETO_TOTAL_DOS_RESULTADOS` em `backend/conversation_session.py`); na execução
+  41375485808 do mesmo job, o mesmo pior caso ficou em 1.488,5 MiB (72,7% dos 2 GiB). No teto, como antes, o gráfico
   é calculado e mostrado, sem a referência para a conversa (`sessao.registrado` falso), o gráfico novo de uma sessão tira o
   mais antigo dela, e nenhuma sessão é encerrada.
 - **Permanece:** os 32 MiB e 64 resultados por sessão, os 8 gráficos por sessão, as 128 sessões, o prazo de 1.800 s e o que o

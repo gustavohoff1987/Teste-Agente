@@ -3,9 +3,11 @@
 Agente Diagnóstico Territorial da Força de Trabalho na Saúde — Google Cloud Run (serviço de análise) e GitHub Pages (interface).
 Comando de implantação de 01/11/2026 (`COMANDO_IMPLANTACAO_REVISADO (1).txt`), Fase 1. Ramo `implantacao/cloud-run-pages`.
 
-**Situação:** em andamento — preparação implementada; medições e verificações do CI pendentes da primeira execução no ramo.
-**Conclusão estimada da Fase 1:** 75% (o que falta está na seção I). **Nada foi publicado**; nenhuma chamada real ao Gemini,
-nenhum recurso no Google Cloud, nenhuma configuração ou etiqueta no GitHub, nenhum merge e nenhum pull request.
+**Situação:** Fase 1 concluída. A preparação está implementada e verificada no CI: execução 41375485808, commit `b8ae7fb`, os 8
+jobs em sucesso. **Conclusão da Fase 1:** 100% do que ela inclui (seção 0 do comando). A validação real do Gemini, o teste de
+gatilho e a Fase 2 são operações restritas, que dependem de autorização, e não foram executadas (seção J). **Nada foi
+publicado**: nenhuma chamada real ao Gemini, nenhum recurso no Google Cloud, nenhuma configuração ou etiqueta no GitHub, nenhum
+merge e nenhum pull request. **Parecer: Pronto com ressalvas** (seção L).
 
 ## A. Base escolhida, commit e evidências
 
@@ -27,15 +29,19 @@ Nenhuma alteração relevante fica de fora. A escolha não se apoiou na data dos
 Repositório: `gustavohoff1987/Teste-Agente`, público, ramo padrão `main`, sem Pages, sem ambientes, sem segredos e sem
 variáveis do Actions (lidos pela API em 01/11/2026); único workflow ativo, o `ci.yml`.
 
+Commits da Fase 1 no ramo: `938717d` (hospedagem: serviço, interface, contêiner e verificações), `04e22dd` (documentação da
+implantação), `2863e47` (roteiros com o serviço noutro endereço), `b75fa65` (aviso de ocupado), `41b97bb` (medições) e
+`b8ae7fb` (teto total das sessões), além do commit deste relatório.
+
 ## B. Arquivos, classificação das mudanças e mecanismos preservados
 
 **Mudanças de comportamento** (classificadas antes de codar, todas previstas — escopo e compatibilidade —, registradas em
-[REGISTRO_DE_COMPORTAMENTO.md](../REGISTRO_DE_COMPORTAMENTO.md), entrada de 01/11/2026):
+[REGISTRO_DE_COMPORTAMENTO.md](../REGISTRO_DE_COMPORTAMENTO.md), três entradas de 01/11/2026):
 
 | Item do comando (seção 4) | Implementação |
 |---|---|
 | 1. Upload de 15 MB = 15.000.000 bytes | `backend/carga.py` (`MAX_UPLOAD_BYTES`, limite do pedido) e `backend/main.py`; `frontend/src/paginaUnica.ts` (`LIMITE_DO_ARQUIVO`, `recusaDoArquivo`), `App.tsx`, `JanelaDeEnvio.tsx`; textos, recusas e testes |
-| 2. Estados de conexão e mensagem institucional | `frontend/src/conexao.ts` e `AvisoDaConexao.tsx`; `App.tsx`, `SessionPrivacy.tsx`, `painelApi.ts`, `AreaDeAnalise.tsx`, `AnalysisAssistant.tsx`, `historicoConversa.ts`, `styles.css` |
+| 2. Estados de conexão e mensagem institucional | `frontend/src/conexao.ts` e `AvisoDaConexao.tsx`; `App.tsx`, `SessionPrivacy.tsx`, `painelApi.ts`, `AreaDeAnalise.tsx`, `AnalysisAssistant.tsx`, `historicoConversa.ts`, `styles.css`. O aviso de ocupado só sai com a resposta de uma rota com limite (a lista de `carga.py`) ou depois de 20 s (correção da primeira execução do CI, seção I) |
 | 3. Nova tentativa moderada | `conexao.ts`: tentativa curta de 2 s; depois 5, 10, 20, 40, 60 e 120 s; pausa com a aba oculta; botão |
 | 4. Nome oficial completo | `index.html`, `App.tsx` (título e rodapé), mensagem institucional |
 | 5. CORS restrito | `main.py`: `ADT_ALLOWED_ORIGINS` (produção: só `https://gustavohoff1987.github.io`; desenvolvimento: o Vite local), só `Content-Type` e `X-ADT-Session`, pré-verificação de 2 h |
@@ -59,53 +65,144 @@ variáveis do Actions (lidos pela API em 01/11/2026); único workflow ativo, o `
 foi contrariada; a SPEC (inclusive a TPL-09) não foi alterada.
 
 **Mecanismos preservados:** os contratos analíticos e metodológicos, as fórmulas, os parâmetros, os critérios estatísticos e
-as regras espaciais; a governança da autoridade analítica do modelo conversacional (a conferência de fidelidade, a triagem,
-nenhum dado ao provedor); a integridade da base pelo manifesto; a sessão em memória com o prazo de 1.800 s e o catálogo de
-interações; a consulta da sessão a cada 30 s; a decisão de 26/10/2026 de não ter teto local de chamadas ao Gemini.
+as regras espaciais (as análises pelo contêiner são idênticas às da referência, seção C); a governança da autoridade analítica
+do modelo conversacional (a conferência de fidelidade, a triagem, nenhum dado ao provedor); a integridade da base pelo
+manifesto; a sessão em memória com o prazo de 1.800 s e o catálogo de interações; a consulta da sessão a cada 30 s; a decisão
+de 26/10/2026 de não ter teto local de chamadas ao Gemini.
 
 ## C. Contêiner (medições no runner do GitHub, não no Cloud Run)
 
-*Pendente da primeira execução do job `conteiner` no ramo.* O job constrói a imagem (sem envio a registro) e roda cada
-contêiner com `--cpus=1 --memory=2g --memory-swap=2g` e `/tmp` em tmpfs; mede a partida (porta e saúde), o aquecimento, a
-memória em repouso, sob carga e o pico, as análises de cada família contra a referência em processo, as planilhas (até
-15.000.000 bytes aceitas, 15.000.001 recusadas, malformadas e desproporcionais), dois envios simultâneos de 14,9 MB, a
-memória das sessões até os tetos, a concorrência (1, 5, 10 e 20 usuários, com 2 e com 1 vaga), as gravações fora de `/tmp`
-e o encerramento por SIGTERM. Os números entram aqui e no artefato `medicoes-do-conteiner`. A CPU do runner não é a vCPU do
-Google; nada medido aqui é confirmação na nuvem.
+A imagem foi construída e executada no job `conteiner` do `ci.yml` (sem envio a registro), com `--cpus=1 --memory=2g
+--memory-swap=2g` e `/tmp` em tmpfs dentro do limite. Medições do artefato `medicoes-do-conteiner` da execução 41372746893
+(commit `41b97bb`); a memória das sessões no teto atual, da execução 41375485808 (commit `b8ae7fb`, que só muda esse teto).
+Runner: x86_64 com 4 CPUs, limitado a 1 pelo cgroup. **Limitações:** a CPU do runner não é a vCPU do Google; não se reproduz a
+restrição de CPU entre requisições, a partida a frio real, a rede, o balanceador nem o escalonamento do Cloud Run. Nada
+daqui é confirmação na nuvem; os recursos de produção serão os do Cloud Run. Valores de memória em MiB (cgroup).
+
+**Partida e imagem**
+
+| Medida | Valor no runner |
+|---|---|
+| Limites lidos no cgroup | `cpu.max` 100000 100000 (1 CPU), `memory.max` 2147483648 (2 GiB), swap 0, `/tmp` em tmpfs, usuário 10001 |
+| Imagem | 350,9 MiB descompactada; cerca de 126 MiB comprimida (`docker save` com `gzip -1`, estimativa do que o Artifact Registry guarda) |
+| Porta aberta e saúde respondendo | 10,1 s e 10,2 s; o aquecimento (8,5 s: base 7,7 s, biblioteca conversacional 0,8 s) termina antes da porta |
+| Memória em repouso, depois da partida | 343,8 MiB (pico 347,6 MiB) |
+| Reinício (do `docker start` à saúde) | 9,6 s |
+| Encerramento com SIGTERM | 0,6 s, código 0, encerramento no log |
+| Gravações fora de `/tmp` | nenhuma (`docker diff`) |
+
+**Análises** — as 21 consultas medidas deram respostas **idênticas** às da referência em processo (o mesmo código e as
+mesmas versões fixadas dos testes com dados reais, sem os campos voláteis): o exame da base; 12 análises em `/api/analyze`
+(densidade, quantitativos também com todas as competências, relatório, distribuição, comparações, evolução e tendência,
+agregação, ranking, espacial, referência mais próxima e critérios combinados) e a rotatividade com planilha; 5 gráficos da
+página única, o mapa e as contagens da escolha dos territórios. Tempos de 0,09 a 7,4 s (evolução e tendência); os gráficos
+da página única, de 0,14 a 0,27 s. Maior resposta: evolução e tendência, 20,3 MiB (3,8 MiB transferidos com gzip), abaixo
+do limite de 32 MiB do HTTP/1. Memória máxima nas análises: 563,9 MiB (pico 630 MiB).
+
+**Planilhas** (geradas no CI, sem dados reais; o gráfico é o de densidade de todos os territórios, com o código territorial
+escolhido como no painel Colunas)
+
+| Caso | Desfecho | Exame: s; MiB máx. | Gráfico: s; MiB máx.; itens |
+|---|---|---|---|
+| CSV pequeno (100 KB) | aceito | 0,15; 438,6 | 0,31; 437,6; 1.072 |
+| XLSX pequeno (100 KB) | aceito | 0,38; 437,5 | 0,43; 437,5; 1.198 |
+| CSV médio (3 MB) | aceito | 1,26; 440,7 | 1,86; 449,6; 5.570 |
+| XLSX médio (3 MB) | aceito | 5,82; 446,0 | 6,22; 448,0; 5.570 |
+| CSV de 14,9 MB | aceito | 5,09; 687,8 | 5,03; 683,8; 5.570 |
+| XLSX de 14,9 MB | aceito | 33,6; 730,8 | 33,2; 694,4; 5.570 |
+| CSV de 15.000.000 bytes (160.936 linhas) | aceito | 4,85; 707,5 | 5,32; 711,1; 5.570 |
+| XLSX de 15.000.000 bytes (281.998 linhas) | aceito | 33,9; 721,7 | 33,5; 737,9; 5.570 |
+| CSV e XLSX de 15.000.001 bytes, 20 MB e CSV de 40 MB | recusados pelo tamanho (413, "Arquivo acima do limite de 15 MB; nenhum dado foi analisado."), em até 0,1 s | — |
+| XLSX malformado e truncado | inválidos (422, "Não foi possível interpretar este arquivo Excel…") | — |
+| XLSX com expansão desproporcional (400 MB descompactados) | recusado antes da leitura (422, com a TPL-13), em 0,003 s | — |
+| Dois envios simultâneos de 14,9 MB (CSV e XLSX) | aceitos, em 7,8 s e 38,7 s; 855,9 MiB máx. | — |
+
+O XLSX custa de 6 a 7 vezes o CSV do mesmo tamanho, a cada análise: o arquivo é reenviado e lido de novo em cada pedido.
+
+**Memória das sessões** (gráficos de todos os municípios, 8 por sessão, até o teto recusar o primeiro de uma sessão nova; com
+as sessões cheias, os envios de planilha)
+
+| Teto total (JSON) | Guardado | Memória real das sessões | Base + sessões | + CSV de 14,9 MB | + XLSX de 15 MB | + dois XLSX de 15 MB juntos (pico) |
+|---|---|---|---|---|---|---|
+| 256 MiB (antes; execução 41372746893) | 104 gráficos em 13 sessões | 812,9 MiB (3,18 × o JSON) | 1.156,0 MiB | 1.402,6 MiB | 1.463,8 MiB | 1.834,8 MiB (**89,6%** dos 2 GiB) |
+| **128 MiB** (agora; execução 41375485808) | 56 gráficos em 7 sessões | 459,5 MiB (3,59 × o JSON) | 802,9 MiB | 1.063,2 MiB | 1.099,3 MiB | 1.488,5 MiB (**72,7%** dos 2 GiB) |
+
+Com o teto antigo, o pior caso ficava a 0,4 ponto do alerta de 90% da medição; com uma instância só, a falta de memória
+reinicia o serviço e perde todas as sessões. Pelo item 7 da seção 4, o teto total foi reduzido para 128 MiB (registro de
+01/11/2026), e o pior caso medido caiu para 72,7%. No teto, o gráfico é calculado e mostrado, sem a referência para a
+conversa, e nenhuma sessão é encerrada.
+
+**Concorrência** (cada usuário simulado repete abertura em paralelo, exame da base, gráficos leves e pesados, mapa, escolha
+dos territórios, planilha de 3 MB e conversa com o Gemini simulado de 2 a 20 s, com pausas de 0,2 a 1 s — bem mais intenso que
+uma pessoa —, e a consulta da sessão a cada 30 s; 45 s por rodada)
+
+| Vagas | Usuários | Pedidos | Simultâneos (máx.) | Ocupados (503) | Erros | `/api/health` p50/p95/máx. (ms) | Memória máx. (MiB) | Gráfico de todos os municípios p95 (s) | Conversa p95 (s) |
+|---|---|---|---|---|---|---|---|---|---|
+| 2 | 1 | 27 | 4 | 0 | 0 | 2/12/263 | 444,8 | 0,31 | 12,0 |
+| 2 | 5 | 141 | 11 | 0 | 0 | 2/117/511 | 768,6 | 0,83 | 15,1 |
+| 2 | 10 | 210 | 13 | 0 | 0 | 25/305/876 | 953,4 | 2,77 | 16,6 |
+| 2 | 20 | 368 | 22 | 76 | 0 | 17/386/725 | 1.079,6 | 6,64 | 19,3 |
+| 1 | 10 | 205 | 15 | 1 | 0 | 8/171/345 | 703,9 | 3,46 | 16,1 |
+| 1 | 20 | 397 | 21 | 92 | 0 | 10/246/542 | 898,9 | 4,29 | 19,1 |
+
+Nenhum 429 (não há plataforma no runner); todo 503 foi a resposta legível de ocupado; nenhum erro sem resposta legível; nenhuma
+falta de memória. A saúde respondeu abaixo de 1 s durante as operações pesadas: elas não bloqueiam o laço de eventos.
+
+**Definidos pela medição** (aplicados no [roteiro da Fase 2](ROTEIRO_FASE2.md), F2-6):
+
+- **Concorrência do Cloud Run: 40.** O máximo medido foi de 22 pedidos em andamento com 20 usuários simulados. Com 40, a
+  abertura de páginas (3 a 4 pedidos paralelos) e a conversa longa não esbarram no limite da plataforma, que seguraria os
+  pedidos ou responderia 429 sem CORS (no navegador, falha de rede e o aviso de indisponibilidade) antes do limite legível do
+  próprio serviço (ocupado). As operações pesadas já são limitadas pelo serviço; as leves pesam pouco na memória.
+- **Timeout: 150 s.** Na conversa, nenhuma chamada nova ao Gemini começa depois de 20 s e cada uma vai até 75 s (cerca de 95 s),
+  mais até 20 s de espera por vaga para ler a base; a tela desiste aos 100 s. Nas pesadas, até 20 s de fila e 33,9 s do XLSX
+  de 15 MB (71 s com dois juntos).
+- **Semáforo das operações pesadas: 2 vagas, fila de 8, espera de 20 s (mantidos).** Com 1 vCPU, 1 ou 2 vagas dão vazão
+  parecida (20 usuários: 368 e 397 pedidos; 76 e 92 ocupados), mas com 1 vaga um XLSX de 15 MB (cerca de 34 s) seguraria todas
+  as outras operações pesadas, que receberiam "ocupado" depois de 20 s de fila. O custo de memória da segunda vaga está na
+  medição do pior caso (sessões no teto e dois XLSX juntos).
 
 ## D. Interface
 
-- **Build:** `npm run build` (TypeScript, testes e Vite); para o Pages, `ADT_BASE_DA_PAGINA=/Teste-Agente/` e
-  `VITE_API_BASE_URL` (variável do repositório, não secreta, criada só no F2-9). O `base` padrão continua `/`.
+- **Build:** `npm run build` (TypeScript, testes do Node e Vite) no job `frontend`; no job `conteiner`, também o build do
+  Pages (`ADT_BASE_DA_PAGINA=/Teste-Agente/`, serviço noutro endereço), os dois sem nenhuma ocorrência do padrão de chave. O
+  `base` padrão continua `/`. `VITE_API_BASE_URL` é variável do repositório (não secreta), criada só no F2-9.
 - **Pages:** `pages.yml` (build sem ambiente; publicação no ambiente `github-pages`, Node 22.23.4 fixado, `npm ci`,
   verificações, padrão de chave no build). A origem do CORS é `https://gustavohoff1987.github.io` (sem caminho).
-- **Comunicação com o backend e recursos visuais:** conferidos no job `conteiner` pelo roteiro `ui_hospedagem.py` (recursos sob
-  `/Teste-Agente/`, fonte embutida, serviço noutro endereço com CORS e pré-verificação, CSV, modelo XLSX baixado do serviço,
-  documentação desligada) e pelos roteiros da página única com a base versionada na mesma topologia (seleção, gráficos, mapa,
-  envio de planilha, Histórico, Nova sessão). A página não tem rotas internas (só a âncora `#topo`). *Resultado pendente do CI.*
-- **Estados de conexão (A a G):** `conexao.ts` (testado com relógio simulado em `conexao.test.mjs`) e `ui_conexao.py`, com o
-  serviço de verdade parado e restabelecido no contêiner. *Resultado pendente do CI.*
+- **Comunicação com o backend e recursos visuais:** `ui_hospedagem.py` passou (recursos sob `/Teste-Agente/`, fonte embutida,
+  nome oficial no título, serviço noutro endereço com CORS para a base, o gráfico com a sessão, o CSV e o modelo XLSX,
+  documentação da API desligada, CORS só da origem da página), e os roteiros da página única, da área de análise e do mapa
+  passaram com a base versionada na mesma topologia (seleção, gráficos, mapa, envio de planilha, Histórico, Nova sessão). A
+  página não tem rotas internas (só a âncora `#topo`).
+- **Estados de conexão (A a G):** `conexao.test.mjs` (relógio simulado) e `ui_conexao.py`, com o serviço de verdade parado e
+  restabelecido no contêiner, passaram: A e B (o serviço parado na abertura: o aviso de partida e, depois da tentativa curta, a
+  indisponibilidade com o texto institucional, sem detalhes técnicos), G (o botão, a pausa com a aba oculta e o
+  restabelecimento automático com "Conexão restabelecida."), F (arquivo malformado e acima de 15 MB), D (a conversa sem o
+  Gemini), C (o ocupado com o aviso e a nova tentativa sozinha do gráfico) e E (o reinício do contêiner com a sessão aberta:
+  o aviso de sessão expirada ou indisponível, distinto da indisponibilidade).
 
 ## E. Gemini
 
-- **Testes simulados:** pytest (`test_hospedagem.py`, provedor simulado por HTTP no formato real: sucesso, 429 por minuto e
-  por dia com QuotaFailure e RetryInfo, chave inválida 400 e recusada 403, 503, saída fora do contrato com as 2 regenerações) e
-  as medições do contêiner (os mesmos e mais a demora de 5 s, o tempo esgotado de 75 s, o 500, o retorno depois da espera do
-  429 e o motor funcionando com o Gemini em espera). *Resultado do contêiner pendente do CI.*
+- **Testes simulados:** pytest (`test_hospedagem.py`, provedor simulado por HTTP no formato real) e, no contêiner, os 13
+  cenários da medição, todos corretos e sem detalhe técnico na tela: sucesso; demora de 5 s; saída fora do contrato com as 2
+  regenerações (3 chamadas) e a reserva; tempo esgotado aos 75 s, 503 e 500 (espera por indisponibilidade); 429 por minuto
+  (RetryInfo de 3 s) e o retorno depois da espera; chave inválida (400 `API_KEY_INVALID`) e recusada (403), como configuração;
+  429 por dia (QuotaFailure), com espera até a virada do dia no horário do Pacífico; e o motor funcionando sem o Gemini.
 - **Validação real (preparada, não executada):** `validacao-gemini-real.yml` com o job `conferir-protecao` (sem ambiente e
   sem segredos) e o job `validacao` (ambiente `gemini-real`), teto de 20 chamadas somadas, 429 real encerra, chave inválida
   noutro contêiner e relatório sanitizado conferido contra o padrão de chave. O mecanismo é demonstrado por testes com
   respostas simuladas da API (`test_implantacao.py`): para sem chamadas quando o ambiente não existe, não tem revisor, aceita
   outras etiquetas ou ramos, o gatilho não é a etiqueta ou o commit não pertence ao ramo; sem o segredo, nenhum pedido sai.
   **A validação real depende de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI"** (providências V-1 a V-7).
+- **Chamadas por mensagem (medidas):** 1 por mensagem numa conversa típica, 0 nas respondidas localmente ("Obrigado!") e até 3
+  com as regenerações.
 - **Capacidade frente ao nível gratuito:** cerca de 10 requisições por minuto e 500 por dia por projeto (a conferir no AI
-  Studio). Com, em geral, 1 chamada por mensagem (até 3 com regenerações), são cerca de 10 mensagens por minuto e 500 por dia,
-  somando todos os usuários. Sem teto local (decisão de 26/10/2026): a proteção é a espera após o 429 e a resposta
-  determinística de reserva. *As chamadas por mensagem medidas entram aqui.*
+  Studio, P-4): cerca de 10 mensagens por minuto e 500 por dia, somando todos os usuários. Sem teto local (decisão de
+  26/10/2026): a proteção é a espera após o 429 e a resposta determinística de reserva.
 - **Segurança da chave:** o histórico público (5 ramos e 8 pull requests) não tem nenhuma ocorrência dos padrões de chave do
   Google; o padrão do comando (`AIza` + 35) não cobre o formato da chave em uso (`AQ.`), e a verificação confere os dois. Uma
-  ocorrência existe só num stash local, nunca enviado (providência 4). A imagem, os builds da interface e os artefatos são
-  conferidos no CI; o `.dockerignore` exclui `.env`.
+  ocorrência existe só num stash local, nunca enviado (providência 4). A imagem, os builds da interface e os artefatos foram
+  conferidos em cada execução do job `conteiner`, sem nenhuma ocorrência; o `.dockerignore` exclui `.env`.
 - **Secret Manager:** preparado no roteiro (F2-4): segredo `gemini-api-key` cadastrado pelo responsável no Console (P-4), lido
   só pela conta de execução, na versão fixada.
 
@@ -113,8 +210,10 @@ Google; nada medido aqui é confirmação na nuvem.
 
 1. **Comportamento efetivo:** a consulta periódica, a reconexão e as atividades automáticas não renovam o prazo; só as
    interações do catálogo renovam; a expiração ocorre aos 1.800 s sem interação; o encerramento é imediato. Conferido pelo
-   código (`conversation_session.py`, `conversationSession.ts`), pelos testes existentes e por `ui_sessao.py` (prazo reduzido
-   só no servidor de teste) e pela API do contêiner. *Resultado pendente do CI.*
+   código (`conversation_session.py`, `conversationSession.ts`), pelos testes existentes, por `ui_sessao.py` (prazo reduzido
+   só no servidor de teste: consulta sem renovação, interação com renovação, expiração com o aviso, encerramento imediato e aba
+   congelada) e pela API do contêiner (1.800,0 s ao criar; 1.797,0 s depois de 3 s com a consulta; 1.800,0 s depois da
+   interação; 410 depois do encerramento e depois do reinício).
 2. **Permanência da instância:** enquanto uma aba com sessão ativa consulta a sessão a cada 30 s, a instância recebe uma
    requisição a cada 30 s e não fica ociosa. Sem requisições, o Cloud Run pode manter a instância ociosa por até 15 minutos e
    depois encerrá-la. Abas em segundo plano (o Chrome espaça os temporizadores; com o tempo, a uma vez por minuto), aparelhos em
@@ -125,11 +224,10 @@ Google; nada medido aqui é confirmação na nuvem.
    nova revisão, falta de memória, reinício ou suspensão pela trava. Em todos esses casos, as sessões em memória se perdem; a
    interface mostra "A sessão anterior expirou ou ficou indisponível no servidor." e começa outra (reproduzido em
    `ui_conexao.py` com o reinício do contêiner).
-4. **Impacto financeiro:** cada consulta isolada conta pelo menos 100 ms faturáveis; com a pré-verificação do CORS válida por
-   2 h, são 120 consultas e no máximo 1 pré-verificação por hora de aba aberta, cerca de 12 s faturáveis por hora, 6 s até a
-   expiração de 30 minutos, cerca de 0,02% da trava por hora de aba. *O tempo medido de cada consulta entra aqui.*
-5. **Testes:** `ui_sessao.py` (consulta sem renovação, interação com renovação, expiração, encerramento explícito e aba
-   congelada) e `ui_conexao.py` (reinício do contêiner com a sessão aberta). *Resultado pendente do CI.*
+4. **Impacto financeiro (medido):** cada consulta leva cerca de 1 ms no contêiner (p95 de 1,2 ms) e cada pré-verificação do
+   CORS, menos de 1 ms (válida por 2 h); com o arredondamento de 100 ms, cada consulta isolada conta 0,1 s. São 12 s faturáveis
+   por hora de aba aberta com sessão ativa e 6 s até a expiração de 30 minutos: cerca de 0,02% da trava por hora de aba.
+5. **Testes:** `ui_sessao.py` e `ui_conexao.py` passaram (seção I).
 
 **Divergência confirmada (aguarda decisão):** a RQ-FLX-17 garante que "a reconexão tecnicamente possível antes da expiração
 mantém a mesma sessão"; com sessões em memória e mínimo 0 instâncias, a perda antes do prazo é possível nos casos dos itens
@@ -141,27 +239,50 @@ sessões, contrária à decisão de não usar banco.
 
 ## G. Custos
 
-- **Na trava (Cloud Run, custo bruto, sem a franquia):** 1 vCPU + 2 GiB a cerca de US$ 0,000029 por segundo de instância
-  ativa; R$ 11 (cerca de US$ 2) cobrem cerca de 19 h de instância ativa por mês (a franquia gratuita cobriria cerca de 50 h,
-  mas a trava não a desconta). Com cobrança por requisição, a instância só conta durante as requisições, a partida e o
-  encerramento. Atingida a trava, o serviço responde com erro até o dia 1º do mês seguinte ou até o responsável suspendê-la; a
-  interface mostra "Serviço temporariamente indisponível". *Horas e interações por mês com os segundos faturáveis medidos
-  entram aqui.*
-- **Fora da trava:** Artifact Registry acima de 0,5 GB; Secret Manager acima da franquia; Cloud Logging acima de 50 GiB;
-  tráfego de saída que não entre na trava (detalhe no [roteiro](ROTEIRO_FASE2.md#custos-fora-da-trava-estimativas-conferir-no-console)).
-  Sem Cloud Build e sem varredura de vulnerabilidades.
-- **Riscos de cobrança excedente:** a trava tem atraso e não cobre outros serviços; a partida a frio é cobrada; uma operação
-  pesada longa (um XLSX de 15 MB) consome segundos de CPU a cada análise (o arquivo é reenviado e lido de novo).
+**Na trava (Cloud Run, custo bruto, sem a franquia):** 1 vCPU + 2 GiB a cerca de US$ 0,000029 por segundo de instância ativa
+(US$ 0,000024 da vCPU e US$ 0,0000025 por GiB, cobrança por requisição; a conferir na tabela do Google). R$ 11 (cerca de US$ 2)
+cobrem cerca de 69 mil segundos, **cerca de 19 h de instância ativa por mês** (a franquia gratuita cobriria cerca de 50 h, mas a
+trava não a desconta). Com cobrança por requisição, a instância só conta enquanto há requisição em andamento (pedidos
+simultâneos contam uma vez), na partida e no encerramento, arredondado a 100 ms.
+
+Segundos faturáveis por interação, **estimados com os tempos do runner** (a vCPU do Google pode ser mais lenta ou mais rápida):
+
+| Interação | Segundos faturáveis |
+|---|---|
+| Partida a frio (depois de 15 min sem uso) e encerramento | cerca de 11 s |
+| Abrir a página (saúde, sessão e estado do Gemini, em paralelo) | 0,1 s |
+| Usar os dados do Brasil (exame da base) | 0,3 s |
+| Cada mudança no gráfico (gráfico, mapa e contagens) | 0,2 a 0,5 s |
+| Análise completa pelo motor (`/api/analyze`, pela API; a página única usa o gráfico) | 0,7 a 7,4 s |
+| Mensagem na conversa (a requisição dura o tempo do Gemini, que só a validação real mede) | cerca de 2 a 5 s (estimativa) |
+| Planilha CSV de 3 MB: exame e cada gráfico | 1,3 s e 1,9 s |
+| Planilha CSV de 15 MB: exame e cada gráfico | 4,9 s e 5,3 s |
+| Planilha XLSX de 15 MB: exame e cada gráfico (reenviada e lida de novo) | 33,9 s e 33,5 s |
+| Aba aberta com sessão ativa (consultas) | 12 s por hora |
+
+**Horas e interações por mês até a trava (estimativas):** uma sessão típica com a base do Brasil (abrir, 20 mudanças no
+gráfico, 5 mensagens e a aba aberta por 30 minutos) consome cerca de 30 s: **cerca de 2.300 sessões por mês** (cerca de 75 por
+dia), ou cerca de 1.700 se cada uma começar com partida a frio. Com uma planilha CSV de 3 MB e 10 gráficos, cerca de 40 s
+(1.700 por mês); com um XLSX de 15 MB e 10 gráficos, cerca de 390 s (**cerca de 175 por mês**). Só a aba aberta, sem
+interações: cerca de 5.700 horas de aba por mês.
+
+- **Fora da trava:** Artifact Registry acima de 0,5 GB (2 versões de cerca de 126 MiB cabem); Secret Manager acima da
+  franquia; Cloud Logging acima de 50 GiB; tráfego de saída que não entre na trava (detalhe no
+  [roteiro](ROTEIRO_FASE2.md#custos-fora-da-trava-estimativas-conferir-no-console)). Sem Cloud Build e sem varredura de
+  vulnerabilidades.
+- **Riscos de cobrança excedente:** a trava tem atraso e não cobre outros serviços; a partida a frio é cobrada; a conversa é
+  cobrada durante a espera pelo Gemini; um XLSX de 15 MB consome cerca de 34 s de CPU a cada análise.
 - **Medidas preventivas:** máximo de 1 instância, cobrança por requisição, sem aumento de CPU na partida, vagas e fila para
   operações pesadas, limite de 15 MB, o pedido abandonado na fila sai sem calcular, o log de acesso do Uvicorn desligado (o
   Cloud Run já registra as requisições), a política de limpeza do Artifact Registry e a verificação prévia (F2-0).
 
 ## H. Gatilhos
 
-- **`ci.yml` no ramo de preparação:** comprovado no primeiro envio do ramo. *Pendente do envio.*
+- **`ci.yml` no ramo de preparação: comprovado.** Cada envio do ramo disparou o CI: execuções 41369463989 (`2863e47`),
+  41372746893 (`41b97bb`) e 41375485808 (`b8ae7fb`).
 - **Gatilhos por etiqueta** (`validacao-gemini-real-*`, `imagem-*`, `publicacao-pages-*`): não podem ser comprovados na Fase 1
-  (enviar etiquetas não está autorizado). A sintaxe dos workflows é conferida pelo actionlint no job `conteiner`, e os testes
-  de `test_implantacao.py` conferem que só há os gatilhos previstos, sem `workflow_dispatch`, `repository_dispatch` ou
+  (enviar etiquetas não está autorizado). A sintaxe dos workflows passou no actionlint (job `conteiner`), e os testes de
+  `test_implantacao.py` conferem que só há os gatilhos previstos, sem `workflow_dispatch`, `repository_dispatch` ou
   `workflow_run`. O `teste-gatilho.yml` está pronto e só roda depois de "AUTORIZO O TESTE DE GATILHO".
 - **Se um gatilho não funcionar:** parar e apresentar as alternativas — ramo dedicado de acionamento com regra de ramo no
   ambiente; os arquivos de workflow no `main` (exige autorização para modificar o `main`); ou a validação real executada pelo
@@ -169,18 +290,39 @@ sessões, contrária à decisão de não usar banco.
 
 ## I. Testes
 
-*Pendente da primeira execução do CI no ramo* (os 8 jobs). Antes do envio, só as checagens de segundos do AGENTS.md:
-`py_compile` dos arquivos Python, `tsc --noEmit` da interface, pyflakes nos arquivos novos e a governança depois do commit.
+Antes de cada envio, só as checagens de segundos do AGENTS.md (`py_compile`, `tsc --noEmit`, a governança depois do commit e
+o padrão de chave nos arquivos alterados); os testes completos rodaram só no GitHub Actions.
 
-**Problemas encontrados e corrigidos na Fase 1:** a chave inválida do Gemini (resposta real 400 `API_KEY_INVALID`) caía como
-falha interna, sem a espera de configuração; as rotas pesadas bloqueavam o laço de eventos (a saúde e a consulta da sessão
-esperavam o cálculo); o arquivo enviado era lido inteiro antes da conferência do tamanho; as mensagens de erro mostravam o
-código HTTP, e a falha de rede no gráfico mostrava o texto técnico do navegador; a verificação de saúde da interface era única,
-sem nova tentativa; o padrão de chave do comando não cobria o formato da chave em uso.
+| Execução | Commit | Resultado |
+|---|---|---|
+| 41369463989 | `2863e47` | 6 de 8 jobs em sucesso; o `conteiner` falhou em três pontos (abaixo) e, com ele, o `resumo` |
+| 41372746893 | `41b97bb` | os 8 jobs em sucesso; os 6 roteiros de navegador do contêiner e da sessão passaram |
+| 41375485808 | `b8ae7fb` | os 8 jobs em sucesso; a medição sem nenhum problema, com o pior caso de memória a 72,7% dos 2 GiB |
 
-**Só se confirma no Cloud Run:** a partida a frio real (com a CPU do Google), a restrição de CPU entre requisições, a latência
-da rede, o balanceador (que devolve 429 acima da concorrência com uma instância), o encerramento por ociosidade e a troca de
-instâncias, o consumo efetivo da trava e o tráfego de saída.
+Na execução 41375485808: `backend`, 1.225 testes aprovados e 63 pulados (os de dados reais, que rodam no job seguinte);
+`dados-reais`, 1.288 aprovados e nenhum pulado; `frontend`, os 160 testes do Node e o build; navegador, os 8 roteiros do
+`ui-block1`, o do `ui-conversational` e os 6 do `conteiner` (hospedagem, conexão, página única, área de análise e mapa com a
+base versionada, e a sessão); `governanca` em ordem.
+
+**Problemas encontrados e corrigidos na Fase 1:**
+- antes do primeiro envio: a chave inválida do Gemini (resposta real 400 `API_KEY_INVALID`) caía como falha interna, sem a
+  espera de configuração; as rotas pesadas bloqueavam o laço de eventos (a saúde e a consulta da sessão esperavam o cálculo);
+  o arquivo enviado era lido inteiro antes da conferência do tamanho; as mensagens de erro mostravam o código HTTP, e a falha
+  de rede no gráfico mostrava o texto técnico do navegador; a verificação de saúde da interface era única, sem nova tentativa;
+  o padrão de chave do comando não cobria o formato da chave em uso;
+- na execução 41369463989: **o aviso de ocupado sumia no instante em que aparecia** (defeito do produto: a resposta da
+  interação da sessão, que não espera vaga, o tirava; `b75fa65`); e dois defeitos da própria medição (as planilhas iam ao
+  gráfico sem a escolha do código territorial, que o nome da coluna nunca estabelece; a conferência do prazo esperava 1.800
+  exatos, e o serviço devolve o tempo restante com fração; `41b97bb`);
+- na mesma revisão, a medição da memória das sessões não chegava ao teto pedido pelo comando (139 MiB de 256): passou a encher
+  as sessões até o teto e a medir os envios com elas cheias, e a concorrência passou a registrar os pedidos simultâneos
+  (`41b97bb`);
+- na execução 41372746893: **o pior caso de memória chegou a 89,6% dos 2 GiB** (sessões no teto de 256 MiB e dois XLSX de
+  15 MB juntos): o teto total foi reduzido para 128 MiB (`b8ae7fb`).
+
+**Só se confirma no Cloud Run:** a partida a frio real (com a CPU do Google e sem o aumento na partida), a restrição de CPU
+entre requisições, a latência da rede, o balanceador (que devolve 429 acima da concorrência com uma instância), o encerramento
+por ociosidade e a troca de instâncias, o consumo efetivo da trava e o tráfego de saída.
 
 ## J. Providências que dependem do responsável
 
@@ -191,8 +333,24 @@ stash local, o `gh` e o teste de gatilho), a validação real (V-1 a V-7) e a Fa
 ## K. Roteiro da Fase 2
 
 [ROTEIRO_FASE2.md](ROTEIRO_FASE2.md): F2-0 a F2-12, com os comandos revisados e não executados, o efeito, o custo esperado e
-como desfazer cada operação, e os custos fora da trava.
+como desfazer cada operação, e os custos fora da trava. A concorrência (40) e o timeout (150 s) do F2-6 vêm da medição
+(seção C).
 
 ## L. Parecer
 
-*Pendente das verificações do CI.* Sem a validação real do Gemini, o parecer não pode ser "Pronto para implantação".
+**Pronto com ressalvas.** Tudo o que a Fase 1 pede está implementado e verificado no CI com o Gemini simulado: a imagem
+roda com 1 CPU e 2 GiB, parte em cerca de 10 s com o aquecimento antes da porta, dá as mesmas respostas da referência em
+todas as famílias, recusa o que deve recusar antes de ler, mantém a saúde respondendo sob carga e cabe na memória no pior caso
+medido (72,7% dos 2 GiB depois do ajuste do teto das sessões); a interface aberta pelo Pages trata os estados A a G.
+
+Ressalvas, que impedem o "Pronto para implantação":
+1. a validação real do Gemini não foi feita (depende de "AUTORIZO A VALIDAÇÃO REAL DO GEMINI" e de V-1 a V-7); pelo comando,
+   sem ela o parecer não pode ser "Pronto para implantação";
+2. a divergência da RQ-FLX-17 aguarda a decisão do responsável (seção F);
+3. a política dos dados do Brasil diz que o repositório deve ser privado, e ele é público por decisão do responsável; a
+   varredura de segredos e a proteção de push estão desativadas (providências 2 e 3);
+4. os gatilhos por etiqueta não foram comprovados (o teste de gatilho depende de autorização);
+5. as medições são do runner do GitHub: a partida a frio, a CPU entre requisições, a rede, o balanceador e o consumo real da
+   trava só se confirmam no Cloud Run (F2-8 e F2-12);
+6. um XLSX de 15 MB leva cerca de 34 s por análise no runner, porque é reenviado e lido de novo a cada pedido: é o principal
+   risco de espera para quem o usa e de consumo da trava (o CSV do mesmo tamanho leva cerca de 5 s).

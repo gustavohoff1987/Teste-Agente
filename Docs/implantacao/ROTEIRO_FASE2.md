@@ -26,9 +26,10 @@ NUMERO=$(gcloud projects describe $PROJETO --format='value(projectNumber)')
 Recursos do serviço (decisões que não mudam): 1 vCPU, 2 GiB, mínimo 0 e máximo 1 instância, cobrança por requisição
 (`--cpu-throttling`), um processo Uvicorn, acesso público sem login, aumento de CPU na partida **desligado**
 (`--no-cpu-boost`; ligado, eleva a CPU e o consumo da trava; só com autorização). A concorrência e o timeout vêm da medição
-no CI (relatório, seções C e I): os valores abaixo, **concorrência 20** e **timeout 150 s** (acima do prazo de 100 s da
-conversa na tela), são os propostos até o relatório registrar a medição; se ela indicar outros, este roteiro é atualizado antes
-do F2-6.
+no CI ([relatório](RELATORIO_IMPLANTACAO.md), seção C): **concorrência 40** (o máximo medido foi de 22 pedidos em andamento
+com 20 usuários simulados; acima da concorrência, a plataforma segura os pedidos ou responde 429 sem CORS, que o navegador vê
+como indisponibilidade) e **timeout 150 s** (a conversa vai a cerca de 95 s, mais a espera por vaga, e a tela desiste aos 100
+s; a operação pesada mais longa medida, dois XLSX de 15 MB juntos, levou 71 s, mais até 20 s de fila).
 
 ## F2-0 — Verificação prévia (só leitura)
 
@@ -75,8 +76,8 @@ gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJE
 ```
 
 **Efeito:** um repositório privado de imagens; ficam as 2 versões mais recentes (a em uso e a anterior, para o rollback).
-**Custo:** a franquia é de 0,5 GB por mês; cada imagem deve ter cerca de 0,2 GB comprimida (estimativa; o tamanho medido no
-CI fica no relatório, seção C), então 2 versões ficam dentro dela. Acima, cerca de US$ 0,10 por GB por mês, **fora da trava do Cloud Run**. **Desfazer:**
+**Custo:** a franquia é de 0,5 GB por mês; cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI,
+relatório, seção C), então 2 versões ficam dentro dela. Acima, cerca de US$ 0,10 por GB por mês, **fora da trava do Cloud Run**. **Desfazer:**
 `gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens).
 
 ## F2-3 — Contas de serviço e federação de identidade restrita ao ambiente `producao`
@@ -143,7 +144,7 @@ Antes: F2-0 de novo. Todos os parâmetros explícitos:
 gcloud run deploy $SERVICO --project=$PROJETO --region=$REGIAO \
   --image="$REGIAO-docker.pkg.dev/$PROJETO/$REPOSITORIO/$IMAGEM@sha256:<digest do F2-5>" \
   --execution-environment=gen2 --cpu=1 --memory=2Gi --min-instances=0 --max-instances=1 \
-  --concurrency=20 --timeout=150 --cpu-throttling --no-cpu-boost --port=8080 \
+  --concurrency=40 --timeout=150 --cpu-throttling --no-cpu-boost --port=8080 \
   --startup-probe=tcpSocket.port=8080,initialDelaySeconds=0,timeoutSeconds=10,periodSeconds=10,failureThreshold=24 \
   --service-account=$SA_EXECUCAO --set-secrets=GEMINI_API_KEY=gemini-api-key:1 \
   --set-env-vars=ADT_ALLOWED_ORIGINS=$ORIGEM,ADT_DOCUMENTACAO_DA_API=0 \
@@ -223,9 +224,9 @@ Faturamento → Relatórios, filtrado pelo Cloud Run. Tempo faturável das consu
 
 | Item | Franquia | Uso esperado | Acima da franquia |
 |---|---|---|---|
-| Artifact Registry (armazenamento) | 0,5 GB/mês | 2 versões de cerca de 0,2 GB | cerca de US$ 0,10 por GB/mês |
+| Artifact Registry (armazenamento) | 0,5 GB/mês | 2 versões de cerca de 126 MiB | cerca de US$ 0,10 por GB/mês |
 | Secret Manager | 6 versões ativas e 10 mil acessos/mês | 1 versão; 1 acesso por partida de instância | US$ 0,06 por versão/mês; US$ 0,03 por 10 mil acessos |
 | Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run e o log do Uvicorn (sem o log de acesso) | cerca de US$ 0,50 por GiB |
-| Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios tem cerca de 2 MB comprimido; uma sessão típica, de 5 a 20 MB | conforme a tabela de rede do Google |
+| Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios transfere cerca de 0,2 MiB com gzip (2,3 MiB sem compressão) e a análise mais pesada (evolução e tendência), 3,8 MiB; uma sessão típica, de 1 a 5 MiB | conforme a tabela de rede do Google |
 | Cloud Build | não usado | — | — |
 | Varredura de vulnerabilidades | não habilitada | — | cobrada por imagem |
