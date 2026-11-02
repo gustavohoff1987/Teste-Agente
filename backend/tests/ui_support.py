@@ -31,6 +31,21 @@ def offline(context):
                   in ("127.0.0.1", "localhost", "::1") else route.abort())
 
 
+def responder_uma_vez(page, padrao, **resposta):
+    """Responde só o primeiro POST que casar com `padrao` (route.fulfill, com o CORS) e deixa seguir os demais pedidos,
+    inclusive uma pré-verificação do CORS que chegue aqui. Devolve a lista que ganha um item quando a resposta sai."""
+    feito = []
+
+    def tratar(rota):
+        if rota.request.method == "POST" and not feito:
+            feito.append(True)
+            rota.fulfill(**{"headers": CORS, **resposta})
+        else:
+            rota.fallback()
+    page.route(padrao, tratar)
+    return feito
+
+
 def accept_privacy(page):
     page.get_by_role("button", name="Li e concordo", exact=True).click()
 

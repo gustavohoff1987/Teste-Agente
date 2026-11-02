@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import API, CORS, PRIVACIDADE, URL, accept_privacy, offline, send
+from ui_support import API, PRIVACIDADE, URL, accept_privacy, offline, responder_uma_vez, send
 
 NOME = os.getenv("ADT_CONTEINER_NOME", "adt-api-ui")
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -163,8 +163,7 @@ def main():
         # C. Ocupado: a resposta legível do serviço no limite mostra o aviso de ocupado, sem a indisponibilidade.
         texto_ocupado = "O serviço está ocupado neste teste. Aguarde alguns segundos e tente novamente."
         corpo = '{"detail": "%s", "ocupado": true, "tente_em": 1}' % texto_ocupado
-        page.route("**/api/inspect", lambda rota: rota.fulfill(status=503, body=corpo, content_type="application/json",
-                                                               headers=CORS), times=1)
+        responder_uma_vez(page, "**/api/inspect", status=503, body=corpo, content_type="application/json")
         aperta(area.get_by_test_id("analise-fonte-brasil"))
         expect(page.get_by_test_id("conexao-ocupado")).to_have_text(texto_ocupado, timeout=30000)
         expect(fonte.get_by_test_id("fonte-erro")).to_have_text(texto_ocupado)
@@ -174,8 +173,7 @@ def main():
         expect(page.get_by_test_id("current-source")).to_be_visible(timeout=120000)
         expect(page.get_by_test_id("conexao-ocupado")).to_have_count(0)
         # No gráfico, a nova tentativa sai sozinha, depois do tempo que o serviço indica.
-        page.route("**/api/painel", lambda rota: rota.fulfill(status=503, body=corpo, content_type="application/json",
-                                                              headers=CORS), times=1)
+        responder_uma_vez(page, "**/api/painel", status=503, body=corpo, content_type="application/json")
         aperta(area.get_by_test_id("analise-nivel-estados"))
         with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.status == 200, timeout=120000):
             aperta(area.get_by_test_id("analise-marcar-todos"))
