@@ -624,7 +624,8 @@ fixada no repositório.
 |---|---|
 | F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL confirmados pela P-2 |
 | F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
-| F2-2 a F2-13 | não iniciadas |
+| F2-2 — repositório do Artifact Registry, auditoria e limpeza em simulação | **feita** com "AUTORIZO F2-2" (abaixo) |
+| F2-3 a F2-13 | não iniciadas |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -656,6 +657,21 @@ e 100%. As configurações financeiras não foram alteradas.
 desligadas. O Google ligou junto, como dependências, `containerregistry.googleapis.com` e `pubsub.googleapis.com`, sem custo
 sem uso e não usadas pelo roteiro. Nenhum recurso criado; o projeto da chave do Gemini não foi tocado.
 
-Ponto de retomada: "AUTORIZO F2-2" (repositório do Artifact Registry, registros de auditoria e política de limpeza em
-simulação).
+**F2-2 (02/11/2026).**
+- **Repositório:** `agente-diagnostico-territorial`, Docker, `us-central1`, modo padrão, chave gerenciada pelo Google, 0 MB.
+  Antes da criação, a listagem confirmou que não havia repositório.
+- **Auditoria:** a política IAM do projeto foi lida para um arquivo temporário fora do repositório. Ela não tinha
+  `auditConfigs` e tinha 6 bindings. Recebeu só `artifactregistry.googleapis.com` com `DATA_WRITE` e foi gravada de volta
+  com o etag (novo etag `BwZfU5kPhJo=`). O arquivo temporário foi apagado. Na conferência, a entrada de auditoria está
+  presente e os 6 bindings continuam lá. Nenhum membro foi exibido.
+- **Limpeza:** as três regras (`manter-em-uso-e-anterior`, `manter-a-mais-recente` e `apagar-as-demais-depois-de-1-dia`)
+  estão aplicadas com `cleanupPolicyDryRun: true`. Nada é apagado até a F2-13.
+- **Problemas de execução no Windows**, sem efeito em nenhum recurso:
+  - Pelo Git Bash, o `gcloud.cmd`, cujo caminho tem espaços, recebeu mal um argumento entre aspas, e o `cmd.exe` não chegou a
+    rodar a criação.
+  - Pelo PowerShell, o script Python em linha perdeu as aspas, e a saída JSON veio com BOM.
+  - Contorno: executar os comandos pelo PowerShell e usar scripts em arquivo. O roteiro registra isso em "Execução no
+    Windows".
+
+Ponto de retomada: "AUTORIZO F2-3" (contas de serviço e federação de identidade restrita ao ambiente `producao`).
 

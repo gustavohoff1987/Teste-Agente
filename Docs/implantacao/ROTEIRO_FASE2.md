@@ -34,6 +34,16 @@ com 20 usuários simulados; acima da concorrência, a plataforma segura os pedid
 como indisponibilidade) e **timeout 150 s** (a conversa vai a cerca de 95 s, mais a espera por vaga, e a tela desiste aos 100
 s; a operação pesada mais longa medida, dois XLSX de 15 MB juntos, levou 71 s, mais até 20 s de fila).
 
+## Execução no Windows (registrada na F2-2, 02/11/2026)
+
+Os blocos abaixo estão em sintaxe bash. Neste computador, o gcloud é o `gcloud.cmd`, que fica fora do PATH das sessões
+abertas antes da instalação: `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdkin\gcloud.cmd`.
+- Pelo Git Bash, o `cmd.exe` interpreta mal o caminho com espaços quando outro argumento também vem entre aspas.
+- O agente executa os comandos pelo PowerShell (`& $G ...`), com `CLOUDSDK_CORE_DISABLE_PROMPTS=1`.
+- Os trechos em Python vão em arquivos, porque o PowerShell perde as aspas de scripts passados em linha.
+- A saída JSON do PowerShell traz BOM: ler com `utf-8-sig`, ou filtrar pelo próprio `--format` do gcloud.
+- Os arquivos temporários ficam fora do repositório.
+
 ## F2-0 — Verificação prévia (só leitura)
 
 Providências antes: **P-1** (gcloud autenticado na conta e no projeto certos) e **P-2** (trava e alertas conferidos no
