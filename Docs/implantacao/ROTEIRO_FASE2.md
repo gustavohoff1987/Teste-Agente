@@ -183,7 +183,8 @@ gcloud run deploy $SERVICO --project=$PROJETO --region=$REGIAO \
   --service-account=$SA_EXECUCAO --set-secrets=GEMINI_API_KEY=gemini-api-key:1 \
   --set-env-vars=ADT_ALLOWED_ORIGINS=$ORIGEM,ADT_DOCUMENTACAO_DA_API=0 \
   --ingress=all --no-allow-unauthenticated --labels=aplicacao=agente-diagnostico-territorial
-# Teste pelo proxy autenticado (o token fica com o gcloud; nada é exibido):
+# Teste pelo proxy autenticado (o token fica com o gcloud; nada é exibido). Exige o componente extra do gcloud para o
+# proxy; sem ele (F2-6 de 03/11/2026), a partida é conferida pelo Cloud Logging, e a saúde por HTTP, na F2-8:
 gcloud run services proxy $SERVICO --project=$PROJETO --region=$REGIAO --port=18080 &
 curl -fsS http://127.0.0.1:18080/api/health
 ```

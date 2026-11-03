@@ -631,7 +631,8 @@ fixada no repositório.
 | F2-4 — leitura do segredo pela conta de execução | **feita** com "AUTORIZO F2-4" (abaixo) |
 | F2-3 — correção da federação | **feita** com "AUTORIZO F2-3" (abaixo) |
 | F2-5 — enviar a imagem | **feita**: a primeira tentativa falhou na federação; depois da correção, a imagem foi enviada (abaixo) |
-| F2-6 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-6 — implantar no Cloud Run, sem acesso público | **feita** com "AUTORIZO F2-6" (abaixo) |
+| F2-7 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -771,5 +772,29 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
 - **Commit `dfd2bf7`:** a mensagem dele anunciava esta conclusão, mas, por uma falha do agente na hora de gravar, ele só
   levou o registro da primeira tentativa. O conteúdo completo veio no commit seguinte.
 
-Ponto de retomada: "AUTORIZO F2-6" (a F2-0 de novo e a implantação no Cloud Run, sem acesso público, com esse digest).
+**F2-6 (03/11/2026, "AUTORIZO F2-6").**
+- **F2-0 de novo:** 0 falhas. Com as APIs ligadas, nenhum serviço, repositório, segredo, conta ou pool fora do previsto; a
+  conta padrão do Compute aparece como OK; os itens MANUAL foram confirmados pela P-2.
+- **Implantação:** revisão `agente-diagnostico-territorial-00001-48n`, com 100% do tráfego e as condições `Ready`,
+  `ConfigurationsReady` e `RoutesReady` verdadeiras. Endereço: `https://agente-diagnostico-territorial-338451103854.us-central1.run.app`
+  (também `https://agente-diagnostico-territorial-woz4embaja-uc.a.run.app`).
+- **Configuração efetiva, conferida só em leitura:**
+  - a imagem pelo digest `sha256:6988e2e9…1a86e`;
+  - 1 vCPU e 2 GiB; mínimo 0 e máximo 1 instância; concorrência 40 e timeout de 150 s;
+  - cobrança por requisição, sem aumento de CPU na partida, ambiente `gen2`;
+  - a conta `adt-execucao`;
+  - `ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io`, `ADT_DOCUMENTACAO_DA_API=0` e `GEMINI_API_KEY` do segredo
+    `gemini-api-key`, versão 1;
+  - a sonda TCP na porta 8080 (24 × 10 s) e `ingress: all`.
+- **Acesso:** a política de invocação não tem nenhum membro. Sem login, o serviço responde **403**.
+- **Partida na nuvem** (Cloud Logging):
+  - a instância começou às 23:03:07 UTC;
+  - o aquecimento terminou em 13,6 s (base do Brasil 12,5 s, biblioteca conversacional 1,1 s), contra 8,5 s no runner;
+  - a porta abriu às 23:03:27, cerca de 20 s depois do início, e a sonda passou na 2ª tentativa.
+- **Teste pelo proxy autenticado: não feito.** O `gcloud run services proxy` precisa de um componente extra do gcloud, cuja
+  instalação foi recusada no modo não interativo. O agente não instalou nada nem usou um token impresso pelo gcloud. A
+  saúde por HTTP fica para a F2-8, depois do acesso liberado; a partida e a sonda estão comprovadas pelos registros.
+- **Marcação:** a etiqueta `em-uso` está no digest implantado. Na primeira implantação não há `anterior`.
+
+Ponto de retomada: "AUTORIZO F2-7" (liberar o acesso público).
 
