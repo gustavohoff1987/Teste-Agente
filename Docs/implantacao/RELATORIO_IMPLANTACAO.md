@@ -629,7 +629,8 @@ fixada no repositório.
 | F2-2 — repositório do Artifact Registry | **concluída** com o escopo simplificado: repositório mantido, política de limpeza retirada, `DATA_WRITE` desligado pelo responsável no Console (abaixo) |
 | F2-3 — contas de serviço e federação restrita ao ambiente `producao` | **feita** com "AUTORIZO F2-3" (abaixo) |
 | F2-4 — leitura do segredo pela conta de execução | **feita** com "AUTORIZO F2-4" (abaixo) |
-| F2-5 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-5 — enviar a imagem | em andamento: a primeira tentativa falhou na federação (abaixo); nada enviado |
+| F2-6 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -738,5 +739,20 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
 - a versão 1 continua `enabled`;
 - o valor do segredo não foi lido.
 
-Ponto de retomada: "AUTORIZO F2-5" (o envio da imagem pela etiqueta `imagem-*`), no último commit do ramo com o CI em PASS.
+**F2-5, primeira tentativa (03/11/2026, "AUTORIZO F2-5").**
+- **Etiqueta:** `imagem-20261103-1`, no `e2e64f4` (CI em PASS, execução 41558414040), acionou a execução 41561015736. O job
+  `conferir-protecao` passou. O responsável aprovou o job `imagem` (P-5), que construiu a imagem e passou no teste rápido do
+  contêiner.
+- **Falha no passo da federação:** `unauthorized_client: The given credential is rejected by the attribute condition`. Nada
+  foi enviado ao Artifact Registry.
+- **Causa, conferida só em leitura:** o repositório usa o `sub` com identificadores imutáveis (`use_immutable_subject: true`,
+  prefixo `repo:gustavohoff1987@322563090/Teste-Agente@1411794822`). O token chega com
+  `repo:gustavohoff1987@322563090/Teste-Agente@1411794822:environment:producao`, e a condição e o vínculo da F2-3 esperavam
+  `repo:gustavohoff1987/Teste-Agente:environment:producao`.
+- **Correção proposta** (altera os recursos da F2-3): a condição passa a conferir os identificadores imutáveis do repositório
+  e do dono, o ambiente e o `sub` novo; o vínculo `workloadIdentityUser` da conta de envio passa para o `sub` novo; o vínculo
+  antigo sai. Depois, uma nova execução do job, com nova aprovação (P-5).
+
+Ponto de retomada: a autorização da correção da federação (F2-3) e, depois, a nova execução do job `imagem` da execução
+41561015736.
 
