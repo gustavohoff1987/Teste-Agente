@@ -626,7 +626,7 @@ fixada no repositório.
 |---|---|
 | F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL confirmados pela P-2 |
 | F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
-| F2-2 — repositório do Artifact Registry | executada com o escopo anterior (abaixo); escopo simplificado pelo responsável; a retirada dos registros `DATA_WRITE` e da política de limpeza aguarda "AUTORIZO F2-2" |
+| F2-2 — repositório do Artifact Registry | **concluída** com o escopo simplificado: repositório mantido, política de limpeza retirada, `DATA_WRITE` desligado pelo responsável no Console (abaixo) |
 | F2-3 a F2-13 | não iniciadas |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
@@ -680,6 +680,23 @@ registros de auditoria `DATA_WRITE` e a política de limpeza (em simulação ou 
 auditoria padrão. A mensagem chegou quando a operação já tinha terminado. O roteiro foi atualizado (F2-2 e F2-13), e a
 retirada dos dois itens já aplicados foi apresentada para autorização. O repositório fica.
 
-Ponto de retomada: "AUTORIZO F2-2" (escopo simplificado: retirar a entrada `DATA_WRITE` do Artifact Registry e as três
-regras da política de limpeza, mantendo o repositório); depois, a F2-3.
+**F2-2, escopo simplificado, execução (02/11/2026, "AUTORIZO F2-2"):**
+- **Política de limpeza:** as três regras foram retiradas com `delete-cleanup-policies`. O repositório continua vazio e sem
+  nenhuma regra. O indicador `cleanupPolicyDryRun: true` ficou, inerte sem regras; uma política futura começaria em
+  simulação.
+- **Registros `DATA_WRITE`:** não saem pelo gcloud. Gravar a política sem `auditConfigs` deixa a configuração como está, porque
+  o gcloud só atualiza os campos presentes (etag `BwZfVAt0dwk=`; o resto da política, igual). Gravar a entrada sem nenhum tipo
+  de registro é recusado pelo Google (`INVALID_ARGUMENT`), e nada muda. A outra via, a API com um token impresso pelo gcloud,
+  contraria a regra de não extrair tokens e não foi usada. O agente pediu ao responsável que desmarque o "Data Write" do
+  Artifact Registry no Console (IAM e administrador → Registros de auditoria). Os 6 bindings estão preservados em todas as
+  leituras, e os arquivos temporários foram apagados.
+
+**F2-2 concluída (02/11/2026).** O responsável desmarcou o "Data Write" do Artifact Registry no Console. A conferência só em
+leitura mostrou:
+- a política do projeto sem nenhuma configuração de auditoria (`auditConfigs` vazio), como no início; os registros padrão
+  do Google seguem;
+- os 6 bindings intactos;
+- o repositório `agente-diagnostico-territorial` vazio e sem política de limpeza.
+
+Ponto de retomada: "AUTORIZO F2-3" (contas de serviço e federação de identidade restrita ao ambiente `producao`).
 
