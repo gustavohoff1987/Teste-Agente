@@ -629,7 +629,8 @@ fixada no repositório.
 | F2-2 — repositório do Artifact Registry | **concluída** com o escopo simplificado: repositório mantido, política de limpeza retirada, `DATA_WRITE` desligado pelo responsável no Console (abaixo) |
 | F2-3 — contas de serviço e federação restrita ao ambiente `producao` | **feita** com "AUTORIZO F2-3" (abaixo) |
 | F2-4 — leitura do segredo pela conta de execução | **feita** com "AUTORIZO F2-4" (abaixo) |
-| F2-5 — enviar a imagem | em andamento: a primeira tentativa falhou na federação (abaixo); nada enviado |
+| F2-3 — correção da federação | **feita** com "AUTORIZO F2-3" (abaixo) |
+| F2-5 — enviar a imagem | **feita**: a primeira tentativa falhou na federação; depois da correção, a imagem foi enviada (abaixo) |
 | F2-6 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
@@ -753,6 +754,22 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
   e do dono, o ambiente e o `sub` novo; o vínculo `workloadIdentityUser` da conta de envio passa para o `sub` novo; o vínculo
   antigo sai. Depois, uma nova execução do job, com nova aprovação (P-5).
 
-Ponto de retomada: a autorização da correção da federação (F2-3) e, depois, a nova execução do job `imagem` da execução
-41561015736.
+**Correção da federação (03/11/2026, "AUTORIZO F2-3").**
+- **Provedor `teste-agente`:** ativo. A condição confere `assertion.repository_id == '1411794822'`,
+  `assertion.repository_owner_id == '322563090'`, o ambiente `producao` e o `sub` `repo:gustavohoff1987@322563090/Teste-Agente@1411794822:environment:producao`. O mapeamento ganhou
+  `attribute.repository_id`.
+- **Conta `adt-envio-imagem`:** tem só o vínculo `workloadIdentityUser` com o `sub` novo; o antigo foi retirado. Nenhuma
+  conta nova tem papel no projeto.
+- **Roteiro:** a F2-3 foi atualizada com esse formato.
+
+**F2-5 concluída (03/11/2026).**
+- **Execução:** a mesma 41561015736 foi reexecutada (`gh run rerun --failed`) e aprovada pelo responsável (P-5). Todos os
+  passos passaram: a construção, o teste rápido do contêiner, a federação e o envio.
+- **Imagem:** `us-central1-docker.pkg.dev/agente-diagnostico-territorial/agente-diagnostico-territorial/servico-de-analise`,
+  com o digest **`sha256:6988e2e9496c71b3caec50704d8710abe65d2aeb99f50fefb670d4a400b1a86e`** e a etiqueta
+  `e2e64f4b78446e8116e60c52c992c7678a40717e`. O repositório tem 118,7 MB, dentro da franquia.
+- **Commit `dfd2bf7`:** a mensagem dele anunciava esta conclusão, mas, por uma falha do agente na hora de gravar, ele só
+  levou o registro da primeira tentativa. O conteúdo completo veio no commit seguinte.
+
+Ponto de retomada: "AUTORIZO F2-6" (a F2-0 de novo e a implantação no Cloud Run, sem acesso público, com esse digest).
 

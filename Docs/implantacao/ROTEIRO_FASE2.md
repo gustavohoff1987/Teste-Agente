@@ -122,14 +122,16 @@ gcloud iam service-accounts create adt-envio-imagem --project=$PROJETO \
 gcloud artifacts repositories add-iam-policy-binding $REPOSITORIO --project=$PROJETO --location=$REGIAO \
   --member="serviceAccount:$SA_IMAGEM" --role="roles/artifactregistry.writer"
 # Federação: só tokens do repositório gustavohoff1987/Teste-Agente emitidos para o ambiente producao.
+# O repositório usa o sub com identificadores imutáveis (gh api repos/gustavohoff1987/Teste-Agente/actions/oidc/
+# customization/sub: use_immutable_subject true): repositório 1411794822, dono 322563090 (corrigido na F2-5, 03/11/2026).
 gcloud iam workload-identity-pools create github --project=$PROJETO --location=global --display-name="GitHub Actions"
 gcloud iam workload-identity-pools providers create-oidc teste-agente --project=$PROJETO --location=global \
   --workload-identity-pool=github --display-name="Teste-Agente, ambiente producao" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.environment=assertion.environment" \
-  --attribute-condition="assertion.repository == 'gustavohoff1987/Teste-Agente' && assertion.environment == 'producao' && assertion.sub == 'repo:gustavohoff1987/Teste-Agente:environment:producao'"
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.environment=assertion.environment" \
+  --attribute-condition="assertion.repository_id == '1411794822' && assertion.repository_owner_id == '322563090' && assertion.environment == 'producao' && assertion.sub == 'repo:gustavohoff1987@322563090/Teste-Agente@1411794822:environment:producao'"
 gcloud iam service-accounts add-iam-policy-binding $SA_IMAGEM --project=$PROJETO --role="roles/iam.workloadIdentityUser" \
-  --member="principal://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/subject/repo:gustavohoff1987/Teste-Agente:environment:producao"
+  --member="principal://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/subject/repo:gustavohoff1987@322563090/Teste-Agente@1411794822:environment:producao"
 echo "GCP_PROVEDOR_DE_IDENTIDADE=projects/$NUMERO/locations/global/workloadIdentityPools/github/providers/teste-agente"
 echo "GCP_CONTA_DE_ENVIO_DE_IMAGEM=$SA_IMAGEM"
 ```
