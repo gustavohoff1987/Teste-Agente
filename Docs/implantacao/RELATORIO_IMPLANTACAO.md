@@ -628,7 +628,8 @@ fixada no repositório.
 | F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
 | F2-2 — repositório do Artifact Registry | **concluída** com o escopo simplificado: repositório mantido, política de limpeza retirada, `DATA_WRITE` desligado pelo responsável no Console (abaixo) |
 | F2-3 — contas de serviço e federação restrita ao ambiente `producao` | **feita** com "AUTORIZO F2-3" (abaixo) |
-| F2-4 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-4 — leitura do segredo pela conta de execução | **feita** com "AUTORIZO F2-4" (abaixo) |
+| F2-5 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -720,6 +721,22 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
     Run, seria apontada como "não prevista" pela verificação prévia e travaria a F2-0 antes da F2-6. O script passou a
     reconhecê-la (OK, não usada pelo serviço), com teste. A conta não foi alterada.
 
-Ponto de retomada: as providências P-4 (o segredo `gemini-api-key` no Secret Manager, pelo Console, e a restrição da chave) e
-P-3 (o ambiente `producao` no GitHub, com os dois valores acima), do responsável; depois, "AUTORIZO F2-4".
+**P-4 e P-3 (03/11/2026), feitas pelo responsável e conferidas só em leitura:**
+- **P-4:** o segredo `gemini-api-key` existe no projeto de hospedagem, com replicação automática e a versão 1 `enabled`
+  (criada em 03/11/2026, 00:43 UTC), com a chave atual, segundo o responsável. O valor não foi lido. Ainda não há permissões
+  sobre ele, nem outros segredos. A restrição da chave à Generative Language API e o projeto da chave sem faturamento ficam
+  como informados pelo responsável: o agente não lê o projeto da chave.
+- **P-3** (chamada de P-5 na mensagem do responsável): o ambiente `producao` tem o revisor obrigatório `gustavohoff1987`,
+  "Prevent self-review" e o bypass de administradores desativados, e só a regra de etiqueta `imagem-*`, sem regras de ramo.
+  Tem as variáveis `GCP_PROVEDOR_DE_IDENTIDADE` e `GCP_CONTA_DE_ENVIO_DE_IMAGEM`, com os valores da F2-3, e nenhum segredo.
+- **CI:** o último commit (`0818488`) passou nos 8 jobs (execução 41553222496).
+
+**F2-4 (03/11/2026).** O papel `roles/secretmanager.secretAccessor` foi dado no segredo `gemini-api-key` só para
+`adt-execucao` (novo etag `BwZfVPpit6g=`). Conferência:
+- a política do segredo tem esse único vínculo;
+- nenhuma conta nova tem papel no projeto;
+- a versão 1 continua `enabled`;
+- o valor do segredo não foi lido.
+
+Ponto de retomada: "AUTORIZO F2-5" (o envio da imagem pela etiqueta `imagem-*`), no último commit do ramo com o CI em PASS.
 
