@@ -632,7 +632,8 @@ fixada no repositório.
 | F2-3 — correção da federação | **feita** com "AUTORIZO F2-3" (abaixo) |
 | F2-5 — enviar a imagem | **feita**: a primeira tentativa falhou na federação; depois da correção, a imagem foi enviada (abaixo) |
 | F2-6 — implantar no Cloud Run, sem acesso público | **feita** com "AUTORIZO F2-6" (abaixo) |
-| F2-7 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-7 — liberar o acesso público | **feita** com "AUTORIZO F2-7" (abaixo) |
+| F2-8 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -796,5 +797,13 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
   saúde por HTTP fica para a F2-8, depois do acesso liberado; a partida e a sonda estão comprovadas pelos registros.
 - **Marcação:** a etiqueta `em-uso` está no digest implantado. Na primeira implantação não há `anterior`.
 
-Ponto de retomada: "AUTORIZO F2-7" (liberar o acesso público).
+**F2-7 (03/11/2026, "AUTORIZO F2-7").**
+- **Acesso:** a política de invocação tem só `roles/run.invoker` para `allUsers` (etag `BwZfZ8p30ew=`).
+- **Saúde sem login:** HTTP 200 em 25,2 s, uma partida a frio, porque a instância tinha encerrado por ociosidade. A resposta
+  foi `{"status":"ok","llm":false,"version":"0.1.0"}`. O campo `llm` é fixo no código (`main.health`) e não indica
+  o estado do Gemini.
+- **Gemini:** `/api/llm/status` mostra `configured: true`, `gemini-3.5-flash-lite`, `disponivel: true` e 0 chamadas no dia;
+  a chave chegou pelo segredo. Nenhuma chamada ao provedor foi feita.
+
+Ponto de retomada: "AUTORIZO F2-8" (os testes de produção sem o Gemini).
 
