@@ -699,7 +699,7 @@ leitura mostrou:
 - os 6 bindings intactos;
 - o repositório `agente-diagnostico-territorial` vazio e sem política de limpeza.
 
-**F2-3 (02/11/2026).** Pelo PowerShell, com o gcloud chamado pelo Python embutido do SDK (`platformundledpython\python.exe
+**F2-3 (02/11/2026).** Pelo PowerShell, com o gcloud chamado pelo Python embutido do SDK (`platform\bundledpython\python.exe
 lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condição.
 - **Contas de serviço:** `adt-execucao@agente-diagnostico-territorial.iam.gserviceaccount.com` e
   `adt-envio-imagem@agente-diagnostico-territorial.iam.gserviceaccount.com`, ativas e sem nenhuma chave criada.
