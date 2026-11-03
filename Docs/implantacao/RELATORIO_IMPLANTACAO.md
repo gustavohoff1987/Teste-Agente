@@ -627,7 +627,8 @@ fixada no repositório.
 | F2-0 — verificação prévia (só leitura) | **feita** com "AUTORIZO F2-0": 0 falhas; os 2 itens MANUAL confirmados pela P-2 |
 | F2-1 — habilitar as APIs | **feita** com "AUTORIZO F2-1" (abaixo) |
 | F2-2 — repositório do Artifact Registry | **concluída** com o escopo simplificado: repositório mantido, política de limpeza retirada, `DATA_WRITE` desligado pelo responsável no Console (abaixo) |
-| F2-3 a F2-13 | não iniciadas |
+| F2-3 — contas de serviço e federação restrita ao ambiente `producao` | **feita** com "AUTORIZO F2-3" (abaixo) |
+| F2-4 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -698,5 +699,27 @@ leitura mostrou:
 - os 6 bindings intactos;
 - o repositório `agente-diagnostico-territorial` vazio e sem política de limpeza.
 
-Ponto de retomada: "AUTORIZO F2-3" (contas de serviço e federação de identidade restrita ao ambiente `producao`).
+**F2-3 (02/11/2026).** Pelo PowerShell, com o gcloud chamado pelo Python embutido do SDK (`platformundledpython\python.exe
+lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condição.
+- **Contas de serviço:** `adt-execucao@agente-diagnostico-territorial.iam.gserviceaccount.com` e
+  `adt-envio-imagem@agente-diagnostico-territorial.iam.gserviceaccount.com`, ativas e sem nenhuma chave criada.
+- **Permissões:**
+  - `roles/artifactregistry.writer` só no repositório, para a conta de envio;
+  - `roles/iam.workloadIdentityUser` sobre a conta de envio, só para
+    `principal://…/workloadIdentityPools/github/subject/repo:gustavohoff1987/Teste-Agente:environment:producao`;
+  - nenhuma permissão sobre a conta de execução, e nenhum papel das contas novas no projeto.
+- **Federação:** o pool `github` e o provedor OIDC `teste-agente`, `ACTIVE`, com o emissor
+  `https://token.actions.githubusercontent.com` e a condição restrita ao repositório, ao ambiente `producao` e ao subject.
+- **Valores para a P-3** (não secretos, variáveis do ambiente `producao`):
+  - `GCP_PROVEDOR_DE_IDENTIDADE` = `projects/338451103854/locations/global/workloadIdentityPools/github/providers/teste-agente`;
+  - `GCP_CONTA_DE_ENVIO_DE_IMAGEM` = `adt-envio-imagem@agente-diagnostico-territorial.iam.gserviceaccount.com`.
+- **Problemas encontrados e corrigidos:**
+  - o nome de exibição da conta de envio passava de 100 caracteres e foi recusado, sem criar nada; o nome foi encurtado, e o
+    roteiro também;
+  - a conta padrão do Compute (`338451103854-compute@developer.gserviceaccount.com`), criada pelo Google ao habilitar o Cloud
+    Run, seria apontada como "não prevista" pela verificação prévia e travaria a F2-0 antes da F2-6. O script passou a
+    reconhecê-la (OK, não usada pelo serviço), com teste. A conta não foi alterada.
+
+Ponto de retomada: as providências P-4 (o segredo `gemini-api-key` no Secret Manager, pelo Console, e a restrição da chave) e
+P-3 (o ambiente `producao` no GitHub, com os dois valores acima), do responsável; depois, "AUTORIZO F2-4".
 

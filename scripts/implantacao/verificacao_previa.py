@@ -131,6 +131,10 @@ def verificar(rodar, projeto: str, regiao: str) -> list[tuple[str, str, str]]:
             item("ATENÇÃO", "repositório do Artifact Registry não previsto", nome)
     codigo, contas = rodar("iam", "service-accounts", "list", "--project=" + projeto, "--format=value(email)")
     for email in (contas.split() if codigo == 0 else []):
+        if email.endswith("-compute@developer.gserviceaccount.com"):
+            # Criada pelo Google ao habilitar o Cloud Run (F2-1, 02/11/2026); o serviço usa a adt-execucao, não esta.
+            item("OK", "conta padrão do Compute", email + " (criada pelo Google; não usada pelo serviço)")
+            continue
         if email.split("@")[0] not in CONTAS_PREVISTAS:
             item("ATENÇÃO", "conta de serviço não prevista", email)
     segredos = listar("segredos", "secrets", "list", "--project=" + projeto) or []

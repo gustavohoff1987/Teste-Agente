@@ -435,6 +435,18 @@ def test_verificacao_previa_nao_toma_listagem_que_falhou_por_nenhum_recurso():
     assert ("FALHA", "APIs habilitadas") in {(s, n) for s, n, _ in itens}
 
 
+def test_verificacao_previa_aceita_a_conta_padrao_do_compute_criada_pelo_google():
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        if args[:2] == ("iam", "service-accounts"):
+            return 0, "338451103854-compute@developer.gserviceaccount.com\nadt-execucao@p.iam.gserviceaccount.com\n"
+        return simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    assert not [i for i in itens if i[0] in ("FALHA", "ATENÇÃO")], itens
+    assert any(n == "conta padrão do Compute" for _, n, _ in itens)
+
+
 def test_verificacao_previa_aponta_projeto_recursos_e_limites_fora_do_previsto():
     itens = previa.verificar(gcloud_simulado(projeto="outro", maximo="3", memoria="4Gi", orcamento=False,
                                              extras=("cloudbuild.googleapis.com",)), "agente-diagnostico-territorial", "us-east1")

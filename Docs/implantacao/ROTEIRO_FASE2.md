@@ -117,7 +117,7 @@ gcloud artifacts repositories delete-cleanup-policies $REPOSITORIO --project=$PR
 gcloud iam service-accounts create adt-execucao --project=$PROJETO \
   --display-name="Agente Diagnóstico Territorial da Força de Trabalho na Saúde - execução no Cloud Run"
 gcloud iam service-accounts create adt-envio-imagem --project=$PROJETO \
-  --display-name="Agente Diagnóstico Territorial da Força de Trabalho na Saúde - envio da imagem pelo GitHub Actions"
+  --display-name="Agente Diagnóstico Territorial da Força de Trabalho na Saúde - envio da imagem (GitHub Actions)"   # até 100 caracteres
 # Envio da imagem: só escrever neste repositório.
 gcloud artifacts repositories add-iam-policy-binding $REPOSITORIO --project=$PROJETO --location=$REGIAO \
   --member="serviceAccount:$SA_IMAGEM" --role="roles/artifactregistry.writer"
