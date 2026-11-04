@@ -319,3 +319,36 @@ limpeza, nenhuma simulação e nenhum registro de auditoria `DATA_WRITE`; as ima
 | Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios transfere cerca de 0,2 MiB com gzip (2,3 MiB sem compressão) e a análise mais pesada (evolução e tendência), 3,8 MiB; uma sessão típica, de 1 a 5 MiB | conforme a tabela de rede do Google |
 | Cloud Build | não usado | — | — |
 | Varredura de vulnerabilidades | não habilitada | — | cobrada por imagem |
+
+
+## Segunda publicação da interface: https://diagnostico-territorial.github.io/ (M-0 a M-5)
+
+Plano de 04/11/2026: a mesma interface, publicada na raiz pelo repositório
+`diagnostico-territorial/diagnostico-territorial.github.io`, ao lado da publicação atual (`/Teste-Agente/`), que não muda.
+Cada operação M-n só acontece depois de "AUTORIZO M-n".
+
+**Desenho:** sem credencial entre repositórios.
+- O destino tem o próprio workflow (modelo em [destino/publicar.yml](destino/publicar.yml)) e as próprias cópias revisadas de
+  `conferir_protecao.py`, `conferir_origem.py` e `verificar_chave_google.py`.
+- Ele lê o Teste-Agente, que é público, no commit fixado em `origem.txt`, e o constrói com `ADT_BASE_DA_PAGINA=/`.
+- Ele publica no próprio Pages, no ambiente `github-pages`, com a aprovação do responsável.
+- Antes do build, confere a origem: o commit pertence a `implantacao/cloud-run-pages`, e o CI dele terminou em sucesso.
+- O serviço no Cloud Run, o Gemini, a trava e os orçamentos são os mesmos; o CORS passa a ter as duas origens (M-3).
+
+| Operação | O que faz | Reversão |
+|---|---|---|
+| M-0 | Só leitura: as Actions e o ambiente do destino, o último CI, a F2-0 e o CORS de hoje | — |
+| M-1 | No Teste-Agente: o CI constrói e testa a interface também na raiz (suíte `conteiner-raiz`); `conferir_origem.py` com testes; o teste do CORS com duas origens; o modelo do workflow do destino; documentação | um commit de reversão |
+| P-M1 | Responsável, no destino: a varredura de segredos e a proteção de push; o ambiente `github-pages` com revisor, sem bypass e só a etiqueta `publicacao-pages-*`; a variável `VITE_API_BASE_URL`; o Pages pela origem GitHub Actions | — |
+| M-2 | No `main` do destino: `.github/workflows/publicar.yml`, as cópias dos três scripts, `origem.txt` (o SHA verificado do Teste-Agente) e o README | um commit de reversão no destino |
+| M-3 | A F2-0 e depois `gcloud run services update ... --update-env-vars="^##^ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io"`, com uma revisão nova e o **mesmo digest**; a conferência dos cabeçalhos para as duas origens e para uma estranha; o registro de comportamento | o mesmo comando, só com a origem atual |
+| M-4 | A etiqueta `publicacao-pages-AAAAMMDD-1` no destino; a aprovação do responsável (P-M2); a conferência pela API (200 em `/`, os recursos sob `/`, o endereço do serviço no build) | Settings → Pages do destino → desativar |
+| M-5 | A conferência final: os dois sites no navegador (responsável), os registros e o uso do serviço, o relatório | — |
+
+**Ordem:** a M-3 vem antes da M-4, para que a primeira visita ao site novo já passe no CORS.
+
+**Custo:**
+- o Pages e as Actions não custam nada em repositório público;
+- as visitas ao site novo contam na trava de R$ 11 do Cloud Run e no limite de 15 chamadas por minuto do Gemini, somando
+  todos os usuários;
+- a M-3 cria uma revisão nova, que descarta as sessões em memória e pode causar uma partida a frio.

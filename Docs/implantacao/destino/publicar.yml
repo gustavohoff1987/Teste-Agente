@@ -1,0 +1,111 @@
+name: Publicação da interface (GitHub Pages)
+# Modelo para o repositório diagnostico-territorial/diagnostico-territorial.github.io (04/11/2026; ROTEIRO_FASE2.md, M-2), em
+# .github/workflows/publicar.yml de lá. Publica em https://diagnostico-territorial.github.io/ a interface do Teste-Agente, no
+# commit fixado em origem.txt, construída na raiz (ADT_BASE_DA_PAGINA=/). Sem credencial entre repositórios: o Teste-Agente é
+# público e só é lido. O envio de uma etiqueta publicacao-pages-* aciona:
+# 1. conferir: com as cópias revisadas dos scripts guardadas no destino (não as do commit conferido), o repositório público,
+#    o ambiente github-pages (revisor, só etiquetas publicacao-pages-*), o commit da etiqueta no main e a origem (o commit no
+#    ramo implantacao/cloud-run-pages e o CI dele em sucesso);
+# 2. build, sem ambiente: npm ci, testes, build na raiz com VITE_API_BASE_URL e o padrão de chave do Google no build;
+# 3. publicar, no ambiente github-pages, que espera a aprovação do responsável.
+on:
+  push:
+    tags: ["publicacao-pages-*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  conferir:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.origem.outputs.commit }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Commit de origem fixado (origem.txt)
+        id: origem
+        run: |
+          commit="$(tr -d '[:space:]' < origem.txt)"
+          if ! printf '%s' "$commit" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error title=origem.txt::o arquivo precisa ter só o SHA completo do commit do Teste-Agente"
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Repositório público, ambiente github-pages, revisor, etiquetas e o commit da etiqueta no main (só leitura)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/scripts/conferir_protecao.py --ambiente github-pages
+          --etiquetas "publicacao-pages-*" --ramo main
+      - name: Origem no ramo de preparação e com o CI em sucesso (só leitura)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/scripts/conferir_origem.py --repositorio gustavohoff1987/Teste-Agente
+          --ramo implantacao/cloud-run-pages --commit "${{ steps.origem.outputs.commit }}"
+
+  build:
+    needs: conferir
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          persist-credentials: false
+      - name: O código do Teste-Agente no commit conferido
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          repository: gustavohoff1987/Teste-Agente
+          ref: ${{ needs.conferir.outputs.commit }}
+          path: origem
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6.5.0
+        with:
+          node-version: "22.23.4"
+      - name: Endereço do serviço (variável do repositório, não é segredo)
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if ! printf '%s' "$VITE_API_BASE_URL" | grep -Eq '^https://[a-z0-9.-]+\.run\.app$'; then
+            echo "::error title=VITE_API_BASE_URL::defina a variável do repositório com o endereço do Cloud Run (https://….run.app, sem / no fim)"
+            exit 1
+          fi
+      - name: Dependências, testes, TypeScript e build na raiz
+        working-directory: origem/frontend
+        env:
+          ADT_BASE_DA_PAGINA: /
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Padrão de chave do Google no build
+        run: python3 .github/scripts/verificar_chave_google.py origem/frontend/dist
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa  # v3.0.1
+        with:
+          path: origem/frontend/dist
+
+  publicar:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publicacao.outputs.page_url }}
+    steps:
+      - id: publicacao
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e  # v4.0.5

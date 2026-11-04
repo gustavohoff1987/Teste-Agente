@@ -133,7 +133,8 @@ jobs:
         run: python .github/scripts/verificar_governanca.py
 
   # Hospedagem (01/11/2026; Docs/implantacao/): a imagem do contêiner nas condições do Cloud Run (1 CPU, 2 GiB sem swap e
-  # /tmp em memória), construída aqui e nunca enviada a registro, e a interface como no GitHub Pages (/Teste-Agente/, com o
+  # /tmp em memória), construída aqui e nunca enviada a registro, e a interface como no GitHub Pages (/Teste-Agente/ e, desde
+  # 04/11/2026, também na raiz, como em https://diagnostico-territorial.github.io/; com o
   # serviço noutro endereço). Confere a sintaxe dos workflows e o padrão de chave do Google na imagem, no build e nos
   # artefatos; mede partida, memória, análises, planilhas, sessões, Gemini simulado e concorrência (artefato
   # "medicoes-do-conteiner"); roda pelo navegador a hospedagem simulada e a sessão temporária. A CPU do runner não é a vCPU
@@ -164,22 +165,23 @@ jobs:
           pip install "playwright>=1.50,<2"
       - name: Imagem do contêiner (sem envio a registro)
         run: docker build --pull -t "$ADT_CONTEINER_IMAGEM" .
-      - name: Interface no build de sempre e como no GitHub Pages (/Teste-Agente/, serviço noutro endereço)
+      - name: Interface no build de sempre e como no GitHub Pages (/Teste-Agente/ e /, serviço noutro endereço)
         working-directory: frontend
         run: |
           npm ci
           npm run build
           ADT_BASE_DA_PAGINA=/Teste-Agente/ VITE_API_BASE_URL=http://127.0.0.1:18080 npx --no-install vite build --outDir dist-pages
+          ADT_BASE_DA_PAGINA=/ VITE_API_BASE_URL=http://127.0.0.1:18080 npx --no-install vite build --outDir dist-raiz
       - name: Padrão de chave do Google na imagem e nos builds da interface
         run: |
-          python .github/scripts/verificar_chave_google.py frontend/dist frontend/dist-pages
+          python .github/scripts/verificar_chave_google.py frontend/dist frontend/dist-pages frontend/dist-raiz
           docker run --rm --entrypoint python -v "$PWD/.github/scripts:/verificacao:ro" "$ADT_CONTEINER_IMAGEM" \
             /verificacao/verificar_chave_google.py --raiz-da-imagem /
       - name: Medições nas condições do Cloud Run (partida, memória, análises, planilhas, sessões, Gemini simulado e concorrência)
         run: python .github/scripts/medir_conteiner.py --imagem "$ADT_CONTEINER_IMAGEM" --saida "$RUNNER_TEMP/medicoes"
       - name: Navegador - hospedagem simulada (contêiner e Pages) e a sessão temporária
         if: ${{ !cancelled() }}
-        run: python backend/tests/run_ui_checks.py --suite conteiner --suite sessao
+        run: python backend/tests/run_ui_checks.py --suite conteiner --suite conteiner-raiz --suite sessao
       - name: Padrão de chave do Google nos artefatos
         if: ${{ !cancelled() }}
         run: python .github/scripts/verificar_chave_google.py "$RUNNER_TEMP/medicoes" .local/ui-validation

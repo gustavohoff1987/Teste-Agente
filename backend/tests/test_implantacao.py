@@ -30,6 +30,7 @@ protecao = carregar("conferir_protecao")
 validacao = carregar("validar_gemini_conteiner")
 chave = carregar("verificar_chave_google")
 anotar = carregar("anotar_validacao")
+origem = carregar("conferir_origem")
 
 REPO, AMBIENTE, PADRAO, RAMO = "gustavohoff1987/Teste-Agente", "gemini-real", "validacao-gemini-real-*", "implantacao/cloud-run-pages"
 COMMIT, REF = "a" * 40, "refs/tags/validacao-gemini-real-20261102"
@@ -129,6 +130,78 @@ def test_repositorio_que_nao_esta_publico_encerra_a_execucao_mesmo_com_o_ambient
     saida = capsys.readouterr().out
     assert "::error title=Proteção do ambiente gemini-real::o repositório" in saida and "não está público" in saida
     assert "1 problema(s); nada segue" in saida
+
+
+# ---------------------------------------------------------------------------------------------- origem da 2ª publicação
+
+ORIGEM_REPO, ORIGEM_RAMO, ORIGEM_SHA = "gustavohoff1987/Teste-Agente", "implantacao/cloud-run-pages", "b" * 40
+
+
+def api_da_origem(comparacao="behind", execucoes=None, status_das_execucoes=200):
+    """A API pública simulada: a comparação do commit com o ramo e as execuções do CI nele."""
+    execucoes = execucoes if execucoes is not None else [
+        {"name": "CI Portal Experimental", "status": "completed", "conclusion": "cancelled"},
+        {"name": "CI Portal Experimental", "status": "completed", "conclusion": "success"}]
+    pedidos = []
+
+    def api(caminho):
+        pedidos.append(caminho)
+        if caminho == f"/repos/{ORIGEM_REPO}/compare/{ORIGEM_RAMO}...{ORIGEM_SHA}":
+            return 200, {"status": comparacao}
+        if caminho.startswith(f"/repos/{ORIGEM_REPO}/actions/runs?head_sha={ORIGEM_SHA}&event=push"):
+            return status_das_execucoes, {"workflow_runs": execucoes}
+        raise AssertionError("pedido inesperado: " + caminho)
+    api.pedidos = pedidos
+    return api
+
+
+def test_origem_confere_com_o_commit_no_ramo_e_o_ci_em_sucesso():
+    assert origem.conferir(api_da_origem(), ORIGEM_REPO, ORIGEM_RAMO, ORIGEM_SHA, "CI Portal Experimental") == []
+    assert origem.conferir(api_da_origem(comparacao="identical"), ORIGEM_REPO, ORIGEM_RAMO, ORIGEM_SHA,
+                           "CI Portal Experimental") == []
+
+
+@pytest.mark.parametrize("caso,api,commit,trecho", [
+    ("SHA curto", api_da_origem(), "b" * 7, "não é um SHA completo"),
+    ("SHA vazio", api_da_origem(), "", "não é um SHA completo"),
+    ("fora do ramo", api_da_origem(comparacao="diverged"), ORIGEM_SHA, "não pertence ao ramo"),
+    ("à frente do ramo", api_da_origem(comparacao="ahead"), ORIGEM_SHA, "não pertence ao ramo"),
+    ("CI reprovado", api_da_origem(execucoes=[{"name": "CI Portal Experimental", "status": "completed",
+                                               "conclusion": "failure"}]), ORIGEM_SHA, "não terminou em sucesso"),
+    ("CI em andamento", api_da_origem(execucoes=[{"name": "CI Portal Experimental", "status": "in_progress",
+                                                  "conclusion": None}]), ORIGEM_SHA, "não terminou em sucesso"),
+    ("só outro workflow", api_da_origem(execucoes=[{"name": "Teste de gatilho por etiqueta", "status": "completed",
+                                                    "conclusion": "success"}]), ORIGEM_SHA, "nenhuma execução"),
+    ("execuções ilegíveis", api_da_origem(status_das_execucoes=403), ORIGEM_SHA, "não foi possível ler"),
+])
+def test_origem_para_antes_do_build(caso, api, commit, trecho):
+    problemas = origem.conferir(api, ORIGEM_REPO, ORIGEM_RAMO, commit, "CI Portal Experimental")
+    assert problemas and any(trecho in p for p in problemas), (caso, problemas)
+
+
+def test_modelo_do_workflow_do_destino_so_publica_por_etiqueta_depois_das_conferencias():
+    texto = (ROOT / "Docs" / "implantacao" / "destino" / "publicar.yml").read_text(encoding="utf-8")
+    topo = texto.split("\njobs:", 1)[0]
+    assert re.search(r"on:\s*\n\s*push:\s*\n\s*tags:\s*\[\s*\"publicacao-pages-\*\"\s*\]", topo), topo
+    for proibido in ("workflow_dispatch", "repository_dispatch", "workflow_run", "pull_request", "schedule", "branches"):
+        assert proibido not in topo, proibido
+    assert "secrets." not in texto
+    # As conferências usam as cópias revisadas do próprio destino, nunca as do commit conferido (origem/).
+    assert "python3 .github/scripts/conferir_protecao.py --ambiente github-pages" in texto
+    assert "python3 .github/scripts/conferir_origem.py --repositorio gustavohoff1987/Teste-Agente" in texto
+    assert "origem/.github/scripts" not in texto
+    build = texto.split("\n  build:\n", 1)[1].split("\n  publicar:\n", 1)[0]
+    assert "needs: conferir" in build and "ADT_BASE_DA_PAGINA: /\n" in build and "verificar_chave_google.py" in build
+    publicar = texto.split("\n  publicar:\n", 1)[1]
+    assert "needs: build" in publicar and "name: github-pages" in publicar and "pages: write" in publicar
+    assert "pages: write" not in texto.split("\n  publicar:\n", 1)[0]
+
+
+def test_origem_sai_com_erro_e_nada_segue(monkeypatch, capsys):
+    monkeypatch.setattr(origem, "api_do_github", api_da_origem(comparacao="diverged"))
+    assert origem.main(["--repositorio", ORIGEM_REPO, "--ramo", ORIGEM_RAMO, "--commit", ORIGEM_SHA]) == 1
+    saida = capsys.readouterr().out
+    assert "::error title=Origem da publicação::" in saida and "nada segue" in saida
 
 
 # ---------------------------------------------------------------------------------------------- validação real

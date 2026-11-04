@@ -907,3 +907,40 @@ seleção do Distrito Federal, os indicadores e o mapa de Brasília funcionaram.
 
 Ponto de retomada: nenhuma operação pendente. A F2-13 só será apresentada se o armazenamento justificar.
 
+
+## O. Segunda publicação da interface: https://diagnostico-territorial.github.io/ (04/11/2026)
+
+Plano aprovado em etapas, M-0 a M-5 (roteiro, seção própria). A publicação atual, o Cloud Run, o Gemini, os orçamentos e as
+proteções não mudam até a M-3, que só acrescenta uma origem ao CORS.
+
+**M-0 (só leitura):**
+- **Destino:** `diagnostico-territorial/diagnostico-territorial.github.io` existe e é público, no plano gratuito da
+  organização; a responsável é administradora. Ele tem só o `README.md`, no commit inicial `eae2d55`, e o Pages já está ativo
+  pela origem GitHub Actions, respondendo 200.
+- **Actions do destino:** ativas, todas as ações permitidas, workflows com leitura por padrão. A política da organização não
+  foi lida: exige o escopo `admin:org`, que não foi pedido.
+- **Ambiente `github-pages` do destino:** revisor `gustavohoff1987` e bypass desativado. A regra ainda é `branch:main` e
+  precisa virar a etiqueta (P-M1). Sem variáveis nem segredos; o `main` sem proteção; a varredura de segredos e a proteção de
+  push desativadas (P-M1).
+- **Teste-Agente:** o último CI em PASS (`a7444fb`, execução 41763209485); o Pages atual responde 200.
+- **Cloud Run:** a revisão `00001-48n` com o digest `em-uso`; a F2-0 sem falhas. O CORS de hoje só aceita
+  `https://gustavohoff1987.github.io`, e o endereço novo ainda não recebe o cabeçalho, como esperado antes da M-3.
+- **Interface na raiz:** o código da interface não tem nenhum caminho fixo em `/Teste-Agente/`; só os testes de hospedagem e
+  o CI o assumiam.
+
+**M-1 (no Teste-Agente):**
+- **Classificação (regra 1):** os testes, o CI, o script de conferência e a documentação ficam fora do produto, sem mudança
+  de comportamento. O CORS com a segunda origem muda o que o navegador observa, mas a mudança é de configuração do Cloud Run,
+  na M-3. A entrada no registro de comportamento vai no commit da M-3, quando a mudança passar a valer.
+- **Testes de hospedagem:** `serve_ui_conteiner.py` e `ui_hospedagem.py` aceitam o caminho da página (`ADT_PAGINA_BASE`,
+  padrão `/Teste-Agente/`). A suíte nova `conteiner-raiz` do `run_ui_checks.py` serve o build na raiz e roda o
+  `ui_hospedagem.py`.
+- **CI:** o job `conteiner` constrói também o `frontend/dist-raiz`, confere nele o padrão de chave e roda a suíte nova. Nada
+  foi removido ou afrouxado.
+- **`conferir_origem.py`:** novo, com os testes no `test_implantacao.py`. O teste do CORS com as duas origens está no
+  `test_hospedagem.py`.
+- **Modelo do workflow do destino:** `Docs/implantacao/destino/publicar.yml`, também conferido por teste. As conferências do
+  destino usam as cópias revisadas dos scripts guardadas lá, não as do commit conferido. Por isso o `conferir_protecao.py` não
+  precisou mudar: no destino, ele confere o ambiente `github-pages` e o commit da etiqueta no `main`.
+
+Ponto de retomada: o CI do commit da M-1; depois, a P-M1 da responsável e "AUTORIZO M-2".

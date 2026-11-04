@@ -294,6 +294,9 @@ def test_cors_so_da_origem_autorizada_e_com_os_cabecalhos_da_interface():
 def test_origens_autorizadas_pela_variavel_de_ambiente(monkeypatch):
     monkeypatch.setenv("ADT_ALLOWED_ORIGINS", " https://gustavohoff1987.github.io , ")
     assert main._origens_autorizadas() == ["https://gustavohoff1987.github.io"]
+    # As duas publicações da interface (04/11/2026; M-3 do roteiro): a lista separada por vírgula, na ordem.
+    monkeypatch.setenv("ADT_ALLOWED_ORIGINS", "https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io")
+    assert main._origens_autorizadas() == ["https://gustavohoff1987.github.io", "https://diagnostico-territorial.github.io"]
     monkeypatch.delenv("ADT_ALLOWED_ORIGINS")
     assert main._origens_autorizadas() == ["http://localhost:5173", "http://127.0.0.1:5173"]
 

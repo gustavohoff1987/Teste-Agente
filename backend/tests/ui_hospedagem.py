@@ -9,6 +9,8 @@ CORS, como em https://gustavohoff1987.github.io/Teste-Agente/ e o Cloud Run. Con
 - o modelo de planilha (XLSX) baixado do serviço por outro endereço;
 - no serviço: a documentação da API desligada (/docs, /redoc, /openapi.json) e o CORS só para a origem da página.
 Os demais recursos (envio de planilhas, mapas e relatórios) passam pelos roteiros da página única nesta mesma suíte.
+Desde 04/11/2026, o caminho esperado vem de ADT_PAGINA_BASE (padrão /Teste-Agente/); na suíte "conteiner-raiz", é "/", como
+em https://diagnostico-territorial.github.io/.
 """
 import os
 import re
@@ -19,12 +21,13 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 from ui_support import API, PRIVACIDADE, URL, accept_privacy, fonte_embutida_carregada, offline
 
-BASE = urlparse(URL).path  # /Teste-Agente/
+BASE = urlparse(URL).path or "/"  # /Teste-Agente/ ou /
+ESPERADA = os.getenv("ADT_PAGINA_BASE", "/Teste-Agente/")
 ORIGEM = "{0.scheme}://{0.netloc}".format(urlparse(URL))
 
 
 def main():
-    assert BASE == "/Teste-Agente/", "a suíte serve a página como no GitHub Pages: " + BASE
+    assert BASE == ESPERADA, f"a suíte serve a página como no GitHub Pages ({ESPERADA}): {BASE}"
     assert urlparse(API).netloc != urlparse(URL).netloc, "o serviço fica noutro endereço"
     with tempfile.TemporaryDirectory(prefix="adt-hospedagem-") as temporaria, sync_playwright() as p:
         pasta = Path(temporaria)
@@ -43,7 +46,7 @@ def main():
         expect(page).to_have_title("Agente Diagnóstico Territorial da Força de Trabalho na Saúde")
         expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible()
 
-        # Recursos estáticos: todos sob /Teste-Agente/, servidos sem erro; a fonte embutida carregou.
+        # Recursos estáticos: todos sob o caminho da página, servidos sem erro; a fonte embutida carregou.
         estaticos = [(url, status) for url, status in respostas if url.startswith(ORIGEM)]
         assert estaticos and all(urlparse(url).path.startswith(BASE) for url, _ in estaticos), estaticos
         assert all(status < 400 for _, status in estaticos), estaticos
@@ -110,7 +113,7 @@ def main():
         assert not recusados, recusados
         assert not falhas, falhas
         browser.close()
-    print("HOSPEDAGEM PASS: recursos sob /Teste-Agente/, fonte embutida, nome oficial no título, serviço noutro endereço com "
+    print(f"HOSPEDAGEM PASS: recursos sob {BASE}, fonte embutida, nome oficial no título, serviço noutro endereço com "
           "CORS (base, gráfico com a sessão, CSV e o modelo XLSX), documentação da API desligada e CORS só da origem da página.")
 
 

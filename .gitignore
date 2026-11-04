@@ -5,6 +5,7 @@ __pycache__/
 node_modules/
 frontend/dist/
 frontend/dist-pages/
+frontend/dist-raiz/
 test-results/
 .local/
 .env

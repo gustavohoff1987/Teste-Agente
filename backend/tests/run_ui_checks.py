@@ -79,6 +79,16 @@ SUITES = {
         "roteiros": [("ui_hospedagem.py", {}), ("ui_conexao.py", {}), ("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"})],
     },
+    # Segunda publicação (04/11/2026; Docs/implantacao/ROTEIRO_FASE2.md, M-0 a M-5): a mesma interface na raiz, como em
+    # https://diagnostico-territorial.github.io/ (build com ADT_BASE_DA_PAGINA=/ em frontend/dist-raiz).
+    "conteiner-raiz": {
+        "descricao": "A interface na raiz (/, como em https://diagnostico-territorial.github.io/), noutro endereço e com CORS, "
+                     "diante da imagem do contêiner: recursos estáticos, envio e downloads, documentação da API desligada",
+        "catalogo": "imagem", "servidor": "conteiner", "pronto": "/", "caminho": "", "partida_s": 300,
+        "api": "http://127.0.0.1:18080/",
+        "ambiente": {"ADT_PAGINA_BASE": "/", "ADT_PAGES_DIST": str(ROOT / "frontend" / "dist-raiz")},
+        "roteiros": [("ui_hospedagem.py", {})],
+    },
 }
 SERVERS = {"offline": "serve_ui_offline.py", "gemini-simulado": "serve_ui_fake_gemini.py", "conteiner": "serve_ui_conteiner.py"}
 FIXTURES = {"bloco1": "prepare_block1_catalog.py"}

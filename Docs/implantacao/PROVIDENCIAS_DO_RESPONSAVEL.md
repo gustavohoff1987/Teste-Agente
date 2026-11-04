@@ -97,3 +97,14 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
 - **P-9 (em F2-9, F2-10 e F2-11).** As conferências na interface publicada, no navegador: a página, o diálogo de abertura, um
   gráfico, o mapa e a conversa (F2-9); as três mensagens com o Gemini real (F2-10); a mensagem institucional com o acesso
   suspenso (F2-11). O agente confere só pela API, sem instalar navegador de teste no seu computador.
+
+## Segunda publicação da interface (M-0 a M-5; ROTEIRO_FASE2.md)
+
+- **P-M1 (antes da M-2), no repositório `diagnostico-territorial/diagnostico-territorial.github.io`:**
+  - ativar a varredura de segredos e a proteção de push (Settings → Code security);
+  - no ambiente `github-pages`: manter o revisor obrigatório e o bypass de administradores desativado, e trocar a regra
+    `branch:main` por uma única regra de etiqueta, `publicacao-pages-*`;
+  - criar a variável do repositório `VITE_API_BASE_URL` = `https://agente-diagnostico-territorial-338451103854.us-central1.run.app`;
+  - confirmar o Pages pela origem GitHub Actions, sem os modelos de workflow sugeridos pela página.
+- **P-M2 (na M-4):** aprovar, no ambiente `github-pages` do destino, o job de publicação; depois, a conferência no navegador
+  (M-5).

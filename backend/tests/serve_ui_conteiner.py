@@ -5,6 +5,9 @@
 - A interface é o build do GitHub Pages (frontend/dist, feito com ADT_BASE_DA_PAGINA=/Teste-Agente/ e
   VITE_API_BASE_URL=http://127.0.0.1:18080), servido em /Teste-Agente/ noutro endereço (ADT_UI_PORT), como no Pages.
 
+Desde 04/11/2026, o caminho da página vem de ADT_PAGINA_BASE (padrão /Teste-Agente/): com "/", o build feito com
+ADT_BASE_DA_PAGINA=/ é servido na raiz, como em https://diagnostico-territorial.github.io/ (suíte "conteiner-raiz").
+
 O contêiner se chama ADT_CONTEINER_NOME (adt-api-ui): os roteiros o param e o reiniciam (docker stop/start) para ver os
 estados da conexão e a sessão perdida no reinício. Ao encerrar, o contêiner é removido. Exige o Docker e a imagem
 ADT_CONTEINER_IMAGEM (adt:ci) já construída. Nenhuma rede externa.
@@ -28,6 +31,7 @@ NOME = os.getenv("ADT_CONTEINER_NOME", "adt-api-ui")
 PORTA_API = int(os.getenv("ADT_CONTEINER_PORTA", "18080"))
 PORTA_UI = int(os.getenv("ADT_UI_PORT", "18100"))
 DIST = Path(os.getenv("ADT_PAGES_DIST", ROOT / "frontend" / "dist"))
+BASE = os.getenv("ADT_PAGINA_BASE", "/Teste-Agente/")
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
@@ -55,8 +59,10 @@ def subir_conteiner():
 def app() -> Starlette:
     if not (DIST / "index.html").is_file():
         raise SystemExit("Build ausente em " + str(DIST))
-    return Starlette(routes=[Route("/", lambda _request: RedirectResponse("/Teste-Agente/")),
-                             Mount("/Teste-Agente", StaticFiles(directory=DIST, html=True), name="pages")])
+    if BASE == "/":
+        return Starlette(routes=[Mount("/", StaticFiles(directory=DIST, html=True), name="pages")])
+    return Starlette(routes=[Route("/", lambda _request: RedirectResponse(BASE)),
+                             Mount(BASE.rstrip("/"), StaticFiles(directory=DIST, html=True), name="pages")])
 
 
 if __name__ == "__main__":
