@@ -633,7 +633,8 @@ fixada no repositório.
 | F2-5 — enviar a imagem | **feita**: a primeira tentativa falhou na federação; depois da correção, a imagem foi enviada (abaixo) |
 | F2-6 — implantar no Cloud Run, sem acesso público | **feita** com "AUTORIZO F2-6" (abaixo) |
 | F2-7 — liberar o acesso público | **feita** com "AUTORIZO F2-7" (abaixo) |
-| F2-8 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-8 — testes de produção sem o Gemini | **feita** com "AUTORIZO F2-8" (abaixo) |
+| F2-9 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -805,5 +806,19 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
 - **Gemini:** `/api/llm/status` mostra `configured: true`, `gemini-3.5-flash-lite`, `disponivel: true` e 0 chamadas no dia;
   a chave chegou pelo segredo. Nenhuma chamada ao provedor foi feita.
 
-Ponto de retomada: "AUTORIZO F2-8" (os testes de produção sem o Gemini).
+**F2-8 (03/11/2026, "AUTORIZO F2-8").** Só requisições à API pública, com a instância já ativa:
+- **Saúde:** 200 em 0,25 s.
+- **Documentação:** `/docs` e `/openapi.json` respondem 404, sem `curl -f`.
+- **CORS:** sem `Access-Control-Allow-Origin` para uma origem estranha; com ele para `https://gustavohoff1987.github.io`.
+  A pré-verificação responde 200, com os métodos GET e POST, os cabeçalhos com `Content-Type` e `X-ADT-Session` e a
+  validade de 7.200 s.
+- **Base do Brasil:** o exame responde 200 em 1,09 s, na versão `c4d82eeee4e4`, a governada pelo manifesto. O gráfico dos
+  estados (densidade, 202406) responde 200 em 0,78 s, com 27 itens.
+- **Envio pequeno:** um CSV sintético de 100.000 bytes, do gerador do CI e sem dados reais. O exame responde 200 em
+  0,81 s; o gráfico de todos os territórios, 200 em 1,39 s, com 1.072 itens, o mesmo do CI.
+- **Gemini:** 0 chamadas antes e depois.
+- **Fora do teste:** o envio acima de 15 MB, coberto pelo CI, para não gastar dados móveis.
+
+Ponto de retomada: a P-6 do responsável (o Pages, o ambiente `github-pages` e a variável `VITE_API_BASE_URL`); depois,
+"AUTORIZO F2-9" (publicar a interface).
 
