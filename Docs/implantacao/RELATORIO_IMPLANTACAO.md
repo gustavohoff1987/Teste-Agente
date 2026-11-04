@@ -637,7 +637,7 @@ fixada no repositório.
 | F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" e conferida pelo responsável no navegador (abaixo) |
 | F2-10 — teste de produção com o Gemini real | **feita** com "AUTORIZO F2-10" (abaixo) |
 | F2-11 — suspender, conferir a mensagem institucional e restaurar | **feita** com "AUTORIZO F2-11" (abaixo) |
-| F2-12 — conferência final (só leitura) | não iniciada |
+| F2-12 — conferência final (só leitura) | **feita** pelo agente com "AUTORIZO F2-12"; os números de faturamento são do responsável, no Console (abaixo) |
 | F2-13 — política de limpeza | adiada (só se necessária) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
@@ -872,5 +872,38 @@ seleção do Distrito Federal, os indicadores e o mapa de Brasília funcionaram.
 - **Custo:** nenhum. As requisições recusadas não ativam a instância.
 - **Observação para uma suspensão de emergência:** a recusa não é imediata; conte com cerca de 1 a 2 minutos.
 
-Ponto de retomada: "AUTORIZO F2-12" (a conferência final, só leitura).
+**F2-12 (03/11/2026, "AUTORIZO F2-12"), só leitura.**
+- **Serviço:** a revisão `agente-diagnostico-territorial-00001-48n`, com 100% do tráfego, pelo digest
+  `sha256:6988e2e9…1a86e`; 1 vCPU, 2 GiB, máximo 1, concorrência 40, timeout de 150 s; acesso público (`allUsers`).
+- **Imagem:** a etiqueta `em-uso` no digest implantado.
+- **Segredo:** lido só pela `adt-execucao`.
+- **Projeto:** sem configurações de auditoria extras.
+- **F2-0 de novo:** 0 falhas, com todos os limites do serviço conferidos (mínimo 0, máximo 1, 1 vCPU, 2 GiB, cobrança por
+  requisição, sem aumento de CPU na partida).
+- **Uso desde a implantação** (registros do Cloud Run, de 03/11 às 23:00 UTC até a conferência):
+  - 329 requisições: 306 com 200, 20 com 403 (as conferências da suspensão e a da F2-6), 2 com 404 (a documentação
+    desligada, de propósito) e 1 com 410 (a expiração de sessão prevista); nenhum 5xx;
+  - 5 partidas de instância, todas a frio, com mínimo 0;
+  - 92,8 s com requisição em andamento, contando os pedidos simultâneos uma vez;
+  - a rota mais frequente foi a consulta da sessão a cada 30 s, com 170 requisições.
+- **Estimativa de cobrança:** cerca de 3,5 min faturáveis (as requisições, cerca de 20 s por partida e o arredondamento
+  de 100 ms das consultas isoladas), perto de US$ 0,006, uns 0,3% da trava. Está de acordo com a estimativa da seção G.
+- **Faturamento:** os números oficiais ficam com o responsável, no Console (Faturamento → Relatórios, filtrado pelo Cloud
+  Run; Cloud Run → serviço → Métricas → "Billable container instance time"). Eles podem levar até um dia para aparecer.
+  A trava e os alertas, sem alteração, foram conferidos na P-2.
+
+**Fase 2 concluída** (F2-0 a F2-12). A F2-13, a política de limpeza, continua adiada.
+- **Serviço:** `https://agente-diagnostico-territorial-338451103854.us-central1.run.app`.
+- **Interface:** `https://gustavohoff1987.github.io/Teste-Agente/`.
+- **Problemas encontrados e corrigidos na Fase 2:**
+  - a verificação prévia tomava uma listagem que falhava por "nenhum recurso" e tratava a conta padrão do Compute como
+    não prevista; ambos corrigidos, com testes;
+  - o nome de exibição da conta de envio passava de 100 caracteres;
+  - a federação esperava o `sub` antigo do GitHub; foi corrigida para os identificadores imutáveis;
+  - a F2-2 foi simplificada pelo responsável;
+  - o proxy autenticado do gcloud exige um componente não instalado.
+- **Observações de operação:** a suspensão leva cerca de 1 a 2 minutos para valer; a partida a frio na nuvem leva cerca de
+  20 a 25 s; sem limpeza automática, as imagens antigas saem só à mão (nunca a `em-uso` nem a `anterior`).
+
+Ponto de retomada: nenhuma operação pendente. A F2-13 só será apresentada se o armazenamento justificar.
 
