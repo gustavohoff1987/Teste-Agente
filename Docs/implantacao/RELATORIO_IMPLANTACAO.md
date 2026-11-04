@@ -634,7 +634,8 @@ fixada no repositório.
 | F2-6 — implantar no Cloud Run, sem acesso público | **feita** com "AUTORIZO F2-6" (abaixo) |
 | F2-7 — liberar o acesso público | **feita** com "AUTORIZO F2-7" (abaixo) |
 | F2-8 — testes de produção sem o Gemini | **feita** com "AUTORIZO F2-8" (abaixo) |
-| F2-9 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" (abaixo); a conferência no navegador (P-9) é do responsável |
+| F2-10 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -819,6 +820,26 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
 - **Gemini:** 0 chamadas antes e depois.
 - **Fora do teste:** o envio acima de 15 MB, coberto pelo CI, para não gastar dados móveis.
 
-Ponto de retomada: a P-6 do responsável (o Pages, o ambiente `github-pages` e a variável `VITE_API_BASE_URL`); depois,
-"AUTORIZO F2-9" (publicar a interface).
+**P-6 (03/11/2026), feita pelo responsável e conferida só em leitura com o `gh`:**
+- **Pages:** origem GitHub Actions (`build_type: workflow`), endereço `https://gustavohoff1987.github.io/Teste-Agente/`,
+  HTTPS obrigatório. Nenhum workflow de modelo do Pages foi criado.
+- **Ambiente `github-pages`:** revisor obrigatório `gustavohoff1987`, com "Prevent self-review" e o bypass de
+  administradores desativados, e só a regra de etiqueta `publicacao-pages-*`, sem regras de ramo. Sem segredos nem
+  variáveis.
+- **Variável do repositório:** `VITE_API_BASE_URL=https://agente-diagnostico-territorial-338451103854.us-central1.run.app`,
+  que passa na validação do `pages.yml`.
+- **Conferência de proteção:** a função `conferir()` do `pages.yml`, rodada localmente com a API real e sem enviar
+  etiqueta, confere para `publicacao-pages-20261103-1` no `4b701ed`. O CI desse commit está em PASS (execução
+  41744759859).
+
+**F2-9 (03/11/2026, "AUTORIZO F2-9").**
+- **Etiqueta:** `publicacao-pages-20261103-1`, no `4b701ed`, acionou a execução 41751939348. Os jobs `conferir-protecao` e
+  `build` passaram: `npm ci`, os testes, o build com `ADT_BASE_DA_PAGINA=/Teste-Agente/` e a conferência do padrão de chave.
+  O responsável aprovou o job `publicar` (P-7) às 01:15 UTC, e ele terminou em sucesso.
+- **Conferência só pela API:** `https://gustavohoff1987.github.io/Teste-Agente/` responde 200, com o título oficial; o
+  script `assets/index-DOALu701.js` responde 200 e traz o endereço do serviço; a saúde do serviço responde 200.
+- **Conferência no navegador (P-9):** do responsável.
+
+Ponto de retomada: a conferência do responsável no navegador (P-9) e "AUTORIZO F2-10" (o teste de produção com o Gemini
+real, até 5 chamadas).
 
