@@ -943,4 +943,28 @@ proteções não mudam até a M-3, que só acrescenta uma origem ao CORS.
   destino usam as cópias revisadas dos scripts guardadas lá, não as do commit conferido. Por isso o `conferir_protecao.py` não
   precisou mudar: no destino, ele confere o ambiente `github-pages` e o commit da etiqueta no `main`.
 
-Ponto de retomada: o CI do commit da M-1; depois, a P-M1 da responsável e "AUTORIZO M-2".
+**CI da M-1:** o commit `40574da` passou nos 8 jobs (execução 41768167419). No log, a suíte `conteiner-raiz` roda o
+`ui_hospedagem.py` com `HOSPEDAGEM PASS: recursos sob /`, e a de `/Teste-Agente/` continua passando. O padrão de chave
+foi examinado em `dist`, `dist-pages` e `dist-raiz`, sem ocorrência.
+
+**P-M1 (04/11/2026), feita pela responsável e conferida com o `gh`:**
+- **Varredura e proteção de push:** ativadas, sem alertas. Na primeira conferência ainda estavam desativadas; a
+  responsável as ativou de novo.
+- **Ambiente `github-pages`:** revisor `gustavohoff1987`, "Prevent self-review" e bypass desativados, e só a regra de
+  etiqueta `publicacao-pages-*`.
+- **Variável:** `VITE_API_BASE_URL` com o endereço do serviço.
+- **Pages:** pela origem GitHub Actions. Sem segredos.
+
+**M-2 (04/11/2026, "AUTORIZO M-2"):** dois commits no `main` do destino.
+- **`8f21afc`:** `.github/workflows/publicar.yml` e as cópias de `conferir_protecao.py`, `conferir_origem.py` e
+  `verificar_chave_google.py`, idênticas às do Teste-Agente no `40574da` pelos identificadores dos objetos
+  (`c1dcce8e7cf6`, `2dd5441b3d9d`, `5a3f58128027` e `477e2e37f0cf`), e `origem.txt` com
+  `40574da5d40073e84285f83e6c0997502b3e8f0a`.
+- **`9a1c4fd`:** o README. A mensagem do `8f21afc` já o citava, mas, por uma falha do agente na gravação, ele foi enviado
+  sem o README; o commit seguinte o completou.
+- **Antes do envio:** a sintaxe YAML e o padrão de chave, sem ocorrência. A proteção de push aceitou os envios.
+- **Conferência:** o workflow `Publicação da interface (GitHub Pages)` está ativo e sem nenhuma execução. A única execução
+  do destino é a do `pages build and deployment` automático do GitHub, no commit inicial, às 03:08 UTC, anterior à M-2.
+  Os dois sites respondem 200, sem mudança.
+
+Ponto de retomada: "AUTORIZO M-3" (o CORS do serviço com as duas origens).
