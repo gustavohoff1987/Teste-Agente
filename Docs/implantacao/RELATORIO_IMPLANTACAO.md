@@ -635,7 +635,8 @@ fixada no repositório.
 | F2-7 — liberar o acesso público | **feita** com "AUTORIZO F2-7" (abaixo) |
 | F2-8 — testes de produção sem o Gemini | **feita** com "AUTORIZO F2-8" (abaixo) |
 | F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" e conferida pelo responsável no navegador (abaixo) |
-| F2-10 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-10 — teste de produção com o Gemini real | **feita** com "AUTORIZO F2-10" (abaixo) |
+| F2-11 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -850,5 +851,16 @@ seleção do Distrito Federal, os indicadores e o mapa de Brasília funcionaram.
 - nenhum erro 5xx. O único 403 e os dois 404 da janela são os testes esperados da F2-6 e da F2-8.
 - Gemini: 0 chamadas no dia.
 
-Ponto de retomada: "AUTORIZO F2-10" (o teste de produção com o Gemini real, até 5 chamadas).
+**F2-10 (03/11/2026, "AUTORIZO F2-10").**
+- **Antes (01:59 UTC):** `/api/llm/status` com o Gemini configurado e disponível, e 0 chamadas no dia.
+- **Na página publicada, o responsável** mandou as três mensagens: a pergunta sobre o resultado, a explicação mais simples e
+  a pergunta conceitual. Ele informou que as respostas vieram normalmente.
+- **Depois:** **5 chamadas** no dia, dentro do teto de 5, sem espera de cota.
+- **Registros do Cloud Run** (só status e tempos, sem conteúdo): 6 `POST /api/llm/interpret-context`, entre 02:05:30 e
+  02:08:22 UTC, todas com 200, de 1,07 a 2,75 s.
+- **Última hora:** 212 respostas 200 e uma 410. A 410 foi às 01:48:38 UTC, antes do teste: a consulta de uma sessão
+  aberta às 01:18:14 e parada havia 30 minutos. É a expiração prevista (a consulta periódica não renova o prazo), e a
+  página abriu outra sessão. Nenhum 5xx.
+
+Ponto de retomada: "AUTORIZO F2-11" (suspender o acesso, conferir a mensagem institucional e restaurar).
 
