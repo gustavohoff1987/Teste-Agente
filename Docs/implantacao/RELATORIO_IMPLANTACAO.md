@@ -636,7 +636,9 @@ fixada no repositório.
 | F2-8 — testes de produção sem o Gemini | **feita** com "AUTORIZO F2-8" (abaixo) |
 | F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" e conferida pelo responsável no navegador (abaixo) |
 | F2-10 — teste de produção com o Gemini real | **feita** com "AUTORIZO F2-10" (abaixo) |
-| F2-11 a F2-13 | não iniciadas (a F2-13, adiada) |
+| F2-11 — suspender, conferir a mensagem institucional e restaurar | **feita** com "AUTORIZO F2-11" (abaixo) |
+| F2-12 — conferência final (só leitura) | não iniciada |
+| F2-13 — política de limpeza | adiada (só se necessária) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
 `CLOUDSDK_CORE_DISABLE_PROMPTS=1` (o gcloud não oferece habilitar APIs). Resultado:
@@ -862,5 +864,13 @@ seleção do Distrito Federal, os indicadores e o mapa de Brasília funcionaram.
   aberta às 01:18:14 e parada havia 30 minutos. É a expiração prevista (a consulta periódica não renova o prazo), e a
   página abriu outra sessão. Nenhum 5xx.
 
-Ponto de retomada: "AUTORIZO F2-11" (suspender o acesso, conferir a mensagem institucional e restaurar).
+**F2-11 (03/11/2026, "AUTORIZO F2-11").**
+- **Suspensão:** o `allUsers` saiu da política de invocação (etag `BwZfaj48Rx0=`), que ficou sem membros. A mudança levou
+  cerca de 80 s para valer: das 23:36:19 às 23:37:31 (horário local) a saúde ainda respondia 200, e às 23:37:42 passou a 403.
+- **Conferência no navegador (P-9):** o responsável recarregou a página e viu "Serviço temporariamente indisponível".
+- **Restauração:** o `allUsers` voltou (etag `BwZfalVlgMg=`), e a saúde respondeu 200 às 23:42:47, na primeira tentativa.
+- **Custo:** nenhum. As requisições recusadas não ativam a instância.
+- **Observação para uma suspensão de emergência:** a recusa não é imediata; conte com cerca de 1 a 2 minutos.
+
+Ponto de retomada: "AUTORIZO F2-12" (a conferência final, só leitura).
 
