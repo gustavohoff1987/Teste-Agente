@@ -977,4 +977,19 @@ foi examinado em `dist`, `dist-pages` e `dist-raiz`, sem ocorrência.
   recebe nenhum. A pré-verificação da origem nova responde 200, com GET, POST e os cabeçalhos da interface.
 - **Registro de comportamento:** entrada de 04/11/2026.
 
-Ponto de retomada: "AUTORIZO M-4" (a primeira publicação em https://diagnostico-territorial.github.io/).
+**CI da M-3:** a execução 41818195221 do `3830b67` (só documentação) falhou no job `conteiner`, no `ui_mapa.py`, numa
+asserção sobre os pontos esmaecidos do mapa. O mesmo roteiro passou nos dois commits anteriores. Pelo AGENTS.md, os
+jobs que falharam foram reexecutados uma vez, e os 8 passaram. A falha foi instável e sem relação com a mudança; se
+voltar, vale investigar o `ui_mapa.py` à parte.
+
+**M-4 (04/11/2026, "AUTORIZO M-4").**
+- **Etiqueta:** `publicacao-pages-20261104-1` no `9a1c4fd` do destino, que fixa a origem `40574da`, acionou a execução
+  41824685815.
+- **Conferências e build:** o job `conferir` passou nas cinco conferências, com as cópias dos scripts, e na origem, que
+  pertence ao ramo e tem o CI em sucesso. O build na raiz também passou, com a conferência do padrão de chave.
+- **Publicação:** a responsável aprovou o job `publicar` (P-M2), que terminou em sucesso às 23:49 UTC.
+- **Conferência só pela API:** `https://diagnostico-territorial.github.io/` responde 200, com o título oficial. O script
+  `/assets/index-Cr5slcgr.js` fica na raiz, responde 200 e traz o endereço do serviço; o HTML não cita `/Teste-Agente/`.
+  A publicação do Teste-Agente e o serviço continuam respondendo 200.
+
+Ponto de retomada: "AUTORIZO M-5" (a conferência final: os dois sites no navegador, os registros e o uso).
