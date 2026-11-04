@@ -35,6 +35,23 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-04 · Hospedagem: o CORS do serviço passa a aceitar também https://diagnostico-territorial.github.io
+- **Classificação (regra 1), pela leitura, antes de mudar:** o navegador numa página daquela origem passa a poder chamar
+  o serviço, o que muda o que um consumidor da API observa. A mudança decorre do pedido do responsável de publicar a
+  interface em https://diagnostico-territorial.github.io/, preservando a publicação atual (escopo). Também não contraria a
+  SPEC, que não fixa as origens, nem uma divergência aprovada (compatibilidade). Mudança prevista.
+- **Antes:** na hospedagem, `ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io`, a única origem com
+  `Access-Control-Allow-Origin`.
+- **Agora:** `ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io`, na revisão
+  `agente-diagnostico-territorial-00002-wgk` do Cloud Run, com o mesmo digest da imagem. As duas origens recebem o próprio
+  `Access-Control-Allow-Origin`, inclusive na pré-verificação, e uma origem estranha não recebe nenhum.
+- **Permanece:** o código, os métodos e os cabeçalhos aceitos (`Content-Type` e `X-ADT-Session`), a validade da
+  pré-verificação de 2 h, a imagem, os recursos e os limites do serviço; o CORS não é autenticação.
+- **Motivo:** a M-3 do roteiro da segunda publicação (`Docs/implantacao/ROTEIRO_FASE2.md`), com "AUTORIZO M-3".
+- **Documentação e testes:** `README.md` (hospedagem: "Configuração" e "Segunda publicação"),
+  `Docs/implantacao/RELATORIO_IMPLANTACAO.md` (seção O). O teste da lista de duas origens, em `test_hospedagem.py`, veio na
+  M-1 (`40574da`).
+
 ### 2026-11-02 · Sessão de 30 minutos na hospedagem: divergência aprovada da RQ-FLX-17, registrada sem alteração do código
 - **Classificação (regra 1), pela leitura:** com as sessões em memória e o Cloud Run com mínimo 0 e máximo 1 instância, uma
   sessão pode se perder antes dos 1.800 s (instância encerrada por ociosidade ou trocada pela plataforma, nova revisão, falta

@@ -564,7 +564,8 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   `backend/requirements-conteiner.txt`; usuário sem privilégios; um processo Uvicorn em `0.0.0.0:$PORT`; encerramento limpo
   com SIGTERM; verificação de saúde por `/api/health`. O `.dockerignore` deixa de fora `.env`, testes, interface e o histórico
   do Git. A imagem é construída e verificada só no GitHub Actions.
-- **Configuração:** `ADT_ALLOWED_ORIGINS` (na hospedagem, só `https://gustavohoff1987.github.io`; sem a variável, o servidor
+- **Configuração:** `ADT_ALLOWED_ORIGINS` (na hospedagem, desde 04/11/2026, `https://gustavohoff1987.github.io` e
+  `https://diagnostico-territorial.github.io`, as duas publicações da interface; antes, só a primeira; sem a variável, o servidor
   local do Vite). O CORS aceita só os cabeçalhos que a interface envia (`Content-Type` e `X-ADT-Session`), com a
   pré-verificação válida por 2 h (antes, 10 min e qualquer cabeçalho). `ADT_DOCUMENTACAO_DA_API=0` (já na imagem) desliga a
   documentação da API. `GEMINI_API_KEY` vem do Secret Manager. Na interface, `VITE_API_BASE_URL` (o endereço do serviço) e,
@@ -609,7 +610,7 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
 - **Segunda publicação (em preparação desde 04/11/2026):** a mesma interface na raiz, em
   `https://diagnostico-territorial.github.io/`, construída pelo repositório da organização a partir de um commit
   verificado deste ramo, sem credencial entre repositórios ([roteiro](Docs/implantacao/ROTEIRO_FASE2.md), M-0 a M-5).
-  O CORS do serviço só passa a aceitar essa origem na M-3; até lá, só `https://gustavohoff1987.github.io`.
+  Desde a M-3 (04/11/2026), o CORS do serviço aceita as duas origens.
 - **Testes:** `backend/tests/test_hospedagem.py` e `test_implantacao.py` (pytest), `frontend/tests/conexao.test.mjs` e os
   roteiros `ui_hospedagem.py`, `ui_conexao.py` e `ui_sessao.py` (job `conteiner`).
 

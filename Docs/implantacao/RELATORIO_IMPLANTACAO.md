@@ -967,4 +967,14 @@ foi examinado em `dist`, `dist-pages` e `dist-raiz`, sem ocorrência.
   do destino é a do `pages build and deployment` automático do GitHub, no commit inicial, às 03:08 UTC, anterior à M-2.
   Os dois sites respondem 200, sem mudança.
 
-Ponto de retomada: "AUTORIZO M-3" (o CORS do serviço com as duas origens).
+**M-3 (04/11/2026, "AUTORIZO M-3").**
+- **F2-0 de novo:** 0 falhas.
+- **Atualização:** `gcloud run services update ... --update-env-vars="^##^ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io"`
+  criou a revisão `agente-diagnostico-territorial-00002-wgk`, com 100% do tráfego e o mesmo digest
+  (`sha256:6988e2e9…1a86e`, `em-uso`). Seguem iguais: 1 vCPU, 2 GiB, máximo 1, concorrência 40, timeout de 150 s, a conta
+  `adt-execucao`, `ADT_DOCUMENTACAO_DA_API=0` e o segredo `gemini-api-key:1`. A revisão `00001-48n` fica para a reversão.
+- **CORS pelos cabeçalhos:** as duas origens recebem o próprio `Access-Control-Allow-Origin`; uma origem estranha não
+  recebe nenhum. A pré-verificação da origem nova responde 200, com GET, POST e os cabeçalhos da interface.
+- **Registro de comportamento:** entrada de 04/11/2026.
+
+Ponto de retomada: "AUTORIZO M-4" (a primeira publicação em https://diagnostico-territorial.github.io/).
