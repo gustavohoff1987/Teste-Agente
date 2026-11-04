@@ -634,7 +634,7 @@ fixada no repositório.
 | F2-6 — implantar no Cloud Run, sem acesso público | **feita** com "AUTORIZO F2-6" (abaixo) |
 | F2-7 — liberar o acesso público | **feita** com "AUTORIZO F2-7" (abaixo) |
 | F2-8 — testes de produção sem o Gemini | **feita** com "AUTORIZO F2-8" (abaixo) |
-| F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" (abaixo); a conferência no navegador (P-9) é do responsável |
+| F2-9 — publicar a interface | **feita** com "AUTORIZO F2-9" e conferida pelo responsável no navegador (abaixo) |
 | F2-10 a F2-13 | não iniciadas (a F2-13, adiada) |
 
 **F2-0 (02/11/2026).** `scripts/implantacao/verificacao_previa.py`, com o gcloud pelo caminho completo e
@@ -840,6 +840,15 @@ lib\gcloud.py`), sem o `cmd.exe`, que interpretaria o `&&` e as aspas da condiç
   script `assets/index-DOALu701.js` responde 200 e traz o endereço do serviço; a saúde do serviço responde 200.
 - **Conferência no navegador (P-9):** do responsável.
 
-Ponto de retomada: a conferência do responsável no navegador (P-9) e "AUTORIZO F2-10" (o teste de produção com o Gemini
-real, até 5 chamadas).
+**P-9 da F2-9 (03/11/2026), conferência do responsável no navegador:** a interface carregou pelo endereço público, a
+seleção do Distrito Federal, os indicadores e o mapa de Brasília funcionaram. A conversa não foi usada nessa conferência.
+
+**Conferência do agente nos registros do Cloud Run** (só leitura, as últimas 3 horas):
+- todas as requisições da página responderam 200: o exame da base, 4 gráficos (`/api/painel`), a escolha de territórios,
+  o mapa, a abertura, a renovação e o encerramento da sessão e as pré-verificações de CORS;
+- 60 consultas da sessão, a cada 30 s, da aba aberta;
+- nenhum erro 5xx. O único 403 e os dois 404 da janela são os testes esperados da F2-6 e da F2-8.
+- Gemini: 0 chamadas no dia.
+
+Ponto de retomada: "AUTORIZO F2-10" (o teste de produção com o Gemini real, até 5 chamadas).
 
