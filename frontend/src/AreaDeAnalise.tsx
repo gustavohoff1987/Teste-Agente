@@ -22,8 +22,8 @@ import {
   rotulosEfetivos, salvarEstado, semSelecao, semTerritorios, separarItens, significadoDaClasse, tamanhoDoMapa, textoDaMarca, textoDoDesfazer, textoDoDesfeito,
   textoDoMetodo, textoDosTerritoriosBase, textoForaDoDesenho, textoInstrucaoGrupos, tituloDaAnalise, todosOs, umA, visaoEfetiva,
   type Aba, type Ajuste, type Apresentacao, type ContextoDoGrafico, type Corte, type DefinicaoAnalise, type Disponivel, type Escala,
-  type ConsultaTerritorios, type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase, type PassoDaInteracao, type PedidoDoChat,
-  type UnidadeDoCatalogo, type Visao, type Vista,
+  type ConsultaTerritorios, type DesfechoDoPedido, type EstadoSalvo, type Familia, type FonteDados, type FuncaoPainel, type NiveisDaBase,
+  type PassoDaInteracao, type PedidoDoChat, type SituacaoDoPedido, type UnidadeDoCatalogo, type Visao, type Vista,
 } from "./painelModel";
 import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes, VistaDesenho } from "./mapaContrato";
 import PainelChart, { type FaseAnimacao, type LinhaDeReferencia } from "./PainelChart";
@@ -55,7 +55,8 @@ import "./analise.css";
 // de toda a interação na área (a seleção, as abas, os ajustes, os filtros e a vista), e Limpar seleção, que tira os territórios em
 // análise sem apagar os dados.
 // A conversa age sobre o gráfico pela prop `pedido`; a estrutura da página recebe o contexto (onContexto) e o estado salvo
-// (onSalvar) e pode reabrir sem recalcular (restaurar).
+// (onSalvar) e pode reabrir sem recalcular (restaurar). Desde 05/11/2026, cada pedido da conversa tem um desfecho (onDesfecho),
+// informado quando a área de fato o mostra ou não consegue: a conversa só diz que fez o que foi pedido com a confirmação.
 
 export type { ContextoDoGrafico, EstadoSalvo, Familia, FonteDados, NiveisDaBase, PedidoDoChat, UnidadeDoCatalogo, Visao } from "./painelModel";
 
@@ -81,7 +82,17 @@ export type AreaDeAnaliseProps = {
   /** "Trocar" da fonte: a escolha dos dados volta aqui, na área central, com o cancelamento. */
   trocandoFonte?: boolean;
   onCancelarTroca?: () => void;
+  /** Confirmação de execução (05/11/2026): o desfecho de cada pedido da conversa (o id da prop `pedido`), quando a área de fato
+   * o mostra: o motor calculou a definição que resultou dele (e os pontos do mapa chegaram, quando o mapa foi pedido), ou o que
+   * impediu (a parte recusada, o que falta, a falha do motor, outra mudança que tomou o lugar dele). */
+  onDesfecho?: (desfecho: DesfechoDoPedido) => void;
+  /** A reabertura de um estado do Histórico (`restaurar`): true quando ele foi reaberto como estava. */
+  onRestaurado?: (ok: boolean) => void;
 };
+
+/** O rótulo do passo do Desfazer de um pedido da conversa: os demais passos são mudanças feitas na área (05/11/2026: uma delas,
+ * antes do fim de um pedido, toma o lugar dele). */
+const ROTULO_DO_PEDIDO = "Aplicar o pedido da conversa";
 
 const MAX_CACHE = 6;
 /** Repetições automáticas de um pedido recusado por ocupado (01/11/2026). */
@@ -230,7 +241,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [resposta, setResposta] = useState<PainelResposta | null>(null);
   const [calculado, setCalculado] = useState<{ chave: string; def: DefinicaoAnalise; familia: Familia; opcoes: PainelOpcoes } | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<{ mensagem: string; pendencia: Pendencia | null } | null>(null);
+  // O erro do motor, com a chave do pedido que falhou e, no ocupado, se a nova tentativa automática já está marcada (05/11/2026:
+  // o desfecho de um pedido da conversa espera a nova tentativa).
+  const [erro, setErro] = useState<{ mensagem: string; pendencia: Pendencia | null; chave?: string; repetindo?: boolean } | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [aviso, setAviso] = useState("");
   // Vista do desenho (estado visual da sessão, guardado no Histórico): o gráfico é a vista inicial; a escolha não se perde ao
@@ -248,7 +261,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [ativoCruzado, setAtivoCruzado] = useState<string | null>(null);
   const [dadosDoMapa, setDadosDoMapa] = useState<{ chave: string; dados: DadosDoMapa } | null>(null);
   const [carregandoMapa, setCarregandoMapa] = useState(false);
-  const [erroMapa, setErroMapa] = useState<{ chave: string; mensagem: string; pendencia: Pendencia | null } | null>(null);
+  const [erroMapa, setErroMapa] = useState<{ chave: string; mensagem: string; pendencia: Pendencia | null; repetindo?: boolean } | null>(null);
   const [tentativaMapa, setTentativaMapa] = useState(0);
   // Ocupado (01/11/2026): o serviço respondeu que está no limite (503 com `ocupado`). O pedido é repetido sozinho, depois do
   // tempo que o serviço indica, no máximo MAX_REPETICOES_OCUPADO vezes por gráfico ou mapa; depois, fica o "Tentar novamente".
@@ -285,7 +298,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const estadoDaInteracao = (): EstadoDaInteracao => ({ def, aba, aberto, vista: vistaEscolhida, escala, corte, selecionados, filtroClasse,
     soAtende });
   const pendente = useRef<PassoDaInteracao<EstadoDaInteracao> | null>(null);
+  /** Mudanças feitas na área (todo passo do Desfazer que não é um pedido da conversa, e o próprio Desfazer): uma delas, antes do fim
+   * de um pedido da conversa, toma o lugar dele (05/11/2026). */
+  const manuais = useRef(0);
   function registrar(rotulo: string, tipoDoPasso = rotulo) {
+    if (rotulo !== ROTULO_DO_PEDIDO) manuais.current += 1;
     const agora = Date.now();
     // Na mesma ação (o mesmo clique), vale o primeiro registro: é ele que descreve o que a pessoa fez.
     if (pendente.current && agora - pendente.current.quando < 40) return;
@@ -299,6 +316,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (JSON.stringify(passo.estado) !== instantaneo) setPassos(atual => empilharPasso(atual, passo));
   }, [instantaneo]);
   function desfazer() {
+    manuais.current += 1;
     const atual = instantaneo;
     let pilha = passos;
     while (pilha.length && JSON.stringify(pilha[pilha.length - 1].estado) === atual) pilha = pilha.slice(0, -1);
@@ -373,6 +391,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       if (resultado.vista) setVistaEscolhida(resultado.vista);
       setCriterioDoChat(resultado.criterio);
       setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
+      iniciarExecucao(pendentePedido.id, resultado.mensagens, { mudou: true, mapa: resultado.vista === "mapa" });
     } else setAviso((tipo === "brasil" ? "Dados do Brasil carregados." : "Planilha carregada.") + " " + TEXTO_SEM_SELECAO);
     setDef(inicial);
     setAba(semSelecao(inicial) ? "territorios" : inicial.familia);
@@ -419,7 +438,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!restaurar || restaurar === ultimoRestaurado.current || !pronto || iniciado.current !== chaveFonte) return;
     ultimoRestaurado.current = restaurar;
     const lido = lerEstadoSalvo(restaurar);
-    if (!lido) { setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada."); return; }
+    if (!lido) {
+      setAviso("Não foi possível reabrir esta análise: o estado salvo não tem a forma esperada.");
+      restauradoRef.current?.(false);
+      return;
+    }
     registrar("Reabrir uma análise do Histórico");
     reiniciarVisual();
     setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
@@ -432,6 +455,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       setCalculado({ chave: lido.chave, def: lido.definicao, familia: lido.familia, opcoes: lido.opcoes });
     }
     setAviso("Análise reaberta do Histórico, sem recalcular.");
+    restauradoRef.current?.(true);
   }, [restaurar, pronto, chaveFonte]);
 
   useEffect(() => {
@@ -468,9 +492,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         })
         .catch((exc: unknown) => {
           if (controle.signal.aborted) return;
-          setErro({ mensagem: exc instanceof Error ? exc.message : "Não foi possível montar o gráfico.",
-            pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null });
           cancelarRepeticao = repetirSeOcupado(exc, "painel:" + chave, () => setTentativa(valor => valor + 1));
+          setErro({ mensagem: exc instanceof Error ? exc.message : "Não foi possível montar o gráfico.",
+            pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null, chave, repetindo: !!cancelarRepeticao });
         })
         .finally(() => { if (!controle.signal.aborted) setCarregando(false); });
     }, 150);
@@ -482,6 +506,40 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     registrar("Voltar ao último gráfico calculado");
     setDef(calculado.def);
     setAviso("De volta ao último gráfico calculado.");
+  }
+
+  // ------------------------------------------------------------------------------------------ confirmação dos pedidos da conversa
+  // Desde 05/11/2026, cada pedido da conversa tem um desfecho, informado à página (onDesfecho) quando a área de fato o mostra: o
+  // motor calculou a definição que resultou do pedido (e os pontos do mapa chegaram, quando o mapa foi pedido), ou o que impediu
+  // (a parte recusada pela área, o que falta para o cálculo, a falha do motor, outra mudança que tomou o lugar dele). A conversa só
+  // diz "Mostrei" ou "Ordenei" com o desfecho "concluido". O desfecho é conferido depois do render com as mudanças do pedido e com
+  // a área estável (a definição e a interação iguais em dois renders seguidos), para nunca valer o estado de antes dele.
+  const execucao = useRef<{ id: number; mensagens: string[]; mudou: boolean; mapa: boolean; semCalculo: boolean; manuais: number;
+    render: number } | null>(null);
+  const renders = useRef(0);
+  renders.current += 1;
+  const visto = useRef("");
+  const [, setRelogioDaExecucao] = useState(0);
+  const [ultimoDesfecho, setUltimoDesfecho] = useState<{ id: number; situacao: SituacaoDoPedido } | null>(null);
+  const desfechoRef = useRef(props.onDesfecho); desfechoRef.current = props.onDesfecho;
+  const restauradoRef = useRef(props.onRestaurado); restauradoRef.current = props.onRestaurado;
+  /** Começa a esperar o desfecho de um pedido aplicado agora; o que ainda esperava foi substituído por este. */
+  function iniciarExecucao(id: number, mensagens: string[], c: { mudou: boolean; mapa: boolean; semCalculo?: boolean }) {
+    if (execucao.current) informarDesfecho("substituido", ["Um pedido novo da conversa tomou o lugar deste antes de ele terminar."]);
+    execucao.current = { id, mensagens: [...mensagens], mudou: c.mudou, mapa: c.mapa, semCalculo: !!c.semCalculo,
+      manuais: manuais.current, render: renders.current };
+    setRelogioDaExecucao(valor => valor + 1);
+  }
+  /** Informa o desfecho do pedido em curso, com o que está na tela agora (o título e, com o cálculo à vista, o resultado). */
+  function informarDesfecho(situacao: SituacaoDoPedido, mensagens: string[]) {
+    const em = execucao.current;
+    if (!em) return;
+    execucao.current = null;
+    const calculou = situacao === "concluido" || situacao === "parcial";
+    desfechoRef.current?.({ id: em.id, situacao, mensagens: [...new Set(mensagens.filter(Boolean))], titulo,
+      resultado: calculou ? resposta?.sessao?.resultId ?? null : null, execucao: calculou ? resposta?.chave_execucao ?? null : null,
+      semTerritorios: situacao === "pendente" && semTerritorios(def) });
+    setUltimoDesfecho({ id: em.id, situacao });
   }
 
   // ------------------------------------------------------------------------------------------ comando da conversa e Histórico
@@ -496,13 +554,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         .filter((rotulo): rotulo is string => !!rotulo);
       if (def.familia === explicar.aba) setAba(explicar.aba);
       setExplicacaoPedida({ n: ++explicacoesPedidas, aba: explicar.aba, termos });
-      if (!Object.values(resto).some(valor => valor !== undefined && valor !== null)) return;
+      if (!Object.values(resto).some(valor => valor !== undefined && valor !== null)) {
+        iniciarExecucao(pedido.id, [], { mudou: true, mapa: false, semCalculo: true });
+        return;
+      }
     }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // O pedido da conversa também é um passo do Desfazer (24/10/2026): Desfazer devolve o que estava antes dele.
-    registrar("Aplicar o pedido da conversa");
+    registrar(ROTULO_DO_PEDIDO);
     // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise (com a Escolha dos
     // territórios pedida na conversa, 28/10/2026, a base é a da consulta, e a comparação de antes sai).
     if (pedido.pedido.funcao !== "comparar" && !(pedido.pedido.consulta && resultado.definicao.consulta))
@@ -527,6 +588,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       else setVistaEscolhida("mapa");
     }
     setAviso(["Pedido da conversa aplicado ao gráfico.", ...resultado.mensagens].join(" "));
+    // O que o pedido mudou na área (a definição, a marcação, um painel, a vista ou a aba): sem nada disso e com motivos, ele foi
+    // recusado por inteiro.
+    const mudou = JSON.stringify(resultado.definicao) !== JSON.stringify(def) || !!resultado.selecao || !!resultado.abrir ||
+      !!resultado.criterio || !!resultado.vista || !!explicar || (!!abaDoPedido && abaDoPedido !== aba);
+    iniciarExecucao(pedido.id, resultado.mensagens, { mudou, mapa: resultado.vista === "mapa" });
   }, [pedido, pronto, chaveFonte]);
 
 
@@ -650,6 +716,34 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     contextoRef.current(contexto);
   }, [contexto]);
 
+  // O desfecho do pedido da conversa em curso (05/11/2026), conferido a cada render: só depois do render com as mudanças do pedido
+  // e com a área estável; antes do fim, uma mudança feita na área toma o lugar dele. O erro do motor e o do mapa só valem para o
+  // pedido em exibição e esperam a nova tentativa automática do ocupado.
+  const estabilidade = instantaneo + "|" + chave + "|" + vistaExibida;
+  useEffect(() => {
+    const em = execucao.current;
+    if (!em || renders.current <= em.render) return;
+    if (visto.current !== estabilidade) { visto.current = estabilidade; setRelogioDaExecucao(valor => valor + 1); return; }
+    if (manuais.current !== em.manuais) {
+      informarDesfecho("substituido", ["Outra mudança feita na área de análise tomou o lugar do pedido antes de ele terminar."]);
+      return;
+    }
+    if (!em.mudou && em.mensagens.length) { informarDesfecho("recusado", em.mensagens); return; }
+    if (em.semCalculo) { informarDesfecho("concluido", em.mensagens); return; }
+    if (bloqueio) { informarDesfecho("pendente", [...em.mensagens, bloqueio]); return; }
+    if (carregando) return;
+    if (erro && (!erro.chave || erro.chave === chave)) {
+      if (!erro.repetindo) informarDesfecho("falhou", [...em.mensagens, erro.mensagem]);
+      return;
+    }
+    if (!calculado || calculado.chave !== chave) return;
+    if (em.mapa && mapaNaTela) {
+      if (erroDoMapa) { if (!erroDoMapa.repetindo) informarDesfecho("falhou", [...em.mensagens, erroDoMapa.mensagem]); return; }
+      if (!dadosConferem) return;
+    }
+    informarDesfecho(em.mensagens.length ? "parcial" : "concluido", em.mensagens);
+  });
+
   const querMapa = !!fonteMotor && !!chaveMapa && mapa.disponivel && (mapaNaTela || (resposta?.nivel === "municipios" && plotaveis.length > 0));
   useEffect(() => {
     if (!querMapa || !fonteMotor) { setCarregandoMapa(false); return; }
@@ -673,9 +767,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       })
       .catch((exc: unknown) => {
         if (controle.signal.aborted) return;
-        setErroMapa({ chave: chavePedida, mensagem: exc instanceof Error ? exc.message : "Não foi possível obter os pontos do mapa.",
-          pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null });
         cancelarRepeticao = repetirSeOcupado(exc, "mapa:" + chavePedida, () => setTentativaMapa(valor => valor + 1));
+        setErroMapa({ chave: chavePedida, mensagem: exc instanceof Error ? exc.message : "Não foi possível obter os pontos do mapa.",
+          pendencia: exc instanceof ErroDoMotor ? exc.pendencia : null, repetindo: !!cancelarRepeticao });
       })
       .finally(() => { if (!controle.signal.aborted) setCarregandoMapa(false); });
     return () => { controle.abort(); cancelarRepeticao?.(); };
@@ -1487,8 +1581,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   </aside> : null;
   const larguraMaxima = Math.max(LATERAL_MIN, Math.min(LATERAL_MAX, Math.round((corpoRef.current?.clientWidth ?? 1200) / 2)));
 
+  // Os atributos do pedido da conversa (05/11/2026): o último com desfecho, a situação dele e o resultado do motor em exibição (o id
+  // guardado na sessão), para conferir a associação entre o comando e o que a área mostra.
   return <section id="area-de-analise" data-testid="area-de-analise" data-estado={estadoTela} data-familia={def.familia} data-nivel={def.nivel}
-    data-desenho={vistaExibida} data-aba={aba} aria-labelledby="analise-titulo" className="analise">
+    data-desenho={vistaExibida} data-aba={aba} data-pedido-da-conversa={ultimoDesfecho?.id ?? ""} data-desfecho={ultimoDesfecho?.situacao ?? ""}
+    data-resultado={resposta?.sessao?.resultId ?? ""} aria-labelledby="analise-titulo" className="analise">
     {/* Desfazer e Limpar seleção (24/10/2026, segunda rodada): fixos no alto da área, lado a lado, em todas as abas, sem rolar. */}
     {pronto && <div data-testid="analise-controles-globais" role="toolbar" aria-label="Desfazer e limpar seleção"
       className="analise-controles-globais analise-nao-imprimir">

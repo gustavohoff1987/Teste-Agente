@@ -4,9 +4,10 @@
   nem redação; a resposta verificada responde (com TPL-08 só quando um texto do Gemini foi recusado). A chamada em curso
   continua com o prazo de 75 s por operação (decisão de 21/10/2026).
 - Começo sem base, na página única: o pedido de análise feito antes da escolha dos dados recebe na hora o lembrete de escolher
-  a base, sem o provedor; perguntas de conceito e conversa continuam pelo caminho de sempre. Desde 28/10/2026, com um estado,
-  uma região ou o próprio Brasil citados, a oferta dos dados do Brasil; com os dados da pessoa citados, a oferta do envio; com
-  os dados do Brasil citados como fonte, a escolha deles.
+  a base, sem o provedor; perguntas de conceito e conversa continuam pelo caminho de sempre. Desde 28/10/2026, com os dados da
+  pessoa citados, a oferta do envio; com os dados do Brasil citados como fonte, a escolha deles. Com um estado, uma região ou o
+  próprio Brasil citados, de 28/10 a 05/11/2026 a oferta dos dados do Brasil; desde 05/11/2026, a escolha deles, porque o
+  pedido identifica a base sem dúvida (a dúvida sobre a fonte continua pedindo a escolha).
 Nenhuma chamada externa real: o provedor é simulado, e o relógio do pedido é ajustado direto na variável de contexto.
 """
 import asyncio
@@ -89,8 +90,9 @@ def test_texto_recusado_nao_e_regenerado_depois_do_orcamento(monkeypatch, proibi
 
 # --------------------------------------------------------------------------------------------- começo sem base
 # Desde 28/10/2026, os pedidos com um estado do Brasil ("Compare os municípios do Pará pela densidade", "mostre a tendência
-# em Minas Gerais", que estavam aqui) recebem a oferta dos dados do Brasil (teste seguinte); "quero analisar X" vale com
-# qualquer objeto, inclusive um município, que sem a base não é reconhecido como lugar do Brasil (CFG-TER).
+# em Minas Gerais", que estavam aqui) não recebem o lembrete (teste seguinte: desde 05/11/2026, a escolha dos dados do Brasil);
+# "quero analisar X" vale com qualquer objeto, inclusive um município, que sem a base não é reconhecido como lugar do Brasil
+# (CFG-TER): sem um lugar do Brasil, há dúvida sobre a fonte, e o lembrete pede a escolha.
 @pytest.mark.parametrize("mensagem", ["Quero analisar a densidade", "quais os 5 municípios com maior densidade?",
                                       "compare o de maior e o de menor densidade", "quero analisar Recife",
                                       "quero analisar",
@@ -111,6 +113,10 @@ def test_pedido_de_analise_sem_base_recebe_na_hora_o_lembrete_de_escolher_os_dad
 
 
 @pytest.mark.parametrize("mensagem,quem", [
+    # Os pedidos do responsável (05/11/2026): sem base, os cinco municípios do Acre e uma análise de Rondônia.
+    ("os cinco municípios do Acre com maior densidade médica", "Para analisar o Acre"),
+    ("Quero os cinco municípios do Acre com maior densidade médica", "Para analisar o Acre"),
+    ("faça uma análise de Rondônia", "Para analisar Rondônia"),
     ("quero analisar o acre", "Para analisar o Acre"), ("quero analisar pernambuco", "Para analisar Pernambuco"),
     ("Compare os municípios do Pará pela densidade", "Para analisar o Pará"),
     ("mostre a tendência em Minas Gerais", "Para analisar Minas Gerais"), ("e a Bahia?", "Para analisar a Bahia"),
@@ -120,20 +126,23 @@ def test_pedido_de_analise_sem_base_recebe_na_hora_o_lembrete_de_escolher_os_dad
     ("dados de pernambuco", "Para analisar Pernambuco"), ("agora Pernambuco", "Para analisar Pernambuco"),
     # A região de um estado é parte dele; "regiões Norte e Sul" cita as duas (correção de 29/10/2026).
     ("região sul do Pará", "Para analisar o Pará"), ("quero comparar as regiões Norte e Sul", "Para analisar o Norte e o Sul"),
-    # A fonte citada sem a preposição de uso é oferecida, não escolhida.
+    # A fonte citada sem a preposição de uso: desde 05/11/2026, também a escolha (antes, a oferta).
     ("quero analisar Pernambuco, dados do Brasil", "Para analisar Pernambuco")])
-def test_pedido_sem_base_com_lugar_do_brasil_recebe_na_hora_a_oferta_dos_dados_do_brasil(proibido, mensagem, quem):
-    """Antes da escolha dos dados (28/10/2026): um estado ou uma região do Brasil (os nomes da regra governada da fonte
-    municipal) ou o próprio Brasil mostram que o pedido é sobre os dados do Brasil; a resposta os oferece na hora, sem o
-    provedor, e o pedido fica guardado (antes, "quero analisar o acre" ia ao provedor e voltava "Não identifiquei uma análise
-    inequívoca")."""
+def test_pedido_sem_base_com_lugar_do_brasil_escolhe_na_hora_os_dados_do_brasil(proibido, mensagem, quem):
+    """Antes da escolha dos dados: um estado ou uma região do Brasil (os nomes da regra governada da fonte municipal) ou o
+    próprio Brasil identificam a base sem dúvida. Desde 05/11/2026 (pedido do responsável), a resposta escolhe os dados do
+    Brasil, como o botão (`fonte_escolhida`), e diz por quê e como usar os dados da pessoa; o pedido fica guardado e segue
+    quando a base fica pronta. De 28/10 a 05/11/2026, a resposta só oferecia os dados ("posso usar os dados do Brasil: escolha
+    “Usar dados do Brasil” ou responda “sim”…"); antes, "quero analisar o acre" ia ao provedor. Nada é interpretado pelo
+    provedor nem calculado."""
     inicio = time.perf_counter()
     resposta = client.post("/api/llm/interpret", json={"message": mensagem, "lembrar_base": True})
     assert resposta.status_code == 200, resposta.text
     corpo = resposta.json()
-    assert corpo["aguarda_base"] is True and corpo["fonte_sugerida"] == "brasil" and "fonte_escolhida" not in corpo
-    assert corpo["reply"] == quem + ", posso usar os dados do Brasil: escolha “Usar dados do Brasil” ou responda “sim”. Se " \
-        "preferir, envie os seus, em CSV ou Excel. Assim que a base estiver pronta, sigo com o seu pedido."
+    assert corpo["aguarda_base"] is True and corpo["fonte_escolhida"] == "brasil" and "fonte_sugerida" not in corpo
+    assert corpo["reply"] == quem + ", vou usar os dados do Brasil. Estou preparando os dados e, em seguida, sigo com o seu " \
+        "pedido. Se preferir analisar os seus dados, use “Trocar”, no alto da página, e escolha “Enviar meus dados”."
+    assert "posso usar" not in corpo["reply"] and "responda “sim”" not in corpo["reply"]
     assert corpo["proposal"]["operation"] is None and corpo["executed"] is False and "painel" not in corpo
     assert corpo["origin"] == "CANAL_SISTEMICO" and time.perf_counter() - inicio < 5
 

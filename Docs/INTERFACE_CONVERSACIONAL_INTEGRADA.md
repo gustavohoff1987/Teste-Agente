@@ -162,7 +162,9 @@ A comunicação de indisponibilidade da conversa aparece como resposta do sistem
   (`posicaoDaRolagem`, 26/10/2026; antes, a rolagem ia sempre ao fim, e a pergunta sumia acima da área visível). Quem está
   lendo mensagens antigas não é puxado quando a resposta chega: aparece o botão "Ir para a mensagem mais recente"
   (`chat-ir-ao-fim`).
-- **Estados.** Enquanto a resposta não chega, "Interpretando o pedido…" fica no fim do histórico (`chat-processando`); depois
+- **Estados.** Enquanto a resposta não chega, "Interpretando o pedido…" fica no fim do histórico (`chat-processando`); desde
+  05/11/2026, com o pedido já interpretado e à espera da confirmação da área, "Aplicando o pedido na área de análise…"
+  (`data-fase="aplicando"`; ver [Confirmação de execução](#confirmação-de-execução-05112026)); depois
   de 12 s, "Ainda estou trabalhando no seu pedido…"; depois de 45 s, "O serviço de conversa está demorando mais que o normal;
   aguarde mais um pouco…". Aos 100 s, a tela interrompe a espera e responde com o aviso "A resposta demorou mais que o
   esperado" ("Interrompi a espera para você não ficar parado. Tente de novo em instantes ou siga pelos botões e controles da
@@ -211,7 +213,11 @@ conversa entende. Até 26/10/2026, os exemplos eram fixos e citavam lugares ("mo
 de IA. Escolhidos os dados do Brasil, a resposta diz "Dados do Brasil escolhidos. Vou prepará-los; em seguida, escolha os
 territórios na Seleção de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os
 estados”."; desde 28/10/2026, com um pedido guardado (abaixo), "Dados do Brasil escolhidos. Vou prepará-los e, em seguida,
-sigo com o seu pedido."
+sigo com o seu pedido." Desde 05/11/2026, quando a preparação dos dados do Brasil escolhidos pela conversa (pela mensagem, pelo
+"sim" ou pelo próprio pedido) falha, ou falha com um pedido guardado, a conversa diz "Não consegui preparar os dados do Brasil:
+<motivo>. O seu pedido continua guardado. Para tentar de novo, escreva “usar dados do Brasil” ou escolha “Cancelar” e, depois,
+“Usar dados do Brasil”.", e "usar dados do Brasil" tenta de novo (antes, a resposta era "Estou preparando os dados do Brasil.",
+e o pedido guardado ficava esperando sem aviso).
 
 **Antes dos dados.** Perguntas sobre o agente, a privacidade e os conceitos ("Como se calcula a densidade?") e sobre o
 conteúdo da base do Brasil continuam respondidas localmente. Desde 26/10/2026, um pedido de análise feito antes da escolha
@@ -225,27 +231,33 @@ resposta local, o comando já interpretado ou o intérprete contextual), com a r
 sigo com o seu pedido."; antes, sem resposta local, o pedido guardado se perdia. "Certo, quantos tem?" antes da escolha
 recebe "Para continuar, escolha os dados: “Usar dados do Brasil” ou “Enviar meus dados”."
 
-**A fonte oferecida antes dos dados (28/10/2026).** O pedido feito antes da escolha dos dados é lido de novo para ver se diz
-de qual fonte precisa, ainda na hora e sem o provedor (`pedido_antes_dos_dados`, em `conversa_grafico.py`):
+**A fonte oferecida antes dos dados (28/10/2026; a escolhida pelo pedido, desde 05/11/2026).** O pedido feito antes da escolha
+dos dados é lido de novo para ver se diz de qual fonte precisa, ainda na hora e sem o provedor (`pedido_antes_dos_dados`, em
+`conversa_grafico.py`):
 - **Lugares do Brasil num pedido:** um estado pelo nome, uma região ("Nordeste", "região Sul", "regiões Norte e Sul") ou o
   próprio Brasil, com um verbo de ver ou de analisar, um objeto da análise ("densidade", "municípios") ou o pedido dos dados
   ("dados de Pernambuco"), ou numa menção curta ("e a Bahia?", "agora Pernambuco"). Os nomes são os da regra governada da
   fonte municipal do Brasil (`STATES` e `REGIONS`), que a conversa já reconhece com a base escolhida; a região de um estado
   ("região sul do Pará") conta como o estado. Siglas não contam, porque colidem com as da saúde ("MS", "RN", "PA"), e
-  "brasileiro" é adjetivo. A resposta oferece os dados do Brasil: "Para analisar o Acre, posso usar os dados do Brasil:
-  escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os seus, em CSV ou Excel. Assim que a base estiver
-  pronta, sigo com o seu pedido." (`fonte_sugerida: "brasil"`). O botão "Usar dados do Brasil" aparece na resposta, e no alto
-  só ele fica em destaque (`data-lembrete="brasil"`). "Sim", "pode", "sim, claro", "sim, pode usar os dados do Brasil" ou o
-  botão escolhem os dados do Brasil, como o botão do alto; "não" (também "não, prefiro enviar os meus") deixa "Enviar meus
-  dados" em destaque. Qualquer outra mensagem esquece a oferta.
+  "brasileiro" é adjetivo. Desde 05/11/2026 (pedido do responsável), o lugar identifica a base sem dúvida, e a conversa
+  escolhe os dados do Brasil, como o botão (`fonte_escolhida: "brasil"`): "Para analisar o Acre, vou usar os dados do Brasil.
+  Estou preparando os dados e, em seguida, sigo com o seu pedido. Se preferir analisar os seus dados, use “Trocar”, no alto da
+  página, e escolha “Enviar meus dados”." ("Para esse pedido, …" quando só o Brasil é citado). Quando a base fica pronta, o
+  pedido guardado segue pelo caminho completo: "Quero os cinco municípios do Acre com maior densidade médica" seleciona os 22
+  municípios do Acre e ordena pela densidade, com os 5 primeiros em destaque, e a resposta só aparece com a confirmação da
+  área (abaixo). De 28/10 a 05/11/2026, a resposta oferecia os dados do Brasil ("Para analisar o Acre, posso usar os dados do
+  Brasil: escolha “Usar dados do Brasil” ou responda “sim”. …", `fonte_sugerida: "brasil"`), com o botão na resposta e só ele em
+  destaque no alto, e o "sim" ou o botão os escolhiam. A conversa continua aceitando "sim" e "não" à oferta que sobrou, a do
+  envio.
 - **Os dados da pessoa** ("minha planilha", "meus dados"): a oferta do envio, com o botão "Enviar meus dados" na resposta
   (`fonte_sugerida: "arquivo"`); "sim" abre a janela de envio.
 - **Os dados do Brasil citados como fonte, num pedido afirmativo** ("quero analisar Pernambuco com os dados do Brasil",
   "usando a base do Brasil"): a escolha deles, como o botão (`fonte_escolhida: "brasil"`), com "Dados do Brasil escolhidos.
-  Vou prepará-los e, em seguida, sigo com o seu pedido." Sem a preposição de uso ("Pernambuco, dados do Brasil"), a oferta.
+  Vou prepará-los e, em seguida, sigo com o seu pedido." Sem a preposição de uso ("Pernambuco, dados do Brasil"), desde
+  05/11/2026 também a escolha, com a frase do lugar (antes, a oferta).
   Com a fonte negada ("sem os dados do Brasil", "não quero…") ou numa pergunta ("Pernambuco está nos dados do Brasil?",
   "meus dados ficam no Brasil?"), nada é escolhido nem oferecido: a mensagem segue o caminho de antes.
-- **Sem nada disso**, o lembrete de 26/10/2026, que continua valendo para o pedido educado ("você pode mostrar a densidade
+- **Sem nada disso** (a dúvida sobre a fonte), o lembrete de 26/10/2026, que continua valendo para o pedido educado ("você pode mostrar a densidade
   dos municípios?"). "Quero analisar X" (o verbo; "analise" só no começo da mensagem) vale como pedido de análise com
   qualquer objeto; o substantivo "análise" sozinho ("obrigado pela análise", "a análise é feita pelo Gemini?") e a pergunta
   sobre o que o agente faz ("você consegue analisar planilhas?") não valem.
@@ -268,7 +280,8 @@ análise anterior, descritos abaixo), cada pedido vai primeiro ao intérprete lo
 resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A conversa não calcula nada:
 - quando a resposta traz o campo **`painel`** (família, indicador, nível, municípios, competência, janela, visão da tendência,
   referência, função, seleção, ordenação, condições, grupos e vista do desenho), ele vira um **pedido para a área**, com um
-  id novo a cada comando. Só os campos válidos entram, e os não citados (`null`) ficam de fora;
+  id novo a cada comando. Só os campos válidos entram, e os não citados (`null`) ficam de fora. Desde 05/11/2026, a resposta
+  espera o desfecho do pedido na área ([Confirmação de execução](#confirmação-de-execução-05112026));
 - "Mostre o Pará", "use Belém como referência", "compare Manaus e Tefé", "volte aos estados" e os demais comandos mudam o
   gráfico; os números vêm do motor, pedidos pela área. Desde 24/10/2026, um pedido feito com a Seleção de Territórios aberta
   leva a área à análise quando há territórios escolhidos (os resultados ficam nas análises); um pedido que muda os
@@ -368,6 +381,64 @@ agregado em exibição (territórios, valores com as unidades, períodos, classe
 26/10/2026. Sem o provedor, os pedidos sobre o gráfico, o gestor de diálogo, a escolha dos dados e as respostas locais
 continuam disponíveis; o pedido que dependeria do provedor recebe, no histórico, a comunicação cordial de indisponibilidade.
 
+### Confirmação de execução (05/11/2026)
+
+Pedido do responsável (05/11/2026): o agente chegava a dizer que tinha selecionado ou ordenado territórios, mas a área continuava
+igual, sobretudo antes da escolha da base ou dos territórios. A causa: a tela mostrava a resposta do intérprete ("Ordenei os
+municípios…") no mesmo instante em que entregava o comando à área, sem saber se ela o aplicaria. Com a base pronta e nenhum
+território escolhido, "ordene os municípios pela densidade, do maior para o menor" recebia "Ordenei os municípios pela
+densidade…", e nada era calculado. Agora, interpretar ou emitir o comando não é execução:
+- **O pedido e o desfecho.** Cada comando da conversa para a área (o campo `painel`, a vista do desenho, "Entenda esta análise")
+  tem um id (`App.tsx`). A área (`AreaDeAnalise.tsx`) informa o desfecho dele (`DesfechoDoPedido`, em `paginaUnica.ts`) quando de
+  fato o mostra. Ela confere depois do render com as mudanças do pedido e com a área estável, para nunca valer o estado de
+  antes. A situação:
+  - `concluido`: tudo o que o pedido trouxe está na área, e o motor calculou a definição que resultou dele (com a vista do mapa,
+    também os pontos do mapa);
+  - `parcial`: parte foi recusada pela área, com os motivos dela ("A competência … não existe nesta base.", "Análise Espacial:
+    …", "Mapa: …");
+  - `pendente`: o pedido entrou na análise, mas falta algo para o motor calcular (sem territórios, "Selecione os territórios que
+    deseja analisar.");
+  - `recusado`: nada pôde ser aplicado;
+  - `falhou`: o motor (ou os pontos do mapa) não respondeu com o resultado, depois das novas tentativas automáticas do ocupado;
+  - `substituido`: uma mudança feita na área, ou um pedido novo, tomou o lugar dele antes do fim;
+  - `interrompido`: a área recomeçou (Nova análise, Histórico ou troca de dados).
+
+  Com o cálculo à vista, o desfecho traz o título do que ficou na tela e o resultado do motor: o id guardado na sessão e a chave
+  de execução.
+- **A resposta.** Só com `concluido` a conversa mostra o texto do intérprete, que diz o que foi feito ("Mostrei a densidade
+  nos 22 municípios do Acre. Ordenei os municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros…"). Nos
+  demais, o que de fato aconteceu (`textoDoDesfecho`, em `conversaGrafico.ts`):
+  - "O pedido foi feito só em parte. Não foi possível: <motivos> Na área de análise está agora: <título>.";
+  - "O pedido não foi concluído: ainda não há territórios escolhidos, e nada foi calculado. Escolha os territórios na Seleção
+    de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”." (numa planilha, sem
+    os exemplos do Brasil); com outra falta, "O pedido ainda não pode ser calculado: <motivo>";
+  - "O pedido não pôde ser aplicado: <motivos> Nada mudou na área de análise.";
+  - "O pedido não foi concluído: <motivo> O gráfico não foi atualizado.";
+  - "O pedido não chegou a ser concluído: <motivo>".
+- **Espera e desfecho tardio.** Enquanto a área calcula, a caixa mostra "Aplicando o pedido na área de análise…", e o campo de
+  mensagem espera. Depois de 20 s sem desfecho, a resposta diz "O pedido foi enviado à área de análise, mas ainda não terminou.
+  Aviso aqui assim que ele for concluído ou se não for possível concluí-lo.", e a conversa volta a aceitar mensagens. Quando o
+  desfecho chega, ele entra numa mensagem nova, sobre o pedido anterior: "Pronto, o pedido anterior foi concluído. <o texto do
+  intérprete>" ou "O pedido anterior não foi concluído: …". Um pedido novo da conversa toma o lugar do que ainda esperava.
+- **A associação verificável.** A mensagem do agente leva `data-pedido` (o id), `data-execucao` (a situação; "aguardando" na
+  resposta que ainda espera) e `data-resultado` (o id do resultado do motor na sessão). A área leva `data-pedido-da-conversa`
+  (o último pedido com desfecho), `data-desfecho` e `data-resultado` (o resultado em exibição). O pedido confirmado mostra os
+  mesmos ids nos dois lados.
+- **Também confirmados.** A vista do desenho ("ver no mapa" só diz "Mostrei o mapa…" com os pontos do mapa recebidos), a
+  explicação que abre "Entenda esta análise" e "volte ao resultado anterior" ("Reabri a análise anterior…" só depois de a área
+  confirmar o estado reaberto; um estado guardado sem a forma esperada recebe "Não consegui reabrir a análise anterior …"). Um
+  comando e uma ação de tela da mesma resposta vão num pedido só (`juntarPedidos`); antes, dois pedidos no mesmo instante
+  deixavam só o último.
+- **A continuação** de uma resposta ("assim que o gráfico estiver pronto, comparo …", `continuar`) só segue com o pedido
+  concluído, logo que a conversa fica livre. Antes, ela saía com o gráfico novo ou depois de 8 s, mesmo sem o pedido aplicado.
+- **O painel Ordenar** aberto passa a mostrar a ordenação que a conversa (ou o Desfazer) aplicou. Antes, os campos dele ficavam
+  com a escolha anterior, e a lista mostrava a ordem nova.
+- **Permanece.** Os controles da área, o Desfazer (o pedido da conversa continua um passo dele; a pilha do "desfaz" da conversa
+  volta ao que era quando a área não ficou com o pedido), o Histórico, a memória da conversa e os pedidos que não mudam a área
+  (perguntas, esclarecimentos em botões, a tabela e o resumo) seguem como antes. A conversa não calcula nem decide nada: só lê
+  o desfecho que a área informa. O LLM não informa estados de execução; a conferência de fidelidade já recusava ações ditas
+  pelo modelo sem comando (`backend/fidelidade.py`).
+
 ## Exportação
 
 As exportações da análise ficam na função **Exportar** da área (CSV com precisão integral, avaliabilidade e motivo;
@@ -390,7 +461,8 @@ A API não mudou com essa saída: `/api/analyze`, `/api/preflight` e as capacida
 
 ## Componentes e fronteiras
 
-- `App.tsx`: estrutura da página, fonte de dados, Histórico, Nova análise e Nova sessão; monta a área de análise.
+- `App.tsx`: estrutura da página, fonte de dados, Histórico, Nova análise e Nova sessão; monta a área de análise; desde
+  05/11/2026, dá um id a cada pedido da conversa e entrega a ela o desfecho que a área informa (`onDesfecho`, `onRestaurado`).
 - `BarraDaFonte.tsx`, `ColunasDaPlanilha.tsx` e `HistoricoDeAnalises.tsx`: fonte, painel "Colunas" e Histórico.
 - `AnalysisAssistant.tsx` e `ChatFloatingBox.tsx`: a conversa e a caixa flutuante.
 - `conversaGrafico.ts` e `paginaUnica.ts`: funções puras da conversa (campo `painel` → pedido, contexto → opções, comandos) e

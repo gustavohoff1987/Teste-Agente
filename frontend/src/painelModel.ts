@@ -66,6 +66,11 @@ export type ContextoDoGrafico = {
 };
 /** Estado salvo no Histórico: reabre sem recalcular. `definicao` é o objeto de `salvarEstado`. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };
+/** Confirmação de execução de um pedido da conversa (05/11/2026): a mesma forma de paginaUnica.DesfechoDoPedido, que descreve
+ * cada situação. A área informa o desfecho quando de fato mostra o pedido (ou não consegue). */
+export type SituacaoDoPedido = "concluido" | "parcial" | "pendente" | "recusado" | "falhou" | "substituido" | "interrompido";
+export type DesfechoDoPedido = { id: number; situacao: SituacaoDoPedido; mensagens: string[]; titulo: string;
+  resultado: string | null; execucao: string | null; semTerritorios: boolean };
 /** Estado de uma UF na base do Brasil (bloco "niveis" da inspeção). Basta esta forma (compatível com territorialScope.Levels). */
 export type NivelEstado = { prefixo: string; sigla: string; nome: string; rotulo?: string; rotulo_grupo?: string; municipios: number };
 export type NiveisDaBase = { estados: NivelEstado[]; municipios: { total: number };

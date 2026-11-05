@@ -35,7 +35,9 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   onSalvar={e => ...}                   // a cada cálculo do motor
   onEscolherFonte={tipo => ...}         // "Usar dados do Brasil" e "Enviar meus dados" (abre a janela de envio), na abertura e no "Trocar"
   trocandoFonte={boolean}               // "Trocar" pedido na barra da fonte: a escolha volta à área, com "Cancelar"
-  onCancelarTroca={() => ...}/>
+  onCancelarTroca={() => ...}
+  onDesfecho={d => ...}                 // desde 05/11/2026: o desfecho de cada pedido da conversa, quando a área o mostra
+  onRestaurado={ok => ...}/>            // desde 05/11/2026: a reabertura do Histórico confirmada
 ```
 
 - **Fonte:** `null` é a abertura (E0). A troca de fonte (outra versão, outra planilha) recomeça a área. "Nova análise" remonta a
@@ -68,7 +70,17 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   Manaus e Tefé" pede a comparação; uma família indisponível fica de fora, com o motivo. O mapa é conferido na análise que
   resulta do pedido: "mostre os municípios do Amazonas no mapa" abre o mapa; nos estados, o aviso diz o motivo ("Mapa: Os
   estados não têm um ponto no mapa…"). Numa planilha sem população, um pedido pela densidade fica na quantidade, com o motivo.
-  Um pedido feito antes dos dados é aplicado quando a base fica pronta.
+  Um pedido feito antes dos dados é aplicado quando a base fica pronta. Desde 05/11/2026, a área informa o desfecho de cada
+  pedido (`onDesfecho`, com o id do pedido): `concluido` quando tudo o que ele trouxe está na área e o motor calculou a
+  definição que resultou dele (com a vista do mapa, também os pontos do mapa); `parcial` com os avisos acima e o resto à vista;
+  `pendente` quando falta algo para o motor calcular (sem territórios, "Selecione os territórios que deseja analisar."); `recusado`
+  quando nada pôde ser aplicado; `falhou` com o erro do motor (depois das novas tentativas do ocupado); `substituido` quando uma
+  mudança feita na área, ou um pedido novo, toma o lugar dele antes do fim. O desfecho é conferido depois do render com as
+  mudanças do pedido e com a área estável, e traz o título e o resultado do motor em exibição (`sessao.result_id` e
+  `chave_execucao`). A raiz da área leva `data-pedido-da-conversa`, `data-desfecho` e `data-resultado` (o resultado em exibição).
+  A conversa só diz que fez o pedido com `concluido` ([confirmação de execução](INTERFACE_CONVERSACIONAL_INTEGRADA.md#confirmação-de-execução-05112026)).
+  O painel Ordenar aberto mostra a ordenação aplicada pela conversa ou pelo Desfazer (antes, os campos dele ficavam com a
+  escolha anterior).
 - **Nomenclatura territorial:** `fonte.rotulos` (`{unidade: {singular, plural}, grupo: {singular, plural} | null}`) ou os
   `rotulos` da resposta do motor. Na base do Brasil, município e estado; numa planilha, o que a pessoa confirmou (distrito,
   província…). Nenhum texto da área fixa "município" ou "estado": título, subtítulo, lista de territórios, resumo da seleção, dica, tabela,

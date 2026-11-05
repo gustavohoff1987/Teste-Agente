@@ -3,11 +3,11 @@ import { ArrowDown, Database, FileUp, Info, LoaderCircle, RefreshCw, Send } from
 import BrandAvatar from "./BrandAvatar";
 import ChatFloatingBox from "./ChatFloatingBox";
 import { sessionFetch as fetch, contextRevision } from "./conversationSession";
-import { comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa, memoriaVazia, normalizeCommand, opcoesDaConversa,
-  pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel, pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaAOferta,
-  respostaDaVista, respostaDoResumo, rotuloDoPedido, viewCommand, voltarAnteriores, type MemoriaDaConversa,
-  type ResultView } from "./conversaGrafico";
-import { dataLocal, type ContextoDoGrafico, type PedidoDoChat, type Rotulos } from "./paginaUnica";
+import { SEM_MUDANCA_NA_AREA, TEXTO_SEM_CONFIRMACAO, comandoDeFonte, conversaParaEnvio, guardarAnterior, guiaDaConversa,
+  juntarPedidos, memoriaVazia, normalizeCommand, opcoesDaConversa, pedidoDaOperacao, pedidoDeResumo, pedidoDoPainel,
+  pedidosDasAcoes, pendenteDaResposta, previousResultCommand, respostaAOferta, respostaDaVista, respostaDoResumo, rotuloDoPedido,
+  textoDoDesfecho, viewCommand, voltarAnteriores, type MemoriaDaConversa, type ResultView } from "./conversaGrafico";
+import { dataLocal, type ContextoDoGrafico, type DesfechoDoPedido, type PedidoDoChat, type Rotulos } from "./paginaUnica";
 import { acrescentar, avisoDaResposta, avisoDeDemora, avisoDeFalha, blocosDoTexto, estaNoFim, horaDaMensagem, mensagemDeAviso,
   novoId, posicaoDaRolagem, turnosParaEnvio, ultimaResposta, type Aviso, type Mensagem, type Trecho,
   type Turno as TurnoEnviado } from "./historicoConversa";
@@ -28,7 +28,9 @@ import { acrescentar, avisoDaResposta, avisoDeDemora, avisoDeFalha, blocosDoText
 // pronta, quando segue pelo caminho completo (desde 28/10/2026, com lugares do Brasil ou os dados da pessoa citados, a oferta
 // dessa fonte, com o botão dela na resposta e "sim" para escolhê-la); a resposta que pede continuação (`continuar`, como
 // "assim que o gráfico estiver pronto, comparo …") é enviada sozinha quando o motor calcula o gráfico novo; nenhum pedido fica
-// girando além do prazo da tela.
+// girando além do prazo da tela. Desde 05/11/2026, a resposta que diz o que foi feito ("Mostrei", "Ordenei", "Abri", "Reabri") só
+// aparece depois de a área confirmar que o pedido está na tela, com o cálculo do motor (o desfecho do pedido, DesfechoDoPedido);
+// com outro desfecho, a resposta diz o que de fato aconteceu, e sem confirmação no prazo, que ela ainda não veio.
 
 /** Alternativa de esclarecimento: com operation, reinterpreta o pedido com a escolha; com send, envia o rascunho como
  * mensagem (por exemplo, uma das leituras de "últimos 5 anos"); sem nenhum dos dois, vai para a caixa de texto. */
@@ -50,9 +52,12 @@ type Reply = { exploration?: Exploration; dialogue_action?: string; reply: strin
    * dados do Brasil citados como fonte, como o botão). */
   fonte_sugerida?: "brasil" | "arquivo"; fonte_escolhida?: "brasil" | "arquivo" };
 type Status = { configured: boolean; disponivel?: boolean; indisponibilidade?: { tipo?: string; titulo?: string; texto?: string } };
-/** Mensagem do histórico, com a pergunta de esclarecimento e o pedido que a provocou (para as alternativas). */
-type Turn = Mensagem & { clarification?: Clarification; request?: string; fonte?: string };
-type Local = { text: string; choices?: Choice[] };
+/** A execução de um pedido da conversa na área (05/11/2026): o id do pedido, a situação do desfecho ("aguardando" enquanto ele não
+ * chega) e o resultado do motor em exibição, que ficam na mensagem do agente para conferir a associação. */
+type RegistroDaExecucao = { pedido: number; situacao: string; resultado: string | null };
+/** Mensagem do histórico, com a pergunta de esclarecimento, o pedido que a provocou (para as alternativas) e a execução. */
+type Turn = Mensagem & { clarification?: Clarification; request?: string; fonte?: string; execucao?: RegistroDaExecucao };
+type Local = { text: string; choices?: Choice[]; execucao?: RegistroDaExecucao };
 
 /** O que acompanha cada pedido ao intérprete (nunca ao provedor de IA): a referência à base do Brasil ou o arquivo enviado
  * (reenviado só ao backend local), o mapeamento das colunas e as opções da fonte (escolhas da planilha). */
@@ -75,16 +80,23 @@ type Props = {
   /** Resultado do gráfico guardado na sessão do backend, para perguntas sobre o que está na tela. */
   displayedResultId: string;
   onEscolherFonte: (tipo: "brasil" | "arquivo") => void;
-  /** Resposta com o campo `painel`: o pedido para a área (um id novo a cada comando, no App). */
-  onPedido: (pedido: PedidoDoChat) => void;
-  /** "Volte ao resultado anterior": reabre a análise anterior do Histórico, sem recalcular, e devolve a resposta. */
-  onAnaliseAnterior: () => string;
+  /** Resposta com o campo `painel`: o pedido para a área (um id novo a cada comando, no App), com o desfecho que a área informa
+   * quando de fato o mostra (05/11/2026). */
+  onPedido: (pedido: PedidoDoChat) => { id: number; desfecho: Promise<DesfechoDoPedido> };
+  /** "Volte ao resultado anterior": reabre a análise anterior do Histórico, sem recalcular, e devolve a resposta depois de a área
+   * confirmar o estado reaberto. */
+  onAnaliseAnterior: () => Promise<string>;
+  /** A falha ao preparar os dados do Brasil (05/11/2026): a conversa a informa quando a escolha veio dela ou há pedido guardado. */
+  erroDaFonte?: string;
 };
 
 const VISTAS = new Map<string, ResultView>([["show_map", "mapa"], ["show_chart", "graficos"], ["show_table", "tabela"]]);
 /** Prazos da tela (26/10/2026): o aviso de que o pedido ainda está em andamento, o fim da espera (o backend tem 75 s por
  * chamada ao provedor e não começa chamada nova depois de 20 s do pedido) e a espera da continuação pelo gráfico novo. */
 const AVISO_DE_ANDAMENTO_MS = 12000, AVISO_DE_DEMORA_MS = 45000, PRAZO_DA_CONVERSA_MS = 100000;
+/** Quanto a resposta espera a área confirmar o pedido (05/11/2026); depois, ela diz que a confirmação ainda não veio, e o desfecho,
+ * quando chegar, entra numa mensagem nova. */
+const PRAZO_DA_EXECUCAO_MS = 20000;
 const ESPERA_DA_CONTINUACAO_MS = 8000, MAX_CONTINUACOES = 2;
 /** A fonte oferecida antes dos dados, como alternativa da resposta: o mesmo que o botão do alto (28/10/2026). */
 const OPCAO_DA_FONTE: Record<"brasil" | "arquivo", Choice> = {
@@ -97,6 +109,16 @@ const SEGUIMENTO = /^(?:certo[,.! ]*|ok[,.! ]*|sim[,.! ]*|entendi[,.! ]*|vamos[,
 class ErroDaConversa extends Error {
   constructor(readonly status: number | null, readonly detalhe?: unknown, readonly ocupado = false) { super("Falha da conversa."); }
 }
+
+/** A promessa ou, passado o prazo, null (a promessa continua e pode ser lida depois). */
+function comPrazo<T>(promessa: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise(resolve => {
+    const timer = window.setTimeout(() => resolve(null), ms);
+    promessa.then(valor => { window.clearTimeout(timer); resolve(valor); }, () => { window.clearTimeout(timer); resolve(null); });
+  });
+}
+const registroDe = (desfecho: DesfechoDoPedido): RegistroDaExecucao =>
+  ({ pedido: desfecho.id, situacao: desfecho.situacao, resultado: desfecho.resultado });
 
 async function lerResposta(response: Response): Promise<any> {
   const raw = await response.text();
@@ -128,13 +150,15 @@ function textoDoPedido(pedido: PedidoDoChat | null): string {
 }
 
 export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscolhida, fonte, fonteChave, colunasPendentes,
-  contexto, rotulos, displayedResultId, onEscolherFonte, onPedido, onAnaliseAnterior }: Props) {
+  contexto, rotulos, displayedResultId, onEscolherFonte, onPedido, onAnaliseAnterior, erroDaFonte = "" }: Props) {
   const pronta = !!fonte;
   const [status, setStatus] = useState<Status | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [sending, setSending] = useState(false);
+  /** O pedido já interpretado, à espera da confirmação da área (05/11/2026): o indicador diz que ele está sendo aplicado. */
+  const [aplicando, setAplicando] = useState(false);
   const latestReply = ultimaResposta(turns);
   // Rolagem do histórico: a chegada de uma resposta só leva ao fim quem está acompanhando o fim; quem lê mensagens antigas
   // fica onde está e vê o botão "Ir para a mensagem mais recente".
@@ -174,6 +198,16 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     return () => { window.clearTimeout(andamento); window.clearTimeout(espera); };
   }, [sending]);
   useEffect(() => { if (fonteEscolhida) { setLembrete(false); sugestao.current = null; } }, [fonteEscolhida]);
+  // A falha ao preparar os dados do Brasil (05/11/2026): com a escolha feita pela conversa (pelo pedido, pela mensagem ou pelo "sim")
+  // ou com um pedido guardado, a conversa diz que a base não ficou pronta, que o pedido continua guardado e como tentar de novo.
+  const escolhaPelaConversa = useRef(false);
+  useEffect(() => {
+    if (!erroDaFonte || !(escolhaPelaConversa.current || pendingRequest.current)) return;
+    escolhaPelaConversa.current = false;
+    append("Não consegui preparar os dados do Brasil: " + erroDaFonte.trim().replace(/[^.!?…]$/, "$&.") +
+      (pendingRequest.current ? " O seu pedido continua guardado." : "") +
+      " Para tentar de novo, escreva “usar dados do Brasil” ou escolha “Cancelar” e, depois, “Usar dados do Brasil”.");
+  }, [erroDaFonte]);
   function aoRolar() {
     const lista = historico.current;
     if (!lista) return;
@@ -262,15 +296,22 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
 
   function responder(local: Local, request: string) {
     adicionar({ id: novoId("agente"), papel: "agente", texto: local.text, request, fonte: atual.current.fonteChave,
+      ...(local.execucao ? { execucao: local.execucao } : {}),
       ...(local.choices?.length ? { clarification: { code: "ESCOLHA_DE_LEITURA", prompt: local.text, reason: "",
         source: "CATALOGO_LOCAL" as const, choices: local.choices, answered: false as const } } : {}) });
   }
   const append = (texto: string) => adicionar({ id: novoId("agente"), papel: "agente", texto });
-  /** Pedido de apresentação: a resposta e, quando a vista muda, o pedido `{ vista }` para a área (sem recalcular). */
-  function aplicarVista(vista: ResultView): string {
+  /** Pedido de apresentação: a resposta e, quando a vista muda, o pedido `{ vista }` para a área (sem recalcular), com a
+   * resposta depois da confirmação (05/11/2026). */
+  async function aplicarVista(vista: ResultView): Promise<Local> {
     const resposta = respostaDaVista(vista, atual.current.fonte ? atual.current.contexto : null);
-    if (resposta.pedido) pedir.current(resposta.pedido);
-    return resposta.texto;
+    const execucao = await executar(resposta.pedido, {}, resposta.texto);
+    return execucao ? { text: execucao.texto, execucao: execucao.registro } : { text: resposta.texto };
+  }
+  /** "Volte ao resultado anterior": a resposta da página, depois de a área confirmar o estado reaberto (05/11/2026). */
+  async function analiseAnterior(): Promise<string> {
+    return await comPrazo(onAnaliseAnterior(), PRAZO_DA_EXECUCAO_MS) ??
+      "Pedi a reabertura da análise anterior, mas a área de análise ainda não confirmou que ela foi reaberta.";
   }
 
   function formulario(origem: FonteDaConversa): FormData {
@@ -285,16 +326,40 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     form.append("displayed_result_id", atual.current.displayedResultId);
     return form;
   }
-  /** O pedido do gráfico que a resposta traz: guarda o estado de antes (ou volta a um estado guardado, quando a resposta
-   * desfaz) e o entrega à área. As ações de tela (abrir "Entenda esta análise") vão pelo mesmo caminho, sem recalcular. */
-  function aplicar(pedido: PedidoDoChat | null, resposta: { desfazer?: unknown; acoes?: unknown } = {}) {
+  /** O pedido do gráfico que a resposta traz e as ações de tela dela (abrir "Entenda esta análise"), num pedido só para a área;
+   * guarda o estado de antes (ou volta a um estado guardado, quando a resposta desfaz). Desde 05/11/2026, espera o desfecho que a
+   * área informa: o texto que diz o que foi feito (`confirmado`) só vale com o pedido concluído; com outro desfecho, o que de fato
+   * aconteceu. Sem o desfecho no prazo da tela, a resposta diz que a confirmação ainda não veio, e o desfecho, quando chegar, entra
+   * no histórico numa mensagem nova. Sem pedido, null. */
+  async function executar(pedido: PedidoDoChat | null, resposta: { desfazer?: unknown; acoes?: unknown }, confirmado: string):
+    Promise<{ texto: string; registro: RegistroDaExecucao } | null> {
+    const unico = juntarPedidos(pedido, pedidosDasAcoes(resposta.acoes));
+    if (!unico) return null;
+    const antes = memoria.current.anteriores;
     if (pedido) {
       const desfazer = typeof resposta.desfazer === "number" ? resposta.desfazer : 0;
-      memoria.current.anteriores = desfazer ? voltarAnteriores(memoria.current.anteriores, desfazer)
-        : guardarAnterior(memoria.current.anteriores, atual.current.contexto);
-      pedir.current(pedido);
+      memoria.current.anteriores = desfazer ? voltarAnteriores(antes, desfazer) : guardarAnterior(antes, atual.current.contexto);
     }
-    for (const acao of pedidosDasAcoes(resposta.acoes)) pedir.current(acao);
+    const depois = memoria.current.anteriores;
+    // Sem a mudança na área, a pilha do "desfaz" volta ao que era (se nada a mudou desde então).
+    const conferir = (desfecho: DesfechoDoPedido) => {
+      if (SEM_MUDANCA_NA_AREA.has(desfecho.situacao) && memoria.current.anteriores === depois) memoria.current.anteriores = antes;
+    };
+    const brasil = atual.current.fonte?.tipo === "brasil", fonteDoPedido = atual.current.fonteChave;
+    setAplicando(true);
+    const enviado = pedir.current(unico);
+    const desfecho = await comPrazo(enviado.desfecho, PRAZO_DA_EXECUCAO_MS);
+    setAplicando(false);
+    if (desfecho) {
+      conferir(desfecho);
+      return { texto: textoDoDesfecho(desfecho, confirmado, { brasil }), registro: registroDe(desfecho) };
+    }
+    void enviado.desfecho.then(tarde => {
+      conferir(tarde);
+      adicionar({ id: novoId("agente"), papel: "agente", texto: textoDoDesfecho(tarde, confirmado, { brasil, tarde: true }),
+        fonte: fonteDoPedido, execucao: registroDe(tarde) });
+    });
+    return { texto: TEXTO_SEM_CONFIRMACAO, registro: { pedido: enviado.id, situacao: "aguardando", resultado: null } };
   }
   /** A memória que a resposta devolve e a pendência que ela deixa (alternativas ou pergunta com modelo de resposta). */
   function lembrar(resposta: Exploration | Reply, mensagem: string, aplicou: boolean) {
@@ -313,8 +378,8 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       ...(pendingRanking.current ? { criteria_pending_ranking: pendingRanking.current } : {}) };
   }
 
-  /** Resposta do intérprete local: guarda as pendências e entrega o campo `painel` à área. */
-  function aceitar(proposal: Exploration): Local {
+  /** Resposta do intérprete local: guarda as pendências, entrega o campo `painel` à área e espera o desfecho (05/11/2026). */
+  async function aceitar(proposal: Exploration): Promise<Local> {
     // A pendência (por exemplo, "compare Manaus" → "com qual outro?") guarda a unidade já identificada para a mensagem
     // seguinte; um pedido aplicado ao gráfico a encerra.
     if (proposal.pending_operation) pendingTerritories.current = { operation: proposal.pending_operation,
@@ -322,14 +387,20 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       fonte: atual.current.fonteChave };
     else if ((proposal.operation || proposal.painel) && !proposal.clarification) pendingTerritories.current = null;
     pendingRanking.current = proposal.criteria_pending_ranking || null;
-    if (typeof proposal.continuar === "string" && proposal.continuar.trim() && passoAtual.current < MAX_CONTINUACOES)
-      continuacao.current = { texto: proposal.continuar, resultado: atual.current.displayedResultId,
-        fonte: atual.current.fonteChave, passo: passoAtual.current + 1, desde: Date.now() };
+    const continuar = typeof proposal.continuar === "string" && proposal.continuar.trim() && passoAtual.current < MAX_CONTINUACOES
+      ? proposal.continuar : null;
+    const resultadoAntes = atual.current.displayedResultId, passo = passoAtual.current, fonteDoPedido = atual.current.fonteChave;
     const pedido = pedidoDoPainel(proposal.painel);
-    aplicar(pedido, proposal);
     lembrar(proposal, mensagemAtual.current, !!pedido);
-    return { text: proposal.clarification || proposal.reply || (pedido ? textoDoPedido(pedido) : "Pedido recebido; nada foi calculado."),
-      ...(proposal.choices?.length ? { choices: proposal.choices } : {}) };
+    const texto = proposal.clarification || proposal.reply || (pedido ? textoDoPedido(pedido) : "Pedido recebido; nada foi calculado.");
+    const execucao = await executar(pedido, proposal, texto);
+    // A continuação ("assim que o gráfico estiver pronto, comparo …") só segue com o pedido concluído na área, logo que a conversa
+    // fica livre (05/11/2026; antes, ela saía com o gráfico novo ou depois de 8 s, mesmo que o pedido não tivesse sido aplicado).
+    if (continuar && (!execucao || execucao.registro.situacao === "concluido"))
+      continuacao.current = { texto: continuar, resultado: resultadoAntes, fonte: fonteDoPedido, passo: passo + 1,
+        desde: execucao ? Date.now() - ESPERA_DA_CONTINUACAO_MS : Date.now() };
+    return { text: execucao ? execucao.texto : texto, ...(proposal.choices?.length ? { choices: proposal.choices } : {}),
+      ...(execucao ? { execucao: execucao.registro } : {}) };
   }
 
   // A mensagem em interpretação, para a pendência que a resposta deixa ("Compare Rio de Janeiro…" → "Município.").
@@ -352,13 +423,14 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
       if (!choice) return null;
       // Escolha explícita entre alternativas, sem o campo `painel` na resposta: a operação escolhida vale no gráfico.
       const pedido = pedidoDaOperacao(choice.operation, choice.indicator);
-      aplicar(pedido);
-      return { text: pedido ? textoDoPedido(pedido) : "Escolha recebida; nada foi calculado." };
+      const texto = pedido ? textoDoPedido(pedido) : "Escolha recebida; nada foi calculado.";
+      const execucao = await executar(pedido, {}, texto);
+      return execucao ? { text: execucao.texto, execucao: execucao.registro } : { text: texto };
     }
     // Escolha respondida pelo intérprete local, mas sem o campo `painel` e sem nova pergunta: vale a operação escolhida.
     if (choice && !pedidoDoPainel(proposal.painel) && !proposal.clarification && !proposal.pending_operation)
-      return aceitar({ ...proposal, painel: pedidoDaOperacao(choice.operation, choice.indicator) });
-    return aceitar(proposal);
+      return await aceitar({ ...proposal, painel: pedidoDaOperacao(choice.operation, choice.indicator) });
+    return await aceitar(proposal);
   }
 
   async function send(event: FormEvent) {
@@ -380,10 +452,12 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     const resposta = !fonteEscolhida && oferecida ? respostaAOferta(message) : null;
     const escolha = comandoDeFonte(message) ?? (resposta === "sim" ? oferecida : null);
     if (escolha) {
-      if (escolha === "brasil" && fonteEscolhida === "brasil") {
+      // Com o preparo dos dados do Brasil recusado (05/11/2026), a mensagem tenta de novo, como o botão.
+      if (escolha === "brasil" && fonteEscolhida === "brasil" && !erroDaFonte) {
         append(pronta ? "Os dados do Brasil já estão em uso." : "Estou preparando os dados do Brasil.");
         return;
       }
+      if (escolha === "brasil") escolhaPelaConversa.current = true;
       onEscolherFonte(escolha);
       // Com um pedido guardado, ele segue quando a base fica pronta (28/10/2026; antes, a resposta mandava escolher os
       // territórios, e o pedido seguia mesmo assim).
@@ -439,7 +513,10 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
     }
     if (fonteEscolhida && !pronta) {
       pendingRequest.current = message;
-      append(fonteEscolhida === "arquivo" && colunasPendentes
+      // Com o preparo dos dados do Brasil recusado (05/11/2026), a conversa não diz que está preparando: diz o que aconteceu.
+      append(erroDaFonte ? "Os dados do Brasil não ficaram prontos, por isso ainda não sigo com o seu pedido; ele fica guardado. " +
+          "Para tentar de novo, escreva “usar dados do Brasil”."
+        : fonteEscolhida === "arquivo" && colunasPendentes
         ? "Confira as colunas no painel Colunas e escolha “Começar a análise”; em seguida, sigo com o seu pedido."
         : "Estou preparando os dados; assim que o gráfico estiver pronto, sigo com o seu pedido.");
       return;
@@ -450,15 +527,24 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   /** O caminho completo de um pedido: o da pessoa, o guardado antes dos dados (`retomada`, com o comando que já tinha sido
    * interpretado, se houver) ou a continuação que uma resposta pediu (`passo`). Os pedidos de apresentação e a análise
    * anterior ficam na tela; os demais vão ao intérprete local e, sem resposta local, ao contextual (com dados) ou ao
-   * preliminar (sem dados). Nenhum pedido espera mais que o prazo da tela. */
+   * preliminar (sem dados). Nenhum pedido espera mais que o prazo da tela. Desde 05/11/2026, a resposta de um pedido que muda a
+   * área só sai com o desfecho dele (executar). */
   async function processar(message: string, janela: TurnoEnviado[],
     modo: { retomada?: boolean; pedido?: PedidoDoChat | null; passo?: number } = {}) {
     const prefixo = modo.retomada ? "Com os dados prontos, sigo com o seu pedido. " : "";
     // Pedidos de apresentação (a vista do desenho e a tabela) e a análise anterior: nada é recalculado.
     if (atual.current.fonte) {
-      if (previousResultCommand(message)) { append(prefixo + onAnaliseAnterior()); return; }
-      const vista = viewCommand(message);
-      if (vista) { append(prefixo + aplicarVista(vista)); return; }
+      const anterior = previousResultCommand(message), vista = anterior ? null : viewCommand(message);
+      if (anterior || vista) {
+        setSending(true);
+        try {
+          const local = vista ? await aplicarVista(vista) : { text: await analiseAnterior() };
+          responder({ ...local, text: prefixo + local.text }, message);
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
     }
     const requestRevision = revision.current;
     const history = turns.filter(turn => turn.papel === "usuario").slice(-4).map(turn => turn.texto);
@@ -472,8 +558,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         if (local !== null) { responder({ ...local, text: prefixo + local.text }, message); return; }
         if (modo.retomada && modo.pedido) {
           // O comando interpretado antes dos dados segue direto para o gráfico.
-          aplicar(modo.pedido);
-          responder({ text: "Segui com o seu pedido. " + textoDoPedido(modo.pedido) }, message);
+          const confirmado = "Segui com o seu pedido. " + textoDoPedido(modo.pedido);
+          const execucao = await executar(modo.pedido, {}, confirmado);
+          responder(execucao ? { text: execucao.texto, execucao: execucao.registro } : { text: confirmado }, message);
           return;
         }
       }
@@ -504,14 +591,18 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
         throw new ErroDaConversa(null);
       const resolved = origem && validated.exploration?.handled ? validated.exploration : null;
       const vista = VISTAS.get(validated.dialogue_action || "");
-      let texto: string, choices: Choice[] | undefined;
+      let texto: string, choices: Choice[] | undefined, execucao: RegistroDaExecucao | undefined;
       if (resolved) {
         mensagemAtual.current = message;
-        const local = aceitar({ ...resolved, painel: resolved.painel ?? validated.painel });
+        const local = await aceitar({ ...resolved, painel: resolved.painel ?? validated.painel });
         texto = local.text;
         choices = local.choices;
-      } else if (vista) texto = aplicarVista(vista);
-      else if (validated.dialogue_action === "previous_result" && origem) texto = onAnaliseAnterior();
+        execucao = local.execucao;
+      } else if (vista) {
+        const local = await aplicarVista(vista);
+        texto = local.text;
+        execucao = local.execucao;
+      } else if (validated.dialogue_action === "previous_result" && origem) texto = await analiseAnterior();
       else {
         const pedido = pedidoDoPainel(validated.painel) ??
           (origem ? null : pedidoDaOperacao(validated.proposal.operation, validated.proposal.indicator));
@@ -527,8 +618,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
             // escolha nem a oferta de novo (um "sim" a ela tomaria o lugar do pedido guardado).
             texto = "Assim que a base estiver pronta, sigo com o seu pedido.";
           } else {
-            if (validated.fonte_escolhida) onEscolherFonte(validated.fonte_escolhida);
-            else {
+            if (validated.fonte_escolhida) {
+              // Desde 05/11/2026, também quando o pedido cita um lugar do Brasil: a base é identificada sem dúvida.
+              if (validated.fonte_escolhida === "brasil") escolhaPelaConversa.current = true;
+              onEscolherFonte(validated.fonte_escolhida);
+            } else {
               setLembrete(validated.fonte_sugerida ?? "ambos");
               sugestao.current = validated.fonte_sugerida ?? null;
               if (validated.fonte_sugerida) choices = [OPCAO_DA_FONTE[validated.fonte_sugerida]];
@@ -544,14 +638,16 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
           texto = "Entendi" + (rotulo ? ": " + rotulo : "") + ". Para começar, prefere usar os dados do Brasil ou enviar os " +
             "seus? Depois sigo direto para o gráfico.";
         } else {
-          aplicar(pedido);
           lembrar(validated, message, !!pedido);
-          texto = validated.reply;
+          const feito = await executar(pedido, {}, validated.reply);
+          texto = feito ? feito.texto : validated.reply;
+          execucao = feito?.registro;
         }
       }
       const clarification: Clarification | undefined = choices?.length ? { code: "ESCOLHA_DE_LEITURA", prompt: texto, reason: "",
         source: "CATALOGO_LOCAL", choices, answered: false } : validated.clarification;
-      adicionar({ id: novoId("agente"), papel: "agente", texto, clarification, request: message, fonte: atual.current.fonteChave });
+      adicionar({ id: novoId("agente"), papel: "agente", texto, clarification, request: message, fonte: atual.current.fonteChave,
+        ...(execucao ? { execucao } : {}) });
       void refreshStatus();
     } catch (exc) {
       if (requestRevision === revision.current) avisarFalha(exc);
@@ -602,7 +698,9 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
   // Os exemplos da orientação mudam conforme a conversa avança (26/10/2026), sempre sem nomes de lugar.
   const pedidosDaPessoa = turns.filter(turno => turno.papel === "usuario").length;
   const guia = guiaDaConversa({ tipo: fonteEscolhida, pronta, colunasPendentes }, contexto, rotulos, pedidosDaPessoa);
-  const andamento = demora >= 2 ? "O serviço de conversa está demorando mais que o normal; aguarde mais um pouco…"
+  // Com o pedido já interpretado, à espera da confirmação da área (05/11/2026), o indicador diz que ele está sendo aplicado.
+  const andamento = aplicando ? "Aplicando o pedido na área de análise…"
+    : demora >= 2 ? "O serviço de conversa está demorando mais que o normal; aguarde mais um pouco…"
     : demora === 1 ? "Ainda estou trabalhando no seu pedido…" : "Interpretando o pedido…";
 
   return <ChatFloatingBox ocupado={sending} ampla={!fonteEscolhida}>
@@ -646,13 +744,17 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
                 <Info size={16} aria-hidden="true" className="shrink-0"/>
                 <div><strong className="block">{turno.titulo}</strong><p className="whitespace-pre-wrap">{turno.texto}</p></div>
               </div></li>;
-          return <li key={turno.id} className="chat-mensagem chat-mensagem-agente" data-testid="chat-mensagem" data-papel="agente">
+          // A execução do pedido (05/11/2026): o id do pedido, a situação do desfecho e o resultado do motor em exibição.
+          return <li key={turno.id} className="chat-mensagem chat-mensagem-agente" data-testid="chat-mensagem" data-papel="agente"
+            {...(turno.execucao ? { "data-execucao": turno.execucao.situacao, "data-pedido": String(turno.execucao.pedido),
+              "data-resultado": turno.execucao.resultado ?? "" } : {})}>
             <BrandAvatar size={28}/>
             <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="latest-reply chat-balao-agente"
               data-hora={turno.hora}>
               <span className="sr-only">Agente: </span><TextoDaResposta texto={turno.texto}/></div></li>;
         })}
-        {sending && <li className="chat-mensagem chat-mensagem-agente chat-processando" role="status" data-testid="chat-processando">
+        {sending && <li className="chat-mensagem chat-mensagem-agente chat-processando" role="status" data-testid="chat-processando"
+          data-fase={aplicando ? "aplicando" : "interpretando"}>
           <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/>{andamento}</li>}
       </ol>
       {novidade && <button type="button" data-testid="chat-ir-ao-fim" onClick={irAoFim} className="chat-ir-ao-fim">

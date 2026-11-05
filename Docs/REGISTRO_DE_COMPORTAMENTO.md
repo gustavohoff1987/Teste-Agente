@@ -35,6 +35,126 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-05 · Conversa: a base do Brasil escolhida pelo pedido e a confirmação de execução dos pedidos na área de análise
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (05/11/2026). O relato: o agente chegava a
+  afirmar que tinha selecionado ou ordenado territórios, mas a interface ficava igual, sobretudo sem a base ou sem os
+  territórios escolhidos. Todos os itens são mudança de comportamento e previstos:
+  - **A base do Brasil escolhida pelo pedido que cita um estado, uma região ou o Brasil:**
+    - *escopo:* requisito 1 do pedido;
+    - *compatibilidade:* a SPEC não rege a escolha da base do Brasil, que é uma entrada do produto. RQ-DEG-02 e AT-101, citados
+      na entrada de 28/10/2026, tratam da indisponibilidade do LLM e de capacidade analítica acionada por intenção presumida.
+      Aqui, o pedido é explícito, e o lugar é reconhecido só pelas listas governadas `STATES` e `REGIONS` (CFG-TER preservado:
+      nenhum nome de município antes da base). A escolha é o mesmo exame habilitador do botão, e o cálculo só vem do pedido
+      explícito, pelo motor. RQ-DAD-22 (CONFIRMACAO_DE_USO_DA_BASE) vale para campos potencialmente individualizantes, que a base
+      agregada do Brasil não tem. A oferta de 28/10/2026 foi um pedido do responsável, não uma divergência aprovada da SPEC.
+  - **A confirmação de execução (as respostas só com o desfecho da área, os textos dos outros desfechos, o prazo da tela e a
+    mensagem tardia, os atributos verificáveis, a falha do preparo dos dados dita na conversa, a continuação só depois do
+    pedido concluído e o painel Ordenar sincronizado):**
+    - *escopo:* requisitos 3 a 7;
+    - *compatibilidade:* alinha a tela a INV-02 (resultado só do motor) e a INV-03 (o LLM não é origem de elemento factual): o
+      estado de execução vem da área, informação operacional do sistema; nada é calculado na conversa, e nenhum estado de
+      execução vem do LLM. Nenhuma divergência aprovada trata disso.
+- **Antes:**
+  - **O texto antes da execução:** a tela mostrava o texto do intérprete ("Mostrei a densidade nos 22 municípios do Acre.
+    Ordenei os municípios pela densidade…", "Mostrei o mapa…", "Reabri a análise anterior…") no mesmo instante em que entregava o
+    comando à área, sem saber se a área o aplicaria e se o motor o calcularia.
+  - **O que a área recusava não chegava à conversa:** a recusa (competência inexistente, família indisponível, ordenação não
+    reconhecida, mapa sem pontos), a falta de territórios e a falha do motor apareciam só no aviso da área, e a conversa dava o
+    pedido como feito. Com a base pronta e nenhum território escolhido, "ordene os municípios pela densidade, do maior para o
+    menor" recebia "Ordenei os municípios pela densidade…", e nada era calculado.
+  - **Sem base, o lugar do Brasil só recebia a oferta:** o pedido que citava um estado, uma região ou o Brasil (por exemplo, "os
+    cinco municípios do Acre com maior densidade médica") recebia "Para analisar o Acre, posso usar os dados do Brasil:
+    escolha “Usar dados do Brasil” ou responda “sim”. …" (`fonte_sugerida: "brasil"`), e o pedido esperava o "sim" ou o botão.
+  - **A falha do preparo dos dados do Brasil não era dita na conversa:** "usar dados do Brasil" respondia "Estou preparando os
+    dados do Brasil.", e o pedido guardado esperava sem aviso.
+  - **A continuação saía sem o pedido aplicado:** a continuação de uma resposta (`continuar`) saía com o gráfico novo ou depois
+    de 8 s, mesmo que o pedido não tivesse sido aplicado.
+  - **Dois pedidos no mesmo instante:** o comando e a ação de tela da mesma resposta iam em dois pedidos seguidos à área, que
+    via só o último.
+  - **O painel Ordenar aberto não acompanhava a conversa:** os campos dele ficavam com a escolha anterior quando a conversa ou o
+    Desfazer mudavam a ordenação.
+- **Agora:**
+  - **O pedido e o desfecho:** cada pedido da conversa para a área tem um id (`App.tsx`). A área informa o desfecho dele
+    (`onDesfecho`; `DesfechoDoPedido` em `paginaUnica.ts`) quando de fato o mostra. Ela confere depois do render com as
+    mudanças do pedido e com a área estável. A situação:
+    - `concluido`: o motor calculou a definição que resultou do pedido (com a vista do mapa, também os pontos do mapa);
+    - `parcial`: parte foi recusada pela área;
+    - `pendente`: falta algo para o cálculo, como os territórios;
+    - `recusado`: nada pôde ser aplicado;
+    - `falhou`: o motor (ou o mapa) não respondeu com o resultado, depois das novas tentativas do ocupado;
+    - `substituido`: uma mudança na área ou um pedido novo tomou o lugar dele;
+    - `interrompido`: Nova análise, Histórico ou troca de dados antes do fim.
+
+    Com o cálculo, o desfecho traz o título da tela e o resultado do motor: `sessao.result_id` e `chave_execucao`.
+  - **A resposta:** só com `concluido` a conversa mostra o texto do intérprete. Nos demais desfechos, mostra o que de fato
+    aconteceu:
+    - "O pedido foi feito só em parte. Não foi possível: … Na área de análise está agora: …";
+    - "O pedido não foi concluído: ainda não há territórios escolhidos, e nada foi calculado. Escolha os territórios na Seleção
+      de Territórios ou me diga quais quer ver…";
+    - "O pedido ainda não pode ser calculado: …";
+    - "O pedido não pôde ser aplicado: … Nada mudou na área de análise.";
+    - "O pedido não foi concluído: … O gráfico não foi atualizado.";
+    - "O pedido não chegou a ser concluído: …".
+  - **A espera e o desfecho tardio:** enquanto a área calcula, "Aplicando o pedido na área de análise…" (`chat-processando`
+    com `data-fase="aplicando"`). Depois de 20 s sem desfecho, "O pedido foi enviado à área de análise, mas ainda não
+    terminou. Aviso aqui assim que ele for concluído ou se não for possível concluí-lo.", e a conversa volta a aceitar
+    mensagens. O desfecho, quando chega, entra numa mensagem nova ("Pronto, o pedido anterior foi concluído. …" ou "O pedido
+    anterior não foi concluído: …").
+  - **A associação verificável:**
+    - a mensagem do agente leva `data-pedido`, `data-execucao` ("aguardando" na resposta que ainda espera) e `data-resultado`;
+    - a raiz da área leva `data-pedido-da-conversa`, `data-desfecho` e `data-resultado`.
+  - **Também confirmados:**
+    - a vista ("ver no mapa", com os pontos do mapa recebidos);
+    - "Entenda esta análise" aberto pela conversa (o comando e a ação de tela vão num pedido só, `juntarPedidos`);
+    - "volte ao resultado anterior", com a reabertura confirmada pela área (`onRestaurado`); o estado guardado sem a forma
+      esperada recebe "Não consegui reabrir a análise anterior …".
+  - **A continuação** só segue com o pedido concluído, logo que a conversa fica livre.
+  - **Sem base, com um estado, uma região ou o Brasil citados num pedido** (`conversa_grafico.pedido_antes_dos_dados`): a
+    escolha dos dados do Brasil, como o botão (`fonte_escolhida: "brasil"`), com "Para analisar o Acre, vou usar os dados do
+    Brasil. Estou preparando os dados e, em seguida, sigo com o seu pedido. Se preferir analisar os seus dados, use “Trocar”, no
+    alto da página, e escolha “Enviar meus dados”." ("Para esse pedido, …" quando só o Brasil é citado). Os dados do Brasil
+    citados sem a preposição de uso ("Pernambuco, dados do Brasil") também são escolhidos. Quando a base fica pronta, o pedido
+    guardado segue: os 22 municípios do Acre ordenados pela densidade, com os 5 primeiros em destaque.
+  - **A falha do preparo dos dados do Brasil:** escolhidos pela conversa, ou com um pedido guardado, a falha é dita na conversa
+    ("Não consegui preparar os dados do Brasil: … O seu pedido continua guardado. …"), e "usar dados do Brasil" tenta de novo.
+  - **O painel Ordenar aberto** mostra a ordenação aplicada pela conversa ou pelo Desfazer.
+- **Permanece:**
+  - **A dúvida sobre a fonte continua pedindo a escolha:**
+    - os dados da pessoa citados recebem a oferta do envio, e "sim" abre a janela;
+    - sem lugar do Brasil, ou só com o nome de um município, o lembrete de escolher os dados;
+    - a fonte negada ou numa pergunta, as perguntas de conceito e a conversa seguem o caminho de antes;
+    - a escolha nos botões enquanto a resposta chega continua valendo.
+  - **O que a conversa e a área fazem:** os textos do intérprete, as gramáticas, o gestor de diálogo e as rotas.
+  - **Os controles da área**, o Desfazer (o pedido da conversa continua um passo dele), o Histórico, a memória da conversa (a
+    pilha do "desfaz" volta ao que era quando a área não ficou com o pedido), a governança da fidelidade (o LLM não informa
+    estados de execução; ações ditas pelo modelo sem comando já eram recusadas) e a proteção dos dados: nada novo vai ao
+    provedor de IA.
+  - **Os pedidos que não mudam a área:** perguntas, esclarecimentos em botões, a tabela e o resumo.
+  - **Os dados versionados**, o motor e o contrato da API.
+- **Motivo:** pedido do responsável de 05/11/2026 (correção funcional da interação conversacional, requisitos 1 a 7 e os testes
+  obrigatórios).
+- **Documentação e testes:**
+  - **Documentação:** `README.md` (a conversa, a continuidade e os jobs), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (a
+    seção nova "Confirmação de execução (05/11/2026)", a fonte escolhida pelo pedido, os estados da caixa e os componentes),
+    `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o desfecho e os atributos da área) e `Docs/CONVERSACAO_INCREMENTO_FN.md` (a
+    resposta e os testes).
+  - **pytest:** em `backend/tests/test_conversa_tempo.py`, o teste da oferta com lugares do Brasil passou a conferir a escolha
+    (a mudança é proposital), com os pedidos do Acre e de Rondônia. O lembrete sem lugar, a oferta do envio, a fonte citada e os
+    casos sem falso positivo continuam.
+  - **Unidade da tela:** `frontend/tests/conversaGrafico.test.mjs` confere o pedido único (`juntarPedidos`), o texto de cada
+    desfecho, sem afirmar execução fora do `concluido`, e o texto sem confirmação. `frontend/tests/paginaUnica.test.mjs`
+    confere `desfechoSemArea`.
+  - **Navegador:**
+    - roteiro novo `backend/tests/ui_execucao_conversa.py`, na suíte `base-versionada` (job `ui-block1`). Ele percorre: o Acre
+      sem base (a base escolhida pelo pedido, os 22 municípios e os 5 primeiros no painel Ordenar e nas bolhas); Rondônia sem
+      territórios (os 52 municípios e a análise); a ordenação pela alternativa da direção; as ambiguidades ("ordene pela
+      quantidade", "mostre São Paulo") sem mudar a área; o motor lento antes e depois do prazo; a falha do motor; a recusa da
+      área com a resposta do intérprete simulada dizendo "Ordenei…"; e o pedido sem territórios. Em cada um, a associação entre
+      a mensagem e o resultado da área;
+    - `backend/tests/ui_conversa_grafico.py`: no passo 2, a oferta que fica, a do envio; no passo 7b, a referência por critério
+      no catálogo sintético, sem a Análise Espacial, agora com o desfecho "parcial"; no passo 14, a escolha pelo pedido numa
+      sessão nova, com o "sim" à oferta do envio e a associação conferida; no passo 15, a resposta retida com a escolha.
+
 ### 2026-11-04 · Caixa da conversa: inteira na janela com zoom de 100%, com o campo de envio sempre à vista
 - **Classificação (regra 1), pela leitura, antes de codar:** é uma mudança no que se vê na tela, pedida pelo responsável
   ("o painel deve caber integralmente na janela, com campo de envio sempre acessível, rolagem interna e posicionamento

@@ -68,6 +68,27 @@ export type ContextoDoGrafico = {
 /** Estado de uma análise, guardado pela área ao calcular: o Histórico o reabre sem recalcular. */
 export type EstadoSalvo = { titulo: string; definicao: object; resposta: object | null; quando: string };
 
+/** Situação de um pedido da conversa na área de análise (05/11/2026), a confirmação de execução. Só "concluido" deixa a conversa
+ * dizer que fez o que foi pedido ("Mostrei", "Ordenei"):
+ * - concluido: tudo o que o pedido trouxe está na área, com o cálculo do motor (ou o estado visual pedido) já à vista;
+ * - parcial: parte do pedido foi recusada pela área (os motivos em `mensagens`) e o resto está à vista;
+ * - pendente: o pedido entrou na análise, mas falta algo para o motor calcular (por exemplo, os territórios);
+ * - recusado: nada do pedido pôde ser aplicado;
+ * - falhou: o motor (ou os pontos do mapa) não respondeu com o resultado;
+ * - substituido: outra mudança na área (da pessoa ou um pedido novo) tomou o lugar dele antes do fim;
+ * - interrompido: a área recomeçou (Nova análise, Histórico ou troca de dados) antes do fim. */
+export type SituacaoDoPedido = "concluido" | "parcial" | "pendente" | "recusado" | "falhou" | "substituido" | "interrompido";
+/** O desfecho de um pedido da conversa, informado pela área quando ela de fato o mostra ou não consegue: o id do pedido (o mesmo
+ * da prop `pedido` da área), a situação, os motivos (textos da área), o título do que ficou na tela e, quando houve cálculo, o
+ * resultado do motor em exibição (o id guardado na sessão do backend e a chave de execução do motor), que associam o comando ao
+ * que foi aplicado. `semTerritorios`: o motor não calculou porque não há territórios escolhidos. */
+export type DesfechoDoPedido = { id: number; situacao: SituacaoDoPedido; mensagens: string[]; titulo: string;
+  resultado: string | null; execucao: string | null; semTerritorios: boolean };
+/** Um desfecho sem a área: o pedido não chegou a ser aplicado (a área recomeçou). */
+export function desfechoSemArea(id: number, situacao: "substituido" | "interrompido", motivo: string): DesfechoDoPedido {
+  return { id, situacao, mensagens: motivo ? [motivo] : [], titulo: "", resultado: null, execucao: null, semTerritorios: false };
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Resumo da fonte
 

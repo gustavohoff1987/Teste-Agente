@@ -13,10 +13,10 @@ import WelcomeHero from "./WelcomeHero";
 import WorkspaceDialog from "./WorkspaceDialog";
 import { NOME_OFICIAL } from "./conexao";
 import { endSession, sessionFetch as fetch, trackSession, updateContextRevision } from "./conversationSession";
-import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, disponibilidadeDaPlanilha, escolhasIniciais,
-  horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, recusaDoArquivo, registrarEstado,
-  resultadoDaSessao, resumoDaFonte,
-  type AnaliseGuardada, type ContextoDoGrafico, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
+import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, desfechoSemArea, disponibilidadeDaPlanilha,
+  escolhasIniciais, horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, recusaDoArquivo,
+  registrarEstado, resultadoDaSessao, resumoDaFonte,
+  type AnaliseGuardada, type ContextoDoGrafico, type DesfechoDoPedido, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
   type PedidoDoChat } from "./paginaUnica";
 import type { Levels } from "./territorialScope";
 import type { Territory } from "./TerritorialSelection";
@@ -133,6 +133,10 @@ function App() {
   const [montagem, setMontagem] = useState<{ n: number; restaurar: EstadoSalvo | null }>({ n: 0, restaurar: null });
   const [pedido, setPedido] = useState<{ id: number; pedido: PedidoDoChat } | null>(null);
   const pedidoId = useRef(0);
+  // Confirmação de execução (05/11/2026): cada pedido da conversa espera o desfecho que a área informa quando de fato o mostra
+  // (ou não consegue); a reabertura pedida pela conversa espera a área confirmar o estado reaberto.
+  const aguardando = useRef(new Map<number, (desfecho: DesfechoDoPedido) => void>());
+  const reabertura = useRef<((falha: string | null) => void) | null>(null);
   const [contexto, setContexto] = useState<ContextoDoGrafico | null>(null);
   const [aviso, setAviso] = useState("");
   const [confirmarSessao, setConfirmarSessao] = useState(false);
@@ -157,15 +161,42 @@ function App() {
     if (!fonte) return;
     setAnalises(lista => registrarEstado(lista, { id: analiseAtual.current, fonteChave: fonte.chave, fonteNome: fonte.dados.nome, estado }));
   }, []);
-  const onPedido = useCallback((novo: PedidoDoChat) => {
+  /** O pedido da conversa para a área, com um id novo; a promessa só se resolve com o desfecho informado pela área. Um pedido novo
+   * toma o lugar do que ainda esperava: a área só aplica o último. */
+  const onPedido = useCallback((novo: PedidoDoChat): { id: number; desfecho: Promise<DesfechoDoPedido> } => {
     pedidoId.current += 1;
-    setPedido({ id: pedidoId.current, pedido: novo });
+    const id = pedidoId.current;
+    for (const [anterior, resolver] of aguardando.current) {
+      aguardando.current.delete(anterior);
+      resolver(desfechoSemArea(anterior, "substituido", "Um pedido novo da conversa tomou o lugar deste antes de ele terminar."));
+    }
+    const desfecho = new Promise<DesfechoDoPedido>(resolve => { aguardando.current.set(id, resolve); });
+    setPedido({ id, pedido: novo });
+    return { id, desfecho };
+  }, []);
+  const onDesfecho = useCallback((desfecho: DesfechoDoPedido) => {
+    const resolver = aguardando.current.get(desfecho.id);
+    if (!resolver) return;
+    aguardando.current.delete(desfecho.id);
+    resolver(desfecho);
+  }, []);
+  const onRestaurado = useCallback((ok: boolean) => {
+    const resolver = reabertura.current;
+    reabertura.current = null;
+    resolver?.(ok ? null : "o estado guardado não tem a forma esperada");
   }, []);
 
   function novaMontagem(restaurar: EstadoSalvo | null, id?: number) {
     const proximo = id ?? proximaAnalise.current++;
     analiseAtual.current = proximo;
     setEmExibicao(proximo);
+    // A área recomeça: os pedidos da conversa que ainda esperavam não chegam a ser concluídos.
+    for (const [anterior, resolver] of aguardando.current)
+      resolver(desfechoSemArea(anterior, "interrompido", "A área de análise recomeçou (Nova análise, Histórico ou troca de dados) " +
+        "antes de o pedido terminar."));
+    aguardando.current.clear();
+    reabertura.current?.("a área de análise recomeçou antes");
+    reabertura.current = null;
     setPedido(null);
     setContexto(null);
     setMontagem(atual => ({ n: atual.n + 1, restaurar }));
@@ -195,10 +226,15 @@ function App() {
     setAviso("Análise reaberta como estava, sem recalcular: " + (item.estado.titulo || "análise sem título") + ".");
     return true;
   }
-  function analiseAnteriorDaConversa(): string {
+  /** "Volte ao resultado anterior": a resposta só diz que reabriu depois de a área confirmar o estado reaberto (05/11/2026). */
+  function analiseAnteriorDaConversa(): Promise<string> {
     const anterior = ativa ? analiseAnterior(analises, analiseAtual.current, ativa.chave) : null;
-    if (!anterior || !abrirDoHistorico(anterior.id)) return "Ainda não há análise anterior nesta sessão, com estes dados.";
-    return "Reabri a análise anterior, sem recalcular: " + (anterior.estado.titulo || "análise sem título") + ".";
+    if (!anterior || !abrirDoHistorico(anterior.id)) return Promise.resolve("Ainda não há análise anterior nesta sessão, com estes dados.");
+    const titulo = anterior.estado.titulo || "análise sem título";
+    return new Promise(resolve => {
+      reabertura.current = falha => resolve(falha === null ? "Reabri a análise anterior, sem recalcular: " + titulo + "."
+        : "Não consegui reabrir a análise anterior (" + titulo + "): " + falha + ".");
+    });
   }
 
   // ---- Fonte de dados ----
@@ -412,14 +448,15 @@ function App() {
       <AreaDeAnalise key={"area-" + montagem.n} fonte={ativa?.dados ?? null} periodos={ativa?.periodos ?? VAZIO}
         categorias={ativa?.categorias ?? VAZIO} categoria={ativa?.categoria ?? ""} niveis={ativa?.niveis}
         municipios={ativa?.municipios ?? SEM_MUNICIPIOS} pedido={pedido} restaurar={montagem.restaurar}
-        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte}
-        trocandoFonte={escolhendo && !!ativa && !preparo} onCancelarTroca={() => setEscolhendo(false)}/>
+        onContexto={onContexto} onSalvar={onSalvar} onEscolherFonte={onEscolherFonte} onDesfecho={onDesfecho}
+        onRestaurado={onRestaurado} trocandoFonte={escolhendo && !!ativa && !preparo} onCancelarTroca={() => setEscolhendo(false)}/>
     </main>
     <AnalysisAssistant apiBase={API} privacyAccepted={privacy.accepted}
       fonteEscolhida={ativa?.dados.tipo ?? preparo?.tipo ?? null} fonte={ativa?.conversa ?? null} fonteChave={ativa?.chave ?? ""}
       colunasPendentes={!ativa && !!colunasEmPreparo} contexto={contexto} rotulos={ativa?.dados.rotulos ?? null}
       displayedResultId={resultadoDaSessao(estadoEmExibicao)} onEscolherFonte={onEscolherFonte} onPedido={onPedido}
-      onAnaliseAnterior={analiseAnteriorDaConversa}/>
+      onAnaliseAnterior={analiseAnteriorDaConversa}
+      erroDaFonte={preparo?.tipo === "brasil" && !preparo.lendo ? preparo.erro : ""}/>
     <footer className="pagina-rodape no-print">
       <p>{NOME_OFICIAL} · Protótipo experimental v0.1</p>
     </footer>

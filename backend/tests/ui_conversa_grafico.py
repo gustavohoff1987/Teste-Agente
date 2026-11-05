@@ -4,7 +4,10 @@ Percorre:
 - perguntas antes dos dados, respondidas sem o provedor de IA (inclusive a descrição dos dados do Brasil);
 - o pedido de análise antes dos dados (26/10/2026), com ou sem o provedor: o lembrete na hora de escolher os dados, sem o
   intérprete, com os dois botões da escolha em destaque; o pedido fica guardado e segue pelo caminho completo quando a base
-  fica pronta;
+  fica pronta; com os dados da pessoa citados, a oferta do envio; desde 05/11/2026, com um estado do Brasil citado, a escolha
+  dos dados do Brasil, sem o "sim" (de 28/10 a 05/11/2026, a oferta);
+- a confirmação de execução (05/11/2026): a resposta que diz o que foi feito só aparece com o desfecho "concluido" da área
+  (`data-execucao` na mensagem do agente), e a parte recusada pela área vira a resposta "feito só em parte";
 - a escolha da base pela conversa ("usar dados do Brasil"), sem o provedor e sem seleção automática (23/10/2026): nada é
   pedido ao motor até a escolha dos territórios, e a conversa orienta a escolher na Seleção de Territórios ou pela conversa;
 - comandos que mudam o gráfico: o campo `painel` da resposta do intérprete local vira um pedido para a área, que pede ao
@@ -181,23 +184,24 @@ def main():
 
         # 2. Pedido de análise antes dos dados (26/10/2026): com ou sem o provedor, a conversa lembra na hora de escolher os
         # dados, sem chamar o intérprete, destaca os dois botões da escolha e guarda o pedido até a base ficar pronta. Sem o
-        # provedor, uma conversa livre recebe o aviso cordial de indisponibilidade, e a página continua funcionando. Desde
-        # 28/10/2026, um pedido que cita um estado do Brasil recebe na hora a oferta dos dados do Brasil, com o botão dela na
-        # resposta e só o botão "Usar dados do Brasil" do alto em destaque; a mensagem seguinte esquece a oferta.
+        # provedor, uma conversa livre recebe o aviso cordial de indisponibilidade, e a página continua funcionando. De
+        # 28/10 a 05/11/2026, um pedido que cita um estado do Brasil recebia na hora a oferta dos dados do Brasil, com o botão dela na
+        # resposta e só o botão "Usar dados do Brasil" do alto em destaque; a mensagem seguinte esquece a oferta. Desde 05/11/2026,
+        # o estado do Brasil citado escolhe os dados do Brasil (passo 14), e a oferta que fica é a do envio, para os dados da
+        # pessoa citados: o botão "Enviar meus dados" na resposta e em destaque no alto.
         antes = interpretacoes_no_registro()
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
-            send(page, "quero analisar o Amazonas")
-        enviadas.append("quero analisar o Amazonas")
+            send(page, "quero analisar minha planilha de médicos")
+        enviadas.append("quero analisar minha planilha de médicos")
         assert event.value.status == 200, event.value.text()[:2000]
-        assert event.value.json().get("aguarda_base") is True and event.value.json().get("fonte_sugerida") == "brasil", \
+        assert event.value.json().get("aguarda_base") is True and event.value.json().get("fonte_sugerida") == "arquivo", \
             event.value.json()
-        assert interpretacoes_no_registro() == antes, "a oferta dos dados do Brasil não chama o intérprete"
-        expect(latest).to_contain_text("Para analisar o Amazonas, posso usar os dados do Brasil: escolha “Usar dados do Brasil” "
-                                       "ou responda “sim”.")
+        assert interpretacoes_no_registro() == antes, "a oferta do envio não chama o intérprete"
+        expect(latest).to_contain_text("Para analisar os seus dados, escolha “Enviar meus dados” ou responda “sim”")
         escolha_dos_dados = chat.get_by_role("group", name="Escolha dos dados na conversa")
         alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
-        expect(escolha_dos_dados).to_have_attribute("data-lembrete", "brasil")
-        expect(alternativas.get_by_role("button", name="Usar dados do Brasil", exact=True)).to_be_visible()
+        expect(escolha_dos_dados).to_have_attribute("data-lembrete", "arquivo")
+        expect(alternativas.get_by_role("button", name="Enviar meus dados", exact=True)).to_be_visible()
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
             send(page, "Quero analisar a densidade")
         enviadas.append("Quero analisar a densidade")
@@ -403,14 +407,20 @@ def main():
         # 7b. Referência pela conversa (decisão 4, 25/10/2026; na Escolha dos territórios desde 27/10/2026): o "menor" do pedido
         # vira, na aba Referência, um filtro do atributo citado com o operador "abaixo de"; o valor fica com a pessoa, sem valor
         # sugerido, e a janela mostra a pendência, com "Calcular" desligado. O Desfazer do alto (o "Voltar" até 25/10/2026) desfaz
-        # o pedido da conversa e devolve a análise de antes, para os passos seguintes.
+        # o pedido da conversa e devolve a análise de antes, para os passos seguintes. Neste catálogo sintético, a área recusa a
+        # Análise Espacial (sem o referencial geodésico governado): desde 05/11/2026, a resposta diz isso, com o desfecho
+        # "parcial" da área, em vez de "Abri a Escolha dos territórios…", que o intérprete propôs e a área não fez por inteiro.
         familia_antes = area.get_attribute("data-familia")
         with page.expect_response(lambda r: is_post(r, "/api/exploration/interpret"), timeout=60000) as event:
             send(page, "use como referência o município de menor densidade")
         resposta = event.value.json()
         assert (resposta.get("painel") or {}).get("referencia") == {
             "membros": [], "criterio": {"atributo": "densidade", "ordem": "asc"}}, resposta
-        expect(latest).to_contain_text("com o filtro Densidade “abaixo de” na Referência")
+        assert "com o filtro Densidade “abaixo de” na Referência" in resposta.get("reply", ""), resposta
+        expect(latest).to_contain_text("O pedido foi feito só em parte. Não foi possível: Análise Espacial: ")
+        expect(latest).to_contain_text("Na área de análise está agora: ")
+        expect(latest).not_to_contain_text("Abri a Escolha dos territórios")
+        expect(historico.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "parcial")
         janela = area.get_by_test_id("analise-referencia")
         expect(janela).to_be_visible(timeout=60000)
         expect(janela.get_by_test_id("territorios-aba-referencia")).to_have_attribute("aria-selected", "true")
@@ -676,41 +686,57 @@ def main():
             # Exemplos da biblioteca conversacional acompanham os pedidos, mascarados como as mensagens.
             exemplos = [registro["exemplos"] for registro in registros if registro.get("exemplos")]
             assert exemplos and all(bloco.startswith("EXEMPLOS_DA_BIBLIOTECA_CONVERSACIONAL") for bloco in exemplos), registros
-        # 14. Começo sem base numa sessão nova (28/10/2026): o pedido que cita um estado do Brasil recebe a oferta dos dados do
-        # Brasil, sem o intérprete; "sim" (na primeira sessão) e o botão "Usar dados do Brasil" da resposta (na segunda)
-        # escolhem os dados do Brasil, como o botão do alto, e o pedido guardado segue quando a base fica pronta: os
-        # municípios do Amazonas no gráfico.
-        for aceite in ("sim", "botao"):
-            end_session(page)
-            expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
-            accept_privacy(page)
-            expect(page.get_by_test_id("current-source")).to_have_count(0)
-            antes = interpretacoes_no_registro()
-            with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
-                send(page, "quero analisar o Amazonas")
-            assert event.value.json().get("fonte_sugerida") == "brasil", event.value.json()
-            assert interpretacoes_no_registro() == antes, "a oferta dos dados do Brasil não chama o intérprete"
-            expect(latest).to_contain_text("Para analisar o Amazonas, posso usar os dados do Brasil")
-            expect(chat.get_by_role("group", name="Escolha dos dados na conversa")).to_have_attribute("data-lembrete", "brasil")
-            with page.expect_response(lambda r: is_post(r, "/api/painel") and (
-                    options_of(r.request).get("base") or {}).get("municipios", {}).get("estados") == ["13"],
-                    timeout=180000) as grafico:
-                with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
-                    if aceite == "sim":
-                        send(page, "sim")
-                    else:
-                        chat.get_by_role("group", name="Alternativas de esclarecimento").get_by_role(
-                            "button", name="Usar dados do Brasil", exact=True).click()
-            assert inspecao.value.status == 200 and grafico.value.status == 200, (inspecao.value.status, grafico.value.status)
-            expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
-            expect(historico).to_contain_text("Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido.")
-            expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
-            expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
-        shot("06-comeco-sem-base-oferta")
+        # 14. Começo sem base numa sessão nova. Desde 05/11/2026 (pedido do responsável), o pedido que cita um estado do Brasil
+        # escolhe os dados do Brasil na hora, sem o intérprete e sem o "sim" (de 28/10 a 05/11/2026, a oferta, com o "sim" ou o
+        # botão da resposta): o pedido guardado segue quando a base fica pronta, e a resposta que diz o que foi feito só aparece
+        # com o desfecho "concluido" da área: os municípios do Amazonas no gráfico, com o resultado do motor da mensagem igual ao
+        # da área. Antes, na mesma sessão, a oferta que continua, a do envio: "sim" abre a janela de envio, e "Cancelar" a fecha
+        # sem escolher fonte.
+        end_session(page)
+        expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
+        accept_privacy(page)
+        expect(page.get_by_test_id("current-source")).to_have_count(0)
+        with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+            send(page, "quero analisar minha planilha de médicos")
+        assert event.value.json().get("fonte_sugerida") == "arquivo", event.value.json()
+        send(page, "sim")
+        expect(page.get_by_test_id("envio-de-dados")).to_be_visible()
+        expect(latest).to_contain_text("Abri a janela de envio")
+        page.get_by_test_id("envio-cancelar").click()
+        expect(page.get_by_test_id("envio-de-dados")).to_have_count(0)
+        expect(page.get_by_test_id("current-source")).to_have_count(0)
+        antes = interpretacoes_no_registro()
+        with page.expect_response(lambda r: is_post(r, "/api/painel") and (
+                options_of(r.request).get("base") or {}).get("municipios", {}).get("estados") == ["13"],
+                timeout=180000) as grafico:
+            with page.expect_response(lambda r: is_post(r, "/api/inspect"), timeout=180000) as inspecao:
+                with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
+                    open_chat(page).locator("#assistant-input").fill("quero analisar o Amazonas")
+                    chat.get_by_role("button", name="Enviar mensagem", exact=True).click()
+        assert event.value.json().get("fonte_escolhida") == "brasil" and "fonte_sugerida" not in event.value.json(), \
+            event.value.json()
+        assert interpretacoes_no_registro() == antes, "a escolha dos dados do Brasil pelo pedido não chama o intérprete"
+        assert inspecao.value.status == 200 and grafico.value.status == 200, (inspecao.value.status, grafico.value.status)
+        expect(historico).to_contain_text("Para analisar o Amazonas, vou usar os dados do Brasil. Estou preparando os dados e, em "
+                                          "seguida, sigo com o seu pedido.")
+        expect(historico).not_to_contain_text("posso usar os dados do Brasil")
+        expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil", timeout=60000)
+        expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
+        confirmada = historico.locator('[data-papel="agente"]').last
+        expect(confirmada).to_have_attribute("data-execucao", "concluido")
+        expect(area).to_have_attribute("data-desfecho", "concluido")
+        # A associação entre o comando e o que a área mostra: o resultado do motor (o id guardado na sessão) da mensagem é o da
+        # área, e o pedido da mensagem é o último que a área confirmou.
+        resultado = confirmada.get_attribute("data-resultado") or ""
+        assert resultado and resultado == area.get_attribute("data-resultado"), (resultado, area.get_attribute("data-resultado"))
+        assert confirmada.get_attribute("data-pedido") == area.get_attribute("data-pedido-da-conversa")
+        shot("06-comeco-sem-base-escolha")
 
         # 15. A escolha nos botões enquanto a resposta chegava (29/10/2026): com a resposta e o preparo da base retidos, o clique
-        # em "Usar dados do Brasil" vem antes da resposta, que não oferece a fonte de novo (sem o botão nem o "sim", que tomaria
-        # o lugar do pedido guardado); com a base pronta, o pedido guardado segue até o gráfico.
+        # em "Usar dados do Brasil" vem antes da resposta, que não escolhe nem oferece a fonte de novo (sem o botão nem o "sim",
+        # que tomaria o lugar do pedido guardado); com a base pronta, o pedido guardado segue até o gráfico. Desde 05/11/2026, a
+        # resposta retida traz a escolha dos dados do Brasil (`fonte_escolhida`), e a escolha da pessoa continua valendo.
         end_session(page)
         expect(page.get_by_role("dialog", name=PRIVACIDADE)).to_be_visible(timeout=60000)
         accept_privacy(page)
@@ -737,7 +763,7 @@ def main():
         with page.expect_response(lambda r: is_post(r, "/api/llm/interpret"), timeout=60000) as event:
             resposta_retida.continue_()
         page.unroute("**/api/llm/interpret")
-        assert event.value.json().get("fonte_sugerida") == "brasil", event.value.json()
+        assert event.value.json().get("fonte_escolhida") == "brasil", event.value.json()
         expect(historico).to_contain_text("Assim que a base estiver pronta, sigo com o seu pedido.")
         expect(chat.get_by_role("group", name="Alternativas de esclarecimento")).to_have_count(0)
         expect(historico).not_to_contain_text("posso usar os dados do Brasil")
@@ -750,6 +776,8 @@ def main():
         expect(page.get_by_test_id("current-source")).to_contain_text("Dados do Brasil")
         expect(latest).to_contain_text("Com os dados prontos, sigo com o seu pedido.", timeout=60000)
         expect(area.locator('[data-testid="analise-bolha"][data-tipo="municipio"]')).to_have_count(3, timeout=60000)
+        expect(historico.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
+        assert len([pedido for pedido in retidas["/api/inspect"]]) == 1, "a escolha da pessoa não é repetida pela resposta"
 
         assert not analyze_calls, "a conversa não aciona as telas clássicas de /api/analyze"
         assert not failures, failures
@@ -757,8 +785,9 @@ def main():
     print("CONVERSA NO GRÁFICO PASS: perguntas locais, fonte pela conversa sem seleção automática, todos os estados, Amazonas, "
           "mapa e gráfico, resumo, comparação, gestor de diálogo (pergunta sobre o resultado, troca, desfazer, resposta digitada e "
           "Entenda pela conversa), esclarecimento, estados, apresentação, análise anterior, planilha de condados e histórico "
-          "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular), oferta dos dados do Brasil antes da "
-          "escolha (\"sim\" e o botão da resposta; a escolha nos botões enquanto a resposta chegava)" +
+          "visível (ordem, sem duplicar, navegação, original na tela, rolagem e celular), escolha dos dados do Brasil pelo pedido "
+          "antes dos dados (com a confirmação do que foi feito e a escolha nos botões enquanto a resposta chegava), oferta do "
+          "envio com o \"sim\" e a parte recusada pela área como \"feito só em parte\"" +
           (", redação conferida, reserva de contrato, limite e queda simulados com recuperação, ambiguidade e triagem "
            "(Gemini simulado)." if simulado else ", aviso cordial sem o provedor."))
 

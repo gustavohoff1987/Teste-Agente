@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileText, Plus, Printer, Trash2, X } from "lucide-react";
 import type {
   AtributoCondicao, AtributoOrdenacao, CondicaoPedido, OperadorCondicao, OrdenarPedido, PainelConjuntoPedido, PainelIndicador, PainelItem,
@@ -87,6 +87,18 @@ export function GavetaOrdenar(p: OrdenarProps) {
   const [atributo, setAtributo] = useState<AtributoOrdenacao>(p.ordenar?.atributo ?? p.indicador);
   const [ordem, setOrdem] = useState<PainelOrdem>(p.ordenar?.ordem ?? "desc");
   const [primeiros, setPrimeiros] = useState(p.ordenar?.primeiros ? String(p.ordenar.primeiros) : "10");
+  // A ordenação aplicada que muda por fora do painel aberto (a conversa, o Desfazer) passa aos campos (05/11/2026; antes, os
+  // campos ficavam com a escolha anterior, e o painel mostrava uma ordem diferente da calculada). Na abertura, vale o de sempre.
+  const ordenacaoAplicada = JSON.stringify(p.ordenar ?? null);
+  const aplicadaAntes = useRef(ordenacaoAplicada);
+  useEffect(() => {
+    if (ordenacaoAplicada === aplicadaAntes.current) return;
+    aplicadaAntes.current = ordenacaoAplicada;
+    if (!p.ordenar) return;
+    setAtributo(p.ordenar.atributo);
+    setOrdem(p.ordenar.ordem);
+    setPrimeiros(p.ordenar.primeiros ? String(p.ordenar.primeiros) : "");
+  }, [ordenacaoAplicada]);
   const n = Number(primeiros);
   const valido = !primeiros.trim() || (Number.isInteger(n) && n > 0);
   const ordenacao = p.resposta?.ordenacao;

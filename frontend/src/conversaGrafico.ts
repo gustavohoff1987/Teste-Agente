@@ -4,7 +4,7 @@
 // opções que vão ao intérprete local. Nada daqui vai ao provedor de IA: o backend só lhe entrega o pedido sanitizado e
 // estados enumerados. Só importações de tipos: os testes unitários (frontend/tests/conversaGrafico.test.mjs) transpilam
 // este arquivo sozinho.
-import type { ContextoDoGrafico, Familia, Indicador, PedidoDoChat, Rotulos } from "./paginaUnica";
+import type { ContextoDoGrafico, DesfechoDoPedido, Familia, Indicador, PedidoDoChat, Rotulos } from "./paginaUnica";
 
 export function normalizeCommand(message: string): string {
   return message.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -390,4 +390,53 @@ export function pedidosDasAcoes(acoes: unknown): PedidoDoChat[] {
   return acoes.filter((acao): acao is { tipo: string; aba: string; termos?: unknown } => !!acao && typeof acao === "object" &&
       (acao as { tipo?: unknown }).tipo === "explicar" && abas.includes((acao as { aba?: unknown }).aba as string))
     .map(acao => ({ explicar: { aba: acao.aba as Familia, termos: textos(acao.termos) } }));
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Confirmação de execução (05/11/2026): a conversa só diz que fez o que foi pedido ("Mostrei", "Ordenei", "Abri") depois de a
+// área de análise confirmar que o pedido está na tela, com o cálculo do motor. O texto do intérprete descreve o comando; o
+// desfecho informado pela área (DesfechoDoPedido) decide o que a resposta diz.
+
+/** O comando do gráfico e as ações de tela da mesma resposta (abrir "Entenda esta análise") num pedido só: a área aplica um
+ * pedido por vez, e dois pedidos no mesmo instante deixariam só o último. Sem nenhum dos dois, não há pedido. */
+export function juntarPedidos(pedido: PedidoDoChat | null, acoes: PedidoDoChat[]): PedidoDoChat | null {
+  const explicar = acoes.find(acao => acao.explicar)?.explicar ?? null;
+  if (!pedido && !explicar) return null;
+  return { ...(pedido ?? {}), ...(explicar ? { explicar } : {}) };
+}
+
+/** Sem o desfecho no prazo da tela: o pedido saiu, mas a área ainda não confirmou. */
+export const TEXTO_SEM_CONFIRMACAO = "O pedido foi enviado à área de análise, mas ainda não terminou. Aviso aqui assim que ele for " +
+  "concluído ou se não for possível concluí-lo.";
+/** As situações em que a área não ficou com o pedido (a pilha do "desfaz" da conversa volta ao que era). */
+export const SEM_MUDANCA_NA_AREA: ReadonlySet<string> = new Set(["recusado", "substituido", "interrompido"]);
+
+const semPontoFinal = (texto: string) => texto.trim().replace(/[.!?…]+$/, "");
+
+/** O que a resposta diz com o desfecho do pedido: o texto do intérprete (`confirmado`) só com "concluido"; nos demais, o que de
+ * fato aconteceu, com os motivos da área e, quando parte do pedido entrou, o que ficou na tela. `tarde`: o desfecho chegou depois
+ * do prazo da tela, numa mensagem nova sobre o pedido anterior. `brasil`: a base do Brasil (os exemplos de territórios). */
+export function textoDoDesfecho(desfecho: DesfechoDoPedido, confirmado: string,
+  c: { brasil?: boolean; tarde?: boolean } = {}): string {
+  const sujeito = c.tarde ? "O pedido anterior" : "O pedido";
+  const motivos = desfecho.mensagens.map(comPonto).join(" ");
+  const tela = desfecho.titulo ? " Na área de análise está agora: " + semPontoFinal(desfecho.titulo) + "." : "";
+  switch (desfecho.situacao) {
+    case "concluido":
+      return (c.tarde ? "Pronto, o pedido anterior foi concluído. " : "") + confirmado;
+    case "parcial":
+      return sujeito + " foi feito só em parte. Não foi possível: " + motivos + tela;
+    case "pendente":
+      if (desfecho.semTerritorios)
+        return sujeito + " não foi concluído: ainda não há territórios escolhidos, e nada foi calculado. Escolha os territórios " +
+          "na Seleção de Territórios ou me diga quais quer ver" +
+          (c.brasil ? ": o nome de um estado ou de municípios, ou “todos os estados”." : ".");
+      return sujeito + " ainda não pode ser calculado: " + motivos;
+    case "recusado":
+      return sujeito + " não pôde ser aplicado: " + motivos + " Nada mudou na área de análise.";
+    case "falhou":
+      return sujeito + " não foi concluído: " + motivos + " O gráfico não foi atualizado.";
+    default:
+      return sujeito + " não chegou a ser concluído" + (motivos ? ": " + motivos : ".");
+  }
 }

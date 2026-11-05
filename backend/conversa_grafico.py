@@ -505,8 +505,8 @@ CAPACIDADE = re.compile(r"\b(?:voce|vc|o\s+agente|a\s+plataforma|a\s+ferramenta|
 
 # Lugares do Brasil antes da escolha dos dados (28/10/2026): os estados e as regiões da regra governada da fonte municipal do
 # Brasil (STATES e REGIONS, os mesmos que a conversa reconhece com a base escolhida) e o próprio Brasil mostram que o pedido é
-# sobre os dados do Brasil, e a conversa os oferece. Nenhum catálogo novo de lugares (CFG-TER): sem a base escolhida, nomes de
-# municípios não são reconhecidos, e o pedido recebe o lembrete de escolher os dados.
+# sobre os dados do Brasil, e a conversa os escolhe (desde 05/11/2026; antes, os oferecia). Nenhum catálogo novo de lugares
+# (CFG-TER): sem a base escolhida, nomes de municípios não são reconhecidos, e o pedido recebe o lembrete de escolher os dados.
 _ESTADOS_PELO_NOME = {normalize(nome).replace("-", " "): codigo for codigo, (_, nome) in STATES.items()}
 _REGIOES_PELO_NOME = {normalize(nome).replace("-", " "): nome for nome in REGIONS.values()}
 # "Pará" só com o acento ou depois de "estado do": sem acento, "para" é a preposição.
@@ -540,9 +540,12 @@ USO_DA_FONTE = re.compile(r"\b(?:com|usando|use|usar|utilizando|utilize|utilizar
 DADOS_DO_BRASIL = re.compile(r"\b(?:dados\s+do\s+brasil|base\s+do\s+brasil|base\s+brasileira)\b")
 DADOS_DA_PESSOA = re.compile(r"\b(?:meus\s+dados|minha\s+planilha|minhas\s+planilhas|meu\s+arquivo|meus\s+arquivos|minha\s+base|"
                              r"enviar\s+(?:os\s+)?(?:meus|seus)|upload)\b")
-OFERTA_DO_BRASIL = ("posso usar os dados do Brasil: escolha “Usar dados do Brasil” ou responda “sim”. Se preferir, envie os "
-                    "seus, em CSV ou Excel. Assim que a base estiver pronta, sigo com o seu pedido.")
-OFERTA_DO_ARQUIVO = ("Para analisar os seus dados, escolha “Enviar meus dados” ou responda “sim”: a janela de envio aceita CSV "
+# Desde 05/11/2026, um lugar do Brasil (ou os dados do Brasil citados) num pedido de análise identifica a base sem dúvida: a
+# conversa a escolhe, como o botão, e diz por quê; de 28/10 a 05/11/2026, ela só oferecia os dados ("posso usar os dados do
+# Brasil: escolha “Usar dados do Brasil” ou responda “sim”…"), e o pedido esperava o "sim" ou o botão.
+BRASIL_PELO_PEDIDO = ("vou usar os dados do Brasil. Estou preparando os dados e, em seguida, sigo com o seu pedido. Se preferir "
+                      "analisar os seus dados, use “Trocar”, no alto da página, e escolha “Enviar meus dados”.")
+OFERTA_DO_ARQUIVO =("Para analisar os seus dados, escolha “Enviar meus dados” ou responda “sim”: a janela de envio aceita CSV "
                      "ou Excel e traz o modelo de planilha. Assim que a base estiver pronta, sigo com o seu pedido.")
 BRASIL_ESCOLHIDO = "Dados do Brasil escolhidos. Vou prepará-los e, em seguida, sigo com o seu pedido."
 
@@ -619,8 +622,9 @@ def pedido_antes_dos_dados(mensagem):
     """O pedido feito antes da escolha dos dados, na página única (28/10/2026). None: não é pedido de análise (segue para o
     catálogo ou o provedor, como antes). Senão, o que a conversa responde na hora, sem o provedor, com `fonte` e `texto`:
     com os dados do Brasil citados como fonte, a escolha deles (`escolhida`); com os dados da pessoa citados, a oferta do
-    envio; com lugares do Brasil, a oferta dos dados do Brasil; sem nada disso, o lembrete de escolher os dados (`texto`
-    None, e a rota usa o de 26/10/2026)."""
+    envio; com lugares do Brasil, desde 05/11/2026, a escolha dos dados do Brasil (antes, a oferta); sem nada disso, o
+    lembrete de escolher os dados (`texto` None, e a rota usa o de 26/10/2026). A dúvida sobre a fonte (nenhum lugar, só o
+    nome de um município, os dados da pessoa, a fonte negada ou numa pergunta) continua pedindo a escolha."""
     original = _texto_original(mensagem)
     texto = normalize(original)
     for padrao, fonte in ((DADOS_DO_BRASIL, "brasil"), (DADOS_DA_PESSOA, "arquivo")):
@@ -637,19 +641,21 @@ def pedido_antes_dos_dados(mensagem):
                 return {"fonte": "arquivo", "escolhida": False, "texto": OFERTA_DO_ARQUIVO}
             if USO_DA_FONTE.search(texto[:citado.start()]):
                 return {"fonte": "brasil", "escolhida": True, "texto": BRASIL_ESCOLHIDO}
-            return _oferta_do_brasil(resto)
+            return _escolha_do_brasil(resto)
     if not pedido_de_analise(original):
         return None
     achados = lugares_do_brasil(original)
     if achados["lugares"] or achados["brasil"]:
-        return _oferta_do_brasil(original)
+        return _escolha_do_brasil(original)
     return {"fonte": None, "escolhida": False, "texto": None}
 
 
-def _oferta_do_brasil(mensagem):
+def _escolha_do_brasil(mensagem):
+    """Os dados do Brasil escolhidos pelo pedido (05/11/2026): os estados e as regiões citados (as listas governadas STATES
+    e REGIONS) ou o próprio Brasil identificam a base; a resposta diz por quê e como usar os dados da pessoa."""
     lugares = lugares_do_brasil(mensagem)["lugares"]
     quem = ("Para analisar " + _e(_lugar_com_artigo(lugar) for lugar in lugares)) if lugares else "Para esse pedido"
-    return {"fonte": "brasil", "escolhida": False, "texto": quem + ", " + OFERTA_DO_BRASIL}
+    return {"fonte": "brasil", "escolhida": True, "texto": quem + ", " + BRASIL_PELO_PEDIDO}
 
 
 def comando_do_grafico(mensagem):

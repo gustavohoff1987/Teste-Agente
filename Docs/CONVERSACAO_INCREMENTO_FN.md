@@ -119,7 +119,9 @@ competência e janela juntas, vale a da família à vista; a família vira a ope
 
 ### Resposta
 
-- Pedido que mexe no gráfico: `{"handled": true, "executed": false, "painel": {...}, "reply": "..."}`.
+- Pedido que mexe no gráfico: `{"handled": true, "executed": false, "painel": {...}, "reply": "..."}`. O `reply` descreve o
+  comando; desde 05/11/2026, a tela só o mostra depois de a área confirmar a execução (o desfecho `concluido`) e, com outro
+  desfecho, mostra o que de fato aconteceu ([confirmação de execução](INTERFACE_CONVERSACIONAL_INTEGRADA.md#confirmação-de-execução-05112026)).
 - Escolha necessária: `{"handled": true, "executed": false, "clarification": "...", "choices": [{"label", "draft",
   "send": true}], "ambiguity"}`, sem `painel`. Cada alternativa envia o pedido completo, já sem a ambiguidade.
 - Pedido que não muda o gráfico (por exemplo, rotatividade sem o identificador individual): só `reply`.
@@ -278,7 +280,8 @@ está na base ("Não encontrei “Belen” …").
 
 ### Respostas
 
-As respostas dizem o que muda no gráfico, sem valores da base: "Mostrei a densidade nos 144 municípios do Pará.",
+As respostas dizem o que muda no gráfico, sem valores da base, e aparecem na tela só com o pedido concluído na área (desde
+05/11/2026): "Mostrei a densidade nos 144 municípios do Pará.",
 "Usei BELEM (PA) como referência: o eixo X passa a mostrar a distância em linha reta (km) até ela.", "Ordenei os
 municípios pela densidade, do maior para o menor, e destaquei os 5 primeiros; empates na posição de corte também
 entram.", "Voltei aos estados: cada bolha é um estado, com a densidade.", "Abri a tendência da densidade, com os últimos 4
@@ -358,6 +361,10 @@ exibição; nunca arquivos, registros, códigos internos ou nomes de campo ([di�
 Desde 22/10/2026, a interface é a página única de análise: no alto, o nome do agente, Nova sessão, Nova análise e Histórico e a fonte dos dados; abaixo, a área de análise com o gráfico; a conversa, numa caixa flutuante sempre na página, com o histórico completo da conversa e o campo de mensagem. Não há preparação nem tela de resultados. Os contratos de interpretação descritos aqui permanecem iguais; a resposta passou a levar também o pedido ao gráfico (campo `painel`). A disposição visual vigente está no [guia da interface integrada](INTERFACE_CONVERSACIONAL_INTEGRADA.md).
 
 ## Testes
+
+Desde 05/11/2026, `ui_execucao_conversa.py` (suíte `base-versionada`, com a base versionada) confere a confirmação de execução:
+o Acre sem base, Rondônia sem territórios, a ordenação na tela, as ambiguidades, o motor lento, com falha e recusado e o pedido
+sem territórios, sem anunciar execução inexistente.
 
 `test_conversa_grafico.py` cobre a conversa no gráfico: o mapeamento das operações atuais, cada frase do contrato,
 o contexto do gráfico, as ambiguidades com os botões (e o pedido de cada botão), uma planilha sintética de distritos

@@ -393,3 +393,49 @@ test('proximidade pela conversa (28/10/2026): o campo consulta chega à área co
   assert.deepEqual(opcoes.painel_consulta, consulta);
   assert.equal('painel_consulta' in C.opcoesDaConversa(CONTEXTO, '2026-10-28'), false);
 });
+
+// Confirmação de execução (05/11/2026): a conversa só diz que fez o que foi pedido com o desfecho "concluido" da área.
+const DESFECHO = {id: 7, situacao: 'concluido', mensagens: [], titulo: 'Densidade de médicos nos municípios do Acre · junho de 2024',
+  resultado: 'r-1', execucao: 'k-1', semTerritorios: false};
+const AFIRMA_EXECUCAO = /\b(?:Mostrei|Ordenei|Selecionei|Atualizei|Apliquei|Abri|Comparei|Juntei|Destaquei|Reabri)\b/;
+
+test('o comando e as ações de tela da mesma resposta vão num pedido só (dois pedidos no mesmo instante perderiam um)', () => {
+  const explicar = {explicar: {aba: 'tendencia', termos: ['CRESCIMENTO_ACELERADO']}};
+  assert.deepEqual(C.juntarPedidos({familia: 'tendencia'}, [explicar]), {familia: 'tendencia', ...explicar});
+  assert.deepEqual(C.juntarPedidos(null, [explicar]), explicar);
+  assert.deepEqual(C.juntarPedidos({nivel: 'estados'}, []), {nivel: 'estados'});
+  assert.equal(C.juntarPedidos(null, []), null);
+});
+
+test('com o desfecho "concluido", a resposta é a do intérprete; nos demais, o que de fato aconteceu, sem afirmar a execução', () => {
+  const ordenei = 'Mostrei a densidade nos 22 municípios do Acre. Ordenei os municípios pela densidade, do maior para o menor, e ' +
+    'destaquei os 5 primeiros; empates na posição de corte também entram.';
+  assert.equal(C.textoDoDesfecho(DESFECHO, ordenei, {brasil: true}), ordenei);
+  assert.equal(C.textoDoDesfecho(DESFECHO, ordenei, {brasil: true, tarde: true}), 'Pronto, o pedido anterior foi concluído. ' + ordenei);
+  const parcial = C.textoDoDesfecho({...DESFECHO, situacao: 'parcial', mensagens: ['A competência março de 2030 não existe nesta base.']},
+    ordenei, {brasil: true});
+  assert.equal(parcial, 'O pedido foi feito só em parte. Não foi possível: A competência março de 2030 não existe nesta base. Na área ' +
+    'de análise está agora: Densidade de médicos nos municípios do Acre · junho de 2024.');
+  const semTerritorios = {...DESFECHO, situacao: 'pendente', mensagens: ['Selecione os territórios que deseja analisar.'],
+    semTerritorios: true, resultado: null, execucao: null};
+  assert.equal(C.textoDoDesfecho(semTerritorios, ordenei, {brasil: true}), 'O pedido não foi concluído: ainda não há territórios ' +
+    'escolhidos, e nada foi calculado. Escolha os territórios na Seleção de Territórios ou me diga quais quer ver: o nome de um ' +
+    'estado ou de municípios, ou “todos os estados”.');
+  assert.match(C.textoDoDesfecho(semTerritorios, ordenei, {brasil: false}), /me diga quais quer ver\.$/, 'numa planilha, sem os exemplos do Brasil');
+  assert.equal(C.textoDoDesfecho({...semTerritorios, semTerritorios: false, mensagens: ['Escolha a competência.']}, ordenei),
+    'O pedido ainda não pode ser calculado: Escolha a competência.');
+  assert.equal(C.textoDoDesfecho({...DESFECHO, situacao: 'recusado', mensagens: ['A ordenação pedida não foi reconhecida.']}, ordenei),
+    'O pedido não pôde ser aplicado: A ordenação pedida não foi reconhecida. Nada mudou na área de análise.');
+  assert.equal(C.textoDoDesfecho({...DESFECHO, situacao: 'falhou', mensagens: ['Não foi possível acessar o serviço de análise']}, ordenei),
+    'O pedido não foi concluído: Não foi possível acessar o serviço de análise. O gráfico não foi atualizado.');
+  assert.equal(C.textoDoDesfecho({...DESFECHO, situacao: 'falhou', mensagens: ['Falha.']}, ordenei, {tarde: true}),
+    'O pedido anterior não foi concluído: Falha. O gráfico não foi atualizado.');
+  assert.equal(C.textoDoDesfecho({...DESFECHO, situacao: 'substituido', mensagens: ['Outra mudança tomou o lugar dele.']}, ordenei),
+    'O pedido não chegou a ser concluído: Outra mudança tomou o lugar dele.');
+  assert.equal(C.textoDoDesfecho({...DESFECHO, situacao: 'interrompido', mensagens: []}, ordenei), 'O pedido não chegou a ser concluído.');
+  for (const situacao of ['parcial', 'pendente', 'recusado', 'falhou', 'substituido', 'interrompido'])
+    assert.doesNotMatch(C.textoDoDesfecho({...DESFECHO, situacao, mensagens: ['Motivo.']}, ordenei, {brasil: true}), AFIRMA_EXECUCAO, situacao);
+  assert.doesNotMatch(C.TEXTO_SEM_CONFIRMACAO, AFIRMA_EXECUCAO, 'sem a confirmação, nada é dado como feito');
+  assert.match(C.TEXTO_SEM_CONFIRMACAO, /ainda não terminou/);
+  assert.deepEqual([...C.SEM_MUDANCA_NA_AREA].sort(), ['interrompido', 'recusado', 'substituido']);
+});

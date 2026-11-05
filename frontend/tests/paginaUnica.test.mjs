@@ -226,3 +226,9 @@ test('o arquivo enviado: 15 MB (15.000.000 bytes) é o limite, conferido antes d
   assert.equal(P.recusaDoArquivo('dados.pdf', 10), 'Formato não reconhecido. Selecione um arquivo CSV, XLS ou XLSX.');
   assert.doesNotMatch(P.recusaDoArquivo('dados.csv', 40_000_000), /HTTP|30 MB/);
 });
+
+test('confirmação de execução (05/11/2026): o desfecho de um pedido que não chegou à área não traz resultado', () => {
+  assert.deepEqual(P.desfechoSemArea(3, 'interrompido', 'A área de análise recomeçou.'), {id: 3, situacao: 'interrompido',
+    mensagens: ['A área de análise recomeçou.'], titulo: '', resultado: null, execucao: null, semTerritorios: false});
+  assert.deepEqual(P.desfechoSemArea(4, 'substituido', '').mensagens, []);
+});
