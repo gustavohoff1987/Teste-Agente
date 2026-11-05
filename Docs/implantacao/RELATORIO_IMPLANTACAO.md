@@ -1033,5 +1033,43 @@ responsável, porque esse endereço será despublicado depois da validação do 
   - a variável `VITE_API_BASE_URL` e o ambiente `github-pages` do Teste-Agente, até a D-3.
 - **Reversão:** reativar o Pages do Teste-Agente pela origem GitHub Actions e publicar de novo com uma etiqueta.
 
+**Publicação controlada do `55f42b6` (05/11/2026, "AUTORIZO a publicação controlada da correção aprovada no commit
+55f42b6"): primeiro o backend, depois o endereço novo.**
+
+- **O commit:** `55f42b6` (a base do Brasil escolhida pelo pedido, a confirmação de execução dos pedidos na área e o mapa
+  pedido sem os pontos como "feito só em parte") e o anterior, `cda9c41`, vieram de outra sessão do Claude. O CI do
+  `cda9c41` falhou; o do `55f42b6` passou nos 8 jobs (execução 41956767169). Desde o `7be5dbb`, nenhum dos dois alterou a
+  SPEC, os dados, o Dockerfile, as dependências da imagem nem os workflows.
+- **Imagem:** a etiqueta `imagem-20261105-1` no `55f42b6` acionou a execução 42009973493 do `imagem.yml`. A conferência
+  do ambiente `producao` passou, e a responsável aprovou o job. Ele construiu a imagem, passou no teste rápido do contêiner
+  e a enviou pela federação: `sha256:0b5bd9a639b4d03259b2df6ada8c70630b801271043a3ec24778825d76f596eb`.
+- **Cloud Run:**
+  - a F2-0 de novo, sem falhas;
+  - `gcloud run services update ... --image=...@sha256:0b5bd9a6…` gerou a revisão `agente-diagnostico-territorial-00003-dk5`,
+    com 100% do tráfego;
+  - a configuração antes e depois só difere na imagem e no marcador interno do gcloud (`client.knative.dev/nonce`):
+    limites, variáveis (as duas origens do CORS), segredo `gemini-api-key:1`, conta, sonda, acesso público e orçamentos
+    iguais;
+  - etiquetas: `em-uso` no digest novo e `anterior` no `6988e2e9…`, o da revisão `00002-wgk`.
+- **Testes do serviço:**
+  - a saúde responde 200; `/docs` e `/openapi.json` respondem 404;
+  - o CORS e a pré-verificação funcionam para as duas origens, e uma origem estranha não recebe o cabeçalho;
+  - o exame da base, na versão `c4d82eeee4e4`, e o gráfico dos estados, com 27 itens, respondem 200;
+  - o CSV sintético de 100 KB dá 1.072 itens;
+  - nenhuma chamada ao Gemini.
+- **Endereço novo:**
+  - o commit `34cdbb3` do destino passou o `origem.txt` para `55f42b6`; os scripts e o workflow do destino seguem
+    idênticos aos desse commit;
+  - a etiqueta `publicacao-pages-20261105-1` acionou a execução 42012858205; as conferências e o build passaram, e a
+    responsável aprovou a publicação, que terminou às 10:49 UTC;
+  - a página responde 200, com o título oficial, e o script `index-Cy040QSP.js` traz o endereço do serviço e o texto novo
+    do `55f42b6`.
+- **Preservados:** o endereço antigo segue em 404, sem nenhuma publicação lá; não houve merge no `main` nem mudança na SPEC.
+- **Reversão:**
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00002-wgk=100` e a etiqueta `em-uso` de volta ao
+    digest `anterior`;
+  - interface: o `origem.txt` do destino de volta a `c5ea08d` e uma etiqueta nova.
+
 Ponto de retomada: a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua
 autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a informar.
