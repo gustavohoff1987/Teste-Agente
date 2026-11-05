@@ -424,7 +424,9 @@ densidade…", e nada era calculado. Agora, interpretar ou emitir o comando não
   resposta que ainda espera) e `data-resultado` (o id do resultado do motor na sessão). A área leva `data-pedido-da-conversa`
   (o último pedido com desfecho), `data-desfecho` e `data-resultado` (o resultado em exibição). O pedido confirmado mostra os
   mesmos ids nos dois lados.
-- **Também confirmados.** A vista do desenho ("ver no mapa" só diz "Mostrei o mapa…" com os pontos do mapa recebidos), a
+- **Também confirmados.** A vista do desenho ("ver no mapa" só diz "Mostrei o mapa…" com os pontos do mapa recebidos; quando o
+  motor os recusa, o mapa fica à vista com o alerta da área, e a resposta diz que o pedido foi feito só em parte, com "Mapa:
+  <motivo>"), a
   explicação que abre "Entenda esta análise" e "volte ao resultado anterior" ("Reabri a análise anterior…" só depois de a área
   confirmar o estado reaberto; um estado guardado sem a forma esperada recebe "Não consegui reabrir a análise anterior …"). Um
   comando e uma ação de tela da mesma resposta vão num pedido só (`juntarPedidos`); antes, dois pedidos no mesmo instante

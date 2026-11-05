@@ -104,7 +104,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     - a mensagem do agente leva `data-pedido`, `data-execucao` ("aguardando" na resposta que ainda espera) e `data-resultado`;
     - a raiz da área leva `data-pedido-da-conversa`, `data-desfecho` e `data-resultado`.
   - **Também confirmados:**
-    - a vista ("ver no mapa", com os pontos do mapa recebidos);
+    - a vista ("ver no mapa", com os pontos do mapa recebidos; quando o motor recusa os pontos, como no catálogo sintético sem o
+      referencial geodésico governado, o mapa fica à vista com o alerta da área, e a resposta diz que o pedido foi feito só em
+      parte, com "Mapa: <motivo>", em vez de "Mostrei o mapa no lugar do gráfico…");
     - "Entenda esta análise" aberto pela conversa (o comando e a ação de tela vão num pedido só, `juntarPedidos`);
     - "volte ao resultado anterior", com a reabertura confirmada pela área (`onRestaurado`); o estado guardado sem a forma
       esperada recebe "Não consegui reabrir a análise anterior …".
@@ -151,7 +153,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
       quantidade", "mostre São Paulo") sem mudar a área; o motor lento antes e depois do prazo; a falha do motor; a recusa da
       área com a resposta do intérprete simulada dizendo "Ordenei…"; e o pedido sem territórios. Em cada um, a associação entre
       a mensagem e o resultado da área;
-    - `backend/tests/ui_conversa_grafico.py`: no passo 2, a oferta que fica, a do envio; no passo 7b, a referência por critério
+    - `backend/tests/ui_conversa_grafico.py`: no passo 2, a oferta que fica, a do envio; no passo 5, "ver no mapa" no catálogo
+      sintético, cujos pontos o motor recusa, com o desfecho "parcial" (antes, o roteiro conferia "Mostrei o mapa…" com o mapa
+      sem pontos); no passo 7b, a referência por critério
       no catálogo sintético, sem a Análise Espacial, agora com o desfecho "parcial"; no passo 14, a escolha pelo pedido numa
       sessão nova, com o "sim" à oferta do envio e a associação conferida; no passo 15, a resposta retida com a escolha.
 

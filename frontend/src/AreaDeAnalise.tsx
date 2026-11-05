@@ -718,7 +718,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // O desfecho do pedido da conversa em curso (05/11/2026), conferido a cada render: só depois do render com as mudanças do pedido
   // e com a área estável; antes do fim, uma mudança feita na área toma o lugar dele. O erro do motor e o do mapa só valem para o
-  // pedido em exibição e esperam a nova tentativa automática do ocupado.
+  // pedido em exibição e esperam a nova tentativa automática do ocupado; sem os pontos do mapa pedido, o desfecho é "parcial".
   const estabilidade = instantaneo + "|" + chave + "|" + vistaExibida;
   useEffect(() => {
     const em = execucao.current;
@@ -737,8 +737,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       return;
     }
     if (!calculado || calculado.chave !== chave) return;
+    // O mapa pedido fica à vista, mas sem os pontos (o motor os recusou): o pedido foi feito só em parte, com o motivo.
     if (em.mapa && mapaNaTela) {
-      if (erroDoMapa) { if (!erroDoMapa.repetindo) informarDesfecho("falhou", [...em.mensagens, erroDoMapa.mensagem]); return; }
+      if (erroDoMapa) {
+        if (!erroDoMapa.repetindo) informarDesfecho("parcial", [...em.mensagens, "Mapa: " + erroDoMapa.mensagem]);
+        return;
+      }
       if (!dadosConferem) return;
     }
     informarDesfecho(em.mensagens.length ? "parcial" : "concluido", em.mensagens);

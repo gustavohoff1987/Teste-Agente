@@ -271,14 +271,21 @@ def main():
         # 5. A vista do desenho pela conversa (o mapa como segunda vista do gráfico, 23/10/2026), na tela e sem o intérprete:
         # com os municípios na tela, "ver no mapa" troca o gráfico pelo mapa, e "volte ao gráfico" desfaz; "o que esse gráfico
         # mostra?" responde com a frase-resumo do motor (analise-resumo), como veio.
+        # Neste catálogo sintético, o motor recusa os pontos do mapa (sem o referencial geodésico governado): desde 05/11/2026,
+        # a resposta não diz "Mostrei o mapa…" com o mapa sem pontos; diz que o pedido foi feito só em parte, com o motivo, e a
+        # vista fica no mapa, com o alerta da área. Com a base versionada, o mapa recebe os pontos, e a resposta é a de sempre.
         interpretacoes = len(exploracoes) + len(llm_calls)
         expect(area).to_have_attribute("data-desenho", "grafico")
         send(page, "ver no mapa")
-        expect(latest).to_contain_text("Mostrei o mapa no lugar do gráfico")
         expect(area).to_have_attribute("data-desenho", "mapa", timeout=60000)
+        expect(historico.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "parcial", timeout=60000)
+        expect(latest).to_contain_text("O pedido foi feito só em parte. Não foi possível: Mapa: ")
+        expect(latest).not_to_contain_text("Mostrei o mapa")
+        expect(area.get_by_test_id("analise-mapa-erro")).to_be_visible()
         shot("01b-mapa")
         send(page, "volte ao gráfico")
         expect(latest).to_contain_text("Voltei ao gráfico")
+        expect(historico.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
         expect(area).to_have_attribute("data-desenho", "grafico", timeout=60000)
         resumo = page.get_by_test_id("analise-resumo").first
         expect(resumo).to_have_text(re.compile(r"\S"), timeout=60000)

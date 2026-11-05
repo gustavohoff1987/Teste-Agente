@@ -190,11 +190,12 @@ def main():
         shot("03-ordenacao-pela-conversa")
 
         # 5a. O motor lento, dentro do prazo da tela: enquanto o cálculo não chega, a conversa mostra que está aplicando o pedido
-        # e nenhuma resposta nova aparece; com o cálculo, a resposta e o desfecho "concluido".
+        # e nenhuma resposta nova aparece; com o cálculo, a resposta e o desfecho "concluido". (Uma ordenação nova sempre vai ao
+        # motor; a troca só do indicador, com a ordenação em uso, não pede nada novo e não serviria aqui.)
         retidas = []
         page.route("**/api/painel", lambda route: retidas.append(route))
         mensagens_antes = do_agente().count()
-        enviar_sem_esperar("mostre a quantidade")
+        enviar_sem_esperar("os 3 municípios com maior quantidade")
         for _ in range(150):
             if retidas:
                 break
@@ -208,7 +209,7 @@ def main():
         page.unroute("**/api/painel")
         confirmada = do_agente().nth(mensagens_antes)
         expect(confirmada).to_have_attribute("data-execucao", "concluido", timeout=60000)
-        expect(confirmada).to_contain_text("Troquei o indicador para a quantidade.")
+        expect(confirmada).to_contain_text("Ordenei os municípios pela quantidade, do maior para o menor, e destaquei os 3 primeiros")
         expect(processando).to_have_count(0, timeout=30000)
         associada(confirmada)
 
@@ -270,7 +271,8 @@ def main():
         assert len([item for item in rondonia["itens"] if item["tipo"] == "municipio"]) == 52, len(rondonia["itens"])
         confirmada = do_agente().last
         expect(confirmada).to_have_attribute("data-execucao", "concluido", timeout=60000)
-        expect(latest).to_contain_text("Mostrei a densidade nos 52 municípios de Rondônia.")
+        expect(latest).to_contain_text("Mostrei ")
+        expect(latest).to_contain_text(" nos 52 municípios de Rondônia.")
         expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_contain_text("Rondônia")
         expect(area.locator(BOLHAS)).to_have_count(len([item for item in rondonia["itens"] if item["tipo"] == "municipio" and

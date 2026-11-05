@@ -72,7 +72,8 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   estados não têm um ponto no mapa…"). Numa planilha sem população, um pedido pela densidade fica na quantidade, com o motivo.
   Um pedido feito antes dos dados é aplicado quando a base fica pronta. Desde 05/11/2026, a área informa o desfecho de cada
   pedido (`onDesfecho`, com o id do pedido): `concluido` quando tudo o que ele trouxe está na área e o motor calculou a
-  definição que resultou dele (com a vista do mapa, também os pontos do mapa); `parcial` com os avisos acima e o resto à vista;
+  definição que resultou dele (com a vista do mapa, também os pontos do mapa); `parcial` com os avisos acima e o resto à vista
+  (também quando o motor recusa os pontos do mapa pedido: o mapa fica à vista, com o alerta, e o motivo vai como "Mapa: …");
   `pendente` quando falta algo para o motor calcular (sem territórios, "Selecione os territórios que deseja analisar."); `recusado`
   quando nada pôde ser aplicado; `falhou` com o erro do motor (depois das novas tentativas do ocupado); `substituido` quando uma
   mudança feita na área, ou um pedido novo, toma o lugar dele antes do fim. O desfecho é conferido depois do render com as
