@@ -1016,5 +1016,22 @@ responsável, porque esse endereço será despublicado depois da validação do 
   (`calc(100dvh - 16px)` e `clamp(96px,28dvh,220px)`), e o script, o `ResizeObserver` e o endereço do serviço. O
   endereço antigo segue na versão anterior, sem mudança.
 
-Ponto de retomada: a validação do endereço novo pela responsável; depois, a despublicação do endereço antigo (D-1 a D-3),
-cada etapa com a sua autorização.
+**CI do registro da M-6:** o commit `0e83b1c` passou (execução 41943538129).
+
+**D-1 (05/11/2026, só a D-1, a pedido da responsável): o endereço antigo despublicado.**
+- **Execução:** `gh api -X DELETE repos/gustavohoff1987/Teste-Agente/pages` respondeu 204, e o repositório passou a
+  `has_pages: false`.
+- **Resultado:** o cache do GitHub serviu a aplicação por cerca de 8 minutos. Desde as 01:12 UTC,
+  `https://gustavohoff1987.github.io/Teste-Agente/`, o `index.html` e o script respondem 404.
+- **Endereço novo:** `https://diagnostico-territorial.github.io/` continua respondendo 200, com o título oficial, e a saúde
+  do serviço também responde 200.
+- **Preservados, a pedido da responsável:**
+  - o repositório Teste-Agente, público e não arquivado;
+  - os cinco workflows, todos ativos, e o `pages.yml` não foi desativado. Sem o Pages, o job de publicação não tem onde
+    publicar, e ele continua exigindo a aprovação no ambiente protegido;
+  - o Cloud Run, com o CORS ainda aceitando as duas origens até a D-2;
+  - a variável `VITE_API_BASE_URL` e o ambiente `github-pages` do Teste-Agente, até a D-3.
+- **Reversão:** reativar o Pages do Teste-Agente pela origem GitHub Actions e publicar de novo com uma etiqueta.
+
+Ponto de retomada: a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua
+autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a informar.
