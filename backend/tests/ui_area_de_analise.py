@@ -1295,16 +1295,42 @@ def main():
             assert set(linhas.evaluate_all("els => els.map(e => e.dataset.classe)")) == {filtro[0]}
             aperta(botao)
             expect(linhas).to_have_count(min(len(com_valor), 50))
-        # Clicar numa linha escolhe a unidade (Série temporal e Comparar), e as velocidades dela aparecem na explicação, ao lado;
-        # de novo, desfaz.
+        # Clicar numa linha escolhe a unidade (Série temporal e Comparar), e o ritmo de variação dela aparece na explicação, ao lado;
+        # de novo, desfaz. O ritmo de variação (05/11/2026; antes, "Velocidades de …"): o título com o nome da própria linha, a
+        # explicação, as velocidades do motor sem mudança (na ordem) e, em cada uma, o intervalo efetivo entre as duas observações; com
+        # observações a mais de um mês uma da outra, a nota de que o valor por mês é uma média no intervalo.
         primeira = linhas.first
         aperta(primeira)
         expect(primeira).to_have_attribute("aria-pressed", "true")
-        expect(explicacao.get_by_test_id("analise-velocidades")).to_have_attribute("data-id", lidas[0]["id"])
+        ritmo = explicacao.get_by_test_id("analise-velocidades")
+        expect(ritmo).to_have_attribute("data-id", lidas[0]["id"])
+        item_do_ritmo = por_id[lidas[0]["id"]]
+        expect(ritmo.get_by_test_id("analise-ritmo-titulo")).to_have_text("Ritmo de variação — " + item_do_ritmo["rotulo"])
+        expect(ritmo.get_by_test_id("analise-ritmo-explicacao")).to_have_text(
+            "Mostra quanto o indicador aumentou ou diminuiu, em média, por unidade de tempo entre os períodos observados. A comparação "
+            "entre os intervalos permite identificar aceleração, desaceleração ou mudança de direção.")
+        expect(ritmo).not_to_contain_text("Velocidades")
+        t_ritmo = item_do_ritmo.get("tendencia") or {}
+        velocidades_ritmo = [v if isinstance(v, (int, float)) else (v or {}).get("valor") for v in (t_ritmo.get("velocidades") or [])]
+        observadas = [obs["competencia"] for obs in (t_ritmo.get("observacoes") or []) if obs.get("valor") is not None]
+        itens_ritmo = ritmo.get_by_test_id("analise-velocidade")
+        expect(itens_ritmo).to_have_count(len(velocidades_ritmo))
+        intervalos = []
+        for indice, valor in enumerate(velocidades_ritmo):
+            linha_ritmo = itens_ritmo.nth(indice)
+            assert float(linha_ritmo.get_attribute("data-valor")) == valor, (indice, valor)  # o valor do motor, sem arredondar
+            de, ate = observadas[indice], observadas[indice + 1]
+            meses = (int(ate[:4]) * 12 + int(ate[4:])) - (int(de[:4]) * 12 + int(de[4:]))
+            intervalos.append(meses)
+            expect(linha_ritmo).to_have_attribute("data-meses", str(meses))
+            expect(linha_ritmo).to_contain_text("(" + ("1 mês" if meses == 1 else str(meses) + " meses") + " entre as observações)")
+        if any(meses > 1 for meses in intervalos):
+            expect(ritmo.get_by_test_id("analise-ritmo-nota")).to_contain_text("não uma variação observada mês a mês")
+            expect(itens_ritmo.first).to_contain_text("por mês, em média,")
         aperta(primeira)
         expect(primeira).to_have_attribute("aria-pressed", "false")
         expect(explicacao.get_by_test_id("analise-velocidades")).to_have_count(0)
-        expect(explicacao).to_contain_text("Clique numa linha do quadro para ver as velocidades dela aqui.")
+        expect(explicacao).to_contain_text("Clique numa linha do quadro para ver o ritmo de variação dela aqui.")
         page.wait_for_timeout(300)
         assert len(painel_calls) == calls, "o filtro da classe e a escolha de uma linha não pedem nada ao motor"
         # A dica no mouse: os períodos da linha com o valor de cada um.

@@ -1154,3 +1154,62 @@ test('memória da tela: sem análise que dependa do indicador, trocar densidade 
   assert.equal(M.chaveDoPedido({...base, indicador: 'densidade', ordenar: {atributo: 'densidade', ordem: 'desc'}}),
     M.chaveDoPedido({...base, indicador: 'quantidade', ordenar: {atributo: 'densidade', ordem: 'desc'}}));
 });
+
+test('legenda de tamanho (05/11/2026): a largura do desenho acompanha o rótulo mais longo e os rótulos não se cobrem', () => {
+  const legenda = M.legendaDeTamanhos(2279686, 30);
+  const geometria = M.geometriaDaLegendaDeTamanho(legenda);
+  const maior = Math.max(...legenda.map(item => item.raio));
+  assert.equal(geometria.maior, maior);
+  // Antes, 78 px fixos para os rótulos: "500 mil hab." passava do desenho e cobria o texto ao lado nas telas estreitas.
+  const rotulo = Math.max(...legenda.map(item => M.larguraDoTexto(item.texto, 11.5)));
+  assert.equal(geometria.largura, Math.ceil(2 * maior + 11 + rotulo));
+  assert.ok(geometria.largura >= 2 * maior + 11 + M.larguraDoTexto('500 mil hab.', 11.5));
+  // Os rótulos ficam em linhas próprias (passo de pelo menos 1,15 vez a letra) e dentro da altura do desenho.
+  const ys = geometria.posicoes.map(posicao => posicao.y);
+  for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= Math.ceil(11.5 * 1.15), 'rótulos sem se cobrir');
+  assert.ok(geometria.altura >= ys.at(-1));
+  // Os círculos alinhados pela base: o centro de cada um a um raio da base comum.
+  const bases = geometria.posicoes.map(posicao => posicao.cy + posicao.marca.raio);
+  assert.ok(bases.every(base => Math.abs(base - bases[0]) < 1e-9));
+  assert.deepEqual(M.geometriaDaLegendaDeTamanho([]).posicoes, []);
+});
+
+test('ritmo de variação (05/11/2026): título com o nome da linha, explicação e o intervalo efetivo entre as observações', () => {
+  assert.equal(M.tituloDoRitmo('Amazonas (AM)'), 'Ritmo de variação — Amazonas (AM)');
+  assert.equal(M.tituloDoRitmo('Grupo do Norte'), 'Ritmo de variação — Grupo do Norte');
+  assert.ok(!M.tituloDoRitmo('MANAUS (AM)').includes('Velocidade'));
+  assert.equal(M.EXPLICACAO_DO_RITMO, 'Mostra quanto o indicador aumentou ou diminuiu, em média, por unidade de tempo entre os ' +
+    'períodos observados. A comparação entre os intervalos permite identificar aceleração, desaceleração ou mudança de direção.');
+  // O intervalo é lido das datas (AAAAMM): anual, semestral e o de janeiro a junho; fora do formato, nada é presumido.
+  assert.equal(M.mesesEntre('202306', '202406'), 12);
+  assert.equal(M.mesesEntre('202306', '202312'), 6);
+  assert.equal(M.mesesEntre('202401', '202406'), 5);
+  assert.equal(M.mesesEntre('2023', '2024'), null);
+  assert.equal(M.textoDoIntervalo(12), '12 meses');
+  assert.equal(M.textoDoIntervalo(1), '1 mês');
+  assert.ok(M.NOTA_DO_RITMO_MENSAL.includes('não uma variação observada mês a mês'));
+  // O CSV exporta as mesmas velocidades do motor, sob o nome novo (os campos internos continuam `velocidades`).
+  const resposta = A.normalizarResposta({competencia: '202406', competencia_inicial: null, categoria: 'MEDICINA', versao_base: 'v',
+    chave_execucao: 'k', referencia: null, dominios: {}, notas: [], limitacoes: [], nivel: 'municipios', indicador: 'densidade',
+    itens: [municipio('code:1', 'A (AM)', {tendencia: {classe: 'CRESCIMENTO', rotulo: 'Crescimento', motivo: null, familia: 'CRESCIMENTO',
+      avaliavel: true, observacoes: [{competencia: '202306', valor: 1}, {competencia: '202406', valor: 2.2}],
+      velocidades: [{de: '202306', ate: '202406', valor: 0.1}]}})],
+    tendencia: {janela: ['202306', '202406'], unidade_tempo: 'mês', contagens: {}, universo: 1}});
+  const csv = M.montarCsv(resposta, {familia: 'tendencia', indicador: 'densidade', rotulos: M.ROTULOS_GENERICOS, brasil: true});
+  const [cabecalho, linha] = csv.replace(/^\uFEFF/, '').split(/\r?\n/);
+  assert.ok(cabecalho.includes('Ritmo de variação (variação média por unidade de tempo em cada intervalo)'), cabecalho);
+  assert.ok(!cabecalho.includes('Velocidades'));
+  assert.ok(linha.includes('202306-202406:0.1'), linha);
+});
+
+test('rótulos das bolhas (05/11/2026): sem lugar dos dois lados, o nome fica centrado acima da bolha, dentro da área de desenho', () => {
+  // Gráfico estreito (celular): a área de desenho vai de 52 a 244 px, e o nome tem 170 px.
+  const r = M.posicionarRotulos([{id: 'a', x: 150, y: 100, r: 6, largura: 170}], 244, 16, 52).get('a');
+  assert.equal(r.ancora, 'middle');
+  assert.ok(150 + r.dx - 85 >= 52 && 150 + r.dx + 85 <= 244, 'dentro da área, sem cobrir o título do eixo');
+  assert.ok(r.dy <= -(6 + 8), 'acima da bolha');
+  // Com lugar à direita ou à esquerda, como antes; sem o início da área, também como antes (à esquerda).
+  assert.equal(M.posicionarRotulos([{id: 'b', x: 60, y: 100, r: 6, largura: 80}], 244, 16, 52).get('b').ancora, 'start');
+  assert.equal(M.posicionarRotulos([{id: 'c', x: 230, y: 100, r: 6, largura: 80}], 244, 16, 52).get('c').ancora, 'end');
+  assert.equal(M.posicionarRotulos([{id: 'd', x: 150, y: 100, r: 6, largura: 170}], 244).get('d').ancora, 'end');
+});

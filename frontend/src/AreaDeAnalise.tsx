@@ -1793,7 +1793,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           {series && <LegendaDaSerie indicador={indicador} rotulos={rotulos}/>}
           {quadroDeSetas && (itemDasVelocidades
             ? <Velocidades item={itemDasVelocidades} indicador={indicador} unidadeTempo={resposta?.tendencia?.unidadeTempo ?? null}/>
-            : <p className="analise-explicacao-dica">Clique numa linha do quadro para ver as velocidades dela aqui.</p>)}
+            : <p className="analise-explicacao-dica">Clique numa linha do quadro para ver o ritmo de variação dela aqui.</p>)}
         </section>
       </div> : painelDaFuncao}
     </div>

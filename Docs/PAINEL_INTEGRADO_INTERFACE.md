@@ -420,7 +420,7 @@ O que cada análise mostra:
   **Layout** (segunda rodada de 24/10/2026): os controles (os ajustes da aba) em cima; logo abaixo, a área principal, com as
   ferramentas (régua, condições, ordenação, comparação) e o desenho em destaque; à direita, o painel **"Como ler"**
   (`analise-tendencia-lateral`, `analise-explicacao`), com o subtítulo e a frase-resumo do motor, as contagens por classe, a
-  legenda e, no quadro de setas, as velocidades da linha escolhida; o painel de uma função aberta fica por cima dele. Entre os
+  legenda e, no quadro de setas, o ritmo de variação da linha escolhida; o painel de uma função aberta fica por cima dele. Entre os
   dois, a **divisória** (`analise-divisoria`, `role="separator"`) muda a largura do painel: arrastando com o mouse ou o dedo,
   ou com as setas do teclado com o foco nela (Shift para passos maiores; Home e End vão aos limites), entre 240 px e a metade
   da área (no máximo 620 px; 340 px de início). Abaixo de 1.024 px, sem a divisória, o painel vai para baixo do desenho.
@@ -446,7 +446,17 @@ O que cada análise mostra:
     a Ordenação em uso, pela posição do motor; com as Condições, a situação aparece ao lado do nome. São 50 linhas por página
     (`analise-setas-paginas`). A dica (`analise-seta-dica`), no mouse e no foco, lista cada período com o valor e o avanço até
     ele, a variação e o que a classe quer dizer; Escape fecha. Clicar na linha (ou Enter) escolhe a unidade, para Comparar e
-    para as velocidades dela no painel "Como ler" (barras das velocidades do motor; antes, na visão Séries). No painel, a
+    para o ritmo de variação dela no painel "Como ler" (antes, na visão Séries). **Ritmo de variação** (05/11/2026, no lugar do
+    título "Velocidades de …"; `analise-velocidades`): o título "Ritmo de variação — " com o nome da própria linha (do município,
+    do estado ou do conjunto; nunca um nome fixo), a classe da tendência, a explicação "Mostra quanto o indicador aumentou ou
+    diminuiu, em média, por unidade de tempo entre os períodos observados. A comparação entre os intervalos permite identificar
+    aceleração, desaceleração ou mudança de direção.", as barras e a lista das velocidades do motor, sem mudança, cada uma com o
+    intervalo efetivo entre as duas observações ("+0,05 por 1.000 habitantes por mês, em média, de 06/2023 a 06/2024 (12 meses
+    entre as observações)"; `data-meses`) e, com observações a mais de um mês uma da outra, a nota "As observações não são
+    mensais: cada valor é a variação média por mês dentro do intervalo entre duas observações, e não uma variação observada mês a
+    mês." O método (CAP-TEN-01), os valores, as classes e a unidade de tempo não mudam, e os campos internos continuam
+    `velocidades`; no CSV, a coluna passa a se chamar "Ritmo de variação (variação média por unidade de tempo em cada
+    intervalo)". No painel, a
     contagem por classe do motor, que também filtra (cada contagem traz no `title` o que a classe quer dizer), a legenda das
     setas (`analise-setas-legenda`) e a das famílias com as contagens. O eixo mostra os 4
     períodos. No lado a lado, a linha sob o mouse destaca o ponto no mapa, e o contrário também. A escala (linear ou logarítmica) não se
@@ -563,7 +573,10 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   5 × 10ⁿ), todas na proporção exata desde 25/10/2026 (`valoresDaLegendaDeTamanho`): a referência que ficaria abaixo do mínimo
   visível, e por isso seria desenhada maior do que a área dela, dá lugar ao menor número redondo que já alcança o mínimo (em
   Roraima, com BOA VISTA, 200 mil, 50 mil e 10 mil habitantes, no lugar de 5 mil). A conferência de 25/10/2026, com os 15
-  municípios de Roraima, achou o raio de cada bolha igual ao da área proporcional à população, com duas casas.
+  municípios de Roraima, achou o raio de cada bolha igual ao da área proporcional à população, com duas casas. Desde 05/11/2026,
+  o desenho da legenda tem a largura do rótulo mais longo (`geometriaDaLegendaDeTamanho`; antes, 78 px fixos, e "500 mil hab."
+  passava do desenho), não encolhe, e o texto "Área proporcional à população…" desce para a linha de baixo quando não cabe ao
+  lado: nas telas estreitas (320 e 390 px), os rótulos não ficam mais por cima do texto. O mesmo vale para a legenda do mapa.
 - **Linhas de referência,** finas e sólidas: o contexto do Brasil na densidade ("Brasil · 2,36", que não classifica nada), os
   cortes dos grupos ou os limites das faixas, os limites da régua e as faixas de distância.
 - **Cores,** uma camada de cada vez (condições, depois ordenação, depois a da família), conferidas com o validador da skill de
@@ -575,7 +588,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 - **Símbolos:** anel escuro no conjunto ("soma das contagens dos componentes, com possível dupla contagem"), mira na referência,
   bolha vazada tracejada quando a camada de cor não tem valor (o motivo vai para Não avaliáveis).
 - **Rótulos diretos seletivos:** siglas dos estados, itens destacados, conjuntos, referência, os N primeiros da ordenação (até 12)
-  e a bolha sob o mouse ou em foco.
+  e a bolha sob o mouse ou em foco. Desde 05/11/2026, o nome que não cabe nem à direita nem à esquerda da bolha (gráfico estreito,
+  no celular) fica centrado acima dela, dentro da área de desenho, sem cobrir o título do eixo vertical.
 - **Estados e municípios** nunca no mesmo eixo nem somados; na visão dos estados, Juntar fica desligado.
 - **Modo leve:** acima de 400 bolhas, uma camada de círculos simples que não muda ao passar o mouse; só as bolhas em destaque
   ganham o desenho completo. A régua só esconde; as posições não mudam. Sem animação. A tabela mostra 100 linhas por vez.
@@ -831,6 +845,18 @@ No escuro, a magnitude fica na luminosidade ao contrário do claro: o maior grup
 mais claros. Como no claro, o neutro é cinza de propósito (fica abaixo de 3:1 da superfície), com o alívio da legenda com as
 contagens e da tabela; o que é vazado continua tracejado, e nenhum significado depende só da cor.
 
+**O personagem e o escurecimento forçado do navegador (05/11/2026).** Alguns navegadores e visualizadores embutidos escurecem a
+página sozinhos, mesmo com o aparelho no claro (o escurecimento automático do Chrome, `chrome://flags/#enable-force-dark`, o modo
+escuro forçado das WebViews de alguns aplicativos e de alguns navegadores de celular). Eles recolorem todo conteúdo vetorial, o SVG
+embutido ou como imagem, e ignoram as declarações de exclusão (`color-scheme: only light`, conferido no Chromium): o personagem do
+agente, que era um SVG, ficava com o cabelo claro e a pele pálida, esmaecido. Desde 05/11/2026, o personagem (`BrandAvatar.tsx`,
+`marca-personagem`) é uma imagem rasterizada do mesmo desenho (`frontend/src/assets/agente.png`, 192 × 192 px, renderizada do
+SVG original `frontend/src/assets/agente.svg`, sem mudar cor nem traço), que esses navegadores não recolorem: as cores originais
+aparecem no claro, no escuro e no escurecimento forçado. Nada muda no tema próprio da página: com o aparelho no escuro, vale o
+escuro desenhado aqui; a auditoria de contraste de 05/11/2026 (todos os textos visíveis da abertura, da Seleção, da distribuição,
+da tendência e da análise espacial) não achou texto abaixo de 4,5:1 no escuro. O roteiro `ui_modo_escuro.py` confere o personagem
+no escuro e num navegador à parte com o escurecimento forçado, com o controle de que a página de fato escureceu.
+
 ## Os nomes de uma planilha
 
 Numa planilha enviada, a página fala com os nomes dados no painel "Colunas" (a unidade e o grupo, no singular e no plural)
@@ -948,7 +974,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   `serie`, e o Método; entre a Tendência e a Trajetória, a troca não pede nada ao motor), com a nota das sem classificação e o
   motivo em palavras na dica, o campo Período (o anual desligado, com o motivo, no catálogo sintético; os últimos 4 períodos no
   pedido) e o quadro de setas (cada linha com a classe na coluna "Tendência", uma seta por velocidade do motor com o sinal dela e
-  um ponto por observação; a ordem por classe; o filtro pela contagem; a escolha da linha e as velocidades dela no painel; a
+  um ponto por observação; a ordem por classe; o filtro pela contagem; a escolha da linha e o ritmo de variação dela no painel
+  (desde 05/11/2026: o título com o nome da linha, a explicação, os valores do motor e o intervalo efetivo de cada um); a
   dica no mouse e no foco); a rotatividade com a apresentação e o motivo, sem pedido; Condições (com o convite ao mapa),
   Ordenar, Comparar e Juntar (com a orientação e os escolhidos em etiquetas, sem os cartões de valores; desde 25/10/2026, as
   bolhas marcadas para Comparar sem esmaecer as demais, todas com a opacidade inteira); "Limpar filtros", desfeito pelo
@@ -979,5 +1006,7 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   conversa, a base sem seleção, os estados e o Amazonas com fundo escuro e textos a 4,5:1 ou mais (pelo estilo calculado); as bolhas na série única do escuro (`#1ba3b5`), com o anel na superfície escura; a
   dica, o painel de uma função, os Detalhes e o diálogo de Nova sessão; o mapa (a superfície escura no canvas, as cores do
   escuro e a legenda dos quintis, ou, se o motor não entregar os pontos no catálogo sintético, só a área do mapa, com o
-  registro na saída); e a
-  impressão de volta ao claro. Tira capturas (`escuro-*.png`) para a conferência visual.
+  registro na saída); a
+  impressão de volta ao claro; e, desde 05/11/2026, o personagem (a imagem rasterizada do desenho original, com o cabelo escuro)
+  no escuro e num navegador à parte com o escurecimento forçado do Chrome (`--enable-features=WebContentsForceDark`, o aparelho
+  no claro), com o controle de que a página de fato escureceu. Tira capturas (`escuro-*.png`) para a conferência visual.

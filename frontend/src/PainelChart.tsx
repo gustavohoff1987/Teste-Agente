@@ -4,7 +4,7 @@ import type { GraficoComMapaProps } from "./mapaContrato";
 import MiniMapa from "./MiniMapa";
 import type { PainelIndicador, PainelItem, PainelResposta } from "./painelApi";
 import {
-  INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, larguraDoTexto,
+  INDICADORES, LIMITE_LEVE, caudaDoCometa, dicaDaReferenciaDeContexto, exibirCompetencia, formatarNumero, formatarVariacao, geometriaDaLegendaDeTamanho, larguraDoTexto,
   legendaDeTamanhos, montarDica, montarGrafico, opacidadeComDestaque, opacidadeDaBolha, paletaDoGrafico, posicaoNoEixo, posicionarRotulos, raioDaPopulacao,
   referenciasDeContexto, type BolhaDesenho, type Corte, type Escala, type PaletaDoGrafico, type ParDaBase, type Pintura, type RotulosTerritoriais, type Vista,
 } from "./painelModel";
@@ -182,7 +182,8 @@ export default function PainelChart(p: Props) {
     bolha.referencia || bolha.id === ativo || (comNome && idsDasBases.has(bolha.id)) || !!p.rotuloSempre?.(bolha.item)));
   const rotulos = posicionarRotulos([...rotulados.map(bolha => ({ id: bolha.id, x: bolha.x, y: bolha.y, r: bolha.r,
     largura: larguraDoTexto(textoDoRotulo(bolha)) })), ...contextos.filter(contexto => referenciasComNome || contexto.id === ativo).map(contexto =>
-    ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto) }))], grafico.largura - 4);
+    ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto) }))], grafico.largura - 4, 16,
+    grafico.esquerda);
   // Ordem de desenho estável: as mais populosas atrás. Não depende do mouse, do foco nem do destaque.
   const ordem = useMemo(() => [...grafico.bolhas].sort((a, b) => (b.item.populacao ?? -1) - (a.item.populacao ?? -1) ||
     a.id.localeCompare(b.id, "pt-BR", { numeric: true })), [grafico]);
@@ -426,25 +427,19 @@ export default function PainelChart(p: Props) {
 function LegendaDeTamanho({ maxima, raioMax, paleta }: { maxima: number; raioMax: number; paleta: PaletaDoGrafico }) {
   const tamanhos = legendaDeTamanhos(maxima, raioMax);
   if (!tamanhos.length) return null;
-  const maior = Math.max(...tamanhos.map(item => item.raio));
-  const base = Math.ceil(2 * maior + 6), larguraTexto = 78;
-  let anterior = -Infinity;
-  const posicoes = tamanhos.map(item => {
-    const cy = base - 2 - item.raio, topo = cy - item.raio, y = Math.max(topo + 4, anterior + 12);
-    anterior = y;
-    return { item, cy, topo, y };
-  });
-  const altura = Math.max(base, Math.ceil(anterior + 4));
+  // A largura do desenho acompanha o rótulo mais longo (05/11/2026), e o texto desce para a linha de baixo quando não cabe ao
+  // lado: nas telas estreitas, nada se sobrepõe.
+  const { maior, posicoes, largura, altura } = geometriaDaLegendaDeTamanho(tamanhos);
   return <div data-testid="analise-legenda-tamanho" aria-label={"Tamanho: população. Referências: " + tamanhos.map(item => item.texto).join(", ")}
-    className="flex items-end gap-2">
-    <svg width={2 * maior + 10 + larguraTexto} height={altura} aria-hidden="true" className="overflow-visible">
-      {posicoes.map(({ item, cy, topo, y }) => <g key={item.valor} data-testid="analise-legenda-tamanho-item" data-valor={item.valor} data-raio={item.raio.toFixed(2)}>
+    className="analise-legenda-tamanho">
+    <svg width={largura} height={altura} aria-hidden="true" className="overflow-visible">
+      {posicoes.map(({ marca: item, cy, topo, y }) => <g key={item.valor} data-testid="analise-legenda-tamanho-item" data-valor={item.valor} data-raio={item.raio.toFixed(2)}>
         <circle cx={maior + 2} cy={cy} r={item.raio} fill="none" stroke={paleta.tinta2} strokeWidth={1}/>
         <line x1={maior + 2} x2={2 * maior + 8} y1={topo} y2={y - 4} stroke={paleta.eixo} strokeWidth={1}/>
         <text x={2 * maior + 11} y={y} className="analise-marca-texto">{item.texto}</text>
       </g>)}
     </svg>
-    <span className="max-w-[14rem] leading-[1.4]">Área proporcional à população; as muito pequenas ficam no tamanho mínimo visível.</span>
+    <span className="analise-legenda-tamanho-texto">Área proporcional à população; as muito pequenas ficam no tamanho mínimo visível.</span>
   </div>;
 }
 

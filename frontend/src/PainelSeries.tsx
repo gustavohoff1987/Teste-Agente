@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { PainelIndicador, PainelItem } from "./painelApi";
 import {
-  INDICADORES, barrasDeVelocidade, dominioDasSeries, exibirCompetencia, formatarNumero, larguraDoTexto, marcas, montarSeries,
-  paletaDoGrafico, posicionarRotulos, textoDaMarca, umA, type RotulosTerritoriais,
+  EXPLICACAO_DO_RITMO, INDICADORES, NOTA_DO_RITMO_MENSAL, barrasDeVelocidade, dominioDasSeries, exibirCompetencia, formatarNumero,
+  larguraDoTexto, marcas, mesesEntre, montarSeries, paletaDoGrafico, posicionarRotulos, textoDaMarca, textoDoIntervalo, tituloDoRitmo, umA,
+  type RotulosTerritoriais,
 } from "./painelModel";
 import { useLargura } from "./PainelChart";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
@@ -109,19 +110,25 @@ export function LegendaDaSerie({ indicador, rotulos }: { indicador: PainelIndica
   </div>;
 }
 
-/** As velocidades da tendência de uma unidade (CAP-TEN-01, do motor): a variação absoluta por unidade de tempo entre períodos
- * vizinhos, em barras. Ficam no painel ao lado do quadro de setas, para a linha escolhida (24/10/2026; antes, na visão Séries). */
+/** O ritmo de variação de uma unidade (05/11/2026; antes, "Velocidades de …"): as velocidades da tendência do motor (CAP-TEN-01),
+ * a variação absoluta por unidade de tempo entre observações vizinhas, em barras e em lista, com o intervalo efetivo entre as duas
+ * observações de cada uma. Com observações anuais ou semestrais, a velocidade por mês é uma média dentro do intervalo, e a tela diz
+ * isso: nada é apresentado como observado mês a mês. Fica no painel ao lado do quadro de setas, para a linha escolhida (24/10/2026). Os
+ * valores, as classes e as unidades de tempo são os do motor; os campos internos continuam `velocidades`. */
 export function Velocidades({ item, indicador, unidadeTempo }: { item: PainelItem; indicador: PainelIndicador; unidadeTempo: string | null }) {
   const paleta = paletaDoGrafico(useEsquemaDeCor());
   const especie = INDICADORES[indicador];
   const velocidades = item.tendencia?.velocidades ?? [];
   const largura = 280;
   const barras = barrasDeVelocidade(velocidades.map(v => v.valor), largura, 80);
-  const porTempo = "por " + (unidadeTempo || "mês");
-  return <section data-testid="analise-velocidades" data-id={item.id} aria-label={"Velocidades de " + item.rotulo} className="analise-explicacao-bloco">
-    <p className="font-semibold text-ink">Velocidades de {item.rotulo} · {item.tendencia?.rotulo ?? "Não avaliável"}</p>
-    <p>Variação absoluta {porTempo} entre períodos vizinhos. Barras do mesmo lado e crescendo indicam aceleração; diminuindo,
-      desaceleração; trocando de lado, mudança de direção.</p>
+  const unidade = unidadeTempo || "mês";
+  const porTempo = "por " + unidade;
+  const intervalos = velocidades.map(v => mesesEntre(v.de, v.ate));
+  const media = unidade === "mês" && intervalos.some(meses => meses !== null && meses > 1);
+  return <section data-testid="analise-velocidades" data-id={item.id} aria-label={tituloDoRitmo(item.rotulo)} className="analise-explicacao-bloco">
+    <p data-testid="analise-ritmo-titulo" className="font-semibold text-ink">{tituloDoRitmo(item.rotulo)}</p>
+    <p data-testid="analise-ritmo-classe">Classe da tendência: {item.tendencia?.rotulo ?? "Não avaliável"}</p>
+    <p data-testid="analise-ritmo-explicacao">{EXPLICACAO_DO_RITMO}</p>
     {velocidades.length ? <>
       <svg width={largura} height={80} className="block max-w-full" aria-hidden="true">
         <line x1={0} x2={largura} y1={barras.base} y2={barras.base} stroke={paleta.eixo} strokeWidth={1}/>
@@ -129,10 +136,13 @@ export function Velocidades({ item, indicador, unidadeTempo }: { item: PainelIte
           fill={barra.sinal === 0 ? paleta.tinta2 : paleta.tendencia[item.tendencia?.familia ?? "NENHUMA"]}/>)}
       </svg>
       <ol className="grid gap-0.5">
-        {velocidades.map(v => <li key={v.de + v.ate} data-testid="analise-velocidade" data-valor={v.valor}>
+        {velocidades.map((v, indice) => <li key={v.de + v.ate} data-testid="analise-velocidade" data-valor={v.valor}
+          data-meses={intervalos[indice] ?? undefined}>
           <span className="font-semibold tabular-nums text-ink">{v.valor > 0 ? "+" : ""}{formatarNumero(v.valor, false)}</span>{" "}
-          {especie.unidade} {porTempo} · {exibirCompetencia(v.de)} a {exibirCompetencia(v.ate)}</li>)}
+          {especie.unidade} {porTempo}{media ? ", em média," : ""} de {exibirCompetencia(v.de)} a {exibirCompetencia(v.ate)}
+          {intervalos[indice] !== null ? " (" + textoDoIntervalo(intervalos[indice]!) + " entre as observações)" : ""}</li>)}
       </ol>
-    </> : <p>Sem velocidades: a série não tem períodos vizinhos com valor{item.tendencia?.motivo ? " (" + item.tendencia.motivo + ")" : ""}.</p>}
+      {media && <p data-testid="analise-ritmo-nota">{NOTA_DO_RITMO_MENSAL}</p>}
+    </> : <p>Sem ritmo de variação: a série não tem períodos vizinhos com valor{item.tendencia?.motivo ? " (" + item.tendencia.motivo + ")" : ""}.</p>}
   </section>;
 }

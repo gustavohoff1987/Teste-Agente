@@ -55,8 +55,11 @@
 /* ------------------------------------------------------------------------------------------- legendas e notas */
 .mapa-legendas { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; color: var(--mapa-tinta2); font-size: 12px; line-height: 1.45; }
 .mapa-legendas p { margin: 0; }
-.mapa-legenda-tamanho { display: flex; align-items: flex-end; gap: 8px; }
-.mapa-legenda-tamanho-texto { max-width: 14rem; line-height: 1.4; }
+.mapa-legenda-tamanho { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 8px; min-width: 0; max-width: 100%; }
+/* O desenho nunca encolhe (os rótulos ficariam por cima do texto); o texto desce para a linha de baixo quando não cabe ao lado
+   (05/11/2026). */
+.mapa-legenda-tamanho > svg { flex-shrink: 0; }
+.mapa-legenda-tamanho-texto { flex: 1 1 9rem; min-width: min(9rem, 100%); max-width: 14rem; line-height: 1.4; }
 .mapa-legenda-texto { fill: var(--mapa-tinta2); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .mapa-legenda { min-width: 0; }
 .mapa-legenda-continua { width: min(320px, 100%); }

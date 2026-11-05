@@ -3,7 +3,8 @@ import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, u
 import { Expand, Minus, Plus, Search } from "lucide-react";
 import type { DadosDoMapa, MapaHandle, MapaProps, Posicoes } from "./mapaContrato";
 import type { PainelIndicador } from "./painelApi";
-import { artigo, compacto, formatarNumero, generoDe, maiuscula, textoDaMarca, umA, type Dica, type RotulosTerritoriais } from "./painelModel";
+import { artigo, compacto, formatarNumero, generoDe, geometriaDaLegendaDeTamanho, maiuscula, textoDaMarca, umA, type Dica,
+  type RotulosTerritoriais } from "./painelModel";
 import MiniMapa from "./MiniMapa";
 import { useNarrow } from "./useNarrow";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
@@ -895,18 +896,11 @@ function LegendaDeTamanho({ maximo, rotulo, cores }: { maximo: number | null; ro
   const nome = minusculaInicial(rotulo);
   if (!marcas.length) return <div data-testid="mapa-legenda-tamanho" className="mapa-legenda-tamanho">
     <span>Tamanho: {nome}; sem valores, todos os pontos ficam no tamanho mínimo.</span></div>;
-  const maior = Math.max(...marcas.map(marca => marca.raio));
-  const baseY = Math.ceil(2 * maior + 6), larguraTexto = 60;
-  let anterior = -Infinity;
-  const posicoes = marcas.map(marca => {
-    const cy = baseY - 2 - marca.raio, topo = cy - marca.raio, y = Math.max(topo + 4, anterior + 12);
-    anterior = y;
-    return { marca, cy, topo, y };
-  });
-  const altura = Math.max(baseY, Math.ceil(anterior + 4));
+  // A largura do desenho acompanha o rótulo mais longo (05/11/2026), como no gráfico (geometriaDaLegendaDeTamanho).
+  const { maior, posicoes, largura, altura } = geometriaDaLegendaDeTamanho(marcas.map(marca => ({ ...marca, texto: compacto(marca.valor) })));
   return <div data-testid="mapa-legenda-tamanho" className="mapa-legenda-tamanho" role="group"
     aria-label={"Tamanho: " + nome + ". Referências: " + marcas.map(marca => compacto(marca.valor)).join(", ")}>
-    <svg width={2 * maior + 10 + larguraTexto} height={altura} aria-hidden="true" className="overflow-visible">
+    <svg width={largura} height={altura} aria-hidden="true" className="overflow-visible">
       {posicoes.map(({ marca, cy, topo, y }) => <g key={marca.valor} data-testid="mapa-legenda-tamanho-item" data-valor={marca.valor}
         data-raio={marca.raio.toFixed(2)}>
         <circle cx={maior + 2} cy={cy} r={marca.raio} fill="none" stroke={cores.tinta2} strokeWidth={1}/>

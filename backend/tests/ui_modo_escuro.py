@@ -15,11 +15,17 @@ luminância relativa do WCAG):
   motor não entregar os pontos no catálogo sintético, confere só a área do mapa (o fundo escuro e o aviso do motor legível) e
   registra isso na saída;
 - a impressão (page.emulate_media(media="print")) volta ao claro: a página, o título, a superfície e as bolhas (#008b9e); de
-  volta à tela, o escuro.
+  volta à tela, o escuro;
+- o personagem do agente (05/11/2026): uma imagem rasterizada do desenho original (192 px), com o cabelo escuro como no desenho,
+  no escuro e, num navegador à parte com o escurecimento forçado do Chrome (--enable-features=WebContentsForceDark, o aparelho
+  no claro), também sob o escurecimento: antes, como SVG, ele era recolorido (cabelo claro e pele pálida, o "esmaecimento"). Um
+  controle confere que o escurecimento forçado de fato escureceu a página; sem ele, a conferência sob o forçado fica registrada
+  na saída como não feita.
 Tira capturas em .local/ui-validation (escuro-*.png) para a conferência visual. Catálogo sintético do Bloco 1; servidor
 serve_ui_offline.py; nunca chama o provedor de IA e não pode ter erro de página. Seletores: data-testid (e o id do aviso de
 privacidade, que dá nome ao diálogo).
 """
+import base64
 import os
 import re
 from pathlib import Path
@@ -72,6 +78,39 @@ def contraste(a, b):
 
 def hexa(rgb):
     return "#" + "".join(f"{round(c):02x}" for c in rgb[:3])
+
+
+# O personagem (05/11/2026): a região do cabelo, no alto e ao centro do desenho, em frações da imagem (x, y, largura, altura).
+# No desenho, o cabelo é #202331 (luminância de cerca de 0,02); recolorido pelo escurecimento forçado, ficava claro.
+CABELO = (0.36, 0.08, 0.28, 0.10)
+# Luminância relativa média de uma região de uma captura PNG, lida pelo próprio navegador (sem bibliotecas de imagem).
+LUMINANCIA_DA_REGIAO = """async ([b64, regiao]) => {
+  const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const [fx, fy, fw, fh] = regiao;
+  const x = Math.round(fx * c.width), y = Math.round(fy * c.height);
+  const w = Math.max(1, Math.round(fw * c.width)), h = Math.max(1, Math.round(fh * c.height));
+  const d = g.getImageData(x, y, w, h).data; let soma = 0, n = 0;
+  const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  for (let i = 0; i < d.length; i += 4) { soma += 0.2126 * f(d[i]) + 0.7152 * f(d[i + 1]) + 0.0722 * f(d[i + 2]); n++; }
+  return soma / n; }"""
+
+
+def luminancia_capturada(pagina, png, regiao=(0, 0, 1, 1)):
+    return pagina.evaluate(LUMINANCIA_DA_REGIAO, [base64.b64encode(png).decode(), list(regiao)])
+
+
+def conferir_personagem(pagina, rotulo):
+    """O personagem é a imagem rasterizada do desenho original e, na tela, o cabelo continua escuro."""
+    personagem = pagina.get_by_test_id("pagina-marca").get_by_test_id("marca-personagem")
+    expect(personagem).to_be_visible()
+    info = personagem.evaluate("e => ({ tag: e.tagName, natural: e.naturalWidth, src: e.currentSrc || e.src, alt: e.alt })")
+    assert info["tag"] == "IMG" and info["natural"] == 192 and re.search(r"agente[^/]*\.png", info["src"]), (rotulo, info)
+    assert info["alt"] == "Jovem negro de óculos e jaleco, em estilo de animação", (rotulo, info)
+    cabelo = luminancia_capturada(pagina, personagem.screenshot(), CABELO)
+    assert cabelo < 0.12, (rotulo, "o cabelo do personagem ficou claro (recolorido)", round(cabelo, 3))
+    return cabelo
 
 
 def main():
@@ -367,13 +406,43 @@ def main():
         page.wait_for_function(TODAS_NA_COR, arg=SERIE_ESCURO, timeout=10000)
         escuro(grafico, "de volta à tela")
 
+        # 9. O personagem (05/11/2026): no escuro, a imagem rasterizada com o cabelo escuro, como no desenho.
+        cabelo = conferir_personagem(page, "personagem no escuro")
+        notas.append(f"personagem no escuro: luminância do cabelo {cabelo:.3f}")
+
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
+
+        # 10. O escurecimento forçado do navegador (o do Chrome, com o aparelho no claro), num navegador à parte: a página fica
+        # escura pelo navegador (o controle), e o personagem continua com as cores do desenho.
+        forcado = p.chromium.launch(headless=True, channel=os.getenv("ADT_BROWSER_CHANNEL", "chrome"),
+                                    args=["--enable-features=WebContentsForceDark"])
+        contexto = forcado.new_context(viewport={"width": 1280, "height": 800}, color_scheme="light")
+        offline(contexto)
+        pagina = contexto.new_page()
+        erros_forcado = []
+        pagina.on("pageerror", lambda error: erros_forcado.append(str(error)))
+        pagina.goto(URL)
+        pagina.get_by_role("button", name="Li e concordo", exact=True).click()
+        expect(pagina.get_by_test_id("area-de-analise")).to_be_visible(timeout=60000)
+        pagina.wait_for_timeout(500)
+        assert pagina.evaluate("getComputedStyle(document.documentElement).colorScheme") == "light", "o aparelho no claro"
+        # Controle: o canto superior direito da página (o fundo, sem conteúdo), escuro na tela embora o estilo seja o claro.
+        fundo = luminancia_capturada(pagina, pagina.screenshot(clip={"x": 1220, "y": 4, "width": 40, "height": 8}))
+        if fundo < 0.2:
+            cabelo = conferir_personagem(pagina, "personagem no escurecimento forçado")
+            pagina.screenshot(path=str(OUTPUT / "escuro-10-forcado.png"))
+            notas.append(f"escurecimento forçado ativo (fundo {fundo:.3f}); cabelo do personagem {cabelo:.3f}")
+        else:
+            notas.append(f"o navegador deste ambiente não aplicou o escurecimento forçado (fundo {fundo:.3f}): a conferência do "
+                         "personagem sob o forçado não foi feita nesta execução")
+        assert not erros_forcado, erros_forcado
+        forcado.close()
     for nota in notas:
         print("Nota:", nota)
-    print("MODO ESCURO PASS: aviso de privacidade, página, conversa, estados, Amazonas, dica, painel, Detalhes, mapa, diálogo e "
-          "impressão clara (catálogo sintético).")
+    print("MODO ESCURO PASS: aviso de privacidade, página, conversa, estados, Amazonas, dica, painel, Detalhes, mapa, diálogo, "
+          "impressão clara e o personagem no escuro e no escurecimento forçado (catálogo sintético).")
 
 
 if __name__ == "__main__":

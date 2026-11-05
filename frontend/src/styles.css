@@ -238,6 +238,9 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .pagina-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .pagina-marca { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--cor-tinta); text-decoration: none; border-radius: 12px; }
 .pagina-marca > svg { flex-shrink: 0; }
+/* O personagem (05/11/2026; BrandAvatar.tsx): imagem rasterizada do desenho original, que o escurecimento forçado de alguns
+   navegadores não recolore. Não encolhe nas linhas flexíveis da marca, da conversa e dos diálogos. */
+.marca-personagem { display: block; flex-shrink: 0; max-width: none; }
 /* A marca (28/10/2026): o nome do agente, maior e mais justo, e, abaixo, "da Força de Trabalho na Saúde" maior que antes (14 px, antes
    12 px em cinza) e menor que o nome, no turquesa da identidade, em seminegrito, com o "da" mais leve, no tom de apoio. */
 .pagina-marca strong { display: block; font-size: 20px; font-weight: 750; line-height: 1.15; letter-spacing: -.018em; }
@@ -422,7 +425,7 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   border:1px solid var(--cor-borda-realce); border-radius:18px 18px 4px 18px; background:var(--cor-realce);
   color:var(--cor-texto); box-shadow:0 1px 3px var(--cor-sombra); }
 .chat-mensagem-agente { align-self:flex-start; align-items:flex-start; max-width:100%; }
-.chat-mensagem-agente > svg { flex-shrink:0; margin-top:4px; }
+.chat-mensagem-agente > svg, .chat-mensagem-agente > .marca-personagem { flex-shrink:0; margin-top:4px; }
 .chat-balao-agente { min-width:0; padding:10px 14px 7px; border:1px solid var(--cor-borda-cartao);
   border-left:3px solid var(--cor-destaque); border-radius:4px 18px 18px 18px; background:var(--cor-superficie-elevada);
   box-shadow:0 1px 3px var(--cor-sombra); }

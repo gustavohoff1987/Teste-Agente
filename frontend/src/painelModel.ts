@@ -757,6 +757,24 @@ export function legendaDeTamanhos(maxima: number | null | undefined, raioMax: nu
   return valoresDaLegendaDeTamanho(topo, topo * (RAIO_MINIMO / raioMax) ** 2)
     .map(valor => ({ valor, raio: raioDaPopulacao(valor, topo, raioMax), texto: compacto(valor) + " hab." }));
 }
+export type PosicaoNaLegendaDeTamanho<M> = { marca: M; cy: number; topo: number; y: number };
+/** Geometria da legenda de tamanho do gráfico e do mapa (05/11/2026): os círculos de referência alinhados pela base, cada um com a
+ * linha até o rótulo à direita, os rótulos sem se cobrir (a distância entre eles acompanha a letra) e a largura do desenho pela
+ * largura do rótulo mais longo. Antes, a largura dos rótulos era fixa (78 px no gráfico e 60 no mapa): "500 mil hab." passava do
+ * desenho e, nas telas estreitas, invadia o texto ao lado. Só posiciona; os raios vêm de legendaDeTamanhos e do mapa. */
+export function geometriaDaLegendaDeTamanho<M extends { raio: number; texto: string }>(marcas: M[], tamanhoDaFonte = 11.5):
+  { maior: number; posicoes: PosicaoNaLegendaDeTamanho<M>[]; largura: number; altura: number } {
+  const maior = Math.max(0, ...marcas.map(marca => marca.raio));
+  const base = Math.ceil(2 * maior + 6), passo = Math.ceil(tamanhoDaFonte * 1.15);
+  let anterior = -Infinity;
+  const posicoes = marcas.map(marca => {
+    const cy = base - 2 - marca.raio, topo = cy - marca.raio, y = Math.max(topo + 4, anterior + passo);
+    anterior = y;
+    return { marca, cy, topo, y };
+  });
+  const texto = Math.max(0, ...marcas.map(marca => larguraDoTexto(marca.texto, tamanhoDaFonte)));
+  return { maior, posicoes, largura: Math.ceil(2 * maior + 11 + texto), altura: Math.max(base, Math.ceil(anterior + 4)) };
+}
 
 // ================================================================================================ cor
 /** Série única: azul-petróleo da identidade, com croma e contraste validados. As constantes desta seção são as do modo claro;
@@ -1235,20 +1253,30 @@ export function caudaDoCometa(dx: number, dy: number, r: number): string {
   return f(dx) + "," + f(dy) + " " + f(px) + "," + f(py) + " " + f(-px) + "," + f(-py);
 }
 
-export type Rotulo2 = { dx: number; dy: number; ancora: "start" | "end" };
+export type Rotulo2 = { dx: number; dy: number; ancora: "start" | "end" | "middle" };
 /** Rótulos diretos seletivos: à direita da bolha (à esquerda perto da borda), deslocados na vertical quando colidem. */
 export function posicionarRotulos(itens: { id: string; x: number; y: number; r: number; largura: number }[], limite: number,
-  altura = 16): Map<string, Rotulo2> {
+  altura = 16, inicio = -Infinity): Map<string, Rotulo2> {
   const ocupados: { x0: number; x1: number; y0: number; y1: number }[] = [];
   const saida = new Map<string, Rotulo2>();
   for (const item of [...itens].sort((a, b) => a.y - b.y || a.x - b.x || comparar(a.id, b.id))) {
     const direita = item.x + item.r + 6 + item.largura <= limite;
-    const x0 = direita ? item.x + item.r + 6 : item.x - item.r - 6 - item.largura, x1 = x0 + item.largura;
-    const deslocamentos = [0, altura, -altura, 2 * altura, -2 * altura, 3 * altura, -3 * altura];
-    const dy = deslocamentos.find(desvio => !ocupados.some(caixa => x0 < caixa.x1 && x1 > caixa.x0 &&
-      item.y + desvio - altura / 2 < caixa.y1 && item.y + desvio + altura / 2 > caixa.y0)) ?? 0;
+    // Com o início da área de desenho (`inicio`, 05/11/2026): o nome que não cabe nem à direita nem à esquerda (gráfico estreito,
+    // no celular) fica centrado acima da bolha, dentro da área, sem cobrir o título do eixo. Sem `inicio`, como antes.
+    const esquerda = !direita && item.x - item.r - 6 - item.largura >= inicio;
+    const centro = !direita && !esquerda;
+    const meio = centro ? (limite - inicio >= item.largura ? Math.min(Math.max(item.x, inicio + item.largura / 2), limite - item.largura / 2)
+      : (inicio + limite) / 2) : 0;
+    const x0 = direita ? item.x + item.r + 6 : esquerda ? item.x - item.r - 6 - item.largura : meio - item.largura / 2;
+    const x1 = x0 + item.largura;
+    const base = centro ? -(item.r + altura / 2 + 2) : 0;
+    const deslocamentos = centro ? [0, -altura, -2 * altura, altura * 2 + 2 * item.r + 4, -3 * altura]
+      : [0, altura, -altura, 2 * altura, -2 * altura, 3 * altura, -3 * altura];
+    const dy = base + (deslocamentos.find(desvio => !ocupados.some(caixa => x0 < caixa.x1 && x1 > caixa.x0 &&
+      item.y + base + desvio - altura / 2 < caixa.y1 && item.y + base + desvio + altura / 2 > caixa.y0)) ?? 0);
     ocupados.push({ x0, x1, y0: item.y + dy - altura / 2, y1: item.y + dy + altura / 2 });
-    saida.set(item.id, { dx: direita ? item.r + 6 : -(item.r + 6), dy, ancora: direita ? "start" : "end" });
+    saida.set(item.id, centro ? { dx: meio - item.x, dy, ancora: "middle" }
+      : { dx: direita ? item.r + 6 : -(item.r + 6), dy, ancora: direita ? "start" : "end" });
   }
   return saida;
 }
@@ -1314,6 +1342,24 @@ export function montarSeries(p: { itens: PainelItem[]; janela: string[]; dominio
   return { series, marcasX: [...tempos.keys()].map(c => ({ competencia: c, x: x(c) })) };
 }
 const caminho = (pontos: PontoSerie[]) => pontos.map((ponto, i) => (i ? "L" : "M") + ponto.x.toFixed(1) + " " + ponto.y.toFixed(1)).join(" ");
+
+/** Ritmo de variação (05/11/2026, no lugar do título "Velocidades de …", pedido do responsável): o nome da unidade, do estado ou do
+ * conjunto vem da própria linha escolhida, nunca de um exemplo fixo. Os campos internos continuam `velocidades` (CAP-TEN-01). */
+export const tituloDoRitmo = (rotulo: string) => "Ritmo de variação — " + rotulo;
+export const EXPLICACAO_DO_RITMO = "Mostra quanto o indicador aumentou ou diminuiu, em média, por unidade de tempo entre os períodos " +
+  "observados. A comparação entre os intervalos permite identificar aceleração, desaceleração ou mudança de direção.";
+/** Meses entre duas competências AAAAMM: o intervalo efetivo entre as observações que a velocidade do motor usou. Só lê as datas
+ * (null fora do formato AAAAMM); nenhum valor do indicador é calculado. */
+export function mesesEntre(de: string, ate: string): number | null {
+  if (!ehAaaamm(de) || !ehAaaamm(ate)) return null;
+  const meses = (c: string) => Number(c.slice(0, 4)) * 12 + Number(c.slice(4)) - 1;
+  return meses(ate) - meses(de);
+}
+export const textoDoIntervalo = (meses: number) => meses === 1 ? "1 mês" : inteiro.format(meses) + " meses";
+/** Com observações a mais de um mês uma da outra (anuais ou semestrais), a velocidade por mês é uma média dentro do intervalo, e
+ * não uma variação observada mês a mês: a tela diz isso. */
+export const NOTA_DO_RITMO_MENSAL = "As observações não são mensais: cada valor é a variação média por mês dentro do intervalo entre " +
+  "duas observações, e não uma variação observada mês a mês.";
 
 export type BarraVelocidade = { x: number; y: number; largura: number; altura: number; sinal: -1 | 0 | 1 };
 /** Barras das velocidades do motor a partir do zero (mapeamento visual): escala pela maior magnitude; zero vira um traço. */
@@ -2400,7 +2446,8 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
   if (tendencia) colunas.push(["Janela da tendência", () => (resposta.tendencia?.janela || []).join(" | ")],
     ["Classe de tendência", item => item.tendencia?.classe ?? ""], ["Rótulo da tendência", item => item.tendencia?.rotulo ?? ""],
     ["Motivo da tendência", item => item.tendencia?.motivo ?? ""],
-    ["Velocidades", item => (item.tendencia?.velocidades || []).map(v => v.de + "-" + v.ate + ":" + String(v.valor)).join(" | ")]);
+    ["Ritmo de variação (variação média por unidade de tempo em cada intervalo)", item => (item.tendencia?.velocidades || [])
+      .map(v => v.de + "-" + v.ate + ":" + String(v.valor)).join(" | ")]);
   // Série temporal (24/10/2026): uma coluna por competência do intervalo, com o valor observado em precisão integral (vazia sem
   // valor, nunca zero).
   const serie = resposta.serie?.competencias ?? [];

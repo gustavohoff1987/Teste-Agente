@@ -463,6 +463,13 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-legenda { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-top: 6px; color: var(--grafico-tinta-2);
   font-size: 12px; line-height: 1.45; }
 .analise-legenda p { margin: 0; }
+/* Cada parte da legenda ocupa no máximo a largura do quadro e quebra a linha por dentro (05/11/2026). */
+.analise-legenda > * { min-width: 0; max-width: 100%; }
+/* Legenda de tamanho (05/11/2026): o desenho com os círculos nunca encolhe, e o texto desce para a linha de baixo quando não
+   cabe ao lado; antes, nas telas estreitas, os rótulos ("500 mil hab.") ficavam por cima do texto. */
+.analise-legenda-tamanho { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 8px; min-width: 0; }
+.analise-legenda-tamanho > svg { flex-shrink: 0; }
+.analise-legenda-tamanho-texto { flex: 1 1 9rem; min-width: min(9rem, 100%); max-width: 14rem; line-height: 1.4; }
 .analise-multiplos { display: grid; gap: 12px; }
 
 /* ------------------------------------------------------------------------------------------- quadro de setas (tendência) */

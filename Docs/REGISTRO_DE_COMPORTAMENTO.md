@@ -35,6 +35,65 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-05 · Interface: o personagem sem esmaecer no escurecimento forçado, legendas de tamanho e rótulos sem sobreposição no celular e "Ritmo de variação" no lugar de "Velocidades"
+- **Classificação (regra 1), pela leitura, antes de codar:** comando integrado do responsável de 05/11/2026 (itens 4, 5 e 9 do
+  comando: modo claro e escuro, responsividade e a troca de "Velocidades" por "Ritmo de variação"). Todos os itens são mudança de
+  comportamento (o que se vê na tela e o nome de uma coluna do CSV) e previstos:
+  - *escopo:* decorrem do comando (seções 4.3, 5.4 e 9);
+  - *compatibilidade:* a SPEC não fixa o modo de embutir o personagem, a geometria das legendas nem o título do painel das
+    velocidades; o modo escuro segue a decisão de 23/10/2026 (o esquema do aparelho, sem botão, e a impressão clara), que não muda.
+    CAP-TEN-01 (DA-15) continua com o método, os valores, as classes e a unidade de tempo; a Parte 13 continua (o intervalo em meses
+    é lido das datas das competências, e nenhum valor do indicador é calculado na tela). Nenhuma divergência aprovada trata disso.
+- **Antes:**
+  - **O personagem** era um SVG embutido (`BrandAvatar.tsx`). Nos navegadores que escurecem a página sozinhos com o aparelho no claro
+    (o escurecimento automático do Chrome, o modo escuro forçado das WebViews de alguns aplicativos e de alguns navegadores de
+    celular), o SVG era recolorido: o cabelo ficava claro e a pele, pálida, e o personagem parecia esmaecido. A declaração de
+    exclusão (`color-scheme: only light`, no elemento ou na raiz, e o `<meta name="color-scheme" content="only light">`) não muda
+    isso no Chromium (conferido em 05/11/2026), nem um SVG como imagem.
+  - **A legenda de tamanho** do gráfico e do mapa tinha a largura dos rótulos fixa (78 e 60 px): "500 mil hab." passava do desenho,
+    o desenho encolhia na linha flexível, e, em 320 e 390 px, os rótulos ficavam por cima do texto "Área proporcional à população…".
+  - **O nome da bolha** sob o mouse ou o toque que não cabia à direita ia sempre para a esquerda, e, no gráfico estreito do celular,
+    cobria o título do eixo vertical.
+  - **O painel das velocidades** da Análise de Tendência dizia "Velocidades de {nome} · {classe}", "Variação absoluta por mês entre
+    períodos vizinhos. …" e "+0,05 por 1.000 habitantes por mês · 06/2023 a 06/2024", sem dizer que, entre observações anuais, o
+    valor por mês é uma média; a dica do painel dizia "Clique numa linha do quadro para ver as velocidades dela aqui."; a coluna
+    do CSV se chamava "Velocidades".
+- **Agora:**
+  - **O personagem** é uma imagem rasterizada do mesmo desenho (`frontend/src/assets/agente.png`, 192 × 192 px, renderizada do SVG
+    original, guardado em `frontend/src/assets/agente.svg`, sem mudar cor nem traço), com o mesmo texto alternativo e
+    `data-testid="marca-personagem"`. Esses navegadores não recolorem a imagem rasterizada: as cores originais aparecem no claro, no
+    escuro e no escurecimento forçado (conferido com o escurecimento automático do Chrome).
+  - **A legenda de tamanho** (gráfico e mapa) tem a largura do rótulo mais longo (`geometriaDaLegendaDeTamanho`), o desenho não
+    encolhe, e o texto desce para a linha de baixo quando não cabe ao lado. Cada parte da legenda do gráfico fica dentro da largura
+    do quadro.
+  - **O nome da bolha** que não cabe nem à direita nem à esquerda fica centrado acima dela, dentro da área de desenho
+    (`posicionarRotulos` com o início da área).
+  - **O ritmo de variação:** "Ritmo de variação — {nome da linha}" (o município, o estado ou o conjunto escolhido no quadro; nunca
+    um nome fixo), "Classe da tendência: {classe}", a explicação "Mostra quanto o indicador aumentou ou diminuiu, em média, por
+    unidade de tempo entre os períodos observados. A comparação entre os intervalos permite identificar aceleração, desaceleração
+    ou mudança de direção.", as barras e a lista das velocidades do motor, cada uma com o intervalo efetivo ("+0,05 por 1.000
+    habitantes por mês, em média, de 06/2023 a 06/2024 (12 meses entre as observações)") e, com observações a mais de um mês uma da
+    outra, a nota "As observações não são mensais: cada valor é a variação média por mês dentro do intervalo entre duas
+    observações, e não uma variação observada mês a mês."; a dica do painel, "Clique numa linha do quadro para ver o ritmo de
+    variação dela aqui."; a coluna do CSV, "Ritmo de variação (variação média por unidade de tempo em cada intervalo)", com os
+    mesmos valores.
+- **Permanece:** o tema próprio da página no claro e no escuro (a auditoria de contraste de 05/11/2026, em todos os textos visíveis
+  da abertura, da Seleção, da distribuição, da tendência e da análise espacial, não achou texto abaixo de 4,5:1 no escuro), a
+  impressão clara, o tamanho do personagem em cada lugar, os raios e os valores da legenda de tamanho, a disposição no computador,
+  o método da tendência (CAP-TEN-01), os valores, as classes, a unidade de tempo e os campos internos `velocidades` (motor, API,
+  conversa e explicação).
+- **Motivo:** comando do responsável de 05/11/2026 (o personagem esmaecido no modo escuro, as legendas das bolhas comprimidas e os
+  textos sobrepostos no celular, e o nome "Velocidades").
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (modo escuro, tamanho, rótulos, quadro de setas e testes) e
+    `Docs/MAPA_DA_PAGINA_UNICA.md` (legenda de tamanho do mapa).
+  - **Testes:** `frontend/tests/painel.test.mjs` (a geometria da legenda de tamanho, o nome centrado acima da bolha, o título, a
+    explicação, o intervalo e a coluna do CSV do ritmo de variação); `backend/tests/ui_modo_escuro.py` (o personagem como imagem
+    rasterizada, com o cabelo escuro no escuro e num navegador à parte com o escurecimento forçado do Chrome, com o controle de que
+    a página escureceu); `backend/tests/ui_area_de_analise.py` muda de propósito: o painel da linha escolhida passa a ser conferido
+    pelo título "Ritmo de variação — {nome}", pela explicação, pelos valores do motor na ordem e pelo intervalo de cada um, e a dica
+    do painel, pelo texto novo.
+
 ### 2026-11-05 · Conversa: a base do Brasil escolhida pelo pedido e a confirmação de execução dos pedidos na área de análise
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável (05/11/2026). O relato: o agente chegava a
   afirmar que tinha selecionado ou ordenado territórios, mas a interface ficava igual, sobretudo sem a base ou sem os
