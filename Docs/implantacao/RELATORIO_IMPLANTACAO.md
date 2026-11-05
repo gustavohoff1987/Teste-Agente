@@ -1003,7 +1003,18 @@ voltar, vale investigar o `ui_mapa.py` à parte.
 A correção fica no ramo e só chega aos dois sites numa nova publicação, que depende de autorização. Na publicação do
 destino, isso exige atualizar o `origem.txt` (M-2) e uma nova etiqueta (M-4).
 
-Ponto de retomada:
-- o CI do commit da correção;
-- a conferência da responsável nos dois sites (M-5);
-- a decisão sobre publicar a correção.
+**CI da correção:** o commit `c5ea08d` passou nos 8 jobs (execução 41938613245). No log, `CAIXA DA CONVERSA PASS`
+aparece nas sete resoluções, e os 9 roteiros da suíte `bloco1` passaram.
+
+**M-6 (05/11/2026, "AUTORIZO M-6 exclusivamente"; a M-7, a republicação no endereço antigo, não foi feita a pedido da
+responsável, porque esse endereço será despublicado depois da validação do novo).**
+- **Destino:** o commit `b86be4d` passou o `origem.txt` para `c5ea08d5f44592674e86db4b63f657df1ef01d86`. Os scripts de
+  conferência e o workflow do destino seguem idênticos aos desse commit.
+- **Publicação:** a etiqueta `publicacao-pages-20261104-2` acionou a execução 41942820595; as conferências e o build
+  passaram. A responsável aprovou a publicação, que terminou às 00:43 UTC.
+- **Conferência só pela API:** a página responde 200, com o título oficial. O CSS publicado traz a correção da caixa
+  (`calc(100dvh - 16px)` e `clamp(96px,28dvh,220px)`), e o script, o `ResizeObserver` e o endereço do serviço. O
+  endereço antigo segue na versão anterior, sem mudança.
+
+Ponto de retomada: a validação do endereço novo pela responsável; depois, a despublicação do endereço antigo (D-1 a D-3),
+cada etapa com a sua autorização.
