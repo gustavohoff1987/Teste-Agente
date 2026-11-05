@@ -1061,7 +1061,8 @@ responsável, porque esse endereço será despublicado depois da validação do 
   - o commit `34cdbb3` do destino passou o `origem.txt` para `55f42b6`; os scripts e o workflow do destino seguem
     idênticos aos desse commit;
   - a etiqueta `publicacao-pages-20261105-1` acionou a execução 42012858205; as conferências e o build passaram, e a
-    responsável aprovou a publicação, que terminou às 10:49 UTC;
+    responsável aprovou a publicação, que terminou às 10:49 UTC. Conferido pela API: a aprovação registrada é de
+    `gustavohoff1987`, no ambiente `github-pages` do destino; os jobs `conferir`, `build` e `publicar` passaram;
   - a página responde 200, com o título oficial, e o script `index-Cy040QSP.js` traz o endereço do serviço e o texto novo
     do `55f42b6`.
 - **Preservados:** o endereço antigo segue em 404, sem nenhuma publicação lá; não houve merge no `main` nem mudança na SPEC.
@@ -1070,6 +1071,10 @@ responsável, porque esse endereço será despublicado depois da validação do 
     --region=us-central1 --to-revisions=agente-diagnostico-territorial-00002-wgk=100` e a etiqueta `em-uso` de volta ao
     digest `anterior`;
   - interface: o `origem.txt` do destino de volta a `c5ea08d` e uma etiqueta nova.
+
+**Conferência da publicação, a pedido da responsável:** nenhuma outra execução ficou pendente nos dois repositórios; o
+endereço novo responde 200 com o script `index-Cy040QSP.js`, e o antigo, 404. O CI do registro (`aa0f4e5`) passou nos
+8 jobs (execução 42013938980).
 
 Ponto de retomada: a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua
 autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a informar.
