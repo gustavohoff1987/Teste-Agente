@@ -173,7 +173,10 @@ test('motivos do motor classificados pelo começo do texto, nunca pela posição
   const dica = M.montarDica(parcial, {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: true,
     variacao: false, tendencia: false, nomes: new Map(), rotulos: BR});
   assert.ok(dica.notas.includes(PARCIAL));
-  assert.equal(M.textoDaLimitacao('SOMA_COM_POSSIVEL_DUPLA_CONTAGEM'), 'Conjuntos: soma das contagens dos componentes, com possível dupla contagem.');
+  // A ressalva das somas (05/11/2026, texto do comando do responsável) junto do rótulo da RQ-REP-14.
+  assert.equal(M.textoDaLimitacao('SOMA_COM_POSSIVEL_DUPLA_CONTAGEM'), 'Conjuntos: soma das contagens dos componentes, com possível dupla contagem. ' +
+    'O total corresponde à soma dos quantitativos dos territórios selecionados. Profissionais que atuam em mais de um território podem ' +
+    'ser contabilizados mais de uma vez.');
   assert.equal(M.textoDaLimitacao('CODIGO_NOVO'), 'Limitação registrada no cálculo: CODIGO_NOVO.');  // sem nome de bastidor (24/10/2026)
 });
 
@@ -357,6 +360,10 @@ test('conjunto rotulado como soma das contagens dos componentes, com possível d
     variacao: true, tendencia: false, nomes: new Map([['code:130420', 'TEFE (AM)'], ['code:130340', 'PARINTINS (AM)']]), rotulos: BR});
   assert.equal(dica.subtitulo, 'Conjunto de municípios · soma das contagens dos componentes, com possível dupla contagem');
   assert.ok(dica.notas.some(nota => nota.includes('possível dupla contagem')));
+  // A ressalva do comando de 05/11/2026 na dica do conjunto, que mostra um total somado.
+  assert.ok(dica.notas.some(nota => nota.includes(M.RESSALVA_DA_SOMA)));
+  assert.equal(M.RESSALVA_DA_SOMA, 'O total corresponde à soma dos quantitativos dos territórios selecionados. Profissionais que ' +
+    'atuam em mais de um território podem ser contabilizados mais de uma vez.');
   assert.ok(dica.notas.includes('Membros: TEFE (AM), PARINTINS (AM).'));
   assert.deepEqual(dica.linhas.find(linha => linha.rotulo.startsWith('Variação da densidade')),
     {rotulo: 'Variação da densidade desde 06/2023 (aumento)', valor: '+214,29%'});

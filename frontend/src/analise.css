@@ -421,8 +421,58 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-desfazer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--cor-texto-2); font-size: 13px; }
 @media (max-width: 899px) {
   .analise-territorios-colunas { grid-template-columns: minmax(0, 1fr); }
-  .analise-selecionados { position: static; order: -1; max-height: 40dvh; }
+  /* O que está na análise vem antes da árvore; a lista do que está marcado rola por dentro (05/11/2026: a unidade de análise e os
+     totais ficam sempre à vista). */
+  .analise-selecionados { position: static; order: -1; max-height: none; }
+  .analise-selecionados-itens { max-height: 30dvh; }
 }
+
+/* Seleção unificada (05/11/2026): a árvore do Brasil, dos estados e dos municípios, com a caixa de três estados de cada linha, o nome
+   inteiro (quebra a linha em vez de cortar) e o botão que abre a lista no lugar, com alvo de toque de 40 px. */
+.analise-territorios-instrucao { margin: 0; color: var(--cor-texto-2); font-size: 13px; line-height: 1.5; }
+.analise-arvore { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.analise-raiz { padding: 4px 6px; border: 1px solid var(--cor-borda-campo); border-radius: 12px; background: var(--cor-superficie-suave); }
+.analise-raiz[data-marcado="true"] { border-color: var(--cor-destaque); background: var(--cor-realce-destaque); }
+.analise-raiz-nome { font-size: 15px; }
+.analise-grupo-linha { align-items: center; }
+.analise-caixa.analise-grupo-caixa { flex: 1 1 auto; min-width: 0; min-height: 40px; align-items: flex-start; }
+.analise-caixa.analise-grupo-caixa input { width: 18px; height: 18px; margin-top: 2px; }
+.analise-grupo-texto { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.analise-grupo-nome { color: var(--cor-tinta); font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.analise-grupo-contagem { color: var(--cor-texto-2); font-size: 12px; line-height: 1.35; }
+.analise-grupo[data-situacao="inteiro"] { border-color: var(--cor-borda-convite); background: var(--cor-realce-destaque); }
+.analise-grupo[data-situacao="parcial"] { border-style: dashed; border-color: var(--cor-borda-realce); }
+.analise-expandir { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 4px; min-width: 40px; min-height: 40px;
+  padding: 4px 8px; border: 1px solid var(--cor-borda-campo); border-radius: 10px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
+  font-size: 12px; font-weight: 650; }
+.analise-expandir:hover { background: var(--cor-realce-destaque); }
+.analise-expandir[aria-expanded="true"] { border-color: var(--cor-destaque); }
+.analise-expandir-seta { transition: transform .15s ease; }
+.analise-expandir[aria-expanded="true"] .analise-expandir-seta { transform: rotate(180deg); }
+.analise-grupo-aberto-bloco { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.analise-grupo-aberto-bloco .analise-voltar-grupos { align-self: flex-start; }
+@media (max-width: 479px) {
+  /* No celular estreito, o botão da lista fica só com a seta (o nome do estado ganha a largura); o rótulo vai no aria-label. */
+  .analise-expandir-texto { display: none; }
+}
+/* A unidade de análise, no que está na análise: cada ponto é um município, um estado ou o Brasil. A que a seleção não permite fica à
+   vista, tracejada, com o motivo (sem esmaecer o texto, para continuar legível). */
+.analise-unidade-de-analise { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.analise-unidade-de-analise .analise-niveis { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+.analise-nivel[aria-disabled="true"] { border-style: dashed; background: rgb(var(--tom-slate-50)); cursor: not-allowed; }
+.analise-nivel[aria-disabled="true"] .analise-nivel-nome { color: var(--cor-texto-desligado); }
+/* Os totais individualizados da abrangência (o Brasil inteiro pela fonte nacional, cada estado inteiro pela fonte estadual). */
+.analise-abrangencia { display: flex; flex-direction: column; gap: 4px; max-width: 92ch; margin-top: 4px; padding: 8px 12px;
+  border: 1px solid var(--cor-borda-convite); border-left: 3px solid var(--cor-destaque); border-radius: 10px; background: var(--cor-realce-destaque);
+  color: var(--cor-texto); font-size: 13px; line-height: 1.5; }
+.analise-abrangencia-titulo { margin: 0; color: var(--cor-tinta); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.analise-abrangencia-lista { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.analise-abrangencia-nota { margin: 0; color: var(--cor-texto-2); font-size: 13px; }
+.analise-abrangencia-motivo { color: rgb(var(--tom-amber-900)); }
+.analise-abrangencia-mais > summary { color: var(--cor-destaque-texto); font-weight: 650; cursor: pointer; }
+/* A ressalva das somas que podem contar a mesma pessoa mais de uma vez (os conjuntos do Juntar). */
+.analise-ressalva { margin: 0; padding: 6px 10px; border-left: 3px solid rgb(var(--tom-amber-300)); border-radius: 0 8px 8px 0;
+  background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); font-size: 13px; line-height: 1.45; }
 
 /* ------------------------------------------------------------------------------------------- gráfico e mapa */
 .analise-quadro { position: relative; min-width: 0; padding: 10px 12px 12px; border: 1px solid var(--cor-borda); border-radius: 18px;

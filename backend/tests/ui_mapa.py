@@ -192,8 +192,8 @@ def main():
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         page.wait_for_timeout(500)
         assert not painel_calls and not mapa_calls, "sem territórios escolhidos, nada é pedido ao motor"
-        aperta(territorios.get_by_test_id("analise-nivel-estados"))
-        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
+        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade de análise Estados marca todos.
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
         assert sent.get("nivel") == "estados" and "grupos_mapa" not in sent, sent
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-aba", "distribuicao")
@@ -239,12 +239,14 @@ def main():
         expect(area.get_by_test_id("analise-escala")).to_have_count(0)
         shot("01-brasil-quintis")
 
-        # 3. Amazonas pela Seleção de Territórios (desmarcar todos os municípios e marcar os do Amazonas; abrir a lista de um
-        # estado só mostra a lista, desde 24/10/2026): o mapa abre afastado, com contexto em volta do estado e o restante do Brasil
-        # ao fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para os municípios do estado.
+        # 3. Amazonas pela Seleção de Territórios (desmarcar o Brasil inteiro, na raiz da árvore, desde 05/11/2026, e marcar o
+        # Amazonas; abrir a lista de um estado só mostra a lista, desde 24/10/2026): o mapa abre afastado, com contexto em volta do
+        # estado e o restante do Brasil ao fundo; os mesmos pontos (sem novo pedido ao endpoint do mapa) e os quintis do motor para
+        # os municípios do estado.
         pedidos_mapa = len(mapa_calls)
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        aperta(territorios.get_by_test_id("analise-desmarcar-todos"))
+        expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
+        marca(territorios.get_by_test_id("analise-raiz-caixa"))
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         am, sent = ok(lambda: marca(linha_am.get_by_test_id("analise-grupo-todos")))

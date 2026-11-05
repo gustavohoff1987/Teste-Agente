@@ -503,8 +503,13 @@ export function textoDaContagem(contagem: string | null | undefined): string {
   if (contagem === "UNIDADES_DISTINTAS") return "unidades distintas, conforme premissa do usuário";
   return contagem.toLowerCase().replace(/_/g, " ");
 }
-export const NOTA_SOMA = "Soma das contagens dos componentes, com possível dupla contagem: quem atua em mais de uma unidade " +
-  "do conjunto pode ser contado mais de uma vez. A população também é a soma dos membros.";
+/** A ressalva das somas de contagens que podem se sobrepor (05/11/2026, texto do comando do responsável): vale onde a tela mostra
+ * um total que é a soma das contagens de vários territórios (os conjuntos do Juntar, CAP-AGR-01), nunca nos totais individualizados
+ * (o Brasil pela fonte nacional, cada estado pela fonte estadual, cada município). */
+export const RESSALVA_DA_SOMA = "O total corresponde à soma dos quantitativos dos territórios selecionados. Profissionais que atuam " +
+  "em mais de um território podem ser contabilizados mais de uma vez.";
+export const NOTA_SOMA = "Soma das contagens dos componentes, com possível dupla contagem. " + RESSALVA_DA_SOMA +
+  " A população também é a soma dos membros.";
 
 /** Novo conjunto (CAP-AGR-01 no motor): identificador c1, c2…; os membros são unidades, sem repetição. */
 export function novoConjunto(existentes: PainelConjuntoPedido[], membros: string[], rotulo: string): PainelConjuntoPedido {
@@ -542,7 +547,7 @@ export function motivosDe(item: PainelItem, aspecto?: "indicador" | "distancia" 
 export const avisosDe = (item: PainelItem) => textosDe(item).filter(ehAviso);
 
 const LIMITACOES: Record<string, string> = {
-  SOMA_COM_POSSIVEL_DUPLA_CONTAGEM: "Conjuntos: soma das contagens dos componentes, com possível dupla contagem.",
+  SOMA_COM_POSSIVEL_DUPLA_CONTAGEM: "Conjuntos: soma das contagens dos componentes, com possível dupla contagem. " + RESSALVA_DA_SOMA,
   AGREGADO_PARCIAL: "Agregado parcial: algum conjunto tem membro sem registro na competência, e o valor dele vale para os membros " +
     "com registro, não para o conjunto completo.",
   DISTANCIA_GEODESICA_DIRETA: "Distância geodésica direta entre as unidades, não o trajeto de deslocamento.",
@@ -2009,12 +2014,106 @@ export const consultaEmUso = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | 
 /** Nada a analisar: sem seleção no nível em uso e sem a Escolha dos territórios em uso. */
 export const semTerritorios = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | "base" | "estados" | "conjuntos" | "consulta">) =>
   semSelecao(def) && !consultaEmUso(def);
-/** Limpar seleção (decisão 5, 25/10/2026): tira só os territórios do nível em uso, porque cada nível guarda a sua escolha (em
- * Municípios, os municípios e os conjuntos; em Estados, os estados). No nível Brasil, o país é a própria unidade e não há o que
- * limpar; sem nada marcado no nível em uso, também não. Nos dois casos, null. */
-export function limparNivel<E extends Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">>(escolha: E): E | null {
-  if (escolha.nivel === "brasil" || semSelecao(escolha)) return null;
-  return escolha.nivel === "estados" ? { ...escolha, estados: [] } : { ...escolha, base: { ...BASE_VAZIA }, conjuntos: [] };
+/** Limpar seleção (desde 05/11/2026, com a seleção unificada): tira tudo o que está na análise, a árvore (o Brasil, os estados e os
+ * municípios), os conjuntos e a unidade de análise, que volta aos municípios, sem apagar a base carregada nem os ajustes das
+ * análises. Sem nada marcado, null. Até 05/11/2026 (decisão 5 de 25/10/2026), cada nível guardava a sua escolha, e o botão tirava
+ * só a do nível em uso. */
+export function limparEscolha<E extends Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">>(escolha: E): E | null {
+  if (escolha.nivel !== "brasil" && baseVazia(escolha.base) && !escolha.estados.length && !escolha.conjuntos.length) return null;
+  return { ...escolha, nivel: "municipios", base: { ...BASE_VAZIA }, estados: [], conjuntos: [] };
+}
+
+// ================================================================================================ seleção unificada (05/11/2026)
+// Comando do responsável de 05/11/2026: um só componente hierárquico, com multisseleção, no lugar dos três níveis separados (o
+// Brasil, os estados e os municípios, um por vez). A árvore marca o Brasil (todos os municípios), estados inteiros (todos os
+// municípios do estado) ou municípios, com exclusões e combinações; o que ela marca é sempre um conjunto de municípios (`base`).
+// A unidade de análise (cada ponto é um município, um estado ou o Brasil) é uma escolha à parte e explícita: os estados como
+// unidades só com estados inteiros (a contagem estadual de médicos únicos vale para o estado inteiro), o Brasil só com o Brasil
+// inteiro. Nenhum nível é somado a outro (RQ-DAD-30): os níveis continuam universos separados, só a escolha ficou numa árvore.
+/** O que a árvore precisa saber da fonte: os grupos (os estados, na base do Brasil), as unidades de cada um, o grupo de uma unidade
+ * e o total de unidades. */
+export type ContextoDaArvore = { grupos: GrupoInfo[]; unidadesDoGrupo: (grupo: string) => string[]; grupoDe: (id: string) => string;
+  total: number };
+export type EscolhaDaSelecao = Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">;
+const BRASIL_INTEIRO: PainelMunicipios = { todos: true, estados: [], ids: [] };
+
+/** A escolha da árvore com as equivalências completas reconhecidas: as unidades de um grupo marcadas todas, uma a uma, viram o grupo
+ * inteiro; todos os grupos inteiros, quando juntos cobrem todas as unidades da fonte, viram "todos" (o Brasil inteiro, na base do
+ * Brasil); um grupo inteiro absorve as suas unidades avulsas. Só reorganiza: o que entra na análise não muda, e nada se sobrepõe. */
+export function normalizarArvore(base: PainelMunicipios, c: ContextoDaArvore): PainelMunicipios {
+  if (base.todos) return { ...BRASIL_INTEIRO };
+  const marcadas = new Set(base.ids), inteiros = new Set(base.estados);
+  for (const grupo of c.grupos) {
+    if (inteiros.has(grupo.id)) continue;
+    const ids = c.unidadesDoGrupo(grupo.id);
+    if (ids.length && ids.length >= (grupo.unidades || ids.length) && ids.every(id => marcadas.has(id))) inteiros.add(grupo.id);
+  }
+  const cobertas = c.grupos.reduce((soma, grupo) => soma + (inteiros.has(grupo.id) ? grupo.unidades || c.unidadesDoGrupo(grupo.id).length : 0), 0);
+  if (c.grupos.length && c.grupos.every(grupo => inteiros.has(grupo.id)) && c.total > 0 && cobertas >= c.total) return { ...BRASIL_INTEIRO };
+  return { todos: false, estados: [...inteiros].sort(comparar), ids: [...marcadas].filter(id => !inteiros.has(c.grupoDe(id))) };
+}
+
+/** As unidades de análise que a escolha permite: os municípios, sempre; os estados como unidades, quando a escolha tem só estados
+ * inteiros; o Brasil como unidade, quando a escolha é o Brasil inteiro. `vazia`: nada marcado na árvore (então os estados valem
+ * todos, e o Brasil, inteiro). */
+export function unidadesPossiveis(base: PainelMunicipios, c: ContextoDaArvore): { estados: string[] | null; brasil: boolean; vazia: boolean } {
+  const n = normalizarArvore(base, c);
+  if (n.todos) return { estados: c.grupos.map(grupo => grupo.id), brasil: true, vazia: false };
+  return { estados: n.estados.length && !n.ids.length ? n.estados : null, brasil: false, vazia: baseVazia(n) };
+}
+
+/** Uma mudança na árvore: a escolha nova, normalizada. A unidade de análise continua quando a escolha nova ainda a permite (os
+ * estados, com os estados inteiros que ficaram; o Brasil, com o Brasil inteiro); senão, volta aos municípios. */
+export function escolhaDaArvore<E extends EscolhaDaSelecao>(atual: E, novaBase: PainelMunicipios, c: ContextoDaArvore): E {
+  const base = normalizarArvore(novaBase, c);
+  const possiveis = unidadesPossiveis(base, c);
+  if (atual.nivel === "brasil" && possiveis.brasil) return { ...atual, base };
+  if (atual.nivel === "estados" && possiveis.estados?.length) return { ...atual, base, estados: possiveis.estados };
+  return { ...atual, base, nivel: "municipios" };
+}
+
+/** A unidade de análise escolhida: os municípios, sempre; os estados ou o Brasil, quando a escolha permite (sem nada marcado, todos
+ * os estados ou o Brasil inteiro passam a estar marcados, como um atalho). null quando não permite (o motivo: motivoDaUnidade). */
+export function escolhaDaUnidade<E extends EscolhaDaSelecao>(atual: E, nivel: PainelNivel, c: ContextoDaArvore): E | null {
+  if (nivel === "municipios") return { ...atual, nivel };
+  const possiveis = unidadesPossiveis(atual.base, c);
+  if (nivel === "estados") {
+    if (possiveis.vazia) return { ...atual, nivel, base: { ...BRASIL_INTEIRO }, estados: c.grupos.map(grupo => grupo.id) };
+    return possiveis.estados?.length ? { ...atual, nivel, base: normalizarArvore(atual.base, c), estados: possiveis.estados } : null;
+  }
+  return possiveis.vazia || possiveis.brasil ? { ...atual, nivel, base: { ...BRASIL_INTEIRO } } : null;
+}
+
+/** Por que a unidade não vale com a escolha atual (texto da tela). */
+export function motivoDaUnidade(nivel: "estados" | "brasil", rotulos: RotulosTerritoriais): string {
+  const unidade = rotulos.unidade, grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  return nivel === "brasil"
+    ? "O Brasil como uma unidade vale com o Brasil inteiro marcado, sem exclusões: marque o Brasil, no alto da lista."
+    : maiuscula(artigo(grupo, true)) + " " + grupo.plural + " como unidades valem com " + grupo.plural + " inteir" + (fem(grupo) ? "as" : "os") +
+      " marcad" + (fem(grupo) ? "as" : "os") + ", sem " + unidade.plural + " avuls" + (fem(unidade) ? "as" : "os") + " nem exclusões: a contagem de " +
+      "médicos únicos de cada estado vale para o estado inteiro.";
+}
+
+/** Uma escolha que vem de fora da árvore (um pedido da conversa, a reabertura do Histórico) alinhada à seleção unificada: com os
+ * estados como unidades, a árvore marca esses estados inteiros; com o Brasil, o Brasil inteiro; nos municípios, a escolha
+ * normalizada. Assim, a árvore mostra sempre o que está na análise. */
+export function unificarEscolha<E extends EscolhaDaSelecao>(escolha: E, c: ContextoDaArvore): E {
+  if (!c.grupos.length) return escolha;
+  if (escolha.nivel === "brasil") return { ...escolha, base: { ...BRASIL_INTEIRO } };
+  if (escolha.nivel === "estados")
+    return { ...escolha, base: normalizarArvore({ todos: false, estados: [...escolha.estados], ids: [] }, c) };
+  return { ...escolha, base: normalizarArvore(escolha.base, c) };
+}
+
+/** Os grupos marcados só em parte (com exclusões ou com algumas unidades), para a tela dizer que eles não têm total individualizado:
+ * o nome, quantas unidades estão marcadas e quantas o grupo tem. */
+export function gruposParciais(base: PainelMunicipios, c: ContextoDaArvore): { id: string; nome: string; marcadas: number; total: number }[] {
+  const n = normalizarArvore(base, c);
+  if (n.todos) return [];
+  const porGrupo = new Map<string, number>();
+  for (const id of n.ids) { const grupo = c.grupoDe(id); porGrupo.set(grupo, (porGrupo.get(grupo) ?? 0) + 1); }
+  return c.grupos.filter(grupo => porGrupo.has(grupo.id)).map(grupo => ({ id: grupo.id, nome: grupo.nome, marcadas: porGrupo.get(grupo.id)!,
+    total: grupo.unidades || c.unidadesDoGrupo(grupo.id).length }));
 }
 /** A comparação (CAP-CMP) vale para itens que estão na análise: depois de uma mudança na Seleção de Territórios, ela continua só se
  * o nível é o mesmo e todos os itens dela continuam escolhidos (o motor recusa itens fora do gráfico). Senão, sai. */

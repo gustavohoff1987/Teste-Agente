@@ -35,6 +35,91 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-05 · Seleção de Territórios unificada (árvore com o Brasil, estados e municípios), unidade de análise explícita, totais individualizados das fontes nacional e estadual e a ressalva das somas
+- **Classificação (regra 1), pela leitura, antes de codar:** comando integrado do responsável de 05/11/2026 (itens 6, 7 e 8: a
+  seleção territorial unificada, a visualização municipal nas abrangências nacional e estadual, as contagens individualizadas e a
+  ressalva das agregações). Todos os itens são mudança de comportamento (tela, fluxo, textos, contrato da API, aditivo) e previstos:
+  - **A árvore única e a unidade de análise:**
+    - *escopo:* seções 6.2 a 6.5 do comando;
+    - *compatibilidade:* RQ-DAD-30 continua (os níveis seguem universos separados e nunca são somados: a árvore só escolhe
+      municípios, e os estados ou o Brasil como unidades são uma escolha explícita, só com estados inteiros ou o Brasil inteiro, o
+      que também evita a ambiguidade entre o estado como unidade e como agrupamento de municípios); a D3 continua (o Brasil pela
+      fonte nacional, cada estado pela fonte estadual); o agrupamento por estado é a correspondência autorizada
+      `brasil-cod-uf-prefix-1`, a mesma das expansões `mun:uf:NN` (CFG-TER: nenhuma hierarquia presumida); as equivalências (todos
+      os municípios de um estado = o estado inteiro; todos os estados = o Brasil inteiro) são lidas dos códigos da versão, nunca
+      de nomes. Os três níveis, um por vez, e "cada nível guarda a sua escolha" (24/10/2026) e o Limpar só do nível em uso
+      (decisão 5, 25/10/2026) foram pedidos do responsável, não divergências aprovadas da SPEC; o comando de 05/11/2026 os
+      substitui.
+  - **A visualização municipal com o Brasil ou um estado selecionado:** *escopo:* seção 7; *compatibilidade:* é a análise
+    municipal de sempre; o total nacional continua da fonte nacional e não é a soma dos municípios (D3, D4 e D5).
+  - **Os totais individualizados (`contexto.brasil_completo` e `contexto.estados`):** *escopo:* seções 7.1, 7.2 e 8.2;
+    *compatibilidade:* INV-02 (os números vêm do motor, pelo mesmo cálculo do nível estados e da linha de contexto do Brasil);
+    UF-CONTAGEM-ESTADUAL-1, UF-POP-MUNICIPIOS-1 e BR-POP-JUNHO-1 sem mudança; nada é somado nem inferido (Parte 13); a extensão da
+    resposta é aditiva, e os pedidos de antes recebem as mesmas chaves e os mesmos valores.
+  - **A ressalva das somas:** *escopo:* seção 8.3, com o texto do comando; *compatibilidade:* RQ-REP-14 (a soma das contagens dos
+    componentes continua rotulada como tal, com a possível dupla contagem; o texto novo se soma ao rótulo).
+- **Antes:**
+  - **A Seleção de Territórios** tinha três níveis, um por vez (`analise-nivel`: Brasil, Estados e Municípios), cada um com a sua
+    escolha guardada: marcar o Brasil mostrava uma unidade só (o país); marcar estados mostrava só os estados; os municípios eram
+    escolhidos por estado, numa lista que tomava o lugar da lista dos estados ("Ver os N municípios ›" e "Voltar aos estados"), com
+    "Marcar todos os municípios do Brasil (5.570)" e "Desmarcar todos os municípios" no alto. No celular estreito (320 px), o botão
+    "Ver os N municípios" espremia o nome do estado ("Ro (RO)") e o nome do nível "Municípios" saía cortado.
+  - **Totais:** com os municípios em análise, a tela não mostrava a contagem individualizada do estado inteiro (a fonte estadual)
+    nem dizia que a contagem nacional era o total do Brasil inteiro selecionado; a contagem do Brasil aparecia só como a linha de
+    contexto da densidade.
+  - **Limpar seleção** tirava só a escolha do nível em uso (no nível Brasil, ficava desligado).
+  - **Os conjuntos do Juntar** diziam "soma das contagens dos componentes, com possível dupla contagem: quem atua em mais de uma
+    unidade do conjunto pode ser contado mais de uma vez".
+- **Agora:**
+  - **Uma árvore única** (`PainelTerritorios.tsx`; `analise-arvore`): a raiz **Brasil** (todos os 5.570 municípios, `analise-raiz`),
+    os estados com a caixa de três estados (inteiro, em parte ou nada), o nome inteiro e a contagem ("3 de 144 municípios"), e a
+    lista dos municípios de cada estado, que abre no lugar, um estado por vez, com "Fechar a lista dos municípios do Pará" no fim.
+    Marcar o Brasil marca todos os municípios; um estado, todos os dele; desmarcar um município de um estado ou do Brasil marcado
+    deixa os demais (a exclusão); estados inteiros e municípios de estados diferentes se combinam; as equivalências completas são
+    reconhecidas (`normalizarArvore`). A busca, no alto, traz estados e municípios. No celular, a caixa e o botão da lista têm 40
+    px, e o botão fica só com a seta abaixo de 480 px.
+  - **A unidade de análise** ("Cada ponto da análise é", no que está na análise, com os mesmos `analise-nivel-*`): Municípios,
+    sempre (o padrão: o Brasil ou um estado selecionado mostram os municípios no gráfico, no mapa e nos Detalhes); Estados, só com
+    estados inteiros; Brasil, só com o Brasil inteiro. A que a seleção não permite fica tracejada e, escolhida, mostra o motivo
+    sem mudar nada; sem nada marcado, Estados e Brasil são atalhos (todos os estados, como unidades, e o Brasil inteiro). Uma
+    mudança na árvore mantém a unidade enquanto ela vale; senão, volta a Municípios, com o aviso. Os pedidos da conversa e a
+    reabertura do Histórico deixam a árvore igual ao que está na análise.
+  - **Os totais individualizados** (`PainelAbrangencia.tsx`, `analise-abrangencia`, na Seleção e no alto do resultado): com o
+    Brasil inteiro, a contagem nacional (fonte nacional); com estados inteiros, a contagem estadual de cada um (fonte estadual),
+    com a densidade; a nota diz que o total não é a soma dos municípios e, com mais de um estado, que os totais dos estados não são
+    somados; um estado em parte fica sem total ("Sem total individualizado, porque não está inteiro: Pará (1 de 144); cada município
+    mostra o próprio quantitativo."). No motor (`painel.py`), o nível municípios da base do Brasil, sem a Escolha dos territórios,
+    responde também `contexto.brasil_completo` e `contexto.estados`, reconhecidos pelos códigos da base (`_complete_scope`), com o
+    mesmo cálculo do nível estados (`_state_measures`).
+  - **Limpar seleção** tira a seleção inteira (a árvore, a unidade, os conjuntos), e a unidade volta a Municípios
+    (`limparEscolha`).
+  - **A ressalva das somas** (`RESSALVA_DA_SOMA`): "O total corresponde à soma dos quantitativos dos territórios selecionados.
+    Profissionais que atuam em mais de um território podem ser contabilizados mais de uma vez.", na dica do conjunto, na limitação
+    dos conjuntos e na gaveta Juntar (`analise-juntar-ressalva`), junto do rótulo da RQ-REP-14; nunca nos totais individualizados.
+  - **Também:** a memória das respostas da tela renova a entrada a cada reaproveitamento e descarta a usada há mais tempo (antes,
+    a inserida há mais tempo); nenhum resultado muda, e um pedido repetido ao motor deixa de acontecer quando a resposta acabou de
+    ser reaproveitada.
+- **Permanece:** os níveis no motor e na API (`nivel` municípios, estados e Brasil, com as mesmas chaves e os mesmos valores), as
+  regras D3, D4 e D5, RQ-DAD-30, os conjuntos do Juntar (CAP-AGR-01), a Escolha dos territórios da Análise Espacial (a seleção
+  prévia continua a da árvore), o Desfazer de cada mudança, a busca, o que está marcado com o × de cada território, as planilhas
+  (sem a unidade de análise; com a raiz "Toda a planilha" quando há coluna-mãe), a disposição em duas áreas no computador e o
+  contexto que vai ao provedor de IA (nada da base nem dos totais).
+- **Motivo:** comando do responsável de 05/11/2026 (a separação entre Brasil, estados e municípios era pouco intuitiva: selecionar o
+  Brasil ou um estado não mostrava os municípios; as contagens individualizadas e as somas com possível dupla contagem precisavam
+  ficar claras).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Seleção de Territórios, Limpar seleção, Brasil como unidade e
+    testes), `Docs/PAINEL_INTEGRADO.md` (o contrato de `contexto`), `Docs/ABRANGENCIA_TERRITORIAL.md` (a nota da página única) e o
+    `README.md`.
+  - **Testes:** `frontend/tests/areaDeAnalise.test.mjs` (a seleção unificada e o Limpar da seleção inteira, que muda de propósito
+    o teste da decisão 5); `frontend/tests/painel.test.mjs` (a ressalva das somas); `backend/tests/test_painel_pagina.py`
+    (`contexto.estados` e `contexto.brasil_completo`, com o catálogo sintético e com a base versionada); o roteiro novo
+    `backend/tests/ui_responsivo.py` (suíte `base-versionada`: 320 a 1.440 px, claro e escuro, toque); e mudam de propósito, pela
+    seleção unificada, `ui_area_de_analise.py` (a unidade Estados como atalho, a lista do estado aberta no lugar com o botão que a
+    fecha, a unidade recusada com o motivo, o Limpar da seleção inteira, o Brasil inteiro pela raiz com o total nacional e o
+    Brasil e o Amazonas como unidades), `ui_pagina_unica.py` e `ui_planilha_ficticia.py` (a raiz da árvore), `ui_modo_escuro.py`
+    (a raiz e os totais legíveis no escuro), `ui_mapa.py`, `ui_conexao.py` e `ui_hospedagem.py` (a unidade Estados como atalho).
+
 ### 2026-11-05 · Interface: o personagem sem esmaecer no escurecimento forçado, legendas de tamanho e rótulos sem sobreposição no celular e "Ritmo de variação" no lugar de "Velocidades"
 - **Classificação (regra 1), pela leitura, antes de codar:** comando integrado do responsável de 05/11/2026 (itens 4, 5 e 9 do
   comando: modo claro e escuro, responsividade e a troca de "Velocidades" por "Ritmo de variação"). Todos os itens são mudança de

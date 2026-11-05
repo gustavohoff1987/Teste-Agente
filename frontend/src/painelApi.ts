@@ -180,6 +180,10 @@ export type LinhaComparacao = { atributo: string; maior: ValorComparado[]; menor
 export type ComparacaoTopo = { itens: string[]; linhas: LinhaComparacao[]; textos: string[] };
 export type ChaveDisponibilidade = "espacial" | "tendencia" | "rotatividade" | "estados" | "grupos";
 export type Disponibilidade = Partial<Record<ChaveDisponibilidade, { disponivel: boolean; motivo: string }>>;
+/** Total individualizado de um estado inteiro (fonte estadual, UF-CONTAGEM-ESTADUAL-1), na competência da análise. */
+export type TotalDoEstado = { id: string; rotulo: string; competencia: string | null; quantidade: number | null; populacao: number | null;
+  densidade: number | null; avaliabilidade: string; motivo: string | null };
+export type AbrangenciaCompleta = { brasil: boolean; estados: TotalDoEstado[] };
 export type ContextoBrasil = { densidade: number | null; quantidade: number | null; populacao: number | null; competencia: string | null };
 /** A série temporal do topo: o intervalo pedido (do primeiro ao último período) e a unidade dos valores. */
 export type SerieTopo = { competencias: string[]; inicio: string; fim: string; unidadeValor: string | null };
@@ -209,6 +213,10 @@ export type PainelResposta = {
   ordenacao: OrdenacaoTopo | null;
   comparacao: ComparacaoTopo | null;
   contextoBrasil: ContextoBrasil | null;
+  /** Contagens individualizadas da abrangência completa (05/11/2026; `contexto.brasil_completo` e `contexto.estados`): com o Brasil
+   * inteiro na base, a contagem nacional é o total da abrangência; com estados inteiros, a contagem estadual de médicos únicos de
+   * cada um, da fonte estadual. null na resposta de antes e fora da base do Brasil. */
+  abrangenciaCompleta: AbrangenciaCompleta | null;
   disponibilidade: Disponibilidade;
   sessao: { registrado: boolean; resultId: string | null } | null;
   rotulos: RotulosTerritoriais | null;
@@ -623,6 +631,13 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   for (const item of itens) item.condicoes?.porCondicao.forEach((c, i) => { if (!c.texto) c.texto = definicaoDasCondicoes[i] ?? ""; });
   const ordenacao = objeto(o.ordenacao);
   const contexto = objeto(objeto(o.contexto)?.brasil);
+  const contextoTopo = objeto(o.contexto);
+  const abrangenciaCompleta: AbrangenciaCompleta | null = contextoTopo && (typeof contextoTopo.brasil_completo === "boolean" ||
+    Array.isArray(contextoTopo.estados)) ? { brasil: contextoTopo.brasil_completo === true,
+      estados: lista(contextoTopo.estados).map(objeto).filter((e): e is Record<string, unknown> => !!e && !!texto(e.id)).map(e => ({
+        id: texto(e.id)!, rotulo: texto(e.rotulo) ?? texto(e.id)!, competencia: texto(e.competencia), quantidade: num(e.quantidade),
+        populacao: num(e.populacao), densidade: num(e.densidade), avaliabilidade: texto(e.avaliabilidade) ?? "NAO_AVALIAVEL",
+        motivo: texto(e.motivo) })) } : null;
   const disponibilidade: Disponibilidade = {};
   for (const [chave, valor] of Object.entries(objeto(o.disponibilidade) || {})) {
     const d = objeto(valor);
@@ -666,6 +681,7 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     comparacao: comparacaoDe(o.comparacao),
     contextoBrasil: contexto ? { densidade: num(contexto.densidade), quantidade: num(contexto.quantidade), populacao: num(contexto.populacao),
       competencia: texto(contexto.competencia) } : null,
+    abrangenciaCompleta,
     disponibilidade,
     sessao: sessao ? { registrado: sessao.registrado === true, resultId: texto(sessao.result_id) } : null,
     rotulos: rotulosDe(o.rotulos),

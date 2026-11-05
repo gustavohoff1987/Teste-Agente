@@ -277,6 +277,51 @@ def test_states_level_with_the_chosen_states(repo):
     refused(page(info, estados=["13"]), "A lista estados vale só no nível estados")
 
 
+def test_complete_scopes_bring_the_individualized_counts_of_each_state_and_of_brazil(repo):
+    """Seleção territorial unificada (05/11/2026): no nível municípios, com estados inteiros na base, o contexto traz a contagem
+    estadual de médicos únicos de cada um (a fonte estadual, os mesmos valores do nível estados), qualquer que seja a forma do
+    pedido (o grupo ou a lista de todos os municípios do estado); com o Brasil inteiro (todos, ou todos os estados inteiros),
+    `brasil_completo`, e a contagem nacional continua na linha de contexto; com exclusões, nenhum total. Nada é somado: a
+    contagem do estado não é a soma dos municípios, e a soma dos estados não é pedida."""
+    info = inspection()
+    states = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia="202406")))
+    body = ok(page(info))  # base: os municípios do Amazonas, pelo grupo
+    contexto = body["contexto"]
+    assert set(contexto) == {"brasil", "brasil_completo", "estados"} and contexto["brasil_completo"] is False
+    [amazonas] = contexto["estados"]
+    assert (amazonas["id"], amazonas["rotulo"], amazonas["regra"], amazonas["competencia"]) == (
+        "uf:13", "Amazonas (AM)", "UF-CONTAGEM-ESTADUAL-1", "202406")
+    assert (amazonas["quantidade"], amazonas["populacao"], amazonas["densidade"]) == (
+        states["uf:13"]["quantidade"], states["uf:13"]["populacao"], states["uf:13"]["densidade"])
+    assert amazonas["quantidade"] == STATE_COUNTS["AM"] and amazonas["avaliabilidade"] == "AVALIAVEL" and amazonas["motivo"] is None
+    # A contagem estadual não é a soma das contagens dos municípios (quem atua em mais de um conta uma vez no estado).
+    assert sum(item["quantidade"] for item in body["itens"]) != amazonas["quantidade"]
+    # A mesma abrangência pela lista de todos os municípios do estado: o mesmo total, e a mesma chave do cálculo.
+    by_list = ok(page(info, base={"municipios": {"ids": AM}}))
+    assert by_list["contexto"]["estados"] == contexto["estados"]
+    # Com exclusão (um município de fora), nenhum total da abrangência completa.
+    partial = ok(page(info, base={"municipios": {"ids": AM[1:]}}))["contexto"]
+    assert (partial["brasil_completo"], partial["estados"]) == (False, [])
+    # O Brasil inteiro, por todos ou pelos estados inteiros: a contagem nacional (linha de contexto), sem os estados.
+    for base in ({"todos": True}, {"estados": ["13", "15"]}):
+        whole = ok(page(info, base={"municipios": base}))["contexto"]
+        assert (whole["brasil_completo"], whole["estados"]) == (True, []), base
+        assert whole["brasil"]["quantidade"] == 1000 and whole["brasil"]["rotulo"] == "Brasil (total nacional)"
+    # O Pará inteiro (BELEM é o único município dele nesta base) e o Amazonas sem MANACAPURU: só o Pará tem o total.
+    mixed = ok(page(info, base={"municipios": {"estados": ["15"], "ids": AM[1:]}}))["contexto"]
+    assert (mixed["brasil_completo"], [item["id"] for item in mixed["estados"]]) == (False, ["uf:15"])
+    assert mixed["estados"][0]["quantidade"] == STATE_COUNTS["PA"]
+    # Com a população estadual incompleta (NOVO AIRAO sem registro em 2020): a contagem continua, a densidade não é avaliada.
+    early = ok(page(info, competencia="202006"))["contexto"]["estados"][0]
+    assert (early["quantidade"], early["densidade"], early["avaliabilidade"]) == (100, None, "AVALIAVEL_COM_LIMITACOES")
+    assert "DENOMINADOR_AUSENTE" in early["motivo"]
+    # Os níveis estados e Brasil e as planilhas não mudam: só a linha de contexto, como antes.
+    assert set(ok(post(info, nivel="estados", indicador="densidade", competencia="202406"))["contexto"]) == {"brasil"}
+    assert ok(post(info, nivel="brasil", indicador="densidade", competencia="202406"))["contexto"] == {"brasil": None}
+    # O total não entra na chave do cálculo: a mesma base pede o mesmo resultado.
+    assert ok(page(info))["chave_execucao"] == body["chave_execucao"]
+
+
 # --------------------------------------------------------------------------------------------- Brasil
 def test_brazil_level_is_the_national_total_as_one_unit(repo):
     """O Brasil como unidade agregada (24/10/2026; decisões D3 e D4): um item só, com a contagem da fonte nacional e a
@@ -1288,6 +1333,22 @@ def test_real_states_match_the_state_level_of_the_density_analysis(real):
     chosen = ok(post(real, nivel="estados", indicador="densidade", competencia="202406", estados=["29", "42"]))
     assert [item["id"] for item in chosen["itens"]] == ["uf:29", "uf:42"]
     assert all(item == items[item["id"]] for item in chosen["itens"])
+
+
+def test_real_complete_scopes_use_the_state_and_national_sources(real):
+    """Seleção territorial unificada (05/11/2026), base versionada: o Amazonas inteiro traz a contagem da fonte estadual (a do
+    nível estados) e o Brasil inteiro, a da fonte nacional; nenhuma delas é a soma dos municípios."""
+    states = by_id(ok(post(real, nivel="estados", indicador="densidade", competencia="202406")))
+    amazonas_body = ok(post(real, nivel="municipios", indicador="densidade", competencia="202406",
+                            base={"municipios": {"estados": ["13"]}}))
+    [amazonas] = amazonas_body["contexto"]["estados"]
+    assert (amazonas["quantidade"], amazonas["populacao"], amazonas["densidade"]) == (
+        states["uf:13"]["quantidade"], states["uf:13"]["populacao"], states["uf:13"]["densidade"])
+    assert len(amazonas_body["itens"]) == 62
+    whole = ok(post(real, nivel="municipios", indicador="quantidade", competencia="202406", base={"municipios": {"todos": True}}))
+    assert whole["contexto"]["brasil_completo"] is True and whole["contexto"]["estados"] == []
+    assert whole["contexto"]["brasil"]["quantidade"] == 502495  # junho de 2024, a contagem nacional (docs da abrangência)
+    assert sum(item["quantidade"] or 0 for item in whole["itens"]) != 502495
 
 
 def test_real_brazil_level_is_the_national_reference_and_the_national_trend(real):

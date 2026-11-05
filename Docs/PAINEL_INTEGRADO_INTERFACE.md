@@ -114,67 +114,94 @@ análise mostra o resumo da seleção (`analise-selecao-resumo`) com "Alterar a 
 Seleção. A Escolha dos territórios da Análise Espacial (a base e a referência, desde 27/10/2026; a seleção é uma das opções
 de partida) e o período da Análise de Tendência continuam dentro de cada análise.
 
-**Duas áreas lado a lado** (segunda rodada de 24/10/2026, `analise-territorios-colunas`): à esquerda, cerca de metade da
-largura, a busca no alto e a lista para marcar (`analise-territorios-lista`); à direita, o que já está marcado, em tempo real
-(`analise-selecionados`, "Na análise"), presa abaixo dos controles do alto enquanto a lista rola, com rolagem própria. Abaixo de
-900 px, as duas áreas ficam uma sobre a outra, e o que está marcado vem antes da lista, compacto (no máximo 40% da altura da
-tela, com rolagem própria): a seleção nunca fica escondida depois da lista inteira.
+**Seleção unificada** (05/11/2026, comando do responsável; no lugar dos três níveis separados de 24/10/2026, o Brasil, os estados
+e os municípios, um por vez, em que selecionar o Brasil mostrava uma unidade só e selecionar estados mostrava só os estados): um só
+componente hierárquico, com multisseleção (`PainelTerritorios.tsx`; as regras puras em `painelModel.ts`: `normalizarArvore`,
+`unidadesPossiveis`, `escolhaDaArvore`, `escolhaDaUnidade`, `unificarEscolha`, `gruposParciais` e `limparEscolha`). O que a árvore
+marca é sempre um conjunto de municípios (`base`); o que cada ponto da análise representa (a **unidade de análise**) é uma escolha
+à parte, explícita, para não confundir o estado como unidade com o estado como agrupamento de municípios. Nenhum nível é somado a
+outro (RQ-DAD-30): os níveis continuam universos separados; só a escolha ficou numa árvore.
 
-- **Níveis, na base do Brasil** (24/10/2026): três, um em análise por vez (`analise-nivel`, com `analise-nivel-brasil`,
-  `analise-nivel-estados` e `analise-nivel-municipios`; RQ-DAD-30: nenhum nível é somado a outro). Cada nível guarda a sua
-  escolha: voltar a um nível devolve o que estava marcado nele. A base abre no nível dos municípios, sem nada marcado.
-  - **Brasil:** o país inteiro como uma unidade (`analise-territorios-brasil`): o total nacional de profissionais e a
-    população do país. Não é a soma dos estados nem a seleção de todos os municípios (seção "Brasil como unidade").
-  - **Estados:** a lista dos 27 (`analise-estados`), com caixas: um, vários ou todos, com "Marcar todos os estados (27)" e
-    "Desmarcar todos os estados" (`analise-marcar-todos` e `analise-desmarcar-todos`). Com só alguns marcados, o pedido leva a
-    lista deles (`estados`).
-  - **Municípios:** navegados por estado e cumulativos. Cada estado é uma linha (`analise-grupo`) com a caixa do estado inteiro
-    (`analise-grupo-todos`, parcial quando há só alguns marcados, com "3 de 417 marcados" ou "Todos os 417 marcados") e "Ver os
-    N municípios ›" (`analise-grupo-ver`), que **só abre a lista** do estado e não muda o que está marcado. Na lista aberta:
-    "Voltar aos estados" (`analise-grupo-voltar`; desde a segunda rodada de 24/10/2026, maior e preenchido, como os botões de
-    destaque, com a seta à esquerda; ele só fecha a lista e é diferente do Desfazer do alto, que desfaz passos), quantos estão
-    marcados, "Marcar todos os municípios da Bahia" e
-    "Desmarcar os municípios da Bahia" e as caixas, com atalhos pela letra inicial acima de 120 municípios. Marcar em outro
-    estado soma ao que já estava marcado: o defeito de 24/10/2026 (marcar na Bahia e depois em Santa Catarina perdia a Bahia)
-    vinha de a abertura da lista trocar a seleção pelo estado aberto, e foi corrigido na causa. No alto da lista dos estados,
-    "Marcar todos os municípios do Brasil (5.570)" e "Desmarcar todos os municípios" (no lugar da opção "Todos os municípios do
-    Brasil"). Desmarcar um município de um estado inteiro deixa os demais marcados, um a um; marcar o último que faltava
-    devolve o estado inteiro.
-- **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado" (no nível Estados, "Buscar estado"),
-  pelo nome ou pelo código. O resultado (`analise-busca-resultado`) traz os estados e os municípios encontrados, com as caixas,
-  sem abrir lista nenhuma; a busca não muda a seleção.
+**Duas áreas lado a lado** (segunda rodada de 24/10/2026, `analise-territorios-colunas`): à esquerda, cerca de metade da
+largura, a orientação curta (`analise-territorios-instrucao`), a busca no alto e a árvore (`analise-territorios-lista`); à
+direita, o que já está na análise, em tempo real (`analise-selecionados`, "Na análise"), presa abaixo dos controles do alto
+enquanto a árvore rola. Abaixo de 900 px, as duas áreas ficam uma sobre a outra, e o que está na análise vem antes da árvore: o
+resumo, a unidade de análise e os totais sempre à vista, e a lista do que está marcado com rolagem própria (no máximo 30% da altura
+da tela).
+
+- **A árvore** (`analise-arvore`): no alto, a raiz **Brasil** (`analise-raiz`, com a caixa `analise-raiz-caixa`: "Brasil · todos os
+  5.570 municípios, em 27 estados"); abaixo, os estados (`analise-grupo`, com `data-situacao` inteiro, parcial ou nenhum), cada um
+  com a caixa de três estados (`analise-grupo-todos`: inteiro, em parte, com o traço, ou nada), o nome inteiro, que quebra a linha
+  em vez de cortar, a contagem ("62 municípios", "3 de 144 municípios", "todos os 62 municípios"; `analise-grupo-contagem`) e o
+  botão da lista (`analise-grupo-ver`, "Municípios" com a seta; no celular estreito, só a seta, com o nome acessível "Ver os 62
+  municípios do Amazonas"). A lista abre no lugar, na própria árvore (um estado aberto por vez; `data-aberto`), com quantos estão
+  marcados, "Marcar todos os municípios do Pará" e "Desmarcar os municípios do Pará", os atalhos pela letra inicial acima de 120
+  municípios, as caixas e, no fim, "Fechar a lista dos municípios do Pará" (`analise-grupo-voltar`); abrir e fechar a lista não
+  muda a seleção. No celular, a caixa e o botão da lista têm 40 px de altura (alvo de toque). Os comportamentos:
+  - **Brasil:** marcar a raiz marca todos os municípios da base nacional; desmarcar, tira tudo.
+  - **Um estado:** a caixa do estado marca todos os municípios dele; vários estados reúnem os municípios de cada um.
+  - **Exclusões:** desmarcar um município de um estado inteiro, ou do Brasil marcado, deixa os demais marcados (o estado fica
+    "em parte"); marcar o último que faltava devolve o estado inteiro.
+  - **Combinações:** estados inteiros e municípios de estados diferentes, juntos; marcar em outro estado soma ao que já estava
+    marcado.
+  - **Equivalências completas:** os municípios de um estado marcados todos, um a um, viram o estado inteiro; todos os estados
+    inteiros viram o Brasil inteiro; um estado inteiro absorve os seus municípios avulsos (`normalizarArvore`, nada se sobrepõe).
+- **A unidade de análise** ("Cada ponto da análise é", `analise-nivel`, com `analise-nivel-municipios`, `analise-nivel-estados` e
+  `analise-nivel-brasil`, só na base do Brasil): **Municípios**, sempre (o padrão: selecionar o Brasil ou um estado mostra os
+  municípios no gráfico, no mapa e nos Detalhes, com a dica de cada um); **Estados**, só com estados inteiros marcados, sem
+  municípios avulsos nem exclusões (cada ponto é um estado, com a contagem estadual de médicos únicos, que é a do estado inteiro);
+  **Brasil**, só com o Brasil inteiro (o país como uma unidade, com a contagem nacional). A que a seleção não permite fica à vista,
+  tracejada (`aria-disabled`, `data-possivel="false"`), e, escolhida, mostra o motivo (`analise-nivel-motivo`) sem mudar nada. Sem
+  nada marcado, Estados e Brasil são atalhos: marcam todos os estados (como unidades) ou o Brasil inteiro. Uma mudança na árvore
+  mantém a unidade enquanto a seleção ainda a permite (com menos estados inteiros, os que ficaram); senão, ela volta a Municípios,
+  com o aviso. Um pedido da conversa e a reabertura do Histórico deixam a árvore igual ao que está na análise (`unificarEscolha`):
+  os estados pedidos como unidades ficam marcados inteiros; o Brasil, inteiro.
+- **Totais individualizados** (`analise-abrangencia`, `PainelAbrangencia.tsx`; no que está na análise, compacto, e no alto do
+  resultado, abaixo da frase-resumo): com os municípios como unidade e uma abrangência completa, os totais das fontes
+  individualizadas, do motor (`contexto.brasil_completo` e `contexto.estados` de `/api/painel`; Docs/PAINEL_INTEGRADO.md): com o
+  Brasil inteiro, "Brasil inteiro: 502.495 médicos na contagem nacional · 2,36 por 1.000 habitantes" (a fonte nacional); com
+  estados inteiros, cada um ("Amazonas (AM), estado inteiro: 5.990 médicos na contagem estadual (pessoas distintas no estado) ·
+  1,40 por 1.000 habitantes"; a fonte estadual, `analise-abrangencia-total`, com `data-fonte` e `data-quantidade`), até 6 à vista e
+  os demais em "Mais N estados inteiros". A nota diz que o total vem da fonte, em que quem atua em mais de um município conta uma
+  vez, e não é a soma dos municípios, que continuam com os próprios valores; com mais de um estado, que quem atua em mais de um
+  estado conta em cada um e que os totais dos estados não são somados. Um estado marcado só em parte não tem total ("Sem total
+  individualizado, porque não está inteiro: Pará (1 de 144); cada município mostra o próprio quantitativo.",
+  `analise-abrangencia-parciais`). Nenhum total é somado na tela, e nenhum total é inferido do nome de um conjunto. Sem nada
+  completo na abrangência, o quadro não aparece; com a Escolha dos territórios da Análise Espacial, também não (a base é a da
+  consulta).
+- **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado", pelo nome ou pelo código. O resultado
+  (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
+  não muda a seleção.
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
-  "Brasil (total nacional)", "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "3 municípios de 2
-  estados", "PORTO ALEGRE (RS)", "Nenhum município marcado") e o botão da análise em uso ("Ver a Análise de Distribuição",
-  `analise-ver-analise`). Abaixo (`analise-selecionados-itens`), o que entra, agrupado por estado (`analise-selecionado`): o
-  estado inteiro numa linha ("Amazonas · todos os 62") e, quando são só alguns, cada município como uma etiqueta com o × dele
-  (`analise-selecionado-unidade`, "Tirar ABAIRA (BA)"); cada estado com o × que o tira inteiro
-  (`analise-selecionado-tirar-grupo`); os conjuntos do Juntar, cada um com o × que o desfaz (`analise-selecionado-conjunto`);
-  no nível Estados, as etiquetas dos estados, também com o ×; no Brasil, ele mesmo. A lista fica inteira, sem recolher (o "Ver
-  quais (N)" saiu). Uma unidade marcada sem um grupo da lista (numa planilha, sem o valor da coluna-mãe) aparece numa linha à
-  parte. Sem nada marcado, "Nenhum município marcado ainda: marque na lista ao lado (abra um estado ou use a busca).". O mesmo
-  resumo, em poucas palavras, aparece no título das análises, no resumo de cada aba e ao lado dos controles do alto
-  (`analise-controles-territorios`; `resumoDoUniverso`, no lugar da trilha "Brasil › Amazonas", que saiu).
-- **O que mudou, em palavras:** o que marca ou desmarca muitos de uma vez (os comandos coletivos, a caixa de um estado inteiro,
-  o × que tira os municípios de um estado) diz o que mudou (`analise-selecao-aviso`: "Municípios da Bahia desmarcados. Para
-  desfazer, use o botão Desfazer, no alto."). Toda mudança da Seleção, uma a uma ou coletiva, também o × de uma unidade, pode
-  ser desfeita pelo Desfazer do alto (seção seguinte). O botão "Desfazer" da Seleção (com o aviso `analise-desfazer-aviso`)
-  saiu na segunda rodada de 24/10/2026: o controle do alto faz o mesmo e mais e, desde 25/10/2026, leva o nome e o seletor
-  dele (`analise-desfazer`). Os comandos dizem sobre
-  qual conjunto agem: os estados, os municípios do Brasil ou os municípios de um estado.
-- **No gráfico (E1):** clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios dele na análise; a dica da
-  bolha sob o mouse ou em foco mostra a ação "Ver os N municípios". O Desfazer do alto (seção seguinte) desfaz a navegação, e
-  o aviso diz isso ("Mostrando os municípios do Amazonas. Para voltar aos estados, use Desfazer, no alto.").
-- **Planilhas:** sem os níveis Brasil e Estados, com os mesmos passos e a nomenclatura da planilha (a busca "Buscar distrito ou
-  província"). Com coluna-mãe (o papel `grupo_territorial`), os grupos ficam como os estados ("Ver as N <unidades>", a caixa
-  do grupo inteiro), com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde 23/10/2026); sem ela, a lista
-  das unidades em ordem alfabética, com as caixas. "Marcar todos os distritos (4)" marca a planilha inteira. Sem a lista das
+  "Brasil (total nacional)", "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
+  estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
+  `analise-ver-analise`), a unidade de análise e os totais. Abaixo (`analise-selecionados-itens`), o que entra, agrupado por
+  estado (`analise-selecionado`): o estado inteiro numa linha ("Amazonas · todos os 62") e, quando são só alguns, cada município
+  como uma etiqueta com o × dele (`analise-selecionado-unidade`, "Tirar ABAIRA (BA)"); cada estado com o × que o tira inteiro
+  (`analise-selecionado-tirar-grupo`); o Brasil inteiro numa linha ("Todos os municípios do Brasil (5.570)"), com o ×; os
+  conjuntos do Juntar, cada um com o × que o desfaz (`analise-selecionado-conjunto`). Uma unidade marcada sem um grupo da lista
+  (numa planilha, sem o valor da coluna-mãe) aparece numa linha à parte. Sem nada marcado, "Nenhum município marcado ainda: marque
+  na lista (o Brasil, um estado inteiro ou abra a lista dele; ou use a busca).". O mesmo resumo, em poucas palavras, aparece no
+  título das análises, no resumo de cada aba e ao lado dos controles do alto (`analise-controles-territorios`; `resumoDoUniverso`).
+- **O que mudou, em palavras:** o que marca ou desmarca muitos de uma vez (a raiz, a caixa de um estado inteiro, os comandos da
+  lista de um estado, o × que tira os municípios de um estado, os atalhos da unidade de análise) diz o que mudou
+  (`analise-selecao-aviso`: "Municípios da Bahia desmarcados. Para desfazer, use o botão Desfazer, no alto."; "Todos os estados
+  marcados, como unidades. …"). Toda mudança da Seleção, uma a uma ou coletiva, também o × de uma unidade e a troca da unidade de
+  análise, pode ser desfeita pelo Desfazer do alto (seção seguinte).
+- **No gráfico (E1):** com os estados como unidades, clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios
+  dele na análise (a árvore marca o estado inteiro, e a unidade volta a Municípios); a dica da bolha sob o mouse ou em foco mostra
+  a ação "Ver os N municípios". O Desfazer do alto desfaz a navegação, e o aviso diz isso ("Mostrando os municípios do Amazonas.
+  Para voltar aos estados, use Desfazer, no alto.").
+- **Planilhas:** sem a unidade de análise (Brasil e Estados), com os mesmos passos e a nomenclatura da planilha (a busca "Buscar
+  distrito ou província"). Com coluna-mãe (o papel `grupo_territorial`), a árvore tem a raiz "Toda a planilha" ("todos os 4
+  distritos") e os grupos como os estados, com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde
+  23/10/2026); todos os grupos inteiros só viram "toda a planilha" quando juntos cobrem todas as unidades dela. Sem coluna-mãe, a
+  lista das unidades em ordem alfabética, com as caixas, "Marcar todos os condados" e "Desmarcar os condados". Sem a lista das
   unidades (quando o catálogo do pré-exame não veio, por exemplo com nomes que não permitem escolher uma a uma), "Marcar todos"
   continua valendo para a planilha inteira, e o resumo fica "Todos os condados", sem um número. Não há bolhas de grupo nas
   planilhas (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
   `code:<código>` ou `name:<nome>`.
-- **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção. Antes, a base
-  do Brasil abria nos estados, e a planilha, com todas as unidades marcadas.
+- **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção.
 - **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico, o mapa e a frase-resumo da seleção anterior saem da tela;
   a área pede a escolha.
 
@@ -201,24 +228,26 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
   desfazer ainda". Depois de desfazer, o aviso diz o que foi desfeito ("Desfeito: limpar seleção.", `textoDoDesfeito`). O
   histórico não é o do navegador e não sai da área: recomeça com outra fonte de dados ou com Nova análise. Os passos desfeitos
   não são refeitos (não há "Refazer").
-- **Limpar seleção** (`analise-limpar-selecao`, a vassoura; o nome é exatamente "Limpar seleção"): tira os territórios do
-  nível em uso, porque cada nível guarda a sua escolha (decisão 5, 25/10/2026): em Municípios, os municípios e os conjuntos; em
-  Estados, os estados. A escolha dos outros níveis, a base carregada e os ajustes das análises continuam. Os desenhos que
-  dependem da seleção saem, a comparação sai com os itens, e o aviso diz "Seleção limpa: nenhum território na análise. A base
-  de dados continua carregada. Para desfazer, use o botão Desfazer.". Sem nada marcado no nível em uso, fica desligado ("Nenhum território
-  selecionado."); no nível Brasil, também, porque o país é a própria unidade ("No nível Brasil, o país inteiro é a unidade em
-  análise: não há seleção para limpar."). É o único "limpar a seleção" da área: o botão "Limpar a seleção de municípios" da
-  Seleção saiu.
+- **Limpar seleção** (`analise-limpar-selecao`, a vassoura; o nome é exatamente "Limpar seleção"): desde 05/11/2026, com a
+  seleção unificada, tira a seleção inteira (a árvore, os estados como unidades, o Brasil inteiro e os conjuntos), e a unidade de
+  análise volta a Municípios (`limparEscolha`; até 05/11/2026, decisão 5 de 25/10/2026, cada nível guardava a sua escolha, e o botão
+  tirava só a do nível em uso, ficando desligado no nível Brasil). A base carregada e os ajustes das análises continuam. Os desenhos
+  que dependem da seleção saem, a comparação sai com os itens, e o aviso diz "Seleção limpa: nenhum território na análise. A base
+  de dados continua carregada. Para desfazer, use o botão Desfazer.". Sem nada marcado, fica desligado ("Nenhum território
+  selecionado."). É o único "limpar a seleção" da área.
 - **Limpar filtros** (`analise-limpar-filtros`, o filtro riscado, na barra das funções das análises): continua tirando a régua,
   as condições, a ordenação, a comparação, o filtro da classe e os itens marcados no desenho, sem mexer nos territórios nem nos
   ajustes; ele só aparece com algum filtro em uso, e o Desfazer devolve os filtros ("Desfazer a limpeza",
   `analise-desfazer-filtros`, saiu).
-- **Voltar aos estados** (`analise-grupo-voltar`, na lista aberta de um estado): contextual, maior e preenchido, só fecha a lista.
+- **Fechar a lista** (`analise-grupo-voltar`, no fim da lista aberta de um estado; até 05/11/2026, "Voltar aos estados", maior e
+  preenchido, quando a lista tomava o lugar da lista dos estados): só fecha a lista.
 
 ### Brasil como unidade
 
-Decisões D3 e D4 (24/10/2026, pedido do responsável): no nível Brasil, a análise usa o país inteiro como uma unidade (`nivel:
-"brasil"`), com a contagem da fonte nacional e a população pela regra BR-POP-JUNHO-1. O título fica "… no Brasil", e o subtítulo,
+Decisões D3 e D4 (24/10/2026, pedido do responsável): com a unidade de análise Brasil (desde 05/11/2026, com o Brasil inteiro marcado
+na árvore), a análise usa o país inteiro como uma unidade (`nivel: "brasil"`), com a contagem da fonte nacional e a população pela
+regra BR-POP-JUNHO-1. Com os municípios como unidade e o Brasil inteiro marcado, o mesmo total nacional aparece nos totais
+individualizados (seção anterior), ao lado dos municípios. O título fica "… no Brasil", e o subtítulo,
 "A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população.". Valem a Distribuição (uma
 bolha) e a Tendência (a série nacional, na mesma regra de classes); a linha de contexto do Brasil não aparece, porque o item já
 é o total nacional. O que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3): Grupos e faixas
@@ -896,6 +925,26 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 ## Testes
 
+- **Seleção unificada, totais individualizados e responsividade (05/11/2026):**
+  - Node: `frontend/tests/areaDeAnalise.test.mjs` cobre as equivalências completas da árvore (os municípios de um estado todos
+    marcados viram o estado inteiro; todos os estados inteiros, o Brasil inteiro, só quando cobrem todas as unidades; um estado
+    inteiro absorve os seus avulsos), as unidades de análise permitidas pela seleção (os estados só com estados inteiros, o
+    Brasil só com o Brasil inteiro, os atalhos sem nada marcado), a mudança pela árvore e pela unidade, o alinhamento dos pedidos
+    da conversa e do Histórico (`unificarEscolha`), os estados em parte e o Limpar da seleção inteira (`limparEscolha`);
+    `frontend/tests/painel.test.mjs`, a ressalva das somas (o texto do comando) na dica do conjunto e na limitação.
+  - pytest: `backend/tests/test_painel_pagina.py` confere `contexto.estados` (a contagem da fonte estadual, a mesma do nível
+    estados, pelo grupo ou pela lista completa; nada com exclusões; a densidade não avaliável com a população estadual
+    incompleta) e `contexto.brasil_completo` (por todos ou por todos os estados inteiros), sem mudar os níveis estados e Brasil
+    nem a chave do cálculo; com a base versionada, o Amazonas pela fonte estadual e o Brasil inteiro pela nacional (502.495 em
+    junho de 2024), nenhum dos dois igual à soma dos municípios.
+  - Navegador: `backend/tests/ui_responsivo.py` (suíte `base-versionada`), em 320, 360, 390, 430, 768, 1.024 e 1.440 px, no claro
+    e no escuro, com o toque no celular: nada passa da largura da janela, os nomes dos estados inteiros e os alvos de toque de 40
+    px, o Amazonas inteiro com um município do Pará, os totais na Seleção e no resultado, a legenda das bolhas sem textos
+    sobrepostos, a dica e o ritmo de variação dentro da janela, a legenda de tamanho do mapa, a disposição de referência no
+    computador e, no escuro, os textos a 4,5:1 ou mais. Os roteiros `ui_area_de_analise.py`, `ui_pagina_unica.py`, `ui_mapa.py`,
+    `ui_modo_escuro.py`, `ui_planilha_ficticia.py`, `ui_conexao.py` e `ui_hospedagem.py` seguem a seleção unificada (a unidade
+    Estados como atalho de todos os estados, a raiz da árvore no lugar de "Marcar todos os municípios do Brasil", a lista do
+    estado aberta no lugar e o Limpar da seleção inteira).
 - **Modelo puro (Node):** `frontend/tests/painel.test.mjs`. Cobre a formatação pt-BR; o tamanho pela população; o eixo Y do
   indicador com o arranjo horizontal sem sobreposição; o modo leve preso à largura; a ausência de escala logarítmica
   automática; a análise espacial; o cometa vertical só com a variação do motor; as camadas de cor (classe, grupos, faixas,

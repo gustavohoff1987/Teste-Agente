@@ -10,12 +10,13 @@ import {
   ABAS, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, MAX_LIGACOES, NOME_SELECAO, ORDEM_DAS_VISOES, TEXTO_DAS_FONTES,
   TEXTO_ESCOLHA_DOS_DADOS, TEXTO_SEM_SELECAO, TITULO_DO_SISTEMA, LARGURA_LADO_A_LADO, LIMITE_LEVE, MINIMO_TENDENCIA, NOMES_FAMILIAS,
   NOMES_FAMILIA_TENDENCIA, NOMES_VISOES, NOTA_TPL11, ROTULOS_GENERICOS, TEXTO_SEM_POPULACAO, ajustesDaAnalise, aplicarPedido,
-  artigo, avisoDaFamilia, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, consultaEmUso, consultaInicial,
+  artigo, avisoDaFamilia, baseVazia, basesPossiveis, bloqueioDoPedido, camadaDeCor, chaveDoPedido, comparacaoQueContinua, consultaEmUso, consultaInicial,
   contextoDoGrafico, fraseDaConsulta, lugarDaConsulta, mesmaConsulta, normalizarBase, textoDaFraseDaConsulta,
   corContinuaDoMapa, corOrdinal, corteAtivo, cronologica, definicaoInicial, disponibilidadeDaFamilia, disponibilidadeDoMapa, empilharPasso,
   dentroDosFiltros, destaqueDaAnalise, escreverLimites, exibirCompetencia, familiaCalculada, formatarNumero, formatarVariacao, generoDe, gradienteDaVariacao, grupoDaUnidade,
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
-  competenciaPorExtenso, limiteDaVariacao, limparNivel, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
+  competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
+  escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
   pinturaDoMapa, prefixoDe, precisaQuintisDoMapa, resumoDoUniverso, ritmoDaJanela, ritmosDaBase, RITMOS_TENDENCIA,
@@ -32,6 +33,7 @@ import PainelSetas, { LegendaDoQuadro } from "./PainelSetas";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
 import PainelTerritorios from "./PainelTerritorios";
+import PainelAbrangencia from "./PainelAbrangencia";
 import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
@@ -203,6 +205,20 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const idsDosGrupos = useMemo(() => grupos.map(item => item.id), [grupos]);
   const grupoDeMapa = useMemo(() => new Map(municipios.map(item => [item.id, grupoDaUnidade(item)])), [municipios]);
   const grupoDe = useCallback((id: string) => grupoDeMapa.get(id) ?? prefixoDe(id), [grupoDeMapa]);
+  // A seleção unificada (05/11/2026): as unidades de cada grupo (os municípios de cada estado) e o total, para a árvore reconhecer
+  // as abrangências completas (o estado inteiro, o Brasil inteiro).
+  const idsPorGrupo = useMemo(() => {
+    const mapa = new Map<string, string[]>();
+    for (const item of municipios) {
+      if (item.selection_reason) continue;
+      const grupo = grupoDaUnidade(item);
+      if (!mapa.has(grupo)) mapa.set(grupo, []);
+      mapa.get(grupo)!.push(item.id);
+    }
+    return mapa;
+  }, [municipios]);
+  const arvore: ContextoDaArvore = useMemo(() => ({ grupos, unidadesDoGrupo: (grupo: string) => idsPorGrupo.get(grupo) ?? [], grupoDe,
+    total: niveis?.municipios.total ?? municipios.filter(item => !item.selection_reason).length }), [grupos, idsPorGrupo, grupoDe, niveis, municipios]);
   const pronto = !!fonte && periodos.length > 0 && (fonte.tipo !== "brasil" || !!niveis);
   // Planilha sem população: só a quantidade (a Densidade fica desligada, com o motivo); as premissas do painel Colunas vão em
   // todo pedido.
@@ -385,7 +401,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         todosOsEstados: idsDosGrupos, temBrasil: tipo === "brasil" && grupos.length > 0,
         disponivel: familia => disponibilidadeDaFamilia(familia, { fonte: tipo, nivel: inicial.nivel, disponibilidade: null, temIdentificador, rotulos }) });
       if (!temPopulacao && pendentePedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
-      inicial = resultado.definicao;
+      // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
+      inicial = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
       if (resultado.selecao) setSelecionados(resultado.selecao);
       if (resultado.abrir) setPainel(resultado.abrir);
       if (resultado.vista) setVistaEscolhida(resultado.vista);
@@ -447,7 +464,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     reiniciarVisual();
     setEscala(lido.visual.escala); setCorte(lido.visual.corte); setSelecionados(lido.visual.selecionados);
     setVistaEscolhida(lido.visual.vista ?? "grafico");
-    setDef(lido.definicao);
+    setDef({ ...lido.definicao, ...unificarEscolha(escolhaDe(lido.definicao), arvore) });
     setAba(semTerritorios(lido.definicao) ? "territorios" : lido.definicao.familia);
     if (lido.resposta && lido.opcoes) {
       cache.current.set(lido.chave, lido.resposta);
@@ -468,6 +485,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (calculado?.chave === chave) { setCarregando(false); setErro(null); return; }
     const emCache = cache.current.get(chave);
     if (emCache) {
+      // A memória das respostas guarda as mais recentemente usadas (05/11/2026): reaproveitar renova a entrada, e o limite descarta
+      // a usada há mais tempo (antes, a inserida há mais tempo, mesmo que tivesse acabado de ser reaproveitada).
+      cache.current.delete(chave); cache.current.set(chave, emCache);
       setResposta(emCache); setCalculado({ chave, def, familia: familiaPedida, opcoes }); setErro(null); setCarregando(false);
       return;
     }
@@ -562,6 +582,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
       todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
+    // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
+    resultado.definicao = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
     // O pedido da conversa também é um passo do Desfazer (24/10/2026): Desfazer devolve o que estava antes dele.
     registrar(ROTULO_DO_PEDIDO);
     // A comparação pedida na conversa vale como veio; a de antes só continua com os itens dela na análise (com a Escolha dos
@@ -839,19 +861,37 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     registrar(rotulo);
     trocarEscolha({ ...escolhaDe(def), conjuntos });
   }
+  /** A unidade de análise (05/11/2026; antes, o nível da Seleção de Territórios): cada ponto é um município, um estado ou o Brasil.
+   * Os estados como unidades valem com estados inteiros na árvore; o Brasil, com o Brasil inteiro (sem nada marcado, os dois são
+   * atalhos para todos os estados e para o Brasil inteiro). Um passo do Desfazer. */
   function escolherNivel(nivel: PainelNivel) {
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+    const nova = escolhaDaUnidade(escolhaDe(def), nivel, arvore);
+    if (!nova) { setAviso(motivoDaUnidade(nivel === "brasil" ? "brasil" : "estados", rotulos)); return; }
     const nome = nivel === "brasil" ? "Brasil" : nivel === "estados" ? grupo.plural : rotulos.unidade.plural;
-    mudarEscolha({ nivel }, "Trocar o nível para " + nome);
-    setAviso(nivel === "brasil" ? "Brasil inteiro na análise, como uma unidade." : nivel === "estados"
-      ? maiuscula(grupo.plural) + ": marque " + (generoDe(grupo) === "f" ? "uma, várias ou todas." : "um, vários ou todos.")
-      : maiuscula(rotulos.unidade.plural) + ": a seleção continua como estava.");
+    // Sem nada marcado, os estados e o Brasil são atalhos que marcam tudo: uma mudança coletiva, dita junto do que está marcado.
+    const marcouTudo = nivel !== "municipios" && baseVazia(def.base);
+    const f = generoDe(grupo) === "f";
+    mudarEscolha(nova, marcouTudo ? (nivel === "brasil" ? "Brasil inteiro marcado, como uma unidade."
+      : maiuscula(todosOs(grupo)) + " marcad" + (f ? "as" : "os") + ", como unidades.") : "Trocar a unidade de análise para " + nome, marcouTudo);
+    setAviso(nivel === "brasil" ? "Brasil inteiro na análise, como uma unidade (a contagem nacional)." : nivel === "estados"
+      ? "Cada ponto da análise é " + (generoDe(grupo) === "f" ? "uma " : "um ") + grupo.singular + " inteir" + (generoDe(grupo) === "f" ? "a" : "o") +
+        ", com a contagem estadual de médicos únicos."
+      : "Cada ponto da análise é " + (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ": a seleção continua como estava.");
   }
-  /** Limpar seleção (24/10/2026, controle global, no alto): tira os territórios do nível em uso (limparNivel, decisão 5 de
-   * 25/10/2026: em Municípios, os municípios e os conjuntos; em Estados, os estados), sem apagar a base carregada, os ajustes das
-   * análises nem a escolha guardada dos outros níveis. No nível Brasil, o país é a própria unidade: o botão fica desligado, com o
-   * motivo. Os desenhos que dependem da seleção saem, e a comparação sai com os itens. É um passo do Desfazer. */
-  const selecaoLimpa = limparNivel(escolhaDe(def));
+  /** Uma mudança na árvore da Seleção de Territórios (05/11/2026): a escolha nova, com as equivalências completas reconhecidas; a
+   * unidade de análise continua quando a escolha ainda a permite, e senão volta aos municípios, com o aviso. */
+  function mudarArvore(base: PainelMunicipios, acao: string, coletiva = false) {
+    const nova = escolhaDaArvore(escolhaDe(def), base, arvore);
+    mudarEscolha(nova, acao, coletiva);
+    if (nova.nivel !== def.nivel) setAviso("A seleção mudou e não tem mais só " + (def.nivel === "brasil" ? "o Brasil inteiro" : "estados inteiros") +
+      ": cada ponto da análise volta a ser " + (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ".");
+  }
+  /** Limpar seleção (24/10/2026, controle global, no alto): desde 05/11/2026, com a seleção unificada, tira a seleção inteira (a
+   * árvore, os estados como unidades, o Brasil inteiro e os conjuntos; limparEscolha), e a unidade volta aos municípios, sem apagar a
+   * base carregada nem os ajustes das análises (até 05/11/2026, decisão 5 de 25/10/2026, só a escolha do nível em uso). Os desenhos
+   * que dependem da seleção saem, e a comparação sai com os itens. É um passo do Desfazer. */
+  const selecaoLimpa = limparEscolha(escolhaDe(def));
   const temSelecaoParaLimpar = selecaoLimpa !== null;
   function limparSelecao() {
     if (!selecaoLimpa) return;
@@ -1567,11 +1607,19 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // A unidade escolhida no quadro de setas: as velocidades dela ficam no painel da explicação.
   const itemDasVelocidades = quadroDeSetas && selecao.length ? resposta?.itens.find(item => item.id === selecao[selecao.length - 1] && item.tendencia) ?? null : null;
 
+  // Os totais individualizados da abrangência (05/11/2026): o Brasil inteiro pela fonte nacional e cada estado inteiro pela fonte
+  // estadual, do motor, junto do resultado que o desenho mostra; na Seleção, só quando a resposta é a da seleção atual.
+  const totaisDe = (r: PainelResposta | null, d: DefinicaoAnalise | null, compacto: boolean) => r && d && r.nivel === "municipios" &&
+    d.nivel === "municipios" && !consultaEmUso(d) ? <PainelAbrangencia completa={r.abrangenciaCompleta} brasil={r.contextoBrasil}
+      parciais={gruposParciais(d.base, arvore)} categoria={r.categoria || def.categoria} rotulos={rotulos} compacto={compacto}/> : null;
+  const totaisNoResultado = totaisDe(resposta, calculado?.def ?? null, false);
+  const totaisNaSelecao = calculado?.chave === chave ? totaisDe(resposta, calculado?.def ?? null, true) : null;
   const subtituloEResumo = <>
     <p data-testid="analise-subtitulo" className="analise-subtitulo">{subtitulo}</p>
     {/* Frase-resumo do motor: lida pelos leitores de tela a cada mudança; também na impressão e no arquivo de método. */}
     <p data-testid="analise-resumo" aria-live="polite" className="analise-frase-resumo">{resumoNaTela ?? ""}</p>
     {significado && <p data-testid="analise-resumo-significado" className="analise-frase-significado">{significado}</p>}
+    {totaisNoResultado}
   </>;
   const painelDaFuncao = painel && conteudoPainel ? <aside id="analise-painel" data-testid="analise-painel" data-painel={painel}
     aria-labelledby="analise-painel-titulo" className="analise-painel analise-nao-imprimir"
@@ -1598,7 +1646,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         <Undo size={18} aria-hidden="true"/>Desfazer</button>
       <button type="button" data-testid="analise-limpar-selecao" className="analise-controle-global" onClick={limparSelecao}
         disabled={!temSelecaoParaLimpar} title={temSelecaoParaLimpar ? "Tira os territórios em análise; os dados carregados continuam."
-          : def.nivel === "brasil" ? "No nível Brasil, o país inteiro é a unidade em análise: não há seleção para limpar."
           : "Nenhum território selecionado."}>
         <IconeVassoura size={18} aria-hidden="true"/>Limpar seleção</button>
       <span data-testid="analise-controles-territorios" className="analise-controles-territorios">
@@ -1640,9 +1687,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
           </div>
           <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} comNiveis={comBolhasDeGrupo} unidades={municipios}
             total={totalDeUnidades} nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto}
-            aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]}
-            onNivel={escolherNivel} onBase={(base, acao, coletiva) => mudarEscolha({ nivel: "municipios", base }, acao, coletiva)}
-            onEstados={(estados, acao, coletiva) => mudarEscolha({ nivel: "estados", estados }, acao, coletiva)}
+            aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]} totais={totaisNaSelecao}
+            onUnidade={escolherNivel} onBase={mudarArvore}
             onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto}
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>

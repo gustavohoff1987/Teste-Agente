@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, ChevronRight, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowRight, ChevronDown, Search, X } from "lucide-react";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
-  BASE_VAZIA, alternarUnidade, artigo, desmarcarGrupo, grupoDaUnidade, grupoInteiro, maiuscula, marcadasNoGrupo, marcadasPorGrupo,
-  marcarGrupo, nomeDaUnidade, normalizarEstados, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, textoVerUnidades, todosOs,
-  unidadeMarcada, type GrupoInfo, type RotulosTerritoriais, type UnidadeDoCatalogo,
+  BASE_VAZIA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, grupoDaUnidade, grupoInteiro, maiuscula, marcadasNoGrupo,
+  marcadasPorGrupo, marcarGrupo, motivoDaUnidade, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
+  unidadeMarcada, unidadesPossiveis, type ContextoDaArvore, type GrupoInfo, type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
 
-// Seleção de Territórios (reformulada em 24/10/2026, pedido do responsável): só encontrar, navegar entre os níveis, marcar e
-// desmarcar, ver o que está marcado e corrigir; os resultados ficam nas análises. Na base do Brasil, três níveis, um em análise
-// por vez (RQ-DAD-30: nenhum nível é somado a outro): o Brasil (o país como uma unidade, com o total nacional, que não é a soma
-// dos municípios), os estados (um, vários ou todos) e os municípios, navegados por estado e cumulativos: abrir outro estado só
-// mostra a lista dele e não muda o que já está marcado. Cada nível guarda a sua escolha. Desde 24/10/2026 (segunda rodada), a
-// tela tem duas áreas lado a lado: à esquerda, a busca e a lista para marcar; à direita, sempre à vista, o que já está marcado,
-// estado a estado, com o × de cada unidade e de cada estado. Desfazer e Limpar seleção ficam no alto da área (controles globais),
-// e toda mudança daqui pode ser desfeita pelo Desfazer. Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades),
-// sem os níveis. Cada mudança é um pedido explícito ao motor; nada é calculado aqui.
+// Seleção de Territórios unificada (05/11/2026, comando do responsável; no lugar dos três níveis separados de 24/10/2026, um por
+// vez): um só componente hierárquico, com multisseleção. À esquerda, a busca (estados e municípios) e a árvore: o Brasil (todos os
+// municípios), os estados (cada um com a caixa de três estados: inteiro, em parte ou nada, e a lista dos municípios, que se abre no
+// lugar) e os municípios. Marcar o Brasil marca todos os municípios; um estado, todos os municípios dele; desmarcar um município de
+// um estado ou do Brasil marcado deixa os demais marcados (a exclusão); estados inteiros e municípios avulsos de estados diferentes
+// se combinam. À direita, sempre à vista, o que está na análise: o resumo da abrangência, a unidade de análise (cada ponto é um
+// município, um estado ou o Brasil), os totais individualizados (quando a abrangência é um estado inteiro ou o Brasil inteiro) e o
+// que está marcado, estado a estado, com o × de cada um. A unidade de análise é explícita: os estados como unidades só com estados
+// inteiros (a contagem estadual de médicos únicos é a do estado inteiro), o Brasil só com o Brasil inteiro; nenhum nível é somado
+// a outro (RQ-DAD-30). Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades), sem a unidade de análise. Cada
+// mudança é um pedido explícito ao motor e um passo do Desfazer; nada é calculado aqui.
 
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const comparar = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
@@ -27,12 +29,14 @@ type Props = {
   rotulos: RotulosTerritoriais;
   brasil: boolean;
   grupos: GrupoInfo[];
-  /** A base do Brasil com os níveis Brasil e estados (a fonte estadual e a nacional). */
+  /** A base do Brasil com os níveis Brasil e estados (a fonte estadual e a nacional): a unidade de análise aparece. */
   comNiveis: boolean;
   unidades: UnidadeDoCatalogo[];
   total: number;
+  /** A unidade de análise em uso (cada ponto é um município, um estado ou o Brasil). */
   nivel: PainelNivel;
   base: PainelMunicipios;
+  /** Os estados como unidades (só leitura: vêm da árvore, com estados inteiros). */
   estados: string[];
   conjuntos: PainelConjuntoPedido[];
   /** Grupo com a lista aberta (só mostra a lista; não muda a seleção). */
@@ -41,10 +45,12 @@ type Props = {
   aviso: string | null;
   /** Rótulo do botão que leva às análises ("Ver a análise"). */
   verAnalise: string;
-  onNivel: (nivel: PainelNivel) => void;
-  /** Nova escolha dos municípios, com o que mudou em palavras (vai para o Desfazer); `coletiva` quando muda muitos de uma vez. */
+  /** Os totais individualizados da abrangência (o Brasil inteiro, os estados inteiros), quando o motor já os devolveu. */
+  totais?: ReactNode;
+  /** Nova escolha da árvore, com o que mudou em palavras (vai para o Desfazer); `coletiva` quando muda muitos de uma vez. */
   onBase: (base: PainelMunicipios, acao: string, coletiva?: boolean) => void;
-  onEstados: (estados: string[], acao: string, coletiva?: boolean) => void;
+  /** A unidade de análise escolhida (a área confere se a escolha permite). */
+  onUnidade: (nivel: PainelNivel) => void;
   onAbrir: (grupo: string | null) => void;
   /** Desfaz um conjunto criado no Juntar (o × dele, no que está marcado). */
   onDesfazerConjunto: (id: string) => void;
@@ -54,6 +60,7 @@ type Props = {
 export default function PainelTerritorios(p: Props) {
   const [consulta, setConsulta] = useState("");
   const [letra, setLetra] = useState("");
+  const [motivoUnidade, setMotivoUnidade] = useState<string | null>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
   const unidade = p.rotulos.unidade, grupoRotulo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const generoF = artigo(unidade, false) === "a", generoGrupoF = artigo(grupoRotulo, false) === "a";
@@ -75,34 +82,31 @@ export default function PainelTerritorios(p: Props) {
   const idsDoGrupo = (grupo: string) => (porGrupo.get(grupo) || []).map(item => item.id);
   const todosOsGrupos = p.grupos.map(item => item.id);
   const temGrupos = p.grupos.length > 0;
-  const nivel: PainelNivel = p.comNiveis ? p.nivel : "municipios";
   const nomeDoGrupo = (id: string) => p.grupos.find(item => item.id === id)?.nome || id;
-  const grupoAberto = p.aberto ? p.grupos.find(item => item.id === p.aberto) ?? null : null;
+  const arvore: ContextoDaArvore = { grupos: p.grupos, unidadesDoGrupo: idsDoGrupo, grupoDe: id => grupoDeId.get(id) ?? "", total: p.total };
+  const possiveis = useMemo(() => unidadesPossiveis(p.base, arvore), [p.base, p.grupos, porGrupo, p.total]);
   useEffect(() => setLetra(""), [p.aberto]);
-  useEffect(() => setConsulta(""), [nivel]);
+  useEffect(() => setMotivoUnidade(null), [p.base, p.nivel]);
 
   // ------------------------------------------------------------------------------------------ o que está marcado
   const marcadas = useMemo(() => marcadasPorGrupo(p.base, { grupos: p.grupos, unidadesDoGrupo: idsDoGrupo, nomes,
     grupoDe: id => grupoDeId.get(id) ?? "", todas: todasAsUnidades }), [p.base, p.grupos, nomes, grupoDeId, todasAsUnidades, porGrupo]);
   const unidadesMarcadas = marcadas.reduce((soma, item) => soma + item.marcadas, 0);
-  const vazio = nivel === "brasil" ? false : nivel === "estados" ? !p.estados.length : !p.base.todos && !unidadesMarcadas && !p.conjuntos.length;
+  const vazio = p.nivel === "brasil" ? false : p.nivel === "estados" ? !p.estados.length : baseVazia(p.base) && !p.conjuntos.length;
   const nomesCompletos = useMemo(() => new Map(validas.map(item => [item.id, nomeDaUnidade(item)])), [validas]);
-  const resumo = resumoDoUniverso({ nivel, base: p.base, estados: p.estados, conjuntos: p.conjuntos.length, grupos: p.grupos,
+  const resumo = resumoDoUniverso({ nivel: p.nivel, base: p.base, estados: p.estados, conjuntos: p.conjuntos.length, grupos: p.grupos,
     rotulos: p.rotulos, total: p.total, grupoDe: id => grupoDeId.get(id) ?? "", nomes: nomesCompletos });
   const deGrupo = (g: Pick<GrupoInfo, "nome" | "rotuloGrupo">) => textoTodasAsUnidadesDoGrupo(p.rotulos, g).replace(/^Tod[oa]s [oa]s /, "");
   /** "da Bahia", "de Buenos Aires": o fim de "municípios da Bahia". */
   const doGrupo = (g: Pick<GrupoInfo, "nome" | "rotuloGrupo">) => deGrupo(g).replace(/^\S+\s/, "");
   const marcadosTexto = (marcados: boolean) => (marcados ? " marcad" : " desmarcad") + (generoF ? "as." : "os.");
   const nomeCompleto = (id: string) => nomesCompletos.get(id) || nomes.get(id) || id;
+  const raiz = p.brasil ? "Brasil" : "Toda a planilha";
+  const totalTexto = (generoF ? "todas as " : "todos os ") + p.total.toLocaleString("pt-BR") + " " + (p.total === 1 ? unidade.singular : unidade.plural);
 
   // ------------------------------------------------------------------------------------------ ações
   // O que muda um território só começa pelo verbo ("Marcar MANAUS (AM)"): o Desfazer diz "Desfazer: marcar MANAUS (AM)", e o nome
   // próprio fica como é (começando pelo nome, a primeira letra iria para a minúscula).
-  const alternarEstado = (id: string) => {
-    const marcado = p.estados.includes(id);
-    p.onEstados(normalizarEstados(marcado ? p.estados.filter(item => item !== id) : [...p.estados, id], todosOsGrupos),
-      (marcado ? "Desmarcar " : "Marcar ") + nomeDoGrupo(id));
-  };
   const alternar = (item: UnidadeDoCatalogo) => {
     const grupo = grupoDaUnidade(item);
     const marcada = unidadeMarcada(p.base, item.id, temGrupos ? grupo : "");
@@ -124,6 +128,16 @@ export default function PainelTerritorios(p: Props) {
   };
   const tirarGrupo = (g: GrupoInfo) => p.onBase(desmarcarGrupo(p.base, g.id, idsDoGrupo(g.id), todosOsGrupos, todasAsUnidades),
     maiuscula(deGrupo(g)) + marcadosTexto(false), true);
+  /** A raiz da árvore: o Brasil inteiro (ou a planilha inteira), marcado ou desmarcado de uma vez. */
+  const alternarRaiz = () => p.base.todos
+    ? p.onBase({ ...BASE_VAZIA }, (p.brasil ? "Brasil inteiro desmarcado" : maiuscula(unidade.plural) + marcadosTexto(false).replace(/\.$/, "")) + ".", true)
+    : p.onBase({ todos: true, estados: [], ids: [] }, (p.brasil ? "Brasil inteiro marcado: " : "Toda a planilha marcada: ") + totalTexto + ".", true);
+  const escolherUnidade = (valor: PainelNivel, possivel: boolean) => {
+    if (valor === p.nivel) return;
+    if (!possivel && valor !== "municipios") { setMotivoUnidade(motivoDaUnidade(valor, p.rotulos)); return; }
+    setMotivoUnidade(null);
+    p.onUnidade(valor);
+  };
 
   // ------------------------------------------------------------------------------------------ partes
   const caixaDaUnidade = (item: UnidadeDoCatalogo, testid: string, comGrupo = false) => <li key={item.id} data-testid={testid} data-id={item.id}>
@@ -134,32 +148,6 @@ export default function PainelTerritorios(p: Props) {
         : item.code && <span className="shrink-0 text-[12px] text-slate-500">{item.code}</span>}
     </label>
   </li>;
-  const caixaDoEstado = (grupo: GrupoInfo, testid: string) => <li key={grupo.id} data-testid={testid} data-id={grupo.id}>
-    <label className="analise-caixa">
-      <input type="checkbox" checked={p.estados.includes(grupo.id)} onChange={() => alternarEstado(grupo.id)}/>
-      <span className="min-w-0 flex-1">{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span>
-    </label>
-  </li>;
-  const linhaDoGrupo = (grupo: GrupoInfo, testid: string) => {
-    const ids = idsDoGrupo(grupo.id), total = grupo.unidades || ids.length;
-    const inteiro = grupoInteiro(p.base, grupo.id), n = marcadasNoGrupo(p.base, grupo.id, ids), parcial = !inteiro && n > 0;
-    return <li key={grupo.id} data-testid={testid} data-id={grupo.id} data-marcadas={n} className="analise-grupo">
-      <div className="analise-grupo-linha">
-        <label className="analise-caixa min-w-0 flex-1">
-          <input type="checkbox" data-testid="analise-grupo-todos" checked={inteiro}
-            ref={elemento => { if (elemento) elemento.indeterminate = parcial; }}
-            aria-label={textoTodasAsUnidadesDoGrupo(p.rotulos, grupo)} onChange={() => alternarGrupo(grupo)}/>
-          <span className="min-w-0">
-            <span className="block font-semibold text-ink">{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span>
-            {n > 0 && <span className="block text-[12px] text-slate-600">{(inteiro ? (generoF ? "Todas as " : "Todos os ") + total : n + " de " + total) +
-              (generoF ? " marcadas" : " marcados")}</span>}
-          </span>
-        </label>
-        <button type="button" data-testid="analise-grupo-ver" className="analise-ver" onClick={() => { setConsulta(""); p.onAbrir(grupo.id); }}>
-          {textoVerUnidades(p.rotulos, total)}<ChevronRight size={14} aria-hidden="true"/></button>
-      </div>
-    </li>;
-  };
   const botoesColetivos = (marcar: { rotulo: string; desligado: boolean; acao: () => void },
     desmarcar: { rotulo: string; desligado: boolean; acao: () => void }) => <div className="analise-territorios-coletivos" role="group"
     aria-label="Marcar ou desmarcar de uma vez">
@@ -199,33 +187,62 @@ export default function PainelTerritorios(p: Props) {
     </div>;
   };
 
+  /** Uma linha da árvore: o grupo (o estado) com a caixa de três estados (inteiro, em parte ou nada), o nome inteiro, quantas unidades
+   * estão marcadas e o botão que abre a lista das unidades no lugar (um grupo aberto por vez). */
+  const linhaDoGrupo = (grupo: GrupoInfo, testid: string) => {
+    const ids = idsDoGrupo(grupo.id), total = grupo.unidades || ids.length;
+    const inteiro = grupoInteiro(p.base, grupo.id), n = marcadasNoGrupo(p.base, grupo.id, ids), parcial = !inteiro && n > 0;
+    const aberto = p.aberto === grupo.id && testid === "analise-grupo";
+    const idDaLista = "analise-lista-" + grupo.id.replace(/[^A-Za-z0-9_-]/g, "_");
+    const contagem = inteiro ? (generoF ? "todas as " : "todos os ") + total.toLocaleString("pt-BR") + " " + (total === 1 ? unidade.singular : unidade.plural)
+      : n ? n.toLocaleString("pt-BR") + " de " + quantos(total, unidade) : quantos(total, unidade);
+    const verTexto = (aberto ? "Fechar a lista " + (generoF ? "das " : "dos ") : "Ver " + (generoF ? "as " : "os ")) + quantos(total, unidade) + " " + doGrupo(grupo);
+    return <li key={grupo.id} data-testid={testid} data-id={grupo.id} data-marcadas={n} data-aberto={aberto ? "true" : "false"}
+      data-situacao={inteiro ? "inteiro" : parcial ? "parcial" : "nenhum"} className={"analise-grupo" + (aberto ? " analise-grupo-aberto" : "")}>
+      <div className="analise-grupo-linha">
+        <label className="analise-caixa analise-grupo-caixa">
+          <input type="checkbox" data-testid="analise-grupo-todos" checked={inteiro}
+            ref={elemento => { if (elemento) elemento.indeterminate = parcial; }}
+            aria-label={textoTodasAsUnidadesDoGrupo(p.rotulos, grupo)} onChange={() => alternarGrupo(grupo)}/>
+          <span className="analise-grupo-texto">
+            <span className="analise-grupo-nome">{grupo.nome}{grupo.sigla ? " (" + grupo.sigla + ")" : ""}</span>
+            <span data-testid="analise-grupo-contagem" className="analise-grupo-contagem">{contagem}</span>
+          </span>
+        </label>
+        <button type="button" data-testid="analise-grupo-ver" className="analise-expandir" aria-expanded={aberto}
+          aria-controls={aberto ? idDaLista : undefined} aria-label={verTexto} title={verTexto}
+          onClick={() => { setConsulta(""); p.onAbrir(aberto ? null : grupo.id); }}>
+          <span className="analise-expandir-texto">{aberto ? "Fechar" : maiuscula(unidade.plural)}</span>
+          <ChevronDown size={16} aria-hidden="true" className="analise-expandir-seta"/>
+        </button>
+      </div>
+      {aberto && <div id={idDaLista} className="analise-grupo-aberto-bloco">
+        {listaDeUnidades(porGrupo.get(grupo.id) || [], grupo)}
+        <button type="button" data-testid="analise-grupo-voltar" className="analise-botao-secundario analise-voltar-grupos" onClick={() => p.onAbrir(null)}>
+          Fechar a lista {generoF ? "das " : "dos "}{unidade.plural} {doGrupo(grupo)}</button>
+      </div>}
+    </li>;
+  };
+
   // ------------------------------------------------------------------------------------------ busca
   const termo = sem(consulta.trim());
   const busca = useMemo(() => {
     if (!termo) return null;
-    const grupos = temGrupos && nivel !== "brasil" ? p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(termo)).slice(0, 8) : [];
-    const unidades = nivel === "municipios" ? validas.filter(item => sem(item.name + " " + item.code + " " + item.label).includes(termo))
-      .slice(0, LIMITE_BUSCA) : [];
+    const grupos = temGrupos ? p.grupos.filter(g => sem(g.nome + " " + g.sigla).includes(termo)).slice(0, 8) : [];
+    const unidades = validas.filter(item => sem(item.name + " " + item.code + " " + item.label).includes(termo)).slice(0, LIMITE_BUSCA);
     return { grupos, unidades };
-  }, [termo, temGrupos, nivel, p.grupos, validas]);
-  const placeholder = nivel === "estados" ? "Buscar " + grupoRotulo.singular
-    : temGrupos ? "Buscar " + unidade.singular + " ou " + grupoRotulo.singular : "Buscar " + unidade.singular;
-  const rotuloDaBusca = "Buscar pelo nome: " + (nivel === "estados" ? grupoRotulo.plural : temGrupos ? unidade.plural + " ou " + grupoRotulo.plural
-    : unidade.plural);
+  }, [termo, temGrupos, p.grupos, validas]);
+  const placeholder = temGrupos ? "Buscar " + unidade.singular + " ou " + grupoRotulo.singular : "Buscar " + unidade.singular;
+  const rotuloDaBusca = "Buscar pelo nome: " + (temGrupos ? unidade.plural + " ou " + grupoRotulo.plural : unidade.plural);
 
   const conteudo = (() => {
-    if (nivel === "brasil") return <div data-testid="analise-territorios-brasil" className="analise-territorios-brasil">
-      <p className="font-semibold text-ink">O Brasil inteiro, como uma unidade</p>
-      <p>A análise usa o total nacional de profissionais e a população do país. Não é a soma dos estados nem a seleção de todos os{" "}
-        {unidade.plural}.</p>
-    </div>;
     if (busca) {
       const nada = !busca.grupos.length && !busca.unidades.length;
       return <div data-testid="analise-busca-resultado" className="analise-unidades">
         {nada ? <p className="text-xs text-slate-600">Nada encontrado com “{consulta.trim()}”.</p> : <>
-          {busca.grupos.length > 0 && <ul className={nivel === "estados" ? "analise-unidades-lista" : "analise-grupos"}
+          {busca.grupos.length > 0 && <ul className="analise-grupos"
             aria-label={maiuscula(grupoRotulo.plural) + " encontrad" + (artigo(grupoRotulo, false) === "a" ? "as" : "os")}>
-            {busca.grupos.map(grupo => nivel === "estados" ? caixaDoEstado(grupo, "analise-busca-item") : linhaDoGrupo(grupo, "analise-busca-grupo"))}
+            {busca.grupos.map(grupo => linhaDoGrupo(grupo, "analise-busca-grupo"))}
           </ul>}
           {busca.unidades.length > 0 && <ul className="analise-unidades-lista" aria-label="Resultado da busca">
             {busca.unidades.map(item => caixaDaUnidade(item, "analise-busca-item", true))}
@@ -233,56 +250,53 @@ export default function PainelTerritorios(p: Props) {
         </>}
       </div>;
     }
-    if (nivel === "estados") return <div className="analise-unidades">
-      {botoesColetivos(
-        { rotulo: "Marcar " + todosOs(grupoRotulo) + " (" + p.grupos.length + ")", desligado: p.estados.length === p.grupos.length,
-          acao: () => p.onEstados([...todosOsGrupos].sort(comparar), maiuscula(todosOs(grupoRotulo)) + (generoGrupoF ? " marcadas." : " marcados."), true) },
-        { rotulo: "Desmarcar " + todosOs(grupoRotulo), desligado: !p.estados.length,
-          acao: () => p.onEstados([], maiuscula(grupoRotulo.plural) + (generoGrupoF ? " desmarcadas." : " desmarcados."), true) })}
-      <ul data-testid="analise-estados" className="analise-unidades-lista analise-lista-estados" aria-label={maiuscula(grupoRotulo.plural)}>
-        {p.grupos.map(grupo => caixaDoEstado(grupo, "analise-estado"))}
+    if (!temGrupos) return listaDeUnidades([...validas].sort((a, b) => comparar(a.name || a.label, b.name || b.label)), null);
+    const algo = p.base.todos || !baseVazia(p.base);
+    return <div data-testid="analise-arvore" className="analise-arvore">
+      <div data-testid="analise-raiz" data-marcado={p.base.todos ? "true" : algo ? "parcial" : "false"} className="analise-raiz">
+        <label className="analise-caixa analise-grupo-caixa">
+          <input type="checkbox" data-testid="analise-raiz-caixa" checked={p.base.todos}
+            ref={elemento => { if (elemento) elemento.indeterminate = !p.base.todos && algo; }}
+            aria-label={raiz + ": " + totalTexto} onChange={alternarRaiz}/>
+          <span className="analise-grupo-texto">
+            <span className="analise-grupo-nome analise-raiz-nome">{raiz}</span>
+            <span className="analise-grupo-contagem">{totalTexto}{p.brasil ? ", em " + quantos(p.grupos.length, grupoRotulo) : ""}</span>
+          </span>
+        </label>
+      </div>
+      <ul className="analise-grupos analise-grupos-arvore" aria-label={maiuscula(grupoRotulo.plural)}>
+        {p.grupos.map(grupo => linhaDoGrupo(grupo, "analise-grupo"))}
       </ul>
     </div>;
-    if (temGrupos && grupoAberto) return <div data-testid="analise-grupo" data-id={grupoAberto.id} data-aberto="true" className="analise-grupo-aberto-bloco">
-      {/* "Voltar aos estados" (24/10/2026): maior e preenchido, como os botões de destaque; só fecha a lista (o Desfazer do alto desfaz passos). */}
-      <button type="button" data-testid="analise-grupo-voltar" className="analise-botao-primario analise-voltar-grupos" onClick={() => p.onAbrir(null)}>
-        <ArrowLeft size={17} aria-hidden="true"/>Voltar {generoGrupoF ? "às " : "aos "}{grupoRotulo.plural}</button>
-      {listaDeUnidades(porGrupo.get(grupoAberto.id) || [], grupoAberto)}
-    </div>;
-    if (temGrupos) return <div className="analise-unidades">
-      {botoesColetivos(
-        { rotulo: "Marcar " + todosOs(unidade) + (p.brasil ? " do Brasil" : "") + " (" + p.total.toLocaleString("pt-BR") + ")",
-          desligado: p.base.todos, acao: () => p.onBase({ todos: true, estados: [], ids: [] },
-            maiuscula(todosOs(unidade)) + (p.brasil ? " do Brasil" : "") + marcadosTexto(true), true) },
-        { rotulo: "Desmarcar " + todosOs(unidade), desligado: !unidadesMarcadas,
-          acao: () => p.onBase({ ...BASE_VAZIA }, maiuscula(unidade.plural) + marcadosTexto(false), true) })}
-      <ul className="analise-grupos" aria-label={maiuscula(grupoRotulo.plural)}>{p.grupos.map(grupo => linhaDoGrupo(grupo, "analise-grupo"))}</ul>
-    </div>;
-    return listaDeUnidades([...validas].sort((a, b) => comparar(a.name || a.label, b.name || b.label)), null);
   })();
+
+  // ------------------------------------------------------------------------------------------ a unidade de análise (à direita)
+  const unidadesDeAnalise: [PainelNivel, string, string, boolean][] = [
+    ["municipios", maiuscula(unidade.plural), "cada ponto é " + (generoF ? "uma " : "um ") + unidade.singular, true],
+    ["estados", maiuscula(grupoRotulo.plural), possiveis.estados?.length
+      ? "cada ponto é " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " inteir" + (generoGrupoF ? "a" : "o") + " (" +
+        possiveis.estados.length + "), com a contagem estadual de médicos únicos"
+      : possiveis.vazia ? "cada ponto é " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " (" + (generoGrupoF ? "todas" : "todos") + ")"
+        : "com " + grupoRotulo.plural + " inteir" + (generoGrupoF ? "as" : "os") + " marcad" + (generoGrupoF ? "as" : "os"),
+      possiveis.vazia || !!possiveis.estados?.length],
+    ["brasil", "Brasil", possiveis.brasil || possiveis.vazia ? "o país como uma unidade, com a contagem nacional" : "com o Brasil inteiro marcado",
+      possiveis.vazia || possiveis.brasil],
+  ];
 
   // ------------------------------------------------------------------------------------------ o que entra na análise (à direita)
   // Estado a estado, em tempo real: o estado inteiro numa linha ("todos os 62") e, quando são algumas, cada unidade com o × dela;
-  // cada estado com o × que o tira inteiro. No nível dos estados, as etiquetas deles; no Brasil, ele mesmo.
+  // cada estado com o × que o tira inteiro.
   const selecionadas = (() => {
-    if (nivel === "brasil") return <p className="analise-selecionados-vazio">Brasil (total nacional), como uma unidade.</p>;
-    if (nivel === "estados") return p.estados.length ? <ul className="analise-selecionados-estados">
-      {p.estados.map(id => <li key={id} data-testid="analise-selecionado" data-id={id} className="analise-etiqueta">
-        {nomeDoGrupo(id)}
-        <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + nomeDoGrupo(id)} onClick={() => alternarEstado(id)}>
-          <X size={13} aria-hidden="true"/></button>
-      </li>)}
-    </ul> : <p className="analise-selecionados-vazio">Nenhum{generoGrupoF ? "a" : ""} {grupoRotulo.singular} marcad{generoGrupoF ? "a" : "o"} ainda: marque na
-      lista ao lado.</p>;
     if (p.base.todos) return <div data-testid="analise-selecionado" data-grupo="todos" className="analise-selecionado-grupo">
       <div className="analise-selecionado-cabeca">
         <span className="min-w-0"><strong className="text-ink">{maiuscula(todosOs(unidade))}{p.brasil ? " do Brasil" : ""}</strong> ({p.total.toLocaleString("pt-BR")})</span>
         <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Tirar " + todosOs(unidade)}
-          onClick={() => p.onBase({ ...BASE_VAZIA }, maiuscula(unidade.plural) + marcadosTexto(false), true)}><X size={13} aria-hidden="true"/></button>
+          onClick={alternarRaiz}><X size={13} aria-hidden="true"/></button>
       </div>
     </div>;
     if (!marcadas.length && !p.conjuntos.length) return <p className="analise-selecionados-vazio">Nenhum{generoF ? "a" : ""} {unidade.singular}{" "}
-      marcad{generoF ? "a" : "o"} ainda: marque na lista ao lado{temGrupos ? " (abra " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " ou use a busca)" : ""}.</p>;
+      marcad{generoF ? "a" : "o"} ainda: marque na lista{temGrupos ? " (" + (p.brasil ? "o Brasil, " : "") + (generoGrupoF ? "uma " : "um ") +
+      grupoRotulo.singular + " inteir" + (generoGrupoF ? "a" : "o") + " ou abra a lista d" + (generoGrupoF ? "ela" : "ele") + "; ou use a busca)" : ""}.</p>;
     return <ul className="analise-selecionados-lista">
       {marcadas.map(item => {
         const g = p.grupos.find(grupo => grupo.id === item.grupo);
@@ -315,28 +329,25 @@ export default function PainelTerritorios(p: Props) {
     </ul>;
   })();
 
-  return <section data-testid="analise-territorios" data-nivel={nivel} aria-labelledby="analise-territorios-titulo" className="analise-territorios">
+  return <section data-testid="analise-territorios" data-nivel={p.nivel} data-marcadas={unidadesMarcadas} aria-labelledby="analise-territorios-titulo"
+    className="analise-territorios">
     <h3 id="analise-territorios-titulo" tabIndex={-1} className="sr-only">Territórios</h3>
-    {p.comNiveis && <div role="radiogroup" aria-label="Nível dos territórios" data-testid="analise-nivel" className="analise-niveis">
-      {([["brasil", "Brasil", "o país inteiro, como uma unidade"],
-        ["estados", maiuscula(grupoRotulo.plural), p.estados.length ? p.estados.length + " de " + p.grupos.length + " marcados" : "um, vários ou todos"],
-        ["municipios", maiuscula(unidade.plural), unidadesMarcadas ? quantos(unidadesMarcadas, unidade) + " marcad" + (generoF ? "a" : "o") +
-          (unidadesMarcadas === 1 ? "" : "s") : "escolha por " + grupoRotulo.singular]] as [PainelNivel, string, string][]).map(([valor, rotulo, apoio]) =>
-        <button key={valor} type="button" role="radio" aria-checked={nivel === valor} data-testid={"analise-nivel-" + valor}
-          className="analise-nivel" onClick={() => nivel !== valor && p.onNivel(valor)}>
-          <span className="analise-nivel-nome">{rotulo}</span><span className="analise-nivel-apoio">{apoio}</span>
-        </button>)}
-    </div>}
     <div className="analise-territorios-colunas">
       <div data-testid="analise-territorios-lista" className="analise-territorios-lista">
-        {nivel !== "brasil" && <div className="analise-busca">
+        <p data-testid="analise-territorios-instrucao" className="analise-territorios-instrucao">{temGrupos
+          ? "Marque " + (p.brasil ? "o Brasil, " : "") + grupoRotulo.plural + " inteir" + (generoGrupoF ? "as" : "os") + " ou " + unidade.plural + ". " +
+            maiuscula(artigo(grupoRotulo, false)) + " " + grupoRotulo.singular + " marcad" + (generoGrupoF ? "a" : "o") + " traz " + todosOs(unidade) + " del" +
+            (generoGrupoF ? "a" : "e") + ", e você pode desmarcar " + (generoF ? "algumas" : "alguns") + ". Abra a lista de " +
+            (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " para escolher " + unidade.plural + (generoF ? " uma a uma." : " um a um.")
+          : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou a planilha inteira."}</p>
+        <div className="analise-busca">
           <label className="sr-only" htmlFor="analise-busca">{rotuloDaBusca}</label>
           <Search size={16} aria-hidden="true" className="analise-busca-icone"/>
           <input ref={buscaRef} id="analise-busca" type="search" data-testid="analise-busca" value={consulta} autoComplete="off"
             onChange={event => setConsulta(event.target.value)} placeholder={placeholder} className="analise-campo analise-busca-campo"/>
           {consulta && <button type="button" className="analise-icone analise-busca-limpar" aria-label="Limpar a busca"
             onClick={() => { setConsulta(""); buscaRef.current?.focus(); }}><X size={14} aria-hidden="true"/></button>}
-        </div>}
+        </div>
         {conteudo}
       </div>
 
@@ -347,6 +358,20 @@ export default function PainelTerritorios(p: Props) {
           <button type="button" data-testid="analise-ver-analise" className="analise-botao-primario" disabled={vazio} onClick={p.onVerAnalise}>
             {p.verAnalise}<ArrowRight size={15} aria-hidden="true"/></button>
         </div>
+        {p.comNiveis && <div className="analise-unidade-de-analise">
+          <p id="analise-nivel-titulo" className="analise-territorios-secao">Cada ponto da análise é</p>
+          <div role="radiogroup" aria-labelledby="analise-nivel-titulo" data-testid="analise-nivel" className="analise-niveis">
+            {unidadesDeAnalise.map(([valor, rotulo, apoio, possivel]) =>
+              <button key={valor} type="button" role="radio" aria-checked={p.nivel === valor} aria-disabled={possivel ? undefined : true}
+                data-testid={"analise-nivel-" + valor} data-possivel={possivel ? "true" : "false"} className="analise-nivel"
+                title={possivel || valor === "municipios" ? undefined : motivoDaUnidade(valor as "estados" | "brasil", p.rotulos)}
+                onClick={() => escolherUnidade(valor, possivel)}>
+                <span className="analise-nivel-nome">{rotulo}</span><span className="analise-nivel-apoio">{apoio}</span>
+              </button>)}
+          </div>
+          {motivoUnidade && <p role="status" data-testid="analise-nivel-motivo" className="analise-motivo">{motivoUnidade}</p>}
+        </div>}
+        {p.totais}
         {p.aviso && <p role="status" data-testid="analise-selecao-aviso" className="analise-desfazer">{p.aviso} Para desfazer, use o botão Desfazer, no alto.</p>}
         <div data-testid="analise-selecionados-itens" className="analise-selecionados-itens">{selecionadas}</div>
       </aside>

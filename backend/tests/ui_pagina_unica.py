@@ -237,10 +237,10 @@ def main():
         page.wait_for_timeout(1500)
         assert not painel, "sem territórios escolhidos, a área não pede nada ao motor"
         shot("02-sem-selecao")
-        aperta(area.get_by_test_id("analise-nivel-estados"))
-        page.wait_for_timeout(800)
-        assert not painel, "o nível Estados sem nenhum estado marcado não pede nada ao motor"
-        e1, sent, _ = painel_response(lambda: aperta(area.get_by_test_id("analise-marcar-todos")))
+        # A seleção unificada (05/11/2026): sem nada marcado, a unidade de análise Estados é o atalho de todos os estados como
+        # unidades (a árvore marca o Brasil inteiro), e o motor recebe o nível estados sem a lista.
+        e1, sent, _ = painel_response(lambda: aperta(area.get_by_test_id("analise-nivel-estados")))
+        expect(area.get_by_test_id("analise-raiz-caixa")).to_be_checked()
         assert sent.get("nivel") == "estados" and "estados" not in sent, sent  # todos os estados: sem a lista
         assert not sent.get("base", {}).get("municipios", {}).get("todos"), sent
         if real:
@@ -395,16 +395,23 @@ def main():
         expect(colunas).to_have_count(0)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-aba", "territorios")
-        # Numa planilha, sem os níveis Brasil e Estados: a busca e os comandos coletivos falam de distritos e províncias.
+        # Numa planilha, sem a unidade de análise (Brasil e Estados): a busca e a raiz da árvore falam de distritos e províncias.
         expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar distrito ou província")
-        expect(area.get_by_test_id("analise-marcar-todos")).to_have_text("Marcar todos os distritos (4)")
+        raiz = area.get_by_test_id("analise-raiz")
+        expect(raiz).to_contain_text("Toda a planilha")
+        expect(raiz).to_contain_text("todos os 4 distritos")
         # As províncias da planilha (a coluna-mãe) agrupam os distritos na Seleção, como os estados na base do Brasil.
         assert area.get_by_test_id("analise-grupo").evaluate_all("els => els.map(e => e.dataset.id)") == ["Norte", "Sul"]
         expect(area.get_by_test_id("analise-aba-painel")).not_to_contain_text(SEM_MUNICIPIO)
         page.wait_for_timeout(1500)
         assert len(painel) == chamadas, "sem territórios escolhidos, nada é pedido ao motor"
-        _, sent, pedido = painel_response(lambda: aperta(area.get_by_test_id("analise-marcar-todos")))
+        def marca_a_planilha():
+            caixa = area.get_by_test_id("analise-raiz-caixa")
+            caixa.scroll_into_view_if_needed()
+            caixa.focus()
+            caixa.press("Space")
+        _, sent, pedido = painel_response(marca_a_planilha)
         assert sent["base"]["municipios"]["todos"], sent
         assert uploaded_filename(pedido) == "distritos.csv", uploaded_filename(pedido)
         assert not form_field(pedido, "dataset"), "planilha enviada: vai o arquivo, não a base do Brasil"

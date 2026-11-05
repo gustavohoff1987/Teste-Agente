@@ -1,7 +1,9 @@
 """Área de análise da página única (22/10/2026): abertura antes dos dados (E0, só a identificação e as duas entradas, sem abas,
-desde 24/10/2026), a base do Brasil sem seleção automática e a Seleção de Territórios por níveis (24/10/2026: o Brasil como
-unidade, os estados um a um ou todos, os municípios navegados por estado e cumulativos, a busca no alto, "Marcar todos" e
-"Desmarcar todos"), os estados em bolhas e a bolha que abre os municípios de um estado, o eixo vertical do indicador com o arranjo
+desde 24/10/2026), a base do Brasil sem seleção automática e a Seleção de Territórios unificada (05/11/2026, no lugar dos níveis
+de 24/10/2026: a árvore com a raiz Brasil, os estados inteiros ou em parte e os municípios, cumulativos, com a lista de cada estado
+aberta no lugar; a busca no alto; a unidade de análise, cada ponto um município, um estado ou o Brasil, só quando a seleção a
+permite, com o motivo; os totais individualizados), os estados em bolhas e a bolha que abre os municípios de um estado, o eixo
+vertical do indicador com o arranjo
 horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
 memória da tela), a régua que só esconde, grupos por posição, a análise espacial com a Escolha dos territórios, a tendência, a
 rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Limpar filtros, Exportar (CSV em precisão integral), os
@@ -17,8 +19,9 @@ Desde 24/10/2026 (segunda rodada, os 12 ajustes de interface): o nome da platafo
 Força de Trabalho na Saúde"); no alto da área, fixos ao rolar e lado a lado, Desfazer (`analise-desfazer`, até 25/10/2026
 "Voltar", com a seta curva do desfazer desde então; um desfazer sequencial
 de toda a interação, como o Ctrl+Z: a seleção, as abas, os ajustes, os filtros e a vista; desligado, com o motivo em palavras,
-quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a vassoura: tira os territórios do nível em uso sem
-apagar os dados nem a escolha dos outros níveis; desligado no nível Brasil, com o motivo); "Voltar aos estados" maior e preenchido, distinto do Desfazer do alto; a Seleção em duas áreas (à esquerda, a busca e a
+quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a vassoura: desde 05/11/2026, tira a seleção inteira,
+sem apagar os dados; antes, só a do nível em uso); a lista de um estado aberta no lugar, com o botão que a fecha (até 05/11/2026,
+"Voltar aos estados"); a Seleção em duas áreas (à esquerda, a busca e a
 lista; à direita, o que entra na análise, estado a estado, com o × de cada município e de cada estado); as abas das análises só
 com o nome; Comparar e Juntar sem os cartões de valores, com a orientação e os
 escolhidos; na tendência, "Entenda esta análise" recolhido, o período Anual (ou o único ritmo da base) e o Gráfico ao abrir, os
@@ -401,20 +404,21 @@ def main():
         expect(area).to_have_attribute("data-aba", "territorios")
         page.wait_for_timeout(400)
         assert not painel_calls, "abrir as abas sem territórios (e desfazer) não pede nada ao motor"
-        # Os estados como unidades: o nível Estados (cada nível guarda a sua escolha) e "Marcar todos os estados".
-        aperta(territorios.get_by_test_id("analise-nivel-estados"))
+        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade de análise Estados é o atalho de
+        # todos os estados como unidades, e a árvore marca o Brasil inteiro (cada estado inteiro).
+        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
         expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("aria-checked", "true")
-        expect(busca).to_have_attribute("placeholder", "Buscar estado")
-        estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
+        expect(busca).to_have_attribute("placeholder", "Buscar município ou estado")
         # nivel e indicador vão em todo pedido (sem nivel, o motor responde no formato de 21/10); com todos, sem a lista.
         assert sent.get("nivel") == "estados" and set(sent) == {"competencia", "categoria", "nivel", "indicador"}, sent
         assert sent.get("indicador") == "densidade", sent
-        expect(territorios.get_by_test_id("analise-marcar-todos")).to_have_text(re.compile(r"Marcar todos os estados \(\d+\)"))
+        expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
-        expect(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')).to_be_checked()
+        expect(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-todos")).to_be_checked()
         # Marcar muitos de uma vez fica dito junto do que está marcado, com o caminho para desfazer (o Desfazer do alto).
-        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Todos os estados marcados. Para desfazer, use o botão Desfazer, no alto.")
-        expect(desfazer).to_have_attribute("title", "Desfazer: todos os estados marcados")
+        expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text(
+            "Todos os estados marcados, como unidades. Para desfazer, use o botão Desfazer, no alto.")
+        expect(desfazer).to_have_attribute("title", "Desfazer: todos os estados marcados, como unidades")
         expect(limpar).to_be_enabled()
         expect(limpar).to_have_attribute("title", "Tira os territórios em análise; os dados carregados continuam.")
         expect(area).to_have_attribute("data-estado", "E1")
@@ -542,11 +546,14 @@ def main():
         drawn(ids_am)
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "desfazer e abrir de novo vêm da memória da tela"
-        # A Seleção mostra o estado aberto, com os municípios marcados, no nível Municípios; os estados continuam guardados.
+        # A Seleção mostra o estado aberto na árvore, inteiro, com os municípios marcados; cada ponto é um município, e a unidade
+        # Estados continua possível (o Amazonas é um estado inteiro).
         aba_selecao()
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
         expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
-        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
+        expect(territorios.get_by_test_id("analise-nivel-estados")).to_have_attribute("data-possivel", "true")
+        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text("estado inteiro (1)")
+        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_attribute("data-possivel", "false")
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         expect(linha_am).to_have_attribute("data-aberto", "true")
         lista_am = linha_am.get_by_test_id("analise-grupo-unidades")
@@ -577,14 +584,12 @@ def main():
         # esvazia sem pedir nada e o Desfazer desfaz; "Marcar todos os municípios do Amazonas" volta ao estado inteiro; o resumo diz
         # quais (com um ou dois, os nomes).
         aba_selecao()
+        # A lista do estado abre no lugar, na árvore (05/11/2026; antes, ela tomava o lugar da lista dos estados, com "Voltar aos
+        # estados"): o botão da linha do estado diz o que faz, e o fim da lista tem o botão que só a fecha.
+        expect(linha_am.get_by_test_id("analise-grupo-ver")).to_have_attribute("aria-expanded", "true")
+        expect(linha_am.get_by_test_id("analise-grupo-ver")).to_have_attribute("aria-label", re.compile(r"^Fechar a lista dos \d+ municípios do Amazonas$"))
         grupo_voltar = territorios.get_by_test_id("analise-grupo-voltar")
-        expect(grupo_voltar).to_have_text("Voltar aos estados")
-        # "Voltar aos estados" (24/10/2026, segunda rodada): maior e preenchido, como os botões de destaque, e distinto do Desfazer do
-        # alto (outro lugar, outro nome e outra cor); só fecha a lista do estado.
-        estilo_grupo, estilo_global = grupo_voltar.evaluate(ESTILO), desfazer.evaluate(ESTILO)
-        assert estilo_grupo["fundo"] not in ("rgba(0, 0, 0, 0)", "transparent"), ("preenchido", estilo_grupo)
-        assert estilo_grupo["fundo"] != estilo_global["fundo"], ("distinto do Desfazer do alto", estilo_grupo, estilo_global)
-        assert estilo_grupo["altura"] >= 38 and estilo_grupo["fonte"] >= 13 and estilo_grupo["peso"] >= 600, ("evidente", estilo_grupo)
+        expect(grupo_voltar).to_have_text("Fechar a lista dos municípios do Amazonas")
         assert grupo_voltar.bounding_box()["y"] > desfazer.bounding_box()["y"] + 20, "na lista do estado, abaixo do Desfazer do alto"
         _, sent = ok(lambda: marca(lista_am.locator('[data-testid="analise-unidade"][data-id="' + PARINTINS + '"] input')))
         restantes = {item.get_attribute("data-id") for item in unidades_am.all()} - {PARINTINS}
@@ -685,22 +690,27 @@ def main():
         aperta(desfazer)
         expect(selecionados).to_have_count(2)
         shot("03b-cumulativa")
-        # Cada nível guarda a sua escolha: os estados voltam como estavam, e os municípios também.
-        aperta(territorios.get_by_test_id("analise-nivel-estados"))
-        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Todos os estados \(\d+\)"))
-        drawn(esperados(estados))
-        aperta(territorios.get_by_test_id("analise-nivel-municipios"))
+        # A unidade de análise (05/11/2026, a seleção unificada): com um município avulso (MANAUS, sem o Amazonas inteiro), os
+        # estados como unidades não valem: a escolha fica como estava, o motivo aparece, e nada é pedido ao motor.
+        calls = len(painel_calls)
+        unidade_estados = territorios.get_by_test_id("analise-nivel-estados")
+        expect(unidade_estados).to_have_attribute("data-possivel", "false")
+        expect(unidade_estados).to_have_attribute("aria-disabled", "true")
+        aperta(unidade_estados)
+        expect(territorios.get_by_test_id("analise-nivel-motivo")).to_contain_text("estados inteiros")
+        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
         expect(selecionados).to_have_count(2)
-        # Limpar seleção (a vassoura do alto, 24/10/2026): tira só os territórios do nível em uso (aqui, os municípios; decisão 5,
-        # 25/10/2026), sem apagar os dados carregados (a lista do estado aberto continua, com os municípios, e a fonte também) nem a
-        # escolha guardada dos estados; o Desfazer devolve tudo. Depois, de novo o Limpar e o Amazonas inteiro, para os passos
-        # seguintes.
+        page.wait_for_timeout(400)
+        assert len(painel_calls) == calls, "a unidade que a seleção não permite não muda nada"
+        # Limpar seleção (a vassoura do alto, 24/10/2026; desde 05/11/2026, com a seleção unificada, a seleção inteira: antes, só a
+        # do nível em uso), sem apagar os dados carregados (a lista do estado aberto continua, com os municípios, e a fonte também);
+        # o Desfazer devolve tudo. Depois, de novo o Limpar e o Amazonas inteiro, para os passos seguintes.
         fonte_antes = page.get_by_test_id("current-source").inner_text()
         aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(territorios.get_by_test_id("analise-selecao-aviso")).to_have_text("Seleção limpa. Para desfazer, use o botão Desfazer, no alto.")
         expect(aviso).to_have_text("Seleção limpa: nenhum território na análise. A base de dados continua carregada. Para desfazer, use o botão Desfazer.")
-        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
+        expect(territorios.get_by_test_id("analise-raiz-caixa")).not_to_be_checked()
         expect(linha_am).to_have_attribute("data-aberto", "true")
         expect(unidades_am).to_have_count(total_am)
         expect(page.get_by_test_id("current-source")).to_have_text(fonte_antes)
@@ -708,7 +718,6 @@ def main():
         expect(desfazer).to_have_attribute("title", "Desfazer: limpar seleção")
         aperta(desfazer)
         expect(selecionados).to_have_count(2)
-        expect(territorios.get_by_test_id("analise-nivel-estados")).to_contain_text(re.compile(r"(\d+) de \1 marcados"))
         aperta(limpar)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         aperta(lista_am.get_by_test_id("analise-marcar-todos"))
@@ -1679,10 +1688,16 @@ def main():
             aba_selecao()
             if territorios.get_by_test_id("analise-grupo-voltar").count():
                 aperta(territorios.get_by_test_id("analise-grupo-voltar"))
-            marcar_brasil = territorios.get_by_test_id("analise-marcar-todos")
-            expect(marcar_brasil).to_have_text("Marcar todos os municípios do Brasil (5.570)")
-            brasil, sent = ok(lambda: aperta(marcar_brasil))
+            # O Brasil inteiro pela raiz da árvore (05/11/2026, a seleção unificada): todos os municípios, com o total nacional da
+            # fonte nacional nos totais individualizados (não a soma dos municípios).
+            expect(territorios.get_by_test_id("analise-raiz")).to_contain_text("todos os 5.570 municípios, em 27 estados")
+            brasil, sent = ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
             assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
+            assert brasil["contexto"]["brasil_completo"] is True and brasil["contexto"]["estados"] == [], brasil["contexto"]
+            total_br = territorios.get_by_test_id("analise-abrangencia").locator('[data-id="br"]')
+            expect(total_br).to_have_attribute("data-fonte", "nacional")
+            expect(total_br).to_have_attribute("data-quantidade", str(brasil["contexto"]["brasil"]["quantidade"]))
+            assert brasil["contexto"]["brasil"]["quantidade"] != sum(item["quantidade"] or 0 for item in brasil["itens"])
             # A seleção de todos os municípios se desfaz de uma vez (Limpar seleção e Desfazer), sem desmarcar um a um.
             expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Todos os municípios (5.570)")
             aperta(limpar)
@@ -1726,20 +1741,24 @@ def main():
             page.mouse.move(2, 2)
             shot("11-brasil-leve")
 
-        # 15. O Brasil como unidade (24/10/2026): o país inteiro, com o total nacional, e não a seleção de todos os municípios; só o
-        # nível vai ao motor, e as funções que valem para vários territórios ficam desligadas, com o motivo. Depois, os estados
-        # escolhidos um a um: o pedido leva só eles.
+        # 15. O Brasil como unidade (24/10/2026; desde 05/11/2026, a unidade de análise da seleção unificada): com o Brasil inteiro
+        # marcado na árvore, o país como uma unidade, com o total nacional; só o nível vai ao motor, e as funções que valem para
+        # vários territórios ficam desligadas, com o motivo. Depois, um estado inteiro como unidade: o pedido leva só ele.
         aba_selecao()
+        if not real:
+            # No catálogo sintético, a seleção tem o Amazonas e um conjunto: o Brasil como unidade pede o Brasil inteiro antes.
+            expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_attribute("data-possivel", "false")
+            ok(lambda: marca(territorios.get_by_test_id("analise-raiz-caixa")))
+        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_attribute("data-possivel", "true")
         brasil_unidade, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-brasil")))
         assert set(sent) == {"competencia", "categoria", "nivel", "indicador"} and sent["nivel"] == "brasil", sent
         [item_brasil] = brasil_unidade["itens"]
         assert item_brasil["id"] == "br" and item_brasil["tipo"] == "brasil", item_brasil
-        expect(territorios.get_by_test_id("analise-territorios-brasil")).to_contain_text("Não é a soma dos estados nem a seleção de todos")
-        expect(territorios.get_by_test_id("analise-busca")).to_have_count(0)
+        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_attribute("aria-checked", "true")
+        expect(territorios.get_by_test_id("analise-raiz-caixa")).to_be_checked()
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Brasil (total nacional)")
-        # Limpar seleção no nível Brasil (decisão 5, 25/10/2026): o país é a própria unidade, e o botão fica desligado, com o motivo.
-        expect(limpar).to_be_disabled()
-        expect(limpar).to_have_attribute("title", "No nível Brasil, o país inteiro é a unidade em análise: não há seleção para limpar.")
+        # Limpar seleção (desde 05/11/2026) tira também o Brasil inteiro.
+        expect(limpar).to_be_enabled()
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         drawn(["br"])
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("no Brasil")
@@ -1751,19 +1770,21 @@ def main():
         expect(area.get_by_test_id("analise-agrupar")).to_have_count(0)
         expect(area.get_by_test_id("analise-desenho-mapa")).to_have_attribute("aria-disabled", "true")
         aba_selecao()
-        aperta(territorios.get_by_test_id("analise-nivel-estados"))
-        if territorios.get_by_test_id("analise-desmarcar-todos").is_enabled():
-            aperta(territorios.get_by_test_id("analise-desmarcar-todos"))
-        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum estado marcado")
-        _, sent = ok(lambda: marca(territorios.locator('[data-testid="analise-estado"][data-id="' + AM + '"] input')))
+        aperta(limpar)
+        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Nenhum município marcado")
+        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        # O Amazonas inteiro (a resposta pode vir da memória da tela, sem novo pedido).
+        marca(territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]').get_by_test_id("analise-grupo-todos"))
+        expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text(re.compile(r"Amazonas \(\d+ municípios\)"))
+        _, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
         assert sent.get("nivel") == "estados" and sent.get("estados") == [AM], sent
         expect(territorios.get_by_test_id("analise-selecionados-resumo")).to_have_text("Amazonas")
-        expect(desfazer).to_have_attribute("title", "Desfazer: marcar Amazonas")
+        expect(desfazer).to_have_attribute("title", "Desfazer: trocar a unidade de análise para estados")
         aba_analise("distribuicao")
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("no Amazonas")
         aba_selecao()
         aperta(territorios.get_by_test_id("analise-nivel-municipios"))
-        drawn(esperados(brasil) if real else esperados(junto))  # a escolha dos municípios (e o conjunto) continua guardada
+        drawn(esperados(am))  # os municípios do Amazonas inteiro, que a árvore continua marcando
         shot("13-niveis")
 
         # 16. Celular (390 px): sem rolagem horizontal; as famílias em abas roláveis; as funções num botão "Ferramentas"; o painel
@@ -1874,8 +1895,9 @@ def main():
     for nota in notas:
         print("Nota: " + nota)
     print("ÁREA DE ANÁLISE PASS: abertura com o nome da plataforma, sem abas, base sem seleção automática, Desfazer sequencial e Limpar "
-          "seleção no alto (fixos ao rolar), Seleção por níveis em duas áreas com o × de cada território, seleção cumulativa entre "
-          "estados, Voltar aos estados em destaque, abas só com os nomes, Entenda esta análise, eixo do indicador, quintis do mapa no "
+          "seleção no alto (fixos ao rolar), Seleção unificada em duas áreas (a árvore, a unidade de análise e o × de cada território), "
+          "seleção cumulativa entre estados, a lista do estado aberta no lugar, abas só com os nomes, Entenda esta análise, eixo do "
+          "indicador, quintis do mapa no "
           "pedido, régua, grupos, análise espacial (a Escolha dos territórios, também sem territórios, quando o motor oferece a "
           "distância, ou o motivo: veja as notas), tendência com o Período anual e o Gráfico ao abrir, a explicação ao lado com a "
           "divisória, as visões Tendência, Trajetória e Série temporal, rotatividade com o motivo, funções (Comparar e Juntar sem "

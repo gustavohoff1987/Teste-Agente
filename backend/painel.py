@@ -330,6 +330,9 @@ class Result:
     notes: list = field(default_factory=list)
     limitations: list = field(default_factory=list)
     methods: dict = field(default_factory=dict)
+    # Abrangências completas da base (05/11/2026): {"brasil": bool, "estados": [prefixos]} ou None (fora da base do Brasil e com a
+    # Escolha dos territórios).
+    completo: dict | None = None
 
 
 class Pendencia(ChoiceRequired):
@@ -2760,6 +2763,65 @@ NOTE_CONTEXT = ("Brasil (total nacional) como linha de contexto: contagem da fon
                 "BR-POP-JUNHO-1; não classifica nem colore os itens do gráfico.")
 
 
+def _complete_scope(ctx, base) -> dict:
+    """Abrangências completas da base (05/11/2026, comando de seleção territorial unificada): o Brasil inteiro (todos os
+    municípios desta versão) ou estados inteiros (todos os municípios do estado pelo prefixo do código IBGE, a
+    correspondência brasil-cod-uf-prefix-1 das expansões), reconhecidos pelos códigos da base, qualquer que seja a forma do
+    pedido (todos, estados inteiros ou a lista dos municípios). Uma seleção com exclusões não é completa. Nunca usa o nome de
+    um conjunto."""
+    codes = {ctx.catalog[key]["code"] for key in base}
+    if not codes:
+        return {"brasil": False, "estados": []}
+    if codes >= set(ctx.index.codes):
+        return {"brasil": True, "estados": []}
+    return {"brasil": False, "estados": [prefix for prefix in sorted(ctx.index.by_uf)
+                                         if ctx.index.by_uf[prefix] and set(ctx.index.by_uf[prefix]) <= codes]}
+
+
+def _complete_context(ctx, completo) -> dict:
+    """Contagens individualizadas das abrangências completas (05/11/2026; decisão D3): com o Brasil inteiro, a contagem
+    nacional é a linha de contexto (`brasil`), e `brasil_completo` diz que ela é o total da abrangência; com estados inteiros,
+    cada um com a contagem estadual de médicos únicos (UF-CONTAGEM-ESTADUAL-1) e a população do estado (UF-POP-MUNICIPIOS-1), da
+    fonte estadual, pelo mesmo cálculo do nível estados (_state_measures). Nada é somado: os municípios continuam com os
+    próprios valores, cada estado com a própria contagem, e a soma dos estados não é pedida."""
+    out = {"brasil_completo": bool(completo["brasil"]), "estados": []}
+    if completo["estados"]:
+        out["estados"] = _reaproveitar(ctx, "contexto_estados", {"estados": list(completo["estados"])},
+                                       lambda: _state_totals(ctx, completo["estados"]))
+    return out
+
+
+def _state_totals(ctx, prefixes) -> list:
+    state, available, reason = state_source(ctx.sources)
+    available = set(available or ()) if state is not None else set()
+    keys = ["uf:" + prefix for prefix in prefixes if prefix in available]
+    final = _state_measures(ctx, ctx.period, keys) if keys else None
+    out = []
+    for prefix in prefixes:
+        key = "uf:" + prefix
+        record = final.records.get(key) if final is not None else None
+        values = record["valores"] if record is not None else {}
+        quantity, population, density = (_num(values.get(name)) for name in ("quantidade", "populacao", "densidade"))
+        if state is None:
+            motive = reason
+        elif prefix not in available:
+            motive = "Estado sem registro na fonte estadual: sem contagem individualizada."
+        elif quantity is None:
+            motive = ("Sem registro em " + human_period(ctx.period) + " na fonte estadual (categoria " + ctx.category +
+                      "): não avaliável, nunca zero (SEM_REGISTRO_OBSERVADO).")
+        elif density is None:
+            motive = ("Densidade não avaliável em " + human_period(ctx.period) + ": população estadual incompleta "
+                      "(DENOMINADOR_AUSENTE); a contagem continua avaliável.")
+        else:
+            motive = None
+        out.append({"id": key, "rotulo": uf_label(prefix), "competencia": ctx.period, "quantidade": quantity,
+                    "populacao": population, "densidade": density, "motivo": motive,
+                    "avaliabilidade": ("NAO_AVALIAVEL" if quantity is None else "AVALIAVEL" if density is not None
+                                       else "AVALIAVEL_COM_LIMITACOES"),
+                    "regra": "UF-CONTAGEM-ESTADUAL-1"})
+    return out
+
+
 def _page_extras(ctx, spec, body, res):
     """Campos da página única: por item, só quando pedidos; no topo, sempre nivel, indicador, rotulos, disponibilidade e
     contexto (a sessão é preenchida pela rota)."""
@@ -2777,6 +2839,8 @@ def _page_extras(ctx, spec, body, res):
                 item["referencia_do_item"] = _nearest_of(ctx, res.spatial, item)
     body.update({"nivel": ctx.nivel, "indicador": ctx.indicador, "rotulos": ctx.labels.public(),
                  "disponibilidade": _availability(ctx), "contexto": _context_line(ctx)})
+    if res.completo is not None and ctx.nivel == "municipios":
+        body["contexto"] = {**body["contexto"], **_complete_context(ctx, res.completo)}
     if spec["tendencia"] is not None:
         body["tendencia"], span = _trend(ctx, res, spec["tendencia"], by_id)
         body["dominios"]["tendencia"] = list(span) if span else None
@@ -3180,6 +3244,8 @@ def compute(sources, mapping, options, frame=None) -> dict:
         body["chave_execucao"] = _execution_key(ctx, final, initial, normalized, spatial)
         return body
     res = Result(base, sets, reference, final, initial, spatial, items, final.rows, changes=changes)
+    if ctx.brazil and consulta is None:
+        res.completo = _complete_scope(ctx, base)
     _page_extras(ctx, spec, body, res)
     body["chave_execucao"] = _execution_key(ctx, final, initial, _page_normalized(ctx, spec, normalized), spatial,
                                             res.methods or {"pagina": "PAGINA-UNICA-1"}, res.frames, res.digests)

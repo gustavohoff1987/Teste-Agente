@@ -970,25 +970,67 @@ test('conversa (28/10/2026): a Escolha dos territórios pedida vale como a feita
   assert.equal(M.contextoDoGrafico({...r.definicao, familia: 'distribuicao'}, [], 'Título').consulta, null);
 });
 
-test('decisões 4 e 5 (25/10/2026): "maior/menor" da conversa vira o operador, e Limpar seleção tira só o nível em uso', () => {
+test('decisão 4 (25/10/2026): "maior/menor" da conversa vira o operador; Limpar seleção tira a seleção inteira (05/11/2026)', () => {
   // Decisão 4: a ordem do critério da conversa vira o operador da condição; o valor de corte, a relação e a delimitação ficam com
   // a pessoa (nenhum território é escolhido pela posição na ordem).
   assert.equal(M.operadorDoCriterio({atributo: 'densidade', ordem: 'desc'}), '>');
   assert.equal(M.operadorDoCriterio({atributo: 'populacao', ordem: 'asc'}), '<');
   assert.equal(M.operadorDoCriterio(null), null);
-  // Decisão 5: cada nível guarda a sua escolha. Em Municípios, saem os municípios e os conjuntos; em Estados, os estados; o resto fica.
+  // Desde a seleção unificada (05/11/2026; antes, a decisão 5 de 25/10/2026: cada nível guardava a sua escolha, e Limpar tirava só a
+  // do nível em uso): Limpar tira a árvore inteira, os estados como unidades e os conjuntos, e a unidade volta aos municípios.
   const municipios = {todos: false, estados: ['13'], ids: ['code:150140']};
   const conjunto = {nome: 'Conjunto 1', membros: ['code:130260', 'code:130340']};
-  assert.deepEqual(M.limparNivel({nivel: 'municipios', base: municipios, estados: ['13', '15'], conjuntos: [conjunto]}),
-    {nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: ['13', '15'], conjuntos: []});
-  assert.deepEqual(M.limparNivel({nivel: 'municipios', base: {todos: true, estados: [], ids: []}, estados: [], conjuntos: []}),
-    {nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: [], conjuntos: []});
-  assert.deepEqual(M.limparNivel({nivel: 'estados', base: municipios, estados: ['13', '15'], conjuntos: [conjunto]}),
-    {nivel: 'estados', base: municipios, estados: [], conjuntos: [conjunto]});
-  // No nível Brasil, o país é a própria unidade; sem nada marcado no nível em uso, também não há o que limpar.
-  assert.equal(M.limparNivel({nivel: 'brasil', base: municipios, estados: ['13'], conjuntos: []}), null);
-  assert.equal(M.limparNivel({nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: ['13'], conjuntos: []}), null);
-  assert.equal(M.limparNivel({nivel: 'estados', base: municipios, estados: [], conjuntos: []}), null);
+  const vazia = {nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: [], conjuntos: []};
+  assert.deepEqual(M.limparEscolha({nivel: 'municipios', base: municipios, estados: [], conjuntos: [conjunto]}), vazia);
+  assert.deepEqual(M.limparEscolha({nivel: 'municipios', base: {todos: true, estados: [], ids: []}, estados: [], conjuntos: []}), vazia);
+  assert.deepEqual(M.limparEscolha({nivel: 'estados', base: {todos: false, estados: ['13', '15'], ids: []}, estados: ['13', '15'], conjuntos: []}), vazia);
+  assert.deepEqual(M.limparEscolha({nivel: 'brasil', base: {todos: true, estados: [], ids: []}, estados: [], conjuntos: []}), vazia);
+  // Sem nada marcado, nada a limpar.
+  assert.equal(M.limparEscolha(vazia), null);
+});
+
+test('seleção unificada (05/11/2026): equivalências completas, unidades de análise permitidas e a árvore alinhada aos pedidos', () => {
+  // Três estados de brinquedo: 13 com três municípios, 15 com dois e 35 com um; seis municípios no total.
+  const membros = {'13': ['code:130001', 'code:130002', 'code:130003'], '15': ['code:150001', 'code:150002'], '35': ['code:350001']};
+  const grupos = Object.entries(membros).map(([id, ids]) => ({id, nome: 'Estado ' + id, sigla: '', rotuloGrupo: '', unidades: ids.length}));
+  const c = {grupos, unidadesDoGrupo: g => membros[g] ?? [], grupoDe: id => id.slice(5, 7), total: 6};
+  const base = (estados = [], ids = [], todos = false) => ({todos, estados, ids});
+  // Os municípios de um estado marcados todos, um a um, viram o estado inteiro; todos os estados inteiros, o Brasil inteiro.
+  assert.deepEqual(M.normalizarArvore(base([], ['code:150001', 'code:150002', 'code:130001']), c), base(['15'], ['code:130001']));
+  assert.deepEqual(M.normalizarArvore(base(['13', '15'], ['code:350001']), c), base([], [], true));
+  // Um estado inteiro absorve os seus municípios avulsos (sem sobreposição).
+  assert.deepEqual(M.normalizarArvore(base(['13'], ['code:130002']), c), base(['13'], []));
+  // Numa planilha em que os grupos não cobrem todas as unidades, todos os grupos inteiros não viram "todos".
+  assert.deepEqual(M.normalizarArvore(base(['13', '15', '35']), {...c, total: 7}), base(['13', '15', '35']));
+  // Unidades permitidas: os estados só com estados inteiros (sem avulsos); o Brasil só com o Brasil inteiro; sem nada, os atalhos.
+  assert.deepEqual(M.unidadesPossiveis(base(['13', '15']), c), {estados: ['13', '15'], brasil: false, vazia: false});
+  assert.deepEqual(M.unidadesPossiveis(base(['13'], ['code:150001']), c), {estados: null, brasil: false, vazia: false});
+  assert.deepEqual(M.unidadesPossiveis(base([], [], true), c), {estados: ['13', '15', '35'], brasil: true, vazia: false});
+  assert.deepEqual(M.unidadesPossiveis(base(), c), {estados: null, brasil: false, vazia: true});
+  // A unidade de análise escolhida.
+  const escolha = (nivel, b, estados = []) => ({nivel, base: b, estados, conjuntos: []});
+  assert.deepEqual(M.escolhaDaUnidade(escolha('municipios', base(['13', '15'])), 'estados', c), escolha('estados', base(['13', '15']), ['13', '15']));
+  assert.equal(M.escolhaDaUnidade(escolha('municipios', base(['13'], ['code:150001'])), 'estados', c), null);
+  assert.equal(M.escolhaDaUnidade(escolha('municipios', base(['13'])), 'brasil', c), null);
+  assert.deepEqual(M.escolhaDaUnidade(escolha('municipios', base()), 'estados', c), escolha('estados', base([], [], true), ['13', '15', '35']));
+  assert.deepEqual(M.escolhaDaUnidade(escolha('municipios', base()), 'brasil', c), escolha('brasil', base([], [], true)));
+  assert.deepEqual(M.escolhaDaUnidade(escolha('estados', base(['13']), ['13']), 'municipios', c), escolha('municipios', base(['13']), ['13']));
+  // Uma mudança na árvore: a unidade continua quando ainda vale; senão, volta aos municípios.
+  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(['13', '15']), ['13', '15']), base(['13']), c), escolha('estados', base(['13']), ['13']));
+  assert.deepEqual(M.escolhaDaArvore(escolha('estados', base(['13']), ['13']), base([], ['code:130001', 'code:130002']), c),
+    escolha('municipios', base([], ['code:130001', 'code:130002']), ['13']));
+  assert.deepEqual(M.escolhaDaArvore(escolha('brasil', base([], [], true)), base(['13', '15']), c), escolha('municipios', base(['13', '15'])));
+  assert.deepEqual(M.escolhaDaArvore(escolha('brasil', base([], [], true)), base(['13', '15', '35']), c), escolha('brasil', base([], [], true)));
+  // A escolha de fora da árvore (a conversa, o Histórico): a árvore marca o que está na análise.
+  assert.deepEqual(M.unificarEscolha(escolha('estados', base(['35'], ['code:130001']), ['13', '15']), c), escolha('estados', base(['13', '15']), ['13', '15']));
+  assert.deepEqual(M.unificarEscolha(escolha('brasil', base(['13'])), c), escolha('brasil', base([], [], true)));
+  assert.deepEqual(M.unificarEscolha(escolha('municipios', base(['13', '15', '35'])), c), escolha('municipios', base([], [], true)));
+  // Os estados marcados em parte não têm total individualizado: a tela diz quais, com quantos de quantos.
+  assert.deepEqual(M.gruposParciais(base(['15'], ['code:130001']), c), [{id: '13', nome: 'Estado 13', marcadas: 1, total: 3}]);
+  assert.deepEqual(M.gruposParciais(base([], [], true), c), []);
+  // O motivo, quando a unidade não vale.
+  assert.ok(M.motivoDaUnidade('estados', BR).includes('inteiros'));
+  assert.ok(M.motivoDaUnidade('brasil', BR).includes('Brasil inteiro'));
 });
 
 // ================================================================================================ ajustes de 25/10/2026

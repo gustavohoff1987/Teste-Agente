@@ -5,8 +5,8 @@ import type {
   PainelOrdem, PainelResposta, SituacaoCondicao,
 } from "./painelApi";
 import {
-  ATRIBUTOS, MAX_CONJUNTOS, OPERADORES, ORDENS, SIMBOLOS, artigo, formatarIndicador, formatarNumero, formatarVariacao, generoDe, maiuscula,
-  numero, ordemNeutra, quantos, variacaoDe, type RotulosTerritoriais,
+  ATRIBUTOS, MAX_CONJUNTOS, OPERADORES, ORDENS, RESSALVA_DA_SOMA, SIMBOLOS, artigo, formatarIndicador, formatarNumero, formatarVariacao, generoDe,
+  maiuscula, numero, ordemNeutra, quantos, variacaoDe, type RotulosTerritoriais,
 } from "./painelModel";
 
 // Painéis laterais das funções e das opções das análises. Os valores, as posições, as contagens e as comparações vêm do motor;
@@ -218,6 +218,7 @@ export function GavetaJuntar(p: JuntarProps) {
     <p data-testid="analise-juntar-orientacao" className="text-xs leading-5 text-slate-600">Escolha {generoDe(unidade) === "f" ? "duas" : "dois"} ou mais{" "}
       {unidade.plural}: clique nas bolhas do gráfico ou marque a caixa na tabela dos Detalhes. Juntar faz uma bolha só, com a soma das
       populações e das contagens dos membros (soma das contagens dos componentes, com possível dupla contagem).</p>
+    <p data-testid="analise-juntar-ressalva" className="analise-ressalva">{RESSALVA_DA_SOMA}</p>
     {p.nivelGrupos ? <p className="text-xs text-amber-900">Na visão dos {(p.rotulos.grupo?.plural || "grupos")}, Juntar fica desligado: {p.rotulos.grupo?.plural || "grupos"} e{" "}
       {unidade.plural} nunca se somam aqui. Abra {unidade.plural} para juntar.</p> : <>
       {unidades.length ? <ul className="flex flex-wrap gap-1.5" aria-label="Escolhidos para juntar">

@@ -4,9 +4,13 @@
 > cabeçalho do resultado), 6 (a lista vertical da caixa "Abrangência territorial") e 7 (a caixa Período e os
 > motivos da análise espacial na tela) saiu do produto com as telas clássicas e fica como histórico, assim como o
 > roteiro de navegador citado na seção 9. Continuam o motor e a API (`options.abrangencia`), com os testes do
-> backend. Na página única, desde 24/10/2026, a Seleção de Territórios tem os níveis da D3, um por vez e sem somar níveis
-> (RQ-DAD-30): o Brasil como unidade (o total da fonte nacional, com a população da D4), os estados (um, vários ou todos) e os
-> municípios ([área de análise](PAINEL_INTEGRADO_INTERFACE.md)); a cobertura do roteiro que saiu está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
+> backend. Na página única, desde 24/10/2026, a Seleção de Territórios tem os níveis da D3, sem somar níveis (RQ-DAD-30): o
+> Brasil como unidade (o total da fonte nacional, com a população da D4), os estados (um, vários ou todos) e os municípios.
+> Desde 05/11/2026, a escolha é uma árvore única (o Brasil, os estados inteiros ou em parte e os municípios), e o nível vira a
+> unidade de análise, explícita: os estados como unidades só com estados inteiros, o Brasil só com o Brasil inteiro; com os
+> municípios como unidade, os totais individualizados do Brasil inteiro (fonte nacional) e de cada estado inteiro (fonte
+> estadual) aparecem ao lado ([área de análise](PAINEL_INTEGRADO_INTERFACE.md#seleção-de-territórios)); a cobertura do roteiro
+> que saiu está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
 
 Decisões do responsável pelo produto de 19/10/2026: **D3** (abrangência vertical com Brasil, estados,
 todos os municípios e municípios), **D4** (população do Brasil pela soma municipal de junho) e **D5**

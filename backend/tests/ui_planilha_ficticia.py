@@ -163,8 +163,18 @@ def main():
 
         # 3. Seleção de Territórios: os nomes da planilha, com a concordância; marcar todas calcula a Distribuição.
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar comuna ou condado")
-        expect(area.get_by_test_id("analise-marcar-todos")).to_have_text("Marcar todas as comunas (16)")
-        resposta, _ = painel(lambda: aperta(area.get_by_test_id("analise-marcar-todos")))
+        # A raiz da árvore (05/11/2026, a seleção unificada): "Toda a planilha", com a concordância dos nomes da planilha.
+        raiz = area.get_by_test_id("analise-raiz")
+        expect(raiz).to_contain_text("Toda a planilha")
+        expect(raiz).to_contain_text("todas as 16 comunas")
+        expect(area.get_by_test_id("analise-territorios-instrucao")).to_contain_text("condados inteiros ou comunas")
+
+        def marca_a_planilha():
+            caixa = area.get_by_test_id("analise-raiz-caixa")
+            caixa.scroll_into_view_if_needed()
+            caixa.focus()
+            caixa.press("Space")
+        resposta, _ = painel(marca_a_planilha)
         assert resposta["rotulos"]["unidade"] == {"singular": "comuna", "plural": "comunas", "genero": "f"}, resposta["rotulos"]
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
         guarda("selecao")

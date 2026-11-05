@@ -60,10 +60,13 @@ SUITES = {
         "descricao": "Página única com a base Brasil versionada (27 estados, 5.570 municípios, 22 competências), o mapa, "
                      "a segunda vista do gráfico, com as coordenadas da sede municipal, e a confirmação de execução dos pedidos "
                      "da conversa (05/11/2026: a base escolhida pelo pedido, os territórios selecionados, a ordenação na tela, "
-                     "as ambiguidades e o motor lento, com falha ou recusado, sem anunciar execução inexistente)",
+                     "as ambiguidades e o motor lento, com falha ou recusado, sem anunciar execução inexistente) e a "
+                     "responsividade com a seleção unificada (05/11/2026: 320 a 1.440 px, claro e escuro, toque, legendas sem "
+                     "sobreposição, dica e ritmo de variação dentro da janela e os totais individualizados)",
         "catalogo": "repositorio", "servidor": "offline",
         "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_execucao_conversa.py", {"ADT_BLOCK1_REAL": "1"})],
+                     ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_execucao_conversa.py", {"ADT_BLOCK1_REAL": "1"}),
+                     ("ui_responsivo.py", {})],
     },
     # Hospedagem (01/11/2026; Docs/implantacao/): as duas suítes rodam no job "conteiner" do CI.
     "sessao": {

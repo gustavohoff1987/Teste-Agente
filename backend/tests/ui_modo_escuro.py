@@ -223,14 +223,16 @@ def main():
         escuro(area.get_by_test_id("analise-aba-painel"), "painel da aba")
         legivel(area.get_by_test_id("analise-apresentacao").locator("p").first, "orientação da Seleção")
         escuro(territorios, "lista de territórios")
-        legivel(territorios.get_by_test_id("analise-nivel-municipios"), "nível escolhido (Municípios)")
-        legivel(territorios.get_by_test_id("analise-nivel-estados"), "nível Estados")
+        # A seleção unificada (05/11/2026): a árvore (a raiz Brasil e os estados) e, no que está na análise, a unidade de análise.
+        legivel(territorios.get_by_test_id("analise-nivel-municipios"), "unidade escolhida (Municípios)")
+        legivel(territorios.get_by_test_id("analise-nivel-estados"), "unidade Estados")
+        legivel(territorios.get_by_test_id("analise-raiz"), "raiz da árvore (Brasil)")
+        legivel(territorios.get_by_test_id("analise-territorios-instrucao"), "orientação da árvore")
         legivel(territorios.get_by_test_id("analise-busca"), "busca no alto")
         escuro(territorios.get_by_test_id("analise-selecionados"), "o que entra na análise")
         legivel(territorios.get_by_test_id("analise-selecionados-resumo"), "resumo do que entra na análise")
-        aperta(territorios.get_by_test_id("analise-nivel-estados"))
-        legivel(territorios.get_by_test_id("analise-marcar-todos"), "Marcar todos os estados")
-        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-marcar-todos")))
+        # Sem nada marcado, a unidade Estados é o atalho de todos os estados como unidades.
+        estados = respond(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
         # Desfazer e Limpar seleção (24/10/2026, segunda rodada; o Desfazer era "Voltar" até 25/10/2026): no alto da área, com fundo
         # escuro e os nomes legíveis; o aviso da mudança coletiva ("Para desfazer, use o botão Desfazer, no alto.") junto do que está
         # marcado, também legível.
@@ -256,15 +258,22 @@ def main():
 
         # 4. O Amazonas marcado na lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        aperta(territorios.get_by_test_id("analise-nivel-municipios"))
+        # Os estados como unidades marcaram o Brasil inteiro na árvore: desmarcar a raiz tira tudo (e a unidade volta aos
+        # municípios); o Amazonas entra sozinho.
+        raiz = territorios.get_by_test_id("analise-raiz-caixa")
+        expect(raiz).to_be_checked()
+        raiz.focus()
+        raiz.press("Space")
+        expect(raiz).not_to_be_checked()
+        expect(territorios.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
         linha_am = territorios.locator('[data-testid="analise-grupo"][data-id="' + AM + '"]')
         expect(linha_am).to_contain_text("Amazonas")
         escuro(territorios, "lista de territórios")
-        legivel(linha_am.get_by_test_id("analise-grupo-ver"), "Ver os municípios (link de ação)")
-        # "Voltar aos estados" (24/10/2026, segunda rodada): o botão preenchido da lista do estado, legível no escuro; ele só fecha
-        # a lista.
+        legivel(linha_am.get_by_test_id("analise-grupo-ver"), "Municípios (o botão que abre a lista do estado)")
+        legivel(linha_am.get_by_test_id("analise-grupo-contagem"), "contagem do estado")
+        # A lista do estado abre no lugar, com o botão que a fecha, legível no escuro; ele só fecha a lista.
         aperta(linha_am.get_by_test_id("analise-grupo-ver"))
-        legivel(territorios.get_by_test_id("analise-grupo-voltar"), "Voltar aos estados (preenchido)")
+        legivel(territorios.get_by_test_id("analise-grupo-voltar"), "Fechar a lista do estado")
         escuro(territorios.get_by_test_id("analise-selecionados"), "o que entra na análise, à direita")
         aperta(territorios.get_by_test_id("analise-grupo-voltar"))
         expect(linha_am.get_by_test_id("analise-grupo-todos")).to_be_visible()
@@ -288,6 +297,12 @@ def main():
         titulo = legivel(area.get_by_test_id("analise-titulo"), "título")
         assert luminancia(titulo["cor"]) > 0.6, ("o texto principal é claro", hexa(titulo["cor"]))
         legivel(area.get_by_test_id("analise-subtitulo"), "subtítulo")
+        # Os totais individualizados (05/11/2026): o Amazonas inteiro, com a contagem da fonte estadual, escuro e legível.
+        totais = area.get_by_test_id("analise-abrangencia")
+        expect(totais.get_by_test_id("analise-abrangencia-total").first).to_have_attribute("data-id", "uf:" + AM)
+        escuro(totais, "totais individualizados")
+        legivel(totais.get_by_test_id("analise-abrangencia-total").first, "total individualizado do estado")
+        legivel(totais.get_by_test_id("analise-abrangencia-nota"), "nota dos totais")
         if (area.get_by_test_id("analise-resumo").text_content() or "").strip():
             legivel(area.get_by_test_id("analise-resumo"), "frase-resumo do motor")
         # Os ajustes ficam na aba da análise (a troca de aba, sem trocar de análise, não pede nada ao motor).
