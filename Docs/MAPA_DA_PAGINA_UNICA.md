@@ -247,7 +247,7 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   quintis e quando o pedido os leva; desde 25/10/2026, as unidades do mapa (todas as em análise, também as que o gráfico deixa
   de fora), os filtros que esmaecem nele e a cor única vazada sem o valor do indicador.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
-  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção, no nível Estados, porque a base abre sem seleção),
+  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção pela unidade de análise Estados, que, sem nada marcado, marca todos; a base abre sem seleção),
   o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do
   motor sem pergunta (a mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas (desde
   24/10/2026, marcado pela caixa do estado na Seleção, porque abrir a lista de um estado só mostra a lista) com os pontos já guardados, os

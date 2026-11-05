@@ -94,7 +94,7 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 |---|---|
 | E0, antes dos dados | Desde 24/10/2026, só a identificação e a escolha dos dados, mais acima e centradas, sem números nem bolhas de exemplo: o título com o nome da plataforma, "Diagnóstico Territorial da Força de Trabalho na Saúde" (`analise-titulo`; até a segunda rodada de 24/10/2026, "… em Saúde"), "Escolha seus dados para começar" (`analise-abertura-chamada`), uma frase ("Use os dados do Brasil, já preparados, ou envie a sua planilha em CSV ou Excel.") e os botões "Usar dados do Brasil" e "Enviar meus dados". Sem as abas e sem Nova sessão, Nova análise e Histórico, que aparecem com os dados prontos. A escolha da análise antes dos dados (a "intenção") saiu. |
 | E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: a aba Seleção de Territórios aberta, com a lista; nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. Nas análises, antes da escolha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e "Abrir a Seleção de Territórios". Na Análise Espacial, desde 27/10/2026, a janela Escolha dos territórios abre também antes da escolha: sem seleção prévia, a base parte de todo o país, e só as contagens da janela são pedidas ao motor. |
-| E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção (o nível Estados: um, vários ou todos) ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
+| E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção (desde 05/11/2026, a unidade de análise Estados, com estados inteiros marcados na árvore; sem nada marcado, todos) ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
 | E2, unidades na Distribuição | As bolhas das unidades escolhidas no eixo do indicador. |
 | E3, outra família | Análise espacial, Tendência ou Rotatividade. |
 | E4, função em uso | Um painel lateral aberto (no celular, sobe da base da tela). |
@@ -215,7 +215,7 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
 - **Desfazer** (`analise-desfazer`, a seta curva do desfazer, ↶, o ícone universal do Ctrl+Z): um desfazer sequencial de toda a
   interação na área. Até 25/10/2026, chamava-se "Voltar" (`analise-voltar`), com a seta ←; o nome e a seta pareciam levar ao
   começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
-  da direita), trocar o nível, abrir a lista de um estado e "Voltar aos estados", abrir um estado pela bolha e o atalho do
+  da direita), trocar a unidade de análise, abrir e fechar a lista de um estado, abrir um estado pela bolha e o atalho do
   mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
   um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, a
   Escolha dos territórios calculada), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
@@ -993,8 +993,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 - **Navegador:** `backend/tests/ui_area_de_analise.py`, nas suítes `bloco1` (catálogo sintético) e `base-versionada`
   (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, desde 24/10/2026 sem as abas, só com a identificação, a chamada e
   as duas entradas; a base sem seleção automática (nenhum pedido, a Seleção aberta e as abas das análises com a apresentação
-  em "Entenda esta análise", recolhido desde a primeira visita e, depois, como a pessoa deixou); os níveis da Seleção (Estados
-  com "Marcar todos os estados", cada nível com a sua escolha); E1 com os estados escolhidos, a instrução e a ação na dica;
+  em "Entenda esta análise", recolhido desde a primeira visita e, depois, como a pessoa deixou); desde 05/11/2026, a Seleção
+  unificada (a unidade Estados como atalho de todos os estados, a unidade recusada com o motivo, o Brasil inteiro pela raiz com o
+  total nacional e o Amazonas como unidade); E1 com os estados escolhidos, a instrução e a ação na dica;
   desde 24/10/2026, a seleção cumulativa entre estados (abrir outro estado não muda nada nem pede ao motor), a busca no alto, o
   Brasil como unidade (só o nível no pedido, um item, a frase do motor, as funções e o mapa desligados, sem Grupos) e os estados
   escolhidos no pedido (`estados`); desde a segunda rodada de 24/10/2026, o nome da plataforma em E0; Desfazer (o "Voltar" até
@@ -1003,8 +1004,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   marcar e desmarcar, o × de um município e de um estado, abrir os municípios pela bolha, Limpar seleção, a régua, o território
   de referência, o período, a visão, Limpar filtros; cada Desfazer devolve o estado de antes, um passo por vez, com o aviso
   "Desfeito: …"); Limpar seleção sem apagar os dados (os botões de antes da Seleção, "Desfazer" e "Desfazer a limpeza", não
-  existem mais: o único `analise-desfazer` é o do alto); "Voltar aos estados" preenchido e maior, abaixo do Desfazer do alto, e
-  diferente dele (pelo estilo calculado); a Seleção em duas áreas, com o que está marcado à direita, estado a estado, e o × de
+  existem mais: o único `analise-desfazer` é o do alto); a lista de um estado aberta no lugar, com o botão que só a fecha (até
+  05/11/2026, "Voltar aos estados"); a Seleção em duas áreas, com o que está marcado à direita, estado a estado, e o × de
   cada município e de cada estado, desfeitos pelo Desfazer; as abas só com o nome (sem os apoios de antes); os ajustes dentro de cada
   análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala fora deles, na barra junto do
   desenho); a vista do desenho (o gráfico de início; nos estados e na Série temporal, o mapa desligado, com o motivo e o

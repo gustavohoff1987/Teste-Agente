@@ -195,7 +195,7 @@ recebe "Olá! O que você quer analisar? Prefere usar os dados do Brasil ou envi
 preparados, "Estou preparando os dados do Brasil. Em seguida, escolha os territórios que quer analisar."; com os dados prontos
 e sem territórios escolhidos (a base abre sem seleção automática), "Os dados estão prontos. Escolha os territórios na Seleção
 de Territórios ou me diga quais quer ver: o nome de um estado ou de municípios, ou “todos os estados”." (numa planilha, sem os
-exemplos da base do Brasil; desde 24/10/2026, também no nível Estados sem nenhum estado marcado); nos estados, "Escolha no
+exemplos da base do Brasil); nos estados, "Escolha no
 gráfico quais estados abrir, ou me diga quais municípios quer ver." (na
 planilha, com os nomes escolhidos, por exemplo "quais províncias abrir, ou … quais distritos"); e, com as unidades na tela,
 "Peça mudanças no gráfico ou pergunte sobre ele, por exemplo: “…”, “…” ou “…”.", com três exemplos do que a análise aberta
