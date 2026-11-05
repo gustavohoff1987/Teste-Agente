@@ -992,4 +992,18 @@ voltar, vale investigar o `ui_mapa.py` à parte.
   `/assets/index-Cr5slcgr.js` fica na raiz, responde 200 e traz o endereço do serviço; o HTML não cita `/Teste-Agente/`.
   A publicação do Teste-Agente e o serviço continuam respondendo 200.
 
-Ponto de retomada: "AUTORIZO M-5" (a conferência final: os dois sites no navegador, os registros e o uso).
+**M-5 (04/11/2026, "AUTORIZO M-5"), parte do agente, só leitura:**
+- **Serviço:** a revisão `00002-wgk` com 100% do tráfego.
+- **CORS:** as duas origens recebem o próprio `Access-Control-Allow-Origin`.
+- **Gemini:** 0 chamadas no dia.
+- **Registros:** nenhuma requisição desde a publicação nova, à espera da conferência da responsável nos dois sites.
+
+**Correção pedida junto com a M-5: a caixa da conversa inteira na janela com zoom de 100%.** O registro de comportamento
+(entrada de 04/11/2026) descreve a causa e a correção, e o roteiro `ui_caixa_conversa.py` a testa em sete resoluções.
+A correção fica no ramo e só chega aos dois sites numa nova publicação, que depende de autorização. Na publicação do
+destino, isso exige atualizar o `origem.txt` (M-2) e uma nova etiqueta (M-4).
+
+Ponto de retomada:
+- o CI do commit da correção;
+- a conferência da responsável nos dois sites (M-5);
+- a decisão sobre publicar a correção.

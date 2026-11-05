@@ -481,6 +481,26 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
   .painel-chat[data-ampla="true"] { width: auto; }
 }
 
+/* Caixa da conversa inteira na janela (04/11/2026). Com zoom de 100% numa janela baixa, a orientação (que não encolhia: o
+   mínimo de um item flex é o próprio conteúdo) e o histórico (220 px fixos) somados ao campo de envio passavam da altura da
+   caixa, e o corpo, sem rolagem, cortava o campo de envio. Agora a caixa nunca passa da altura da janela, a orientação encolhe
+   com rolagem própria, o histórico tem um mínimo proporcional à janela e rola por dentro, e o campo de envio não encolhe. */
+.painel-chat { max-height:min(84dvh, 800px, calc(100dvh - 16px)); }
+.painel-chat-corpo:not([hidden]) { flex:1 1 auto; min-height:0; }
+.painel-chat [data-testid="painel-chat-guia"] { flex:0 1 auto; min-height:3rem; overflow-y:auto; overscroll-behavior:contain; }
+.chat-historico-moldura { flex:1 1 auto; min-height:clamp(96px, 28dvh, 220px); }
+@media (max-width:639px) {
+  .painel-chat { max-height:min(80dvh, calc(100dvh - 16px)); }
+  .chat-historico-moldura { min-height:clamp(88px, 22dvh, 160px); }
+}
+/* Janelas baixas no computador (como 1366 × 768 ou 1280 × 720 com zoom de 100%): cabeçalho e campo de envio mais enxutos, sem
+   tirar nada da caixa. */
+@media (min-width:640px) and (max-height:760px) {
+  .painel-chat-cabecalho { padding-top:5px; padding-bottom:5px; }
+  .painel-chat .conversation-composer { padding:8px 12px; }
+  .painel-chat .conversation-composer textarea { min-height:44px; padding-top:10px; padding-bottom:6px; }
+}
+
 /* Estados da conexão (01/11/2026; conexao.ts e AvisoDaConexao.tsx): indisponível (A), iniciando (B), ocupado (C) e
    restabelecida (G). As cores vêm dos tons do esquema claro e do escuro. */
 .conexao { margin: 8px 16px 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }

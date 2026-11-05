@@ -126,6 +126,13 @@ contexto da sessão muda com a fonte em uso.
 
 A conversa fica na caixa flutuante com o rosto do agente, sempre na página: arrastável pelo cabeçalho (mouse, toque e
 teclado: setas, Shift acelera e Home volta ao canto), minimizável e sempre dentro da janela; no celular, ancorada embaixo.
+Desde 04/11/2026, a caixa cabe inteira na janela em qualquer altura, com zoom de 100%:
+- ela nunca passa da altura da janela;
+- a orientação e o histórico rolam por dentro, com mínimos proporcionais à janela;
+- o campo de envio não encolhe e fica sempre à vista;
+- quando ela cresce com mensagens ou avisos, volta para dentro da janela sozinha;
+- em janelas baixas no computador, o cabeçalho e o campo de envio ficam mais enxutos.
+Antes, numa janela baixa a 100% de zoom (como 1366 × 768), o rodapé com o campo de envio ficava cortado. A 90%, cabia.
 Ela mantém os identificadores de sempre (`#assistente`, `#assistant-input`, `latest-reply`, agora na última resposta do
 histórico).
 

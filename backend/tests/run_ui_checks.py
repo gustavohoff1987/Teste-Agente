@@ -45,10 +45,11 @@ SUITES = {
         "descricao": "Página única com catálogo sintético: abertura, estados, Histórico, Nova análise, planilha enviada, "
                      "celular, a área de análise (famílias, territórios em lista, funções e detalhes), o modo escuro "
                      "(o navegador no escuro; a impressão clara) e uma planilha fictícia feita do modelo (os nomes dela "
-                     "em todos os lugares, sem município, estado nem Brasil)",
+                     "em todos os lugares, sem município, estado nem Brasil) e a caixa da conversa inteira na janela com zoom "
+                     "de 100%, em várias resoluções",
         "catalogo": "bloco1", "servidor": "offline",
         "roteiros": [("ui_pagina_unica.py", {}), ("ui_area_de_analise.py", {}), ("ui_modo_escuro.py", {}),
-                     ("ui_planilha_ficticia.py", {})],
+                     ("ui_planilha_ficticia.py", {}), ("ui_caixa_conversa.py", {})],
     },
     "gemini-simulado": {
         "descricao": "Conversa agindo no gráfico com um transporte Gemini simulado: ambiguidade em botões e nada da base ao provedor",

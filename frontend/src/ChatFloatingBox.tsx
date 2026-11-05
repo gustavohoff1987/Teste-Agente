@@ -7,7 +7,9 @@ import { useNarrow } from "./useNarrow";
 // direito, arrastável pelo cabeçalho (pointer events) e pelo teclado (setas com o cabeçalho focado; Shift acelera; Home volta
 // ao canto), minimizável e sempre dentro da janela. Na abertura, antes dos dados, ela fica aberta e mais larga ("ampla"); depois,
 // compacta. A posição fica no localStorage, sempre com try/catch (sem armazenamento, vale só nesta tela). No celular, a caixa
-// fica ancorada embaixo. A conversa mantém o id "assistente".
+// fica ancorada embaixo. A conversa mantém o id "assistente". Desde 04/11/2026, a caixa inteira cabe na janela em qualquer
+// altura: ela nunca passa da altura da janela, o histórico e a orientação rolam por dentro e o campo de envio fica sempre à
+// vista (styles.css, "Caixa da conversa inteira na janela").
 
 const CHAVE = "adt:painel-chat:v1";
 const PASSO = 16, PASSO_LONGO = 64;
@@ -61,6 +63,19 @@ export default function ChatFloatingBox({ children, ocupado = false, ampla = fal
     const ajustar = () => setPosicao(atual => atual ? prender(atual.x, atual.y) : atual);
     window.addEventListener("resize", ajustar);
     return () => window.removeEventListener("resize", ajustar);
+  }, [prender]);
+  // A caixa também cresce sozinha (mensagens novas, avisos, a orientação): a posição volta para dentro da janela sempre que o
+  // tamanho dela muda (04/11/2026; antes, só ao abrir, minimizar, trocar de largura ou redimensionar a janela).
+  useEffect(() => {
+    const alvo = caixa.current;
+    if (!alvo || typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(() => setPosicao(atual => {
+      if (!atual) return atual;
+      const presa = prender(atual.x, atual.y);
+      return presa.x === atual.x && presa.y === atual.y ? atual : presa;
+    }));
+    observador.observe(alvo);
+    return () => observador.disconnect();
   }, [prender]);
   useEffect(() => {
     const timer = window.setTimeout(() => gravar({ x: posicao?.x ?? null, y: posicao?.y ?? null, minimizada }), 150);

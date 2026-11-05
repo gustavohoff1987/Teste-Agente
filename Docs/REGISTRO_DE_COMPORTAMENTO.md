@@ -35,6 +35,38 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-04 · Caixa da conversa: inteira na janela com zoom de 100%, com o campo de envio sempre à vista
+- **Classificação (regra 1), pela leitura, antes de codar:** é uma mudança no que se vê na tela, pedida pelo responsável
+  ("o painel deve caber integralmente na janela, com campo de envio sempre acessível, rolagem interna e posicionamento
+  adaptativo"), dentro do escopo. A SPEC não fixa o tamanho da caixa, e nenhuma divergência aprovada trata dele
+  (compatibilidade). Mudança prevista.
+- **Antes:** a caixa tinha até `min(84dvh, 800px)` de altura. A orientação não encolhia (o mínimo de um item flex é o próprio
+  conteúdo), e o histórico tinha 220 px de mínimo. Numa janela baixa com zoom de 100% (como 1366 × 768), a soma passava da
+  altura da caixa, e o corpo, sem rolagem, cortava o rodapé com o campo de envio. A 90%, cabia. A posição guardada só
+  voltava para dentro da janela ao abrir, minimizar, trocar de largura ou redimensionar a janela.
+- **Agora:**
+  - a caixa nunca passa de `calc(100dvh - 16px)`;
+  - a orientação encolhe com rolagem própria;
+  - o histórico tem um mínimo proporcional à janela (`clamp(96px, 28dvh, 220px)`; no celular, `clamp(88px, 22dvh, 160px)`)
+    e rola por dentro;
+  - o campo de envio não encolhe;
+  - em janelas baixas no computador (até 760 px de altura), o cabeçalho e o campo de envio ficam mais enxutos;
+  - um `ResizeObserver` traz a caixa para dentro da janela sempre que o tamanho dela muda.
+- **Permanece:**
+  - arrastar pelo cabeçalho (mouse, toque e teclado; Shift acelera; Home volta ao canto);
+  - minimizar e a posição guardada;
+  - a caixa ampla na abertura e a largura;
+  - no celular, a caixa ancorada embaixo;
+  - o conteúdo: a orientação, as duas entradas dos dados, o histórico, as alternativas, o campo de envio e a privacidade da
+    conversa;
+  - os identificadores (`#assistente`, `#assistant-input`, `latest-reply`).
+- **Motivo:** o relato do responsável (o painel cortado a 100% e correto a 90%).
+- **Documentação e testes:** `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (Conversa) e `README.md`. O roteiro novo
+  `ui_caixa_conversa.py`, da suíte `bloco1`, roda com zoom de 100% (`device_scale_factor` 1) em 1366 × 768, 1280 × 720,
+  1280 × 600, 1024 × 768, 1440 × 900, 1920 × 1080 e 390 × 844. Em cada uma, ele confere: a caixa inteira na janela; o campo
+  de envio e o botão de enviar inteiros e sem nada por cima; a rolagem interna do histórico; o arraste até além dos quatro
+  cantos; minimizar e abrir; a janela encolhendo; e Home.
+
 ### 2026-11-04 · Hospedagem: o CORS do serviço passa a aceitar também https://diagnostico-territorial.github.io
 - **Classificação (regra 1), pela leitura, antes de mudar:** o navegador numa página daquela origem passa a poder chamar
   o serviço, o que muda o que um consumidor da API observa. A mudança decorre do pedido do responsável de publicar a
