@@ -1097,6 +1097,57 @@ endereço novo responde 200 com o script `index-Cy040QSP.js`, e o antigo, 404. O
 - **Preservados:** nenhuma configuração do Google Cloud, recurso financeiro ou credencial foi alterado. A API de orçamentos segue
   desligada, conferida depois da execução.
 
-Ponto de retomada: a publicação do `cb1f301` fica parada até a responsável conferir no Console os dois itens MANUAL. Depois, a
-D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua autorização. A conferência da
-responsável no endereço novo (V) também fica registrada quando ela a informar.
+**Publicação controlada do `cb1f301` (05 e 06/11/2026, "AUTORIZO a publicação controlada do commit cb1f301"): primeiro o backend,
+depois o endereço novo.**
+
+- **O commit:** o `cb1f301` traz a Seleção de Territórios unificada, a unidade de análise explícita, os totais individualizados com
+  a ressalva das somas e os ajustes da interface. O CI dele passou nos 8 jobs (execução 42125703054). Desde o `55f42b6`, no backend
+  só mudou o `backend/painel.py`, que acrescenta `brasil_completo` e `estados` ao `contexto`. A SPEC, os dados, o Dockerfile, as
+  dependências da imagem, os workflows, o `.github/scripts`, o modelo do destino e o `scripts/implantacao` não mudaram.
+- **Tentativa interrompida:** uma sessão na nuvem parou na F2-0, com 7 falhas, todas de autenticação, porque lá o gcloud não está
+  autenticado (P-1); nada foi criado nem mudado. Neste computador, a F2-0 travou como descrito no bloco anterior, e a correção foi
+  para o `e8f0427` (CI em sucesso nos 8 jobs, execução 42145671984). Esse commit não entra na imagem nem na interface: a publicação
+  seguiu fixada no `cb1f301`, por SHA.
+- **Antes da imagem:**
+  - a F2-0, com o script do `e8f0427`, deu 0 falhas e 2 itens MANUAL, e a conferência dos dois no Console (P-2) foi confirmada antes
+    de a imagem ser construída: os valores estão como o previsto;
+  - a conferência pública do serviço deu 12 OK e 2 falhas, ambas previstas: são as dos campos novos do `cb1f301`.
+- **Imagem:** a etiqueta `imagem-20261105-2` no `cb1f301` acionou a execução 42151388466 do `imagem.yml`. A conferência do ambiente
+  `producao` passou, e a aprovação registrada é de `gustavohoff1987`. O job construiu a imagem, passou no teste rápido do contêiner
+  e a enviou pela federação: `sha256:4ac2726d6541c4913967c53656858112634c02f397d82475a73d3719ce66ec92`.
+- **Cloud Run:**
+  - a F2-0 de novo, sem falhas, com os mesmos 2 itens MANUAL;
+  - `gcloud run services update ... --image=...@sha256:4ac2726d…` gerou a revisão `agente-diagnostico-territorial-00004-wr4`, com
+    100% do tráfego;
+  - a configuração antes e depois só difere na imagem e no marcador interno do gcloud (`client.knative.dev/nonce`): limites,
+    variáveis (as duas origens do CORS), segredo `gemini-api-key:1`, conta, sonda e acesso público iguais;
+  - etiquetas: `em-uso` no digest novo e `anterior` no `0b5bd9a6…`, o da revisão `00003-dk5`;
+  - armazenamento: 3 versões e 262,8 MB, abaixo da franquia de 0,5 GB, porque as versões compartilham camadas. A F2-13 segue adiada.
+- **Testes do serviço** (`conferir_servico_cb1f301.py`, só leitura): 14 OK e 0 falhas.
+  - a saúde responde 200; `/docs` e `/openapi.json` respondem 404;
+  - o CORS e a pré-verificação funcionam para as duas origens, e uma origem estranha não recebe o cabeçalho;
+  - o exame da base, na versão `c4d82eeee4e4`, e o gráfico dos estados, com 27 itens, respondem 200;
+  - novo: o Amazonas inteiro dá 62 municípios e o total da fonte estadual, 5.990, igual ao do nível estados
+    (`UF-CONTAGEM-ESTADUAL-1`);
+  - novo: o Brasil inteiro dá o total nacional, 502.495, que não é a soma dos municípios (817.419);
+  - nenhuma chamada ao Gemini.
+- **Endereço novo:**
+  - o commit `79db003` do destino passou o `origem.txt` para `cb1f301`; os scripts e o workflow do destino seguem idênticos aos
+    desse commit, conferidos pelos identificadores dos objetos;
+  - a etiqueta `publicacao-pages-20261106-1` acionou a execução 42197254484; as conferências e o build passaram, e a publicação
+    terminou às 10:08 UTC. Conferido pela API: a aprovação registrada é de `gustavohoff1987`, no ambiente `github-pages` do
+    destino; os jobs `conferir`, `build` e `publicar` passaram;
+  - a página responde 200, com o título oficial, e o script `index-Dbf5AvC8.js` traz o endereço do serviço e os textos novos do
+    `cb1f301`.
+- **Preservados:** o endereço antigo segue em 404, sem nenhuma publicação lá; não houve merge no `main` do Teste-Agente nem mudança
+  na SPEC; a API de orçamentos segue desligada, entre as mesmas 32 APIs ligadas, conferida depois da publicação.
+- **Reversão:**
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00003-dk5=100`, com a etiqueta `em-uso` de volta ao
+    `0b5bd9a6…` e `anterior` no digest novo. Com a interface nova no ar, a única perda é o quadro de totais;
+  - interface: o `origem.txt` do destino de volta a `55f42b6` e uma etiqueta nova. O backend novo segue compatível com a interface
+    antiga.
+
+Ponto de retomada: a publicação do `cb1f301` está concluída. Faltam a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no
+Teste-Agente), cada uma com a sua autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a
+informar.
