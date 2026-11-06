@@ -1076,5 +1076,27 @@ responsável, porque esse endereço será despublicado depois da validação do 
 endereço novo responde 200 com o script `index-Cy040QSP.js`, e o antigo, 404. O CI do registro (`aa0f4e5`) passou nos
 8 jobs (execução 42013938980).
 
-Ponto de retomada: a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua
-autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a informar.
+**F2-0 interrompida e corrigida (05/11/2026), na preparação da publicação do `cb1f301`.** A verificação parou com
+`subprocess.TimeoutExpired` em `gcloud billing budgets list`, após 120 s. A correção foi só no script; nada foi publicado.
+
+- **Causa do travamento:** a API de orçamentos (`billingbudgets.googleapis.com`) está desligada no projeto. Nesse caso, o gcloud
+  pergunta se deve habilitá-la e fica parado esperando a resposta. As execuções anteriores evitavam isso passando
+  `CLOUDSDK_CORE_DISABLE_PROMPTS=1` de fora (F2-0 de 02/11/2026), e o script não o fazia sozinho. A conclusão vem do código do
+  SDK e da resposta em 3,3 s com as perguntas desligadas; a pergunta não foi reproduzida, para não chegar perto do caminho que
+  habilita a API.
+- **O limite não valia no Windows:** o `subprocess.run(timeout=...)` encerra o `cmd.exe` do `gcloud.cmd`, mas continua esperando o
+  Python aberto por ele, que segura os canais de saída. Medido com um `.cmd` de teste: limite de 2 s, retorno aos 12,1 s. Com a
+  correção, 2,2 s, e o Python encerrado junto.
+- **Correção:** o gcloud roda sem entrada e sem a oferta de habilitar APIs, com limite real de 30 s nos orçamentos e 120 s nas
+  demais consultas. O `TimeoutExpired` não encerra mais o script. Orçamentos sem resposta ficam MANUAL. As demais verificações
+  obrigatórias que não se concluem são FALHA; as listagens de contas de serviço e de pools de identidade passavam caladas quando
+  falhavam, e uma lista de APIs vazia passava por "API desligada". O script sai com 2 quando, sem falhas, resta item MANUAL.
+- **F2-0 de novo (29 s):** 0 falhas e 2 itens MANUAL: o orçamento de alertas (a API desligada) e a trava de R$ 11. Conta, projeto,
+  região, faturamento, os limites do serviço e os recursos estão como previsto: 32 APIs ligadas, sem o Cloud Build e sem o
+  Container Scanning, 1 serviço, 1 repositório, 3 contas de serviço, 1 segredo e 1 pool.
+- **Preservados:** nenhuma configuração do Google Cloud, recurso financeiro ou credencial foi alterado. A API de orçamentos segue
+  desligada, conferida depois da execução.
+
+Ponto de retomada: a publicação do `cb1f301` fica parada até a responsável conferir no Console os dois itens MANUAL. Depois, a
+D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no Teste-Agente), cada uma com a sua autorização. A conferência da
+responsável no endereço novo (V) também fica registrada quando ela a informar.

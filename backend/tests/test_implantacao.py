@@ -5,11 +5,15 @@
 - a validação real pelo contêiner: sem o segredo, nenhum pedido; o teto rígido de chamadas; um 429 real encerra; as mensagens
   espaçadas; o resumo nas anotações da execução, sem textos e sem o padrão de chave (desde 02/11/2026);
 - o padrão de chave do Google: achado por arquivo e contagem, nunca mostrado;
-- os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual.
+- os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual;
+- a verificação prévia (F2-0): só leitura, e ausência de resposta nunca vale como aprovação (desde 05/11/2026): o gcloud roda
+  sem entrada, sem perguntas e com limite de tempo real, os orçamentos sem resposta ficam MANUAL e as demais consultas, FALHA.
 """
 import importlib.util
 import json
 import re
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -526,3 +530,96 @@ def test_verificacao_previa_aponta_projeto_recursos_e_limites_fora_do_previsto()
     falhas = {nome for situacao, nome, _ in itens if situacao == "FALHA"}
     assert {"projeto ativo", "região", "orçamento de alertas de R$ 11", "serviço: máximo de instâncias", "serviço: memória"} <= falhas
     assert any(situacao == "ATENÇÃO" and "cloudbuild" in detalhe for situacao, _, detalhe in itens)
+
+
+# Cada consulta obrigatória e o item que ela reprova quando não se conclui. Em 05/11/2026, a F2-0 parou num TimeoutExpired, e as
+# listagens de contas de serviço e de pools de identidade passavam caladas quando falhavam.
+OBRIGATORIAS = {("auth", "list"): "conta autenticada", ("config", "get-value"): "projeto ativo",
+                ("billing", "projects"): "conta de faturamento", ("services", "list"): "APIs habilitadas",
+                ("run", "services"): "serviços do Cloud Run", ("artifacts", "repositories"): "repositórios do Artifact Registry",
+                ("iam", "service-accounts"): "contas de serviço", ("secrets", "list"): "segredos",
+                ("iam", "workload-identity-pools"): "pools de identidade"}
+
+
+@pytest.mark.parametrize("resposta", [(previa.SEM_RESPOSTA, "sem resposta em 120 s"), (1, "ERROR: permission denied")])
+@pytest.mark.parametrize("consulta", OBRIGATORIAS)
+def test_verificacao_previa_consulta_obrigatoria_nao_concluida_e_falha(consulta, resposta):
+    simulado = gcloud_simulado(extras=("artifactregistry.googleapis.com", "secretmanager.googleapis.com"))
+
+    def rodar(*args):
+        return resposta if args[:2] == consulta else simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    linhas = [(situacao, detalhe) for situacao, nome, detalhe in itens if nome == OBRIGATORIAS[consulta]]
+    assert len(linhas) == 1 and linhas[0][0] == "FALHA" and resposta[1] in linhas[0][1], itens
+
+
+@pytest.mark.parametrize("resposta", [(previa.SEM_RESPOSTA, "sem resposta em 30 s"), (1, "ERROR: API desligada")])
+def test_verificacao_previa_orcamentos_sem_resposta_ficam_manuais_e_nao_aprovam(resposta, monkeypatch, capsys):
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        return resposta if args[:2] == ("billing", "budgets") else simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    assert not [i for i in itens if i[0] == "FALHA"], itens
+    situacao, detalhe = next((s, d) for s, n, d in itens if n == "orçamento de alertas de R$ 11")
+    assert situacao == "MANUAL" and resposta[1] in detalhe and "Console" in detalhe
+    monkeypatch.setattr(previa, "gcloud", rodar)
+    assert previa.main([]) == 2  # conferência manual pendente não é sucesso
+    assert "Sem aprovação: nada segue" in capsys.readouterr().out
+
+
+def test_verificacao_previa_falha_sai_com_1(monkeypatch, capsys):
+    monkeypatch.setattr(previa, "gcloud", gcloud_simulado(projeto="outro"))
+    assert previa.main([]) == 1
+    assert "Nada segue até corrigir" in capsys.readouterr().out
+
+
+def test_verificacao_previa_faturamento_sem_resposta_nao_afirma_que_nao_ha_vinculo():
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        return (previa.SEM_RESPOSTA, "sem resposta em 120 s") if args[:2] == ("billing", "projects") else simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    assert not any("sem faturamento vinculado" in detalhe for _, _, detalhe in itens), itens
+    assert ("MANUAL", "orçamento de alertas de R$ 11") in {(s, n) for s, n, _ in itens}  # o item não some do resultado
+
+
+def test_verificacao_previa_lista_de_apis_vazia_nao_passa_por_apis_desligadas():
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        return (0, "") if args[:2] == ("services", "list") else simulado(*args)
+    itens = previa.verificar(rodar, "agente-diagnostico-territorial", "us-central1")
+    assert ("FALHA", "APIs habilitadas") in {(s, n) for s, n, _ in itens}
+    assert not any("desligada" in detalhe for _, _, detalhe in itens), itens
+
+
+def test_verificacao_previa_o_limite_de_tempo_vale_com_um_processo_neto():
+    """Como o gcloud.cmd no Windows: o neto herda os canais de saída e sobrevive ao kill do filho. Medido em 05/11/2026, com
+    `subprocess.run(timeout=2)` a exceção só veio aos 12 s, quando o neto terminou."""
+    neto = "import time; time.sleep(60)"
+    filho = f"import subprocess, sys; subprocess.run([sys.executable, '-c', {neto!r}])"
+    inicio = time.monotonic()
+    assert previa.executar([sys.executable, "-c", filho], 1) == (previa.SEM_RESPOSTA, "sem resposta em 1 s")
+    assert time.monotonic() - inicio < 30
+
+
+def test_verificacao_previa_gcloud_sem_entrada_sem_perguntas_e_com_o_limite_de_cada_consulta(monkeypatch):
+    """Com a API de orçamentos desligada, o gcloud pergunta se deve habilitá-la: nem a pergunta nem a resposta podem existir."""
+    leitura = ("import os, sys; print(os.environ['CLOUDSDK_CORE_DISABLE_PROMPTS'], "
+               "os.environ['CLOUDSDK_CORE_SHOULD_PROMPT_TO_ENABLE_API'], repr(sys.stdin.read()))")
+    assert previa.executar([sys.executable, "-c", leitura], 30) == (0, "1 false ''\n")
+    limites = {}
+
+    def executar(comando, limite):
+        limites[tuple(comando[1:3])] = limite
+        return 0, ""
+    monkeypatch.setattr(previa, "executar", executar)
+    previa.gcloud("billing", "budgets", "list")
+    previa.gcloud("billing", "projects", "describe", "p")
+    assert limites == {("billing", "budgets"): 30, ("billing", "projects"): 120}
+
+
+def test_verificacao_previa_gcloud_ausente_nao_derruba_o_script():
+    codigo, motivo = previa.executar([str(ROOT / "nao-existe" / "gcloud")], 1)
+    assert codigo == previa.SEM_RESPOSTA and "não pôde ser executado" in motivo

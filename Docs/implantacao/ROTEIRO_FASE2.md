@@ -53,12 +53,24 @@ Console).
 python scripts/implantacao/verificacao_previa.py --projeto agente-diagnostico-territorial --regiao us-central1
 ```
 
-O script só lê (gcloud `list`/`describe`) e mostra OK, ATENÇÃO ou MANUAL para: conta autenticada, projeto e região, conta de
-faturamento, orçamento só de alertas de R$ 11 com 25/50/75/100%, trava de R$ 11 do Cloud Run (MANUAL: a CLI não a expõe; P-2),
+O script só lê (gcloud `list`/`describe`) e mostra OK, ATENÇÃO, FALHA ou MANUAL para: conta autenticada, projeto e região, conta
+de faturamento, orçamento só de alertas de R$ 11 com 25/50/75/100%, trava de R$ 11 do Cloud Run (MANUAL: a CLI não a expõe; P-2),
 APIs habilitadas e recursos não previstos (serviços, repositórios, contas de serviço, segredos, pools de identidade) e, se o
 serviço já existir, mínimo 0, máximo 1, 1 vCPU, 2 GiB, cobrança por requisição, sem aumento de CPU na partida, concorrência e
 timeout. Qualquer resultado fora do previsto interrompe a implantação até o responsável decidir. **Efeito:** nenhum. **Custo:**
 nenhum. **Desfazer:** nada a desfazer. É obrigatória antes de qualquer implantação (F2-6) e de cada atualização.
+
+**Sem resposta não é aprovação (desde 05/11/2026).**
+- **Sem perguntas:** o script chama o gcloud sem entrada e com a oferta de habilitar APIs desligada. Assim, o gcloud nunca para
+  esperando uma resposta nem habilita nada.
+- **Limite de tempo real:** 30 s na consulta de orçamentos e 120 s nas demais. Ao estourar, o script encerra também o Python
+  aberto pelo `gcloud.cmd` no Windows, e a verificação continua nos itens seguintes.
+- **Orçamentos:** a consulta que falha ou não responde fica MANUAL, com a conferência obrigatória no Console (P-2). Hoje é sempre
+  esse o resultado, porque a API de orçamentos (`billingbudgets.googleapis.com`) está desligada no projeto; ela não deve ser
+  habilitada só para isso.
+- **Demais verificações obrigatórias:** a que não se conclui é FALHA, inclusive as contas de serviço e os pools de identidade.
+- **Saída:** 1 se houver falha e 2 se, sem falhas, restar item MANUAL. A trava é sempre MANUAL, então a saída 0 não ocorre: toda
+  F2-0 termina na conferência do responsável, e nada segue antes dela.
 
 ## F2-1 — Habilitar as APIs necessárias
 

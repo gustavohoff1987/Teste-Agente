@@ -35,6 +35,32 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-05 · A verificação prévia (F2-0) sem travar e sem tomar a falta de resposta por aprovação
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 05/11/2026, depois de a F2-0 parar num
+  `subprocess.TimeoutExpired`. O script é uma ferramenta de implantação, fora do produto; muda mensagens e validações que o
+  responsável lê, então foi tratado como mudança (na dúvida, a regra manda assim). Mudança prevista: *escopo:* decorre do pedido;
+  *compatibilidade:* a SPEC não trata de implantação, e nenhuma divergência aprovada é contrariada.
+- **Antes:** `scripts/implantacao/verificacao_previa.py` encerrava com a exceção quando uma consulta estourava o tempo. Com a API de
+  orçamentos desligada e sem `CLOUDSDK_CORE_DISABLE_PROMPTS=1`, o gcloud ficava parado perguntando se devia habilitá-la. No
+  Windows, o limite de 120 s não era real: o `subprocess.run` esperava o Python aberto pelo `gcloud.cmd`. A falha das listagens de
+  contas de serviço e de pools de identidade passava calada, a falta de resposta do faturamento aparecia como "sem faturamento
+  vinculado", uma lista de APIs vazia passava por "API desligada", e o script saía com 0 mesmo com itens MANUAL pendentes.
+- **Agora:**
+  - o gcloud roda sem entrada e sem a oferta de habilitar APIs, com limite real de 30 s nos orçamentos e 120 s nas demais consultas,
+    que encerra também o Python aberto pelo `gcloud.cmd`; o estouro do limite não encerra o script;
+  - a consulta de orçamentos que falha ou não responde fica MANUAL, com a conferência no Console; sem a conta de faturamento, o
+    item aparece como MANUAL em vez de sumir;
+  - qualquer outra verificação obrigatória que não se conclui é FALHA, com o motivo no detalhe;
+  - cada listagem concluída aparece com OK, para que o silêncio não pareça aprovação;
+  - a saída é 1 com falha e 2 quando, sem falhas, resta item MANUAL, com a mensagem de que nada segue sem a conferência. A trava é
+    sempre MANUAL, então a saída 0 não ocorre.
+- **Permanece:** o script só lê. Nenhuma API foi habilitada e nenhuma configuração do Google Cloud, recurso financeiro ou credencial
+  foi alterado. Com a API do Cloud Run, do Artifact Registry ou do Secret Manager desligada, o item segue dizendo isso; um orçamento
+  lido e fora do previsto segue FALHA; a trava segue MANUAL. O limite de 120 s das demais consultas é o de antes.
+- **Motivo:** ausência de resposta não pode valer como aprovação de uma verificação obrigatória.
+- **Documentação e testes:** `Docs/implantacao/ROTEIRO_FASE2.md` (F2-0) e `Docs/implantacao/RELATORIO_IMPLANTACAO.md` (seção O);
+  testes novos em `backend/tests/test_implantacao.py`, sem alterar os que existiam.
+
 ### 2026-11-05 · Seleção de Territórios unificada (árvore com o Brasil, estados e municípios), unidade de análise explícita, totais individualizados das fontes nacional e estadual e a ressalva das somas
 - **Classificação (regra 1), pela leitura, antes de codar:** comando integrado do responsável de 05/11/2026 (itens 6, 7 e 8: a
   seleção territorial unificada, a visualização municipal nas abrangências nacional e estadual, as contagens individualizadas e a
