@@ -637,7 +637,11 @@ def main():
         busca.fill("130420")
         _, sent = ok(lambda: marca(territorios.locator('[data-testid="analise-busca-item"][data-id="' + TEFE + '"] input')))
         assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [TEFE]}}, sent
-        drawn([TEFE])
+        # Com um município só (06/11/2026, item 3.4 do comando), a Distribuição mostra o cartão do território no lugar de um gráfico
+        # de uma bolha só, e a trilha termina nele ("Brasil › Amazonas › TEFE (AM)").
+        expect(area.get_by_test_id("analise-cartao-no-lugar")).to_have_count(1, timeout=30000)
+        expect(area.locator('[data-testid="analise-bolha"]')).to_have_count(0)
+        expect(trilha.get_by_test_id("analise-trilha-parte")).to_have_text(["Brasil", "Amazonas", nomes_am[TEFE]])
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text(nomes_am[TEFE])
         expect(grupo_am_direita).to_contain_text("1 de " + str(total_am))
         expect(grupo_am_direita.get_by_test_id("analise-selecionado-unidade")).to_have_count(1)
