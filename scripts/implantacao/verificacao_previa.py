@@ -15,6 +15,9 @@ habilitar uma API) e com limite de tempo real: 30 s na consulta de orçamentos, 
 falha ou não responde fica MANUAL, com a conferência obrigatória no Console; qualquer outra verificação obrigatória que não se
 conclua é FALHA, inclusive as contas de serviço e os pools de identidade, que antes passavam calados.
 
+Desde 06/11/2026, a saída é sempre em UTF-8, no console ou redirecionada, e nenhum caractere encerra o script. Redirecionada no
+Windows, ela começa com a marca BOM, para o PowerShell 5.1 manter a seta e os acentos.
+
 Uso: python scripts/implantacao/verificacao_previa.py [--projeto agente-diagnostico-territorial] [--regiao us-central1]
 Sai com 1 se alguma verificação falhar e com 2 se, sem falhas, restar conferência manual: nos dois casos, nada segue.
 """
@@ -214,7 +217,15 @@ def verificar(rodar, projeto: str, regiao: str) -> list[tuple[str, str, str]]:
     return itens
 
 
+def preparar_saida() -> None:
+    """Redirecionada no Windows, a saída usaria o cp1252, que não tem a seta do item da trava: o script cairia no print, no meio da
+    tabela. Só nesse caso ela leva a marca BOM: sem a marca, o PowerShell 5.1 relê o texto no cp850 e troca a seta e os acentos."""
+    com_marca = os.name == "nt" and not sys.stdout.isatty()
+    sys.stdout.reconfigure(encoding="utf-8-sig" if com_marca else "utf-8", errors="replace")
+
+
 def main(argv=None) -> int:
+    preparar_saida()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--projeto", default="agente-diagnostico-territorial")
     parser.add_argument("--regiao", default="us-central1")

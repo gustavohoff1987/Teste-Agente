@@ -1148,6 +1148,12 @@ depois o endereço novo.**
   - interface: o `origem.txt` do destino de volta a `55f42b6` e uma etiqueta nova. O backend novo segue compatível com a interface
     antiga.
 
+**Saída da F2-0 redirecionada no Windows (06/11/2026).** Redirecionada, a F2-0 caía com `UnicodeEncodeError` na seta do item da
+trava, porque o Python escrevia em cp1252: 5 das 20 linhas, sem o resumo e com a saída 1. A saída agora é sempre em UTF-8 e,
+redirecionada no Windows, começa com a marca BOM, que mantém a seta e os acentos no PowerShell 5.1. Conferido com a F2-0 real, só
+leitura, no console, no `cmd.exe`, no PowerShell 5.1 com o console em cp850 e no Git Bash: as 20 linhas e a saída 2 em todos. Nada
+foi publicado, e nada mudou no Google Cloud.
+
 Ponto de retomada: a publicação do `cb1f301` está concluída. Faltam a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no
 Teste-Agente), cada uma com a sua autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a
 informar.

@@ -42,6 +42,8 @@ abertas antes da instalação: `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk
 - O agente executa os comandos pelo PowerShell (`& $G ...`), com `CLOUDSDK_CORE_DISABLE_PROMPTS=1`.
 - Os trechos em Python vão em arquivos, porque o PowerShell perde as aspas de scripts passados em linha.
 - A saída JSON do PowerShell traz BOM: ler com `utf-8-sig`, ou filtrar pelo próprio `--format` do gcloud.
+- A F2-0 escreve sempre em UTF-8 (desde 06/11/2026) e não cai por causa de nenhum caractere. Redirecionada, a saída começa com a
+  marca BOM: sem ela, o PowerShell 5.1 relê o texto na página do console (cp850) e troca a seta e os acentos.
 - Os arquivos temporários ficam fora do repositório.
 
 ## F2-0 — Verificação prévia (só leitura)

@@ -7,13 +7,20 @@
 - o padrão de chave do Google: achado por arquivo e contagem, nunca mostrado;
 - os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual;
 - a verificação prévia (F2-0): só leitura, e ausência de resposta nunca vale como aprovação (desde 05/11/2026): o gcloud roda
-  sem entrada, sem perguntas e com limite de tempo real, os orçamentos sem resposta ficam MANUAL e as demais consultas, FALHA.
+  sem entrada, sem perguntas e com limite de tempo real, os orçamentos sem resposta ficam MANUAL e as demais consultas, FALHA;
+  a saída é sempre em UTF-8, com a marca BOM só quando redirecionada no Windows, e nenhum caractere encerra o script (desde
+  06/11/2026).
 """
+import codecs
 import importlib.util
+import io
 import json
+import os
 import re
+import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -572,6 +579,42 @@ def test_verificacao_previa_falha_sai_com_1(monkeypatch, capsys):
     monkeypatch.setattr(previa, "gcloud", gcloud_simulado(projeto="outro"))
     assert previa.main([]) == 1
     assert "Nada segue até corrigir" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("sistema, terminal, marca", [("nt", False, True), ("nt", True, False), ("posix", False, False)])
+def test_verificacao_previa_chega_ao_fim_em_utf8_com_a_marca_so_redirecionada_no_windows(sistema, terminal, marca, monkeypatch):
+    """Redirecionada no Windows, a saída usava o cp1252. Medido em 06/11/2026: `UnicodeEncodeError` na seta do item da trava, 5
+    linhas da tabela, sem o resumo e com a saída 1. O erro do gcloud também pode trazer caracteres fora do cp1252. Sem a marca,
+    o PowerShell 5.1 relia o texto no cp850; no console ela apareceria como um caractere a mais."""
+    simulado = gcloud_simulado()
+
+    def rodar(*args):
+        return (1, "ERROR: ✗ sem permissão") if args[:2] == ("billing", "budgets") else simulado(*args)
+
+    class Saida(io.TextIOWrapper):
+        def isatty(self):
+            return terminal
+    bruto = io.BytesIO()
+    saida = Saida(bruto, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(sys, "stdout", saida)
+    monkeypatch.setattr(previa, "os", types.SimpleNamespace(name=sistema))
+    monkeypatch.setattr(previa, "gcloud", rodar)
+    assert previa.main([]) == 2
+    saida.flush()
+    assert bruto.getvalue().startswith(codecs.BOM_UTF8) is marca
+    texto = bruto.getvalue().decode("utf-8-sig")
+    assert "Faturamento → Orçamentos e alertas" in texto and "✗ sem permissão" in texto
+    assert texto.rstrip().endswith("conferir os itens MANUAL.")
+
+
+def test_verificacao_previa_processo_inteiro_com_a_saida_em_cp1252_nao_cai(tmp_path):
+    """O script como no redirecionamento do Windows, sem gcloud no caminho: a saída 1 vem das falhas, não de uma exceção."""
+    resultado = subprocess.run([sys.executable, previa.__file__], stdin=subprocess.DEVNULL, capture_output=True, timeout=60,
+                               env={**os.environ, "PATH": str(tmp_path), "PYTHONIOENCODING": "cp1252"})
+    assert b"Traceback" not in resultado.stderr, resultado.stderr
+    texto = resultado.stdout.decode("utf-8-sig")
+    assert "Faturamento → Orçamentos e alertas" in texto and "Nada segue até corrigir" in texto
+    assert resultado.returncode == 1
 
 
 def test_verificacao_previa_faturamento_sem_resposta_nao_afirma_que_nao_ha_vinculo():

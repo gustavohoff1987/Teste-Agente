@@ -35,6 +35,26 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-06 · A verificação prévia (F2-0) com a saída redirecionada no Windows
+- **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 06/11/2026. O script é uma ferramenta de
+  implantação, fora do produto, mas o que ele escreve é lido pelo responsável, então foi tratado como mudança (na dúvida, a regra
+  manda assim). Mudança prevista: *escopo:* decorre do pedido; *compatibilidade:* a SPEC não trata de implantação, e nenhuma
+  divergência aprovada é contrariada.
+- **Antes:** redirecionada no Windows, por `>`, tubo ou `Out-File`, a saída de `scripts/implantacao/verificacao_previa.py` usava o
+  cp1252, que não tem a seta do item da trava. O script caía com `UnicodeEncodeError` no meio da tabela: 5 das 20 linhas, sem o
+  resumo e com a saída 1 em vez da 2. Um erro do gcloud com caractere fora do cp1252 teria o mesmo efeito. No console, funcionava.
+- **Agora:** a saída é sempre em UTF-8, e nenhum caractere encerra o script. Redirecionada no Windows, ela começa com a marca BOM,
+  porque sem a marca o PowerShell 5.1 relê o texto no cp850 do console e troca `→` por `ÔåÆ`. No console e fora do Windows não há
+  marca; com `>>`, ela fica só no início do arquivo.
+- **Permanece:** o script só lê; os itens, as situações e os códigos de saída (1 com falha, 2 com item MANUAL) são os mesmos. O
+  script não entra na imagem nem na interface: não houve publicação, e o Cloud Run, as imagens, as APIs e as configurações
+  financeiras não mudaram.
+- **Motivo:** a queda no meio da tabela escondia os itens seguintes e trocava a saída 2 pela 1. Sem o resultado inteiro, a
+  verificação não serve como conferência.
+- **Documentação e testes:** `Docs/implantacao/ROTEIRO_FASE2.md` (Execução no Windows) e `Docs/implantacao/RELATORIO_IMPLANTACAO.md`
+  (seção O); testes novos em `backend/tests/test_implantacao.py`, sem alterar os que existiam. Eles falham no script anterior e
+  passam no corrigido.
+
 ### 2026-11-05 · A verificação prévia (F2-0) sem travar e sem tomar a falta de resposta por aprovação
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 05/11/2026, depois de a F2-0 parar num
   `subprocess.TimeoutExpired`. O script é uma ferramenta de implantação, fora do produto; muda mensagens e validações que o
