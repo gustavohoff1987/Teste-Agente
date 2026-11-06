@@ -374,7 +374,8 @@ O que cada análise mostra:
   1,5 por mil habitantes" calcula a Análise Espacial com o extremo do gráfico como base e a condição na referência, como se a
   pessoa tivesse feito a escolha na janela; desde 06/11/2026, a base pedida que não é a seleção (o extremo, os citados pelo
   nome, um estado, o país) vira a seleção, e a trilha a acompanha, e a referência que partia da seleção passa a nomear a de
-  antes (o estado inteiro, o país ou os municípios dela), para continuar a mesma. A área envia a consulta em exibição à
+  antes (o estado inteiro, o país ou os municípios dela), para continuar a mesma; sem seleção antes, ela continua na seleção,
+  com o aviso "A Escolha dos territórios parte da seleção prévia: …". A área envia a consulta em exibição à
   conversa (`painel_consulta`), para "e em todo o país?" trocar só de onde a referência parte. De cima para baixo:
   1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
   2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):

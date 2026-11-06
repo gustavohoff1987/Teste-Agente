@@ -1809,9 +1809,12 @@ function referenciaDaSelecaoDeAntes(ref: LadoDaConsulta, antes: PainelMunicipios
   const doPais: PartirDe = { tipo: "pais", regioes: [], ufs: [] };
   if (antes.todos) return { ...ref, partir_de: doPais };
   if (!antes.ids.length && antes.estados.length) return { ...ref, partir_de: { tipo: "ufs", regioes: [], ufs: [...antes.estados] } };
+  // Sem seleção antes, não há o que nomear: a referência continua na seleção (e a conversa avisa), em vez de virar o país inteiro
+  // em silêncio.
+  if (!antes.ids.length) return ref;
   if (ref.escolha.modo === "marcados") return { ...ref, partir_de: doPais };
   const ids = [...new Set([...antes.estados.flatMap(unidadesDoGrupo), ...antes.ids])].sort(comparar);
-  return { ...ref, partir_de: doPais, escolha: ids.length ? { modo: "marcados", municipios: ids } : ref.escolha };
+  return { ...ref, partir_de: doPais, escolha: { modo: "marcados", municipios: ids } };
 }
 /** A consulta com a base na seleção em uso (baseNaSelecao) e a seleção que a base pedia (selecaoDaBase; null: continua a de antes).
  * Quando a seleção muda, a referência que partia da seleção passa a nomear a de antes, para continuar a mesma. */
@@ -2541,9 +2544,10 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (lida) {
       const { consulta, selecao: novaSelecao } = consultaNaSelecao(lida, normalizarBase(proxima.base, c.grupoDe),
         { todosOsEstados: c.todosOsEstados ?? [], unidadesDoGrupo: c.unidadesDoGrupo ?? (() => []) });
-      if (novaSelecao) proxima = { ...proxima, base: normalizarBase(novaSelecao, c.grupoDe), conjuntos: [] };
-      if (LADOS.some(lado => consulta[lado].partir_de.tipo === "selecao_previa") && semSelecao({ ...proxima, nivel: "municipios" }))
+      // A consulta pedida que parte da seleção, com a seleção vazia: aplica e avisa (nada é escolhido em silêncio).
+      if (LADOS.some(lado => lida[lado].partir_de.tipo === "selecao_previa") && semSelecao({ ...proxima, nivel: "municipios" }))
         mensagens.push("A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de Territórios.");
+      if (novaSelecao) proxima = { ...proxima, base: normalizarBase(novaSelecao, c.grupoDe), conjuntos: [] };
       // A base passa a ser a da consulta: a comparação de antes sai (o motor recusa itens da comparação fora do gráfico).
       proxima = { ...proxima, familia: "espacial", nivel: "municipios", consulta, comparar: [] };
     } else mensagens.push("A Escolha dos territórios pedida não foi reconhecida.");

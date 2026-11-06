@@ -209,7 +209,8 @@ espacial, e o agente precisa correlacionar a intenção com as funcionalidades d
   (`explicacao.referencia_proxima`, verificada), com os botões "Procurar em todo o país" e "Só no mesmo estado de cada um";
 - desde 06/11/2026 (item 4.1 do comando de navegação por níveis, uma seleção só), a área aplica a consulta com a base na
   seleção em uso: o extremo (ou os citados pelo nome, ou o estado) vira a seleção, e a trilha vai a ele; a referência que
-  partia da seleção passa a nomear a seleção de antes (o estado inteiro, o país ou os municípios dela), e a leitura da
+  partia da seleção passa a nomear a seleção de antes (o estado inteiro, o país ou os municípios dela; sem seleção antes, ela
+  continua na seleção, com o aviso), e a leitura da
   continuação é a mesma (o motor calcula a distância do extremo até a referência mais próxima do mesmo conjunto);
 - com um estado citado que não está no gráfico ("o de menor densidade do Pará e o mais próximo dele…"), a resposta mostra os
   municípios dele e traz `continuar` com o mesmo pedido;

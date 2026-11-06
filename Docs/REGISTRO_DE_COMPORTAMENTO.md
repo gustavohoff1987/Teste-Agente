@@ -62,7 +62,10 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - **Uma consulta que chega com outra base** (a da conversa, a de uma análise guardada) tem a base levada à seleção: o extremo, os
     citados pelo nome, um estado, regiões (pelos estados delas) ou o país viram a seleção, e a trilha os acompanha; a referência
     que partia da seleção passa a nomear a de antes (o estado inteiro, o país ou os municípios dela), para continuar a mesma. Uma
-    análise guardada com outra base reabre com a seleção dela, recalculada.
+    análise guardada com outra base reabre com a seleção dela, recalculada. Com a seleção de antes vazia, a consulta pedida que
+    parte dela é aplicada com o aviso "A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de
+    Territórios.", e a referência continua na seleção (a primeira versão deste mesmo dia, antes do CI verde, a levava ao país
+    inteiro, em silêncio).
   - **A proteção** (item 4.6): quando o resultado à vista é de outra seleção — o cálculo da seleção em uso não chegou em 0,7 s ou
     falhou —, a aba diz de que lugar ele é ("Esta análise ainda é do Pará: o cálculo da seleção em uso ainda não chegou.", ou
     "… não deu certo."), com "Atualizar" (`analise-desatualizada`, `analise-atualizar`), e o desenho fica esmaecido
@@ -81,7 +84,8 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     a falha simulada, com "Atualizar").
   - **Testes que mudam de propósito, pelo comportamento novo:** `frontend/tests/areaDeAnalise.test.mjs` (a consulta inicial com a
     base na seleção, as pendências com a seleção vazia, o texto de apresentação da Análise Espacial, o estado guardado com outra
-    base, a referência pelo nome com filtros e a consulta da conversa que muda a seleção); `frontend/tests/painel.test.mjs` (a
+    base, a referência pelo nome com filtros, a consulta da conversa que muda a seleção e o pedido da Análise Espacial sem seleção,
+    que deixa de ir ao motor também com a consulta); `frontend/tests/painel.test.mjs` (a
     base da referência pelo nome é a seleção, com os filtros); os roteiros `ui_area_de_analise.py` (a janela sem seleção, com a
     base incompleta; a aba Base com a seleção e os filtros, sem Partir de nem Escolher; o Desfazer do cálculo; a proximidade pela
     conversa, com o extremo como seleção e a trilha), `ui_mapa.py` (BOA VISTA pelo toque na bolha, com a mesma referência) e

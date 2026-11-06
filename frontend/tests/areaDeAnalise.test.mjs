@@ -694,8 +694,9 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(usadas('ufs', 0, []), 'Sem candidatos, nenhum município da base tem referência.');
   assert.equal(usadas('mesma_uf_da_base', 2, ['X', 'Y'], null, planilha.rotulos), 'Ficaram como referência 2 das 2 candidatas: X e Y, cada ' +
     'uma a mais próxima de alguma unidade da base na mesma província.');
-  // O pedido: na análise espacial dos municípios, a consulta (como o motor a recebe) e a seleção prévia em `base`; sem seleção, a
-  // consulta não espera por ela.
+  // O pedido: na análise espacial dos municípios, a consulta (como o motor a recebe) e a seleção prévia em `base`. Desde 06/11/2026
+  // (item 4.1 do comando, uma seleção só; muda de propósito este teste), sem seleção a base fica incompleta e nada é pedido, também
+  // com a consulta (até essa data, a consulta não esperava pela seleção).
   const am = {nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}};
   const opcoes = M.montarOpcoes(definicao({...am, familia: 'espacial', consulta: rascunho, faixasDistancia: [0, 100]}), 'espacial');
   assert.deepEqual(opcoes.consulta, M.consultaParaOMotor(rascunho));
@@ -705,8 +706,8 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial', consulta: exemplo}), true), 'espacial');
   assert.equal(M.familiaCalculada(definicao({...am, familia: 'espacial'}), true), 'distribuicao');
   const semSelecao = definicao({nivel: 'municipios', familia: 'espacial', consulta: exemplo});
-  assert.equal(M.bloqueioDoPedido(semSelecao, {fonte: 'brasil', rotulos: BR}), null);
-  assert.equal(M.semTerritorios(semSelecao), false);
+  assert.equal(M.bloqueioDoPedido(semSelecao, {fonte: 'brasil', rotulos: BR}), M.TEXTO_SEM_SELECAO);
+  assert.equal(M.semTerritorios(semSelecao), true);
   assert.equal(M.bloqueioDoPedido({...semSelecao, familia: 'distribuicao'}, {fonte: 'brasil', rotulos: BR}), M.TEXTO_SEM_SELECAO);
   assert.equal(M.avisoDaFamilia(definicao({...am, familia: 'espacial'}), {disponivel: true, pendente: false, motivo: ''}), M.TEXTO_ESCOLHA_DA_REFERENCIA);
   // As Grandes Regiões e o valor digitado: a densidade com decimais; a população e a quantidade, inteiros.
@@ -1000,9 +1001,12 @@ test('conversa (28/10/2026): a Escolha dos territórios pedida vale como a feita
   const invalida = M.aplicarPedido(tocantins, {consulta: {...pedida, base: lado('mesma_uf_da_base')}}, c);
   assert.deepEqual([invalida.definicao.familia, invalida.definicao.consulta, invalida.mensagens],
     ['distribuicao', null, ['A Escolha dos territórios pedida não foi reconhecida.']]);
-  // A seleção prévia sem territórios escolhidos: aplica e avisa (nada é escolhido em silêncio).
+  // A seleção prévia sem territórios escolhidos: aplica e avisa (nada é escolhido em silêncio). Desde 06/11/2026, o extremo vira a
+  // seleção, e a referência que partia da seleção vazia continua nela, sem virar o país inteiro.
   const semSelecao = M.aplicarPedido(definicao(), {consulta: pedida}, c);
   assert.deepEqual(semSelecao.mensagens, ['A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de Territórios.']);
+  assert.deepEqual(semSelecao.definicao.base, {todos: false, estados: [], ids: ['code:171888']});
+  assert.deepEqual(semSelecao.definicao.consulta.referencia.partir_de, {tipo: 'selecao_previa', regioes: [], ufs: []});
   // O contexto da conversa leva a consulta em uso (para "e em todo o país?"), só na Análise Espacial com a consulta.
   assert.deepEqual(M.contextoDoGrafico(r.definicao, [], 'Título').consulta, M.consultaParaOMotor(r.definicao.consulta));
   assert.equal(M.contextoDoGrafico(tocantins, [], 'Título').consulta, null);
