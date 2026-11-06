@@ -968,3 +968,27 @@ def test_frases_do_contrato_com_a_base_versionada(real, sem_provedor):
     # O Paraná é estado e nome de dois municípios (TO e RN).
     assert [escolha["label"] for escolha in local("mostre o Paraná", dataset="brazil")["choices"]] == [
         "Estado do Paraná", "PARANA (RN)", "PARANA (TO)"]
+
+
+def test_troca_do_recorte_com_a_base_na_selecao_rele_a_referencia_mais_proxima():
+    """Correção de 06/11/2026 (CI da parte A do item 4 do comando de navegação por níveis): com a base única, o extremo da
+    proximidade vai para a seleção, e a base da consulta é a seleção em uso, sem marcados. "Procurar em todo o país" deixou de
+    pedir a releitura da referência mais próxima (`continuar`), que dependia dos marcados da base; com a base na seleção, sem
+    filtros, os da base são os da seleção (até 5, como antes)."""
+    def lado(tipo, ufs=(), filtros=()):
+        return {"partir_de": {"tipo": tipo, "regioes": [], "ufs": list(ufs)}, "filtros": list(filtros),
+                "escolha": {"modo": "todos", "municipios": []}}
+    consulta = {"base": lado("selecao_previa"),
+                "referencia": lado("ufs", ["13"], [{"indicador": "densidade", "operador": ">=", "valor": 1.5}]),
+                "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+    so_tefe = pedir("procure a referência em todo o país", painel_familia="espacial", painel_consulta=consulta,
+                    painel_municipios={"todos": False, "estados": [], "ids": ["code:130420"]}, territory_ids=["code:130420"])
+    assert so_tefe["painel"]["consulta"]["referencia"]["partir_de"] == {"tipo": "pais", "regioes": [], "ufs": []}
+    assert so_tefe["painel"]["consulta"]["base"] == consulta["base"]
+    assert so_tefe["continuar"] == "qual a referência mais próxima?"
+    assert so_tefe["reply"].endswith("Assim que o motor calcular, digo qual é o mais próximo e a distância.")
+    # Com muitos na seleção (todos os municípios), sem a releitura, como antes com muitos marcados.
+    todos = pedir("procure a referência em todo o país", painel_familia="espacial", painel_consulta=consulta,
+                  painel_municipios={"todos": True, "estados": [], "ids": []}, territory_ids=None)
+    assert todos["painel"]["consulta"]["referencia"]["partir_de"]["tipo"] == "pais" and "continuar" not in todos
+

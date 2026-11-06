@@ -65,7 +65,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     análise guardada com outra base reabre com a seleção dela, recalculada. Com a seleção de antes vazia, a consulta pedida que
     parte dela é aplicada com o aviso "A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de
     Territórios.", e a referência continua na seleção (a primeira versão deste mesmo dia, antes do CI verde, a levava ao país
-    inteiro, em silêncio).
+    inteiro, em silêncio). A troca do recorte pela conversa ("Procurar em todo o país") relê a referência mais próxima também com a
+    base na seleção, com até 5 municípios nela e sem filtros na base (a segunda versão deste mesmo dia, antes do CI verde, deixava
+    de reler, porque a releitura dependia dos marcados da base).
   - **A proteção** (item 4.6): quando o resultado à vista é de outra seleção — o cálculo da seleção em uso não chegou em 0,7 s ou
     falhou —, a aba diz de que lugar ele é ("Esta análise ainda é do Pará: o cálculo da seleção em uso ainda não chegou.", ou
     "… não deu certo."), com "Atualizar" (`analise-desatualizada`, `analise-atualizar`), e o desenho fica esmaecido
@@ -80,8 +82,8 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a janela, a tabela de estados, a proteção e os testes),
     `Docs/DIALOGO_GOVERNADO.md` (a proximidade pela conversa) e o `README.md`.
   - **Testes novos:** `frontend/tests/areaDeAnalise.test.mjs` ("uma seleção só", com `baseNaSelecao`, `selecaoDaBase` e
-    `consultaNaSelecao`; "proteção", com `deOndeEhOResultado`) e o passo 11 de `backend/tests/ui_navegacao.py` (o pedido retido e
-    a falha simulada, com "Atualizar").
+    `consultaNaSelecao`; "proteção", com `deOndeEhOResultado`), o passo 11 de `backend/tests/ui_navegacao.py` (o pedido retido e
+    a falha simulada, com "Atualizar") e, em `backend/tests/test_conversa_grafico.py`, a troca do recorte com a base na seleção.
   - **Testes que mudam de propósito, pelo comportamento novo:** `frontend/tests/areaDeAnalise.test.mjs` (a consulta inicial com a
     base na seleção, as pendências com a seleção vazia, o texto de apresentação da Análise Espacial, o estado guardado com outra
     base, a referência pelo nome com filtros, a consulta da conversa que muda a seleção e o pedido da Análise Espacial sem seleção,

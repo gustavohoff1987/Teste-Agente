@@ -1916,6 +1916,11 @@ def _recorte_da_referencia(conv, dica, dica_indicador):
     texto = ("Agora a referência parte " + _onde_procura(conv, partir, _texto_da_selecao(conv, atual)) +
              "; a base e as condições continuam.")
     marcados = consulta["base"]["escolha"]["municipios"] if consulta["base"]["escolha"]["modo"] == "marcados" else []
+    # Desde 06/11/2026 (item 4.1 do comando de navegação por níveis, uma seleção só), a base é a seleção em uso: sem filtros na
+    # base, os da base são os da seleção (o extremo que a proximidade levou à seleção, por exemplo), e a releitura continua.
+    if not marcados and consulta["base"]["partir_de"]["tipo"] == "selecao_previa" and not consulta["base"].get("filtros") \
+            and atual is not None and conv.cat is not None:
+        marcados = sorted(conv.cat.membros(atual))
     resposta = _resposta(painel, texto)
     if marcados and len(marcados) <= 5:
         resposta["reply"] += " Assim que o motor calcular, digo " + ("qual é a mais próxima" if rot.feminino else
