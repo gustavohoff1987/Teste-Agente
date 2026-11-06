@@ -99,7 +99,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
   - **A Análise Espacial vendo por estado:** só "A Análise Espacial mede distâncias entre municípios." e o botão "Ver os
     municípios destes estados", que troca o Ver por e abre a Escolha dos territórios.
   - **Também:** os textos do cartão e da faixa quebram como blocos (nenhum texto por cima de outro em 320 px), e os nomes das
-    linhas de referência da Série temporal entram no posicionamento dos rótulos das linhas.
+    linhas de referência da Série temporal entram no posicionamento dos rótulos das linhas. A faixa e o cartão escrevem a
+    competência no formato curto do resumo da fonte ("jun/2024", "Desde jun/2021"), como no comando; a primeira versão deste
+    mesmo dia, antes do CI verde, escrevia "06/2021".
 - **Permanece:** o nível `brasil` no motor e na API (o mesmo contrato), os totais individualizados (o Brasil inteiro pela fonte
   nacional e cada estado inteiro pela estadual), a árvore da Seleção, o Desfazer de cada passo, a Comparar e a Juntar, a Escolha
   dos territórios da Análise Espacial vendo por município, as planilhas (sem faixa nem cartão nesta etapa; a trilha começa em

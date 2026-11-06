@@ -627,7 +627,7 @@ def main():
         assert not llm_calls, llm_calls
         assert not failures, failures
         browser.close()
-    print("MAPA PASS: estados sem mapa (motivo e atalho), pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
+    print("MAPA PASS: estados no mapa (27 bolhas nos pontos de desenho do motor), Ver por Município, pontos do motor e fundo, quintis do motor sem pergunta, enquadramento com "
           "contexto, quintis do gráfico, régua que esmaece, seleção e dica, zoom e mapinha, mapinha na dica do gráfico, convite das "
           "Condições, ligações da análise espacial, Roraima inteira no mapa (BOA VISTA sem referência no recorte, fora do gráfico com o "
           "aviso), legendas de tamanho na proporção exata, a base ligada às referências no gráfico e no mapa e a escolha direta, lado a lado, "

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import type { NivelDoLugar, PainelItem, PainelNivel, RespostaLugar } from "./painelApi";
+import { competenciaCurta } from "./paginaUnica";
 import {
-  exibirCompetencia, formatarIndicador, formatarNumero, formatarVariacao, maiuscula, nomeCurtoDoNivel, populacaoResumida, profissionaisDe,
+  formatarIndicador, formatarNumero, formatarVariacao, maiuscula, nomeCurtoDoNivel, populacaoResumida, profissionaisDe,
   textoDaReferencia, type LugarDaTrilha, type OpcaoVerPor, type ParteDaTrilha, type RotulosTerritoriais,
 } from "./painelModel";
 
@@ -10,7 +11,8 @@ import {
 // as abas, mostra o lugar em uso ("Brasil › Pará › MARABA (PA)"): cada parte leva àquele nível, e a atual fica marcada
 // (aria-current). A faixa, no alto de todas as abas de análise, traz os números do lugar em uso na competência da análise
 // (profissionais, população, densidade e a variação da densidade desde o primeiro dos últimos 4 períodos anuais) e, abaixo do
-// todo, o valor do todo como referência ("Pará 1,19 · Brasil 2,36"); com ela, o "Ver por" (no lugar de "Cada ponto da análise é"),
+// todo, o valor do todo como referência ("Pará 1,19 · Brasil 2,36"); as competências como no comando ("Desde jun/2021"); com
+// ela, o "Ver por" (no lugar de "Cada ponto da análise é"),
 // que muda só quem é comparado. No nível da unidade, o cartão do território faz o papel da faixa: o valor dela e a comparação com
 // o grupo e o todo, em barras. Todo número vem do motor (POST /api/painel/lugar e o resultado do gráfico); a tela só mostra.
 
@@ -85,7 +87,7 @@ function Numeros({ nivel, categoria }: { nivel: NivelDoLugar; categoria: string 
         {nivel.densidade !== null && <span className="analise-faixa-apoio">por 1.000 habitantes</span>}</dd></div>
     {nivel.desde && <div data-testid="analise-faixa-numero" data-chave="variacao" data-valor={variacao ?? ""} data-desde={nivel.desde}
       className="analise-faixa-numero">
-      <dt>Desde {exibirCompetencia(nivel.desde)}</dt><dd><strong>{formatarVariacao(variacao)}</strong>
+      <dt>Desde {competenciaCurta(nivel.desde)}</dt><dd><strong>{formatarVariacao(variacao)}</strong>
         <span className="analise-faixa-apoio">na densidade</span></dd></div>}
   </dl>;
 }
@@ -110,7 +112,7 @@ function CartaoDaUnidade({ item, grupo, todo, categoria, competencia, distancia 
   return <div data-testid="analise-cartao" data-id={item.id} className="analise-cartao">
     <p className="analise-cartao-titulo"><strong data-testid="analise-cartao-quantidade" data-valor={item.quantidade ?? ""}>
       {item.quantidade === null ? "Sem contagem" : formatarNumero(item.quantidade, true) + " " + profissionaisDe(categoria)}</strong>
-      {competencia && <span className="analise-faixa-apoio"> · {exibirCompetencia(competencia)}</span>}
+      {competencia && <span className="analise-faixa-apoio"> · {competenciaCurta(competencia)}</span>}
       {item.populacao !== null && <span className="analise-faixa-apoio"> · {formatarNumero(item.populacao, true)} habitantes</span>}</p>
     <p className="analise-cartao-subtitulo">Densidade ({maiuscula(profissionaisDe(categoria))} por 1.000 habitantes)</p>
     <ul className="analise-cartao-barras" aria-label="Densidade comparada">
@@ -140,7 +142,7 @@ export default function FaixaDoLugar(p: FaixaProps) {
     <p className="analise-faixa-titulo"><strong>{p.lugar.tipo === "selecao" ? "Seleção" : titulo}</strong>
       {(p.lugar.tipo === "selecao" || (p.lugar.tipo === "grupo" && !p.lugar.grupoInteiro)) && p.resumo &&
         <span data-testid="analise-faixa-resumo" className="analise-faixa-apoio"> · {p.resumo}</span>}
-      {competencia && <span className="analise-faixa-apoio"> · {exibirCompetencia(competencia)}</span>}</p>
+      {competencia && <span className="analise-faixa-apoio"> · {competenciaCurta(competencia)}</span>}</p>
     <VerPor opcoes={p.verPor} nivel={p.nivel} onEscolher={p.onVerPor}/>
   </div>;
   const estado = p.erro ? <p role="alert" className="analise-faixa-erro">Os números do lugar não vieram: {p.erro}</p>

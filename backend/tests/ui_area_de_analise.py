@@ -1281,8 +1281,16 @@ def main():
         divisoria.scroll_into_view_if_needed()
         caixa_divisoria, caixa_lateral = divisoria.bounding_box(), lateral.bounding_box()
         direita_da_area = caixa_lateral["x"] + caixa_lateral["width"]
-        meio_y = caixa_divisoria["y"] + min(caixa_divisoria["height"] / 2, 60)
-        page.mouse.move(caixa_divisoria["x"] + caixa_divisoria["width"] / 2, meio_y)
+        # O arraste começa no meio da parte visível da divisória, abaixo dos controles fixos do alto (Desfazer e Limpar seleção):
+        # com a faixa do lugar acima do desenho (06/11/2026), a divisória de um quadro longo não cabe na janela, e o ponto fixo de
+        # antes (60 px abaixo do topo dela) caía sob os controles depois da rolagem. O roteiro confere que o ponto é a divisória.
+        caixa_controles = controles.bounding_box()
+        topo_visivel = max(caixa_divisoria["y"], caixa_controles["y"] + caixa_controles["height"] + 4)
+        fundo_visivel = min(caixa_divisoria["y"] + caixa_divisoria["height"], page.viewport_size["height"] - 4)
+        meio_x, meio_y = caixa_divisoria["x"] + caixa_divisoria["width"] / 2, (topo_visivel + fundo_visivel) / 2
+        assert page.evaluate("([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid=analise-divisoria]')",
+                             [meio_x, meio_y]), ("o arraste começa na divisória", caixa_divisoria, caixa_controles, meio_y)
+        page.mouse.move(meio_x, meio_y)
         page.mouse.down()
         page.mouse.move(direita_da_area - 420, meio_y, steps=8)
         page.mouse.up()

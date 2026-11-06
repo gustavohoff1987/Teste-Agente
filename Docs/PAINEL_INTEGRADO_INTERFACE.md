@@ -269,7 +269,7 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
   move a trilha do mesmo jeito. Numa planilha, a trilha começa em "Toda a planilha".
 - **A faixa do lugar** (`analise-faixa`, no alto de todas as abas de análise, com `data-lugar` e `data-grupo`): o nome do lugar,
-  a competência e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
+  a competência (no formato curto do resumo da fonte, "jun/2024") e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
   palavras ("212,6 milhões", com o número inteiro ao lado), a densidade por 1.000 habitantes (2,36) e a variação da densidade
   desde o primeiro dos últimos 4 períodos anuais até a competência da análise ("Desde jun/2021", a mesma janela com que a
   Tendência abre; sem 4 períodos anuais, a variação não aparece). Num estado, os números dele (o Pará: 10.307 médicos, 1,19) e,
