@@ -35,6 +35,36 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-06 · Os estados em tela estreita (etapa 6 do comando, item 7): a lista na ordem do motor e, nas bolhas, os nomes só dos destaques
+- **Classificação (regra 1), pela leitura, antes de codar:** item 7 do comando de 06/11/2026, classificado de uma vez com os demais
+  (entrada da navegação por níveis, abaixo). A ordem da lista foi consultada e aprovada na mesma data: **"Ordem do motor"**
+  (CAP-SUB-02, sem mostrar as posições). Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* a ordem vem do motor
+  (CAP-SUB-02, empates na mesma posição, sem desempate artificial; INV-02), a tela só posiciona e desenha, e o contrato de
+  `/api/painel` ganha um campo aditivo.
+- **Antes:** vendo por estado, o gráfico de bolhas mostrava as 27 siglas ao mesmo tempo, também no celular (cerca de 300 px de
+  desenho, com rótulos sobrepostos e longe das bolhas); o contorno dos rótulos tinha 3 px opacos, que no escuro apagavam as bolhas.
+- **Agora:**
+  - **A lista ordenada** (`ListaDosGrupos.tsx`): no celular (até 639 px), vendo por estado, a Distribuição abre na lista, uma linha
+    por estado na ordem do motor (do DF, 4,41, ao MA, 1,13, em junho de 2024), com a sigla, o ponto na escala do indicador, o valor
+    e a marca do todo ("Brasil 2,36"); tocar numa linha desce até o estado; "Lista | Bolhas" troca para as bolhas.
+  - **Nas bolhas dos estados** (no computador e no celular), os nomes só dos 3 maiores e dos 3 menores pela ordem do motor (com os
+    empates no corte), dos marcados e do tocado; o nome deslocado ganha a linha guia até a bolha; o contorno dos rótulos é fino
+    (2 px) e translúcido nos modos claro e escuro.
+  - **O motor** devolve, no nível estados, `ordem_do_indicador` (os estados do maior para o menor, com as posições de CAP-SUB-02;
+    os não avaliáveis no fim, sem posição).
+- **Permanece:** os valores, os pedidos ao motor e a chave do cálculo; o mapa dos estados; o gráfico dos municípios (os nomes dos
+  municípios continuam como antes: os marcados, as bases da Escolha dos territórios e os primeiros da ordenação); no computador, o
+  padrão continua o gráfico de bolhas.
+- **Motivo:** comando do responsável de 06/11/2026, item 7, com a resposta da consulta ("Ordem do motor").
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (`ordem_do_indicador`), `Docs/PAINEL_INTEGRADO_INTERFACE.md` ("Os estados em tela
+    estreita" e os testes) e o `README.md`.
+  - **Testes novos:** `frontend/tests/areaDeAnalise.test.mjs` (`ordemDoIndicadorDe` e `destaquesDaOrdem`), o passo 13 de
+    `backend/tests/ui_navegacao.py` (360 px, claro e escuro) e, em `backend/tests/test_painel_pagina.py`, a ordem do motor nos
+    estados (catálogo sintético, com o não avaliável no fim e a ordem da quantidade, e a base versionada, do DF ao MA).
+  - **Teste que muda de propósito:** `test_states_level_uses_the_state_source_and_the_state_population` (as chaves do topo dos
+    estados ganham `ordem_do_indicador`).
+
 ### 2026-11-06 · Pergunta não é comando (etapa 5 do comando, parte B): os números do motor, o destaque, "Abrir"/"Ir para" e a confirmação conferida com o lugar na tela
 - **Classificação (regra 1), pela leitura, antes de codar:** itens 4.2 a 4.5 do comando de 06/11/2026, classificados de uma vez com
   os demais (entrada da navegação por níveis, abaixo). Mudança prevista: *escopo:* decorre do comando (item 4); *compatibilidade:*

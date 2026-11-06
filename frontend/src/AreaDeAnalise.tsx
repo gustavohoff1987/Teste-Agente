@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  deOndeEhOResultado, desdeDaFaixa, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -42,6 +42,8 @@ import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
 import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJuntar, GavetaOrdenar } from "./PainelGavetas";
+import ListaDosGrupos from "./ListaDosGrupos";
+import { useNarrow } from "./useNarrow";
 import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
 import { useEsquemaDeCor } from "./useEsquemaDeCor";
 import IconeVassoura from "./IconeVassoura";
@@ -608,6 +610,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // O destaque pedido pela resposta de valor da conversa (06/11/2026, item 4.2): os lugares citados, em destaque no gráfico em uso
   // enquanto a análise não muda (a chave do pedido ao motor). Estado visual: nada é recalculado.
   const [realce, setRealce] = useState<{ ids: string[]; chave: string } | null>(null);
+  // Os grupos em tela estreita (06/11/2026, item 7 do comando): vendo por estado no celular, o padrão é a lista ordenada pelo motor;
+  // um controle troca para as bolhas. Estado visual: nada é recalculado.
+  const estreita = useNarrow();
+  const [vistaDosGrupos, setVistaDosGrupos] = useState<"lista" | "bolhas">("lista");
   const renders = useRef(0);
   renders.current += 1;
   const visto = useRef("");
@@ -1522,8 +1528,18 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
   // A análise de tendência na tela (24/10/2026): o desenho logo abaixo dos ajustes e, à direita, o painel da explicação.
   const layoutTendencia = familiaDesenho === "tendencia" && !!resposta && !semUnidades;
+  // A lista dos grupos (06/11/2026, item 7): em tela estreita, vendo por estado, na Distribuição, com a ordem do motor.
+  const listaDosGrupos = estreita && familiaDesenho === "distribuicao" && resposta?.nivel === "estados" &&
+    !!resposta.ordemDoIndicador?.itens.length;
+  // Nas bolhas dos estados, os nomes só dos destaques: os 3 maiores e os 3 menores pela ordem do motor (os marcados e o tocado, o
+  // gráfico já rotula). Antes de 06/11/2026, as 27 siglas ficavam sempre à vista.
+  const destaquesDosGrupos = useMemo(() => destaquesDaOrdem(resposta?.ordemDoIndicador ?? null), [resposta]);
   const desenhoDoGrafico = (() => {
     if (!resposta) return null;
+    if (listaDosGrupos && vistaDosGrupos === "lista")
+      return <ListaDosGrupos itens={resposta.itens} ordem={resposta.ordemDoIndicador!.itens} indicador={indicador}
+        todo={contextoBrasil} limiares={limiares} plural={(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural}
+        onAbrir={abrirGrupoDaBolha}/>;
     if (familiaDesenho === "rotatividade" && calculado?.def.rotatividade) return <PainelRotatividade itens={visiveis} rotulos={rotulos}
       inicial={calculado.def.rotatividade.inicial} final={calculado.def.rotatividade.final}/>;
     if (series) return itensSeries.length ? <PainelSeries itens={itensSeries} competencias={resposta.serie?.competencias ?? []}
@@ -1551,7 +1567,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}
       linhaDoGrupo={linhaDoGrupo} onAbrirUnidade={abrirUnidade} marcando={marcando}
       extraDoRotulo={extraDoRotulo}
-      rotuloSempre={item => item.tipo === "estado" || (camadaFinal === "ordem" && primeiros !== null && primeiros <= 12 && item.ordem?.posicao !== null &&
+      rotuloSempre={item => (item.tipo === "estado" && destaquesDosGrupos.has(item.id)) || (camadaFinal === "ordem" && primeiros !== null && primeiros <= 12 && item.ordem?.posicao !== null &&
         item.ordem !== null && (item.ordem.posicao as number) <= primeiros)}
       onAlternar={alternar} onAbrirGrupo={abrirGrupoDaBolha}
       pontosDoMapa={mapa.disponivel && dadosConferem ? dadosAtuais?.pontos ?? null : null}
@@ -1951,6 +1967,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
                   <option value="logaritmica" disabled={!logPossivel}>Logarítmica{logPossivel ? "" : " (exige valores positivos)"}</option>
                 </select>
               </label>}
+              {listaDosGrupos && vistaExibida !== "mapa" && <div role="group" data-testid="analise-grupos-vista"
+                aria-label={"Os " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural + " em lista ou em bolhas"}
+                className="analise-segmentos analise-desenho">
+                {(["lista", "bolhas"] as const).map(qual => <button key={qual} type="button" data-testid={"analise-grupos-" + qual}
+                  aria-pressed={vistaDosGrupos === qual} onClick={() => setVistaDosGrupos(qual)}>{qual === "lista" ? "Lista" : "Bolhas"}</button>)}
+              </div>}
               <div role="group" aria-label="Vista do desenho" data-testid="analise-desenho" className="analise-segmentos analise-desenho">
                 {vistasNaBarra.map(item => {
                   const desligada = item.chave !== "grafico" && !mapa.disponivel;

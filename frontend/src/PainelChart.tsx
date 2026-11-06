@@ -404,8 +404,13 @@ export default function PainelChart(p: Props) {
       <g className="analise-rotulos" aria-hidden="true" pointerEvents="none">
         {ordem.filter(bolha => rotulos.has(bolha.id)).map(bolha => {
           const rotulo = rotulos.get(bolha.id)!;
-          return <g key={bolha.id} className="analise-rotulo-grupo" data-id={bolha.id}
+          // O nome deslocado da posição junto da bolha (para não cobrir outro) ganha a linha guia até ela (06/11/2026, item 7.2).
+          const deslocado = rotulo.ancora === "middle" ? Math.abs(rotulo.dy + bolha.r + 10) > 1 : Math.abs(rotulo.dy) > 1;
+          const distancia = Math.hypot(rotulo.dx, rotulo.dy) || 1;
+          return <g key={bolha.id} className="analise-rotulo-grupo" data-id={bolha.id} data-deslocado={deslocado ? "true" : undefined}
             style={{ transform: `translate(${bolha.x}px, ${bolha.y}px)`, opacity: opacidadeDe(bolha) }}>
+            {deslocado && <line className="analise-rotulo-guia" data-testid="analise-rotulo-guia" x1={rotulo.dx / distancia * bolha.r}
+              y1={rotulo.dy / distancia * bolha.r} x2={rotulo.dx} y2={rotulo.dy}/>}
             <text x={rotulo.dx} y={rotulo.dy + 4} textAnchor={rotulo.ancora} className="analise-rotulo">{textoDoRotulo(bolha)}</text>
           </g>;
         })}

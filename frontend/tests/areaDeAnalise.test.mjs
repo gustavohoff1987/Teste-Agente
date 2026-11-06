@@ -1374,3 +1374,20 @@ test('confirmação conferida (06/11/2026, item 4.4): o pedido que leva a um lug
   assert.equal(M.lugarConfere(para, lugarDe('municipios', ['13']), itensDe('code:130001')),
     'A área de análise não está em Pará: a trilha mostra Brasil › Amazonas.');
 });
+
+test('grupos em tela estreita (06/11/2026, item 7): a ordem do motor no cliente e os destaques das bolhas, com os empates no corte', () => {
+  assert.deepEqual(A.ordemDoIndicadorDe({atributo: 'densidade', ordem: 'desc', itens: [{id: 'uf:53', posicao: 1}, {id: 'uf:21', posicao: null}]}),
+    {atributo: 'densidade', itens: [{id: 'uf:53', posicao: 1}, {id: 'uf:21', posicao: null}]});
+  assert.equal(A.ordemDoIndicadorDe(null), null);
+  assert.equal(A.ordemDoIndicadorDe({itens: [{posicao: 1}]}), null);
+  assert.equal(A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', itens: []}).ordemDoIndicador, null);
+  // Os 3 maiores e os 3 menores pela ordem do motor; a tela não compara valores.
+  const ordem = {itens: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id, i) => ({id, posicao: i + 1}))};
+  assert.deepEqual([...M.destaquesDaOrdem(ordem)].sort(), ['a', 'b', 'c', 'f', 'g', 'h']);
+  // Os empates no corte entram; os não avaliáveis, não.
+  const empates = {itens: [{id: 'a', posicao: 1}, {id: 'b', posicao: 2}, {id: 'c', posicao: 3}, {id: 'd', posicao: 3}, {id: 'e', posicao: 5},
+    {id: 'f', posicao: 6}, {id: 'g', posicao: 6}, {id: 'h', posicao: 8}, {id: 'x', posicao: null}]};
+  assert.deepEqual([...M.destaquesDaOrdem(empates)].sort(), ['a', 'b', 'c', 'd', 'f', 'g', 'h']);
+  assert.deepEqual([...M.destaquesDaOrdem({itens: [{id: 'a', posicao: 1}, {id: 'b', posicao: 2}]})].sort(), ['a', 'b']);
+  assert.equal(M.destaquesDaOrdem(null).size, 0);
+});

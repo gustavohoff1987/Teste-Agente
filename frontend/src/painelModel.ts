@@ -2263,6 +2263,16 @@ export function deOndeEhOResultado(lugar: LugarDaTrilha, c: { grupos: GrupoInfo[
   return "de " + atual.rotulo;
 }
 
+/** Os destaques das bolhas dos grupos (06/11/2026, item 7.2 do comando de navegação por níveis): os 3 maiores e os 3 menores
+ * pela ordem do motor (`ordem_do_indicador`, CAP-SUB-02), com os empates no corte; os marcados e o tocado o gráfico já rotula. A
+ * tela não compara valores. Sem a ordem, nenhum. */
+export function destaquesDaOrdem(ordem: { itens: { id: string; posicao: number | null }[] } | null, quantos = 3): Set<string> {
+  const avaliaveis = (ordem?.itens ?? []).filter((item): item is { id: string; posicao: number } => item.posicao !== null);
+  if (!avaliaveis.length) return new Set();
+  const corte = avaliaveis[Math.max(0, avaliaveis.length - quantos)].posicao;
+  return new Set(avaliaveis.filter(item => item.posicao <= quantos || item.posicao >= corte).map(item => item.id));
+}
+
 /** A confirmação conferida (06/11/2026, item 4.4 do comando de navegação por níveis): o resultado em tela é do lugar que a
  * conversa pediu? Confere o lugar atual da trilha, pelo nível e pelo id (o nome pode vir da lista da base no pedido e da resposta
  * do motor depois; o título sai da mesma definição), e os itens do gráfico, todos dentro da escolha pedida (no nível dos

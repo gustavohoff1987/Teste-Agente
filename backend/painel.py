@@ -3006,6 +3006,19 @@ def _engine_rows(ctx):
     return _rows(ctx.frame, ctx.mapping, [ctx.period], ctx.category)
 
 
+def _indicator_order(ctx, res) -> dict:
+    """A ordem dos estados pelo indicador da análise (06/11/2026, item 7 do comando de navegação por níveis): a lista ordenada
+    da tela estreita e os destaques das bolhas seguem a ordem do motor (CAP-SUB-02: do maior para o menor, valores iguais na
+    mesma posição, sem desempate artificial; a sequência dos empatados é a do nome), e a tela não ordena nem compara valores.
+    Os não avaliáveis vêm no fim, sem posição."""
+    attribute = ORDER_ATTRIBUTES[ctx.indicador if ctx.indicador in ORDER_ATTRIBUTES else "densidade"]
+    values = _values(ctx, res, attribute, res.universe)
+    ordered, positions, not_evaluable = _ranked(values, list(res.universe), _names(ctx, res.universe), "desc")
+    return {"atributo": attribute, "ordem": "desc",
+            "itens": [{"id": key, "posicao": positions[key]} for key in ordered] +
+                     [{"id": key, "posicao": None} for key in not_evaluable]}
+
+
 def _compute_states(ctx, options, spec) -> dict:
     """Nível estados da base Brasil: os estados da fonte estadual como itens (tipo "estado"), na ordem do código."""
     for key, text in STATE_REFUSALS.items():
@@ -3038,6 +3051,7 @@ def _compute_states(ctx, options, spec) -> dict:
             "referencia": None, "itens": items, "dominios": _domains(items), "notas": _state_notes(ctx, final, initial),
             "limitacoes": limitations}
     _page_extras(ctx, spec, body, res)
+    body["ordem_do_indicador"] = _indicator_order(ctx, res)
     normalized = _page_normalized(ctx, spec, {"competencia": ctx.period, "competencia_inicial": initial_period,
                                               "categoria": ctx.category, "estados": keys})
     body["chave_execucao"] = _execution_key(ctx, final, initial, normalized, None, res.methods, res.frames, res.digests)

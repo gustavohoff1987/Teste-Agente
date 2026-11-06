@@ -225,7 +225,11 @@ def test_availability_explains_what_the_brazil_base_allows(repo):
 def test_states_level_uses_the_state_source_and_the_state_population(repo):
     info = inspection()
     body = ok(post(info, nivel="estados", indicador="densidade", competencia="202406", competencia_inicial="202006"))
-    assert set(body) == TOP
+    # Desde 06/11/2026 (item 7 do comando de navegação por níveis; muda de propósito este teste), os estados trazem também a
+    # ordem do indicador, do motor (CAP-SUB-02), para a lista da tela estreita e os destaques das bolhas.
+    assert set(body) == TOP | {"ordem_do_indicador"}
+    assert body["ordem_do_indicador"] == {"atributo": "densidade", "ordem": "desc",
+                                          "itens": [{"id": "uf:15", "posicao": 1}, {"id": "uf:13", "posicao": 2}]}
     items = by_id(body)
     assert list(items) == ["uf:13", "uf:15"]
     assert all(item["tipo"] == "estado" and item["grupo_territorial"] is None for item in items.values())
@@ -243,7 +247,13 @@ def test_states_level_uses_the_state_source_and_the_state_population(repo):
     assert amazonas["inicial"] == {"populacao": None, "quantidade": 100, "densidade": None}
     assert amazonas["variacao_percentual"] == {"populacao": None, "quantidade": 0, "densidade": None}
     assert any("DADO_AUSENTE" in text for text in amazonas["motivos"])
-    early = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia="202006")))["uf:13"]
+    early_body = ok(post(info, nivel="estados", indicador="densidade", competencia="202006"))
+    # O não avaliável vem no fim da ordem, sem posição; com a quantidade, a ordem é a da quantidade.
+    assert early_body["ordem_do_indicador"]["itens"] == [{"id": "uf:15", "posicao": 1}, {"id": "uf:13", "posicao": None}]
+    quantidade = ok(post(info, nivel="estados", indicador="quantidade", competencia="202406"))["ordem_do_indicador"]
+    assert quantidade == {"atributo": "quantidade", "ordem": "desc",
+                          "itens": [{"id": "uf:13", "posicao": 1}, {"id": "uf:15", "posicao": 2}]}
+    early = by_id(early_body)["uf:13"]
     assert early["densidade"] is None and early["quantidade"] == 100
     assert any("população estadual incompleta, 4 de 5 municípios" in text and "(DENOMINADOR_AUSENTE)" in text
                for text in early["motivos"])
@@ -1389,6 +1399,13 @@ def test_real_states_match_the_state_level_of_the_density_analysis(real):
             row["Quantidade"], row["População"], row["Densidade por 1.000"])
     line = body["contexto"]["brasil"]
     assert line["densidade"] is not None and line["competencia"] == "202406"
+    # A ordem do motor (06/11/2026, item 7 do comando de navegação por níveis): do DF (4,41) ao MA (1,13), os 27, do maior para
+    # o menor, com as posições de CAP-SUB-02.
+    ordem = body["ordem_do_indicador"]["itens"]
+    assert len(ordem) == 27 and [entry["posicao"] for entry in ordem] == sorted(entry["posicao"] for entry in ordem)
+    assert (ordem[0]["id"], round(items[ordem[0]["id"]]["densidade"], 2)) == ("uf:53", 4.41)
+    assert (ordem[-1]["id"], round(items[ordem[-1]["id"]]["densidade"], 2)) == ("uf:21", 1.13)
+    assert all(items[a["id"]]["densidade"] >= items[b["id"]]["densidade"] for a, b in zip(ordem, ordem[1:]))
     # Os estados escolhidos (24/10/2026): os mesmos valores do pedido com todos.
     chosen = ok(post(real, nivel="estados", indicador="densidade", competencia="202406", estados=["29", "42"]))
     assert [item["id"] for item in chosen["itens"]] == ["uf:29", "uf:42"]

@@ -22,7 +22,10 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
   referência mais próxima (cerca de 140 km), do motor; a tela continua no Pará, com Marabá em destaque. "Abrir MARABA (PA)" leva
   a trilha a "Brasil › Pará › MARABA (PA)", com a mesma referência em todas as abas, e só então a conversa diz "Abri MARABA (PA).",
   com o selo "conferido: está na tela". No Amapá, a Análise Espacial acompanha a seleção com a mesma referência, e a mesma
-  pergunta traz os números do motor e "Ir para MARABA (PA)".
+  pergunta traz os números do motor e "Ir para MARABA (PA)";
+- os grupos em tela estreita (item 7): a 360 px, nos modos claro e escuro, vendo por estado, a lista na ordem do motor, do DF
+  (4,41) ao MA (1,13), com a linha "Brasil 2,36", sem textos sobrepostos; nas bolhas, os nomes só dos destaques (os 3 maiores e
+  os 3 menores), sem rótulos sobrepostos, e a sigla do Pará junto da bolha.
 Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
 .local/ui-validation (navegacao-*.png).
 """
@@ -33,6 +36,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+from ui_responsivo import SOBREPOSTOS
 from ui_support import URL, offline, options_of, responder_uma_vez, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
@@ -488,13 +492,84 @@ def main():
         assert len(pedidos) == pedidos_antes, "a pergunta não muda a análise"
         shot("12-maraba-fora-do-amapa")
 
+        # 13. Os grupos em tela estreita (item 7 do comando): a 360 px, nos modos claro e escuro, vendo por estado, a lista na ordem
+        # do motor, do DF (4,41) ao MA (1,13), com a linha "Brasil 2,36"; nas bolhas, os nomes só dos 3 maiores e dos 3 menores,
+        # sem rótulos sobrepostos, e a sigla do Pará junto da bolha (ou ligada a ela pela linha guia).
+        for esquema in ("light", "dark"):
+            estreito = browser.new_context(viewport={"width": 360, "height": 800}, color_scheme=esquema, has_touch=True,
+                                           is_mobile=True)
+            offline(estreito)
+            celular = estreito.new_page()
+            celular.on("pageerror", lambda error: falhas.append(str(error)))
+            celular.goto(URL)
+            celular.get_by_role("button", name="Li e concordo", exact=True).click()
+            area_c = celular.get_by_test_id("area-de-analise")
+            chat_c = celular.get_by_test_id("painel-chat")
+            if chat_c.count() and chat_c.get_by_test_id("painel-chat-minimizar").count() and \
+                    chat_c.get_attribute("data-minimizada") != "true":
+                chat_c.get_by_test_id("painel-chat-minimizar").click()
+            area_c.get_by_test_id("analise-fonte-brasil").click()
+            territorios_c = area_c.get_by_test_id("analise-territorios")
+            expect(territorios_c).to_be_visible(timeout=180000)
+            with celular.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST",
+                                         timeout=180000) as evento:
+                botao = territorios_c.get_by_test_id("analise-nivel-estados")
+                botao.scroll_into_view_if_needed()
+                botao.focus()
+                botao.press("Enter")
+            assert evento.value.status == 200, evento.value.text()[:1500]
+            ordem_motor = evento.value.json()["ordem_do_indicador"]["itens"]
+            ordem_c = [entrada["id"] for entrada in ordem_motor]
+            posicoes = {entrada["id"]: entrada["posicao"] for entrada in ordem_motor}
+            territorios_c.get_by_test_id("analise-ver-analise").click()
+            lista = area_c.get_by_test_id("analise-lista-grupos")
+            expect(lista).to_be_visible(timeout=60000)
+            expect(area_c.get_by_test_id("analise-grupos-lista")).to_have_attribute("aria-pressed", "true")
+            linhas = lista.get_by_test_id("analise-lista-grupo")
+            expect(linhas).to_have_count(27)
+            assert linhas.evaluate_all("els => els.map(e => e.dataset.id)") == ordem_c, "a ordem é a do motor"
+            expect(linhas.first).to_have_attribute("data-id", "uf:53")
+            expect(linhas.first).to_contain_text("DF")
+            expect(linhas.first).to_contain_text("4,41")
+            expect(linhas.last).to_have_attribute("data-id", "uf:21")
+            expect(linhas.last).to_contain_text("MA")
+            expect(linhas.last).to_contain_text("1,13")
+            expect(lista.get_by_test_id("analise-lista-todo")).to_have_text("Brasil 2,36")
+            assert not lista.evaluate(SOBREPOSTOS), (esquema, "textos sobrepostos na lista", lista.evaluate(SOBREPOSTOS)[:5])
+            assert celular.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), (esquema, "rolagem horizontal")
+            assert all(caixa["height"] >= 39.5 for caixa in linhas.evaluate_all(
+                "els => els.map(e => e.getBoundingClientRect().toJSON())")), (esquema, "alvo de toque menor que 40 px")
+            celular.screenshot(path=str(OUTPUT / ("navegacao-13-lista-" + esquema + "-real.png")), full_page=True)
+            # As bolhas, por escolha: os nomes só dos destaques, sem sobreposição; o Pará junto da bolha.
+            area_c.get_by_test_id("analise-grupos-bolhas").click()
+            expect(area_c.locator(ESTADOS)).to_have_count(27, timeout=60000)
+            celular.wait_for_timeout(800)  # transições do gráfico
+            avaliaveis = [i for i in ordem_c if posicoes[i] is not None]
+            corte = posicoes[avaliaveis[-3]]
+            destaques = {i for i in avaliaveis if posicoes[i] <= 3 or posicoes[i] >= corte}
+            rotulados = area_c.locator("g.analise-rotulos .analise-rotulo-grupo")
+            assert set(rotulados.evaluate_all("els => els.map(e => e.dataset.id)")) == destaques, (esquema, "só os destaques")
+            assert not area_c.locator("g.analise-rotulos").evaluate(SOBREPOSTOS), (esquema, "rótulos sobrepostos")
+            assert "uf:" + PA in destaques, ("o Pará entre os 3 menores", sorted(destaques))
+            perto = celular.evaluate("""(id) => {
+              const b = document.querySelector('[data-testid=analise-bolha][data-id="' + id + '"]').getBoundingClientRect();
+              const g = document.querySelector('g.analise-rotulos .analise-rotulo-grupo[data-id="' + id + '"]');
+              const t = g.querySelector('text').getBoundingClientRect();
+              const dx = Math.max(0, t.left - b.right, b.left - t.right), dy = Math.max(0, t.top - b.bottom, b.top - t.bottom);
+              return {distancia: Math.hypot(dx, dy), guia: !!g.querySelector('[data-testid=analise-rotulo-guia]')}; }""",
+                                    "uf:" + PA)
+            assert perto["distancia"] <= 12 or perto["guia"], (esquema, "a sigla do Pará longe da bolha, sem linha guia", perto)
+            celular.screenshot(path=str(OUTPUT / ("navegacao-14-bolhas-" + esquema + "-real.png")), full_page=True)
+            estreito.close()
+
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
         browser.close()
     print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
           "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
           "estados (27), Análise Espacial por estado, a conversa que move a trilha (Mostre o Pará) e a proteção (Esta análise ainda é "
-          "do Pará, com Atualizar) e a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para).")
+          "do Pará, com Atualizar), a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para) e os estados "
+          "em tela estreita (a lista na ordem do motor, do DF ao MA, e nas bolhas só os destaques).")
 
 
 if __name__ == "__main__":

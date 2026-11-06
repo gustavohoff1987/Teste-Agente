@@ -293,6 +293,16 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   desenho" e [Mapa da página única](MAPA_DA_PAGINA_UNICA.md)); a Análise Espacial mostra só "A Análise Espacial mede distâncias
   entre municípios." e o botão "Ver os municípios destes estados" (`analise-espacial-grupos`, `analise-espacial-ver-unidades`),
   que troca o Ver por para município e abre a Escolha dos territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
+- **Os estados em tela estreita** (06/11/2026, item 7 do comando; `ListaDosGrupos.tsx`): no celular (até 639 px, `useNarrow`),
+  vendo por estado, a Distribuição mostra por padrão a lista ordenada (`analise-lista-grupos`): uma linha por estado
+  (`analise-lista-grupo`, a linha inteira é o alvo do toque, 40 px), na ordem do motor (`ordem_do_indicador`, CAP-SUB-02, sem
+  mostrar as posições; resposta do responsável na consulta da mesma data, "Ordem do motor"), com a sigla (ou o nome, sem sigla),
+  um ponto na escala do indicador (a partir do zero), o valor e a marca tracejada do todo, com "Brasil 2,36" no alto
+  (`analise-lista-todo`). Tocar numa linha desce até o estado. O controle "Lista | Bolhas" (`analise-grupos-vista`) troca para as
+  bolhas. Nas bolhas dos estados (no computador e no celular), os nomes ficam só nos destaques: os 3 maiores e os 3 menores pela
+  ordem do motor, com os empates no corte (`destaquesDaOrdem`), os marcados e o tocado (antes, as 27 siglas ficavam sempre à
+  vista); o nome deslocado para não cobrir outro ganha a linha guia até a bolha (`analise-rotulo-guia`), e o contorno dos rótulos
+  é fino e translúcido nos modos claro e escuro (antes, 3 px opacos).
 - **O destaque da resposta de valor** (06/11/2026, item 4.2): a pergunta "Quantos médicos tem em Marabá?" não muda a análise; a
   conversa responde com os números do motor e pede o destaque (`destacar`), e a área põe o lugar em destaque no gráfico em uso
   (o anel e o nome, com as demais bolhas esmaecidas; `data-realce` na bolha) e no mapa (o anel e o nome dos marcados), enquanto a
@@ -996,6 +1006,11 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 ## Testes
 
+- **Os estados em tela estreita (06/11/2026, item 7 do comando):** Node, `areaDeAnalise.test.mjs` (`ordemDoIndicadorDe` e
+  `destaquesDaOrdem`, com os empates no corte); navegador, o passo 13 de `ui_navegacao.py` (a 360 px, nos modos claro e escuro: a
+  lista na ordem do motor, do DF, 4,41, ao MA, 1,13, com "Brasil 2,36", sem textos sobrepostos e com o alvo de 40 px; nas bolhas,
+  só os destaques rotulados, sem sobreposição, e a sigla do Pará junto da bolha); pytest, `test_painel_pagina.py` (a ordem do
+  motor nos estados, com o catálogo sintético e com a base versionada).
 - **Pergunta não é comando (06/11/2026, item 4 do comando, parte B):** Node, `areaDeAnalise.test.mjs` (`lugarConfere`: a trilha
   e os itens do lugar pedido) e `conversaGrafico.test.mjs` (a ação `destacar` e o pedido único); navegador, o passo 12 de
   `ui_navegacao.py` (a pergunta na Análise Espacial do Pará, o destaque de Marabá sem mudar a tela, "Abrir MARABA (PA)" com a

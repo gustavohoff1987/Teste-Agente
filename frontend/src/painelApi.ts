@@ -224,6 +224,10 @@ export type PainelResposta = {
   indicador: PainelIndicador | null;
   /** Frase-resumo do motor (23/10/2026): só números conferidos do resultado, sem julgamento nem causa. A tela só a mostra. */
   resumo: { texto: string } | null;
+  /** A ordem dos estados pelo indicador (06/11/2026, item 7 do comando de navegação por níveis; `ordem_do_indicador`): do maior
+   * para o menor, com as posições de CAP-SUB-02 (empates na mesma posição; os não avaliáveis no fim, sem posição). A lista da
+   * tela estreita e os destaques das bolhas seguem esta ordem; a tela não ordena. null fora do nível dos estados. */
+  ordemDoIndicador: { atributo: string; itens: { id: string; posicao: number | null }[] } | null;
 };
 
 /** Pendência de premissa (ChoiceRequired): o motor pede uma escolha (referencial, formato de número…) antes de calcular. */
@@ -687,7 +691,21 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
     rotulos: rotulosDe(o.rotulos),
     indicador: o.indicador === "densidade" || o.indicador === "quantidade" ? o.indicador : null,
     resumo: resumoDe(o.resumo),
+    ordemDoIndicador: ordemDoIndicadorDe(o.ordem_do_indicador),
   };
+}
+
+/** `ordem_do_indicador` do motor nos tipos da tela; sem a forma esperada (ou na resposta de antes), null. */
+export function ordemDoIndicadorDe(bruto: unknown): PainelResposta["ordemDoIndicador"] {
+  const o = objeto(bruto);
+  if (!o || !Array.isArray(o.itens)) return null;
+  const itens: { id: string; posicao: number | null }[] = [];
+  for (const entrada of o.itens) {
+    const e = objeto(entrada), id = texto(e?.id), posicao = num(e?.posicao);
+    if (!id) return null;
+    itens.push({ id, posicao: posicao !== null && Number.isInteger(posicao) && posicao > 0 ? posicao : null });
+  }
+  return { atributo: texto(o.atributo) ?? "", itens };
 }
 
 /** Resposta de /api/painel/mapa nos tipos da tela (DadosDoMapa do contrato): `pontos` [{id, lat, lon}] vira um Map id →
