@@ -13,16 +13,20 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
 - o mapa vendo por estado: 27 bolhas, nos pontos de desenho do servidor;
 - a Análise Espacial vendo por estado: só a mensagem "A Análise Espacial mede distâncias entre municípios." e o botão "Ver os
   municípios destes estados", que troca o Ver por e abre a Escolha dos territórios;
-- a conversa que navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa.
+- a conversa que navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa;
+- a proteção (item 4.6): com o cálculo da seleção em uso retido, a aba diz "Esta análise ainda é do Pará: o cálculo da seleção
+  em uso ainda não chegou.", com "Atualizar", e o desenho fica esmaecido; com a falha do cálculo, "… não deu certo.", e
+  "Atualizar" pede de novo, até o resultado ser o da seleção em uso.
 Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
 .local/ui-validation (navegacao-*.png).
 """
+import json
 import os
 import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
-from ui_support import URL, offline, options_of, send
+from ui_support import URL, offline, options_of, responder_uma_vez, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 PA, MARABA = "15", "code:150420"
@@ -339,12 +343,66 @@ def main():
         confere_numeros(lugar_pa)
         shot("07-conversa-para")
 
+        # 11. A proteção (item 4.6): o resultado à vista é de outra seleção enquanto o cálculo da seleção em uso não chega. Com o
+        # pedido retido, a aba diz de que lugar ele é, com "Atualizar", e o desenho fica esmaecido; com o cálculo, tudo volta ao
+        # normal.
+        desatualizada = area.get_by_test_id("analise-desatualizada")
+        quadro = area.get_by_test_id("analise-quadro")
+        expect(area.get_by_test_id("analise-atualizando")).to_have_count(0, timeout=180000)
+        expect(desatualizada).to_have_count(0)
+        outro = next(item for item in para["itens"] if item["id"] != MARABA and item["densidade"] is not None)
+        retidas = []
+        page.route("**/api/painel", lambda route: retidas.append(route))
+        aperta(area.locator('[data-testid="analise-bolha"][data-id="' + outro["id"] + '"]'))
+        expect(partes).to_have_text(["Brasil", "Pará", outro["rotulo"]])
+        expect(desatualizada).to_have_text(re.compile(r"^Esta análise ainda é do Pará: o cálculo da seleção em uso ainda não "
+                                                      r"chegou\.\s*Atualizar$"), timeout=30000)
+        expect(desatualizada).to_have_attribute("role", "status")
+        expect(desatualizada.get_by_test_id("analise-atualizar")).to_have_text("Atualizar")
+        expect(quadro).to_have_attribute("data-desatualizada", "true")
+        assert retidas, "o pedido da seleção em uso saiu e ficou retido"
+        shot("08-protecao-pendente")
+        for rota in retidas:
+            try:
+                rota.continue_()
+            except Exception:  # noqa: BLE001 - o pedido que a página já cancelou não tem o que soltar
+                pass
+        page.unroute("**/api/painel")
+        expect(desatualizada).to_have_count(0, timeout=120000)
+        expect(quadro).not_to_have_attribute("data-desatualizada", "true")
+        expect(faixa.get_by_test_id("analise-cartao")).to_have_attribute("data-id", outro["id"], timeout=60000)
+        expect(area.get_by_test_id("analise-cartao-no-lugar")).to_be_visible()
+
+        # Com a falha do cálculo: "… não deu certo.", e "Atualizar" pede de novo; o resultado passa a ser o da seleção em uso.
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=180000)
+        expect(area.get_by_test_id("analise-atualizando")).to_have_count(0, timeout=180000)
+        expect(desatualizada).to_have_count(0)
+        falha = "Falha simulada do serviço de análise neste teste."
+        falhou = responder_uma_vez(page, "**/api/painel", status=500, body=json.dumps({"detail": falha}),
+                                   content_type="application/json")
+        aperta(area.locator('[data-testid="analise-bolha"][data-id="uf:16"]'))
+        expect(partes).to_have_text(["Brasil", "Amapá"])
+        expect(desatualizada).to_have_text(re.compile(r"^Esta análise ainda é do Brasil: o cálculo da seleção em uso não deu "
+                                                      r"certo\.\s*Atualizar$"), timeout=60000)
+        expect(desatualizada).to_have_attribute("role", "alert")
+        expect(quadro).to_have_attribute("data-desatualizada", "true")
+        assert falhou, "o pedido da seleção em uso recebeu a falha simulada"
+        shot("09-protecao-falha")
+        amapa, sent = ok(lambda: aperta(desatualizada.get_by_test_id("analise-atualizar")))
+        assert sent["base"] == {"municipios": {"todos": False, "estados": ["16"], "ids": []}}, sent
+        assert amapa["itens"] and all(item["tipo"] == "municipio" for item in amapa["itens"]), len(amapa["itens"])
+        expect(desatualizada).to_have_count(0, timeout=60000)
+        expect(quadro).not_to_have_attribute("data-desatualizada", "true")
+        expect(faixa).to_have_attribute("data-grupo", "16", timeout=60000)
+
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
         browser.close()
     print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
           "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
-          "estados (27), Análise Espacial por estado e a conversa que move a trilha (Mostre o Pará).")
+          "estados (27), Análise Espacial por estado, a conversa que move a trilha (Mostre o Pará) e a proteção (Esta análise ainda é "
+          "do Pará, com Atualizar).")
 
 
 if __name__ == "__main__":

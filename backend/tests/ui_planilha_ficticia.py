@@ -205,12 +205,18 @@ def main():
         # 5. Espacial: a Escolha dos territórios (botões, opções e frase), o cálculo conforme a base, o resultado e "Entenda".
         aperta(area.get_by_test_id("analise-familia-espacial"))
         janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        expect(janela.get_by_test_id("territorios-base-todos")).to_have_text("Todas que atendem (16)", timeout=60000)
-        expect(janela.get_by_test_id("territorios-base-marcados")).to_have_text("Só as que eu marcar")
+        # Desde 06/11/2026 (item 4.1 do comando, uma seleção só), a base é a seleção em uso: a aba Base mostra a seleção (toda a
+        # planilha), sem "Todas que atendem" nem "Só as que eu marcar", que ficam na Referência, com a concordância das comunas.
+        expect(janela.get_by_test_id("territorios-base-selecao-texto")).to_contain_text(
+            "A base é a seleção em uso, a da Seleção de Territórios:", timeout=60000)
+        expect(janela.get_by_test_id("territorios-base-marcados")).to_have_count(0)
         expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
             "a mais próxima de cada uma, entre as comunas de toda a planilha")
         guarda("janela-base")
         aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        expect(janela.get_by_test_id("territorios-referencia-todos")).to_have_text(re.compile(r"^Todas que atendem \(\d+\)$"),
+                                                                                  timeout=60000)
+        expect(janela.get_by_test_id("territorios-referencia-marcados")).to_have_text("Só as que eu marcar")
         menu = janela.get_by_test_id("territorios-referencia-partir-menu")
         assert "Mesmo condado de cada comuna da base" in menu.locator("option").all_text_contents()
         menu.select_option("mesma_uf_da_base")

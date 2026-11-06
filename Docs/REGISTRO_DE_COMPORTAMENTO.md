@@ -35,6 +35,58 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-06 · Uma seleção só (etapa 5 do comando, parte A): a base da Análise Espacial é a seleção em uso, e a proteção "Esta análise ainda é de…"
+- **Classificação (regra 1), pela leitura, antes de codar:** itens 4.1 e 4.6 do comando de 06/11/2026, classificados de uma vez
+  com os demais (entrada da navegação por níveis, abaixo). Mudança prevista: *escopo:* decorre do comando (decisão 2, a Análise
+  Espacial perde a base própria, e o item 4.6); *compatibilidade:* a SPEC não pede uma base da Análise Espacial à parte da
+  seleção (a base com o seletor em três etapas foi pedido do próprio responsável, no comando de 27/10/2026, que a decisão 2
+  substitui), e todo número continua vindo do motor (INV-02). As partes 4.2 a 4.5 (pergunta não é comando, "Abrir", a
+  confirmação conferida com a tela e "Ir para") ficam para a parte B da etapa 5.
+- **Antes:**
+  - A janela "Escolha dos territórios" escolhia a base e a referência com o mesmo seletor em três etapas (Partir de: todo o país,
+    regiões, estados ou a seleção prévia; Filtrar por; Escolher: todos ou só os marcados). A Análise Espacial podia calcular com
+    uma base diferente da seleção: com a base "Um estado: Pará", a seleção trocada para Marabá (pela conversa ou na Seleção)
+    deixava o título e o gráfico no Pará, com 144 bolhas. Sem seleção, a base partia de todo o país.
+  - A conversa ("o de menor densidade e o mais próximo dele…") punha o extremo na base da consulta, sem mudar a seleção nem a
+    trilha.
+  - Enquanto o cálculo da seleção nova não chegava, ou quando falhava, o resultado de antes ficava à vista como atual, só com
+    "Atualizando o gráfico…" ou com o erro.
+- **Agora:**
+  - **A base é a seleção em uso**, a da trilha e da Seleção de Territórios, para todas as abas e para a conversa. A aba Base da
+    janela mostra a seleção ("A base é a seleção em uso, a da Seleção de Territórios: …", `territorios-base-selecao-texto`), com
+    "Alterar a seleção" (`territorios-base-alterar`, que leva à Seleção de Territórios), os filtros sobre ela (densidade,
+    população, quantidade) e quantos entram, sem "Partir de" nem "Escolher". A frase da base: "Municípios da seleção prévia com
+    {filtros}". A referência continua com as três etapas.
+  - **Sem seleção**, a base fica incompleta ("Base incompleta: escolha os municípios na Seleção de Territórios."), "Calcular" fica
+    desligado e nada é pedido ao motor.
+  - **Uma consulta que chega com outra base** (a da conversa, a de uma análise guardada) tem a base levada à seleção: o extremo, os
+    citados pelo nome, um estado, regiões (pelos estados delas) ou o país viram a seleção, e a trilha os acompanha; a referência
+    que partia da seleção passa a nomear a de antes (o estado inteiro, o país ou os municípios dela), para continuar a mesma. Uma
+    análise guardada com outra base reabre com a seleção dela, recalculada.
+  - **A proteção** (item 4.6): quando o resultado à vista é de outra seleção — o cálculo da seleção em uso não chegou em 0,7 s ou
+    falhou —, a aba diz de que lugar ele é ("Esta análise ainda é do Pará: o cálculo da seleção em uso ainda não chegou.", ou
+    "… não deu certo."), com "Atualizar" (`analise-desatualizada`, `analise-atualizar`), e o desenho fica esmaecido
+    (`data-desatualizada` em `analise-quadro`).
+- **Permanece:** a referência (as três etapas, os filtros, a distância e as faixas de distância); os contratos de `/api/painel` e
+  de `POST /api/painel/territorios` (a partida `selecao_previa` já existia, e o motor continua aceitando as demais na base, pela
+  API); a Distribuição e a Tendência, que já acompanhavam a seleção; o Desfazer de cada passo; o termo "seleção prévia" nas frases
+  e no motor; e o contexto que vai ao provedor de IA.
+- **Motivo:** comando do responsável de 06/11/2026, item 4 (o caso reproduzido: a seleção em Marabá e a Análise Espacial no
+  Pará).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a janela, a tabela de estados, a proteção e os testes),
+    `Docs/DIALOGO_GOVERNADO.md` (a proximidade pela conversa) e o `README.md`.
+  - **Testes novos:** `frontend/tests/areaDeAnalise.test.mjs` ("uma seleção só", com `baseNaSelecao`, `selecaoDaBase` e
+    `consultaNaSelecao`; "proteção", com `deOndeEhOResultado`) e o passo 11 de `backend/tests/ui_navegacao.py` (o pedido retido e
+    a falha simulada, com "Atualizar").
+  - **Testes que mudam de propósito, pelo comportamento novo:** `frontend/tests/areaDeAnalise.test.mjs` (a consulta inicial com a
+    base na seleção, as pendências com a seleção vazia, o texto de apresentação da Análise Espacial, o estado guardado com outra
+    base, a referência pelo nome com filtros e a consulta da conversa que muda a seleção); `frontend/tests/painel.test.mjs` (a
+    base da referência pelo nome é a seleção, com os filtros); os roteiros `ui_area_de_analise.py` (a janela sem seleção, com a
+    base incompleta; a aba Base com a seleção e os filtros, sem Partir de nem Escolher; o Desfazer do cálculo; a proximidade pela
+    conversa, com o extremo como seleção e a trilha), `ui_mapa.py` (BOA VISTA pelo toque na bolha, com a mesma referência) e
+    `ui_planilha_ficticia.py` (o texto da base e a concordância de "Só as que eu marcar" na referência).
+
 ### 2026-11-06 · Navegação por níveis (etapas 1 a 4 do comando): o todo como referência, o "Ver por", a faixa do lugar, a trilha, o mapa dos estados e o cartão do município
 - **Classificação (regra 1), pela leitura, antes de codar:** comando do responsável de 06/11/2026 ("navegação por níveis, uma
   seleção só e as ferramentas da Seleção de Territórios", sete itens em nove etapas), classificado de uma vez, no início. Todos os

@@ -574,9 +574,15 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
     ({partir_de: {tipo, regioes, ufs}, filtros, escolha: {modo, municipios}});
   const f = (indicador, operador, valor) => ({indicador, operador, valor});
   const consulta = (base, referencia) => ({base, referencia, distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}});
-  // A janela abre com a base na seleção prévia (sem ela, o país) e a referência no país, sem filtros.
+  // A janela abre com a base na seleção prévia e a referência no país, sem filtros. Desde 06/11/2026 (item 4.1 do comando, uma
+  // seleção só; muda de propósito este teste), também sem territórios selecionados: até essa data, a base partia do país.
   assert.deepEqual(M.consultaInicial({comSelecao: true}), consulta(lado('selecao_previa'), lado('pais')));
-  assert.equal(M.consultaInicial({comSelecao: false}).base.partir_de.tipo, 'pais');
+  assert.equal(M.consultaInicial({comSelecao: false}).base.partir_de.tipo, 'selecao_previa');
+  assert.deepEqual(M.consultaInicial(), M.consultaInicial({comSelecao: true}));
+  // A seleção em uso vazia deixa incompleto o lado que parte dela, com o caminho (a Seleção de Territórios).
+  assert.deepEqual(M.pendenciasDaConsulta(M.consultaInicial(), BR, {selecaoVazia: true}),
+    {base: ['escolha os municípios na Seleção de Territórios'], referencia: []});
+  assert.deepEqual(M.pendenciasDaConsulta(M.consultaInicial(), BR), {base: [], referencia: []});
   // O exemplo do comando, sem o filtro de distância (retirado em 27/10/2026, a pedido do responsável: a distância até a referência
   // mais próxima aparece no eixo X do resultado): municípios do Norte com densidade abaixo de 0,5 e, como referência, os do Acre com
   // densidade acima de 2.
@@ -795,7 +801,9 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.throws(() => A.normalizarTerritorios(null), /não segue o contrato/);
   // A apresentação da análise espacial fala da Escolha dos territórios, e o próprio território nunca é referência.
   const espacial = M.apresentacaoDaAba('espacial', {rotulos: BR, brasil: true, comGrupos: true}).paragrafos.join(' ');
-  assert.ok(espacial.includes('Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas'), espacial);
+  // Desde 06/11/2026 (item 4.1 do comando), a base é sempre a seleção em uso; a janela escolhe a referência em três etapas.
+  assert.ok(espacial.includes('A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios'), espacial);
+  assert.ok(espacial.includes('Na Escolha dos territórios, a referência é escolhida em três etapas'), espacial);
   assert.ok(espacial.includes('no mesmo estado ou na mesma região de cada município da base'), espacial);
   assert.ok(espacial.includes('O próprio município nunca é a sua referência'), espacial);
   assert.ok(!/mais distante|pelo nome|um conjunto deles|também pela distância/.test(espacial), espacial);
@@ -921,10 +929,15 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
   const deAntes = (extra) => M.lerEstadoSalvo(salvar({...semConsulta, ...extra})).definicao;
   const elegivel = {relacao: 'mais_proxima', delimitacao: {tipo: 'mesmo_grupo'}, condicao: {atributo: 'densidade', operador: '>', valor: 2}};
   const migrada = deAntes({referencia: elegivel, territoriosBase: ['code:140010', 7]});
+  // Desde 06/11/2026 (item 4.1, uma seleção só; muda de propósito este teste), os territórios base de então viram a seleção, e a
+  // base da consulta é a seleção em uso; antes, eles ficavam como os marcados da base.
   assert.deepEqual(migrada.consulta, {base: {partir_de: {tipo: 'selecao_previa', regioes: [], ufs: []}, filtros: [],
-    escolha: {modo: 'marcados', municipios: ['code:140010']}}, referencia: {partir_de: {tipo: 'mesma_uf_da_base', regioes: [], ufs: []},
+    escolha: {modo: 'todos', municipios: []}}, referencia: {partir_de: {tipo: 'mesma_uf_da_base', regioes: [], ufs: []},
     filtros: [{indicador: 'densidade', operador: '>', valor: 2}], escolha: {modo: 'todos', municipios: []}},
     distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}});
+  assert.deepEqual([migrada.base, migrada.nivel], [{todos: false, estados: [], ids: ['code:140010']}, 'municipios']);
+  const lidaMigrada = M.lerEstadoSalvo(salvar({...semConsulta, referencia: elegivel, territoriosBase: ['code:140010']}));
+  assert.deepEqual([lidaMigrada.resposta, lidaMigrada.chave, lidaMigrada.opcoes], [null, '', null]);  // calculada de novo
   assert.deepEqual(['referencia' in migrada, 'territoriosBase' in migrada], [false, false]);
   assert.deepEqual(deAntes({referencia: {...elegivel, delimitacao: {tipo: 'regioes', valores: ['Norte']}}, territoriosBase: null}).consulta.referencia.partir_de,
     {tipo: 'regioes', regioes: ['Norte'], ufs: []});
@@ -933,9 +946,14 @@ test('base e referência (25/10/2026; Escolha dos territórios, 27/10/2026): cad
     {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [], escolha: {modo: 'marcados', municipios: ['code:130260']}});
   assert.equal(deAntes({referencia: {...elegivel, relacao: 'mais_distante'}}).consulta, null);
   assert.equal(deAntes({referencia: null}).consulta, null);
-  // A referência pelo nome pedida na conversa vira os marcados da Referência, a partir do país; a base continua a da consulta.
+  // A referência pelo nome pedida na conversa vira os marcados da Referência, a partir do país; a base é a seleção em uso, com os
+  // filtros da consulta (06/11/2026).
   const pedida = M.consultaComReferenciaMarcada(consulta, ['code:130260'], true);
   assert.deepEqual(pedida.base, consulta.base);
+  const comFiltro = {...consulta, base: {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [{indicador: 'densidade', operador: '<', valor: 1}],
+    escolha: {modo: 'todos', municipios: []}}};
+  assert.deepEqual(M.consultaComReferenciaMarcada(comFiltro, ['code:130260']).base, {partir_de: {tipo: 'selecao_previa', regioes: [], ufs: []},
+    filtros: [{indicador: 'densidade', operador: '<', valor: 1}], escolha: {modo: 'todos', municipios: []}});
   assert.deepEqual(pedida.referencia, {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [], escolha: {modo: 'marcados', municipios: ['code:130260']}});
   // O gráfico cobre as referências de contexto: o eixo com o valor delas e a escala de tamanho com a população delas.
   const grafico = (extra = {}) => M.montarGrafico({itens: r.itens.slice(0, 2), dominios: {}, indicador: 'densidade', escala: 'linear',
@@ -961,8 +979,21 @@ test('conversa (28/10/2026): a Escolha dos territórios pedida vale como a feita
   const r = M.aplicarPedido(tocantins, {familia: 'espacial', nivel: 'municipios', consulta: JSON.parse(JSON.stringify(pedida))}, c);
   assert.deepEqual([r.definicao.familia, r.definicao.nivel, r.mensagens, r.abrir], ['espacial', 'municipios', [], null]);
   assert.deepEqual(r.definicao.comparar, []);  // a base passa a ser a da consulta: a comparação de antes sai
-  assert.deepEqual(r.definicao.consulta, M.lerConsulta(pedida));
-  assert.deepEqual(r.definicao.base, tocantins.base);  // a seleção prévia continua
+  // Desde 06/11/2026 (item 4.1 do comando, uma seleção só; muda de propósito este teste): a base marcada vira a seleção (a trilha
+  // vai a ela), a base da consulta é a seleção em uso, e a referência que partia da seleção nomeia a de antes (o Tocantins
+  // inteiro). Até essa data, a seleção continuava o Tocantins, e a base da consulta guardava o extremo como marcado.
+  assert.deepEqual(r.definicao.base, {todos: false, estados: [], ids: ['code:171888']});
+  assert.deepEqual(r.definicao.consulta, {base: lado('selecao_previa'),
+    referencia: {partir_de: {tipo: 'ufs', regioes: [], ufs: ['17']}, filtros: [{indicador: 'densidade', operador: '>=', valor: 1.5}],
+      escolha: {modo: 'todos', municipios: []}}, distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}});
+  // Com municípios avulsos na seleção de antes, a referência os nomeia, com os de cada estado inteiro.
+  const avulsos = definicao({base: {todos: false, estados: ['11'], ids: ['code:130260']}});
+  const comAvulsos = M.aplicarPedido(avulsos, {consulta: pedida}, {...c, unidadesDoGrupo: g => g === '11' ? ['code:110001', 'code:110002'] : []});
+  assert.deepEqual(comAvulsos.definicao.consulta.referencia.partir_de, {tipo: 'pais', regioes: [], ufs: []});
+  assert.deepEqual(comAvulsos.definicao.consulta.referencia.escolha, {modo: 'marcados', municipios: ['code:110001', 'code:110002', 'code:130260']});
+  // Uma base que já é a seleção em uso não muda a seleção.
+  const naSelecao = M.aplicarPedido(tocantins, {consulta: {...pedida, base: lado('selecao_previa')}}, c);
+  assert.deepEqual(naSelecao.definicao.base, tocantins.base);
   assert.equal(M.consultaEmUso(r.definicao), true);
   assert.equal(M.familiaCalculada(r.definicao, true), 'espacial');
   // Forma que não confere: nada muda, e a mensagem diz o motivo.
@@ -1272,4 +1303,50 @@ test('cliente do motor: os números do lugar em uso e os pontos de desenho dos e
   assert.deepEqual([...mapa.grupos.entries()], [['uf:15', [-4.2, -51.1]]]);  // ponto fora do intervalo fica de fora
   assert.ok(mapa.notaDosGrupos.startsWith('Cada estado aparece no mapa'));
   assert.equal(A.normalizarMapa({competencia: '202406', pontos: [], sem_coordenada: []}).grupos, undefined);
+});
+
+test('uma seleção só (06/11/2026, item 4.1): a base da Espacial é a seleção em uso; a base que parte de outro lugar vira a seleção', () => {
+  const lado = (tipo, {regioes = [], ufs = [], filtros = [], modo = 'todos', municipios = []} = {}) =>
+    ({partir_de: {tipo, regioes, ufs}, filtros, escolha: {modo, municipios}});
+  const f = {indicador: 'densidade', operador: '<', valor: 0.5};
+  // A base na seleção guarda os filtros e deixa a partida e os marcados.
+  assert.deepEqual(M.baseNaSelecao(lado('regioes', {regioes: ['Norte'], filtros: [f], modo: 'marcados', municipios: ['code:150001']})),
+    lado('selecao_previa', {filtros: [f]}));
+  assert.equal(M.baseEhASelecao(lado('selecao_previa')), true);
+  assert.equal(M.baseEhASelecao(lado('selecao_previa', {modo: 'marcados', municipios: ['code:150001']})), false);
+  // As equivalências do comando: os marcados viram a seleção; o país, o todo; um estado, ele inteiro; as regiões, os estados delas.
+  const estados = ['11', '12', '13', '15', '29', '35'];
+  assert.deepEqual(M.selecaoDaBase(lado('pais', {modo: 'marcados', municipios: ['code:150002', 'code:150001']}), estados),
+    {todos: false, estados: [], ids: ['code:150001', 'code:150002']});
+  assert.deepEqual(M.selecaoDaBase(lado('pais'), estados), {todos: true, estados: [], ids: []});
+  assert.deepEqual(M.selecaoDaBase(lado('ufs', {ufs: ['15', '13']}), estados), {todos: false, estados: ['13', '15'], ids: []});
+  assert.deepEqual(M.selecaoDaBase(lado('regioes', {regioes: ['Norte']}), estados), {todos: false, estados: ['11', '12', '13', '15'], ids: []});
+  assert.equal(M.selecaoDaBase(lado('regioes', {regioes: ['Norte']}), []), null);  // sem a lista dos estados, nenhuma seleção inventada
+  assert.equal(M.selecaoDaBase(lado('selecao_previa'), estados), null);
+  // A consulta na seleção: com a base no país, a seleção vira o todo, e a referência que partia da seleção nomeia a de antes.
+  const consulta = {base: lado('pais', {filtros: [f]}), referencia: lado('selecao_previa'), distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}};
+  const doPara = M.consultaNaSelecao(consulta, {todos: false, estados: ['15'], ids: []}, {todosOsEstados: estados, unidadesDoGrupo: () => []});
+  assert.deepEqual(doPara.selecao, {todos: true, estados: [], ids: []});
+  assert.deepEqual(doPara.consulta.base, lado('selecao_previa', {filtros: [f]}));
+  assert.deepEqual(doPara.consulta.referencia, lado('ufs', {ufs: ['15']}));
+  const doTodo = M.consultaNaSelecao({...consulta, base: lado('ufs', {ufs: ['13']})}, {todos: true, estados: [], ids: []},
+    {todosOsEstados: estados, unidadesDoGrupo: () => []});
+  assert.deepEqual([doTodo.selecao, doTodo.consulta.referencia], [{todos: false, estados: ['13'], ids: []}, lado('pais')]);
+  // Sem a seleção, nada é pedido ao motor, também com a Escolha dos territórios em uso (antes, a consulta bastava).
+  const vazia = {familia: 'espacial', nivel: 'municipios', base: {todos: false, estados: [], ids: []}, estados: [], conjuntos: [],
+    consulta: M.consultaInicial()};
+  assert.equal(M.semTerritorios(vazia), true);
+  assert.equal(M.semTerritorios({...vazia, base: {todos: false, estados: ['15'], ids: []}}), false);
+});
+
+test('proteção (06/11/2026, item 4.6): de que lugar é o resultado à vista, com a preposição', () => {
+  const comRotulo = {...TRILHA, arvore: {...ARVORE, grupos: ARVORE.grupos.map(g => g.id === '15' ? {...g, rotuloGrupo: 'Municípios do Pará'} : g)}};
+  const grupos = comRotulo.arvore.grupos;
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('estados', [], [], true, [], ['13', '15', '35']), comRotulo), {grupos}), 'do Brasil');
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', ['15']), comRotulo), {grupos}), 'do Pará');
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', ['13']), comRotulo), {grupos}), 'de Amazonas');
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:150001']), comRotulo), {grupos}), 'de MARABA (PA)');
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', ['13', '15']), comRotulo), {grupos}), 'de outra seleção');
+  const planilha = {...comRotulo, nomeDoTodo: 'Toda a planilha', comGrupos: false};
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), planilha), {grupos: []}), 'de toda a planilha');
 });

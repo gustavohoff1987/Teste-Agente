@@ -1772,10 +1772,55 @@ export const notaDaDistanciaDaConsulta = (rotulos: RotulosTerritoriais) => "Dist
 
 const ladoInicial = (tipo: TipoPartida): LadoDaConsulta => ({ partir_de: { tipo, regioes: [], ufs: [] }, filtros: [],
   escolha: { modo: "todos", municipios: [] } });
-/** A consulta com que a janela abre: a base parte da seleção prévia (os territórios já selecionados; sem eles, do país inteiro), e
- * a referência, do país inteiro, sem filtros. Nada é calculado até "Calcular". */
-export const consultaInicial = (c: { comSelecao: boolean }): ConsultaTerritorios => ({
-  base: ladoInicial(c.comSelecao ? "selecao_previa" : "pais"), referencia: ladoInicial("pais"), distancia: { ...DISTANCIA_DA_CONSULTA } });
+/** A consulta com que a janela abre: a base é a seleção prévia, a da Seleção de Territórios (desde 06/11/2026, item 4.1 do comando:
+ * uma seleção só; até essa data, sem territórios selecionados, a base partia do país inteiro), e a referência parte do país
+ * inteiro, sem filtros. Nada é calculado até "Calcular". */
+export const consultaInicial = (_c?: { comSelecao?: boolean }): ConsultaTerritorios => ({
+  base: ladoInicial("selecao_previa"), referencia: ladoInicial("pais"), distancia: { ...DISTANCIA_DA_CONSULTA } });
+
+/** A base da Análise Espacial é sempre a seleção em uso (06/11/2026, item 4.1 do comando: uma seleção só, a da trilha e da Seleção
+ * de Territórios, para todas as abas e para a conversa): a janela escolhe só a referência; os filtros da base continuam, aplicados
+ * à seleção. */
+export const baseNaSelecao = (lado: LadoDaConsulta): LadoDaConsulta => ({ partir_de: { tipo: "selecao_previa", regioes: [], ufs: [] },
+  filtros: lado.filtros.map(filtro => ({ ...filtro })), escolha: { modo: "todos", municipios: [] } });
+/** A base já é a seleção em uso (sem outra partida e sem os marcados). */
+export const baseEhASelecao = (lado: LadoDaConsulta) => lado.partir_de.tipo === "selecao_previa" && lado.escolha.modo === "todos";
+
+/** A seleção equivalente a uma base que não é a seleção em uso (de um pedido da conversa ou de um estado guardado), como manda o
+ * comando: os marcados viram a seleção; "partir do país" é ficar no todo; "partir de um estado", descer até ele; as regiões, os
+ * estados delas (com `todosOsEstados`; sem a lista, nenhuma seleção é inventada). Null: a seleção continua a de antes. */
+export function selecaoDaBase(lado: LadoDaConsulta, todosOsEstados: string[]): PainelMunicipios | null {
+  if (lado.escolha.modo === "marcados" && lado.escolha.municipios.length)
+    return { todos: false, estados: [], ids: [...new Set(lado.escolha.municipios)].sort(comparar) };
+  const { tipo, regioes, ufs } = lado.partir_de;
+  if (tipo === "pais") return { todos: true, estados: [], ids: [] };
+  if (tipo === "ufs" && ufs.length) return { todos: false, estados: [...new Set(ufs)].sort(comparar), ids: [] };
+  if (tipo === "regioes" && regioes.length && todosOsEstados.length) {
+    const prefixos = new Set(REGIOES_DO_BRASIL.filter(regiao => regioes.includes(regiao.nome)).map(regiao => regiao.id));
+    const estados = todosOsEstados.filter(id => prefixos.has(id.charAt(0))).sort(comparar);
+    return estados.length ? { todos: false, estados, ids: [] } : null;
+  }
+  return null;
+}
+/** A referência que parte da seleção, quando a seleção muda junto com a base: a seleção de antes, por escrito — o país, os estados
+ * inteiros ou, com municípios avulsos, os municípios dela (os de cada estado inteiro também), escolhidos pelo nome. */
+function referenciaDaSelecaoDeAntes(ref: LadoDaConsulta, antes: PainelMunicipios, unidadesDoGrupo: (grupo: string) => string[]): LadoDaConsulta {
+  if (ref.partir_de.tipo !== "selecao_previa") return ref;
+  const doPais: PartirDe = { tipo: "pais", regioes: [], ufs: [] };
+  if (antes.todos) return { ...ref, partir_de: doPais };
+  if (!antes.ids.length && antes.estados.length) return { ...ref, partir_de: { tipo: "ufs", regioes: [], ufs: [...antes.estados] } };
+  if (ref.escolha.modo === "marcados") return { ...ref, partir_de: doPais };
+  const ids = [...new Set([...antes.estados.flatMap(unidadesDoGrupo), ...antes.ids])].sort(comparar);
+  return { ...ref, partir_de: doPais, escolha: ids.length ? { modo: "marcados", municipios: ids } : ref.escolha };
+}
+/** A consulta com a base na seleção em uso (baseNaSelecao) e a seleção que a base pedia (selecaoDaBase; null: continua a de antes).
+ * Quando a seleção muda, a referência que partia da seleção passa a nomear a de antes, para continuar a mesma. */
+export function consultaNaSelecao(consulta: ConsultaTerritorios, atual: PainelMunicipios,
+  c: { todosOsEstados: string[]; unidadesDoGrupo: (grupo: string) => string[] }): { consulta: ConsultaTerritorios; selecao: PainelMunicipios | null } {
+  const selecao = baseEhASelecao(consulta.base) ? null : selecaoDaBase(consulta.base, c.todosOsEstados);
+  return { selecao, consulta: { ...consulta, base: baseNaSelecao(consulta.base),
+    referencia: selecao ? referenciaDaSelecaoDeAntes(consulta.referencia, atual, c.unidadesDoGrupo) : consulta.referencia } };
+}
 
 const TIPOS_DA_BASE = new Set<string>(["pais", "regioes", "ufs", "selecao_previa"]);
 const TIPOS_DA_REFERENCIA = new Set<string>([...TIPOS_DA_BASE, "mesma_uf_da_base", "mesma_regiao_da_base"]);
@@ -1830,18 +1875,22 @@ export const mesmaConsulta = (a: ConsultaTerritorios | null | undefined, b: Cons
   !!a && !!b && JSON.stringify(consultaParaOMotor(a)) === JSON.stringify(consultaParaOMotor(b));
 /** O que falta completar em cada lado, na ordem das etapas, com os textos do comando (os mesmos do motor): desativam "Calcular" e
  * aparecem no rodapé e no status da aba. Filtro sem valor não corta nada até ser preenchido. */
-export function pendenciasDoLado(c: ConsultaTerritorios, lado: Lado, rotulos: RotulosTerritoriais): string[] {
+export function pendenciasDoLado(c: ConsultaTerritorios, lado: Lado, rotulos: RotulosTerritoriais,
+  extra: { selecaoVazia?: boolean } = {}): string[] {
   const unidade = rotulos.unidade, grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const { partir_de: partir, filtros, escolha } = c[lado];
   const faltas: string[] = [];
+  // A seleção em uso vazia (06/11/2026: a base é sempre a seleção): a escolha é na Seleção de Territórios.
+  if (partir.tipo === "selecao_previa" && extra.selecaoVazia)
+    faltas.push("escolha " + artigo(unidade, true) + " " + unidade.plural + " na Seleção de Territórios");
   if (partir.tipo === "regioes" && !partir.regioes.length) faltas.push("escolha ao menos uma região");
   if (partir.tipo === "ufs" && !partir.ufs.length) faltas.push("escolha ao menos " + (fem(grupo) ? "uma " : "um ") + grupo.singular);
   if (filtros.some(filtro => filtro.valor === null)) faltas.push("preencha o valor do filtro");
   if (escolha.modo === "marcados" && !escolha.municipios.length) faltas.push("marque ao menos " + (fem(unidade) ? "uma " : "um ") + unidade.singular);
   return faltas;
 }
-export const pendenciasDaConsulta = (c: ConsultaTerritorios, rotulos: RotulosTerritoriais): Record<Lado, string[]> =>
-  ({ base: pendenciasDoLado(c, "base", rotulos), referencia: pendenciasDoLado(c, "referencia", rotulos) });
+export const pendenciasDaConsulta = (c: ConsultaTerritorios, rotulos: RotulosTerritoriais, extra: { selecaoVazia?: boolean } = {}):
+  Record<Lado, string[]> => ({ base: pendenciasDoLado(c, "base", rotulos, extra), referencia: pendenciasDoLado(c, "referencia", rotulos, extra) });
 /** "Base incompleta: escolha ao menos uma região." */
 export const textoDaPendencia = (lado: Lado, falta: string) => NOMES_DOS_LADOS[lado] + " incompleta: " + falta + ".";
 /** O valor digitado num filtro: na população e na quantidade, inteiros; na densidade, decimais. */
@@ -1850,7 +1899,9 @@ export const escreverValorDoFiltro = (valor: number | null) => valor === null ? 
 
 /** Um trecho da frase-resumo: o texto e se o lado está incompleto (o trecho vira "base incompleta" ou "referência incompleta"). */
 export type TrechoDaFrase = { texto: string; incompleta: boolean };
-export type ContextoDaFrase = { rotulos: RotulosTerritoriais; brasil: boolean; grupos: GrupoInfo[]; nomes: Map<string, string> };
+export type ContextoDaFrase = { rotulos: RotulosTerritoriais; brasil: boolean; grupos: GrupoInfo[]; nomes: Map<string, string>;
+  /** A seleção em uso está vazia: o lado que parte dela fica incompleto (06/11/2026). */
+  selecaoVazia?: boolean };
 const NOMES_NA_FRASE = 3;
 /** "MANAUS (AM), TEFE (AM), BELEM (PA) e mais 2". */
 function nomesNaFrase(ids: string[], nomes: Map<string, string>): string {
@@ -1915,7 +1966,7 @@ function fraseDaReferencia(lado: LadoDaConsulta, c: ContextoDaFrase): string {
 /** A frase-resumo da janela, no formato "{Base} → referência: {Referência}", montada por modelo a partir da consulta (nunca pelo
  * LLM). Lado incompleto vira "base incompleta" ou "referência incompleta", destacado na tela. */
 export function fraseDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFrase): Record<Lado, TrechoDaFrase> {
-  const pendencias = pendenciasDaConsulta(consulta, c.rotulos);
+  const pendencias = pendenciasDaConsulta(consulta, c.rotulos, { selecaoVazia: c.selecaoVazia });
   return {
     base: pendencias.base.length ? { texto: "base incompleta", incompleta: true } : { texto: fraseDaBase(consulta.base, c), incompleta: false },
     referencia: pendencias.referencia.length ? { texto: "referência incompleta", incompleta: true }
@@ -1953,10 +2004,10 @@ export function textoDasReferenciasUsadas(c: { rotulos: RotulosTerritoriais; bra
   return (referencias.length === 1 ? "Ficou" : "Ficaram") + " como referência " + dos + ": " + lista + de + (noRecorte ? " " + noRecorte : "") + ".";
 }
 /** A referência pelo nome pedida na conversa ("distância até Manaus"): os membros viram os marcados da referência, a partir do país;
- * a base continua a da consulta (sem consulta, a inicial). */
-export function consultaComReferenciaMarcada(atual: ConsultaTerritorios | null, membros: string[], comSelecao: boolean): ConsultaTerritorios {
-  const consulta = atual ?? consultaInicial({ comSelecao });
-  return { ...consulta, referencia: { partir_de: { tipo: "pais", regioes: [], ufs: [] }, filtros: [], escolha: { modo: "marcados", municipios: [...membros] } } };
+ * a base é a seleção em uso, com os filtros da consulta (sem consulta, a inicial). */
+export function consultaComReferenciaMarcada(atual: ConsultaTerritorios | null, membros: string[], _comSelecao?: boolean): ConsultaTerritorios {
+  const consulta = atual ?? consultaInicial();
+  return { ...consulta, base: baseNaSelecao(consulta.base), referencia: { partir_de: { tipo: "pais", regioes: [], ufs: [] }, filtros: [], escolha: { modo: "marcados", municipios: [...membros] } } };
 }
 /** O lugar do título na Análise Espacial: o da base da consulta ("Norte", "Acre e Amazonas", "Brasil"; com filtros, ", com
  * filtros"; no modo marcados, quantos são); com a seleção prévia, o da Seleção de Territórios. */
@@ -2015,13 +2066,15 @@ export const UNIDADES_DO_CORTE: Record<PainelAtributo, { unidade: string; dica: 
  * uma unidade só: escolher o nível já o seleciona. */
 export const semSelecao = (def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">) =>
   def.nivel === "brasil" ? false : def.nivel === "estados" ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
-/** A Análise Espacial com a Escolha dos territórios calculada (27/10/2026): a base vem da consulta (o país, uma região, um
- * estado...), e a seleção prévia é só uma das opções; sem territórios selecionados, a análise continua. */
+/** A Análise Espacial com a Escolha dos territórios calculada (27/10/2026). Desde 06/11/2026 (item 4.1 do comando), a base dela é
+ * sempre a seleção em uso; até essa data, a base podia vir da consulta (o país, uma região, um estado...), e a análise continuava
+ * sem territórios selecionados. */
 export const consultaEmUso = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | "consulta">) =>
   def.familia === "espacial" && def.nivel === "municipios" && !!def.consulta;
-/** Nada a analisar: sem seleção no nível em uso e sem a Escolha dos territórios em uso. */
+/** Nada a analisar: sem a seleção, nada é pedido ao motor, também na Análise Espacial (a base dela é a seleção, 06/11/2026; até essa
+ * data, a Escolha dos territórios em uso bastava). */
 export const semTerritorios = (def: Pick<DefinicaoAnalise, "familia" | "nivel" | "base" | "estados" | "conjuntos" | "consulta">) =>
-  semSelecao(def) && !consultaEmUso(def);
+  semSelecao(def);
 /** Limpar seleção (desde 05/11/2026, com a seleção unificada): tira tudo o que está na análise, a árvore (o Brasil, os estados e os
  * municípios), os conjuntos e a unidade de análise, que volta aos municípios, sem apagar a base carregada nem os ajustes das
  * análises. Sem nada marcado, null. Até 05/11/2026 (decisão 5 de 25/10/2026), cada nível guardava a sua escolha, e o botão tirava
@@ -2189,6 +2242,19 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
     if (grupo) return fim("grupo", [todo, grupoParte(grupo)], { grupo, grupoInteiro: false });
   }
   return fim("selecao", [todo, selecao]);
+}
+
+/** De que lugar é o resultado à vista, na frase da proteção (06/11/2026, item 4.6 do comando: "Esta análise ainda é de {lugar}"):
+ * "do Brasil", "do Pará" (o nome do grupo com a preposição, quando a fonte o tem), "de MARABA (PA)", "de outra seleção". */
+export function deOndeEhOResultado(lugar: LugarDaTrilha, c: { grupos: GrupoInfo[] }): string {
+  const atual = lugar.partes.find(parte => parte.atual);
+  if (!atual || lugar.tipo === "selecao" || lugar.tipo === "nenhum") return "de outra seleção";
+  if (lugar.tipo === "todo") return atual.rotulo === "Brasil" ? "do Brasil" : "de " + minuscula(atual.rotulo);
+  if (lugar.tipo === "grupo") {
+    const grupo = c.grupos.find(item => item.id === lugar.grupo);
+    if (grupo?.rotuloGrupo && grupo.rotuloGrupo.includes(" ")) return grupo.rotuloGrupo.split(" ").slice(1).join(" ");
+  }
+  return "de " + atual.rotulo;
 }
 
 /** Uma opção do "Ver por" (06/11/2026, no lugar de "Cada ponto da análise é"): o nível que cada ponto mostra, só entre os níveis
@@ -2408,7 +2474,9 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
   /** Os estados da fonte: "todos os estados" na conversa marca todos (a escolha de estados da Seleção é trocada por ela). */
   todosOsEstados?: string[];
   /** A base do Brasil, com o país como unidade (nível Brasil). */
-  temBrasil?: boolean }): ResultadoPedido {
+  temBrasil?: boolean;
+  /** Os municípios de cada estado (a Escolha dos territórios pedida que muda a seleção nomeia a de antes na referência). */
+  unidadesDoGrupo?: (grupo: string) => string[] }): ResultadoPedido {
   let proxima: DefinicaoAnalise = { ...def };
   const mensagens: string[] = [];
   let abrir: FuncaoPainel | null = null, selecao: string[] | null = null;
@@ -2465,9 +2533,15 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     }
   }
   // A Escolha dos territórios pedida na conversa (28/10/2026): vale como se a pessoa a tivesse feito na janela, na Análise Espacial.
+  // Desde 06/11/2026 (item 4.1 do comando, uma seleção só), a base é sempre a seleção em uso: a base pedida que parte de outro lugar
+  // (o extremo do gráfico, os citados pelo nome, um estado, o país) vira a seleção, e a trilha a acompanha; a referência que partia
+  // da seleção nomeia a de antes.
   if (pedido.consulta) {
-    const consulta = lerConsulta(pedido.consulta);
-    if (consulta) {
+    const lida = lerConsulta(pedido.consulta);
+    if (lida) {
+      const { consulta, selecao: novaSelecao } = consultaNaSelecao(lida, normalizarBase(proxima.base, c.grupoDe),
+        { todosOsEstados: c.todosOsEstados ?? [], unidadesDoGrupo: c.unidadesDoGrupo ?? (() => []) });
+      if (novaSelecao) proxima = { ...proxima, base: normalizarBase(novaSelecao, c.grupoDe), conjuntos: [] };
       if (LADOS.some(lado => consulta[lado].partir_de.tipo === "selecao_previa") && semSelecao({ ...proxima, nivel: "municipios" }))
         mensagens.push("A Escolha dos territórios parte da seleção prévia: escolha os territórios na Seleção de Territórios.");
       // A base passa a ser a da consulta: a comparação de antes sai (o motor recusa itens da comparação fora do gráfico).
@@ -2600,20 +2674,26 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
   // equivalente da referência e dos territórios base de então (consultaDeAntes); o "mais distante" não tem equivalente.
   const { territorioBase: unicaBase, territoriosBase, referencia, ...resto } = lida as DefinicaoAnalise & { territorioBase?: unknown;
     territoriosBase?: unknown; referencia?: unknown };
-  const consulta = "consulta" in lida ? lerConsulta(lida.consulta)
+  const lidaConsulta = "consulta" in lida ? lerConsulta(lida.consulta)
     : consultaDeAntes(referencia, typeof unicaBase === "string" ? [unicaBase] : territoriosBase);
+  // A base da consulta é sempre a seleção em uso (06/11/2026): uma consulta guardada com outra base vira a seleção equivalente,
+  // e a análise é calculada de novo (sem a resposta de antes).
+  const naSelecao = lidaConsulta ? consultaNaSelecao(lidaConsulta, lida.base, { todosOsEstados: [], unidadesDoGrupo: () => [] }) : null;
+  const consulta = naSelecao ? naSelecao.consulta : null;
+  const mudouABase = !!lidaConsulta && !baseEhASelecao(lidaConsulta.base);
   const def: DefinicaoAnalise = { ...resto, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
-    serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [], consulta };
+    serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [], consulta,
+    ...(naSelecao?.selecao ? { base: naSelecao.selecao, nivel: "municipios" as const, conjuntos: [] } : {}) };
   // O Brasil como unidade saiu em 06/11/2026 (o todo é a referência fixa): um estado guardado com ele reabre no todo, vendo por
   // estado, com a lista dos estados preenchida pela área (unificarEscolha) e sem a resposta de antes (o pedido é outro).
   if (def.nivel === "brasil")
     return { versao: 1, chave: "", familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
       opcoes: null, definicao: { ...def, nivel: "estados", base: { todos: true, estados: [], ids: [] } },
       visual: { escala: salvo.visual?.escala === "logaritmica" ? "logaritmica" : "linear", corte: null, selecionados: [] }, resposta: null };
-  const resposta = estado!.resposta as PainelResposta | null;
+  const resposta = mudouABase ? null : estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
-  return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
-    opcoes: salvo.opcoes ?? null, definicao: def,
+  return { versao: 1, chave: mudouABase ? "" : salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
+    opcoes: mudouABase ? null : salvo.opcoes ?? null, definicao: def,
     visual: { escala: salvo.visual?.escala === "logaritmica" ? "logaritmica" : "linear", corte: salvo.visual?.corte ?? null,
       selecionados: Array.isArray(salvo.visual?.selecionados) ? salvo.visual!.selecionados : [],
       ...(typeof vista === "string" && VISTAS_VALIDAS.has(vista) ? { vista } : {}),
@@ -2989,9 +3069,10 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
-      ". Na Escolha dos territórios, a base e a referência são escolhidas do mesmo jeito, em três etapas: de onde partir (" +
+      ". A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios, com filtros por densidade, população ou " +
+      "quantidade, se quiser. Na Escolha dos territórios, a referência é escolhida em três etapas: de onde partir (" +
       (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "a planilha inteira, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
-        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros por densidade, população ou quantidade e a escolha de " +
+        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros e a escolha de " +
       (fem(unidade) ? "todas as que atendem ou só das marcadas" : "todos os que atendem ou só dos marcados") + "." +
       (c.brasil || c.comGrupos ? " A referência também pode ser procurada n" + (c.brasil ? "o mesmo estado ou na mesma região" : (fem(grupo) ? "a mesma " : "o mesmo ") +
         grupo.singular) + " de cada " + unidade.singular + " da base." : "") + " " + maiuscula(artigo(unidade, false)) + " própri" +

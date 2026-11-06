@@ -358,8 +358,9 @@ def main():
         assert not painel_calls, "sem territórios escolhidos, nada é pedido ao motor"
         # A aba de uma análise sem territórios: "Entenda esta análise" recolhido desde a primeira visita (25/10/2026, pedido do
         # responsável, para não ocupar espaço), os ajustes e o convite a selecionar. Desde a Escolha dos territórios (27/10/2026), a
-        # janela abre sozinha também sem territórios: sem seleção prévia, a base parte de todo o país, e só as contagens da janela
-        # são pedidas, nada da análise.
+        # janela abre sozinha também sem territórios; desde 06/11/2026 (item 4.1 do comando, uma seleção só), a base é a seleção em
+        # uso: sem territórios, ela fica incompleta, com o caminho (a Seleção de Territórios), e "Calcular" fica desligado (até essa
+        # data, a base partia de todo o país). Só as contagens da janela são pedidas, nada da análise.
         aperta(area.get_by_test_id("analise-familia-espacial"))
         entenda = area.get_by_test_id("analise-entenda")
         expect(entenda).to_have_attribute("data-aba", "espacial")
@@ -372,7 +373,12 @@ def main():
         janela_sem_selecao = area.get_by_test_id("analise-painel")
         expect(janela_sem_selecao).to_have_attribute("data-painel", "referencia")
         expect(janela_sem_selecao.get_by_test_id("territorios-frase")).to_have_text(
-            "Municípios de todo o país → referência: o mais próximo de cada um, entre os municípios de todo o país")
+            "base incompleta → referência: o mais próximo de cada um, entre os municípios de todo o país")
+        expect(janela_sem_selecao.get_by_test_id("territorios-base-selecao-texto")).to_have_text(
+            "Nenhum território na seleção em uso: escolha os municípios na Seleção de Territórios.")
+        expect(janela_sem_selecao.get_by_test_id("territorios-estado")).to_have_text(
+            "Base incompleta: escolha os municípios na Seleção de Territórios.")
+        expect(janela_sem_selecao.get_by_test_id("territorios-calcular")).to_be_disabled()
         fecha()
         expect(area.get_by_test_id("analise-selecao-alterar")).to_have_text("Selecionar os territórios")
         # A explicação se abre e se recolhe; a aba guarda a escolha da pessoa na sessão da página.
@@ -877,11 +883,15 @@ def main():
             expect(frase).to_have_text("Municípios da seleção prévia → referência: o mais próximo de cada um, entre os municípios de todo o país")
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
-            # A base não tem as opções relativas; nenhum lado filtra pela distância (o filtro saiu em 27/10/2026, a pedido do
+            # A base é a seleção em uso (06/11/2026, item 4.1 do comando: uma seleção só, a da trilha e da Seleção de Territórios):
+            # sem a partida própria nem os marcados (até essa data, a base tinha o mesmo seletor da referência), com o caminho para
+            # mudar a seleção e os filtros sobre ela. Nenhum lado filtra pela distância (o filtro saiu em 27/10/2026, a pedido do
             # responsável: a distância até a referência mais próxima está no eixo X do resultado); nada de ranking, OU ou NÃO.
-            menu_base = janela.get_by_test_id("territorios-base-partir-menu")
-            opcoes = menu_base.locator("option").evaluate_all("els => els.map(e => e.value)")
-            assert opcoes == ["pais", "regiao", "regioes", "uf", "ufs", "selecao_previa"], opcoes
+            for ausente in ("territorios-base-partir-menu", "territorios-base-escolher", "territorios-base-marcados"):
+                expect(janela.get_by_test_id(ausente)).to_have_count(0)
+            expect(janela.get_by_test_id("territorios-base-selecao-texto")).to_contain_text(
+                "A base é a seleção em uso, a da Seleção de Territórios:", timeout=30000)
+            expect(janela.get_by_test_id("territorios-base-alterar")).to_have_text("Alterar a seleção")
             expect(janela.get_by_test_id("territorios-base-mais-distancia")).to_have_count(0)
             assert janela.locator('[data-testid^="territorios-base-mais-"]').evaluate_all("els => els.map(e => e.textContent)") == [
                 "Densidade", "População", "Quantidade"]
@@ -924,26 +934,14 @@ def main():
                           else "…" if c["final"] is None else contagem(c["final"]) if lado == "base" else candidatos(c["final"]))
                 expect(janela.get_by_test_id("territorios-status-" + lado)).to_have_text(status)
 
-            # Partir de uma região: a etapa espera a região; a pendência desativa "Calcular", aparece no rodapé e no status da aba,
-            # e o trecho da frase fica destacado. A seleção prévia (os municípios do Amazonas) vai junto, com a contagem do motor.
-            corpo, sent_t = contagens_da_janela(lambda: menu_base.select_option("regiao"))
-            assert sent_t["consulta"]["base"]["partir_de"] == {"tipo": "regioes", "regioes": [], "ufs": []}, sent_t
-            assert sent_t["base"] == universo_am and corpo["base"]["pendencias"] == ["escolha ao menos uma região"], (sent_t, corpo)
-            expect(estado).to_have_text("Base incompleta: escolha ao menos uma região.")
-            expect(calcular).to_be_disabled()
-            expect(frase_base).to_have_text("base incompleta")
-            expect(frase_base).to_have_attribute("data-incompleta", "true")
-            expect(menu_base.locator('option[value="selecao_previa"]')).to_have_text(
-                "Seleção prévia (" + milhar(corpo["selecao_previa"]["total"]) + ")")
-            assert corpo["selecao_previa"]["total"] == len([item for item in am["itens"] if item["tipo"] == "municipio"]), corpo
-            confere("base", corpo)
-            corpo, _ = contagens_da_janela(lambda: janela.get_by_test_id("territorios-base-regiao").select_option("Norte"))
-            expect(frase).to_have_text("Municípios do Norte → referência: o mais próximo de cada um, entre os municípios de todo o país")
-            confere("base", corpo)
             # Filtrar por densidade: a linha nasce sem valor (não corta, mas pendente); o valor, a mediana do Amazonas, com vírgula.
             densidades = sorted(item["densidade"] for item in am["itens"] if item.get("densidade") is not None)
             limiar = round(densidades[len(densidades) // 2], 2) or 0.01
-            corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-mais-densidade")))
+            corpo, sent_t = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-mais-densidade")))
+            # A base vai como a seleção prévia (a seleção em uso, o Amazonas), com a contagem do motor.
+            assert sent_t["consulta"]["base"]["partir_de"] == {"tipo": "selecao_previa", "regioes": [], "ufs": []}, sent_t
+            assert sent_t["base"] == universo_am, sent_t
+            assert corpo["selecao_previa"]["total"] == len([item for item in am["itens"] if item["tipo"] == "municipio"]), corpo
             linha_densidade = janela.get_by_test_id("territorios-base-filtro").first
             expect(linha_densidade.get_by_test_id("territorios-base-filtro-operador")).to_have_value("<")
             expect(estado).to_have_text("Base incompleta: preencha o valor do filtro.")
@@ -951,9 +949,9 @@ def main():
             corpo, sent_t = contagens_da_janela(lambda: linha_densidade.get_by_test_id("territorios-base-filtro-valor").fill(
                 numero_br(limiar)))
             assert sent_t["consulta"]["base"]["filtros"] == [{"indicador": "densidade", "operador": "<", "valor": limiar}], sent_t
-            expect(frase_base).to_have_text("Municípios do Norte com densidade abaixo de " + numero_br(limiar))
+            expect(frase_base).to_have_text("Municípios da seleção prévia com densidade abaixo de " + numero_br(limiar))
             confere("base", corpo)
-            texto_base = "Municípios do Norte com densidade abaixo de " + numero_br(limiar)
+            texto_base = "Municípios da seleção prévia com densidade abaixo de " + numero_br(limiar)
             # O trecho da referência abre a aba dela: o menu tem as opções conforme a base, e não há filtro de distância.
             aperta(frase_ref)
             expect(janela.get_by_test_id("territorios-aba-referencia")).to_have_attribute("aria-selected", "true")
@@ -994,7 +992,7 @@ def main():
                 "Para cada município da base, só o candidato mais próximo fica como referência.")
             expect(estado).to_have_text("A consulta mudou. Calcule para atualizar.")
             expect(calcular).to_be_enabled()
-            esperada = {"base": {"partir_de": {"tipo": "regioes", "regioes": ["Norte"], "ufs": []},
+            esperada = {"base": {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []},
                                  "filtros": [{"indicador": "densidade", "operador": "<", "valor": limiar}],
                                  "escolha": {"modo": "todos", "municipios": []}},
                         "referencia": {"partir_de": {"tipo": "ufs", "regioes": [], "ufs": [uf_ref]}, "filtros": filtros_ref,
@@ -1032,9 +1030,9 @@ def main():
                 desenhadas = bubbles()
                 for item in proxima["itens"]:
                     refs = referencias_do_item(item)
-                    # Na base: do Norte e abaixo do limiar, cada um com a distância no eixo X; a referência mais próxima é uma das
-                    # referências (do estado escolhido, com a densidade do filtro) e nunca o próprio município.
-                    assert item["id"][5] == "1" and item["densidade"] < limiar, item
+                    # Na base: da seleção em uso (o Amazonas) e abaixo do limiar, cada um com a distância no eixo X; a referência
+                    # mais próxima é uma das referências (do estado escolhido, com a densidade do filtro) e nunca o próprio município.
+                    assert item["id"].startswith("code:13") and item["densidade"] < limiar, item
                     assert set(refs) <= membros and item["id"] not in refs and refs, (item["id"], refs, sorted(membros))
                     assert item["distancia_km"] is not None, item
                     if item["id"] in desenhadas:
@@ -1082,33 +1080,11 @@ def main():
                 elif usadas:
                     expect(linha_usadas).to_contain_text("Ficou como referência ")
                     expect(linha_usadas).to_contain_text(usadas[0])
+                # A escolha direta da base é a Seleção de Territórios (06/11/2026): a aba Base não tem "Só os que eu marcar", e o
+                # cálculo é um passo do Desfazer.
                 aperta(janela.get_by_test_id("territorios-aba-base"))
-                corpo, _ = contagens_da_janela(lambda: aperta(janela.get_by_test_id("territorios-base-marcados")))
-                expect(estado).to_have_text("Base incompleta: marque ao menos um município.")
-                lista = corpo["lista"]
-                assert lista["lado"] == "base" and lista["total"] == corpo["base"]["contagens"]["filtros"], corpo
-                opcoes_lista = janela.get_by_test_id("territorios-base-lista-opcao")
-                expect(opcoes_lista).to_have_count(len(lista["itens"]))
-                assert opcoes_lista.evaluate_all("els => els.map(e => e.dataset.id)") == [item["id"] for item in lista["itens"]]
-                escolhidos = [item["id"] for item in lista["itens"][:2]]
-                nomes_lista = {item["id"]: item["rotulo"] for item in lista["itens"]}
-                if escolhidos:
-                    for marcado in escolhidos:
-                        corpo, _ = contagens_da_janela(lambda: marca(janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' +
-                                                                          marcado + '"]')))
-                    expect(janela.get_by_test_id("territorios-base-marcado")).to_have_count(len(escolhidos))
-                    expect(janela.get_by_test_id("territorios-frase-base")).to_have_text(
-                        " e ".join(nomes_lista[marcado] for marcado in escolhidos))
-                    marcados_resposta, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
-                    assert sent["consulta"]["base"]["escolha"] == {"modo": "marcados", "municipios": sorted(escolhidos)}, sent
-                    assert sorted(item["id"] for item in marcados_resposta["itens"]) == sorted(escolhidos), marcados_resposta["itens"]
-                    drawn(esperados(marcados_resposta, distancia=True))
-                    expect(desfazer).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
-                    fecha()
-                    aperta(desfazer)
-                    drawn(esperados(proxima, distancia=True))
-                    aperta(ajustes.get_by_test_id("analise-referencia-escolher"))
-                    janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+                expect(janela.get_by_test_id("territorios-base-marcados")).to_have_count(0)
+                expect(desfazer).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
                 # Referência sem nenhum município (densidade acima de um bilhão): todos os da base entram, sem distância (nunca
                 # zero), com o motivo "sem referência no recorte"; nenhuma bolha no eixo da distância, e o aviso diz o que
                 # aconteceu e o caminho.
@@ -1135,8 +1111,8 @@ def main():
                 aperta(desfazer)
                 drawn(esperados(proxima, distancia=True))
                 expect(area.get_by_test_id("analise-ref-sem-resultado")).to_have_count(0)
-                notas.append("Escolha dos territórios conferida no navegador: frase, abas, pendências, contagens do motor, Calcular, "
-                             "marcados, referência vazia e o Desfazer" +
+                notas.append("Escolha dos territórios conferida no navegador: a base na seleção em uso, frase, abas, pendências, "
+                             "contagens do motor, Calcular, referência vazia e o Desfazer" +
                              (" (depois da premissa escolhida na pendência do motor)" if sent.get("premissas") else ""))
             else:
                 notas.append("o motor recusou a distância neste catálogo (código " + str(response.status) + "): conferidos a "
@@ -1865,10 +1841,15 @@ def main():
             assert "o de menor densidade é " + menor["rotulo"] in resposta["reply"], resposta["reply"]
             assert "Abri a Análise Espacial" in resposta["reply"], resposta["reply"]
             consulta = enviado["consulta"]
-            assert consulta["base"]["escolha"] == {"modo": "marcados", "municipios": [menor["id"]]}, consulta
-            assert consulta["base"]["partir_de"]["tipo"] == "selecao_previa", consulta
-            assert consulta["referencia"]["partir_de"]["tipo"] == "selecao_previa", consulta
+            # Desde 06/11/2026 (item 4.1 do comando, uma seleção só): o extremo vira a seleção, e a trilha vai a ele; a base da
+            # consulta é a seleção em uso, e a referência que partia da seleção nomeia a de antes, o Tocantins inteiro (até essa
+            # data, a seleção continuava o Tocantins, e o extremo ia como o marcado da base).
+            assert enviado["base"] == {"municipios": {"todos": False, "estados": [], "ids": [menor["id"]]}}, enviado["base"]
+            assert consulta["base"] == {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
+                                        "escolha": {"modo": "todos", "municipios": []}}, consulta
+            assert consulta["referencia"]["partir_de"] == {"tipo": "ufs", "regioes": [], "ufs": ["17"]}, consulta
             assert consulta["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">=", "valor": 1.5}], consulta
+            expect(trilha.get_by_test_id("analise-trilha-parte")).to_have_text(["Brasil", "Tocantins", menor["rotulo"]])
             assert not enviado.get("condicoes") and not enviado.get("comparar"), enviado
             expect(area).to_have_attribute("data-familia", "espacial", timeout=60000)
             assert [item["id"] for item in espacial["itens"] if item["tipo"] == "municipio"] == [menor["id"]], espacial["itens"]

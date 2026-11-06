@@ -13,7 +13,8 @@ a referência mais próxima de cada município da base, na Escolha dos territór
 marca com a Comparar aberta (sem ela, desde 06/11/2026, tocar num município abre o lugar dele na trilha), Roraima com todos os
 municípios no mapa, também BOA VISTA, sem referência no recorte e fora do gráfico, com o aviso pelo nome, e as legendas de
 tamanho na proporção exata (25/10/2026), cada município da base ligado à referência mais próxima dele no gráfico e no mapa
-(25/10/2026), a escolha direta da base (só os marcados), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
+(25/10/2026), só BOA VISTA na base pelo toque na bolha dela (desde 06/11/2026, a base é a seleção em uso; antes, a escolha direta
+da base, só os marcados), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
 cor, classe ou contagem é criada na tela: tudo vem do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA.
 """
 import json
@@ -498,7 +499,9 @@ def main():
         # em todo o país e densidade acima de 2, cada município da base fica ligado à referência mais próxima dele; a de BOA VISTA
         # fica fora de Roraima. No gráfico, cada referência entra como contexto, com a mira, no início do eixo (0 km) e com os
         # valores do motor, e uma linha tracejada liga cada município à sua referência; no mapa, a referência fica dentro do quadro
-        # e com o nome. Escolha direta: só BOA VISTA na base (Só os que eu marcar), um passo do Desfazer.
+        # e com o nome. Só BOA VISTA na base: desde 06/11/2026 (item 4.1 do comando, uma seleção só), pelo toque na bolha dela, que
+        # abre o lugar dela na trilha, e a Análise Espacial acompanha, com a mesma referência (até essa data, pela escolha direta
+        # "Só os que eu marcar", na aba Base da janela); um passo do Desfazer.
         aperta(area.get_by_test_id("analise-referencia-escolher"))
         janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
         aperta(janela.get_by_test_id("territorios-aba-referencia"))
@@ -542,22 +545,20 @@ def main():
         simbolos = area.get_by_test_id("analise-simbolos")
         expect(simbolos).to_contain_text("referência fora da base, no início do eixo (0 km)")
         expect(simbolos).to_contain_text("de cada território da base até a sua referência mais próxima")
-        # Escolha direta: só BOA VISTA na base; a escolha é um passo do Desfazer.
-        aperta(area.get_by_test_id("analise-par-base-mudar"))
-        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
-        aperta(janela.get_by_test_id("territorios-base-marcados"))
-        janela.get_by_test_id("territorios-base-busca").fill("boa vista")
-        opcao_bv = janela.locator('[data-testid="territorios-base-lista-opcao"][data-id="' + boa_vista + '"]')
-        expect(opcao_bv).to_have_count(1)
-        marca(opcao_bv)
-        expect(janela.get_by_test_id("territorios-frase-base")).to_have_text("BOA VISTA (RR)")
-        so_bv, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")))
-        assert sent["consulta"]["base"]["escolha"] == {"modo": "marcados", "municipios": [boa_vista]}, sent
+        # Só BOA VISTA na base: o toque (Enter) na bolha dela abre o lugar dela; a consulta continua a mesma, com a base na seleção.
+        expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+        bolha_bv = area.locator('[data-testid="analise-bolha"][data-id="' + boa_vista + '"]')
+        so_bv, sent = ok(lambda: aperta(bolha_bv))
+        assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [boa_vista]}}, sent
+        assert sent["consulta"]["base"] == {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
+                                            "escolha": {"modo": "todos", "municipios": []}}, sent
+        assert sent["consulta"]["referencia"]["filtros"] == [{"indicador": "densidade", "operador": ">", "valor": 2}], sent
         assert [item["id"] for item in so_bv["itens"]] == [boa_vista], so_bv["itens"]
+        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(
+            ["Brasil", "Roraima", "BOA VISTA (RR)"])
         expect(par).to_contain_text("Base: BOA VISTA (RR) · referência mais próxima: " + ref_bv["rotulo"] + ", a ")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
-        expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text("BOA VISTA (RR) → referência: ")
-        fecha()
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: abrir BOA VISTA (RR)")
+        expect(area.get_by_test_id("analise-referencia-resumo")).to_contain_text("Municípios da seleção prévia → referência: ")
         expect(ligacoes).to_have_count(len(refs[boa_vista]))
         base_marcada = area.locator('[data-testid="analise-bolha"][data-base="true"]')
         expect(base_marcada).to_have_count(1)
@@ -570,12 +571,12 @@ def main():
                                arg=[ref_bv["id"], nome_ref], timeout=30000)
         expect(mapa.get_by_test_id("mapa-ligacoes")).to_contain_text("um território da base ou um município marcado")
         shot("06c-base-e-referencia")
-        # O Desfazer volta um passo por vez: primeiro a vista (trocar para o mapa é um passo), depois o cálculo, sem recalcular (a
-        # resposta dos 15 vem da memória).
+        # O Desfazer volta um passo por vez: primeiro a vista (trocar para o mapa é um passo), depois o lugar (BOA VISTA), sem
+        # recalcular (a resposta dos 15 vem da memória).
         calls = len(painel_calls)
         aperta(area.get_by_test_id("analise-desfazer"))
         expect(area).to_have_attribute("data-desenho", "grafico")
-        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: calcular a escolha dos territórios")
+        expect(area.get_by_test_id("analise-desfazer")).to_have_attribute("title", "Desfazer: abrir BOA VISTA (RR)")
         aperta(area.get_by_test_id("analise-desfazer"))
         expect(area.locator('[data-testid="analise-bolha"][data-base="true"]')).to_have_count(15)
         aperta(area.get_by_test_id("analise-desenho-mapa"))

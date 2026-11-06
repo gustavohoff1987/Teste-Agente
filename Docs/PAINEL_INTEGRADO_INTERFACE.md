@@ -98,7 +98,7 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 | Estado | O que aparece |
 |---|---|
 | E0, antes dos dados | Desde 24/10/2026, só a identificação e a escolha dos dados, mais acima e centradas, sem números nem bolhas de exemplo: o título com o nome da plataforma, "Diagnóstico Territorial da Força de Trabalho na Saúde" (`analise-titulo`; até a segunda rodada de 24/10/2026, "… em Saúde"), "Escolha seus dados para começar" (`analise-abertura-chamada`), uma frase ("Use os dados do Brasil, já preparados, ou envie a sua planilha em CSV ou Excel.") e os botões "Usar dados do Brasil" e "Enviar meus dados". Sem as abas e sem Nova sessão, Nova análise e Histórico, que aparecem com os dados prontos. A escolha da análise antes dos dados (a "intenção") saiu. |
-| E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: a aba Seleção de Territórios aberta, com a lista; nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. Nas análises, antes da escolha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e "Abrir a Seleção de Territórios". Na Análise Espacial, desde 27/10/2026, a janela Escolha dos territórios abre também antes da escolha: sem seleção prévia, a base parte de todo o país, e só as contagens da janela são pedidas ao motor. |
+| E1, dados carregados sem seleção | Sem seleção automática (23/10/2026), na base do Brasil e na planilha: a aba Seleção de Territórios aberta, com a lista; nada é pedido ao motor até a escolha, e nenhum resultado anterior fica à vista. Nas análises, antes da escolha: "Os dados do Brasil foram carregados e estão prontos para a análise." (ou "A planilha foi carregada…"), "Selecione os territórios que deseja analisar." e "Abrir a Seleção de Territórios". Na Análise Espacial, desde 27/10/2026, a janela Escolha dos territórios abre também antes da escolha; desde 06/11/2026, a base é a seleção em uso e, sem ela, fica incompleta, com o caminho para a Seleção de Territórios (até essa data, a base partia de todo o país); só as contagens da janela são pedidas ao motor. |
 | E1, estados | Os estados em bolhas (`nivel: "estados"`), escolhidos na Seleção (desde 05/11/2026, a unidade de análise Estados, com estados inteiros marcados na árvore; sem nada marcado, todos) ou pela conversa ("todos os estados"), com a linha de contexto do Brasil e a instrução "Clique num estado para ver os municípios dele". |
 | E2, unidades na Distribuição | As bolhas das unidades escolhidas no eixo do indicador. |
 | E3, outra família | Análise espacial, Tendência ou Rotatividade. |
@@ -116,8 +116,9 @@ ou limpar. O gráfico, o mapa, a frase-resumo e os Detalhes ficam nas análises 
 A aba começa com uma orientação curta, sempre à vista: "Escolha os territórios que entram nas análises. A seleção vale para
 todas elas e pode ser mudada a qualquer momento." As instruções sobre as caixas e os textos técnicos saíram. Cada aba de
 análise mostra o resumo da seleção (`analise-selecao-resumo`) com "Alterar a seleção" (`analise-selecao-alterar`), que volta à
-Seleção. A Escolha dos territórios da Análise Espacial (a base e a referência, desde 27/10/2026; a seleção é uma das opções
-de partida) e o período da Análise de Tendência continuam dentro de cada análise.
+Seleção. A Escolha dos territórios da Análise Espacial (desde 06/11/2026, a referência e os filtros da base, sobre a seleção em
+uso; de 27/10 a 06/11/2026, a base e a referência, com a seleção como uma das opções de partida) e o período da Análise de
+Tendência continuam dentro de cada análise.
 
 **Seleção unificada** (05/11/2026, comando do responsável; no lugar dos três níveis separados de 24/10/2026, o Brasil, os estados
 e os municípios, um por vez, em que selecionar o Brasil mostrava uma unidade só e selecionar estados mostrava só os estados): um só
@@ -175,8 +176,8 @@ da tela).
   estado conta em cada um e que os totais dos estados não são somados. Um estado marcado só em parte não tem total ("Sem total
   individualizado, porque não está inteiro: Pará (1 de 144); cada município mostra o próprio quantitativo.",
   `analise-abrangencia-parciais`). Nenhum total é somado na tela, e nenhum total é inferido do nome de um conjunto. Sem nada
-  completo na abrangência, o quadro não aparece; com a Escolha dos territórios da Análise Espacial, também não (a base é a da
-  consulta).
+  completo na abrangência, o quadro não aparece; com a Escolha dos territórios da Análise Espacial, também não (a base pode ter
+  os filtros da consulta).
 - **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado", pelo nome ou pelo código. O resultado
   (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
   não muda a seleção.
@@ -292,6 +293,10 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   desenho" e [Mapa da página única](MAPA_DA_PAGINA_UNICA.md)); a Análise Espacial mostra só "A Análise Espacial mede distâncias
   entre municípios." e o botão "Ver os municípios destes estados" (`analise-espacial-grupos`, `analise-espacial-ver-unidades`),
   que troca o Ver por para município e abre a Escolha dos territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
+- **A proteção** (06/11/2026, item 4.6): quando o resultado à vista é de outra seleção — o cálculo da seleção em uso ainda não
+  chegou (depois de 0,7 s, para não piscar a cada mudança) ou falhou —, a aba diz de que lugar ele é ("Esta análise ainda é do
+  Pará: o cálculo da seleção em uso ainda não chegou.", `analise-desatualizada`, `deOndeEhOResultado`), com "Atualizar"
+  (`analise-atualizar`, que pede de novo), e o desenho fica esmaecido (`data-desatualizada`), em vez de exibi-lo como atual.
 - **Até 06/11/2026:** com a unidade de análise Brasil (decisões D3 e D4, 24/10/2026), a análise usava o país inteiro como uma
   unidade (`nivel: "brasil"`): uma bolha, a Tendência nacional, sem Grupos e faixas, com as funções desligadas, exceto Exportar, e o
   mapa e a Análise Espacial desligados ("O Brasil, como unidade, não tem um ponto no mapa…"). A interface não oferece mais esse
@@ -353,22 +358,31 @@ O que cada análise mostra:
 - **Análise espacial:** acrescenta o eixo X, a distância em linha reta (km) de cada município da base até a referência mais
   próxima. Desde 27/10/2026 (comando Seleção de Territórios), a janela **"Escolha dos territórios"**
   (`EscolhaDosTerritorios.tsx`, `analise-referencia`; no lugar do painel "Território de referência" de 24/10/2026) escolhe a
-  base e a referência do mesmo jeito: são territórios irmãos, cada um com o mesmo seletor em três etapas. A janela abre
-  sozinha ao entrar na análise sem consulta calculada (a base pode partir do país, de regiões ou de estados, sem depender da
-  Seleção de Territórios) e pelo botão "Escolha dos territórios" dos ajustes (`analise-referencia-escolher`), ao lado da frase
-  da consulta calculada (`analise-referencia-resumo`; antes do primeiro cálculo, "nenhuma ainda"). Desde 28/10/2026, a
-  conversa também preenche a consulta inteira (campo `consulta` do comando, conferido por `lerConsulta`): "o de menor
-  densidade e o mais próximo dele com densidade de no mínimo 1,5 por mil habitantes" calcula a Análise Espacial com o
-  extremo do gráfico na base e a condição na referência, como se a pessoa tivesse feito a escolha na janela; a área envia a
-  consulta em exibição à conversa (`painel_consulta`), para "e em todo o país?" trocar só de onde a referência parte. De cima
-  para baixo:
+  referência. **Uma seleção só** (06/11/2026, item 4.1 do comando de navegação por níveis): a base é sempre a seleção em uso,
+  a da trilha e da Seleção de Territórios, para todas as abas e para a conversa. A aba Base mostra a seleção
+  (`territorios-base-selecao-texto`, "A base é a seleção em uso, a da Seleção de Territórios: …"), com "Alterar a seleção"
+  (`territorios-base-alterar`, que leva à Seleção), os filtros sobre ela (densidade, população, quantidade) e quantos entram,
+  sem "Partir de" nem "Escolher" (de 27/10 a 06/11/2026, base e referência tinham o mesmo seletor em três etapas, e a Análise
+  Espacial podia calcular com uma base diferente da seleção, o que deixava o título e o gráfico num lugar e a seleção noutro).
+  As equivalências: partir do país é ficar no todo, vendo por município; partir de um estado, descer até ele; regiões e
+  combinações, a Seleção de Territórios (`baseNaSelecao`, `selecaoDaBase`, `consultaNaSelecao`). Sem a seleção, a base fica
+  incompleta ("Base incompleta: escolha os municípios na Seleção de Territórios."), "Calcular" fica desligado e nada é pedido
+  ao motor (`semTerritorios`). A janela abre sozinha ao entrar na análise sem consulta calculada e pelo botão "Escolha dos
+  territórios" dos ajustes (`analise-referencia-escolher`), ao lado da frase da consulta calculada (`analise-referencia-resumo`;
+  antes do primeiro cálculo, "nenhuma ainda"). Desde 28/10/2026, a conversa também preenche a consulta inteira (campo
+  `consulta` do comando, conferido por `lerConsulta`): "o de menor densidade e o mais próximo dele com densidade de no mínimo
+  1,5 por mil habitantes" calcula a Análise Espacial com o extremo do gráfico como base e a condição na referência, como se a
+  pessoa tivesse feito a escolha na janela; desde 06/11/2026, a base pedida que não é a seleção (o extremo, os citados pelo
+  nome, um estado, o país) vira a seleção, e a trilha a acompanha, e a referência que partia da seleção passa a nomear a de
+  antes (o estado inteiro, o país ou os municípios dela), para continuar a mesma. A área envia a consulta em exibição à
+  conversa (`painel_consulta`), para "e em todo o país?" trocar só de onde a referência parte. De cima para baixo:
   1. **Contexto** (`territorios-contexto`), embaixo do título: "Categoria profissional: Médicos · Competência: junho de 2024".
   2. **Frase-resumo** fixa (`territorios-frase`), lida da consulta inteira por modelo (`fraseDaConsulta`, nunca pelo LLM):
      "{Base} → referência: {Referência}", como "Municípios do Norte com densidade abaixo de 0,5 → referência: o mais próximo
      de cada um, entre os municípios do Acre com densidade acima de 2". Cada trecho é um botão que abre a aba dele
      (`territorios-frase-base` e `territorios-frase-referencia`); o lado incompleto vira "base incompleta" ou "referência
-     incompleta", destacado (`data-incompleta`). Na base: "Municípios {de onde} com {filtro} e {filtro}"; no modo marcados, os
-     nomes (até três; depois, "e mais N"). Na referência, desde 27/10/2026 (a pedido do responsável: "o mais próximo da Bahia"
+     incompleta", destacado (`data-incompleta`). Na base, desde 06/11/2026, "Municípios da seleção prévia com {filtro} e
+     {filtro}" (até essa data, "Municípios {de onde} com {filtro} e {filtro}" e, no modo marcados, os nomes). Na referência, desde 27/10/2026 (a pedido do responsável: "o mais próximo da Bahia"
      parecia o mais próximo do estado, e não de cada município da base), sempre de quem é a mais próxima e entre quais:
      "o mais próximo de cada um, entre os municípios {de onde} com {filtro}", com {de onde} "do Acre", "do Norte e do Nordeste",
      "da seleção prévia" ou "de todo o país" (numa planilha, "de toda a planilha") e, conforme a base, "do mesmo estado" ou "da
@@ -976,6 +990,15 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 ## Testes
 
+- **Uma seleção só e a proteção (06/11/2026, item 4 do comando, parte A):** Node, `frontend/tests/areaDeAnalise.test.mjs`: a base
+  na seleção (`baseNaSelecao`, `selecaoDaBase`, `consultaNaSelecao`), a consulta inicial e a referência pelo nome com a base na
+  seleção, a pendência da seleção vazia, a consulta da conversa que muda a seleção (o extremo vira a seleção, e a referência nomeia
+  a de antes), o estado guardado com outra base, `semTerritorios` sem seleção e a frase da proteção (`deOndeEhOResultado`);
+  `painel.test.mjs`, a base da referência pelo nome. Navegador: `ui_area_de_analise.py` (a janela sem seleção, com a base
+  incompleta; a aba Base com a seleção em uso e os filtros; a proximidade pela conversa com o extremo como seleção),
+  `ui_mapa.py` (só BOA VISTA na base pelo toque na bolha, com a mesma referência), `ui_planilha_ficticia.py` (a concordância de
+  "Só as que eu marcar" na referência) e `ui_navegacao.py` (a proteção, com o pedido retido e com a falha simulada, e o
+  "Atualizar").
 - **Navegação por níveis (06/11/2026):**
   - Node: `frontend/tests/areaDeAnalise.test.mjs` cobre a trilha (`lugarDaTrilha`: o todo, o estado inteiro e em parte, o
     município com o estado, a seleção livre, a planilha), o Ver por (`opcoesVerPor`: Estado e Município no todo e sem nada

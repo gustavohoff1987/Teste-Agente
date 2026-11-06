@@ -803,19 +803,24 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   const rot = M.aplicarPedido(def, {familia: 'rotatividade'}, c);
   assert.equal(rot.definicao.familia, 'distribuicao');
   assert.ok(rot.mensagens[0].startsWith('Análise de Rotatividade: A base do Brasil'));  // nomes padronizados (23/10/2026)
-  // A referência pelo nome (27/10/2026): os membros viram os marcados da Referência na Escolha dos territórios, a partir do país; sem
-  // consulta, a base parte da seleção prévia (com seleção) ou do país.
+  // A referência pelo nome (27/10/2026): os membros viram os marcados da Referência na Escolha dos territórios, a partir do país; a
+  // base é a seleção em uso (06/11/2026, item 4.1: muda de propósito este teste; antes, sem seleção, a base partia do país).
   const ref = M.aplicarPedido(def, {referencia: {membros: ['code:150140']}}, c);
   assert.equal(ref.definicao.familia, 'espacial');
   assert.deepEqual(ref.definicao.consulta.referencia, {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [],
     escolha: {modo: 'marcados', municipios: ['code:150140']}});
-  assert.equal(ref.definicao.consulta.base.partir_de.tipo, M.semSelecao({...def, nivel: 'municipios'}) ? 'pais' : 'selecao_previa');
+  assert.equal(ref.definicao.consulta.base.partir_de.tipo, 'selecao_previa');
   assert.equal(ref.definicao.nivel, 'municipios');
   assert.equal('referencia' in ref.definicao, false);
   const comCriterio = M.aplicarPedido(def, {referencia: {membros: ['code:150140'], criterio: {atributo: 'densidade', ordem: 'desc'}}}, c);
   assert.deepEqual(comCriterio.definicao.consulta, ref.definicao.consulta);  // o critério só registrava a origem dos membros
-  const outraBase = M.aplicarPedido({...def, consulta: M.consultaInicial({comSelecao: false})}, {referencia: {membros: ['code:150140']}}, c);
-  assert.equal(outraBase.definicao.consulta.base.partir_de.tipo, 'pais');  // a base da consulta continua
+  // A base da consulta é sempre a seleção em uso: os filtros dela continuam (06/11/2026; até essa data, a base continuava a da consulta).
+  const comFiltros = {base: {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [{indicador: 'populacao', operador: '>', valor: 1000}],
+    escolha: {modo: 'todos', municipios: []}}, referencia: {partir_de: {tipo: 'pais', regioes: [], ufs: []}, filtros: [],
+    escolha: {modo: 'todos', municipios: []}}, distancia: {medida: 'geodesica', ate: 'referencia_mais_proxima'}};
+  const outraBase = M.aplicarPedido({...def, consulta: comFiltros}, {referencia: {membros: ['code:150140']}}, c);
+  assert.deepEqual(outraBase.definicao.consulta.base, {partir_de: {tipo: 'selecao_previa', regioes: [], ufs: []},
+    filtros: [{indicador: 'populacao', operador: '>', valor: 1000}], escolha: {modo: 'todos', municipios: []}});
   // Sem janela longa (24/10/2026): a janela da conversa vale pelo ritmo dos intervalos (aqui, anual), e esta base, com dois
   // junhos, não tem 4 períodos anuais; antes, a janela de duas competências valia como veio. O resto, em "período da tendência".
   const janela = M.aplicarPedido(def, {janela: ['202406', '202306', '209913']}, c);

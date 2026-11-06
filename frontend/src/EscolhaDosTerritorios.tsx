@@ -4,7 +4,7 @@ import { pedirTerritorios, type FonteDoMotor, type MunicipioDaLista, type Painel
   type RespostaTerritorios } from "./painelApi";
 import {
   LADOS, MAX_FILTROS, NOMES_DOS_FILTROS, NOMES_DOS_LADOS, NOTA_TPL11, OPERADORES_DO_FILTRO, REGIOES_DO_BRASIL,
-  TEXTO_DE_APOIO_DOS_FILTROS, TEXTO_DOS_OPERADORES, UNIDADES_DOS_FILTROS, consultaParaOMotor, escreverLimites, escreverValorDoFiltro,
+  TEXTO_DE_APOIO_DOS_FILTROS, TEXTO_DOS_OPERADORES, UNIDADES_DOS_FILTROS, baseNaSelecao, consultaParaOMotor, escreverLimites, escreverValorDoFiltro,
   formatarIndicador, fraseDaConsulta, generoDe, lerLimites, lerValorDoFiltro, mesmaConsulta, notaDaDistanciaDaConsulta, operadorDoCriterio,
   pendenciasDaConsulta, quantos, quantosCandidatos, textoDaPendencia, textoDasReferenciasUsadas, type ConsultaTerritorios,
   type FiltroDaConsulta, type GrupoInfo, type IndicadorDoFiltro, type Lado, type LadoDaConsulta, type OperadorDoFiltro,
@@ -12,11 +12,14 @@ import {
 } from "./painelModel";
 
 // Janela "Escolha dos territórios" da Análise Espacial (27/10/2026, comando Seleção de Territórios; no lugar do painel Território
-// de referência): base e referência são territórios irmãos, cada um com o mesmo seletor em três etapas (Partir de, Filtrar por,
-// Escolher), numa janela com a frase-resumo fixa no alto, as abas "1 Base" e "2 Referência" (só a ativa aparece) e o rodapé com
-// "Calcular" e a linha de estado. O rascunho da consulta é a fonte de verdade da janela; a frase sai dele por modelo
-// (fraseDaConsulta). Toda contagem, prévia e lista vem do motor (POST /api/painel/territorios, pedido a cada mudança, com espera
-// curta); a tela não seleciona, não conta e não mede distância. "Calcular" leva a consulta à análise (um passo do Desfazer).
+// de referência), numa janela com a frase-resumo fixa no alto, as abas "1 Base" e "2 Referência" (só a ativa aparece) e o rodapé
+// com "Calcular" e a linha de estado. Desde 06/11/2026 (item 4.1 do comando, uma seleção só), a base é sempre a seleção em uso, a
+// da trilha e da Seleção de Territórios: a aba Base mostra a seleção, com "Alterar a seleção", e os filtros aplicados a ela; a
+// referência continua com o seletor em três etapas (Partir de, Filtrar por, Escolher). Até essa data, a base tinha o mesmo
+// seletor da referência, e a Análise Espacial podia calcular com outra base, diferente da seleção. O rascunho da consulta é a
+// fonte de verdade da janela; a frase sai dele por modelo (fraseDaConsulta). Toda contagem, prévia e lista vem do motor (POST
+// /api/painel/territorios, pedido a cada mudança, com espera curta); a tela não seleciona, não conta e não mede distância.
+// "Calcular" leva a consulta à análise (um passo do Desfazer).
 
 export type EscolhaDosTerritoriosProps = {
   fonte: FonteDoMotor;
@@ -40,6 +43,8 @@ export type EscolhaDosTerritoriosProps = {
   criterio?: PainelCriterio | null;
   faixas: number[]; onFaixas: (limites: number[]) => void;
   onCalcular: (consulta: ConsultaTerritorios) => void;
+  /** A seleção em uso está vazia (a base fica incompleta) e o caminho para mudá-la (a Seleção de Territórios). */
+  selecaoVazia: boolean; onAlterarSelecao: () => void;
 };
 
 /** Opções do menu "Partir de"; "uma região" e "mais de uma região" (e os estados) são a mesma escolha na consulta, com uma ou mais. */
@@ -54,12 +59,14 @@ const opcaoDe = (lado: LadoDaConsulta): OpcaoDePartida => {
   return tipo;
 };
 const tipoDa = (opcao: OpcaoDePartida): TipoPartida => opcao === "regiao" ? "regioes" : opcao === "uf" ? "ufs" : opcao;
+/** A consulta da janela, com a base na seleção em uso. */
+const naSelecao = (consulta: ConsultaTerritorios): ConsultaTerritorios => ({ ...consulta, base: baseNaSelecao(consulta.base) });
 const textosDosFiltros = (consulta: ConsultaTerritorios): Record<Lado, string[]> =>
   ({ base: consulta.base.filtros.map(f => escreverValorDoFiltro(f.valor)), referencia: consulta.referencia.filtros.map(f => escreverValorDoFiltro(f.valor)) });
 const formatarInteiro = (n: number) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(n);
 
 export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
-  const [rascunho, setRascunho] = useState<ConsultaTerritorios>(() => p.aplicada ?? p.inicial);
+  const [rascunho, setRascunho] = useState<ConsultaTerritorios>(() => naSelecao(p.aplicada ?? p.inicial));
   const [aba, setAba] = useState<Lado>("base");
   const [opcoes, setOpcoes] = useState<Record<Lado, OpcaoDePartida>>(() => ({ base: opcaoDe((p.aplicada ?? p.inicial).base),
     referencia: opcaoDe((p.aplicada ?? p.inicial).referencia) }));
@@ -80,7 +87,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
   useEffect(() => {
     if (aplicadaJson === ultimaAplicada.current) return;
     ultimaAplicada.current = aplicadaJson;
-    const nova = p.aplicada ?? p.inicial;
+    const nova = naSelecao(p.aplicada ?? p.inicial);
     setRascunho(nova); setTextos(textosDosFiltros(nova));
     setOpcoes({ base: opcaoDe(nova.base), referencia: opcaoDe(nova.referencia) });
   }, [aplicadaJson]);
@@ -111,8 +118,9 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
     return () => { controle.abort(); window.clearTimeout(timer); };
   }, [chaveDoPedido]);
 
-  const pendencias = pendenciasDaConsulta(rascunho, p.rotulos);
-  const frase = fraseDaConsulta(rascunho, { rotulos: p.rotulos, brasil: p.brasil, grupos: p.grupos, nomes: nomesConhecidos() });
+  const pendencias = pendenciasDaConsulta(rascunho, p.rotulos, { selecaoVazia: p.selecaoVazia });
+  const frase = fraseDaConsulta(rascunho, { rotulos: p.rotulos, brasil: p.brasil, grupos: p.grupos, nomes: nomesConhecidos(),
+    selecaoVazia: p.selecaoVazia });
   const primeiraFalta = LADOS.map(lado => pendencias[lado].length ? textoDaPendencia(lado, pendencias[lado][0]) : null).find(Boolean) ?? null;
   const mudou = !mesmaConsulta(rascunho, p.aplicada);
   const podeCalcular = !primeiraFalta && mudou;
@@ -193,7 +201,79 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
       formatarInteiro(resto) : "") : "") + ".";
   };
 
+  /** A etapa "Filtrar por", a mesma nos dois lados (na base, os filtros valem sobre a seleção em uso). */
+  const filtrosDo = (lado: Lado) => {
+    const l = rascunho[lado], contagens = resposta?.[lado]?.contagens;
+    const id = (sufixo: string) => "territorios-" + lado + "-" + sufixo;
+    return <>
+    <fieldset className="territorios-etapa" data-testid={id("filtros")}>
+        <legend>2. Filtrar por <span className="territorios-opcional">(opcional)</span></legend>
+        {l.filtros.map((filtro, indice) => {
+          const texto = textos[lado][indice] ?? "";
+          const invalido = !!texto.trim() && filtro.valor === null;
+          return <div key={indice} className="territorios-filtro" data-testid={id("filtro")} data-indicador={filtro.indicador}>
+            <div className="territorios-filtro-linha">
+              <select aria-label="Indicador" data-testid={id("filtro-indicador")} value={filtro.indicador} className="analise-campo"
+                onChange={event => mudarFiltro(lado, indice, { indicador: event.target.value as IndicadorDoFiltro,
+                  valor: lerValorDoFiltro(texto, event.target.value as IndicadorDoFiltro) })}>
+                {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <option key={item} value={item}
+                  disabled={item !== "quantidade" && !p.temPopulacao}>{NOMES_DOS_FILTROS[item]}</option>)}
+              </select>
+              <button type="button" className="analise-icone" data-testid={id("filtro-remover")} aria-label={"Remover o filtro de " +
+                NOMES_DOS_FILTROS[filtro.indicador].toLocaleLowerCase("pt-BR")} onClick={() => removerFiltro(lado, indice)}>
+                <Trash2 size={14} aria-hidden="true"/></button>
+            </div>
+            <div className="territorios-filtro-linha">
+              <select aria-label="Operador" data-testid={id("filtro-operador")} value={filtro.operador} className="analise-campo"
+                onChange={event => mudarFiltro(lado, indice, { operador: event.target.value as OperadorDoFiltro })}>
+                {OPERADORES_DO_FILTRO.map(operador => <option key={operador} value={operador}>
+                  {TEXTO_DOS_OPERADORES[operador]}</option>)}
+              </select>
+              <input aria-label="Valor" data-testid={id("filtro-valor")} inputMode="decimal" value={texto} className="analise-campo"
+                aria-invalid={invalido} placeholder={filtro.indicador === "densidade" ? "0,5" : filtro.indicador === "populacao" ? "20.000" : "10"}
+                onChange={event => digitarValor(lado, indice, event.target.value)}/>
+              <span className="territorios-unidade">{UNIDADES_DOS_FILTROS[filtro.indicador]}</span>
+            </div>
+            {invalido && <p className="territorios-erro">{filtro.indicador === "populacao" || filtro.indicador === "quantidade"
+              ? "Use um número inteiro não negativo." : "Use um número não negativo, com vírgula decimal (por exemplo, 0,5)."}</p>}
+          </div>;
+        })}
+        <div className="territorios-adicionar">
+          {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <button key={item} type="button"
+            data-testid={id("mais-" + item)} className="analise-botao-secundario" disabled={l.filtros.length >= MAX_FILTROS ||
+              (item !== "quantidade" && !p.temPopulacao)} onClick={() => adicionarFiltro(lado, item)}>
+            <Plus size={13} aria-hidden="true"/>{NOMES_DOS_FILTROS[item]}</button>)}
+        </div>
+        <p className="territorios-apoio" data-testid={id("apoio-filtros")}>{TEXTO_DE_APOIO_DOS_FILTROS}</p>
+        <p className="territorios-contagem" data-testid={id("contagem-filtros")}>{contagem(contagens?.filtros, contagens?.filtros === 1 ? " resta" : " restam")}
+          {!!contagens?.naoAvaliaveis && " · " + quantos(contagens.naoAvaliaveis, unidade) + " com filtro não avaliável"}</p>
+      </fieldset>
+    </>;
+  };
+
+  /** A aba Base (06/11/2026): a seleção em uso, com o caminho para mudá-la, os filtros sobre ela e quantos entram. */
+  const seletorDaBase = () => {
+    const contagens = resposta?.base.contagens, previa = resposta?.selecaoPrevia;
+    const resto = previa ? previa.total - previa.nomes.length : 0;
+    return <div data-testid="territorios-base" className="territorios-seletor">
+      <fieldset className="territorios-etapa" data-testid="territorios-base-selecao">
+        <legend>1. A seleção em uso</legend>
+        <p className="territorios-apoio" data-testid="territorios-base-selecao-texto">{p.selecaoVazia
+          ? "Nenhum território na seleção em uso: escolha " + (femUnidade ? "as " : "os ") + unidade.plural + " na Seleção de Territórios."
+          : !previa ? (carregando ? "Contando…" : "") : "A base é a seleção em uso, a da Seleção de Territórios: " + previa.nomes.join(", ") +
+            (resto > 0 ? " e mais " + formatarInteiro(resto) : "") + "."}</p>
+        <button type="button" data-testid="territorios-base-alterar" className="analise-botao-secundario" onClick={p.onAlterarSelecao}>
+          Alterar a seleção</button>
+        <p className="territorios-contagem" data-testid="territorios-base-contagem-partir">{contagem(contagens?.partirDe)}</p>
+      </fieldset>
+      {filtrosDo("base")}
+      <p className="territorios-contagem" data-testid="territorios-base-contagem-final">{contagem(contagens?.final)}</p>
+      <p className="territorios-previa" data-testid="territorios-base-previa">{previaDoLado("base")}</p>
+    </div>;
+  };
+
   const seletor = (lado: Lado) => {
+    if (lado === "base") return seletorDaBase();
     const l = rascunho[lado], dados = resposta?.[lado], contagens = dados?.contagens;
     const opcao = opcoes[lado];
     const id = (sufixo: string) => "territorios-" + lado + "-" + sufixo;
@@ -249,48 +329,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         <p className="territorios-contagem" data-testid={id("contagem-partir")}>{contagem(contagens?.partirDe)}</p>
       </fieldset>
 
-      <fieldset className="territorios-etapa" data-testid={id("filtros")}>
-        <legend>2. Filtrar por <span className="territorios-opcional">(opcional)</span></legend>
-        {l.filtros.map((filtro, indice) => {
-          const texto = textos[lado][indice] ?? "";
-          const invalido = !!texto.trim() && filtro.valor === null;
-          return <div key={indice} className="territorios-filtro" data-testid={id("filtro")} data-indicador={filtro.indicador}>
-            <div className="territorios-filtro-linha">
-              <select aria-label="Indicador" data-testid={id("filtro-indicador")} value={filtro.indicador} className="analise-campo"
-                onChange={event => mudarFiltro(lado, indice, { indicador: event.target.value as IndicadorDoFiltro,
-                  valor: lerValorDoFiltro(texto, event.target.value as IndicadorDoFiltro) })}>
-                {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <option key={item} value={item}
-                  disabled={item !== "quantidade" && !p.temPopulacao}>{NOMES_DOS_FILTROS[item]}</option>)}
-              </select>
-              <button type="button" className="analise-icone" data-testid={id("filtro-remover")} aria-label={"Remover o filtro de " +
-                NOMES_DOS_FILTROS[filtro.indicador].toLocaleLowerCase("pt-BR")} onClick={() => removerFiltro(lado, indice)}>
-                <Trash2 size={14} aria-hidden="true"/></button>
-            </div>
-            <div className="territorios-filtro-linha">
-              <select aria-label="Operador" data-testid={id("filtro-operador")} value={filtro.operador} className="analise-campo"
-                onChange={event => mudarFiltro(lado, indice, { operador: event.target.value as OperadorDoFiltro })}>
-                {OPERADORES_DO_FILTRO.map(operador => <option key={operador} value={operador}>
-                  {TEXTO_DOS_OPERADORES[operador]}</option>)}
-              </select>
-              <input aria-label="Valor" data-testid={id("filtro-valor")} inputMode="decimal" value={texto} className="analise-campo"
-                aria-invalid={invalido} placeholder={filtro.indicador === "densidade" ? "0,5" : filtro.indicador === "populacao" ? "20.000" : "10"}
-                onChange={event => digitarValor(lado, indice, event.target.value)}/>
-              <span className="territorios-unidade">{UNIDADES_DOS_FILTROS[filtro.indicador]}</span>
-            </div>
-            {invalido && <p className="territorios-erro">{filtro.indicador === "populacao" || filtro.indicador === "quantidade"
-              ? "Use um número inteiro não negativo." : "Use um número não negativo, com vírgula decimal (por exemplo, 0,5)."}</p>}
-          </div>;
-        })}
-        <div className="territorios-adicionar">
-          {(["densidade", "populacao", "quantidade"] as IndicadorDoFiltro[]).map(item => <button key={item} type="button"
-            data-testid={id("mais-" + item)} className="analise-botao-secundario" disabled={l.filtros.length >= MAX_FILTROS ||
-              (item !== "quantidade" && !p.temPopulacao)} onClick={() => adicionarFiltro(lado, item)}>
-            <Plus size={13} aria-hidden="true"/>{NOMES_DOS_FILTROS[item]}</button>)}
-        </div>
-        <p className="territorios-apoio" data-testid={id("apoio-filtros")}>{TEXTO_DE_APOIO_DOS_FILTROS}</p>
-        <p className="territorios-contagem" data-testid={id("contagem-filtros")}>{contagem(contagens?.filtros, contagens?.filtros === 1 ? " resta" : " restam")}
-          {!!contagens?.naoAvaliaveis && " · " + quantos(contagens.naoAvaliaveis, unidade) + " com filtro não avaliável"}</p>
-      </fieldset>
+      {filtrosDo(lado)}
 
       <fieldset className="territorios-etapa" data-testid={id("escolher")}>
         <legend>3. Escolher</legend>

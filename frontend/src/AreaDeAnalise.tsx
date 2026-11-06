@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  desdeDaFaixa, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  deOndeEhOResultado, desdeDaFaixa, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -410,7 +410,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       pedidoPendente.current = null;
       ultimoPedido.current = pendentePedido.id;
       const resultado = aplicarPedido(inicial, pendentePedido.pedido, { periodos, nomes, temGrupos: grupos.length > 0, grupoDe, mapa: mapaDe,
-        todosOsEstados: idsDosGrupos, temBrasil: tipo === "brasil" && grupos.length > 0,
+        todosOsEstados: idsDosGrupos, temBrasil: tipo === "brasil" && grupos.length > 0, unidadesDoGrupo: arvore.unidadesDoGrupo,
         disponivel: familia => disponibilidadeDaFamilia(familia, { fonte: tipo, nivel: inicial.nivel, disponibilidade: null, temIdentificador, rotulos }) });
       if (!temPopulacao && pendentePedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
       // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
@@ -572,6 +572,23 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const numerosNaFaixa = numerosDoLugar && (numerosDoLugar.chave === chaveDoLugar || numerosDoLugar.base === baseDoLugar) ? numerosDoLugar.dados : null;
   const erroNaFaixa = erroLugar && erroLugar.chave === chaveDoLugar ? erroLugar.mensagem : null;
 
+  // A proteção (06/11/2026, item 4.6 do comando): o resultado à vista é de outra seleção — o cálculo da seleção em uso ainda não
+  // chegou (depois de um instante, para não piscar a cada mudança) ou falhou. A aba diz de que lugar ele é, com "Atualizar", e o
+  // desenho fica esmaecido, em vez de exibi-lo como atual.
+  const outraSelecao = !!calculado && !!resposta && calculado.chave !== chave && !!chave &&
+    JSON.stringify(escolhaDe(calculado.def)) !== JSON.stringify(escolhaDe(def));
+  const [demorou, setDemorou] = useState(false);
+  useEffect(() => {
+    setDemorou(false);
+    if (!outraSelecao || !carregando) return;
+    const timer = window.setTimeout(() => setDemorou(true), 700);
+    return () => window.clearTimeout(timer);
+  }, [outraSelecao, carregando, chave]);
+  const falhouAAtual = !!erro && (!erro.chave || erro.chave === chave);
+  const desatualizada = outraSelecao && (demorou || falhouAAtual);
+  const deOndeEhOCalculado = desatualizada && calculado ? deOndeEhOResultado(lugarDaTrilha(escolhaDe(calculado.def),
+    { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo"), nomes, comGrupos: comBolhasDeGrupo }), { grupos }) : "";
+
   function voltarAoCalculado() {
     if (!calculado) return;
     registrar("Voltar ao último gráfico calculado");
@@ -631,7 +648,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       }
     }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
-      todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo });
+      todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
     resultado.definicao = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
@@ -884,8 +901,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // Ao abrir a Análise de Tendência (24/10/2026): o gráfico como apresentação (o mapa continua como alternativa) e o período anual,
     // que o efeito do período padrão aplica quando a janela está vazia.
     if (familia === "tendencia" && aba !== "tendencia") { setVistaEscolhida("grafico"); setMotivoVistaAberto(false); }
-    // A Escolha dos territórios abre ao entrar na Análise Espacial sem consulta calculada (27/10/2026): a base pode partir do país,
-    // de regiões ou de estados, sem depender da Seleção de Territórios.
+    // A Escolha dos territórios abre ao entrar na Análise Espacial sem consulta calculada (27/10/2026): desde 06/11/2026, a base é a
+    // seleção em uso, e a janela escolhe a referência (até essa data, a base podia partir do país, de regiões ou de estados).
     if (familia === "espacial" && !def.consulta && def.nivel === "municipios") abrirPainel("referencia");
     else if (painel === "referencia" && familia !== "espacial") setPainel(null);
     if (disponivel.pendente) setAviso(NOMES_FAMILIAS[familia] + ": " + disponivel.motivo);
@@ -1551,7 +1568,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         usadas={consultaNaTela && referenciaDaTela ? { referencias: referenciaDaTela.membros.map(membro => membro.rotulo),
           base: basesDaReferencia.length === 1 ? basesDaReferencia[0].rotulo : null } : null}
         faixas={def.faixasDistancia} onFaixas={limites => ajustar("Aplicar as faixas de distância", { faixasDistancia: limites })}
-        onCalcular={calcularConsulta}/>;
+        onCalcular={calcularConsulta} selecaoVazia={semSelecao({ ...def, nivel: "municipios" })}
+        onAlterarSelecao={() => { setPainel(null); irParaTerritorios(); }}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
         soAtende={soAtende} onSoAtende={valor => { registrar(valor ? "Mostrar só quem atende" : "Mostrar todos"); setSoAtende(valor); }}
         onAplicar={condicoes => ajustar(condicoes.length ? "Aplicar as condições" : "Limpar as condições", { condicoes })}/>;
@@ -1924,6 +1942,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         </div>
 
         <div className="analise-avisos">
+          {desatualizada && <div role={falhouAAtual ? "alert" : "status"} data-testid="analise-desatualizada" className="analise-erro">
+            <p>Esta análise ainda é {deOndeEhOCalculado}: o cálculo da seleção em uso {falhouAAtual ? "não deu certo" : "ainda não chegou"}.</p>
+            <button type="button" data-testid="analise-atualizar" onClick={() => setTentativa(valor => valor + 1)}
+              className="mt-1 inline-flex items-center gap-1 font-semibold underline"><RefreshCw size={13} aria-hidden="true"/>Atualizar</button>
+          </div>}
           {carregando && resposta && <p role="status" data-testid="analise-atualizando" className="analise-status"><LoaderCircle size={15} className="animate-spin" aria-hidden="true"/>
             Atualizando o gráfico…</p>}
           {erro && <div role="alert" data-testid="analise-erro" className="analise-erro">
@@ -1963,7 +1986,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         </div>
 
         {!layoutTendencia && contagemClasses}
-        <div ref={quadroRef} className={"analise-quadro" + (lado && !antesDoDesenho ? " analise-quadro-lado" : "")}>
+        <div ref={quadroRef} data-testid="analise-quadro" data-desatualizada={desatualizada ? "true" : undefined}
+          className={"analise-quadro" + (lado && !antesDoDesenho ? " analise-quadro-lado" : "") + (desatualizada ? " analise-quadro-desatualizado" : "")}>
           {antesDoDesenho ?? <>
             {(vistaExibida === "grafico" || lado) && <div ref={graficoRef} data-testid="analise-vista-grafico"
               className={"analise-vista" + (oculta === "grafico" ? " analise-vista-oculta" : "")}>{desenhoDoGrafico}</div>}

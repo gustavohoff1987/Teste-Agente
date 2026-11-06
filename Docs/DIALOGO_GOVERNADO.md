@@ -207,6 +207,10 @@ espacial, e o agente precisa correlacionar a intenção com as funcionalidades d
   Tocantins, 0,367 e 0,375 por 1.000 habitantes, que com duas casas seriam os dois "0,37"); a continuação ("qual a referência mais próxima?") é enviada pela tela quando o motor
   calcula e lê a referência mais próxima, a distância em linha reta e a densidade dela, copiadas da resposta
   (`explicacao.referencia_proxima`, verificada), com os botões "Procurar em todo o país" e "Só no mesmo estado de cada um";
+- desde 06/11/2026 (item 4.1 do comando de navegação por níveis, uma seleção só), a área aplica a consulta com a base na
+  seleção em uso: o extremo (ou os citados pelo nome, ou o estado) vira a seleção, e a trilha vai a ele; a referência que
+  partia da seleção passa a nomear a seleção de antes (o estado inteiro, o país ou os municípios dela), e a leitura da
+  continuação é a mesma (o motor calcula a distância do extremo até a referência mais próxima do mesmo conjunto);
 - com um estado citado que não está no gráfico ("o de menor densidade do Pará e o mais próximo dele…"), a resposta mostra os
   municípios dele e traz `continuar` com o mesmo pedido;
 - com uma condição antes do pedido de proximidade ("o de menor densidade entre os com população acima de 10 mil…"), nada é

@@ -514,6 +514,8 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-cartao-grupo, .analise-cartao-todo { opacity: .55; }
 .analise-cartao-valor { color: var(--cor-tinta); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .analise-cartao-distancia { margin: 0; color: var(--cor-tinta); font-size: 15px; }
+/* A proteção (06/11/2026): o resultado de outra seleção fica esmaecido enquanto a seleção em uso não é calculada. */
+.analise-quadro-desatualizado { opacity: .45; transition: opacity .2s; }
 .analise-espacial-grupos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 8px 0; padding: 12px;
   border: 1px solid var(--cor-borda-convite); border-radius: 12px; background: var(--cor-realce-destaque); }
 .analise-espacial-grupos-texto { margin: 0; color: var(--cor-tinta); font-size: 15px; font-weight: 650; }
