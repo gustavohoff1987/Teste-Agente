@@ -3,8 +3,8 @@ import { ArrowRight, ChevronDown, Search, X } from "lucide-react";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
   BASE_VAZIA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, grupoDaUnidade, grupoInteiro, maiuscula, marcadasNoGrupo,
-  marcadasPorGrupo, marcarGrupo, motivoDaUnidade, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
-  unidadeMarcada, unidadesPossiveis, type ContextoDaArvore, type GrupoInfo, type RotulosTerritoriais, type UnidadeDoCatalogo,
+  marcadasPorGrupo, marcarGrupo, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
+  unidadeMarcada, type GrupoInfo, type OpcaoVerPor, type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
 
 // Seleção de Territórios unificada (05/11/2026, comando do responsável; no lugar dos três níveis separados de 24/10/2026, um por
@@ -12,12 +12,12 @@ import {
 // municípios), os estados (cada um com a caixa de três estados: inteiro, em parte ou nada, e a lista dos municípios, que se abre no
 // lugar) e os municípios. Marcar o Brasil marca todos os municípios; um estado, todos os municípios dele; desmarcar um município de
 // um estado ou do Brasil marcado deixa os demais marcados (a exclusão); estados inteiros e municípios avulsos de estados diferentes
-// se combinam. À direita, sempre à vista, o que está na análise: o resumo da abrangência, a unidade de análise (cada ponto é um
-// município, um estado ou o Brasil), os totais individualizados (quando a abrangência é um estado inteiro ou o Brasil inteiro) e o
-// que está marcado, estado a estado, com o × de cada um. A unidade de análise é explícita: os estados como unidades só com estados
-// inteiros (a contagem estadual de médicos únicos é a do estado inteiro), o Brasil só com o Brasil inteiro; nenhum nível é somado
-// a outro (RQ-DAD-30). Numa planilha, os mesmos passos com a nomenclatura dela (grupos e unidades), sem a unidade de análise. Cada
-// mudança é um pedido explícito ao motor e um passo do Desfazer; nada é calculado aqui.
+// se combinam. À direita, sempre à vista, o que está na análise: o resumo da abrangência, o "Ver por" (06/11/2026, no lugar de "Cada
+// ponto da análise é": o estado ou o município, só no todo e numa seleção de estados inteiros; o todo deixou de ser unidade de
+// análise e é a referência fixa), os totais individualizados (quando a abrangência é um estado inteiro ou o Brasil inteiro) e o que
+// está marcado, estado a estado, com o × de cada um. Nenhum nível é somado a outro (RQ-DAD-30). Numa planilha, os mesmos passos com
+// a nomenclatura dela (grupos e unidades), sem o "Ver por". Cada mudança é um pedido explícito ao motor e um passo do Desfazer;
+// nada é calculado aqui.
 
 const sem = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const comparar = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true });
@@ -29,11 +29,13 @@ type Props = {
   rotulos: RotulosTerritoriais;
   brasil: boolean;
   grupos: GrupoInfo[];
-  /** A base do Brasil com os níveis Brasil e estados (a fonte estadual e a nacional): a unidade de análise aparece. */
+  /** A base do Brasil com os estados (a fonte estadual): o "Ver por" aparece. */
   comNiveis: boolean;
+  /** As opções do "Ver por" (painelModel.opcoesVerPor): com menos de duas, o controle não aparece. */
+  verPor: OpcaoVerPor[];
   unidades: UnidadeDoCatalogo[];
   total: number;
-  /** A unidade de análise em uso (cada ponto é um município, um estado ou o Brasil). */
+  /** O nível em uso no "Ver por" (cada ponto é um município ou um estado). */
   nivel: PainelNivel;
   base: PainelMunicipios;
   /** Os estados como unidades (só leitura: vêm da árvore, com estados inteiros). */
@@ -49,7 +51,7 @@ type Props = {
   totais?: ReactNode;
   /** Nova escolha da árvore, com o que mudou em palavras (vai para o Desfazer); `coletiva` quando muda muitos de uma vez. */
   onBase: (base: PainelMunicipios, acao: string, coletiva?: boolean) => void;
-  /** A unidade de análise escolhida (a área confere se a escolha permite). */
+  /** O "Ver por" escolhido (a área confere se a escolha permite). */
   onUnidade: (nivel: PainelNivel) => void;
   onAbrir: (grupo: string | null) => void;
   /** Desfaz um conjunto criado no Juntar (o × dele, no que está marcado). */
@@ -60,7 +62,6 @@ type Props = {
 export default function PainelTerritorios(p: Props) {
   const [consulta, setConsulta] = useState("");
   const [letra, setLetra] = useState("");
-  const [motivoUnidade, setMotivoUnidade] = useState<string | null>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
   const unidade = p.rotulos.unidade, grupoRotulo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const generoF = artigo(unidade, false) === "a", generoGrupoF = artigo(grupoRotulo, false) === "a";
@@ -83,10 +84,7 @@ export default function PainelTerritorios(p: Props) {
   const todosOsGrupos = p.grupos.map(item => item.id);
   const temGrupos = p.grupos.length > 0;
   const nomeDoGrupo = (id: string) => p.grupos.find(item => item.id === id)?.nome || id;
-  const arvore: ContextoDaArvore = { grupos: p.grupos, unidadesDoGrupo: idsDoGrupo, grupoDe: id => grupoDeId.get(id) ?? "", total: p.total };
-  const possiveis = useMemo(() => unidadesPossiveis(p.base, arvore), [p.base, p.grupos, porGrupo, p.total]);
   useEffect(() => setLetra(""), [p.aberto]);
-  useEffect(() => setMotivoUnidade(null), [p.base, p.nivel]);
 
   // ------------------------------------------------------------------------------------------ o que está marcado
   const marcadas = useMemo(() => marcadasPorGrupo(p.base, { grupos: p.grupos, unidadesDoGrupo: idsDoGrupo, nomes,
@@ -132,12 +130,7 @@ export default function PainelTerritorios(p: Props) {
   const alternarRaiz = () => p.base.todos
     ? p.onBase({ ...BASE_VAZIA }, (p.brasil ? "Brasil inteiro desmarcado" : maiuscula(unidade.plural) + marcadosTexto(false).replace(/\.$/, "")) + ".", true)
     : p.onBase({ todos: true, estados: [], ids: [] }, (p.brasil ? "Brasil inteiro marcado: " : "Toda a planilha marcada: ") + totalTexto + ".", true);
-  const escolherUnidade = (valor: PainelNivel, possivel: boolean) => {
-    if (valor === p.nivel) return;
-    if (!possivel && valor !== "municipios") { setMotivoUnidade(motivoDaUnidade(valor, p.rotulos)); return; }
-    setMotivoUnidade(null);
-    p.onUnidade(valor);
-  };
+  const escolherUnidade = (valor: PainelNivel) => { if (valor !== p.nivel) p.onUnidade(valor); };
 
   // ------------------------------------------------------------------------------------------ partes
   const caixaDaUnidade = (item: UnidadeDoCatalogo, testid: string, comGrupo = false) => <li key={item.id} data-testid={testid} data-id={item.id}>
@@ -270,19 +263,6 @@ export default function PainelTerritorios(p: Props) {
     </div>;
   })();
 
-  // ------------------------------------------------------------------------------------------ a unidade de análise (à direita)
-  const unidadesDeAnalise: [PainelNivel, string, string, boolean][] = [
-    ["municipios", maiuscula(unidade.plural), "cada ponto é " + (generoF ? "uma " : "um ") + unidade.singular, true],
-    ["estados", maiuscula(grupoRotulo.plural), possiveis.estados?.length
-      ? "cada ponto é " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " inteir" + (generoGrupoF ? "a" : "o") + " (" +
-        possiveis.estados.length + "), com a contagem estadual de médicos únicos"
-      : possiveis.vazia ? "cada ponto é " + (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " (" + (generoGrupoF ? "todas" : "todos") + ")"
-        : "com " + grupoRotulo.plural + " inteir" + (generoGrupoF ? "as" : "os") + " marcad" + (generoGrupoF ? "as" : "os"),
-      possiveis.vazia || !!possiveis.estados?.length],
-    ["brasil", "Brasil", possiveis.brasil || possiveis.vazia ? "o país como uma unidade, com a contagem nacional" : "com o Brasil inteiro marcado",
-      possiveis.vazia || possiveis.brasil],
-  ];
-
   // ------------------------------------------------------------------------------------------ o que entra na análise (à direita)
   // Estado a estado, em tempo real: o estado inteiro numa linha ("todos os 62") e, quando são algumas, cada unidade com o × dela;
   // cada estado com o × que o tira inteiro.
@@ -358,18 +338,16 @@ export default function PainelTerritorios(p: Props) {
           <button type="button" data-testid="analise-ver-analise" className="analise-botao-primario" disabled={vazio} onClick={p.onVerAnalise}>
             {p.verAnalise}<ArrowRight size={15} aria-hidden="true"/></button>
         </div>
-        {p.comNiveis && <div className="analise-unidade-de-analise">
-          <p id="analise-nivel-titulo" className="analise-territorios-secao">Cada ponto da análise é</p>
+        {/* "Ver por" (06/11/2026, no lugar de "Cada ponto da análise é"): só os níveis abaixo do lugar em uso; o todo nunca é opção
+            (é a referência fixa); com uma opção só, o controle não aparece. */}
+        {p.comNiveis && p.verPor.length > 1 && <div className="analise-unidade-de-analise">
+          <p id="analise-nivel-titulo" className="analise-territorios-secao">Ver por</p>
           <div role="radiogroup" aria-labelledby="analise-nivel-titulo" data-testid="analise-nivel" className="analise-niveis">
-            {unidadesDeAnalise.map(([valor, rotulo, apoio, possivel]) =>
-              <button key={valor} type="button" role="radio" aria-checked={p.nivel === valor} aria-disabled={possivel ? undefined : true}
-                data-testid={"analise-nivel-" + valor} data-possivel={possivel ? "true" : "false"} className="analise-nivel"
-                title={possivel || valor === "municipios" ? undefined : motivoDaUnidade(valor as "estados" | "brasil", p.rotulos)}
-                onClick={() => escolherUnidade(valor, possivel)}>
-                <span className="analise-nivel-nome">{rotulo}</span><span className="analise-nivel-apoio">{apoio}</span>
+            {p.verPor.map(opcao => <button key={opcao.nivel} type="button" role="radio" aria-checked={p.nivel === opcao.nivel}
+                data-testid={"analise-nivel-" + opcao.nivel} data-possivel="true" className="analise-nivel" onClick={() => escolherUnidade(opcao.nivel)}>
+                <span className="analise-nivel-nome">{opcao.rotulo}</span><span className="analise-nivel-apoio">{opcao.apoio}</span>
               </button>)}
           </div>
-          {motivoUnidade && <p role="status" data-testid="analise-nivel-motivo" className="analise-motivo">{motivoUnidade}</p>}
         </div>}
         {p.totais}
         {p.aviso && <p role="status" data-testid="analise-selecao-aviso" className="analise-desfazer">{p.aviso} Para desfazer, use o botão Desfazer, no alto.</p>}

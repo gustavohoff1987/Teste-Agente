@@ -54,13 +54,13 @@ test('ajustes dentro da análise: cada aba só com os seus; o mesmo indicador em
   assert.equal(M.TEXTO_SEM_POPULACAO, 'Sem população na planilha: só a quantidade.');
 });
 
-test('vista do desenho: o mapa nos municípios; desligado nos estados (com o atalho), na planilha sem coordenadas e em Séries, com o motivo', () => {
+test('vista do desenho: o mapa nos municípios e, na base do Brasil, nos estados (no ponto de desenho do motor); desligado na planilha sem coordenadas e em Séries', () => {
   const d = extra => M.disponibilidadeDoMapa({fonte: 'brasil', temCoordenadas: true, nivel: 'municipios', series: false, rotatividade: false,
     rotulos: BR, ...extra});
   assert.deepEqual(d({}), {disponivel: true, motivo: null, atalho: null});
-  // Os estados não têm um ponto (os ladrilhos não foram aprovados): o atalho leva aos municípios no mapa.
-  assert.deepEqual(d({nivel: 'estados'}), {disponivel: false, atalho: 'Ver os municípios no mapa',
-    motivo: 'Os estados não têm um ponto no mapa: cada ponto do mapa é um município.'});
+  // Vendo por estado (06/11/2026, item 3.2; divergência aprovada da RQ-REP-07, só a bolha no centro): o mapa fica ligado, com cada
+  // estado no ponto de desenho que o motor calcula (a média das sedes dos municípios dele). O mapa em grade não foi aprovado.
+  assert.deepEqual(d({nivel: 'estados'}), {disponivel: true, motivo: null, atalho: null});
   const semColunas = d({fonte: 'arquivo', temCoordenadas: false, rotulos: DISTRITOS});
   assert.equal(semColunas.disponivel, false);
   assert.equal(semColunas.atalho, null);
@@ -72,9 +72,9 @@ test('vista do desenho: o mapa nos municípios; desligado nos estados (com o ata
   const series = d({series: true});
   assert.equal(series.disponivel, false);
   assert.equal(series.motivo, 'Na visão Série temporal, cada município é uma linha no tempo: o mapa fica com Tendência e Trajetória.');
-  // Numa planilha com grupos, os nomes da planilha.
+  // Numa planilha com grupos, os nomes da planilha: os grupos dela não têm o ponto de desenho (só a base do Brasil, nesta etapa).
   assert.deepEqual(d({fonte: 'arquivo', nivel: 'estados', rotulos: DISTRITOS}), {disponivel: false, atalho: 'Ver os distritos no mapa',
-    motivo: 'As províncias não têm um ponto no mapa: cada ponto do mapa é um distrito.'});
+    motivo: 'No mapa desta fonte, cada ponto é um distrito: as províncias não têm um ponto de desenho.'});
   assert.equal(d({fonte: null}).disponivel, false);
   assert.equal(M.LARGURA_LADO_A_LADO, 1600);
 });
@@ -97,7 +97,8 @@ test('pintura do mapa: a camada do gráfico, a cor contínua da rotatividade ou 
   assert.equal(q(d(), 'tendencia'), false);  // as classes já pintam
   assert.equal(q(d(), 'rotatividade'), false);  // a permanência já pinta
   assert.equal(q(d(), 'distribuicao', false), false);  // sem mapa (planilha sem coordenadas, visão Séries)
-  assert.equal(q(d({nivel: 'estados'})), false);
+  assert.equal(q(d({nivel: 'estados'})), true);  // vendo por estado, o mapa pinta os estados pelos quintis do motor (06/11/2026)
+  assert.equal(q(d({nivel: 'brasil'})), false);
   assert.equal(q(d({agrupar: {tipo: 'quartis', faixas: []}})), false);
   assert.equal(q(d({agrupar: {tipo: 'faixas', faixas: [1, 2]}})), false);
   assert.equal(q(d({agrupar: {tipo: 'faixas', faixas: [1]}})), true);  // faixas incompletas não pintam o gráfico
@@ -194,15 +195,21 @@ test('não avaliáveis no mapa: com o mapa à vista, a unidade sem coordenada v�
     tendencia: false, nomes: new Map(), rotulos: BR}).notas.some(nota => nota.endsWith('(SEM_REGISTRO_OBSERVADO)')));
 });
 
-test('conversa: "ver no mapa" e "volte ao gráfico" são estado visual; o mapa vale para a análise que resulta do pedido; nos estados, o motivo', () => {
+test('conversa: "ver no mapa" e "volte ao gráfico" são estado visual; o mapa vale para a análise que resulta do pedido, também nos estados', () => {
   const c = {periodos: ['202306', '202406'], nomes: new Map(), temGrupos: true,
     disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR}),
     mapa: d => M.disponibilidadeDoMapa({fonte: 'brasil', temCoordenadas: true, nivel: d.nivel, series: false, rotatividade: false, rotulos: BR})};
   const estados = definicao({nivel: 'estados'});
+  // Vendo por estado (06/11/2026), o mapa existe: cada estado no ponto de desenho do motor.
   const noMapa = M.aplicarPedido(estados, {vista: 'mapa'}, c);
-  assert.equal(noMapa.vista, null);
-  assert.deepEqual(noMapa.mensagens, ['Mapa: Os estados não têm um ponto no mapa: cada ponto do mapa é um município.']);
+  assert.equal(noMapa.vista, 'mapa');
+  assert.deepEqual(noMapa.mensagens, []);
   assert.equal(noMapa.definicao.nivel, 'estados');  // a vista não muda a análise
+  // Numa fonte em que os grupos não têm o ponto de desenho, o motivo.
+  const semPonto = M.aplicarPedido(estados, {vista: 'mapa'}, {...c, mapa: d => M.disponibilidadeDoMapa({fonte: 'arquivo', temCoordenadas: true,
+    nivel: d.nivel, series: false, rotatividade: false, rotulos: DISTRITOS})});
+  assert.equal(semPonto.vista, null);
+  assert.deepEqual(semPonto.mensagens, ['Mapa: No mapa desta fonte, cada ponto é um distrito: as províncias não têm um ponto de desenho.']);
   const amazonas = M.aplicarPedido(estados, {municipios: {todos: false, estados: ['13'], ids: []}, vista: 'mapa'}, c);
   assert.equal(amazonas.vista, 'mapa');
   assert.deepEqual(amazonas.mensagens, []);
@@ -284,7 +291,8 @@ test('apresentação de cada aba: o que a aba faz, com os nomes territoriais da 
   assert.equal(antes.paragrafos[0], 'Depois de escolher os dados, a lista de territórios aparece aqui.');
   assert.ok(brasil('distribuicao').paragrafos[1].includes('5 grupos iguais (quintis)'));
   assert.ok(brasil('espacial').paragrafos[1].includes('(a sede municipal)'));
-  assert.ok(brasil('espacial').paragrafos[1].includes('os estados e o Brasil não têm um ponto no mapa'));
+  assert.ok(brasil('espacial').paragrafos[1].includes('vendo por estado, ela mostra o botão que leva aos municípios desses estados'));
+  assert.ok(!brasil('espacial').paragrafos.join(' ').includes('Brasil não têm'));
   assert.ok(!planilha('espacial').paragrafos[1].includes('sede'));
   assert.ok(brasil('rotatividade').paragrafos[1].includes('envie uma planilha com o identificador individual'));
   assert.ok(!planilha('rotatividade').paragrafos[1].includes('envie'));
@@ -1130,4 +1138,138 @@ test('destaque da análise: os comparados ficam inteiros, e as demais bolhas esm
   assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: false, apagada: false}, destaque), 0, 'sem posição, oculta');
   assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: true}, null), 0.45, 'sem destaque, a regra de sempre');
   assert.equal(M.opacidadeComDestaque({id: 'code:2', visivel: true, apagada: false}, new Set()), 1);
+});
+
+// ================================================================================================ navegação por níveis (06/11/2026)
+// Comando do responsável de 06/11/2026, itens 2 e 3: o todo como referência fixa, o "Ver por", a faixa do lugar em uso e a trilha.
+const NIVEIS = {'13': ['code:130001', 'code:130002', 'code:130003'], '15': ['code:150001', 'code:150002'], '35': ['code:350001']};
+const ARVORE = {grupos: Object.entries(NIVEIS).map(([id, ids]) => ({id, nome: {'13': 'Amazonas', '15': 'Pará', '35': 'São Paulo'}[id], sigla: '',
+  rotuloGrupo: '', unidades: ids.length})), unidadesDoGrupo: g => NIVEIS[g] ?? [], grupoDe: id => id.slice(5, 7), total: 6};
+const TRILHA = {arvore: ARVORE, nomeDoTodo: 'Brasil', nomes: new Map([['code:150001', 'MARABA (PA)'], ['code:130001', 'MANAUS (AM)']]), comGrupos: true};
+const escolhaDaTrilha = (nivel, estados = [], ids = [], todos = false, conjuntos = [], estadosUnidade = []) =>
+  ({nivel, base: {todos, estados, ids}, estados: estadosUnidade, conjuntos});
+const partes = lugar => lugar.partes.map(parte => [parte.chave, parte.rotulo, parte.atual]);
+
+test('trilha: o todo, o grupo inteiro, a unidade, a seleção que cabe num grupo e a seleção livre', () => {
+  // Nada escolhido: a parte do todo à vista, sem ser a atual (tocar nela leva ao todo).
+  const nada = M.lugarDaTrilha(escolhaDaTrilha('municipios'), TRILHA);
+  assert.equal(nada.tipo, 'nenhum');
+  assert.deepEqual(partes(nada), [['todo', 'Brasil', false]]);
+  // O Brasil inteiro, vendo por estado ou por município: o todo.
+  for (const escolha of [escolhaDaTrilha('estados', [], [], true, [], ['13', '15', '35']), escolhaDaTrilha('municipios', [], [], true),
+    escolhaDaTrilha('municipios', ['13', '15', '35'])])
+    assert.deepEqual(partes(M.lugarDaTrilha(escolha, TRILHA)), [['todo', 'Brasil', true]]);
+  // O Pará inteiro: "Brasil › Pará".
+  const para = M.lugarDaTrilha(escolhaDaTrilha('municipios', ['15']), TRILHA);
+  assert.deepEqual([para.tipo, para.grupo, para.grupoInteiro], ['grupo', '15', true]);
+  assert.deepEqual(partes(para), [['todo', 'Brasil', false], ['grupo', 'Pará', true]]);
+  // Uma unidade: "Brasil › Pará › MARABA (PA)".
+  const maraba = M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:150001']), TRILHA);
+  assert.deepEqual([maraba.tipo, maraba.grupo, maraba.unidade], ['unidade', '15', 'code:150001']);
+  assert.deepEqual(partes(maraba), [['todo', 'Brasil', false], ['grupo', 'Pará', false], ['unidade', 'MARABA (PA)', true]]);
+  // Tudo dentro de um estado só (municípios dele ou um conjunto dos membros dele): a trilha mostra o estado, em parte.
+  const parte = M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001', 'code:130002']), TRILHA);
+  assert.deepEqual([parte.tipo, parte.grupo, parte.grupoInteiro], ['grupo', '13', false]);
+  const comConjunto = M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130003'], false,
+    [{id: 'c1', rotulo: 'Carajás', membros: ['code:130001', 'code:130002']}]), TRILHA);
+  assert.deepEqual([comConjunto.tipo, comConjunto.grupo], ['grupo', '13']);
+  // Escolhas livres (vários estados, municípios de estados diferentes): "Brasil › Seleção".
+  for (const escolha of [escolhaDaTrilha('municipios', ['13', '15']), escolhaDaTrilha('municipios', [], ['code:130001', 'code:150001']),
+    escolhaDaTrilha('estados', ['13', '15'], [], false, [], ['13', '15'])])
+    assert.deepEqual(partes(M.lugarDaTrilha(escolha, TRILHA)), [['todo', 'Brasil', false], ['selecao', 'Seleção', true]]);
+  // Um estado só, vendo por estado: o grupo.
+  assert.equal(M.lugarDaTrilha(escolhaDaTrilha('estados', ['15'], [], false, [], ['15']), TRILHA).tipo, 'grupo');
+  // Numa planilha sem a coluna-mãe: o todo, a unidade ou a seleção, sem grupos.
+  const planilha = {...TRILHA, nomeDoTodo: 'Toda a planilha', comGrupos: false, arvore: {...ARVORE, grupos: [], grupoDe: () => ''}};
+  assert.deepEqual(partes(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001']), planilha)),
+    [['todo', 'Toda a planilha', false], ['unidade', 'MANAUS (AM)', true]]);
+  assert.equal(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001', 'code:150001']), planilha).tipo, 'selecao');
+  assert.equal(M.nomeDoTodo(true), 'Brasil');
+});
+
+test('Ver por: só os níveis abaixo do lugar em uso; o todo nunca é opção; com uma opção, o controle não aparece', () => {
+  const c = {arvore: ARVORE, comNiveis: true, rotulos: BR};
+  const opcoes = escolha => M.opcoesVerPor(M.lugarDaTrilha(escolha, TRILHA), escolha, c).map(opcao => [opcao.nivel, opcao.rotulo]);
+  const estadoEMunicipio = [['estados', 'Estado'], ['municipios', 'Município']];
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', [], [], true)), estadoEMunicipio);  // no todo
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios')), estadoEMunicipio);  // nada escolhido: o estado é o atalho de todos
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', ['13', '15'])), estadoEMunicipio);  // seleção de estados inteiros
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', ['15'])), []);  // "Brasil › Pará": só o município
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', [], ['code:130001', 'code:150001'])), []);
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', [], ['code:150001'])), []);
+  assert.ok(!M.opcoesVerPor(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), TRILHA), escolhaDaTrilha('municipios', [], [], true), c)
+    .some(opcao => opcao.nivel === 'brasil'), 'o Brasil deixa de ser uma opção de unidade');
+  assert.deepEqual(M.opcoesVerPor(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), TRILHA), escolhaDaTrilha('municipios', [], [], true),
+    {...c, comNiveis: false}), [], 'sem a fonte estadual (ou numa planilha), sem o Ver por');
+});
+
+test('faixa do lugar: a competência inicial da variação, os números e as referências', () => {
+  const periodos = ['202006', '202101', '202106', '202201', '202206', '202301', '202306', '202401', '202406'];
+  assert.equal(M.desdeDaFaixa(periodos, '202406'), '202106');  // os últimos 4 períodos anuais até a competência da análise
+  assert.equal(M.desdeDaFaixa(periodos, '202306'), '202006');
+  assert.equal(M.desdeDaFaixa(periodos, '202206'), null);  // sem 4 períodos anuais até ela, a faixa não mostra a variação
+  assert.equal(M.desdeDaFaixa(periodos, ''), null);
+  assert.equal(M.populacaoResumida(212583750), '212,6 milhões');
+  assert.equal(M.populacaoResumida(1250000), '1,3 milhão');
+  assert.equal(M.populacaoResumida(8100), '8,1 mil');
+  assert.equal(M.populacaoResumida(950), '950');
+  assert.equal(M.textoDaReferencia('Brasil', 2.3612), 'Brasil 2,36');
+  assert.equal(M.textoDaReferencia('Pará', 1.185), 'Pará 1,19');
+  assert.equal(M.nomeCurtoDoNivel({nome: 'Pará', rotulo: 'Pará (PA)'}), 'Pará');
+  assert.equal(M.nomeCurtoDoNivel({nome: null, rotulo: 'Pará (PA)'}), 'Pará');
+  assert.equal(M.nomeCurtoDoNivel({rotulo: 'Brasil'}), 'Brasil');
+});
+
+test('mapa vendo por estado: os estados entram só quando a área os pede (com o ponto de desenho); a dica da unidade oferece abri-la', () => {
+  const rondonia = {...municipio('uf:11', 'Rondônia (RO)'), tipo: 'estado'};
+  const acre = {...municipio('uf:12', 'Acre (AC)'), tipo: 'estado'};
+  assert.deepEqual(M.itensParaOMapa([acre, rondonia]).map(item => item.id), []);
+  assert.deepEqual(M.itensParaOMapa([acre, rondonia], true).map(item => item.id), ['uf:11', 'uf:12']);
+  const unidade = municipio('code:150001', 'MARABA (PA)');
+  const contexto = {indicador: 'densidade', competencia: '202406', competenciaInicial: null, distancia: false, variacao: false, tendencia: false,
+    nomes: new Map(), rotulos: BR};
+  assert.equal(M.montarDica(unidade, {...contexto, abrirUnidade: true}).acao, 'Abrir MARABA (PA)');
+  assert.equal(M.montarDica(unidade, contexto).acao, null);  // com a escolha de itens em curso (Comparar), tocar marca
+  assert.equal(M.montarDica(rondonia, {...contexto, abrirUnidade: true, unidadesDoGrupo: () => 52}).acao, 'Ver os 52 municípios');
+});
+
+test('o todo deixa de ser unidade: o pedido do Brasil e o estado guardado com ele levam ao todo, vendo por estado', () => {
+  const c = {periodos: ['202306', '202406'], nomes: new Map(), temGrupos: true, temBrasil: true, todosOsEstados: ['13', '15', '35'],
+    disponivel: f => M.disponibilidadeDaFamilia(f, {fonte: 'brasil', nivel: 'municipios', disponibilidade: null, temIdentificador: false, rotulos: BR})};
+  const brasil = M.aplicarPedido(definicao(), {nivel: 'brasil'}, c);
+  assert.equal(brasil.definicao.nivel, 'estados');
+  assert.deepEqual(brasil.definicao.base, {todos: true, estados: [], ids: []});
+  assert.deepEqual(brasil.definicao.estados, ['13', '15', '35']);
+  assert.deepEqual(brasil.mensagens, []);
+  const salvo = M.salvarEstado('Brasil', {chave: 'k', familia: 'distribuicao', opcoes: {nivel: 'brasil'}, definicao: definicao({nivel: 'brasil'}),
+    visual: {escala: 'linear', corte: null, selecionados: []}}, resposta({nivel: 'brasil'}));
+  const lido = M.lerEstadoSalvo(salvo);
+  assert.equal(lido.definicao.nivel, 'estados');
+  assert.deepEqual(lido.definicao.base, {todos: true, estados: [], ids: []});
+  assert.equal(lido.resposta, null);  // o pedido é outro: a área calcula de novo
+  assert.equal(lido.opcoes, null);
+});
+
+test('cliente do motor: os números do lugar em uso e os pontos de desenho dos estados no mapa', () => {
+  const lugar = A.normalizarLugar({competencia: '202406', categoria: 'MEDICINA', desde: '202106', notas: ['Nota.'],
+    todo: {id: 'br', nivel: 'todo', rotulo: 'Brasil', fonte: 'nacional', regra: 'BR-POP-JUNHO-1', competencia: '202406', quantidade: 502495,
+      populacao: 212583750, densidade: 2.3637, avaliabilidade: 'AVALIAVEL', motivo: null, desde: '202106',
+      inicial: {populacao: 213317639, quantidade: 422541, densidade: 1.9808}, variacao_percentual: {populacao: -0.34, quantidade: 18.92, densidade: 19.33},
+      motivos_variacao: [], serie: [{competencia: '202306', quantidade: 1, populacao: 2, densidade: 0.5}, {competencia: '202406', quantidade: null,
+        populacao: null, densidade: null}]},
+    grupo: {id: 'uf:15', nivel: 'grupo', rotulo: 'Pará (PA)', nome: 'Pará', sigla: 'PA', fonte: 'estadual', competencia: '202406', quantidade: 10307,
+      populacao: 8664306, densidade: 1.1896, avaliabilidade: 'AVALIAVEL', motivo: null, desde: null, inicial: null, variacao_percentual: null,
+      motivos_variacao: [], serie: null}});
+  assert.equal(lugar.todo.quantidade, 502495);
+  assert.equal(lugar.todo.variacaoPercentual.densidade, 19.33);
+  assert.deepEqual(lugar.todo.serie[1], {competencia: '202406', quantidade: null, populacao: null, densidade: null});
+  assert.deepEqual([lugar.grupo.id, lugar.grupo.nome, lugar.grupo.sigla, lugar.grupo.serie], ['uf:15', 'Pará', 'PA', null]);
+  assert.equal(A.normalizarLugar({competencia: '202406', todo: null, grupo: null}).grupo, null);
+  assert.throws(() => A.normalizarLugar(null), erro => erro instanceof A.ErroDoMotor);
+  const mapa = A.normalizarMapa({competencia: '202406', referencial: 'SIRGAS2000', pontos: [{id: 'code:150001', lat: -5.3, lon: -49.1}],
+    sem_coordenada: [], grupos: [{id: 'uf:15', lat: -4.2, lon: -51.1, unidades: 144}, {id: 'uf:99', lat: 200, lon: 0}],
+    nota_grupos: 'Cada estado aparece no mapa na média das coordenadas das sedes dos seus municípios.'});
+  assert.deepEqual([...mapa.grupos.entries()], [['uf:15', [-4.2, -51.1]]]);  // ponto fora do intervalo fica de fora
+  assert.ok(mapa.notaDosGrupos.startsWith('Cada estado aparece no mapa'));
+  assert.equal(A.normalizarMapa({competencia: '202406', pontos: [], sem_coordenada: []}).grupos, undefined);
 });

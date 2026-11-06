@@ -1298,6 +1298,66 @@ AM3 = ["code:130260", "code:130420", "code:130340"]
 JUNE = [str(year) + "06" for year in range(2014, 2025)]
 
 
+# --------------------------------------------------------------------------------------------- lugar em uso (06/11/2026)
+def lugar(info, **options):
+    """POST /api/painel/lugar: os números do lugar em uso na trilha (a faixa e as linhas do todo e do grupo)."""
+    return post(info, path="/api/painel/lugar", **options)
+
+
+def test_place_numbers_come_ready_from_the_national_and_state_sources_with_the_change(repo):
+    """Navegação por níveis (comando de 06/11/2026, itens 2 e 3): os números do lugar em uso vêm prontos das fontes — o todo, da
+    nacional (os valores da linha de contexto e do nível Brasil), e o grupo, da estadual (os do nível estados) —, com a variação
+    percentual (CAP-TMP-01) desde a competência pedida, campo a campo como a dos níveis, e, com a série, os valores de cada
+    competência. Nada é somado: a contagem do estado não é a soma dos municípios."""
+    info = inspection()
+    body = ok(lugar(info, competencia="202406", grupo="13", desde="202106"))
+    assert set(body) == {"competencia", "categoria", "desde", "serie", "todo", "grupo", "notas"}
+    assert (body["competencia"], body["categoria"], body["desde"], body["serie"]) == ("202406", "MEDICINA", "202106", None)
+    assert painel.NOTE_LUGAR in body["notas"] and painel.NOTE_LUGAR_VARIACAO in body["notas"]
+    line = ok(page(info))["contexto"]["brasil"]
+    todo = body["todo"]
+    assert (todo["id"], todo["nivel"], todo["rotulo"], todo["fonte"], todo["regra"]) == ("br", "todo", "Brasil", "nacional",
+                                                                                         "BR-POP-JUNHO-1")
+    assert (todo["quantidade"], todo["populacao"], todo["densidade"]) == (line["quantidade"], line["populacao"],
+                                                                          line["densidade"])
+    brazil = ok(post(info, nivel="brasil", indicador="densidade", competencia="202406", competencia_inicial="202106"))["itens"][0]
+    assert (todo["inicial"], todo["variacao_percentual"]) == (brazil["inicial"], brazil["variacao_percentual"])
+    assert todo["variacao_percentual"]["quantidade"] == 0  # 1.000 nas duas competências
+    states = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia="202406", competencia_inicial="202106")))
+    grupo = body["grupo"]
+    assert (grupo["id"], grupo["nivel"], grupo["rotulo"], grupo["sigla"], grupo["nome"], grupo["fonte"], grupo["regra"]) == (
+        "uf:13", "grupo", "Amazonas (AM)", "AM", "Amazonas", "estadual", "UF-CONTAGEM-ESTADUAL-1")
+    assert (grupo["quantidade"], grupo["populacao"], grupo["densidade"]) == (
+        states["uf:13"]["quantidade"], states["uf:13"]["populacao"], states["uf:13"]["densidade"])
+    assert (grupo["inicial"], grupo["variacao_percentual"]) == (states["uf:13"]["inicial"], states["uf:13"]["variacao_percentual"])
+    assert grupo["quantidade"] == STATE_COUNTS["AM"]
+    assert sum(item["quantidade"] for item in ok(page(info))["itens"]) != grupo["quantidade"]
+    # Com a série (a Tendência): os valores de cada competência, os mesmos da linha de contexto e do nível estados; sem `desde`,
+    # sem variação.
+    serie = ok(lugar(info, competencia="202406", grupo="15", serie={"competencias": PERIODS[2:]}))
+    assert serie["desde"] is None and serie["todo"]["variacao_percentual"] is None and serie["todo"]["inicial"] is None
+    assert [value["competencia"] for value in serie["todo"]["serie"]] == PERIODS[2:]
+    for value in serie["todo"]["serie"]:
+        other = ok(page(info, competencia=value["competencia"]))["contexto"]["brasil"]
+        assert (value["quantidade"], value["populacao"], value["densidade"]) == (other["quantidade"], other["populacao"],
+                                                                                  other["densidade"])
+    for value in serie["grupo"]["serie"]:
+        state = by_id(ok(post(info, nivel="estados", indicador="densidade", competencia=value["competencia"])))["uf:15"]
+        assert (value["quantidade"], value["populacao"], value["densidade"]) == (state["quantidade"], state["populacao"],
+                                                                                  state["densidade"])
+    # Sem grupo, só o todo; as mesmas respostas a cada pedido (memória da versão).
+    alone = ok(lugar(info, competencia="202406"))
+    assert alone["grupo"] is None and alone["todo"]["desde"] is None
+    assert ok(lugar(info, competencia="202406", grupo="13", desde="202106")) == body
+    # Chaves estritas e mensagens em português; numa planilha, só a base do Brasil nesta etapa.
+    refused(lugar(info, competencia="202406", grupo="99"), "Estado do lugar inválido")
+    refused(lugar(info, competencia="202406", desde="202406"), "precisa ser anterior à competência da análise")
+    refused(lugar(info, competencia="202406", desde="209912"), "Competência inicial do lugar inexistente")
+    refused(lugar(info, competencia="202406", nivel="municipios"), "Parâmetro não reconhecido no painel: nivel")
+    refused(upload({"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas"}}, path="/api/painel/lugar"),
+            "vêm das fontes nacional e estadual da base do Brasil")
+
+
 @pytest.fixture(scope="module")
 def real(tmp_path_factory):
     """Base versionada instalada numa pasta temporária (job dados-reais), somente em leitura."""
@@ -1349,6 +1409,23 @@ def test_real_complete_scopes_use_the_state_and_national_sources(real):
     assert whole["contexto"]["brasil_completo"] is True and whole["contexto"]["estados"] == []
     assert whole["contexto"]["brasil"]["quantidade"] == 502495  # junho de 2024, a contagem nacional (docs da abrangência)
     assert sum(item["quantidade"] or 0 for item in whole["itens"]) != 502495
+
+
+def test_real_place_numbers_of_the_navigation_command(real):
+    """Navegação por níveis, base versionada (06/11/2026): os números de aceite do comando — no todo, 502.495 médicos, 212.583.750
+    habitantes, 2,36 por 1.000 e +19,2% na densidade desde junho de 2021; no Pará, 10.307 médicos e 1,19 por 1.000 —, os mesmos
+    da linha de contexto e do nível estados."""
+    body = ok(lugar(real, competencia="202406", grupo="15", desde="202106"))
+    todo, para = body["todo"], body["grupo"]
+    assert (todo["quantidade"], todo["populacao"]) == (502495, 212583750)
+    assert round(todo["densidade"], 2) == 2.36
+    assert 19.15 <= todo["variacao_percentual"]["densidade"] < 19.25
+    assert (para["rotulo"], para["quantidade"]) == ("Pará (PA)", 10307) and round(para["densidade"], 2) == 1.19
+    states = by_id(ok(post(real, nivel="estados", indicador="densidade", competencia="202406")))
+    assert (para["quantidade"], para["populacao"], para["densidade"]) == (
+        states["uf:15"]["quantidade"], states["uf:15"]["populacao"], states["uf:15"]["densidade"])
+    line = ok(post(real, nivel="estados", indicador="densidade", competencia="202406"))["contexto"]["brasil"]
+    assert (todo["quantidade"], todo["populacao"], todo["densidade"]) == (line["quantidade"], line["populacao"], line["densidade"])
 
 
 def test_real_brazil_level_is_the_national_reference_and_the_national_trend(real):

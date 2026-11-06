@@ -17,6 +17,11 @@ Decisões de 24/10/2026 (rodada de ajustes de interface): o nível `brasil`, o p
 fonte nacional (decisões D3 e D4); no nível `estados`, a escolha de um, vários ou todos os estados (`estados`); e a
 frase-resumo individual quando há um território só, sem faixas artificiais nem contagens zeradas quando há vários.
 
+Decisões de 06/11/2026 (navegação por níveis, comando do responsável, itens 2 e 3): a interface deixa de oferecer o Brasil como
+unidade de análise (o todo passa a ser a referência fixa de toda análise; o nível `brasil` continua na API, com o mesmo
+contrato); os números do lugar em uso vêm prontos da rota 5 (`POST /api/painel/lugar`); e o mapa vendo por estado recebe, na
+rota 3 com `grupos: true`, o ponto de desenho de cada estado (divergência aprovada de RQ-REP-07 só para a bolha no centro).
+
 Este documento descreve o motor e as rotas. A tela tem documento próprio.
 
 ## Dois formatos de pedido
@@ -37,8 +42,8 @@ planilha enviada.
 
 ### Visão geral
 
-- **Rotas:** `POST /api/painel`, `POST /api/painel/referencias`, `POST /api/painel/mapa` e, desde 27/10/2026,
-  `POST /api/painel/territorios` (`backend/main.py`). O motor
+- **Rotas:** `POST /api/painel`, `POST /api/painel/referencias`, `POST /api/painel/mapa`, desde 27/10/2026,
+  `POST /api/painel/territorios` e, desde 06/11/2026, `POST /api/painel/lugar` (`backend/main.py`). O motor
   fica em `backend/painel.py`; a frase-resumo da página única, em `backend/resumo_painel.py`.
 - **Base (sem `nivel`):** só a base Brasil oficial (fonte municipal), numa competência e numa categoria. Arquivo importado
   recebe 422: "O painel integrado usa só a base Brasil oficial (fonte municipal) nesta versão; …". Com `nivel`, ver
@@ -49,7 +54,7 @@ planilha enviada.
 - **Privacidade:** nenhum nome, valor, campo ou arquivo vai ao provedor de IA. As rotas não chamam o Gemini, e nem a
   frase-resumo nem as coordenadas do mapa entram em contexto enviado a ele.
 
-### Formulário (as quatro rotas)
+### Formulário (as cinco rotas)
 
 Multipart, no padrão de `/api/analyze`:
 
@@ -63,10 +68,11 @@ Multipart, no padrão de `/api/analyze`:
 | `mapping` | Mapeamento da inspeção. Na base Brasil, o do perfil oficial: código IBGE, município, período, categoria, quantidade e população e, com a referência, latitude e longitude; vazio vale o perfil oficial; papel sem coluna é ignorado. Nas planilhas, ver "Planilhas enviadas". |
 | `options` | JSON descrito em cada rota. Chave desconhecida → 422 "Parâmetro não reconhecido no painel: …". |
 | `geo_version` | Opcional, na rota 1 com referência (ou com `consulta`), na rota 4 e no mapa, só na base Brasil: como em `/api/analyze`, recusa o pedido se a camada complementar de coordenadas mudou depois da preparação. |
-| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2, 3 e 4, aceita e não usada (nada é gravado). |
+| `context_revision` | Revisão do contexto da sessão (a mesma da conversa). Na página única, decide se o resultado é gravado na sessão; nas rotas 2 a 5, aceita e não usada (nada é gravado). |
 | `X-ADT-Session` | Cabeçalho opcional, só na rota 1: registra o evento de sessão `CONFIRMACAO`, como `/api/analyze`; na página única, grava também o resultado (seção "Sessão"). |
 
-Recusas da proteção de carga (desde 01/11/2026; `backend/carga.py` e README, "Hospedagem"), nas quatro rotas, como em
+Recusas da proteção de carga (desde 01/11/2026; `backend/carga.py` e README, "Hospedagem"), nas cinco rotas (a rota 5 desde
+06/11/2026, também entre as operações pesadas), como em
 `/api/inspect`, `/api/preflight`, `/api/analyze` e `/api/brazil/description`: o pedido acima de 15 MB mais 2 MiB de formulário
 → 413 "Arquivo acima do limite de 15 MB; nenhum dado foi analisado.", antes de qualquer leitura; sem vaga para a operação
 pesada (2 ao mesmo tempo, fila de 8, espera de até 20 s) ou com 6 pedidos da mesma sessão em andamento → 503 com
@@ -184,15 +190,24 @@ As coordenadas autorizadas do mapa da página única: as mesmas que a análise e
 (`nearest_reference.territory_coordinates`, pela memória da versão), sem cálculo novo. A tela desenha o mapa com elas;
 o contrato com a tela é `DadosDoMapa` (`frontend/src/mapaContrato.ts`).
 
-`options`: `{competencia, categoria}` e, com planilha, `premissas` e `rotulos` (as mesmas regras da rota 1; chave
+`options`: `{competencia, categoria, grupos?}` e, com planilha, `premissas` e `rotulos` (as mesmas regras da rota 1; chave
 desconhecida → 422 "Parâmetro não reconhecido no painel: …"). O pedido passa pelo mesmo portão do gráfico
-(`painel.context`).
+(`painel.context`). `grupos` (06/11/2026): `true` pede também o ponto de desenho de cada estado, só na base do Brasil (numa
+planilha → 422 "Os pontos de desenho dos grupos existem só na base do Brasil, com os estados."; outro valor que não `true`,
+`false` ou ausente → 422 "Grupos do mapa inválidos: envie grupos como true para os pontos de desenho dos estados.").
 
-Resposta 200: `{"competencia", "referencial", "pontos": [{id, lat, lon}], "sem_coordenada": [{id, rotulo, motivo}]}`.
+Resposta 200: `{"competencia", "referencial", "pontos": [{id, lat, lon}], "sem_coordenada": [{id, rotulo, motivo}]}` e, com
+`grupos: true`, `"grupos": [{id, rotulo, lat, lon, unidades}]`, `"metodo_grupos": "CENTRO-DE-DESENHO-1"` e `"nota_grupos"`.
 
 - **Unidades:** todas as do catálogo territorial da fonte, na ordem do código, cada uma em `pontos` ou em
-  `sem_coordenada`. Os ids são os dos itens de `POST /api/painel` (`code:<código>` ou `name:<nome>`). Estados não têm
-  ponto: o mapa é das unidades.
+  `sem_coordenada`. Os ids são os dos itens de `POST /api/painel` (`code:<código>` ou `name:<nome>`). Estados não entram em
+  `pontos`: o mapa é das unidades.
+- **`grupos`** (06/11/2026, só com o pedido): um item por estado com ao menos uma sede em `pontos`, com o id dos itens do nível
+  estados (`uf:NN`), o rótulo, a média das latitudes e a média das longitudes das sedes válidas dos municípios dele na
+  competência (`CENTRO-DE-DESENHO-1`) e `unidades`, quantas sedes entraram. É só para desenhar a bolha do estado: não é a
+  posição de uma sede nem um limite oficial, e nenhuma distância usa esse ponto (a nota `nota_grupos` diz isso). Divergência
+  aprovada de RQ-REP-07 pelo responsável em 06/11/2026, só para isto. Com a base versionada, em junho de 2024, os 27 estados, e
+  a soma de `unidades` é o número de pontos (o Pará com 144).
 - **Base do Brasil:** a sede municipal do perfil oficial, em SIRGAS 2000 (`referencial: "SIRGAS2000"`), com a camada
   complementar governada nos municípios autorizados (`dados/brasil/complemento_coordenadas.json`), como na análise
   espacial. Coordenadas da competência pedida; as de outras competências não são tratadas como equivalentes.
@@ -237,6 +252,41 @@ densidade}]}`.
   uma planilha, por exemplo) não aparece aqui. Até a retirada do filtro de distância (27/10/2026, a pedido do responsável), a
   base era cortada aqui pela distância, com a contagem `sem_referencia`.
 - **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA. Os números vêm das mesmas funções da rota 1.
+
+### Rota 5: `POST /api/painel/lugar` (06/11/2026)
+
+Os números do lugar em uso na trilha da página única (a faixa no alto das abas, as linhas do todo e do grupo e o cartão do
+território), prontos nas fontes, sem soma nem estimativa. `options`: `{competencia, categoria, grupo?, desde?, serie?}` (chave
+desconhecida → 422 "Parâmetro não reconhecido no painel: …"):
+
+- `grupo`: o estado do lugar, pelo prefixo do código IBGE ("15") ou pelo id do nível estados ("uf:15"); outro valor → 422
+  "Estado do lugar inválido: envie em grupo o prefixo do código IBGE do estado, por exemplo \"15\".";
+- `desde`: a competência inicial da variação, anterior à da análise (inexistente → 422 "Competência inicial do lugar inexistente
+  nesta versão da base: …"; igual ou posterior → 422 "A competência inicial do lugar (desde) precisa ser anterior à competência
+  da análise."), com as premissas temporais da mudança;
+- `serie`: `{"competencias": [...]}`, as competências da Série temporal, com as regras da rota 1.
+
+Resposta 200: `{competencia, categoria, desde, serie, todo, grupo, notas}`. `todo` e `grupo` (este só com o pedido; sem ele,
+`null`) têm `{id, nivel, rotulo, fonte, regra, competencia, quantidade, populacao, densidade, avaliabilidade, motivo, desde,
+inicial, variacao_percentual, motivos_variacao, serie}`, e o grupo também `sigla` e `nome`:
+
+- **`todo`:** o Brasil (`id: "br"`, `nivel: "todo"`), pela fonte nacional e a população BR-POP-JUNHO-1
+  (`territorial_levels.national_reference`): os mesmos valores da linha de contexto (D5) e do nível `brasil` (D3 e D4).
+- **`grupo`:** o estado inteiro (`id: "uf:NN"`, `nivel: "grupo"`), pela contagem estadual de médicos únicos e a população do
+  estado (UF-CONTAGEM-ESTADUAL-1 e UF-POP-MUNICIPIOS-1; `_state_measures`, `_state_totals`): os mesmos valores do nível estados e
+  dos totais individualizados. Nenhum dos dois é a soma dos municípios, e o do estado não é somado ao do Brasil.
+- **A variação** (com `desde`): `inicial` (os valores na competência inicial) e `variacao_percentual` de cada campo, CAP-TMP-01,
+  em aritmética exata; com valor inicial zero, não avaliável (BASE_ZERO); sem valor inicial ou final, `null`, com o motivo em
+  `motivos_variacao`. A tela pede desde o primeiro dos últimos 4 períodos anuais até a competência da análise.
+- **`serie`** (com o pedido): `[{competencia, quantidade, populacao, densidade}]` em cada competência, `null` onde não há valor.
+- Sem a fonte (a nacional, ou o estado sem registro na estadual), os valores ficam `null`, com o motivo; nunca zero.
+- Só na base do Brasil nesta versão (numa planilha → 422 "Nesta versão, os números do lugar em uso (a faixa e a linha do todo)
+  vêm das fontes nacional e estadual da base do Brasil.").
+- **Só leitura:** nada é registrado na sessão, nada vai ao provedor de IA; o resultado é reaproveitado por versão verificada da
+  base (`_reaproveitar`).
+
+Com a base versionada, em junho de 2024: o Brasil com 502.495 médicos, 212.583.750 habitantes e 2,36 por 1.000, e a densidade
+cerca de 19,2% acima da de junho de 2021; o Pará com 10.307 médicos e 1,19 por 1.000.
 
 ### Erros
 
@@ -283,7 +333,7 @@ O pedido com `nivel` vale o que está acima e mais o que segue. As análises nov
 | Membro mais próximo | CAP-ESP-02 | `nearest_reference.nearest_exact`, com os empates exatos |
 | Rotatividade | CAP-ROT-01 | `main._compute(..., "rotation")` |
 | Linha de contexto do Brasil | D5 (19/10/2026) | `territorial_levels.national_reference` |
-| Brasil como unidade (24/10/2026) | D3 e D4 (contagem da fonte nacional, população BR-POP-JUNHO-1) | `territorial_levels.national_reference`, a mesma conta da linha de contexto, na competência e em cada competência da janela |
+| Brasil como unidade (24/10/2026; desde 06/11/2026, só na API: a interface usa o Brasil como referência fixa, pela rota 5) | D3 e D4 (contagem da fonte nacional, população BR-POP-JUNHO-1) | `territorial_levels.national_reference`, a mesma conta da linha de contexto, na competência e em cada competência da janela |
 
 ### `options` da página única
 

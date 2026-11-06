@@ -20,6 +20,10 @@ export type DadosDoMapa = {
   pontos: Map<string, [number, number]>;
   /** Unidades sem coordenada válida, com o motivo do motor: ficam fora do mapa e entram em "Não avaliáveis". */
   semCoordenada: { id: string; rotulo: string; motivo: string }[];
+  /** Com o pedido `grupos` (06/11/2026): o ponto de desenho de cada estado ("uf:NN" → [latitude, longitude]), a média das sedes dos
+   * municípios dele calculada pelo motor só para desenhar (divergência aprovada da RQ-REP-07, só para a bolha no centro). */
+  grupos?: Map<string, [number, number]>;
+  notaDosGrupos?: string | null;
 };
 
 /**
@@ -37,7 +41,8 @@ export type PinturaDoMapa = "camada" | "quintis" | "continua";
 export type TamanhoDoMapa = { valor: (item: PainelItem) => number | null; rotulo: string; maximo: number | null };
 
 export type MapaProps = {
-  /** Itens desenháveis (os mesmos do gráfico). Conjuntos não têm ponto: os membros ganham contorno. Estados não chegam ao mapa. */
+  /** Itens desenháveis (os mesmos do gráfico). Conjuntos não têm ponto: os membros ganham contorno. Os estados têm o ponto de
+   * desenho do motor (vendo por estado, 06/11/2026). */
   itens: PainelItem[];
   /** Ids dentro da régua e dos filtros visuais; os demais itens ficam esmaecidos, e não escondidos (decisão de 23/10). */
   dentro: Set<string>;
@@ -82,8 +87,11 @@ export type MapaProps = {
   /** Destaque cruzado com o gráfico (lado a lado): o item sob o mouse no gráfico, e o aviso do item sob o mouse no mapa. */
   ativoExterno?: string | null;
   onAtivo?: (id: string | null) => void;
-  /** Clique ou Enter: marca e desmarca, como na bolha. */
+  /** Clique ou Enter: o que a bolha faz (desde 06/11/2026: no estado, desce até ele; na unidade, abre o lugar dela; com a
+   * Comparar aberta, marca e desmarca). A área decide. */
   onAlternar: (id: string) => void;
+  /** A nota dos pontos (mapa-nota), quando não é a da sede municipal: vendo por estado, a do ponto de desenho do motor. */
+  nota?: string | null;
   carregando: boolean;
 };
 

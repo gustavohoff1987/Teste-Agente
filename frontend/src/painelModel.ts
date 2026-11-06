@@ -235,9 +235,9 @@ export const ORDEM_DAS_VISOES: Visao[] = ["classes", "mudanca", "series"];
 
 export type Disponivel = { disponivel: boolean; motivo: string; pendente: boolean; enviarDados: boolean };
 /** Se a família pode ser usada agora. "pendente": registra a intenção e pede um passo antes (escolher os dados, escolher
- * municípios). Os motivos de indisponibilidade vêm do motor (`disponibilidade`); sem eles, a regra da fonte. Nos níveis Brasil e
- * estados (24/10/2026, matriz D3), valem a distribuição e a tendência; a distância é medida entre municípios, e a análise
- * espacial espera que a pessoa escolha municípios. */
+ * municípios). Os motivos de indisponibilidade vêm do motor (`disponibilidade`); sem eles, a regra da fonte. Vendo por estado
+ * (matriz D3), valem a distribuição e a tendência; a distância é medida entre municípios, e a Análise Espacial mostra só a
+ * mensagem e o botão que troca o "Ver por" para município (06/11/2026, item 3.5 do comando). */
 export function disponibilidadeDaFamilia(familia: Familia, c: { fonte: "brasil" | "arquivo" | null; nivel: PainelNivel;
   disponibilidade: PainelResposta["disponibilidade"] | null; temIdentificador: boolean; rotulos: RotulosTerritoriais }): Disponivel {
   const ok: Disponivel = { disponivel: true, motivo: "", pendente: false, enviarDados: false };
@@ -252,15 +252,18 @@ export function disponibilidadeDaFamilia(familia: Familia, c: { fonte: "brasil" 
       motivo: "A planilha não tem a coluna do identificador individual: a rotatividade acompanha pessoas da coorte inicial." };
     return ok;
   }
-  if (familia === "espacial" && c.nivel !== "municipios") {
-    const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, unidades = c.rotulos.unidade.plural;
-    return { ...ok, pendente: true, motivo: "A distância é medida entre " + unidades + ": " + (c.nivel === "brasil"
-      ? "o Brasil, como unidade, não tem um ponto no mapa." : artigo(grupo, true) + " " + grupo.plural + " não têm um ponto no mapa.") +
-      " Para usar esta análise, escolha " + unidades + " na Seleção de Territórios." };
-  }
+  if (familia === "espacial" && c.nivel !== "municipios") return { ...ok, pendente: true, motivo: textoEspacialNosGrupos(c.rotulos) };
   if (motor && !motor.disponivel) return { disponivel: false, motivo: motor.motivo, pendente: false, enviarDados: false };
   return ok;
 }
+
+/** Vendo por estado (06/11/2026, item 3.5 do comando): a Análise Espacial mostra só esta mensagem e o botão de textoVerUnidadesDosGrupos. */
+export const textoEspacialNosGrupos = (rotulos: RotulosTerritoriais) => "A Análise Espacial mede distâncias entre " + rotulos.unidade.plural + ".";
+/** "Ver os municípios destes estados": troca o "Ver por" para a unidade, no mesmo lugar. */
+export const textoVerUnidadesDosGrupos = (rotulos: RotulosTerritoriais) => {
+  const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  return "Ver " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + (fem(grupo) ? " destas " : " destes ") + grupo.plural;
+};
 
 /** "Médicos" sai da categoria da base (MEDICINA); com outra categoria, entra o nome informado. */
 export function profissionaisDe(categoria: string): string {
@@ -610,9 +613,11 @@ export const ASPECTOS_FORA_DO_DESENHO: readonly Aspecto[] = ["indicador", "dista
 
 /** Itens do mapa (25/10/2026): todas as unidades em análise, no lugar delas, também as que o gráfico deixa de fora por falta do
  * valor que as posiciona (o indicador, a distância até a referência mais próxima, a coorte). Nenhum território escolhido some do
- * mapa por isso; só quem não tem coordenada válida fica fora dele, com o motivo do motor. Os estados não têm ponto, e os conjuntos
- * dão o anel aos membros. Na ordem neutra, a do gráfico. */
-export const itensParaOMapa = (itens: PainelItem[]) => [...itens].filter(item => item.tipo !== "estado").sort(ordemNeutra);
+ * mapa por isso; só quem não tem coordenada válida fica fora dele, com o motivo do motor. Vendo por estado (06/11/2026), cada
+ * estado vai no ponto de desenho que o motor devolve (a média das sedes dos municípios dele); os conjuntos dão o anel aos membros.
+ * Na ordem neutra, a do gráfico. */
+export const itensParaOMapa = (itens: PainelItem[], comEstados = false) =>
+  [...itens].filter(item => comEstados || item.tipo !== "estado").sort(ordemNeutra);
 
 /** Filtros visuais da área (estado visual, RQ-REP-06): a régua do indicador, "Mostrar só quem atende" das condições e a classe
  * escolhida na tendência. No gráfico, separam as bolhas à vista; no mapa, quem fica fora deles esmaece, sem sumir. */
@@ -1529,7 +1534,9 @@ export type ContextoDica = { indicador: PainelIndicador; competencia: string; co
   /** Com a Escolha dos territórios (27/10/2026), a referência é a mais próxima de cada item. */
   porItem?: boolean;
   /** Visão Trajetória: cada período da janela com o valor observado. */
-  trajetoria?: boolean };
+  trajetoria?: boolean;
+  /** Tocar na unidade abre o lugar dela na trilha (06/11/2026): a dica diz "Abrir {nome}". */
+  abrirUnidade?: boolean };
 
 /** Conteúdo da dica (ao passar o mouse e ao focar), só com valores do motor; o valor vem primeiro, o rótulo depois. */
 export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
@@ -1608,7 +1615,8 @@ export function montarDica(item: PainelItem, contexto: ContextoDica): Dica {
     subtitulo: conjunto ? "Conjunto de " + unidade.plural + " · " + textoDaContagem(item.contagem)
       : [maiuscula(grupo ? grupoRotulo.singular : unidade.singular), grupo ? "" : item.uf || ""].filter(Boolean).join(" · "),
     linhas, notas: [...new Set(notas)],
-    acao: grupo ? (n !== null ? textoVerUnidades(contexto.rotulos, n) : "Ver " + artigo(unidade, true) + " " + unidade.plural) : null,
+    acao: grupo ? (n !== null ? textoVerUnidades(contexto.rotulos, n) : "Ver " + artigo(unidade, true) + " " + unidade.plural)
+      : item.tipo === "municipio" && contexto.abrirUnidade ? "Abrir " + item.rotulo : null,
   };
 }
 
@@ -2115,6 +2123,115 @@ export function gruposParciais(base: PainelMunicipios, c: ContextoDaArvore): { i
   return c.grupos.filter(grupo => porGrupo.has(grupo.id)).map(grupo => ({ id: grupo.id, nome: grupo.nome, marcadas: porGrupo.get(grupo.id)!,
     total: grupo.unidades || c.unidadesDoGrupo(grupo.id).length }));
 }
+// ================================================================================================ trilha e lugar em uso (06/11/2026)
+// Comando do responsável de 06/11/2026 (itens 2 e 3): o todo (na base do Brasil, o Brasil) deixa de ser unidade de análise e passa
+// a ser a referência fixa de toda análise; a trilha no alto ("Brasil › Pará › Marabá") mostra o lugar em uso, que é a seleção em
+// uso (a Seleção de Territórios e o "Ver por"), e cada parte leva àquele nível. Aqui ficam só as regras de leitura da definição e
+// os textos; os números do lugar vêm do motor (POST /api/painel/lugar) e do resultado do gráfico.
+/** O lugar em uso: nada escolhido, o todo, um grupo (o estado inteiro ou uma seleção que cabe nele), uma unidade ou uma seleção
+ * livre (vários estados, unidades de estados diferentes, conjuntos de estados diferentes). */
+export type TipoDoLugar = "nenhum" | "todo" | "grupo" | "unidade" | "selecao";
+export type ParteDaTrilha = { chave: "todo" | "grupo" | "unidade" | "selecao"; rotulo: string; id: string | null; atual: boolean };
+export type LugarDaTrilha = {
+  tipo: TipoDoLugar;
+  /** O grupo do lugar (o prefixo do estado): o próprio grupo, o da unidade ou o único grupo da seleção. */
+  grupo: string | null;
+  /** O grupo está inteiro na seleção (sem exclusões e sem unidades de fora dele). */
+  grupoInteiro: boolean;
+  unidade: string | null;
+  partes: ParteDaTrilha[];
+};
+export type ContextoDaTrilha = { arvore: ContextoDaArvore; nomeDoTodo: string; nomes: Map<string, string>;
+  /** Na base do Brasil, os estados como grupos da trilha; numa planilha sem a coluna-mãe, nenhum. */
+  comGrupos: boolean };
+/** O nome do todo: "Brasil" na base do Brasil; numa planilha, o da raiz da árvore ("Toda a planilha"). */
+export const nomeDoTodo = (brasil: boolean) => brasil ? "Brasil" : "Toda a planilha";
+export const NOME_DA_SELECAO = "Seleção";
+
+/** O lugar em uso, lido da definição: o todo com o Brasil inteiro (ou todos os estados); "Brasil › Pará" com o Pará inteiro ou com
+ * uma seleção que cabe só nele (o item 7 do comando: "Se tudo couber num estado só, a trilha mostra o estado"); "Brasil › Pará ›
+ * MARABA (PA)" com uma unidade só; "Brasil › Seleção" com escolhas livres. Só lê a escolha: nada é calculado. */
+export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">, c: ContextoDaTrilha): LugarDaTrilha {
+  const todo: ParteDaTrilha = { chave: "todo", rotulo: c.nomeDoTodo, id: null, atual: false };
+  const nomeDoGrupo = (id: string) => c.arvore.grupos.find(grupo => grupo.id === id)?.nome || id;
+  const fim = (tipo: TipoDoLugar, partes: ParteDaTrilha[], extra: Partial<LugarDaTrilha> = {}): LugarDaTrilha => ({
+    tipo, grupo: null, grupoInteiro: false, unidade: null, ...extra,
+    partes: partes.map((parte, indice) => ({ ...parte, atual: tipo !== "nenhum" && indice === partes.length - 1 })) });
+  const grupoParte = (id: string): ParteDaTrilha => ({ chave: "grupo", rotulo: nomeDoGrupo(id), id, atual: false });
+  const selecao: ParteDaTrilha = { chave: "selecao", rotulo: NOME_DA_SELECAO, id: null, atual: false };
+  if (def.nivel === "brasil") return fim("todo", [todo]);
+  if (def.nivel === "estados") {
+    const todos = c.arvore.grupos.length > 0 && def.estados.length >= c.arvore.grupos.length;
+    if (todos || def.base.todos) return fim("todo", [todo]);
+    if (def.estados.length === 1) return fim("grupo", [todo, grupoParte(def.estados[0])], { grupo: def.estados[0], grupoInteiro: true });
+    return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
+  }
+  const n = normalizarArvore(def.base, c.arvore);
+  if (n.todos) return fim("todo", [todo]);
+  if (baseVazia(n) && !def.conjuntos.length) return fim("nenhum", [todo]);
+  if (!c.comGrupos) {
+    if (!def.conjuntos.length && n.ids.length === 1)
+      return fim("unidade", [todo, { chave: "unidade", rotulo: c.nomes.get(n.ids[0]) || n.ids[0], id: n.ids[0], atual: false }], { unidade: n.ids[0] });
+    return fim("selecao", [todo, selecao]);
+  }
+  if (n.estados.length === 1 && !n.ids.length && !def.conjuntos.length)
+    return fim("grupo", [todo, grupoParte(n.estados[0])], { grupo: n.estados[0], grupoInteiro: true });
+  if (!n.estados.length && n.ids.length === 1 && !def.conjuntos.length) {
+    const unidade = n.ids[0], grupo = c.arvore.grupoDe(unidade);
+    const unidadeParte: ParteDaTrilha = { chave: "unidade", rotulo: c.nomes.get(unidade) || unidade, id: unidade, atual: false };
+    return grupo ? fim("unidade", [todo, grupoParte(grupo), unidadeParte], { grupo, unidade })
+      : fim("unidade", [todo, unidadeParte], { unidade });
+  }
+  // Tudo dentro de um estado só (unidades dele e conjuntos dos membros dele): a trilha mostra o estado.
+  const tocados = new Set([...n.estados, ...n.ids.map(c.arvore.grupoDe), ...def.conjuntos.flatMap(conjunto => conjunto.membros.map(c.arvore.grupoDe))]);
+  if (tocados.size === 1) {
+    const [grupo] = [...tocados];
+    if (grupo) return fim("grupo", [todo, grupoParte(grupo)], { grupo, grupoInteiro: false });
+  }
+  return fim("selecao", [todo, selecao]);
+}
+
+/** Uma opção do "Ver por" (06/11/2026, no lugar de "Cada ponto da análise é"): o nível que cada ponto mostra, só entre os níveis
+ * abaixo do lugar em uso. */
+export type OpcaoVerPor = { nivel: PainelNivel; rotulo: string; apoio: string };
+/** As opções do "Ver por": no todo e numa seleção só de estados inteiros, o estado e o município; sem nada escolhido, as mesmas
+ * (o estado é o atalho de todos os estados); nos demais lugares, só o município, e o controle não aparece (uma opção só). O todo
+ * nunca é opção: ele é a referência fixa (decisão do responsável de 06/11/2026). */
+export function opcoesVerPor(lugar: LugarDaTrilha, def: Pick<DefinicaoAnalise, "base">, c: { arvore: ContextoDaArvore; comNiveis: boolean;
+  rotulos: RotulosTerritoriais }): OpcaoVerPor[] {
+  if (!c.comNiveis || !c.arvore.grupos.length) return [];
+  const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, unidade = c.rotulos.unidade;
+  const comEstados = lugar.tipo === "todo" || lugar.tipo === "nenhum" ||
+    (lugar.tipo === "selecao" && !!unidadesPossiveis(def.base, c.arvore).estados?.length);
+  if (!comEstados) return [];
+  return [
+    { nivel: "estados", rotulo: maiuscula(grupo.singular), apoio: "cada ponto é " + umA(grupo) },
+    { nivel: "municipios", rotulo: maiuscula(unidade.singular), apoio: "cada ponto é " + umA(unidade) },
+  ];
+}
+
+/** A competência inicial da variação da faixa: o primeiro dos últimos 4 períodos anuais até a competência da análise (a mesma
+ * janela com que a Análise de Tendência abre, aprovada em 24/10/2026); sem 4 períodos anuais, nenhuma (a faixa não mostra a
+ * variação). Só escolhe a competência: a variação vem do motor. */
+export function desdeDaFaixa(periodos: string[], competencia: string): string | null {
+  if (!competencia) return null;
+  const ate = cronologica(periodos).filter(periodo => comparar(periodo, competencia) <= 0);
+  const janela = janelaDoRitmo("anual", ate);
+  return janela.length && janela[janela.length - 1] === competencia ? janela[0] : null;
+}
+
+/** População em poucas palavras ("212,6 milhões", "8,1 mil"): o título do número na faixa; o valor inteiro fica junto, por extenso. */
+export function populacaoResumida(valor: number): string {
+  const absoluto = Math.abs(valor);
+  if (absoluto >= 1e6) return ate(1).format(valor / 1e6) + (absoluto >= 2e6 ? " milhões" : " milhão");
+  if (absoluto >= 1e3) return ate(1).format(valor / 1e3) + " mil";
+  return inteiro.format(valor);
+}
+/** "Brasil 2,36" (a linha do todo e a referência da faixa): o nome e a densidade do motor, com as casas da RQ-REP-05. */
+export const textoDaReferencia = (nome: string, densidade: number) => nome + " " + formatarNumero(densidade);
+/** O nome curto de um nível do lugar: "Pará" (o estado, sem a sigla entre parênteses) ou "Brasil". */
+export const nomeCurtoDoNivel = (nivel: { nome?: string | null; rotulo: string }) => nivel.nome || nivel.rotulo.replace(/\s*\([^()]*\)\s*$/, "");
+
 /** A comparação (CAP-CMP) vale para itens que estão na análise: depois de uma mudança na Seleção de Territórios, ela continua só se
  * o nível é o mesmo e todos os itens dela continuam escolhidos (o motor recusa itens fora do gráfico). Senão, sai. */
 export function comparacaoQueContinua(antes: Pick<DefinicaoAnalise, "nivel" | "comparar">,
@@ -2307,8 +2424,11 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (c.temGrupos) proxima = { ...proxima, nivel: "estados", estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
     else mensagens.push("Esta fonte não tem a visão por grupos.");
   } else if (pedido.nivel === "brasil") {
-    if (c.temBrasil) proxima.nivel = "brasil";
-    else mensagens.push("O Brasil como unidade existe só nos dados do Brasil.");
+    // O todo deixou de ser unidade de análise (06/11/2026): o pedido do Brasil leva ao todo, vendo por estado (a faixa e a linha do
+    // todo trazem os números do Brasil).
+    if (c.temBrasil) proxima = { ...proxima, nivel: "estados", base: { todos: true, estados: [], ids: [] },
+      estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
+    else mensagens.push("Esta fonte não tem a visão por grupos.");
   } else if (pedido.nivel === "municipios") proxima.nivel = "municipios";
   if (typeof pedido.competencia === "string") {
     if (periodos.has(pedido.competencia)) proxima.competencia = pedido.competencia;
@@ -2426,7 +2546,7 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
   const especie = INDICADORES[p.indicador].rotulo;
   const quem = profissionaisDe(p.categoria);
   const rotuloBolha = p.nivel === "estados" ? p.rotulos.grupo ?? ROTULOS_GENERICOS.grupo! : p.rotulos.unidade;
-  // O Brasil como unidade (24/10/2026): uma bolha, uma linha, o total nacional.
+  // O nível Brasil (até 06/11/2026; não é mais escolhido na tela): uma bolha, uma linha, o total nacional.
   const cadaBolha = p.nivel === "brasil" ? "A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população."
     : textoCadaBolha(rotuloBolha);
   const cadaLinha = p.nivel === "brasil" ? "A linha é o Brasil inteiro" : "Cada linha é " + umA(rotuloBolha);
@@ -2484,6 +2604,12 @@ export function lerEstadoSalvo(estado: EstadoSalvo | null | undefined): (Definic
     : consultaDeAntes(referencia, typeof unicaBase === "string" ? [unicaBase] : territoriosBase);
   const def: DefinicaoAnalise = { ...resto, estados: Array.isArray(lida.estados) ? lida.estados.filter(id => typeof id === "string") : [],
     serie: Array.isArray(lida.serie) ? lida.serie.filter(c => typeof c === "string") : [], consulta };
+  // O Brasil como unidade saiu em 06/11/2026 (o todo é a referência fixa): um estado guardado com ele reabre no todo, vendo por
+  // estado, com a lista dos estados preenchida pela área (unificarEscolha) e sem a resposta de antes (o pedido é outro).
+  if (def.nivel === "brasil")
+    return { versao: 1, chave: "", familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
+      opcoes: null, definicao: { ...def, nivel: "estados", base: { todos: true, estados: [], ids: [] } },
+      visual: { escala: salvo.visual?.escala === "logaritmica" ? "logaritmica" : "linear", corte: null, selecionados: [] }, resposta: null };
   const resposta = estado!.resposta as PainelResposta | null;
   const vista = salvo.visual?.vista, corContinua = salvo.visual?.corContinua;
   return { versao: 1, chave: salvo.chave, familia: salvo.familia && FAMILIAS_VALIDAS.has(salvo.familia) ? salvo.familia : "distribuicao",
@@ -2623,17 +2749,17 @@ export const LARGURA_LADO_A_LADO = 1600;
 export const MAX_LIGACOES = 30;
 
 export type MapaDisponivel = { disponivel: boolean; motivo: string | null; atalho: string | null };
-/** Se o mapa pode aparecer na análise e, se não, o motivo (e o texto do atalho, nos estados). Os estados não têm um ponto (os
- * ladrilhos dos estados não foram aprovados: nada de mapa nesse nível); a planilha precisa das colunas de latitude e longitude;
+/** Se o mapa pode aparecer na análise e, se não, o motivo. Vendo por estado (06/11/2026, item 3.2 do comando; divergência
+ * aprovada da RQ-REP-07, só para a bolha no centro), cada estado é uma bolha no ponto de desenho do motor (a média das sedes dos
+ * municípios dele), na base do Brasil; o mapa em grade não foi aprovado. A planilha precisa das colunas de latitude e longitude;
  * a visão Séries é só do gráfico. Pendências do motor (o referencial de uma planilha) não desligam o mapa: aparecem nele. */
 export function disponibilidadeDoMapa(c: { fonte: "brasil" | "arquivo" | null; temCoordenadas: boolean; nivel: PainelNivel;
   series: boolean; rotatividade: boolean; rotulos: RotulosTerritoriais }): MapaDisponivel {
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   if (!c.fonte) return { disponivel: false, motivo: "Escolha os dados para começar.", atalho: null };
-  if (c.nivel === "estados") return { disponivel: false, atalho: "Ver " + artigo(unidade, true) + " " + unidade.plural + " no mapa",
-    motivo: maiuscula(artigo(grupo, true)) + " " + grupo.plural + " não têm um ponto no mapa: cada ponto do mapa é " + umA(unidade) + "." };
-  if (c.nivel === "brasil") return { disponivel: false, atalho: null,
-    motivo: "O Brasil, como unidade, não tem um ponto no mapa: cada ponto do mapa é " + umA(unidade) + "." };
+  if (c.nivel === "estados" && c.fonte !== "brasil") return { disponivel: false, atalho: "Ver " + artigo(unidade, true) + " " + unidade.plural + " no mapa",
+    motivo: "No mapa desta fonte, cada ponto é " + umA(unidade) + ": " + artigo(grupo, true) + " " + grupo.plural + " não têm um ponto de desenho." };
+  if (c.nivel === "brasil") return { disponivel: false, atalho: null, motivo: "No mapa, cada ponto é " + umA(unidade) + " ou " + umA(grupo) + "." };
   if (!c.temCoordenadas) return { disponivel: false, atalho: null, motivo: c.rotatividade
     ? "Sem latitude e longitude na planilha, a rotatividade fica nas barras: o mapa precisa das coordenadas de cada " + unidade.singular + "."
     : "A planilha não tem as colunas de latitude e longitude: o mapa precisa das coordenadas de cada " + unidade.singular + ". A tabela continua." };
@@ -2654,7 +2780,7 @@ export function pinturaDoMapa(c: { camada: CamadaDeCor; rotatividade: boolean; g
 /** O pedido leva os quintis do mapa (`grupos_mapa`) quando a análise não tem cor própria: a distribuição sem grupos nem faixas
  * aplicadas e a análise espacial, sem condições nem ordenação, com o mapa disponível (unidades com coordenadas). */
 export function precisaQuintisDoMapa(def: DefinicaoAnalise, familia: Familia, mapaDisponivel: boolean): boolean {
-  if (!mapaDisponivel || def.nivel !== "municipios" || def.condicoes.length || def.ordenar) return false;
+  if (!mapaDisponivel || def.nivel === "brasil" || def.condicoes.length || def.ordenar) return false;
   if (familia === "espacial") return true;
   return familia === "distribuicao" && (def.agrupar.tipo === "nenhum" || (def.agrupar.tipo === "faixas" && def.agrupar.faixas.length < 2));
 }
@@ -2873,8 +2999,8 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "o indicador.",
     "A distância é medida sobre a superfície da Terra, a partir das coordenadas de cada " + unidade.singular +
       (c.brasil ? " (a sede municipal)" : "") + ", e não é um trajeto por estradas." +
-      (c.comGrupos && c.brasil ? " Esta análise usa " + us + ": " + artigo(grupo, true) + " " + grupo.plural + " e o Brasil não têm " +
-        "um ponto no mapa." : "")] };
+      (c.comGrupos && c.brasil ? " Esta análise usa " + us + ": vendo por " + grupo.singular + ", ela mostra o botão que leva " +
+        (fem(unidade) ? "às " : "aos ") + us + (fem(grupo) ? " dessas " : " desses ") + grupo.plural + "." : "")] };
   if (aba === "tendencia") return { titulo: NOMES_FAMILIAS.tendencia, paragrafos: [
     "Mostra como o indicador mudou nos últimos 4 períodos, anuais ou semestrais (você escolhe no campo Período), e classifica o " +
       "comportamento de cada " + territorio + ". De um período para o seguinte, o indicador sobe (alta), cai (queda) ou fica igual " +

@@ -70,8 +70,15 @@ type Props = {
   carregando: boolean;
   rotuloDistancia: string;
   rotulos: RotulosTerritoriais;
-  /** Linha de contexto do Brasil (densidade), que não classifica nada. */
+  /** O todo como referência fixa (06/11/2026; antes, a linha de contexto do Brasil): a linha tracejada "Brasil 2,36", na
+   * densidade, que não classifica nada. */
   contextoBrasil: LinhaDeReferencia | null;
+  /** Dentro de um grupo (06/11/2026), a linha tracejada dele ("Pará 1,19"), com o valor da fonte estadual (do motor). */
+  linhaDoGrupo?: LinhaDeReferencia | null;
+  /** Tocar numa unidade abre o lugar dela na trilha (06/11/2026, item 3.4 do comando), como o estado desce até ele. */
+  onAbrirUnidade?: (id: string) => void;
+  /** Escolha de itens em curso (a Comparar ou a Juntar abertas): tocar marca e desmarca, como antes. */
+  marcando?: boolean;
   /** Cortes dos grupos (do motor) ou limites das faixas (digitados), no eixo do indicador. */
   cortes: LinhaDeReferencia[];
   corte: Corte | null;
@@ -120,9 +127,9 @@ export default function PainelChart(p: Props) {
   const pares = useMemo(() => p.distancia ? p.pares ?? [] : [], [p.distancia, p.pares]);
   const idsDasBases = useMemo(() => new Set(pares.map(par => par.base.id)), [pares]);
   const referenciasFora = useMemo(() => referenciasDeContexto(pares), [pares]);
-  const extras = useMemo(() => [...(p.contextoBrasil ? [p.contextoBrasil.valor] : []),
+  const extras = useMemo(() => [...(p.contextoBrasil ? [p.contextoBrasil.valor] : []), ...(p.linhaDoGrupo ? [p.linhaDoGrupo.valor] : []),
     ...referenciasFora.map(contexto => contexto.referencia[p.indicador]).filter((valor): valor is number => valor !== null)],
-  [p.contextoBrasil, referenciasFora, p.indicador]);
+  [p.contextoBrasil, p.linhaDoGrupo, referenciasFora, p.indicador]);
   const extrasPopulacao = useMemo(() => referenciasFora.map(contexto => contexto.referencia.populacao)
     .filter((valor): valor is number => valor !== null), [referenciasFora]);
   const grafico = useMemo(() => montarGrafico({ itens: desenhaveis, dominios: p.resposta.dominios, indicador: p.indicador, escala: p.escala,
@@ -196,14 +203,18 @@ export default function PainelChart(p: Props) {
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
     bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || !!destaque?.has(bolha.id))) : [];
   const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
+  const abreUnidade = !!p.onAbrirUnidade && !p.marcando;
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
     competenciaInicial, distancia: p.distancia, variacao: p.cometa && !!competenciaInicial, tendencia: !!bolhaAtiva.item.tendencia,
     nomes: p.nomes, limiares: p.limiares, rotulos: p.rotulos, unidadesDoGrupo: p.unidadesDoGrupo, porItem: !!p.porItem,
-    trajetoria: !!p.trajetoria }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
+    trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
   const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 
+  /** Tocar: o estado desce até ele; a unidade abre o lugar dela (06/11/2026); com a escolha de itens em curso (Comparar, Juntar)
+   * e no conjunto, marca e desmarca. */
   function acionar(bolha: BolhaDesenho) {
     if (bolha.tipo === "estado") p.onAbrirGrupo(bolha.id);
+    else if (bolha.tipo === "municipio" && abreUnidade) p.onAbrirUnidade!(bolha.id);
     else p.onAlternar(bolha.id);
   }
   function teclado(event: KeyboardEvent<SVGGElement>, bolha: BolhaDesenho) {
@@ -232,7 +243,7 @@ export default function PainelChart(p: Props) {
     if (bolha.tipo === "estado") {
       const n = p.unidadesDoGrupo(bolha.id);
       partes.push("Enter para ver " + (n !== null ? n + " " : "") + p.rotulos.unidade.plural);
-    }
+    } else if (bolha.tipo === "municipio" && abreUnidade) partes.push("Enter para abrir " + bolha.item.rotulo);
     return partes.join("; ");
   };
   const larguraDica = Math.min(270, grafico.largura - 16);
@@ -278,7 +289,8 @@ export default function PainelChart(p: Props) {
       data-destaque={destaque ? (destaque.has(bolha.id) ? "true" : "false") : undefined}
       data-visivel={bolha.visivel ? "true" : "false"}
       style={{ transform: `translate(${bolha.x}px, ${bolha.y}px)`, opacity: opacidadeDe(bolha), pointerEvents: bolha.visivel && interativa ? undefined : "none" }}
-      role="button" tabIndex={bolha.visivel && focoEfetivo === bolha.id ? 0 : -1} aria-pressed={bolha.tipo === "estado" ? undefined : selecionado}
+      role="button" tabIndex={bolha.visivel && focoEfetivo === bolha.id ? 0 : -1}
+      aria-pressed={bolha.tipo === "estado" || (bolha.tipo === "municipio" && abreUnidade) ? undefined : selecionado}
       aria-label={descricao(bolha)} aria-hidden={bolha.visivel ? undefined : true} aria-describedby={ativo === bolha.id ? "analise-dica" : undefined}
       onPointerEnter={() => setAtivo(bolha.id)} onPointerLeave={() => setAtivo(atual => atual === bolha.id ? null : atual)}
       onFocus={() => { setFoco(bolha.id); setAtivo(bolha.id); }} onBlur={() => setAtivo(atual => atual === bolha.id ? null : atual)}
@@ -321,7 +333,7 @@ export default function PainelChart(p: Props) {
     <svg viewBox={`0 0 ${grafico.largura} ${grafico.altura}`} width="100%" height={grafico.altura} role="group" className={classe}
       aria-label={"Bolhas do gráfico: " + (eixoX ? "distância até a referência no eixo horizontal e " + especie.rotulo.toLowerCase() + " no vertical"
         : especie.rotulo.toLowerCase() + " no eixo vertical; a posição horizontal é só arranjo") + ". Tamanho: população. Use as setas para percorrer as bolhas e Enter para " +
-        (grafico.bolhas.some(bolha => bolha.tipo === "estado") ? "ver " + p.rotulos.unidade.plural + "." : "destacar.")}>
+        (grafico.bolhas.some(bolha => bolha.tipo === "estado") ? "ver " + p.rotulos.unidade.plural + "." : abreUnidade ? "abrir." : "destacar.")}>
       {/* Grade recessiva: linhas finas, sólidas, um tom acima da superfície. */}
       {eixoY.marcas.map(marca => <line key={"gy" + marca.valor} x1={esquerdaPlot} x2={direitaPlot} y1={marca.pos} y2={marca.pos} stroke={paleta.grade} strokeWidth={1}/>)}
       {eixoX?.marcas.map(marca => <line key={"gx" + marca.valor} x1={marca.pos} x2={marca.pos} y1={grafico.topo} y2={grafico.base} stroke={paleta.grade} strokeWidth={1}/>)}
@@ -338,9 +350,18 @@ export default function PainelChart(p: Props) {
       </g>}
       {/* Linhas de referência: o contexto do Brasil (não classifica), os cortes dos grupos ou os limites das faixas, a régua e
           as faixas de distância. Todas finas e sólidas, com o texto em tinta. */}
-      {p.contextoBrasil && dentroDoEixo(p.contextoBrasil.valor) && <g data-testid="analise-contexto-brasil" data-valor={p.contextoBrasil.valor} aria-hidden="true">
-        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(p.contextoBrasil.valor)} y2={linhaH(p.contextoBrasil.valor)} stroke={paleta.tinta2} strokeWidth={1}/>
+      {/* O todo como referência fixa (06/11/2026): a linha tracejada "Brasil 2,36"; dentro de um grupo, também a dele ("Pará 1,19"). */}
+      {p.contextoBrasil && dentroDoEixo(p.contextoBrasil.valor) && <g data-testid="analise-contexto-brasil" data-valor={p.contextoBrasil.valor}
+        data-rotulo={p.contextoBrasil.rotulo} aria-hidden="true">
+        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(p.contextoBrasil.valor)} y2={linhaH(p.contextoBrasil.valor)} stroke={paleta.tinta2}
+          strokeWidth={1.25} strokeDasharray="6 4"/>
         <text x={direitaPlot - 2} y={linhaH(p.contextoBrasil.valor) - 5} textAnchor="end" className="analise-linha-texto">{p.contextoBrasil.rotulo}</text>
+      </g>}
+      {p.linhaDoGrupo && dentroDoEixo(p.linhaDoGrupo.valor) && <g data-testid="analise-linha-grupo" data-valor={p.linhaDoGrupo.valor}
+        data-rotulo={p.linhaDoGrupo.rotulo} aria-hidden="true">
+        <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(p.linhaDoGrupo.valor)} y2={linhaH(p.linhaDoGrupo.valor)} stroke={paleta.tinta2}
+          strokeWidth={1.25} strokeDasharray="2 3"/>
+        <text x={esquerdaPlot + 4} y={linhaH(p.linhaDoGrupo.valor) - 5} className="analise-linha-texto">{p.linhaDoGrupo.rotulo}</text>
       </g>}
       {p.cortes.filter(item => dentroDoEixo(item.valor)).map((item, indice) => <g key={"c" + indice} data-testid="analise-corte" data-valor={item.valor} aria-hidden="true">
         <line x1={esquerdaPlot} x2={direitaPlot} y1={linhaH(item.valor)} y2={linhaH(item.valor)} stroke={paleta.eixo} strokeWidth={1}/>

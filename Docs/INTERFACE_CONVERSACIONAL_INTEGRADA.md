@@ -55,9 +55,10 @@ a conversa fica ancorada embaixo, sem rolagem horizontal.
 `/api/inspect`, como antes. A área recebe a fonte (`FonteDados`: `tipo: "brasil"`, a versão da base, o token da camada
 geográfica complementar e os rótulos fixos município/municípios e estado/estados), as competências, a categoria, os níveis e
 o catálogo de municípios para a busca. Desde 23/10/2026, a base abre **sem territórios escolhidos**: a área abre a Seleção
-de Territórios e espera; nada é pedido ao motor até a escolha. Antes, ela abria nos 27 estados. Desde 24/10/2026, a Seleção
-tem três níveis, um por vez: o Brasil como unidade, os estados (um, vários ou todos) e os municípios, por estado e
-cumulativos (ver o documento da área).
+de Territórios e espera; nada é pedido ao motor até a escolha. Antes, ela abria nos 27 estados. Desde 05/11/2026, a Seleção
+é uma árvore única (o Brasil, os estados inteiros ou em parte e os municípios); desde 06/11/2026, o Brasil é a referência fixa
+de toda análise (não mais uma unidade de análise), com a trilha do lugar em uso e o "Ver por" Estado ou Município (ver o
+documento da área).
 
 ### Planilha enviada: o painel "Colunas"
 
@@ -289,8 +290,9 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   no alto da área ("Desfazer: aplicar o pedido da conversa"; até 25/10/2026, o botão se chamava "Voltar"); e a comparação de
   antes só
   continua se os itens dela seguem na análise.
-  O nível `brasil` (o Brasil como unidade) vale na base do Brasil; numa planilha, vira o aviso "O Brasil como unidade existe
-  só nos dados do Brasil.";
+  O nível `brasil` (o Brasil como unidade, de 24/10 a 06/11/2026) leva, na base do Brasil, ao todo, vendo por estado (desde
+  06/11/2026, o Brasil é a referência fixa de toda análise); numa planilha, vira o aviso "Esta fonte não tem a visão por
+  grupos.". A trilha do lugar em uso acompanha o que o pedido mudou ("Mostre o Pará" leva a "Brasil › Pará");
 - o **contexto** de cada pedido sai do que está no gráfico (`ContextoDoGrafico`): em `options` vão `territory_ids` (as
   unidades na tela, só as do catálogo territorial; com todos os municípios ou nos estados, nenhuma), `exploration_operation`
   (a família: distribuição → `density` ou `counts`, conforme o indicador; espacial → `spatial`; tendência → `temporal`;
@@ -346,8 +348,8 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   o mapa" e "agora o mapa" mandam à área o pedido `{ vista: "mapa" }`, pelo mesmo caminho dos demais comandos, e a conversa
   responde "Mostrei o mapa no lugar do gráfico. Para voltar, peça “volte ao gráfico”."; "volte ao gráfico", "mostre no
   gráfico" e "agora o gráfico" mandam `{ vista: "grafico" }` ("Voltei ao gráfico. …"). Quando a área informa que o mapa não
-  está disponível (`mapaDisponivel: false`: nos estados, que não têm um ponto; numa planilha sem latitude e longitude; na
-  visão Série temporal), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
+  está disponível (`mapaDisponivel: false`: numa planilha sem latitude e longitude; na visão Série temporal; até 06/11/2026,
+  também nos estados, que desde então aparecem no mapa, cada um no ponto de desenho do servidor), nenhum pedido sai, e a resposta é o motivo informado pela área (`motivoSemMapa`), seguido de "Nada mudou no
   gráfico.". Desde 26/10/2026, o motivo vai também ao backend local (`painel_motivo_sem_mapa`), para "o que estou vendo no
   mapa?" responder com ele. Já na vista pedida, a conversa só diz isso. Essas formas diretas são reconhecidas na tela, sem o intérprete;
   trocar de vista é estado visual e não recalcula (RQ-REP-06). Pedidos com mais do que a vista ("mostre o Pará no mapa",

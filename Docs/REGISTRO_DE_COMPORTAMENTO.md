@@ -35,6 +35,95 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-06 · Navegação por níveis (etapas 1 a 4 do comando): o todo como referência, o "Ver por", a faixa do lugar, a trilha, o mapa dos estados e o cartão do município
+- **Classificação (regra 1), pela leitura, antes de codar:** comando do responsável de 06/11/2026 ("navegação por níveis, uma
+  seleção só e as ferramentas da Seleção de Territórios", sete itens em nove etapas), classificado de uma vez, no início. Todos os
+  itens são mudança de comportamento (telas, textos, fluxos, contrato da API, aditivo). Este commit implementa os itens 2 (o todo
+  como referência e o "Ver por", etapa 1) e 3 (a navegação por níveis, etapas 2 a 4); os itens 4, 7, 5, 1 e 6 ficam para as
+  etapas seguintes, com a classificação já feita:
+  - **Decisões do próprio comando** (o responsável as tomou no comando; elas substituem pedidos anteriores dele, não a SPEC): (1) o
+    todo deixa de ser unidade de análise e vira a referência fixa (o "Brasil como unidade" de 24/10/2026 foi pedido dele, D3 e
+    D4, que continuam no motor e na API); (2) a Análise Espacial perde a base própria (etapa 5); (3) o Juntar vira "Agregar
+    territórios", na Seleção (etapa 7); (4) "Selecionar por critérios" é capacidade nova, com um só método de agrupamento por
+    proximidade em cadeia, sem EXC-05 e sem critérios escolhidos pelo sistema (EXC-11; etapa 9).
+  - **Consultados e aprovados pelo responsável na mesma data** (a compatibilidade pedia a consulta): item 3.2, o mapa vendo por
+    estado, que RQ-REP-07 só admite com geometria autorizada: aprovado **"Só a bolha no centro"**, cada estado como uma bolha no
+    ponto de desenho calculado pelo motor (a média das sedes), sem ladrilhos nem grade — **divergência aprovada de RQ-REP-07, só
+    para isto**; item 7, a lista em tela estreita: **"Ordem do motor"** (CAP-SUB-02, sem mostrar posições; etapa 6); item 1.4(b),
+    o total da planilha pela soma das unidades: **"Soma automática"**, com a ressalva sempre à vista — **divergência aprovada de
+    CAP-AGR-01** (etapa 8).
+  - **Previstos** (escopo: decorrem do comando; compatibilidade: INV-02 e a Parte 13, porque todo número da faixa, das linhas de
+    referência e do cartão vem do motor e a tela só mostra, sem somar nem estimar; D3, D4 e D5, o Brasil pela fonte nacional e
+    BR-POP-JUNHO-1; UF-CONTAGEM-ESTADUAL-1 e UF-POP-MUNICIPIOS-1, o estado pela contagem estadual de médicos únicos; RQ-DAD-30, os
+    níveis continuam universos separados e o estado não é somado ao Brasil; CAP-TMP-01, a variação; RQ-REP-06, navegar e trocar
+    de vista são estado visual): a trilha, a faixa, o "Ver por", a descida pelo toque, o cartão, as linhas de referência, a Análise
+    Espacial vendo por estado e a conversa que move a trilha.
+- **Antes:**
+  - **A unidade de análise** ("Cada ponto da análise é", na Seleção) tinha Municípios, Estados e **Brasil**: o país inteiro como
+    uma unidade, com um ponto só, as funções desligadas (exceto Exportar), o mapa e a Análise Espacial desligados ("O Brasil, como
+    unidade, não tem um ponto no mapa…"). A opção que a seleção não permitia ficava tracejada, com o motivo.
+  - **O lugar em uso** só aparecia no título e no resumo da seleção; não havia trilha nem números do lugar à parte do gráfico. A
+    linha do Brasil no gráfico era sólida, "Brasil · 2,36"; não havia a linha do estado nem as referências na Série temporal.
+  - **Nos estados**, o mapa ficava desligado ("Os estados não têm um ponto no mapa: cada ponto do mapa é um município.", com o
+    atalho para os municípios), e a conversa dizia o mesmo ("Os estados não têm um ponto no mapa; a análise fica no gráfico.");
+    a Análise Espacial mostrava o desenho da distribuição, com o aviso de que esperava os municípios.
+  - **Tocar numa bolha de município** marcava e desmarcava; voltar dos municípios de um estado era pelo Desfazer ("Para voltar aos
+    estados, use Desfazer, no alto.").
+- **Agora:**
+  - **"Ver por"** (`analise-nivel`, os mesmos `analise-nivel-estados` e `analise-nivel-municipios`; `opcoesVerPor`): só os níveis
+    abaixo do lugar em uso; no todo, sem nada marcado e numa seleção só de estados inteiros, Estado e Município; num estado, num
+    município ou numa seleção livre, uma opção só, e o controle some. O Brasil deixou de ser opção. Chegar ao Brasil inteiro pela
+    raiz da árvore leva a ver por estado ("Brasil inteiro: ver por estado. Para ver os municípios, use o Ver por."). Uma análise
+    guardada com o Brasil como unidade reabre no todo, vendo por estado; o pedido da conversa pelo Brasil leva ao mesmo lugar.
+  - **A trilha** (`analise-trilha`, `FaixaDoLugar.tsx`; `lugarDaTrilha`), abaixo de Desfazer e Limpar seleção, igual em todas as
+    abas: "Brasil", "Brasil › Pará", "Brasil › Pará › MARABA (PA)" ou "Brasil › Seleção"; cada parte leva àquele nível, a atual com
+    `aria-current="location"`. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta
+    ao todo sem o Desfazer, e um Desfazer, depois, volta ao lugar de antes. Voltar é pela trilha: "Mostrando os municípios do
+    Amazonas. Para voltar, toque em Brasil na trilha, no alto.".
+  - **A faixa do lugar** (`analise-faixa`), no alto de todas as abas de análise: no todo, 502.495 médicos, "212,6 milhões" de
+    habitantes (com o número inteiro), 2,36 por 1.000 e a variação da densidade desde o primeiro dos últimos 4 períodos anuais
+    ("Desde jun/2021", cerca de +19,2%); num estado, os números dele (o Pará: 10.307 médicos, 1,19) e "Pará 1,19 · Brasil 2,36";
+    numa seleção livre, só a referência do Brasil, sem soma. Os números vêm prontos da rota nova `POST /api/painel/lugar`
+    (`painel.lugar`, também na proteção de carga e em `ROTAS_COM_LIMITE`).
+  - **O cartão do território** (`analise-cartao`): tocar num município abre o lugar dele, com a quantidade, a população e as barras
+    da densidade do município, do estado e do Brasil (Marabá: 472 médicos, 1,64); com um território só, a Distribuição mostra o
+    cartão no lugar do gráfico. Com a Comparar ou a Juntar abertas, tocar marca e desmarca, como antes; a caixa da tabela também.
+  - **As linhas de referência:** a do Brasil, tracejada, "Brasil 2,36"; dentro de um estado, também a dele ("Pará 1,19",
+    `analise-linha-grupo`); na Série temporal, as do Brasil e do estado, tracejadas (`analise-serie-referencia`), com os valores
+    de cada competência do motor.
+  - **O mapa vendo por estado:** uma bolha por estado no ponto de desenho do motor (`POST /api/painel/mapa` com `grupos: true`;
+    `CENTRO-DE-DESENHO-1`, a média das coordenadas das sedes válidas, só para desenhar, com a nota do método), as sedes ao fundo e
+    os quintis do motor entre os estados (o pedido dos estados leva `grupos_mapa`); tocar num estado desce até ele. A conversa, na
+    base do Brasil, leva a vista ao mapa nos estados ("Voltei aos estados: … Passei para o mapa."); numa planilha, os grupos
+    continuam sem ponto.
+  - **A Análise Espacial vendo por estado:** só "A Análise Espacial mede distâncias entre municípios." e o botão "Ver os
+    municípios destes estados", que troca o Ver por e abre a Escolha dos territórios.
+  - **Também:** os textos do cartão e da faixa quebram como blocos (nenhum texto por cima de outro em 320 px), e os nomes das
+    linhas de referência da Série temporal entram no posicionamento dos rótulos das linhas.
+- **Permanece:** o nível `brasil` no motor e na API (o mesmo contrato), os totais individualizados (o Brasil inteiro pela fonte
+  nacional e cada estado inteiro pela estadual), a árvore da Seleção, o Desfazer de cada passo, a Comparar e a Juntar, a Escolha
+  dos territórios da Análise Espacial vendo por município, as planilhas (sem faixa nem cartão nesta etapa; a trilha começa em
+  "Toda a planilha") e o contexto que vai ao provedor de IA (nenhum número da faixa, do mapa ou da base).
+- **Motivo:** comando do responsável de 06/11/2026 (itens 2 e 3), com as decisões e as respostas da consulta acima.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Ver por, "Navegação por níveis", a vista do desenho, as funções, as
+    limitações e os testes), `Docs/MAPA_DA_PAGINA_UNICA.md` ("Os estados no mapa", navegação, RQ-REP-07 e testes),
+    `Docs/PAINEL_INTEGRADO.md` (a rota 5 e `grupos` na rota 3), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md`,
+    `Docs/CONVERSACAO_INCREMENTO_FN.md`, `Docs/ABRANGENCIA_TERRITORIAL.md` e o `README.md`.
+  - **Testes novos:** `frontend/tests/areaDeAnalise.test.mjs` (a trilha, o Ver por, a faixa, o mapa vendo por estado, o Brasil que
+    deixa de ser unidade e o cliente da rota 5), `frontend/tests/mapa.test.mjs` (a cena vendo por estado),
+    `backend/tests/test_painel_pagina.py` (a rota 5, com o catálogo sintético e os números de aceite com a base versionada),
+    `backend/tests/test_painel_mapa.py` (os pontos de desenho dos estados) e o roteiro `backend/tests/ui_navegacao.py` (suíte
+    `base-versionada`, com os aceites dos itens 2 e 3).
+  - **Testes que mudam de propósito, pelo comportamento novo:** `frontend/tests/painel.test.mjs` e `areaDeAnalise.test.mjs` (o
+    texto da Análise Espacial vendo por estado, o mapa disponível nos estados, os quintis no pedido dos estados);
+    `backend/tests/test_conversa_grafico.py` ("volte aos estados no mapa" leva a vista ao mapa na base do Brasil); e os roteiros
+    `ui_area_de_analise.py` (o Ver por sem o Brasil, a trilha, a faixa, voltar pela trilha, a Comparar aberta para marcar, o
+    Brasil inteiro vendo por estado), `ui_mapa.py` (o mapa dos estados no lugar do motivo, o Ver por Município e o clique que
+    marca com a Comparar aberta), `ui_responsivo.py` (no celular, a dica pelo foco e o toque que abre o cartão),
+    `ui_modo_escuro.py` (a trilha e a faixa no escuro, no lugar do motivo do mapa desligado) e `ui_conversa_grafico.py` ("ver no
+    mapa" nos estados troca a vista).
+
 ### 2026-11-06 · A verificação prévia (F2-0) com a saída redirecionada no Windows
 - **Classificação (regra 1), pela leitura, antes de codar:** pedido do responsável de 06/11/2026. O script é uma ferramenta de
   implantação, fora do produto, mas o que ele escreve é lido pelo responsável, então foi tratado como mudança (na dúvida, a regra

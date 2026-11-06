@@ -3,7 +3,8 @@
 O mapa saiu do produto com as telas clássicas em 22/10/2026 e volta, pelas decisões do responsável pelo produto de 23/10/2026,
 como **segunda vista do gráfico de bolhas** da [área de análise](PAINEL_INTEGRADO_INTERFACE.md). É a mesma análise vista de
 outro jeito: seleção, régua, condições, comparação, conjuntos, dica, tabela e título são os mesmos nas duas vistas. O mapa só
-desenha o que o motor devolveu; nada é calculado na tela.
+desenha o que o motor devolveu; nada é calculado na tela. Desde 06/11/2026 (comando do responsável, item 3.2), vendo por estado,
+o mapa mostra uma bolha por estado, no ponto de desenho que o servidor calcula (seção "Os estados no mapa").
 
 Código:
 
@@ -30,9 +31,11 @@ distância**: a posição serve só para o desenho. As distâncias da análise e
 
 ```ts
 <MapaAnalise ref={mapaRef}
-  itens={PainelItem[]}            // todas as unidades em análise (itensParaOMapa, 25/10/2026); estados não chegam ao mapa
+  itens={PainelItem[]}            // todas as unidades em análise (itensParaOMapa, 25/10/2026); vendo por estado, os estados
+  nota={string | null}             // a nota do método no lugar da do ponto (vendo por estado, a nota dos pontos de desenho)
   dentro={Set<string>}             // ids dentro da régua e dos filtros; os demais esmaecem
-  dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada }}   // do motor (POST /api/painel/mapa)
+  dados={{ competencia, referencial, pontos: Map<id, [lat, lon]>, semCoordenada, grupos?, notaDosGrupos? }}   // do motor
+                                   // (POST /api/painel/mapa; com grupos: true, o ponto de desenho de cada estado)
   indicador pintura={"camada" | "quintis" | "continua"} pintar valorContinuo rotuloContinuo dominio escala
   tamanho={{ valor, rotulo, maximo }} contextoBrasil legendaCor
   selecionados referencias ligacoes nomesDasReferencias comTerritoriosBase extraDoRotulo dicaDe rotulos brasil
@@ -46,7 +49,7 @@ inicial. Os tipos completos estão em `mapaContrato.ts`.
 
 | Codificação | O que mostra |
 |---|---|
-| Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência. A nota `mapa-nota` diz isso pela fonte em uso ("Cada ponto é a sede do município (IBGE) na base do Brasil." ou "Cada ponto é a coordenada do distrito informada na planilha.", com os rótulos da planilha) e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
+| Posição | A sede do município (IBGE) na base do Brasil, ou a coordenada da planilha, como o motor autorizou para a competência; vendo por estado, o ponto de desenho do estado (seção "Os estados no mapa"). A nota `mapa-nota` diz isso pela fonte em uso ("Cada ponto é a sede do município (IBGE) na base do Brasil." ou "Cada ponto é a coordenada do distrito informada na planilha.", com os rótulos da planilha) e que a posição é só para o desenho. Projeção equirretangular (longitude × cosseno da latitude média), só para posicionar. |
 | Tamanho | Área proporcional ao valor de tamanho que a área escolhe (população na densidade, quantidade na quantidade). Raio máximo de 16 px, menor que o do gráfico, e mínimo visível de 2,5 px; os maiores ficam atrás e os menores na frente, com um anel fino da cor da superfície separando os sobrepostos. A legenda `mapa-legenda-tamanho` mostra três valores redondos com o mesmo raio do desenho, todos na proporção exata desde 25/10/2026: a referência que ficaria abaixo do mínimo visível (desenhada maior do que a área dela) dá lugar ao menor número redondo que já alcança o mínimo (com 470 mil no máximo, 200 mil, 50 mil e 20 mil, no lugar de 5 mil). Desde 05/11/2026, o desenho da legenda tem a largura do rótulo mais longo (antes, 60 px fixos) e não encolhe, e o texto desce para a linha de baixo quando não cabe ao lado: nas telas estreitas, os rótulos não cobrem o texto. O tamanho não muda com o zoom: a legenda vale sempre. |
 | Cor, pintura "camada" | A mesma pintura do gráfico (grupos, faixas, condições, ordenação, classes ou variação), pela função `pintar` da área, com a mesma legenda (`legendaCor`). Valor não avaliável: anel tracejado cinza sobre a superfície, nunca preenchido como zero. Pintura apagada (não atende, fora dos primeiros): mais clara. |
 | Cor, pintura "quintis" | Sem cor própria da análise (a distribuição sem grupos nem faixas e a análise espacial, sem condições nem ordenação), os 5 grupos iguais (quintis) do indicador que o motor devolve junto com a análise (`grupos_mapa` no topo e `grupo_mapa` em cada item; CAP-DIS-02), na rampa ordinal dos grupos do gráfico. A legenda (`mapa-legenda`, `data-tipo="quintis"`) diz "Cores do mapa: 5 grupos iguais (quintis) …, calculados pelo motor" e lista cada grupo com o rótulo e a contagem do motor (`mapa-quintil`). Sem grupo (sem valor do indicador): anel tracejado. Sem os grupos na resposta, a cor única do gráfico. |
@@ -108,11 +111,12 @@ municípios de Roraima sumirem da Análise Espacial, "como se tivesse algum prob
 
 - **Botões** (canto superior direito): `mapa-ampliar`, `mapa-reduzir` e `mapa-ver-tudo` (volta ao enquadramento inicial).
 - **Mouse:** arrastar move o mapa; Ctrl ou ⌘ com a roda (ou só a roda, com o mapa em foco) amplia e reduz em torno do cursor;
-  duplo clique amplia; passar sobre um ponto mostra a dica; clicar marca ou desmarca, como na bolha. O alvo do clique é maior
-  que o ponto: 12 px no mouse e 18 px no toque.
-- **Toque:** arrastar com um dedo, pinça com dois; tocar num ponto marca e mostra a dica.
+  duplo clique amplia; passar sobre um ponto mostra a dica; clicar faz o que o toque na bolha faz (desde 06/11/2026: no estado,
+  abre os municípios dele; no município, abre o lugar dele na trilha; com a Comparar ou a Juntar abertas, marca ou desmarca). O
+  alvo do clique é maior que o ponto: 12 px no mouse e 18 px no toque.
+- **Toque:** arrastar com um dedo, pinça com dois; tocar num ponto mostra a dica e age como o clique.
 - **Teclado,** com o mapa em foco: as setas movem a vista; Shift e as setas vão ao ponto vizinho naquela direção (a vista
-  acompanha); Enter ou espaço marcam o ponto em foco; + e − ampliam e reduzem; 0 ou Home voltam ao enquadramento inicial; Esc
+  acompanha); Enter ou espaço agem no ponto em foco, como o clique; + e − ampliam e reduzem; 0 ou Home voltam ao enquadramento inicial; Esc
   fecha a dica. Ao focar o mapa pelo teclado, o ponto mais perto do centro fica em foco.
 - **Mapinha:** com zoom além do inicial, o mapinha (`minimapa`) aparece no canto inferior esquerdo com o retângulo da área à
   vista.
@@ -139,9 +143,21 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
 - `ativoExterno`: a bolha do item sob o mouse no mapa ganha o anel (gráfico e mapa lado a lado);
 - `onAtivo`: avisa a área quando a bolha ativa (mouse ou foco) muda.
 
-## Onde o mapa não se aplica
+## Os estados no mapa
 
-- **Estados:** não têm ponto e não chegam ao mapa. A área desliga a vista "Mapa" com o motivo e oferece ver os municípios.
+Comando do responsável de 06/11/2026, item 3.2, com a decisão "Só a bolha no centro" (divergência aprovada de RQ-REP-07 só para
+isto: o mapa dos estados sem geometria oficial; sem ladrilhos nem grade). Vendo por estado na base do Brasil, a área pede os
+pontos com `grupos: true` (`POST /api/painel/mapa`), e o motor devolve, além das sedes, o ponto de desenho de cada estado
+(`grupos`: `id` "uf:NN", `rotulo`, `lat`, `lon` e `unidades`, o número de sedes usadas), com o método `CENTRO-DE-DESENHO-1`: a
+média das coordenadas das sedes válidas dos municípios do estado, só para desenhar. Não é a posição de uma sede nem um limite
+oficial, e nenhuma distância usa esse ponto. A nota do mapa diz isso ("Cada estado aparece no mapa na média das coordenadas das
+sedes dos seus municípios, só para desenhar…"). Cada estado é uma bolha, com o tamanho pela população e a pintura de sempre (sem
+cor própria da análise, os quintis do motor entre os 27 estados); as sedes dos municípios ficam ao fundo, dando o formato do
+país. Tocar num estado abre os municípios dele, como no gráfico. Numa planilha, os grupos não têm ponto de desenho: o motor
+recusa `grupos` ("Os pontos de desenho dos grupos existem só na base do Brasil, com os estados."), e a área desliga a vista
+"Mapa" vendo pelos grupos, com o motivo e o atalho para as unidades.
+
+## Onde o mapa não se aplica
 - **Planilha sem latitude e longitude** (ou sem referencial autorizado): sem geometria autorizada, não há mapa (RQ-REP-07); a
   tabela continua.
 - **Unidade sem coordenada válida:** fica fora do mapa e aparece em Não avaliáveis, com o motivo do motor; a nota do mapa avisa.
@@ -160,7 +176,9 @@ O gráfico (`PainelChart.tsx`) ganhou três propriedades opcionais (`GraficoComM
   cor contínua da permanência não é classe, e a legenda diz isso. As faixas de distância (CAP-ESP-03) não viram cor.
 - **RQ-REP-04:** não avaliável é um anel tracejado, distinto de zero, com legenda.
 - **RQ-REP-06:** controles do mapa e troca de vista só mudam o estado visual.
-- **RQ-REP-07:** o mapa só existe com geometria autorizada (os pontos do motor).
+- **RQ-REP-07:** o mapa só existe com geometria autorizada (os pontos do motor); vendo por estado, o ponto de desenho do estado
+  vem do motor, pela média das sedes autorizadas (divergência aprovada pelo responsável em 06/11/2026, só para a bolha do estado,
+  sem limites).
 - **RQ-REP-09:** o mapa traz o que precisa para ser lido sozinho (nota do ponto, legendas, avisos) e não calcula nada: tamanhos,
   cores e posições saem dos valores do motor.
 - **RQ-REP-14:** conjuntos rotulados como soma das contagens dos componentes, com possível dupla contagem.
@@ -236,7 +254,8 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 - Node: `frontend/tests/mapa.test.mjs` (modelo puro): projeção e enquadramento, o enquadramento inicial com contexto (margem,
   mínimo de um quarto da fonte, nunca mais que ela, proporcional a qualquer fonte), zoom, tamanho com área proporcional, cor
-  contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo,
+  contínua linear e logarítmica, sem log automático, marcas da legenda e do Brasil, cena (estados e conjuntos sem ponto, fundo;
+  desde 06/11/2026, o estado com o ponto de desenho do motor vira ponto, com as sedes ao fundo;
   membros, sem coordenada; a pintura dos quintis igual à da camada), esmaecidos que nunca somem, vazados nunca como zero, alvo do
   clique, vizinho pelo teclado, nomes sem sobreposição, ligações, mapinha, transição e cores; desde 25/10/2026, a legenda de
   tamanho na proporção exata (nenhuma referência abaixo do mínimo visível) e o enquadramento com os territórios de referência
@@ -247,13 +266,14 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   quintis e quando o pedido os leva; desde 25/10/2026, as unidades do mapa (todas as em análise, também as que o gráfico deixa
   de fora), os filtros que esmaecem nele e a cor única vazada sem o valor do indicador.
 - Navegador: `backend/tests/ui_mapa.py`, na suíte `base-versionada` (job `ui-block1`), confere o mapa contra as respostas de
-  `/api/painel` e de `/api/painel/mapa`: nos estados (escolhidos na Seleção pela unidade de análise Estados, que, sem nada marcado, marca todos; a base abre sem seleção),
-  o mapa desligado, com o motivo e o atalho; todos os municípios do Brasil, com os pontos do motor, o fundo e os quintis do
-  motor sem pergunta (a mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas (desde
+  `/api/painel` e de `/api/painel/mapa`: vendo por estado (escolhido na Seleção pelo Ver por Estado, que, sem nada marcado, marca
+  todos; a base abre sem seleção), desde 06/11/2026, as 27 bolhas nos pontos de desenho do motor (o pedido com `grupos: true`, as
+  sedes ao fundo, a nota do método e os quintis dos estados); pelo Ver por Município, todos os municípios do Brasil, com os pontos
+  do motor (sem os grupos), o fundo e os quintis do motor sem pergunta (a mesma contagem por cor que o motor devolveu por grupo e a legenda com as contagens); o Amazonas (desde
   24/10/2026, marcado pela caixa do estado na Seleção, porque abrir a lista de um estado só mostra a lista) com os pontos já guardados, os
   quintis dele e o enquadramento com contexto (os pontos do estado só na parte central do mapa); os quintis escolhidos no
   gráfico, iguais aos do mapa;
-  a régua, que esmaece sem esconder; a seleção pelo clique e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
+  a régua, que esmaece sem esconder; a seleção pelo clique com a Comparar aberta (desde 06/11/2026) e a dica; o zoom, o mapinha do canto e "Ver tudo"; o mapinha na dica
   do gráfico; o convite depois das Condições; a análise espacial com a Escolha dos territórios (desde 27/10/2026: a janela que
   abre sozinha, a base na seleção prévia do Amazonas e a referência "Mesma UF de cada município da base" com população acima da
   mediana do estado, a frase da referência, o pedido com a consulta, a referência de cada município entre os do filtro e nunca
@@ -268,8 +288,8 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
   lado a lado em 1.700 px, sem
   legenda repetida;
   o Histórico, que reabre a análise no mapa sem recalcular; e o celular. O roteiro da área
-  (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista desligada, com o motivo e o atalho, e os
-  convites.
+  (`backend/tests/ui_area_de_analise.py`) confere a ligação do mapa à área: a vista ligada vendo por estado (06/11/2026) e os
+  convites; `backend/tests/ui_navegacao.py`, as 27 bolhas dos estados.
   O roteiro do modo escuro (`backend/tests/ui_modo_escuro.py`, suíte `bloco1`) abre o mapa com o navegador no escuro e confere a
   superfície escura no canvas (`getImageData`), `data-esquema`, o gancho de teste e a legenda dos quintis legível; se o motor
   não entregar os pontos no catálogo sintético, confere só a área do mapa e registra isso na saída.
@@ -278,6 +298,6 @@ contínua mostra a rampa do esquema em uso, com as mesmas marcas.
 
 - Sem limites oficiais de estados nem do Brasil: o formato vem dos próprios pontos (seção 4 de
   [Mapas e visualizações](BLOCO3_MAPAS_VISUALIZACOES.md)).
-- Estados em ladrilhos: não foram aprovados (precisariam de um adendo à SPEC); nos estados, o mapa fica desligado, com o motivo
-  e o atalho para os municípios. Com o Brasil como unidade (24/10/2026), também: "O Brasil, como unidade, não tem um ponto no
-  mapa: cada ponto do mapa é um município.", sem atalho.
+- Estados em ladrilhos ou com limites: não foram aprovados. Desde 06/11/2026, vendo por estado, cada estado é uma bolha no ponto
+  de desenho do motor (seção "Os estados no mapa"); até essa data, o mapa ficava desligado nos estados, com o motivo e o atalho
+  para os municípios. O Brasil como unidade (24/10 a 06/11/2026), que também deixava o mapa desligado, saiu da interface.

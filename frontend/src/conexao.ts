@@ -52,7 +52,8 @@ export const DURACAO_DO_RESTABELECIMENTO_MS = 6000;
 /** As rotas que esperam vaga ou contam nos pedidos da sessão (backend/carga.py, PESADAS e CONVERSA; test_hospedagem.py
  * confere a lista): só a resposta de uma delas mostra que o serviço deixou de estar no limite. */
 export const ROTAS_COM_LIMITE: ReadonlySet<string> = new Set(["/api/inspect", "/api/preflight", "/api/analyze", "/api/painel",
-  "/api/painel/referencias", "/api/painel/territorios", "/api/painel/mapa", "/api/brazil/description", "/api/llm/interpret",
+  "/api/painel/referencias", "/api/painel/territorios", "/api/painel/mapa", "/api/painel/lugar", "/api/brazil/description",
+  "/api/llm/interpret",
   "/api/llm/interpret-context", "/api/exploration/interpret"]);
 
 export type Relogio = { agendar: (acao: () => void, ms: number) => unknown; cancelar: (id: unknown) => void };

@@ -6,8 +6,8 @@ luminância relativa do WCAG):
   modelo de planilha e a conversa flutuante com fundo escuro e texto claro, a 4,5:1 ou mais do fundo;
 - a base carregada sem seleção (as abas, a Seleção de Territórios com os níveis, a busca e o que entra na análise; desde a segunda
   rodada de 24/10/2026, Desfazer (o "Voltar" até 25/10/2026) e Limpar seleção no alto, o aviso da mudança coletiva e o "Voltar aos
-  estados" preenchido), os estados (E1)
-  e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
+  estados" preenchido), os estados (E1), com a trilha e a faixa do lugar (06/11/2026: os números do Brasil e o Ver por)
+  escuras e legíveis, e o Amazonas (E2), marcado na lista de territórios, com "Entenda esta análise": o fundo da área e do gráfico escuros, o título, o subtítulo, os rótulos dos eixos e o aviso (âmbar) com contraste
   de texto; as bolhas na série única do escuro (#1ba3b5), com o anel na superfície escura (#1a1a19), e o eixo no tom do escuro;
 - a dica da bolha, o painel de uma função, os Detalhes e o diálogo de Nova sessão, todos escuros e legíveis;
 - o mapa (botão analise-desenho-mapa): com os pontos do motor, a superfície escura no canvas, as cores do escuro no gancho de
@@ -214,7 +214,8 @@ def main():
             chat.get_by_test_id("painel-chat-minimizar").click()
 
         # 3. A base carregada sem seleção: o aviso e a lista de territórios, escuros e legíveis. Os estados (E1), escolhidos na
-        # Seleção de Territórios: o gráfico escuro; as bolhas na série única do escuro; o mapa desligado mostra o motivo (âmbar).
+        # Seleção de Territórios: o gráfico escuro; as bolhas na série única do escuro; a trilha e a faixa do lugar (06/11/2026),
+        # escuras e legíveis; vendo por estado, o mapa existe (o passo 6 confere o mapa no escuro).
         area.get_by_test_id("analise-fonte-brasil").click()
         territorios = area.get_by_test_id("analise-territorios")
         expect(territorios).to_be_visible(timeout=120000)
@@ -249,11 +250,19 @@ def main():
         expect(area.locator(BOLHAS).first).to_be_visible(timeout=30000)
         escuro(grafico, "gráfico")
         assert set(preenchimentos()) == {SERIE_ESCURO}, preenchimentos()
-        aperta(area.get_by_test_id("analise-desenho-mapa"))
-        motivo = area.get_by_test_id("analise-desenho-motivo")
-        expect(motivo).to_be_visible()
-        escuro(motivo, "motivo do mapa desligado")
-        legivel(motivo, "motivo do mapa desligado (âmbar)")
+        expect(area.get_by_test_id("analise-desenho-mapa")).not_to_have_attribute("aria-disabled", "true")
+        expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
+        trilha = area.get_by_test_id("analise-trilha")
+        legivel(trilha.locator('[aria-current="location"]'), "parte atual da trilha (Brasil)")
+        faixa = area.get_by_test_id("analise-faixa")
+        expect(faixa).to_have_attribute("data-lugar", "todo")
+        escuro(faixa, "faixa do lugar")
+        numero = faixa.locator('[data-testid="analise-faixa-numero"][data-chave="profissionais"]')
+        expect(numero).to_be_visible(timeout=60000)
+        legivel(numero.locator("strong"), "número da faixa (profissionais)")
+        legivel(numero.locator("dt"), "nome do número da faixa")
+        legivel(faixa.get_by_test_id("analise-ver-por-estados"), "Ver por Estado (escolhido)")
+        legivel(faixa.get_by_test_id("analise-ver-por-municipios"), "Ver por Município")
         shot("03-estados")
 
         # 4. O Amazonas marcado na lista de territórios (E2): fundo da área e do gráfico escuros, textos legíveis, a paleta do escuro.

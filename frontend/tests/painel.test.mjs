@@ -761,8 +761,12 @@ test('disponibilidade das famílias: rotatividade só com identificador; motivos
   const nosEstados = M.disponibilidadeDaFamilia('espacial', c({nivel: 'estados'}));
   assert.equal(nosEstados.disponivel, true);
   assert.equal(nosEstados.pendente, true);
-  assert.equal(nosEstados.motivo, 'A distância é medida entre municípios: os estados não têm um ponto no mapa. Para usar esta análise, ' +
-    'escolha municípios na Seleção de Territórios.');
+  // Vendo por estado (06/11/2026, item 3.5 do comando): só a mensagem; o botão que troca o "Ver por" para município fica na área.
+  assert.equal(nosEstados.motivo, 'A Análise Espacial mede distâncias entre municípios.');
+  assert.equal(M.textoEspacialNosGrupos(BR), 'A Análise Espacial mede distâncias entre municípios.');
+  assert.equal(M.textoVerUnidadesDosGrupos(BR), 'Ver os municípios destes estados');
+  assert.equal(M.textoVerUnidadesDosGrupos({unidade: {singular: 'comuna', plural: 'comunas'}, grupo: {singular: 'província', plural: 'províncias'}}),
+    'Ver as comunas destas províncias');
   // O motivo do motor para o nível (os estados e o Brasil sem ponto) não desliga a aba: ela espera municípios.
   assert.equal(M.disponibilidadeDaFamilia('espacial', c({nivel: 'brasil', disponibilidade: {espacial: {disponivel: false, motivo: 'Não se aplica.'}}})).pendente, true);
   // Desde 24/10/2026, a tendência vale para os estados e para o Brasil (matriz D3), como para os municípios.

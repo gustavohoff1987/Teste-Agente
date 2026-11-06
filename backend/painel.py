@@ -3335,9 +3335,170 @@ def territorios(sources, mapping, options, frame=None) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------------------------- lugar em uso (página única)
+# Navegação por níveis (comando do responsável de 06/11/2026, itens 2 e 3): a faixa fixa no alto das análises mostra os números
+# do lugar em uso na trilha ("Brasil", "Brasil › Pará"), e o todo é a referência fixa de toda análise (a linha tracejada do
+# gráfico e da Tendência). Esta rota dá esses números, prontos nas fontes: o todo pela fonte nacional e o grupo (o estado) pela
+# fonte estadual, na competência da análise, com a variação percentual (CAP-TMP-01) desde a competência `desde` e, com `serie`,
+# os valores de cada competência do intervalo. Rota à parte do gráfico: trocar o "Ver por" (quem é comparado) não pede a faixa
+# de novo, e a chave de execução do gráfico não muda.
+LUGAR_KEYS = frozenset(("competencia", "categoria", "grupo", "desde", "serie", "premissas", "rotulos"))
+NOTE_LUGAR = ("Números do lugar em uso, prontos nas fontes: o Brasil pela contagem da fonte nacional (população pela regra "
+              "BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (regra UF-CONTAGEM-ESTADUAL-1, população "
+              "UF-POP-MUNICIPIOS-1). Nenhum deles é a soma dos municípios, e o do estado não é somado ao do Brasil.")
+NOTE_LUGAR_VARIACAO = ("Variação percentual (CAP-TMP-01) entre a competência inicial e a da análise: (valor final − valor "
+                       "inicial) / valor inicial × 100, em aritmética exata; não indica tendência. Com valor inicial zero, "
+                       "não é avaliável (BASE_ZERO).")
+LUGAR_SO_BRASIL = ("Nesta versão, os números do lugar em uso (a faixa e a linha do todo) vêm das fontes nacional e estadual da "
+                   "base do Brasil.")
+
+
+def _lugar_grupo(ctx, raw):
+    """O grupo do lugar em uso: o estado, pelo prefixo do código IBGE (ou o id "uf:"), com registro na base."""
+    if raw is None or raw == "":
+        return None
+    prefix = raw[3:] if isinstance(raw, str) and raw.startswith("uf:") else raw
+    if not isinstance(prefix, str) or prefix not in STATES or not ctx.index.by_uf.get(prefix):
+        raise ValueError("Estado do lugar inválido: envie em grupo o prefixo do código IBGE do estado, por exemplo \"15\".")
+    return prefix
+
+
+def _lugar_desde(ctx, raw):
+    """A competência inicial da variação da faixa: anterior à da análise, com as premissas temporais da mudança."""
+    if raw is None or raw == "":
+        return None
+    if not isinstance(raw, str) or raw not in ctx.periods:
+        raise ValueError("Competência inicial do lugar inexistente nesta versão da base: " + str(raw)[:16] + ".")
+    if ctx.positions[raw] >= ctx.positions[ctx.period]:
+        raise ValueError("A competência inicial do lugar (desde) precisa ser anterior à competência da análise.")
+    _temporal_premises(ctx)
+    return raw
+
+
+def _lugar_entrada(ctx, base, final, initial, desde):
+    """Um nível do lugar (o todo ou o grupo): os valores da competência e, com `desde`, os iniciais e a variação percentual
+    campo a campo (_percentages), com os motivos; nada é estimado, e o valor ausente fica nulo, nunca zero."""
+    values = final["valores"] if final is not None else {}
+    entry = {**base, "competencia": ctx.period, "quantidade": _num(values.get("quantidade")),
+             "populacao": _num(values.get("populacao")), "densidade": _num(values.get("densidade")), "desde": desde,
+             "inicial": None, "variacao_percentual": None, "motivos_variacao": []}
+    entry["avaliabilidade"] = ("NAO_AVALIAVEL" if entry["quantidade"] is None else "AVALIAVEL" if entry["densidade"] is not None
+                               else "AVALIAVEL_COM_LIMITACOES")
+    if desde is None:
+        return entry
+    if entry["quantidade"] is None:
+        entry["motivos_variacao"] = ["Variação não avaliável: sem valor na competência da análise (SEM_REGISTRO_OBSERVADO)"]
+    elif initial is None or not _present(initial["valores"].get("quantidade")):
+        entry["motivos_variacao"] = [_no_initial(desde)]
+    else:
+        variation, _ok, why, _exact = _percentages(ctx, initial, final)
+        entry.update(inicial=_values3(initial), variacao_percentual=variation, motivos_variacao=why)
+    return entry
+
+
+def _lugar_todo(ctx, desde, serie):
+    """O todo da base do Brasil: a contagem da fonte nacional, como a linha de contexto (D5) e o nível Brasil (D3)."""
+    base = {"id": BRAZIL_ID, "nivel": "todo", "rotulo": "Brasil", "fonte": "nacional", "regra": "BR-POP-JUNHO-1"}
+    periods = list(dict.fromkeys([ctx.period, *([desde] if desde else []), *(serie or [])]))
+    reference = national_reference(ctx.sources, periods, [ctx.category])
+    if reference.get("estado") == "INDISPONIVEL":
+        entry = _lugar_entrada(ctx, base, None, None, desde)
+        entry["motivo"] = "Sem a fonte nacional nesta base: " + str(reference.get("motivo") or "") + "."
+        entry["serie"] = None if serie is None else [{"competencia": period, "quantidade": None, "populacao": None,
+                                                      "densidade": None} for period in serie]
+        return entry
+    by_period = {entry["competencia"]: entry for entry in reference["valores"]}
+
+    def record(period):
+        value = by_period.get(str(period))
+        return None if value is None else {"valores": {"populacao": value["denominador"], "quantidade": value["numerador"],
+                                                       "densidade": value["valor"]}}
+
+    final = record(ctx.period)
+    entry = _lugar_entrada(ctx, base, final, record(desde) if desde else None, desde)
+    value = by_period.get(str(ctx.period)) or {}
+    entry["motivo"] = None if entry["avaliabilidade"] == "AVALIAVEL" else (
+        "Sem registro em " + human_period(ctx.period) + " na fonte nacional (categoria " + ctx.category + "): não avaliável, "
+        "nunca zero (SEM_REGISTRO_OBSERVADO)." if entry["quantidade"] is None else
+        "Densidade não avaliável em " + human_period(ctx.period) + ": " + str(value.get("nota") or "sem a população "
+        "nacional de junho do ano (regra BR-POP-JUNHO-1)") + " (" + str(value.get("motivo") or "DENOMINADOR_AUSENTE") + ").")
+    entry["serie"] = None if serie is None else [
+        {"competencia": period, **{field: _num((record(period) or {"valores": {}})["valores"].get(field)) for field in FIELDS3}}
+        for period in serie]
+    return entry
+
+
+def _lugar_estado(ctx, prefix, desde, serie):
+    """O grupo do lugar (o estado inteiro): a contagem estadual de médicos únicos e a população do estado, pela fonte estadual,
+    como os totais individualizados (_state_totals) e o nível estados (_state_measures)."""
+    key = "uf:" + prefix
+    base = {"id": key, "nivel": "grupo", "rotulo": uf_label(prefix), "sigla": STATES[prefix][0], "nome": STATES[prefix][1],
+            "fonte": "estadual", "regra": "UF-CONTAGEM-ESTADUAL-1"}
+    state, available, reason = state_source(ctx.sources)
+    if state is None or prefix not in set(available or ()):
+        entry = _lugar_entrada(ctx, base, None, None, desde)
+        entry["motivo"] = reason if state is None else "Estado sem registro na fonte estadual: sem contagem individualizada."
+        entry["serie"] = None if serie is None else [{"competencia": period, "quantidade": None, "populacao": None,
+                                                      "densidade": None} for period in serie]
+        return entry
+
+    def record(period):
+        return _state_measures(ctx, period, [key]).records.get(key)
+
+    final = record(ctx.period)
+    entry = _lugar_entrada(ctx, base, final, record(desde) if desde else None, desde)
+    [total] = _state_totals(ctx, [prefix])
+    entry["motivo"] = total["motivo"]
+    entry["serie"] = None if serie is None else [
+        {"competencia": period, **{field: _num(((record(period) or {"valores": {}})["valores"]).get(field))
+                                   for field in FIELDS3}} for period in serie]
+    return entry
+
+
+def lugar(sources, mapping, options, frame=None) -> dict:
+    """POST /api/painel/lugar (06/11/2026): os números do lugar em uso na trilha, do motor. `todo`: na base do Brasil, a
+    contagem da fonte nacional, a população BR-POP-JUNHO-1 e a densidade (os valores da linha de contexto e do nível Brasil);
+    `grupo` (quando pedido em `grupo`): o estado inteiro, pela fonte estadual. Com `desde`, a variação percentual de cada um
+    (CAP-TMP-01); com `serie` ({"competencias": [...]}), os valores de cada competência (as linhas de referência da
+    Tendência). Nada é somado nem estimado; nada é registrado na sessão e nada vai ao provedor de IA."""
+    ctx = context(sources, mapping, options, LUGAR_KEYS, frame=frame, page=True)
+    if not ctx.brazil:
+        raise ValueError(LUGAR_SO_BRASIL)
+    prefix = _lugar_grupo(ctx, options.get("grupo"))
+    desde = _lugar_desde(ctx, options.get("desde"))
+    serie = _series_window(ctx, options.get("serie"))
+
+    def calcular():
+        notes = [NOTE_LUGAR] + ([NOTE_LUGAR_VARIACAO] if desde else [])
+        return {"competencia": ctx.period, "categoria": ctx.category, "desde": desde, "serie": serie,
+                "todo": _lugar_todo(ctx, desde, serie),
+                "grupo": _lugar_estado(ctx, prefix, desde, serie) if prefix else None, "notas": notes}
+
+    return _reaproveitar(ctx, "lugar", {"grupo": prefix, "desde": desde, "serie": serie}, calcular)
+
+
 # --------------------------------------------------------------------------------------------- mapa (página única)
-MAP_KEYS = frozenset(("competencia", "categoria", "premissas", "rotulos"))
+MAP_KEYS = frozenset(("competencia", "categoria", "premissas", "rotulos", "grupos"))
 NO_COORDINATES = "A planilha não tem colunas de latitude e longitude associadas: o mapa precisa delas."
+# O ponto de cada estado no mapa do nível de grupo (06/11/2026, divergência aprovada da RQ-REP-07 pelo responsável, só para a
+# bolha no centro): a média das latitudes e a média das longitudes das sedes municipais válidas do estado na competência,
+# calculada aqui, só para desenhar. Não é a posição de uma sede nem um limite oficial, e nenhuma distância usa esse ponto.
+CENTER_METHOD = "CENTRO-DE-DESENHO-1"
+NOTE_CENTER = ("Cada estado aparece no mapa na média das coordenadas das sedes dos seus municípios, só para desenhar: não é a "
+               "posição de uma sede nem um limite oficial, e nenhuma distância usa esse ponto.")
+
+
+def _centros_dos_grupos(ctx, points) -> list:
+    """O ponto de desenho de cada estado (base do Brasil): a média das coordenadas das sedes válidas dos seus municípios."""
+    sums = {}
+    for point in points:
+        prefix = ctx.catalog[point["id"]]["code"][:2]
+        if prefix not in STATES:
+            continue
+        lat, lon, n = sums.get(prefix, (0.0, 0.0, 0))
+        sums[prefix] = (lat + point["lat"], lon + point["lon"], n + 1)
+    return [{"id": "uf:" + prefix, "rotulo": uf_label(prefix), "lat": lat / n, "lon": lon / n, "unidades": n}
+            for prefix, (lat, lon, n) in sorted(sums.items())]
 
 
 def mapa(sources, mapping, options, frame=None) -> dict:
@@ -3347,9 +3508,16 @@ def mapa(sources, mapping, options, frame=None) -> dict:
     governada; na planilha, as colunas de latitude e longitude no referencial confirmado pela pessoa (premissas.crs;
     sem ele, a mesma pendência da análise espacial). Cada unidade vai em `pontos` ({id, lat, lon}, graus decimais) ou,
     sem coordenada válida na competência, em `sem_coordenada` ({id, rotulo, motivo}, o motivo com o código, como nas
-    distâncias). Os ids são os dos itens de POST /api/painel, na ordem do código. Estados não têm ponto (só unidades).
-    Nada é calculado além da leitura das coordenadas, nada é registrado na sessão e nada vai ao provedor de IA."""
+    distâncias). Os ids são os dos itens de POST /api/painel, na ordem do código. Com `grupos` (true, só na base do Brasil;
+    06/11/2026), também o ponto de desenho de cada estado (`grupos`: {id "uf:NN", rotulo, lat, lon, unidades}), a média das
+    coordenadas das sedes válidas dos municípios dele (_centros_dos_grupos), com a nota do método. Nada mais é calculado,
+    nada é registrado na sessão e nada vai ao provedor de IA."""
     ctx = context(sources, mapping, options, MAP_KEYS, frame=frame, page=True)
+    grupos = options.get("grupos")
+    if grupos not in (None, True, False):
+        raise ValueError("Grupos do mapa inválidos: envie grupos como true para os pontos de desenho dos estados.")
+    if grupos and not ctx.brazil:
+        raise ValueError("Os pontos de desenho dos grupos existem só na base do Brasil, com os estados.")
     if not ctx.brazil and not (ctx.mapping.get("latitude") and ctx.mapping.get("longitude")):
         raise ValueError(NO_COORDINATES)
     settings = _spatial_settings(ctx)
@@ -3365,7 +3533,10 @@ def mapa(sources, mapping, options, frame=None) -> dict:
             missing.append({"id": key, "rotulo": _label(ctx.catalog[key]),
                             "motivo": "Sem coordenada válida em " + human_period(ctx.period) + ": " +
                                       CONDITION_TEXT[state] + " (" + MOTIVES[state] + ")"})
-    return {"competencia": ctx.period, "referencial": spatial.referencial, "pontos": points, "sem_coordenada": missing}
+    body = {"competencia": ctx.period, "referencial": spatial.referencial, "pontos": points, "sem_coordenada": missing}
+    if grupos:
+        body.update(grupos=_centros_dos_grupos(ctx, points), metodo_grupos=CENTER_METHOD, nota_grupos=NOTE_CENTER)
+    return body
 
 
 # --------------------------------------------------------------------------------------------- frase-resumo (página única)

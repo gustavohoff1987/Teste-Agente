@@ -7,14 +7,18 @@ quatro análises com os nomes padronizados: **Análise de Distribuição**, **An
 que ela faz (nas análises, desde 24/10/2026, em "Entenda esta análise", recolhido por padrão desde 25/10/2026), mesmo quando a análise não pode ser
 executada com os dados; as análises mostram os ajustes delas no mesmo painel. Há um indicador único, funções comuns a todas as análises e,
 abaixo, os Detalhes. Desde a segunda rodada de 24/10/2026, **Desfazer** (até 25/10/2026, "Voltar") e **Limpar seleção** ficam
-fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
+fixos no alto da área, lado a lado, em todas as abas (seção "Desfazer e Limpar seleção"). Desde 06/11/2026, logo abaixo deles,
+a **trilha** do lugar em uso ("Brasil › Pará › MARABA (PA)"), igual em todas as abas, e, no alto de cada aba de análise, a
+**faixa do lugar**, com os números do todo ou do estado e o "Ver por" (seção "Navegação por níveis"). O desenho é o gráfico de bolhas e, desde 23/10/2026, também o mapa, como segunda vista da mesma análise
 (Gráfico | Mapa | Lado a lado). No gráfico, o eixo Y é o indicador; o eixo X só aparece com a análise espacial. Este documento descreve a área de análise. O motor e as rotas
-(`/api/painel`, `/api/painel/referencias`, `/api/painel/mapa` e, desde 27/10/2026, `/api/painel/territorios`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
+(`/api/painel`, `/api/painel/referencias`, `/api/painel/mapa`, desde 27/10/2026, `/api/painel/territorios` e, desde 06/11/2026,
+`/api/painel/lugar`) estão em [Painel integrado de bolhas](PAINEL_INTEGRADO.md); a
 estrutura da página (cabeçalho, fonte de dados, Histórico e conversa) fica no README e nos documentos da interface e da conversa.
 
 Código: `frontend/src/AreaDeAnalise.tsx` (a área e o estado), `PainelChart.tsx` (bolhas, dica e legendas), `MapaAnalise.tsx`
 (o mapa) e `transicaoVistas.ts` (a troca animada entre o gráfico e o mapa), montados pelo contrato de `mapaContrato.ts`,
-`PainelTerritorios.tsx` (Seleção de Territórios), `EscolhaDosTerritorios.tsx` (a janela Escolha dos territórios da Análise
+`PainelTerritorios.tsx` (Seleção de Territórios), `FaixaDoLugar.tsx` (desde 06/11/2026: a trilha, o "Ver por", a faixa do lugar
+e o cartão do território), `EscolhaDosTerritorios.tsx` (a janela Escolha dos territórios da Análise
 Espacial), `PainelSeries.tsx` (visão Série temporal da tendência), `PainelSetas.tsx`
 (quadro de setas da tendência, na visão Tendência), `PainelRotatividade.tsx` (barras de
 100%), `PainelGavetas.tsx` (painéis das funções), `PainelRuler.tsx` (régua), `PainelDetalhes.tsx` (tabela, não avaliáveis e
@@ -68,8 +72,9 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
   para "ver no mapa", `"grafico"` para "volte ao gráfico"). Cada campo é validado; o que não vale vira um aviso
   ("A competência … não existe nesta base"), nunca um erro. "Junte Manaus, Iranduba e Manacapuru" cria o conjunto; "compare
   Manaus e Tefé" pede a comparação; uma família indisponível fica de fora, com o motivo. O mapa é conferido na análise que
-  resulta do pedido: "mostre os municípios do Amazonas no mapa" abre o mapa; nos estados, o aviso diz o motivo ("Mapa: Os
-  estados não têm um ponto no mapa…"). Numa planilha sem população, um pedido pela densidade fica na quantidade, com o motivo.
+  resulta do pedido: "mostre os municípios do Amazonas no mapa" abre o mapa; desde 06/11/2026, vendo por estado na base do
+  Brasil, também (cada estado no ponto de desenho do servidor); quando o mapa não existe, o aviso diz o motivo ("Mapa: …"). O
+  pedido do nível `brasil` (o Brasil como unidade, de 24/10 a 06/11/2026) leva ao todo, vendo por estado. Numa planilha sem população, um pedido pela densidade fica na quantidade, com o motivo.
   Um pedido feito antes dos dados é aplicado quando a base fica pronta. Desde 05/11/2026, a área informa o desfecho de cada
   pedido (`onDesfecho`, com o id do pedido): `concluido` quando tudo o que ele trouxe está na área e o motor calculou a
   definição que resultou dele (com a vista do mapa, também os pontos do mapa); `parcial` com os avisos acima e o resto à vista
@@ -146,16 +151,19 @@ da tela).
     marcado.
   - **Equivalências completas:** os municípios de um estado marcados todos, um a um, viram o estado inteiro; todos os estados
     inteiros viram o Brasil inteiro; um estado inteiro absorve os seus municípios avulsos (`normalizarArvore`, nada se sobrepõe).
-- **A unidade de análise** ("Cada ponto da análise é", `analise-nivel`, com `analise-nivel-municipios`, `analise-nivel-estados` e
-  `analise-nivel-brasil`, só na base do Brasil): **Municípios**, sempre (o padrão: selecionar o Brasil ou um estado mostra os
-  municípios no gráfico, no mapa e nos Detalhes, com a dica de cada um); **Estados**, só com estados inteiros marcados, sem
-  municípios avulsos nem exclusões (cada ponto é um estado, com a contagem estadual de médicos únicos, que é a do estado inteiro);
-  **Brasil**, só com o Brasil inteiro (o país como uma unidade, com a contagem nacional). A que a seleção não permite fica à vista,
-  tracejada (`aria-disabled`, `data-possivel="false"`), e, escolhida, mostra o motivo (`analise-nivel-motivo`) sem mudar nada. Sem
-  nada marcado, Estados e Brasil são atalhos: marcam todos os estados (como unidades) ou o Brasil inteiro. Uma mudança na árvore
-  mantém a unidade enquanto a seleção ainda a permite (com menos estados inteiros, os que ficaram); senão, ela volta a Municípios,
-  com o aviso. Um pedido da conversa e a reabertura do Histórico deixam a árvore igual ao que está na análise (`unificarEscolha`):
-  os estados pedidos como unidades ficam marcados inteiros; o Brasil, inteiro.
+- **Ver por** (06/11/2026, comando do responsável, item 2; no lugar de "Cada ponto da análise é", de 05/11/2026; `analise-nivel`,
+  com `analise-nivel-estados` e `analise-nivel-municipios`, só na base do Brasil): o nível que cada ponto mostra, só entre os
+  níveis abaixo do lugar em uso (`opcoesVerPor`). No todo (o Brasil inteiro) e numa seleção só de estados inteiros: **Estado**
+  (cada ponto é um estado inteiro, com a contagem estadual de médicos únicos, que é a do estado inteiro) e **Município** (cada
+  ponto é um município, o padrão: selecionar um estado mostra os municípios no gráfico, no mapa e nos Detalhes); sem nada
+  marcado, as mesmas duas, e Estado é o atalho de todos os estados. Num estado ("Brasil › Pará"), num município ou numa seleção
+  livre, só o município vale, e o controle não aparece. O Brasil deixou de ser opção: o todo é a referência fixa de toda análise
+  (decisão do responsável de 06/11/2026; de 24/10 a 06/11/2026, "Brasil" era uma unidade de análise, com um ponto só). Uma mudança
+  na árvore mantém o Ver por enquanto ele vale; senão, ele volta a Município, com o aviso. Chegar ao Brasil inteiro pela raiz da
+  árvore leva a ver por estado ("Brasil inteiro: ver por estado. Para ver os municípios, use o Ver por."). O mesmo Ver por aparece
+  na faixa do lugar, no alto das abas de análise (`analise-ver-por`). Um pedido da conversa e a reabertura do Histórico deixam a
+  árvore igual ao que está na análise (`unificarEscolha`): os estados pedidos como unidades ficam marcados inteiros; uma análise
+  guardada com o Brasil como unidade reabre no todo, vendo por estado.
 - **Totais individualizados** (`analise-abrangencia`, `PainelAbrangencia.tsx`; no que está na análise, compacto, e no alto do
   resultado, abaixo da frase-resumo): com os municípios como unidade e uma abrangência completa, os totais das fontes
   individualizadas, do motor (`contexto.brasil_completo` e `contexto.estados` de `/api/painel`; Docs/PAINEL_INTEGRADO.md): com o
@@ -173,9 +181,9 @@ da tela).
   (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
   não muda a seleção.
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
-  "Brasil (total nacional)", "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
+  "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
   estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
-  `analise-ver-analise`), a unidade de análise e os totais. Abaixo (`analise-selecionados-itens`), o que entra, agrupado por
+  `analise-ver-analise`), o Ver por e os totais. Abaixo (`analise-selecionados-itens`), o que entra, agrupado por
   estado (`analise-selecionado`): o estado inteiro numa linha ("Amazonas · todos os 62") e, quando são só alguns, cada município
   como uma etiqueta com o × dele (`analise-selecionado-unidade`, "Tirar ABAIRA (BA)"); cada estado com o × que o tira inteiro
   (`analise-selecionado-tirar-grupo`); o Brasil inteiro numa linha ("Todos os municípios do Brasil (5.570)"), com o ×; os
@@ -188,10 +196,13 @@ da tela).
   (`analise-selecao-aviso`: "Municípios da Bahia desmarcados. Para desfazer, use o botão Desfazer, no alto."; "Todos os estados
   marcados, como unidades. …"). Toda mudança da Seleção, uma a uma ou coletiva, também o × de uma unidade e a troca da unidade de
   análise, pode ser desfeita pelo Desfazer do alto (seção seguinte).
-- **No gráfico (E1):** com os estados como unidades, clicar numa bolha de estado (ou Enter na bolha em foco) abre os municípios
-  dele na análise (a árvore marca o estado inteiro, e a unidade volta a Municípios); a dica da bolha sob o mouse ou em foco mostra
-  a ação "Ver os N municípios". O Desfazer do alto desfaz a navegação, e o aviso diz isso ("Mostrando os municípios do Amazonas.
-  Para voltar aos estados, use Desfazer, no alto.").
+- **No gráfico e no mapa** (06/11/2026, comando do responsável, item 3): tocar (ou Enter) numa bolha de estado abre os municípios
+  dele ("Brasil › Pará"; a árvore marca o estado inteiro, e o Ver por volta a Município); tocar num município abre o lugar dele
+  ("Brasil › Pará › MARABA (PA)", com o cartão do território, seção "Navegação por níveis"). A dica da bolha sob o mouse ou em foco
+  mostra a ação ("Ver os N municípios", "Abrir MARABA (PA)"). Com a Comparar ou a Juntar abertas (a escolha de itens em curso),
+  tocar marca e desmarca, como antes; a caixa da tabela dos Detalhes também marca. Voltar é pela trilha: o aviso diz "Mostrando os
+  municípios do Amazonas. Para voltar, toque em Brasil na trilha, no alto." (até 06/11/2026, "Para voltar aos estados, use
+  Desfazer, no alto."); o Desfazer continua desfazendo cada passo, mas não é o caminho para mudar de nível.
 - **Planilhas:** sem a unidade de análise (Brasil e Estados), com os mesmos passos e a nomenclatura da planilha (a busca "Buscar
   distrito ou província"). Com coluna-mãe (o papel `grupo_territorial`), a árvore tem a raiz "Toda a planilha" ("todos os 4
   distritos") e os grupos como os estados, com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde
@@ -215,8 +226,8 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
 - **Desfazer** (`analise-desfazer`, a seta curva do desfazer, ↶, o ícone universal do Ctrl+Z): um desfazer sequencial de toda a
   interação na área. Até 25/10/2026, chamava-se "Voltar" (`analise-voltar`), com a seta ←; o nome e a seta pareciam levar ao
   começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
-  da direita), trocar a unidade de análise, abrir e fechar a lista de um estado, abrir um estado pela bolha e o atalho do
-  mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
+  da direita), trocar o Ver por, abrir e fechar a lista de um estado, abrir um estado ou um município pela bolha, ir a um
+  lugar pela trilha, o atalho do mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
   um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, a
   Escolha dos territórios calculada), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
   os itens marcados no desenho, Limpar filtros, a escala e a vista do desenho, um pedido da conversa e a reabertura do
@@ -242,20 +253,51 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
 - **Fechar a lista** (`analise-grupo-voltar`, no fim da lista aberta de um estado; até 05/11/2026, "Voltar aos estados", maior e
   preenchido, quando a lista tomava o lugar da lista dos estados): só fecha a lista.
 
-### Brasil como unidade
+### Navegação por níveis: a trilha, a faixa do lugar e o cartão
 
-Decisões D3 e D4 (24/10/2026, pedido do responsável): com a unidade de análise Brasil (desde 05/11/2026, com o Brasil inteiro marcado
-na árvore), a análise usa o país inteiro como uma unidade (`nivel: "brasil"`), com a contagem da fonte nacional e a população pela
-regra BR-POP-JUNHO-1. Com os municípios como unidade e o Brasil inteiro marcado, o mesmo total nacional aparece nos totais
-individualizados (seção anterior), ao lado dos municípios. O título fica "… no Brasil", e o subtítulo,
-"A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população.". Valem a Distribuição (uma
-bolha) e a Tendência (a série nacional, na mesma regra de classes); a linha de contexto do Brasil não aparece, porque o item já
-é o total nacional. O que agrupa, ordena, filtra ou compara vários territórios não se aplica (matriz da D3): Grupos e faixas
-saem dos ajustes, e as funções, exceto Exportar, ficam desligadas, com o motivo ("Com o Brasil como unidade, há um território
-só: esta função vale para vários."); um painel de função aberto antes fecha. A Análise Espacial espera municípios ("A distância é medida entre municípios: o Brasil,
-como unidade, não tem um ponto no mapa. Para usar esta análise, escolha municípios na Seleção de Territórios."), e o mapa fica
-desligado, com o motivo ("O Brasil, como unidade, não tem um ponto no mapa: cada ponto do mapa é um município."), sem atalho.
-Desde 24/10/2026, a Análise de Tendência também vale para os estados (um, vários ou todos), com a série estadual do motor.
+Comando do responsável de 06/11/2026, itens 2 e 3 (`FaixaDoLugar.tsx`; as regras puras em `painelModel.ts`: `lugarDaTrilha`,
+`opcoesVerPor`, `desdeDaFaixa`, `populacaoResumida`, `textoDaReferencia` e `nomeCurtoDoNivel`). Decisão do responsável da mesma
+data: o todo deixa de ser uma unidade de análise e passa a ser a referência fixa de toda análise.
+
+- **A trilha** (`analise-trilha`, logo abaixo de Desfazer e Limpar seleção, igual em todas as abas, também na Seleção): o lugar em
+  uso, do todo à unidade ("Brasil", "Brasil › Pará", "Brasil › Pará › MARABA (PA)"). Cada parte (`analise-trilha-parte`, com
+  `data-chave` todo, grupo, unidade ou selecao) leva àquele nível: o Brasil, ao todo, vendo por estado; o estado, a ele inteiro,
+  vendo por município. A parte atual fica marcada (`aria-current="location"`); um estado só em parte ("Brasil › Pará", com
+  alguns municípios do Pará) continua tocável e leva ao estado inteiro. Escolhas livres que tocam mais de um estado ficam
+  "Brasil › Seleção"; tudo dentro de um estado só, "Brasil › Pará". Sem nada escolhido, "Brasil", com a dica de tocar no nome ou
+  usar a Seleção. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta ao todo
+  sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
+  move a trilha do mesmo jeito. Numa planilha, a trilha começa em "Toda a planilha".
+- **A faixa do lugar** (`analise-faixa`, no alto de todas as abas de análise, com `data-lugar` e `data-grupo`): o nome do lugar,
+  a competência e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
+  palavras ("212,6 milhões", com o número inteiro ao lado), a densidade por 1.000 habitantes (2,36) e a variação da densidade
+  desde o primeiro dos últimos 4 períodos anuais até a competência da análise ("Desde jun/2021", a mesma janela com que a
+  Tendência abre; sem 4 períodos anuais, a variação não aparece). Num estado, os números dele (o Pará: 10.307 médicos, 1,19) e,
+  abaixo, o todo como referência ("Pará 1,19 · Brasil 2,36", `analise-faixa-referencia`); numa seleção livre, só a referência do
+  todo, sem nenhuma soma. Os números vêm prontos do motor (`POST /api/painel/lugar`, [Painel integrado](PAINEL_INTEGRADO.md)):
+  o Brasil pela fonte nacional (BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (UF-CONTAGEM-ESTADUAL-1),
+  nunca a soma dos municípios; a variação é a do motor (CAP-TMP-01). Trocar o Ver por não os pede de novo. Cada número
+  (`analise-faixa-numero`) leva `data-chave` e `data-valor` (o valor do motor, em precisão integral). Nesta etapa, só na base do
+  Brasil.
+- **O cartão do território** (`analise-cartao`, no lugar dos números da faixa, no nível da unidade): a quantidade e a população
+  da unidade e as barras da densidade dela, do estado e do Brasil (`analise-cartao-barra`, com `data-chave` unidade, grupo e
+  todo; o comprimento acompanha o valor do motor, sem classe nem posição); na Análise Espacial, também a distância até a
+  referência mais próxima. Com um território só, a Distribuição mostra o cartão no lugar do gráfico (`analise-cartao-no-lugar`), e
+  o mapa continua mostrando onde ele fica.
+- **As linhas de referência:** no gráfico, a linha do todo fica tracejada, com o nome e o valor ("Brasil 2,36",
+  `analise-contexto-brasil`); dentro de um estado, também a linha dele ("Pará 1,19", `analise-linha-grupo`). Na Série temporal
+  da Tendência, as linhas tracejadas do Brasil e do estado (`analise-serie-referencia`), com os valores de cada competência
+  (só na densidade). Todos os valores, do motor.
+- **Vendo por estado:** o mapa existe (cada estado é uma bolha no ponto de desenho calculado no servidor; seção "Vista do
+  desenho" e [Mapa da página única](MAPA_DA_PAGINA_UNICA.md)); a Análise Espacial mostra só "A Análise Espacial mede distâncias
+  entre municípios." e o botão "Ver os municípios destes estados" (`analise-espacial-grupos`, `analise-espacial-ver-unidades`),
+  que troca o Ver por para município e abre a Escolha dos territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
+- **Até 06/11/2026:** com a unidade de análise Brasil (decisões D3 e D4, 24/10/2026), a análise usava o país inteiro como uma
+  unidade (`nivel: "brasil"`): uma bolha, a Tendência nacional, sem Grupos e faixas, com as funções desligadas, exceto Exportar, e o
+  mapa e a Análise Espacial desligados ("O Brasil, como unidade, não tem um ponto no mapa…"). A interface não oferece mais esse
+  nível: uma análise guardada com ele reabre no todo, vendo por estado, e o pedido da conversa pelo Brasil leva ao mesmo lugar. O
+  motor continua aceitando `nivel: "brasil"` na API ([Painel integrado](PAINEL_INTEGRADO.md)). Os totais individualizados (o
+  total nacional ao lado dos municípios, com o Brasil inteiro marcado) continuam.
 
 ## Abas, apresentação e ajustes de cada análise
 
@@ -286,8 +328,7 @@ Análise de Rotatividade com a base do Brasil, que tem contagens e não pessoas 
 | Análise Espacial | Indicador, Categoria, Competência, Territórios (a frase da consulta calculada, ou "nenhuma ainda", e o botão "Escolha dos territórios", que abre a janela) |
 | Análise de Tendência | Indicador, Categoria, Período (Anual ou Semestral, com as 4 competências usadas; abre no Anual; o ritmo que a base não tem fica desligado, com o motivo) e Visão (Tendência, no quadro de setas, Trajetória e Série temporal; "Primeira", "Última" e "Reproduzir" só na Trajetória). Na Série temporal, o Intervalo da série no lugar do Período |
 | Análise de Rotatividade | Períodos inicial e final da coorte e Categoria, sem indicador |
-| Estados (E1), na Distribuição e na análise que espera os municípios (Espacial e Rotatividade) | Indicador, Competência, Grupos e faixas (o desenho é a distribuição); na Tendência, os da Tendência |
-| Brasil como unidade | Indicador e Competência (sem Grupos e faixas: o Brasil é um só); na Tendência, os da Tendência |
+| Vendo por estado (E1), na Distribuição e na Rotatividade (que espera os municípios) | Indicador, Competência, Grupos e faixas (o desenho é a distribuição); na Tendência, os da Tendência; na Análise Espacial, nenhum: só a mensagem e o botão "Ver os municípios destes estados" (06/11/2026) |
 
 O texto das apresentações tem medida de leitura limitada, entrelinha folgada, justificação com hifenização na tela larga (no
 celular, alinhado à esquerda) e a mesma hierarquia em todas as abas.
@@ -545,9 +586,11 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   escolha volta ao mapa.
 - **Mapa indisponível,** com o botão desligado (`aria-disabled`, o motivo no `title`) e, ao acioná-lo, o motivo à vista
   (`analise-desenho-motivo`), como o das famílias:
-  - **nos estados:** "Os estados não têm um ponto no mapa: cada ponto do mapa é um município.", com o atalho "Ver os municípios
-    no mapa" (`analise-desenho-atalho`), que marca todos os municípios e abre o mapa. Os ladrilhos dos estados não foram
-    aprovados: nada de mapa nesse nível;
+  - **vendo pelos grupos numa fonte sem os pontos de desenho deles:** "No mapa desta fonte, cada ponto é um …", com o atalho
+    "Ver os … no mapa" (`analise-desenho-atalho`). Na base do Brasil, desde 06/11/2026 (item 3.2 do comando; divergência
+    aprovada de RQ-REP-07 só para isto), o mapa vendo por estado existe: cada estado é uma bolha no ponto de desenho que o servidor
+    calcula (a média das coordenadas das sedes dos municípios dele, só para desenhar), com as sedes ao fundo; sem ladrilhos nem
+    limites. Até 06/11/2026, o mapa ficava desligado nos estados, com o atalho para os municípios;
   - **na planilha sem latitude e longitude** no mapeamento (também na rotatividade): o motivo, e a tabela continua;
   - **na visão Série temporal** da tendência, que é só do gráfico ("Na visão Série temporal, cada município é uma linha no
     tempo: o mapa fica com Tendência e Trajetória.").
@@ -557,10 +600,12 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
   reduzido, com mais de 400 itens (modo leve) ou no lado a lado, a troca é direta.
 - **Pontos do mapa:** vêm do motor (`POST /api/painel/mapa`, o mesmo formulário de `/api/painel`, com a competência e a
   categoria do que está desenhado e, nas planilhas, as premissas e os rótulos): as coordenadas autorizadas de cada unidade e as
-  que não têm coordenada válida, com o motivo. A tela pede quando o mapa aparece e, em segundo plano, quando o gráfico mostra
+  que não têm coordenada válida, com o motivo; vendo por estado (06/11/2026), o pedido leva `grupos: true`, e a resposta traz
+  também o ponto de desenho de cada estado, com a nota do método. A tela pede quando o mapa aparece e, em segundo plano, quando o gráfico mostra
   unidades com o mapa disponível; guarda as últimas seis respostas por fonte e competência. Uma pendência do motor (por exemplo,
   o referencial de uma planilha) aparece na área do mapa, com as opções que ele mandar, como as pendências do gráfico.
-- **O que a área entrega ao mapa:** todas as unidades em análise (sem os estados; os conjuntos dão o anel aos membros), também,
+- **O que a área entrega ao mapa:** todas as unidades em análise (vendo por município, sem os estados; vendo por estado, desde
+  06/11/2026, os estados, cada um no ponto de desenho do servidor; os conjuntos dão o anel aos membros), também,
   desde 25/10/2026, as que o gráfico deixa de fora por falta do valor que as posiciona (`itensParaOMapa`): sem distância até a
   referência, sem o valor do indicador ou sem a coorte, cada uma no lugar dela, com a pintura da camada (na análise
   espacial, o quintil do indicador) ou, sem valor nela, vazada, e com o motivo na dica. Antes, o mapa tinha os mesmos itens do
@@ -638,7 +683,8 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo (desde 29/10/2026, com o nome de outra coluna, como o "território" que o modelo sugere para a unidade e o grupo, "Território (grupo)"); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
 
-A seleção (clique ou Enter nas bolhas, ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
+A seleção (clique ou Enter nas bolhas com a Comparar ou a Juntar abertas, desde 06/11/2026, porque sem elas tocar num município
+abre o lugar dele; ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
 25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
 leve, a camada inteira a 30%; `opacidadeDaBolha`). Só a pintura apagada (não atende, fora dos primeiros) continua mais clara.
 
@@ -652,7 +698,7 @@ saiu com eles). A bolha sob o mouse ou o foco continua inteira enquanto ativa. M
 Comparar e Juntar agem sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
 comparação, o filtro da classe e os itens marcados, e o Desfazer do alto a desfaz (seção "Desfazer e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
 análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do pedido (com ela, o motor recusaria o pedido com
-"Itens da comparação fora do gráfico"). Com o Brasil como unidade, só Exportar vale.
+"Itens da comparação fora do gráfico").
 
 Desde a segunda rodada de 24/10/2026, os painéis **Comparar** e **Juntar** começam por uma orientação objetiva
 (`analise-comparar-orientacao`, "Escolha dois ou três itens: clique nas bolhas do gráfico (ou nas linhas do quadro de setas) ou
@@ -917,14 +963,41 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 - A conversa e o Histórico dependem da estrutura da página (frente B1); a área entrega o contexto, o estado salvo e aplica o
   pedido.
-- A Análise espacial nos estados e no Brasil espera a escolha de municípios (os estados e o Brasil não têm um ponto no mapa);
-  a Tendência vale para os estados e para o Brasil desde 24/10/2026.
-- Não há mapa no nível dos estados: os ladrilhos dos estados não foram aprovados.
+- A Análise Espacial vendo por estado mostra só a mensagem e o botão que leva aos municípios (as distâncias são entre
+  municípios); a Tendência vale para os estados desde 24/10/2026.
+- O mapa vendo por estado mostra uma bolha por estado no ponto de desenho do servidor, sem limites oficiais nem ladrilhos
+  (06/11/2026).
+- A faixa do lugar e o cartão do território existem só na base do Brasil nesta etapa; os nomes da base escolhidos pela pessoa (o
+  todo, até dois níveis de grupo e a unidade) ficam para a etapa seguinte do comando de 06/11/2026, como as demais etapas dele
+  (a seleção única com a conversa que confere, a lista ordenada em tela estreita, Agregar territórios e Selecionar por
+  critérios).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
 ## Testes
 
+- **Navegação por níveis (06/11/2026):**
+  - Node: `frontend/tests/areaDeAnalise.test.mjs` cobre a trilha (`lugarDaTrilha`: o todo, o estado inteiro e em parte, o
+    município com o estado, a seleção livre, a planilha), o Ver por (`opcoesVerPor`: Estado e Município no todo e sem nada
+    marcado, uma opção só num estado), a faixa (`desdeDaFaixa`, `populacaoResumida`, `textoDaReferencia`, `nomeCurtoDoNivel`), o
+    mapa vendo por estado (a disponibilidade, os quintis no pedido e os itens com os estados), o Brasil que deixa de ser unidade
+    (o pedido da conversa e o estado salvo levam ao todo, vendo por estado) e o cliente de `/api/painel/lugar`;
+    `frontend/tests/mapa.test.mjs`, a cena vendo por estado (o estado com o ponto de desenho vira ponto; as sedes ficam de
+    fundo); `frontend/tests/painel.test.mjs`, o texto da Análise Espacial vendo por estado.
+  - pytest: `backend/tests/test_painel_pagina.py` confere `/api/painel/lugar` (os números prontos das fontes nacional e estadual,
+    iguais aos do nível estados e da linha de contexto, a variação, a série e as recusas; com a base versionada, os números de
+    aceite: 502.495, 212.583.750, 2,36, a variação desde junho de 2021 e o Pará com 10.307 e 1,19); `test_painel_mapa.py`, os
+    pontos de desenho dos estados (a média das sedes válidas; com a base versionada, 27 estados e o Pará com 144 sedes).
+  - Navegador: o roteiro novo `backend/tests/ui_navegacao.py` (suíte `base-versionada`) percorre os aceites do comando (a faixa
+    do Brasil, Ver por Estado com 27 pontos e Município com 5.570, o mapa dos estados, "Brasil › Pará" com 144 municípios e a linha
+    do Pará, "Brasil › Pará › MARABA (PA)" com o cartão de 472 médicos e 1,64, a volta pela trilha sem o Desfazer e o Desfazer
+    depois, a trilha igual em todas as abas, a Série temporal com as referências, a Análise Espacial vendo por estado e "Mostre o
+    Pará" pela conversa). Mudam de propósito: `ui_area_de_analise.py` (o Ver por sem o Brasil, a trilha e a faixa, o mapa ligado
+    nos estados, voltar pela trilha, a Comparar aberta para marcar com o Enter, o Brasil inteiro pela raiz vendo por estado);
+    `ui_mapa.py` (o mapa dos estados com 27 bolhas e os quintis, o Ver por Município, o clique que marca com a Comparar aberta);
+    `ui_responsivo.py` (no celular, a dica pelo foco e o toque que abre o cartão do município, dentro da janela);
+    `ui_modo_escuro.py` (a trilha e a faixa no escuro, no lugar do motivo do mapa desligado); e `ui_conversa_grafico.py` ("ver no
+    mapa" vendo por estado troca a vista).
 - **Seleção unificada, totais individualizados e responsividade (05/11/2026):**
   - Node: `frontend/tests/areaDeAnalise.test.mjs` cobre as equivalências completas da árvore (os municípios de um estado todos
     marcados viram o estado inteiro; todos os estados inteiros, o Brasil inteiro, só quando cobrem todas as unidades; um estado
@@ -994,11 +1067,12 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   (`ADT_BLOCK1_REAL=1`). Confere: E0 sem números nem pedido, desde 24/10/2026 sem as abas, só com a identificação, a chamada e
   as duas entradas; a base sem seleção automática (nenhum pedido, a Seleção aberta e as abas das análises com a apresentação
   em "Entenda esta análise", recolhido desde a primeira visita e, depois, como a pessoa deixou); desde 05/11/2026, a Seleção
-  unificada (a unidade Estados como atalho de todos os estados, a unidade recusada com o motivo, o Brasil inteiro pela raiz com o
-  total nacional e o Amazonas como unidade); E1 com os estados escolhidos, a instrução e a ação na dica;
+  unificada (desde 06/11/2026, o Ver por Estado como atalho de todos os estados, o Ver por que some com uma opção só, o Brasil
+  inteiro pela raiz vendo por estado e, pelo Ver por, por município, com o total nacional); E1 com os estados escolhidos, a
+  instrução e a ação na dica;
   desde 24/10/2026, a seleção cumulativa entre estados (abrir outro estado não muda nada nem pede ao motor), a busca no alto, o
-  Brasil como unidade (só o nível no pedido, um item, a frase do motor, as funções e o mapa desligados, sem Grupos) e os estados
-  escolhidos no pedido (`estados`); desde a segunda rodada de 24/10/2026, o nome da plataforma em E0; Desfazer (o "Voltar" até
+  todo como referência (desde 06/11/2026, no lugar do Brasil como unidade: a trilha, a faixa e o Ver por sem o Brasil) e os
+  estados escolhidos no pedido (`estados`); desde a segunda rodada de 24/10/2026, o nome da plataforma em E0; Desfazer (o "Voltar" até
   25/10/2026, desde então com a seta curva do desfazer, `lucide-undo`) e Limpar seleção no alto, lado a lado e fixos ao rolar (o
   Desfazer desligado, com "Nada para desfazer ainda", e, depois de cada passo, o `title` com o que ele desfaz: abrir uma aba,
   marcar e desmarcar, o × de um município e de um estado, abrir os municípios pela bolha, Limpar seleção, a régua, o território
@@ -1008,8 +1082,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   05/11/2026, "Voltar aos estados"); a Seleção em duas áreas, com o que está marcado à direita, estado a estado, e o × de
   cada município e de cada estado, desfeitos pelo Desfazer; as abas só com o nome (sem os apoios de antes); os ajustes dentro de cada
   análise (estados, Distribuição, Análise espacial e Tendência, com o mesmo indicador e a escala fora deles, na barra junto do
-  desenho); a vista do desenho (o gráfico de início; nos estados e na Série temporal, o mapa desligado, com o motivo e o
-  atalho); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da resposta (e fora da tela
+  desenho); a vista do desenho (o gráfico de início; desde 06/11/2026, o mapa ligado também vendo por estado; na Série
+  temporal, desligado, com o motivo); abrir o Amazonas pela bolha e pela lista; a frase-resumo do motor, com a competência da resposta (e fora da tela
   quando o indicador à vista não é o do cálculo); marcar e desmarcar, marcar e desmarcar todos (sem seleção, nada da seleção
   anterior à vista); os quintis do mapa no pedido e a Quantidade (um pedido; a volta à densidade, da memória); a régua pelo
   teclado e pelo mouse; quartis; a análise espacial com a Escolha dos territórios (desde 27/10/2026: a janela que abre

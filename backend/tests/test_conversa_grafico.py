@@ -629,16 +629,17 @@ def test_no_mapa_e_onde_ficam_acompanham_o_comando_com_a_vista_do_mapa():
 
 
 def test_onde_o_mapa_nao_mostra_a_analise_a_vista_fica_no_grafico():
-    """Os estados não têm um ponto; a visão Série temporal fica só no gráfico; a área já disse que o mapa não está disponível:
-    o comando segue sem a vista, e a resposta diz por quê."""
+    """A visão Série temporal fica só no gráfico; a área já disse que o mapa não está disponível: o comando segue sem a vista,
+    e a resposta diz por quê. Desde 06/11/2026 (navegação por níveis, item 3.2), na base do Brasil, os estados aparecem no mapa,
+    cada um no ponto de desenho do motor: "volte aos estados no mapa" leva a vista ao mapa (até essa data, a resposta dizia que
+    os estados não têm um ponto no mapa); a mudança no teste é de propósito."""
     estados = pedir("volte aos estados no mapa")
-    assert estados["painel"] == painel(nivel="estados")
-    assert estados["reply"] == ("Voltei aos estados: cada bolha é um estado, com a densidade. Os estados não têm um ponto no "
-                                "mapa; a análise fica no gráfico. Para ver no mapa, abra os municípios de um estado.")
+    assert estados["painel"] == painel(nivel="estados", vista="mapa")
+    assert estados["reply"] == "Voltei aos estados: cada bolha é um estado, com a densidade. Passei para o mapa."
+    assert "não têm um ponto" not in estados["reply"]
     nos_estados = pedir("mostre a quantidade no mapa", painel_nivel="estados", painel_mapa_disponivel=False)
     assert nos_estados["painel"] == painel(indicador="quantidade")
-    assert nos_estados["reply"].endswith("Os estados não têm um ponto no mapa; a análise fica no gráfico. Para ver no mapa, "
-                                         "abra os municípios de um estado.")
+    assert nos_estados["reply"].endswith("O mapa não está disponível nesta análise; ela fica no gráfico.")
     series = pedir("mostre a visão séries no mapa")
     assert series["painel"] == painel(familia="tendencia", visao_tendencia="series")
     assert series["reply"] == ("Abri a tendência da densidade. Visão da tendência: Série temporal. A visão Série temporal fica "

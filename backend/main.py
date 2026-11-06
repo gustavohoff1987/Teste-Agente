@@ -1916,6 +1916,23 @@ def integrated_panel_territories(file: UploadFile | None = File(None), mapping: 
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.post("/api/painel/lugar")
+def integrated_panel_place(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
+                           sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),
+                           dataset_version: str = Form(""), context_revision: int = Form(0)):
+    """Números do lugar em uso na trilha da página única (Docs/PAINEL_INTEGRADO.md, "Rota 5", 06/11/2026): o todo (o Brasil,
+    pela fonte nacional) e, quando pedido, o grupo (o estado, pela fonte estadual), na competência, com a variação desde a
+    competência inicial e a série das competências pedidas. Só lê: nada é registrado na sessão e nada vai ao provedor de IA."""
+    try:
+        frame, sources, fields, requested = _panel_request(file, sheet, dataset, scope, dataset_version, mapping,
+                                                           options, lambda requested: True)
+        return _PanelJSON(painel.lugar(sources, fields, requested, frame=None if sources is not None else frame))
+    except ChoiceRequired as exc:
+        return _panel_pending(exc)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/api/painel/mapa")
 def integrated_panel_map(file: UploadFile | None = File(None), mapping: str = Form("{}"), options: str = Form("{}"),
                          sheet: str = Form(""), dataset: str = Form(""), scope: str = Form("municipal"),

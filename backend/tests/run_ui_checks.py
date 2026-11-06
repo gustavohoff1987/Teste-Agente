@@ -62,11 +62,13 @@ SUITES = {
                      "da conversa (05/11/2026: a base escolhida pelo pedido, os territórios selecionados, a ordenação na tela, "
                      "as ambiguidades e o motor lento, com falha ou recusado, sem anunciar execução inexistente) e a "
                      "responsividade com a seleção unificada (05/11/2026: 320 a 1.440 px, claro e escuro, toque, legendas sem "
-                     "sobreposição, dica e ritmo de variação dentro da janela e os totais individualizados)",
+                     "sobreposição, dica e ritmo de variação dentro da janela e os totais individualizados) e a navegação por "
+                     "níveis (06/11/2026: o todo como referência, o Ver por, a faixa do lugar, a trilha Brasil › Pará › MARABA (PA), "
+                     "o cartão do município, o mapa dos estados e a Análise Espacial vendo por estado)",
         "catalogo": "repositorio", "servidor": "offline",
         "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_execucao_conversa.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_responsivo.py", {})],
+                     ("ui_responsivo.py", {}), ("ui_navegacao.py", {"ADT_BLOCK1_REAL": "1"})],
     },
     # Hospedagem (01/11/2026; Docs/implantacao/): as duas suítes rodam no job "conteiner" do CI.
     "sessao": {

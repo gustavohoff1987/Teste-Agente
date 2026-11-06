@@ -8,8 +8,10 @@ Com a base Brasil versionada (suíte base-versionada), em cada largura e esquema
 - a Seleção unificada: a raiz Brasil e os estados com o nome inteiro (sem corte), a caixa e o botão da lista com alvo de toque de 40
   px no celular; o Amazonas inteiro e um município do Pará (a combinação, com o Pará em parte); os totais individualizados (o
   Amazonas pela fonte estadual) e a nota do Pará sem total;
-- a análise: a legenda das bolhas (a de tamanho e as outras) sem textos sobrepostos; a dica de uma bolha, pelo toque no celular e
-  pelo mouse no computador, inteira dentro da janela; os totais no alto do resultado;
+- a análise: a legenda das bolhas (a de tamanho e as outras) sem textos sobrepostos; a dica de uma bolha, pelo foco no celular (o
+  caminho do teclado e do leitor de tela) e pelo mouse no computador, inteira dentro da janela; no celular, o toque na bolha, que
+  desde 06/11/2026 abre o lugar do município, com o cartão dele no alto, inteiro dentro da janela e sem textos sobrepostos (o
+  Desfazer volta à seleção); os totais no alto do resultado;
 - a tendência: o quadro de setas sem passar da largura e o ritmo de variação da linha escolhida (pelo toque no celular), com o
   título e a explicação;
 - no mapa (390 px no claro e 1.440 px no escuro): a legenda de tamanho sem sobreposição;
@@ -210,8 +212,10 @@ def main():
             dentro_da_janela(totais_resultado, "totais no resultado")
             bolha = area.locator(BOLHAS).first
             bolha.scroll_into_view_if_needed()
+            # Desde 06/11/2026, o toque numa bolha de município abre o lugar dele (item 3.4 do comando): no celular, a dica aparece
+            # com o foco (o caminho do teclado e do leitor de tela); no computador, com o mouse.
             if movel:
-                bolha.tap()
+                bolha.focus()
             else:
                 bolha.hover()
             dica = area.get_by_test_id("analise-dica")
@@ -221,6 +225,27 @@ def main():
             page.screenshot(path=str(OUTPUT / ("responsivo-" + nome + "-analise.png")))
             if not movel:
                 page.mouse.move(2, 2)
+            else:
+                # O toque abre o município: o cartão dele no alto (os valores do motor e as barras do município, do estado e do
+                # Brasil), inteiro dentro da janela; a trilha termina nele. O Desfazer volta à seleção, da memória da tela.
+                bolha.press("Escape")
+                expect(dica).to_have_count(0)
+                id_bolha = bolha.get_attribute("data-id")
+                painel(lambda: bolha.tap())
+                cartao = area.get_by_test_id("analise-cartao")
+                expect(cartao).to_have_attribute("data-id", id_bolha, timeout=60000)
+                expect(cartao.get_by_test_id("analise-cartao-barra")).to_have_count(3, timeout=60000)
+                dentro_da_janela(cartao, "cartão do município")
+                sem_sobrepor(cartao, "cartão do município")
+                legivel(cartao.get_by_test_id("analise-cartao-quantidade"), "quantidade no cartão")
+                atual = area.get_by_test_id("analise-trilha").locator('[aria-current="location"]')
+                expect(atual).to_have_attribute("data-id", id_bolha)
+                dentro_da_janela(area.get_by_test_id("analise-trilha"), "trilha")
+                sem_transbordar("cartão do município")
+                page.screenshot(path=str(OUTPUT / ("responsivo-" + nome + "-cartao.png")))
+                toca(area.get_by_test_id("analise-desfazer"))
+                expect(area.locator(BOLHAS).first).to_be_visible(timeout=60000)
+                expect(cartao).to_have_count(0)
 
             # 4. A tendência: o quadro de setas sem passar da largura e o ritmo de variação da linha escolhida.
             painel(lambda: toca(area.get_by_test_id("analise-familia-tendencia")))
@@ -254,7 +279,8 @@ def main():
             contexto.close()
         browser.close()
     print("RESPONSIVO PASS: " + ", ".join(notas) + " (sem rolagem horizontal, nomes inteiros, toque de 40 px, legendas sem "
-          "sobreposição, dica e ritmo de variação dentro da janela, totais individualizados, mapa e disposição do computador).")
+          "sobreposição, dica, cartão do município e ritmo de variação dentro da janela, totais individualizados, mapa e "
+          "disposição do computador).")
 
 
 if __name__ == "__main__":

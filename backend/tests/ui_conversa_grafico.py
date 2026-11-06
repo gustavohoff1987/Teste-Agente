@@ -27,9 +27,10 @@ Percorre:
 - a proximidade pela conversa (28/10/2026): neste catálogo, sem a Análise Espacial, o pedido responde com o motivo, sem
   pedir nada ao motor (o cálculo e a leitura da referência mais próxima ficam no roteiro da área com a base versionada);
 - um esclarecimento pendente ("Compare Manaus" → "Com qual outro município?"), guardado para a mensagem seguinte;
-- pedidos de apresentação nos estados (tabela; mapa, que os estados não têm: a resposta é o motivo da área, e a vista
-  continua o gráfico) e "volte ao resultado anterior", que reabre a análise anterior do Histórico, sem recalcular (a Nova
-  análise recomeça sem territórios, sem pedir nada ao motor);
+- pedidos de apresentação nos estados (tabela; mapa, que desde 06/11/2026 existe também vendo por estado, com cada estado no
+  ponto de desenho calculado no servidor: neste catálogo, como no passo 5, o motor recusa os pontos, e a resposta diz que o
+  pedido foi feito só em parte; "volte ao gráfico" desfaz) e "volte ao resultado anterior", que reabre a análise anterior do
+  Histórico, sem recalcular (a Nova análise recomeça sem territórios, sem pedir nada ao motor);
 - uma planilha enviada pela conversa ("enviar meus dados", que abre a mesma janela de envio da área central, com o modelo de
   planilha), com condados e sem grupo: abre sem territórios escolhidos; a orientação usa o nome das unidades, nunca
   "município"; e "Compare Alfa e Beta" muda o gráfico da planilha.
@@ -538,19 +539,22 @@ def main():
                        if pedido.method == "POST"), "a comparação dos municípios não vai ao pedido dos estados"
         page.wait_for_timeout(1000)
 
-        # 10. Pedidos de apresentação: respondidos na tela, sem recalcular nem chamar o intérprete. Nos estados, o mapa não
-        # está disponível (os estados não têm um ponto): a resposta é o motivo informado pela área, e a vista continua o
-        # gráfico.
+        # 10. Pedidos de apresentação: respondidos na tela, sem recalcular nem chamar o intérprete. Vendo por estado, o mapa
+        # existe desde 06/11/2026 (cada estado no ponto de desenho calculado no servidor; item 3.2 do comando): "ver no mapa"
+        # troca a vista, sem o motivo de antes ("os estados não têm um ponto"). Neste catálogo sintético, como no passo 5, o motor
+        # recusa os pontos, e a resposta diz que o pedido foi feito só em parte; "volte ao gráfico" desfaz.
         chamadas, interpretacoes = len(painel), len(exploracoes) + len(llm_calls)
         send(page, "agora a tabela")
         expect(latest).to_contain_text("A tabela fica em Detalhes")
         send(page, "Quero ver no mapa.")
-        expect(latest).to_contain_text("Nada mudou no gráfico")
-        expect(latest).not_to_contain_text("Mostrei o mapa")
-        expect(area).to_have_attribute("data-desenho", "grafico")
-        motivo = page.get_by_test_id("analise-desenho-motivo")
-        if motivo.count() == 1 and motivo.is_visible():
-            expect(latest).to_contain_text(" ".join((motivo.text_content() or "").split()))
+        expect(area).to_have_attribute("data-desenho", "mapa", timeout=60000)
+        expect(historico.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "parcial", timeout=60000)
+        expect(latest).to_contain_text("O pedido foi feito só em parte. Não foi possível: Mapa: ")
+        expect(latest).not_to_contain_text("os estados não têm um ponto")
+        expect(page.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
+        send(page, "volte ao gráfico")
+        expect(latest).to_contain_text("Voltei ao gráfico")
+        expect(area).to_have_attribute("data-desenho", "grafico", timeout=60000)
         send(page, "Volte para o resultado anterior")
         expect(latest).to_contain_text("Ainda não há análise anterior nesta sessão")
         assert len(painel) == chamadas and len(exploracoes) + len(llm_calls) == interpretacoes

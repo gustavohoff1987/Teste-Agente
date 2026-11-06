@@ -337,7 +337,8 @@ export function posicaoDoContexto(valor: number | null | undefined, dominio: [nu
 export type PontoComItem = { item: PainelItem; indice: number };
 export type AnelDeConjunto = { conjunto: string; rotulo: string; membro: string; indice: number };
 export type BaseDoMapa = {
-  /** Itens desenháveis com coordenada (unidades; estados e conjuntos não têm ponto), na ordem recebida. */
+  /** Itens desenháveis com coordenada (unidades e, vendo por estado, os estados no ponto de desenho; conjuntos não têm ponto),
+   * na ordem recebida. */
   pontos: PontoComItem[];
   /** Itens desenháveis sem coordenada válida: ficam fora do mapa (a área os lista em Não avaliáveis, com o motivo do motor). */
   semPonto: string[];
@@ -361,11 +362,12 @@ export function assinaturaDe(ids: string[]): string {
 }
 
 /** Separa o que tem ponto: unidades com coordenada (os itens), as demais unidades da fonte (o fundo) e os membros dos
- * conjuntos (anéis). Estados e conjuntos não viram ponto. */
+ * conjuntos (anéis). Conjuntos não viram ponto. Desde 06/11/2026, um estado vira ponto quando a projeção traz o ponto de desenho
+ * dele (o do motor, vendo por estado); sem ele, fica sem ponto, como antes. */
 export function baseDoMapa(itens: PainelItem[], projecao: Projecao): BaseDoMapa {
   const pontos: PontoComItem[] = [], semPonto: string[] = [], usados = new Set<number>(), aneis: AnelDeConjunto[] = [];
   for (const item of itens) {
-    if (item.tipo === "estado") continue;
+    if (item.tipo === "estado" && !projecao.indice.has(item.id)) continue;
     if (item.tipo === "conjunto") {
       for (const membro of item.membros || []) {
         const indice = projecao.indice.get(membro);

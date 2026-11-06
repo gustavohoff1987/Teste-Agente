@@ -2467,9 +2467,11 @@ def _sem_mapa(conv, painel):
     ctx, rot = conv.ctx, conv.rot
     if not conv.brasil and not (conv.fields.get("latitude") and conv.fields.get("longitude")):
         return "Sem latitude e longitude na planilha, não há mapa; a análise fica no gráfico."
-    if (painel["nivel"] or ctx["nivel"]) == "estados":
-        grupos = "os estados" if conv.brasil else ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural
-        um_grupo = "um estado" if conv.brasil else ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular
+    # Na base do Brasil, desde 06/11/2026, cada estado aparece no mapa, no ponto de desenho que o motor calcula (a média das
+    # sedes, só para desenhar); numa planilha, os grupos não têm um ponto de desenho.
+    if (painel["nivel"] or ctx["nivel"]) == "estados" and not conv.brasil:
+        grupos = ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural
+        um_grupo = ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular
         return (_maiuscula(grupos) + " não têm um ponto no mapa; a análise fica no gráfico. Para ver no mapa, abra " +
                 rot.os() + " de " + um_grupo + ".")
     if (painel["familia"] or ctx["familia"]) == "rotatividade":

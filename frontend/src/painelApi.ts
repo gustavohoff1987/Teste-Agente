@@ -76,8 +76,8 @@ export type PainelOpcoes = {
 };
 
 /** Opções de /api/painel/mapa: a competência e a categoria do gráfico; nas planilhas, as premissas e os rótulos (na base do
- * Brasil, o motor recusa os dois). */
-export type MapaOpcoes = { competencia: string; categoria: string; premissas?: Premissas; rotulos?: RotulosTerritoriais };
+ * Brasil, o motor recusa os dois). `grupos` (06/11/2026, só na base do Brasil): também o ponto de desenho de cada estado. */
+export type MapaOpcoes = { competencia: string; categoria: string; premissas?: Premissas; rotulos?: RotulosTerritoriais; grupos?: boolean };
 
 // ------------------------------------------------------------------------------------------------ resposta (normalizada)
 /** Nomenclatura territorial: na base do Brasil, município e estado; nas planilhas, o que a pessoa confirmou ("distrito",
@@ -707,7 +707,54 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
     const id = texto(s?.id);
     return id ? { id, rotulo: texto(s?.rotulo) ?? id, motivo: texto(s?.motivo) ?? "" } : null;
   }).filter((item): item is { id: string; rotulo: string; motivo: string } => !!item);
-  return { competencia: texto(o.competencia) ?? "", referencial: texto(o.referencial) ?? "", pontos, semCoordenada };
+  // O ponto de desenho de cada estado (06/11/2026): a média das sedes dos municípios dele, do motor, só para desenhar.
+  const grupos = new Map<string, [number, number]>();
+  for (const item of lista(o.grupos)) {
+    const g = objeto(item);
+    const id = texto(g?.id), lat = num(g?.lat), lon = num(g?.lon);
+    if (id && lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) grupos.set(id, [lat, lon]);
+  }
+  return { competencia: texto(o.competencia) ?? "", referencial: texto(o.referencial) ?? "", pontos, semCoordenada,
+    ...(Array.isArray(o.grupos) ? { grupos, notaDosGrupos: texto(o.nota_grupos) } : {}) };
+}
+
+// ------------------------------------------------------------------------------------------------ lugar em uso (06/11/2026)
+/** Pedido de /api/painel/lugar: a competência e a categoria da análise, o grupo do lugar (o prefixo do estado), a competência
+ * inicial da variação da faixa e, para as linhas de referência da Tendência, as competências da série. */
+export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; desde?: string; serie?: { competencias: string[] } };
+export type ValoresDaSerie = { competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null };
+/** Um nível do lugar em uso (o todo ou o grupo), com os números do motor: prontos na fonte (nacional ou estadual), nunca somados. */
+export type NivelDoLugar = { id: string; nivel: "todo" | "grupo"; rotulo: string; nome: string | null; sigla: string | null; fonte: string;
+  regra: string | null; competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null;
+  avaliabilidade: string; motivo: string | null; desde: string | null; inicial: PainelValores | null; variacaoPercentual: PainelValores | null;
+  motivosVariacao: string[]; serie: ValoresDaSerie[] | null };
+export type RespostaLugar = { competencia: string; categoria: string; desde: string | null; todo: NivelDoLugar | null;
+  grupo: NivelDoLugar | null; notas: string[] };
+function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
+  const o = objeto(bruto);
+  const id = texto(o?.id);
+  if (!o || !id) return null;
+  const serie = Array.isArray(o.serie) ? lista(o.serie).map(objeto).filter((s): s is Record<string, unknown> => !!s && !!texto(s.competencia))
+    .map(s => ({ competencia: texto(s.competencia)!, quantidade: num(s.quantidade), populacao: num(s.populacao), densidade: num(s.densidade) })) : null;
+  return { id, nivel: o.nivel === "grupo" ? "grupo" : "todo", rotulo: texto(o.rotulo) ?? id, nome: texto(o.nome), sigla: texto(o.sigla),
+    fonte: texto(o.fonte) ?? "", regra: texto(o.regra), competencia: texto(o.competencia) ?? "", quantidade: num(o.quantidade),
+    populacao: num(o.populacao), densidade: num(o.densidade), avaliabilidade: texto(o.avaliabilidade) ?? "NAO_AVALIAVEL", motivo: texto(o.motivo),
+    desde: texto(o.desde), inicial: objeto(o.inicial) ? valores3(o.inicial) : null,
+    variacaoPercentual: objeto(o.variacao_percentual) ? valores3(o.variacao_percentual) : null,
+    motivosVariacao: lista(o.motivos_variacao).filter((m): m is string => typeof m === "string"), serie };
+}
+/** Resposta de /api/painel/lugar nos tipos da tela; nada é calculado aqui. */
+export function normalizarLugar(bruto: unknown): RespostaLugar {
+  const o = objeto(bruto);
+  if (!o) throw new ErroDoMotor("A resposta do lugar em uso não segue o contrato.", 200, null);
+  return { competencia: texto(o.competencia) ?? "", categoria: texto(o.categoria) ?? "", desde: texto(o.desde),
+    todo: nivelDoLugarDe(o.todo), grupo: nivelDoLugarDe(o.grupo), notas: lista(o.notas).filter((n): n is string => typeof n === "string") };
+}
+/** Os números do lugar em uso (a faixa e as linhas do todo e do grupo), pedidos à parte do gráfico: trocar o "Ver por" não os pede
+ * de novo. */
+export async function pedirLugar(fonte: FonteDoMotor, opcoes: LugarOpcoes, signal?: AbortSignal): Promise<RespostaLugar> {
+  const response = await buscar(fonte.apiBase + "/api/painel/lugar", { method: "POST", body: formulario(fonte, opcoes, false), signal });
+  return normalizarLugar(await lerResposta(response));
 }
 
 // ------------------------------------------------------------------------------------------------ chamadas

@@ -1,0 +1,351 @@
+"""Navegação por níveis (06/11/2026, comando do responsável, itens 2 e 3), com a base versionada (somente leitura).
+
+Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/mapa, os aceites do comando:
+- o todo como referência: o "Ver por" (Estado | Município) no lugar de "Cada ponto da análise é", sem o Brasil como unidade de
+  análise; a faixa fixa no alto das abas de análise com os números do Brasil (502.495 médicos, 212,6 milhões de habitantes, 2,36
+  por 1.000 e a variação da densidade desde jun/2021, cerca de +19,2%), iguais aos que o motor devolveu; vendo por estado, 27
+  pontos; por município, 5.570; a linha tracejada "Brasil 2,36" no gráfico;
+- a trilha, sempre à vista e igual em todas as abas: "Brasil" no todo; "Brasil › Pará" ao tocar no Pará (144 municípios, 10.307
+  médicos, 1,19 por 1.000, com o Brasil como referência: "Pará 1,19 · Brasil 2,36", e a linha do estado no gráfico);
+  "Brasil › Pará › MARABA (PA)" ao tocar em Marabá, com o cartão (472 médicos, 1,64, e as barras do município, do Pará e do
+  Brasil); tocar em "Brasil" volta ao todo sem o Desfazer, e um Desfazer, depois, volta a Marabá;
+- a Série temporal de Marabá com as linhas de referência do Pará e do Brasil, tracejadas;
+- o mapa vendo por estado: 27 bolhas, nos pontos de desenho do servidor;
+- a Análise Espacial vendo por estado: só a mensagem "A Análise Espacial mede distâncias entre municípios." e o botão "Ver os
+  municípios destes estados", que troca o Ver por e abre a Escolha dos territórios;
+- a conversa que navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa.
+Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
+.local/ui-validation (navegacao-*.png).
+"""
+import os
+import re
+from pathlib import Path
+
+from playwright.sync_api import expect, sync_playwright
+from ui_support import URL, offline, options_of, send
+
+OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
+PA, MARABA = "15", "code:150420"
+ESTADOS = '[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]'
+MUNICIPIOS = '[data-testid="analise-bolha"][data-tipo="municipio"][data-visivel="true"]'
+TEXTOS_DA_AREA = """() => { const area = document.querySelector('[data-testid=area-de-analise]'); if (!area) return '';
+  const partes = [area.innerText || ''];
+  for (const e of area.querySelectorAll('[aria-label], [title]')) partes.push(e.getAttribute('aria-label') || '', e.getAttribute('title') || '');
+  return partes.join('\\n'); }"""
+
+
+def js(valor):
+    """O número como o navegador o escreve num atributo (String(n)): os inteiros sem o ".0"."""
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor))
+    return str(valor)
+
+
+def main():
+    assert os.getenv("ADT_BLOCK1_REAL") == "1", "este roteiro usa a base Brasil versionada (suíte base-versionada)"
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, channel=os.getenv("ADT_BROWSER_CHANNEL", "chrome"))
+        context = browser.new_context(viewport={"width": 1440, "height": 900})
+        offline(context)
+        page = context.new_page()
+        falhas, chamadas_llm, pedidos, lugares = [], [], [], []
+        page.on("pageerror", lambda error: falhas.append(str(error)))
+        page.on("request", lambda request: chamadas_llm.append(request.url) if "/api/llm/interpret" in request.url else None)
+        page.on("request", lambda request: pedidos.append(request)
+                if request.url.endswith("/api/painel") and request.method == "POST" else None)
+        page.on("request", lambda request: lugares.append(request)
+                if request.url.endswith("/api/painel/lugar") and request.method == "POST" else None)
+        page.goto(URL)
+        page.get_by_role("button", name="Li e concordo", exact=True).click()
+        area = page.get_by_test_id("area-de-analise")
+        territorios = area.get_by_test_id("analise-territorios")
+        trilha = area.get_by_test_id("analise-trilha")
+        partes = trilha.get_by_test_id("analise-trilha-parte")
+        atual = trilha.locator('[aria-current="location"]')
+        faixa = area.get_by_test_id("analise-faixa")
+        desfazer = area.get_by_test_id("analise-controles-globais").get_by_test_id("analise-desfazer")
+        aviso = area.get_by_test_id("analise-aviso")
+
+        def shot(nome):
+            page.wait_for_timeout(700)  # transições do gráfico
+            page.screenshot(path=str(OUTPUT / ("navegacao-" + nome + "-real.png")), full_page=True)
+
+        def aperta(locator):
+            locator.scroll_into_view_if_needed()
+            locator.focus()
+            locator.press("Enter")
+
+        def ok(acao, timeout=180000, condicao=None):
+            """A resposta de /api/painel do primeiro pedido feito depois do início da ação (e que atende `condicao`) e as opções."""
+            page.wait_for_timeout(200)
+            expect(area.get_by_test_id("analise-atualizando")).to_have_count(0, timeout=timeout)
+            antes = len(pedidos)
+            with page.expect_response(lambda r: r.url.endswith("/api/painel") and r.request.method == "POST"
+                                      and any(r.request is pedido for pedido in pedidos[antes:])
+                                      and (condicao is None or condicao(options_of(r.request))), timeout=timeout) as evento:
+                acao()
+            resposta = evento.value
+            assert resposta.status == 200, resposta.text()[:2000]
+            return resposta.json(), options_of(resposta.request)
+
+        def numeros_do_lugar(acao, condicao, timeout=180000):
+            """A resposta de /api/painel/lugar (os números da faixa) do primeiro pedido que atende `condicao`, feito depois da ação."""
+            antes = len(lugares)
+            with page.expect_response(lambda r: r.url.endswith("/api/painel/lugar") and r.request.method == "POST"
+                                      and any(r.request is pedido for pedido in lugares[antes:])
+                                      and condicao(options_of(r.request)), timeout=timeout) as evento:
+                acao()
+            resposta = evento.value
+            assert resposta.status == 200, resposta.text()[:2000]
+            return resposta.json(), options_of(resposta.request)
+
+        def numero(chave):
+            return faixa.locator('[data-testid="analise-faixa-numero"][data-chave="' + chave + '"]')
+
+        def confere_numeros(nivel):
+            """Os números da faixa são os do motor, sem conta na tela."""
+            for chave, campo in (("profissionais", "quantidade"), ("populacao", "populacao"), ("densidade", "densidade")):
+                expect(numero(chave)).to_have_attribute("data-valor", js(nivel[campo]), timeout=60000)
+
+        def fecha():
+            if area.get_by_test_id("analise-painel").count():
+                aperta(area.get_by_test_id("analise-painel-fechar"))
+                expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+
+        def trilha_igual_nas_abas(esperado):
+            """A trilha aparece uma vez só e com as mesmas partes na Seleção e em todas as abas de análise (a Análise Espacial
+            abre a Escolha dos territórios sozinha: ela fecha antes da aba seguinte)."""
+            for aba in ("analise-aba-territorios", "analise-familia-distribuicao", "analise-familia-espacial",
+                        "analise-familia-tendencia"):
+                aperta(area.get_by_test_id(aba))
+                expect(area.get_by_test_id("analise-trilha")).to_have_count(1)
+                expect(partes).to_have_text(esperado)
+                fecha()
+            aperta(area.get_by_test_id("analise-familia-distribuicao"))
+            expect(area).to_have_attribute("data-aba", "distribuicao")
+
+        def sem_bastidor(onde):
+            achados = re.findall(r"[^\n]{0,50}\bmotor\b[^\n]{0,50}", area.evaluate(TEXTOS_DA_AREA), flags=re.IGNORECASE)
+            assert not achados, (onde, achados[:5])
+
+        chat = page.get_by_test_id("painel-chat")
+        if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
+            chat.get_by_test_id("painel-chat-minimizar").click()
+
+        # 1. A base do Brasil, sem nada escolhido: o Ver por (Estado | Município), sem o Brasil como opção; a trilha começa no
+        # Brasil, ainda sem lugar atual.
+        area.get_by_test_id("analise-fonte-brasil").click()
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true", timeout=180000)
+        ver_por = territorios.get_by_test_id("analise-nivel")
+        expect(ver_por).to_be_visible()
+        expect(territorios).to_contain_text("Ver por")
+        expect(territorios).not_to_contain_text("Cada ponto da análise é")
+        expect(territorios.get_by_test_id("analise-nivel-brasil")).to_have_count(0)
+        expect(ver_por.get_by_role("radio")).to_have_count(2)
+        expect(ver_por.get_by_test_id("analise-nivel-estados")).to_contain_text("Estado")
+        expect(ver_por.get_by_test_id("analise-nivel-municipios")).to_contain_text("Município")
+        expect(partes).to_have_text(["Brasil"])
+        expect(atual).to_have_count(0)
+
+        # 2. O todo: Ver por Estado marca todos os estados; a faixa traz os números do Brasil, prontos no motor (a fonte nacional),
+        # na competência da análise, com a variação da densidade desde o primeiro dos últimos 4 junhos.
+        estados_e_opcoes = []
+        corpo, opcoes_lugar = numeros_do_lugar(
+            lambda: estados_e_opcoes.append(ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))),
+            lambda o: "grupo" not in o)
+        estados, sent = estados_e_opcoes[0]
+        lugar_todo = corpo["todo"]
+        assert sent.get("nivel") == "estados" and "estados" not in sent, sent
+        assert sent["competencia"] == "202406", sent
+        assert opcoes_lugar == {"competencia": sent["competencia"], "categoria": sent["categoria"], "desde": "202106"}, opcoes_lugar
+        assert (lugar_todo["quantidade"], lugar_todo["populacao"]) == (502495, 212583750), lugar_todo
+        assert round(lugar_todo["densidade"], 2) == 2.36, lugar_todo["densidade"]
+        variacao = lugar_todo["variacao_percentual"]["densidade"]
+        assert 19.15 <= variacao < 19.25, variacao
+        itens_estado = [item for item in estados["itens"] if item["tipo"] == "estado"]
+        assert len(itens_estado) == 27 == len(estados["itens"]), len(estados["itens"])
+        aperta(territorios.get_by_test_id("analise-ver-analise"))
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
+        expect(partes).to_have_text(["Brasil"])
+        expect(atual).to_have_text("Brasil")
+        expect(faixa).to_have_attribute("data-lugar", "todo")
+        confere_numeros(lugar_todo)
+        expect(numero("profissionais")).to_contain_text("502.495")
+        expect(numero("populacao")).to_contain_text("212,6 milhões")
+        expect(numero("populacao")).to_contain_text("212.583.750 habitantes")
+        expect(numero("densidade")).to_contain_text("2,36")
+        expect(numero("variacao")).to_have_attribute("data-desde", "202106")
+        expect(numero("variacao")).to_have_attribute("data-valor", js(variacao))
+        expect(numero("variacao")).to_contain_text("Desde jun/2021")
+        expect(numero("variacao")).to_contain_text(re.compile(r"\+19,\d+%"))
+        expect(faixa.get_by_test_id("analise-ver-por-estados")).to_have_attribute("aria-checked", "true")
+        expect(faixa.get_by_test_id("analise-ver-por")).to_contain_text("Município")
+        # A linha do todo no gráfico: tracejada, com o nome e o valor do motor.
+        linha_brasil = area.get_by_test_id("analise-contexto-brasil")
+        expect(linha_brasil).to_have_attribute("data-rotulo", "Brasil 2,36")
+        assert linha_brasil.locator("line").get_attribute("stroke-dasharray"), "a linha do todo é tracejada"
+        expect(area).not_to_contain_text("O Brasil, como unidade")
+        sem_bastidor("o todo")
+        shot("01-todo")
+
+        # 3. O mapa vendo por estado: 27 bolhas, nos pontos de desenho que o servidor calcula; de volta ao gráfico.
+        with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
+            aperta(area.get_by_test_id("analise-desenho-mapa"))
+        assert evento.value.status == 200, evento.value.text()[:2000]
+        assert options_of(evento.value.request).get("grupos") is True, options_of(evento.value.request)
+        assert len(evento.value.json()["grupos"]) == 27
+        mapa = area.get_by_test_id("mapa-analise")
+        expect(mapa).to_have_attribute("data-pontos", "27", timeout=60000)
+        shot("02-mapa-estados")
+        aperta(area.get_by_test_id("analise-desenho-grafico"))
+        expect(area).to_have_attribute("data-desenho", "grafico")
+
+        # 4. Ver por Município: os 5.570 municípios do Brasil; a faixa continua a do Brasil (os mesmos números, sem novo pedido).
+        # Ver por Estado de novo: os 27, da memória da tela.
+        lugares_antes = len(lugares)
+        brasil, sent = ok(lambda: aperta(faixa.get_by_test_id("analise-ver-por-municipios")))
+        assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
+        assert len([item for item in brasil["itens"] if item["tipo"] == "municipio"]) == 5570, len(brasil["itens"])
+        expect(partes).to_have_text(["Brasil"])
+        expect(faixa).to_have_attribute("data-lugar", "todo")
+        confere_numeros(lugar_todo)
+        aperta(faixa.get_by_test_id("analise-ver-por-estados"))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
+        page.wait_for_timeout(500)
+        assert len(lugares) == lugares_antes, "os números do Brasil não mudam com o Ver por"
+
+        # 5. Tocar no Pará: os 144 municípios dele; a trilha "Brasil › Pará"; a faixa com os números do Pará (a contagem estadual
+        # de médicos únicos, pronta na fonte) e o Brasil como referência; no gráfico, a linha do Pará junto da do Brasil. Voltar é
+        # pela trilha.
+        bolha_pa = area.locator('[data-testid="analise-bolha"][data-id="uf:' + PA + '"]')
+        para_e_opcoes = []
+        corpo, opcoes_lugar = numeros_do_lugar(
+            lambda: para_e_opcoes.append(ok(lambda: aperta(bolha_pa))), lambda o: o.get("grupo") == PA)
+        para, sent = para_e_opcoes[0]
+        assert sent["base"] == {"municipios": {"todos": False, "estados": [PA], "ids": []}}, sent
+        assert len(para["itens"]) == 144 and all(item["tipo"] == "municipio" for item in para["itens"]), len(para["itens"])
+        lugar_pa = corpo["grupo"]
+        assert (lugar_pa["quantidade"], round(lugar_pa["densidade"], 2)) == (10307, 1.19), lugar_pa
+        assert corpo["todo"]["densidade"] == lugar_todo["densidade"], "o Brasil é o mesmo"
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(atual).to_have_text("Pará")
+        expect(aviso).to_contain_text("Para voltar, toque em Brasil na trilha, no alto.")
+        expect(faixa).to_have_attribute("data-lugar", "grupo")
+        expect(faixa).to_have_attribute("data-grupo", PA)
+        confere_numeros(lugar_pa)
+        expect(numero("profissionais")).to_contain_text("10.307")
+        expect(faixa.get_by_test_id("analise-faixa-referencia")).to_contain_text("Pará 1,19 · Brasil 2,36")
+        expect(faixa.get_by_test_id("analise-ver-por")).to_have_count(0)  # uma opção só: o município
+        expect(area.locator(MUNICIPIOS)).to_have_count(len([item for item in para["itens"] if item["densidade"] is not None]),
+                                                       timeout=60000)
+        linha_pa = area.get_by_test_id("analise-linha-grupo")
+        expect(linha_pa).to_have_attribute("data-rotulo", "Pará 1,19")
+        expect(linha_pa).to_have_attribute("data-valor", js(lugar_pa["densidade"]))
+        expect(linha_brasil).to_have_attribute("data-rotulo", "Brasil 2,36")
+        sem_bastidor("o Pará")
+        shot("03-para")
+
+        # 6. Tocar em Marabá: o lugar dela, "Brasil › Pará › MARABA (PA)", com o cartão no alto (os valores do motor e as barras
+        # da densidade do município, do Pará e do Brasil); com um território só, o cartão fica no lugar do gráfico.
+        bolha_maraba = area.locator('[data-testid="analise-bolha"][data-id="' + MARABA + '"]')
+        expect(bolha_maraba).to_have_count(1)
+        maraba, sent = ok(lambda: aperta(bolha_maraba))
+        assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [MARABA]}}, sent
+        [item_maraba] = maraba["itens"]
+        assert item_maraba["quantidade"] == 472 and round(item_maraba["densidade"], 2) == 1.64, item_maraba
+        expect(partes).to_have_text(["Brasil", "Pará", "MARABA (PA)"])
+        expect(atual).to_have_text("MARABA (PA)")
+        expect(faixa).to_have_attribute("data-lugar", "unidade")
+        cartao = faixa.get_by_test_id("analise-cartao")
+        expect(cartao).to_have_attribute("data-id", MARABA, timeout=60000)
+        expect(cartao.get_by_test_id("analise-cartao-quantidade")).to_have_attribute("data-valor", "472")
+        expect(cartao.get_by_test_id("analise-cartao-quantidade")).to_contain_text("472")
+        barras = cartao.get_by_test_id("analise-cartao-barra")
+        expect(barras).to_have_count(3, timeout=60000)
+        for chave, valor in (("unidade", item_maraba["densidade"]), ("grupo", lugar_pa["densidade"]), ("todo", lugar_todo["densidade"])):
+            expect(cartao.locator('[data-testid="analise-cartao-barra"][data-chave="' + chave + '"]')).to_have_attribute("data-valor", js(valor))
+        expect(cartao).to_contain_text("1,64")
+        expect(area.get_by_test_id("analise-cartao-no-lugar")).to_be_visible()
+        expect(desfazer).to_have_attribute("title", "Desfazer: abrir MARABA (PA)")
+        sem_bastidor("Marabá")
+        shot("04-maraba")
+
+        # 7. A trilha é igual em todas as abas; a Série temporal de Marabá traz as linhas de referência do Pará e do Brasil,
+        # tracejadas (os valores de cada competência, do motor).
+        trilha_igual_nas_abas(["Brasil", "Pará", "MARABA (PA)"])
+        aperta(area.get_by_test_id("analise-familia-tendencia"))
+        expect(area).to_have_attribute("data-aba", "tendencia")
+        ok(lambda: aperta(area.get_by_test_id("analise-visao-series")), condicao=lambda o: bool(o.get("serie")))
+        referencias = area.get_by_test_id("analise-serie-referencia")
+        expect(referencias).to_have_count(2, timeout=60000)
+        assert sorted(referencias.evaluate_all("els => els.map(e => e.dataset.id)")) == ["br", "uf:" + PA]
+        expect(area.get_by_test_id("analise-serie")).to_have_count(1)
+        nomes = area.locator('[data-testid="analise-serie-referencia"] text').evaluate_all("els => els.map(e => e.textContent)")
+        assert sorted(nomes) == ["Brasil", "Pará"], nomes
+        tracos = area.locator('[data-testid="analise-serie-referencia"] path').evaluate_all(
+            "els => els.map(e => e.getAttribute('stroke-dasharray'))")
+        assert tracos and all(tracos), ("as linhas de referência são tracejadas", tracos)
+        shot("05-maraba-serie")
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+
+        # 8. Tocar em "Brasil" na trilha volta ao todo, vendo por estado, sem o Desfazer; um Desfazer, em seguida, volta a Marabá.
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(partes).to_have_text(["Brasil"])
+        expect(atual).to_have_text("Brasil")
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
+        expect(faixa).to_have_attribute("data-lugar", "todo")
+        expect(desfazer).to_have_attribute("title", "Desfazer: ir para Brasil na trilha")
+        aperta(desfazer)
+        expect(partes).to_have_text(["Brasil", "Pará", "MARABA (PA)"])
+        expect(faixa.get_by_test_id("analise-cartao")).to_have_attribute("data-id", MARABA, timeout=60000)
+        # O Pará, pela trilha: os 144 municípios de novo.
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="grupo"]'))
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(faixa).to_have_attribute("data-lugar", "grupo")
+        expect(area.locator(MUNICIPIOS).first).to_be_visible(timeout=60000)
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=60000)
+
+        # 9. A Análise Espacial vendo por estado: só a mensagem e o botão; sem gráfico, ajustes nem a Escolha dos territórios. O
+        # botão troca o Ver por para município e abre a Escolha dos territórios.
+        aperta(area.get_by_test_id("analise-familia-espacial"))
+        expect(area).to_have_attribute("data-aba", "espacial")
+        espacial = area.get_by_test_id("analise-espacial-grupos")
+        expect(espacial).to_contain_text("A Análise Espacial mede distâncias entre municípios.")
+        botao = espacial.get_by_test_id("analise-espacial-ver-unidades")
+        expect(botao).to_have_text("Ver os municípios destes estados")
+        expect(area.get_by_test_id("analise-resultados")).to_be_hidden()
+        expect(area.get_by_test_id("analise-ajustes")).to_have_count(0)
+        expect(area.get_by_test_id("analise-painel")).to_have_count(0)
+        expect(faixa).to_have_attribute("data-lugar", "todo")
+        shot("06-espacial-estados")
+        aperta(botao)
+        expect(area.get_by_test_id("analise-painel")).to_have_attribute("data-painel", "referencia", timeout=30000)
+        expect(faixa.get_by_test_id("analise-ver-por-municipios")).to_have_attribute("aria-checked", "true")
+        expect(area.get_by_test_id("analise-espacial-grupos")).to_have_count(0)
+        fecha()
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+
+        # 10. A conversa navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa (os mesmos do
+        # passo 5; a resposta e os números podem vir da memória da tela).
+        send(page, "Mostre o Pará")
+        expect(page.get_by_test_id("painel-chat").get_by_test_id("latest-reply")).to_contain_text("144 municípios do Pará",
+                                                                                                    timeout=120000)
+        expect(partes).to_have_text(["Brasil", "Pará"], timeout=60000)
+        expect(faixa).to_have_attribute("data-grupo", PA)
+        confere_numeros(lugar_pa)
+        shot("07-conversa-para")
+
+        assert not falhas, falhas
+        assert not chamadas_llm, chamadas_llm
+        browser.close()
+    print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
+          "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
+          "estados (27), Análise Espacial por estado e a conversa que move a trilha (Mostre o Pará).")
+
+
+if __name__ == "__main__":
+    main()

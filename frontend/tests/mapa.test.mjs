@@ -187,6 +187,16 @@ test('cena: unidades com coordenada viram ponto; estados e conjuntos não; fundo
   assert.notEqual(M.assinaturaDe(['m1']), M.assinaturaDe(['m1', 'm2']));
 });
 
+test('cena (06/11/2026): vendo por estado, o estado com o ponto de desenho do motor vira ponto; as sedes ficam de fundo', () => {
+  // A área junta os pontos de desenho dos estados (a média das sedes, do motor) aos das sedes; sem o ponto, o estado fica sem ponto.
+  const pontos = new Map([['m1', [-3, -60]], ['m2', [-4, -61]], ['uf:13', [-3.5, -60.5]]]);
+  const projecao = M.projetar(pontos);
+  const base = M.baseDoMapa([item('uf:13', {tipo: 'estado', populacao: 4000}), item('uf:15', {tipo: 'estado'})], projecao);
+  assert.deepEqual(base.pontos.map(ponto => ponto.item.id), ['uf:13']);
+  assert.deepEqual(base.semPonto, []);
+  assert.deepEqual(base.fundo.map(i => projecao.ids[i]).sort(), ['m1', 'm2']);
+});
+
 test('cena: pintura da camada, dos quintis ou contínua; vazada nunca zero; os maiores atrás; esmaecidos no lugar, nunca somem', () => {
   const projecao = M.projetar(new Map([['m1', [-3, -60]], ['m2', [-4, -61]], ['m3', [-5, -62]]]));
   const base = M.baseDoMapa([item('m2', {populacao: 100}), item('m1', {populacao: 400}), item('m3', {populacao: null})], projecao);

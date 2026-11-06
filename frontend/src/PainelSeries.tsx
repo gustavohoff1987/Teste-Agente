@@ -16,17 +16,25 @@ import { useEsquemaDeCor } from "./useEsquemaDeCor";
 // sem linha (RQ-REP-15). Superfície, tintas, grade e eixo vêm da paleta do esquema de cor do aparelho (modo escuro, 23/10/2026).
 export const MAX_SERIES = 12;
 
-type Props = { itens: PainelItem[]; competencias: string[]; indicador: PainelIndicador; rotulos: RotulosTerritoriais };
+/** Uma linha de referência da Série temporal (06/11/2026, item 2.5 do comando): o todo e, dentro de um grupo, o grupo, com os
+ * valores do motor em cada competência (POST /api/painel/lugar), tracejada, junto das linhas dos territórios. */
+export type SerieDeReferencia = { id: string; rotulo: string; observacoes: { competencia: string; valor: number | null }[] };
+type Props = { itens: PainelItem[]; competencias: string[]; indicador: PainelIndicador; rotulos: RotulosTerritoriais;
+  referencias?: SerieDeReferencia[] };
 
 const observacoesDaSerie = (item: PainelItem) => item.serie?.observacoes ?? [];
+/** A referência no formato de um item da série, só para o desenho (montarSeries e o domínio). */
+const comoItem = (referencia: SerieDeReferencia) => ({ id: "referencia:" + referencia.id, rotulo: referencia.rotulo,
+  serie: { observacoes: referencia.observacoes, comparavel: true, motivo: null } }) as unknown as PainelItem;
 
-export default function PainelSeries({ itens, competencias, indicador, rotulos }: Props) {
+export default function PainelSeries({ itens, competencias, indicador, rotulos, referencias = [] }: Props) {
   const [ref, largura] = useLargura(800);
   const paleta = paletaDoGrafico(useEsquemaDeCor());
   const [foco, setFoco] = useState<string | null>(null);
   const [ponto, setPonto] = useState<{ serie: string; competencia: string } | null>(null);
   const mostrados = itens.slice(0, MAX_SERIES);
-  const dominio = useMemo(() => dominioDasSeries(mostrados, observacoesDaSerie), [mostrados]);
+  const linhasDeReferencia = useMemo(() => referencias.map(comoItem), [referencias]);
+  const dominio = useMemo(() => dominioDasSeries([...mostrados, ...linhasDeReferencia], observacoesDaSerie), [mostrados, linhasDeReferencia]);
   const multiplos = mostrados.length > 4;
   const especie = INDICADORES[indicador];
   const focoEfetivo = mostrados.some(item => item.id === foco) ? foco : null;
@@ -39,10 +47,15 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos }
     const { series, marcasX } = montarSeries({ itens: grupo, janela: competencias, dominio, x0: esquerda + 6, x1: larguraSvg - direita, y0: topo + 6,
       y1: base - 6, paleta, observacoesDe: observacoesDaSerie, corUnica: paleta.bolha, ligar: item => item.serie?.comparavel !== false });
     const y = (valor: number) => base - 6 - (base - topo - 12) * ((valor - dominio[0]) / ((dominio[1] - dominio[0]) || 1));
+    const deReferencia = linhasDeReferencia.length ? montarSeries({ itens: linhasDeReferencia, janela: competencias, dominio, x0: esquerda + 6,
+      x1: larguraSvg - direita, y0: topo + 6, y1: base - 6, paleta, observacoesDe: observacoesDaSerie, corUnica: paleta.tinta2 }).series : [];
     const ticksY = marcas(dominio, "linear", multiplos ? 3 : 5);
     const passo = Math.max(1, Math.ceil(marcasX.length / (multiplos ? 3 : 8)));
     const fins = series.filter(serie => serie.fim);
-    const rotulosFim = posicionarRotulos(fins.map(serie => ({ id: serie.id, x: serie.fim!.x, y: serie.fim!.y, r: 4,
+    // Os nomes no fim das linhas (as dos territórios e as de referência) são posicionados juntos, sem se sobrepor; nos gráficos
+    // pequenos (mais de 4 territórios), o nome da referência fica no começo da linha, dentro do desenho.
+    const finsDeReferencia = multiplos ? [] : deReferencia.filter(serie => serie.fim);
+    const rotulosFim = posicionarRotulos([...fins, ...finsDeReferencia].map(serie => ({ id: serie.id, x: serie.fim!.x, y: serie.fim!.y, r: 4,
       largura: larguraDoTexto(serie.rotulo, 12) })), larguraSvg - 2, 15);
     return <svg width="100%" height={alturaSvg} viewBox={`0 0 ${larguraSvg} ${alturaSvg}`} role="img" className="analise-svg"
       aria-label={(titulo ? titulo + ": " : "") + "série temporal de " + especie.rotulo.toLowerCase() + ", " + grupo.length + " " +
@@ -54,6 +67,14 @@ export default function PainelSeries({ itens, competencias, indicador, rotulos }
       {ticksY.map(valor => <text key={"t" + valor} x={esquerda - 6} y={y(valor) + 4} textAnchor="end" className="analise-marca-texto">{textoDaMarca(valor)}</text>)}
       {marcasX.filter((_, indice) => indice % passo === 0 || indice === marcasX.length - 1).map(marca =>
         <text key={marca.competencia} x={marca.x} y={base + 16} textAnchor="middle" className="analise-marca-texto">{exibirCompetencia(marca.competencia)}</text>)}
+      {/* O todo e o grupo como referência (06/11/2026): tracejados, com o nome no fim. */}
+      {deReferencia.map(serie => <g key={serie.id} data-testid="analise-serie-referencia" data-id={serie.id.replace(/^referencia:/, "")}
+        data-pontos={serie.pontos.length} aria-hidden="true">
+        {serie.caminhos.map((d, indice) => <path key={indice} d={d} fill="none" stroke={serie.cor} strokeWidth={1.5} strokeDasharray="6 4"/>)}
+        {!multiplos && serie.fim && rotulosFim.has(serie.id) && <text x={serie.fim.x + rotulosFim.get(serie.id)!.dx}
+          y={serie.fim.y + rotulosFim.get(serie.id)!.dy + 4} textAnchor={rotulosFim.get(serie.id)!.ancora} className="analise-linha-texto">{serie.rotulo}</text>}
+        {multiplos && serie.pontos.length > 0 && <text x={serie.pontos[0].x + 4} y={serie.pontos[0].y - 6} className="analise-linha-texto">{serie.rotulo}</text>}
+      </g>)}
       {series.map(serie => <g key={serie.id} data-testid="analise-serie" data-id={serie.id} data-comparavel={serie.ligada ? "true" : "false"}
         data-pontos={serie.pontos.length} opacity={focoEfetivo && focoEfetivo !== serie.id && !multiplos ? 0.3 : 1}>
         {serie.caminhos.map((d, indice) => <path key={indice} d={d} fill="none" stroke={serie.cor} strokeWidth={focoEfetivo === serie.id ? 3 : 2}

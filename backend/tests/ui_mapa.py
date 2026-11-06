@@ -1,13 +1,16 @@
 """Mapa da página única (23/10/2026), com a base versionada (somente leitura): a segunda vista do gráfico.
 
-Confere, contra as respostas de /api/painel e de /api/painel/mapa: nos estados (escolhidos na Seleção de Territórios, porque a
-base abre sem seleção), o mapa desligado, com o motivo e o atalho para os municípios (os ladrilhos dos estados não foram
-aprovados); os pontos do motor (sede municipal, IBGE) e o fundo com as demais unidades; sem a pergunta "Como pintar o mapa?"
+Confere, contra as respostas de /api/painel e de /api/painel/mapa: vendo por estado (escolhido na Seleção de Territórios,
+porque a base abre sem seleção), o mapa com uma bolha por estado no ponto de desenho que o servidor calcula, a média das
+coordenadas das sedes dos municípios dele, com as sedes ao fundo e os quintis do motor (06/11/2026, item 3.2 do comando:
+divergência aprovada de RQ-REP-07 só para a bolha no centro, sem ladrilhos); o Ver por Município, que leva aos municípios do
+Brasil no mapa; os pontos do motor (sede municipal, IBGE) e o fundo com as demais unidades; sem a pergunta "Como pintar o mapa?"
 (retirada em 23/10/2026): sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolve junto com a análise
 (`grupos_mapa`), com a mesma contagem por cor e a legenda; o enquadramento inicial com contexto em volta dos pontos; os quintis do
 gráfico (Grupos) também no mapa; a régua que esmaece sem esconder, a seleção e a dica iguais às do gráfico, o zoom livre com o
 mapinha do canto, o mapinha na dica do gráfico, o convite depois das Condições, as ligações ilustrativas da análise espacial (até
-a referência mais próxima de cada município da base, na Escolha dos territórios, desde 27/10/2026), Roraima com todos os
+a referência mais próxima de cada município da base, na Escolha dos territórios, desde 27/10/2026), o clique no ponto que
+marca com a Comparar aberta (sem ela, desde 06/11/2026, tocar num município abre o lugar dele na trilha), Roraima com todos os
 municípios no mapa, também BOA VISTA, sem referência no recorte e fora do gráfico, com o aviso pelo nome, e as legendas de
 tamanho na proporção exata (25/10/2026), cada município da base ligado à referência mais próxima dele no gráfico e no mapa
 (25/10/2026), a escolha direta da base (só os marcados), o lado a lado em telas largas (sem legenda repetida), o Histórico que reabre a análise no mapa sem recalcular e o celular. Nenhuma
@@ -183,34 +186,54 @@ def main():
         if chat.count() and chat.get_by_test_id("painel-chat-minimizar").count() and chat.get_attribute("data-minimizada") != "true":
             chat.get_by_test_id("painel-chat-minimizar").click()
 
-        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios (o nível Estados e "Marcar todos os
-        # estados", 24/10/2026). O mapa fica desligado, com o motivo (os estados não têm um ponto) e o atalho; nada é pedido ao
-        # endpoint do mapa.
+        # 1. Estados (E1): a base abre sem seleção; os estados vêm da Seleção de Territórios (o Ver por Estado, sem nada marcado:
+        # todos os estados). Vendo por estado, o mapa existe desde 06/11/2026 (item 3.2 do comando; divergência aprovada de RQ-REP-07
+        # só para isto): cada estado é uma bolha no ponto de desenho que o servidor calcula (a média das coordenadas das sedes dos
+        # municípios dele, só para desenhar), com as sedes ao fundo; sem cor própria da análise, os 5 grupos iguais (quintis) que o
+        # motor devolve junto com a análise. Nenhum ladrilho, nenhuma posição calculada na tela.
         area.get_by_test_id("analise-fonte-brasil").click()
         expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true", timeout=120000)
         expect(area).to_have_attribute("data-aba", "territorios")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         page.wait_for_timeout(500)
         assert not painel_calls and not mapa_calls, "sem territórios escolhidos, nada é pedido ao motor"
-        # Os estados como unidades (05/11/2026, a seleção unificada): sem nada marcado, a unidade de análise Estados marca todos.
         estados, sent = ok(lambda: aperta(territorios.get_by_test_id("analise-nivel-estados")))
-        assert sent.get("nivel") == "estados" and "grupos_mapa" not in sent, sent
+        assert sent.get("nivel") == "estados" and sent.get("grupos_mapa") == {"tipo": "quintis"}, sent
+        itens_estado = {item["id"] for item in estados["itens"] if item["tipo"] == "estado"}
+        assert len(itens_estado) == 27 and all(item["tipo"] == "estado" for item in estados["itens"]), len(estados["itens"])
         aperta(territorios.get_by_test_id("analise-ver-analise"))
         expect(area).to_have_attribute("data-aba", "distribuicao")
         expect(area).to_have_attribute("data-estado", "E1")
         expect(area).to_have_attribute("data-desenho", "grafico")
         botao_mapa = area.get_by_test_id("analise-desenho-mapa")
-        expect(botao_mapa).to_have_attribute("aria-disabled", "true")
-        aperta(botao_mapa)
-        motivo = area.get_by_test_id("analise-desenho-motivo")
-        expect(motivo).to_contain_text("Os estados não têm um ponto no mapa")
-        expect(area).to_have_attribute("data-desenho", "grafico")
-        assert not mapa_calls, "nos estados, nada é pedido ao endpoint do mapa"
-
-        # 2. O atalho leva a todos os municípios do Brasil, já no mapa: os pontos do motor (sede municipal), o fundo e, sem cor
-        # própria da análise, os 5 grupos iguais (quintis) que o motor devolveu com a análise, sem pergunta.
+        expect(botao_mapa).not_to_have_attribute("aria-disabled", "true")
+        expect(area.get_by_test_id("analise-desenho-motivo")).to_have_count(0)
         with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
-            brasil, sent = ok(lambda: aperta(motivo.get_by_test_id("analise-desenho-atalho")))
+            aperta(botao_mapa)
+        resposta_mapa = evento.value
+        assert resposta_mapa.status == 200, resposta_mapa.text()[:2000]
+        dados_estados = resposta_mapa.json()
+        assert options_of(resposta_mapa.request) == {"competencia": estados["competencia"], "categoria": estados["categoria"],
+                                                     "grupos": True}, options_of(resposta_mapa.request)
+        centros = {grupo["id"]: grupo for grupo in dados_estados["grupos"]}
+        assert set(centros) == itens_estado, sorted(centros)
+        assert dados_estados["metodo_grupos"] == "CENTRO-DE-DESENHO-1", dados_estados.get("metodo_grupos")
+        assert sum(grupo["unidades"] for grupo in centros.values()) == len(dados_estados["pontos"]), "cada sede em um estado"
+        expect(area).to_have_attribute("data-desenho", "mapa")
+        estado = desenhado(27, "quintis")
+        assert {ponto["id"] for ponto in estado["pontos"]} == itens_estado
+        assert estado["contexto"] == len(dados_estados["pontos"]), estado["contexto"]  # as sedes, ao fundo
+        expect(mapa.get_by_test_id("mapa-nota")).to_contain_text("média das coordenadas das sedes")
+        confere_quintis(estados, itens_estado, estado)
+        expect(area.get_by_test_id("analise-escala")).to_have_count(0)
+        shot("00-estados")
+
+        # 2. O Ver por Município (na faixa, no alto da aba) leva a todos os municípios do Brasil, ainda no mapa: os pontos do motor
+        # (sede municipal), o fundo e, sem cor própria da análise, os 5 grupos iguais (quintis) que o motor devolveu com a análise,
+        # sem pergunta. Os pontos dos municípios vêm num pedido sem os grupos.
+        ver_municipios = area.get_by_test_id("analise-faixa").get_by_test_id("analise-ver-por-municipios")
+        with page.expect_response(lambda r: r.url.endswith("/api/painel/mapa") and r.request.method == "POST", timeout=180000) as evento:
+            brasil, sent = ok(lambda: aperta(ver_municipios))
         assert sent["base"] == {"municipios": {"todos": True, "estados": [], "ids": []}}, sent
         assert sent.get("grupos_mapa") == {"tipo": "quintis"} and "grupos" not in sent, sent
         resposta_mapa = evento.value
@@ -218,8 +241,10 @@ def main():
         dados_mapa = resposta_mapa.json()
         assert options_of(resposta_mapa.request) == {"competencia": brasil["competencia"], "categoria": brasil["categoria"]}, \
             options_of(resposta_mapa.request)
+        assert "grupos" not in dados_mapa, "sem o pedido, nenhum ponto de desenho dos estados"
         assert dados_mapa["competencia"] == brasil["competencia"] and dados_mapa["referencial"] == "SIRGAS2000", dados_mapa["referencial"]
         pontos_motor = {ponto["id"]: (ponto["lat"], ponto["lon"]) for ponto in dados_mapa["pontos"]}
+        assert pontos_motor == {ponto["id"]: (ponto["lat"], ponto["lon"]) for ponto in dados_estados["pontos"]}, "as mesmas sedes"
         assert len(pontos_motor) > 5000, len(pontos_motor)
         assert all(-34 <= lat <= 6 and -74 <= lon <= -28 for lat, lon in pontos_motor.values()), "coordenadas dentro do Brasil"
         sem_coordenada = {item["id"] for item in dados_mapa["sem_coordenada"]}
@@ -308,8 +333,11 @@ def main():
         expect(mapa).to_have_attribute("data-esmaecidos", "0", timeout=10000)
         fecha()
 
-        # 7. Clique no ponto: marca, como na bolha; o mouse mostra a mesma dica do gráfico. O painel da régua acabou de fechar:
-        # o ponto é escolhido com o desenho já assentado e entre os que o clique alcança.
+        # 7. Clique no ponto: com a Comparar aberta (a escolha de itens em curso), marca, como na bolha; desde 06/11/2026, sem
+        # ela, tocar num município abre o lugar dele na trilha. O mouse mostra a mesma dica do gráfico. O painel acabou de abrir
+        # (com a janela larga, ele ocupa uma coluna ao lado): o ponto é escolhido com o desenho já assentado e entre os que o clique
+        # alcança.
+        abre("comparar")
         mapa.get_by_test_id("mapa-canvas").evaluate("e => e.scrollIntoView({block: 'center', behavior: 'instant'})")
         estado = estavel()
         alvo = ponto_isolado(estado["pontos"], livres=alcancaveis(estado["pontos"]))
@@ -322,6 +350,7 @@ def main():
         expect(dica).to_be_visible(timeout=5000)
         expect(dica).to_contain_text(rotulo)
         page.mouse.move(2, 2)
+        fecha()
 
         # 8. Zoom: o mapinha do canto aparece; "Ver tudo" volta ao enquadramento inicial.
         aperta(mapa.get_by_test_id("mapa-ampliar"))

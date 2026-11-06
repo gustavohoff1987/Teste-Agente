@@ -9,7 +9,11 @@
 > Desde 05/11/2026, a escolha é uma árvore única (o Brasil, os estados inteiros ou em parte e os municípios), e o nível vira a
 > unidade de análise, explícita: os estados como unidades só com estados inteiros, o Brasil só com o Brasil inteiro; com os
 > municípios como unidade, os totais individualizados do Brasil inteiro (fonte nacional) e de cada estado inteiro (fonte
-> estadual) aparecem ao lado ([área de análise](PAINEL_INTEGRADO_INTERFACE.md#seleção-de-territórios)); a cobertura do roteiro
+> estadual) aparecem ao lado ([área de análise](PAINEL_INTEGRADO_INTERFACE.md#seleção-de-territórios)). Desde 06/11/2026, o
+> Brasil deixa de ser unidade de análise na página única: é a referência fixa de toda análise, com a trilha do lugar em uso, o
+> "Ver por" Estado ou Município e os números do Brasil e do estado prontos nas fontes nacional e estadual
+> (`POST /api/painel/lugar`; [área de análise](PAINEL_INTEGRADO_INTERFACE.md#navegação-por-níveis-a-trilha-a-faixa-do-lugar-e-o-cartão));
+> o nível `brasil` continua na API; a cobertura do roteiro
 > que saiu está em [`backend/tests/legado/README.md`](../backend/tests/legado/README.md).
 
 Decisões do responsável pelo produto de 19/10/2026: **D3** (abrangência vertical com Brasil, estados,

@@ -93,7 +93,7 @@ O estado do gráfico chega em `options`, e o pedido seguinte parte dele:
 |---|---|
 | `painel_familia` | `distribuicao`, `espacial`, `tendencia`, `rotatividade` ou nula |
 | `painel_indicador` | `densidade` ou `quantidade` (também valem `comparison_indicator`, `temporal_indicator` e `exploration_indicator`) |
-| `painel_nivel` | `estados`, `municipios` ou, desde 24/10/2026, `brasil` (o Brasil como unidade) |
+| `painel_nivel` | `estados` ou `municipios` (de 24/10 a 06/11/2026, também `brasil`, o Brasil como unidade; desde 06/11/2026, a área não o usa mais) |
 | `painel_municipios` | `{"todos", "estados", "ids"}`: os municípios no gráfico (sem ela, valem os `territory_ids`) |
 | `painel_competencia` / `period_filter` | a competência à vista |
 | `painel_janela` / `period_filters` | a janela da tendência |
@@ -144,7 +144,7 @@ Todas as chaves vêm sempre; **nula quer dizer "o gráfico mantém o que tem"**.
 |---|---|
 | `familia` | `distribuicao`, `espacial`, `tendencia`, `rotatividade` |
 | `indicador` | `densidade` (por 1.000 habitantes) ou `quantidade` |
-| `nivel` | `estados` ou `municipios` (a área aceita também `brasil`, o Brasil como unidade, desde 24/10/2026) |
+| `nivel` | `estados` ou `municipios` (a área aceita também `brasil`, desde 06/11/2026 como o todo, vendo por estado; de 24/10 a 06/11/2026, o Brasil como unidade) |
 | `municipios` | `{"todos": bool, "estados": [...], "ids": [...]}`; na base do Brasil, `estados` traz o prefixo IBGE da UF (`"15"`); nas planilhas, o valor da coluna-mãe (`"Zambézia"`) |
 | `competencia` | `AAAAMM` (ou o período da planilha, como `2024`) |
 | `janela` | na tendência, os últimos 4 períodos do ritmo, anual ou semestral, em ordem (desde 24/10/2026; não há janela longa); na rotatividade, os dois períodos da coorte |
@@ -254,8 +254,10 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   com as duas vistas no mesmo pedido, a vista não muda. A vista sozinha ("ver no mapa", "volte ao gráfico") é atendida na
   tela, com o motivo da área quando o mapa não está disponível; aqui ela não vira comando, e o pedido segue para o
   intérprete com o provedor, que a devolve como `show_map` ou `show_chart`. "Amapá" não é o mapa.
-- **Onde o mapa não mostra a análise** pedida, o comando segue sem a vista, e a resposta diz por quê: nos estados (ou nos
-  grupos de uma planilha), que não têm um ponto; numa planilha sem latitude e longitude; na rotatividade e na visão
+- **Onde o mapa não mostra a análise** pedida, o comando segue sem a vista, e a resposta diz por quê: nos grupos de uma
+  planilha, que não têm um ponto (na base do Brasil, desde 06/11/2026, os estados aparecem no mapa, cada um no ponto de desenho
+  do motor, e "volte aos estados no mapa" leva a vista ao mapa; até essa data, a resposta dizia que os estados não têm um
+  ponto); numa planilha sem latitude e longitude; na rotatividade e na visão
   Série temporal, que ficam no gráfico; e quando a área já informou que o mapa não está disponível (`painel_mapa_disponivel:
   false`) e o pedido não muda o nível, as unidades, a análise nem a visão. A área confere de novo e mostra o motivo dela.
 

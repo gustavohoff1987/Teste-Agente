@@ -470,6 +470,60 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-abrangencia-nota { margin: 0; color: var(--cor-texto-2); font-size: 13px; }
 .analise-abrangencia-motivo { color: rgb(var(--tom-amber-900)); }
 .analise-abrangencia-mais > summary { color: var(--cor-destaque-texto); font-weight: 650; cursor: pointer; }
+/* ------------------------------------------------------------------------------------------- trilha, faixa e cartão (06/11/2026)
+   A trilha (o lugar em uso), no alto da área e igual em todas as abas; a faixa fixa com os números do lugar, no alto das abas de
+   análise, com o "Ver por"; no nível da unidade, o cartão do território com as barras da densidade. Só as cores do tema: valem no
+   claro e no escuro. Toque e teclado: cada parte da trilha e cada opção do "Ver por" com 40 px de altura, no mínimo. */
+.analise-trilha { margin: 8px 0 4px; }
+.analise-trilha-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; margin: 0; padding: 0; list-style: none; }
+.analise-trilha-item { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.analise-trilha-seta { flex: none; color: var(--cor-texto-3); }
+.analise-trilha-parte { display: inline-flex; align-items: center; min-height: 40px; max-width: 100%; padding: 6px 10px; border-radius: 10px;
+  color: var(--cor-destaque-texto); font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+button.analise-trilha-parte { text-decoration: underline; text-underline-offset: 3px; }
+button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
+.analise-trilha-atual { color: var(--cor-tinta); font-weight: 750; text-decoration: none; }
+.analise-trilha-dica { color: var(--cor-texto-2); font-size: 13px; }
+.analise-faixa { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--cor-borda-cartao);
+  border-radius: 14px; background: var(--cor-superficie); color: var(--cor-texto); }
+.analise-faixa-cabeca { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.analise-faixa-titulo { margin: 0; min-width: 0; color: var(--cor-tinta); font-size: 15px; overflow-wrap: anywhere; }
+/* Os pedaços de uma linha (o nome, o resumo, a competência) quebram como blocos: nenhum texto passa por cima de outro em 320 px. */
+.analise-faixa-titulo, .analise-cartao-titulo, .analise-cartao-distancia { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .35em; }
+.analise-faixa-titulo > *, .analise-cartao-titulo > *, .analise-cartao-distancia > * { min-width: 0; }
+.analise-faixa-apoio { color: var(--cor-texto-2); font-size: 13px; font-weight: 400; }
+.analise-faixa-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0; }
+.analise-faixa-numero { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; border: 1px solid var(--cor-borda-suave);
+  border-radius: 12px; background: var(--cor-superficie-suave); }
+.analise-faixa-numero dt { color: var(--cor-texto-2); font-size: 12px; font-weight: 650; }
+.analise-faixa-numero dd { display: flex; flex-direction: column; margin: 0; color: var(--cor-tinta); }
+.analise-faixa-numero strong { font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.analise-faixa-referencia { margin: 0; color: var(--cor-texto); font-size: 14px; font-variant-numeric: tabular-nums; }
+.analise-faixa-erro { margin: 0; color: rgb(var(--tom-rose-800)); font-size: 13px; }
+.analise-ver-por { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.analise-ver-por-titulo { color: var(--cor-texto-2); font-size: 13px; font-weight: 650; }
+.analise-ver-por .analise-segmentos > button { min-height: 36px; }
+.analise-cartao { display: flex; flex-direction: column; gap: 6px; }
+.analise-cartao-titulo { margin: 0; color: var(--cor-tinta); font-size: 18px; }
+.analise-cartao-subtitulo { margin: 0; color: var(--cor-texto-2); font-size: 12px; font-weight: 650; }
+.analise-cartao-barras { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.analise-cartao-barra { display: grid; grid-template-columns: minmax(6rem, 12rem) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 14px; }
+.analise-cartao-nome { min-width: 0; color: var(--cor-texto-forte); overflow-wrap: anywhere; }
+.analise-cartao-trilho { position: relative; height: 12px; border-radius: 6px; background: var(--grafico-trilho, var(--cor-realce)); overflow: hidden; }
+.analise-cartao-preenchido { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--grafico-serie, var(--cor-destaque)); }
+.analise-cartao-grupo, .analise-cartao-todo { opacity: .55; }
+.analise-cartao-valor { color: var(--cor-tinta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.analise-cartao-distancia { margin: 0; color: var(--cor-tinta); font-size: 15px; }
+.analise-espacial-grupos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 8px 0; padding: 12px;
+  border: 1px solid var(--cor-borda-convite); border-radius: 12px; background: var(--cor-realce-destaque); }
+.analise-espacial-grupos-texto { margin: 0; color: var(--cor-tinta); font-size: 15px; font-weight: 650; }
+@media (max-width: 639px) {
+  .analise-faixa-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analise-faixa-numero strong { font-size: 17px; }
+  .analise-cartao-barra { grid-template-columns: minmax(0, 1fr) auto; }
+  .analise-cartao-trilho { grid-column: 1 / -1; grid-row: 2; }
+}
+
 /* A ressalva das somas que podem contar a mesma pessoa mais de uma vez (os conjuntos do Juntar). */
 .analise-ressalva { margin: 0; padding: 6px 10px; border-left: 3px solid rgb(var(--tom-amber-300)); border-radius: 0 8px 8px 0;
   background: rgb(var(--tom-amber-50)); color: rgb(var(--tom-amber-900)); font-size: 13px; line-height: 1.45; }

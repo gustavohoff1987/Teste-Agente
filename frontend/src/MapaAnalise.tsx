@@ -784,7 +784,7 @@ const MapaAnalise = forwardRef<MapaHandle, MapaProps>(function MapaAnalise(p, re
             análise.</p>}
           {p.legendaCor ?? <p>Cor única: nenhuma camada de cor em uso.</p>}</div>}
       <div className="mapa-notas">
-        <p data-testid="mapa-nota">{p.brasil === false ? "Cada ponto é a coordenada " + (feminino ? "da " : "do ") + unidade.singular +
+        <p data-testid="mapa-nota">{p.nota ? p.nota : p.brasil === false ? "Cada ponto é a coordenada " + (feminino ? "da " : "do ") + unidade.singular +
           " informada na planilha." : "Cada ponto é a sede do município (IBGE) na base do Brasil."} A posição é só
           para o desenho: o mapa não mede distância.{p.dados.referencial ? " Referencial das coordenadas: " +
           textoDoReferencial(p.dados.referencial) + "." : ""}{semPontoNoResultado ? " Sem coordenada válida, " + umaUnidade(rotulos) +
