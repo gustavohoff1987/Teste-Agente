@@ -562,6 +562,24 @@ def test_o_pedido_seguinte_usa_o_estado_do_grafico():
         "municipios"] == {"todos": False, "estados": [], "ids": ["code:150680"]}
 
 
+def test_abrir_um_lugar_e_acrescentar_quem_ja_esta_na_selecao():
+    """Item 4 do comando de navegação por níveis (06/11/2026): "abra X" (o botão "Abrir"/"Ir para" da resposta de valor) leva
+    a seleção ao lugar e responde "Abri X." (a tela só mostra a resposta com o pedido conferido); "mostre X" continua a dizer o
+    que foi mostrado. Acrescentar quem já está na seleção em uso não muda nada, e a resposta diz isso (antes, ela dizia
+    "Acrescentei", com o mesmo número de municípios)."""
+    aberto = pedir("abra Tefé")
+    assert aberto["painel"] == painel(nivel="municipios", municipios={"todos": False, "estados": [], "ids": ["code:130420"]})
+    assert aberto["reply"] == "Abri TEFE (AM)."
+    assert pedir("abra TEFE (AM)")["reply"] == "Abri TEFE (AM)."
+    estado = pedir("abra o Pará")
+    assert estado["painel"]["municipios"] == {"todos": False, "estados": ["15"], "ids": []}
+    assert estado["reply"] == "Abri o Pará."
+    assert pedir("mostre Tefé")["reply"].startswith("Mostrei ")
+    ja = pedir("acrescente Tefé")
+    assert "painel" not in ja and ja["reply"] == "TEFE (AM) já está na seleção em uso."
+    assert pedir("acrescente o Amazonas")["reply"] == "Os municípios do Amazonas já estão na seleção em uso."
+
+
 def test_ambiguidades_viram_alternativas_em_botoes_sem_mudar_o_grafico():
     sp = pedir("mostre São Paulo")
     assert "painel" not in sp and sp["ambiguity"] == "AMBIGUIDADE_MATERIAL"

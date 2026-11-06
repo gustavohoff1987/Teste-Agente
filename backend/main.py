@@ -1605,7 +1605,7 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
     conversacional = ato.get("ato") in CONVERSACIONAIS
     if conversacional and not redacao_permitida and conversa_gemini.ativa():
         return dict(ADIAR)
-    interpretar = nomes = None
+    interpretar = nomes = calcular = None
     frame = fields = grupo = None
     if ato["ato"] in dialogo.PRECISA_DA_BASE or (ato["ato"] == "estado" and ato.get("assunto") == "ausente"):
         frame, fields, settings, opcoes, grupo = await _base_da_conversa(file, mapping, sheet, dataset, scope,
@@ -1620,12 +1620,27 @@ async def _turno_do_dialogo(message, conversa, requested, grafico, file, mapping
         def nomes(texto):
             return conversa_grafico.nomes_citados(texto, frame, fields, settings, grafico, brasil=brasil, opcoes=opcoes,
                                                   grupo=grupo)
+
+        if ato["ato"] == "valor_do_lugar":
+            def calcular(opcoes_do_painel):
+                """O motor para um lugar fora do resultado em exibição (06/11/2026, item 4.5 do comando de navegação por
+                níveis): o mesmo cálculo de /api/painel, sem registro na sessão; na base do Brasil, só. None se o motor
+                recusar o pedido."""
+                if not brasil:
+                    return None
+                try:
+                    _, _, sources = _dataset_do_pedido(None, "", "brazil", "municipal", "", dataset_version,
+                                                       with_sources=True)
+                    return painel.compute(sources, fields, opcoes_do_painel)
+                except (ChoiceRequired, ValueError, TypeError, KeyError):
+                    return None
     fonte = {"tipo": "brasil", "descricao": _descricao_do_brasil() if ato.get("assunto") == "dados" else ""} \
         if dataset == "brazil" else {"tipo": "arquivo", "nome": getattr(file, "filename", "") or ""}
     rotulos = grafico.get("rotulos") or ({"unidade": {"singular": "município", "plural": "municípios"},
                                           "grupo": {"singular": "estado", "plural": "estados"}} if dataset == "brazil"
                                          else {})
-    ambiente = dialogo.Ambiente(message, memoria, grafico, resultado, anterior, fonte, interpretar, nomes, rotulos)
+    ambiente = dialogo.Ambiente(message, memoria, grafico, resultado, anterior, fonte, interpretar, nomes, rotulos,
+                                calcular=calcular)
     try:
         resposta = dialogo.executar(ato, ambiente)
     except Exception:  # noqa: BLE001 — defeito do gestor (inclusive composição recusada na conferência): registrado no log;

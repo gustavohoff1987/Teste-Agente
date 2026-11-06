@@ -118,6 +118,14 @@ QUANTOS = re.compile(r"\b(?:\d+|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|
 # são os dois ou os três, com as duas alternativas em botão.
 EXTREMOS_NO_PLURAL = re.compile(r"\b(?:os|as) (?:\w+ ){0,2}?(?:maiores|menores|(?:mais|menos) \w+s|(?:de|com) (?:maior|menor))\b")
 DIFERENCA = re.compile(r"\b(?:diferenca|quanto a mais|quanto maior|quanto menor|distancia entre os valores)\b")
+# Pergunta de valor sobre um lugar (06/11/2026, item 4.2 do comando de navegação por níveis): "Quantos médicos tem em
+# Marabá?", "Qual a densidade do Pará?", "Quantos habitantes tem Tefé?". Pergunta não é comando: a resposta traz os números
+# do motor, sem mudar a tela.
+VALOR_DO_LUGAR = re.compile(r"^(?:(?:e|mas|entao|agora|afinal|me diga|diga|sabe) )*(?:quant[oa]s? (?:medic[oa]s|profissionais|"
+                            r"habitantes|pessoas|moradores)|qual (?:e |eh )?(?:a |o )?(?:densidade|populacao|quantidade|"
+                            r"numero de (?:medic[oa]s|profissionais|habitantes)|distancia)|quanto (?:e |eh )?(?:a |o )?"
+                            r"(?:densidade|populacao|quantidade))\b")
+LUGAR_CITADO = re.compile(r"\b(?:em|no|na|nos|nas|de|do|da|dos|das|tem|ha|existem|sao|possui)\s+[a-z]{3,}")
 # A referência mais próxima no gráfico em exibição, com a Escolha dos territórios (28/10/2026): "qual é o mais próximo?",
 # "qual a referência mais próxima de X?", "e a distância?" (também a continuação do pedido de proximidade).
 REFERENCIA_PROXIMA = re.compile(r"\b(?:qual|quais|quem)\b(?:\s+\w+){0,6}?\s+(?:referencias?\s+mais\s+proximas?|"
@@ -458,12 +466,19 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
                                             r"mostre|pra|para|incluindo|e)? ?(?:tod[oa]s)(?: os municipios| as cidades| eles)?"
                                             r"(?: entao| tambem| de uma vez)?", texto):
         return {"ato": "todos"}
+    # Pergunta de valor sobre um lugar (06/11/2026, item 4.2): os números do motor, sem mudar a tela, com o lugar no gráfico ou
+    # fora dele (o gestor confere os nomes). Sem comparação, sem contagem de territórios e sem "até"/"entre" (a distância entre
+    # dois lugares não é a da referência). Com o gráfico calculado, as verificações e os limites vêm antes (passo 8b).
+    valor = {"ato": "valor_do_lugar", "atributo": _atributo(texto)} if (interrogativa or PERGUNTA.search(texto)) and \
+        VALOR_DO_LUGAR.search(texto) and LUGAR_CITADO.search(texto) and not CONTAGEM.search(texto) and not compara and \
+        not diferenca and not re.search(r"\b(?:maior|menor|mais|menos|ate|entre|cada|todos|todas|deles|delas|desses|dessas)\b",
+                                        texto) else None
     if not tem_resultado:
         if DADOS.search(texto):
             return {"ato": "estado", "assunto": "dados"}
         if EXPLICA.search(texto) and (_termos(texto) or CLASSIFICACAO.search(texto)):
             return {"ato": "explica", "topico": "conceito", "termos": _termos(texto), "registro": _registro(texto)}
-        return None
+        return valor
     # 6b. Pedido em forma de pergunta ("como isso mudou ao longo do tempo?"): é a tendência dos mesmos territórios.
     if INDIRETO_TENDENCIA.search(texto) and (PERGUNTA.search(texto) or interrogativa) and not CAUSA.search(texto) and \
             not EXPLICA.search(texto) and (resultado_tendencia is False):
@@ -476,7 +491,7 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
                  r"\bo que (?:ta|esta) aparecendo\b|\bo que (?:tem|ha) (?:na tela|no grafico|aqui)\b", texto):
         return {"ato": "explica", "topico": "resultado", "registro": "objetivo"}
     citado = _cita_territorio(texto, nomes_no_resultado or [])
-    if citado and re.search(r"\b(?:leitura|o que (?:diz|significa|quer dizer|mostra)|como (?:fica|esta|ficou|foi)|"
+    if citado and not valor and re.search(r"\b(?:leitura|o que (?:diz|significa|quer dizer|mostra)|como (?:fica|esta|ficou|foi)|"
                             r"e (?:para|pra|quanto a|sobre)|qual (?:e )?a situacao|e (?:o|a) \w+\?*$)\b|^e (?:o |a )?\w+",
                             texto) and not CAUSA.search(texto) and not NORMATIVO.search(texto) and \
             not (MAIOR.search(texto) or MENOR.search(texto)):
@@ -485,6 +500,9 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
     verificacao = _verificacao(texto, memoria, interrogativa)
     if verificacao:
         return verificacao
+    # 8b. A pergunta de valor sobre um lugar (06/11/2026, item 4.2).
+    if valor:
+        return valor
     # 9. Explicação progressiva.
     explicar = _explicacao(texto, memoria)
     if explicar:
@@ -678,7 +696,7 @@ class Ambiente:
     resolver nomes), carregados só quando o ato precisa."""
 
     def __init__(self, mensagem, conversa, ctx, resultado=None, anterior=None, fonte=None, interpretar=None, nomes=None,
-                 rotulos=None):
+                 rotulos=None, calcular=None):
         self.mensagem = mensagem
         self.conversa = conversa if isinstance(conversa, dict) else {}
         self.memoria = self.conversa.get("memoria") if isinstance(self.conversa.get("memoria"), dict) else {}
@@ -692,10 +710,13 @@ class Ambiente:
         self.interpretar = interpretar
         self.nomes = nomes
         self.rotulos = rotulos or {}
+        # O cálculo do motor para um lugar fora do resultado em exibição (06/11/2026, item 4.5): opções do painel → resposta
+        # do motor, ou None. Só o pedem os atos que leem um lugar (valor_do_lugar).
+        self.calcular = calcular
 
 
 PRECISA_DA_BASE = frozenset(("responde_pendente", "corrige_escolha", "completa_pendente", "troca", "inclui", "tira",
-                             "corrige_pedido", "pedido_indireto", "proximidade"))
+                             "corrige_pedido", "pedido_indireto", "proximidade", "valor_do_lugar"))
 
 
 def executar(ato: dict, amb: Ambiente) -> dict | None:
@@ -1398,6 +1419,95 @@ def _diferenca(ato: dict, amb: Ambiente) -> dict | None:
                      "nome, ou peça, por exemplo, “compare o de maior e o de menor densidade”.", memoria={"ato": "diferenca"})
 
 
+def _alvo_do_lugar(item: dict) -> str:
+    """Como o lugar é escrito no rascunho dos botões: o município pelo rótulo da base ("MARABA (PA)"); o estado com o artigo
+    ("o Pará"), que a gramática lê como o estado, não como os municípios com o mesmo nome."""
+    if item.get("tipo") == "estado" and str(item.get("id", "")).startswith("uf:"):
+        from conversa_grafico import _lugar_com_artigo
+        try:
+            return _lugar_com_artigo(("estado", str(item["id"])[3:]))
+        except (KeyError, ValueError):
+            return str(item.get("rotulo") or "")
+    return str(item.get("rotulo") or "")
+
+
+def _escolhas_do_lugar(itens: list[dict], verbo: str) -> list[dict]:
+    """Os botões da resposta de valor (06/11/2026): "Abrir X" (ou "Ir para X", fora da análise em uso), que move a trilha
+    pelo pedido "abra X", e "Adicionar à seleção", que acrescenta os lugares à seleção em uso."""
+    alvos = [_alvo_do_lugar(item) for item in itens]
+    escolhas = [{"label": verbo + " " + alvo, "draft": "abra " + alvo, "send": True} for alvo in alvos]
+    escolhas.append({"label": "Adicionar à seleção", "draft": "acrescente " + " e ".join(alvos), "send": True})
+    return escolhas
+
+
+def _opcoes_do_lugar(amb: Ambiente, itens: dict) -> dict | None:
+    """As opções do painel para o cálculo à parte de um lugar fora do resultado: a competência, a categoria e o indicador do
+    resultado em exibição (ou do gráfico) e, com a Escolha dos territórios em uso, a mesma consulta (a distância até a mesma
+    referência). `itens`: {"municipios": [ids]} ou {"estados": [códigos]}."""
+    body = amb.resultado or {}
+    competencia = body.get("competencia") or amb.ctx.get("competencia")
+    if not isinstance(competencia, str) or not competencia:
+        return None
+    opcoes = {"competencia": competencia, "indicador": body.get("indicador") or amb.ctx.get("indicador") or "densidade"}
+    if body.get("categoria"):
+        opcoes["categoria"] = body["categoria"]
+    if itens.get("estados"):
+        opcoes.update(nivel="estados", estados=list(itens["estados"]))
+        return opcoes
+    opcoes.update(nivel="municipios", base={"municipios": {"todos": False, "estados": [], "ids": list(itens["municipios"])}})
+    referencia = body.get("referencia") or {}
+    if referencia.get("tipo") == "consulta" and isinstance(referencia.get("consulta"), dict):
+        opcoes["consulta"] = referencia["consulta"]
+    return opcoes
+
+
+def _valor_do_lugar(ato: dict, amb: Ambiente) -> dict | None:
+    """Pergunta de valor sobre um lugar (06/11/2026, item 4.2 do comando de navegação por níveis): "Quantos médicos tem em
+    Marabá?". Pergunta não é comando: a tela não muda. Com o lugar no gráfico em uso, os números do motor lidos do resultado em
+    exibição (com a distância até a referência, na Análise Espacial) e o destaque do lugar, com "Abrir" e "Adicionar à
+    seleção" em botão. Fora dele (item 4.5), os números que o motor calcula à parte para o lugar, na mesma competência (e, com
+    a Escolha dos territórios, com a mesma consulta), com "Ir para" e "Adicionar à seleção". Sem lugar reconhecido, None: a
+    mensagem segue o caminho de antes."""
+    body = amb.resultado
+    citados = [indice for indice in explicacao.localizar(body, amb.mensagem)
+               if body["itens"][indice].get("tipo") in ("municipio", "estado")] if body else []
+    if citados:
+        citados = list(dict.fromkeys(citados))[:3]
+        composicao = explicacao.valor_do_lugar(body, citados, ato.get("atributo"))
+        resposta = _explicada(composicao, {"ato": "valor_do_lugar", "foco": citados, "atributo": ato.get("atributo")})
+        resposta["choices"] = _escolhas_do_lugar([body["itens"][indice] for indice in citados], "Abrir")
+        return resposta
+    if amb.nomes is None or amb.calcular is None:
+        return None
+    achado = amb.nomes(amb.mensagem)
+    if "pergunta" in achado:
+        return achado["pergunta"]
+    ids, grupos = list(achado.get("ids") or []), list(achado.get("grupos") or [])
+    if ids and not grupos and len(ids) <= 3:
+        pedido = {"municipios": ids}
+    elif grupos and not ids and len(grupos) <= 3 and amb.fonte.get("tipo", "brasil") == "brasil":
+        pedido = {"estados": grupos}
+    else:
+        return None
+    opcoes = _opcoes_do_lugar(amb, pedido)
+    if opcoes is None:
+        return None
+    corpo = amb.calcular(opcoes)
+    alvo = set(ids) if ids else {"uf:" + codigo for codigo in grupos}
+    indices = [i for i, item in enumerate((corpo or {}).get("itens") or []) if item.get("id") in alvo]
+    if len(indices) < len(alvo) and "consulta" in opcoes:
+        # O lugar não entra na base da consulta (os filtros dela): os números sem a distância.
+        opcoes.pop("consulta")
+        corpo = amb.calcular(opcoes)
+        indices = [i for i, item in enumerate((corpo or {}).get("itens") or []) if item.get("id") in alvo]
+    if not corpo or not indices:
+        return None
+    composicao = explicacao.valor_do_lugar(corpo, indices, ato.get("atributo"), destacar=False, fora=True)
+    resposta = _explicada(composicao, {"ato": "valor_do_lugar", "atributo": ato.get("atributo")})
+    resposta["choices"] = _escolhas_do_lugar([corpo["itens"][indice] for indice in indices], "Ir para")
+    return resposta
+
+
 def _contagem(ato: dict, amb: Ambiente) -> dict:
     return _explicada(explicacao.contagem(amb.resultado, rotulos=amb.rotulos), {"ato": "contagem"})
 
@@ -1613,6 +1723,7 @@ EXECUTORES = {
     "explica": _explica, "limite": _limite, "refere_anterior": _refere_anterior, "estado": _estado,
     "governanca": _governanca_executa, "corrige_pedido": _corrige_pedido, "pedido_indireto": _pedido_indireto,
     "compara_extremos": _compara_extremos, "proximidade": _proximidade, "referencia_proxima": _referencia_proxima,
+    "valor_do_lugar": _valor_do_lugar,
 }
 
 

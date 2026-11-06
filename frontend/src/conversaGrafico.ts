@@ -383,13 +383,20 @@ export function conversaParaEnvio(memoria: MemoriaDaConversa): string {
   return JSON.stringify({ pendente: memoria.pendente, memoria: memoria.memoria, anteriores: memoria.anteriores.slice(-6) });
 }
 
-/** As ações de tela que a explicação pede: abrir "Entenda esta análise" na aba indicada, com os termos destacados. */
+/** As ações de tela que a resposta pede: abrir "Entenda esta análise" na aba indicada, com os termos destacados (a explicação), e,
+ * desde 06/11/2026 (item 4.2 do comando de navegação por níveis), destacar no gráfico em uso os lugares da resposta de valor. */
 export function pedidosDasAcoes(acoes: unknown): PedidoDoChat[] {
   if (!Array.isArray(acoes)) return [];
   const abas = ["distribuicao", "espacial", "tendencia", "rotatividade"];
-  return acoes.filter((acao): acao is { tipo: string; aba: string; termos?: unknown } => !!acao && typeof acao === "object" &&
-      (acao as { tipo?: unknown }).tipo === "explicar" && abas.includes((acao as { aba?: unknown }).aba as string))
-    .map(acao => ({ explicar: { aba: acao.aba as Familia, termos: textos(acao.termos) } }));
+  const pedidos: PedidoDoChat[] = [];
+  for (const bruta of acoes) {
+    if (!bruta || typeof bruta !== "object") continue;
+    const acao = bruta as { tipo?: unknown; aba?: unknown; termos?: unknown; ids?: unknown };
+    if (acao.tipo === "explicar" && abas.includes(acao.aba as string))
+      pedidos.push({ explicar: { aba: acao.aba as Familia, termos: textos(acao.termos) } });
+    else if (acao.tipo === "destacar" && textos(acao.ids).length) pedidos.push({ destacar: { ids: textos(acao.ids) } });
+  }
+  return pedidos;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -397,12 +404,14 @@ export function pedidosDasAcoes(acoes: unknown): PedidoDoChat[] {
 // área de análise confirmar que o pedido está na tela, com o cálculo do motor. O texto do intérprete descreve o comando; o
 // desfecho informado pela área (DesfechoDoPedido) decide o que a resposta diz.
 
-/** O comando do gráfico e as ações de tela da mesma resposta (abrir "Entenda esta análise") num pedido só: a área aplica um
- * pedido por vez, e dois pedidos no mesmo instante deixariam só o último. Sem nenhum dos dois, não há pedido. */
+/** O comando do gráfico e as ações de tela da mesma resposta (abrir "Entenda esta análise" e, desde 06/11/2026, o destaque dos
+ * lugares da resposta de valor) num pedido só: a área aplica um pedido por vez, e dois pedidos no mesmo instante deixariam só o
+ * último. Sem nenhum deles, não há pedido. */
 export function juntarPedidos(pedido: PedidoDoChat | null, acoes: PedidoDoChat[]): PedidoDoChat | null {
   const explicar = acoes.find(acao => acao.explicar)?.explicar ?? null;
-  if (!pedido && !explicar) return null;
-  return { ...(pedido ?? {}), ...(explicar ? { explicar } : {}) };
+  const destacar = acoes.find(acao => acao.destacar)?.destacar ?? null;
+  if (!pedido && !explicar && !destacar) return null;
+  return { ...(pedido ?? {}), ...(explicar ? { explicar } : {}), ...(destacar ? { destacar } : {}) };
 }
 
 /** Sem o desfecho no prazo da tela: o pedido saiu, mas a área ainda não confirmou. */

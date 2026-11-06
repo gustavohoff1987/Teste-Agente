@@ -794,6 +794,68 @@ def contagem(body: dict | None, rotulos: dict | None = None) -> dict:
     return verificar(c.resultado(), body)
 
 
+# --------------------------------------------------------------------------------------------- pergunta de valor de um lugar
+def profissionais_de(categoria: str) -> str:
+    """"médicos" na categoria da medicina; nas demais, "profissionais de {categoria}" (como painelModel.profissionaisDe, que
+    escreve a faixa do lugar)."""
+    chave = _simples(str(categoria or "")).strip()
+    if not chave:
+        return "profissionais"
+    if chave in ("medicina", "medicos", "medico"):
+        return "médicos"
+    return "profissionais de " + str(categoria).strip().lower()
+
+
+def valor_do_lugar(body: dict, indices: list[int], atributo: str | None = None, destacar: bool = True,
+                   fora: bool = False) -> dict:
+    """Pergunta de valor sobre um lugar (06/11/2026, item 4.2 do comando de navegação por níveis: "Quantos médicos tem em
+    Marabá?"). De cada lugar citado (até 3), a quantidade de profissionais e a densidade na competência e, com a referência
+    em uso (a Análise Espacial), a distância em linha reta até a referência mais próxima, com o nome dela; a população,
+    quando perguntada. Tudo copiado da resposta do motor como segmentos conferidos. Pergunta não é comando: a tela não muda.
+    `destacar`: os lugares estão no gráfico em uso e ficam em destaque (a ação `destacar`, que a área aplica sem recalcular);
+    `fora`: o lugar não está na análise em uso, e os números vieram de um cálculo à parte do motor."""
+    c = Composicao(body)
+    profissionais = profissionais_de(body.get("categoria") or "")
+    for ordem, indice in enumerate(indices):
+        item = body["itens"][indice]
+        c.text("" if not ordem else " ").label("itens", indice, "rotulo").text(": ")
+        quantidade = item.get("quantidade")
+        if isinstance(quantidade, (int, float)) and not isinstance(quantidade, bool):
+            c.number("itens", indice, "quantidade").text(" " + profissionais)
+        else:
+            c.text("sem valor de quantidade")
+        c.text(" em ").period("competencia")
+        if isinstance(item.get("densidade"), (int, float)) and not isinstance(item.get("densidade"), bool):
+            c.text(" (").valor(indice, "densidade").text(")")
+        if atributo == "populacao" and isinstance(item.get("populacao"), (int, float)):
+            c.text(", com ").number("itens", indice, "populacao").text(" habitantes")
+        if body.get("referencia") is not None:
+            if item.get("referencia"):
+                c.text("; é a referência")
+            elif isinstance(item.get("distancia_km"), (int, float)):
+                c.text(", a ").valor(indice, "distancia_km").text(" em linha reta da referência mais próxima")
+                campo = "referencia_mais_proxima" if item.get("referencia_mais_proxima") else "referencia_do_item"
+                proxima = item.get(campo) or {}
+                empate = proxima.get("empate") or []
+                if empate:
+                    c.text(" (")
+                    for k in range(len(empate)):
+                        c.text("" if not k else " e " if k == len(empate) - 1 else ", ")
+                        c.label("itens", indice, campo, "empate", k, "rotulo")
+                    c.text(", empatadas)")
+                elif proxima.get("rotulo"):
+                    c.text(" (").label("itens", indice, campo, "rotulo").text(")")
+            else:
+                c.text(", sem distância avaliável até a referência")
+        c.text(".")
+    if fora:
+        c.text(" Não está na análise em uso." if len(indices) == 1 else " Não estão na análise em uso.")
+    elif destacar:
+        c.text(" Destaquei no gráfico." if len(indices) == 1 else " Destaquei no gráfico os " + str(len(indices)) + ".")
+        c.acoes.append({"tipo": "destacar", "ids": [body["itens"][indice]["id"] for indice in indices]})
+    return verificar(c.resultado(), body)
+
+
 # --------------------------------------------------------------------------------------------- limites de interpretação
 QUEDA = re.compile(r"\b(?:queda|caiu|cair|cairam|reducao|reduziu|diminuiu|diminuicao|piora|piorou|baixou|declinio)\b")
 ALTA = re.compile(r"\b(?:subiu|subida|aumento|aumentou|cresceu|crescimento|alta|melhora|melhorou|elevou)\b")

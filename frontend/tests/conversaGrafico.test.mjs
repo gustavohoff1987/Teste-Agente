@@ -407,6 +407,16 @@ test('o comando e as ações de tela da mesma resposta vão num pedido só (dois
   assert.equal(C.juntarPedidos(null, []), null);
 });
 
+test('pergunta de valor (06/11/2026, item 4.2): a ação "destacar" vira o pedido de destaque, sem comando do gráfico', () => {
+  assert.deepEqual(C.pedidosDasAcoes([{tipo: 'destacar', ids: ['code:150420']}, {tipo: 'destacar', ids: []}, {tipo: 'destacar'}]),
+    [{destacar: {ids: ['code:150420']}}]);
+  assert.deepEqual(C.pedidosDasAcoes([{tipo: 'explicar', aba: 'tendencia', termos: []}, {tipo: 'destacar', ids: ['code:1', 7]}]),
+    [{explicar: {aba: 'tendencia', termos: []}}, {destacar: {ids: ['code:1']}}]);
+  const destacar = {destacar: {ids: ['code:150420']}};
+  assert.deepEqual(C.juntarPedidos(null, [destacar]), destacar);
+  assert.deepEqual(C.juntarPedidos({familia: 'espacial'}, [destacar]), {familia: 'espacial', ...destacar});
+});
+
 test('com o desfecho "concluido", a resposta é a do intérprete; nos demais, o que de fato aconteceu, sem afirmar a execução', () => {
   const ordenei = 'Mostrei a densidade nos 22 municípios do Acre. Ordenei os municípios pela densidade, do maior para o menor, e ' +
     'destaquei os 5 primeiros; empates na posição de corte também entram.';

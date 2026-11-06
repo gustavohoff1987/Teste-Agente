@@ -44,6 +44,9 @@ export type PedidoDoChat = {
   /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
    * destacados. Estado visual: nada é recalculado. */
   explicar?: { aba: Familia; termos: string[] } | null;
+  /** O destaque pedido pela resposta de valor da conversa (06/11/2026, item 4.2): os lugares citados ficam em destaque no gráfico
+   * em uso. Estado visual: nada é recalculado. */
+  destacar?: { ids: string[] } | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026: "o de menor densidade e o mais próximo dele com
    * densidade de no mínimo 1,5"): a base, a referência e de onde cada uma parte, conferidas por lerConsulta. */
   consulta?: object | null;
@@ -2258,6 +2261,22 @@ export function deOndeEhOResultado(lugar: LugarDaTrilha, c: { grupos: GrupoInfo[
     if (grupo?.rotuloGrupo && grupo.rotuloGrupo.includes(" ")) return grupo.rotuloGrupo.split(" ").slice(1).join(" ");
   }
   return "de " + atual.rotulo;
+}
+
+/** A confirmação conferida (06/11/2026, item 4.4 do comando de navegação por níveis): o resultado em tela é do lugar que a
+ * conversa pediu? Confere o lugar atual da trilha, pelo nível e pelo id (o nome pode vir da lista da base no pedido e da resposta
+ * do motor depois; o título sai da mesma definição), e os itens do gráfico, todos dentro da escolha pedida (no nível dos
+ * municípios). null: confere; senão, o que faltou, em palavras. */
+export function lugarConfere(esperado: { parte: ParteDaTrilha; escolha: Pick<DefinicaoAnalise, "nivel" | "base"> },
+  atual: LugarDaTrilha, itens: readonly Pick<PainelItem, "id" | "tipo">[], grupoDe: (id: string) => string = prefixoDe): string | null {
+  const parte = atual.partes.find(item => item.atual);
+  if (!parte || parte.chave !== esperado.parte.chave || parte.id !== esperado.parte.id)
+    return "A área de análise não está em " + esperado.parte.rotulo + ": a trilha mostra " +
+      (atual.partes.map(item => item.rotulo).join(" › ") || "outro lugar") + ".";
+  const { nivel, base } = esperado.escolha;
+  if (nivel !== "municipios" || base.todos) return null;
+  const fora = itens.filter(item => item.tipo === "municipio" && !base.ids.includes(item.id) && !base.estados.includes(grupoDe(item.id)));
+  return fora.length ? "O gráfico ainda mostra territórios fora de " + esperado.parte.rotulo + "." : null;
 }
 
 /** Uma opção do "Ver por" (06/11/2026, no lugar de "Cada ponto da análise é"): o nível que cada ponto mostra, só entre os níveis

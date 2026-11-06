@@ -52,6 +52,7 @@ provedor, com o cartão do contexto. Sem o provedor, o pedido que dependeria del
 | Pedido em forma de pergunta | "e ao longo do tempo, como foi?" | A tendência dos mesmos territórios. |
 | Proximidade a partir do extremo (28/10/2026) | "Quero identificar o município de menor densidade e o mais próximo a ele com densidade de no mínimo 1,5 médicos por mil habitantes", "o mais populoso e o mais próximo dele com densidade acima de 3" | O extremo vem das ordens do motor sobre o gráfico em exibição, com os empates, e vai para a base; a condição vai para a referência, e o pedido vira a Escolha dos territórios da Análise Espacial (ver "Proximidade pela conversa"). |
 | Referência mais próxima (28/10/2026) | "Qual é o mais próximo?", "qual a referência mais próxima?" (também a continuação do pedido acima) | Com a Escolha dos territórios por critério em exibição, a referência mais próxima de cada um da base, a distância em linha reta e a densidade da referência, copiadas do motor, com os empates e a ressalva TPL-11; botões trocam de onde a referência parte. Com a referência escolhida pelo nome ("use Manaus como referência") ou sem a Escolha dos territórios, a comparação das distâncias até ela, como antes (correção de 29/10/2026). "Os 3 mais próximos de Tefé" é a ordenação. |
+| Pergunta de valor sobre um lugar (06/11/2026) | "Quantos médicos tem em Marabá?", "Qual a densidade do Pará?", "Quantos habitantes tem Tefé?" | Pergunta não é comando: os números do motor (a quantidade, a densidade e, com a referência em uso, a distância em linha reta até a mais próxima), sem mudar a tela, com o lugar em destaque no gráfico e os botões "Abrir" e "Adicionar à seleção"; fora da análise em uso, os números calculados à parte pelo motor e "Ir para" (ver "Pergunta não é comando"). |
 | Pergunta sobre o resultado | "Qual deles apresenta densidade maior?", "E em relação à população?" (herda a direção), "quem tem menos profissionais?", "qual a diferença entre eles?", "quantos municípios estão no gráfico?" | Os valores e a ordem do motor; a diferença assinada que a comparação do motor calculou (sem comparação aberta, abre a comparação). Não muda o gráfico. |
 | Explicação | "Explique esse resultado.", "Não entendi a aceleração.", "Mas por que isso é diferente de crescimento?", "E o que isso quer dizer para esse município?", "Agora explique de maneira mais técnica." | Registros objetivo, simples, didático e técnico, com memória do tópico. Ver "Explicação progressiva". |
 | Verificação e limites | "Esse crescimento significa que o município melhorou?", "então Manaus tem médicos suficientes?", "Qual foi a causa dessa queda?", "a distância mostra o tempo de viagem?", "esse número é confiável?" | Os fatos do resultado e a regra governada: CFG-NOR (juízo normativo), TPL-06 com EXC-03 (causa), TPL-11 (acesso), notas do motor (procedência). Antes de tratar a causa, confere a premissa ("o resultado não mostra queda para …"). |
@@ -240,6 +241,34 @@ Correções de 29/10/2026 (revisão dos commits de 28/10), cada uma com o compor
 - o mapa de funcionalidades do cartão do contexto descreve a proximidade sem números ("com densidade de no mínimo um
   valor"): os exemplos "1,5" e "50 mil" entravam nos números aceitos pela conferência de fidelidade.
 
+## Pergunta não é comando (06/11/2026)
+
+Comando do responsável de 06/11/2026 (navegação por níveis, item 4, partes 4.2 a 4.5). Antes, "Quantos médicos tem em Marabá?",
+com a Análise Espacial do Pará na tela, virava o comando da gramática: a seleção ia a Marabá, e a resposta dizia "Mostrei a
+quantidade e a distância até a referência em 1 município: MARABA (PA)". Agora:
+- o ato `valor_do_lugar` (`dialogo.py`, `VALOR_DO_LUGAR`) é reconhecido sem o provedor, com e sem o gráfico calculado, na
+  pergunta de valor ("quantos médicos/profissionais/habitantes…", "qual a densidade/população/quantidade/distância…") que cita
+  um lugar, sem comparação ("mais", "maior"), sem contagem de territórios ("quantos municípios…", que segue a contagem), sem
+  "até" ou "entre" (a distância entre dois lugares não é a da referência) e sem "cada", "todos" ou "deles". Com o gráfico
+  calculado, as verificações e os limites vêm antes ("a distância mostra o tempo de viagem?" continua o limite de acesso);
+- **com o lugar no gráfico em uso**, os números vêm do resultado em exibição, copiados como segmentos conferidos
+  (`explicacao.valor_do_lugar`): "MARABA (PA): 472 médicos em junho de 2024 (1,64 por 1.000 habitantes), a 140,… km em linha
+  reta da referência mais próxima (…). Destaquei no gráfico." A resposta traz a ação `destacar` (a área põe o lugar em destaque,
+  sem recalcular) e os botões "Abrir MARABA (PA)" (o rascunho "abra MARABA (PA)") e "Adicionar à seleção" ("acrescente MARABA
+  (PA)"). Nada muda na análise;
+- **fora do gráfico em uso** (item 4.5: a trilha no Amapá, a pergunta sobre Marabá), o motor calcula o lugar à parte, na
+  competência do resultado em exibição e, com a Escolha dos territórios em uso, com a mesma consulta (a distância até a mesma
+  referência; sem passar pelos filtros da base, sem a distância), sem registro na sessão e só na base do Brasil
+  (`main._turno_do_dialogo`, `calcular`). A resposta termina com "Não está na análise em uso.", e os botões são "Ir para
+  MARABA (PA)" e "Adicionar à seleção". Um estado citado é lido pela contagem estadual ("Ir para o Pará"). Com nomes iguais, a
+  pergunta de qual deles, como nos comandos; sem lugar reconhecido, a mensagem segue o caminho de antes;
+- **"abra X"** (o botão, ou o pedido) leva a seleção e a trilha ao lugar, com a mesma referência na Análise Espacial, e a
+  gramática responde "Abri MARABA (PA)." (ou "Abri o Pará."); a conversa só mostra a resposta com o pedido concluído na área,
+  que confere o lugar na tela (trilha e itens do gráfico; ver Confirmação de execução em
+  `INTERFACE_CONVERSACIONAL_INTEGRADA.md`). "mostre X" continua a responder "Mostrei …";
+- **acrescentar quem já está na seleção em uso** ("Adicionar à seleção" com Marabá dentro do Pará) não muda nada, e a resposta
+  diz "MARABA (PA) já está na seleção em uso." (antes, "Acrescentei …", com o mesmo número de municípios).
+
 ## Avaliação
 
 **Método.** Conversas adversariais em `backend/tests/dialogo_adversarial/`, executadas pelo simulador da tela
@@ -353,6 +382,13 @@ PAR-20261026 da SPEC):
   próximos" como ordenação, o "para" sem acento, a referência pelo nome em exibição (a comparação das distâncias, sem as
   trocas do recorte) e o "desfaz" que devolve a Escolha dos territórios de antes; `test_contexto_conversa.py`: o mapa de
   funcionalidades sem números de exemplo.
+- `backend/tests/test_dialogo.py` (06/11/2026): a pergunta de valor reconhecida com e sem gráfico e o que não é ela; os
+  números do motor, o destaque e os botões com o lugar no gráfico, a distância na Análise Espacial, o lugar e o estado fora da
+  análise em uso (calculados à parte), "acrescente" quem já está e "abra" que responde "Abri"; `test_conversa_grafico.py`: "abra
+  X" e "abra o Pará", "mostre X" que continua "Mostrei" e "acrescente" quem já está na seleção.
+- `backend/tests/ui_navegacao.py` (base versionada, 06/11/2026): o aceite do item 4 no navegador — a pergunta na Análise
+  Espacial do Pará (472, 1,64 e cerca de 140 km), a tela no Pará com Marabá em destaque, "Abrir MARABA (PA)" com a mesma
+  referência e o selo "conferido: está na tela", e, no Amapá, a mesma pergunta com "Ir para MARABA (PA)".
 - `backend/tests/ui_area_de_analise.py` (base versionada): o caso do responsável no navegador, da consulta pedida ao motor à
   leitura e a "Procurar em todo o país"; `ui_conversa_grafico.py` (catálogo sintético, sem a Análise Espacial): o motivo.
 - `backend/tests/test_triagem.py`, `test_fidelidade.py` e `test_contexto_conversa.py`: a triagem (os exemplos do diagnóstico

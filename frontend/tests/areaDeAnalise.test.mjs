@@ -1354,3 +1354,23 @@ test('proteção (06/11/2026, item 4.6): de que lugar é o resultado à vista, c
   const planilha = {...comRotulo, nomeDoTodo: 'Toda a planilha', comGrupos: false};
   assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), planilha), {grupos: []}), 'de toda a planilha');
 });
+
+test('confirmação conferida (06/11/2026, item 4.4): o pedido que leva a um lugar só conclui com a trilha e os itens desse lugar', () => {
+  const lugarDe = (...args) => M.lugarDaTrilha(escolhaDaTrilha(...args), TRILHA);
+  const atualDe = lugar => lugar.partes.find(parte => parte.atual);
+  const maraba = {parte: atualDe(lugarDe('municipios', [], ['code:150001'])), escolha: escolhaDaTrilha('municipios', [], ['code:150001'])};
+  const itensDe = (...ids) => ids.map(id => ({id, tipo: 'municipio'}));
+  // A trilha em Marabá e só Marabá no gráfico: confere.
+  assert.equal(M.lugarConfere(maraba, lugarDe('municipios', [], ['code:150001']), itensDe('code:150001')), null);
+  // A trilha ainda no Pará (o caso do comando: a seleção mudou, a análise não): o que faltou, em palavras.
+  assert.equal(M.lugarConfere(maraba, lugarDe('municipios', ['15']), itensDe('code:150001', 'code:150002')),
+    'A área de análise não está em MARABA (PA): a trilha mostra Brasil › Pará.');
+  // A trilha certa, mas o gráfico com outros itens.
+  assert.equal(M.lugarConfere(maraba, lugarDe('municipios', [], ['code:150001']), itensDe('code:150001', 'code:150002')),
+    'O gráfico ainda mostra territórios fora de MARABA (PA).');
+  // O estado inteiro: os municípios dele conferem pelo grupo; os conjuntos não contam.
+  const para = {parte: atualDe(lugarDe('municipios', ['15'])), escolha: escolhaDaTrilha('municipios', ['15'])};
+  assert.equal(M.lugarConfere(para, lugarDe('municipios', ['15']), [...itensDe('code:150001', 'code:150002'), {id: 'c1', tipo: 'conjunto'}]), null);
+  assert.equal(M.lugarConfere(para, lugarDe('municipios', ['13']), itensDe('code:130001')),
+    'A área de análise não está em Pará: a trilha mostra Brasil › Amazonas.');
+});

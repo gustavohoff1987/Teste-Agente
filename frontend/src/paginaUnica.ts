@@ -47,6 +47,9 @@ export type PedidoDoChat = {
   /** Explicação pedida na conversa (26/10/2026): abre "Entenda esta análise" na aba, com os termos (códigos das classes)
    * destacados. Estado visual: nada é recalculado. */
   explicar?: { aba: Familia; termos: string[] } | null;
+  /** O destaque pedido pela resposta de valor (06/11/2026, item 4.2): os lugares citados, em destaque no gráfico em uso. Estado
+   * visual: nada é recalculado. */
+  destacar?: { ids: string[] } | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026), que a área confere campo a campo. */
   consulta?: object | null;
 };

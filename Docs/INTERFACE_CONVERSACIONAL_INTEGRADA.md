@@ -422,6 +422,13 @@ densidade…", e nada era calculado. Agora, interpretar ou emitir o comando não
   Aviso aqui assim que ele for concluído ou se não for possível concluí-lo.", e a conversa volta a aceitar mensagens. Quando o
   desfecho chega, ele entra numa mensagem nova, sobre o pedido anterior: "Pronto, o pedido anterior foi concluído. <o texto do
   intérprete>" ou "O pedido anterior não foi concluído: …". Um pedido novo da conversa toma o lugar do que ainda esperava.
+- **O lugar conferido** (06/11/2026, item 4.4 do comando de navegação por níveis). O pedido que leva a um lugar (a seleção ou
+  o nível; "abra MARABA (PA)", "mostre o Pará") só é `concluido` com o resultado em tela desse lugar: o lugar atual da trilha é o
+  pedido, e os itens do gráfico estão dentro dele (o título sai da mesma definição; `lugarConfere`, em `painelModel.ts`). Senão,
+  o desfecho é `parcial`, com o que faltou ("A área de análise não está em MARABA (PA): a trilha mostra Brasil › Pará."), e o
+  pedido não fica como concluído. Antes, bastava o cálculo da definição em uso.
+- **O selo** (06/11/2026). A mensagem do pedido concluído leva o selo "conferido: está na tela" (`chat-conferido`), abaixo do
+  texto.
 - **A associação verificável.** A mensagem do agente leva `data-pedido` (o id), `data-execucao` (a situação; "aguardando" na
   resposta que ainda espera) e `data-resultado` (o id do resultado do motor na sessão). A área leva `data-pedido-da-conversa`
   (o último pedido com desfecho), `data-desfecho` e `data-resultado` (o resultado em exibição). O pedido confirmado mostra os
@@ -429,7 +436,8 @@ densidade…", e nada era calculado. Agora, interpretar ou emitir o comando não
 - **Também confirmados.** A vista do desenho ("ver no mapa" só diz "Mostrei o mapa…" com os pontos do mapa recebidos; quando o
   motor os recusa, o mapa fica à vista com o alerta da área, e a resposta diz que o pedido foi feito só em parte, com "Mapa:
   <motivo>"), a
-  explicação que abre "Entenda esta análise" e "volte ao resultado anterior" ("Reabri a análise anterior…" só depois de a área
+  explicação que abre "Entenda esta análise", o destaque da resposta de valor ("Destaquei no gráfico.", 06/11/2026: sem o lugar
+  no gráfico em uso, nada é destacado, e a resposta diz que o pedido não pôde ser aplicado) e "volte ao resultado anterior" ("Reabri a análise anterior…" só depois de a área
   confirmar o estado reaberto; um estado guardado sem a forma esperada recebe "Não consegui reabrir a análise anterior …"). Um
   comando e uma ação de tela da mesma resposta vão num pedido só (`juntarPedidos`); antes, dois pedidos no mesmo instante
   deixavam só o último.

@@ -905,3 +905,89 @@ def test_exemplos_das_orientacoes_nao_citam_lugares(tela, sem_provedor):
     assert textos["inclui mais um"] == "Qual município você quer incluir? Diga o nome."
     for texto in textos.values():
         assert not re.search(r"Manaus|Tefé|Belém|Pará|Anápolis|Porto Alegre", texto), texto
+
+
+# --------------------------------------------------------------------------------------------- pergunta de valor (06/11/2026)
+# Item 4 do comando de navegação por níveis (06/11/2026): pergunta não é comando. "Quantos médicos tem em Marabá?" recebe os
+# números do motor e o destaque do lugar no gráfico em uso, sem mudar a tela, com "Abrir" e "Adicionar à seleção" em botão;
+# fora da análise em uso, os números do motor calculados à parte e "Ir para". Até essa data, a pergunta virava o comando da
+# gramática ("Mostrei a quantidade … em 1 município: …"), e a seleção mudava sozinha.
+@pytest.mark.parametrize("mensagem,atributo", [
+    ("Quantos médicos tem em Marabá?", "quantidade"), ("Qual a densidade do Pará?", "densidade"),
+    ("Quantos habitantes tem Tefé?", "populacao"), ("e quantos médicos há em Manaus?", "quantidade")])
+def test_pergunta_de_valor_sobre_um_lugar_e_reconhecida_com_e_sem_grafico(mensagem, atributo):
+    for tem_resultado in (True, False):
+        assert dialogo.reconhecer(mensagem, {}, tem_resultado) == {"ato": "valor_do_lugar", "atributo": atributo}
+
+
+@pytest.mark.parametrize("mensagem", ["Quantos municípios tem no Pará?", "Qual tem mais médicos, Manaus ou Tefé?",
+                                      "Qual a distância de Manaus até Tefé?", "mostre a quantidade de médicos de Manaus",
+                                      "Quantos médicos tem?", "quantos médicos tem cada um?"])
+def test_o_que_nao_e_pergunta_de_valor_sobre_um_lugar(mensagem):
+    ato = dialogo.reconhecer(mensagem, {}, True)
+    assert ato is None or ato["ato"] != "valor_do_lugar", ato
+
+
+def test_pergunta_de_valor_le_o_motor_destaca_e_nao_muda_a_tela(tela, sem_provedor):
+    tela.seleciona(estados=["13"])
+    antes = (json.dumps(tela.municipios), tela.result_id)
+    item = next(i for i in tela.resposta["itens"] if i["id"] == TEFE)
+    turno = tela.diga("Quantos médicos tem em Tefé?")
+    assert not turno.aplicado and turno.painel is None
+    assert (json.dumps(tela.municipios), tela.result_id) == antes, "a tela não muda sozinha"
+    assert turno.texto == (item["rotulo"] + ": " + number(item["quantidade"]) + " médicos em junho de 2024 (" +
+                           number(item["densidade"]) + " por 1.000 habitantes). Destaquei no gráfico.")
+    assert turno.corpo["acoes"] == [{"tipo": "destacar", "ids": [TEFE]}]
+    assert turno.corpo["explicacao"]["origem"] == "MOTOR_E_CATALOGO_GOVERNADO"
+    assert [(c["label"], c["draft"], c["send"]) for c in turno.alternativas] == [
+        ("Abrir TEFE (AM)", "abra TEFE (AM)", True), ("Adicionar à seleção", "acrescente TEFE (AM)", True)]
+    # "Adicionar à seleção" com Tefé já na seleção em uso (o Amazonas): nada muda, e a resposta diz isso. O botão envia o
+    # rascunho como mensagem nova, sem a pendência (AnalysisAssistant.escolherAlternativa).
+    tela.pendente = None
+    ja = tela.diga("acrescente TEFE (AM)")
+    assert not ja.aplicado and ja.texto == "TEFE (AM) já está na seleção em uso."
+    # "Abrir TEFE (AM)": a seleção (e a trilha) vai a Tefé; a resposta diz "Abri" (na tela, só com o pedido conferido).
+    tela.pendente = None
+    aberto = tela.diga("abra TEFE (AM)")
+    assert aberto.aplicado and tela.municipios == {"todos": False, "estados": [], "ids": [TEFE]}
+    assert aberto.texto == "Abri TEFE (AM)."
+
+
+def test_pergunta_de_valor_na_analise_espacial_traz_a_distancia_do_motor(tela, sem_provedor):
+    tela.consulta = {"base": {"partir_de": {"tipo": "selecao_previa", "regioes": [], "ufs": []}, "filtros": [],
+                              "escolha": {"modo": "todos", "municipios": []}},
+                     "referencia": {"partir_de": {"tipo": "pais", "regioes": [], "ufs": []},
+                                    "filtros": [{"indicador": "densidade", "operador": ">=", "valor": 5}],
+                                    "escolha": {"modo": "todos", "municipios": []}},
+                     "distancia": {"medida": "geodesica", "ate": "referencia_mais_proxima"}}
+    tela.seleciona(estados=["13"], familia="espacial")
+    item = next(i for i in tela.resposta["itens"] if i["id"] == TEFE)
+    assert item["referencia_do_item"]["rotulo"] == "PARINTINS (AM)" and not item["referencia_do_item"].get("empate")
+    turno = tela.diga("Quantos médicos tem em Tefé?")
+    assert not turno.aplicado
+    assert turno.texto == (item["rotulo"] + ": " + number(item["quantidade"]) + " médicos em junho de 2024 (" +
+                           number(item["densidade"]) + " por 1.000 habitantes), a " + number(item["distancia_km"]) +
+                           " km em linha reta da referência mais próxima (PARINTINS (AM)). Destaquei no gráfico.")
+
+
+def test_lugar_fora_da_analise_em_uso_tem_o_numero_do_motor_e_ir_para(tela, sem_provedor):
+    tela.seleciona(estados=["15"])
+    turno = tela.diga("Quantos médicos tem em Tefé?")
+    assert not turno.aplicado and turno.painel is None and "acoes" not in turno.corpo
+    sozinho = Tela(client, tela.info)
+    sozinho.seleciona(ids=[TEFE])
+    item = sozinho.resposta["itens"][0]
+    assert turno.texto == (item["rotulo"] + ": " + number(item["quantidade"]) + " médicos em junho de 2024 (" +
+                           number(item["densidade"]) + " por 1.000 habitantes). Não está na análise em uso.")
+    assert [(c["label"], c["draft"]) for c in turno.alternativas] == [("Ir para TEFE (AM)", "abra TEFE (AM)"),
+                                                                     ("Adicionar à seleção", "acrescente TEFE (AM)")]
+    # O estado fora da análise em uso: a contagem estadual do motor, e "Ir para o Pará".
+    tela.pendente = None
+    tela.seleciona(estados=["13"])
+    estado = tela.diga("Qual a densidade do Pará?")
+    sozinho.nivel, sozinho.estados = "estados", ["15"]
+    sozinho.calcula()
+    [para] = [i for i in sozinho.resposta["itens"] if i["id"] == "uf:15"]
+    assert estado.texto == (para["rotulo"] + ": " + number(para["quantidade"]) + " médicos em junho de 2024 (" +
+                            number(para["densidade"]) + " por 1.000 habitantes). Não está na análise em uso.")
+    assert [c["label"] for c in estado.alternativas] == ["Ir para o Pará", "Adicionar à seleção"]

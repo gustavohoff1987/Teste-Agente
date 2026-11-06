@@ -61,6 +61,9 @@ type Props = {
   /** Destaque da análise (26/10/2026, painelModel.destaqueDaAnalise): os comparados ficam inteiros; as demais bolhas esmaecem.
    * Vazio ou ausente: nada esmaece. */
   destaque?: string[];
+  /** Os lugares destacados pela resposta de valor da conversa (06/11/2026, item 4.2): o anel e o nome, como os marcados, sem
+   * marcar (o destaque, que esmaece os demais, vem junto em `destaque`). */
+  realce?: string[];
   vista: Vista;
   fase: FaseAnimacao;
   pintura: (item: PainelItem) => Pintura;
@@ -186,7 +189,7 @@ export default function PainelChart(p: Props) {
     return nome + " · " + formatarNumero(bolha.valor, especie.contagem, p.limiares);
   };
   const rotulados = grafico.bolhas.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || (comNome && idsDasBases.has(bolha.id)) || !!p.rotuloSempre?.(bolha.item)));
+    bolha.referencia || bolha.id === ativo || (comNome && idsDasBases.has(bolha.id)) || realce.has(bolha.id) || !!p.rotuloSempre?.(bolha.item)));
   const rotulos = posicionarRotulos([...rotulados.map(bolha => ({ id: bolha.id, x: bolha.x, y: bolha.y, r: bolha.r,
     largura: larguraDoTexto(textoDoRotulo(bolha)) })), ...contextos.filter(contexto => referenciasComNome || contexto.id === ativo).map(contexto =>
     ({ id: contexto.id, x: contexto.x, y: contexto.y, r: contexto.r, largura: larguraDoTexto(contexto.texto) }))], grafico.largura - 4, 16,
@@ -197,11 +200,13 @@ export default function PainelChart(p: Props) {
   // Marcar não esmaece as outras bolhas (25/10/2026): as marcadas ganham o anel escuro e o nome. Com o destaque da análise
   // (26/10/2026), as que ficam fora dele esmaecem; a bolha sob o mouse ou o foco e a referência continuam inteiras.
   const destaque = useMemo(() => p.destaque?.length ? new Set(p.destaque) : null, [p.destaque]);
+  const realce = useMemo(() => new Set(p.realce ?? []), [p.realce]);
   const opacidadeDe = (bolha: BolhaDesenho) => !destaque || bolha.id === ativo || bolha.id === externo || bolha.referencia
     ? opacidadeDaBolha(bolha) : opacidadeComDestaque(bolha, destaque);
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
   const especiais = leve ? ordem.filter(bolha => desenhada(bolha) && (selecionados.has(bolha.id) || bolha.tipo === "conjunto" ||
-    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || !!destaque?.has(bolha.id))) : [];
+    bolha.referencia || bolha.id === ativo || bolha.id === externo || bolha.id === focoEfetivo || !!destaque?.has(bolha.id) ||
+    realce.has(bolha.id))) : [];
   const contextoAtivo = ativo?.startsWith(PREFIXO_REFERENCIA) ? contextos.find(contexto => contexto.id === ativo) : undefined;
   const abreUnidade = !!p.onAbrirUnidade && !p.marcando;
   const dica = bolhaAtiva ? montarDica(bolhaAtiva.item, { indicador: p.indicador, competencia: p.resposta.competencia,
@@ -287,6 +292,7 @@ export default function PainelChart(p: Props) {
       data-referencia={bolha.referencia ? "true" : undefined} data-selecionado={selecionado ? "true" : undefined}
       data-base={idsDasBases.has(bolha.id) ? "true" : undefined}
       data-destaque={destaque ? (destaque.has(bolha.id) ? "true" : "false") : undefined}
+      data-realce={realce.has(bolha.id) ? "true" : undefined}
       data-visivel={bolha.visivel ? "true" : "false"}
       style={{ transform: `translate(${bolha.x}px, ${bolha.y}px)`, opacity: opacidadeDe(bolha), pointerEvents: bolha.visivel && interativa ? undefined : "none" }}
       role="button" tabIndex={bolha.visivel && focoEfetivo === bolha.id ? 0 : -1}
@@ -318,7 +324,7 @@ export default function PainelChart(p: Props) {
         stroke={bolha.vazada ? paleta.naoAvaliavel : paleta.superficie} strokeWidth={bolha.vazada ? 1.5 : 2} strokeDasharray={bolha.vazada ? "3 2" : undefined}/>
       {bolha.tipo === "conjunto" && <circle r={bolha.r + 4} fill="none" stroke={paleta.tinta} strokeOpacity={0.7} strokeWidth={1.25}/>}
       {bolha.referencia && <path d={mira(bolha.r)} stroke={paleta.tinta} strokeWidth={1.5} strokeLinecap="round"/>}
-      {(selecionado || ativo === bolha.id || externo === bolha.id) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
+      {(selecionado || ativo === bolha.id || externo === bolha.id || realce.has(bolha.id)) && <circle r={bolha.r + 2} fill="none" stroke={paleta.tinta} strokeWidth={2}/>}
       <circle className="analise-alvo" r={Math.max(bolha.r + 2, 12)} fill="transparent"/>
     </g>;
   };

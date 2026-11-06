@@ -16,13 +16,20 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
 - a conversa que navega: "Mostre o Pará" leva a trilha a "Brasil › Pará", com os números do Pará na faixa;
 - a proteção (item 4.6): com o cálculo da seleção em uso retido, a aba diz "Esta análise ainda é do Pará: o cálculo da seleção
   em uso ainda não chegou.", com "Atualizar", e o desenho fica esmaecido; com a falha do cálculo, "… não deu certo.", e
-  "Atualizar" pede de novo, até o resultado ser o da seleção em uso.
+  "Atualizar" pede de novo, até o resultado ser o da seleção em uso;
+- pergunta não é comando (item 4, parte B): na Análise Espacial do Pará, com a referência "municípios de todo o país com
+  densidade a partir de 3", "Quantos médicos tem em Marabá?" recebe 472 médicos, 1,64 por 1.000 habitantes e a distância até a
+  referência mais próxima (cerca de 140 km), do motor; a tela continua no Pará, com Marabá em destaque. "Abrir MARABA (PA)" leva
+  a trilha a "Brasil › Pará › MARABA (PA)", com a mesma referência em todas as abas, e só então a conversa diz "Abri MARABA (PA).",
+  com o selo "conferido: está na tela". No Amapá, a Análise Espacial acompanha a seleção com a mesma referência, e a mesma
+  pergunta traz os números do motor e "Ir para MARABA (PA)".
 Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
 .local/ui-validation (navegacao-*.png).
 """
 import json
 import os
 import re
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -36,6 +43,12 @@ TEXTOS_DA_AREA = """() => { const area = document.querySelector('[data-testid=ar
   const partes = [area.innerText || ''];
   for (const e of area.querySelectorAll('[aria-label], [title]')) partes.push(e.getAttribute('aria-label') || '', e.getAttribute('title') || '');
   return partes.join('\\n'); }"""
+
+
+def br(valor, casas=2):
+    """O número como a conversa o escreve (resumo_painel.number): casas fixas, arredondamento meio para cima, milhar com ponto."""
+    arredondado = Decimal(str(valor)).quantize(Decimal(1).scaleb(-casas), rounding=ROUND_HALF_UP)
+    return format(arredondado, ",f").replace(",", "_").replace(".", ",").replace("_", ".")
 
 
 def js(valor):
@@ -396,13 +409,92 @@ def main():
         expect(quadro).not_to_have_attribute("data-desatualizada", "true")
         expect(faixa).to_have_attribute("data-grupo", "16", timeout=60000)
 
+        # 12. Pergunta não é comando (item 4 do comando, parte B). Na Análise Espacial do Pará, com a referência "municípios de
+        # todo o país com densidade a partir de 3" escolhida na janela, "Quantos médicos tem em Marabá?" recebe os números do
+        # motor e o destaque de Marabá, sem mudar a tela; "Abrir MARABA (PA)" leva a trilha a Marabá, com a mesma referência.
+        page.unroute("**/api/painel")
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=180000)
+        aperta(area.locator('[data-testid="analise-bolha"][data-id="uf:' + PA + '"]'))
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(area.locator(MUNICIPIOS).first).to_be_visible(timeout=180000)
+        aperta(area.get_by_test_id("analise-familia-espacial"))
+        janela = area.get_by_test_id("analise-painel").get_by_test_id("analise-referencia")
+        expect(janela).to_be_visible(timeout=30000)
+        aperta(janela.get_by_test_id("territorios-aba-referencia"))
+        aperta(janela.get_by_test_id("territorios-referencia-mais-densidade"))
+        filtro = janela.get_by_test_id("territorios-referencia-filtro").first
+        filtro.get_by_test_id("territorios-referencia-filtro-operador").select_option(">=")
+        filtro.get_by_test_id("territorios-referencia-filtro-valor").fill("3")
+        expect(janela.get_by_test_id("territorios-calcular")).to_be_enabled(timeout=60000)
+        espacial_pa, sent = ok(lambda: aperta(janela.get_by_test_id("territorios-calcular")),
+                               condicao=lambda o: bool(o.get("consulta")))
+        referencia = sent["consulta"]["referencia"]
+        assert sent["base"] == {"municipios": {"todos": False, "estados": [PA], "ids": []}}, sent
+        assert sent["consulta"]["base"]["partir_de"]["tipo"] == "selecao_previa", sent["consulta"]
+        assert referencia["partir_de"]["tipo"] == "pais" and referencia["filtros"] == [
+            {"indicador": "densidade", "operador": ">=", "valor": 3}], referencia
+        assert len(espacial_pa["itens"]) == 144, len(espacial_pa["itens"])
+        fecha()
+        [maraba_pa] = [item for item in espacial_pa["itens"] if item["id"] == MARABA]
+        km = maraba_pa["distancia_km"]
+        assert abs(km - 140) < 1.5, ("o aceite do comando: cerca de 140 km", km)
+        chat = page.get_by_test_id("painel-chat")
+        resposta_chat = chat.get_by_test_id("latest-reply")
+        pedidos_antes = len(pedidos)
+        send(page, "Quantos médicos tem em Marabá?")
+        expect(resposta_chat).to_contain_text("MARABA (PA): 472 médicos em junho de 2024 (1,64 por 1.000 habitantes), a " + br(km) +
+                                              " km em linha reta da referência mais próxima", timeout=120000)
+        expect(resposta_chat).to_contain_text("Destaquei no gráfico.")
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(area).to_have_attribute("data-aba", "espacial")
+        expect(area.locator('[data-testid="analise-bolha"][data-id="' + MARABA + '"]')).to_have_attribute("data-realce", "true")
+        assert len(pedidos) == pedidos_antes, "a pergunta não muda a análise nem pede nada ao motor da área"
+        alternativas = chat.get_by_role("group", name="Alternativas de esclarecimento")
+        expect(alternativas.get_by_role("button")).to_have_text(["Abrir MARABA (PA)", "Adicionar à seleção"])
+        shot("10-pergunta-maraba")
+        aberto, sent = ok(lambda: alternativas.get_by_role("button", name="Abrir MARABA (PA)", exact=True).click(),
+                          condicao=lambda o: bool(o.get("consulta")))
+        assert sent["base"] == {"municipios": {"todos": False, "estados": [], "ids": [MARABA]}}, sent
+        assert sent["consulta"]["referencia"] == referencia, "a referência escolhida continua"
+        expect(partes).to_have_text(["Brasil", "Pará", "MARABA (PA)"])
+        expect(resposta_chat).to_contain_text("Abri MARABA (PA).", timeout=60000)
+        expect(resposta_chat.get_by_test_id("chat-conferido")).to_have_text("conferido: está na tela")
+        expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
+        [maraba_so] = aberto["itens"]
+        expect(faixa.get_by_test_id("analise-cartao-distancia")).to_have_attribute("data-valor", js(maraba_so["distancia_km"]),
+                                                                                   timeout=60000)
+        trilha_igual_nas_abas(["Brasil", "Pará", "MARABA (PA)"])
+        shot("11-abri-maraba")
+
+        # A seleção no Amapá: a Análise Espacial acompanha, com a mesma referência; a mesma pergunta, fora da análise em uso,
+        # traz os números do motor (calculados à parte) e "Ir para MARABA (PA)".
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=180000)
+        aperta(area.locator('[data-testid="analise-bolha"][data-id="uf:16"]'))
+        expect(partes).to_have_text(["Brasil", "Amapá"])
+        amapa, sent = ok(lambda: aperta(area.get_by_test_id("analise-familia-espacial")), condicao=lambda o: bool(o.get("consulta")))
+        assert sent["base"] == {"municipios": {"todos": False, "estados": ["16"], "ids": []}}, sent
+        assert sent["consulta"]["referencia"] == referencia, "a Análise Espacial acompanha a seleção, com a mesma referência"
+        assert amapa["itens"] and all(item["id"].startswith("code:16") for item in amapa["itens"]), amapa["itens"][:2]
+        fecha()
+        pedidos_antes = len(pedidos)
+        send(page, "Quantos médicos tem em Marabá?")
+        expect(resposta_chat).to_contain_text("MARABA (PA): 472 médicos em junho de 2024 (1,64 por 1.000 habitantes)",
+                                              timeout=120000)
+        expect(resposta_chat).to_contain_text("Não está na análise em uso.")
+        expect(alternativas.get_by_role("button")).to_have_text(["Ir para MARABA (PA)", "Adicionar à seleção"])
+        expect(partes).to_have_text(["Brasil", "Amapá"])
+        assert len(pedidos) == pedidos_antes, "a pergunta não muda a análise"
+        shot("12-maraba-fora-do-amapa")
+
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
         browser.close()
     print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
           "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
           "estados (27), Análise Espacial por estado, a conversa que move a trilha (Mostre o Pará) e a proteção (Esta análise ainda é "
-          "do Pará, com Atualizar).")
+          "do Pará, com Atualizar) e a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para).")
 
 
 if __name__ == "__main__":

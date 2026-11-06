@@ -293,6 +293,11 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   desenho" e [Mapa da página única](MAPA_DA_PAGINA_UNICA.md)); a Análise Espacial mostra só "A Análise Espacial mede distâncias
   entre municípios." e o botão "Ver os municípios destes estados" (`analise-espacial-grupos`, `analise-espacial-ver-unidades`),
   que troca o Ver por para município e abre a Escolha dos territórios; o gráfico, o título e os ajustes não aparecem nessa aba.
+- **O destaque da resposta de valor** (06/11/2026, item 4.2): a pergunta "Quantos médicos tem em Marabá?" não muda a análise; a
+  conversa responde com os números do motor e pede o destaque (`destacar`), e a área põe o lugar em destaque no gráfico em uso
+  (o anel e o nome, com as demais bolhas esmaecidas; `data-realce` na bolha) e no mapa (o anel e o nome dos marcados), enquanto a
+  análise não muda. "Abrir" e "Ir para" levam a trilha ao lugar, com a mesma referência na Análise Espacial; a conversa só diz
+  "Abri MARABA (PA)." com o lugar conferido na tela (a trilha e os itens do gráfico, `lugarConfere`).
 - **A proteção** (06/11/2026, item 4.6): quando o resultado à vista é de outra seleção — o cálculo da seleção em uso ainda não
   chegou (depois de 0,7 s, para não piscar a cada mudança) ou falhou —, a aba diz de que lugar ele é ("Esta análise ainda é do
   Pará: o cálculo da seleção em uso ainda não chegou.", `analise-desatualizada`, `deOndeEhOResultado`), com "Atualizar"
@@ -991,6 +996,10 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 ## Testes
 
+- **Pergunta não é comando (06/11/2026, item 4 do comando, parte B):** Node, `areaDeAnalise.test.mjs` (`lugarConfere`: a trilha
+  e os itens do lugar pedido) e `conversaGrafico.test.mjs` (a ação `destacar` e o pedido único); navegador, o passo 12 de
+  `ui_navegacao.py` (a pergunta na Análise Espacial do Pará, o destaque de Marabá sem mudar a tela, "Abrir MARABA (PA)" com a
+  mesma referência em todas as abas e o selo, o Amapá com a mesma referência e "Ir para MARABA (PA)").
 - **Uma seleção só e a proteção (06/11/2026, item 4 do comando, parte A):** Node, `frontend/tests/areaDeAnalise.test.mjs`: a base
   na seleção (`baseNaSelecao`, `selecaoDaBase`, `consultaNaSelecao`), a consulta inicial e a referência pelo nome com a base na
   seleção, a pendência da seleção vazia, a consulta da conversa que muda a seleção (o extremo vira a seleção, e a referência nomeia

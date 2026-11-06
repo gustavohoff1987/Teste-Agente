@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  deOndeEhOResultado, desdeDaFaixa, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  deOndeEhOResultado, desdeDaFaixa, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -151,6 +151,7 @@ const idDaAba = (aba: Aba) => aba === "territorios" ? "analise-aba-territorios" 
 /** O que a Seleção guarda de cada nível. */
 type Escolha = Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">;
 const escolhaDe = (d: DefinicaoAnalise): Escolha => ({ nivel: d.nivel, base: d.base, estados: d.estados, conjuntos: d.conjuntos });
+const NENHUM_REALCE: string[] = [];
 /** O que o Desfazer devolve (24/10/2026): a definição da análise (a seleção e os ajustes), a aba, a lista aberta e o estado visual
  * das análises (a vista, a escala, a régua, os itens marcados e os filtros). */
 type EstadoDaInteracao = { def: DefinicaoAnalise; aba: Aba; aberto: string | null; vista: VistaDesenho; escala: Escala; corte: Corte | null;
@@ -603,7 +604,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // diz "Mostrei" ou "Ordenei" com o desfecho "concluido". O desfecho é conferido depois do render com as mudanças do pedido e com
   // a área estável (a definição e a interação iguais em dois renders seguidos), para nunca valer o estado de antes dele.
   const execucao = useRef<{ id: number; mensagens: string[]; mudou: boolean; mapa: boolean; semCalculo: boolean; manuais: number;
-    render: number } | null>(null);
+    render: number; lugar: { parte: ParteDaTrilha; escolha: Escolha } | null } | null>(null);
+  // O destaque pedido pela resposta de valor da conversa (06/11/2026, item 4.2): os lugares citados, em destaque no gráfico em uso
+  // enquanto a análise não muda (a chave do pedido ao motor). Estado visual: nada é recalculado.
+  const [realce, setRealce] = useState<{ ids: string[]; chave: string } | null>(null);
   const renders = useRef(0);
   renders.current += 1;
   const visto = useRef("");
@@ -612,10 +616,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const desfechoRef = useRef(props.onDesfecho); desfechoRef.current = props.onDesfecho;
   const restauradoRef = useRef(props.onRestaurado); restauradoRef.current = props.onRestaurado;
   /** Começa a esperar o desfecho de um pedido aplicado agora; o que ainda esperava foi substituído por este. */
-  function iniciarExecucao(id: number, mensagens: string[], c: { mudou: boolean; mapa: boolean; semCalculo?: boolean }) {
+  function iniciarExecucao(id: number, mensagens: string[], c: { mudou: boolean; mapa: boolean; semCalculo?: boolean;
+    lugar?: { parte: ParteDaTrilha; escolha: Escolha } | null }) {
     if (execucao.current) informarDesfecho("substituido", ["Um pedido novo da conversa tomou o lugar deste antes de ele terminar."]);
     execucao.current = { id, mensagens: [...mensagens], mudou: c.mudou, mapa: c.mapa, semCalculo: !!c.semCalculo,
-      manuais: manuais.current, render: renders.current };
+      manuais: manuais.current, render: renders.current, lugar: c.lugar ?? null };
     setRelogioDaExecucao(valor => valor + 1);
   }
   /** Informa o desfecho do pedido em curso, com o que está na tela agora (o título e, com o cálculo à vista, o resultado). */
@@ -635,7 +640,17 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!pedido || pedido.id === ultimoPedido.current) return;
     if (!pronto || iniciado.current !== chaveFonte) { pedidoPendente.current = pedido; return; }
     ultimoPedido.current = pedido.id;
-    const { explicar, ...resto } = pedido.pedido;
+    const { explicar, destacar, ...resto } = pedido.pedido;
+    setRealce(null);
+    // O destaque da resposta de valor (06/11/2026, item 4.2): os lugares citados que estão no gráfico em uso ficam em destaque, sem
+    // mudar a análise; sem nenhum deles no gráfico, nada é destacado, e a resposta diz isso.
+    if (destacar && !explicar && !Object.values(resto).some(valor => valor !== undefined && valor !== null)) {
+      const presentes = destacar.ids.filter(id => idsNaTela.includes(id));
+      if (presentes.length) setRealce({ ids: presentes, chave });
+      iniciarExecucao(pedido.id, presentes.length ? [] : ["O lugar citado não está no gráfico em uso; nada foi destacado."],
+        { mudou: presentes.length > 0, mapa: false, semCalculo: true });
+      return;
+    }
     if (explicar) {
       // Explicação pedida na conversa: abre "Entenda esta análise" na aba e destaca os termos; não muda o gráfico.
       const termos = explicar.termos.map(codigo => CLASSES_TENDENCIA.find(classe => classe.codigo === codigo)?.rotulo)
@@ -682,7 +697,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // recusado por inteiro.
     const mudou = JSON.stringify(resultado.definicao) !== JSON.stringify(def) || !!resultado.selecao || !!resultado.abrir ||
       !!resultado.criterio || !!resultado.vista || !!explicar || (!!abaDoPedido && abaDoPedido !== aba);
-    iniciarExecucao(pedido.id, resultado.mensagens, { mudou, mapa: resultado.vista === "mapa" });
+    // O pedido que leva a um lugar (06/11/2026, item 4.4): o lugar da trilha que ele deve deixar na tela, conferido no desfecho.
+    const escolhaPedida = escolhaDe(resultado.definicao);
+    const partePedida = pedido.pedido.municipios || pedido.pedido.nivel ? lugarDaTrilha(escolhaPedida, { arvore,
+      nomeDoTodo: nomeDoTodo(tipo !== "arquivo"), nomes, comGrupos: comBolhasDeGrupo }).partes.find(parte => parte.atual) ?? null : null;
+    iniciarExecucao(pedido.id, resultado.mensagens, { mudou, mapa: resultado.vista === "mapa",
+      lugar: partePedida ? { parte: partePedida, escolha: escolhaPedida } : null });
   }, [pedido, pronto, chaveFonte]);
 
 
@@ -834,6 +854,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       return;
     }
     if (!calculado || calculado.chave !== chave) return;
+    // A confirmação conferida (06/11/2026, item 4.4): o pedido que leva a um lugar só é concluído com o resultado em tela desse
+    // lugar — a trilha e os itens do gráfico; senão, o desfecho diz o que faltou, e o pedido não fica como concluído.
+    if (em.lugar) {
+      const falta = lugarConfere(em.lugar, lugarDaTrilha(escolhaDe(calculado.def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo"),
+        nomes, comGrupos: comBolhasDeGrupo }), resposta?.itens ?? [], grupoDe);
+      if (falta) { informarDesfecho("parcial", [...em.mensagens, falta]); return; }
+    }
     // O mapa pedido fica à vista, mas sem os pontos (o motor os recusou): o pedido foi feito só em parte, com o motivo.
     if (em.mapa && mapaNaTela) {
       if (erroDoMapa) {
@@ -1405,7 +1432,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // nomes.
   const ligacoes = useMemo(() => distanciaNaTela && resposta ? ligacoesDoMapa(resposta.itens, [...new Set([...selecao, ...idsDasBases])]) : [],
   [distanciaNaTela, resposta, selecao, idsDasBases]);
-  const selecaoDoMapa = selecao;
+  // O destaque da resposta de valor (06/11/2026) aparece também no mapa, com o anel e o nome dos marcados (estado visual).
+  const realceNaTela = realce && realce.chave === chave ? realce.ids : NENHUM_REALCE;
+  const selecaoDoMapa = realceNaTela.length ? [...new Set([...selecao, ...realceNaTela])] : selecao;
   const nomesDasReferencias = useMemo(() => new Map((resposta?.referencia?.membros ?? []).map(membro => [membro.id, membro.rotulo] as [string, string])),
     [resposta]);
   // A mira do mapa: os membros da referência; com a Escolha dos territórios, as referências mais próximas (todas, até MAX_LIGACOES;
@@ -1515,7 +1544,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         {(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular} e ao {nomeDoTodo(true)}.</p>;
     // Com o mapa disponível, a dica da bolha mostra o mapinha ("onde fica?"); no lado a lado, o destaque é cruzado com o mapa.
     return <PainelChart resposta={resposta} itens={visiveis} todos={plotaveis} indicador={indicador} escala={escala} distancia={distanciaNaTela}
-      cometa={cometa} trajetoria={cometa} porItem={referenciaPorItem} pares={paresLigados} destaque={destaque} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
+      cometa={cometa} trajetoria={cometa} porItem={referenciaPorItem} pares={paresLigados} destaque={realceNaTela.length ? realceNaTela : destaque}
+      realce={realceNaTela} vista={vista} fase={fase} pintura={pintura} selecionados={selecao} limiares={limiares}
       nomes={nomes} carregando={carregando}
       rotuloDistancia={rotuloDistancia} rotulos={rotulos} contextoBrasil={contextoBrasil} cortes={cortes} corte={corteAtivo(corte, dominio) ? corte : null}
       faixasDistancia={faixasDistancia} unidadesDoGrupo={unidadesDoGrupo} legendaCor={layoutTendencia ? null : legendaCor} notas={notasDoGrafico}

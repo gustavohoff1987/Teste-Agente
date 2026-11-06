@@ -35,6 +35,51 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-06 · Pergunta não é comando (etapa 5 do comando, parte B): os números do motor, o destaque, "Abrir"/"Ir para" e a confirmação conferida com o lugar na tela
+- **Classificação (regra 1), pela leitura, antes de codar:** itens 4.2 a 4.5 do comando de 06/11/2026, classificados de uma vez com
+  os demais (entrada da navegação por níveis, abaixo). Mudança prevista: *escopo:* decorre do comando (item 4); *compatibilidade:*
+  todo número da resposta vem do motor, copiado como segmento conferido (INV-02, RQ-SIN-02/03; o lugar fora da análise em uso é
+  calculado pelo próprio motor, sem nada calculado na conversa), a distância é "em linha reta" (V-06), a ação de tela não muda a
+  análise, e nada novo vai ao provedor de IA (a resposta é a determinística do gestor).
+- **Antes:**
+  - "Quantos médicos tem em Marabá?", com a Análise Espacial do Pará na tela, virava o comando da gramática: a seleção ia a
+    Marabá, sem a Análise Espacial acompanhar até a parte A, e a resposta dizia "Mostrei a quantidade e a distância até a referência
+    em 1 município: MARABA (PA)".
+  - "abra Marabá" respondia "Mostrei a densidade em 1 município: MARABA (PA)."; "acrescente Marabá", com o Pará na seleção,
+    respondia "Acrescentei MARABA (PA) ao gráfico; agora são 144 municípios.", sem mudar nada.
+  - A confirmação de um pedido da conversa conferia só que o motor tinha calculado a definição em uso; a mensagem concluída não
+    tinha selo.
+- **Agora:**
+  - **A pergunta de valor** (ato `valor_do_lugar`, `dialogo.py`): com o lugar no gráfico em uso, os números do resultado em
+    exibição — "MARABA (PA): 472 médicos em junho de 2024 (1,64 por 1.000 habitantes), a 140,… km em linha reta da referência mais
+    próxima (…). Destaquei no gráfico." —, o destaque do lugar no gráfico (o anel, o nome e as demais esmaecidas; `data-realce`) e
+    no mapa, sem mudar a análise, e os botões "Abrir MARABA (PA)" e "Adicionar à seleção". Fora da análise em uso, o motor calcula o
+    lugar à parte (na competência do resultado e, com a Escolha dos territórios, com a mesma consulta), a resposta termina com "Não
+    está na análise em uso.", e os botões são "Ir para MARABA (PA)" e "Adicionar à seleção"; um estado, pela contagem estadual
+    ("Ir para o Pará"). O destaque é um pedido da conversa como os outros: sem o lugar no gráfico, nada é destacado, e a resposta diz
+    que o pedido não pôde ser aplicado.
+  - **"abra X"** responde "Abri MARABA (PA)." (ou "Abri o Pará.") e leva a seleção e a trilha ao lugar, com a mesma referência na
+    Análise Espacial; "mostre X" continua a responder "Mostrei …".
+  - **Acrescentar quem já está na seleção em uso** responde "MARABA (PA) já está na seleção em uso." (ou "Os municípios do
+    Amazonas já estão na seleção em uso."), sem mudar nada. O botão "Adicionar à seleção" é oferecido como o comando pede, também
+    com o lugar já na seleção (Marabá dentro do Pará), e então a resposta diz isso.
+  - **A confirmação conferida** (item 4.4): o pedido que leva a um lugar só é `concluido` com o lugar atual da trilha igual ao
+    pedido e os itens do gráfico dentro dele (`lugarConfere`); senão, `parcial`, com o que faltou ("A área de análise não está em
+    MARABA (PA): a trilha mostra Brasil › Pará."). A mensagem concluída leva o selo "conferido: está na tela".
+- **Permanece:** os outros comandos da gramática e do gestor, a redação pelo Gemini nas perguntas de conversa (a pergunta de valor
+  não passa por ela), os contratos do motor, o Desfazer (o destaque não é um passo dele: some quando a análise muda) e o contexto
+  que vai ao provedor de IA.
+- **Motivo:** comando do responsável de 06/11/2026, item 4 (partes 4.2 a 4.5).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/DIALOGO_GOVERNADO.md` (o ato na tabela e "Pergunta não é comando"),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (o lugar conferido, o selo e o destaque entre os pedidos confirmados),
+    `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o destaque da resposta de valor e os testes) e o `README.md`.
+  - **Testes novos:** `backend/tests/test_dialogo.py` (o reconhecimento com e sem gráfico e o que não é a pergunta de valor; os
+    números, o destaque e os botões; a distância na Análise Espacial; o lugar e o estado fora da análise em uso; "acrescente" e
+    "abra"), `backend/tests/test_conversa_grafico.py` ("abra X", "abra o Pará", "mostre X" e "acrescente" quem já está),
+    `frontend/tests/areaDeAnalise.test.mjs` (`lugarConfere`), `frontend/tests/conversaGrafico.test.mjs` (a ação `destacar`) e o
+    passo 12 de `backend/tests/ui_navegacao.py` (o aceite do item 4 no navegador, com a base versionada).
+
 ### 2026-11-06 · Uma seleção só (etapa 5 do comando, parte A): a base da Análise Espacial é a seleção em uso, e a proteção "Esta análise ainda é de…"
 - **Classificação (regra 1), pela leitura, antes de codar:** itens 4.1 e 4.6 do comando de 06/11/2026, classificados de uma vez
   com os demais (entrada da navegação por níveis, abaixo). Mudança prevista: *escopo:* decorre do comando (decisão 2, a Análise

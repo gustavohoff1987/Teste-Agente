@@ -751,7 +751,11 @@ export default function AnalysisAssistant({ apiBase, privacyAccepted, fonteEscol
             <BrandAvatar size={28}/>
             <div {...(ultimaDoAgente ? { "data-testid": "latest-reply" } : {})} className="latest-reply chat-balao-agente"
               data-hora={turno.hora}>
-              <span className="sr-only">Agente: </span><TextoDaResposta texto={turno.texto}/></div></li>;
+              <span className="sr-only">Agente: </span><TextoDaResposta texto={turno.texto}/>
+              {/* O selo da execução conferida (06/11/2026, item 4.4 do comando de navegação por níveis): o pedido concluído, que
+                  a área confirmou na tela (para o lugar pedido, a trilha e os itens do gráfico). */}
+              {turno.execucao?.situacao === "concluido" && <span data-testid="chat-conferido" className="chat-conferido">
+                conferido: está na tela</span>}</div></li>;
         })}
         {sending && <li className="chat-mensagem chat-mensagem-agente chat-processando" role="status" data-testid="chat-processando"
           data-fase={aplicando ? "aplicando" : "interpretando"}>

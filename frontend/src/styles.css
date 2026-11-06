@@ -438,6 +438,9 @@ summary:focus-visible, textarea:focus-visible { outline: 3px solid var(--cor-foc
 .chat-mensagem-usuario[data-hora]::after, .chat-balao-agente[data-hora]::after { content:attr(data-hora); display:block;
   margin-top:3px; color:var(--cor-texto-apoio); font-size:12px; line-height:1.2; text-align:right; font-variant-numeric:tabular-nums; }
 .chat-texto p { white-space:pre-wrap; }
+/* O selo da execução conferida (06/11/2026): o pedido concluído, que a área de análise confirmou na tela. */
+.chat-conferido { display:inline-block; margin-top:6px; padding:1px 8px; border:1px solid var(--cor-borda-realce);
+  border-radius:999px; background:var(--cor-realce); color:var(--cor-texto); font-size:12px; line-height:1.5; }
 .chat-texto p + p { margin-top:10px; }
 .chat-separador { display:none; }
 .chat-rotulo { color:var(--cor-texto-forte); font-weight:700; }

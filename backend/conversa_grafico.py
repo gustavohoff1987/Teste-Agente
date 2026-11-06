@@ -164,6 +164,9 @@ DENSIDADE = re.compile(r"\bdensidade\b|\bpor\s+(?:mil|1\.?000)\s+habitantes\b")
 QUANTIDADE = re.compile(r"\b(?:quantidade|quantitativos?|numero\s+de\s+(?:medic[oa]s|profissionais)|"
                         r"quant[oa]s\s+(?:medic[oa]s|profissionais)|total\s+de\s+(?:medic[oa]s|profissionais))\b")
 ACRESCENTAR = re.compile(r"\b(?:acrescente|acrescentar|acrescenta|adicione|adicionar|adiciona|inclua|incluir|inclui)\b")
+# Abrir um lugar (06/11/2026, item 4.3 do comando de navegação por níveis): "abra Marabá", o botão "Abrir"/"Ir para" da resposta
+# de valor. A resposta diz "Abri MARABA (PA)." (só com o pedido concluído na área, que confere o lugar na tela).
+ABRIR_LUGAR = re.compile(r"\b(?:abra|abrir|abre|va para|vai para|ir para)\b")
 RETIRAR = re.compile(r"\b(?:tire|tirar|tira|retire|retirar|retira|remova|remover|remove|exclua|excluir|exclui|esconda|"
                      r"esconder)\b")
 VERBO_VISTA = re.compile(r"\b(?:mostre|mostrar|mostra|exiba|exibir|exibe|abra|abrir|abre|veja|ver|visualize|visualizar|"
@@ -1143,6 +1146,11 @@ def _nova_base(conv, achado, modo):
                                             " já estão no gráfico.")
         if achado["todos"]:
             return todos, citados, None
+        # Os citados que já estão na seleção em uso (06/11/2026, o botão "Adicionar à seleção" da resposta de valor):
+        # acrescentá-los não muda nada, e a resposta diz isso, sem dizer que acrescentou.
+        if (ids or grupos) and set(ids) <= cat.membros(atual) and set(grupos) <= set(atual["estados"]):
+            return None, citados, _so_texto(_maiuscula(_listed(citados)) + (" já está" if len(ids) == 1 and not grupos
+                                                                           else " já estão") + " na seleção em uso.")
         return {"todos": False, "estados": sorted(set(atual["estados"]) | set(grupos)),
                 "ids": sorted(set(atual["ids"]) | set(ids))}, citados, None
     if atual is None:
@@ -2289,6 +2297,8 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
         elif modo == "retirar":
             frases.append("Tirei " + _listed(citados) + " do gráfico; " + ("ficou " if quantidade == 1 else "ficaram ") +
                           rot.unidades(quantidade) + quando + ".")
+        elif _abre_um_lugar(conv, painel, base):
+            frases.append("Abri " + _um_lugar(conv, base) + quando + ".")
         else:
             frases.append(_frase_de_base(conv, painel, base, quando))
     elif painel["familia"] == "espacial":
@@ -2317,6 +2327,23 @@ def _texto_da_vista(conv, painel, base, modo, citados, periodo):
     if periodo and periodo.get("nota"):
         frases.append(periodo["nota"])
     return " ".join(frases)
+
+
+def _abre_um_lugar(conv, painel, base):
+    """O pedido de abrir um lugar só (06/11/2026, item 4.3): "abra Marabá", "ir para o Pará", sem outra mudança no gráfico."""
+    um = (len(base["ids"]) == 1 and not base["estados"]) or (len(base["estados"]) == 1 and not base["ids"])
+    outras = any(painel[chave] is not None for chave in CHAVES if chave not in ("nivel", "municipios", "vista"))
+    return bool(ABRIR_LUGAR.search(conv.pedido.texto)) and um and not base["todos"] and not outras
+
+
+def _um_lugar(conv, base):
+    """"MARABA (PA)" ou "o Pará": o lugar que o pedido abre, com o rótulo da base."""
+    if base["ids"]:
+        return conv.cat.rotulo(base["ids"][0])
+    chave = base["estados"][0]
+    if conv.brasil and chave in STATES:
+        return _lugar_com_artigo(("estado", chave))
+    return _maiuscula(conv.rot.grupo_singular) + " " + str(conv.cat.grupos.get(chave, {}).get("nome", chave))
 
 
 def _vista(conv, dica, dica_indicador, funcao=None):
