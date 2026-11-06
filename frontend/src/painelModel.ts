@@ -2428,7 +2428,7 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     // todo trazem os números do Brasil).
     if (c.temBrasil) proxima = { ...proxima, nivel: "estados", base: { todos: true, estados: [], ids: [] },
       estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
-    else mensagens.push("Esta fonte não tem a visão por grupos.");
+    else mensagens.push("O Brasil existe só nos dados do Brasil.");
   } else if (pedido.nivel === "municipios") proxima.nivel = "municipios";
   if (typeof pedido.competencia === "string") {
     if (periodos.has(pedido.competencia)) proxima.competencia = pedido.competencia;

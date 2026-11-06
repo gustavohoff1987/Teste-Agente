@@ -116,7 +116,9 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
     `backend/tests/test_painel_mapa.py` (os pontos de desenho dos estados) e o roteiro `backend/tests/ui_navegacao.py` (suíte
     `base-versionada`, com os aceites dos itens 2 e 3).
   - **Testes que mudam de propósito, pelo comportamento novo:** `frontend/tests/painel.test.mjs` e `areaDeAnalise.test.mjs` (o
-    texto da Análise Espacial vendo por estado, o mapa disponível nos estados, os quintis no pedido dos estados);
+    texto da Análise Espacial vendo por estado, o mapa disponível nos estados, os quintis no pedido dos estados e, em
+    `painel.test.mjs`, o pedido da conversa pelo Brasil, que leva ao todo vendo por estado; numa planilha, o aviso passa a ser
+    "O Brasil existe só nos dados do Brasil.", no lugar de "O Brasil como unidade existe só nos dados do Brasil.");
     `backend/tests/test_conversa_grafico.py` ("volte aos estados no mapa" leva a vista ao mapa na base do Brasil); e os roteiros
     `ui_area_de_analise.py` (o Ver por sem o Brasil, a trilha, a faixa, voltar pela trilha, a Comparar aberta para marcar, o
     Brasil inteiro vendo por estado), `ui_mapa.py` (o mapa dos estados no lugar do motivo, o Ver por Município e o clique que

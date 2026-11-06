@@ -786,14 +786,20 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   assert.deepEqual(para.definicao.base, {todos: false, estados: ['15'], ids: []});
   assert.deepEqual(para.mensagens, []);
   assert.equal(M.aplicarPedido(para.definicao, {nivel: 'estados'}, c).definicao.nivel, 'estados');
-  // "Todos os estados" na conversa (24/10/2026) marca todos os estados da fonte; o Brasil só na base do Brasil.
+  // "Todos os estados" na conversa (24/10/2026) marca todos os estados da fonte.
   assert.deepEqual(M.aplicarPedido(definicao({estados: ['35']}), {nivel: 'estados'}, {...c, todosOsEstados: ['13', '35']}).definicao.estados, ['13', '35']);
-  assert.equal(M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true}).definicao.nivel, 'brasil');
+  // O pedido do Brasil (06/11/2026, decisão 1 do comando de navegação por níveis; muda de propósito este teste): o todo deixou de
+  // ser unidade de análise, e o pedido leva ao todo, vendo por estado, com o Brasil inteiro marcado (até 06/11/2026, ele abria o
+  // Brasil como unidade e guardava a escolha dos outros níveis). Fora da base do Brasil, a mensagem, e nada muda.
+  const noTodo = M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true, todosOsEstados: ['13', '15', '35']});
+  assert.equal(noTodo.definicao.nivel, 'estados');
+  assert.deepEqual(noTodo.definicao.base, {todos: true, estados: [], ids: []});
+  assert.deepEqual(noTodo.definicao.estados, ['13', '15', '35']);
+  assert.deepEqual(noTodo.mensagens, []);
   const semBrasil = M.aplicarPedido(para.definicao, {nivel: 'brasil'}, c);
   assert.equal(semBrasil.definicao.nivel, 'municipios');
-  assert.deepEqual(semBrasil.mensagens, ['O Brasil como unidade existe só nos dados do Brasil.']);
-  // A escolha dos outros níveis fica guardada quando o pedido muda o nível.
-  assert.deepEqual(M.aplicarPedido(para.definicao, {nivel: 'brasil'}, {...c, temBrasil: true}).definicao.base, para.definicao.base);
+  assert.deepEqual(semBrasil.definicao.base, para.definicao.base);
+  assert.deepEqual(semBrasil.mensagens, ['O Brasil existe só nos dados do Brasil.']);
   const rot = M.aplicarPedido(def, {familia: 'rotatividade'}, c);
   assert.equal(rot.definicao.familia, 'distribuicao');
   assert.ok(rot.mensagens[0].startsWith('Análise de Rotatividade: A base do Brasil'));  // nomes padronizados (23/10/2026)

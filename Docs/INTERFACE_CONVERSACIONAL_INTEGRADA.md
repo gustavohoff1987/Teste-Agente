@@ -291,8 +291,8 @@ resposta local, ao intérprete contextual (`POST /api/llm/interpret-context`). A
   antes só
   continua se os itens dela seguem na análise.
   O nível `brasil` (o Brasil como unidade, de 24/10 a 06/11/2026) leva, na base do Brasil, ao todo, vendo por estado (desde
-  06/11/2026, o Brasil é a referência fixa de toda análise); numa planilha, vira o aviso "Esta fonte não tem a visão por
-  grupos.". A trilha do lugar em uso acompanha o que o pedido mudou ("Mostre o Pará" leva a "Brasil › Pará");
+  06/11/2026, o Brasil é a referência fixa de toda análise); numa planilha, vira o aviso "O Brasil existe só nos dados do
+  Brasil." (até 06/11/2026, "O Brasil como unidade existe só nos dados do Brasil."), e nada muda. A trilha do lugar em uso acompanha o que o pedido mudou ("Mostre o Pará" leva a "Brasil › Pará");
 - o **contexto** de cada pedido sai do que está no gráfico (`ContextoDoGrafico`): em `options` vão `territory_ids` (as
   unidades na tela, só as do catálogo territorial; com todos os municípios ou nos estados, nenhuma), `exploration_operation`
   (a família: distribuição → `density` ou `counts`, conforme o indicador; espacial → `spatial`; tendência → `temporal`;
