@@ -4292,7 +4292,13 @@ def criterios(sources, mapping, options, frame=None) -> dict:
     raw = options.get("criterios")
     if not isinstance(raw, dict) or set(raw) - {"partir_de", "filtros", "distancia"} or "partir_de" not in raw:
         raise ValueError("Critérios inválidos: use {\"partir_de\", \"filtros\", \"distancia\"}.")
-    spec = _lado({"partir_de": raw["partir_de"], "filtros": raw.get("filtros")}, ctx, "base")
+    # "A seleção atual" (partir_de "selecao", o contrato desta rota) é a seleção prévia da Escolha dos territórios: a base que a
+    # tela envia em `base`.
+    partir = raw["partir_de"]
+    da_selecao = isinstance(partir, dict) and partir.get("tipo") == "selecao"
+    if da_selecao:
+        partir = {**partir, "tipo": "selecao_previa"}
+    spec = _lado({"partir_de": partir, "filtros": raw.get("filtros")}, ctx, "base")
     if spec["pendencias"]:
         raise ValueError(spec["pendencias"][0])
     distancia = _criterio_de_distancia(ctx, raw.get("distancia"))
@@ -4384,7 +4390,8 @@ def criterios(sources, mapping, options, frame=None) -> dict:
     regra = {"texto": _frase_dos_criterios(ctx, spec["filtros"], distancia, None),
              "texto_agrupado": _frase_dos_criterios(ctx, spec["filtros"], distancia, agrupar) if agrupar is not None else None,
              "competencia": ctx.period,
-             "partir_de": dict(spec["partir_de"]), "filtros": [{**item, "valor": _numero_publico(item["valor"])} for item in spec["filtros"]],
+             "partir_de": {**dict(spec["partir_de"]), "tipo": "selecao"} if da_selecao else dict(spec["partir_de"]),
+             "filtros": [{**item, "valor": _numero_publico(item["valor"])} for item in spec["filtros"]],
              "distancia": None if distancia is None else {"de": distancia["de"], "km": float(distancia["km"])},
              "agrupar": None if agrupar is None else {"km": float(agrupar)}}
     if nao_avaliaveis:

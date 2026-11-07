@@ -35,6 +35,21 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Correção do CI do item 6 (parte A): "a seleção atual" no motor dos critérios
+- **Classificação (regra 1):** mudança de comportamento (o que a rota aceita), prevista: é o contrato da parte A como
+  documentado em `Docs/PAINEL_INTEGRADO.md` ("Rota 6": `selecao` para a seleção atual), que o motor não cumpria; não contraria
+  a SPEC nem divergência aprovada.
+- **Antes:** a execução 485 (`b12a86e`) mostrou, no teste sintético do motor, um defeito do produto: `POST /api/painel/criterios`
+  com `partir_de` `{"tipo": "selecao"}` respondia 422 ("Base da consulta: partir_de inválido …"), porque a rota reaproveita a
+  leitura da Escolha dos territórios, que chama a seleção em uso de `selecao_previa`. A tela (o painel e "Usar como seleção") e
+  a conversa mandam `selecao`, como no contrato: "A seleção atual" não funcionava.
+- **Agora:** `selecao` é lida como a seleção prévia (a base enviada em `base`), e a regra devolve `partir_de` como veio
+  (`selecao`).
+- **Permanece:** os demais `partir_de` (`pais`, `ufs`, `regioes`), a Escolha dos territórios e o restante da rota.
+- **Motivo:** CI vermelho na execução 485; correção só do que falhou.
+- **Documentação e testes:** `backend/tests/test_painel_pagina.py` (a seleção em uso, agora também com o `partir_de` da regra);
+  `Docs/PAINEL_INTEGRADO.md` já descrevia o comportamento.
+
 ### 2026-11-07 · Selecionar por critérios, parte D (etapa 9D do comando, item 6.10): "Usar como seleção" nas Condições
 - **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (partes A a C, abaixo), com a decisão 4 do
   responsável. Mudança prevista: *escopo:* item 6.10 ("Nas análises, as Condições continuam para destacar e ganham "Usar como

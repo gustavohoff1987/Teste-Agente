@@ -1584,9 +1584,10 @@ def test_selecionar_por_criterios_com_grupos_por_proximidade_em_cadeia(repo):
     perto = ok(upload({**pedido, "criterios": {**criterios, "distancia": {"de": ALTO, "km": 150}}}, path="/api/painel/criterios"))
     assert (perto["ids"], perto["nao_avaliaveis"]) == ([ALTO, BAIXO], 1)
     assert perto["regra"]["texto"] == "densidade a partir de 10 e a até 150 km de Alto Rio"
-    # Na seleção em uso e num grupo.
-    assert ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "selecao"}},
-                      "base": {"municipios": {"ids": [ALTO, CAMPINA]}}}, path="/api/painel/criterios"))["ids"] == [ALTO, CAMPINA]
+    # Na seleção em uso ("selecao", a seleção prévia da Escolha dos territórios, que a regra devolve como veio) e num grupo.
+    na_selecao = ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "selecao"}},
+                            "base": {"municipios": {"ids": [ALTO, CAMPINA]}}}, path="/api/painel/criterios"))
+    assert (na_selecao["ids"], na_selecao["regra"]["partir_de"]["tipo"]) == ([ALTO, CAMPINA], "selecao"), na_selecao["regra"]
     assert ok(upload({**pedido, "criterios": {**criterios, "partir_de": {"tipo": "ufs", "ufs": ["Província Sul"]}}},
                      path="/api/painel/criterios"))["ids"] == [CAMPINA, SERRA]
     # O sistema não escolhe critério nem distância: sem eles, a recusa diz o que falta.
