@@ -35,6 +35,32 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Hospedagem: o CORS do serviço passa a aceitar só https://diagnostico-territorial.github.io (D-2)
+- **Classificação (regra 1), pela leitura, antes de mudar:** uma página na origem antiga deixa de receber o cabeçalho do CORS, o
+  que muda o que um consumidor da API observa. A mudança decorre do pedido da responsável, que autorizou a D-2 junto com a
+  publicação do `590bf8b`, depois de confirmada a origem atual do Pages (escopo). Também não contraria a SPEC, que não fixa as
+  origens, nem uma divergência aprovada (compatibilidade). Mudança prevista.
+- **Antes:** `ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io`; as duas origens
+  recebiam o próprio `Access-Control-Allow-Origin`.
+- **Agora:** `ADT_ALLOWED_ORIGINS=https://diagnostico-territorial.github.io`, na revisão `agente-diagnostico-territorial-00005-js5`
+  do Cloud Run, que também traz a imagem do `590bf8b`.
+  - Só essa origem recebe o cabeçalho, inclusive na pré-verificação.
+  - A origem antiga e uma origem estranha não recebem o cabeçalho.
+  - A pré-verificação da origem antiga responde 400.
+- **Permanece:**
+  - o código do CORS, que aceita uma lista de origens;
+  - os métodos e os cabeçalhos aceitos (`Content-Type` e `X-ADT-Session`) e a validade de 2 h da pré-verificação;
+  - os recursos e os limites do serviço;
+  - o endereço antigo, que já respondia 404 desde a D-1 (05/11/2026);
+  - o CORS continua não sendo autenticação.
+- **Motivo:** a D-2 do procedimento de despublicação do endereço antigo (relatório de implantação, seção O).
+- **Documentação e testes:**
+  - `README.md` (hospedagem: "Configuração" e "Segunda publicação");
+  - `Docs/implantacao/RELATORIO_IMPLANTACAO.md` (seção O);
+  - `Docs/implantacao/ROTEIRO_FASE2.md` (a origem nas variáveis e na F2-8);
+  - o teste da lista de origens, em `test_hospedagem.py`, continua valendo, porque o código não mudou;
+  - a conferência do serviço depois da publicação confere a origem antiga como recusada.
+
 ### 2026-11-07 · Correção do CI do item 6 (partes B a D): dois roteiros de navegador
 - **Antes:** a execução 486 (`972405c`) foi a primeira com o roteiro novo `ui_criterios.py` passando da prévia: os passos 1 a 4b
   passaram (89; 6 grupos e 8 isolados; o maior com 46, PI 33, TO 11, e 1.235 km; o segundo, 24 do PA e 907 km; "Como seleção"

@@ -21,7 +21,7 @@ REPOSITORIO=agente-diagnostico-territorial      # repositório Docker do Artifac
 IMAGEM=servico-de-analise                       # nome da imagem (igual ao de imagem.yml)
 SA_EXECUCAO=adt-execucao@$PROJETO.iam.gserviceaccount.com        # identidade do serviço no Cloud Run
 SA_IMAGEM=adt-envio-imagem@$PROJETO.iam.gserviceaccount.com      # identidade do GitHub Actions para enviar a imagem
-ORIGEM=https://gustavohoff1987.github.io        # a origem do Pages (sem caminho), a única no CORS
+ORIGEM=https://diagnostico-territorial.github.io  # a origem do Pages (sem caminho), a única no CORS desde a D-2 (07/11/2026)
 NUMERO=$(gcloud projects describe $PROJETO --format='value(projectNumber)')
 IMG=$REGIAO-docker.pkg.dev/$PROJETO/$REPOSITORIO/$IMAGEM   # a imagem no Artifact Registry (etiquetas em-uso e anterior)
 ```
@@ -99,15 +99,17 @@ gcloud artifacts repositories create $REPOSITORIO --project=$PROJETO --location=
 gcloud artifacts repositories describe $REPOSITORIO --project=$PROJETO --location=$REGIAO   # conferência, só leitura
 ```
 
-- **Sem política de limpeza, nada é apagado automaticamente.** A imagem em produção e a anterior, a da reversão, ficam
-  preservadas e marcadas com as etiquetas `em-uso` e `anterior` a cada implantação e reversão (F2-6).
-- **Imagens antigas:** saem só à mão, por decisão do responsável, com `gcloud artifacts docker images delete "$IMG@<digest>"`.
-  Nunca a marcada com `em-uso` ou `anterior`.
+- **Limpeza automática desde 06/11/2026 (F2-13).** A imagem em produção e a anterior, a da reversão, ficam preservadas pelas
+  etiquetas `em-uso` e `anterior`, movidas a cada implantação e reversão (F2-6), e as 2 versões mais recentes também. As demais
+  saem depois de 1 dia.
+- **Imagens antigas:** também podem sair à mão, por decisão do responsável, com
+  `gcloud artifacts docker images delete "$IMG@<digest>" --delete-tags`. Nunca a marcada com `em-uso` ou `anterior`.
 
 **Efeito:** um repositório de imagens no Artifact Registry, sem acesso público. **Custo:** a franquia do Artifact Registry é
 de 0,5 GB por mês, e cada imagem tem cerca de 126 MiB comprimida (350,9 MiB descompactada; medida no CI, relatório, seção C).
-Sem limpeza automática, as versões se acumulam a cada envio. A franquia comporta umas 3 a 4 imagens; acima dela, o custo é de
-cerca de US$ 0,10 por GB por mês, **fora da trava do Cloud Run**. **Desfazer:**
+Com a limpeza (F2-13), ficam 2 versões no dia a dia, e 3 ou 4 entre o envio e a implantação. Como as versões compartilham
+camadas, 2 versões ocupavam 190,7 MB em 07/11/2026. Acima da franquia, o custo é de cerca de US$ 0,10 por GB por mês, **fora
+da trava do Cloud Run**. **Desfazer:**
 `gcloud artifacts repositories delete $REPOSITORIO --project=$PROJETO --location=$REGIAO` (apaga as imagens).
 
 **Execução de 02/11/2026:** a primeira autorização da F2-2 foi executada com o escopo anterior, antes da decisão de
@@ -180,8 +182,8 @@ git tag imagem-$(date +%Y%m%d)-1 <commit verificado> && git push origin imagem-$
 
 O workflow `imagem.yml` confere o repositório público, a proteção do ambiente e o commit no ramo, constrói a imagem do commit,
 repete o teste rápido do contêiner (saúde, exame da base, documentação desligada, padrão de chave) e a envia ao Artifact
-Registry pela federação. O **digest** sai no resumo da execução, para o F2-6. Sem política de limpeza, nada é apagado
-automaticamente (F2-2). **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
+Registry pela federação. O **digest** sai no resumo da execução, para o F2-6. A imagem nova é a mais recente, preservada pela
+política de limpeza até a implantação (F2-13). **Custo:** armazenamento (F2-2). **Desfazer:** apagar a versão no Artifact
 Registry (`gcloud artifacts docker images delete "$IMG@<digest>"`), nunca a marcada com `em-uso` ou `anterior`.
 
 ## F2-6 — Implantar no Cloud Run, ainda sem acesso público
@@ -209,8 +211,8 @@ curl -fsS http://127.0.0.1:18080/api/health
 - `gen2`: o mesmo controle de memória (cgroup v2) medido no CI.
 
 **Marcação das imagens, a cada implantação** (depois de a revisão nova responder; as etiquetas identificam a imagem em
-produção e a da reversão, que nunca saem na remoção manual de imagens antigas e que uma política de limpeza futura, se
-adotada, terá de preservar):
+produção e a da reversão, que nunca saem na remoção manual de imagens antigas e que a política de limpeza preserva, F2-13;
+mova as duas em toda implantação: `anterior` na imagem que estava em uso e `em-uso` na nova):
 
 ```bash
 EM_USO=$(gcloud artifacts docker images describe "$IMG:em-uso" --format='value(image_summary.digest)' 2>/dev/null)
@@ -232,8 +234,8 @@ gcloud artifacts docker tags list "$IMG"
 ```
 
 As duas etiquetas ficam sempre nas duas imagens usadas por último: a reversão troca uma pela outra, e a imagem retirada fica
-preservada como `anterior` até a implantação seguinte. Enquanto não houver limpeza automática, as imagens mais antigas também
-ficam, até a remoção manual.
+preservada como `anterior` até a implantação seguinte. As mais antigas, sem essas etiquetas e fora das 2 mais recentes, saem
+pela política de limpeza depois de 1 dia (F2-13).
 
 **Efeito:** o serviço existe, só para quem tem permissão. **Custo:** entra na trava (tempo de instância ativa). **Desfazer:**
 `gcloud run services delete $SERVICO --project=$PROJETO --region=$REGIAO`.
@@ -261,7 +263,7 @@ curl -fsS -X POST -d "dataset=brazil&scope=municipal" "$URL/api/inspect" -o /dev
 curl -sS -o /dev/null -D - -H "Origin: https://exemplo.invalid" "$URL/api/health" | grep -i '^access-control-allow-origin' \
   || echo "sem Access-Control-Allow-Origin para a origem estranha (o esperado)"
 curl -sS -o /dev/null -D - -H "Origin: $ORIGEM" "$URL/api/health" | grep -i '^access-control-allow-origin'
-#   esperado: access-control-allow-origin: https://gustavohoff1987.github.io
+#   esperado: access-control-allow-origin: $ORIGEM (em 03/11/2026, https://gustavohoff1987.github.io)
 curl -sS -o /dev/null -D - -X OPTIONS -H "Origin: $ORIGEM" -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: content-type,x-adt-session" "$URL/api/inspect" | grep -i '^access-control-allow'
 #   a pré-verificação do navegador: a origem do Pages, os métodos e os dois cabeçalhos da interface
@@ -316,18 +318,43 @@ Faturamento → Relatórios, filtrado pelo Cloud Run. Tempo faturável das consu
 "Billable container instance time" e "Request count" por rota (`/api/session`). Comparar com a estimativa do relatório
 (seção F e G).
 
-## F2-13 — Política de limpeza do Artifact Registry (adiada; só se necessária, com AUTORIZO F2-13)
+## F2-13 — Política de limpeza do Artifact Registry (aplicada em 06/11/2026)
 
-Adiada por decisão do responsável (02/11/2026). Se o armazenamento crescer a ponto de justificá-la, a operação será
-apresentada de novo, com a política, os custos e a reversão. Ela terá de preservar a imagem em produção e a anterior
-(etiquetas `em-uso` e `anterior`, F2-6), e a validação dela será definida nessa apresentação. Até lá, nenhuma política de
-limpeza, nenhuma simulação e nenhum registro de auditoria `DATA_WRITE`; as imagens antigas saem só à mão (F2-2).
+Adiada em 02/11/2026 e aplicada a pedido do responsável em 06/11/2026, com as exclusões ligadas (relatório, seção O). A política
+preserva a imagem em produção e a anterior (etiquetas `em-uso` e `anterior`, F2-6) e as 2 versões mais recentes. As demais ela
+apaga depois de 1 dia:
+
+```bash
+cat > politica-de-limpeza.json <<'JSON'
+[
+  {"name": "manter-em-uso-e-anterior", "action": {"type": "Keep"},
+   "condition": {"tagState": "tagged", "tagPrefixes": ["em-uso", "anterior"]}},
+  {"name": "manter-as-2-mais-recentes", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 2}},
+  {"name": "apagar-as-demais-depois-de-1-dia", "action": {"type": "Delete"},
+   "condition": {"tagState": "any", "olderThan": "86400s"}}
+]
+JSON
+gcloud artifacts repositories set-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO \
+  --policy=politica-de-limpeza.json --no-dry-run
+gcloud artifacts repositories list-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO   # conferência
+```
+
+- **No dia a dia, ficam 2 versões,** a `em-uso` e a `anterior`. Entre o envio de uma imagem e a implantação, ficam 3 ou 4.
+- **Por que a regra das etiquetas:** só a regra das 2 mais recentes apagaria a imagem em produção se duas imagens fossem enviadas
+  antes de uma implantação. Por isso, as duas etiquetas são movidas em toda implantação e reversão (F2-6).
+- **Quando age:** o Google aplica a política num processo periódico, cerca de uma vez por dia; nada sai na hora.
+- **Validação:** não há simulação, porque os registros `DATA_WRITE` continuam desligados (F2-2). A conferência é a listagem das
+  versões depois de cada publicação: em cerca de um dia, sai a versão que perdeu as duas etiquetas.
+- **Custo:** nenhum; o armazenamento fica abaixo da franquia.
+- **Desfazer:** `gcloud artifacts repositories delete-cleanup-policies $REPOSITORIO --project=$PROJETO --location=$REGIAO
+  --policynames=manter-em-uso-e-anterior,manter-as-2-mais-recentes,apagar-as-demais-depois-de-1-dia`. O que a política já apagou
+  não volta.
 
 ## Custos fora da trava (estimativas; conferir no Console)
 
 | Item | Franquia | Uso esperado | Acima da franquia |
 |---|---|---|---|
-| Artifact Registry (armazenamento) | 0,5 GB/mês | cerca de 126 MiB por imagem; sem limpeza automática, as versões se acumulam até a remoção manual (a franquia comporta umas 3 a 4) | cerca de US$ 0,10 por GB/mês |
+| Artifact Registry (armazenamento) | 0,5 GB/mês | cerca de 126 MiB por imagem, com camadas compartilhadas; com a limpeza (F2-13), 2 versões no dia a dia e 3 ou 4 entre o envio e a implantação (2 versões: 190,7 MB em 07/11/2026) | cerca de US$ 0,10 por GB/mês |
 | Secret Manager | 6 versões ativas e 10 mil acessos/mês | 1 versão; 1 acesso por partida de instância | US$ 0,06 por versão/mês; US$ 0,03 por 10 mil acessos |
 | Cloud Logging | 50 GiB/mês | registros de requisição do Cloud Run, o log do Uvicorn (sem o log de acesso) | cerca de US$ 0,50 por GiB |
 | Tráfego de saída | conferir se entra na trava | o gráfico de todos os municípios transfere cerca de 0,2 MiB com gzip (2,3 MiB sem compressão) e a análise mais pesada (evolução e tendência), 3,8 MiB; uma sessão típica, de 1 a 5 MiB | conforme a tabela de rede do Google |

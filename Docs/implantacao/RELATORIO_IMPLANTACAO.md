@@ -1154,6 +1154,92 @@ redirecionada no Windows, começa com a marca BOM, que mantém a seta e os acent
 leitura, no console, no `cmd.exe`, no PowerShell 5.1 com o console em cp850 e no Git Bash: as 20 linhas e a saída 2 em todos. Nada
 foi publicado, e nada mudou no Google Cloud.
 
-Ponto de retomada: a publicação do `cb1f301` está concluída. Faltam a D-2 (retirar a origem antiga do CORS) e a D-3 (a limpeza no
-Teste-Agente), cada uma com a sua autorização. A conferência da responsável no endereço novo (V) também fica registrada quando ela a
-informar.
+**Limpeza do Artifact Registry (06/11/2026, a pedido da responsável).** Antes de apagar, a lista foi apresentada a ela.
+- **Imagem apagada:** a da 1ª versão, `sha256:6988e2e9…` (etiqueta `e2e64f4b…`, de 03/11/2026), usada só pelas revisões
+  `00001-48n` e `00002-wgk`, sem tráfego. As duas continuam listadas no Cloud Run, mas não podem mais voltar ao ar. Ficaram a
+  `em-uso` (`4ac2726d…`, revisão `00004-wr4`) e a `anterior` (`0b5bd9a6…`, revisão `00003-dk5`).
+- **Política de limpeza (F2-13), com as exclusões ligadas (`--no-dry-run`):**
+  - manter as etiquetas `em-uso` e `anterior`;
+  - manter as 2 versões mais recentes;
+  - apagar as demais com mais de 1 dia.
+
+  Só a regra das 2 mais recentes apagaria a imagem em produção se duas imagens fossem enviadas antes de uma implantação. Por
+  isso, a responsável escolheu também a proteção por etiqueta, e as etiquetas passam a ser movidas em toda publicação: `em-uso`
+  na imagem nova e `anterior` na que estava em uso (roteiro, F2-6 e F2-13).
+- **Espaço:** 3 versões e 262,8 MB antes; 2 versões e 190,7 MB depois. As camadas saíram horas depois do manifesto, e os dois
+  valores ficam abaixo da franquia de 0,5 GB.
+- **"Limpeza do source":** não há nada a limpar. Não existe nenhum bucket nos 3 projetos da conta, o Cloud Build está desligado,
+  há um único repositório no Artifact Registry e nada no `gcr.io`.
+- **D-3:** a responsável decidiu que um workflow desativado conta como uso. A variável `VITE_API_BASE_URL` e o ambiente
+  `github-pages` do Teste-Agente ficam até o `pages.yml`, que usa os dois, sair do ramo.
+- **Correção do bloco da D-1:** o `pages.yml` está desativado (`disabled_manually`). A última mudança registrada pelo GitHub é de
+  04/11/2026, 22:17 (horário de Brasília), depois do registro da D-1, que o dava como ativo.
+- **Preservados:** o Cloud Run, as APIs, as configurações financeiras e o Teste-Agente não mudaram.
+
+**Publicação controlada do `590bf8b` com a D-2 (07/11/2026, "AUTORIZO a publicação controlada do commit
+590bf8b7c9dd8c6f70bb467c2a8e72910189036e"; a D-2 autorizada junto, com a origem atual do Pages confirmada antes).**
+
+- **O commit:** o `590bf8b` traz a navegação por níveis, os números do lugar em uso (`/api/painel/lugar`), "Selecionar por
+  critérios" com os grupos por proximidade (`/api/painel/criterios`) e os ajustes da interface. O CI dele passou nos 7 jobs e no
+  `resumo` (execução 487, `42343498342`). Desde o `cb1f301`:
+  - não mudaram o Dockerfile, o `.dockerignore`, as dependências da imagem, os workflows, o `.github/scripts`, o modelo do
+    destino, os dados nem a SPEC;
+  - no `scripts/implantacao`, só as correções da F2-0 (`e8f0427` e `8fac88e`);
+  - no backend, o CORS não mudou no código.
+- **Antes da imagem:**
+  - a F2-0 deu 0 falhas e 2 itens MANUAL;
+  - a P-2 foi confirmada pela responsável no Console: o orçamento de alertas de R$ 11 mensais e o limite de gastos de R$ 11 ativo
+    para o Cloud Run, com redefinição mensal;
+  - a conferência nova do serviço, rodada como linha de base contra a produção do `cb1f301`, deu 12 OK e 5 falhas previstas: as 2
+    da origem antiga, ainda aceita antes da D-2, e as 3 das rotas novas, ainda em 404.
+- **Imagem:** a etiqueta `imagem-20261107-1` no `590bf8b` acionou a execução 42373212889 do `imagem.yml`. A conferência do
+  ambiente `producao` passou, e a aprovação registrada é de `gustavohoff1987`. O job construiu a imagem, passou no teste rápido
+  do contêiner e a enviou pela federação: `sha256:b672817073013f82adb959913fb31bd6355f7cd6e97101c20334ff28ab9a348e`.
+- **Origem do Pages, conferida pela API antes da D-2:** `https://diagnostico-territorial.github.io/`, sem domínio próprio, com
+  HTTPS obrigatório e como o único site Pages da conta e da organização. O endereço antigo responde 404.
+- **Cloud Run:**
+  - a F2-0 de novo, sem falhas, com os mesmos 2 itens MANUAL;
+  - `gcloud run services update ... --image=...@sha256:b6728170…
+    --update-env-vars=ADT_ALLOWED_ORIGINS=https://diagnostico-territorial.github.io` gerou a revisão
+    `agente-diagnostico-territorial-00005-js5`, com 100% do tráfego;
+  - a configuração antes e depois só difere na imagem, na origem do CORS e no marcador interno do gcloud
+    (`client.knative.dev/nonce`). Limites, `ADT_DOCUMENTACAO_DA_API=0`, segredo `gemini-api-key:1`, conta, sonda e acesso público
+    ficaram iguais;
+  - etiquetas, movidas depois de a revisão nova responder: `anterior` no `4ac2726d…` e `em-uso` no digest novo. O `0b5bd9a6…`
+    ficou só com a etiqueta do commit, para a limpeza automática.
+- **Testes do serviço** (`conferir_servico_590bf8b.py`, só leitura, sem credencial): 17 OK e 0 falhas.
+  - as 14 de antes, com a origem antiga agora conferida como recusada: a saúde responde 200 e `/docs` e `/openapi.json`, 404;
+  - o CORS e a pré-verificação funcionam para `https://diagnostico-territorial.github.io`;
+  - a origem antiga não recebe o cabeçalho, e a pré-verificação dela responde 400. Uma origem estranha também não recebe;
+  - o exame da base, na versão `c4d82eeee4e4`, e o gráfico dos estados, com 27 itens, respondem 200;
+  - o Amazonas inteiro dá 5.990, igual ao nível estados, e o Brasil inteiro, 502.495, que não é a soma dos municípios (817.419);
+  - novo: `/api/painel/lugar` dá o Brasil pela fonte nacional, com 502.495 médicos e densidade 2,36;
+  - novo: `/api/painel/criterios` dá 89 municípios com densidade abaixo de 0,5 em jun/2024 e, a até 200 km, 6 grupos e
+    8 isolados; o maior tem 46 municípios e 1.235 km;
+  - nenhuma chamada ao Gemini.
+- **Endereço novo:**
+  - o commit `17b4880` do destino passou o `origem.txt` para `590bf8b`. Os scripts e o workflow do destino seguem idênticos aos
+    desse commit, conferidos pelos identificadores dos objetos;
+  - a etiqueta `publicacao-pages-20261107-1` acionou a execução 42374165582. As conferências e o build passaram, e a publicação
+    terminou às 12:54 UTC. Conferido pela API: a aprovação registrada é de `gustavohoff1987`, no ambiente `github-pages` do
+    destino, e os jobs `conferir`, `build` e `publicar` passaram;
+  - a página responde 200, com o título oficial. O script `index-BNIXBSjc.js` traz o endereço do serviço, as rotas novas e os
+    textos de "Selecionar por critérios".
+- **Preservados:**
+  - o endereço antigo segue em 404, sem nenhuma publicação lá;
+  - não houve merge no `main` do Teste-Agente nem mudança na SPEC;
+  - a API de orçamentos segue desligada, entre as mesmas 32 APIs ligadas;
+  - a variável `VITE_API_BASE_URL` e o ambiente `github-pages` do Teste-Agente ficam até a D-3.
+- **Reversão:**
+  - serviço: `gcloud run services update-traffic agente-diagnostico-territorial --project=agente-diagnostico-territorial
+    --region=us-central1 --to-revisions=agente-diagnostico-territorial-00004-wr4=100`, com a etiqueta `em-uso` de volta ao
+    `4ac2726d…` e `anterior` no `b6728170…`. A `00004-wr4` ainda aceita as duas origens. Para voltar à imagem anterior só com a
+    origem nova, use `gcloud run services update ... --image=...@sha256:4ac2726d…` no lugar do `update-traffic`;
+  - só a D-2: `gcloud run services update ...
+    --update-env-vars="^##^ADT_ALLOWED_ORIGINS=https://gustavohoff1987.github.io,https://diagnostico-territorial.github.io"`;
+  - interface: o `origem.txt` do destino de volta a `cb1f301db7c181100e12411260cf8fa63f8c8279` e uma etiqueta nova. As rotas que a
+    interface do `cb1f301` usa responderam no backend novo, na conferência acima.
+
+Ponto de retomada: a publicação do `590bf8b` está concluída, com a D-2. Falta a D-3: a variável e o ambiente do Teste-Agente, que
+ficam até o `pages.yml` sair do ramo, e a documentação do endereço antigo no README e no roteiro. A conferência da responsável no
+endereço novo (V) também fica registrada quando ela a informar.
