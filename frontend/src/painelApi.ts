@@ -680,7 +680,9 @@ export function normalizarResposta(bruto: unknown, nivelPedido: PainelNivel = "m
   return {
     competencia: texto(o.competencia) ?? "", competencia_inicial: texto(o.competencia_inicial), categoria: texto(o.categoria) ?? "",
     versao_base: texto(o.versao_base), chave_execucao: texto(o.chave_execucao) ?? "",
-    nivel: o.nivel === "estados" || o.nivel === "municipios" || o.nivel === "brasil" ? o.nivel
+    // O nível de cima de uma planilha com dois níveis de grupo ("regioes", 07/11/2026) fica como veio: os itens dele também são do
+    // tipo "estado", e lê-lo como "estados" trocava os nomes das zonas pelos dos condados.
+    nivel: o.nivel === "estados" || o.nivel === "regioes" || o.nivel === "municipios" || o.nivel === "brasil" ? o.nivel
       : itens.some(item => item.tipo === "estado") ? "estados" : nivelPedido,
     referencia: referenciaRespostaDe(o.referencia),
     itens, dominios,

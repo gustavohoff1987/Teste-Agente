@@ -1087,6 +1087,12 @@ test('cliente do motor: a resposta normalizada para a tela (tendência, grupos, 
   const estados = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', itens: [{id: 'uf:13', tipo: 'estado', rotulo: 'Amazonas (AM)',
     populacao: 4000000, quantidade: 5000, densidade: 1.25}]});
   assert.equal(estados.nivel, 'estados');
+  // O nível de cima de uma planilha (07/11/2026): os itens também são do tipo "estado", e o nível continua o que o motor disse.
+  const zonas = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'regioes', itens: [{id: 'uf:Zona Serrana',
+    tipo: 'estado', rotulo: 'Zona Serrana', populacao: 943200, quantidade: 1130, densidade: 1.2}]});
+  assert.equal(zonas.nivel, 'regioes');
+  assert.equal(A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', nivel: 'paises', itens: [{id: 'uf:13', tipo: 'estado',
+    rotulo: 'Amazonas (AM)', populacao: 4000000, quantidade: 5000, densidade: 1.25}]}).nivel, 'estados');
   assert.deepEqual(estados.itens[0].avaliavel, {densidade: true, distancia: null, variacao: null});
   assert.equal(estados.itens[0].tendencia, null);
   assert.deepEqual(estados.disponibilidade, {});

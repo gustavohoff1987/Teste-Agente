@@ -35,6 +35,28 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Correção do CI da parte C1 (etapa 8 do comando, item 1): as zonas pelos nomes delas no gráfico
+- **Classificação (regra 1):** mudança de comportamento (o que a tela mostra no nível de cima), prevista: é a parte C1 como
+  registrada e descrita em `Docs/PAINEL_INTEGRADO_INTERFACE.md`, que o código não cumpria; não contraria a SPEC nem divergência
+  aprovada.
+- **Antes:** a execução 483 (`7cf5204`) foi a primeira com os roteiros de navegador das partes C1, C2 e D (na 482 o build parou no
+  teste Node) e mostrou, em `ui_planilha_ficticia.py`, um defeito do produto: vendo por zona, o gráfico dizia "Cada condado vem
+  das comunas dele: a soma.". A resposta do motor vinha com o nível `regioes`, mas a leitura dela na tela (`normalizarResposta`,
+  `frontend/src/painelApi.ts`) só aceitava `estados`, `municipios` e `brasil` e, como os itens das zonas também são do tipo
+  "estado", lia a resposta como `estados`: a nota, a bolha (que deve levar às comunas da zona) e os demais textos do nível de
+  cima usavam os nomes do grupo de baixo.
+- **Agora:** a resposta do nível de cima continua `regioes`; o gráfico diz "Cada zona vem das comunas dela: a soma." com a
+  ressalva da soma, e a bolha de uma zona leva às comunas dela, como descrito na parte C1. Nível desconhecido continua lido pelos
+  itens (só estados: `estados`).
+- **Permanece:** os valores do motor, os demais níveis e a base do Brasil. Na mesma execução, `ui_mapa.py` (base versionada)
+  falhou na proporção da legenda de tamanho do gráfico (os raios lidos, 22,18, 11,09 e 5,36 para 200 mil, 50 mil e 20 mil, não
+  saem de uma mesma legenda); nada da legenda nem do caminho dele mudou desde a execução 481, em que o roteiro passou: tratado
+  como instável e repetido neste envio (regra 5).
+- **Motivo:** CI vermelho na execução 483; correção só do que falhou.
+- **Documentação e testes:** `frontend/tests/painel.test.mjs` (o nível `regioes` mantido e um nível desconhecido lido pelos
+  itens) e `backend/tests/ui_planilha_ficticia.py` (já conferia a nota das zonas); `Docs/PAINEL_INTEGRADO_INTERFACE.md` já
+  descrevia o comportamento.
+
 ### 2026-11-07 · Correção do CI das partes C1, C2 e D (etapa 8 do comando, item 1): três testes novos
 - **Antes:** a execução 482 (`71b7019`) falhou em três testes escritos nas próprias partes: em `areaDeAnalise.test.mjs`, o "Ver
   por" com o Norte inteiro esperava "Região | Distrito | Concelho"; em `test_painel_pagina.py`, o nível de cima conferia
