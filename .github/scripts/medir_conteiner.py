@@ -7,8 +7,10 @@ rede do runner, com o Gemini simulado por HTTP (backend/tests/serve_gemini_http.
 Mede e confere:
 - partida: limites lidos no cgroup (cpu.max, memory.max, swap), /tmp em memória, tempo até a porta abrir e até /api/health,
   o aquecimento (base do Brasil e biblioteca conversacional, pelo log), a carga de cada componente e a memória;
-- análises: cada família pelo HTTP do contêiner, idêntica à referência em processo (o mesmo código e as mesmas versões fixadas
-  que os testes com dados reais conferem), com tempo, memória, pico e tamanho das respostas (limite de 32 MiB do HTTP/1);
+- análises: cada família pelo HTTP do contêiner, idêntica (bit a bit) à referência em processo calculada na própria imagem,
+  com o código e os dados do commit, e equivalente à referência em processo no runner, o ambiente dos testes com dados reais:
+  exata fora dos números decimais e, nestes, com diferença relativa de até 1e-9 (comparar_respostas.py, desde 07/11/2026).
+  Mede também o tempo, a memória, o pico e o tamanho das respostas (limite de 32 MiB do HTTP/1);
 - planilhas: CSV e XLSX pequenos, médios, de 14,9 MB, de 15.000.000 e de 15.000.001 bytes e maiores; XLSX malformado,
   truncado e com expansão desproporcional; dois envios simultâneos de 14,9 MB; memória na leitura, na interpretação
   (/api/inspect) e no processamento com a geração do resultado (/api/painel);
@@ -49,9 +51,10 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(RAIZ / "backend"), str(RAIZ / "backend" / "tests"), str(Path(__file__).resolve().parent)]
-os.environ["GEMINI_API_KEY"] = ""  # a referência em processo nunca chama o provedor nem lê backend/.env
+os.environ["GEMINI_API_KEY"] = ""  # a referência no runner nunca chama o provedor nem lê backend/.env
 os.environ["ADT_AQUECIMENTO"] = "0"
 
+import comparar_respostas as comparacao  # noqa: E402
 import httpx  # noqa: E402
 import planilhas_de_teste as P  # noqa: E402
 import serve_gemini_http  # noqa: E402
@@ -63,7 +66,7 @@ ORIGEM = "http://127.0.0.1:18101"
 MIB = 1024 * 1024
 LIMITE_HTTP1 = 32 * MIB
 LIMITE_MEMORIA = 2 * 1024 ** 3
-VOLATEIS = {"result_id", "created_at"}
+VOLATEIS = comparacao.VOLATEIS
 ROTULOS = {"unidade": {"singular": "território", "plural": "territórios"}, "grupo": {"singular": "grupo", "plural": "grupos"}}
 LIMITACOES = ("A CPU do runner do GitHub não é a vCPU do Google; o teste não reproduz a restrição de CPU entre requisições "
               "(cobrança por requisição), a partida a frio real, a rede, o balanceador nem o escalonamento do Cloud Run. Nada "
@@ -197,12 +200,7 @@ class Amostrador:
         self._fio.join(5)
 
 
-def normalizar(valor):
-    if isinstance(valor, dict):
-        return {chave: normalizar(item) for chave, item in valor.items() if chave not in VOLATEIS}
-    if isinstance(valor, list):
-        return [normalizar(item) for item in valor]
-    return valor
+normalizar = comparacao.normalizar
 
 
 def cliente() -> httpx.Client:
@@ -368,31 +366,79 @@ def pedidos_das_analises(info: dict) -> list[tuple[str, str, dict, dict | None, 
     ]
 
 
-def medir_analises(c: Conteiner, problemas: list) -> list[dict]:
+def referencia_na_imagem(imagem: str, exame: dict, pedidos: list) -> dict:
+    """A referência em processo na própria imagem (comparar_respostas.py e referencia_na_imagem.py): o código e os dados do
+    commit, com o Python, as bibliotecas e a libm da imagem. Um só docker run para o exame da base e todas as famílias."""
+    entrada = json.dumps({"inspecao": exame, "pedidos": comparacao.pedidos_para_json(pedidos)}, ensure_ascii=False)
+    feito = subprocess.run(comparacao.comando_da_referencia_na_imagem(imagem, RAIZ), input=entrada, capture_output=True,
+                           text=True, encoding="utf-8", timeout=1800)
+    if feito.returncode != 0:
+        raise RuntimeError(f"a referência na imagem terminou com {feito.returncode}: {feito.stderr[-1500:]}")
+    resultado = json.loads(feito.stdout)
+    if len(resultado["respostas"]) != len(pedidos):
+        raise RuntimeError(f"a referência na imagem respondeu {len(resultado['respostas'])} de {len(pedidos)} pedidos")
+    return resultado
+
+
+def corpo_json(resposta):
+    try:
+        return resposta.json()
+    except ValueError:
+        return None
+
+
+def resumo_do_runner(runner: dict) -> str:
+    if "status" in runner:
+        return f"status {runner['status'][0]} no contêiner e {runner['status'][1]} no runner"
+    return "; ".join(runner["outras_diferencas"][:2] + runner["fora_da_tolerancia"][:2])
+
+
+def medir_analises(c: Conteiner, problemas: list, relatorio: dict) -> list[dict]:
+    """Cada família pelo HTTP do contêiner, idêntica à referência na imagem e equivalente à referência no runner
+    (comparar_respostas.py)."""
     from fastapi.testclient import TestClient
     import main
-    referencia = TestClient(main.app)
+    no_runner = TestClient(main.app)
+    exame = {"dataset": "brazil", "scope": "municipal"}
     resultados = []
+
+    def conferir(familia, rota, formulario, arquivos, resposta, linha, da_imagem, **extra):
+        do_runner = no_runner.post(rota, data=formulario, files=arquivos)
+        recebido = corpo_json(resposta)
+        igual = resposta.status_code == da_imagem["status"] and comparacao.identicas(recebido, da_imagem["json"])
+        if resposta.status_code == do_runner.status_code:
+            runner = comparacao.comparar_com_tolerancia(recebido, corpo_json(do_runner))
+        else:
+            runner = {"equivalente": False, "status": [resposta.status_code, do_runner.status_code]}
+        resultados.append({"familia": familia, "rota": rota, **extra, "identica": igual,
+                           "status_da_referencia": da_imagem["status"], "runner": runner, **linha})
+        if resposta.status_code == 200 and not runner["equivalente"]:
+            problemas.append(f"análise do runner fora da equivalência com o contêiner ({familia}): {resumo_do_runner(runner)}")
+        return igual
+
     with cliente() as http:
-        inspecao, linha = medir_pedido(c, http, "POST", "/api/inspect", data={"dataset": "brazil", "scope": "municipal"})
-        esperada = referencia.post("/api/inspect", data={"dataset": "brazil", "scope": "municipal"})
-        igual = normalizar(inspecao.json()) == normalizar(esperada.json())
-        resultados.append({"familia": "exame da base do Brasil", "rota": "/api/inspect", "identica": igual, **linha})
-        if inspecao.status_code != 200 or not igual:
-            problemas.append("o exame da base no contêiner difere da referência")
+        inspecao, linha = medir_pedido(c, http, "POST", "/api/inspect", data=exame)
+        if inspecao.status_code != 200:
+            problemas.append(f"o exame da base no contêiner falhou: {inspecao.status_code} {inspecao.text[:300]}")
             return resultados
-        for familia, rota, formulario, arquivos, pagina in pedidos_das_analises(inspecao.json()):
+        pedidos = pedidos_das_analises(inspecao.json())
+        na_imagem = referencia_na_imagem(c.imagem, exame, pedidos)
+        relatorio["referencias_das_analises"] = {
+            "na_imagem": {**na_imagem["ambiente"], "comparacao": "idêntica (bit a bit)"},
+            "no_runner": {**comparacao.ambiente(main.__file__),
+                          "comparacao": "equivalente: exata fora dos números decimais; nestes, diferença relativa de até "
+                                        f"{comparacao.TOLERANCIA_RELATIVA:g}"}}
+        if not conferir("exame da base do Brasil", "/api/inspect", exame, None, inspecao, linha, na_imagem["inspecao"]):
+            problemas.append("o exame da base no contêiner difere da referência na imagem")
+            return resultados
+        for (familia, rota, formulario, arquivos, pagina), da_imagem in zip(pedidos, na_imagem["respostas"]):
             resposta, linha = medir_pedido(c, http, "POST", rota, data=formulario, files=arquivos)
-            esperada = referencia.post(rota, data=formulario, files=arquivos)
-            igual = (resposta.status_code == esperada.status_code and
-                     normalizar(resposta.json()) == normalizar(esperada.json()))
-            resultados.append({"familia": familia, "rota": rota, "usada_pela_pagina": pagina, "identica": igual,
-                               "status_da_referencia": esperada.status_code, **linha})
+            igual = conferir(familia, rota, formulario, arquivos, resposta, linha, da_imagem, usada_pela_pagina=pagina)
             if resposta.status_code != 200:
                 problemas.append(f"análise sem resultado no contêiner ({familia}): {resposta.status_code} "
                                  f"{resposta.text[:300]}")
             elif not igual:
-                problemas.append(f"análise diferente da referência ({familia})")
+                problemas.append(f"análise diferente da referência na imagem ({familia})")
             if resposta.num_bytes_downloaded > LIMITE_HTTP1 and pagina:
                 problemas.append(f"resposta acima de 32 MiB numa rota da página ({familia})")
     return resultados
@@ -917,6 +963,16 @@ def medir_concorrencia(imagem: str, problemas: list, duracao: float = 45) -> lis
 
 # ------------------------------------------------------------------------------------------------ relatório
 
+def texto_do_runner(runner: dict | None) -> str:
+    if not runner:
+        return "—"
+    if not runner.get("equivalente"):
+        return "NÃO"
+    if not runner.get("numeros_diferentes"):
+        return "idêntica"
+    return f"equivalente ({runner['numeros_diferentes']} números, até {runner['maior_diferenca_relativa']:.1e})"
+
+
 def resumo_markdown(relatorio: dict) -> str:
     linhas = ["# Medições do contêiner nas condições do Cloud Run", "",
               f"Commit `{relatorio.get('commit', '')[:7]}`, {relatorio['comeco']}. {LIMITACOES}", ""]
@@ -933,13 +989,21 @@ def resumo_markdown(relatorio: dict) -> str:
                    f"{partida['pico_na_partida_mb']} MB) |",
                    f"| Componentes (outro processo) | {partida['componentes_em_outro_processo']} |", ""]
     if relatorio.get("analises"):
-        linhas += ["## Análises (contêiner × referência)", "",
-                   "| Família | Rota | Idêntica | Status | Tempo (s) | Resposta (MB) | Transferido (MB) | Memória máx. (MB) |",
-                   "|---|---|---|---|---|---|---|---|"]
+        linhas += ["## Análises (contêiner × referências)", "",
+                   "Idêntica: bit a bit, à referência calculada na própria imagem com o código e os dados do commit. Runner: "
+                   "equivalência com a referência no runner, o ambiente dos testes com dados reais (exata fora dos números "
+                   f"decimais; nestes, diferença relativa de até {comparacao.TOLERANCIA_RELATIVA:g}).", ""]
+        for chave, rotulo in (("na_imagem", "Referência na imagem"), ("no_runner", "Referência no runner")):
+            referencia = (relatorio.get("referencias_das_analises") or {}).get(chave)
+            if referencia:
+                linhas.append(f"- {rotulo}: {referencia.get('glibc')}, Python {referencia.get('python')}, "
+                              f"`{referencia.get('main')}`, libm `{', '.join(referencia.get('libm') or [])}`")
+        linhas += ["", "| Família | Rota | Idêntica | Runner | Status | Tempo (s) | Resposta (MB) | Transferido (MB) | "
+                   "Memória máx. (MB) |", "|---|---|---|---|---|---|---|---|---|"]
         for item in relatorio["analises"]:
-            linhas.append(f"| {item['familia']} | `{item['rota']}` | {'sim' if item['identica'] else 'NÃO'} | {item['status']} | "
-                          f"{item['tempo_s']} | {mb(item['bytes'])} | {mb(item['bytes_transferidos'])} | "
-                          f"{item['memoria_max_mb']} |")
+            linhas.append(f"| {item['familia']} | `{item['rota']}` | {'sim' if item['identica'] else 'NÃO'} | "
+                          f"{texto_do_runner(item.get('runner'))} | {item['status']} | {item['tempo_s']} | {mb(item['bytes'])} | "
+                          f"{mb(item['bytes_transferidos'])} | {item['memoria_max_mb']} |")
         linhas.append("")
     planilhas = relatorio.get("planilhas") or {}
     if planilhas:
@@ -997,7 +1061,7 @@ def main():
     gemini = serve_gemini_http.iniciar(PORTA_GEMINI)
     principal = Conteiner(argumentos.imagem, "adt-medicao")
     etapas = (("partida", lambda: medir_partida(principal, problemas)),
-              ("analises", lambda: medir_analises(principal, problemas)),
+              ("analises", lambda: medir_analises(principal, problemas, relatorio)),
               ("planilhas", lambda: medir_planilhas(principal, problemas)),
               ("gravacoes_fora_de_tmp", lambda: principal.diff()),
               ("sessoes_api", lambda: medir_sessoes_api(principal, problemas)),

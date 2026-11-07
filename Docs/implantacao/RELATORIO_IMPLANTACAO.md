@@ -1243,3 +1243,60 @@ foi publicado, e nada mudou no Google Cloud.
 Ponto de retomada: a publicação do `590bf8b` está concluída, com a D-2. Falta a D-3: a variável e o ambiente do Teste-Agente, que
 ficam até o `pages.yml` sair do ramo, e a documentação do endereço antigo no README e no roteiro. A conferência da responsável no
 endereço novo (V) também fica registrada quando ela a informar.
+
+## P. Job `conteiner` no Ubuntu 26.04: a causa das divergências e a correção (07/11/2026)
+
+**O que falhou.** A execução 488 do CI (commit `74310c68`, só de documentação; tentativas 1 e 2) falhou no job `conteiner`
+com "análise diferente da referência" em quatro famílias: espacial, referência mais próxima, critérios combinados e página
+única: espacial (escolha dos territórios). As outras 17 saíram idênticas. A 487 (`590bf8b`, o mesmo código) tinha passado.
+
+**Causa.**
+- Entre a 487 e a 488, o `ubuntu-latest` passou do Ubuntu 24.04 (glibc 2.39) para o 26.04 (glibc 2.43). O GitHub faz essa
+  migração de 19/10 a 19/11/2026 (actions/runner-images#14748). A imagem (Debian trixie, glibc 2.41, o mesmo digest), o
+  CPython 3.11.18, as 33 bibliotecas fixadas, o código e os dados não mudaram.
+- O runner 26.04 usa os pacotes do Ubuntu na variante amd64v3, compilada para x86-64-v3, com FMA (actions/runner-images#14600:
+  *"Ubuntu 26.04 is the first of our images with the `amd64v3` architecture variant"*).
+- A `hypot` da glibc (`sysdeps/ieee754/dbl-64/e_hypot.c`, o mesmo algoritmo na 2.39, na 2.41 e na 2.43) escolhe o algoritmo
+  na compilação: com FMA (`#ifdef __FP_FAST_FMA`), `sqrt(fma(...))`; sem FMA, a correção de Borges. Ela não tem escolha pela
+  CPU em tempo de execução, ao contrário de `sin`, `atan2`, `exp`, `log` e `pow`. A imagem e o Ubuntu 24.04 usam a compilação
+  genérica, sem FMA. As duas versões diferem em 1 ULP em 12,8% das entradas (de 1.000.000 de pares aleatórios) e em 740 das
+  5.570 latitudes reduzidas dos municípios.
+- A geodésica do PROJ (o problema inverso de Karney, que o backend usa pelo `Geod.inv` do pyproj) normaliza senos e cossenos
+  com a `hypot`. No par MOJUI DOS CAMPOS [150475] → ALTINHO [260080] (linha 2898 da família espacial), a primeira das 15
+  chamadas que diverge é a normalização da latitude reduzida de ALTINHO: 0,9999270468533382 na compilação genérica (+0,464 ULP
+  do valor exato) e 0,9999270468533381 na amd64v3 (−0,536 ULP). A iteração leva a diferença adiante, e a distância sai
+  2.155,734755000499 km e 2.155,7347550004965 km, os valores do contêiner e da referência na 488.
+- A referência em processo rodava no runner, com a libm do runner, e a comparação com o contêiner era exata.
+
+**Prova.** No Docker local, com o mesmo CPython, as mesmas bibliotecas e o mesmo código, trocando só a libm do Ubuntu 26.04:
+- com a genérica, as 21 famílias saem idênticas às do contêiner;
+- só com o arquivo da libm da amd64v3, divergem exatamente as quatro famílias da 488;
+- só com a `hypot` da amd64v3, o resultado é o mesmo, nas 21 famílias;
+- só com a `cbrt` ou só com a `atanh`, nenhuma diferença.
+
+**Alcance.** Só as distâncias em precisão integral diferem, em até 2,3 × 10⁻¹² km (cerca de 2 nm, abaixo da precisão do método,
+de cerca de 15 nm). Nenhum valor muda ao arredondar ao milímetro. Os territórios, as referências escolhidas, os empates, os
+limiares, a ordem, as contagens e os textos são idênticos. Não há erro de cálculo: o defeito estava no teste, cujo ambiente da
+referência não era fixado. A produção roda a imagem trixie, a mesma do contêiner do CI, e nada foi republicado.
+
+**Correção (decisão de 07/11/2026: a referência na imagem, com a equivalência no runner).** O `medir_conteiner.py` compara
+cada análise com duas referências em processo (`.github/scripts/comparar_respostas.py`):
+- na própria imagem, a comparação é exata. Um `docker run` da imagem medida, sem rede e sem a chave do Gemini, monta o commit só
+  para leitura em `/src` (`referencia_na_imagem.py`). O código e os dados vêm do commit, e o Python, as bibliotecas e a libm,
+  da imagem. Isso confere o empacotamento sem depender do sistema do runner.
+- no runner, a referência de antes (o ambiente dos testes com dados reais) precisa ser equivalente. É exata em chaves, textos,
+  inteiros, booleanos, nulos, ordem, tamanhos e empates; nos números decimais, aceita diferença relativa de até 1e-9 (1 mm em
+  1.000 km), e o `medicoes.json` registra quantos números diferem e a maior diferença. Essa tolerância afrouxa a comparação
+  exata com o runner, pela causa acima; o rigor bit a bit fica na comparação com a imagem.
+- Testes em `backend/tests/test_comparar_respostas.py`:
+  - na comparação exata, 1 ULP já reprova;
+  - a equivalência reprova textos, inteiros, booleanos, nulos, ordem, tamanhos, chaves, tipos, empates e números fora da
+    tolerância;
+  - o comando da referência na imagem está conferido;
+  - os arquivos chegam byte a byte.
+- Validação no CI: o job `conteiner` com as 21 famílias idênticas à referência na imagem e equivalentes à do runner, e o
+  ambiente das duas referências no `medicoes.json`.
+
+Ponto de retomada: com a CI verde neste commit, seguem a D-3 e a conferência V.
+- D3-a: tirar o `pages.yml` do ramo, com os testes e os documentos.
+- D3-b: apagar a variável e o ambiente do Teste-Agente.
