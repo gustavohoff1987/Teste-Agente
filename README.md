@@ -590,7 +590,9 @@ Referências: FN-INT-01/02 (propostas interpretativas), CFG-AMB e CFG-OPC (ambig
 Preparação de 01/11/2026 (Fase 1). O que foi feito, o que foi medido e o que depende do responsável pelo produto ficam em
 [Docs/implantacao/](Docs/implantacao/RELATORIO_IMPLANTACAO.md); nada foi publicado. O serviço de análise (o backend) vai para o
 Google Cloud Run, numa instância de 1 vCPU e 2 GiB (mínimo 0, máximo 1, cobrança por requisição), e a interface, para o GitHub
-Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o serviço por HTTPS noutro endereço.
+Pages: desde 04/11/2026 em `https://diagnostico-territorial.github.io/`, publicada pelo repositório de destino. A primeira
+publicação, em `https://gustavohoff1987.github.io/Teste-Agente/`, foi retirada na D-3 (07/11/2026). O navegador chama o
+serviço por HTTPS noutro endereço.
 
 - **Contêiner:** `Dockerfile` na raiz, com Python 3.11 slim fixado por digest e as dependências exatas de
   `backend/requirements-conteiner.txt`; usuário sem privilégios; um processo Uvicorn em `0.0.0.0:$PORT`; encerramento limpo
@@ -601,7 +603,7 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   despublicada; antes, só a primeira; sem a variável, o servidor local do Vite). O CORS aceita só os cabeçalhos que a interface envia (`Content-Type` e `X-ADT-Session`), com a
   pré-verificação válida por 2 h (antes, 10 min e qualquer cabeçalho). `ADT_DOCUMENTACAO_DA_API=0` (já na imagem) desliga a
   documentação da API. `GEMINI_API_KEY` vem do Secret Manager. Na interface, `VITE_API_BASE_URL` (o endereço do serviço) e,
-  no build do Pages, `ADT_BASE_DA_PAGINA=/Teste-Agente/`.
+  no build do Pages do destino, `ADT_BASE_DA_PAGINA=/`; o CI também confere o build em `/Teste-Agente/`.
 - **Partida:** o aquecimento (a inspeção da base do Brasil e a biblioteca conversacional) termina antes de a porta abrir.
 - **Proteção de carga** (`backend/carga.py`): o pedido acima de 15 MB mais a margem do formulário é recusado com 413 antes de
   qualquer leitura. As operações pesadas (exame, pré-exame, análise, gráfico, mapa, contagens da escolha dos territórios e a
@@ -633,13 +635,14 @@ Pages, em `https://gustavohoff1987.github.io/Teste-Agente/`; o navegador chama o
   ociosidade ou trocada pela plataforma, nova revisão, falta de memória, suspensão pela trava de gastos); a interface mostra o
   aviso de sessão expirada ou indisponível. É divergência aprovada da RQ-FLX-17 desde 02/11/2026 (opção a: registrada, sem
   alteração do código; [registro de comportamento](Docs/REGISTRO_DE_COMPORTAMENTO.md)).
-- **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml`, `pages.yml` e `teste-gatilho.yml`, só
-  por etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e
-  [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)). Nos três primeiros, o job `conferir-protecao` encerra a execução
+- **Workflows:** `ci.yml` (job `conteiner`); `validacao-gemini-real.yml`, `imagem.yml` e `teste-gatilho.yml`, só por
+  etiqueta, cada um com a sua proteção ([providências](Docs/implantacao/PROVIDENCIAS_DO_RESPONSAVEL.md) e
+  [roteiro da Fase 2](Docs/implantacao/ROTEIRO_FASE2.md)); o `pages.yml` saiu na D-3 (07/11/2026). Nos dois primeiros, o
+  job `conferir-protecao` encerra a execução
   antes de qualquer chamada, envio ou publicação se o repositório não estiver público (desde 02/11/2026), se o ambiente não
   existir, não tiver revisor obrigatório ou aceitar outras etiquetas ou ramos, ou se o commit não pertencer ao ramo de
   preparação.
-- **Segunda publicação (em preparação desde 04/11/2026):** a mesma interface na raiz, em
+- **Publicação da interface (desde 04/11/2026; a única desde a D-3, em 07/11/2026):** a interface na raiz, em
   `https://diagnostico-territorial.github.io/`, construída pelo repositório da organização a partir de um commit
   verificado deste ramo, sem credencial entre repositórios ([roteiro](Docs/implantacao/ROTEIRO_FASE2.md), M-0 a M-5).
   Da M-3 (04/11/2026) até a D-2 (07/11/2026), o CORS do serviço aceitou as duas origens; desde a D-2, só esta.

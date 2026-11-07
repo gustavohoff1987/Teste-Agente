@@ -1294,9 +1294,49 @@ cada análise com duas referências em processo (`.github/scripts/comparar_respo
     tolerância;
   - o comando da referência na imagem está conferido;
   - os arquivos chegam byte a byte.
-- Validação no CI: o job `conteiner` com as 21 famílias idênticas à referência na imagem e equivalentes à do runner, e o
-  ambiente das duas referências no `medicoes.json`.
+- **Resultado no CI.** A execução 489 (commit `d988fb15`) passou nos 7 jobs e no `resumo`, e o job `conteiner` rodou no
+  Ubuntu 26.04 (glibc 2.43).
+  - As 21 famílias saíram idênticas, bit a bit, à referência na imagem (glibc 2.41, com o código de `/src/backend/main.py`).
+  - As 21 também saíram equivalentes à do runner, sem nenhuma diferença fora dos números decimais.
+  - Só distâncias diferiram, nas mesmas quantidades da reprodução local: espacial 1.642 números (até 4,6 × 10⁻¹⁵ relativo),
+    referência mais próxima 4.881 (até 6,1 × 10⁻¹³), critérios combinados 3.254 (até 6,1 × 10⁻¹³) e página única espacial 25
+    (até 9,3 × 10⁻¹⁶).
+  - A maior diferença fica cerca de 1.600 vezes abaixo da tolerância de 1e-9.
 
-Ponto de retomada: com a CI verde neste commit, seguem a D-3 e a conferência V.
-- D3-a: tirar o `pages.yml` do ramo, com os testes e os documentos.
-- D3-b: apagar a variável e o ambiente do Teste-Agente.
+Ponto de retomada: a D-3, na seção Q.
+
+## Q. D-3: a retirada da publicação antiga (07/11/2026)
+
+**Antes da D-3, a publicação antiga já estava desligada e não podia publicar** (conferido com o `gh` e por HTTP em 07/11/2026):
+- o `pages.yml` estava desativado (`disabled_manually`, desde 04/11/2026, 22:17) e só existia no ramo `implantacao/cloud-run-pages`;
+  o `main` não tem workflows;
+- o Teste-Agente não tinha site do Pages (a API respondia 404), e `https://gustavohoff1987.github.io/Teste-Agente/` respondia
+  404;
+- mesmo reativado, o job de publicação esperaria aprovação no ambiente `github-pages`;
+- desde a D-2, o CORS do serviço recusa a origem antiga.
+
+**A variável e o ambiente não são compartilhados** (conferido antes de apagar):
+- nos workflows dos 7 ramos remotos, só o `pages.yml` usava a variável `VITE_API_BASE_URL` do repositório e o ambiente
+  `github-pages`;
+- nenhum script do Teste-Agente lê os dois. O CI passa `VITE_API_BASE_URL` direto nos builds de teste, e a F2-0 não os consulta;
+- o destino tem workflow, ambiente `github-pages`, variável `VITE_API_BASE_URL` e site próprios. O `conferir_protecao.py` de lá
+  lê o ambiente do próprio repositório (`GITHUB_REPOSITORY`). O `conferir_origem.py` lê do Teste-Agente só a comparação de
+  commits e as execuções do CI, que são públicas;
+- o ambiente `github-pages` do Teste-Agente não tinha segredos nem variáveis, e o repositório não tem segredos.
+
+**D3-a (neste commit).**
+- O `pages.yml` saiu do ramo.
+- Em `test_implantacao.py`, os testes deixam de conferir o `pages.yml`. Um teste novo exige que nenhum workflow do
+  Teste-Agente publique no Pages nem use a variável ou o ambiente, e o modelo do destino continua conferido.
+- Os comentários de `conferir_protecao.py` e `vite.config.ts` e os documentos foram atualizados: AGENTS.md, README, roteiro
+  (F2-9) e providências (P-6 e P-7).
+- Ficam, porque são usados pelo `imagem.yml`, pelo `validacao-gemini-real.yml`, pelo CI ou pelo destino:
+  - `conferir_protecao.py`, `conferir_origem.py` e `verificar_chave_google.py`;
+  - o suporte a `VITE_API_BASE_URL` e `ADT_BASE_DA_PAGINA` na interface;
+  - o build do CI em `/Teste-Agente/`, que confere a publicação fora da raiz.
+- O registro do workflow continua desativado, e a etiqueta `publicacao-pages-20261103-1` fica como histórico.
+
+**D3-b (depois da CI verde deste commit).** Serão apagados, no Teste-Agente, a variável `VITE_API_BASE_URL` e o ambiente
+`github-pages`. Antes, a configuração dos dois fica salva para recriá-los, e o registro da execução vem no commit seguinte.
+
+Ponto de retomada: a D3-b e o registro dela.

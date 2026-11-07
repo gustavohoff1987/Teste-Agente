@@ -90,8 +90,9 @@ nenhum 429 (relatório, seção M). Depois, o segredo saiu do ambiente `gemini-r
   workflow sugeridos pela página (gravariam no `main`). No ambiente `github-pages` (criado pelo Pages): revisor obrigatório =
   você, "Prevent self-review" desativado, e trocar a regra padrão de ramo pela regra de etiquetas `publicacao-pages-*`. Depois
   do F2-8, criar a variável do repositório `VITE_API_BASE_URL` com o endereço do serviço (`https://….run.app`, sem `/` no fim).
-  **Concluída em 03/11/2026** e conferida com o `gh` (relatório, seção N).
-- **P-7 (em F2-9).** Aprovar, no ambiente `github-pages`, o job de publicação.
+  **Concluída em 03/11/2026** e conferida com o `gh` (relatório, seção N). **Retirada na D-3 (07/11/2026; relatório,
+  seção Q):** a publicação passou ao repositório de destino (P-M1 e P-M2).
+- **P-7 (em F2-9).** Aprovar, no ambiente `github-pages`, o job de publicação. Retirada na D-3, como a P-6.
 - **P-8 (em cada operação).** Autorizar com **AUTORIZO F2-n**, em especial F2-6 (implantar o backend), F2-7 (liberar o acesso
   público), F2-9 (publicar a interface) e F2-13 (habilitar as exclusões da limpeza do Artifact Registry, depois da simulação).
 - **P-9 (em F2-9, F2-10 e F2-11).** As conferências na interface publicada, no navegador: a página, o diálogo de abertura, um

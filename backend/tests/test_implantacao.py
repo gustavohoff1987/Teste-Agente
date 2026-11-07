@@ -1,11 +1,13 @@
 """Mecanismos da implantação (01/11/2026; Docs/implantacao/), conferidos com respostas simuladas, sem rede e sem chave:
-- a proteção dos ambientes antes dos workflows protegidos (validacao-gemini-real.yml, imagem.yml e pages.yml): a execução para
+- a proteção dos ambientes antes dos workflows protegidos (validacao-gemini-real.yml e imagem.yml): a execução para
   quando o repositório não está público (desde 02/11/2026), o ambiente não existe, não tem revisor, aceita outras etiquetas ou
   ramos, o gatilho não é a etiqueta ou o commit não pertence ao ramo de preparação;
 - a validação real pelo contêiner: sem o segredo, nenhum pedido; o teto rígido de chamadas; um 429 real encerra; as mensagens
   espaçadas; o resumo nas anotações da execução, sem textos e sem o padrão de chave (desde 02/11/2026);
 - o padrão de chave do Google: achado por arquivo e contagem, nunca mostrado;
 - os workflows: só os gatilhos previstos, o ci.yml com o ramo de preparação e o job do contêiner, e nenhum gatilho manual;
+  desde a D-3 (07/11/2026), nenhum publica no Pages nem usa a variável VITE_API_BASE_URL do repositório ou o ambiente
+  github-pages: a interface é publicada pelo repositório de destino (Docs/implantacao/destino/publicar.yml);
 - a verificação prévia (F2-0): só leitura, e ausência de resposta nunca vale como aprovação (desde 05/11/2026): o gcloud roda
   sem entrada, sem perguntas e com limite de tempo real, os orçamentos sem resposta ficam MANUAL e as demais consultas, FALHA;
   a saída é sempre em UTF-8, com a marca BOM só quando redirecionada no Windows, e nenhum caractere encerra o script (desde
@@ -402,7 +404,7 @@ def gatilhos(nome):
 
 
 @pytest.mark.parametrize("nome,etiqueta", [("validacao-gemini-real.yml", "validacao-gemini-real-*"), ("imagem.yml", "imagem-*"),
-                                           ("pages.yml", "publicacao-pages-*"), ("teste-gatilho.yml", "teste-gatilho-*")])
+                                           ("teste-gatilho.yml", "teste-gatilho-*")])
 def test_workflows_protegidos_so_rodam_por_etiqueta(nome, etiqueta):
     texto, topo = gatilhos(nome)
     assert re.search(r"on:\s*\n\s*push:\s*\n\s*tags:\s*\[\s*\"" + re.escape(etiqueta) + r"\"\s*\]", topo), topo
@@ -411,8 +413,7 @@ def test_workflows_protegidos_so_rodam_por_etiqueta(nome, etiqueta):
     assert "permissions:" in topo
 
 
-@pytest.mark.parametrize("nome,ambiente", [("validacao-gemini-real.yml", "gemini-real"), ("imagem.yml", "producao"),
-                                          ("pages.yml", "github-pages")])
+@pytest.mark.parametrize("nome,ambiente", [("validacao-gemini-real.yml", "gemini-real"), ("imagem.yml", "producao")])
 def test_o_job_protegido_so_vem_depois_da_conferencia_da_protecao(nome, ambiente):
     texto, _ = gatilhos(nome)
     assert "conferir_protecao.py --ambiente " + ambiente in texto
@@ -457,6 +458,19 @@ def test_nenhum_segredo_de_repositorio_nos_workflows():
             assert texto.count("secrets.GEMINI_API_KEY") == 1 and "environment: gemini-real" in texto
         else:
             assert segredos <= {"GITHUB_TOKEN"}, (arquivo.name, segredos)
+
+
+def test_a_publicacao_antiga_no_pages_saiu_do_teste_agente():
+    """D-3 (07/11/2026): o pages.yml saiu, e nenhum workflow daqui publica no Pages nem usa a variável VITE_API_BASE_URL do
+    repositório ou o ambiente github-pages (retirados na D3-b). A publicação é a do destino, cujo modelo continua conferido."""
+    assert not (WORKFLOWS / "pages.yml").exists()
+    for arquivo in WORKFLOWS.glob("*.yml"):
+        texto = arquivo.read_text(encoding="utf-8")
+        for proibido in ("actions/deploy-pages", "actions/upload-pages-artifact", "pages: write", "github-pages",
+                         "vars.VITE_API_BASE_URL"):
+            assert proibido not in texto, (arquivo.name, proibido)
+    destino = (ROOT / "Docs" / "implantacao" / "destino" / "publicar.yml").read_text(encoding="utf-8")
+    assert "actions/deploy-pages" in destino and "name: github-pages" in destino and "vars.VITE_API_BASE_URL" in destino
 
 
 # ---------------------------------------------------------------------------------------------- verificação prévia (F2-0)

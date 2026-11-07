@@ -274,6 +274,9 @@ instância (trava).
 
 ## F2-9 — Publicar a interface
 
+**Retirada na D-3 (07/11/2026; relatório, seção Q).** A interface é publicada pelo repositório de destino, em
+`https://diagnostico-territorial.github.io/` (M-0 a M-5, abaixo). O texto a seguir fica como registro da Fase 2.
+
 Providências: **P-6** (Pages ativado com origem GitHub Actions e o ambiente `github-pages` com revisor e etiquetas
 `publicacao-pages-*`) e **P-7** (aprovar o job). A variável do repositório `VITE_API_BASE_URL` recebe o endereço do serviço (o
 `$URL` do F2-8, sem `/` no fim; não é segredo).

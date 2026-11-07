@@ -1,6 +1,7 @@
 """Confere, pela API do GitHub e só em leitura, a proteção de um ambiente antes de um workflow protegido seguir (01/11/2026;
 seções 1.2 e 6.3 do comando de implantação): validacao-gemini-real.yml (ambiente gemini-real, etiquetas
-validacao-gemini-real-*), imagem.yml (producao, imagem-*) e pages.yml (github-pages, publicacao-pages-*).
+validacao-gemini-real-*) e imagem.yml (producao, imagem-*). O pages.yml (github-pages, publicacao-pages-*) saiu na D-3
+(07/11/2026); no repositório de destino da interface, a cópia de lá confere o ambiente github-pages do próprio destino.
 
 Exige, nesta ordem:
 1. o repositório está público (desde 02/11/2026; no plano gratuito do GitHub, o Pages e as proteções dos ambientes dependem
