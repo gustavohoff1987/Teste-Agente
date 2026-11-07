@@ -228,7 +228,7 @@ da tela).
   municípios do Amazonas. Para voltar, toque em Brasil na trilha, no alto." (até 06/11/2026, "Para voltar aos estados, use
   Desfazer, no alto."); o Desfazer continua desfazendo cada passo, mas não é o caminho para mudar de nível.
 - **Planilhas:** sem a unidade de análise (Brasil e Estados), com os mesmos passos e a nomenclatura da planilha (a busca "Buscar
-  distrito ou província"). Com coluna-mãe (o papel `grupo_territorial`), a árvore tem a raiz "Toda a planilha" ("todos os 4
+  distrito ou província"). Com coluna-mãe (o papel `grupo_territorial`), a árvore tem a raiz no nome do todo (desde 07/11/2026; sem ele, "Toda a base"; antes, "Toda a planilha") ("todos os 4
   distritos") e os grupos como os estados, com o grupo de cada unidade vindo do catálogo do pré-exame (`parents`, desde
   23/10/2026); todos os grupos inteiros só viram "toda a planilha" quando juntos cobrem todas as unidades dela. Sem coluna-mãe, a
   lista das unidades em ordem alfabética, com as caixas, "Marcar todos os condados" e "Desmarcar os condados". Sem a lista das
@@ -291,7 +291,8 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   "Brasil › Seleção"; tudo dentro de um estado só, "Brasil › Pará". Sem nada escolhido, "Brasil", com a dica de tocar no nome ou
   usar a Seleção. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta ao todo
   sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
-  move a trilha do mesmo jeito. Numa planilha, a trilha começa em "Toda a planilha".
+  move a trilha do mesmo jeito. Numa planilha, a trilha começa no nome do todo do painel Colunas ou, sem ele, em "Toda a base"
+  (desde 07/11/2026; antes, "Toda a planilha").
 - **A faixa do lugar** (`analise-faixa`, no alto de todas as abas de análise, com `data-lugar` e `data-grupo`): o nome do lugar,
   a competência (no formato curto do resumo da fonte, "jun/2024") e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
   palavras ("212,6 milhões", com o número inteiro ao lado), a densidade por 1.000 habitantes (2,36) e a variação da densidade
@@ -424,7 +425,7 @@ O que cada análise mostra:
      {filtro}" (até essa data, "Municípios {de onde} com {filtro} e {filtro}" e, no modo marcados, os nomes). Na referência, desde 27/10/2026 (a pedido do responsável: "o mais próximo da Bahia"
      parecia o mais próximo do estado, e não de cada município da base), sempre de quem é a mais próxima e entre quais:
      "o mais próximo de cada um, entre os municípios {de onde} com {filtro}", com {de onde} "do Acre", "do Norte e do Nordeste",
-     "da seleção prévia" ou "de todo o país" (numa planilha, "de toda a planilha") e, conforme a base, "do mesmo estado" ou "da
+     "da seleção prévia" ou "de todo o país" (numa planilha, o todo pelo nome, "da Solária", ou "de toda a base"; até 07/11/2026, "de toda a planilha") e, conforme a base, "do mesmo estado" ou "da
      mesma região" (numa planilha, "da mesma {grupo}"); com um marcado, o nome dele (conforme a base, "MANAUS (AM), para os
      municípios do mesmo estado"); com mais, "o mais próximo de cada um, entre MANAUS (AM) e BELEM (PA)" (conforme a base,
      com ", no mesmo estado" ou ", na mesma região"). Antes, "o mais próximo do Acre com densidade acima de 2", "o mais próximo,
@@ -439,7 +440,7 @@ O que cada análise mostra:
 
   O seletor de cada lado (`territorios-base-*` e `territorios-referencia-*`), com a contagem do motor depois de cada etapa
   (`contagem-partir`, `contagem-filtros` e `contagem-final`):
-  1. **Partir de** (`partir-menu`): "Todo o país" (numa planilha, "Toda a planilha"), "Uma região" e "Mais de uma região" (os
+  1. **Partir de** (`partir-menu`): "Todo o país" (numa planilha, o nome do todo ou "Toda a base"; até 07/11/2026, "Toda a planilha"), "Uma região" e "Mais de uma região" (os
      botões das cinco regiões, `regiao-opcao`; só na base do Brasil), "Um estado" e "Mais de um estado" (os botões com as
      siglas, `uf-opcao`; numa planilha, os grupos dela) e "Seleção prévia (N)", a escolha da Seleção de Territórios, com os
      nomes (`selecao-previa`; com territórios selecionados, é a opção inicial da base; senão, todo o país). Só na referência, o
@@ -782,8 +783,8 @@ e o resultado da comparação continuam.
   município, com o valor observado em cada competência do intervalo."; com a Escolha dos territórios, "Densidade de médicos e
   distância até a referência mais próxima · Amazonas · junho de 2024" (o lugar é o da base da consulta: "Norte", "Acre e
   Amazonas", "Brasil", com ", com filtros" quando há filtros, ou os marcados; com a seleção prévia, o da Seleção). Numa planilha,
-  o lugar da planilha inteira é "Toda a planilha" desde 28/10/2026 (antes, "Planilha"): "Tendência da densidade de médicos ·
-  Toda a planilha · dezembro de 2022 a junho de 2024". Na Análise de Tendência, o subtítulo e a frase-resumo
+  o lugar da planilha inteira é o nome do todo desde 07/11/2026 (sem ele, "Toda a base"; de 28/10 a 07/11/2026, "Toda a
+  planilha"; antes, "Planilha"): "Tendência da densidade de médicos · Solária · dezembro de 2022 a junho de 2024". Na Análise de Tendência, o subtítulo e a frase-resumo
   ficam no painel "Como ler", à direita do desenho.
 - **Desfazer** (`analise-desfazer`) e **Limpar seleção** ficam no alto da área, fora do título (seção "Desfazer e Limpar seleção").
 - **Frase-resumo** (23/10/2026), logo abaixo do subtítulo (`analise-resumo`, lida pelos leitores de tela a cada mudança): o texto
@@ -997,6 +998,20 @@ no escuro e num navegador à parte com o escurecimento forçado, com o controle 
 
 Numa planilha enviada, a página fala com os nomes dados no painel "Colunas" (a unidade e o grupo, no singular e no plural)
 e com o gênero deles (o informado ou, sem ele, a terminação: comuna e província, feminino; condado e distrito, masculino).
+
+**Os três papéis dos nomes** (07/11/2026, item 1 do comando de 06/11/2026; etapa 8A): o todo, os grupos e a unidade. O painel
+"Colunas" pergunta também o **nome do todo** (`colunas-todo-nome`, opcional, o nome próprio do território inteiro, como
+"Portugal") e, com ele, "Como se diz" (`colunas-todo-artigo`: sem artigo, "de Portugal"; "o", "do Japão"; "a", "da Solária";
+"os"; "as"); sem o nome, a tela diz **"Toda a base"** (até 07/11/2026, "Toda a planilha"). O **gênero** da unidade e do grupo
+também é escolhido no painel (`colunas-unidade-genero`, `colunas-grupo-genero`: "Masculino (o, os)" ou "Feminino (a, as)"),
+sugerido pela terminação, e vai sempre ao motor, para a tela e o motor concordarem igual. O todo aparece na raiz da Seleção,
+na trilha ("Solária › …"), nos títulos ("nas comunas da Solária", "· Solária ·"), em "Todos os distritos da Solária (40)", na
+Escolha dos territórios ("Partir de: Solária"; "entre as comunas da Solária") e na proteção ("Esta análise ainda é da
+Solária"); sem o nome, "Toda a base", "da base" e "de toda a base". O motor e a conversa recebem o nome em `rotulos.todo`
+(`{"nome", "artigo"}`) e dizem "na Solária" (ou "em toda a base") onde antes diziam "em toda a planilha" (a origem da referência,
+"Procurar na Solária"). Os textos que nomeiam o nível seguem o nível em uso: vendo por estado, a nota da Tendência sem
+classificação ("Nenhum estado recebeu classe…"), a Série temporal vazia ("Escolha até 10 estados…") e a linha de método dos
+Detalhes ("Estados · competência…").
 Em 28/10/2026, uma navegação simulada com uma planilha fictícia feita do modelo (16 comunas em 4 condados, nomes
 inventados e conferidos contra os 5.307 nomes de municípios e estados da base do Brasil) percorreu a Seleção, as quatro
 análises, as funções, os Detalhes, as exportações, a Escolha dos territórios, "Entenda esta análise" e a conversa. Ficaram
@@ -1008,7 +1023,8 @@ corrigidos os textos que ainda diziam o que é próprio da base do Brasil ou nã
 - a linha da base acima do desenho: "cada uma ligada à sua referência mais próxima";
 - "Entenda esta análise" na Análise Espacial: "a referência mais próxima dela" (antes, "delea") e "a escolha de todas as que
   atendem ou só das marcadas";
-- o lugar de uma planilha inteira nos títulos: "Toda a planilha" (antes, "Planilha");
+- o lugar de uma planilha inteira nos títulos: "Toda a planilha" (antes, "Planilha"); desde 07/11/2026, o nome do todo ou
+  "Toda a base";
 - o CSV: a coluna do grupo com o nome dele ("Condado") e o valor da coluna-mãe (antes, "UF", vazia numa planilha); desde
   29/10/2026, quando o nome do grupo repete outro cabeçalho, como com os nomes que o modelo de planilha sugere (unidade e
   grupo "território"), a coluna é "Território (grupo)" (antes, o CSV tinha duas colunas "Território");

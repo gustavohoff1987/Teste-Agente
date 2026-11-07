@@ -35,6 +35,49 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte A (etapa 8A do comando, item 1): o nome do todo, "Toda a base", o gênero no painel Colunas e os textos que seguem o nível
+- **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026, classificado de uma vez com os demais
+  (entrada da navegação por níveis, abaixo). Esta parte cobre os itens 1.1 (os três papéis dos nomes, com o gênero onde couber),
+  1.2 (o nome do todo no painel Colunas; sem resposta, "Toda a base") e 1.3 (os textos que nomeiam o nível seguem o nível em uso).
+  Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* só nomes e textos (G1: nenhuma palavra territorial fixa),
+  sem cálculo novo; o contrato da API ganha um campo aditivo (`rotulos.todo`). Os níveis de grupo (até dois) e os totais da
+  planilha (1.4) ficam para as partes seguintes.
+- **Antes:** numa planilha, o todo se chamava sempre "Toda a planilha" (a raiz da Seleção, a trilha, os títulos, a Escolha dos
+  territórios: "Partir de: Toda a planilha", "entre as comunas de toda a planilha"), e o motor e a conversa diziam "em toda a
+  planilha" ("Procurar em toda a planilha"); o painel Colunas não perguntava o nome do todo nem o gênero (a tela e o motor o
+  deduziam pela terminação, com regras diferentes). Vendo por estado, a nota da Tendência sem classificação dizia "Nenhum
+  município recebeu classe", a Série temporal vazia, "Escolha até 10 municípios", e a linha de método dos Detalhes, "Municípios ·
+  competência …".
+- **Agora:**
+  - **Painel Colunas:** "Nome do todo (opcional)" e, com ele, "Como se diz" (sem artigo, "de Portugal"; "o"; "a", "da Solária";
+    "os"; "as"); "Gênero da unidade" e "Gênero do grupo" ("Masculino (o, os)", "Feminino (a, as)"), sugeridos pela terminação. O
+    gênero vai sempre ao motor, para a tela e o motor concordarem igual.
+  - **O todo pelo nome:** a raiz da Seleção, a trilha ("Solária › …"), os títulos ("nas comunas da Solária", "· Solária ·"),
+    "Todos os distritos da Solária (40)", a Escolha dos territórios ("Partir de: Solária"; "entre as comunas da Solária"), a
+    proteção ("Esta análise ainda é da Solária") e os avisos da raiz ("Solária inteira marcada"); sem o nome, "Toda a base",
+    "da base", "de toda a base" e "Toda a base marcada".
+  - **Motor e conversa:** `rotulos.todo` (`{"nome", "artigo"}`) nas opções de uma planilha, validado (422 para outro artigo ou
+    nome que não seja texto) e devolvido na resposta; a origem da referência diz "na Solária" (ou "em toda a base"); a conversa
+    diz "na Solária"/"em toda a base" e oferece "Procurar na Solária", com o rascunho "procure a referência em toda a base", que
+    a gramática passa a reconhecer (com "em toda a planilha", como antes).
+  - **Os textos que nomeiam o nível** seguem o nível em uso: vendo por estado, "Nenhum estado recebeu classe…", "Escolha até 10
+    estados…" e "Estados · competência…".
+- **Permanece:** a base do Brasil (o todo é o Brasil; "de todo o país"; nenhum `rotulos` vai ao motor); os cálculos; as
+  mensagens que falam do arquivo ("A planilha não tem a coluna…"); os exemplos do painel Colunas; um nível de grupo (o segundo,
+  na parte C).
+- **Motivo:** comando do responsável de 06/11/2026, item 1.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` ("Os nomes de uma planilha", a Seleção, a trilha, a Escolha dos
+    territórios e os títulos), `Docs/PAINEL_INTEGRADO.md` (`rotulos.todo` no contrato) e o `README.md`.
+  - **Testes novos:** `test_painel_pagina.py` (o nome do todo na origem da referência e na resposta; as recusas), Node
+    (`nomeDoTodo`, `doTodo`, `deTodoOTodo`, `todoMarcado`, a trilha com o nome, `deOndeEhOResultado` com o nome, `rotulosDe`
+    com o todo, `editarTodo`, `editarGenero` e o todo que continua ao trocar a coluna) e, em `ui_planilha_ficticia.py`, o gênero
+    sugerido e o nome "Solária" com o artigo no painel Colunas.
+  - **Testes que mudam de propósito:** `test_painel_pagina.py` ("em toda a base" na origem), `painel.test.mjs` ("da base",
+    "Toda a base"), `areaDeAnalise.test.mjs` ("de toda a base", "toda a base, uma ou mais províncias", a trilha "Toda a base",
+    "de toda a base" na proteção), `ui_planilha_ficticia.py` (a raiz, os títulos e a frase com "Solária") e `ui_pagina_unica.py`
+    (a raiz "Toda a base", sem o nome do todo).
+
 ### 2026-11-07 · Resposta digitada a uma alternativa: o mês pela palavra inteira, e o pedido de outra função não é resposta
 - **Classificação (regra 1), pela leitura, antes de codar:** mudança surgida na correção de uma falha do CI (execução 476, o passo
   14 de `ui_navegacao.py`, o aceite do item 5): com "Ir para MARABA (PA)" e "Adicionar à seleção" pendentes (a pergunta de valor

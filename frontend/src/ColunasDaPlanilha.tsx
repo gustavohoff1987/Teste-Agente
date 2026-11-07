@@ -1,7 +1,8 @@
 import { Play } from "lucide-react";
 import { fieldOptions } from "./fieldChoices";
-import { PAPEIS, REFERENCIAIS, SEPARADORES, UNIDADES_DE_CONTAGEM, editarRotulo, escolherColuna, type Disponibilidade,
-  type EscolhasDaPlanilha } from "./paginaUnica";
+import { ARTIGOS_DO_TODO, PAPEIS, REFERENCIAIS, SEPARADORES, UNIDADES_DE_CONTAGEM, editarGenero, editarRotulo, editarTodo,
+  escolherColuna, type Disponibilidade, type EscolhasDaPlanilha } from "./paginaUnica";
+import { generoDe } from "./painelModel";
 
 // Painel "Colunas" de uma planilha enviada (22/10/2026). A estrutura é a da base do Brasil, com os nomes que a planilha usar
 // (distrito, condado, província…): unidade territorial, código, grupo territorial (a coluna-mãe), período, categoria,
@@ -39,6 +40,18 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
         value={(qual === "unidade" ? rotulos.unidade : rotulos.grupo)?.[forma] ?? ""}
         onChange={event => onEscolhas(editarRotulo(escolhas, qual, forma, event.target.value))}/>
     </label>;
+  // O gênero (07/11/2026, item 1 do comando): o escolhido ou o da terminação, para a concordância ("a comuna", "o distrito").
+  const genero = (qual: "unidade" | "grupo", rotulo: string) => {
+    const atual = qual === "unidade" ? rotulos.unidade : rotulos.grupo;
+    return atual && <label className="colunas-campo">
+      <span>{rotulo}</span>
+      <select aria-label={rotulo} data-testid={"colunas-" + qual + "-genero"} className={CAMPO} value={atual.genero ?? generoDe(atual)}
+        onChange={event => onEscolhas(editarGenero(escolhas, qual, event.target.value === "f" ? "f" : "m"))}>
+        <option value="m">Masculino (o, os)</option>
+        <option value="f">Feminino (a, as)</option>
+      </select>
+    </label>;
+  };
   return <section className="colunas-painel" aria-labelledby="colunas-titulo" data-testid="colunas-painel">
     <h2 id="colunas-titulo" className="text-base font-bold text-ink">Colunas</h2>
     <p className="mt-1 text-xs leading-5 text-slate-600">Confira a coluna de cada campo. As sugestões aparecem no topo de cada
@@ -102,13 +115,28 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
     </fieldset>}
     <fieldset className="colunas-bloco" data-testid="colunas-nomes">
       <legend>Nomes</legend>
-      <p className="text-[12px] leading-4 text-slate-600">Como se chamam as unidades{rotulos.grupo ? " e os grupos" : ""} desta planilha?
-        Os nomes aparecem nos textos do gráfico e da conversa.</p>
+      <p className="text-[12px] leading-4 text-slate-600">Como se chamam o território inteiro, as unidades{rotulos.grupo ? " e os grupos" : ""} desta
+        planilha? Os nomes aparecem nos textos do gráfico, da trilha e da conversa.</p>
       <div className="colunas-grade mt-1">
+        <label className="colunas-campo">
+          <span>Nome do todo (opcional)</span>
+          <input aria-label="Nome do todo" data-testid="colunas-todo-nome" className={CAMPO} maxLength={60} placeholder="Toda a base"
+            value={rotulos.todo?.nome ?? ""} onChange={event => onEscolhas(editarTodo(escolhas, "nome", event.target.value))}/>
+          <small>O nome próprio do território inteiro, como Portugal. Sem ele, a tela diz “Toda a base”.</small>
+        </label>
+        {!!rotulos.todo?.nome?.trim() && <label className="colunas-campo">
+          <span>Como se diz</span>
+          <select aria-label="Artigo do nome do todo" data-testid="colunas-todo-artigo" className={CAMPO} value={rotulos.todo.artigo}
+            onChange={event => onEscolhas(editarTodo(escolhas, "artigo", event.target.value))}>
+            {ARTIGOS_DO_TODO.map(([valor, texto]) => <option key={valor || "nenhum"} value={valor}>{texto}</option>)}
+          </select>
+        </label>}
         {nome("unidade", "singular", "Unidade, no singular")}
         {nome("unidade", "plural", "Unidades, no plural")}
+        {genero("unidade", "Gênero da unidade")}
         {rotulos.grupo && nome("grupo", "singular", "Grupo, no singular")}
         {rotulos.grupo && nome("grupo", "plural", "Grupos, no plural")}
+        {rotulos.grupo && genero("grupo", "Gênero do grupo")}
       </div>
     </fieldset>
     <div className="colunas-bloco" data-testid="colunas-disponibilidade" aria-live="polite">

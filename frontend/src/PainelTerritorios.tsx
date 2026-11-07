@@ -3,7 +3,8 @@ import { ArrowRight, ChevronDown, Layers3, Pencil, Search, X } from "lucide-reac
 import AgregarTerritorios, { type GrupoAgregado } from "./AgregarTerritorios";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
-  BASE_VAZIA, RESSALVA_DA_SOMA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, formatarNumero, grupoDaUnidade, grupoInteiro,
+  BASE_VAZIA, RESSALVA_DA_SOMA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, doTodo, formatarNumero, grupoDaUnidade, grupoInteiro,
+  nomeDoTodo, todoInteiro, todoMarcado,
   maiuscula, marcadasNoGrupo,
   marcadasPorGrupo, marcarGrupo, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
   unidadeMarcada, type GrupoInfo, type OpcaoVerPor, type RotulosTerritoriais, type UnidadeDoCatalogo,
@@ -109,7 +110,8 @@ export default function PainelTerritorios(p: Props) {
   const doGrupo = (g: Pick<GrupoInfo, "nome" | "rotuloGrupo">) => deGrupo(g).replace(/^\S+\s/, "");
   const marcadosTexto = (marcados: boolean) => (marcados ? " marcad" : " desmarcad") + (generoF ? "as." : "os.");
   const nomeCompleto = (id: string) => nomesCompletos.get(id) || nomes.get(id) || id;
-  const raiz = p.brasil ? "Brasil" : "Toda a planilha";
+  // A raiz da árvore é o todo pelo nome (07/11/2026, item 1): "Brasil"; numa planilha, o do painel Colunas ou "Toda a base".
+  const raiz = nomeDoTodo(p.brasil, p.rotulos);
   const totalTexto = (generoF ? "todas as " : "todos os ") + p.total.toLocaleString("pt-BR") + " " + (p.total === 1 ? unidade.singular : unidade.plural);
 
   // ------------------------------------------------------------------------------------------ ações
@@ -139,7 +141,7 @@ export default function PainelTerritorios(p: Props) {
   /** A raiz da árvore: o Brasil inteiro (ou a planilha inteira), marcado ou desmarcado de uma vez. */
   const alternarRaiz = () => p.base.todos
     ? p.onBase({ ...BASE_VAZIA }, (p.brasil ? "Brasil inteiro desmarcado" : maiuscula(unidade.plural) + marcadosTexto(false).replace(/\.$/, "")) + ".", true)
-    : p.onBase({ todos: true, estados: [], ids: [] }, (p.brasil ? "Brasil inteiro marcado: " : "Toda a planilha marcada: ") + totalTexto + ".", true);
+    : p.onBase({ todos: true, estados: [], ids: [] }, todoMarcado(p.brasil, p.rotulos) + ": " + totalTexto + ".", true);
   const escolherUnidade = (valor: PainelNivel) => { if (valor !== p.nivel) p.onUnidade(valor); };
 
   // ------------------------------------------------------------------------------------------ partes
@@ -165,7 +167,7 @@ export default function PainelTerritorios(p: Props) {
     const visiveis = letra && letras.length ? lista.filter(item => sem((item.name || item.label).charAt(0)).toUpperCase() === letra) : lista;
     const ids = lista.map(item => item.id);
     const n = grupo ? marcadasNoGrupo(p.base, grupo.id, ids) : lista.filter(item => unidadeMarcada(p.base, item.id, "")).length;
-    const rotulo = grupo ? maiuscula(deGrupo(grupo)) : maiuscula(unidade.plural) + " da planilha";
+    const rotulo = grupo ? maiuscula(deGrupo(grupo)) : maiuscula(unidade.plural) + " " + doTodo(p.brasil, p.rotulos);
     // Sem a lista das unidades (o catálogo da planilha não veio, por exemplo com nomes que não permitem escolher uma a uma), a
     // escolha possível é a planilha inteira: "Marcar todos" continua valendo.
     const semLista = !grupo && !lista.length;
@@ -173,7 +175,8 @@ export default function PainelTerritorios(p: Props) {
     return <div data-testid="analise-grupo-unidades" data-id={grupo?.id ?? ""} className="analise-unidades">
       <p className="text-xs text-slate-700" role="status"><strong className="text-ink">{rotulo}</strong>: {semLista
         ? (p.base.todos ? (generoF ? "todas marcadas" : "todos marcados") : (generoF ? "nenhuma marcada" : "nenhum marcado")) + ". A lista " +
-          (generoF ? "das " : "dos ") + unidade.plural + " não está disponível; a análise pode usar a planilha inteira."
+          (generoF ? "das " : "dos ") + unidade.plural + " não está disponível; a análise pode usar " +
+          (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."
         : n + " de " + quantos(lista.length, unidade) + " marcad" + (generoF ? "as" : "os") + "."}</p>
       {botoesColetivos(
         { rotulo: "Marcar " + todosOs(unidade) + (grupo ? " " + doGrupo(grupo) : ""), desligado: todasMarcadas,
@@ -341,7 +344,8 @@ export default function PainelTerritorios(p: Props) {
             maiuscula(artigo(grupoRotulo, false)) + " " + grupoRotulo.singular + " marcad" + (generoGrupoF ? "a" : "o") + " traz " + todosOs(unidade) + " del" +
             (generoGrupoF ? "a" : "e") + ", e você pode desmarcar " + (generoF ? "algumas" : "alguns") + ". Abra a lista de " +
             (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " para escolher " + unidade.plural + (generoF ? " uma a uma." : " um a um.")
-          : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou a planilha inteira."}</p>
+          : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou " +
+            (p.rotulos.todo?.nome?.trim() ? todoInteiro(false, p.rotulos) : "toda a base") + "."}</p>
         {/* As ferramentas da Seleção (06/11/2026, item 5 do comando): Buscar e Agregar territórios. */}
         <div role="group" aria-label="Ferramentas da Seleção" data-testid="analise-selecao-ferramentas" className="analise-selecao-ferramentas">
           <button type="button" data-testid="analise-selecao-buscar" className="analise-botao-secundario"

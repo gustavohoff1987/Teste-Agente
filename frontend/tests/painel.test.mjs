@@ -409,7 +409,9 @@ test('nomenclatura territorial: na base do Brasil, os textos de sempre; numa pla
   assert.equal(M.generoDe({singular: 'condado', plural: 'condados'}), 'm');
   assert.equal(M.generoDe({singular: 'bairro', plural: 'bairros', genero: 'f'}), 'f');  // o informado vale
   assert.equal(M.textoTodosOsGrupos(DISTRITOS, 5), 'Todas as províncias (5)');
-  assert.equal(M.textoTodasAsUnidades(DISTRITOS, 40, false), 'Todos os distritos da planilha (40)');
+  // Desde 07/11/2026 (item 1 do comando, os nomes da base; muda de propósito): "da base" ou o nome do todo (antes, "da planilha").
+  assert.equal(M.textoTodasAsUnidades(DISTRITOS, 40, false), 'Todos os distritos da base (40)');
+  assert.equal(M.textoTodasAsUnidades({...DISTRITOS, todo: {nome: 'Solária', artigo: 'a'}}, 40, false), 'Todos os distritos da Solária (40)');
   assert.equal(M.textoVerUnidades(DISTRITOS, 12), 'Ver os 12 distritos');
   assert.equal(M.textoTodasAsUnidadesDoGrupo(DISTRITOS, {nome: 'Buenos Aires', rotuloGrupo: ''}), 'Todos os distritos de Buenos Aires');
   assert.equal(M.textoInstrucaoGrupos(DISTRITOS), 'Clique numa província para ver os distritos dela. Pelo teclado, use as setas e Enter.');
@@ -417,7 +419,7 @@ test('nomenclatura territorial: na base do Brasil, os textos de sempre; numa pla
   const comunas = {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: {singular: 'região', plural: 'regiões'}};
   assert.equal(M.textoVerUnidades(comunas, 12), 'Ver as 12 comunas');
   assert.equal(M.textoCadaBolha(comunas.unidade), 'Cada bolha é uma comuna. O tamanho mostra a população.');
-  assert.equal(M.textoTodasAsUnidades(comunas, 3, false), 'Todas as comunas da planilha (3)');
+  assert.equal(M.textoTodasAsUnidades(comunas, 3, false), 'Todas as comunas da base (3)');
   // Os textos das análises concordam com o gênero da unidade da planilha (revisão de 24/10/2026: "cada comuna escolhido").
   const apresentacao = aba => {
     const a = M.apresentacaoDaAba(aba, {rotulos: comunas, brasil: false, comGrupos: true});
@@ -521,7 +523,9 @@ test('o que está na análise, em poucas palavras, e o lugar no título (24/10/2
   assert.deepEqual(lugar('municipios', base(['BA']), DISTRITOS, false, [{id: 'BA', nome: 'Buenos Aires', sigla: '', rotuloGrupo: '', unidades: 12}], () => 'BA'),
     {lugar: 'nos distritos de Buenos Aires', curto: 'Buenos Aires'});
   assert.deepEqual(lugar('municipios', base([], [], true), {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: null}, false),
-    {lugar: 'nas comunas da planilha', curto: 'Toda a planilha'});
+    {lugar: 'nas comunas da base', curto: 'Toda a base'});  // até 07/11/2026, "da planilha" e "Toda a planilha"
+  assert.deepEqual(lugar('municipios', base([], [], true), {unidade: {singular: 'comuna', plural: 'comunas'}, grupo: null,
+    todo: {nome: 'Portugal', artigo: ''}}, false), {lugar: 'nas comunas de Portugal', curto: 'Portugal'});
 });
 
 test('seleção cumulativa entre estados (24/10/2026): marcar na Bahia e depois em Santa Catarina mantém os dois', () => {
@@ -1089,6 +1093,11 @@ test('cliente do motor: a resposta normalizada para a tela (tendência, grupos, 
   assert.throws(() => A.normalizarResposta({}), erro => erro instanceof A.ErroDoMotor);
   assert.deepEqual(A.rotulosDe({unidade: {singular: 'comuna', plural: 'comunas', genero: 'f'}}),
     {unidade: {singular: 'comuna', plural: 'comunas', genero: 'f'}, grupo: null});
+  // O nome do todo que o motor devolve (07/11/2026, item 1): com o artigo válido; sem nome, não há todo.
+  assert.deepEqual(A.rotulosDe({unidade: {singular: 'comuna', plural: 'comunas'}, todo: {nome: ' Solária ', artigo: 'a'}}).todo,
+    {nome: 'Solária', artigo: 'a'});
+  assert.equal(A.rotulosDe({unidade: {singular: 'comuna', plural: 'comunas'}, todo: {nome: '', artigo: 'a'}}).todo, undefined);
+  assert.deepEqual(A.rotulosDe({unidade: {singular: 'comuna', plural: 'comunas'}, todo: {nome: 'X', artigo: 'la'}}).todo, {nome: 'X', artigo: ''});
   // Comparação em lista, com o atributo em cada objeto.
   const lista = A.normalizarResposta({competencia: '202406', categoria: 'MEDICINA', itens: [],
     comparacao: {itens: [{id: 'a'}, {id: 'b'}], maior: [{atributo: 'quantidade', id: 'a', rotulo: 'A', valor: 3}],

@@ -377,8 +377,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return grupo === null ? null : grupos.find(item => item.id === grupo)?.unidades ?? null;
   }, [grupoDaBolha, grupos]);
   // A trilha e o lugar em uso (06/11/2026, itens 2 e 3 do comando): lidos da seleção em uso, iguais em todas as abas.
-  const lugar = useMemo(() => lugarDaTrilha(escolhaDe(def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo"), nomes, comGrupos: comBolhasDeGrupo }),
-    [def.nivel, def.base, def.estados, def.conjuntos, arvore, tipo, nomes, comBolhasDeGrupo]);
+  const lugar = useMemo(() => lugarDaTrilha(escolhaDe(def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos), nomes, comGrupos: comBolhasDeGrupo }),
+    [def.nivel, def.base, def.estados, def.conjuntos, arvore, tipo, nomes, comBolhasDeGrupo, rotulos]);
   const verPor = useMemo(() => opcoesVerPor(lugar, def, { arvore, comNiveis: comBolhasDeGrupo, rotulos }), [lugar, def.base, arvore, comBolhasDeGrupo, rotulos]);
   const [numerosDoLugar, setNumerosDoLugar] = useState<{ chave: string; base: string; dados: RespostaLugar } | null>(null);
   const [carregandoLugar, setCarregandoLugar] = useState(false);
@@ -590,7 +590,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const falhouAAtual = !!erro && (!erro.chave || erro.chave === chave);
   const desatualizada = outraSelecao && (demorou || falhouAAtual);
   const deOndeEhOCalculado = desatualizada && calculado ? deOndeEhOResultado(lugarDaTrilha(escolhaDe(calculado.def),
-    { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo"), nomes, comGrupos: comBolhasDeGrupo }), { grupos }) : "";
+    { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos), nomes, comGrupos: comBolhasDeGrupo }),
+    { grupos, brasil: tipo === "brasil", rotulos }) : "";
 
   function voltarAoCalculado() {
     if (!calculado) return;
@@ -706,7 +707,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // O pedido que leva a um lugar (06/11/2026, item 4.4): o lugar da trilha que ele deve deixar na tela, conferido no desfecho.
     const escolhaPedida = escolhaDe(resultado.definicao);
     const partePedida = pedido.pedido.municipios || pedido.pedido.nivel ? lugarDaTrilha(escolhaPedida, { arvore,
-      nomeDoTodo: nomeDoTodo(tipo !== "arquivo"), nomes, comGrupos: comBolhasDeGrupo }).partes.find(parte => parte.atual) ?? null : null;
+      nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos), nomes, comGrupos: comBolhasDeGrupo }).partes.find(parte => parte.atual) ?? null : null;
     iniciarExecucao(pedido.id, resultado.mensagens, { mudou, mapa: resultado.vista === "mapa",
       lugar: partePedida ? { parte: partePedida, escolha: escolhaPedida } : null });
   }, [pedido, pronto, chaveFonte]);
@@ -863,7 +864,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     // A confirmação conferida (06/11/2026, item 4.4): o pedido que leva a um lugar só é concluído com o resultado em tela desse
     // lugar — a trilha e os itens do gráfico; senão, o desfecho diz o que faltou, e o pedido não fica como concluído.
     if (em.lugar) {
-      const falta = lugarConfere(em.lugar, lugarDaTrilha(escolhaDe(calculado.def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo"),
+      const falta = lugarConfere(em.lugar, lugarDaTrilha(escolhaDe(calculado.def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos),
         nomes, comGrupos: comBolhasDeGrupo }), resposta?.itens ?? [], grupoDe);
       if (falta) { informarDesfecho("parcial", [...em.mensagens, falta]); return; }
     }
@@ -1028,7 +1029,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     setAberto(grupo);
     // Voltar é pela trilha (06/11/2026, G4): o Desfazer continua desfazendo ações, mas não é o caminho para mudar de nível.
     setAviso("Mostrando " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " de " + (info ? info.nome : grupo) +
-      ". Para voltar, toque em " + nomeDoTodo(tipo !== "arquivo") + " na trilha, no alto.");
+      ". Para voltar, toque em " + nomeDoTodo(tipo !== "arquivo", rotulos) + " na trilha, no alto.");
     pedirOQueFalta();
   }
   /** Tocar numa unidade (06/11/2026, item 3.4 do comando): o lugar dela na trilha ("Brasil › Pará › MARABA (PA)"), com o cartão do
@@ -1039,7 +1040,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     const grupo = grupoDe(id);
     setAberto(grupo || null);
     setAviso("Mostrando " + nome + ". Para voltar, toque " + (grupo ? "no nome do " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular +
-      " ou " : "") + "em " + nomeDoTodo(tipo !== "arquivo") + " na trilha, no alto.");
+      " ou " : "") + "em " + nomeDoTodo(tipo !== "arquivo", rotulos) + " na trilha, no alto.");
     pedirOQueFalta();
   }
   /** A trilha (06/11/2026, item 3): cada parte leva àquele nível — o todo (o Brasil inteiro, vendo por estado na base do Brasil) ou o
@@ -1297,7 +1298,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   // contagem da fonte nacional); dentro de um grupo, também a linha dele ("Pará 1,19"), da fonte estadual (POST /api/painel/lugar).
   const densidadeDoTodo = resposta?.contextoBrasil?.densidade ?? null;
   const contextoBrasil: LinhaDeReferencia | null = indicador === "densidade" && densidadeDoTodo !== null
-    ? { valor: densidadeDoTodo, rotulo: textoDaReferencia(nomeDoTodo(tipo !== "arquivo"), densidadeDoTodo) +
+    ? { valor: densidadeDoTodo, rotulo: textoDaReferencia(nomeDoTodo(tipo !== "arquivo", rotulos), densidadeDoTodo) +
       (resposta?.contextoBrasil?.competencia && resposta.contextoBrasil.competencia !== resposta.competencia ? " (" + exibirCompetencia(resposta.contextoBrasil.competencia) + ")" : "") }
     : null;
   const grupoNaFaixa = numerosNaFaixa?.grupo ?? null;
@@ -1373,7 +1374,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       "fonte estadual: quem atua em mais de " + umA(unidade) + " conta uma vez. A bolha não é a soma das bolhas d" + artigo(unidade, true) + " " +
       unidade.plural + ", e os dois níveis nunca aparecem juntos."] : []),
   ];
-  const notaClasses = notaSemClassificacao(resposta?.tendencia ?? null, { rotulos, brasil: tipo === "brasil" });
+  // Os textos que nomeiam o nível seguem o nível em uso (07/11/2026, item 1.3 do comando): vendo por estado, "Nenhum estado
+  // recebeu classe", não "Nenhum município".
+  const rotulosDaNota = (resposta?.nivel ?? def.nivel) === "estados" ? { unidade: rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, grupo: null } : rotulos;
+  const notaClasses = notaSemClassificacao(resposta?.tendencia ?? null, { rotulos: rotulosDaNota, brasil: tipo === "brasil" });
   // Com um território só (24/10/2026), as contagens por classe saem: o resultado dele e o que a classe quer dizer ficam na frase
   // do resultado. Com vários, só as classes que têm territórios.
   const naoAvaliaveis = resposta?.tendencia ? resposta.tendencia.naoAvaliaveis ?? resposta.tendencia.contagens.NAO_AVALIAVEL ?? null : null;
@@ -1563,7 +1567,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (series) return itensSeries.length ? <PainelSeries itens={itensSeries} competencias={resposta.serie?.competencias ?? []}
       indicador={indicador} rotulos={rotulosDoNivel} referencias={referenciasDaSerie}/>
       : <div data-testid="analise-series-vazio" className="analise-vazio">
-        <p className="font-semibold text-ink">Escolha até {MAX_SERIES} {unidade.plural} para ver a série temporal.</p>
+        <p className="font-semibold text-ink">Escolha até {MAX_SERIES} {rotulosDoNivel.unidade.plural} para ver a série temporal.</p>
         <p className="text-xs text-slate-600">Marque na tabela (Detalhes) ou, na visão Tendência, clique nas linhas do quadro de setas.</p>
       </div>;
     if (quadroDeSetas) return <PainelSetas itens={visiveis} janela={resposta.tendencia?.janela.length ? resposta.tendencia.janela : defDesenho.janela}
@@ -2091,7 +2095,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     </div>
 
     {resposta && !semUnidades && <PainelDetalhes resposta={resposta} itens={visiveis} fora={fora} familia={familiaDesenho} indicador={indicador}
-      distancia={distanciaNaTela} variacao={exibicao.variacao} tendencia={exibicao.tendencia} rotulos={rotulos} selecionados={selecao}
+      distancia={distanciaNaTela} variacao={exibicao.variacao} tendencia={exibicao.tendencia} rotulos={rotulosDoNivel} selecionados={selecao}
       limiares={limiares} corteAtivo={corteAtivo(corte, dominio)} onAlternar={alternar}/>}
     </div>}
     <p aria-live="polite" className="sr-only" data-testid="analise-aviso">{aviso}</p>

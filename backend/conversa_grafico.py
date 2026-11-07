@@ -813,6 +813,21 @@ def _palavra(valor):
     return " ".join(valor.split())[:40] if isinstance(valor, str) else ""
 
 
+def _todo_da_base(ctx, brasil):
+    """O todo nas frases da conversa (07/11/2026, item 1 do comando de 06/11/2026, os nomes da base): "em todo o país" e
+    "de todo o país" na base do Brasil; numa planilha, com o nome do todo do painel Colunas ("na Solária", "da Solária") ou,
+    sem ele, "em toda a base" e "de toda a base" (até 07/11/2026, "toda a planilha")."""
+    if brasil:
+        return "em todo o país", "de todo o país"
+    rotulos = ctx.get("rotulos") if isinstance(ctx.get("rotulos"), dict) else {}
+    todo = rotulos.get("todo") if isinstance(rotulos.get("todo"), dict) else {}
+    nome = " ".join(todo["nome"].split())[:60] if isinstance(todo.get("nome"), str) else ""
+    artigo = todo.get("artigo") if todo.get("artigo") in ("o", "a", "os", "as") else ""
+    if not nome:
+        return "em toda a base", "de toda a base"
+    return ("n" + artigo if artigo else "em") + " " + nome, ("d" + artigo if artigo else "de") + " " + nome
+
+
 def _feminino(dados, palavra):
     """Gênero do rótulo: o informado pela tela ("genero") ou o da terminação da primeira palavra."""
     genero = dados.get("genero")
@@ -875,6 +890,7 @@ class _Conversa:
                 self.cat = _Catalogo(itens, brasil, grupos)
         self.brasil = bool(brasil)
         self.rot = rot = _rotulos(self.ctx, self.brasil)
+        self.em_todo, self.de_todo = _todo_da_base(self.ctx, self.brasil)
         self.periodos = _periodos(frame, self.fields)
         unidade = _alternativas("municipio", "cidade", rot.singular)
         unidades = _alternativas("municipios", "cidades", rot.plural)
@@ -1612,8 +1628,8 @@ EXTREMO_DA_BASE = re.compile(r"\bd?[oa]\s+(?:[a-z]+\s+)?(?:(?:de|com)\s+(?:a\s+)
                              r"dens[oa])|com\s+(?:mais|menos)\s+(?:medicos|profissionais|habitantes))\b")
 # Onde procurar a referência (partir_de da Escolha dos territórios), quando a pessoa diz.
 REFERENCIA_NO_PAIS = re.compile(r"\b(?:em\s+todo\s+o\s+(?:pais|brasil|territorio(?:\s+nacional)?)|"
-                                r"n[oa]\s+(?:pais|brasil|planilha)(?:\s+(?:todo|toda|inteiro|inteira))?|"
-                                r"em\s+toda\s+a\s+planilha|em\s+qualquer\s+(?:lugar|estado|regiao|parte)|"
+                                r"n[oa]\s+(?:pais|brasil|planilha|base)(?:\s+(?:todo|toda|inteiro|inteira))?|"
+                                r"em\s+toda\s+a\s+(?:planilha|base)|em\s+qualquer\s+(?:lugar|estado|regiao|parte)|"
                                 r"fora\s+d[oa]\s+(?:estado|selecao|grafico))\b")
 REFERENCIA_NA_REGIAO = re.compile(r"\b(?:n?a\s+mesma|dentro\s+da\s+(?:mesma|propria))\s+regiao\b")
 REFERENCIA_NA_SELECAO = re.compile(r"\b(?:n[ao]|d[ao]|dentro\s+d[ao])\s+(?:minha\s+|propria\s+)?(?:selecao|grafico)\b|"
@@ -1650,10 +1666,10 @@ def _recorte_impossivel(conv, recorte):
         return _pergunta("As regiões (Norte, Nordeste, Sudeste, Sul e Centro-Oeste) existem só na base do Brasil. Diga onde "
                          "procurar a referência: " + (("na mesma " if rot.grupo_feminino else "no mesmo ") +
                                                       rot.grupo_singular + " ou " if conv.cat.grupos else "") +
-                         "em toda a planilha." + NADA_MUDOU)
+                         conv.em_todo + "." + NADA_MUDOU)
     if recorte["tipo"] == "mesma_uf_da_base" and not conv.cat.grupos:
         return _pergunta("A planilha não tem a coluna " + ("da " if rot.grupo_feminino else "do ") + rot.grupo_singular +
-                         " de cada " + rot.singular + ": procure a referência em toda a planilha ou na seleção." +
+                         " de cada " + rot.singular + ": procure a referência " + conv.em_todo + " ou na seleção." +
                          NADA_MUDOU)
     return None
 
@@ -1686,7 +1702,7 @@ def _onde_procura(conv, partir, selecao_texto):
     if tipo == "selecao_previa":
         return "da seleção" + (" (" + selecao_texto + ")" if selecao_texto else "")
     if tipo == "pais":
-        return "de todo o país" if conv.brasil else "de toda a planilha"
+        return conv.de_todo
     if tipo == "mesma_uf_da_base":
         return ("da mesma " if rot.grupo_feminino else "do mesmo ") + rot.grupo_singular + " de cada um"
     if tipo == "mesma_regiao_da_base":
@@ -1867,8 +1883,9 @@ def _trocas_de_recorte(conv, partir, selecao):
     rot = conv.rot
     trocas = []
     if partir["tipo"] != "pais" and (not selecao or len(selecao) < len(conv.cat.itens)):
-        trocas.append(_escolha("Procurar em todo o país" if conv.brasil else "Procurar em toda a planilha",
-                               "procure a referência " + ("em todo o país" if conv.brasil else "em toda a planilha")))
+        # O rótulo diz o todo pelo nome; o rascunho, a forma que a gramática reconhece ("em toda a base").
+        trocas.append(_escolha("Procurar " + conv.em_todo,
+                               "procure a referência " + ("em todo o país" if conv.brasil else "em toda a base")))
     if partir["tipo"] != "mesma_uf_da_base" and (conv.brasil or conv.cat.grupos):
         mesmo = ("na mesma " if rot.grupo_feminino else "no mesmo ") + rot.grupo_singular
         trocas.append(_escolha("Só " + mesmo + " de cada um", "procure a referência " + mesmo))

@@ -17,7 +17,8 @@ import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, 
   escolhasIniciais, horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, recusaDoArquivo,
   registrarEstado, resultadoDaSessao, resumoDaFonte,
   type AnaliseGuardada, type ContextoDoGrafico, type DesfechoDoPedido, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
-  type PedidoDoChat } from "./paginaUnica";
+  type PedidoDoChat, type Rotulo, type Rotulos } from "./paginaUnica";
+import { generoDe } from "./painelModel";
 import type { Levels } from "./territorialScope";
 import type { Territory } from "./TerritorialSelection";
 
@@ -93,7 +94,18 @@ function fonteDoBrasil(inspecao: Inspecao): FonteAtiva {
     catalogo: inspecao.catalog || null, planilha: null };
 }
 
+/** Os nomes da planilha que vão à área, ao motor e à conversa (07/11/2026, item 1 do comando): o gênero sempre dito (o
+ * escolhido no painel Colunas ou o da terminação, pela regra da tela, para a tela e o motor concordarem igual) e o todo só
+ * com nome (sem ele, a tela diz "Toda a base"). */
+function rotulosDaPlanilha(rotulos: Rotulos): Rotulos {
+  const comGenero = (rotulo: Rotulo): Rotulo => ({ ...rotulo, genero: rotulo.genero ?? generoDe(rotulo) });
+  const nome = rotulos.todo?.nome?.trim();
+  return { unidade: comGenero(rotulos.unidade), grupo: rotulos.grupo ? comGenero(rotulos.grupo) : null,
+    ...(nome ? { todo: { nome, artigo: rotulos.todo!.artigo } } : {}) };
+}
+
 function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, escolhas: EscolhasDaPlanilha): FonteAtiva {
+  const rotulos = rotulosDaPlanilha(escolhas.rotulos);
   const preExame = preparo.preExame ?? inspecao.preflight;
   const periodos = preExame?.values?.periods?.length ? preExame.values.periods : inspecao.periods || [];
   // Sem coluna de categoria, a categoria é o objeto da análise escrito pela pessoa (o mesmo que vai em category_constant).
@@ -102,14 +114,14 @@ function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, es
     : escolhas.objeto.trim() ? [escolhas.objeto.trim()] : [];
   const dados: FonteDados = { tipo: "arquivo", apiBase: API, datasetVersion: "", sheet: preparo.aba,
     mapping: mapeamentoDaPlanilha(escolhas.mapeamento), arquivo, nome: arquivo.name, premissas: premissasDaPlanilha(escolhas),
-    rotulos: escolhas.rotulos };
+    rotulos };
   const { options } = contextoDaPlanilha(escolhas);
   return { chave: "arquivo:" + preparo.arquivoId + ":" + JSON.stringify([preparo.aba, dados.mapping, dados.premissas, dados.rotulos]),
-    dados, resumo: resumoDaFonte({ tipo: "arquivo", nome: arquivo.name, categorias, periodos, rotulos: escolhas.rotulos }),
+    dados, resumo: resumoDaFonte({ tipo: "arquivo", nome: arquivo.name, categorias, periodos, rotulos }),
     periodos, categorias, categoria: categorias[0] || "", municipios: preExame?.territory_choices || [],
     // A conversa recebe também os nomes da unidade e do grupo ("distrito", "província") para responder com eles.
     conversa: { tipo: "arquivo", datasetVersion: "", arquivo, sheet: preparo.aba, mapping: mapeamentoDaConversa(escolhas),
-      opcoes: { ...options, rotulos: escolhas.rotulos } },
+      opcoes: { ...options, rotulos } },
     catalogo: null, planilha: { arquivoId: preparo.arquivoId, inspecao, escolhas, preExame } };
 }
 

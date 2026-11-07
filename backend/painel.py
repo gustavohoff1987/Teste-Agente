@@ -188,19 +188,51 @@ class Rotulo:
         return {"singular": self.singular, "plural": self.plural, "genero": self.genero}
 
 
+ARTIGOS_DO_TODO = ("", "o", "a", "os", "as")
+
+
+@dataclass(frozen=True)
+class Todo:
+    """O nome do todo de uma planilha (07/11/2026, item 1 do comando de 06/11/2026, os nomes da base): o nome próprio e o
+    artigo que ele pede ("a Solária", "o Japão"; Portugal sem artigo), para "da Solária", "no Japão", "de Portugal"."""
+    nome: str
+    artigo: str = ""
+
+    def public(self) -> dict:
+        return {"nome": self.nome, "artigo": self.artigo}
+
+    def com(self, preposicao: str) -> str:
+        """A preposição "de" ou "em" com o artigo do nome: "da Solária", "no Japão", "de Portugal", "em Portugal"."""
+        if not self.artigo:
+            return preposicao + " " + self.nome
+        return ("d" if preposicao == "de" else "n") + self.artigo + " " + self.nome
+
+
 @dataclass(frozen=True)
 class Rotulos:
     unidade: Rotulo
     grupo: Rotulo
+    todo: Todo | None = None
 
     def public(self) -> dict:
-        return {"unidade": self.unidade.public(), "grupo": self.grupo.public()}
+        out = {"unidade": self.unidade.public(), "grupo": self.grupo.public()}
+        if self.todo:
+            out["todo"] = self.todo.public()
+        return out
+
+    def de_todo(self) -> str:
+        """Numa planilha, de onde parte o todo: "da Solária", com o nome; sem ele, "de toda a base" (até 07/11/2026, "de toda
+        a planilha")."""
+        return self.todo.com("de") if self.todo else "de toda a base"
+
+    def em_todo(self) -> str:
+        return self.todo.com("em") if self.todo else "em toda a base"
 
 
 BRASIL = Rotulos(Rotulo("município", "municípios"), Rotulo("estado", "estados"))
 PADRAO = Rotulos(Rotulo("unidade", "unidades", "f"), Rotulo("grupo", "grupos"))
 ROTULOS_SHAPE = ("Rótulos inválidos: use {\"unidade\": {\"singular\", \"plural\"}, \"grupo\": {\"singular\", \"plural\"} ou "
-                 "null}, com \"genero\" (\"m\" ou \"f\") opcional.")
+                 "null}, com \"genero\" (\"m\" ou \"f\") opcional, e \"todo\": {\"nome\", \"artigo\"} opcional.")
 FEMININE = ("a", "ade", "ção", "são", "gião")
 
 
@@ -228,6 +260,20 @@ def _rotulo(raw, default: Rotulo) -> Rotulo:
     return Rotulo(words[0], words[1], gender or _genero(words[0]))
 
 
+def _todo(raw) -> Todo | None:
+    """O nome do todo informado no painel Colunas: {"nome", "artigo"}; sem nome, nenhum ("Toda a base" na tela)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"nome", "artigo"} or "nome" not in raw:
+        raise ValueError(ROTULOS_SHAPE)
+    nome, artigo = raw["nome"], raw.get("artigo") or ""
+    if not isinstance(nome, str) or len(nome) > 60 or any(ord(ch) < 32 for ch in nome):
+        raise ValueError("Nome do todo inválido: use um texto de até 60 caracteres.")
+    if artigo not in ARTIGOS_DO_TODO:
+        raise ValueError("Artigo do nome do todo inválido: use \"\", \"o\", \"a\", \"os\" ou \"as\".")
+    return Todo(nome.strip(), artigo) if nome.strip() else None
+
+
 def _labels(raw, brazil: bool) -> Rotulos:
     """Rótulos da resposta: fixos na base do Brasil (município e estado); nas planilhas, os recebidos ou os padrões."""
     if brazil:
@@ -236,9 +282,9 @@ def _labels(raw, brazil: bool) -> Rotulos:
         return BRASIL
     if raw is None or raw == {}:
         return PADRAO
-    if not isinstance(raw, dict) or set(raw) - {"unidade", "grupo"}:
+    if not isinstance(raw, dict) or set(raw) - {"unidade", "grupo", "todo"}:
         raise ValueError(ROTULOS_SHAPE)
-    return Rotulos(_rotulo(raw.get("unidade"), PADRAO.unidade), _rotulo(raw.get("grupo"), PADRAO.grupo))
+    return Rotulos(_rotulo(raw.get("unidade"), PADRAO.unidade), _rotulo(raw.get("grupo"), PADRAO.grupo), _todo(raw.get("todo")))
 
 
 # --------------------------------------------------------------------------------------------- estruturas
@@ -998,7 +1044,7 @@ def _partir_texto(ctx, partir):
     unit, group = ctx.labels.unidade, ctx.labels.grupo
     tipo = partir["tipo"]
     if tipo == "pais":
-        return "de todo o país" if ctx.brazil else "de toda a planilha"
+        return "de todo o país" if ctx.brazil else ctx.labels.de_todo()
     if tipo == "selecao_previa":
         return "da seleção prévia"
     if tipo == "mesma_uf_da_base":
@@ -1450,7 +1496,7 @@ def _consulta_origem(ctx, consulta, selecao):
     unit = ctx.labels.unidade
     spec = consulta["referencia"]
     total = selecao["referencia"]["contagens"]["final"] or 0
-    where = (" em todo o país" if ctx.brazil else " em toda a planilha") if spec["partir_de"]["tipo"] in PARTIR_RELATIVOS \
+    where = (" em todo o país" if ctx.brazil else " " + ctx.labels.em_todo()) if spec["partir_de"]["tipo"] in PARTIR_RELATIVOS \
         else ""
     return ("Para cada " + unit.singular + " da base, " + unit.g("o", "a") + " " + unit.singular + " " +
             unit.g("mais próximo", "mais próxima") + " entre " + unit.g("os", "as") + " " + unit.plural + " " +

@@ -1182,8 +1182,17 @@ def test_uploaded_consulta_uses_the_spreadsheet_levels(repo):
     assert body["referencia"]["texto"] == "da mesma província de cada distrito da base com densidade ≥ 10 por 1.000 habitantes"
     assert body["referencia"]["origem"] == (
         "Para cada distrito da base, o distrito mais próximo entre os distritos da mesma província de cada distrito da base com "
-        "densidade ≥ 10 por 1.000 habitantes (4 distritos em toda a planilha em 2024); o próprio distrito não é a sua "
+        "densidade ≥ 10 por 1.000 habitantes (4 distritos em toda a base em 2024); o próprio distrito não é a sua "
         "referência. Os filtros são escolha do usuário e não têm caráter normativo")
+    # Desde 07/11/2026 (item 1 do comando de 06/11/2026, os nomes da base; muda de propósito esta conferência, que dizia "em
+    # toda a planilha"): sem o nome do todo, "toda a base"; com ele, o nome, com o artigo pedido ("na Solária").
+    nomeado = ok(districts(premissas=premises, consulta=consulta(lado(), same),
+                           rotulos={**LABELS, "todo": {"nome": "Solária", "artigo": "a"}}))
+    assert "(4 distritos na Solária em 2024)" in nomeado["referencia"]["origem"], nomeado["referencia"]["origem"]
+    assert nomeado["rotulos"]["todo"] == {"nome": "Solária", "artigo": "a"}
+    for invalido in ({"nome": "Solária", "artigo": "la"}, {"nome": 3}, {"artigo": "a"}):
+        recusa = districts(premissas=premises, consulta=consulta(lado(), same), rotulos={**LABELS, "todo": invalido})
+        assert recusa.status_code == 422, (invalido, recusa.text)
     # Província Norte: cada um vai até o outro. Província Sul: Serra é referência, mas sem coordenada, e Campina fica sem distância.
     assert reference_of(items[ALTO]) == [BAIXO] and reference_of(items[BAIXO]) == [ALTO]
     assert items[CAMPINA]["distancia_km"] is None and items[SERRA]["distancia_km"] is None

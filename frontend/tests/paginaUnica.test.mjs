@@ -71,6 +71,18 @@ test('colunas: só o reconhecido por regra vem escolhido; escolher uma coluna ti
   const editada = P.editarRotulo(escolhas, 'unidade', 'plural', 'distritos sanitários');
   assert.equal(editada.rotulosEditados.unidade, true);
   assert.deepEqual(P.escolherColuna(editada, 'territory', 'outra').rotulos.unidade, {singular: 'distrito', plural: 'distritos sanitários'});
+  // O gênero e o nome do todo (07/11/2026, item 1 do comando, os nomes da base): escolhidos no painel Colunas; o todo é opcional,
+  // com o nome até 60 caracteres e um artigo válido (o inválido fica sem artigo).
+  const comGenero = P.editarGenero(escolhas, 'unidade', 'f');
+  assert.equal(comGenero.rotulos.unidade.genero, 'f');
+  assert.equal(comGenero.rotulosEditados.unidade, true);
+  const comTodo = P.editarTodo(P.editarTodo(escolhas, 'nome', 'Solária'), 'artigo', 'a');
+  assert.deepEqual(comTodo.rotulos.todo, {nome: 'Solária', artigo: 'a'});
+  assert.equal(P.editarTodo(comTodo, 'artigo', 'la').rotulos.todo.artigo, '');
+  assert.equal(P.editarTodo(escolhas, 'nome', 'x'.repeat(80)).rotulos.todo.nome.length, 60);
+  assert.deepEqual(P.ARTIGOS_DO_TODO.map(([valor]) => valor), ['', 'o', 'a', 'os', 'as']);
+  // Trocar uma coluna não apaga o nome do todo.
+  assert.deepEqual(P.escolherColuna(comTodo, 'territory', 'provincia').rotulos.todo, {nome: 'Solária', artigo: 'a'});
   // Outra coluna de quantidade: a unidade de contagem volta a ser escolhida.
   const contada = {...escolhas, unidadeDeContagem: 'pessoas'};
   assert.equal(P.escolherColuna(contada, 'count', 'total').unidadeDeContagem, '');

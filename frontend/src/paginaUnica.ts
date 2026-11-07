@@ -22,9 +22,15 @@ export type Indicador = "densidade" | "quantidade";
 export type Nivel = "estados" | "municipios" | "brasil";
 /** Universo do gráfico, na forma de `options.base.municipios` do motor. */
 export type MunicipiosDoGrafico = { todos: boolean; estados: string[]; ids: string[] };
-/** Como se chamam as unidades territoriais e os grupos delas, no singular e no plural. */
-export type Rotulo = { singular: string; plural: string };
-export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null };
+/** Como se chamam as unidades territoriais e os grupos delas, no singular e no plural, com o gênero (07/11/2026, item 1 do
+ * comando de 06/11/2026: escolhido no painel Colunas, sugerido pela terminação). */
+export type Rotulo = { singular: string; plural: string; genero?: "m" | "f" };
+/** O artigo que o nome do todo pede ("de Portugal", "do Japão", "da Solária"). */
+export type ArtigoDoTodo = "" | "o" | "a" | "os" | "as";
+export const ARTIGOS_DO_TODO: [ArtigoDoTodo, string][] = [["", "sem artigo (de Portugal)"], ["o", "o (do Japão)"],
+  ["a", "a (da Solária)"], ["os", "os (dos Países Baixos)"], ["as", "as (das Filipinas)"]];
+/** Os nomes da base: a unidade, o grupo e, numa planilha, o todo (o nome próprio, opcional; sem ele, "Toda a base"). */
+export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null; todo?: { nome: string; artigo: ArtigoDoTodo } | null };
 /** A fonte que a área usa: a base do Brasil ou uma planilha enviada, com o mapeamento confirmado na tela. */
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string;
@@ -284,7 +290,9 @@ export function escolherColuna(escolhas: EscolhasDaPlanilha, papel: Papel, colun
   const escolhidos = [...new Set([...escolhas.escolhidos.filter(item => item !== papel && mapeamento[item]),
     ...(coluna ? [papel] : [])])];
   const contagemMudou = papel === "count" && coluna !== escolhas.mapeamento.count;
+  // O nome do todo não depende das colunas: continua como a pessoa escreveu.
   const rotulos: Rotulos = {
+    ...(escolhas.rotulos.todo ? { todo: escolhas.rotulos.todo } : {}),
     unidade: !escolhas.rotulosEditados.unidade && papel === "territory" ? sugerirRotulo(coluna) ?? { ...UNIDADE_GENERICA }
       : !escolhas.rotulosEditados.unidade && !mapeamento.territory ? { ...UNIDADE_GENERICA } : escolhas.rotulos.unidade,
     grupo: !mapeamento.grupo_territorial ? null
@@ -298,12 +306,28 @@ export function escolherColuna(escolhas: EscolhasDaPlanilha, papel: Papel, colun
 }
 
 /** A pessoa escreve o nome das unidades ou dos grupos (singular ou plural). */
-export function editarRotulo(escolhas: EscolhasDaPlanilha, qual: "unidade" | "grupo", forma: keyof Rotulo,
+export function editarRotulo(escolhas: EscolhasDaPlanilha, qual: "unidade" | "grupo", forma: "singular" | "plural",
   valor: string): EscolhasDaPlanilha {
   const atual = qual === "unidade" ? escolhas.rotulos.unidade : escolhas.rotulos.grupo ?? { ...GRUPO_GENERICO };
   const novo = { ...atual, [forma]: valor };
   return { ...escolhas, rotulos: qual === "unidade" ? { ...escolhas.rotulos, unidade: novo } : { ...escolhas.rotulos, grupo: novo },
     rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
+}
+
+/** O gênero de um nome, escolhido pela pessoa (07/11/2026, item 1): a concordância da tela e do motor ("a comuna", "o distrito"). */
+export function editarGenero(escolhas: EscolhasDaPlanilha, qual: "unidade" | "grupo", genero: "m" | "f"): EscolhasDaPlanilha {
+  const atual = qual === "unidade" ? escolhas.rotulos.unidade : escolhas.rotulos.grupo ?? { ...GRUPO_GENERICO };
+  const novo = { ...atual, genero };
+  return { ...escolhas, rotulos: qual === "unidade" ? { ...escolhas.rotulos, unidade: novo } : { ...escolhas.rotulos, grupo: novo },
+    rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
+}
+
+/** O nome do todo e o artigo dele (07/11/2026, item 1 do comando): opcional; sem nome, a tela diz "Toda a base". */
+export function editarTodo(escolhas: EscolhasDaPlanilha, campo: "nome" | "artigo", valor: string): EscolhasDaPlanilha {
+  const atual = escolhas.rotulos.todo ?? { nome: "", artigo: "" as ArtigoDoTodo };
+  const artigo = ARTIGOS_DO_TODO.some(([valido]) => valido === valor) ? valor as ArtigoDoTodo : "";
+  const todo = campo === "nome" ? { ...atual, nome: valor.slice(0, 60) } : { ...atual, artigo };
+  return { ...escolhas, rotulos: { ...escolhas.rotulos, todo } };
 }
 
 /** O que ainda falta para começar a análise da planilha, na ordem dos campos. */

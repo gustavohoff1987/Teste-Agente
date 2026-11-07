@@ -6,7 +6,7 @@ condados, com códigos, coordenadas no Atlântico Sul e cinco competências; os 
 (comuna/comunas, condado/condados) e percorre a página: a Seleção de Territórios, a Análise de Distribuição (Condições e
 Exportar, com o CSV e o método), a Análise Espacial (a Escolha dos territórios, o resultado e "Entenda esta análise"), a
 Análise de Tendência e a conversa. Onde a base do Brasil fala de município, estado e Brasil, a planilha fala de comuna,
-condado e toda a planilha, com a concordância (comuna é feminino): "Todas que atendem", "Só as que eu marcar", "cada uma
+condado e o todo pelo nome (a Solária), com a concordância (comuna é feminino): "Todas que atendem", "Só as que eu marcar", "cada uma
 ligada", "a referência mais próxima dela", "As demais"; o CSV tem a coluna "Condado"; a conversa reconhece o condado pelo
 nome ("mostre só o condado Costa Ondina") e não promete um nível acima das comunas. Nenhum texto à vista traz município,
 UF, IBGE, Brasil ou a sede municipal.
@@ -152,6 +152,13 @@ def main():
         for campo, valor in (("unidade-singular", "comuna"), ("unidade-plural", "comunas"), ("grupo-singular", "condado"),
                              ("grupo-plural", "condados")):
             colunas.get_by_test_id("colunas-" + campo).fill(valor)
+        # O gênero sugerido pela terminação (07/11/2026, item 1 do comando, os nomes da base): a comuna, o condado.
+        expect(colunas.get_by_test_id("colunas-unidade-genero")).to_have_value("f")
+        expect(colunas.get_by_test_id("colunas-grupo-genero")).to_have_value("m")
+        # O nome do todo, com o artigo: a trilha, a raiz e os títulos dizem "Solária" e "da Solária" (sem ele, "Toda a base").
+        expect(colunas.get_by_test_id("colunas-todo-artigo")).to_have_count(0)
+        colunas.get_by_test_id("colunas-todo-nome").fill("Solária")
+        colunas.get_by_test_id("colunas-todo-artigo").select_option("a")
         colunas.get_by_test_id("colunas-unidade-de-contagem").select_option("pessoas")
         colunas.get_by_test_id("colunas-referencial").select_option("SIRGAS2000")
         expect(colunas.get_by_test_id("colunas-disponibilidade-espacial")).to_have_attribute("data-disponivel", "true", timeout=60000)
@@ -163,9 +170,10 @@ def main():
 
         # 3. Seleção de Territórios: os nomes da planilha, com a concordância; marcar todas calcula a Distribuição.
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar comuna ou condado")
-        # A raiz da árvore (05/11/2026, a seleção unificada): "Toda a planilha", com a concordância dos nomes da planilha.
+        # A raiz da árvore (05/11/2026, a seleção unificada): o todo pelo nome (07/11/2026; antes, "Toda a planilha"), com a
+        # concordância dos nomes da planilha.
         raiz = area.get_by_test_id("analise-raiz")
-        expect(raiz).to_contain_text("Toda a planilha")
+        expect(raiz).to_contain_text("Solária")
         expect(raiz).to_contain_text("todas as 16 comunas")
         expect(area.get_by_test_id("analise-territorios-instrucao")).to_contain_text("condados inteiros ou comunas")
 
@@ -181,7 +189,7 @@ def main():
 
         # 4. Distribuição: o título, as Condições e a exportação (a coluna do grupo no CSV e a nota das chaves no método).
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
-        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da planilha")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da Solária")
         expect(area.get_by_test_id("analise-subtitulo")).to_contain_text("Cada bolha é uma comuna.")
         aperta(area.get_by_test_id("analise-funcao-condicoes"))
         expect(area.get_by_test_id("analise-condicoes")).to_contain_text(
@@ -211,7 +219,7 @@ def main():
             "A base é a seleção em uso, a da Seleção de Territórios:", timeout=60000)
         expect(janela.get_by_test_id("territorios-base-marcados")).to_have_count(0)
         expect(janela.get_by_test_id("territorios-frase-referencia")).to_have_text(
-            "a mais próxima de cada uma, entre as comunas de toda a planilha")
+            "a mais próxima de cada uma, entre as comunas da Solária")
         guarda("janela-base")
         aperta(janela.get_by_test_id("territorios-aba-referencia"))
         expect(janela.get_by_test_id("territorios-referencia-todos")).to_have_text(re.compile(r"^Todas que atendem \(\d+\)$"),
@@ -238,7 +246,7 @@ def main():
         guarda("janela-calculada")
         aperta(area.get_by_test_id("analise-painel-fechar"))
         expect(area.get_by_test_id("analise-par-base")).to_contain_text("Base: 16 · cada uma ligada à sua referência mais próxima")
-        expect(area.get_by_test_id("analise-titulo")).to_contain_text("· Toda a planilha ·")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("· Solária ·")
         aperta(area.get_by_test_id("analise-entenda-botao"))
         apresentacao = area.get_by_test_id("analise-apresentacao")
         expect(apresentacao).to_contain_text("entre cada comuna da base e a referência mais próxima dela.")
@@ -248,12 +256,12 @@ def main():
 
         # 6. Tendência: o lugar do título numa planilha inteira.
         painel(lambda: aperta(area.get_by_test_id("analise-familia-tendencia")), condicao=lambda o: "tendencia" in o)
-        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Tendência da densidade de médicos · Toda a planilha ·")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Tendência da densidade de médicos · Solária ·")
         guarda("tendencia")
 
         # 7. A conversa: a orientação sem nível acima das comunas, o condado reconhecido pelo nome e "As demais".
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
-        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da planilha")
+        expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da Solária")
         open_chat(page)
         expect(chat.get_by_test_id("painel-chat-guia").locator("p").first).to_have_text(
             "Peça mudanças no gráfico citando comunas pelo nome: comparar, agregar, usar como referência ou mostrar as comunas de "

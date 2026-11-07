@@ -154,7 +154,9 @@ página, mostra o que foi reconhecido e pede só as escolhas que faltam:
   "distritos", "província" e "províncias"). Eles valem nos textos da página, das exportações e da conversa, com a
   concordância do gênero (comuna é feminino: "Todas que atendem", "cada uma ligada à sua referência", "As demais"): com
   uma planilha, os textos não chamam as unidades e os grupos de "município", "estado" ou "UF", nem a planilha de "Brasil",
-  e o lugar de uma planilha inteira é "Toda a planilha". Ficam, de propósito, a escolha "Usar dados do Brasil", os
+  e o lugar de uma planilha inteira é o nome do todo dado no painel Colunas (com o artigo: "da Solária", "de Portugal") ou,
+  sem ele, "Toda a base" (desde 07/11/2026; antes, "Toda a planilha"); o gênero da unidade e do grupo também é escolhido no
+  painel. Ficam, de propósito, a escolha "Usar dados do Brasil", os
   exemplos do painel "Colunas", as chaves do contrato da API no JSON dos parâmetros e os "três estados" da avaliação das
   condições, que não são territórios. No CSV, a coluna do grupo leva o nome dele (por exemplo, "Condado") onde a base do
   Brasil tem "UF"; com o mesmo nome da unidade (o modelo sugere "território" para as duas), "Território (grupo)". Desde

@@ -1390,8 +1390,15 @@ def _trocas_do_recorte(body: dict | None, brasil: bool) -> list[dict]:
     feminino = explicacao._feminino(grupo)
     trocas = []
     if partir.get("tipo") and partir["tipo"] != "pais":
-        lugar = "em todo o país" if brasil else "em toda a planilha"
-        trocas.append({"label": "Procurar " + lugar, "draft": "procure a referência " + lugar, "send": True})
+        # Numa planilha, o todo pelo nome do painel Colunas ("na Solária") ou, sem ele, "em toda a base" (07/11/2026; antes,
+        # "em toda a planilha"); o rascunho usa a forma que a gramática reconhece.
+        todo = ((body or {}).get("rotulos") or {}).get("todo") if not brasil else None
+        nome = todo.get("nome") if isinstance(todo, dict) and isinstance(todo.get("nome"), str) else ""
+        artigo = todo.get("artigo") if isinstance(todo, dict) and todo.get("artigo") in ("o", "a", "os", "as") else ""
+        lugar = "em todo o país" if brasil else (("n" + artigo if artigo else "em") + " " + nome.strip() if nome.strip()
+                                                  else "em toda a base")
+        trocas.append({"label": "Procurar " + lugar, "draft": "procure a referência " +
+                       ("em todo o país" if brasil else "em toda a base"), "send": True})
     if partir.get("tipo") and partir["tipo"] != "mesma_uf_da_base" and \
             any(item.get("grupo_territorial") for item in (body or {}).get("itens") or []):
         mesmo = ("na mesma " if feminino else "no mesmo ") + str(grupo.get("singular") or "estado")

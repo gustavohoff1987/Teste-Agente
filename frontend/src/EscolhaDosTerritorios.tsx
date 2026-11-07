@@ -5,7 +5,7 @@ import { pedirTerritorios, type FonteDoMotor, type MunicipioDaLista, type Painel
 import {
   LADOS, MAX_FILTROS, NOMES_DOS_FILTROS, NOMES_DOS_LADOS, NOTA_TPL11, OPERADORES_DO_FILTRO, REGIOES_DO_BRASIL,
   TEXTO_DE_APOIO_DOS_FILTROS, TEXTO_DOS_OPERADORES, UNIDADES_DOS_FILTROS, baseNaSelecao, consultaParaOMotor, escreverLimites, escreverValorDoFiltro,
-  formatarIndicador, fraseDaConsulta, generoDe, lerLimites, lerValorDoFiltro, mesmaConsulta, notaDaDistanciaDaConsulta, operadorDoCriterio,
+  formatarIndicador, fraseDaConsulta, generoDe, lerLimites, lerValorDoFiltro, mesmaConsulta, nomeDoTodo, notaDaDistanciaDaConsulta, operadorDoCriterio,
   pendenciasDaConsulta, quantos, quantosCandidatos, textoDaPendencia, textoDasReferenciasUsadas, type ConsultaTerritorios,
   type FiltroDaConsulta, type GrupoInfo, type IndicadorDoFiltro, type Lado, type LadoDaConsulta, type OperadorDoFiltro,
   type RotulosTerritoriais, type TipoPartida,
@@ -287,7 +287,7 @@ export default function EscolhaDosTerritorios(p: EscolhaDosTerritoriosProps) {
         <legend>1. Partir de</legend>
         <select data-testid={id("partir-menu")} aria-label={"Partir de (" + NOMES_DOS_LADOS[lado] + ")"} value={opcao} className="analise-campo"
           onChange={event => escolherPartida(lado, event.target.value as OpcaoDePartida)}>
-          <option value="pais">{p.brasil ? "Todo o país" : "Toda a planilha"}</option>
+          <option value="pais">{p.brasil ? "Todo o país" : nomeDoTodo(false, p.rotulos)}</option>
           {p.brasil && <option value="regiao">Uma região</option>}
           {p.brasil && <option value="regioes">Mais de uma região</option>}
           {temGrupos && <option value="uf">{femGrupo ? "Uma " : "Um "}{grupo.singular}</option>}

@@ -670,8 +670,13 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
     grupos: [{id: 'Norte', nome: 'Província Norte', sigla: '', rotuloGrupo: '', unidades: 3}], nomes};
   assert.equal(M.textoDaFraseDaConsulta(M.fraseDaConsulta(consulta(lado('ufs', {ufs: ['Norte']}), lado('mesma_uf_da_base')), planilha)),
     'Unidades de Província Norte → referência: a mais próxima de cada uma, entre as unidades da mesma província');
+  // Desde 07/11/2026 (item 1 do comando, os nomes da base; muda de propósito): "de toda a base" (antes, "de toda a planilha");
+  // com o nome do todo, ele, com o artigo pedido.
   assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('pais')), planilha).referencia.texto,
-    'a mais próxima de cada uma, entre as unidades de toda a planilha');
+    'a mais próxima de cada uma, entre as unidades de toda a base');
+  const nomeada = {...planilha, rotulos: {...planilha.rotulos, todo: {nome: 'Solária', artigo: 'a'}}};
+  assert.equal(M.fraseDaConsulta(consulta(lado('pais'), lado('pais')), nomeada).referencia.texto,
+    'a mais próxima de cada uma, entre as unidades da Solária');
   // Os candidatos e as referências usadas (27/10/2026, pedido do responsável: "175 municípios" na Referência parecia a referência,
   // quando só o mais próximo de cada território da base é usado).
   assert.deepEqual([M.quantosCandidatos(175, BR.unidade), M.quantosCandidatos(1, BR.unidade), M.quantosCandidatos(2, planilha.rotulos.unidade)],
@@ -809,7 +814,7 @@ test('escolha dos territórios (27/10/2026): o objeto da consulta, a leitura sem
   assert.ok(espacial.includes('O próprio município nunca é a sua referência'), espacial);
   assert.ok(!/mais distante|pelo nome|um conjunto deles|também pela distância/.test(espacial), espacial);
   assert.ok(M.apresentacaoDaAba('espacial', {rotulos: DISTRITOS, brasil: false, comGrupos: true}).paragrafos[0]
-    .includes('a planilha inteira, uma ou mais províncias ou a seleção prévia'));
+    .includes('toda a base, uma ou mais províncias ou a seleção prévia'));  // até 07/11/2026, "a planilha inteira"
   assert.ok(espacial.includes('a referência mais próxima dele.') && espacial.includes('todos os que atendem ou só dos marcados'), espacial);
   // Com a unidade feminina (28/10/2026): "dela" (antes saía "delea") e "todas as que atendem ou só das marcadas".
   const comunas = M.apresentacaoDaAba('espacial', {rotulos: COMUNAS, brasil: false, comGrupos: true}).paragrafos.join(' ');
@@ -1215,11 +1220,26 @@ test('trilha: o todo, o grupo inteiro, a unidade, a seleção que cabe num grupo
   // Um estado só, vendo por estado: o grupo.
   assert.equal(M.lugarDaTrilha(escolhaDaTrilha('estados', ['15'], [], false, [], ['15']), TRILHA).tipo, 'grupo');
   // Numa planilha sem a coluna-mãe: o todo, a unidade ou a seleção, sem grupos.
-  const planilha = {...TRILHA, nomeDoTodo: 'Toda a planilha', comGrupos: false, arvore: {...ARVORE, grupos: [], grupoDe: () => ''}};
+  const planilha = {...TRILHA, nomeDoTodo: 'Toda a base', comGrupos: false, arvore: {...ARVORE, grupos: [], grupoDe: () => ''}};
   assert.deepEqual(partes(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001']), planilha)),
-    [['todo', 'Toda a planilha', false], ['unidade', 'MANAUS (AM)', true]]);
+    [['todo', 'Toda a base', false], ['unidade', 'MANAUS (AM)', true]]);
   assert.equal(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001', 'code:150001']), planilha).tipo, 'selecao');
   assert.equal(M.nomeDoTodo(true), 'Brasil');
+  // O nome do todo (07/11/2026, item 1 do comando): numa planilha, o do painel Colunas; sem ele, "Toda a base" (antes, "Toda a
+  // planilha"). A trilha começa nele.
+  const portugal = {...DISTRITOS, todo: {nome: 'Portugal', artigo: ''}}, solaria = {...DISTRITOS, todo: {nome: 'Solária', artigo: 'a'}};
+  assert.equal(M.nomeDoTodo(false), 'Toda a base');
+  assert.equal(M.nomeDoTodo(false, DISTRITOS), 'Toda a base');
+  assert.equal(M.nomeDoTodo(false, portugal), 'Portugal');
+  assert.equal(M.nomeDoTodo(true, portugal), 'Brasil');
+  assert.deepEqual([M.doTodo(true), M.doTodo(false), M.doTodo(false, portugal), M.doTodo(false, solaria)],
+    ['do Brasil', 'da base', 'de Portugal', 'da Solária']);
+  assert.deepEqual([M.deTodoOTodo(true), M.deTodoOTodo(false, DISTRITOS), M.deTodoOTodo(false, solaria)],
+    ['de todo o país', 'de toda a base', 'da Solária']);
+  assert.deepEqual([M.todoMarcado(true), M.todoMarcado(false), M.todoMarcado(false, portugal), M.todoMarcado(false, solaria, false)],
+    ['Brasil inteiro marcado', 'Toda a base marcada', 'Portugal inteiro marcado', 'Solária inteira desmarcada']);
+  assert.deepEqual(partes(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:130001']), {...planilha, nomeDoTodo: M.nomeDoTodo(false, portugal)})),
+    [['todo', 'Portugal', false], ['unidade', 'MANAUS (AM)', true]]);
 });
 
 test('Ver por: só os níveis abaixo do lugar em uso; o todo nunca é opção; com uma opção, o controle não aparece', () => {
@@ -1351,8 +1371,11 @@ test('proteção (06/11/2026, item 4.6): de que lugar é o resultado à vista, c
   assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', ['13']), comRotulo), {grupos}), 'de Amazonas');
   assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['code:150001']), comRotulo), {grupos}), 'de MARABA (PA)');
   assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', ['13', '15']), comRotulo), {grupos}), 'de outra seleção');
-  const planilha = {...comRotulo, nomeDoTodo: 'Toda a planilha', comGrupos: false};
-  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), planilha), {grupos: []}), 'de toda a planilha');
+  const planilha = {...comRotulo, nomeDoTodo: 'Toda a base', comGrupos: false};
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), planilha), {grupos: []}), 'de toda a base');
+  // Com o nome do todo (07/11/2026, item 1), ele mesmo, com o artigo, sem passar para a minúscula: "da Solária".
+  assert.equal(M.deOndeEhOResultado(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), {...planilha, nomeDoTodo: 'Solária'}),
+    {grupos: [], brasil: false, rotulos: {...DISTRITOS, todo: {nome: 'Solária', artigo: 'a'}}}), 'da Solária');
 });
 
 test('confirmação conferida (06/11/2026, item 4.4): o pedido que leva a um lugar só conclui com a trilha e os itens desse lugar', () => {

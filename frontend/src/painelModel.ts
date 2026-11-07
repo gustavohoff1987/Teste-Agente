@@ -175,6 +175,35 @@ export const umA = (rotulo: Rotulo) => (fem(rotulo) ? "uma " : "um ") + rotulo.s
 /** "nos municípios", "nas províncias" (singular: "no", "na"). */
 export const emOs = (rotulo: Rotulo, plural = true) => (fem(rotulo) ? "na" : "no") + (plural ? "s" : "");
 export const maiuscula = (texto: string) => texto ? texto.charAt(0).toLocaleUpperCase("pt-BR") + texto.slice(1) : texto;
+/** O todo sem nome, numa planilha (07/11/2026, item 1 do comando de 06/11/2026, os nomes da base; até então, "Toda a planilha"). */
+export const TODO_SEM_NOME = "Toda a base";
+/** O nome do todo: "Brasil" na base do Brasil; numa planilha, o nome dado no painel Colunas ("Solária") ou "Toda a base". */
+export const nomeDoTodo = (brasil: boolean, rotulos?: RotulosTerritoriais | null) =>
+  brasil ? "Brasil" : rotulos?.todo?.nome?.trim() || TODO_SEM_NOME;
+/** "do Brasil", "da Solária", "de Portugal" (o artigo do painel Colunas); sem o nome, "da base". */
+export function doTodo(brasil: boolean, rotulos?: RotulosTerritoriais | null): string {
+  if (brasil) return "do Brasil";
+  const nome = rotulos?.todo?.nome?.trim();
+  return nome ? (rotulos!.todo!.artigo ? "d" + rotulos!.todo!.artigo : "de") + " " + nome : "da base";
+}
+/** De onde parte a referência que vem do todo: "de todo o país"; numa planilha, "da Solária" ou "de toda a base". */
+export const deTodoOTodo = (brasil: boolean, rotulos?: RotulosTerritoriais | null) =>
+  brasil ? "de todo o país" : rotulos?.todo?.nome?.trim() ? doTodo(false, rotulos) : "de toda a base";
+/** "Brasil inteiro", "Solária inteira", "Portugal inteiro"; sem o nome, "Toda a base". */
+export function todoInteiro(brasil: boolean, rotulos?: RotulosTerritoriais | null): string {
+  if (brasil) return "Brasil inteiro";
+  const nome = rotulos?.todo?.nome?.trim(), artigo = rotulos?.todo?.artigo ?? "";
+  if (!nome) return TODO_SEM_NOME;
+  return nome + (artigo === "a" ? " inteira" : artigo === "as" ? " inteiras" : artigo === "os" ? " inteiros" : " inteiro");
+}
+/** O aviso da raiz da árvore: "Brasil inteiro marcado", "Solária inteira marcada", "Toda a base marcada" (e "desmarcad…"). */
+export function todoMarcado(brasil: boolean, rotulos?: RotulosTerritoriais | null, marcado = true): string {
+  const palavra = marcado ? " marcad" : " desmarcad";
+  if (brasil) return "Brasil inteiro" + palavra + "o";
+  const nome = rotulos?.todo?.nome?.trim(), artigo = rotulos?.todo?.artigo ?? "";
+  if (!nome) return TODO_SEM_NOME + palavra + "a";
+  return todoInteiro(false, rotulos) + palavra + (artigo === "a" ? "a" : artigo === "as" ? "as" : artigo === "os" ? "os" : "o");
+}
 const minuscula = (texto: string) => texto ? texto.charAt(0).toLocaleLowerCase("pt-BR") + texto.slice(1) : texto;
 /** "1 município", "62 municípios", "5.570 municípios". */
 export const quantos = (n: number, rotulo: Rotulo) => inteiro.format(n) + " " + (n === 1 ? rotulo.singular : rotulo.plural);
@@ -191,9 +220,10 @@ export type GrupoInfo = { id: string; nome: string; sigla: string; rotuloGrupo: 
 /** "Todos os estados (27)", "Todas as províncias (5)". */
 export const textoTodosOsGrupos = (rotulos: RotulosTerritoriais, n: number) =>
   maiuscula(todosOs(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!)) + " (" + inteiro.format(n) + ")";
-/** "Todos os municípios do Brasil (5.570)"; numa planilha, "Todos os distritos da planilha (40)". */
+/** "Todos os municípios do Brasil (5.570)"; numa planilha, "Todos os distritos da Solária (40)" ou, sem o nome do todo,
+ * "Todos os distritos da base (40)". */
 export const textoTodasAsUnidades = (rotulos: RotulosTerritoriais, n: number, brasil: boolean) =>
-  maiuscula(todosOs(rotulos.unidade)) + (brasil ? " do Brasil" : " da planilha") + " (" + inteiro.format(n) + ")";
+  maiuscula(todosOs(rotulos.unidade)) + " " + doTodo(brasil, rotulos) + " (" + inteiro.format(n) + ")";
 /** "Ver os 62 municípios", "Ver as 12 comunas", "Ver o 1 distrito". */
 export const textoVerUnidades = (rotulos: RotulosTerritoriais, n: number) =>
   "Ver " + artigo(rotulos.unidade, n !== 1) + " " + quantos(n, rotulos.unidade);
@@ -361,7 +391,7 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
   /** Nomes das unidades ("PORTO ALEGRE (RS)"): com uma ou duas marcadas, o título diz quais (24/10/2026). */
   nomes?: Map<string, string> }): Lugar {
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  const origem = c.brasil ? "Brasil" : "Toda a planilha";
+  const origem = nomeDoTodo(c.brasil, c.rotulos);
   if (c.nivel === "brasil") return { lugar: "no Brasil", curto: "Brasil" };
   if (c.nivel === "estados") {
     const escolhidos = c.estados ?? c.grupos.map(item => item.id);
@@ -373,7 +403,7 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
     const n = quantos(escolhidos.length, grupo);
     return { lugar: "em " + n, curto: n };
   }
-  if (c.base.todos) return { lugar: emOs(unidade) + " " + unidade.plural + (c.brasil ? " do Brasil" : " da planilha"), curto: origem };
+  if (c.base.todos) return { lugar: emOs(unidade) + " " + unidade.plural + " " + doTodo(c.brasil, c.rotulos), curto: origem };
   const info = (id: string) => c.grupos.find(item => item.id === id);
   // "do Amazonas" a partir de "Municípios do Amazonas" (gramática do motor); na planilha, "de <grupo>".
   const deGrupo = (id: string) => {
@@ -1951,7 +1981,7 @@ function nomesNaFrase(ids: string[], nomes: Map<string, string>): string {
 /** De onde o lado parte, com a preposição: "de todo o país", "do Norte e do Nordeste", "do Acre", "da seleção prévia". */
 function deOnde(partir: PartirDe, c: ContextoDaFrase): string {
   const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-  if (partir.tipo === "pais") return c.brasil ? "de todo o país" : "de toda a planilha";
+  if (partir.tipo === "pais") return deTodoOTodo(c.brasil, c.rotulos);
   if (partir.tipo === "selecao_previa") return "da seleção prévia";
   if (partir.tipo === "regioes") return emLista(ladoParaOMotor({ partir_de: partir, filtros: [], escolha: { modo: "todos", municipios: [] } })
     .partir_de.regioes.map(nome => "do " + nome));
@@ -2057,7 +2087,7 @@ export function lugarDaConsulta(consulta: ConsultaTerritorios, c: ContextoDaFras
   let curto: string;
   if (escolha.modo === "marcados") curto = escolha.municipios.length <= 2 ? emLista(escolha.municipios.map(id => c.nomes.get(id) || id))
     : quantos(escolha.municipios.length, c.rotulos.unidade);
-  else if (partir.tipo === "pais") curto = c.brasil ? "Brasil" : "Toda a planilha";
+  else if (partir.tipo === "pais") curto = nomeDoTodo(c.brasil, c.rotulos);
   else if (partir.tipo === "selecao_previa") curto = c.selecao.curto;
   else if (partir.tipo === "regioes") curto = partir.regioes.length <= 2 ? emLista(partir.regioes) : partir.regioes.length + " regiões";
   else curto = partir.ufs.length <= 2 ? emLista(partir.ufs.map(id => c.grupos.find(item => item.id === id)?.nome || id)) : quantos(partir.ufs.length, grupo);
@@ -2237,8 +2267,6 @@ export type LugarDaTrilha = {
 export type ContextoDaTrilha = { arvore: ContextoDaArvore; nomeDoTodo: string; nomes: Map<string, string>;
   /** Na base do Brasil, os estados como grupos da trilha; numa planilha sem a coluna-mãe, nenhum. */
   comGrupos: boolean };
-/** O nome do todo: "Brasil" na base do Brasil; numa planilha, o da raiz da árvore ("Toda a planilha"). */
-export const nomeDoTodo = (brasil: boolean) => brasil ? "Brasil" : "Toda a planilha";
 export const NOME_DA_SELECAO = "Seleção";
 
 /** O lugar em uso, lido da definição: o todo com o Brasil inteiro (ou todos os estados); "Brasil › Pará" com o Pará inteiro ou com
@@ -2286,10 +2314,12 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
 
 /** De que lugar é o resultado à vista, na frase da proteção (06/11/2026, item 4.6 do comando: "Esta análise ainda é de {lugar}"):
  * "do Brasil", "do Pará" (o nome do grupo com a preposição, quando a fonte o tem), "de MARABA (PA)", "de outra seleção". */
-export function deOndeEhOResultado(lugar: LugarDaTrilha, c: { grupos: GrupoInfo[] }): string {
+export function deOndeEhOResultado(lugar: LugarDaTrilha, c: { grupos: GrupoInfo[]; brasil?: boolean; rotulos?: RotulosTerritoriais | null }): string {
   const atual = lugar.partes.find(parte => parte.atual);
   if (!atual || lugar.tipo === "selecao" || lugar.tipo === "nenhum") return "de outra seleção";
-  if (lugar.tipo === "todo") return atual.rotulo === "Brasil" ? "do Brasil" : "de " + minuscula(atual.rotulo);
+  // O todo pelo nome (07/11/2026, item 1): "do Brasil", "da Solária" (o nome próprio, com o artigo), "de toda a base".
+  if (lugar.tipo === "todo") return c.brasil || atual.rotulo === "Brasil" ? "do Brasil"
+    : c.rotulos?.todo?.nome?.trim() ? doTodo(false, c.rotulos) : "de " + minuscula(atual.rotulo);
   if (lugar.tipo === "grupo") {
     const grupo = c.grupos.find(item => item.id === lugar.grupo);
     if (grupo?.rotuloGrupo && grupo.rotuloGrupo.includes(" ")) return grupo.rotuloGrupo.split(" ").slice(1).join(" ");
@@ -3151,8 +3181,8 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
       ". A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios, com filtros por densidade, população ou " +
       "quantidade, se quiser. Na Escolha dos territórios, a referência é escolhida em três etapas: de onde partir (" +
-      (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "a planilha inteira, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
-        grupo.plural : "a planilha inteira") + " ou a seleção prévia), filtros e a escolha de " +
+      (c.brasil ? "o país, uma ou mais regiões, um ou mais estados" : c.comGrupos ? "toda a base, " + (fem(grupo) ? "uma ou mais " : "um ou mais ") +
+        grupo.plural : "toda a base") + " ou a seleção prévia), filtros e a escolha de " +
       (fem(unidade) ? "todas as que atendem ou só das marcadas" : "todos os que atendem ou só dos marcados") + "." +
       (c.brasil || c.comGrupos ? " A referência também pode ser procurada n" + (c.brasil ? "o mesmo estado ou na mesma região" : (fem(grupo) ? "a mesma " : "o mesmo ") +
         grupo.singular) + " de cada " + unidade.singular + " da base." : "") + " " + maiuscula(artigo(unidade, false)) + " própri" +

@@ -399,7 +399,8 @@ def main():
         expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar distrito ou província")
         raiz = area.get_by_test_id("analise-raiz")
-        expect(raiz).to_contain_text("Toda a planilha")
+        # Sem o nome do todo no painel Colunas, "Toda a base" (07/11/2026, item 1 do comando; antes, "Toda a planilha").
+        expect(raiz).to_contain_text("Toda a base")
         expect(raiz).to_contain_text("todos os 4 distritos")
         # As províncias da planilha (a coluna-mãe) agrupam os distritos na Seleção, como os estados na base do Brasil.
         assert area.get_by_test_id("analise-grupo").evaluate_all("els => els.map(e => e.dataset.id)") == ["Norte", "Sul"]

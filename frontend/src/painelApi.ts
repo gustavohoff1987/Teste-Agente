@@ -87,7 +87,12 @@ export type MapaOpcoes = { competencia: string; categoria: string; premissas?: P
 /** Nomenclatura territorial: na base do Brasil, município e estado; nas planilhas, o que a pessoa confirmou ("distrito",
  * "província"…). `genero` é opcional; sem ele, a tela deduz pela terminação (concordância simples). */
 export type Rotulo = { singular: string; plural: string; genero?: "m" | "f" };
-export type RotulosTerritoriais = { unidade: Rotulo; grupo: Rotulo | null };
+/** O artigo que o nome do todo pede: "o Brasil", "a Solária", Portugal sem artigo ("de Portugal"). */
+export type ArtigoDoTodo = "" | "o" | "a" | "os" | "as";
+/** O nome do todo de uma planilha (07/11/2026, item 1 do comando de 06/11/2026, os nomes da base): o nome próprio que a pessoa
+ * dá no painel Colunas e o artigo; sem ele, a tela diz "Toda a base". Na base do Brasil, o todo é o Brasil. */
+export type TodoDaBase = { nome: string; artigo: ArtigoDoTodo };
+export type RotulosTerritoriais = { unidade: Rotulo; grupo: Rotulo | null; todo?: TodoDaBase | null };
 
 export type PainelValores = { populacao: number | null; quantidade: number | null; densidade: number | null };
 /** distancia e variacao: null quando não foram pedidas; false quando foram pedidas e não são avaliáveis. */
@@ -600,10 +605,20 @@ function rotuloDe(bruto: unknown): Rotulo | null {
   const genero = o?.genero === "f" || o?.genero === "m" ? o.genero : undefined;
   return genero ? { singular, plural, genero } : { singular, plural };
 }
+export const ARTIGOS_DO_TODO: ArtigoDoTodo[] = ["", "o", "a", "os", "as"];
+export function todoDe(bruto: unknown): TodoDaBase | null {
+  const o = objeto(bruto);
+  const nome = texto(o?.nome);
+  if (!nome) return null;
+  const artigo = ARTIGOS_DO_TODO.includes(o?.artigo as ArtigoDoTodo) ? o?.artigo as ArtigoDoTodo : "";
+  return { nome, artigo };
+}
 export function rotulosDe(bruto: unknown): RotulosTerritoriais | null {
   const o = objeto(bruto);
   const unidade = rotuloDe(o?.unidade);
-  return unidade ? { unidade, grupo: rotuloDe(o?.grupo) } : null;
+  if (!unidade) return null;
+  const todo = todoDe(o?.todo);
+  return todo ? { unidade, grupo: rotuloDe(o?.grupo), todo } : { unidade, grupo: rotuloDe(o?.grupo) };
 }
 
 /** Frase-resumo do motor: `{texto}` (ou o texto direto); vazia ou ausente vira null (a resposta de antes continua legível). */
