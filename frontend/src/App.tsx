@@ -101,7 +101,9 @@ function rotulosDaPlanilha(rotulos: Rotulos): Rotulos {
   const comGenero = (rotulo: Rotulo): Rotulo => ({ ...rotulo, genero: rotulo.genero ?? generoDe(rotulo) });
   const nome = rotulos.todo?.nome?.trim();
   return { unidade: comGenero(rotulos.unidade), grupo: rotulos.grupo ? comGenero(rotulos.grupo) : null,
-    ...(nome ? { todo: { nome, artigo: rotulos.todo!.artigo } } : {}) };
+    ...(nome ? { todo: { nome, artigo: rotulos.todo!.artigo } } : {}),
+    // O grupo de cima (07/11/2026, item 1 do comando: até dois níveis de grupo), só com o grupo e a coluna dele.
+    ...(rotulos.grupo && rotulos.grupo_superior ? { grupo_superior: comGenero(rotulos.grupo_superior) } : {}) };
 }
 
 function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, escolhas: EscolhasDaPlanilha): FonteAtiva {

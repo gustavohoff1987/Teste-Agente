@@ -15,9 +15,11 @@ export type PainelAtributo = "densidade" | "quantidade" | "populacao";
 export type AtributoOrdenacao = PainelAtributo | "distancia_km" | "variacao";
 export type AtributoCondicao = PainelAtributo | "distancia_km";
 export type PainelOrdem = "desc" | "asc";
-/** Nível do gráfico: os municípios (ou as unidades da planilha), os estados ou, desde 24/10/2026, o Brasil inteiro como uma
- * unidade (só na base do Brasil). */
-export type PainelNivel = "estados" | "municipios" | "brasil";
+/** Nível do gráfico: os municípios (ou as unidades da planilha), os estados (ou os grupos da coluna-mãe da planilha) ou, desde
+ * 24/10/2026, o Brasil inteiro como uma unidade (só na base do Brasil). Desde 07/11/2026 (item 1 do comando de 06/11/2026, até
+ * dois níveis de grupo), "regioes": o nível de grupo de cima de uma planilha (a região acima do distrito), com os valores pelas
+ * unidades de cada um. */
+export type PainelNivel = "estados" | "municipios" | "brasil" | "regioes";
 /** Premissas de uma planilha, com os nomes de /api/analyze: textos e, em `confirmed_roles`, os papéis escolhidos pela pessoa. */
 export type Premissas = Record<string, string | string[]>;
 /** Universo das unidades, na forma de `options.abrangencia.municipios`. Em planilhas, `estados` leva os valores do grupo
@@ -92,7 +94,8 @@ export type ArtigoDoTodo = "" | "o" | "a" | "os" | "as";
 /** O nome do todo de uma planilha (07/11/2026, item 1 do comando de 06/11/2026, os nomes da base): o nome próprio que a pessoa
  * dá no painel Colunas e o artigo; sem ele, a tela diz "Toda a base". Na base do Brasil, o todo é o Brasil. */
 export type TodoDaBase = { nome: string; artigo: ArtigoDoTodo };
-export type RotulosTerritoriais = { unidade: Rotulo; grupo: Rotulo | null; todo?: TodoDaBase | null };
+/** `grupo_superior` (07/11/2026): o nível de grupo de cima de uma planilha com dois níveis (a região acima do distrito). */
+export type RotulosTerritoriais = { unidade: Rotulo; grupo: Rotulo | null; todo?: TodoDaBase | null; grupo_superior?: Rotulo | null };
 
 export type PainelValores = { populacao: number | null; quantidade: number | null; densidade: number | null };
 /** distancia e variacao: null quando não foram pedidas; false quando foram pedidas e não são avaliáveis. */
@@ -187,7 +190,7 @@ export type ValorComparado = { id: string; rotulo: string; valor: number | null 
 export type LinhaComparacao = { atributo: string; maior: ValorComparado[]; menor: ValorComparado[];
   diferencas: { entre: string[]; valor: number | null; texto: string | null }[] };
 export type ComparacaoTopo = { itens: string[]; linhas: LinhaComparacao[]; textos: string[] };
-export type ChaveDisponibilidade = "espacial" | "tendencia" | "rotatividade" | "estados" | "grupos";
+export type ChaveDisponibilidade = "espacial" | "tendencia" | "rotatividade" | "estados" | "grupos" | "regioes";
 export type Disponibilidade = Partial<Record<ChaveDisponibilidade, { disponivel: boolean; motivo: string }>>;
 /** Total individualizado de um estado inteiro (fonte estadual, UF-CONTAGEM-ESTADUAL-1), na competência da análise. */
 export type TotalDoEstado = { id: string; rotulo: string; competencia: string | null; quantidade: number | null; populacao: number | null;
@@ -617,8 +620,8 @@ export function rotulosDe(bruto: unknown): RotulosTerritoriais | null {
   const o = objeto(bruto);
   const unidade = rotuloDe(o?.unidade);
   if (!unidade) return null;
-  const todo = todoDe(o?.todo);
-  return todo ? { unidade, grupo: rotuloDe(o?.grupo), todo } : { unidade, grupo: rotuloDe(o?.grupo) };
+  const todo = todoDe(o?.todo), superior = rotuloDe(o?.grupo_superior);
+  return { unidade, grupo: rotuloDe(o?.grupo), ...(todo ? { todo } : {}), ...(superior ? { grupo_superior: superior } : {}) };
 }
 
 /** Frase-resumo do motor: `{texto}` (ou o texto direto); vazia ou ausente vira null (a resposta de antes continua legível). */

@@ -239,7 +239,15 @@ da tela).
   únicas, com o identificador individual; senão, a soma), e a nota do gráfico diz a origem, com a ressalva da soma ("Cada
   condado vem das comunas dele: a soma. O total corresponde à soma…"), e o aviso, "Ver por condado: cada ponto é um condado
   inteiro, pelas comunas dele." (na base do Brasil, "… com a contagem estadual de médicos únicos."). Numa planilha, marcar o
-  todo continua mostrando as unidades (na base do Brasil, o todo vê por estado); os grupos aparecem pelo "Ver por". O mapa do nível de grupo de uma
+  todo continua mostrando as unidades (na base do Brasil, o todo vê por estado); os grupos aparecem pelo "Ver por". Com o grupo
+  de cima (desde 07/11/2026, item 1 do comando: até dois níveis de grupo; papel `grupo_territorial_superior` no painel Colunas),
+  o "Ver por" oferece os três níveis, do mais alto ao mais baixo ("Zona | Condado | Comuna"; no comando, "Região | Distrito |
+  Concelho"; `analise-nivel-regioes`), no todo, sem nada escolhido e numa seleção de grupos de cima inteiros: vendo por zona,
+  cada zona é uma bolha com os valores do motor pelas comunas dela (nunca a soma dos condados), a nota "Cada zona vem das
+  comunas dela: a soma." com a ressalva, o aviso "Ver por zona: cada ponto é uma zona inteira, pelas comunas dela." e o resumo
+  "Todas as zonas (2)"; tocar na bolha de uma zona mostra as comunas dela. Os grupos de cima vêm do catálogo (o segundo valor
+  da hierarquia de cada unidade) e só existem com a hierarquia consistente (o motor diz o motivo em
+  `disponibilidade.regioes`); sem a coluna de cima, nada muda. A árvore e a trilha com o grupo de cima vêm na parte seguinte. O mapa do nível de grupo de uma
   planilha não existe ainda (os grupos não têm um ponto de desenho), e o atalho leva às unidades no mapa. No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
   `code:<código>` ou `name:<nome>`.
 - **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção.

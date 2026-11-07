@@ -61,6 +61,8 @@ ORDEM_TEXTO = {"desc": "do maior para o menor", "asc": "do menor para o maior"}
 OPERADOR_TEXTO = {"<": "menor que", "<=": "no máximo", ">": "maior que", ">=": "no mínimo", "=": "igual a",
                   "!=": "diferente de"}
 NADA_MUDOU = " Nada mudou no gráfico."
+# Os níveis de grupo do gráfico: os estados (ou os grupos de uma planilha) e, desde 07/11/2026, o grupo de cima de uma planilha.
+NIVEIS_DE_GRUPO = ("estados", "regioes")
 SEM_PONTO_UNICO = ("A referência é um município ou um conjunto de municípios: estados não têm um ponto único. Diga o "
                    "nome do município ou peça, por exemplo, “use como referência o município de maior densidade”." + NADA_MUDOU)
 
@@ -415,7 +417,7 @@ def contexto(options):
     brutos = _textos(options.get("territory_ids"))
     ids = [item for item in brutos if item.startswith(("code:", "name:"))]
     ufs = [item for item in brutos if item.startswith("uf:")]
-    nivel = options.get("painel_nivel") if options.get("painel_nivel") in ("estados", "municipios", "brasil") else \
+    nivel = options.get("painel_nivel") if options.get("painel_nivel") in ("estados", "municipios", "brasil", "regioes") else \
         ("municipios" if ids else "estados" if ufs else None)
     competencia = next((valor for valor in (options.get("painel_competencia"), options.get("period_filter"))
                         if isinstance(valor, str) and valor), None)
@@ -788,9 +790,21 @@ def _competencias_da_coluna(frame, coluna):
 
 
 class _Rotulos:
-    def __init__(self, singular, plural, feminino, grupo_singular, grupo_plural, grupo_feminino):
+    def __init__(self, singular, plural, feminino, grupo_singular, grupo_plural, grupo_feminino, superior_plural="regiões",
+                 superior_feminino=True):
         self.singular, self.plural, self.feminino = singular, plural, feminino
         self.grupo_singular, self.grupo_plural, self.grupo_feminino = grupo_singular, grupo_plural, grupo_feminino
+        # O grupo de cima de uma planilha com dois níveis (07/11/2026): só para dizer o nível em uso ("as zonas").
+        self.superior_plural, self.superior_feminino = superior_plural, superior_feminino
+
+    def os_do_nivel(self, nivel, brasil):
+        """Os itens de um nível de grupo, com o artigo: "os estados" na base do Brasil; numa planilha, os grupos ("os condados")
+        ou, no nível de cima (nivel "regioes"), os grupos de cima ("as zonas")."""
+        if brasil:
+            return "os estados"
+        if nivel == "regioes":
+            return ("as " if self.superior_feminino else "os ") + self.superior_plural
+        return ("as " if self.grupo_feminino else "os ") + self.grupo_plural
 
     def unidades(self, quantidade):
         """“144 municípios”, “1 distrito”."""
@@ -847,8 +861,11 @@ def _rotulos(ctx, brasil):
     plural = _palavra(unidade.get("plural")) or ("municípios" if singular == "município" else singular + "s")
     grupo_singular = _palavra(grupo.get("singular")) or "grupo"
     grupo_plural = _palavra(grupo.get("plural")) or ("grupos" if grupo_singular == "grupo" else grupo_singular + "s")
+    superior = dados.get("grupo_superior") if isinstance(dados.get("grupo_superior"), dict) else {}
+    superior_singular = _palavra(superior.get("singular")) or "região"
+    superior_plural = _palavra(superior.get("plural")) or ("regiões" if superior_singular == "região" else superior_singular + "s")
     return _Rotulos(singular, plural, _feminino(unidade, singular), grupo_singular, grupo_plural,
-                    _feminino(grupo, grupo_singular))
+                    _feminino(grupo, grupo_singular), superior_plural, _feminino(superior, superior_singular))
 
 
 def _alternativas(*palavras):
@@ -1621,7 +1638,7 @@ def _condicoes(conv, dica, dica_indicador):
         frases.append(_frase_de_base(conv, painel, base))
     if membros:
         painel.update(familia="espacial", referencia={"membros": membros})
-    if distancia and conv.ctx["nivel"] == "estados":
+    if distancia and conv.ctx["nivel"] in NIVEIS_DE_GRUPO:
         painel["nivel"] = "municipios"
     textos = [clausula["texto"] for _, clausula in achadas]
     frases.append("Apliquei " + ("a condição " if len(textos) == 1 else "as condições ") + _e(textos) +
@@ -2096,7 +2113,9 @@ def _ordenar(conv, dica, dica_indicador):
     if membros:
         painel.update(familia="espacial", referencia={"membros": membros})
         frases.append("Usei " + _listed([conv.cat.rotulo(i) for i in membros]) + " como referência da distância.")
-    quem = "os estados" if conv.ctx["nivel"] == "estados" and base is None and not membros else conv.rot.os()
+    # Num nível de grupo, os itens desse nível pelos nomes da base (07/11/2026; antes, "os estados" também numa planilha).
+    quem = conv.rot.os_do_nivel(conv.ctx["nivel"], conv.brasil) if conv.ctx["nivel"] in NIVEIS_DE_GRUPO and base is None and \
+        not membros else conv.rot.os()
     texto = "Ordenei " + quem + " " + ATRIBUTO_TEXTO[atributo] + ", " + ORDEM_TEXTO[ordem]
     if quantos == 1:
         texto += ", e destaquei o primeiro; empates na 1ª posição também entram"
@@ -2165,7 +2184,7 @@ def _referencia(conv, dica, dica_indicador):
         base, _, _ = _nova_base(conv, base_achada, "trocar")
         painel.update(nivel="municipios", municipios=base)
         frases.append(_frase_de_base(conv, painel, base))
-    elif conv.ctx["nivel"] == "estados":
+    elif conv.ctx["nivel"] in NIVEIS_DE_GRUPO:
         painel["nivel"] = "municipios"
     quando = _quando(painel)
     rotulos = _listed([conv.cat.rotulo(i) for i in membros]) if membros else ""
@@ -2293,7 +2312,7 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
                           ": a bolha soma as contagens estaduais, com possível dupla contagem (quem atua em mais de um estado "
                           "conta em cada um).")
         return _resposta(painel, " ".join(frases))
-    if conv.ctx["nivel"] == "estados":
+    if conv.ctx["nivel"] in NIVEIS_DE_GRUPO:
         painel["nivel"] = "municipios"
     if funcao == "comparar":
         atual = conv.base_atual()
@@ -2498,7 +2517,7 @@ def _vista(conv, dica, dica_indicador, funcao=None):
     elif periodo:
         painel["competencia"] = periodo["competencia"]
     painel["familia"] = familia
-    if familia == "espacial" and conv.ctx["nivel"] == "estados":
+    if familia == "espacial" and conv.ctx["nivel"] in NIVEIS_DE_GRUPO:
         painel["nivel"] = "municipios"
     modo = "trocar"
     encontrado = ACRESCENTAR.search(pedido.resto)

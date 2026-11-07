@@ -326,7 +326,10 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   recebe "Nesta base, o nível acima dos distritos são as províncias. Nada mudou no gráfico.", com o botão "Mostrar as
   províncias". Sem a coluna-mãe, não há nível acima: o pedido recebe "Esta base não tem um nível acima dos distritos no
   gráfico: cada bolha é um distrito. …" e a sugestão "mostre a província …" (até 07/11/2026, essa era a resposta em qualquer
-  planilha). A orientação da caixa da conversa, desde 28/10/2026: "Peça mudanças no gráfico citando comunas pelo nome:
+  planilha). Vendo por grupo numa planilha, a ordenação e a descrição da seleção dizem os grupos pelo nome ("Ordenei as
+  províncias …", "A seleção está no nível das províncias"; no nível de cima de uma planilha com dois níveis de grupo, "as
+  macrorregiões"; até 07/11/2026, "os estados" também numa planilha). A orientação da caixa da conversa, desde 28/10/2026:
+  "Peça mudanças no gráfico citando comunas pelo nome:
   comparar, agregar, usar como referência ou mostrar as comunas de um condado." (antes, "… ou voltar ao nível de condados",
   que a conversa recusava; até 06/11/2026, "comparar, juntar, …");
 - as orientações também usam os nomes da planilha (23/10/2026): "“distritos com menos de 1 médico por mil habitantes”",

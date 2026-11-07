@@ -158,6 +158,14 @@ export const ROTULOS_GENERICOS: RotulosTerritoriais = {
   unidade: { singular: "unidade", plural: "unidades", genero: "f" },
   grupo: { singular: "grupo", plural: "grupos", genero: "m" },
 };
+/** O nome do grupo de cima sem resposta (07/11/2026, item 1 do comando: até dois níveis de grupo). */
+export const GRUPO_SUPERIOR_GENERICO: Rotulo = { singular: "região", plural: "regiões", genero: "f" };
+/** Os níveis de grupo: os estados (ou os grupos da coluna-mãe de uma planilha) e, desde 07/11/2026, o grupo de cima ("regioes"). */
+export const emGrupos = (nivel: PainelNivel | null | undefined) => nivel === "estados" || nivel === "regioes";
+/** Os nomes vistos de um nível de grupo: no de cima, o grupo de cima ocupa o lugar do grupo (as zonas no lugar dos condados), e o
+ * resto das regras do nível de grupo vale igual. */
+export const rotulosDaVista = (rotulos: RotulosTerritoriais, nivel: PainelNivel | null | undefined): RotulosTerritoriais =>
+  nivel === "regioes" ? { ...rotulos, grupo: rotulos.grupo_superior ?? GRUPO_SUPERIOR_GENERICO } : rotulos;
 /** Gênero para a concordância simples: o informado ou, sem ele, pela terminação (província, comuna, região, cidade: feminino;
  * distrito, condado, cantão, município: masculino). */
 export function generoDe(rotulo: Rotulo): "m" | "f" {
@@ -389,7 +397,10 @@ function poucasPeloNome(base: PainelMunicipios, avulsas: string[], nomes?: Map<s
 export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios; conjuntos: number; grupos: GrupoInfo[];
   rotulos: RotulosTerritoriais; brasil: boolean; grupoDe: (id: string) => string; estados?: string[];
   /** Nomes das unidades ("PORTO ALEGRE (RS)"): com uma ou duas marcadas, o título diz quais (24/10/2026). */
-  nomes?: Map<string, string> }): Lugar {
+  nomes?: Map<string, string>;
+  /** Os grupos de cima (07/11/2026): no nivel "regioes", eles são os itens, com o nome do grupo de cima. */
+  regioes?: GrupoInfo[] }): Lugar {
+  if (c.nivel === "regioes") return lugarDoUniverso({ ...c, nivel: "estados", grupos: c.regioes ?? [], rotulos: rotulosDaVista(c.rotulos, "regioes") });
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const origem = nomeDoTodo(c.brasil, c.rotulos);
   if (c.nivel === "brasil") return { lugar: "no Brasil", curto: "Brasil" };
@@ -441,7 +452,10 @@ export function lugarDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios;
  * trocando a seleção): na aba Seleção de Territórios e nas análises. "Brasil (total nacional)", "Todos os estados (27)", "Bahia e
  * Santa Catarina", "Amazonas (62 municípios)", "3 municípios da Bahia", "12 municípios de 2 estados", "Nenhum município marcado". */
 export function resumoDoUniverso(c: { nivel: PainelNivel; base: PainelMunicipios; estados: string[]; conjuntos: number; grupos: GrupoInfo[];
-  rotulos: RotulosTerritoriais; total: number; grupoDe: (id: string) => string; nomes?: Map<string, string> }): string {
+  rotulos: RotulosTerritoriais; total: number; grupoDe: (id: string) => string; nomes?: Map<string, string>;
+  /** Os grupos de cima (07/11/2026): no nivel "regioes", "Todas as zonas (2)". */
+  regioes?: GrupoInfo[] }): string {
+  if (c.nivel === "regioes") return resumoDoUniverso({ ...c, nivel: "estados", grupos: c.regioes ?? [], rotulos: rotulosDaVista(c.rotulos, "regioes") });
   const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   const nenhum = (rotulo: Rotulo) => "Nenhum" + (fem(rotulo) ? "a " : " ") + rotulo.singular + " marcad" + (fem(rotulo) ? "a" : "o");
   const nome = (id: string) => c.grupos.find(item => item.id === id)?.nome || id;
@@ -517,6 +531,27 @@ export function gruposDaFonte(niveis: NiveisDaBase | null | undefined, catalogo:
   }
   return [...contagem.entries()].map(([id, valor]) => ({ id, nome: valor.nome, sigla: "", rotuloGrupo: "", unidades: valor.unidades }))
     .sort((a, b) => comparar(a.nome, b.nome));
+}
+/** Os grupos de cima de uma planilha (07/11/2026, item 1 do comando: até dois níveis de grupo), pelo catálogo: o segundo valor da
+ * hierarquia de cada unidade (`parents[1]`), com os grupos de cada um. Só com a hierarquia consistente (cada grupo num grupo de
+ * cima só); senão, nenhum (o motor diz o motivo). */
+export function regioesDaFonte(catalogo: UnidadeDoCatalogo[], grupos: GrupoInfo[]): { regioes: GrupoInfo[]; regiaoDoGrupo: Map<string, string> } {
+  const doGrupo = new Map<string, Set<string>>(), contagem = new Map<string, number>();
+  for (const item of catalogo) {
+    if (item.selection_reason || (item.parents?.length ?? 0) < 2) continue;
+    const grupo = grupoDaUnidade(item), regiao = item.parents![1];
+    if (!grupo || !regiao) continue;
+    if (!doGrupo.has(grupo)) doGrupo.set(grupo, new Set());
+    doGrupo.get(grupo)!.add(regiao);
+    contagem.set(regiao, (contagem.get(regiao) ?? 0) + 1);
+  }
+  const vazio = { regioes: [], regiaoDoGrupo: new Map<string, string>() };
+  if (!doGrupo.size || [...doGrupo.values()].some(regioes => regioes.size > 1)) return vazio;
+  const regiaoDoGrupo = new Map([...doGrupo.entries()].map(([grupo, regioes]) => [grupo, [...regioes][0]] as [string, string]));
+  if (grupos.some(grupo => !regiaoDoGrupo.has(grupo.id))) return vazio;
+  const regioes = [...contagem.entries()].map(([id, unidades]) => ({ id, nome: id, sigla: "", rotuloGrupo: "", unidades }))
+    .sort((a, b) => comparar(a.nome, b.nome));
+  return { regioes, regiaoDoGrupo };
 }
 /** Grupo da lista que corresponde a uma bolha de grupo do motor: pelo identificador ("uf:13", "estado:13" ou "13"), senão pela
  * sigla ou pelo nome no rótulo. Só associa; null quando não acha. */
@@ -2135,7 +2170,7 @@ export const UNIDADES_DO_CORTE: Record<PainelAtributo, { unidade: string; dica: 
 /** Nada escolhido no nível em análise: municípios sem nenhum marcado nem conjunto, ou estados sem nenhum marcado. O Brasil é
  * uma unidade só: escolher o nível já o seleciona. */
 export const semSelecao = (def: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">) =>
-  def.nivel === "brasil" ? false : def.nivel === "estados" ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
+  def.nivel === "brasil" ? false : emGrupos(def.nivel) ? !def.estados.length : baseVazia(def.base) && !def.conjuntos.length;
 /** A Análise Espacial com a Escolha dos territórios calculada (27/10/2026). Desde 06/11/2026 (item 4.1 do comando), a base dela é
  * sempre a seleção em uso; até essa data, a base podia vir da consulta (o país, uma região, um estado...), e a análise continuava
  * sem territórios selecionados. */
@@ -2164,7 +2199,22 @@ export function limparEscolha<E extends Pick<DefinicaoAnalise, "nivel" | "base" 
 /** O que a árvore precisa saber da fonte: os grupos (os estados, na base do Brasil), as unidades de cada um, o grupo de uma unidade
  * e o total de unidades. */
 export type ContextoDaArvore = { grupos: GrupoInfo[]; unidadesDoGrupo: (grupo: string) => string[]; grupoDe: (id: string) => string;
-  total: number };
+  total: number;
+  /** O grupo de cima de uma planilha com dois níveis (07/11/2026): os grupos de cima e o de cada grupo. */
+  regioes?: GrupoInfo[]; regiaoDoGrupo?: (grupo: string) => string };
+/** Os grupos de um grupo de cima (as condados de uma zona), pela árvore. */
+export const gruposDaRegiao = (regiao: string, c: Pick<ContextoDaArvore, "grupos" | "regiaoDoGrupo">) =>
+  c.regiaoDoGrupo ? c.grupos.filter(grupo => c.regiaoDoGrupo!(grupo.id) === regiao).map(grupo => grupo.id) : [];
+/** Os grupos de cima inteiros entre os grupos inteiros: os que têm todos os grupos deles na lista; null se algum grupo da lista
+ * fica de fora de um grupo de cima inteiro. */
+function regioesInteiras(estados: string[], c: ContextoDaArvore): string[] | null {
+  if (!c.regioes?.length || !estados.length) return null;
+  const inteiros = new Set(estados);
+  const regioes = c.regioes.filter(regiao => { const grupos = gruposDaRegiao(regiao.id, c); return grupos.length > 0 && grupos.every(id => inteiros.has(id)); })
+    .map(regiao => regiao.id);
+  const cobertos = new Set(regioes.flatMap(regiao => gruposDaRegiao(regiao, c)));
+  return regioes.length && estados.every(id => cobertos.has(id)) ? regioes : null;
+}
 export type EscolhaDaSelecao = Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">;
 const BRASIL_INTEIRO: PainelMunicipios = { todos: true, estados: [], ids: [] };
 
@@ -2192,6 +2242,14 @@ export function unidadesPossiveis(base: PainelMunicipios, c: ContextoDaArvore): 
   if (n.todos) return { estados: c.grupos.map(grupo => grupo.id), brasil: true, vazia: false };
   return { estados: n.estados.length && !n.ids.length ? n.estados : null, brasil: false, vazia: baseVazia(n) };
 }
+/** Os grupos de cima possíveis como unidades (07/11/2026): todos, com o todo; senão, os inteiros, quando a seleção é só de grupos de
+ * cima inteiros; senão, nenhum. */
+export function regioesPossiveis(base: PainelMunicipios, c: ContextoDaArvore): string[] | null {
+  if (!c.regioes?.length) return null;
+  const possiveis = unidadesPossiveis(base, c);
+  if (possiveis.brasil) return c.regioes.map(regiao => regiao.id);
+  return possiveis.estados ? regioesInteiras(possiveis.estados, c) : null;
+}
 
 /** Uma mudança na árvore: a escolha nova, normalizada. A unidade de análise continua quando a escolha nova ainda a permite (os
  * estados, com os estados inteiros que ficaram; o Brasil, com o Brasil inteiro); senão, volta aos municípios. */
@@ -2200,6 +2258,8 @@ export function escolhaDaArvore<E extends EscolhaDaSelecao>(atual: E, novaBase: 
   const possiveis = unidadesPossiveis(base, c);
   if (atual.nivel === "brasil" && possiveis.brasil) return { ...atual, base };
   if (atual.nivel === "estados" && possiveis.estados?.length) return { ...atual, base, estados: possiveis.estados };
+  const regioes = atual.nivel === "regioes" ? regioesPossiveis(base, c) : null;
+  if (regioes?.length) return { ...atual, base, estados: regioes };
   return { ...atual, base, nivel: "municipios" };
 }
 
@@ -2212,12 +2272,19 @@ export function escolhaDaUnidade<E extends EscolhaDaSelecao>(atual: E, nivel: Pa
     if (possiveis.vazia) return { ...atual, nivel, base: { ...BRASIL_INTEIRO }, estados: c.grupos.map(grupo => grupo.id) };
     return possiveis.estados?.length ? { ...atual, nivel, base: normalizarArvore(atual.base, c), estados: possiveis.estados } : null;
   }
+  // O grupo de cima (07/11/2026): com os grupos de cima inteiros (ou, sem nada marcado, todos).
+  if (nivel === "regioes") {
+    if (!c.regioes?.length) return null;
+    if (possiveis.vazia) return { ...atual, nivel, base: { ...BRASIL_INTEIRO }, estados: c.regioes.map(regiao => regiao.id) };
+    const regioes = regioesPossiveis(atual.base, c);
+    return regioes?.length ? { ...atual, nivel, base: normalizarArvore(atual.base, c), estados: regioes } : null;
+  }
   return possiveis.vazia || possiveis.brasil ? { ...atual, nivel, base: { ...BRASIL_INTEIRO } } : null;
 }
 
 /** Por que a unidade não vale com a escolha atual (texto da tela). */
-export function motivoDaUnidade(nivel: "estados" | "brasil", rotulos: RotulosTerritoriais, brasil = true): string {
-  const unidade = rotulos.unidade, grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+export function motivoDaUnidade(nivel: "estados" | "brasil" | "regioes", rotulos: RotulosTerritoriais, brasil = true): string {
+  const unidade = rotulos.unidade, grupo = rotulosDaVista(rotulos, nivel).grupo ?? ROTULOS_GENERICOS.grupo!;
   return nivel === "brasil"
     ? "O Brasil como uma unidade vale com o Brasil inteiro marcado, sem exclusões: marque o Brasil, no alto da lista."
     : maiuscula(artigo(grupo, true)) + " " + grupo.plural + " como unidades valem com " + grupo.plural + " inteir" + (fem(grupo) ? "as" : "os") +
@@ -2235,6 +2302,8 @@ export function unificarEscolha<E extends EscolhaDaSelecao>(escolha: E, c: Conte
   if (escolha.nivel === "brasil") return { ...escolha, base: { ...BRASIL_INTEIRO } };
   if (escolha.nivel === "estados")
     return { ...escolha, base: normalizarArvore({ todos: false, estados: [...escolha.estados], ids: [] }, c) };
+  if (escolha.nivel === "regioes")
+    return { ...escolha, base: normalizarArvore({ todos: false, estados: escolha.estados.flatMap(regiao => gruposDaRegiao(regiao, c)), ids: [] }, c) };
   return { ...escolha, base: normalizarArvore(escolha.base, c) };
 }
 
@@ -2283,6 +2352,12 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
   const grupoParte = (id: string): ParteDaTrilha => ({ chave: "grupo", rotulo: nomeDoGrupo(id), id, atual: false });
   const selecao: ParteDaTrilha = { chave: "selecao", rotulo: NOME_DA_SELECAO, id: null, atual: false };
   if (def.nivel === "brasil") return fim("todo", [todo]);
+  // O grupo de cima (07/11/2026): todos são o todo; os demais, uma seleção (a trilha com o grupo de cima vem na parte seguinte).
+  if (def.nivel === "regioes") {
+    const todos = !!c.arvore.regioes?.length && def.estados.length >= c.arvore.regioes.length;
+    if (todos || def.base.todos) return fim("todo", [todo]);
+    return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
+  }
   if (def.nivel === "estados") {
     const todos = c.arvore.grupos.length > 0 && def.estados.length >= c.arvore.grupos.length;
     if (todos || def.base.todos) return fim("todo", [todo]);
@@ -2362,13 +2437,18 @@ export type OpcaoVerPor = { nivel: PainelNivel; rotulo: string; apoio: string };
  * (o estado é o atalho de todos os estados); nos demais lugares, só o município, e o controle não aparece (uma opção só). O todo
  * nunca é opção: ele é a referência fixa (decisão do responsável de 06/11/2026). */
 export function opcoesVerPor(lugar: LugarDaTrilha, def: Pick<DefinicaoAnalise, "base">, c: { arvore: ContextoDaArvore; comNiveis: boolean;
-  rotulos: RotulosTerritoriais }): OpcaoVerPor[] {
+  rotulos: RotulosTerritoriais;
+  /** O grupo de cima existe (07/11/2026, item 1 do comando: "Ver por: Região | Distrito | Concelho"). */
+  comRegioes?: boolean }): OpcaoVerPor[] {
   if (!c.comNiveis || !c.arvore.grupos.length) return [];
   const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, unidade = c.rotulos.unidade;
-  const comEstados = lugar.tipo === "todo" || lugar.tipo === "nenhum" ||
-    (lugar.tipo === "selecao" && !!unidadesPossiveis(def.base, c.arvore).estados?.length);
+  const selecao = lugar.tipo === "selecao";
+  const comEstados = lugar.tipo === "todo" || lugar.tipo === "nenhum" || (selecao && !!unidadesPossiveis(def.base, c.arvore).estados?.length);
   if (!comEstados) return [];
+  const comRegioes = !!c.comRegioes && !!c.arvore.regioes?.length && (!selecao || !!regioesPossiveis(def.base, c.arvore)?.length);
+  const superior = c.rotulos.grupo_superior ?? GRUPO_SUPERIOR_GENERICO;
   return [
+    ...(comRegioes ? [{ nivel: "regioes" as const, rotulo: maiuscula(superior.singular), apoio: "cada ponto é " + umA(superior) }] : []),
     { nivel: "estados", rotulo: maiuscula(grupo.singular), apoio: "cada ponto é " + umA(grupo) },
     { nivel: "municipios", rotulo: maiuscula(unidade.singular), apoio: "cada ponto é " + umA(unidade) },
   ];
@@ -2401,7 +2481,7 @@ export const nomeCurtoDoNivel = (nivel: { nome?: string | null; rotulo: string }
 export function comparacaoQueContinua(antes: Pick<DefinicaoAnalise, "nivel" | "comparar">,
   depois: Pick<DefinicaoAnalise, "nivel" | "base" | "estados" | "conjuntos">, grupoDe: (id: string) => string = prefixoDe): string[] {
   if (!antes.comparar.length || antes.nivel !== depois.nivel) return [];
-  const continua = (id: string) => depois.nivel === "estados" ? depois.estados.includes(id.replace(/^(?:uf|estado):/, ""))
+  const continua = (id: string) => emGrupos(depois.nivel) ? depois.estados.includes(id.replace(/^(?:uf|estado):/, ""))
     : depois.nivel === "municipios" ? (/^c\d+$/.test(id) ? depois.conjuntos.some(conjunto => conjunto.id === id)
       : unidadeMarcada(depois.base, id, grupoDe(id))) : false;
   return antes.comparar.every(continua) ? antes.comparar : [];
@@ -2483,7 +2563,7 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
     }
     if (familia === "rotatividade" && def.rotatividade) opcoes.rotatividade = def.rotatividade;
   }
-  if (def.nivel === "estados") {
+  if (emGrupos(def.nivel)) {
     const todos = c.todosOsEstados ?? [];
     const escolhidos = todos.length ? normalizarEstados(def.estados, todos) : [...new Set(def.estados)].sort(comparar);
     if (!todos.length || escolhidos.length < todos.length) opcoes.estados = escolhidos;
@@ -2731,7 +2811,7 @@ export function tituloDaAnalise(p: { fonte: "brasil" | "arquivo" | null; familia
   if (!p.fonte) return { titulo: TITULO_DO_SISTEMA, subtitulo: TEXTO_ESCOLHA_DOS_DADOS };
   const especie = INDICADORES[p.indicador].rotulo;
   const quem = profissionaisDe(p.categoria);
-  const rotuloBolha = p.nivel === "estados" ? p.rotulos.grupo ?? ROTULOS_GENERICOS.grupo! : p.rotulos.unidade;
+  const rotuloBolha = emGrupos(p.nivel) ? rotulosDaVista(p.rotulos, p.nivel).grupo ?? ROTULOS_GENERICOS.grupo! : p.rotulos.unidade;
   // O nível Brasil (até 06/11/2026; não é mais escolhido na tela): uma bolha, uma linha, o total nacional.
   const cadaBolha = p.nivel === "brasil" ? "A bolha é o Brasil inteiro, com o total nacional de profissionais. O tamanho mostra a população."
     : textoCadaBolha(rotuloBolha);
@@ -2947,9 +3027,9 @@ export type MapaDisponivel = { disponivel: boolean; motivo: string | null; atalh
  * a visão Séries é só do gráfico. Pendências do motor (o referencial de uma planilha) não desligam o mapa: aparecem nele. */
 export function disponibilidadeDoMapa(c: { fonte: "brasil" | "arquivo" | null; temCoordenadas: boolean; nivel: PainelNivel;
   series: boolean; rotatividade: boolean; rotulos: RotulosTerritoriais }): MapaDisponivel {
-  const unidade = c.rotulos.unidade, grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
+  const unidade = c.rotulos.unidade, grupo = rotulosDaVista(c.rotulos, c.nivel).grupo ?? ROTULOS_GENERICOS.grupo!;
   if (!c.fonte) return { disponivel: false, motivo: "Escolha os dados para começar.", atalho: null };
-  if (c.nivel === "estados" && c.fonte !== "brasil") return { disponivel: false, atalho: "Ver " + artigo(unidade, true) + " " + unidade.plural + " no mapa",
+  if (emGrupos(c.nivel) && c.fonte !== "brasil") return { disponivel: false, atalho: "Ver " + artigo(unidade, true) + " " + unidade.plural + " no mapa",
     motivo: "No mapa desta fonte, cada ponto é " + umA(unidade) + ": " + artigo(grupo, true) + " " + grupo.plural + " não têm um ponto de desenho." };
   if (c.nivel === "brasil") return { disponivel: false, atalho: null, motivo: "No mapa, cada ponto é " + umA(unidade) + " ou " + umA(grupo) + "." };
   if (!c.temCoordenadas) return { disponivel: false, atalho: null, motivo: c.rotatividade

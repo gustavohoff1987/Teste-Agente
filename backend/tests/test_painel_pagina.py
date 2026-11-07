@@ -175,7 +175,11 @@ def test_page_contract_has_the_fixed_top_fields_and_strict_keys(repo):
     assert ok(page(info, indicador="quantidade"))["chave_execucao"] != body["chave_execucao"]
     # Chaves estritas, mensagens em português.
     refused(page(info, desconhecida=1), "não reconhecido")
-    refused(page(info, nivel="regioes"), "Nível do gráfico inválido")
+    # Desde 07/11/2026 (item 1 do comando de 06/11/2026), "regioes" é o nível de grupo de cima de uma planilha com dois níveis
+    # (muda de propósito esta conferência, que o usava como exemplo de nível inválido): na base do Brasil, a recusa diz isso; um
+    # nível desconhecido continua inválido.
+    refused(page(info, nivel="paises"), "Nível do gráfico inválido")
+    refused(page(info, nivel="regioes"), "O nível regioes existe só nas planilhas com dois níveis de grupo")
     refused(post(info, nivel="municipios", competencia="202406", base={"municipios": {"todos": True}}),
             "Escolha o indicador do gráfico")
     refused(page(info, premissas={"crs": "SIRGAS2000"}), "as premissas vêm do perfil oficial")
@@ -1081,6 +1085,74 @@ def test_uploaded_districts_follow_the_received_labels_and_the_province_column(r
                        "premissas": {"count_unit": "pessoas"}, "base": {"municipios": {"estados": ["Província Sul"]}}},
                       mapping={key: value for key, value in DISTRICT_MAPPING.items() if key != "grupo_territorial"})
     refused(no_group, "não tem a coluna de grupo escolhida (papel grupo_territorial)")
+
+
+def macro_csv(macros):
+    """A planilha de distritos com a coluna de cima (macrorregião), um valor por distrito (`macros`)."""
+    lines = districts_csv().decode().splitlines()
+    out = [lines[0] + ";macrorregiao"]
+    for line in lines[1:]:
+        out.append(line + ";" + macros[line.split(";")[0]])
+    return ("\n".join(out) + "\n").encode()
+
+
+def test_dois_niveis_de_grupo_numa_planilha_a_regiao_pelas_unidades(repo):
+    """O segundo nível de grupo (07/11/2026, item 1 do comando de 06/11/2026: até dois níveis de grupo, das colunas que a pessoa
+    indicar; "Ver por: Região | Distrito | Concelho"): com o papel grupo_territorial_superior, o nivel "regioes" traz cada valor da
+    coluna de cima pelas unidades dele (a soma, sem o identificador individual, com a limitação), nunca pela soma dos grupos; a
+    disponibilidade diz se o nível existe; sem a coluna, com a hierarquia inconsistente ou na base do Brasil, a recusa."""
+    macros = {"Alto Rio": "Macro Leste", "Baixo Rio": "Macro Leste", "Campina": "Macro Oeste", "Serra": "Macro Oeste"}
+    mapping = {**DISTRICT_MAPPING, "grupo_territorial_superior": "macrorregiao"}
+    rotulos = {**LABELS, "grupo_superior": {"singular": "macrorregião", "plural": "macrorregiões"}}
+    pedido = {"nivel": "regioes", "indicador": "densidade", "competencia": "2024", "rotulos": rotulos,
+              "premissas": {"count_unit": "pessoas"}}
+    body = ok(upload(pedido, mapping=mapping, contents=macro_csv(macros)))
+    itens = by_id(body)
+    assert list(itens) == ["uf:Macro Leste", "uf:Macro Oeste"]
+    leste, oeste = itens["uf:Macro Leste"], itens["uf:Macro Oeste"]
+    # Leste: Alto Rio (16, 1.000) e Baixo Rio (5, 500); Oeste: Campina (20, 2.000) e Serra (4, 400), em 2024.
+    assert (leste["tipo"], leste["rotulo"], leste["quantidade"], leste["populacao"], leste["densidade"]) == (
+        "estado", "Macro Leste", 21, 1500, 14)
+    assert (oeste["quantidade"], oeste["populacao"], oeste["densidade"]) == (24, 2400, 10)
+    assert leste["contagem"] == "SOMA_DOS_COMPONENTES" and "SOMA_COM_POSSIVEL_DUPLA_CONTAGEM" in body["limitacoes"]
+    assert body["nivel"] == "regioes" and body["rotulos"]["grupo_superior"]["plural"] == "macrorregiões"
+    assert any(note.startswith("Cada macrorregião vem dos distritos dela: a soma") for note in body["notas"]), body["notas"]
+    assert body["disponibilidade"]["regioes"]["disponivel"] is True
+    assert body["contexto"]["todo"]["quantidade"] == 45
+    # Uma macrorregião escolhida; a desconhecida é recusada com o nome do nível de cima.
+    assert list(by_id(ok(upload({**pedido, "estados": ["Macro Oeste"]}, mapping=mapping, contents=macro_csv(macros))))) == [
+        "uf:Macro Oeste"]
+    refused(upload({**pedido, "estados": ["Macro Norte"]}, mapping=mapping, contents=macro_csv(macros)),
+            "Macrorregiões inexistentes na planilha")
+    # A Tendência no nível de cima, pelas mesmas somas em cada competência.
+    tendencia = ok(upload({**pedido, "competencia_inicial": "2021", "tendencia": {"competencias": YEARS}}, mapping=mapping,
+                          contents=macro_csv(macros)))
+    assert tendencia["tendencia"]["rotulo_itens"] == "macrorregiões"
+    # No nível dos distritos e das províncias, nada muda com a coluna de cima.
+    assert list(by_id(ok(upload({**pedido, "nivel": "estados"}, mapping=mapping, contents=macro_csv(macros))))) == [
+        "uf:Província Norte", "uf:Província Sul"]
+    # Sem a coluna de cima, o nível não existe (a disponibilidade diz por quê).
+    sem_cima = ok(districts())
+    assert sem_cima["disponibilidade"]["regioes"]["disponivel"] is False
+    assert "grupo_territorial_superior" in sem_cima["disponibilidade"]["regioes"]["motivo"]
+    refused(upload(pedido), "Sem a coluna do nível acima da província (papel grupo_territorial_superior)")
+    # Hierarquia inconsistente: a mesma província em duas macrorregiões.
+    quebrada = {**macros, "Baixo Rio": "Macro Oeste"}
+    recusada = ok(upload({**pedido, "nivel": "municipios", "base": {"municipios": {"todos": True}}}, mapping=mapping,
+                         contents=macro_csv(quebrada)))
+    assert recusada["disponibilidade"]["regioes"]["disponivel"] is False
+    assert recusada["disponibilidade"]["regioes"]["motivo"].startswith(
+        "A coluna da macrorregião põe a mesma província em mais de uma macrorregião (Província Norte)")
+    refused(upload(pedido, mapping=mapping, contents=macro_csv(quebrada)), "põe a mesma província em mais de uma macrorregião")
+    # A coluna de cima exige a do grupo e precisa ser outra.
+    refused(upload(pedido, mapping={key: value for key, value in mapping.items() if key != "grupo_territorial"},
+                   contents=macro_csv(macros)), "escolha antes a coluna da província (grupo_territorial)")
+    refused(upload(pedido, mapping={**mapping, "grupo_territorial_superior": "provincia"}, contents=macro_csv(macros)),
+            "precisa ser diferente das colunas de distritos, do código e da província")
+    # Na base do Brasil, o nível regioes não existe, e o papel novo é recusado no mapeamento.
+    info = inspection()
+    refused(page(info, nivel="regioes"), "O nível regioes existe só nas planilhas com dois níveis de grupo")
+    assert "regioes" not in ok(page(info))["disponibilidade"]
 
 
 def test_territorial_messages_follow_the_structure_of_the_spreadsheet(repo):

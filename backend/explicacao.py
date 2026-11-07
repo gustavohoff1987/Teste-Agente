@@ -160,7 +160,10 @@ def _segmento_confere(segmento: dict, view: dict) -> bool:
 # --------------------------------------------------------------------------------------------- utilidades
 def unidades(body: dict) -> tuple[str, str, bool]:
     rotulos = body.get("rotulos") or {}
-    unidade = (rotulos.get("grupo") if body.get("nivel") == "estados" else rotulos.get("unidade")) or \
+    # Os itens de um nível de grupo pelo nome do nível: o grupo ou, no de cima (07/11/2026), o grupo de cima.
+    nivel = body.get("nivel")
+    unidade = ((rotulos.get("grupo_superior") or {"singular": "região", "plural": "regiões", "genero": "f"}) if nivel == "regioes"
+               else rotulos.get("grupo") if nivel == "estados" else rotulos.get("unidade")) or \
         {"singular": "unidade", "plural": "unidades", "genero": "f"}
     return unidade["singular"], unidade["plural"], unidade.get("genero") == "f"
 
@@ -1007,8 +1010,12 @@ def _dados(c: Composicao, body: dict | None, fonte: dict | None) -> None:
 
 def _selecao(c: Composicao, body: dict | None, ctx: dict, singular: str, plural: str, feminino: bool = False) -> None:
     municipios = ctx.get("municipios") or {}
-    if ctx.get("nivel") == "estados":
-        c.text("A seleção está no nível dos estados")
+    if ctx.get("nivel") in ("estados", "regioes"):
+        # O nível de grupo pelo nome da base (07/11/2026; antes, "dos estados" também numa planilha).
+        rotulos = (body or {}).get("rotulos") or {}
+        grupo = (rotulos.get("grupo_superior") if ctx.get("nivel") == "regioes" else rotulos.get("grupo")) or \
+            {"singular": "estado", "plural": "estados"}
+        c.text("A seleção está no nível d" + ("as " if _feminino(grupo) else "os ") + grupo["plural"])
     elif ctx.get("nivel") == "brasil":
         c.text("A seleção é o Brasil como uma unidade (o total nacional)")
     elif municipios.get("todos"):

@@ -19,7 +19,7 @@ export function recusaDoArquivo(nome: string, tamanho: number): string | null {
 export type Familia = "distribuicao" | "espacial" | "tendencia" | "rotatividade";
 export type Indicador = "densidade" | "quantidade";
 /** O nível em análise: os municípios, os estados como unidades ou o Brasil inteiro como uma unidade (24/10/2026). */
-export type Nivel = "estados" | "municipios" | "brasil";
+export type Nivel = "estados" | "municipios" | "brasil" | "regioes";
 /** Universo do gráfico, na forma de `options.base.municipios` do motor. */
 export type MunicipiosDoGrafico = { todos: boolean; estados: string[]; ids: string[] };
 /** Como se chamam as unidades territoriais e os grupos delas, no singular e no plural, com o gênero (07/11/2026, item 1 do
@@ -29,8 +29,10 @@ export type Rotulo = { singular: string; plural: string; genero?: "m" | "f" };
 export type ArtigoDoTodo = "" | "o" | "a" | "os" | "as";
 export const ARTIGOS_DO_TODO: [ArtigoDoTodo, string][] = [["", "sem artigo (de Portugal)"], ["o", "o (do Japão)"],
   ["a", "a (da Solária)"], ["os", "os (dos Países Baixos)"], ["as", "as (das Filipinas)"]];
-/** Os nomes da base: a unidade, o grupo e, numa planilha, o todo (o nome próprio, opcional; sem ele, "Toda a base"). */
-export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null; todo?: { nome: string; artigo: ArtigoDoTodo } | null };
+/** Os nomes da base: a unidade, o grupo e, numa planilha, o todo (o nome próprio, opcional; sem ele, "Toda a base") e, desde
+ * 07/11/2026 (item 1 do comando de 06/11/2026, até dois níveis de grupo), o grupo de cima (a região acima do distrito). */
+export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null; todo?: { nome: string; artigo: ArtigoDoTodo } | null;
+  grupo_superior?: Rotulo | null };
 /** A fonte que a área usa: a base do Brasil ou uma planilha enviada, com o mapeamento confirmado na tela. */
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string;
@@ -154,6 +156,7 @@ export const ROTULOS_DO_BRASIL: Rotulos = {
 };
 export const UNIDADE_GENERICA: Rotulo = { singular: "unidade", plural: "unidades" };
 export const GRUPO_GENERICO: Rotulo = { singular: "grupo", plural: "grupos" };
+export const GRUPO_SUPERIOR_GENERICO: Rotulo = { singular: "região", plural: "regiões" };
 
 const semAcento = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -225,8 +228,8 @@ export function rotulosSugeridos(unidade: string | undefined, grupo: string | un
 // Colunas de uma planilha enviada (painel "Colunas")
 
 /** Papéis das colunas. `grupo_territorial` é a coluna-mãe que agrupa as unidades (estado, província, região). */
-export type Papel = "territory" | "territory_id" | "grupo_territorial" | "period" | "category" | "count" | "population" |
-  "latitude" | "longitude" | "identity";
+export type Papel = "territory" | "territory_id" | "grupo_territorial" | "grupo_territorial_superior" | "period" | "category" |
+  "count" | "population" | "latitude" | "longitude" | "identity";
 export type Mapeamento = Partial<Record<Papel, string>>;
 export const PAPEIS: { papel: Papel; rotulo: string; ajuda: string; obrigatorio: boolean; vazio: string }[] = [
   { papel: "territory", rotulo: "Unidade territorial", ajuda: "A unidade de cada linha: município, distrito, condado…",
@@ -235,6 +238,10 @@ export const PAPEIS: { papel: Papel; rotulo: string; ajuda: string; obrigatorio:
     vazio: "Sem código" },
   { papel: "grupo_territorial", rotulo: "Grupo territorial", ajuda: "A coluna-mãe que agrupa as unidades: estado, província…",
     obrigatorio: false, vazio: "Sem grupo" },
+  // O segundo nível de grupo (07/11/2026, item 1 do comando: até dois, das colunas que a pessoa indicar; nada é presumido).
+  { papel: "grupo_territorial_superior", rotulo: "Grupo de cima",
+    ajuda: "A coluna que agrupa os grupos: região, macrorregião… (o nível acima do grupo territorial)", obrigatorio: false,
+    vazio: "Sem grupo de cima" },
   { papel: "period", rotulo: "Período", ajuda: "Ano ou competência (AAAAMM)", obrigatorio: true, vazio: "Escolher coluna" },
   { papel: "category", rotulo: "Categoria", ajuda: "Profissão ou categoria", obrigatorio: false, vazio: "Sem categoria" },
   { papel: "count", rotulo: "Quantidade", ajuda: "A contagem de profissionais", obrigatorio: true, vazio: "Escolher coluna" },
@@ -267,7 +274,7 @@ export type EscolhasDaPlanilha = {
   objeto: string;
   rotulos: Rotulos;
   /** Nomes editados pela pessoa: deixam de acompanhar a sugestão quando a coluna muda. */
-  rotulosEditados: { unidade: boolean; grupo: boolean };
+  rotulosEditados: { unidade: boolean; grupo: boolean; grupo_superior?: boolean };
 };
 
 /** Escolhas iniciais: só os papéis reconhecidos por regra conclusiva (o mapeamento sugerido pelo /api/inspect). As
@@ -299,27 +306,33 @@ export function escolherColuna(escolhas: EscolhasDaPlanilha, papel: Papel, colun
       : papel === "grupo_territorial" && (!escolhas.rotulosEditados.grupo || !escolhas.rotulos.grupo)
         ? sugerirRotulo(coluna) ?? { ...GRUPO_GENERICO } : escolhas.rotulos.grupo ?? sugerirRotulo(mapeamento.grupo_territorial)
         ?? { ...GRUPO_GENERICO },
+    // O grupo de cima (07/11/2026): o nome acompanha a coluna como o do grupo; sem a coluna, sai.
+    ...(mapeamento.grupo_territorial_superior ? { grupo_superior: papel === "grupo_territorial_superior" &&
+      (!escolhas.rotulosEditados.grupo_superior || !escolhas.rotulos.grupo_superior) ? sugerirRotulo(coluna) ?? { ...GRUPO_SUPERIOR_GENERICO }
+      : escolhas.rotulos.grupo_superior ?? sugerirRotulo(mapeamento.grupo_territorial_superior) ?? { ...GRUPO_SUPERIOR_GENERICO } } : {}),
   };
   return { ...escolhas, mapeamento, escolhidos, rotulos,
     ...(contagemMudou ? { unidadeDeContagem: "", textoDaUnidade: "" } : {}),
-    rotulosEditados: { unidade: escolhas.rotulosEditados.unidade, grupo: mapeamento.grupo_territorial ? escolhas.rotulosEditados.grupo : false } };
+    rotulosEditados: { unidade: escolhas.rotulosEditados.unidade, grupo: mapeamento.grupo_territorial ? escolhas.rotulosEditados.grupo : false,
+      ...(mapeamento.grupo_territorial_superior && escolhas.rotulosEditados.grupo_superior ? { grupo_superior: true } : {}) } };
 }
 
-/** A pessoa escreve o nome das unidades ou dos grupos (singular ou plural). */
-export function editarRotulo(escolhas: EscolhasDaPlanilha, qual: "unidade" | "grupo", forma: "singular" | "plural",
+/** O rótulo de um dos nomes editáveis da base (a unidade, o grupo ou o grupo de cima). */
+type QualRotulo = "unidade" | "grupo" | "grupo_superior";
+const rotuloAtual = (escolhas: EscolhasDaPlanilha, qual: QualRotulo): Rotulo => qual === "unidade" ? escolhas.rotulos.unidade
+  : qual === "grupo" ? escolhas.rotulos.grupo ?? { ...GRUPO_GENERICO } : escolhas.rotulos.grupo_superior ?? { ...GRUPO_SUPERIOR_GENERICO };
+
+/** A pessoa escreve o nome das unidades, dos grupos ou dos grupos de cima (singular ou plural). */
+export function editarRotulo(escolhas: EscolhasDaPlanilha, qual: QualRotulo, forma: "singular" | "plural",
   valor: string): EscolhasDaPlanilha {
-  const atual = qual === "unidade" ? escolhas.rotulos.unidade : escolhas.rotulos.grupo ?? { ...GRUPO_GENERICO };
-  const novo = { ...atual, [forma]: valor };
-  return { ...escolhas, rotulos: qual === "unidade" ? { ...escolhas.rotulos, unidade: novo } : { ...escolhas.rotulos, grupo: novo },
-    rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
+  const novo = { ...rotuloAtual(escolhas, qual), [forma]: valor };
+  return { ...escolhas, rotulos: { ...escolhas.rotulos, [qual]: novo }, rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
 }
 
 /** O gênero de um nome, escolhido pela pessoa (07/11/2026, item 1): a concordância da tela e do motor ("a comuna", "o distrito"). */
-export function editarGenero(escolhas: EscolhasDaPlanilha, qual: "unidade" | "grupo", genero: "m" | "f"): EscolhasDaPlanilha {
-  const atual = qual === "unidade" ? escolhas.rotulos.unidade : escolhas.rotulos.grupo ?? { ...GRUPO_GENERICO };
-  const novo = { ...atual, genero };
-  return { ...escolhas, rotulos: qual === "unidade" ? { ...escolhas.rotulos, unidade: novo } : { ...escolhas.rotulos, grupo: novo },
-    rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
+export function editarGenero(escolhas: EscolhasDaPlanilha, qual: QualRotulo, genero: "m" | "f"): EscolhasDaPlanilha {
+  const novo = { ...rotuloAtual(escolhas, qual), genero };
+  return { ...escolhas, rotulos: { ...escolhas.rotulos, [qual]: novo }, rotulosEditados: { ...escolhas.rotulosEditados, [qual]: true } };
 }
 
 /** O nome do todo e o artigo dele (07/11/2026, item 1 do comando): opcional; sem nome, a tela diz "Toda a base". */
@@ -345,6 +358,11 @@ export function pendenciasDasColunas(escolhas: EscolhasDaPlanilha): string[] {
     faltam.push("Diga como se chamam as unidades, no singular e no plural.");
   if (mapeamento.grupo_territorial && (!rotulos.grupo?.singular.trim() || !rotulos.grupo?.plural.trim()))
     faltam.push("Diga como se chamam os grupos, no singular e no plural.");
+  // O grupo de cima (07/11/2026) fica acima do grupo: sem a coluna do grupo, não há onde pô-lo.
+  if (mapeamento.grupo_territorial_superior && !mapeamento.grupo_territorial)
+    faltam.push("Escolha a coluna do grupo territorial: o grupo de cima fica acima dele.");
+  if (mapeamento.grupo_territorial_superior && (!rotulos.grupo_superior?.singular.trim() || !rotulos.grupo_superior?.plural.trim()))
+    faltam.push("Diga como se chamam os grupos de cima, no singular e no plural.");
   return faltam;
 }
 
@@ -378,7 +396,9 @@ export function contextoDaPlanilha(escolhas: EscolhasDaPlanilha): { mapping: Rec
     ...referencialDaPlanilha(escolhas),
     ...(comCoordenadas(escolhas) && escolhas.separador ? { number_format: escolhas.separador } : {}),
     ...(escolhas.mapeamento.grupo_territorial
-      ? { hierarchy_columns: { territorio_superior_1: escolhas.mapeamento.grupo_territorial } } : {}),
+      ? { hierarchy_columns: { territorio_superior_1: escolhas.mapeamento.grupo_territorial,
+        ...(escolhas.mapeamento.grupo_territorial_superior ? { territorio_superior_2: escolhas.mapeamento.grupo_territorial_superior } : {}) } }
+      : {}),
   };
   return { mapping, options };
 }

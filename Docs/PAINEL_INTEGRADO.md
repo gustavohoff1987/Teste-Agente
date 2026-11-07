@@ -351,7 +351,7 @@ Chaves estritas: além das do contrato de 21/10, só estas (desconhecida → 422
 
 | Chave | Regra |
 |---|---|
-| `nivel` | Obrigatória: `"municipios"`, `"estados"` ou, desde 24/10/2026, `"brasil"`. `brasil` só na base do Brasil (planilha → 422 "O nível Brasil existe só na base do Brasil, …"). `estados` na base do Brasil e, desde 07/11/2026 (item 1 do comando de 06/11/2026), numa planilha com a coluna-mãe (o papel `grupo_territorial`): cada grupo vira um item (`tipo: "estado"`, `id: "uf:<valor>"`, `rotulo`: o valor, `uf: null`), com os valores pelas unidades dele — com o identificador individual em todas as linhas, as pessoas únicas (`contagem: "UNIDADES_DISTINTAS"`); senão, a soma (`contagem: "SOMA_DOS_COMPONENTES"`, `limitacoes: ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]`, também no topo), a decisão "Soma automática". A Tendência e a Série do nível vêm das mesmas somas em cada competência; `estados` leva os valores (ou os ids "uf:"), e o desconhecido → 422 "… inexistentes na planilha". Planilha sem a coluna-mãe → 422 "Sem a coluna d… (papel grupo_territorial), não há nível acima …". |
+| `nivel` | Obrigatória: `"municipios"`, `"estados"`, desde 24/10/2026, `"brasil"` e, desde 07/11/2026, `"regioes"` (o nível de grupo de cima de uma planilha com o papel `grupo_territorial_superior` e a hierarquia consistente: cada valor da coluna de cima vira um item, `tipo: "estado"`, `id: "uf:<valor>"`, com os valores pelas unidades dele, nunca pela soma dos grupos, e as mesmas regras do nível estados de uma planilha; `estados` leva os escolhidos; sem a coluna → 422 "Sem a coluna do nível acima d… (papel grupo_territorial_superior), …"; hierarquia inconsistente → 422 com o motivo; base do Brasil → 422 "O nível regioes existe só nas planilhas com dois níveis de grupo; …"). `brasil` só na base do Brasil (planilha → 422 "O nível Brasil existe só na base do Brasil, …"). `estados` na base do Brasil e, desde 07/11/2026 (item 1 do comando de 06/11/2026), numa planilha com a coluna-mãe (o papel `grupo_territorial`): cada grupo vira um item (`tipo: "estado"`, `id: "uf:<valor>"`, `rotulo`: o valor, `uf: null`), com os valores pelas unidades dele — com o identificador individual em todas as linhas, as pessoas únicas (`contagem: "UNIDADES_DISTINTAS"`); senão, a soma (`contagem: "SOMA_DOS_COMPONENTES"`, `limitacoes: ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]`, também no topo), a decisão "Soma automática". A Tendência e a Série do nível vêm das mesmas somas em cada competência; `estados` leva os valores (ou os ids "uf:"), e o desconhecido → 422 "… inexistentes na planilha". Planilha sem a coluna-mãe → 422 "Sem a coluna d… (papel grupo_territorial), não há nível acima …". |
 | `estados` | Só no nível estados (24/10/2026): os estados escolhidos, pelos prefixos IBGE (`["29", "42"]`) ou pelos ids (`"uf:29"`), sem repetir; os itens vêm na ordem do código. Sem a lista, todos os estados da fonte estadual, como antes. Fora do nível estados → 422 "A lista estados vale só no nível estados: …"; lista vazia ou repetida → 422 "Estados inválidos: …"; estado sem registro → 422 "Estado sem registro na fonte estadual: …". |
 | `indicador` | Obrigatória: `"densidade"` ou `"quantidade"`, o indicador do gráfico. Vale para `grupos`, `grupos_mapa`, `faixas`, `tendencia`, `comparar` e para `ordenar` com `variacao`. Densidade sem população na planilha → 422 "A planilha não tem coluna de população associada: …". |
 | `base` | Como no contrato de 21/10, só no nível municípios. Na planilha, `estados` traz os valores do grupo (coluna `grupo_territorial`) e `ids` os identificadores das unidades. |
@@ -705,6 +705,13 @@ região…). Só no formato com `nivel`, e só no nível municípios.
   **`grupo_territorial`**, a coluna-mãe opcional (província, estado, região), lida como o nível superior 1 de
   `describe_hierarchy` e `territory_catalog`, como no fluxo clássico: o motor o recebe em `hierarchy_columns`, não como
   papel da análise. Na base do Brasil, `grupo_territorial` é recusado (o grupo é o estado do código IBGE).
+  - Desde 07/11/2026 (item 1 do comando de 06/11/2026: até dois níveis de grupo), o papel **`grupo_territorial_superior`**: a
+    coluna acima do grupo (a região acima do distrito), lida como o nível superior 2 (`hierarchy_columns.territorio_superior_2`).
+    Exige `grupo_territorial` (sem ele → 422 "A coluna d… (grupo_territorial_superior) fica acima d…: escolha antes a coluna
+    d… (grupo_territorial).") e outra coluna (→ 422 "… precisa ser diferente das colunas de …, do código e d…"). Na base do
+    Brasil, recusado como o grupo. O nível de cima existe com a hierarquia consistente: cada grupo dentro de um valor só da
+    coluna de cima; senão, `disponibilidade.regioes` falsa, com o motivo ("A coluna da macrorregião põe a mesma província em
+    mais de uma macrorregião (…): sem uma hierarquia consistente, não há nível das macrorregiões.").
   - Ids das unidades: `code:<código>` quando o código está escolhido; senão `name:<nome>` (a identidade de `row_ids`).
   - Em `base.municipios`, `estados` traz os valores do grupo (`"Província Norte"`), e `ids` os ids das unidades. Unidade com
     mais de um valor de grupo na planilha não entra na escolha pelo grupo.
@@ -719,7 +726,10 @@ região…). Só no formato com `nivel`, e só no nível municípios.
   `category_constant` (sem ela), `duplicate_policy` (`remove_exact`) e `component_columns`. Chave desconhecida → 422
   "Premissa não reconhecida no gráfico: …". As premissas da análise (`*_confirmed`) continuam aplicadas pelo backend
   (`analysis_premises`), nunca enviadas pela tela.
-- **`rotulos`:** `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} | null}`, textos de até 40 caracteres.
+- **`rotulos`:** `{"unidade": {"singular", "plural", "genero"?}, "grupo": {...} | null}`, textos de até 40 caracteres; desde
+  07/11/2026, também `todo` (`{"nome", "artigo"}`) e `grupo_superior` (o nível de cima, com a forma do grupo; sem ele, "região"),
+  devolvidos na resposta quando recebidos. Numa planilha, a disponibilidade traz `regioes` (o nível de cima: verdadeira só com a coluna
+  dele e a hierarquia consistente; senão, o motivo); na base do Brasil, a chave não vem.
   Sem `genero`, o motor o deduz da primeira palavra só para a concordância dos artigos (feminino em -a, -ade, -ção, -são e
   -gião). Todas as mensagens, notas e motivos que citariam "município" ou "estado" usam esses rótulos, com o gênero de
   cada um ("Distritos base (2024): 2 de 2 com registro", "Províncias inexistentes na planilha …", "A coluna da província

@@ -117,7 +117,8 @@ CRITERION_SHAPE = ("Critério inválido: use {\"atributo\": \"densidade\", \"qua
                    "\"desc\" ou \"asc\"}.")
 # Página única (22/10/2026). O nível Brasil (24/10/2026): o país inteiro como uma unidade, da fonte nacional (D3 e D4).
 GROUP_ROLE = "grupo_territorial"
-LEVELS = ("municipios", "estados", "brasil")
+GROUP2_ROLE = "grupo_territorial_superior"
+LEVELS = ("municipios", "estados", "brasil", "regioes")
 BRAZIL_ID = "br"
 INDICATORS = {"densidade": "density", "quantidade": "quantity"}
 GROUP_TYPES = {"quartis": 4, "quintis": 5, "decis": 10}
@@ -213,12 +214,21 @@ class Rotulos:
     unidade: Rotulo
     grupo: Rotulo
     todo: Todo | None = None
+    # O nível de grupo de cima (07/11/2026, item 1 do comando de 06/11/2026: até dois níveis de grupo, do mais alto ao mais
+    # baixo): a região acima do distrito, numa planilha com a coluna do papel grupo_territorial_superior.
+    grupo_superior: Rotulo | None = None
 
     def public(self) -> dict:
         out = {"unidade": self.unidade.public(), "grupo": self.grupo.public()}
         if self.todo:
             out["todo"] = self.todo.public()
+        if self.grupo_superior:
+            out["grupo_superior"] = self.grupo_superior.public()
         return out
+
+    def do_nivel(self, nivel: str) -> Rotulo:
+        """O nome dos itens do nível de grupo em uso: o grupo ou, no nível de cima, o grupo superior."""
+        return (self.grupo_superior or PADRAO_SUPERIOR) if nivel == "regioes" else self.grupo
 
     def de_todo(self) -> str:
         """Numa planilha, de onde parte o todo: "da Solária", com o nome; sem ele, "de toda a base" (até 07/11/2026, "de toda
@@ -231,8 +241,10 @@ class Rotulos:
 
 BRASIL = Rotulos(Rotulo("município", "municípios"), Rotulo("estado", "estados"))
 PADRAO = Rotulos(Rotulo("unidade", "unidades", "f"), Rotulo("grupo", "grupos"))
+PADRAO_SUPERIOR = Rotulo("região", "regiões", "f")
 ROTULOS_SHAPE = ("Rótulos inválidos: use {\"unidade\": {\"singular\", \"plural\"}, \"grupo\": {\"singular\", \"plural\"} ou "
-                 "null}, com \"genero\" (\"m\" ou \"f\") opcional, e \"todo\": {\"nome\", \"artigo\"} opcional.")
+                 "null}, com \"genero\" (\"m\" ou \"f\") opcional, \"grupo_superior\" (o nível de cima, com a mesma forma) "
+                 "opcional e \"todo\": {\"nome\", \"artigo\"} opcional.")
 FEMININE = ("a", "ade", "ção", "são", "gião")
 
 
@@ -282,9 +294,11 @@ def _labels(raw, brazil: bool) -> Rotulos:
         return BRASIL
     if raw is None or raw == {}:
         return PADRAO
-    if not isinstance(raw, dict) or set(raw) - {"unidade", "grupo", "todo"}:
+    if not isinstance(raw, dict) or set(raw) - {"unidade", "grupo", "todo", "grupo_superior"}:
         raise ValueError(ROTULOS_SHAPE)
-    return Rotulos(_rotulo(raw.get("unidade"), PADRAO.unidade), _rotulo(raw.get("grupo"), PADRAO.grupo), _todo(raw.get("todo")))
+    superior = raw.get("grupo_superior")
+    return Rotulos(_rotulo(raw.get("unidade"), PADRAO.unidade), _rotulo(raw.get("grupo"), PADRAO.grupo), _todo(raw.get("todo")),
+                   _rotulo(superior, PADRAO_SUPERIOR) if superior is not None else None)
 
 
 # --------------------------------------------------------------------------------------------- estruturas
@@ -306,6 +320,11 @@ class Context:
     premissas: dict = field(default_factory=dict)
     group_column: str | None = None
     groups: dict = field(default_factory=dict)
+    # O nível de grupo de cima (07/11/2026): a coluna (papel grupo_territorial_superior), o valor de cima de cada unidade e, de
+    # cada grupo, o valor de cima (a hierarquia precisa ser consistente: cada grupo num só; senão, o motivo).
+    group2_column: str | None = None
+    groups2: dict = field(default_factory=dict)
+    regioes_motivo: str = ""
     periods: list = field(default_factory=list)
     categories: list = field(default_factory=list)
     density: bool = True
@@ -551,9 +570,9 @@ def _brazil_context(sources, mapping, options, page) -> Context:
     if options.get("premissas") not in (None, {}):
         raise ValueError("Na base do Brasil, as premissas vêm do perfil oficial: não envie premissas.")
     labels = _labels(options.get("rotulos"), brazil=True)
-    if page and mapping.get(GROUP_ROLE):
+    if page and (mapping.get(GROUP_ROLE) or mapping.get(GROUP2_ROLE)):
         raise ValueError("Na base do Brasil, o grupo dos municípios é o estado, pelo prefixo do código IBGE: não envie "
-                         "grupo_territorial no mapeamento.")
+                         "grupo_territorial nem grupo_territorial_superior no mapeamento.")
     # Papel sem coluna (vazio) não conta; sem mapeamento, vale o do perfil oficial, que o painel exige de todo modo.
     mapping = {key: value for key, value in mapping.items() if value} or dict(FIELDS["municipal"])
     profile = curated_profile(municipal, mapping)
@@ -635,11 +654,12 @@ def _upload_context(frame, mapping, options, page) -> Context:
     _mapping_shape(mapping)
     mapping = {key: value for key, value in mapping.items() if value}
     group_column = mapping.pop(GROUP_ROLE, None)
+    group2_column = mapping.pop(GROUP2_ROLE, None)
     unknown = sorted(role for role in mapping if role not in ROLES)
     if unknown:
         raise ValueError("Papel de campo desconhecido no mapeamento: " + ", ".join(unknown[:5]) + ". Use " +
-                         ", ".join(ROLES) + " ou " + GROUP_ROLE + ".")
-    for column in [*mapping.values(), *([group_column] if group_column else [])]:
+                         ", ".join(ROLES) + ", " + GROUP_ROLE + " ou " + GROUP2_ROLE + ".")
+    for column in [*mapping.values(), *([group_column] if group_column else []), *([group2_column] if group2_column else [])]:
         if column not in frame.columns:
             raise ValueError("A coluna associada não existe nesta base: " + column)
     labels = _labels(options.get("rotulos"), brazil=False)
@@ -647,6 +667,18 @@ def _upload_context(frame, mapping, options, page) -> Context:
     if group_column and group_column in (mapping.get("territory"), mapping.get("territory_id")):
         raise ValueError("A coluna d" + group.g("o", "a") + " " + group.singular + " (grupo_territorial) precisa ser "
                          "diferente da coluna de " + unit.plural + " e do código.")
+    if group2_column:
+        # O nível de cima (07/11/2026, item 1 do comando de 06/11/2026: até dois níveis de grupo, das colunas que a pessoa
+        # indicar): só acima do grupo, numa coluna própria.
+        upper = labels.do_nivel("regioes")
+        if not group_column:
+            raise ValueError("A coluna d" + upper.g("o", "a") + " " + upper.singular + " (grupo_territorial_superior) fica "
+                             "acima d" + group.g("o", "a") + " " + group.singular + ": escolha antes a coluna d" +
+                             group.g("o", "a") + " " + group.singular + " (grupo_territorial).")
+        if group2_column in (mapping.get("territory"), mapping.get("territory_id"), group_column):
+            raise ValueError("A coluna d" + upper.g("o", "a") + " " + upper.singular + " (grupo_territorial_superior) precisa "
+                             "ser diferente das colunas de " + unit.plural + ", do código e d" + group.g("o", "a") + " " +
+                             group.singular + ".")
     premissas = _premissas(options.get("premissas"))
     if not mapping.get("territory"):
         raise ValueError("Escolha a coluna territorial: o gráfico mostra cada " + unit.singular + " da planilha.")
@@ -654,7 +686,8 @@ def _upload_context(frame, mapping, options, page) -> Context:
         raise ValueError("Escolha a coluna de período: o gráfico é organizado por competência.")
     engine = dict(premissas)
     if group_column:
-        engine["hierarchy_columns"] = {"territorio_superior_1": group_column}
+        engine["hierarchy_columns"] = {"territorio_superior_1": group_column,
+                                       **({"territorio_superior_2": group2_column} if group2_column else {})}
     settings = apply_premises(frame, mapping, engine, spatial=False)
     # D1: nenhum papel sem regra e sem escolha da pessoa é usado (mesma regra do pré-exame de /api/analyze).
     used = [role for role in ("territory", "territory_id", "period", "category", "count", "population")
@@ -683,9 +716,32 @@ def _upload_context(frame, mapping, options, page) -> Context:
     _gate(frame, mapping, apply_premises(frame, mapping, gate), "density" if density else "counts", mapping)
     catalog = {item["id"]: item for item in territory_catalog(frame, mapping, settings)}
     groups = _groups_of(frame, mapping, group_column) if group_column else {}
+    groups2 = _groups_of(frame, mapping, group2_column) if group2_column else {}
+    motivo = _hierarquia_dos_grupos(labels, groups, groups2) if group2_column else ""
     return Context(frame, mapping, None, catalog, settings, period, category, positions, kind="arquivo", labels=labels,
-                   premissas=premissas, group_column=group_column, groups=groups, periods=periods, categories=categories,
-                   density=density, page=page, periods_error=error)
+                   premissas=premissas, group_column=group_column, groups=groups, group2_column=group2_column,
+                   groups2=groups2, regioes_motivo=motivo, periods=periods, categories=categories, density=density,
+                   page=page, periods_error=error)
+
+
+def _hierarquia_dos_grupos(labels, groups, groups2) -> str:
+    """O nível de cima só existe com a hierarquia consistente (07/11/2026): cada grupo (o distrito) dentro de um valor só da
+    coluna de cima (a região). Senão, o motivo, com até cinco grupos que aparecem em mais de um; nada é presumido."""
+    group, upper = labels.grupo, labels.do_nivel("regioes")
+    of_group = {}
+    for unit, value in groups.items():
+        if value:
+            of_group.setdefault(value, set()).add(groups2.get(unit))
+    split = sorted(value for value, uppers in of_group.items() if len(uppers - {None}) > 1)
+    if split:
+        return ("A coluna d" + upper.g("o", "a") + " " + upper.singular + " põe " + group.g("o mesmo ", "a mesma ") +
+                group.singular + " em mais de " + upper.g("um ", "uma ") + upper.singular + " (" + ", ".join(
+                    value[:40] for value in split[:5]) + "): sem uma hierarquia consistente, não há nível d" + upper.g("os", "as") +
+                " " + upper.plural + ".")
+    if not any(groups2.get(unit) for unit, value in groups.items() if value):
+        return "A coluna d" + upper.g("o", "a") + " " + upper.singular + " não tem valores n" + group.g("os", "as") + " " + \
+            group.plural + ": não há nível d" + upper.g("os", "as") + " " + upper.plural + "."
+    return ""
 
 
 def _gate(frame, mapping, options, capability, original_mapping):
@@ -1883,6 +1939,8 @@ def _execution_key(ctx, final, initial, normalized, spatial, extra=None, frames=
     if not ctx.brazil:
         signature["input_file"] = ctx.frame.attrs.get("input_file")
         signature["grupo_territorial"] = ctx.group_column
+        if ctx.group2_column:
+            signature["grupo_territorial_superior"] = ctx.group2_column
     if initial is not None:
         signature["variacao"] = "CAP-TMP-01/DA-14"
     if spatial is not None:
@@ -1897,12 +1955,30 @@ def _execution_key(ctx, final, initial, normalized, spatial, extra=None, frames=
 
 
 # --------------------------------------------------------------------------------------------- página única: pedido
+def _nivel_de_cima(ctx):
+    """O nível de grupo de cima (nivel "regioes", 07/11/2026, item 1 do comando de 06/11/2026) existe só numa planilha com a
+    coluna do papel grupo_territorial_superior e a hierarquia consistente; senão, a recusa com o motivo."""
+    if ctx.brazil:
+        raise ValueError("O nível regioes existe só nas planilhas com dois níveis de grupo; na base do Brasil, o gráfico mostra "
+                         "os municípios ou os estados.")
+    unit, group = ctx.labels.unidade, ctx.labels.grupo
+    if not ctx.group2_column:
+        raise ValueError("Sem a coluna do nível acima d" + group.g("o", "a") + " " + group.singular + " (papel "
+                         "grupo_territorial_superior), o gráfico mostra " + group.g("os", "as") + " " + group.plural + " ou " +
+                         unit.g("os", "as") + " " + unit.plural + ".")
+    if ctx.regioes_motivo:
+        raise ValueError(ctx.regioes_motivo)
+
+
 def _page_spec(ctx, options) -> dict:
     """Validação das chaves da página única antes de qualquer cálculo (falha cedo, com a mensagem em português)."""
     unit = ctx.labels.unidade
     nivel = options.get("nivel")
     if nivel not in LEVELS:
-        raise ValueError("Nível do gráfico inválido: use \"municipios\", \"estados\" ou \"brasil\".")
+        raise ValueError("Nível do gráfico inválido: use \"municipios\", \"estados\", \"brasil\" ou, numa planilha com dois "
+                         "níveis de grupo, \"regioes\".")
+    if nivel == "regioes":
+        _nivel_de_cima(ctx)
     if nivel == "estados" and not ctx.brazil and not ctx.group_column:
         # Desde 07/11/2026 (item 1 do comando de 06/11/2026), o nível de grupo existe numa planilha com a coluna-mãe.
         group = ctx.labels.grupo
@@ -1912,7 +1988,7 @@ def _page_spec(ctx, options) -> dict:
     if nivel == "brasil" and not ctx.brazil:
         raise ValueError("O nível Brasil existe só na base do Brasil, com a contagem da fonte nacional; nas planilhas, o "
                          "gráfico mostra " + unit.g("os", "as") + " " + unit.plural + ".")
-    if nivel != "estados" and options.get("estados") is not None:
+    if nivel not in ("estados", "regioes") and options.get("estados") is not None:
         raise ValueError("A lista estados vale só no nível estados: nos municípios, os estados inteiros vão em "
                          "base.estados.")
     indicador = options.get("indicador")
@@ -2288,7 +2364,7 @@ def _groups(ctx, res, k, by_id, campo="grupo"):
     acrescentam notas nem limitações (o gráfico, a frase-resumo, a tabela e o CSV não mudam com eles) e, com menos de
     duas unidades com valor, ficam nulos em vez de recusar o pedido: a tela os pede junto com toda análise."""
     import main as engine  # importação tardia: main usa este módulo
-    unit = ctx.labels.unidade if ctx.nivel == "municipios" else ctx.labels.grupo
+    unit = ctx.labels.unidade if ctx.nivel == "municipios" else ctx.labels.do_nivel(ctx.nivel)
     metric = INDICATORS[ctx.indicador]
     evaluable = [key for key in res.universe if by_id[key][ctx.indicador] is not None]
     mapa = campo == "grupo_mapa"
@@ -2523,7 +2599,7 @@ def _trend_block(ctx, res, window):
     convention = resolve_convention(list(ctx.periods))
     metric = INDICATORS[ctx.indicador]
     frames, digests = [], []
-    if ctx.nivel == "estados":
+    if ctx.nivel in ("estados", "regioes"):
         frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         series = _trend_series(frame, metric, positions)
@@ -2571,7 +2647,7 @@ def _trend(ctx, res, window, by_id):
     por classe no universo (trend.summarize), com o bloqueio de menos de quatro competências (stage_block). No nível
     municípios, reaproveitada entre pedidos enquanto a janela, o indicador, os itens e o universo não mudam
     (_reaproveitar)."""
-    if ctx.nivel in ("estados", "brasil"):
+    if ctx.nivel in ("estados", "brasil", "regioes"):
         out = _trend_block(ctx, res, window)
     else:
         entradas = {"janela": list(window), "indicador": ctx.indicador, "itens": _ids_key(item["id"] for item in res.items),
@@ -2615,7 +2691,7 @@ def _series(ctx, res, window, by_id):
     metric = INDICATORS[ctx.indicador]
     unit = ctx.labels.unidade
     frames, digests, observed, incomparable = [], [], {}, {}
-    if ctx.nivel == "estados":
+    if ctx.nivel in ("estados", "regioes"):
         frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         observed = _observed_values(frame, metric)[1]
@@ -2663,8 +2739,8 @@ def _series(ctx, res, window, by_id):
            "competencias": len(window), "indicador": ctx.indicador,
            "unidade_valor": "por 1.000 habitantes" if metric == "density" else count_unit_label(ctx.mapping, ctx.settings),
            "itens_com_valor": with_value, "itens": len(res.items),
-           "rotulo_itens": unit.plural if ctx.nivel == "municipios" else (ctx.labels.grupo.plural if ctx.nivel == "estados"
-                                                                          else "Brasil")}
+           "rotulo_itens": unit.plural if ctx.nivel == "municipios" else (ctx.labels.do_nivel(ctx.nivel).plural
+                                                                          if ctx.nivel in ("estados", "regioes") else "Brasil")}
     return top, ([min(values), max(values)] if values else None)
 
 
@@ -2696,7 +2772,7 @@ def _availability(ctx) -> dict:
         return {"disponivel": bool(ok), "motivo": reason, "pendencia": pending}
 
     out = {"distribuicao": entry(True), "densidade": entry(ctx.density, "" if ctx.density else _no_population(ctx))}
-    if ctx.nivel == "estados":
+    if ctx.nivel in ("estados", "regioes"):
         out["espacial"] = entry(False, _sem_ponto_unico(ctx.labels))
     elif ctx.nivel == "brasil":
         out["espacial"] = entry(False, BRAZIL_NO_POINT)
@@ -2752,6 +2828,15 @@ def _availability(ctx) -> dict:
                "d" + unit.g("os", "as") + " " + unit.plural + ".")
         out["estados"] = entry(False, sem)
         out["grupos"] = entry(False, sem)
+    # O nível de cima (07/11/2026, item 1 do comando de 06/11/2026): numa planilha com a coluna do papel
+    # grupo_territorial_superior e a hierarquia consistente. Só nas planilhas: a base do Brasil não tem o nível.
+    if not ctx.brazil:
+        try:
+            _nivel_de_cima(ctx)
+        except ValueError as exc:
+            out["regioes"] = entry(False, str(exc))
+        else:
+            out["regioes"] = entry(True)
     return out
 
 
@@ -3092,17 +3177,22 @@ def _indicator_order(ctx, res) -> dict:
 # unidades dele — pessoas únicas com o identificador individual; senão, a soma, com a limitação da soma (a decisão "Soma
 # automática" do responsável, de 06/11/2026, divergência aprovada de CAP-AGR-01). Nada é estimado: grupo sem registro fica sem
 # valor, com o motivo.
+def _grupos_do_nivel(ctx) -> dict:
+    """O valor do nível de grupo em uso de cada unidade: o grupo (nivel "estados") ou o de cima (nivel "regioes", 07/11/2026)."""
+    return ctx.groups2 if ctx.nivel == "regioes" else ctx.groups
+
+
 def _chaves_dos_grupos(ctx) -> list:
-    return ["uf:" + value for value in sorted({value for value in ctx.groups.values() if value})]
+    return ["uf:" + value for value in sorted({value for value in _grupos_do_nivel(ctx).values() if value})]
 
 
 def _membros_do_grupo(ctx, key) -> set:
-    return {unit for unit, value in ctx.groups.items() if value == key[3:]}
+    return {unit for unit, value in _grupos_do_nivel(ctx).items() if value == key[3:]}
 
 
 def _escolha_dos_grupos(ctx, raw, keys):
     """Os grupos escolhidos no nível de grupo da planilha (os valores ou os ids "uf:"); sem a lista, todos."""
-    group = ctx.labels.grupo
+    group = ctx.labels.do_nivel(ctx.nivel)
     if raw is None:
         return keys
     if (not isinstance(raw, list) or not raw or len(raw) > len(keys) or len(set(raw)) != len(raw) or
@@ -3133,7 +3223,7 @@ def _medidas_dos_grupos(ctx, period, keys) -> Measures:
 
 
 def _item_do_grupo(ctx, key, final, initial, changes):
-    group = ctx.labels.grupo
+    group = ctx.labels.do_nivel(ctx.nivel)
     record = final.records.get(key)
     values = record["valores"] if record is not None else {}
     origem = (record or {}).get("origem") or "soma"
@@ -3177,8 +3267,9 @@ def _serie_dos_grupos(ctx, res, window):
 
 
 def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
-    """O nível de grupo de uma planilha: os grupos da coluna-mãe como itens, na ordem do nome."""
-    unit, group = ctx.labels.unidade, ctx.labels.grupo
+    """O nível de grupo de uma planilha: os grupos da coluna-mãe como itens, na ordem do nome; no nivel "regioes" (07/11/2026),
+    os valores da coluna de cima, também pelas unidades de cada um (nunca pela soma dos grupos)."""
+    unit, group = ctx.labels.unidade, ctx.labels.do_nivel(ctx.nivel)
     refusals = {
         "base": "No nível d" + group.g("os", "as") + " " + group.plural + ", " + group.g("os", "as") + " escolhid" +
                 group.g("os", "as") + " vão em estados: base vale só para " + unit.plural + ".",
@@ -3191,7 +3282,7 @@ def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
         if options.get(key) not in (None, [], {}):
             raise ValueError(text)
     if spec["rotatividade"] is not None:
-        raise ValueError("A rotatividade acompanha pessoas d" + unit.g("e cada ", "e cada ") + unit.singular + ": mostre " +
+        raise ValueError("A rotatividade acompanha pessoas de cada " + unit.singular + ": mostre " +
                          unit.g("os", "as") + " " + unit.plural + ".")
     if spec["condicoes"] and any(spec["condicoes"]["nodes"][own]["atributo"] == "distancia"
                                  for own in spec["condicoes"]["leaves"]):
@@ -3401,8 +3492,10 @@ def compute(sources, mapping, options, frame=None) -> dict:
         raise ValueError(OFFICIAL_ONLY)
     ctx = context(sources, mapping, options, PAGE_KEYS if page else PANEL_KEYS, frame=frame, page=page)
     spec = _page_spec(ctx, options) if page else None
-    if page and ctx.nivel == "estados":
-        return _compute_states(ctx, options, spec) if ctx.brazil else _compute_grupos_da_planilha(ctx, options, spec)
+    if page and ctx.nivel == "estados" and ctx.brazil:
+        return _compute_states(ctx, options, spec)
+    if page and ctx.nivel in ("estados", "regioes"):
+        return _compute_grupos_da_planilha(ctx, options, spec)
     if page and ctx.nivel == "brasil":
         return _compute_brazil(ctx, options, spec)
     unit = ctx.labels.unidade

@@ -35,6 +35,49 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte C1 (etapa 8C do comando, item 1): o segundo nível de grupo de uma planilha, no painel Colunas, no motor e no "Ver por"
+- **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026 ("os níveis de grupo (até dois, do
+  mais alto ao mais baixo)"; "Os níveis de grupo vêm das colunas que a pessoa indicar (até duas); nada é presumido"; aceite
+  "Ver por: Região | Distrito | Concelho"), classificado de uma vez com os demais (entrada da navegação por níveis, abaixo), com a
+  decisão "Soma automática" (divergência aprovada de CAP-AGR-01). Mudança prevista: *escopo:* decorre do comando;
+  *compatibilidade:* a hierarquia de dois níveis é a do modelo de planilha (`territorio_superior_1` e `_2`) e a de
+  `describe_hierarchy`; os valores do nível de cima vêm do motor, pelas unidades de cada um (pessoas únicas com o identificador;
+  senão, a soma rotulada como soma, com a ressalva; INV-02, V-14, RQ-REP-14), nunca pela soma dos grupos; níveis diferentes nunca
+  no mesmo gráfico (RQ-DAD-30); nada é presumido (a coluna é a que a pessoa escolhe, e a hierarquia inconsistente fica sem o
+  nível, com o motivo). A árvore de dois níveis e a trilha com o grupo de cima ficam para a parte C2.
+- **Antes:** o painel Colunas tinha um nível de grupo (o grupo territorial); o motor recusava qualquer outro nível
+  ("Nível do gráfico inválido: use "municipios", "estados" ou "brasil".") e papel ("Papel de campo desconhecido no
+  mapeamento: …"); o "Ver por" de uma planilha tinha duas opções ("Condado | Comuna").
+- **Agora:** o painel Colunas tem o **grupo de cima** (papel `grupo_territorial_superior`, opcional, só com o grupo territorial
+  escolhido) e os nomes dele (singular, plural e gênero; sem resposta, "região"); o pré-exame o recebe como o nível superior 2.
+  O motor aceita `nivel: "regioes"` numa planilha com essa coluna e a hierarquia consistente (cada grupo num valor só da coluna de
+  cima): cada valor de cima é um item, com os valores pelas unidades dele, a Tendência e a Série pelas mesmas somas, a ordem do
+  indicador e a linha do todo; `rotulos.grupo_superior` vai e volta; numa planilha, `disponibilidade.regioes` diz se o nível existe
+  (falsa, com o motivo, sem a coluna ou com a hierarquia inconsistente; na base do Brasil, a chave não vem, e o nível é recusado). Na tela, o "Ver por" oferece os três níveis
+  ("Zona | Condado | Comuna"), e vendo por zona: uma bolha por zona, a nota "Cada zona vem das comunas dela: a soma." com a
+  ressalva, o aviso "Ver por zona: cada ponto é uma zona inteira, pelas comunas dela.", o resumo "Todas as zonas (2)", o mapa
+  indisponível com o atalho às comunas e a bolha que abre as comunas da zona. Na conversa, vendo por grupo numa planilha, a
+  ordenação e a descrição da seleção dizem o nível pelo nome da base ("Ordenei as províncias …", "A seleção está no nível das
+  províncias"; no nível de cima, "as macrorregiões"; antes, "os estados" também numa planilha, desde que o nível de grupo da
+  planilha passou a existir), e as respostas verificadas sobre o nível de cima o chamam pelo nome dele; pedidos de distância,
+  de condições e de agregação vendo por zona levam às unidades, como vendo por grupo.
+- **Permanece:** a base do Brasil (nenhum nível novo; o papel novo é recusado; "os estados" na conversa); uma planilha sem a
+  coluna de cima (o "Ver por" com duas opções); a árvore da Seleção e a trilha com um nível de grupo (parte C2); a conversa não
+  recebe o papel novo nem pede o nível de cima.
+- **Motivo:** comando do responsável de 06/11/2026, item 1, com a decisão "Soma automática".
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (o papel, o nível `regioes`, os rótulos e a disponibilidade),
+    `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o "Ver por" com três níveis), `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (o painel
+    Colunas) e `Docs/CONVERSACAO_INCREMENTO_FN.md` (os níveis de grupo pelo nome na conversa).
+  - **Testes novos:** em `test_painel_pagina.py`, as macrorregiões pela soma das unidades (Leste 21 e 1.500, 14; Oeste 24 e 2.400,
+    10), a escolha, a Tendência, a disponibilidade, a hierarquia inconsistente, a coluna sem o grupo ou repetida e a base do
+    Brasil; em `areaDeAnalise.test.mjs`, os grupos de cima pelo catálogo (Norte e Alentejo; a hierarquia quebrada e sem o segundo
+    valor, nenhum), o "Ver por" "Região | Distrito | Concelho", a escolha do nível de cima, a árvore, a trilha, os textos e o mapa;
+    em `ui_planilha_ficticia.py`, a coluna de cima (zona), o gênero sugerido, o "Ver por" "Zona | Condado | Comuna" e as 2 zonas;
+    em `test_conversa_grafico.py`, os níveis de grupo pelo nome (`os_do_nivel`, `explicacao.unidades`).
+  - **Teste que muda de propósito:** em `test_painel_pagina.py`, a conferência das chaves estritas usava `nivel: "regioes"` como
+    exemplo de nível inválido; "regioes" passou a ser o nível de cima de uma planilha, e na base do Brasil a recusa diz isso.
+    O exemplo de nível inválido passou a ser "paises" (a mesma mensagem de antes), e a recusa nova é conferida.
 ### 2026-11-07 · Correção do CI da parte B2 (etapa 8B do comando, item 1): dois roteiros de navegador
 - **Antes:** a execução 480 (`b1058bb`) falhou em três roteiros: `ui_pagina_unica.py` (no catálogo sintético e na base
   versionada) esperava que uma planilha não tivesse o "Ver por" (`analise-nivel` ausente), e `ui_planilha_ficticia.py` esperava

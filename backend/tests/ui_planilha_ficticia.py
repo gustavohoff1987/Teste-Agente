@@ -150,12 +150,16 @@ def main():
         expect(colunas.get_by_test_id("colunas-territory")).to_have_value("territorio_analise")
         colunas.get_by_test_id("colunas-territory_id").select_option("codigo_identificador")
         colunas.get_by_test_id("colunas-grupo_territorial").select_option("territorio_superior_1")
+        # O segundo nível de grupo (07/11/2026, item 1 do comando: até dois, das colunas que a pessoa indicar): a zona, acima do
+        # condado.
+        colunas.get_by_test_id("colunas-grupo_territorial_superior").select_option("territorio_superior_2")
         for campo, valor in (("unidade-singular", "comuna"), ("unidade-plural", "comunas"), ("grupo-singular", "condado"),
-                             ("grupo-plural", "condados")):
+                             ("grupo-plural", "condados"), ("grupo-superior-singular", "zona"), ("grupo-superior-plural", "zonas")):
             colunas.get_by_test_id("colunas-" + campo).fill(valor)
         # O gênero sugerido pela terminação (07/11/2026, item 1 do comando, os nomes da base): a comuna, o condado.
         expect(colunas.get_by_test_id("colunas-unidade-genero")).to_have_value("f")
         expect(colunas.get_by_test_id("colunas-grupo-genero")).to_have_value("m")
+        expect(colunas.get_by_test_id("colunas-grupo-superior-genero")).to_have_value("f")
         # O nome do todo, com o artigo: a trilha, a raiz e os títulos dizem "Solária" e "da Solária" (sem ele, "Toda a base").
         expect(colunas.get_by_test_id("colunas-todo-artigo")).to_have_count(0)
         colunas.get_by_test_id("colunas-todo-nome").fill("Solária")
@@ -204,6 +208,25 @@ def main():
         guarda("condados")
         # De volta às comunas: a resposta pode vir da memória das últimas respostas, sem pedido novo ao motor (as comunas já
         # foram calculadas); a tela confere pelo que mostra.
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(area.get_by_test_id("analise-nivel-municipios"))
+        expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
+        # Os dois níveis de grupo no "Ver por" (07/11/2026, item 1 do comando: "Ver por: Região | Distrito | Concelho"): Zona |
+        # Condado | Comuna. Vendo por zona, cada zona vem das comunas dela (nunca da soma dos condados), com a ressalva da soma.
+        expect(area.get_by_test_id("analise-nivel").get_by_role("radio")).to_have_count(3)
+        expect(area.get_by_test_id("analise-nivel").locator(".analise-nivel-nome")).to_have_text(["Zona", "Condado", "Comuna"])
+        zonas, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-regioes")))
+        assert enviado.get("nivel") == "regioes" and "base" not in enviado, enviado
+        assert [item["id"] for item in zonas["itens"]] == ["uf:Zona Marítima", "uf:Zona Serrana"], zonas["itens"]
+        assert zonas["rotulos"]["grupo_superior"] == {"singular": "zona", "plural": "zonas", "genero": "f"}, zonas["rotulos"]
+        expect(area.get_by_test_id("analise-aviso")).to_have_text("Ver por zona: cada ponto é uma zona inteira, pelas comunas dela.")
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as zonas (2)")
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(2, timeout=60000)
+        expect(area.get_by_test_id("analise-grafico")).to_contain_text("Cada zona vem das comunas dela: a soma.")
+        guarda("zonas")
+        # De volta às comunas, da memória das últimas respostas (sem pedido novo): a tela confere pelo que mostra.
         aperta(area.get_by_test_id("analise-aba-territorios"))
         aperta(area.get_by_test_id("analise-nivel-municipios"))
         expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")

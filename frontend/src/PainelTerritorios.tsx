@@ -40,6 +40,8 @@ type Props = {
   total: number;
   /** O nível em uso no "Ver por" (cada ponto é um município ou um estado). */
   nivel: PainelNivel;
+  /** Os grupos de cima de uma planilha com dois níveis (07/11/2026, item 1 do comando), para o resumo no nível de cima. */
+  regioes?: GrupoInfo[];
   base: PainelMunicipios;
   /** Os estados como unidades (só leitura: vêm da árvore, com estados inteiros). */
   estados: string[];
@@ -101,9 +103,9 @@ export default function PainelTerritorios(p: Props) {
   const marcadas = useMemo(() => marcadasPorGrupo(p.base, { grupos: p.grupos, unidadesDoGrupo: idsDoGrupo, nomes,
     grupoDe: id => grupoDeId.get(id) ?? "", todas: todasAsUnidades }), [p.base, p.grupos, nomes, grupoDeId, todasAsUnidades, porGrupo]);
   const unidadesMarcadas = marcadas.reduce((soma, item) => soma + item.marcadas, 0);
-  const vazio = p.nivel === "brasil" ? false : p.nivel === "estados" ? !p.estados.length : baseVazia(p.base) && !p.conjuntos.length;
+  const vazio = p.nivel === "brasil" ? false : p.nivel === "estados" || p.nivel === "regioes" ? !p.estados.length : baseVazia(p.base) && !p.conjuntos.length;
   const nomesCompletos = useMemo(() => new Map(validas.map(item => [item.id, nomeDaUnidade(item)])), [validas]);
-  const resumo = resumoDoUniverso({ nivel: p.nivel, base: p.base, estados: p.estados, conjuntos: p.conjuntos.length, grupos: p.grupos,
+  const resumo = resumoDoUniverso({ nivel: p.nivel, base: p.base, estados: p.estados, conjuntos: p.conjuntos.length, grupos: p.grupos, regioes: p.regioes,
     rotulos: p.rotulos, total: p.total, grupoDe: id => grupoDeId.get(id) ?? "", nomes: nomesCompletos });
   const deGrupo = (g: Pick<GrupoInfo, "nome" | "rotuloGrupo">) => textoTodasAsUnidadesDoGrupo(p.rotulos, g).replace(/^Tod[oa]s [oa]s /, "");
   /** "da Bahia", "de Buenos Aires": o fim de "municípios da Bahia". */

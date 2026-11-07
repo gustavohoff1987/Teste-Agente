@@ -816,6 +816,24 @@ def test_planilha_de_distritos_e_provincias_usa_os_rotulos_e_o_grupo(sem_provedo
                                  "planilha, não há mapa; a análise fica no gráfico.")
 
 
+def test_os_niveis_de_grupo_pelo_nome_da_base_na_conversa():
+    """Os itens de um nível de grupo pelos nomes da base (07/11/2026, item 1 do comando de 06/11/2026): na base do Brasil, "os
+    estados"; numa planilha, os grupos ("as províncias") ou, no nível de cima, os grupos de cima ("as macrorregiões"); antes, a
+    ordenação e a seleção diziam "os estados" também numa planilha. As respostas verificadas usam o mesmo nome."""
+    import explicacao
+    rot = conversa_grafico._rotulos({"rotulos": {**ROTULOS, "grupo_superior": {"singular": "macrorregião",
+                                                                              "plural": "macrorregiões"}}}, False)
+    assert (rot.os_do_nivel("estados", False), rot.os_do_nivel("regioes", False), rot.os_do_nivel("estados", True)) == (
+        "as províncias", "as macrorregiões", "os estados")
+    assert conversa_grafico._rotulos({"rotulos": ROTULOS}, False).os_do_nivel("regioes", False) == "as regiões"
+    assert conversa_grafico.NIVEIS_DE_GRUPO == ("estados", "regioes")
+    corpo = {"nivel": "regioes", "rotulos": {**ROTULOS, "grupo_superior": {"singular": "macrorregião", "plural": "macrorregiões",
+                                                                          "genero": "f"}}}
+    assert explicacao.unidades(corpo) == ("macrorregião", "macrorregiões", True)
+    assert explicacao.unidades({**corpo, "nivel": "estados"}) == ("província", "províncias", False)
+    assert explicacao.unidades({**corpo, "nivel": "municipios"}) == ("distrito", "distritos", False)
+
+
 def test_orientacoes_da_conversa_seguem_os_rotulos_da_planilha():
     """Numa planilha, as orientações da conversa (referência, distância, condições) usam os nomes da estrutura reconhecida,
     sem "município" nem exemplos da base do Brasil; na base do Brasil, o texto de sempre (23/10/2026). Desde 26/10/2026, os

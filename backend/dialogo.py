@@ -1322,7 +1322,7 @@ def _proximidade(ato: dict, amb: Ambiente) -> dict | None:
             return _resposta("Mostrei os " + grupo[0].lower() + grupo[1:] + "; assim que o gráfico estiver pronto, procuro o "
                              "de " + qual + " " + nome + " e " + o_ + " mais próxim" + o_ + " dele.", painel=painel,
                              memoria=memoria, continuar=amb.mensagem)
-    if body.get("nivel") == "estados" or not unidades:
+    if body.get("nivel") in ("estados", "regioes") or not unidades:
         return _resposta("A distância da Análise Espacial é medida entre " + os_ + " " + plural + ", e o gráfico em exibição "
                          "não tem " + os_ + " " + plural + " para achar o de " + qual + " " + nome + ". Escolha " + os_ +
                          " " + plural + " na Seleção de Territórios e peça de novo." + " Nada mudou no gráfico.",

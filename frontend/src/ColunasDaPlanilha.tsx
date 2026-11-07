@@ -33,19 +33,23 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
   pendencias, emUso, onEscolhas, onComecar }: Props) {
   const { mapeamento, rotulos } = escolhas;
   const coordenadas = !!mapeamento.latitude && !!mapeamento.longitude;
-  const nome = (qual: "unidade" | "grupo", forma: "singular" | "plural", rotulo: string) =>
+  // Os nomes editáveis: a unidade, o grupo e, desde 07/11/2026 (item 1 do comando), o grupo de cima (test id "grupo-superior").
+  type Qual = "unidade" | "grupo" | "grupo_superior";
+  const doNome = (qual: Qual) => qual === "unidade" ? rotulos.unidade : qual === "grupo" ? rotulos.grupo : rotulos.grupo_superior;
+  const testid = (qual: Qual) => qual.replace("_", "-");
+  const nome = (qual: Qual, forma: "singular" | "plural", rotulo: string) =>
     <label className="colunas-campo">
       <span>{rotulo}</span>
-      <input aria-label={rotulo} data-testid={"colunas-" + qual + "-" + forma} className={CAMPO}
-        value={(qual === "unidade" ? rotulos.unidade : rotulos.grupo)?.[forma] ?? ""}
+      <input aria-label={rotulo} data-testid={"colunas-" + testid(qual) + "-" + forma} className={CAMPO}
+        value={doNome(qual)?.[forma] ?? ""}
         onChange={event => onEscolhas(editarRotulo(escolhas, qual, forma, event.target.value))}/>
     </label>;
   // O gênero (07/11/2026, item 1 do comando): o escolhido ou o da terminação, para a concordância ("a comuna", "o distrito").
-  const genero = (qual: "unidade" | "grupo", rotulo: string) => {
-    const atual = qual === "unidade" ? rotulos.unidade : rotulos.grupo;
+  const genero = (qual: Qual, rotulo: string) => {
+    const atual = doNome(qual);
     return atual && <label className="colunas-campo">
       <span>{rotulo}</span>
-      <select aria-label={rotulo} data-testid={"colunas-" + qual + "-genero"} className={CAMPO} value={atual.genero ?? generoDe(atual)}
+      <select aria-label={rotulo} data-testid={"colunas-" + testid(qual) + "-genero"} className={CAMPO} value={atual.genero ?? generoDe(atual)}
         onChange={event => onEscolhas(editarGenero(escolhas, qual, event.target.value === "f" ? "f" : "m"))}>
         <option value="m">Masculino (o, os)</option>
         <option value="f">Feminino (a, as)</option>
@@ -59,9 +63,11 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
     <div className="colunas-grade mt-3">
       {PAPEIS.map(({ papel, rotulo, ajuda, obrigatorio, vazio }) => {
         const valor = mapeamento[papel] || "";
+        // O grupo de cima fica acima do grupo territorial (07/11/2026): sem ele, o seletor espera.
+        const espera = papel === "grupo_territorial_superior" && !mapeamento.grupo_territorial && !valor;
         return <label key={papel} className="colunas-campo" data-testid={"colunas-campo-" + papel}>
           <span>{rotulo}{obrigatorio ? " *" : ""}</span>
-          <select aria-label={rotulo} data-testid={"colunas-" + papel} value={valor} className={CAMPO}
+          <select aria-label={rotulo} data-testid={"colunas-" + papel} value={valor} className={CAMPO} disabled={espera}
             onChange={event => onEscolhas(escolherColuna(escolhas, papel, event.target.value))}>
             <option value="">{vazio}</option>
             {fieldOptions(colunas, sugestoes, papel, { current: valor }).map(opcao =>
@@ -137,6 +143,9 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
         {rotulos.grupo && nome("grupo", "singular", "Grupo, no singular")}
         {rotulos.grupo && nome("grupo", "plural", "Grupos, no plural")}
         {rotulos.grupo && genero("grupo", "Gênero do grupo")}
+        {rotulos.grupo_superior && nome("grupo_superior", "singular", "Grupo de cima, no singular")}
+        {rotulos.grupo_superior && nome("grupo_superior", "plural", "Grupos de cima, no plural")}
+        {rotulos.grupo_superior && genero("grupo_superior", "Gênero do grupo de cima")}
       </div>
     </fieldset>
     <div className="colunas-bloco" data-testid="colunas-disponibilidade" aria-live="polite">

@@ -75,6 +75,11 @@ O painel **Colunas** mostra a coluna de cada papel:
   unidade (por exemplo, "distrito" e "provincia") deixam a lista vazia até a escolha;
 - o grupo territorial é sugerido pelas colunas que o backend reconhece como nível superior (estado, província,
   departamento) depois da escolha da unidade;
+- desde 07/11/2026 (item 1 do comando de 06/11/2026: até dois níveis de grupo, das colunas que a pessoa indicar), o **grupo de
+  cima** (`colunas-grupo_territorial_superior`, papel `grupo_territorial_superior`): a coluna que agrupa os grupos (região,
+  macrorregião), opcional e só com o grupo territorial escolhido (sem ele, o seletor espera, e "Começar a análise" pede o
+  grupo); vai ao pré-exame como o nível superior 2 (`hierarchy_columns.territorio_superior_2`) e ao gráfico no mapeamento;
+  a conversa não o recebe;
 - uma coluna representa um papel só: escolhida num papel, ela sai do anterior;
 - **O que a quantidade conta?** (pessoas, vínculos de trabalho, postos de trabalho ou outra unidade, descrita);
 - **Quem são os trabalhadores contados?**, só sem coluna de categoria: a profissão ou o conjunto de trabalhadores (por
@@ -87,7 +92,9 @@ O painel **Colunas** mostra a coluna de cada papel:
   das coordenadas só é pedido quando o formato é misto;
 - **Nomes**: como se chamam as unidades e os grupos, no singular e no plural, com a sugestão a partir do nome da coluna
   ("distrito" sugere distrito e distritos; "provincia", província e províncias). Os nomes aparecem nos textos da página e da
-  conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha;
+  conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha. Com o grupo de cima, também o nome dele
+  ("Grupo de cima, no singular", "Grupos de cima, no plural" e o gênero; `colunas-grupo-superior-singular`,
+  `colunas-grupo-superior-plural` e `colunas-grupo-superior-genero`; sem resposta, "região");
 - **O que esta planilha permite**: Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de
   Rotatividade (os nomes das abas, desde 23/10/2026), cada uma disponível ou
   indisponível com o motivo, pelo pré-exame do backend (`/api/preflight`), refeito a cada escolha. A escolha que se faz no
@@ -97,7 +104,8 @@ O painel **Colunas** mostra a coluna de cada papel:
 unidade territorial, o período, a quantidade, o que ela conta ou os nomes, o clique lista o que falta, e nada é pedido ao
 motor. A área recebe `FonteDados` com o arquivo (reenviado só ao backend local), o mapeamento confirmado na tela (com o papel
 `grupo_territorial`), as premissas escolhidas (`confirmed_roles` com as colunas escolhidas no seletor, `count_unit`,
-`custom_count_unit`, `crs` só com `SIRGAS2000` ou `WGS84`, como informado, e `number_format`) e os rótulos (`rotulos: {unidade, grupo}`). No pré-exame e na conversa, que usam os papéis atuais do
+`custom_count_unit`, `crs` só com `SIRGAS2000` ou `WGS84`, como informado, e `number_format`) e os rótulos (`rotulos: {unidade, grupo}`;
+desde 07/11/2026, com `todo` e, com o grupo de cima, `grupo_superior`). No pré-exame e na conversa, que usam os papéis atuais do
 backend, o grupo segue em `hierarchy_columns` (nível superior 1), e as colunas escolhidas pela pessoa seguem em
 `confirmed_roles`.
 
