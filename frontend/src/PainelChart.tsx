@@ -162,6 +162,8 @@ export default function PainelChart(p: Props) {
   });
   const comNome = pares.length <= ROTULOS_DAS_LIGACOES, referenciasComNome = contextos.length <= ROTULOS_DAS_LIGACOES;
   const selecionados = useMemo(() => new Set(p.selecionados), [p.selecionados]);
+  // O destaque da resposta de valor (06/11/2026): declarado antes dos rótulos, que o leem na hora.
+  const realce = useMemo(() => new Set(p.realce ?? []), [p.realce]);
   const competenciaInicial = p.resposta.competencia_inicial || null;
   const especie = INDICADORES[p.indicador];
 
@@ -200,7 +202,6 @@ export default function PainelChart(p: Props) {
   // Marcar não esmaece as outras bolhas (25/10/2026): as marcadas ganham o anel escuro e o nome. Com o destaque da análise
   // (26/10/2026), as que ficam fora dele esmaecem; a bolha sob o mouse ou o foco e a referência continuam inteiras.
   const destaque = useMemo(() => p.destaque?.length ? new Set(p.destaque) : null, [p.destaque]);
-  const realce = useMemo(() => new Set(p.realce ?? []), [p.realce]);
   const opacidadeDe = (bolha: BolhaDesenho) => !destaque || bolha.id === ativo || bolha.id === externo || bolha.referencia
     ? opacidadeDaBolha(bolha) : opacidadeComDestaque(bolha, destaque);
   const bolhaAtiva = ativo ? grafico.bolhas.find(bolha => bolha.id === ativo && desenhada(bolha)) : undefined;
