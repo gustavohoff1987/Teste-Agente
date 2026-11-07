@@ -144,7 +144,8 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   const pedido: PedidoDoChat = {};
   if (FAMILIAS.includes(p.familia as Familia)) pedido.familia = p.familia as Familia;
   if (p.indicador === "densidade" || p.indicador === "quantidade") pedido.indicador = p.indicador;
-  if (p.nivel === "estados" || p.nivel === "municipios" || p.nivel === "brasil") pedido.nivel = p.nivel;
+  // "regioes" (07/11/2026): o nível de cima de uma planilha com dois níveis de grupo ("mostre as zonas").
+  if (p.nivel === "estados" || p.nivel === "municipios" || p.nivel === "brasil" || p.nivel === "regioes") pedido.nivel = p.nivel;
   const municipios = objeto(p.municipios);
   if (municipios) {
     const todos = municipios.todos === true, estados = textos(municipios.estados), ids = textos(municipios.ids);

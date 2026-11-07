@@ -282,7 +282,11 @@ inicial, variacao_percentual, motivos_variacao, serie}`, e o grupo também `sigl
 - Sem a fonte (a nacional, ou o estado sem registro na estadual), os valores ficam `null`, com o motivo; nunca zero.
 - **Numa planilha** (desde 07/11/2026, item 1.4 do comando de 06/11/2026; antes, 422 "Nesta versão, os números do lugar em uso
   … vêm das fontes nacional e estadual da base do Brasil."): com `premissas` e `rotulos`, como na rota 1, o todo (`id: "todo"`,
-  `rotulo`: o nome do todo ou "Toda a base") e, com `grupo` (um valor da coluna-mãe, ou "uf:" e ele; outro → 422 "… do lugar
+  `rotulo`: o nome do todo ou "Toda a base"), desde 07/11/2026 (parte C2 do item 1), com `regiao` (um valor da coluna de
+  cima de uma planilha com dois níveis de grupo, ou "uf:" e ele), o grupo de cima pelas unidades dele (`regiao`, com
+  `nivel: "regiao"`; só quando pedido; sem o nível de cima → 422 "Sem a coluna do nível acima …"; valor desconhecido → 422
+  "… do lugar inexistente na planilha"; na base do Brasil → 422 "O lugar regiao existe só nas planilhas com dois níveis de
+  grupo; …") e, com `grupo` (um valor da coluna-mãe, ou "uf:" e ele; outro → 422 "… do lugar
   inexistente na planilha"), o grupo (`id: "uf:<valor>"`) vêm das unidades: com o identificador individual em todas as linhas
   da união (sem coluna de quantidade), as pessoas únicas (`origem: "pessoas_unicas"`, `contagem: "UNIDADES_DISTINTAS"`,
   deduplicação sobre a união, CAP-AGR-01); senão, a soma das unidades (`origem: "soma"`, `contagem: "SOMA_DOS_COMPONENTES"`,

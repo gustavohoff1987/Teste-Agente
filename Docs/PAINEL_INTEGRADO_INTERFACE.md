@@ -247,7 +247,10 @@ da tela).
   comunas dela: a soma." com a ressalva, o aviso "Ver por zona: cada ponto é uma zona inteira, pelas comunas dela." e o resumo
   "Todas as zonas (2)"; tocar na bolha de uma zona mostra as comunas dela. Os grupos de cima vêm do catálogo (o segundo valor
   da hierarquia de cada unidade) e só existem com a hierarquia consistente (o motor diz o motivo em
-  `disponibilidade.regioes`); sem a coluna de cima, nada muda. A árvore e a trilha com o grupo de cima vêm na parte seguinte. O mapa do nível de grupo de uma
+  `disponibilidade.regioes`); sem a coluna de cima, nada muda. Na Seleção (desde 07/11/2026, parte C2), a árvore tem uma
+  seção por grupo de cima (`analise-regioes`, `analise-regiao` com `data-situacao`), com a caixa de três estados
+  (`analise-regiao-todos`: marcar a zona marca os condados dela; desmarcar tira) e as contagens ("2 condados · 8 comunas",
+  `analise-regiao-contagem`), e os condados da zona abaixo, com as linhas de sempre. O mapa do nível de grupo de uma
   planilha não existe ainda (os grupos não têm um ponto de desenho), e o atalho leva às unidades no mapa. No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
   `code:<código>` ou `name:<nome>`.
 - **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção.
@@ -305,7 +308,12 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   "Brasil › Seleção"; tudo dentro de um estado só, "Brasil › Pará". Sem nada escolhido, "Brasil", com a dica de tocar no nome ou
   usar a Seleção. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta ao todo
   sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
-  move a trilha do mesmo jeito. Numa planilha, a trilha começa no nome do todo do painel Colunas ou, sem ele, em "Toda a base"
+  move a trilha do mesmo jeito. Com dois níveis de grupo numa planilha (desde 07/11/2026, parte C2 do item 1), a trilha passa
+  pelo grupo de cima (`data-chave="regiao"`): "Solária › Zona Serrana › Alto Vésper › Vesperina" (no comando, "Portugal › Norte
+  › Braga › Barcelos"); a zona inteira, ou tudo dentro de uma zona só, é "Solária › Zona Serrana" (em parte, tocável, como o
+  grupo); tocar na zona leva às comunas dela, com o aviso "Zona Serrana: todas as comunas dela.", e o "Ver por" dentro da
+  zona tem o condado e a comuna; a faixa mostra os números da zona, pelas comunas (`POST /api/painel/lugar` com `regiao`), e o
+  todo como referência. Numa planilha, a trilha começa no nome do todo do painel Colunas ou, sem ele, em "Toda a base"
   (desde 07/11/2026; antes, "Toda a planilha"). Com a coluna-mãe, a trilha de uma planilha também passa pelo grupo ("Solária ›
   Norte", "Solária › Norte › comuna", desde 07/11/2026; antes, sem o grupo); tocar no todo leva a todas as unidades (na base do
   Brasil, ao todo vendo por estado), e o aviso diz "Solária: todas as comunas."

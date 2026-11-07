@@ -762,12 +762,13 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
 // ------------------------------------------------------------------------------------------------ lugar em uso (06/11/2026)
 /** Pedido de /api/painel/lugar: a competência e a categoria da análise, o grupo do lugar (o prefixo do estado), a competência
  * inicial da variação da faixa e, para as linhas de referência da Tendência, as competências da série. */
-export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; desde?: string; serie?: { competencias: string[] };
+/** `regiao` (07/11/2026): o grupo de cima de uma planilha com dois níveis, pelas unidades dele. */
+export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; regiao?: string; desde?: string; serie?: { competencias: string[] };
   /** Numa planilha (07/11/2026, item 1.4 do comando): as escolhas do painel Colunas, como no pedido do gráfico. */
   premissas?: Premissas; rotulos?: RotulosTerritoriais };
 export type ValoresDaSerie = { competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null };
 /** Um nível do lugar em uso (o todo ou o grupo), com os números do motor: prontos na fonte (nacional ou estadual), nunca somados. */
-export type NivelDoLugar = { id: string; nivel: "todo" | "grupo"; rotulo: string; nome: string | null; sigla: string | null; fonte: string;
+export type NivelDoLugar = { id: string; nivel: "todo" | "grupo" | "regiao"; rotulo: string; nome: string | null; sigla: string | null; fonte: string;
   regra: string | null; competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null;
   avaliabilidade: string; motivo: string | null; desde: string | null; inicial: PainelValores | null; variacaoPercentual: PainelValores | null;
   motivosVariacao: string[]; serie: ValoresDaSerie[] | null;
@@ -775,14 +776,14 @@ export type NivelDoLugar = { id: string; nivel: "todo" | "grupo"; rotulo: string
    * "soma" (a soma das unidades, com a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM); na base do Brasil, null (a fonte pronta). */
   origem: "pessoas_unicas" | "soma" | null; limitacoes: string[] };
 export type RespostaLugar = { competencia: string; categoria: string; desde: string | null; todo: NivelDoLugar | null;
-  grupo: NivelDoLugar | null; notas: string[] };
+  grupo: NivelDoLugar | null; regiao?: NivelDoLugar | null; notas: string[] };
 function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
   const o = objeto(bruto);
   const id = texto(o?.id);
   if (!o || !id) return null;
   const serie = Array.isArray(o.serie) ? lista(o.serie).map(objeto).filter((s): s is Record<string, unknown> => !!s && !!texto(s.competencia))
     .map(s => ({ competencia: texto(s.competencia)!, quantidade: num(s.quantidade), populacao: num(s.populacao), densidade: num(s.densidade) })) : null;
-  return { id, nivel: o.nivel === "grupo" ? "grupo" : "todo", rotulo: texto(o.rotulo) ?? id, nome: texto(o.nome), sigla: texto(o.sigla),
+  return { id, nivel: o.nivel === "grupo" ? "grupo" : o.nivel === "regiao" ? "regiao" : "todo", rotulo: texto(o.rotulo) ?? id, nome: texto(o.nome), sigla: texto(o.sigla),
     fonte: texto(o.fonte) ?? "", regra: texto(o.regra), competencia: texto(o.competencia) ?? "", quantidade: num(o.quantidade),
     populacao: num(o.populacao), densidade: num(o.densidade), avaliabilidade: texto(o.avaliabilidade) ?? "NAO_AVALIAVEL", motivo: texto(o.motivo),
     desde: texto(o.desde), inicial: objeto(o.inicial) ? valores3(o.inicial) : null,
@@ -796,7 +797,8 @@ export function normalizarLugar(bruto: unknown): RespostaLugar {
   const o = objeto(bruto);
   if (!o) throw new ErroDoMotor("A resposta do lugar em uso não segue o contrato.", 200, null);
   return { competencia: texto(o.competencia) ?? "", categoria: texto(o.categoria) ?? "", desde: texto(o.desde),
-    todo: nivelDoLugarDe(o.todo), grupo: nivelDoLugarDe(o.grupo), notas: lista(o.notas).filter((n): n is string => typeof n === "string") };
+    todo: nivelDoLugarDe(o.todo), grupo: nivelDoLugarDe(o.grupo), ...(o.regiao ? { regiao: nivelDoLugarDe(o.regiao) } : {}),
+    notas: lista(o.notas).filter((n): n is string => typeof n === "string") };
 }
 /** Os números do lugar em uso (a faixa e as linhas do todo e do grupo), pedidos à parte do gráfico: trocar o "Ver por" não os pede
  * de novo. */

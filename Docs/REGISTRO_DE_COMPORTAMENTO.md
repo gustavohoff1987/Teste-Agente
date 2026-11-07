@@ -35,6 +35,35 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte C2 (etapa 8C do comando, item 1): a árvore de dois níveis, a trilha com o grupo de cima, a faixa dele e a conversa
+- **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026 (aceite: "trilha "Portugal › Norte
+  › Braga › Barcelos" e "Ver por: Região | Distrito | Concelho""), classificado de uma vez com os demais (entrada da navegação por
+  níveis, abaixo). Mudança prevista: *escopo:* decorre do comando (a parte C1 trouxe o nível; esta, a árvore e a trilha);
+  *compatibilidade:* a trilha e a árvore só leem a seleção (nada é calculado na tela); os números do grupo de cima vêm do motor,
+  pelas unidades dele (a soma rotulada, com a ressalva, ou as pessoas únicas; INV-02, RQ-REP-14), nunca pela soma dos grupos.
+- **Antes:** com o grupo de cima (parte C1), a árvore listava só os condados, a trilha ia do todo ao condado ("Solária › Alto
+  Vésper › Vesperina"), `/api/painel/lugar` recusava `regiao` (parâmetro desconhecido) e a conversa não pedia o nível de cima.
+- **Agora:** a árvore tem uma seção por zona, com a caixa de três estados (marcar a zona marca os condados dela) e as contagens
+  ("2 condados · 8 comunas"), e os condados dentro. A trilha passa pela zona: "Solária › Zona Serrana › Alto Vésper ›
+  Vesperina"; a zona inteira ou tudo dentro dela, "Solária › Zona Serrana" (em parte, tocável); tocar na zona leva às comunas
+  dela ("Zona Serrana: todas as comunas dela."), e o "Ver por" dentro dela tem o condado e a comuna. A faixa da zona mostra os
+  números dela, pelas comunas, com a origem e o todo como referência (`POST /api/painel/lugar` com `regiao`; só quando pedido).
+  Na conversa, "mostre as zonas" mostra o nível de cima ("Mostrei as zonas: cada bolha é uma zona, pelas comunas dela, com a
+  densidade."), só com os rótulos do grupo de cima.
+- **Permanece:** a base do Brasil (a trilha, a árvore e o lugar de sempre; `regiao` recusado no lugar); uma planilha com um nível
+  de grupo (a árvore e a trilha de antes).
+- **Motivo:** comando do responsável de 06/11/2026, item 1.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a árvore e a trilha com o grupo de cima), `Docs/PAINEL_INTEGRADO.md`
+    (`regiao` no lugar) e `Docs/CONVERSACAO_INCREMENTO_FN.md` ("mostre as macrorregiões").
+  - **Testes novos:** em `areaDeAnalise.test.mjs`, a trilha "Portugal › Norte › Braga › Barcelos", o distrito, o Norte inteiro e em
+    parte, regiões diferentes, o nível de cima e o de grupo dentro do Norte, "Toda a base", o "Ver por" dentro da região e o
+    pedido da conversa; em `test_painel_pagina.py`, o lugar da Macro Leste (21, 1.500, 14, a soma) e as recusas (desconhecida,
+    sem a coluna de cima, base do Brasil); em `test_conversa_grafico.py`, "mostre as macrorregiões"; em `ui_planilha_ficticia.py`,
+    as seções das zonas, marcar a Zona Serrana (a trilha e a faixa da zona), Vesperina com os quatro níveis e "Mostre as zonas".
+  - **Teste que muda de propósito:** em `ui_planilha_ficticia.py`, a trilha depois de "Mostre só o condado Costa Ondina" (antes,
+    "Solária › Costa Ondina"; agora, com a zona da planilha fictícia, "Solária › Zona Marítima › Costa Ondina").
+
 ### 2026-11-07 · Nomes da base, parte C1 (etapa 8C do comando, item 1): o segundo nível de grupo de uma planilha, no painel Colunas, no motor e no "Ver por"
 - **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026 ("os níveis de grupo (até dois, do
   mais alto ao mais baixo)"; "Os níveis de grupo vêm das colunas que a pessoa indicar (até duas); nada é presumido"; aceite

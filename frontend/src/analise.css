@@ -442,6 +442,13 @@ button.analise-contagem:hover { border-color: var(--cor-borda-realce); }
 .analise-grupo-contagem { color: var(--cor-texto-2); font-size: 12px; line-height: 1.35; }
 .analise-grupo[data-situacao="inteiro"] { border-color: var(--cor-borda-convite); background: var(--cor-realce-destaque); }
 .analise-grupo[data-situacao="parcial"] { border-style: dashed; border-color: var(--cor-borda-realce); }
+/* O grupo de cima de uma planilha com dois níveis (07/11/2026, item 1 do comando): uma seção por grupo de cima, com a caixa de três
+   estados e os grupos dela recuados abaixo. */
+.analise-regioes { display: flex; min-width: 0; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.analise-regiao { min-width: 0; }
+.analise-regiao-linha { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 1px solid var(--cor-borda-campo); }
+.analise-regiao[data-situacao="inteiro"] > .analise-regiao-linha { border-bottom-color: var(--cor-destaque); }
+.analise-grupos-da-regiao { margin-top: 4px; padding-left: 14px; }
 .analise-expandir { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 4px; min-width: 40px; min-height: 40px;
   padding: 4px 8px; border: 1px solid var(--cor-borda-campo); border-radius: 10px; background: var(--cor-superficie); color: var(--cor-destaque-texto);
   font-size: 12px; font-weight: 650; }

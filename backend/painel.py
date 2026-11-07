@@ -3657,7 +3657,7 @@ def territorios(sources, mapping, options, frame=None) -> dict:
 # fonte estadual, na competência da análise, com a variação percentual (CAP-TMP-01) desde a competência `desde` e, com `serie`,
 # os valores de cada competência do intervalo. Rota à parte do gráfico: trocar o "Ver por" (quem é comparado) não pede a faixa
 # de novo, e a chave de execução do gráfico não muda.
-LUGAR_KEYS = frozenset(("competencia", "categoria", "grupo", "desde", "serie", "premissas", "rotulos"))
+LUGAR_KEYS = frozenset(("competencia", "categoria", "grupo", "regiao", "desde", "serie", "premissas", "rotulos"))
 NOTE_LUGAR = ("Números do lugar em uso, prontos nas fontes: o Brasil pela contagem da fonte nacional (população pela regra "
               "BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (regra UF-CONTAGEM-ESTADUAL-1, população "
               "UF-POP-MUNICIPIOS-1). Nenhum deles é a soma dos municípios, e o do estado não é somado ao do Brasil.")
@@ -3853,10 +3853,24 @@ def _lugar_grupo_da_planilha(ctx, raw):
     return value
 
 
+def _lugar_regiao_da_planilha(ctx, raw):
+    """O grupo de cima do lugar numa planilha com dois níveis de grupo (07/11/2026): um valor da coluna de cima (o id "uf:<valor>"
+    ou o valor), só com o nível de cima disponível."""
+    if raw is None or raw == "":
+        return None
+    _nivel_de_cima(ctx)
+    value = raw[3:] if isinstance(raw, str) and raw.startswith("uf:") else raw
+    if not isinstance(value, str) or value not in set(ctx.groups2.values()):
+        raise ValueError(ctx.labels.do_nivel("regioes").Singular + " do lugar inexistente na planilha: " + str(value)[:60] + ".")
+    return value
+
+
 def _lugar_planilha(ctx, options):
-    """POST /api/painel/lugar numa planilha: o todo e, pedido em `grupo`, um grupo da coluna-mãe. A variação e a série seguem
-    as premissas temporais da planilha; sem elas, a faixa vem sem a variação, com o motivo, em vez de recusar o pedido."""
+    """POST /api/painel/lugar numa planilha: o todo e, pedido em `grupo`, um grupo da coluna-mãe; desde 07/11/2026, pedido em
+    `regiao`, um grupo de cima (pelas unidades dele). A variação e a série seguem as premissas temporais da planilha; sem elas,
+    a faixa vem sem a variação, com o motivo, em vez de recusar o pedido."""
     grupo = _lugar_grupo_da_planilha(ctx, options.get("grupo"))
+    regiao = _lugar_regiao_da_planilha(ctx, options.get("regiao"))
     notas_extra = []
     try:
         desde = _lugar_desde(ctx, options.get("desde"))
@@ -3870,15 +3884,17 @@ def _lugar_planilha(ctx, options):
         notas_extra.append("Sem a série: " + str(exc))
     nome = ctx.labels.todo.nome if ctx.labels.todo else "Toda a base"
     membros = {key for key, value in ctx.groups.items() if value == grupo} if grupo else None
+    da_regiao = {key for key, value in ctx.groups2.items() if value == regiao} if regiao else None
 
     def calcular():
         notes = [NOTE_LUGAR_PLANILHA] + ([NOTE_LUGAR_VARIACAO] if desde else []) + notas_extra
         return {"competencia": ctx.period, "categoria": ctx.category, "desde": desde, "serie": serie,
                 "todo": _lugar_da_planilha(ctx, "todo", "todo", nome, None, desde, serie),
                 "grupo": _lugar_da_planilha(ctx, "grupo", "uf:" + grupo, grupo, membros, desde, serie) if grupo else None,
+                **({"regiao": _lugar_da_planilha(ctx, "regiao", "uf:" + regiao, regiao, da_regiao, desde, serie)} if regiao else {}),
                 "notas": notes}
 
-    return _reaproveitar(ctx, "lugar", {"grupo": grupo, "desde": desde, "serie": serie, "todo": nome}, calcular)
+    return _reaproveitar(ctx, "lugar", {"grupo": grupo, "regiao": regiao, "desde": desde, "serie": serie, "todo": nome}, calcular)
 
 
 def lugar(sources, mapping, options, frame=None) -> dict:
@@ -3890,6 +3906,9 @@ def lugar(sources, mapping, options, frame=None) -> dict:
     ctx = context(sources, mapping, options, LUGAR_KEYS, frame=frame, page=True)
     if not ctx.brazil:
         return _lugar_planilha(ctx, options)  # desde 07/11/2026 (item 1.4 do comando); antes, LUGAR_SO_BRASIL
+    if options.get("regiao") not in (None, ""):
+        raise ValueError("O lugar regiao existe só nas planilhas com dois níveis de grupo; na base do Brasil, peça o todo ou o "
+                         "estado em grupo.")
     prefix = _lugar_grupo(ctx, options.get("grupo"))
     desde = _lugar_desde(ctx, options.get("desde"))
     serie = _series_window(ctx, options.get("serie"))

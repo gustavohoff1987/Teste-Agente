@@ -24,7 +24,8 @@ export function Trilha({ partes, vazia, onIr, grupoParcial }: TrilhaProps) {
   return <nav data-testid="analise-trilha" aria-label="Trilha do lugar em uso" className="analise-trilha analise-nao-imprimir">
     <ol className="analise-trilha-lista">
       {partes.map((parte, indice) => {
-        const tocavel = !parte.atual || (parte.chave === "grupo" && grupoParcial);
+        // O grupo (ou o grupo de cima, 07/11/2026) só em parte continua tocável: leva a ele inteiro.
+        const tocavel = !parte.atual || ((parte.chave === "grupo" || parte.chave === "regiao") && grupoParcial);
         return <li key={parte.chave + ":" + (parte.id ?? "")} className="analise-trilha-item">
           {indice > 0 && <ChevronRight size={14} aria-hidden="true" className="analise-trilha-seta"/>}
           {tocavel ? <button type="button" data-testid="analise-trilha-parte" data-chave={parte.chave} data-id={parte.id ?? ""}
@@ -135,12 +136,12 @@ function CartaoDaUnidade({ item, grupo, todo, categoria, competencia, distancia 
  * cartão do território. Sem números ainda (o primeiro pedido), o espaço com o aviso de carregamento. */
 export default function FaixaDoLugar(p: FaixaProps) {
   if (p.lugar.tipo === "nenhum") return null;
-  const todo = p.numeros?.todo ?? null, grupo = p.numeros?.grupo ?? null;
+  const todo = p.numeros?.todo ?? null, grupo = p.numeros?.grupo ?? null, regiao = p.numeros?.regiao ?? null;
   const titulo = p.lugar.partes.find(parte => parte.atual)?.rotulo ?? "";
   const competencia = p.numeros?.competencia ?? "";
   const cabecalho = <div className="analise-faixa-cabeca">
     <p className="analise-faixa-titulo"><strong>{p.lugar.tipo === "selecao" ? "Seleção" : titulo}</strong>
-      {(p.lugar.tipo === "selecao" || (p.lugar.tipo === "grupo" && !p.lugar.grupoInteiro)) && p.resumo &&
+      {(p.lugar.tipo === "selecao" || (p.lugar.tipo === "grupo" && !p.lugar.grupoInteiro) || (p.lugar.tipo === "regiao" && !p.lugar.regiaoInteira)) && p.resumo &&
         <span data-testid="analise-faixa-resumo" className="analise-faixa-apoio"> · {p.resumo}</span>}
       {competencia && <span className="analise-faixa-apoio"> · {competenciaCurta(competencia)}</span>}</p>
     <VerPor opcoes={p.verPor} nivel={p.nivel} onEscolher={p.onVerPor}/>
@@ -155,12 +156,15 @@ export default function FaixaDoLugar(p: FaixaProps) {
     corpo = todo ? <Numeros nivel={todo} categoria={p.categoria}/> : null;
   } else if (p.lugar.tipo === "grupo") {
     corpo = <>{grupo && <Numeros nivel={grupo} categoria={p.categoria}/>}<Referencias niveis={[grupo, todo]}/></>;
+  } else if (p.lugar.tipo === "regiao") {
+    // O grupo de cima de uma planilha com dois níveis (07/11/2026): os números dele, pelas unidades, e o todo como referência.
+    corpo = <>{regiao && <Numeros nivel={regiao} categoria={p.categoria}/>}<Referencias niveis={[regiao, todo]}/></>;
   } else {
     corpo = <Referencias niveis={[todo]}/>;
   }
   // Numa planilha (07/11/2026, item 1.4 do comando), a faixa diz de onde vem o total: pessoas únicas pelo identificador ou a soma
   // das unidades, com a ressalva da soma (G3). Na base do Brasil, os números vêm prontos nas fontes, sem a linha.
-  const origem = (p.lugar.tipo === "grupo" ? grupo?.origem : null) ?? todo?.origem ?? null;
+  const origem = (p.lugar.tipo === "grupo" ? grupo?.origem : p.lugar.tipo === "regiao" ? regiao?.origem : null) ?? todo?.origem ?? null;
   const unidade = p.rotulos.unidade;
   const daOrigem = origem === "soma" ? "Total: a soma d" + (generoDe(unidade) === "f" ? "as " : "os ") + unidade.plural + ". " + RESSALVA_DA_SOMA
     : origem === "pessoas_unicas" ? "Total: pessoas únicas, pelo identificador individual (quem atua em mais de " +

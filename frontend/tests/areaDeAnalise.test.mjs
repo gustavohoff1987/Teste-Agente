@@ -1332,6 +1332,51 @@ test('dois níveis de grupo: os grupos de cima, o Ver por "Região | Distrito | 
   assert.ok(mapa.motivo.endsWith('as regiões não têm um ponto de desenho.'), mapa.motivo);
 });
 
+test('dois níveis de grupo na trilha: "Portugal › Norte › Braga › Barcelos", a região inteira e em parte, e o Ver por dentro dela', () => {
+  const grupos = M.gruposDaFonte(null, CONCELHOS);
+  const {regioes, regiaoDoGrupo} = M.regioesDaFonte(CONCELHOS, grupos);
+  const porGrupo = new Map();
+  for (const item of CONCELHOS) porGrupo.set(item.parents[0], [...(porGrupo.get(item.parents[0]) ?? []), item.id]);
+  const arvore = {grupos, unidadesDoGrupo: g => porGrupo.get(g) ?? [], grupoDe: id => CONCELHOS.find(item => item.id === id)?.parents[0] ?? '',
+    total: CONCELHOS.length, regioes, regiaoDoGrupo: g => regiaoDoGrupo.get(g) ?? ''};
+  const trilha = {arvore, nomeDoTodo: M.nomeDoTodo(false, PORTUGAL), nomes: new Map([['name:Barcelos', 'Barcelos']]), comGrupos: true};
+  const lugar = escolha => M.lugarDaTrilha(escolha, trilha);
+  // O aceite do comando: uma unidade, com o grupo e o grupo de cima dela.
+  const barcelos = lugar(escolhaDaTrilha('municipios', [], ['name:Barcelos']));
+  assert.deepEqual(partes(barcelos), [['todo', 'Portugal', false], ['regiao', 'Norte', false], ['grupo', 'Braga', false],
+    ['unidade', 'Barcelos', true]]);
+  assert.deepEqual([barcelos.tipo, barcelos.grupo, barcelos.regiao], ['unidade', 'Braga', 'Norte']);
+  // O grupo inteiro: "Portugal › Norte › Braga".
+  assert.deepEqual(partes(lugar(escolhaDaTrilha('municipios', ['Braga']))), [['todo', 'Portugal', false], ['regiao', 'Norte', false],
+    ['grupo', 'Braga', true]]);
+  // O Norte inteiro (os distritos dele, inteiros): "Portugal › Norte", inteiro; parte dele (um distrito e um concelho de outro), em parte.
+  const norte = lugar(escolhaDaTrilha('municipios', ['Braga', 'Porto']));
+  assert.deepEqual(partes(norte), [['todo', 'Portugal', false], ['regiao', 'Norte', true]]);
+  assert.deepEqual([norte.tipo, norte.regiao, norte.regiaoInteira], ['regiao', 'Norte', true]);
+  const parte = lugar(escolhaDaTrilha('municipios', ['Porto'], ['name:Barcelos']));
+  assert.deepEqual([parte.tipo, parte.regiao, parte.regiaoInteira], ['regiao', 'Norte', false]);
+  // Regiões diferentes: a seleção; no nível de cima, uma região só é o lugar dela.
+  assert.equal(lugar(escolhaDaTrilha('municipios', ['Braga', 'Beja'])).tipo, 'selecao');
+  assert.deepEqual(partes(lugar(escolhaDaTrilha('regioes', ['Braga', 'Porto'], [], false, [], ['Norte']))),
+    [['todo', 'Portugal', false], ['regiao', 'Norte', true]]);
+  assert.deepEqual(partes(lugar(escolhaDaTrilha('estados', ['Braga', 'Porto'], [], false, [], ['Braga', 'Porto']))),
+    [['todo', 'Portugal', false], ['regiao', 'Norte', true]], 'vendo por distrito, os distritos do Norte: o Norte');
+  // Sem o nome do todo, a trilha começa em "Toda a base".
+  assert.equal(partes(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], ['name:Barcelos']), {...trilha, nomeDoTodo: M.nomeDoTodo(false)}))[0][1],
+    'Toda a base');
+  // Dentro do Norte inteiro, o Ver por tem o distrito e o concelho (a região é o lugar); em parte, nenhum.
+  const c = {arvore, comNiveis: true, rotulos: PORTUGAL, comRegioes: true};
+  assert.deepEqual(M.opcoesVerPor(norte, escolhaDaTrilha('municipios', ['Braga', 'Porto']), c).map(opcao => opcao.rotulo), ['Distrito', 'Concelho']);
+  assert.deepEqual(M.opcoesVerPor(parte, escolhaDaTrilha('municipios', ['Porto'], ['name:Barcelos']), c), []);
+  // A conversa: "mostre as regiões" leva ao nível de cima, com todas; sem o nível, o motivo.
+  const def = M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'Enfermagem', temGrupos: true, temPopulacao: true});
+  const pedido = (todasAsRegioes) => M.aplicarPedido(def, {nivel: 'regioes'}, {periodos: ['2024'], nomes: new Map(), temGrupos: true,
+    disponivel: () => ({disponivel: true, motivo: '', pendente: false, enviarDados: false}), todasAsRegioes});
+  assert.deepEqual([pedido(['Alentejo', 'Norte']).definicao.nivel, pedido(['Alentejo', 'Norte']).definicao.estados], ['regioes', ['Alentejo', 'Norte']]);
+  assert.ok(pedido([]).mensagens.includes('Esta fonte não tem um nível de grupo acima dos grupos.'), pedido([]).mensagens.join(' | '));
+  assert.equal(pedido([]).definicao.nivel, 'municipios');
+});
+
 test('faixa do lugar: a competência inicial da variação, os números e as referências', () => {
   const periodos = ['202006', '202101', '202106', '202201', '202206', '202301', '202306', '202401', '202406'];
   assert.equal(M.desdeDaFaixa(periodos, '202406'), '202106');  // os últimos 4 períodos anuais até a competência da análise

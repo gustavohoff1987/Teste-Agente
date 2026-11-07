@@ -832,6 +832,15 @@ def test_os_niveis_de_grupo_pelo_nome_da_base_na_conversa():
     assert explicacao.unidades(corpo) == ("macrorregião", "macrorregiões", True)
     assert explicacao.unidades({**corpo, "nivel": "estados"}) == ("província", "províncias", False)
     assert explicacao.unidades({**corpo, "nivel": "municipios"}) == ("distrito", "distritos", False)
+    # "Mostre as macrorregiões" numa planilha com o grupo de cima (07/11/2026, parte C2): o nível de cima, cada um pelas unidades;
+    # sem o grupo de cima nos rótulos, o pedido não vira o nível.
+    com_cima = {**CONTEXTO_PLANILHA, "rotulos": {**ROTULOS, "grupo_superior": {"singular": "macrorregião",
+                                                                               "plural": "macrorregiões"}}}
+    macros = planilha("mostre as macrorregiões", opcoes=com_cima)
+    assert macros["painel"] == painel(nivel="regioes")
+    assert macros["reply"] == "Mostrei as macrorregiões: cada bolha é uma macrorregião, pelos distritos dela, com a densidade."
+    assert planilha("mostre as províncias", opcoes=com_cima)["painel"] == painel(nivel="estados")
+    assert "painel" not in planilha("mostre as macrorregiões") or planilha("mostre as macrorregiões")["painel"] != painel(nivel="regioes")
 
 
 def test_orientacoes_da_conversa_seguem_os_rotulos_da_planilha():

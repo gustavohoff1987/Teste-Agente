@@ -231,6 +231,40 @@ def main():
         aperta(area.get_by_test_id("analise-nivel-municipios"))
         expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
+        # A árvore de dois níveis e a trilha (07/11/2026, item 1 do comando, parte C2: "Portugal › Norte › Braga › Barcelos"): as zonas
+        # em seções, com os condados dentro; marcar a zona marca os condados dela, e a trilha e a faixa mostram a zona; uma comuna
+        # mostra os quatro níveis.
+        expect(area.get_by_test_id("analise-regioes").get_by_test_id("analise-regiao")).to_have_count(2)
+        serrana = area.locator('[data-testid="analise-regiao"][data-id="Zona Serrana"]')
+        expect(serrana.get_by_test_id("analise-grupo")).to_have_count(2)
+        expect(serrana.get_by_test_id("analise-regiao-contagem")).to_have_text("2 condados · 8 comunas")
+        trilha = area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")
+
+        def espaco(locator):
+            locator.scroll_into_view_if_needed()
+            locator.focus()
+            locator.press("Space")
+        espaco(area.get_by_test_id("analise-raiz-caixa"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        espaco(serrana.get_by_test_id("analise-regiao-todos"))
+        expect(serrana).to_have_attribute("data-situacao", "inteiro")
+        expect(trilha).to_have_text(["Solária", "Zona Serrana"])
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        faixa = area.get_by_test_id("analise-faixa")
+        expect(faixa).to_have_attribute("data-lugar", "regiao", timeout=60000)
+        expect(faixa.locator('[data-testid="analise-faixa-numero"][data-chave="profissionais"]')).to_have_count(1, timeout=60000)
+        expect(faixa.get_by_test_id("analise-faixa-origem")).to_contain_text("Total: a soma das comunas.")
+        guarda("zona-serrana")
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        espaco(serrana.get_by_test_id("analise-regiao-todos"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
+        area.get_by_test_id("analise-busca").fill("Vesperina")
+        espaco(area.locator('[data-testid="analise-busca-item"][data-id="code:SOL-0101"] input'))
+        expect(trilha).to_have_text(["Solária", "Zona Serrana", "Alto Vésper", re.compile(r"^Vesperina")])
+        area.get_by_test_id("analise-busca").fill("")
+        espaco(area.get_by_test_id("analise-raiz-caixa"))
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
+        expect(trilha).to_have_text(["Solária"])
 
         # 4. Distribuição: o título, as Condições e a exportação (a coluna do grupo no CSV e a nota das chaves no método).
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
@@ -330,8 +364,10 @@ def main():
             send(page, "Mostre só o condado Costa Ondina")
         assert options_of(pedido.value)["base"]["municipios"]["estados"] == ["Costa Ondina"], options_of(pedido.value)["base"]
         expect(chat).to_contain_text("Mostrei a densidade nas 4 comunas do condado Costa Ondina.")
-        # A trilha de uma planilha com a coluna-mãe passa pelo grupo (07/11/2026, item 1 do comando; antes, sem o condado).
-        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(["Solária", "Costa Ondina"])
+        # A trilha de uma planilha com a coluna-mãe passa pelo grupo (07/11/2026, item 1 do comando; antes, sem o condado) e, com o
+        # grupo de cima (parte C2), pela zona dele.
+        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(
+            ["Solária", "Zona Marítima", "Costa Ondina"])
         # O nível de grupo pela conversa (07/11/2026, item 1 do comando; antes, "Esta base não tem um nível acima das comunas"):
         # os condados, cada um pelas comunas dele, com a trilha no todo. A tela confere pelo que mostra (a resposta pode vir da
         # memória das últimas respostas, sem pedido novo ao motor).
@@ -340,6 +376,10 @@ def main():
                                      timeout=120000)
         expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(4, timeout=60000)
         expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(["Solária"])
+        # O nível de cima pela conversa (07/11/2026, parte C2): as zonas, cada uma pelas comunas dela.
+        send(page, "Mostre as zonas")
+        expect(chat).to_contain_text("Mostrei as zonas: cada bolha é uma zona, pelas comunas dela, com a densidade.", timeout=120000)
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(2, timeout=60000)
         guarda("conversa")
 
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.

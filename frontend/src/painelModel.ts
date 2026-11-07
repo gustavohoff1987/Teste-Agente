@@ -2324,8 +2324,9 @@ export function gruposParciais(base: PainelMunicipios, c: ContextoDaArvore): { i
 // os textos; os números do lugar vêm do motor (POST /api/painel/lugar) e do resultado do gráfico.
 /** O lugar em uso: nada escolhido, o todo, um grupo (o estado inteiro ou uma seleção que cabe nele), uma unidade ou uma seleção
  * livre (vários estados, unidades de estados diferentes, conjuntos de estados diferentes). */
-export type TipoDoLugar = "nenhum" | "todo" | "grupo" | "unidade" | "selecao";
-export type ParteDaTrilha = { chave: "todo" | "grupo" | "unidade" | "selecao"; rotulo: string; id: string | null; atual: boolean };
+export type TipoDoLugar = "nenhum" | "todo" | "regiao" | "grupo" | "unidade" | "selecao";
+/** `regiao` (07/11/2026, item 1 do comando: até dois níveis de grupo): o grupo de cima de uma planilha com dois níveis. */
+export type ParteDaTrilha = { chave: "todo" | "regiao" | "grupo" | "unidade" | "selecao"; rotulo: string; id: string | null; atual: boolean };
 export type LugarDaTrilha = {
   tipo: TipoDoLugar;
   /** O grupo do lugar (o prefixo do estado): o próprio grupo, o da unidade ou o único grupo da seleção. */
@@ -2333,6 +2334,9 @@ export type LugarDaTrilha = {
   /** O grupo está inteiro na seleção (sem exclusões e sem unidades de fora dele). */
   grupoInteiro: boolean;
   unidade: string | null;
+  /** O grupo de cima do lugar (07/11/2026), numa planilha com dois níveis de grupo; e se ele está inteiro (todos os grupos dele). */
+  regiao?: string | null;
+  regiaoInteira?: boolean;
   partes: ParteDaTrilha[];
 };
 export type ContextoDaTrilha = { arvore: ContextoDaArvore; nomeDoTodo: string; nomes: Map<string, string>;
@@ -2349,19 +2353,38 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
   const fim = (tipo: TipoDoLugar, partes: ParteDaTrilha[], extra: Partial<LugarDaTrilha> = {}): LugarDaTrilha => ({
     tipo, grupo: null, grupoInteiro: false, unidade: null, ...extra,
     partes: partes.map((parte, indice) => ({ ...parte, atual: tipo !== "nenhum" && indice === partes.length - 1 })) });
+  // O grupo de cima de uma planilha com dois níveis (07/11/2026, item 1 do comando: "Portugal › Norte › Braga › Barcelos"): entre o
+  // todo e o grupo. Sem grupos de cima (a base do Brasil), a trilha de sempre.
+  const comRegioes = c.comGrupos && !!c.arvore.regioes?.length && !!c.arvore.regiaoDoGrupo;
+  const regiaoDe = (grupo: string | null) => comRegioes && grupo ? c.arvore.regiaoDoGrupo!(grupo) || null : null;
+  const regiaoParte = (id: string): ParteDaTrilha => ({ chave: "regiao", rotulo: c.arvore.regioes?.find(regiao => regiao.id === id)?.nome || id,
+    id, atual: false });
+  const acima = (grupo: string | null): ParteDaTrilha[] => { const regiao = regiaoDe(grupo); return regiao ? [todo, regiaoParte(regiao)] : [todo]; };
   const grupoParte = (id: string): ParteDaTrilha => ({ chave: "grupo", rotulo: nomeDoGrupo(id), id, atual: false });
   const selecao: ParteDaTrilha = { chave: "selecao", rotulo: NOME_DA_SELECAO, id: null, atual: false };
+  /** A seleção cabe num grupo de cima só: o lugar é ele (inteiro quando são exatamente os grupos dele, inteiros). */
+  const naRegiao = (grupos: string[], inteira: boolean): LugarDaTrilha | null => {
+    const regioes = new Set(grupos.map(regiaoDe));
+    if (!comRegioes || regioes.size !== 1) return null;
+    const [regiao] = [...regioes];
+    if (!regiao) return null;
+    const todosDela = gruposDaRegiao(regiao, c.arvore);
+    return fim("regiao", [todo, regiaoParte(regiao)], { regiao, regiaoInteira: inteira && todosDela.every(id => grupos.includes(id)) });
+  };
   if (def.nivel === "brasil") return fim("todo", [todo]);
-  // O grupo de cima (07/11/2026): todos são o todo; os demais, uma seleção (a trilha com o grupo de cima vem na parte seguinte).
   if (def.nivel === "regioes") {
     const todos = !!c.arvore.regioes?.length && def.estados.length >= c.arvore.regioes.length;
     if (todos || def.base.todos) return fim("todo", [todo]);
+    if (def.estados.length === 1 && comRegioes) return fim("regiao", [todo, regiaoParte(def.estados[0])], { regiao: def.estados[0], regiaoInteira: true });
     return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
   }
   if (def.nivel === "estados") {
     const todos = c.arvore.grupos.length > 0 && def.estados.length >= c.arvore.grupos.length;
     if (todos || def.base.todos) return fim("todo", [todo]);
-    if (def.estados.length === 1) return fim("grupo", [todo, grupoParte(def.estados[0])], { grupo: def.estados[0], grupoInteiro: true });
+    if (def.estados.length === 1) return fim("grupo", [...acima(def.estados[0]), grupoParte(def.estados[0])],
+      { grupo: def.estados[0], grupoInteiro: true, regiao: regiaoDe(def.estados[0]) });
+    const regiao = def.estados.length ? naRegiao(def.estados, true) : null;
+    if (regiao) return regiao;
     return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
   }
   const n = normalizarArvore(def.base, c.arvore);
@@ -2373,18 +2396,23 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
     return fim("selecao", [todo, selecao]);
   }
   if (n.estados.length === 1 && !n.ids.length && !def.conjuntos.length)
-    return fim("grupo", [todo, grupoParte(n.estados[0])], { grupo: n.estados[0], grupoInteiro: true });
+    return fim("grupo", [...acima(n.estados[0]), grupoParte(n.estados[0])], { grupo: n.estados[0], grupoInteiro: true, regiao: regiaoDe(n.estados[0]) });
   if (!n.estados.length && n.ids.length === 1 && !def.conjuntos.length) {
     const unidade = n.ids[0], grupo = c.arvore.grupoDe(unidade);
     const unidadeParte: ParteDaTrilha = { chave: "unidade", rotulo: c.nomes.get(unidade) || unidade, id: unidade, atual: false };
-    return grupo ? fim("unidade", [todo, grupoParte(grupo), unidadeParte], { grupo, unidade })
+    return grupo ? fim("unidade", [...acima(grupo), grupoParte(grupo), unidadeParte], { grupo, unidade, regiao: regiaoDe(grupo) })
       : fim("unidade", [todo, unidadeParte], { unidade });
   }
   // Tudo dentro de um estado só (unidades dele e conjuntos dos membros dele): a trilha mostra o estado.
   const tocados = new Set([...n.estados, ...n.ids.map(c.arvore.grupoDe), ...def.conjuntos.flatMap(conjunto => conjunto.membros.map(c.arvore.grupoDe))]);
   if (tocados.size === 1) {
     const [grupo] = [...tocados];
-    if (grupo) return fim("grupo", [todo, grupoParte(grupo)], { grupo, grupoInteiro: false });
+    if (grupo) return fim("grupo", [...acima(grupo), grupoParte(grupo)], { grupo, grupoInteiro: false, regiao: regiaoDe(grupo) });
+  }
+  // Tudo dentro de um grupo de cima só (07/11/2026): a trilha mostra o grupo de cima; inteiro com todos os grupos dele inteiros.
+  if (![...tocados].some(grupo => !grupo)) {
+    const regiao = naRegiao([...tocados], !n.ids.length && !def.conjuntos.length);
+    if (regiao) return regiao;
   }
   return fim("selecao", [todo, selecao]);
 }
@@ -2442,10 +2470,12 @@ export function opcoesVerPor(lugar: LugarDaTrilha, def: Pick<DefinicaoAnalise, "
   comRegioes?: boolean }): OpcaoVerPor[] {
   if (!c.comNiveis || !c.arvore.grupos.length) return [];
   const grupo = c.rotulos.grupo ?? ROTULOS_GENERICOS.grupo!, unidade = c.rotulos.unidade;
-  const selecao = lugar.tipo === "selecao";
+  // Numa seleção e dentro de um grupo de cima (07/11/2026), o grupo vale com grupos inteiros.
+  const selecao = lugar.tipo === "selecao" || lugar.tipo === "regiao";
   const comEstados = lugar.tipo === "todo" || lugar.tipo === "nenhum" || (selecao && !!unidadesPossiveis(def.base, c.arvore).estados?.length);
   if (!comEstados) return [];
-  const comRegioes = !!c.comRegioes && !!c.arvore.regioes?.length && (!selecao || !!regioesPossiveis(def.base, c.arvore)?.length);
+  const comRegioes = !!c.comRegioes && !!c.arvore.regioes?.length && lugar.tipo !== "regiao" &&
+    (!selecao || !!regioesPossiveis(def.base, c.arvore)?.length);
   const superior = c.rotulos.grupo_superior ?? GRUPO_SUPERIOR_GENERICO;
   return [
     ...(comRegioes ? [{ nivel: "regioes" as const, rotulo: maiuscula(superior.singular), apoio: "cada ponto é " + umA(superior) }] : []),
@@ -2652,6 +2682,8 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
   mapa?: (definicao: DefinicaoAnalise) => { disponivel: boolean; motivo: string | null };
   /** Os estados da fonte: "todos os estados" na conversa marca todos (a escolha de estados da Seleção é trocada por ela). */
   todosOsEstados?: string[];
+  /** Os grupos de cima de uma planilha com dois níveis (07/11/2026): "mostre as zonas" mostra todos. */
+  todasAsRegioes?: string[];
   /** A base do Brasil, com o país como unidade (nível Brasil). */
   temBrasil?: boolean;
   /** Os municípios de cada estado (a Escolha dos territórios pedida que muda a seleção nomeia a de antes na referência). */
@@ -2676,6 +2708,9 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (c.temBrasil) proxima = { ...proxima, nivel: "estados", base: { todos: true, estados: [], ids: [] },
       estados: c.todosOsEstados?.length ? [...c.todosOsEstados] : proxima.estados };
     else mensagens.push("O Brasil existe só nos dados do Brasil.");
+  } else if (pedido.nivel === "regioes") {
+    if (c.todasAsRegioes?.length) proxima = { ...proxima, nivel: "regioes", estados: [...c.todasAsRegioes] };
+    else mensagens.push("Esta fonte não tem um nível de grupo acima dos grupos.");
   } else if (pedido.nivel === "municipios") proxima.nivel = "municipios";
   if (typeof pedido.competencia === "string") {
     if (periodos.has(pedido.competencia)) proxima.competencia = pedido.competencia;

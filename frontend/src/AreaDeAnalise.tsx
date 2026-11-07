@@ -565,11 +565,13 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!fonte || !pronto || !tipo || lugar.tipo === "nenhum" || !competenciaDaFaixa) return null;
     if (tipo === "arquivo" && !opcoes) return null;
     const desde = desdeDaFaixa(periodos, competenciaDaFaixa);
+    // No grupo de cima (07/11/2026), os números dele, pelas unidades.
     return { competencia: competenciaDaFaixa, categoria: def.categoria, ...(lugar.grupo ? { grupo: lugar.grupo } : {}),
+      ...(lugar.tipo === "regiao" && lugar.regiao ? { regiao: lugar.regiao } : {}),
       ...(desde ? { desde } : {}), ...(opcoes?.serie ? { serie: opcoes.serie } : {}),
       ...(tipo === "arquivo" && opcoes ? { ...(opcoes.premissas ? { premissas: opcoes.premissas } : {}),
         ...(opcoes.rotulos ? { rotulos: opcoes.rotulos } : {}) } : {}) };
-  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie, opcoes?.premissas, opcoes?.rotulos]);
+  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, lugar.regiao, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie, opcoes?.premissas, opcoes?.rotulos]);
   const chaveDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify(pedidoDoLugar) : "";
   // Sem a série, a mesma faixa: trocar de aba (a Série temporal pede a série) mantém os números à vista enquanto chega o pedido novo.
   const baseDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify({ ...pedidoDoLugar, serie: undefined }) : "";
@@ -694,7 +696,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       }
     }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
-      todosOsEstados: idsDosGrupos, temBrasil: todoPorGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo });
+      todosOsEstados: idsDosGrupos, temBrasil: todoPorGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo,
+      todasAsRegioes: comRegioes ? idsDasRegioes : [] });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
     resultado.definicao = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
@@ -1091,6 +1094,14 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         : { nivel: "municipios", base: { todos: true, estados: [], ids: [] }, estados: [], conjuntos: [] }, "Ir para " + parte.rotulo + " na trilha");
       setAberto(null);
       setAviso(parte.rotulo + (todoPorGrupo ? ": ver por " + grupo.singular + "." : ": " + todosOs(rotulos.unidade) + "."));
+    } else if (parte.chave === "regiao" && parte.id) {
+      // O grupo de cima (07/11/2026): as unidades dos grupos dele, vendo por unidade (o "Ver por" oferece os grupos dele).
+      navegar({ nivel: "municipios", base: { todos: false, estados: gruposDaRegiao(parte.id, arvore), ids: [] }, estados: [], conjuntos: [] },
+        "Ir para " + parte.rotulo + " na trilha");
+      setAberto(null);
+      const superior = rotulosDaVista(rotulos, "regioes").grupo ?? ROTULOS_GENERICOS.grupo!;
+      setAviso(parte.rotulo + ": " + todosOs(rotulos.unidade) + (generoDe(superior) === "f" ? " dela." : " dele."));
+      pedirOQueFalta();
     } else if (parte.chave === "grupo" && parte.id) {
       navegar({ nivel: "municipios", base: { todos: false, estados: [parte.id], ids: [] }, estados: [], conjuntos: [] },
         "Ir para " + parte.rotulo + " na trilha");
@@ -1924,7 +1935,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         <MapaIcone size={14} aria-hidden="true"/><span className="truncate">{resumoDaSelecao}</span></span>
     </div>}
     {/* A trilha (06/11/2026, item 3.1): no alto da área de análise, sempre visível e igual em todas as abas. */}
-    {pronto && <Trilha partes={lugar.partes} vazia={lugar.tipo === "nenhum"} grupoParcial={lugar.tipo === "grupo" && !lugar.grupoInteiro}
+    {pronto && <Trilha partes={lugar.partes} vazia={lugar.tipo === "nenhum"}
+      grupoParcial={(lugar.tipo === "grupo" && !lugar.grupoInteiro) || (lugar.tipo === "regiao" && !lugar.regiaoInteira)}
       onIr={irNaTrilha}/>}
     {!fonte && abertura}
     {fonte && props.trocandoFonte && trocaDaFonte}
@@ -1960,7 +1972,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             <h3 className="sr-only">{NOME_SELECAO}</h3>
             <TextoDaApresentacao aba={aba} apresentacao={apresentacaoDaAba(aba, { rotulos, brasil: tipo === "brasil", comGrupos: grupos.length > 0 })}/>
           </div>
-          <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} regioes={regioes} comNiveis={comBolhasDeGrupo} verPor={verPor} unidades={municipios}
+          <PainelTerritorios rotulos={rotulos} brasil={tipo === "brasil"} grupos={grupos} regioes={regioes} regiaoDoGrupo={regioes.length ? arvore.regiaoDoGrupo : undefined} comNiveis={comBolhasDeGrupo} verPor={verPor} unidades={municipios}
             total={totalDeUnidades} nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto}
             aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]} totais={totaisNaSelecao}
             onUnidade={escolherNivel} onBase={mudarArvore}

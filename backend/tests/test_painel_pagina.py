@@ -1153,6 +1153,19 @@ def test_dois_niveis_de_grupo_numa_planilha_a_regiao_pelas_unidades(repo):
     info = inspection()
     refused(page(info, nivel="regioes"), "O nível regioes existe só nas planilhas com dois níveis de grupo")
     assert "regioes" not in ok(page(info))["disponibilidade"]
+    # O lugar de um grupo de cima (07/11/2026, parte C2: a trilha "Solária › Zona"): os números dele pelas unidades, ao lado do
+    # todo; sem pedir a região, a resposta de antes (sem a chave).
+    lugar = {"competencia": "2024", "rotulos": rotulos, "premissas": {"count_unit": "pessoas"}}
+    regiao = ok(upload({**lugar, "regiao": "Macro Leste"}, mapping=mapping, contents=macro_csv(macros), path="/api/painel/lugar"))["regiao"]
+    assert (regiao["id"], regiao["nivel"], regiao["rotulo"], regiao["quantidade"], regiao["populacao"], regiao["densidade"],
+            regiao["origem"]) == ("uf:Macro Leste", "regiao", "Macro Leste", 21, 1500, 14, "soma")
+    assert "regiao" not in ok(upload(lugar, mapping=mapping, contents=macro_csv(macros), path="/api/painel/lugar"))
+    refused(upload({**lugar, "regiao": "Macro Norte"}, mapping=mapping, contents=macro_csv(macros), path="/api/painel/lugar"),
+            "Macrorregião do lugar inexistente na planilha")
+    refused(upload({**lugar, "regiao": "Macro Leste"}, path="/api/painel/lugar"),
+            "Sem a coluna do nível acima da província (papel grupo_territorial_superior)")
+    refused(post(info, path="/api/painel/lugar", competencia="202406", regiao="Norte"),
+            "O lugar regiao existe só nas planilhas com dois níveis de grupo")
 
 
 def test_territorial_messages_follow_the_structure_of_the_spreadsheet(repo):

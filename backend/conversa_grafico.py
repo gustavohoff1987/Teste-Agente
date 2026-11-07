@@ -791,11 +791,13 @@ def _competencias_da_coluna(frame, coluna):
 
 class _Rotulos:
     def __init__(self, singular, plural, feminino, grupo_singular, grupo_plural, grupo_feminino, superior_plural="regiões",
-                 superior_feminino=True):
+                 superior_feminino=True, superior_singular="região", tem_superior=False):
         self.singular, self.plural, self.feminino = singular, plural, feminino
         self.grupo_singular, self.grupo_plural, self.grupo_feminino = grupo_singular, grupo_plural, grupo_feminino
-        # O grupo de cima de uma planilha com dois níveis (07/11/2026): só para dizer o nível em uso ("as zonas").
+        # O grupo de cima de uma planilha com dois níveis (07/11/2026): o nível em uso ("as zonas") e o pedido dele ("mostre as
+        # zonas"), só quando a planilha o tem (os rótulos dele vêm com a coluna escolhida no painel Colunas).
         self.superior_plural, self.superior_feminino = superior_plural, superior_feminino
+        self.superior_singular, self.tem_superior = superior_singular, tem_superior
 
     def os_do_nivel(self, nivel, brasil):
         """Os itens de um nível de grupo, com o artigo: "os estados" na base do Brasil; numa planilha, os grupos ("os condados")
@@ -865,7 +867,8 @@ def _rotulos(ctx, brasil):
     superior_singular = _palavra(superior.get("singular")) or "região"
     superior_plural = _palavra(superior.get("plural")) or ("regiões" if superior_singular == "região" else superior_singular + "s")
     return _Rotulos(singular, plural, _feminino(unidade, singular), grupo_singular, grupo_plural,
-                    _feminino(grupo, grupo_singular), superior_plural, _feminino(superior, superior_singular))
+                    _feminino(grupo, grupo_singular), superior_plural, _feminino(superior, superior_singular), superior_singular,
+                    bool(superior))
 
 
 def _alternativas(*palavras):
@@ -921,7 +924,8 @@ class _Conversa:
                                            r")\s+(?:de|do|da)\s+)?$")
         self.todos = re.compile(r"\btod[oa]s\s+(?:[oa]s\s+)?(?:" + unidades + r")\b(?:\s+d[oa]\s+brasil\b)?|\b(?:" +
                                 unidades + r")\s+do\s+brasil\b")
-        self.voltar_estados = _nivel(_alternativas("estados", "ufs", *(() if self.brasil else (rot.grupo_plural,))), True)
+        self.voltar_estados = _nivel(_alternativas("estados", "ufs", *(() if self.brasil else (rot.grupo_plural,)),
+                                                   *((rot.superior_plural,) if not self.brasil and rot.tem_superior else ())), True)
         self.voltar_unidades = _nivel(unidades, False)
         self.neutras = NEUTRAS | {palavra for rotulo in (rot.singular, rot.plural, rot.grupo_singular, rot.grupo_plural)
                                   for palavra in re.findall(r"[a-z0-9]+", normalize(rotulo))}
@@ -1453,6 +1457,16 @@ def _grupos_da_planilha(conv, texto):
                          " no gráfico: cada bolha é " + rot.um() + ". Para ver " + rot.os() + " de " +
                          ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular + ", diga, por exemplo, “mostre " +
                          ("a " if rot.grupo_feminino else "o ") + rot.grupo_singular + " …”." + NADA_MUDOU)
+    if rot.tem_superior and re.search(r"\b(?:" + _alternativas(rot.superior_plural) + r")\b", texto):
+        # O nível de cima de uma planilha com dois níveis de grupo (07/11/2026): cada grupo de cima pelas unidades dele.
+        frase = ("Mostrei " + rot.os_do_nivel("regioes", False) + ": cada bolha é " + ("uma " if rot.superior_feminino else "um ") +
+                 rot.superior_singular + ", pel" + rot.os() + " del" + ("a" if rot.superior_feminino else "e"))
+        if conv.ctx["familia"] == "espacial":
+            frase += "; n" + rot.os_do_nivel("regioes", False) + " não há distância, porque " + rot.superior_plural + \
+                " não têm um ponto único"
+        elif conv.ctx["indicador"]:
+            frase += ", com " + _o_que(None, conv.ctx["indicador"])
+        return _resposta(_painel(nivel="regioes"), frase + ".")
     os_grupos = ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural
     if not re.search(r"\b(?:" + _alternativas(rot.grupo_plural) + r")\b", texto):
         return _pergunta("Nesta base, o nível acima " + ("das " if rot.feminino else "dos ") + rot.plural + " são " + os_grupos +

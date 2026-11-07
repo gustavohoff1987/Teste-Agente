@@ -40,8 +40,10 @@ type Props = {
   total: number;
   /** O nível em uso no "Ver por" (cada ponto é um município ou um estado). */
   nivel: PainelNivel;
-  /** Os grupos de cima de uma planilha com dois níveis (07/11/2026, item 1 do comando), para o resumo no nível de cima. */
+  /** Os grupos de cima de uma planilha com dois níveis (07/11/2026, item 1 do comando): o resumo no nível de cima e as seções da
+   * árvore, com o grupo de cima de cada grupo. */
   regioes?: GrupoInfo[];
+  regiaoDoGrupo?: (grupo: string) => string;
   base: PainelMunicipios;
   /** Os estados como unidades (só leitura: vêm da árvore, com estados inteiros). */
   estados: string[];
@@ -140,6 +142,16 @@ export default function PainelTerritorios(p: Props) {
   };
   const tirarGrupo = (g: GrupoInfo) => p.onBase(desmarcarGrupo(p.base, g.id, idsDoGrupo(g.id), todosOsGrupos, todasAsUnidades),
     maiuscula(deGrupo(g)) + marcadosTexto(false), true);
+  // As seções dos grupos de cima (07/11/2026): só com eles e o grupo de cima de cada grupo.
+  const regioesDaArvore = p.regioes?.length && p.regiaoDoGrupo ? p.regioes : [];
+  const gruposDaSecao = (regiao: GrupoInfo) => p.grupos.filter(grupo => p.regiaoDoGrupo?.(grupo.id) === regiao.id);
+  /** Marca (ou desmarca) um grupo de cima inteiro: todos os grupos dele, como marcar cada um. */
+  const alternarRegiao = (regiao: GrupoInfo, grupos: GrupoInfo[], inteira: boolean) => {
+    let base = p.base;
+    for (const grupo of grupos) base = inteira ? desmarcarGrupo(base, grupo.id, idsDoGrupo(grupo.id), todosOsGrupos, todasAsUnidades)
+      : marcarGrupo(base, grupo.id, idsDoGrupo(grupo.id));
+    p.onBase(base, maiuscula(todosOs(unidade)) + " de " + regiao.nome + marcadosTexto(!inteira), true);
+  };
   /** A raiz da árvore: o Brasil inteiro (ou a planilha inteira), marcado ou desmarcado de uma vez. */
   const alternarRaiz = () => p.base.todos
     ? p.onBase({ ...BASE_VAZIA }, (p.brasil ? "Brasil inteiro desmarcado" : maiuscula(unidade.plural) + marcadosTexto(false).replace(/\.$/, "")) + ".", true)
@@ -232,6 +244,33 @@ export default function PainelTerritorios(p: Props) {
     </li>;
   };
 
+  /** Uma seção do grupo de cima (07/11/2026): a caixa de três estados (todos os grupos dela inteiros, em parte ou nada), o nome e
+   * as contagens, e os grupos dela abaixo, com as linhas de sempre. */
+  const linhaDaRegiao = (regiao: GrupoInfo) => {
+    const grupos = gruposDaSecao(regiao);
+    const inteira = p.base.todos || (grupos.length > 0 && grupos.every(grupo => grupoInteiro(p.base, grupo.id)));
+    const parcial = !inteira && grupos.some(grupo => marcadasNoGrupo(p.base, grupo.id, idsDoGrupo(grupo.id)) > 0);
+    const total = grupos.reduce((soma, grupo) => soma + (grupo.unidades || idsDoGrupo(grupo.id).length), 0);
+    const todas = maiuscula(todosOs(unidade)) + " de " + regiao.nome;
+    return <li key={regiao.id} data-testid="analise-regiao" data-id={regiao.id} data-situacao={inteira ? "inteiro" : parcial ? "parcial" : "nenhum"}
+      className="analise-regiao">
+      <div className="analise-regiao-linha">
+        <label className="analise-caixa analise-grupo-caixa">
+          <input type="checkbox" data-testid="analise-regiao-todos" checked={inteira} ref={elemento => { if (elemento) elemento.indeterminate = parcial; }}
+            aria-label={todas} onChange={() => alternarRegiao(regiao, grupos, inteira)}/>
+          <span className="analise-grupo-texto">
+            <span className="analise-grupo-nome">{regiao.nome}</span>
+            <span data-testid="analise-regiao-contagem" className="analise-grupo-contagem">{quantos(grupos.length, grupoRotulo)} ·{" "}
+              {quantos(total, unidade)}</span>
+          </span>
+        </label>
+      </div>
+      <ul className="analise-grupos analise-grupos-arvore analise-grupos-da-regiao" aria-label={maiuscula(grupoRotulo.plural) + " de " + regiao.nome}>
+        {grupos.map(grupo => linhaDoGrupo(grupo, "analise-grupo"))}
+      </ul>
+    </li>;
+  };
+
   // ------------------------------------------------------------------------------------------ busca
   const termo = sem(consulta.trim());
   const busca = useMemo(() => {
@@ -272,9 +311,12 @@ export default function PainelTerritorios(p: Props) {
           </span>
         </label>
       </div>
-      <ul className="analise-grupos analise-grupos-arvore" aria-label={maiuscula(grupoRotulo.plural)}>
+      {regioesDaArvore.length ? <ul data-testid="analise-regioes" className="analise-regioes"
+        aria-label={maiuscula((p.rotulos.grupo_superior ?? { singular: "região", plural: "regiões" }).plural)}>
+        {regioesDaArvore.map(linhaDaRegiao)}
+      </ul> : <ul className="analise-grupos analise-grupos-arvore" aria-label={maiuscula(grupoRotulo.plural)}>
         {p.grupos.map(grupo => linhaDoGrupo(grupo, "analise-grupo"))}
-      </ul>
+      </ul>}
     </div>;
   })();
 
