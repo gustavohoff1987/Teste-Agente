@@ -1425,16 +1425,37 @@ def _frase_de_base(conv, painel, base, quando=""):
 
 
 # --------------------------------------------------------------------------------------------- comandos
+def _grupos_da_planilha(conv, texto):
+    """“Mostre os condados” numa planilha. Desde 07/11/2026 (item 1 do comando de 06/11/2026, o “Ver por” com os níveis da base),
+    com a coluna-mãe, o nível de grupo: cada grupo pelas unidades dele (as pessoas únicas, com o identificador individual; senão,
+    a soma, com a ressalva, que a nota do gráfico mostra). “Estados” numa planilha não é o nome do nível: a pergunta diz qual é,
+    com o botão. Sem a coluna-mãe, não há nível acima das unidades."""
+    rot = conv.rot
+    if conv.cat is None or not conv.cat.grupos:
+        return _pergunta("Esta base não tem um nível acima " + ("das " if rot.feminino else "dos ") + rot.plural +
+                         " no gráfico: cada bolha é " + rot.um() + ". Para ver " + rot.os() + " de " +
+                         ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular + ", diga, por exemplo, “mostre " +
+                         ("a " if rot.grupo_feminino else "o ") + rot.grupo_singular + " …”." + NADA_MUDOU)
+    os_grupos = ("as " if rot.grupo_feminino else "os ") + rot.grupo_plural
+    if not re.search(r"\b(?:" + _alternativas(rot.grupo_plural) + r")\b", texto):
+        return _pergunta("Nesta base, o nível acima " + ("das " if rot.feminino else "dos ") + rot.plural + " são " + os_grupos +
+                         "." + NADA_MUDOU, [_escolha("Mostrar " + os_grupos, "mostre " + os_grupos)])
+    frase = ("Mostrei " + os_grupos + ": cada bolha é " + ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular + ", pel" +
+             rot.os() + " del" + ("a" if rot.grupo_feminino else "e"))
+    if conv.ctx["familia"] == "espacial":
+        frase += "; n" + os_grupos + " não há distância, porque " + rot.grupo_plural + " não têm um ponto único"
+    elif conv.ctx["indicador"]:
+        frase += ", com " + _o_que(None, conv.ctx["indicador"])
+    return _resposta(_painel(nivel="estados"), frase + ".")
+
+
 def _voltar(conv, dica, dica_indicador):
     """"Volte aos estados" e "volte aos municípios": só o nível muda (a vista citada, "… no mapa", já saiu do pedido)."""
     texto = " ".join(re.findall(r"[a-z0-9]+", conv.pedido.resto))
     rot = conv.rot
     if conv.voltar_estados.fullmatch(texto):
         if not conv.brasil:
-            return _pergunta("Esta base não tem um nível acima " + ("das " if rot.feminino else "dos ") + rot.plural +
-                             " no gráfico: cada bolha é " + rot.um() + ". Para ver " + rot.os() + " de " +
-                             ("uma " if rot.grupo_feminino else "um ") + rot.grupo_singular + ", diga, por exemplo, “mostre " +
-                             ("a " if rot.grupo_feminino else "o ") + rot.grupo_singular + " …”." + NADA_MUDOU)
+            return _grupos_da_planilha(conv, texto)
         texto_estados = "Voltei aos estados: cada bolha é um estado"
         if conv.ctx["familia"] == "espacial":
             texto_estados += "; nos estados não há distância, porque estados não têm um ponto único"

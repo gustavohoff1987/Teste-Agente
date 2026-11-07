@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  MAX_CONJUNTOS, TEXTO_MAX_GRUPOS, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  MAX_CONJUNTOS, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -359,7 +359,12 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const rotulos = rotulosEfetivos(resposta?.rotulos, fonte?.rotulos, tipo);
   const temIdentificador = !!fonte?.mapping?.identity;
   const disponibilidade = resposta?.disponibilidade ?? null;
-  const comBolhasDeGrupo = tipo === "brasil" && grupos.length > 0 && (disponibilidade?.estados?.disponivel ?? disponibilidade?.grupos?.disponivel ?? true);
+  // As bolhas de grupo: na base do Brasil, os estados; desde 07/11/2026 (item 1 do comando), também os grupos da coluna-mãe de
+  // uma planilha, pelas unidades de cada um (o motor diz se o nível existe).
+  const comBolhasDeGrupo = !!tipo && grupos.length > 0 && (disponibilidade?.estados?.disponivel ?? disponibilidade?.grupos?.disponivel ?? true);
+  // O todo vendo por grupo (06/11/2026): só na base do Brasil. Numa planilha, o todo continua mostrando as unidades, e os grupos
+  // aparecem pelo "Ver por" (07/11/2026).
+  const todoPorGrupo = comBolhasDeGrupo && tipo === "brasil";
   const disponivelDe = useCallback((familia: Familia): Disponivel => disponibilidadeDaFamilia(familia, { fonte: tipo, nivel: def.nivel,
     disponibilidade, temIdentificador, rotulos }), [tipo, def.nivel, disponibilidade, temIdentificador, rotulos]);
   /** O mapa numa definição (a da tela ou a que resulta de um pedido da conversa). */
@@ -674,7 +679,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       }
     }
     const resultado = aplicarPedido(def, pedido.pedido, { periodos, nomes, temGrupos: comBolhasDeGrupo, disponivel: disponivelDe, grupoDe, mapa: mapaDe,
-      todosOsEstados: idsDosGrupos, temBrasil: comBolhasDeGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo });
+      todosOsEstados: idsDosGrupos, temBrasil: todoPorGrupo, unidadesDoGrupo: arvore.unidadesDoGrupo });
     if (!temPopulacao && pedido.pedido.indicador === "densidade") { resultado.definicao.indicador = "quantidade"; resultado.mensagens.push(TEXTO_SEM_POPULACAO); }
     // A árvore mostra o que está na análise (05/11/2026): os estados ou o Brasil pedidos ficam marcados nela.
     resultado.definicao = { ...resultado.definicao, ...unificarEscolha(escolhaDe(resultado.definicao), arvore) };
@@ -975,7 +980,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function escolherNivel(nivel: PainelNivel) {
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     const nova = escolhaDaUnidade(escolhaDe(def), nivel, arvore);
-    if (!nova) { setAviso(motivoDaUnidade(nivel === "brasil" ? "brasil" : "estados", rotulos)); return; }
+    if (!nova) { setAviso(motivoDaUnidade(nivel === "brasil" ? "brasil" : "estados", rotulos, tipo === "brasil")); return; }
     const nome = nivel === "brasil" ? "Brasil" : nivel === "estados" ? grupo.plural : rotulos.unidade.plural;
     // Sem nada marcado, os estados e o Brasil são atalhos que marcam tudo: uma mudança coletiva, dita junto do que está marcado.
     const marcouTudo = nivel !== "municipios" && baseVazia(def.base);
@@ -984,7 +989,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       : maiuscula(todosOs(grupo)) + " marcad" + (f ? "as" : "os") + ", como unidades.") : "Trocar a unidade de análise para " + nome, marcouTudo);
     setAviso(nivel === "estados"
       ? "Ver por " + grupo.singular + ": cada ponto é " + (generoDe(grupo) === "f" ? "uma " : "um ") + grupo.singular + " inteir" + (generoDe(grupo) === "f" ? "a" : "o") +
-        ", com a contagem estadual de médicos únicos."
+        (tipo === "brasil" ? ", com a contagem estadual de médicos únicos."
+          // Numa planilha (07/11/2026), cada grupo vem das unidades dele; a nota do gráfico diz como (pessoas únicas ou a soma).
+          : ", pel" + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + " del" + (generoDe(grupo) === "f" ? "a" : "e") + ".")
       : "Ver por " + rotulos.unidade.singular + ": cada ponto é " + (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ".");
     if (nivel === "municipios") pedirOQueFalta();
   }
@@ -993,10 +1000,11 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function mudarArvore(base: PainelMunicipios, acao: string, coletiva = false) {
     let nova = escolhaDaArvore(escolhaDe(def), base, arvore);
     // Chegar ao todo (06/11/2026): a análise vê por estado, o nível abaixo do Brasil na trilha; o "Ver por" troca para município.
-    const chegouAoTodo = comBolhasDeGrupo && nova.base.todos && !normalizarArvore(def.base, arvore).todos;
+    // Numa planilha, marcar o todo continua mostrando as unidades; os grupos aparecem pelo "Ver por" (07/11/2026).
+    const chegouAoTodo = todoPorGrupo && nova.base.todos && !normalizarArvore(def.base, arvore).todos;
     if (chegouAoTodo && nova.nivel === "municipios") nova = { ...nova, nivel: "estados", estados: [...idsDosGrupos] };
     mudarEscolha(nova, acao, coletiva);
-    if (chegouAoTodo) setAviso(nomeDoTodo(true) + " inteiro: ver por " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular +
+    if (chegouAoTodo) setAviso(nomeDoTodo(tipo === "brasil", rotulos) + " inteiro: ver por " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular +
       ". Para ver " + artigo(rotulos.unidade, true) + " " + rotulos.unidade.plural + ", use o Ver por.");
     else if (nova.nivel !== def.nivel) setAviso("A seleção mudou e não tem mais só estados inteiros: cada ponto da análise volta a ser " +
       (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + ".");
@@ -1052,10 +1060,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function irNaTrilha(parte: ParteDaTrilha) {
     const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
     if (parte.chave === "todo") {
-      navegar(comBolhasDeGrupo ? { nivel: "estados", base: { todos: true, estados: [], ids: [] }, estados: [...idsDosGrupos], conjuntos: [] }
+      navegar(todoPorGrupo ? { nivel: "estados", base: { todos: true, estados: [], ids: [] }, estados: [...idsDosGrupos], conjuntos: [] }
         : { nivel: "municipios", base: { todos: true, estados: [], ids: [] }, estados: [], conjuntos: [] }, "Ir para " + parte.rotulo + " na trilha");
       setAberto(null);
-      setAviso(parte.rotulo + (comBolhasDeGrupo ? ": ver por " + grupo.singular + "." : ": " + todosOs(rotulos.unidade) + "."));
+      setAviso(parte.rotulo + (todoPorGrupo ? ": ver por " + grupo.singular + "." : ": " + todosOs(rotulos.unidade) + "."));
     } else if (parte.chave === "grupo" && parte.id) {
       navegar({ nivel: "municipios", base: { todos: false, estados: [parte.id], ids: [] }, estados: [], conjuntos: [] },
         "Ir para " + parte.rotulo + " na trilha");
@@ -1372,9 +1380,16 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const legendaCor = legendaDaCor(true);
   const legendaDoMapa = legendaDaCor(false);
 
+  const somaNosGrupos = resposta?.nivel === "estados" && tipo === "arquivo" && resposta.itens.some(item => item.contagem === "SOMA_DOS_COMPONENTES");
   const notasDoGrafico = [
-    // As bolhas de grupo só existem na base do Brasil (os estados, da fonte estadual de profissionais únicos).
-    ...(resposta?.nivel === "estados" ? [maiuscula("cada " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular) + " conta os profissionais únicos da " +
+    // As bolhas de grupo numa planilha (07/11/2026, item 1 do comando): cada grupo pelas unidades dele, com a origem do motor e,
+    // na soma, a ressalva (G3).
+    ...(resposta?.nivel === "estados" && tipo === "arquivo" ? [maiuscula("cada " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular) + " vem d" +
+      artigo(unidade, true) + " " + unidade.plural + " del" + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "a" : "e") + ": " +
+      (somaNosGrupos ? "a soma. " + RESSALVA_DA_SOMA : "as pessoas únicas, pelo identificador individual (quem atua em mais de " + umA(unidade) +
+        " conta uma vez).") + " Os dois níveis nunca aparecem juntos."] : []),
+    // As bolhas dos estados, na base do Brasil (a fonte estadual de profissionais únicos).
+    ...(resposta?.nivel === "estados" && tipo === "brasil" ? [maiuscula("cada " + (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).singular) + " conta os profissionais únicos da " +
       "fonte estadual: quem atua em mais de " + umA(unidade) + " conta uma vez. A bolha não é a soma das bolhas d" + artigo(unidade, true) + " " +
       unidade.plural + ", e os dois níveis nunca aparecem juntos."] : []),
   ];

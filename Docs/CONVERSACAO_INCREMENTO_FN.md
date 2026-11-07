@@ -319,8 +319,14 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
   Esse efeito foi registrado depois, em 29/10/2026;
 - as unidades citadas pelo nome se resolvem pelo catálogo da planilha (`name:` ou `code:`), sem código IBGE;
 - grupo e unidade com o mesmo nome viram pergunta ("Província Nampula" ou "Distrito Nampula");
-- não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …". A
-  orientação da caixa da conversa diz o mesmo desde 28/10/2026: "Peça mudanças no gráfico citando comunas pelo nome:
+- o nível acima das unidades (desde 07/11/2026, item 1 do comando de 06/11/2026): numa planilha com a coluna-mãe, "mostre
+  as províncias" e "volte às províncias" mostram as províncias (`nivel: "estados"`): "Mostrei as províncias: cada bolha é uma
+  província, pelos distritos dela, com a densidade." (cada grupo vem das unidades dele, as pessoas únicas com o identificador
+  individual, senão a soma, com a ressalva na nota do gráfico); "volte aos estados", que não é o nome do nível nessa base,
+  recebe "Nesta base, o nível acima dos distritos são as províncias. Nada mudou no gráfico.", com o botão "Mostrar as
+  províncias". Sem a coluna-mãe, não há nível acima: o pedido recebe "Esta base não tem um nível acima dos distritos no
+  gráfico: cada bolha é um distrito. …" e a sugestão "mostre a província …" (até 07/11/2026, essa era a resposta em qualquer
+  planilha). A orientação da caixa da conversa, desde 28/10/2026: "Peça mudanças no gráfico citando comunas pelo nome:
   comparar, agregar, usar como referência ou mostrar as comunas de um condado." (antes, "… ou voltar ao nível de condados",
   que a conversa recusava; até 06/11/2026, "comparar, juntar, …");
 - as orientações também usam os nomes da planilha (23/10/2026): "“distritos com menos de 1 médico por mil habitantes”",

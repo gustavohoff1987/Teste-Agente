@@ -1903,9 +1903,12 @@ def _page_spec(ctx, options) -> dict:
     nivel = options.get("nivel")
     if nivel not in LEVELS:
         raise ValueError("Nível do gráfico inválido: use \"municipios\", \"estados\" ou \"brasil\".")
-    if nivel == "estados" and not ctx.brazil:
-        raise ValueError("O nível estados existe só na base do Brasil, com a fonte estadual de médicos únicos; nas "
-                         "planilhas, o gráfico mostra " + unit.g("os", "as") + " " + unit.plural + ".")
+    if nivel == "estados" and not ctx.brazil and not ctx.group_column:
+        # Desde 07/11/2026 (item 1 do comando de 06/11/2026), o nível de grupo existe numa planilha com a coluna-mãe.
+        group = ctx.labels.grupo
+        raise ValueError("Sem a coluna d" + group.g("o", "a") + " " + group.singular + " (papel grupo_territorial), não há "
+                         "nível acima d" + unit.g("os", "as") + " " + unit.plural + ": o gráfico mostra " + unit.g("os", "as") +
+                         " " + unit.plural + ".")
     if nivel == "brasil" and not ctx.brazil:
         raise ValueError("O nível Brasil existe só na base do Brasil, com a contagem da fonte nacional; nas planilhas, o "
                          "gráfico mostra " + unit.g("os", "as") + " " + unit.plural + ".")
@@ -2070,7 +2073,7 @@ def _names(ctx, keys):
     out = {}
     for key in keys:
         if key.startswith("uf:"):
-            out[key] = {"name": STATES[key[3:]][1]}
+            out[key] = {"name": STATES[key[3:]][1] if ctx.brazil else key[3:]}
         else:
             out[key] = {"name": ctx.catalog[key]["name"]}
     return out
@@ -2521,7 +2524,7 @@ def _trend_block(ctx, res, window):
     metric = INDICATORS[ctx.indicador]
     frames, digests = [], []
     if ctx.nivel == "estados":
-        frame, data = _state_series(ctx, res, window)
+        frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         series = _trend_series(frame, metric, positions)
     elif ctx.nivel == "brasil":
@@ -2613,7 +2616,7 @@ def _series(ctx, res, window, by_id):
     unit = ctx.labels.unidade
     frames, digests, observed, incomparable = [], [], {}, {}
     if ctx.nivel == "estados":
-        frame, data = _state_series(ctx, res, window)
+        frame, data = _state_series(ctx, res, window) if ctx.brazil else _serie_dos_grupos(ctx, res, window)
         frames.append(data)
         observed = _observed_values(frame, metric)[1]
     elif ctx.nivel == "brasil":
@@ -2739,12 +2742,16 @@ def _availability(ctx) -> dict:
         state, _, reason = state_source(ctx.sources)
         out["estados"] = entry(state is not None, reason if state is None else "")
         out["grupos"] = dict(out["estados"])
+    elif ctx.group_column:
+        # Desde 07/11/2026 (item 1 do comando de 06/11/2026, com a decisão "Soma automática"): o nível de grupo numa planilha,
+        # cada grupo pelas suas unidades (pessoas únicas com o identificador; senão, a soma, com a ressalva).
+        out["estados"] = entry(True)
+        out["grupos"] = entry(True)
     else:
-        out["estados"] = entry(False, "O nível estados existe só na base do Brasil, com a fonte estadual de médicos únicos.")
-        out["grupos"] = entry(False, "Sem um valor próprio de cada " + group.singular + " na planilha, não há bolha de " +
-                              group.singular + ": somar " + unit.g("os", "as") + " " + unit.plural + " seria uma agregação "
-                              "(CAP-AGR-01), com possível dupla contagem. " + group.g("O", "A") + " " + group.singular +
-                              " serve para navegar e escolher " + unit.g("os", "as") + " " + unit.plural + ".")
+        sem = ("Sem a coluna d" + group.g("o", "a") + " " + group.singular + " (papel grupo_territorial), não há nível acima "
+               "d" + unit.g("os", "as") + " " + unit.plural + ".")
+        out["estados"] = entry(False, sem)
+        out["grupos"] = entry(False, sem)
     return out
 
 
@@ -3079,6 +3086,147 @@ def _indicator_order(ctx, res) -> dict:
                      [{"id": key, "posicao": None} for key in not_evaluable]}
 
 
+# --------------------------------------------------------------------------------------------- grupos de uma planilha
+# O nível de grupo de uma planilha (07/11/2026, item 1 do comando de 06/11/2026: o "Ver por" com os níveis da base): cada valor
+# da coluna-mãe vira um item do nível de cima (tipo "estado", id "uf:<valor>", com o nome do grupo), com os valores pelas
+# unidades dele — pessoas únicas com o identificador individual; senão, a soma, com a limitação da soma (a decisão "Soma
+# automática" do responsável, de 06/11/2026, divergência aprovada de CAP-AGR-01). Nada é estimado: grupo sem registro fica sem
+# valor, com o motivo.
+def _chaves_dos_grupos(ctx) -> list:
+    return ["uf:" + value for value in sorted({value for value in ctx.groups.values() if value})]
+
+
+def _membros_do_grupo(ctx, key) -> set:
+    return {unit for unit, value in ctx.groups.items() if value == key[3:]}
+
+
+def _escolha_dos_grupos(ctx, raw, keys):
+    """Os grupos escolhidos no nível de grupo da planilha (os valores ou os ids "uf:"); sem a lista, todos."""
+    group = ctx.labels.grupo
+    if raw is None:
+        return keys
+    if (not isinstance(raw, list) or not raw or len(raw) > len(keys) or len(set(raw)) != len(raw) or
+            any(not isinstance(value, str) for value in raw)):
+        raise ValueError(group.Plural + " inválid" + group.g("os", "as") + ": envie em estados a lista d" + group.g("os", "as") +
+                         " " + group.plural + " escolhid" + group.g("os", "as") + ", sem repetir.")
+    wanted = {value if value.startswith("uf:") else "uf:" + value for value in raw}
+    unknown = sorted(wanted - set(keys))
+    if unknown:
+        raise ValueError(group.Plural + " inexistentes na planilha: " + ", ".join(key[3:][:40] for key in unknown[:5]) + ".")
+    return [key for key in keys if key in wanted]
+
+
+def _medidas_dos_grupos(ctx, period, keys) -> Measures:
+    """Os valores de cada grupo numa competência, pelas unidades dele (as medidas da competência calculadas uma vez)."""
+    unidades = _measures(ctx, period)
+    records, rows = {}, []
+    for key in keys:
+        record, origem, motivo = _total_da_planilha(ctx, period, _membros_do_grupo(ctx, key), unidades)
+        if record is None:
+            continue
+        values = record["valores"]
+        records[key] = {"valores": values, "origem": origem, "motivo": motivo}
+        rows.append({"key": key, "territory": key, "period": period, "category": ctx.category, "quantity": values["quantidade"],
+                     "population": values["populacao"], "density": values["densidade"]})
+    data = pd.DataFrame(rows, columns=["key", *SERIES_COLUMNS])
+    return Measures(period, records, data, data)
+
+
+def _item_do_grupo(ctx, key, final, initial, changes):
+    group = ctx.labels.grupo
+    record = final.records.get(key)
+    values = record["valores"] if record is not None else {}
+    origem = (record or {}).get("origem") or "soma"
+    item = {"id": key, "tipo": "estado", "rotulo": key[3:], "uf": None, "populacao": _num(values.get("populacao")),
+            "quantidade": _num(values.get("quantidade")), "densidade": _num(values.get("densidade")), "distancia_km": None,
+            "contagem": CONTAGEM_DA_ORIGEM[origem],
+            "limitacoes": ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"] if origem == "soma" else []}
+    motives = []
+    if item["quantidade"] is None:
+        motives.append("Sem registro em " + human_period(final.period) + " n" + group.g("o", "a") + " " + group.singular +
+                       ": valores não avaliáveis, nunca zero (SEM_REGISTRO_OBSERVADO)")
+    elif record.get("motivo"):
+        motives.append(record["motivo"])
+    inicial, variation, variation_ok = _empty3(), _empty3(), None
+    if initial is not None:
+        variation_ok = False
+        before = initial.records.get(key)
+        if before is not None:
+            inicial = _values3(before)
+        if item["quantidade"] is not None and (before is None or not _present(before["valores"]["quantidade"])):
+            motives.append(_no_initial(initial.period))
+        elif item["quantidade"] is not None and before.get("origem") != origem:
+            motives.append("Variação não avaliável: o total é de pessoas únicas numa competência e a soma na outra "
+                           "(INCOMPARABILIDADE)")
+        elif item["quantidade"] is not None:
+            variation, variation_ok, why, exact = _percentages(ctx, before, record)
+            motives += why
+            changes[key] = exact
+    item.update({"inicial": inicial, "variacao_percentual": variation,
+                 "avaliavel": {"densidade": item["densidade"] is not None, "distancia": None, "variacao": variation_ok},
+                 "motivos": motives, "referencia": False})
+    return item
+
+
+def _serie_dos_grupos(ctx, res, window):
+    """Os grupos da planilha em cada competência da janela, pelas unidades (as linhas da Tendência e da Série)."""
+    frames = [_medidas_dos_grupos(ctx, period, list(res.universe)).data for period in window]
+    frames = [frame for frame in frames if not frame.empty]
+    data = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["key", *SERIES_COLUMNS])
+    return data[SERIES_COLUMNS], data
+
+
+def _compute_grupos_da_planilha(ctx, options, spec) -> dict:
+    """O nível de grupo de uma planilha: os grupos da coluna-mãe como itens, na ordem do nome."""
+    unit, group = ctx.labels.unidade, ctx.labels.grupo
+    refusals = {
+        "base": "No nível d" + group.g("os", "as") + " " + group.plural + ", " + group.g("os", "as") + " escolhid" +
+                group.g("os", "as") + " vão em estados: base vale só para " + unit.plural + ".",
+        "conjuntos": "Grupos de " + group.plural + " não estão disponíveis no gráfico; use Agregar territórios com " +
+                     unit.plural + ".",
+        "referencia": _sem_ponto_unico(ctx.labels), "consulta": _sem_ponto_unico(ctx.labels),
+        "faixas_distancia": _sem_ponto_unico(ctx.labels),
+    }
+    for key, text in refusals.items():
+        if options.get(key) not in (None, [], {}):
+            raise ValueError(text)
+    if spec["rotatividade"] is not None:
+        raise ValueError("A rotatividade acompanha pessoas d" + unit.g("e cada ", "e cada ") + unit.singular + ": mostre " +
+                         unit.g("os", "as") + " " + unit.plural + ".")
+    if spec["condicoes"] and any(spec["condicoes"]["nodes"][own]["atributo"] == "distancia"
+                                 for own in spec["condicoes"]["leaves"]):
+        raise ValueError(_sem_ponto_unico(ctx.labels))
+    if spec["ordenar"] and spec["ordenar"]["atributo"] == "distancia_km":
+        raise ValueError(_sem_ponto_unico(ctx.labels))
+    initial_period = _initial_period(ctx, options)
+    if spec["ordenar"] and spec["ordenar"]["atributo"] == "variacao" and initial_period is None:
+        raise ValueError("A ordenação pela variação exige a competência inicial (visão Trajetória).")
+    keys = _escolha_dos_grupos(ctx, options.get("estados"), _chaves_dos_grupos(ctx))
+    final = _medidas_dos_grupos(ctx, ctx.period, keys)
+    initial = _medidas_dos_grupos(ctx, initial_period, keys) if initial_period else None
+    changes = {}
+    items = [_item_do_grupo(ctx, key, final, initial, changes) for key in keys]
+    res = Result(keys, [], None, final, initial, None, items, _engine_rows(ctx), changes=changes)
+    limitations = (["UNIDADES_NAO_AVALIAVEIS"] if any(flag is False for item in items for flag in item["avaliavel"].values())
+                   else []) + (["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"] if any(item["limitacoes"] for item in items) else [])
+    soma = any(item["contagem"] == "SOMA_DOS_COMPONENTES" for item in items)
+    notes = [("Cada " + group.singular + " vem d" + unit.g("os", "as") + " " + unit.plural + " del" + group.g("e", "a") + ": " +
+              ("a soma, com possível dupla contagem (quem atua em mais de " + unit.g("um ", "uma ") + unit.singular +
+               " conta em cada " + unit.g("um", "uma") + ")" if soma else "as pessoas únicas, pelo identificador individual") +
+              "; a população é a soma d" + unit.g("os", "as") + " " + unit.plural + ", cada " + unit.g("um", "uma") +
+              " uma vez. " + group.Plural + " e " + unit.plural + " não aparecem juntos no mesmo gráfico."),
+             "Valores ausentes e denominadores nulos não são transformados em zero; itens não avaliáveis seguem com o motivo."]
+    body = {"competencia": ctx.period, "competencia_inicial": initial_period, "categoria": ctx.category,
+            "versao_base": (ctx.frame.attrs.get("source") or {}).get("version"), "chave_execucao": None,
+            "referencia": None, "itens": items, "dominios": _domains(items), "notas": notes, "limitacoes": limitations}
+    _page_extras(ctx, spec, body, res)
+    body["ordem_do_indicador"] = _indicator_order(ctx, res)
+    normalized = _page_normalized(ctx, spec, {"competencia": ctx.period, "competencia_inicial": initial_period,
+                                              "categoria": ctx.category, "estados": keys})
+    body["chave_execucao"] = _execution_key(ctx, final, initial, normalized, None, res.methods, res.frames, res.digests)
+    return body
+
+
 def _compute_states(ctx, options, spec) -> dict:
     """Nível estados da base Brasil: os estados da fonte estadual como itens (tipo "estado"), na ordem do código."""
     for key, text in STATE_REFUSALS.items():
@@ -3254,7 +3402,7 @@ def compute(sources, mapping, options, frame=None) -> dict:
     ctx = context(sources, mapping, options, PAGE_KEYS if page else PANEL_KEYS, frame=frame, page=page)
     spec = _page_spec(ctx, options) if page else None
     if page and ctx.nivel == "estados":
-        return _compute_states(ctx, options, spec)
+        return _compute_states(ctx, options, spec) if ctx.brazil else _compute_grupos_da_planilha(ctx, options, spec)
     if page and ctx.nivel == "brasil":
         return _compute_brazil(ctx, options, spec)
     unit = ctx.labels.unidade
@@ -3540,12 +3688,12 @@ NOTE_LUGAR_PLANILHA = ("Numa planilha, o todo e cada grupo vêm das unidades: co
                        "é a soma das unidades com registro, cada uma uma vez.")
 
 
-def _total_da_planilha(ctx, period, keys=None):
+def _total_da_planilha(ctx, period, keys=None, measures=None):
     """O todo (keys None) ou um grupo de uma planilha numa competência: (registro, origem, motivo). A quantidade é a de pessoas
     únicas (o identificador individual em todas as linhas da união, sem coluna de quantidade) ou a soma das unidades; a
     população, a soma das unidades com registro, cada uma uma vez; sem a população de alguma delas, a densidade não é
     avaliável (nunca estimada). Nada vai ao provedor de IA, e nenhum identificador sai do motor."""
-    measures = _measures(ctx, period)
+    measures = measures if measures is not None else _measures(ctx, period)
     chosen = [key for key in measures.records if keys is None or key in keys]
     values = [measures.records[key]["valores"] for key in chosen]
     with_count = [(key, value) for key, value in zip(chosen, values) if _present(value["quantidade"])]

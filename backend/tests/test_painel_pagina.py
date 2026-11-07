@@ -1042,10 +1042,10 @@ def test_uploaded_districts_follow_the_received_labels_and_the_province_column(r
     assert linha["densidade"] == 45 / 3900 * 1000
     assert any(note.startswith("Distritos base (2024): 2 de 2 com registro") for note in body["notas"])
     assert not any("município" in note or "Município" in note for note in body["notas"])
+    # Desde 07/11/2026 (item 1 do comando de 06/11/2026, com a decisão "Soma automática"; muda de propósito esta conferência,
+    # que esperava o nível de grupo indisponível numa planilha): com a coluna-mãe, o nível das províncias existe.
     available = body["disponibilidade"]
-    assert available["estados"]["disponivel"] is False and available["grupos"]["disponivel"] is False
-    assert "não há bolha de província" in available["grupos"]["motivo"]
-    assert "somar os distritos seria uma agregação (CAP-AGR-01)" in available["grupos"]["motivo"]
+    assert available["estados"]["disponivel"] is True and available["grupos"]["disponivel"] is True
     # Os valores são os da análise de densidade do mesmo arquivo.
     rows = {row["Território"]: row for row in ok(analyze_upload("density", period_filter="2024"))["rows"]}
     for name in ("Alto Rio", "Baixo Rio"):
@@ -1055,7 +1055,24 @@ def test_uploaded_districts_follow_the_received_labels_and_the_province_column(r
     # Mensagens com os rótulos recebidos; sem rótulos, "unidade" e "grupo".
     refused(districts(base={"municipios": {"estados": ["Província Leste"]}}), "Províncias inexistentes na planilha")
     refused(districts(base={"municipios": {"ids": ["name:Vila"]}}), "Distritos inexistentes")
-    refused(districts(nivel="estados"), "O nível estados existe só na base do Brasil")
+    # O nível de grupo numa planilha com a coluna-mãe (07/11/2026, item 1 do comando; muda de propósito esta conferência, que
+    # recusava o nível): as províncias pela soma dos distritos (sem o identificador individual), com a limitação da soma.
+    grupos = ok(upload({"nivel": "estados", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+                        "premissas": {"count_unit": "pessoas"}}))
+    itens_dos_grupos = by_id(grupos)
+    assert list(itens_dos_grupos) == ["uf:Província Norte", "uf:Província Sul"]
+    norte, sul = itens_dos_grupos["uf:Província Norte"], itens_dos_grupos["uf:Província Sul"]
+    assert (norte["tipo"], norte["rotulo"], norte["quantidade"], norte["populacao"], norte["densidade"]) == (
+        "estado", "Província Norte", 21, 1500, 14)
+    assert (sul["quantidade"], sul["populacao"], sul["densidade"]) == (24, 2400, 10)
+    assert norte["contagem"] == "SOMA_DOS_COMPONENTES" and "SOMA_COM_POSSIVEL_DUPLA_CONTAGEM" in grupos["limitacoes"]
+    assert [entrada["id"] for entrada in grupos["ordem_do_indicador"]["itens"]] == ["uf:Província Norte", "uf:Província Sul"]
+    assert grupos["contexto"]["todo"]["quantidade"] == 45 and grupos["disponibilidade"]["espacial"]["disponivel"] is False
+    refused(upload({"nivel": "estados", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+                    "premissas": {"count_unit": "pessoas"}, "estados": ["Província Leste"]}), "Províncias inexistentes na planilha")
+    sem_grupo = {key: value for key, value in DISTRICT_MAPPING.items() if key != "grupo_territorial"}
+    refused(upload({"nivel": "estados", "indicador": "densidade", "competencia": "2024", "rotulos": LABELS,
+                    "premissas": {"count_unit": "pessoas"}}, mapping=sem_grupo), "não há nível acima dos distritos")
     refused(districts(base={}), "Escolha os distritos base ou um conjunto")
     plain = upload({"nivel": "municipios", "indicador": "densidade", "competencia": "2024",
                     "premissas": {"count_unit": "pessoas"}, "base": {}})
@@ -1097,12 +1114,9 @@ def test_territorial_messages_follow_the_structure_of_the_spreadsheet(repo):
                and "cada população de distrito uma vez" in note for note in notes)
     assert any("Grupos por posição (CAP-DIS-02) entre os 4 distritos do universo" in note for note in notes)
     available = body["disponibilidade"]
-    assert available["grupos"]["motivo"] == (
-        "Sem um valor próprio de cada província na planilha, não há bolha de província: somar os distritos seria uma "
-        "agregação (CAP-AGR-01), com possível dupla contagem. A província serve para navegar e escolher os distritos.")
-    # O nível estados é o da base do Brasil, com a fonte estadual: o motivo o cita pelo nome, sem trocá-lo pela província.
-    assert available["estados"]["motivo"] == ("O nível estados existe só na base do Brasil, com a fonte estadual de médicos "
-                                              "únicos.")
+    # Desde 07/11/2026 (item 1 do comando; muda de propósito): com a coluna-mãe, o nível das províncias existe, sem motivo.
+    assert available["grupos"] == {"disponivel": True, "motivo": "", "pendencia": None}
+    assert available["estados"] == {"disponivel": True, "motivo": "", "pendencia": None}
     texts = notes + [text for item in body["itens"] for text in item["motivos"]] + [
         entry["motivo"] for key, entry in available.items() if key != "estados"]
     brazilian = re.compile(r"munic[íi]pi|\bIBGE\b|\bUF\b|\bBrasil\b|\bestad(?:o|os|ual|uais)\b", re.IGNORECASE)

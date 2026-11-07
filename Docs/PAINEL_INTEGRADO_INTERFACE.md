@@ -233,8 +233,14 @@ da tela).
   23/10/2026); todos os grupos inteiros só viram "toda a planilha" quando juntos cobrem todas as unidades dela. Sem coluna-mãe, a
   lista das unidades em ordem alfabética, com as caixas, "Marcar todos os condados" e "Desmarcar os condados". Sem a lista das
   unidades (quando o catálogo do pré-exame não veio, por exemplo com nomes que não permitem escolher uma a uma), "Marcar todos"
-  continua valendo para a planilha inteira, e o resumo fica "Todos os condados", sem um número. Não há bolhas de grupo nas
-  planilhas (`disponibilidade.grupos` do motor). No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
+  continua valendo para a planilha inteira, e o resumo fica "Todos os condados", sem um número. Desde 07/11/2026 (item 1 do
+  comando de 06/11/2026; antes, não havia bolhas de grupo nas planilhas), com a coluna-mãe, o "Ver por" oferece o grupo e a
+  unidade ("Condado | Comuna"): vendo por grupo, cada grupo é uma bolha com os valores do motor pelas unidades dele (as pessoas
+  únicas, com o identificador individual; senão, a soma), e a nota do gráfico diz a origem, com a ressalva da soma ("Cada
+  condado vem das comunas dele: a soma. O total corresponde à soma…"), e o aviso, "Ver por condado: cada ponto é um condado
+  inteiro, pelas comunas dele." (na base do Brasil, "… com a contagem estadual de médicos únicos."). Numa planilha, marcar o
+  todo continua mostrando as unidades (na base do Brasil, o todo vê por estado); os grupos aparecem pelo "Ver por". O mapa do nível de grupo de uma
+  planilha não existe ainda (os grupos não têm um ponto de desenho), e o atalho leva às unidades no mapa. No pedido, `base.municipios.estados` leva os valores do grupo, e `ids`,
   `code:<código>` ou `name:<nome>`.
 - **Abertura:** a base do Brasil e a planilha abrem sem territórios marcados (23/10/2026); a área abre a Seleção.
 - **Sem unidades marcadas,** nada é pedido ao motor, e o gráfico, o mapa e a frase-resumo da seleção anterior saem da tela;
@@ -292,7 +298,9 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   usar a Seleção. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta ao todo
   sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
   move a trilha do mesmo jeito. Numa planilha, a trilha começa no nome do todo do painel Colunas ou, sem ele, em "Toda a base"
-  (desde 07/11/2026; antes, "Toda a planilha").
+  (desde 07/11/2026; antes, "Toda a planilha"). Com a coluna-mãe, a trilha de uma planilha também passa pelo grupo ("Solária ›
+  Norte", "Solária › Norte › comuna", desde 07/11/2026; antes, sem o grupo); tocar no todo leva a todas as unidades (na base do
+  Brasil, ao todo vendo por estado), e o aviso diz "Solária: todas as comunas."
 - **A faixa do lugar** (`analise-faixa`, no alto de todas as abas de análise, com `data-lugar` e `data-grupo`): o nome do lugar,
   a competência (no formato curto do resumo da fonte, "jun/2024") e o Ver por; no todo, os números do Brasil: profissionais (502.495 médicos em junho de 2024), a população em poucas
   palavras ("212,6 milhões", com o número inteiro ao lado), a densidade por 1.000 habitantes (2,36) e a variação da densidade
@@ -1231,7 +1239,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   competências), envia, dá os nomes no painel "Colunas" e percorre a Seleção, a Distribuição (Condições, CSV com a coluna
   "Condado" e o método com a nota das chaves), a Análise Espacial (a Escolha dos territórios com "Mesmo condado de cada comuna da
   base", o cálculo, a linha da base e "Entenda esta análise"), a Tendência ("Toda a planilha" no título) e a conversa (a
-  orientação, "As demais", o condado reconhecido pelo nome e nenhum nível acima das comunas). No fim, confere que nada do que
+  orientação, "As demais", o condado reconhecido pelo nome e, desde 07/11/2026, "Mostre os condados", com as 4 bolhas dos
+  condados e a trilha no todo; antes, nenhum nível acima das comunas). No fim, confere que nada do que
   esteve à vista, nem os atributos lidos por leitores de tela, traz município, UF, IBGE, Brasil, sede municipal ou as formas de
   concordância de antes.
 - **Navegador, modo escuro:** `backend/tests/ui_modo_escuro.py`, na suíte `bloco1`, com o navegador no escuro

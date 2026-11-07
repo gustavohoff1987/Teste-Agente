@@ -1079,6 +1079,13 @@ test('seleção unificada (05/11/2026): equivalências completas, unidades de an
   // O motivo, quando a unidade não vale.
   assert.ok(M.motivoDaUnidade('estados', BR).includes('inteiros'));
   assert.ok(M.motivoDaUnidade('brasil', BR).includes('Brasil inteiro'));
+  // Numa planilha (07/11/2026, item 1 do comando), cada grupo vem das unidades dele: nada de contagem estadual.
+  const PLANILHA = {unidade: {singular: 'comuna', plural: 'comunas', genero: 'f'}, grupo: {singular: 'condado', plural: 'condados', genero: 'm'}};
+  const motivo = M.motivoDaUnidade('estados', PLANILHA, false);
+  assert.ok(motivo.startsWith('Os condados como unidades valem com condados inteiros marcados, sem comunas avulsas'), motivo);
+  assert.ok(motivo.endsWith('cada condado vem de todas as comunas dele.'), motivo);
+  assert.ok(!motivo.includes('médicos'), motivo);
+  assert.ok(M.motivoDaUnidade('estados', BR).includes('médicos únicos de cada estado'));
 });
 
 // ================================================================================================ ajustes de 25/10/2026

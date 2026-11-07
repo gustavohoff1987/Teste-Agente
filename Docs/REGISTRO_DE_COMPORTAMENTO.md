@@ -35,6 +35,48 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte B2 (etapa 8B do comando, item 1): o "Ver por" com os grupos de uma planilha
+- **Classificação (regra 1), pela leitura, antes de codar:** itens 1 e 2.1 do comando de 06/11/2026 (o "Ver por" com os níveis da
+  base, também numa planilha), classificados de uma vez com os demais (entrada da navegação por níveis, abaixo), com a decisão
+  "Soma automática" (divergência aprovada de CAP-AGR-01). Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* os
+  valores de cada grupo vêm do motor, pelas unidades (pessoas únicas por deduplicação, com o identificador individual, ou a
+  soma rotulada como soma, com a ressalva; INV-02, V-14, RQ-REP-14); grupos e unidades nunca no mesmo gráfico (RQ-DAD-30).
+  Decisão tomada na implementação, para conferência do responsável: numa planilha, marcar o todo continua mostrando as unidades
+  (na base do Brasil, o todo vê por estado desde 06/11/2026); os grupos aparecem pelo "Ver por".
+- **Antes:** numa planilha, o nível de grupo não existia: `nivel: "estados"` → 422 "O nível estados existe só na base do
+  Brasil…", e a disponibilidade dizia "não há bolha de província: somar os distritos seria uma agregação (CAP-AGR-01)…"; o
+  "Ver por" não aparecia.
+- **Agora:** numa planilha com a coluna-mãe, `nivel: "estados"` traz os grupos como itens (`id: "uf:<valor>"`, o nome do grupo),
+  com os valores pelas unidades de cada um (as pessoas únicas, com o identificador; senão, a soma, com a limitação da soma no
+  item e no topo), a Tendência e a Série pelas mesmas somas, a ordem do indicador (a lista em tela estreita) e a linha do todo;
+  a disponibilidade do nível é verdadeira. Na tela, o "Ver por" oferece "Condado | Comuna"; vendo por condado, uma bolha por
+  condado, com a nota "Cada condado vem das comunas dele: a soma." e a ressalva da soma, e o aviso "Ver por condado: cada ponto
+  é um condado inteiro, pelas comunas dele." (o motivo de quando o nível não vale termina em "cada condado vem de todas as
+  comunas dele.", sem a contagem estadual de médicos únicos da base do Brasil). A trilha de uma planilha com a coluna-mãe
+  passa pelo grupo ("Solária › Norte › comuna"; antes, "Solária › comuna"), e tocar no todo leva a todas as unidades, com o
+  aviso "Solária: todas as comunas.". Sem a coluna-mãe, `nivel: "estados"` → 422 "Sem a coluna d… (papel grupo_territorial),
+  não há nível acima …".
+  Na conversa, "mostre os condados" (e "volte aos condados") mostra os condados: "Mostrei os condados: cada bolha é um condado,
+  pelas comunas dele, com a densidade." (antes, "Esta base não tem um nível acima das comunas no gráfico…", que deixou de ser
+  verdade); "volte aos estados" numa planilha com a coluna-mãe recebe "Nesta base, o nível acima das comunas são os condados.
+  Nada mudou no gráfico.", com o botão "Mostrar os condados".
+- **Permanece:** a base do Brasil (o nível estados pela fonte estadual); numa planilha, marcar o todo mostra as unidades, e o
+  mapa do nível de grupo não existe ainda (o atalho leva às unidades no mapa); sem a coluna-mãe, a conversa continua dizendo
+  que não há nível acima das unidades.
+- **Motivo:** comando do responsável de 06/11/2026, itens 1 e 2.1, com a decisão "Soma automática".
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (`nivel: "estados"` numa planilha), `Docs/PAINEL_INTEGRADO_INTERFACE.md` (o
+    "Ver por" e a trilha numa planilha) e `Docs/CONVERSACAO_INCREMENTO_FN.md` (o nível acima das unidades na conversa).
+  - **Testes novos:** em `test_painel_pagina.py`, as províncias pela soma (Norte 21 e 1.500, densidade 14; Sul 24 e 2.400, 10),
+    a limitação da soma, a ordem do indicador, a linha do todo, a recusa de uma província inexistente e a da planilha sem a
+    coluna-mãe; em `ui_planilha_ficticia.py`, "Ver por Condado" (4 bolhas, a nota com a ressalva, o aviso) e a volta às
+    comunas; em `areaDeAnalise.test.mjs`, o motivo do nível de grupo numa planilha (`motivoDaUnidade` com a base).
+  - **Testes que mudam de propósito:** em `test_painel_pagina.py`, a disponibilidade do nível de grupo numa planilha (antes
+    falsa, com o motivo da agregação; agora verdadeira) e o nível estados na planilha (antes recusado); em
+    `test_conversa_grafico.py`, "volte aos estados" numa planilha com a coluna-mãe (antes, "Esta base não tem um nível acima
+    dos distritos"; agora, a pergunta com o botão "Mostrar as províncias"), com "mostre as províncias" e a planilha sem a
+    coluna-mãe; em `ui_planilha_ficticia.py`, "Mostre os condados" (antes, a recusa; agora, as 4 bolhas e a trilha no todo).
+
 ### 2026-11-07 · Nomes da base, parte B1 (etapa 8B do comando, item 1.4): o total do todo e do grupo de uma planilha na faixa, com a origem, e a linha do todo
 - **Classificação (regra 1), pela leitura, antes de codar:** item 1.4 do comando de 06/11/2026, classificado de uma vez com os
   demais (entrada da navegação por níveis, abaixo), com a decisão aprovada na consulta da mesma data: **"Soma automática"**, com

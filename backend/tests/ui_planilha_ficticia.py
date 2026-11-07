@@ -8,7 +8,8 @@ Exportar, com o CSV e o método), a Análise Espacial (a Escolha dos território
 Análise de Tendência e a conversa. Onde a base do Brasil fala de município, estado e Brasil, a planilha fala de comuna,
 condado e o todo pelo nome (a Solária), com a concordância (comuna é feminino): "Todas que atendem", "Só as que eu marcar", "cada uma
 ligada", "a referência mais próxima dela", "As demais"; o CSV tem a coluna "Condado"; a conversa reconhece o condado pelo
-nome ("mostre só o condado Costa Ondina") e não promete um nível acima das comunas. Nenhum texto à vista traz município,
+nome ("mostre só o condado Costa Ondina") e, desde 07/11/2026, mostra os condados ("Mostre os condados"; o "Ver por" também
+oferece "Condado | Comuna"). Nenhum texto à vista traz município,
 UF, IBGE, Brasil ou a sede municipal.
 
 Catálogo sintético do Bloco 1 (a base do Brasil não é usada); servidor serve_ui_offline.py, sem o provedor de IA. A
@@ -186,6 +187,25 @@ def main():
         assert resposta["rotulos"]["unidade"] == {"singular": "comuna", "plural": "comunas", "genero": "f"}, resposta["rotulos"]
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
         guarda("selecao")
+        # O "Ver por" numa planilha com a coluna-mãe (07/11/2026, item 1 do comando): Condado | Comuna. Vendo por condado, cada
+        # condado é a soma das comunas dele (sem o identificador individual), com a ressalva da soma; de volta, as comunas.
+        expect(area.get_by_test_id("analise-nivel-estados")).to_contain_text("Condado")
+        condados, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-estados")))
+        assert enviado.get("nivel") == "estados" and "base" not in enviado, enviado
+        assert len(condados["itens"]) == 4 and all(item["tipo"] == "estado" and item["contagem"] == "SOMA_DOS_COMPONENTES"
+                                                   for item in condados["itens"]), condados["itens"]
+        assert "SOMA_COM_POSSIVEL_DUPLA_CONTAGEM" in condados["limitacoes"], condados["limitacoes"]
+        # O aviso diz de onde vem cada condado (as comunas dele), sem a contagem estadual da base do Brasil.
+        expect(area.get_by_test_id("analise-aviso")).to_have_text("Ver por condado: cada ponto é um condado inteiro, pelas comunas dele.")
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(4, timeout=60000)
+        expect(area.get_by_test_id("analise-grafico")).to_contain_text("Cada condado vem das comunas dele: a soma.")
+        expect(area.get_by_test_id("analise-grafico")).to_contain_text("podem ser contabilizados mais de uma vez")
+        guarda("condados")
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        _, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-municipios")))
+        assert enviado.get("nivel") == "municipios", enviado
+        expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
 
         # 4. Distribuição: o título, as Condições e a exportação (a coluna do grupo no CSV e a nota das chaves no método).
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
@@ -272,7 +292,7 @@ def main():
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Tendência da densidade de médicos · Solária ·")
         guarda("tendencia")
 
-        # 7. A conversa: a orientação sem nível acima das comunas, o condado reconhecido pelo nome e "As demais".
+        # 7. A conversa: a orientação, o condado reconhecido pelo nome, "As demais" e os condados.
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da Solária")
         open_chat(page)
@@ -285,8 +305,16 @@ def main():
             send(page, "Mostre só o condado Costa Ondina")
         assert options_of(pedido.value)["base"]["municipios"]["estados"] == ["Costa Ondina"], options_of(pedido.value)["base"]
         expect(chat).to_contain_text("Mostrei a densidade nas 4 comunas do condado Costa Ondina.")
+        # A trilha de uma planilha com a coluna-mãe passa pelo grupo (07/11/2026, item 1 do comando; antes, sem o condado).
+        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(["Solária", "Costa Ondina"])
+        # O nível de grupo pela conversa (07/11/2026, item 1 do comando; antes, "Esta base não tem um nível acima das comunas"):
+        # os condados, cada um pelas comunas dele, com a trilha no todo. A tela confere pelo que mostra (a resposta pode vir da
+        # memória das últimas respostas, sem pedido novo ao motor).
         send(page, "Mostre os condados")
-        expect(chat).to_contain_text("Esta base não tem um nível acima das comunas no gráfico: cada bolha é uma comuna.")
+        expect(chat).to_contain_text("Mostrei os condados: cada bolha é um condado, pelas comunas dele, com a densidade.",
+                                     timeout=120000)
+        expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(4, timeout=60000)
+        expect(area.get_by_test_id("analise-trilha").get_by_test_id("analise-trilha-parte")).to_have_text(["Solária"])
         guarda("conversa")
 
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.

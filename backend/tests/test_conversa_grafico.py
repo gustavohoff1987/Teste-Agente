@@ -795,7 +795,20 @@ def test_planilha_de_distritos_e_provincias_usa_os_rotulos_e_o_grupo(sem_provedo
     assert todos["painel"]["municipios"] == {"todos": True, "estados": [], "ids": []}
     assert todos["reply"] == "Mostrei a densidade em todos os 5 distritos."
     assert planilha("qual distrito tem a maior densidade?")["reply"].startswith("Ordenei os distritos pela densidade")
-    assert planilha("volte aos estados")["clarification"].startswith("Esta base não tem um nível acima dos distritos")
+    # O nível de grupo de uma planilha com a coluna-mãe (07/11/2026, item 1 do comando de 06/11/2026; antes, "Esta base não tem
+    # um nível acima dos distritos"): pelo nome do nível, as províncias, cada uma pelos distritos dela; "estados", que não é o
+    # nome do nível nesta base, vira a pergunta com o botão. Sem a coluna-mãe, continua não havendo nível acima.
+    provincias = planilha("mostre as províncias")
+    assert provincias["painel"] == painel(nivel="estados")
+    assert provincias["reply"] == "Mostrei as províncias: cada bolha é uma província, pelos distritos dela, com a densidade."
+    assert planilha("volte às provincias")["painel"] == painel(nivel="estados")
+    estados = planilha("volte aos estados")
+    assert estados["clarification"] == "Nesta base, o nível acima dos distritos são as províncias. Nada mudou no gráfico."
+    assert [(escolha["label"], escolha["draft"]) for escolha in estados["choices"]] == [
+        ("Mostrar as províncias", "mostre as províncias")]
+    sem_grupo = {chave: valor for chave, valor in MAPA.items() if chave != "grupo_territorial"}
+    assert planilha("mostre as províncias", mapa=sem_grupo)["clarification"].startswith(
+        "Esta base não tem um nível acima dos distritos no gráfico: cada bolha é um distrito.")
     # Sem latitude e longitude na planilha, não há mapa: o comando segue sem a vista, e a resposta diz por quê.
     sem_mapa = planilha("mostre a província de Zambézia no mapa")
     assert sem_mapa["painel"] == painel(nivel="municipios", municipios={"todos": False, "estados": ["Zambézia"], "ids": []})

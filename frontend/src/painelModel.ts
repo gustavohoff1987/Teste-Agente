@@ -2216,13 +2216,15 @@ export function escolhaDaUnidade<E extends EscolhaDaSelecao>(atual: E, nivel: Pa
 }
 
 /** Por que a unidade não vale com a escolha atual (texto da tela). */
-export function motivoDaUnidade(nivel: "estados" | "brasil", rotulos: RotulosTerritoriais): string {
+export function motivoDaUnidade(nivel: "estados" | "brasil", rotulos: RotulosTerritoriais, brasil = true): string {
   const unidade = rotulos.unidade, grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
   return nivel === "brasil"
     ? "O Brasil como uma unidade vale com o Brasil inteiro marcado, sem exclusões: marque o Brasil, no alto da lista."
     : maiuscula(artigo(grupo, true)) + " " + grupo.plural + " como unidades valem com " + grupo.plural + " inteir" + (fem(grupo) ? "as" : "os") +
-      " marcad" + (fem(grupo) ? "as" : "os") + ", sem " + unidade.plural + " avuls" + (fem(unidade) ? "as" : "os") + " nem exclusões: a contagem de " +
-      "médicos únicos de cada estado vale para o estado inteiro.";
+      " marcad" + (fem(grupo) ? "as" : "os") + ", sem " + unidade.plural + " avuls" + (fem(unidade) ? "as" : "os") + " nem exclusões: " +
+      // Numa planilha (07/11/2026, item 1 do comando), cada grupo vem de todas as unidades dele, não de uma fonte própria do grupo.
+      (brasil ? "a contagem de médicos únicos de cada estado vale para o estado inteiro."
+        : "cada " + grupo.singular + " vem de " + todosOs(unidade) + " del" + (fem(grupo) ? "a" : "e") + ".");
 }
 
 /** Uma escolha que vem de fora da árvore (um pedido da conversa, a reabertura do Histórico) alinhada à seleção unificada: com os
