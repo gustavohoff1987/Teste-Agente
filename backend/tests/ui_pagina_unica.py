@@ -395,8 +395,10 @@ def main():
         expect(colunas).to_have_count(0)
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Nenhum território selecionado")
         expect(area).to_have_attribute("data-aba", "territorios")
-        # Numa planilha, sem a unidade de análise (Brasil e Estados): a busca e a raiz da árvore falam de distritos e províncias.
-        expect(area.get_by_test_id("analise-nivel")).to_have_count(0)
+        # Numa planilha, a busca e a raiz da árvore falam de distritos e províncias. Desde 07/11/2026 (item 1 do comando de
+        # 06/11/2026; muda de propósito esta conferência, que esperava a planilha sem o controle), com a coluna-mãe, o "Ver por"
+        # tem a província e o distrito, como a base do Brasil tem o estado e o município.
+        expect(area.get_by_test_id("analise-nivel").locator(".analise-nivel-nome")).to_have_text(["Província", "Distrito"])
         expect(area.get_by_test_id("analise-busca")).to_have_attribute("placeholder", "Buscar distrito ou província")
         raiz = area.get_by_test_id("analise-raiz")
         # Sem o nome do todo no painel Colunas, "Toda a base" (07/11/2026, item 1 do comando; antes, "Toda a planilha").

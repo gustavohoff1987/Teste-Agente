@@ -202,9 +202,11 @@ def main():
         expect(area.get_by_test_id("analise-grafico")).to_contain_text("Cada condado vem das comunas dele: a soma.")
         expect(area.get_by_test_id("analise-grafico")).to_contain_text("podem ser contabilizados mais de uma vez")
         guarda("condados")
+        # De volta às comunas: a resposta pode vir da memória das últimas respostas, sem pedido novo ao motor (as comunas já
+        # foram calculadas); a tela confere pelo que mostra.
         aperta(area.get_by_test_id("analise-aba-territorios"))
-        _, enviado = painel(lambda: aperta(area.get_by_test_id("analise-nivel-municipios")))
-        assert enviado.get("nivel") == "municipios", enviado
+        aperta(area.get_by_test_id("analise-nivel-municipios"))
+        expect(area.get_by_test_id("analise-nivel-municipios")).to_have_attribute("aria-checked", "true")
         expect(area.get_by_test_id("analise-aba-territorios-resumo")).to_have_text("Todas as comunas (16)")
 
         # 4. Distribuição: o título, as Condições e a exportação (a coluna do grupo no CSV e a nota das chaves no método).

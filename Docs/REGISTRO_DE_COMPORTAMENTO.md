@@ -35,6 +35,20 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Correção do CI da parte B2 (etapa 8B do comando, item 1): dois roteiros de navegador
+- **Antes:** a execução 480 (`b1058bb`) falhou em três roteiros: `ui_pagina_unica.py` (no catálogo sintético e na base
+  versionada) esperava que uma planilha não tivesse o "Ver por" (`analise-nivel` ausente), e `ui_planilha_ficticia.py` esperava
+  um pedido novo ao motor ao voltar de "Ver por Condado" para as comunas.
+- **Agora:** o comportamento do produto não muda. Conclusão do diagnóstico: no primeiro, o teste ficou desatualizado pela
+  mudança de propósito da parte B2 (com a coluna-mãe, o "Ver por" de uma planilha tem a província e o distrito), e a
+  conferência passa a esperar "Província | Distrito"; no segundo, o defeito era do roteiro: as comunas já tinham sido calculadas,
+  e a tela as mostra da memória das últimas respostas, sem pedido novo; o roteiro passa a conferir pela tela (o "Comuna"
+  marcado e "Todas as comunas (16)"), como já fazia em outros pontos.
+- **Permanece:** o produto e as demais conferências dos dois roteiros.
+- **Motivo:** CI vermelho na execução 480; correção só do que falhou.
+- **Documentação e testes:** os dois roteiros (`backend/tests/ui_pagina_unica.py` e `backend/tests/ui_planilha_ficticia.py`).
+  A descrição do "Ver por" numa planilha já estava em `Docs/PAINEL_INTEGRADO_INTERFACE.md` (parte B2).
+
 ### 2026-11-07 · Nomes da base, parte B2 (etapa 8B do comando, item 1): o "Ver por" com os grupos de uma planilha
 - **Classificação (regra 1), pela leitura, antes de codar:** itens 1 e 2.1 do comando de 06/11/2026 (o "Ver por" com os níveis da
   base, também numa planilha), classificados de uma vez com os demais (entrada da navegação por níveis, abaixo), com a decisão
