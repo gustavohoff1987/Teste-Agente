@@ -538,6 +538,22 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-agregar-ver-lista { align-self: flex-start; min-height: 36px; }
 .analise-agregar-opcao { font-size: 14px; }
 .analise-agregar-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Selecionar por critérios (07/11/2026, item 6 do comando): o painel de Agregar territórios, com os blocos do formulário, a prévia do
+   motor (os grupos com a cor do mapa pequeno) e a regra em uso em "Na análise". */
+.analise-criterios-bloco { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 8px 10px 10px;
+  border: 1px solid var(--cor-borda-suave); border-radius: 8px; }
+.analise-criterios-bloco > legend { padding: 0 4px; color: var(--cor-tinta); font-size: 13px; font-weight: 700; }
+.analise-criterios-distancia { display: flex; flex-direction: column; gap: 6px; }
+.analise-criterios-km { width: 5.5rem; min-height: 36px; }
+.analise-criterios-previa { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--cor-borda-suave);
+  color: var(--cor-texto); font-size: 14px; line-height: 1.45; }
+.analise-criterios-previa p { margin: 0; }
+.analise-criterios-grupos { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.analise-criterios-grupos li { overflow-wrap: anywhere; }
+.analise-criterios-cor { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: baseline; }
+.analise-criterios-mapinha { align-self: flex-start; max-width: 100%; height: auto; color: var(--cor-texto-apoio); }
+.analise-criterios-notas { margin: 0; padding-left: 18px; color: var(--cor-texto-apoio); font-size: 12px; line-height: 1.4; }
+.analise-selecao-regra { margin: 6px 0 0; color: var(--cor-texto); font-size: 13px; line-height: 1.45; }
 .analise-grupos-agregados { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .analise-grupo-agregado { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--cor-texto); font-size: 14px; }
 .analise-grupo-agregado-acoes { display: inline-flex; flex-shrink: 0; gap: 2px; }

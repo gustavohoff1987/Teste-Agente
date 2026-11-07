@@ -885,7 +885,7 @@ export type CriteriosOpcoes = { competencia: string; categoria: string; base?: {
   agrupar?: { km: number } | null; premissas?: Premissas; rotulos?: RotulosTerritoriais };
 export type GrupoPorProximidade = { id: string; rotulo: string; membros: string[]; gruposTerritoriais: { id: string; rotulo: string; unidades: number }[];
   extensaoKm: number };
-export type RegraDosCriterios = { texto: string; competencia: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"];
+export type RegraDosCriterios = { texto: string; textoAgrupado: string | null; competencia: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"];
   filtros: FiltroDoCriterio[]; distancia: { de: string; km: number } | null; agrupar: { km: number } | null };
 export type RespostaCriterios = { competencia: string; regra: RegraDosCriterios; atendem: number; ids: string[]; nomes: string[];
   naoAvaliaveis: number; grupos: GrupoPorProximidade[] | null; isolados: string[] | null; semPosicao: string[] | null;
@@ -908,7 +908,7 @@ export function normalizarCriterios(bruto: unknown): RespostaCriterios {
   return { competencia: texto(o.competencia) ?? "", atendem: num(o.atendem) ?? 0, ids: textos(o.ids), nomes: textos(o.nomes),
     naoAvaliaveis: num(o.nao_avaliaveis) ?? 0, grupos, isolados: Array.isArray(o.isolados) ? textos(o.isolados) : null,
     semPosicao: Array.isArray(o.sem_posicao) ? textos(o.sem_posicao) : null, pontos, notas: textos(o.notas), limitacoes: textos(o.limitacoes),
-    regra: { texto: texto(regra.texto) ?? "", competencia: texto(regra.competencia) ?? "", filtros,
+    regra: { texto: texto(regra.texto) ?? "", textoAgrupado: texto(regra.texto_agrupado), competencia: texto(regra.competencia) ?? "", filtros,
       partirDe: { tipo: (texto(partir.tipo) ?? "pais") as CriteriosOpcoes["criterios"]["partir_de"]["tipo"],
         ...(Array.isArray(partir.ufs) && partir.ufs.length ? { ufs: textos(partir.ufs) } : {}),
         ...(Array.isArray(partir.regioes) && partir.regioes.length ? { regioes: textos(partir.regioes) } : {}) },

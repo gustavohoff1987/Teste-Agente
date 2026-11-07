@@ -5,7 +5,7 @@ import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Databas
 import {
   ErroDoMotor, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
   type PainelConjuntoPedido, type PainelItem, type PainelMunicipios, type PainelNivel, type PainelOpcoes, type PainelResposta,
-  type RespostaLugar,
+  type RespostaLugar, type RespostaCriterios,
 } from "./painelApi";
 import {
   ABAS, CLASSES_TENDENCIA, DESCRICAO_DAS_CLASSES, INDICADORES, MAX_LIGACOES, NOME_SELECAO, ORDEM_DAS_VISOES, TEXTO_DAS_FONTES,
@@ -18,7 +18,8 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  MAX_CONJUNTOS, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  MAX_CONJUNTOS, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
+  regraConfere, textoDaRegra, quantos, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -36,6 +37,7 @@ import PainelSetas, { LegendaDoQuadro } from "./PainelSetas";
 import PainelRotatividade from "./PainelRotatividade";
 import PainelRuler from "./PainelRuler";
 import PainelTerritorios from "./PainelTerritorios";
+import SelecionarPorCriterios, { type PedidoDosCriterios } from "./SelecionarPorCriterios";
 import PainelAbrangencia from "./PainelAbrangencia";
 import FaixaDoLugar, { Trilha } from "./FaixaDoLugar";
 import PainelDetalhes from "./PainelDetalhes";
@@ -392,13 +394,26 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     return grupo === null ? null : gruposDaBolha.find(item => item.id === grupo)?.unidades ?? null;
   }, [grupoDaBolha, gruposDaBolha]);
   // A trilha e o lugar em uso (06/11/2026, itens 2 e 3 do comando): lidos da seleção em uso, iguais em todas as abas.
-  const lugar = useMemo(() => lugarDaTrilha(escolhaDe(def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos), nomes, comGrupos: comBolhasDeGrupo }),
-    [def.nivel, def.base, def.estados, def.conjuntos, arvore, tipo, nomes, comBolhasDeGrupo, rotulos]);
+  const lugar = useMemo(() => lugarDaTrilha(escolhaDe(def), { arvore, nomeDoTodo: nomeDoTodo(tipo !== "arquivo", rotulos), nomes, comGrupos: comBolhasDeGrupo,
+    regra: def.regra }), [def.nivel, def.base, def.estados, def.conjuntos, def.regra, arvore, tipo, nomes, comBolhasDeGrupo, rotulos]);
+  // A regra da seleção por critérios em uso (07/11/2026, item 6 do comando): vale enquanto a seleção for a que ela produziu.
+  const regraEmUso = regraConfere(def.regra, def) ? def.regra! : null;
   // O grupo de cima no "Ver por" (07/11/2026): com os grupos de cima da árvore e o nível no motor (a hierarquia consistente).
   const comRegioes = comBolhasDeGrupo && regioes.length > 0 && (disponibilidade?.regioes?.disponivel ?? true);
   const verPor = useMemo(() => opcoesVerPor(lugar, def, { arvore, comNiveis: comBolhasDeGrupo, rotulos, comRegioes }),
     [lugar, def.base, arvore, comBolhasDeGrupo, rotulos, comRegioes]);
   const [numerosDoLugar, setNumerosDoLugar] = useState<{ chave: string; base: string; dados: RespostaLugar } | null>(null);
+  // O painel "Selecionar por critérios" (07/11/2026): fechado (null), aberto vazio ou com a regra a reaplicar.
+  const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null } | null>(null);
+  // Onde a regra a reaplicar procurou, pelo nome (um grupo ou mais), mesmo que o lugar em uso já seja outro (a seleção que ela
+  // produziu, por exemplo).
+  const lugarDaRegra = useMemo(() => {
+    const partir = (criterios?.inicial as PedidoDosCriterios | null)?.criterios?.partir_de;
+    if (!partir || partir.tipo !== "ufs" || !partir.ufs?.length) return null;
+    const nomesDosGrupos = partir.ufs.map(id => grupos.find(grupo => grupo.id === id)?.nome || id);
+    return { rotulo: nomesDosGrupos.length <= 3 ? nomesDosGrupos.join(", ").replace(/, ([^,]*)$/, " e $1")
+      : quantos(nomesDosGrupos.length, rotulos.grupo ?? ROTULOS_GENERICOS.grupo!), partirDe: partir };
+  }, [criterios, grupos, rotulos]);
   const [carregandoLugar, setCarregandoLugar] = useState(false);
   const [erroLugar, setErroLugar] = useState<{ chave: string; mensagem: string } | null>(null);
   const cacheLugar = useRef(new Map<string, RespostaLugar>());
@@ -1054,6 +1069,29 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const voltarAosGrupos = "Voltar " + (generoDe(rotulos.grupo ?? ROTULOS_GENERICOS.grupo!) === "f" ? "às " : "aos ") +
     (rotulos.grupo ?? ROTULOS_GENERICOS.grupo!).plural;
   /** A bolha de um estado ("Ver os N municípios"): os municípios dele na análise. */
+  // ------------------------------------------------------------------------------------------ selecionar por critérios
+  // Selecionar por critérios (07/11/2026, item 6 do comando de 06/11/2026; decisão 4): o painel da Seleção, com a prévia do motor; só
+  // "Como seleção" ou "Cada grupo como território agregado" muda a análise (um passo do Desfazer). A regra fica com a seleção que
+  // ela produziu: a trilha, o método e os Detalhes a mostram enquanto a seleção for a dela.
+  function usarCriterios(previa: RespostaCriterios, pedido: RegraDaSelecao["pedido"], comGrupos: boolean) {
+    const grupos = comGrupos ? previa.grupos ?? [] : [];
+    if (grupos.length > MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
+    const conjuntos: PainelConjuntoPedido[] = grupos.map((grupo, i) => ({ id: "c" + (i + 1), rotulo: grupo.rotulo, membros: [...grupo.membros],
+      substitui: true, retirados: [...grupo.membros] }));
+    const ids = comGrupos ? [...(previa.isolados ?? []), ...(previa.semPosicao ?? [])] : previa.ids;
+    const base = normalizarArvore({ todos: false, estados: [], ids }, arvore);
+    // "Como seleção": a regra dos critérios ("densidade abaixo de 0,5"); com os grupos, também o agrupamento.
+    const texto = comGrupos ? previa.regra.textoAgrupado ?? previa.regra.texto : previa.regra.texto;
+    const regra: RegraDaSelecao = { texto, competencia: previa.competencia, total: previa.atendem, base,
+      conjuntos: conjuntos.map(conjunto => ({ id: conjunto.id, membros: [...conjunto.membros] })), pedido };
+    registrar("Selecionar por critérios: " + texto);
+    mudar({ nivel: "municipios", base, estados: [], conjuntos, comparar: [], regra, competencia: previa.competencia });
+    setSelecionados([]); setCorte(null); setCriterios(null);
+    setAvisoSelecao(comGrupos ? quantos(conjuntos.length, { singular: "grupo", plural: "grupos" }) + " e " + quantos(ids.length, rotulos.unidade) +
+      " na análise: " + textoDaRegra(regra) + "." : "Seleção por critérios: " + textoDaRegra(regra) + ".");
+    pedirOQueFalta();
+  }
+
   function abrirGrupoDaBolha(id: string) {
     const grupo = grupoDaBolha(id);
     if (grupo === null) { setAviso("Não foi possível associar esta bolha a um item da lista de territórios."); return; }
@@ -1280,7 +1318,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function exportarMetodo() {
     if (!resposta) return;
     baixar("metodo_" + (resposta.competencia || "grafico") + ".txt", textoDoMetodo(resposta, titulo, calculado?.opcoes ?? null, resumoNaTela,
-      { rotulos, brasil: tipo === "brasil" }), "text/plain;charset=utf-8");
+      { rotulos, brasil: tipo === "brasil", regra: regraEmUso ? textoDaRegra(regraEmUso) : null }), "text/plain;charset=utf-8");
   }
   /** A divisória entre o desenho e a explicação da tendência: arrastar (ou as setas, com o foco nela) muda a largura do painel da
    * explicação, entre LATERAL_MIN e a metade da área (no máximo LATERAL_MAX). */
@@ -1981,6 +2019,19 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             onUnidade={escolherNivel} onBase={mudarArvore}
             onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto} onCriarGrupo={criarGrupo} onSalvarGrupo={salvarGrupo}
             valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
+            criterios={fonteMotor ? { aberto: !!criterios, onAlternar: () => setCriterios(atual => atual ? null : { inicial: null }),
+              painel: <SelecionarPorCriterios key={JSON.stringify(criterios?.inicial ?? null)} fonte={fonteMotor} rotulos={rotulos}
+                nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
+                categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
+                base={def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null}
+                lugar={lugar.tipo === "grupo" && lugar.grupo ? { rotulo: lugar.partes.find(parte => parte.chave === "grupo")?.rotulo ?? lugar.grupo,
+                  partirDe: { tipo: "ufs", ufs: [lugar.grupo] } }
+                  : lugar.tipo === "regiao" && lugar.regiao ? { rotulo: lugar.partes.find(parte => parte.chave === "regiao")?.rotulo ?? lugar.regiao,
+                    partirDe: { tipo: "ufs", ufs: gruposDaRegiao(lugar.regiao, arvore) } } : null}
+                lugarDoPedido={lugarDaRegra} inicial={criterios?.inicial as PedidoDosCriterios | null}
+                onComoSelecao={(previa, pedido) => usarCriterios(previa, pedido, false)}
+                onComoGrupos={(previa, pedido) => usarCriterios(previa, pedido, true)} onCancelar={() => setCriterios(null)}/> } : null}
+            regra={regraEmUso ? { texto: textoDaRegra(regraEmUso), onReaplicar: () => setCriterios({ inicial: regraEmUso.pedido }) } : null}
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>
           {/* A faixa fixa do lugar em uso (06/11/2026, item 2.2): no alto de todas as abas de análise; no nível da unidade, o cartão. */}
@@ -2160,7 +2211,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
 
     {resposta && !semUnidades && <PainelDetalhes resposta={resposta} itens={visiveis} fora={fora} familia={familiaDesenho} indicador={indicador}
       distancia={distanciaNaTela} variacao={exibicao.variacao} tendencia={exibicao.tendencia} rotulos={rotulosDoNivel} selecionados={selecao}
-      limiares={limiares} corteAtivo={corteAtivo(corte, dominio)} onAlternar={alternar}/>}
+      limiares={limiares} corteAtivo={corteAtivo(corte, dominio)} onAlternar={alternar} regra={regraEmUso ? textoDaRegra(regraEmUso) : null}/>}
     </div>}
     <p aria-live="polite" className="sr-only" data-testid="analise-aviso">{aviso}</p>
   </section>;

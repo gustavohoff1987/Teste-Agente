@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, ChevronDown, Layers3, Pencil, Search, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Filter, Layers3, Pencil, Search, X } from "lucide-react";
 import AgregarTerritorios, { type GrupoAgregado } from "./AgregarTerritorios";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
@@ -68,6 +68,11 @@ type Props = {
   onSalvarGrupo: (id: string, grupo: GrupoAgregado) => void;
   /** Os números de cada grupo, do motor (os itens "conjunto" da resposta em exibição), e o nome dos profissionais ("médicos"). */
   valoresDosConjuntos?: Map<string, { quantidade: number | null; densidade: number | null }>;
+  /** Selecionar por critérios (07/11/2026, item 6 do comando): o painel (montado pela área, com a fonte e a regra em uso), aberto
+   * pelo botão das ferramentas; sem ele, o botão não aparece. */
+  criterios?: { aberto: boolean; painel: ReactNode; onAlternar: () => void } | null;
+  /** A regra em uso (07/11/2026): o texto ("densidade abaixo de 0,5 em jun/2024 (89)") e "Reaplicar em outra competência". */
+  regra?: { texto: string; onReaplicar: () => void } | null;
   profissionais: string;
   onVerAnalise: () => void;
 };
@@ -396,7 +401,10 @@ export default function PainelTerritorios(p: Props) {
             onClick={() => buscaRef.current?.focus()}><Search size={14} aria-hidden="true"/>Buscar</button>
           <button type="button" data-testid="analise-agregar-abrir" className="analise-botao-secundario" aria-expanded={agregar !== null}
             onClick={() => setAgregar(atual => atual === null ? "novo" : null)}><Layers3 size={14} aria-hidden="true"/>Agregar territórios</button>
+          {p.criterios && <button type="button" data-testid="analise-criterios-abrir" className="analise-botao-secundario"
+            aria-expanded={p.criterios.aberto} onClick={p.criterios.onAlternar}><Filter size={14} aria-hidden="true"/>Selecionar por critérios</button>}
         </div>
+        {p.criterios?.aberto && p.criterios.painel}
         {agregar !== null && (() => {
           const emEdicao = agregar === "novo" ? null : p.conjuntos.find(conjunto => conjunto.id === agregar) ?? null;
           return <AgregarTerritorios key={agregar} unidades={validas} rotulos={p.rotulos} grupos={p.grupos} sugestao={"Grupo " + (p.conjuntos.length + 1)}
@@ -434,6 +442,9 @@ export default function PainelTerritorios(p: Props) {
           </div>
         </div>}
         {p.totais}
+        {p.regra && <p data-testid="analise-selecao-regra" className="analise-selecao-regra"><span>Seleção por critérios: {p.regra.texto}</span>{" "}
+          <button type="button" data-testid="analise-criterios-reaplicar" className="analise-link" onClick={p.regra.onReaplicar}>
+            Reaplicar em outra competência</button></p>}
         {p.aviso && <p role="status" data-testid="analise-selecao-aviso" className="analise-desfazer">{p.aviso} Para desfazer, use o botão Desfazer, no alto.</p>}
         <div data-testid="analise-selecionados-itens" className="analise-selecionados-itens">{selecionadas}</div>
       </aside>

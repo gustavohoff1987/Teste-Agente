@@ -1387,6 +1387,35 @@ test('total do todo informado (07/11/2026, item 1.4c): vai em todo pedido de uma
   assert.equal('total_informado' in M.montarOpcoes(def, 'distribuicao', undefined, {totalInformado: null}), false);
 });
 
+test('selecionar por critérios (07/11/2026, item 6): a trilha diz a regra enquanto a seleção for a dela', () => {
+  const base = M.normalizarArvore({todos: false, estados: [], ids: ['code:130001', 'code:150001']}, ARVORE);
+  const regra = {texto: 'densidade abaixo de 0,5', competencia: '202406', total: 2, base, conjuntos: [], pedido: {criterios: {}, agrupar: null}};
+  assert.equal(M.textoDaRegra(regra), 'densidade abaixo de 0,5 em jun/2024 (2)');
+  assert.equal(M.competenciaAbreviada('202403'), 'mar/2024');
+  const escolha = {nivel: 'municipios', base, estados: [], conjuntos: []};
+  assert.ok(M.regraConfere(regra, escolha));
+  assert.deepEqual(partes(M.lugarDaTrilha(escolha, {...TRILHA, regra})),
+    [['todo', 'Brasil', false], ['selecao', 'Seleção: densidade abaixo de 0,5 em jun/2024 (2)', true]]);
+  // A seleção mudou (um município a mais, ou outro nível): a regra deixa de valer, e a trilha volta à de sempre.
+  const outra = {...escolha, base: {...base, ids: [...base.ids, 'code:350001']}};
+  assert.ok(!M.regraConfere(regra, outra));
+  assert.deepEqual(partes(M.lugarDaTrilha(outra, {...TRILHA, regra})), [['todo', 'Brasil', false], ['selecao', 'Seleção', true]]);
+  assert.ok(!M.regraConfere(regra, {...escolha, nivel: 'estados'}));
+  assert.ok(!M.regraConfere(null, escolha));
+  // Com os grupos agregados: a regra vale com os mesmos grupos, com os mesmos membros, e os isolados na base; renomear um grupo
+  // não muda a seleção, mas tirar ou pôr um membro (o ✎ de Agregar territórios) muda, e a regra sai de vista.
+  const grupo = {id: 'c1', rotulo: 'Grupo 1', membros: ['code:130002', 'code:130003']};
+  const comGrupos = {...regra, conjuntos: [{id: 'c1', membros: ['code:130003', 'code:130002']}]};
+  assert.ok(M.regraConfere(comGrupos, {...escolha, conjuntos: [grupo]}));
+  assert.ok(M.regraConfere(comGrupos, {...escolha, conjuntos: [{...grupo, rotulo: 'Bico do Papagaio'}]}));
+  assert.ok(!M.regraConfere(comGrupos, {...escolha, conjuntos: [{...grupo, membros: ['code:130002']}]}));
+  assert.ok(!M.regraConfere(comGrupos, escolha));
+  // No arquivo de método, a regra abre a Procedência; sem regra em uso, nada muda.
+  const metodo = M.textoDoMetodo(resposta(), 'T', null, null, {rotulos: BR, brasil: true, regra: M.textoDaRegra(regra)});
+  assert.deepEqual(metodo.split('\n').slice(0, 4), ['T', '', 'Procedência', '- Seleção por critérios: densidade abaixo de 0,5 em jun/2024 (2)']);
+  assert.ok(!M.textoDoMetodo(resposta(), 'T', null, null, {rotulos: BR, brasil: true, regra: null}).includes('Seleção por critérios'));
+});
+
 test('faixa do lugar: a competência inicial da variação, os números e as referências', () => {
   const periodos = ['202006', '202101', '202106', '202201', '202206', '202301', '202306', '202401', '202406'];
   assert.equal(M.desdeDaFaixa(periodos, '202406'), '202106');  // os últimos 4 períodos anuais até a competência da análise

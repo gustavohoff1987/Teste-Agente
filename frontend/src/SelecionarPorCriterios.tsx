@@ -18,6 +18,9 @@ import {
 
 type Onde = "todo" | "lugar" | "selecao";
 type Rascunho = { atributo: FiltroDoCriterio["indicador"]; operador: FiltroDoCriterio["operador"]; valor: string };
+/** O que a pessoa pediu: os critérios, o agrupamento e, com "a seleção atual", a seleção em que procurou (para reaplicar nela,
+ * mesmo depois de a seleção virar a do resultado). */
+export type PedidoDosCriterios = { criterios: CriteriosOpcoes["criterios"]; agrupar: { km: number } | null; base?: PainelMunicipios };
 type Props = {
   fonte: FonteDoMotor;
   rotulos: RotulosTerritoriais;
@@ -31,10 +34,12 @@ type Props = {
   base: PainelMunicipios | null;
   /** O lugar em uso na trilha (um grupo ou um grupo de cima), como onde procurar; sem ele, null. */
   lugar: { rotulo: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"] } | null;
+  /** Onde a regra a reaplicar procurou (um grupo ou mais, pelo nome), quando não é o lugar em uso: no lugar dele. */
+  lugarDoPedido?: { rotulo: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"] } | null;
   /** A regra a reaplicar (outra competência), já preenchida. */
-  inicial?: { criterios: CriteriosOpcoes["criterios"]; agrupar: { km: number } | null } | null;
-  onComoSelecao: (previa: RespostaCriterios, pedido: { criterios: CriteriosOpcoes["criterios"]; agrupar: { km: number } | null }) => void;
-  onComoGrupos: (previa: RespostaCriterios, pedido: { criterios: CriteriosOpcoes["criterios"]; agrupar: { km: number } | null }) => void;
+  inicial?: PedidoDosCriterios | null;
+  onComoSelecao: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
+  onComoGrupos: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
   onCancelar: () => void;
 };
 
@@ -50,8 +55,13 @@ const valorDe = (numero: number) => String(numero).replace(".", ",");
 export default function SelecionarPorCriterios(p: Props) {
   const unidade = p.rotulos.unidade, feminino = (unidade.genero ?? "m") === "f";
   const inicial = p.inicial?.criterios;
-  const [onde, setOnde] = useState<Onde>(() => inicial?.partir_de.tipo === "selecao" ? "selecao"
-    : inicial && inicial.partir_de.tipo !== "pais" && p.lugar ? "lugar" : "todo");
+  // Onde procurar: o lugar da regra a reaplicar, quando ela procurou noutro lugar; a seleção em que ela procurou, quando foi na
+  // seleção (a seleção em uso pode já ser a do resultado).
+  const lugarOpcao = p.lugarDoPedido ?? p.lugar;
+  const baseDaRegra = p.inicial?.base ?? null;
+  const baseDaBusca = baseDaRegra ?? p.base;
+  const [onde, setOnde] = useState<Onde>(() => inicial?.partir_de.tipo === "selecao" && baseDaBusca ? "selecao"
+    : inicial && inicial.partir_de.tipo !== "pais" && inicial.partir_de.tipo !== "selecao" && lugarOpcao ? "lugar" : "todo");
   const [competencia, setCompetencia] = useState(p.competencia);
   const [linhas, setLinhas] = useState<Rascunho[]>(() => inicial?.filtros.length
     ? inicial.filtros.map(filtro => ({ atributo: filtro.indicador, operador: filtro.operador, valor: valorDe(filtro.valor) }))
@@ -79,11 +89,12 @@ export default function SelecionarPorCriterios(p: Props) {
   const kmDistancia = lerNumero(km), kmDoAgrupamento = lerNumero(kmAgrupar);
   const distancia = comDistancia && de && kmDistancia !== null && kmDistancia > 0 ? { de, km: kmDistancia } : null;
   const partirDe: CriteriosOpcoes["criterios"]["partir_de"] = onde === "selecao" ? { tipo: "selecao" }
-    : onde === "lugar" && p.lugar ? p.lugar.partirDe : { tipo: "pais" };
-  const pedido = { criterios: { partir_de: partirDe, filtros: filtros.map(filtro => ({ ...filtro, valor: filtro.valor as number })),
-    ...(distancia ? { distancia } : {}) }, agrupar: agrupar && kmDoAgrupamento !== null && kmDoAgrupamento > 0 ? { km: kmDoAgrupamento } : null };
+    : onde === "lugar" && lugarOpcao ? lugarOpcao.partirDe : { tipo: "pais" };
+  const pedido: PedidoDosCriterios = { criterios: { partir_de: partirDe, filtros: filtros.map(filtro => ({ ...filtro, valor: filtro.valor as number })),
+    ...(distancia ? { distancia } : {}) }, agrupar: agrupar && kmDoAgrupamento !== null && kmDoAgrupamento > 0 ? { km: kmDoAgrupamento } : null,
+    ...(onde === "selecao" && baseDaBusca ? { base: baseDaBusca } : {}) };
   const pronto = filtrosValidos && (filtros.length > 0 || !!distancia) && (!comDistancia || !!distancia) &&
-    (!agrupar || !!pedido.agrupar) && (onde !== "selecao" || !!p.base) && !!competencia;
+    (!agrupar || !!pedido.agrupar) && (onde !== "selecao" || !!baseDaBusca) && !!competencia;
   const chave = JSON.stringify([competencia, pedido]);
   const atual = previa && previa.chave === chave ? previa.dados : null;
 
@@ -94,7 +105,7 @@ export default function SelecionarPorCriterios(p: Props) {
     controle.current = meu;
     setCarregando(true); setErro("");
     const opcoes: CriteriosOpcoes = { competencia, categoria: p.categoria, criterios: pedido.criterios, ...(pedido.agrupar ? { agrupar: pedido.agrupar } : {}),
-      ...(onde === "selecao" && p.base ? { base: { municipios: p.base } } : {}), ...(p.premissas && Object.keys(p.premissas).length ? { premissas: p.premissas } : {}),
+      ...(onde === "selecao" && baseDaBusca ? { base: { municipios: baseDaBusca } } : {}), ...(p.premissas && Object.keys(p.premissas).length ? { premissas: p.premissas } : {}),
       ...(p.fonte.tipo === "arquivo" ? { rotulos: p.rotulos } : {}) };
     try {
       const dados = await pedirCriterios(p.fonte, opcoes, meu.signal);
@@ -130,10 +141,12 @@ export default function SelecionarPorCriterios(p: Props) {
       <legend>Onde procurar</legend>
       <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-todo"
         checked={onde === "todo"} onChange={() => setOnde("todo")}/><span>{p.nomeDoTodo}</span></label>
-      {p.lugar && <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-lugar"
-        checked={onde === "lugar"} onChange={() => setOnde("lugar")}/><span>O lugar em uso: {p.lugar.rotulo}</span></label>}
-      {p.base && <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-selecao"
-        checked={onde === "selecao"} onChange={() => setOnde("selecao")}/><span>A seleção atual</span></label>}
+      {lugarOpcao && <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-lugar"
+        checked={onde === "lugar"} onChange={() => setOnde("lugar")}/>
+        <span>{p.lugarDoPedido ? p.lugarDoPedido.rotulo : "O lugar em uso: " + lugarOpcao.rotulo}</span></label>}
+      {baseDaBusca && <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-selecao"
+        checked={onde === "selecao"} onChange={() => setOnde("selecao")}/>
+        <span>{baseDaRegra ? "A seleção em que a regra procurou" : "A seleção atual"}</span></label>}
     </fieldset>
     <label className="analise-rotulo-campo">Competência dos critérios
       <select data-testid="analise-criterios-competencia" value={competencia} onChange={event => setCompetencia(event.target.value)} className="analise-campo">
@@ -212,7 +225,7 @@ export default function SelecionarPorCriterios(p: Props) {
         {grupos.map((grupo, i) => <li key={grupo.id} data-testid="analise-criterios-grupo" data-id={grupo.id}>
           <span className="analise-criterios-cor" style={{ background: CORES[i % CORES.length] }} aria-hidden="true"/>
           <strong>{grupo.rotulo}</strong> · {quantos(grupo.membros.length, unidade)} · {grupo.gruposTerritoriais.map(t => t.rotulo + " " + t.unidades).join(", ")}
-          {" · "}{formatarNumero(Math.round(grupo.extensaoKm))} km de ponta a ponta</li>)}
+          {" · "}{formatarNumero(Math.round(grupo.extensaoKm), true)} km de ponta a ponta</li>)}
       </ol>}
       {mapa && <svg data-testid="analise-criterios-mapa" viewBox={"0 0 " + mapa.largura + " " + mapa.altura} width={mapa.largura} height={mapa.altura}
         role="img" aria-label={"Mapa pequeno: " + quantos(mapa.pontos.length, unidade) + (grupos ? ", coloridos pelo grupo; os isolados, vazados" : "")}

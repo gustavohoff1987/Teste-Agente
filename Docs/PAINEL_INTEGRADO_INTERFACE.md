@@ -183,7 +183,8 @@ da tela).
   (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
   não muda a seleção.
 - **Ferramentas da Seleção** (06/11/2026, item 5 do comando de navegação por níveis; `analise-selecao-ferramentas`): Buscar
-  (`analise-selecao-buscar`, leva à busca) e Agregar territórios (`analise-agregar-abrir`); Selecionar por critérios vem no item 6.
+  (`analise-selecao-buscar`, leva à busca), Agregar territórios (`analise-agregar-abrir`) e, desde 07/11/2026 (item 6),
+  Selecionar por critérios (`analise-criterios-abrir`).
 - **Agregar territórios** (06/11/2026, item 5; no lugar do Juntar, que saiu das Ferramentas das análises): um painel
   (`analise-agregar`) com a mesma busca da Seleção (`analise-agregar-busca`: digitar e marcar; cada resultado com a caixa e o
   estado, "PARAUAPEBAS (PA) · Pará") e a lista de um estado para marcar (`analise-agregar-grupo`, "Ou marque na lista de um
@@ -200,6 +201,29 @@ da tela).
   Condições, Ordenar, Comparar, Exportar); na Análise Espacial, a distância não se aplica a ele. Criar, editar e desfazer um
   grupo são passos do Desfazer. Na conversa, "agregue Marabá e Parauapebas como Carajás" cria o mesmo grupo, com a confirmação
   conferida (o selo "conferido: está na tela" só com o resultado em tela).
+- **Selecionar por critérios** (07/11/2026, item 6 do comando; decisão 4 do responsável): um painel (`analise-criterios`) em que a
+  pessoa diz tudo, e nada é sugerido (o valor de cada critério começa vazio, e a prévia só sai com ele): onde procurar (o todo,
+  "Brasil" ou o nome do todo de uma planilha, `analise-criterios-onde-todo`; o lugar em uso, um estado ou um grupo de cima,
+  `analise-criterios-onde-lugar`; ou a seleção atual, `analise-criterios-onde-selecao`), a competência dos critérios
+  (`analise-criterios-competencia`, a da análise de início), os critérios, que valem juntos, com o mesmo construtor das Condições
+  (CAP-SUB-01: indicador, comparação e valor, até cinco; `analise-criterio`), a distância opcional "só os que ficam a até X km de
+  um município", pela busca (TPL-11, em linha reta; `analise-criterios-com-distancia`), e, se a pessoa quiser, "Agrupar os que
+  ficam a até X km uns dos outros" (`analise-criterios-agrupar`; grupos por proximidade, em cadeia, RQ-CAP-13, pela distância
+  geodésica entre as sedes). "Ver a prévia" (`analise-criterios-previa`) pede ao motor (`POST /api/painel/criterios`) e mostra,
+  antes de mudar a análise, quantos atendem ("89 municípios atendem aos critérios (densidade abaixo de 0,5 em jun/2024)",
+  `analise-criterios-atendem`), os sem o dado para avaliar e, com o agrupamento, quantos grupos e isolados ("6 grupos e 8
+  isolados.") e cada grupo com quantos, de quais estados e a extensão de ponta a ponta ("Grupo 1 · 46 municípios · PI 33, TO 11,
+  BA 1, MA 1 · 1.235 km de ponta a ponta", `analise-criterios-grupo`), mais um mapa pequeno com os pontos coloridos pelo grupo e
+  os isolados vazados (`analise-criterios-mapa`). Tudo vem do motor; a tela só desenha. Duas saídas, cada uma um passo do
+  Desfazer: "Como seleção (89)" (`analise-criterios-como-selecao`), em que os que atendem viram a seleção, vendo por município;
+  e, com grupos, "Cada grupo como território agregado" (`analise-criterios-como-grupos`), em que cada grupo vira um território
+  agregado no lugar dos membros, com o nome do motor ("Grupo 1", "Grupo 2"…, editável como em Agregar territórios), e os
+  isolados entram como municípios ("6 grupos e 8 municípios na análise"). A regra fica com a seleção que ela produziu: em "Na
+  análise", a linha "Seleção por critérios: densidade abaixo de 0,5 em jun/2024 (89)" (`analise-selecao-regra`) com "Reaplicar
+  em outra competência" (`analise-criterios-reaplicar`, que reabre o painel com a mesma regra e onde ela procurou: o estado,
+  pelo nome, ou "A seleção em que a regra procurou", mesmo que a seleção em uso já seja a do resultado), na trilha, no método e
+  nos Detalhes; mudar a seleção à mão (também tirar ou pôr membros de um grupo; renomeá-lo, não) tira a regra de vista. A palavra
+  "cluster" não aparece.
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
   "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
   estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
@@ -305,7 +329,10 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   `data-chave` todo, grupo, unidade ou selecao) leva àquele nível: o Brasil, ao todo, vendo por estado; o estado, a ele inteiro,
   vendo por município. A parte atual fica marcada (`aria-current="location"`); um estado só em parte ("Brasil › Pará", com
   alguns municípios do Pará) continua tocável e leva ao estado inteiro. Escolhas livres que tocam mais de um estado ficam
-  "Brasil › Seleção"; tudo dentro de um estado só, "Brasil › Pará". Sem nada escolhido, "Brasil", com a dica de tocar no nome ou
+  "Brasil › Seleção"; tudo dentro de um estado só, "Brasil › Pará". A seleção de "Selecionar por critérios" (desde 07/11/2026,
+  item 6) leva a regra na parte da seleção, "Brasil › Seleção: densidade abaixo de 0,5 em jun/2024 (89)", enquanto a seleção for
+  a que a regra produziu (com os grupos, "Seleção: densidade abaixo de 0,5, agrupados a até 200 km uns dos outros em jun/2024
+  (89)"). Sem nada escolhido, "Brasil", com a dica de tocar no nome ou
   usar a Seleção. Ir pela trilha é um passo do Desfazer ("Desfazer: ir para Brasil na trilha"): tocar em Brasil volta ao todo
   sem o Desfazer, e um Desfazer, em seguida, volta ao lugar de antes. A conversa que muda o que está na análise ("Mostre o Pará")
   move a trilha do mesmo jeito. Com dois níveis de grupo numa planilha (desde 07/11/2026, parte C2 do item 1), a trilha passa
@@ -837,7 +864,9 @@ e o resultado da comparação continuam.
   linha com esse nome."), Não avaliáveis (por aspecto, com o motivo do motor:
   indicador, distância, variação, tendência, condições, coorte e, com o mapa à vista, coordenada do mapa) e Método e procedência
   (notas, limitações, origem da referência, TPL-11, janela, versão da base e chave de execução). Na impressão, as três partes
-  aparecem.
+  aparecem. Com uma seleção de "Selecionar por critérios" em uso (desde 07/11/2026, item 6), a regra fica acima das abas
+  (`analise-detalhes-regra`, "Seleção por critérios: densidade abaixo de 0,5 em jun/2024 (89)") e no arquivo de método, em
+  Procedência.
 
 ## Pedido ao motor e estado visual
 
@@ -1080,11 +1109,19 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   todo, até dois níveis de grupo e a unidade) ficam para a etapa seguinte do comando de 06/11/2026, como as demais etapas dele
   (a seleção única com a conversa que confere, a lista ordenada em tela estreita, Agregar territórios e Selecionar por
   critérios).
+- Selecionar por critérios (07/11/2026, item 6) está na Seleção; o pedido pela conversa (o painel preenchido, aplicado só com a
+  confirmação) e "Usar como seleção" nas Condições são as partes seguintes do item.
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
 ## Testes
 
+- **Selecionar por critérios (07/11/2026, item 6 do comando):** pytest, `test_painel_pagina.py` (o motor: os critérios, a
+  distância, o agrupamento em cadeia, as extensões, os textos da regra e as recusas; com a base versionada, o aceite do comando:
+  89, 6 grupos e 8 isolados, 46 e 1.235 km, 24 do PA e 907 km); Node, `areaDeAnalise.test.mjs` (a regra na trilha, no método e
+  nos Detalhes enquanto a seleção for a dela); navegador, `ui_criterios.py` (base versionada: a ferramenta na Seleção sem valores
+  sugeridos, a prévia com os números do motor, o mapa pequeno, "Como seleção (89)" com a trilha, a regra e a análise com os 89, e
+  "Cada grupo como território agregado" com 6 grupos e 8 municípios; nenhum "cluster").
 - **Agregar territórios (06/11/2026, item 5 do comando):** Node, `painel.test.mjs` (`baseSemUnidades`, `baseComUnidades` e
   `membrosNaSelecao`: os membros saem da seleção pela exclusão da árvore, e só os que estavam nela voltam; o grupo da conversa com
   o nome pedido, no lugar dos membros, e o que vai ao motor sem as marcas da tela) e `conversaGrafico.test.mjs` (o nome do grupo

@@ -35,6 +35,34 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Selecionar por critérios, parte B (etapa 9B do comando, item 6): a ferramenta na Seleção, a prévia e a regra
+- **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (parte A, abaixo), com a decisão 4 do responsável.
+  Mudança prevista: *escopo:* itens 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7 e 6.8 do comando (a ferramenta na Seleção; onde procurar;
+  os critérios com o mesmo construtor e a distância; o agrupamento opcional, em cadeia; tudo dito pela pessoa; a prévia do motor
+  com o mapa pequeno; "Como seleção" e "Cada grupo como território agregado"; a trilha, o método, os Detalhes e "Reaplicar em
+  outra competência"); *compatibilidade:* os números são os da rota da parte A (G2); os grupos viram territórios agregados como
+  os de Agregar territórios (CAP-AGR-01, com a ressalva da soma); nada é sugerido (EXC-11) nem chamado de "cluster" (EXC-05).
+- **Antes:** a Seleção tinha Buscar e Agregar territórios; selecionar por critério não existia na tela (a rota da parte A ainda
+  não era usada).
+- **Agora:** "Selecionar por critérios" nas Ferramentas da Seleção abre o painel: onde procurar (o todo, o lugar em uso ou a
+  seleção atual), a competência, os critérios (indicador, comparação e valor, que valem juntos; o valor começa vazio), a distância
+  opcional "a até X km de" um município e, se a pessoa quiser, "Agrupar os que ficam a até X km uns dos outros". "Ver a prévia"
+  mostra, sem mudar a análise, quantos atendem, os grupos (quantos, de quais estados e a extensão de ponta a ponta), os isolados e
+  o mapa pequeno. "Como seleção (N)" torna os que atendem a seleção (vendo por município); "Cada grupo como território agregado"
+  cria um território agregado por grupo, no lugar dos membros ("Grupo 1"…), com os isolados como municípios. Cada saída é um
+  passo do Desfazer. Enquanto a seleção for a que a regra produziu, a trilha diz "Brasil › Seleção: densidade abaixo de 0,5 em
+  jun/2024 (89)", e a regra aparece em "Na análise" (com "Reaplicar em outra competência", que reabre o painel com ela e com
+  onde ela procurou: o estado ou a seleção de então), nos Detalhes e no arquivo de método (Procedência); mudar a seleção à mão, inclusive os membros de um grupo, tira a regra de vista.
+- **Permanece:** as demais ferramentas da Seleção, as Condições e a Escolha dos territórios; a conversa ainda não abre este
+  painel, e as Condições ainda não têm "Usar como seleção" (partes seguintes do item 6).
+- **Motivo:** comando do responsável de 06/11/2026, item 6, com a decisão 4.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (Ferramentas da Seleção, "Selecionar por critérios", a trilha, os
+    Detalhes, as limitações e os testes).
+  - **Testes novos:** Node, `areaDeAnalise.test.mjs` (a regra na trilha enquanto a seleção for a dela, com os grupos e os membros
+    deles; o nome do grupo pode mudar); navegador, `ui_criterios.py`, registrado em `run_ui_checks.py` (suíte base-versionada: o
+    aceite do comando na tela, com as respostas do motor conferidas).
+
 ### 2026-11-07 · Selecionar por critérios, parte A (etapa 9A do comando, item 6): a prévia no motor, com os grupos por proximidade em cadeia
 - **Classificação (regra 1), pela leitura, antes de codar:** item 6 do comando de 06/11/2026, classificado de uma vez com os
   demais (entrada da navegação por níveis, abaixo), com a decisão 4 do responsável ("Selecionar por critérios" é capacidade nova

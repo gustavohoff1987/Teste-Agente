@@ -68,7 +68,8 @@ SUITES = {
         "catalogo": "repositorio", "servidor": "offline",
         "roteiros": [("ui_pagina_unica.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_area_de_analise.py", {"ADT_BLOCK1_REAL": "1"}),
                      ("ui_mapa.py", {"ADT_BLOCK1_REAL": "1"}), ("ui_execucao_conversa.py", {"ADT_BLOCK1_REAL": "1"}),
-                     ("ui_responsivo.py", {}), ("ui_navegacao.py", {"ADT_BLOCK1_REAL": "1"})],
+                     ("ui_responsivo.py", {}), ("ui_navegacao.py", {"ADT_BLOCK1_REAL": "1"}),
+                     ("ui_criterios.py", {"ADT_BLOCK1_REAL": "1"})],
     },
     # Hospedagem (01/11/2026; Docs/implantacao/): as duas suítes rodam no job "conteiner" do CI.
     "sessao": {

@@ -31,6 +31,8 @@ type Props = {
   limiares: number[];
   corteAtivo: boolean;
   onAlternar: (id: string) => void;
+  /** A regra da seleção por critérios em uso (07/11/2026, item 6 do comando), como na trilha. */
+  regra?: string | null;
 };
 
 const semAcento = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -74,6 +76,7 @@ export default function PainelDetalhes(p: Props) {
 
   return <section data-testid="analise-detalhes" aria-labelledby="analise-detalhes-titulo" className="analise-detalhes">
     <h3 id="analise-detalhes-titulo" className="text-sm font-bold text-ink">Detalhes</h3>
+    {p.regra && <p data-testid="analise-detalhes-regra" className="text-xs text-slate-700">Seleção por critérios: {p.regra}</p>}
     <div role="tablist" aria-label="Detalhes" className="analise-abas analise-nao-imprimir">
       {ABAS.map(([chave, rotulo], indice) => <button key={chave} id={"analise-detalhes-aba-" + chave} type="button" role="tab"
         data-testid={"analise-detalhes-" + chave} aria-selected={aba === chave} aria-controls={"analise-detalhes-painel-" + chave}

@@ -2352,15 +2352,18 @@ export type LugarDaTrilha = {
 /** A regra de "Selecionar por critérios" (07/11/2026, item 6 do comando): o texto do motor ("densidade abaixo de 0,5"), a
  * competência dos critérios, quantos entraram e a seleção que ela produziu (a base e os grupos agregados), para conferir se a
  * seleção em uso ainda é a dela; e o pedido, para "Reaplicar em outra competência". */
-export type RegraDaSelecao = { texto: string; competencia: string; total: number; base: PainelMunicipios; conjuntos: string[];
-  pedido: { criterios: object; agrupar: object | null } };
+export type RegraDaSelecao = { texto: string; competencia: string; total: number; base: PainelMunicipios;
+  conjuntos: { id: string; membros: string[] }[]; pedido: { criterios: object; agrupar: object | null; base?: PainelMunicipios } };
 /** "densidade abaixo de 0,5 em jun/2024 (89)": a regra na trilha, no método e nos Detalhes. */
 export const textoDaRegra = (regra: Pick<RegraDaSelecao, "texto" | "competencia" | "total">) =>
   regra.texto + " em " + competenciaAbreviada(regra.competencia) + " (" + inteiro.format(regra.total) + ")";
-/** A seleção em uso ainda é a que a regra produziu (a mesma base e os mesmos grupos agregados)? */
+/** Os grupos agregados pelo que conta para a regra: cada um com os membros dele (o nome pode mudar; os membros, não). */
+const assinaturaDosGrupos = (conjuntos: { id: string; membros: string[] }[]) =>
+  conjuntos.map(conjunto => conjunto.id + ":" + [...conjunto.membros].sort().join(",")).join("|");
+/** A seleção em uso ainda é a que a regra produziu (a mesma base e os mesmos grupos agregados, com os mesmos membros)? */
 export function regraConfere(regra: RegraDaSelecao | null | undefined, def: Pick<DefinicaoAnalise, "nivel" | "base" | "conjuntos">): boolean {
   return !!regra && def.nivel === "municipios" && JSON.stringify(def.base) === JSON.stringify(regra.base) &&
-    def.conjuntos.map(conjunto => conjunto.id).join("|") === regra.conjuntos.join("|");
+    assinaturaDosGrupos(def.conjuntos) === assinaturaDosGrupos(regra.conjuntos);
 }
 export type ContextoDaTrilha = { arvore: ContextoDaArvore; nomeDoTodo: string; nomes: Map<string, string>;
   /** A regra da seleção por critérios em uso (07/11/2026): a parte da seleção diz a regra. */
@@ -3037,8 +3040,11 @@ export function montarCsv(resposta: PainelResposta, c: { familia: Familia; indic
  * enviado ao motor, as notas, as limitações e a procedência. Numa planilha (28/10/2026), uma linha antes dos parâmetros diz que
  * as chaves deles são as do contrato da API ("municipios", "estados") e o que elas são nesta planilha. */
 export function textoDoMetodo(resposta: PainelResposta, titulo: string, opcoes: PainelOpcoes | null,
-  resumo: string | null = resposta.resumo?.texto ?? null, c?: { rotulos: RotulosTerritoriais; brasil: boolean }): string {
-  const linhas = [titulo, ...(resumo ? [resumo] : []), "", "Procedência", "- Competência: " + exibirCompetencia(resposta.competencia) +
+  resumo: string | null = resposta.resumo?.texto ?? null, c?: { rotulos: RotulosTerritoriais; brasil: boolean;
+    /** A regra da seleção por critérios em uso (07/11/2026, item 6 do comando). */
+    regra?: string | null }): string {
+  const linhas = [titulo, ...(resumo ? [resumo] : []), "", "Procedência", ...(c?.regra ? ["- Seleção por critérios: " + c.regra] : []),
+    "- Competência: " + exibirCompetencia(resposta.competencia) +
     (resposta.competencia_inicial ? " (inicial: " + exibirCompetencia(resposta.competencia_inicial) + ")" : ""),
     "- Categoria: " + resposta.categoria, "- Versão da base: " + (resposta.versao_base || "não informada"),
     "- Chave de execução: " + (resposta.chave_execucao || "não informada")];
