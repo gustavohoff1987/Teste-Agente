@@ -279,7 +279,11 @@ def _pontua(mensagem: str, alternativas: list[dict], rotulos: dict | None = None
     estados_citados = {codigo for nome, codigo in ESTADOS_POR_NOME.items() if re.search(r"\b" + re.escape(nome) + r"\b",
                                                                                          texto)}
     estados_citados |= {SIGLAS[t] for t in palavras(texto) if t in SIGLAS and len(texto) <= 40}
-    meses = {i for i, mes in enumerate(MESES) if re.search(r"\b" + mes[:3], texto)}
+    # O mês pela palavra inteira, por extenso ou abreviado ("março", "mar", "jan/2024"), nunca pelo começo de outra palavra:
+    # "Marabá" não é março (07/11/2026; antes, "mar" casava com o nome e com o rótulo "Ir para MARABA (PA)").
+    def mes_citado(mes: str, onde: str) -> bool:
+        return bool(re.search(r"\b" + mes[:3] + "(?:" + mes[3:] + r")?\b", onde))
+    meses = {i for i, mes in enumerate(MESES) if mes_citado(mes, texto)}
     for indice, alternativa in enumerate(alternativas):
         rotulo = dobra(alternativa["rotulo"])
         e_grupo = bool(re.match(r"^(?:estado|uf|provincia|distrito|regiao|grupo)\b", rotulo)) or \
@@ -295,7 +299,7 @@ def _pontua(mensagem: str, alternativas: list[dict], rotulos: dict | None = None
             if e_grupo and dobra(STATES[codigo][1]) in rotulo:
                 pontos[indice] += 2
         for mes in meses:
-            if MESES[mes][:3] in rotulo:
+            if mes_citado(MESES[mes], rotulo):
                 pontos[indice] += 4
         if texto and len(texto) >= 4 and texto in rotulo:
             pontos[indice] += 5
@@ -323,10 +327,17 @@ def _escolhida(mensagem: str, alternativas: list[dict], rotulos=None) -> int | N
 
 
 def _parece_pedido_novo(texto: str) -> bool:
-    from conversa_grafico import COMPARAR, TENDENCIA, VERBO_VISTA
-    return bool(COMPARAR.search(texto) or TENDENCIA.search(texto) or VERBO_VISTA.search(texto) or
+    from conversa_grafico import COMPARAR, JUNTAR, TENDENCIA, VERBO_VISTA
+    return bool(COMPARAR.search(texto) or JUNTAR.search(texto) or TENDENCIA.search(texto) or VERBO_VISTA.search(texto) or
                 re.search(r"\b(?:ordene|ordena|junte|junta|referencia|distribuicao|quintis|quartis|decis|exporte)\b", texto)
                 or len(palavras(texto)) > 7)
+
+
+def _cita_funcao(texto: str) -> bool:
+    """O texto cita uma função do gráfico pelo verbo: comparar, agregar (juntar), ordenar ou exportar."""
+    from conversa_grafico import COMPARAR, JUNTAR
+    return bool(COMPARAR.search(texto) or JUNTAR.search(texto) or
+                re.search(r"\b(?:ordene|ordena|ordenar|exporte|exporta|exportar)\b", texto))
 
 
 def _atributo(texto: str) -> str | None:
@@ -375,7 +386,12 @@ def reconhecer(mensagem: str, conversa: dict | None, tem_resultado: bool, result
         escolhida = _escolhida(mensagem, alternativas)
         pontos = _pontua(mensagem, alternativas)
         forte = escolhida is not None and pontos[escolhida] >= 4
-        if escolhida is not None and (forte or not (len(palavras(texto)) > 6 and _parece_pedido_novo(texto))):
+        # Um pedido de outra função não é resposta por um nome em comum (07/11/2026, item 5 do comando de navegação por níveis):
+        # com "Ir para MARABA (PA)" pendente, "agregue Marabá e Parauapebas como Carajás" é o pedido de agregar, não a escolha.
+        outra_funcao = escolhida is not None and not forte and _cita_funcao(texto) and \
+            not _cita_funcao(dobra(alternativas[escolhida]["rotulo"]))
+        if escolhida is not None and not outra_funcao and \
+                (forte or not (len(palavras(texto)) > 6 and _parece_pedido_novo(texto))):
             return {"ato": "responde_pendente", "alternativa": escolhida}
         if re.fullmatch(r"(?:nenhum[ao]?(?: d[ao]s (?:duas|dois|opcoes))?|deixa (?:pra|para) la|esquece|cancela|"
                         r"nao quero mais|nenhuma delas)", texto):

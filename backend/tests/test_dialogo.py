@@ -128,6 +128,32 @@ def test_resposta_que_nao_escolhe_repergunta_e_pedido_novo_segue_adiante():
                               False) is None
 
 
+OFERTA = {"pergunta": "MARABA (PA): 472 médicos em junho de 2024 (1,64 por 1.000 habitantes). Não está na análise em uso.",
+          "pedido": "Quantos médicos tem em Marabá?",
+          "alternativas": [{"rotulo": "Ir para MARABA (PA)", "rascunho": "abra Marabá"},
+                           {"rotulo": "Adicionar à seleção", "rascunho": "acrescente Marabá"}]}
+MARCO = {"pergunta": "Em 2024, a base tem 2 competências. Qual delas?", "pedido": "Compare Belém e Manaus em 2024",
+         "alternativas": [{"rotulo": "Março de 2024", "rascunho": "Compare Belém e Manaus em março de 2024"},
+                          {"rotulo": "Junho de 2024", "rascunho": "Compare Belém e Manaus em junho de 2024"}]}
+
+
+def test_pedido_de_outra_funcao_com_um_nome_da_alternativa_nao_e_resposta():
+    """07/11/2026 (item 5 do comando de navegação por níveis; achado no CI do aceite): com "Ir para MARABA (PA)" pendente, o
+    pedido de agregar com Marabá era tomado como a escolha, porque o mês contava pelo começo da palavra ("mar" de março casava
+    com "Marabá" na mensagem e no rótulo, quatro pontos) e um nome em comum bastava. O mês conta pela palavra inteira, e um
+    pedido de outra função (agregar, comparar, ordenar, exportar) com uma coincidência fraca segue como pedido novo."""
+    for pedido in ("agregue Marabá e Parauapebas como Carajás", "junte Marabá e Parauapebas", "compare Marabá e Tucuruí"):
+        assert dialogo.reconhecer(pedido, {"pendente": OFERTA}, True) is None, pedido
+    assert dialogo._pontua("agregue Marabá e Parauapebas como Carajás", OFERTA["alternativas"]) == [1, 0]
+    # A escolha digitada continua valendo.
+    for resposta, indice in (("ir para Marabá", 0), ("Marabá", 0), ("adicionar à seleção", 1), ("o primeiro", 0)):
+        assert dialogo.reconhecer(resposta, {"pendente": OFERTA}, True) == {"ato": "responde_pendente", "alternativa": indice}
+    # O mês, por extenso ou abreviado, continua escolhendo a competência; o começo de um nome, não.
+    for resposta, indice in (("mar", 0), ("março", 0), ("a de março", 0), ("jun", 1), ("junho", 1)):
+        assert dialogo.reconhecer(resposta, {"pendente": MARCO}, False) == {"ato": "responde_pendente", "alternativa": indice}
+    assert dialogo._pontua("Marabá", MARCO["alternativas"]) == [0, 0]
+
+
 def test_correcao_da_escolha_aplicada_e_correcao_com_pedido():
     memoria = {"ato": "responde_pendente", "escolha": {"pedido": PENDENTE["pedido"], "escolhida": "RIO DE JANEIRO (RJ)",
                                                        "restantes": [PENDENTE["alternativas"][0]]}}

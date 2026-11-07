@@ -35,6 +35,27 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Resposta digitada a uma alternativa: o mês pela palavra inteira, e o pedido de outra função não é resposta
+- **Classificação (regra 1), pela leitura, antes de codar:** mudança surgida na correção de uma falha do CI (execução 476, o passo
+  14 de `ui_navegacao.py`, o aceite do item 5): com "Ir para MARABA (PA)" e "Adicionar à seleção" pendentes (a pergunta de valor
+  fora da análise em uso, item 4), "agregue Marabá e Parauapebas como Carajás" era tomado como a escolha "Ir para MARABA (PA)", e
+  o grupo não era criado. Mudança prevista: *escopo:* decorre do item 5 (o pedido de agregar pela conversa) e corrige um defeito
+  do reconhecimento; *compatibilidade:* o gestor continua escolhendo só entre as alternativas da pergunta, sem o provedor, e nada
+  muda nos números nem no motor.
+- **Antes:** a pontuação da resposta digitada contava o mês pelo começo de qualquer palavra: "mar" (março) casava com "Marabá"
+  na mensagem e no rótulo "Ir para MARABA (PA)", e somava 4 pontos, o bastante para a escolha valer como "forte"; e um nome em
+  comum com a alternativa bastava, numa mensagem de até 6 palavras, mesmo com o verbo de outra função.
+- **Agora:** o mês conta pela palavra inteira, por extenso ou abreviado ("mar", "março", "jan", "junho"); e, com uma coincidência
+  fraca, uma mensagem que cita outra função (agregar, comparar, ordenar, exportar) que a alternativa não cita segue como pedido
+  novo ("agregue Marabá e Parauapebas como Carajás", "compare Marabá e Tucuruí").
+- **Permanece:** as respostas digitadas de antes ("Município.", "a do Pará", "PB", "o primeiro", "junho", "a de janeiro", "jan")
+  e as novas que escolhem pelo nome ("ir para Marabá", "Marabá", "adicionar à seleção"); "deixa pra lá" cancela; a pergunta se
+  repete sem escolha clara.
+- **Motivo:** defeito achado no CI do aceite do item 5 (o pedido de agregar pela conversa, com a confirmação conferida).
+- **Documentação e testes:** `Docs/DIALOGO_GOVERNADO.md` (resposta a esclarecimento); `backend/tests/test_dialogo.py`, teste novo
+  `test_pedido_de_outra_funcao_com_um_nome_da_alternativa_nao_e_resposta` (a oferta de Marabá, as respostas que continuam e o mês
+  pela palavra inteira, com "Março de 2024").
+
 ### 2026-11-07 · Agregar territórios (etapa 7 do comando, item 5): o Juntar sai das Ferramentas e vira um painel da Seleção, com o grupo no lugar dos membros
 - **Classificação (regra 1), pela leitura, antes de codar:** item 5 do comando de 06/11/2026, classificado de uma vez com os demais
   (entrada da navegação por níveis, abaixo): decisão 3 do próprio comando (o Juntar vira "Agregar territórios", na Seleção).
