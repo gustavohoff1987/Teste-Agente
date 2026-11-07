@@ -38,8 +38,11 @@ type Props = {
   lugarDoPedido?: { rotulo: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"] } | null;
   /** A regra a reaplicar (outra competência) ou o pedido da conversa, já preenchidos. */
   inicial?: PedidoDosCriterios | null;
-  /** Aberto pela conversa (07/11/2026, item 6.9): a prévia sai sozinha, uma vez, com o que a pessoa disse. */
+  /** Aberto pela conversa (07/11/2026, item 6.9) ou pelas Condições (item 6.10): a prévia sai sozinha, uma vez, com o que a
+   * pessoa disse. */
   previaAoAbrir?: boolean;
+  /** O que ficou de fora do que veio das Condições (a distância até a referência). */
+  aviso?: string;
   onComoSelecao: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
   onComoGrupos: (previa: RespostaCriterios, pedido: PedidoDosCriterios) => void;
   onCancelar: () => void;
@@ -142,6 +145,7 @@ export default function SelecionarPorCriterios(p: Props) {
     <h4 id="analise-criterios-titulo" className="analise-agregar-titulo">Selecionar por critérios</h4>
     <p className="analise-agregar-apoio">Você diz os critérios, os valores e a distância; nada é sugerido. A prévia mostra quantos atendem
       antes de mudar a análise.</p>
+    {p.aviso && <p role="status" data-testid="analise-criterios-aviso" className="analise-agregar-apoio">{p.aviso}</p>}
     <fieldset className="analise-criterios-bloco">
       <legend>Onde procurar</legend>
       <label className="analise-caixa"><input type="radio" name="analise-criterios-onde" data-testid="analise-criterios-onde-todo"

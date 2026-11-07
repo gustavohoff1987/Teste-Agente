@@ -35,6 +35,24 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Selecionar por critérios, parte D (etapa 9D do comando, item 6.10): "Usar como seleção" nas Condições
+- **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (partes A a C, abaixo), com a decisão 4 do
+  responsável. Mudança prevista: *escopo:* item 6.10 ("Nas análises, as Condições continuam para destacar e ganham "Usar como
+  seleção", que leva o critério para cá"); *compatibilidade:* as Condições não mudam (continuam destacando, com o filtro visual);
+  o botão só leva o critério ao painel, que pede a prévia ao motor; nada muda na análise sem a escolha da pessoa.
+- **Antes:** as Condições só destacavam (quem atende, quem não atende e quem não tem dado); para virar seleção, era preciso
+  escrever os mesmos critérios no painel da Seleção.
+- **Agora:** vendo por município, com condições de indicador aplicadas, "Usar como seleção" abre "Selecionar por critérios", na
+  Seleção, com as condições como critérios, "a seleção atual" como onde procurar (no todo, sem seleção) e a prévia já pedida; a
+  distância até a referência fica nas Condições, com o aviso no painel ("A distância até a referência ficou nas Condições: aqui,
+  a distância é até um município (“a até … km de”)."). A análise só muda com "Como seleção" ou "Cada grupo como território
+  agregado".
+- **Permanece:** as Condições, o filtro visual "Mostrar só quem atende" e o painel das partes B e C.
+- **Motivo:** comando do responsável de 06/11/2026, item 6, com a decisão 4.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (as Funções, "Selecionar por critérios", as limitações e os testes).
+  - **Testes novos:** `areaDeAnalise.test.mjs` (`criteriosDasCondicoes`) e o passo 4b de `ui_criterios.py`.
+
 ### 2026-11-07 · Selecionar por critérios, parte C (etapa 9C do comando, item 6): o pedido pela conversa
 - **Classificação (regra 1), pela leitura, antes de codar:** a mesma do item 6 (partes A e B, abaixo), com a decisão 4 do
   responsável. Mudança prevista: *escopo:* itens 6.5 ("No chat, um pedido com critérios e distância dados pela pessoa é

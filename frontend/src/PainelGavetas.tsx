@@ -14,7 +14,10 @@ import {
 // ------------------------------------------------------------------------------------------------ condições
 type Rascunho = { atributo: AtributoCondicao; operador: OperadorCondicao; valor: string };
 type CondicoesProps = { condicoes: CondicaoPedido[]; espacial: boolean; resposta: PainelResposta | null; rotulos: RotulosTerritoriais;
-  soAtende: boolean; onSoAtende: (valor: boolean) => void; onAplicar: (condicoes: CondicaoPedido[]) => void };
+  soAtende: boolean; onSoAtende: (valor: boolean) => void; onAplicar: (condicoes: CondicaoPedido[]) => void;
+  /** "Usar como seleção" (07/11/2026, item 6.10 do comando): leva as condições aplicadas para "Selecionar por critérios", na
+   * Seleção; sem ele (outro nível, ou nenhuma condição de indicador), o botão não aparece. */
+  onUsarComoSelecao?: () => void };
 const UNIDADES: Record<AtributoCondicao, string> = { densidade: "por 1.000 habitantes", quantidade: "profissionais", populacao: "habitantes", distancia_km: "km" };
 const lerNumero = (texto: string) => { const valor = Number(texto.trim().replace(/\./g, "").replace(",", ".")); return texto.trim() && Number.isFinite(valor) ? valor : null; };
 /** Condições (CAP-SUB-01, o antigo "critérios combinados"): separa quem atende a todas as condições, quem não atende e quem não
@@ -62,6 +65,8 @@ export function GavetaCondicoes(p: CondicoesProps) {
         Aplicar condições</button>
       {p.condicoes.length > 0 && <button type="button" data-testid="analise-condicoes-limpar" className="analise-botao-secundario"
         onClick={() => { p.onAplicar([]); p.onSoAtende(false); }}>Limpar</button>}
+      {p.condicoes.length > 0 && p.onUsarComoSelecao && <button type="button" data-testid="analise-condicoes-usar-como-selecao"
+        className="analise-botao-secundario" onClick={p.onUsarComoSelecao}>Usar como seleção</button>}
     </div>
     {contagens && p.condicoes.length > 0 && <div className="space-y-2">
       <ul className="flex flex-wrap gap-1.5" aria-label="Contagens">

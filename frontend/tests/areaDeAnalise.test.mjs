@@ -1416,6 +1416,20 @@ test('selecionar por critérios (07/11/2026, item 6): a trilha diz a regra enqua
   assert.ok(!M.textoDoMetodo(resposta(), 'T', null, null, {rotulos: BR, brasil: true, regra: null}).includes('Seleção por critérios'));
 });
 
+test('"Usar como seleção" nas Condições (07/11/2026, item 6.10): o critério vai para o painel, sem a distância até a referência', () => {
+  const condicoes = [{atributo: 'densidade', operador: '<', valor: 1}, {atributo: 'populacao', operador: '>=', valor: 20000},
+    {atributo: 'distancia_km', operador: '>', valor: 150}];
+  assert.deepEqual(M.criteriosDasCondicoes(condicoes, true), {pedido: {criterios: {partir_de: {tipo: 'selecao'}, filtros: [
+    {indicador: 'densidade', operador: '<', valor: 1}, {indicador: 'populacao', operador: '>=', valor: 20000}]}, agrupar: null},
+    semDistancia: true});
+  // Sem seleção em uso, no todo; sem a distância, nada fica de fora.
+  assert.deepEqual(M.criteriosDasCondicoes(condicoes.slice(0, 1), false), {pedido: {criterios: {partir_de: {tipo: 'pais'},
+    filtros: [{indicador: 'densidade', operador: '<', valor: 1}]}, agrupar: null}, semDistancia: false});
+  // Só a distância (ou nada): não há critério a levar.
+  assert.equal(M.criteriosDasCondicoes(condicoes.slice(2), true), null);
+  assert.equal(M.criteriosDasCondicoes([], true), null);
+});
+
 test('faixa do lugar: a competência inicial da variação, os números e as referências', () => {
   const periodos = ['202006', '202101', '202106', '202201', '202206', '202301', '202306', '202401', '202406'];
   assert.equal(M.desdeDaFaixa(periodos, '202406'), '202106');  // os últimos 4 períodos anuais até a competência da análise

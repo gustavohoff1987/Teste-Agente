@@ -226,6 +226,8 @@ da tela).
   "cluster" não aparece. Pela conversa (desde 07/11/2026, parte C), "municípios com menos de 0,5 médico por mil habitantes a
   até 200 km uns dos outros" abre este painel na Seleção, preenchido e com a prévia já pedida ao motor, sem mudar a análise: só
   "Como seleção" ou "Cada grupo como território agregado", no painel, aplicam ([Conversa no gráfico](CONVERSACAO_INCREMENTO_FN.md)).
+  Das Condições (desde 07/11/2026, parte D), "Usar como seleção" abre o painel do mesmo jeito, com as condições aplicadas como
+  critérios e "a seleção atual" como onde procurar.
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
   "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
   estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
@@ -794,7 +796,7 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Função | O que faz | Pedido ao motor |
 |---|---|---|
 | Régua | Mostra só o que fica entre dois valores do indicador; só esconde (RQ-REP-06) | Nenhum |
-| Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual | `condicoes` |
+| Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual. Desde 07/11/2026 (item 6.10), vendo por município e com condições de indicador aplicadas, "Usar como seleção" (`analise-condicoes-usar-como-selecao`) leva as condições para "Selecionar por critérios", na Seleção, preenchido, procurando na seleção em uso e com a prévia; a distância até a referência fica nas Condições (no painel, a distância é até um território), com o aviso; a análise só muda com a escolha no painel | `condicoes` (as Condições); `POST /api/painel/criterios` (a prévia) |
 | Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
 | Comparar | 2 ou 3 itens lado a lado, com maior, menor e diferença do motor (CAP-CMP-01) | `comparar` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo (desde 29/10/2026, com o nome de outra coluna, como o "território" que o modelo sugere para a unidade e o grupo, "Território (grupo)"); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
@@ -1111,8 +1113,8 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   todo, até dois níveis de grupo e a unidade) ficam para a etapa seguinte do comando de 06/11/2026, como as demais etapas dele
   (a seleção única com a conversa que confere, a lista ordenada em tela estreita, Agregar territórios e Selecionar por
   critérios).
-- Selecionar por critérios (07/11/2026, item 6) está na Seleção e na conversa; "Usar como seleção" nas Condições é a parte
-  seguinte do item.
+- Selecionar por critérios (07/11/2026, item 6) está na Seleção, na conversa e nas Condições ("Usar como seleção"). A distância
+  até a referência das Condições não vai para o painel (lá, a distância é até um território).
 - A rotatividade depende do motor aceitar planilhas com o identificador individual em `/api/painel`.
 - O modo escuro segue o aparelho, sem botão para escolher (decisão de 23/10/2026).
 
@@ -1127,7 +1129,9 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   preenchido, com a prévia, e a análise só muda com a confirmação no painel; nenhum "cluster"); a conversa, em pytest,
   `test_conversa_grafico.py` (o pedido do comando, "selecione … do Amazonas …", "a até 300 km de Manaus", as perguntas sem
   sugestão, "cluster" descartado com o critério e a distância e a recusa EXC-05 sem eles) e, em Node, `conversaGrafico.test.mjs`
-  (o campo `criterios` conferido campo a campo).
+  (o campo `criterios` conferido campo a campo); "Usar como seleção" nas Condições, em Node, `areaDeAnalise.test.mjs`
+  (`criteriosDasCondicoes`: na seleção em uso ou no todo, sem a distância até a referência) e, no navegador, o passo 4b de
+  `ui_criterios.py` (a condição aplicada vai para o painel, com a prévia de 89, sem mudar a análise).
 - **Agregar territórios (06/11/2026, item 5 do comando):** Node, `painel.test.mjs` (`baseSemUnidades`, `baseComUnidades` e
   `membrosNaSelecao`: os membros saem da seleção pela exclusão da árvore, e só os que estavam nela voltam; o grupo da conversa com
   o nome pedido, no lugar dos membros, e o que vai ao motor sem as marcas da tela) e `conversaGrafico.test.mjs` (o nome do grupo

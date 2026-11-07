@@ -19,7 +19,7 @@ import {
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
   MAX_CONJUNTOS, RESSALVA_DA_SOMA, TEXTO_MAX_GRUPOS, emGrupos, gruposDaRegiao, regioesDaFonte, rotulosDaVista, type GrupoInfo,
-  regraConfere, textoDaRegra, quantos, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  regraConfere, textoDaRegra, quantos, criteriosDasCondicoes, type RegraDaSelecao, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -405,7 +405,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const [numerosDoLugar, setNumerosDoLugar] = useState<{ chave: string; base: string; dados: RespostaLugar } | null>(null);
   // O painel "Selecionar por critérios" (07/11/2026): fechado (null), aberto vazio, com a regra a reaplicar ou com o pedido da
   // conversa (com a prévia ao abrir; `n` conta os pedidos, para o mesmo pedido repetido abrir de novo).
-  const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null; previa?: boolean; n?: number } | null>(null);
+  const [criterios, setCriterios] = useState<{ inicial: RegraDaSelecao["pedido"] | null; previa?: boolean; n?: number;
+    aviso?: string } | null>(null);
   // Onde a regra a reaplicar procurou, pelo nome (um grupo ou mais), mesmo que o lugar em uso já seja outro (a seleção que ela
   // produziu, por exemplo).
   const lugarDaRegra = useMemo(() => {
@@ -1101,6 +1102,19 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     pedirOQueFalta();
   }
 
+  /** "Usar como seleção" nas Condições (07/11/2026, item 6.10 do comando): as condições aplicadas vão para "Selecionar por
+   * critérios", na Seleção, preenchido e com a prévia, procurando na seleção em uso; a análise só muda com a escolha no painel. */
+  function usarCondicoesComoSelecao() {
+    const convertido = criteriosDasCondicoes(def.condicoes, !semSelecao(def));
+    if (!convertido) return;
+    setPainel(null);
+    setAba("territorios");
+    setCriterios(atual => ({ inicial: convertido.pedido, previa: true, n: (atual?.n ?? 0) + 1,
+      aviso: convertido.semDistancia ? "A distância até a referência ficou nas Condições: aqui, a distância é até " +
+        (generoDe(rotulos.unidade) === "f" ? "uma " : "um ") + rotulos.unidade.singular + " (“a até … km de”)." : undefined }));
+    setAviso("As condições foram para Selecionar por critérios, na Seleção, com a prévia; nada mudou na análise.");
+  }
+
   function abrirGrupoDaBolha(id: string) {
     const grupo = grupoDaBolha(id);
     if (grupo === null) { setAviso("Não foi possível associar esta bolha a um item da lista de territórios."); return; }
@@ -1750,7 +1764,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         onAlterarSelecao={() => { setPainel(null); irParaTerritorios(); }}/>;
       case "condicoes": return <GavetaCondicoes condicoes={def.condicoes} espacial={distanciaNaTela} resposta={resposta} rotulos={rotulos}
         soAtende={soAtende} onSoAtende={valor => { registrar(valor ? "Mostrar só quem atende" : "Mostrar todos"); setSoAtende(valor); }}
-        onAplicar={condicoes => ajustar(condicoes.length ? "Aplicar as condições" : "Limpar as condições", { condicoes })}/>;
+        onAplicar={condicoes => ajustar(condicoes.length ? "Aplicar as condições" : "Limpar as condições", { condicoes })}
+        onUsarComoSelecao={def.nivel === "municipios" && criteriosDasCondicoes(def.condicoes, true) ? usarCondicoesComoSelecao : undefined}/>;
       case "ordenar": return <GavetaOrdenar ordenar={def.ordenar} espacial={distanciaNaTela} mudanca={exibicao.variacao} resposta={resposta}
         indicador={indicador} onAplicar={ordenar => ajustar(ordenar ? "Ordenar" : "Limpar a ordenação", { ordenar })}/>;
       case "comparar": return <GavetaComparar itens={resposta?.itens || []} selecionados={selecao} pedidos={def.comparar} resposta={resposta}
@@ -2030,7 +2045,7 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
             criterios={fonteMotor ? { aberto: !!criterios, onAlternar: () => setCriterios(atual => atual ? null : { inicial: null }),
               painel: <SelecionarPorCriterios key={JSON.stringify(criterios?.inicial ?? null) + ":" + (criterios?.n ?? 0)}
-                previaAoAbrir={!!criterios?.previa} fonte={fonteMotor} rotulos={rotulos}
+                previaAoAbrir={!!criterios?.previa} aviso={criterios?.aviso} fonte={fonteMotor} rotulos={rotulos}
                 nomeDoTodo={nomeDoTodo(tipo !== "arquivo", rotulos)} unidades={municipios} competencia={def.competencia} periodos={periodos}
                 categoria={def.categoria} premissas={tipo === "arquivo" ? def.premissas : undefined}
                 base={def.nivel === "municipios" && !semSelecao(def) ? normalizarBase(def.base, grupoDe) : null}

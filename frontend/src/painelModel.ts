@@ -2363,6 +2363,21 @@ export type LugarDaTrilha = {
  * seleção em uso ainda é a dela; e o pedido, para "Reaplicar em outra competência". */
 export type RegraDaSelecao = { texto: string; competencia: string; total: number; base: PainelMunicipios;
   conjuntos: { id: string; membros: string[] }[]; pedido: { criterios: object; agrupar: object | null; base?: PainelMunicipios } };
+/** "Usar como seleção" nas Condições (07/11/2026, item 6.10 do comando): as Condições aplicadas viram o pedido do painel
+ * "Selecionar por critérios", que procura na seleção em uso (as Condições avaliam os territórios dela; sem seleção, no todo). A
+ * distância até a referência fica de fora: no painel, a distância é até um território ("a até X km de"). Sem nenhuma condição de
+ * indicador, nada a levar (null). */
+export function criteriosDasCondicoes(condicoes: { atributo: string; operador: string; valor: number }[], comSelecao: boolean):
+  { pedido: { criterios: { partir_de: { tipo: "selecao" | "pais" }; filtros: { indicador: "densidade" | "quantidade" | "populacao";
+    operador: "<" | "<=" | ">" | ">="; valor: number }[] }; agrupar: null }; semDistancia: boolean } | null {
+  const indicadores = ["densidade", "quantidade", "populacao"], operadores = ["<", "<=", ">", ">="];
+  const filtros = condicoes.filter(condicao => indicadores.includes(condicao.atributo) && operadores.includes(condicao.operador) &&
+    Number.isFinite(condicao.valor)).map(condicao => ({ indicador: condicao.atributo as "densidade" | "quantidade" | "populacao",
+      operador: condicao.operador as "<" | "<=" | ">" | ">=", valor: condicao.valor }));
+  if (!filtros.length) return null;
+  return { pedido: { criterios: { partir_de: comSelecao ? { tipo: "selecao" } : { tipo: "pais" }, filtros }, agrupar: null },
+    semDistancia: condicoes.some(condicao => condicao.atributo === "distancia_km") };
+}
 /** "densidade abaixo de 0,5 em jun/2024 (89)": a regra na trilha, no método e nos Detalhes. */
 export const textoDaRegra = (regra: Pick<RegraDaSelecao, "texto" | "competencia" | "total">) =>
   regra.texto + " em " + competenciaAbreviada(regra.competencia) + " (" + inteiro.format(regra.total) + ")";

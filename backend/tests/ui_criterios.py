@@ -7,6 +7,7 @@ Confere o aceite do comando na Seleção de Territórios, contra as respostas de
   1) e 1.235 km de ponta a ponta; o segundo, 24 do PA e 907 km; o mapa pequeno com os 89 pontos, 81 coloridos e 8 vazados;
 - "Como seleção (89)": a trilha "Brasil › Seleção: densidade abaixo de 0,5 em jun/2024 (89)", a regra na Seleção e nos Detalhes,
   e a Distribuição com os 89;
+- "Usar como seleção" nas Condições (item 6.10): a condição aplicada vai para o painel, na seleção em uso, com a prévia;
 - "Cada grupo como território agregado": 6 grupos e 8 municípios na análise;
 - pela conversa (item 6.9), o pedido do comando abre o mesmo painel preenchido, com a prévia, e nada muda na análise até a
   confirmação no painel;
@@ -132,6 +133,28 @@ def main():
         expect(area.get_by_test_id("analise-detalhes-regra")).to_contain_text(
             "Seleção por critérios: densidade abaixo de 0,5 em jun/2024 (89)", timeout=60000)
         page.screenshot(path=str(OUTPUT / "criterios-como-selecao-real.png"), full_page=True)
+
+        # 4b. "Usar como seleção" nas Condições (item 6.10): a condição aplicada vai para o painel da Seleção, procurando na seleção
+        # em uso, com a prévia; nada muda na análise (Cancelar fecha o painel, e a trilha continua com a regra).
+        aperta(area.get_by_test_id("analise-funcao-condicoes"))
+        condicoes = area.get_by_test_id("analise-condicoes")
+        condicoes.get_by_test_id("analise-condicao-atributo").select_option("densidade")
+        condicoes.get_by_test_id("analise-condicao-operador").select_option("<")
+        condicoes.get_by_test_id("analise-condicao-valor").fill("1")
+        aperta(condicoes.get_by_test_id("analise-condicoes-aplicar"))
+        corpo_condicoes, pedido = previa(lambda: aperta(condicoes.get_by_test_id("analise-condicoes-usar-como-selecao")))
+        assert pedido["criterios"] == {"partir_de": {"tipo": "selecao"},
+                                       "filtros": [{"indicador": "densidade", "operador": "<", "valor": 1}]}, pedido
+        assert len(pedido["base"]["municipios"]["ids"]) == 89 and corpo_condicoes["atendem"] == 89, pedido.get("base")
+        expect(area.get_by_test_id("analise-aba-territorios")).to_have_attribute("aria-selected", "true")
+        painel = territorios.get_by_test_id("analise-criterios")
+        expect(painel.get_by_test_id("analise-criterios-onde-selecao")).to_be_checked()
+        expect(painel.get_by_test_id("analise-criterio-valor")).to_have_value("1")
+        expect(painel.get_by_test_id("analise-criterios-atendem")).to_contain_text("89 municípios atendem aos critérios")
+        expect(painel.get_by_test_id("analise-criterios-aviso")).to_have_count(0)
+        aperta(painel.get_by_test_id("analise-criterios-cancelar"))
+        expect(territorios.get_by_test_id("analise-criterios")).to_have_count(0)
+        expect(partes).to_have_text(["Brasil", "Seleção: densidade abaixo de 0,5 em jun/2024 (89)"])
 
         # 5. "Cada grupo como território agregado": 6 grupos e 8 municípios na análise.
         aperta(area.get_by_test_id("analise-aba-territorios"))
