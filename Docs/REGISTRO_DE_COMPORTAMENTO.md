@@ -35,6 +35,19 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Correção do CI do item 6 (partes B a D): dois roteiros de navegador
+- **Antes:** a execução 486 (`972405c`) foi a primeira com o roteiro novo `ui_criterios.py` passando da prévia: os passos 1 a 4b
+  passaram (89; 6 grupos e 8 isolados; o maior com 46, PI 33, TO 11, e 1.235 km; o segundo, 24 do PA e 907 km; "Como seleção"
+  com a trilha e os Detalhes; "Usar como seleção" nas Condições). Falharam dois roteiros, por defeitos deles: em
+  `ui_navegacao.py`, a conferência das Ferramentas da Seleção (item 5) esperava só "Buscar" e "Agregar territórios" e ficou
+  desatualizada de propósito pela parte B, que acrescentou "Selecionar por critérios"; em `ui_criterios.py` (passo 5), o
+  localizador de dentro de um `has=` partia do painel, e o Playwright o procura relativo ao rótulo: não achava nada.
+- **Agora:** o comportamento do produto não muda. `ui_navegacao.py` espera as três ferramentas; `ui_criterios.py` usa o
+  localizador relativo (a partir da página).
+- **Permanece:** o produto e as demais conferências.
+- **Motivo:** CI vermelho na execução 486; correção só do que falhou.
+- **Documentação e testes:** `backend/tests/ui_navegacao.py` e `backend/tests/ui_criterios.py`.
+
 ### 2026-11-07 · Correção do CI do item 6 (parte A): "a seleção atual" no motor dos critérios
 - **Classificação (regra 1):** mudança de comportamento (o que a rota aceita), prevista: é o contrato da parte A como
   documentado em `Docs/PAINEL_INTEGRADO.md` ("Rota 6": `selecao` para a seleção atual), que o motor não cumpria; não contraria

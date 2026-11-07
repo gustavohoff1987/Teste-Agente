@@ -163,7 +163,8 @@ def main():
         expect(painel.get_by_test_id("analise-criterio-valor")).to_have_value("0,5")
         # Onde a regra procurou continua o mesmo (o todo), embora a seleção em uso já seja a do resultado.
         expect(painel.get_by_test_id("analise-criterios-onde-todo")).to_be_checked()
-        expect(painel.locator("label", has=painel.get_by_test_id("analise-criterios-onde-selecao"))).to_have_text("A seleção atual")
+        # O localizador de dentro (has) é relativo ao rótulo: parte da página, não do painel.
+        expect(painel.locator("label", has=page.get_by_test_id("analise-criterios-onde-selecao"))).to_have_text("A seleção atual")
         marcado(painel.get_by_test_id("analise-criterios-agrupar"))
         painel.get_by_test_id("analise-criterios-agrupar-km").fill("200")
         previa(lambda: aperta(painel.get_by_test_id("analise-criterios-previa")))

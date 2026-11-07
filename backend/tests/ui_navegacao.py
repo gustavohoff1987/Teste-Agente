@@ -599,7 +599,9 @@ def main():
         aperta(area.get_by_test_id("analise-aba-territorios"))
         expect(area).to_have_attribute("data-aba", "territorios")
         ferramentas = territorios.get_by_test_id("analise-selecao-ferramentas")
-        expect(ferramentas.get_by_role("button")).to_have_text(["Buscar", "Agregar territórios"])
+        # Desde 07/11/2026 (item 6 do comando, parte B), a terceira ferramenta, "Selecionar por critérios" (conferida em
+        # ui_criterios.py); muda de propósito esta conferência.
+        expect(ferramentas.get_by_role("button")).to_have_text(["Buscar", "Agregar territórios", "Selecionar por critérios"])
         aperta(ferramentas.get_by_test_id("analise-agregar-abrir"))
         agregar = territorios.get_by_test_id("analise-agregar")
         expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Grupo 1")
