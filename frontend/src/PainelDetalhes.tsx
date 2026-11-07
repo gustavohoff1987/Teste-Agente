@@ -33,12 +33,18 @@ type Props = {
   onAlternar: (id: string) => void;
 };
 
+const semAcento = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 export default function PainelDetalhes(p: Props) {
   const [aba, setAba] = useState<Aba>("tabela");
   const [ordenacao, setOrdenacao] = useState<Ordenacao>(null);
   const [pagina, setPagina] = useState(0);
+  // A busca na tabela (06/11/2026, item 5 do comando de navegação por níveis): só filtra as linhas pelo nome, sem mudar a análise.
+  const [busca, setBusca] = useState("");
   const rotatividade = p.familia === "rotatividade";
-  const linhas = useMemo(() => ordenarTabela(p.itens, ordenacao, p.indicador), [p.itens, ordenacao, p.indicador]);
+  const termo = semAcento(busca.trim());
+  const linhas = useMemo(() => ordenarTabela(p.itens, ordenacao, p.indicador)
+    .filter(item => !termo || semAcento(item.rotulo).includes(termo)), [p.itens, ordenacao, p.indicador, termo]);
   useEffect(() => setPagina(0), [linhas]);
   const atual = paginar(linhas, pagina);
   const especie = INDICADORES[p.indicador];
@@ -80,6 +86,12 @@ export default function PainelDetalhes(p: Props) {
       <p className="text-xs leading-5 text-slate-600">Os mesmos itens do gráfico, com os valores em {exibirCompetencia(r.competencia)}. A ordem
         padrão é a do código territorial; clicar num cabeçalho só reordena a tabela, sem criar posições.{p.corteAtivo ? " O que a régua esconde não aparece." : ""}
         {atual.paginas > 1 ? " Com muitos itens, a tabela mostra " + POR_PAGINA + " linhas por vez." : ""}</p>
+      <label className="analise-tabela-busca">
+        <span className="sr-only">Buscar na tabela</span>
+        <input type="search" data-testid="analise-tabela-busca" value={busca} onChange={event => setBusca(event.target.value)}
+          placeholder="Buscar na tabela" autoComplete="off" className="analise-campo"/>
+      </label>
+      {termo && !linhas.length && <p data-testid="analise-tabela-sem-resultado" className="text-xs text-slate-600">Nenhuma linha com esse nome.</p>}
       <div className="mt-2 overflow-x-auto">
         <table data-testid="analise-tabela" className="analise-tabela min-w-full">
           <thead><tr>

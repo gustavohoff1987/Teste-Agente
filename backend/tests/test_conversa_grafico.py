@@ -400,11 +400,18 @@ def test_comparar_e_juntar_municipios_nomeados():
     assert fora["painel"] == painel(funcao="comparar", selecao=["code:130260", "code:150140"], nivel="municipios",
                                     municipios={"todos": False, "estados": ["13"], "ids": ["code:150140"]})
     assert fora["reply"].endswith("Acrescentei BELEM (PA) ao gráfico.")
+    # Desde 06/11/2026 (item 5 do comando de navegação por níveis, Agregar territórios; muda de propósito este teste), a resposta
+    # diz "Agreguei" e que o grupo fica no lugar dos membros (antes, "Juntei … num conjunto", com os membros ao lado).
     junte = pedir("junte Manaus, Iranduba e Manacapuru")
     assert junte["painel"] == painel(funcao="juntar", selecao=["code:130260", "code:130185", "code:130250"])
-    assert junte["reply"] == ("Juntei MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM) num conjunto: a bolha soma as contagens "
-                              "dos componentes, com possível dupla contagem (quem atua em mais de um município conta em "
-                              "cada um).")
+    assert junte["reply"] == ("Agreguei MANAUS (AM), IRANDUBA (AM) e MANACAPURU (AM) num grupo, no lugar deles: a bolha soma as "
+                              "contagens dos componentes, com possível dupla contagem (quem atua em mais de um município conta "
+                              "em cada um).")
+    # O nome do grupo pela conversa ("agregue … como …"), como foi escrito, fora dos nomes a resolver.
+    agregue = pedir("agregue Manaus e Tefé como Médio Solimões")
+    assert agregue["painel"] == {**painel(funcao="juntar", selecao=["code:130260", "code:130420"]),
+                                 "nome_do_grupo": "Médio Solimões"}
+    assert agregue["reply"].startswith("Agreguei MANAUS (AM) e TEFE (AM) como Médio Solimões, no lugar deles: a bolha soma")
     # Estados se comparam no nível dos estados, na ordem do pedido; nunca junto com municípios.
     estados = pedir("compare o Pará e o Amazonas")
     assert estados["painel"] == painel(funcao="comparar", selecao=["uf:15", "uf:13"], nivel="estados")

@@ -112,7 +112,8 @@ municípios de Roraima sumirem da Análise Espacial, "como se tivesse algum prob
 - **Botões** (canto superior direito): `mapa-ampliar`, `mapa-reduzir` e `mapa-ver-tudo` (volta ao enquadramento inicial).
 - **Mouse:** arrastar move o mapa; Ctrl ou ⌘ com a roda (ou só a roda, com o mapa em foco) amplia e reduz em torno do cursor;
   duplo clique amplia; passar sobre um ponto mostra a dica; clicar faz o que o toque na bolha faz (desde 06/11/2026: no estado,
-  abre os municípios dele; no município, abre o lugar dele na trilha; com a Comparar ou a Juntar abertas, marca ou desmarca). O
+  abre os municípios dele; no município, abre o lugar dele na trilha; com a Comparar aberta, marca ou desmarca; até
+  06/11/2026, também com a Juntar, que saiu das Ferramentas). O
   alvo do clique é maior que o ponto: 12 px no mouse e 18 px no toque.
 - **Toque:** arrastar com um dedo, pinça com dois; tocar num ponto mostra a dica e age como o clique.
 - **Teclado,** com o mapa em foco: as setas movem a vista; Shift e as setas vão ao ponto vizinho naquela direção (a vista

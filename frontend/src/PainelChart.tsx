@@ -80,7 +80,7 @@ type Props = {
   linhaDoGrupo?: LinhaDeReferencia | null;
   /** Tocar numa unidade abre o lugar dela na trilha (06/11/2026, item 3.4 do comando), como o estado desce até ele. */
   onAbrirUnidade?: (id: string) => void;
-  /** Escolha de itens em curso (a Comparar ou a Juntar abertas): tocar marca e desmarca, como antes. */
+  /** Escolha de itens em curso (a Comparar aberta): tocar marca e desmarca, como antes. */
   marcando?: boolean;
   /** Cortes dos grupos (do motor) ou limites das faixas (digitados), no eixo do indicador. */
   cortes: LinhaDeReferencia[];
@@ -216,7 +216,7 @@ export default function PainelChart(p: Props) {
     trajetoria: !!p.trajetoria, abrirUnidade: abreUnidade }) : contextoAtivo ? dicaDaReferenciaDeContexto(contextoAtivo) : null;
   const alvoDaDica = bolhaAtiva ?? contextoAtivo ?? null;
 
-  /** Tocar: o estado desce até ele; a unidade abre o lugar dela (06/11/2026); com a escolha de itens em curso (Comparar, Juntar)
+  /** Tocar: o estado desce até ele; a unidade abre o lugar dela (06/11/2026); com a escolha de itens em curso (a Comparar)
    * e no conjunto, marca e desmarca. */
   function acionar(bolha: BolhaDesenho) {
     if (bolha.tipo === "estado") p.onAbrirGrupo(bolha.id);

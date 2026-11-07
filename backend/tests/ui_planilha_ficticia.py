@@ -256,7 +256,7 @@ def main():
         expect(area.get_by_test_id("analise-titulo")).to_contain_text("Densidade de médicos nas comunas da planilha")
         open_chat(page)
         expect(chat.get_by_test_id("painel-chat-guia").locator("p").first).to_have_text(
-            "Peça mudanças no gráfico citando comunas pelo nome: comparar, juntar, usar como referência ou mostrar as comunas de "
+            "Peça mudanças no gráfico citando comunas pelo nome: comparar, agregar, usar como referência ou mostrar as comunas de "
             "um condado.")
         send(page, "Quais comunas têm a maior densidade?")
         expect(chat).to_contain_text("As demais: ")

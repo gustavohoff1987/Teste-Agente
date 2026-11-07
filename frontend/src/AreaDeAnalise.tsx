@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as EventoPonteiro,
   type ReactNode } from "react";
-import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Database, Download, Filter, FilterX, GripVertical, Layers3,
+import { ArrowLeftRight, ChartScatter, ChevronDown, Columns2, Crosshair, Database, Download, Filter, FilterX, GripVertical,
   ListOrdered, LoaderCircle, Map as MapaIcone, Pause, Play, RefreshCw, Ruler, Scale, SlidersHorizontal, Undo, Upload, Wrench, X } from "lucide-react";
 import {
   ErroDoMotor, pedirLugar, pedirMapa, pedirPainel, type FonteDoMotor, type LugarOpcoes, type MapaOpcoes, type Pendencia,
@@ -18,7 +18,7 @@ import {
   grupoDoItem, gruposDaFonte, intervaloDaSerie, intervaloEntre, itensParaOMapa, janelaPadrao, lerEstadoSalvo, lerLimites, ligacoesDoMapa,
   competenciaPorExtenso, limiteDaVariacao, limparEscolha, listaDeCompetencias, lugarDoUniverso, maisRecente, maiuscula, montarCsv, montarDica,
   escolhaDaArvore, escolhaDaUnidade, gruposParciais, motivoDaUnidade, unificarEscolha, type ContextoDaArvore,
-  deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
+  MAX_CONJUNTOS, TEXTO_MAX_GRUPOS, baseComUnidades, baseSemUnidades, membrosNaSelecao, deOndeEhOResultado, desdeDaFaixa, destaquesDaOrdem, lugarConfere, lugarDaTrilha, nomeCurtoDoNivel, nomeDoTodo, normalizarArvore, opcoesVerPor, textoDaReferencia, textoEspacialNosGrupos,
   textoVerUnidadesDosGrupos, type ParteDaTrilha,
   montarOpcoes, profissionaisDe,
   apresentacaoDaAba, nomeDaUnidade, notaSemClassificacao, novoConjunto, ordemNeutra, paletaDoGrafico, paresDasBases, pedidoDependeDoIndicador, pintar,
@@ -41,7 +41,8 @@ import FaixaDoLugar, { Trilha } from "./FaixaDoLugar";
 import PainelDetalhes from "./PainelDetalhes";
 import MapaAnalise from "./MapaAnalise";
 import { animarTransicao, posicoesDoGrafico } from "./transicaoVistas";
-import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaJuntar, GavetaOrdenar } from "./PainelGavetas";
+import { GavetaComparar, GavetaCondicoes, GavetaExportar, GavetaOrdenar } from "./PainelGavetas";
+import type { GrupoAgregado } from "./AgregarTerritorios";
 import ListaDosGrupos from "./ListaDosGrupos";
 import { useNarrow } from "./useNarrow";
 import EscolhaDosTerritorios from "./EscolhaDosTerritorios";
@@ -110,11 +111,10 @@ const FUNCOES: { chave: FuncaoPainel; rotulo: string; icone: ReactNode }[] = [
   { chave: "condicoes", rotulo: "Condições", icone: <Filter size={15} aria-hidden="true"/> },
   { chave: "ordenar", rotulo: "Ordenar", icone: <ListOrdered size={15} aria-hidden="true"/> },
   { chave: "comparar", rotulo: "Comparar", icone: <ArrowLeftRight size={15} aria-hidden="true"/> },
-  { chave: "juntar", rotulo: "Juntar", icone: <Layers3 size={15} aria-hidden="true"/> },
   { chave: "exportar", rotulo: "Exportar", icone: <Download size={15} aria-hidden="true"/> },
 ];
 const TITULOS_PAINEL: Record<FuncaoPainel, string> = { regua: "Régua", condicoes: "Condições", ordenar: "Ordenar", comparar: "Comparar",
-  juntar: "Juntar", exportar: "Exportar", referencia: "Escolha dos territórios" };
+  exportar: "Exportar", referencia: "Escolha dos territórios" };
 const VISTAS: { chave: VistaDesenho; rotulo: string; icone: ReactNode }[] = [
   { chave: "grafico", rotulo: "Gráfico", icone: <ChartScatter size={14} aria-hidden="true"/> },
   { chave: "mapa", rotulo: "Mapa", icone: <MapaIcone size={14} aria-hidden="true"/> },
@@ -964,11 +964,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   function trocarEscolha(escolha: Escolha) {
     mudar({ ...escolha, comparar: comparacaoQueContinua(def, escolha, grupoDe) });
   }
-  /** Juntar ou desfazer um conjunto: uma mudança no que está na análise, como as da Seleção (um passo do Desfazer). */
-  function mudarConjuntos(conjuntos: PainelConjuntoPedido[], rotulo: string) {
-    registrar(rotulo);
-    trocarEscolha({ ...escolhaDe(def), conjuntos });
-  }
   /** A unidade de análise (05/11/2026; antes, o nível da Seleção de Territórios): cada ponto é um município, um estado ou o Brasil.
    * Os estados como unidades valem com estados inteiros na árvore; o Brasil, com o Brasil inteiro (sem nada marcado, os dois são
    * atalhos para todos os estados e para o Brasil inteiro). Um passo do Desfazer. */
@@ -1092,17 +1087,45 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       tituloSel?.focus({ preventScroll: true });
     });
   }
-  function juntar(rotulo: string) {
-    const membros = selecao.filter(id => resposta?.itens.find(item => item.id === id)?.tipo === "municipio");
-    if (membros.length < 2) return;
-    const conjunto = novoConjunto(def.conjuntos, membros, rotulo);
-    mudarConjuntos([...def.conjuntos, conjunto], "Juntar " + conjunto.rotulo);
-    setSelecionados([conjunto.id]);
-    setAviso("Conjunto " + conjunto.rotulo + " criado: a bolha mostra a soma das contagens dos componentes.");
+  // Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis; no lugar do Juntar das Ferramentas das análises): o
+  // grupo vem do painel da Seleção de Territórios. Com "O grupo fica no lugar dos membros", eles saem da seleção (a mesma exclusão
+  // da árvore), e desfazer o grupo os devolve. Cada mudança é um passo do Desfazer; a soma é do motor (CAP-AGR-01).
+  const valoresDosConjuntos = useMemo(() => new Map((resposta?.itens ?? []).filter(item => item.tipo === "conjunto")
+    .map(item => [item.id, { quantidade: item.quantidade, densidade: item.densidade }] as [string, { quantidade: number | null;
+      densidade: number | null }])), [resposta]);
+  const contextoDaBase = { grupoDe, unidadesDoGrupo: arvore.unidadesDoGrupo, todosOsGrupos: idsDosGrupos,
+    todasAsUnidades: municipios.map(item => item.id) };
+  function criarGrupo(grupo: GrupoAgregado) {
+    if (grupo.membros.length < 2) return;
+    if (def.conjuntos.length >= MAX_CONJUNTOS) { setAviso(TEXTO_MAX_GRUPOS); return; }
+    const novo = novoConjunto(def.conjuntos, grupo.membros, grupo.rotulo);
+    // Com o grupo no lugar dos membros, saem da seleção os que estavam nela; o grupo guarda quais, para devolver só esses.
+    const retirados = grupo.substitui ? membrosNaSelecao(def.base, novo.membros, grupoDe) : [];
+    const conjunto = { ...novo, substitui: grupo.substitui, retirados };
+    registrar("Agregar " + conjunto.rotulo);
+    const base = retirados.length ? baseSemUnidades(def.base, retirados, contextoDaBase) : def.base;
+    trocarEscolha({ ...escolhaDe(def), nivel: "municipios", base, conjuntos: [...def.conjuntos, conjunto] });
+    setAviso("Grupo " + conjunto.rotulo + " criado" + (grupo.substitui ? ", no lugar dos membros" : "") +
+      ": a bolha mostra a soma das contagens dos componentes.");
+  }
+  function salvarGrupo(id: string, grupo: GrupoAgregado) {
+    const antigo = def.conjuntos.find(item => item.id === id);
+    if (!antigo || grupo.membros.length < 2) return;
+    registrar("Editar o grupo " + antigo.rotulo);
+    const devolver = antigo.substitui ? antigo.retirados ?? antigo.membros : [];
+    const devolvida = devolver.length ? baseComUnidades(def.base, devolver, contextoDaBase) : def.base;
+    const membros = [...new Set(grupo.membros)];
+    const retirados = grupo.substitui ? membrosNaSelecao(devolvida, membros, grupoDe) : [];
+    const base = retirados.length ? baseSemUnidades(devolvida, retirados, contextoDaBase) : devolvida;
+    trocarEscolha({ ...escolhaDe(def), nivel: "municipios", base, conjuntos: def.conjuntos.map(item => item.id === id
+      ? { id, rotulo: grupo.rotulo.trim().slice(0, 120) || antigo.rotulo, membros, substitui: grupo.substitui, retirados } : item) });
   }
   function desfazerConjunto(id: string) {
     const conjunto = def.conjuntos.find(item => item.id === id);
-    mudarConjuntos(def.conjuntos.filter(item => item.id !== id), "Desfazer o conjunto " + (conjunto?.rotulo ?? id));
+    registrar("Desfazer o grupo " + (conjunto?.rotulo ?? id));
+    const devolver = conjunto?.substitui ? conjunto.retirados ?? conjunto.membros : [];
+    const base = devolver.length ? baseComUnidades(def.base, devolver, contextoDaBase) : def.base;
+    trocarEscolha({ ...escolhaDe(def), base, conjuntos: def.conjuntos.filter(item => item.id !== id) });
     setSelecionados(atual => atual.filter(item => item !== id));
   }
   /** "Calcular" da Escolha dos territórios: a consulta vai à análise (um passo do Desfazer); o motor calcula a base, a referência e
@@ -1261,13 +1284,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const naVisaoDeGrupos = (resposta?.nivel ?? def.nivel) === "estados" && familiaDesenho === "distribuicao" && def.nivel === "estados";
   const funcaoDesabilitada = (chaveFuncao: FuncaoPainel): string | null => {
     if (!resposta) return "Disponível depois do primeiro gráfico.";
-    if (familiaDesenho === "rotatividade" && ["regua", "condicoes", "ordenar", "comparar", "juntar"].includes(chaveFuncao))
+    if (familiaDesenho === "rotatividade" && ["regua", "condicoes", "ordenar", "comparar"].includes(chaveFuncao))
       return "A rotatividade mostra barras da coorte inicial; esta função vale para as bolhas.";
-    if (chaveFuncao === "juntar" && def.nivel === "estados") {
-      const grupo = rotulos.grupo ?? ROTULOS_GENERICOS.grupo!;
-      return "Na visão " + (generoDe(grupo) === "f" ? "das " : "dos ") + grupo.plural + ", Juntar fica desligado: " + unidade.plural + " e " +
-        grupo.plural + " nunca se somam.";
-    }
     // Um território só (o nível Brasil de antes de 06/11/2026, que não é mais escolhido na tela): o que separa, ordena, compara ou
     // junta vários não se aplica.
     if (def.nivel === "brasil" && chaveFuncao !== "exportar") return "Com um território só, esta função não se aplica: ela vale para vários.";
@@ -1451,9 +1469,9 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
     if (!referenciaPorItem || membros.length <= MAX_LIGACOES) return membros;
     return [...new Set(ligacoes.flatMap(ligacao => ligacao.para))];
   }, [distanciaNaTela, referenciaPorItem, resposta, ligacoes]);
-  // Tocar no desenho (06/11/2026, item 3 do comando): o estado desce até ele; a unidade abre o lugar dela; com a Comparar ou a Juntar
+  // Tocar no desenho (06/11/2026, item 3 do comando): o estado desce até ele; a unidade abre o lugar dela; com a Comparar
   // abertas (a escolha de itens em curso), tocar marca e desmarca, como antes.
-  const marcando = painel === "comparar" || painel === "juntar";
+  const marcando = painel === "comparar";
   const dicaDe = useCallback((item: PainelItem) => montarDica(item, { indicador, competencia: resposta?.competencia ?? "",
     competenciaInicial: resposta?.competencia_inicial || null, distancia: distanciaNaTela, variacao: dicaComVariacao && !!resposta?.competencia_inicial,
     tendencia: !!item.tendencia, nomes, limiares, rotulos, unidadesDoGrupo, porItem: referenciaPorItem, trajetoria: cometa, abrirUnidade: !marcando }),
@@ -1625,8 +1643,6 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
         nomes={nomes} rotulos={rotulos} onAlternar={alternar}
         onLimpar={() => { registrar("Limpar a escolha da comparação"); setSelecionados([]); mudar({ comparar: [] }); }}
         onComparar={ids => ajustar("Comparar", { comparar: ids })}/>;
-      case "juntar": return <GavetaJuntar itens={resposta?.itens || []} selecionados={selecao} conjuntos={def.conjuntos} rotulos={rotulos}
-        nivelGrupos={def.nivel === "estados"} onJuntar={juntar} onDesfazer={desfazerConjunto} onAlternar={alternar}/>;
       case "exportar": return <GavetaExportar pronto={!!resposta} onCsv={exportarCsv} onImprimir={() => window.print()} onMetodo={exportarMetodo}/>;
       default: return null;
     }
@@ -1895,7 +1911,8 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
             total={totalDeUnidades} nivel={def.nivel} base={def.base} estados={def.estados} conjuntos={def.conjuntos} aberto={aberto}
             aviso={avisoSelecao} verAnalise={"Ver a " + NOMES_FAMILIAS[def.familia]} totais={totaisNaSelecao}
             onUnidade={escolherNivel} onBase={mudarArvore}
-            onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto}
+            onAbrir={abrirLista} onDesfazerConjunto={desfazerConjunto} onCriarGrupo={criarGrupo} onSalvarGrupo={salvarGrupo}
+            valoresDosConjuntos={valoresDosConjuntos} profissionais={profissionaisDe(def.categoria)}
             onVerAnalise={() => escolherAba(def.familia)}/>
         </> : <>
           {/* A faixa fixa do lugar em uso (06/11/2026, item 2.2): no alto de todas as abas de análise; no nível da unidade, o cartão. */}

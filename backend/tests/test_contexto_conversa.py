@@ -36,7 +36,10 @@ def test_cartao_leva_a_tela_e_o_resultado_em_exibicao_como_na_tela():
     assert manaus["distancia_geografica_direta"] == "1.293,40 km"
     assert resultado["ordens_do_motor"]["densidade"] == {"maior": ["MANAUS (AM)"], "menor": ["TEFE (AM)"]}
     assert "linha reta" in resultado["ressalva_da_distancia"]
-    assert any("Juntar" in f for f in cartao["funcionalidades_da_pagina"])
+    # Desde 06/11/2026 (item 5 do comando de navegação por níveis; muda de propósito esta conferência, que pedia o Juntar entre as
+    # funções das análises): o grupo é criado em Agregar territórios, na Seleção de Territórios, e o Juntar saiu das Ferramentas.
+    assert any("Agregar territórios" in f for f in cartao["funcionalidades_da_pagina"])
+    assert not any("Juntar" in f for f in cartao["funcionalidades_da_pagina"])
 
 
 def test_cartao_leva_a_referencia_mais_proxima_da_escolha_dos_territorios_com_os_empates():

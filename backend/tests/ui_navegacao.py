@@ -25,7 +25,14 @@ Confere, contra as respostas de /api/painel, /api/painel/lugar e /api/painel/map
   pergunta traz os números do motor e "Ir para MARABA (PA)";
 - os grupos em tela estreita (item 7): a 360 px, nos modos claro e escuro, vendo por estado, a lista na ordem do motor, do DF
   (4,41) ao MA (1,13), com a linha "Brasil 2,36", sem textos sobrepostos; nas bolhas, os nomes só dos destaques (os 3 maiores e
-  os 3 menores), sem rótulos sobrepostos, e a sigla do Pará junto da bolha.
+  os 3 menores), sem rótulos sobrepostos, e a sigla do Pará junto da bolha;
+- Agregar territórios (item 5): o Juntar não aparece mais nas Ferramentas das análises; na Seleção do Pará, as ferramentas
+  Buscar e Agregar territórios; buscar "Parau", marcar PARAUAPEBAS (PA) e MARABA (PA), o nome "Carajás" e "Criar grupo": "Na
+  análise" mostra "Pará · 142 de 144 municípios" e "Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva
+  da soma; no gráfico, Carajás fica no lugar das duas; a trilha continua "Brasil › Pará", e a busca da tabela dos Detalhes acha o
+  grupo. O ✎ renomeia e muda os membros (com MACAPA (AP), marcada na lista do Amapá, a trilha vai a "Brasil › Seleção"); o ×
+  desfaz o grupo, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). Pela conversa, "agregue
+  Marabá e Parauapebas como Carajás" cria o mesmo grupo, com a confirmação conferida (o selo "conferido: está na tela").
 Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.py; nunca chama o provedor de IA. Tira capturas em
 .local/ui-validation (navegacao-*.png).
 """
@@ -41,6 +48,7 @@ from ui_support import URL, offline, options_of, responder_uma_vez, send
 
 OUTPUT = Path(__file__).resolve().parents[2] / ".local" / "ui-validation"
 PA, MARABA = "15", "code:150420"
+PARAUAPEBAS, MACAPA = "code:150553", "code:160030"
 ESTADOS = '[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]'
 MUNICIPIOS = '[data-testid="analise-bolha"][data-tipo="municipio"][data-visivel="true"]'
 TEXTOS_DA_AREA = """() => { const area = document.querySelector('[data-testid=area-de-analise]'); if (!area) return '';
@@ -96,6 +104,11 @@ def main():
             locator.scroll_into_view_if_needed()
             locator.focus()
             locator.press("Enter")
+
+        def marca(locator):
+            locator.scroll_into_view_if_needed()
+            locator.focus()
+            locator.press("Space")
 
         def ok(acao, timeout=180000, condicao=None):
             """A resposta de /api/painel do primeiro pedido feito depois do início da ação (e que atende `condicao`) e as opções."""
@@ -562,14 +575,122 @@ def main():
             celular.screenshot(path=str(OUTPUT / ("navegacao-14-bolhas-" + esquema + "-real.png")), full_page=True)
             estreito.close()
 
+        # 14. Agregar territórios (item 5 do comando). O Juntar saiu das Ferramentas das análises; na Seleção do Pará, o painel
+        # Agregar territórios junta PARAUAPEBAS (PA) e MARABA (PA) como "Carajás", no lugar dos membros, com os números do motor.
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+        aperta(trilha.locator('[data-testid="analise-trilha-parte"][data-chave="todo"]'))
+        expect(area.locator(ESTADOS)).to_have_count(27, timeout=180000)
+        # O Pará inteiro já foi calculado (passo 5): a tela pode reaproveitar a resposta guardada, sem novo pedido.
+        aperta(area.locator('[data-testid="analise-bolha"][data-id="uf:' + PA + '"]'))
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        expect(area.locator(MUNICIPIOS)).to_have_count(len([item for item in para["itens"] if item["densidade"] is not None]),
+                                                       timeout=180000)
+        expect(area.get_by_test_id("analise-funcao-comparar")).to_be_visible()
+        expect(area.get_by_test_id("analise-funcao-juntar")).to_have_count(0)
+        ids_pa = {item["id"] for item in para["itens"]}
+        assert len(ids_pa) == 144 and {PARAUAPEBAS, MARABA} <= ids_pa, len(ids_pa)
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        expect(area).to_have_attribute("data-aba", "territorios")
+        ferramentas = territorios.get_by_test_id("analise-selecao-ferramentas")
+        expect(ferramentas.get_by_role("button")).to_have_text(["Buscar", "Agregar territórios"])
+        aperta(ferramentas.get_by_test_id("analise-agregar-abrir"))
+        agregar = territorios.get_by_test_id("analise-agregar")
+        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Grupo 1")
+        expect(agregar.get_by_test_id("analise-agregar-substitui")).to_be_checked()
+        busca_grupo = agregar.get_by_test_id("analise-agregar-busca")
+        busca_grupo.fill("Parau")
+        resultado = agregar.locator('[data-testid="analise-agregar-resultado"][data-id="' + PARAUAPEBAS + '"]')
+        expect(resultado).to_have_text("PARAUAPEBAS (PA) · Pará")
+        marca(resultado.locator("input"))
+        busca_grupo.fill("Marabá")
+        marca(agregar.locator('[data-testid="analise-agregar-resultado"][data-id="' + MARABA + '"] input'))
+        expect(agregar.get_by_test_id("analise-agregar-membro")).to_have_text(["PARAUAPEBAS (PA)", "MARABA (PA)"])
+        agregar.get_by_test_id("analise-agregar-nome").fill("Carajás")
+        carajas, sent = ok(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")))
+        assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Carajás", "membros": [PARAUAPEBAS, MARABA]}], sent["conjuntos"]
+        base = sent["base"]["municipios"]
+        assert not base["todos"] and base["estados"] == [] and set(base["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, base
+        [grupo] = [item for item in carajas["itens"] if item["id"] == "c1"]
+        assert grupo["tipo"] == "conjunto" and grupo["contagem"] == "SOMA_DOS_COMPONENTES", grupo
+        assert (grupo["quantidade"], round(grupo["densidade"], 2)) == (894, 1.52), ("o aceite: 894 médicos e 1,52 por mil", grupo)
+        assert len(carajas["itens"]) == 143 and not {PARAUAPEBAS, MARABA} & {item["id"] for item in carajas["itens"]}, \
+            "o grupo fica no lugar das duas"
+        expect(agregar).to_have_count(0)
+        expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
+            "Pará · 142 de 144 municípios")
+        texto_do_grupo = territorios.get_by_test_id("analise-selecionado-conjunto-texto")
+        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
+        expect(territorios.get_by_test_id("analise-selecionado-ressalva")).to_have_text(re.compile(
+            r"^O total corresponde à soma dos quantitativos .* podem ser contabilizados mais de uma vez\.$"))
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        shot("15-agregar-carajas")
+        # No gráfico, Carajás no lugar das duas; a busca da tabela dos Detalhes acha o grupo pelo nome.
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        expect(area.locator('[data-testid="analise-bolha"][data-id="c1"]')).to_have_attribute("data-tipo", "conjunto", timeout=60000)
+        for membro in (PARAUAPEBAS, MARABA):
+            expect(area.locator('[data-testid="analise-bolha"][data-id="' + membro + '"]')).to_have_count(0)
+        expect(area.get_by_test_id("analise-funcao-juntar")).to_have_count(0)
+        aperta(area.get_by_test_id("analise-detalhes-tabela"))
+        busca_tabela = area.get_by_test_id("analise-tabela-busca")
+        busca_tabela.fill("Carajás")
+        expect(area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")).to_have_count(1)
+        expect(area.locator('[data-testid="analise-linha"][data-id="c1"]')).to_contain_text("soma das contagens dos componentes")
+        busca_tabela.fill("Parauapebas")
+        expect(area.get_by_test_id("analise-tabela-sem-resultado")).to_be_visible()
+        busca_tabela.fill("")
+        shot("16-carajas-no-grafico")
+        # O ✎: o nome e os membros (MACAPA (AP), marcada na lista do Amapá); com membros de estados diferentes, a trilha vai a
+        # "Brasil › Seleção". O Pará continua sem os dois primeiros; a Macapá, que não estava na seleção, não sai de lugar nenhum.
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        aperta(territorios.get_by_test_id("analise-selecionado-conjunto-editar"))
+        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Carajás")
+        expect(agregar.get_by_test_id("analise-agregar-membro")).to_have_count(2)
+        agregar.get_by_test_id("analise-agregar-grupo").select_option("16")
+        marca(agregar.locator('[data-testid="analise-agregar-unidade"][data-id="' + MACAPA + '"] input'))
+        agregar.get_by_test_id("analise-agregar-nome").fill("Carajás e Macapá")
+        expect(agregar.get_by_test_id("analise-agregar-criar")).to_have_text("Salvar grupo")
+        editado, sent = ok(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")))
+        assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Carajás e Macapá", "membros": [PARAUAPEBAS, MARABA, MACAPA]}], sent
+        assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, "a seleção é a mesma"
+        expect(partes).to_have_text(["Brasil", "Seleção"])
+        expect(texto_do_grupo).to_contain_text("Carajás e Macapá · grupo · 3 municípios")
+        # O ×: o grupo se desfaz, e só os membros que saíram da seleção voltam (o Pará inteiro; o Amapá não entra). A escolha
+        # volta a ser a do Pará inteiro, já calculada: a tela pode reaproveitar a resposta guardada, sem novo pedido.
+        aperta(territorios.get_by_role("button", name="Desfazer o grupo Carajás e Macapá", exact=True))
+        expect(territorios.get_by_test_id("analise-selecionado-conjunto")).to_have_count(0)
+        expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="' + PA + '"]')).to_contain_text(
+            "Pará · todos os 144")
+        expect(territorios.locator('[data-testid="analise-selecionado"][data-grupo="16"]')).to_have_count(0)
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        # Pela conversa, o mesmo grupo, com a confirmação conferida (item 4): a resposta só se dá por concluída com o resultado em
+        # tela.
+        chat = page.get_by_test_id("painel-chat")
+        resposta_chat = chat.get_by_test_id("latest-reply")
+        pelo_chat, sent = ok(lambda: send(page, "agregue Marabá e Parauapebas como Carajás"),
+                             condicao=lambda o: bool(o.get("conjuntos")))
+        assert [(c["id"], c["rotulo"], sorted(c["membros"])) for c in sent["conjuntos"]] == [
+            ("c1", "Carajás", sorted([MARABA, PARAUAPEBAS]))], sent["conjuntos"]
+        assert set(sent["base"]["municipios"]["ids"]) == ids_pa - {PARAUAPEBAS, MARABA}, "os membros saem da seleção"
+        [grupo_chat] = [item for item in pelo_chat["itens"] if item["id"] == "c1"]
+        assert (grupo_chat["quantidade"], round(grupo_chat["densidade"], 2)) == (894, 1.52), grupo_chat
+        expect(resposta_chat).to_contain_text("Agreguei MARABA (PA) e PARAUAPEBAS (PA) como Carajás", timeout=60000)
+        expect(resposta_chat).to_contain_text("no lugar deles: a bolha soma as contagens dos componentes")
+        expect(resposta_chat.get_by_test_id("chat-conferido")).to_have_text("conferido: está na tela", timeout=60000)
+        expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
+        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
+        expect(partes).to_have_text(["Brasil", "Pará"])
+        shot("17-carajas-pela-conversa")
+
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
         browser.close()
     print("NAVEGACAO PASS: o todo como referência (502.495 médicos, 212,6 milhões, 2,36), Ver por estado (27) e município "
           "(5.570), trilha Brasil › Pará › MARABA (PA), cartão (472, 1,64), volta pela trilha, Série com as referências, mapa dos "
           "estados (27), Análise Espacial por estado, a conversa que move a trilha (Mostre o Pará) e a proteção (Esta análise ainda é "
-          "do Pará, com Atualizar), a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para) e os estados "
-          "em tela estreita (a lista na ordem do motor, do DF ao MA, e nas bolhas só os destaques).")
+          "do Pará, com Atualizar), a pergunta que não é comando (Marabá: 472, 1,64, cerca de 140 km; Abrir e Ir para), os estados "
+          "em tela estreita (a lista na ordem do motor, do DF ao MA, e nas bolhas só os destaques) e Agregar territórios (Carajás: "
+          "Pará · 142 de 144, 894 médicos, 1,52 por mil; editar, desfazer e pela conversa).")
 
 
 if __name__ == "__main__":

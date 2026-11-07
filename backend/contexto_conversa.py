@@ -39,7 +39,9 @@ VISTAS = {"grafico": "gráfico de bolhas", "mapa": "mapa", "lado": "gráfico e m
 FUNCIONALIDADES = (
     "Dados: “Dados do Brasil” (médicos por município, estado e Brasil, com população) ou “Enviar meus dados” (CSV, XLS ou "
     "XLSX, com o painel Colunas para as escolhas que faltam).",
-    "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises.",
+    "Seleção de Territórios: escolhe os territórios analisados (estados, municípios, Brasil); vale para todas as análises. "
+    "Nela, Agregar territórios junta unidades num grupo (também de estados diferentes), que vira um território da análise: a "
+    "soma das contagens dos membros, com possível dupla contagem; por escolha da pessoa, o grupo fica no lugar dos membros.",
     "Análise de Distribuição: o indicador de cada território numa competência, em bolhas (tamanho = população) ou no mapa; "
     "grupos por posição (quartis, quintis, decis) e a mudança entre duas competências.",
     "Análise Espacial: a distância geográfica direta (em linha reta) de cada município da base até a referência mais próxima, "
@@ -52,8 +54,8 @@ FUNCIONALIDADES = (
     "Análise de Rotatividade: a permanência e a saída da coorte inicial; exige um identificador da mesma pessoa.",
     "Indicador: densidade por 1.000 habitantes ou quantidade de profissionais.",
     "Funções: Régua (filtro visual entre dois valores), Condições (quem atende, não atende ou não tem dado), Ordenar "
-    "(posições do motor), Comparar (2 ou 3 itens lado a lado, com maior, menor e diferença), Juntar (soma das contagens, "
-    "com possível dupla contagem) e Exportar (CSV e Imprimir / PDF).",
+    "(posições do motor), Comparar (2 ou 3 itens lado a lado, com maior, menor e diferença) e Exportar (CSV e Imprimir / "
+    "PDF).",
     "Vista: Gráfico, Mapa ou Lado a lado. Detalhes: Tabela, Não avaliáveis e Método e procedência.",
     "Desfazer e Limpar seleção, no alto da área; Histórico, no alto da página, reabre análises guardadas sem recalcular.",
     "“Entenda esta análise”, em cada aba, explica a análise com exemplo.",

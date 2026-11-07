@@ -127,6 +127,8 @@ ALVO_ORDEM = re.compile(r"\s*(?:de|da|do|ate|a|ao|em\s+relacao\s+(?:a|ao))\s+")
 COMPARAR = re.compile(r"\b(?:compare|comparar|compara|comparacao|comparando|confronte|confrontar|contraste|contrastar|"
                       r"contrasta|coteje|cotejar|versus|vs)\b|\blado\s+a\s+lado\b|\bum\s+(?:do|ao)\s+lado\s+do\s+outro\b|"
                       r"\bfrente\s+a\s+frente\b|\bse\s+diferenciam\b|\b(?:a|as)\s+diferencas?\s+entre\b")
+# O nome do grupo na agregação pela conversa ("… como Carajás", "… com o nome Carajás").
+NOME_DO_GRUPO = re.compile(r"\b(?:como|com\s+o\s+nome(?:\s+de)?|chamad[oa])\s+(.+?)\s*$")
 JUNTAR = re.compile(r"\b(?:junte|juntar|junta|juntando|juncao|agrupe|agrupar|agrupa|agregue|agregar|agrega|agregacao|"
                     r"some|somar)\b|\b(?:faca|faz|crie|cria|monte|forme|gere)\s+(?:um\s+)?conjunto\b|"
                     r"\b(?:num|em\s+um)\s+(?:so\s+)?conjunto\b")
@@ -2169,12 +2171,20 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if not (comparar or juntar or dica in ("comparisons", "aggregate") or pendente):
         return None
     if comparar and juntar:
-        return _pergunta("Uma função por vez: comparar lado a lado ou juntar num conjunto?" + NADA_MUDOU,
+        return _pergunta("Uma função por vez: comparar lado a lado ou agregar num grupo?" + NADA_MUDOU,
                          [_escolha("Comparar", pedido.reescreve(juntar.start(), juntar.end(), "").strip() or "compare"),
-                          _escolha("Juntar", pedido.reescreve(comparar.start(), comparar.end(), "").strip() or "junte")])
+                          _escolha("Agregar", pedido.reescreve(comparar.start(), comparar.end(), "").strip() or "agregue")])
     funcao = "comparar" if comparar or pendente or (not juntar and dica == "comparisons") else "juntar"
     for encontrado in list(COMPARAR.finditer(pedido.resto)) + list(JUNTAR.finditer(pedido.resto)):
         pedido.consome(*encontrado.span())
+    # O nome do grupo (06/11/2026, item 5 do comando de navegação por níveis: "agregue Marabá e Parauapebas como Carajás"): o
+    # trecho depois de "como", como foi escrito, fora dos nomes a resolver.
+    nome_do_grupo = None
+    if funcao == "juntar":
+        como = NOME_DO_GRUPO.search(pedido.resto)
+        if como:
+            nome_do_grupo = pedido.trecho(como.start(1), como.end(1)).strip(" .!?\"“”'")[:60] or None
+            pedido.consome(*como.span())
     periodo, pergunta = _periodo_da_funcao(conv)
     if pergunta:
         return pergunta
@@ -2191,11 +2201,11 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
     if nomes and dica is None:
         return _nao_encontrado(conv, nomes)
     rot = conv.rot
-    verbo = "comparar" if funcao == "comparar" else "juntar"
+    verbo = "comparar" if funcao == "comparar" else "agregar"
     if achado["todos"]:
         return _pergunta("Para " + verbo + ", diga os nomes; " + ("a comparação mostra 2 ou 3 itens lado a lado." if
                                                                 funcao == "comparar" else "todos de uma vez não formam um "
-                                                                "conjunto útil.") + NADA_MUDOU)
+                                                                "grupo útil.") + NADA_MUDOU)
     ids, _ = _membros(conv, {"ids": achado["ids"], "grupos": [g for g in achado["grupos"] if g[1] != "objeto"]})
     objetos = [chave for chave, sabor in achado["grupos"] if sabor == "objeto" and conv.brasil]
     if not conv.brasil:
@@ -2230,6 +2240,8 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
                          "3 nomes" + alternativa.replace(" ou peça", ", peça") + " ou use Ordenar ou Condições para ver todos." +
                          NADA_MUDOU)
     painel = _painel(funcao=funcao, selecao=selecao, indicador=indicador)
+    if nome_do_grupo:
+        painel["nome_do_grupo"] = nome_do_grupo
     _aplica_periodo(painel, periodo)
     quando = _quando(painel, conv.periodos)
     frases = []
@@ -2239,8 +2251,9 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
             frases.append("Mostrei os estados e abri a comparação lado a lado de " + _e(rotulos) + quando + ", com o maior, "
                           "o menor e a diferença.")
         else:
-            frases.append("Juntei " + _e(rotulos) + " num conjunto" + quando + ": a bolha soma as contagens estaduais, com "
-                          "possível dupla contagem (quem atua em mais de um estado conta em cada um).")
+            frases.append("Agreguei " + _e(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num grupo") + quando +
+                          ": a bolha soma as contagens estaduais, com possível dupla contagem (quem atua em mais de um estado "
+                          "conta em cada um).")
         return _resposta(painel, " ".join(frases))
     if conv.ctx["nivel"] == "estados":
         painel["nivel"] = "municipios"
@@ -2254,8 +2267,10 @@ def _comparar_ou_juntar(conv, dica, dica_indicador):
         if faltam:
             frases.append("Acrescentei " + _e(conv.cat.rotulo(i) for i in faltam) + " ao gráfico.")
     else:
-        frases.append("Juntei " + _listed(rotulos) + " num conjunto" + quando + ": a bolha soma as contagens dos "
-                      "componentes, com possível dupla contagem (quem atua em mais de " + rot.um() + " conta em cada " +
+        # Agregar territórios (06/11/2026, item 5): o grupo fica no lugar dos membros na análise, como no painel da Seleção.
+        frases.append("Agreguei " + _listed(rotulos) + (" como " + nome_do_grupo if nome_do_grupo else " num grupo") + quando +
+                      ", no lugar " + ("delas" if rot.feminino else "deles") + ": a bolha soma as contagens dos componentes, "
+                      "com possível dupla contagem (quem atua em mais de " + rot.um() + " conta em cada " +
                       ("uma" if rot.feminino else "um") + ").")
     return _resposta(painel, " ".join(frases))
 

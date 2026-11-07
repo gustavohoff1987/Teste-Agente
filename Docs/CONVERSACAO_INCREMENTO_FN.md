@@ -239,10 +239,16 @@ A gramática é local e limitada; frases parecidas também valem, mas não qualq
   MANAUS (AM), escolhida pelo nome. Para a referência partir do Pará, diga a condição dela, por exemplo, “o mais próximo com
   densidade acima de 2”. Nada mudou no gráfico."). A troca mantém os até 12 filtros de cada lado que a tela e o motor
   aceitam (antes, só os 8 primeiros).
-- **Comparar e juntar:** "compare Manaus e Tefé", "coloque … lado a lado" (2 ou 3 itens; o município fora do gráfico
+- **Comparar e agregar:** "compare Manaus e Tefé", "coloque … lado a lado" (2 ou 3 itens; o município fora do gráfico
   entra nele); "compare o Pará e o Amazonas" (estados, no nível dos estados); "compare esses municípios" (os do
   gráfico); "junte Manaus, Iranduba e Manacapuru", "junte os municípios do Amazonas" (soma dos componentes, com
-  possível dupla contagem). Com um nome só ("compare Manaus"), a conversa pergunta o outro ("Com qual outro município
+  possível dupla contagem). Desde 06/11/2026 (item 5 do comando de navegação por níveis, Agregar territórios), o grupo fica
+  no lugar dos membros, como no painel da Seleção, e o nome vem depois de "como", "com o nome" ou "chamado" ("agregue Marabá e
+  Parauapebas como Carajás", campo `nome_do_grupo` do `painel`; sem ele, "Grupo N"); a resposta diz "Agreguei MARABA (PA) e
+  PARAUAPEBAS (PA) como Carajás, no lugar deles: a bolha soma as contagens dos componentes, com possível dupla contagem (…)."
+  (antes, "Juntei … num conjunto", com os membros ao lado), e a confirmação é a conferida da área. Os dois no mesmo pedido
+  viram a pergunta "Uma função por vez: comparar lado a lado ou agregar num grupo?", com "Comparar" e "Agregar" (antes,
+  "… ou juntar num conjunto?", com "Juntar"). Com um nome só ("compare Manaus"), a conversa pergunta o outro ("Com qual outro município
   você quer comparar?") e devolve `pending_operation: "comparisons"` e `pending_ids` com a unidade identificada; a tela
   manda os dois de volta (`conversation_pending_operation` e `conversation_pending_ids`, que não vão ao provedor), e a
   mensagem seguinte só com nomes ("Tefé e Parintins") completa a comparação. Outro comando ou uma pergunta seguem o seu
@@ -315,8 +321,8 @@ Planilhas enviadas podem usar outra nomenclatura territorial (distrito, condado,
 - grupo e unidade com o mesmo nome viram pergunta ("Província Nampula" ou "Distrito Nampula");
 - não há nível acima das unidades no gráfico: "volte às províncias" explica isso e sugere "mostre a província …". A
   orientação da caixa da conversa diz o mesmo desde 28/10/2026: "Peça mudanças no gráfico citando comunas pelo nome:
-  comparar, juntar, usar como referência ou mostrar as comunas de um condado." (antes, "… ou voltar ao nível de condados",
-  que a conversa recusava);
+  comparar, agregar, usar como referência ou mostrar as comunas de um condado." (antes, "… ou voltar ao nível de condados",
+  que a conversa recusava; até 06/11/2026, "comparar, juntar, …");
 - as orientações também usam os nomes da planilha (23/10/2026): "“distritos com menos de 1 médico por mil habitantes”",
   "cada distrito precisa atender a todas", "A referência é um distrito ou um conjunto de distritos: a referência não pode
   ser a base inteira. …". Os exemplos com nomes da base do Brasil ("Manaus", "o Pará") ficam só nela; numa planilha, dão

@@ -26,7 +26,11 @@ export type PainelMunicipios = { todos: boolean; estados: string[]; ids: string[
 export type PainelUniverso = { municipios: PainelMunicipios };
 export type PainelCriterio = { atributo: PainelAtributo; ordem: PainelOrdem };
 /** Conjunto agregado (CAP-AGR-01): id com letras, números, _ ou - (até 64), rótulo de até 120 caracteres, dois ou mais membros. */
-export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string[] };
+/** Um conjunto (o grupo de Agregar territórios, 06/11/2026). `substitui`, só da tela (não vai ao motor): o grupo ficou no lugar dos
+ * membros, que saíram da seleção; desfazê-lo os devolve. */
+/** Um conjunto (CAP-AGR-01). `substitui` e `retirados` são da tela e não vão ao motor (montarOpcoes): o grupo fica no lugar dos
+ * membros, e `retirados` são os membros que estavam na seleção e saíram dela (os únicos que voltam ao desfazer o grupo). */
+export type PainelConjuntoPedido = { id: string; rotulo: string; membros: string[]; substitui?: boolean; retirados?: string[] };
 /** Um membro: referência município; dois ou mais: conjunto de referência (distância até o membro mais próximo). O critério só
  * registra a origem (CAP-REF-01); com o universo da lista, a origem cita a posição exata vista pela pessoa. É a forma que a
  * conversa usa ("use Manaus como referência"). */

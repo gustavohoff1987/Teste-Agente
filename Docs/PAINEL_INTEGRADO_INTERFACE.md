@@ -70,8 +70,9 @@ começam por `analise-` (`data-testid="area-de-analise"`, `analise-...`); os do 
 - **Conversa (`pedido`):** os campos do objeto `painel` da conversa (família, indicador, nível, municípios, competência, janela,
   visão da tendência, referência, função, seleção, ordenação, condições, grupos e, desde 23/10/2026, a vista: `vista: "mapa"`
   para "ver no mapa", `"grafico"` para "volte ao gráfico"). Cada campo é validado; o que não vale vira um aviso
-  ("A competência … não existe nesta base"), nunca um erro. "Junte Manaus, Iranduba e Manacapuru" cria o conjunto; "compare
-  Manaus e Tefé" pede a comparação; uma família indisponível fica de fora, com o motivo. O mapa é conferido na análise que
+  ("A competência … não existe nesta base"), nunca um erro. "Junte Manaus, Iranduba e Manacapuru" cria o grupo, e "agregue
+  Marabá e Parauapebas como Carajás", o grupo com o nome (desde 06/11/2026, no lugar dos membros, como em Agregar territórios);
+  "compare Manaus e Tefé" pede a comparação; uma família indisponível fica de fora, com o motivo. O mapa é conferido na análise que
   resulta do pedido: "mostre os municípios do Amazonas no mapa" abre o mapa; desde 06/11/2026, vendo por estado na base do
   Brasil, também (cada estado no ponto de desenho do servidor); quando o mapa não existe, o aviso diz o motivo ("Mapa: …"). O
   pedido do nível `brasil` (o Brasil como unidade, de 24/10 a 06/11/2026) leva ao todo, vendo por estado. Numa planilha sem população, um pedido pela densidade fica na quantidade, com o motivo.
@@ -181,14 +182,36 @@ da tela).
 - **Busca, no alto da área da esquerda** (`analise-busca`): "Buscar município ou estado", pelo nome ou pelo código. O resultado
   (`analise-busca-resultado`) traz os estados (com a caixa e o botão da lista) e os municípios encontrados, com as caixas; a busca
   não muda a seleção.
+- **Ferramentas da Seleção** (06/11/2026, item 5 do comando de navegação por níveis; `analise-selecao-ferramentas`): Buscar
+  (`analise-selecao-buscar`, leva à busca) e Agregar territórios (`analise-agregar-abrir`); Selecionar por critérios vem no item 6.
+- **Agregar territórios** (06/11/2026, item 5; no lugar do Juntar, que saiu das Ferramentas das análises): um painel
+  (`analise-agregar`) com a mesma busca da Seleção (`analise-agregar-busca`: digitar e marcar; cada resultado com a caixa e o
+  estado, "PARAUAPEBAS (PA) · Pará") e a lista de um estado para marcar (`analise-agregar-grupo`, "Ou marque na lista de um
+  estado"; numa planilha sem grupos, "Ou marque na lista"), os escolhidos em etiquetas com o × ("Escolhidos",
+  `analise-agregar-membro`), o "Nome do grupo" (a sugestão "Grupo 1", editável), a opção "O grupo fica no lugar dos membros"
+  (marcada) e "Criar grupo" (com dois ou mais escolhidos). Vale juntar municípios de estados diferentes. O grupo é um território
+  da análise, com a soma das contagens e das populações dos membros calculada pelo motor (CAP-AGR-01) e a ressalva da soma (G3,
+  `RESSALVA_DA_SOMA`). Com a opção marcada, os membros que estavam na seleção saem dela (a mesma exclusão da árvore: o Pará
+  inteiro sem PARAUAPEBAS e MARABA fica "Pará · 142 de 144 municípios"), e o grupo fica no lugar deles: ninguém aparece duas
+  vezes no mesmo gráfico; desmarcada, aparecem os dois. O grupo guarda quais membros saíram da seleção: ao desfazê-lo (×) ou
+  editá-lo (✎, o mesmo painel, com "Salvar grupo": o nome e os membros), só esses voltam (um membro de outro estado, que não
+  estava na seleção, não entra nela). Na trilha, um grupo com membros de um mesmo estado fica dentro dele ("Brasil › Pará");
+  com membros de estados diferentes, em "Brasil › Seleção". Nas análises, o grupo é um território como os outros (Régua,
+  Condições, Ordenar, Comparar, Exportar); na Análise Espacial, a distância não se aplica a ele. Criar, editar e desfazer um
+  grupo são passos do Desfazer. Na conversa, "agregue Marabá e Parauapebas como Carajás" cria o mesmo grupo, com a confirmação
+  conferida (o selo "conferido: está na tela" só com o resultado em tela).
 - **Na análise** (`analise-selecionados`, a área da direita): o resumo do que está marcado (`analise-selecionados-resumo`:
   "Todos os estados (27)", "Bahia e Santa Catarina", "Amazonas (62 municípios)", "63 municípios de 2
   estados", "PORTO ALEGRE (RS)", "Nenhum município marcado"), o botão da análise em uso ("Ver a Análise de Distribuição",
   `analise-ver-analise`), o Ver por e os totais. Abaixo (`analise-selecionados-itens`), o que entra, agrupado por
   estado (`analise-selecionado`): o estado inteiro numa linha ("Amazonas · todos os 62") e, quando são só alguns, cada município
-  como uma etiqueta com o × dele (`analise-selecionado-unidade`, "Tirar ABAIRA (BA)"); cada estado com o × que o tira inteiro
-  (`analise-selecionado-tirar-grupo`); o Brasil inteiro numa linha ("Todos os municípios do Brasil (5.570)"), com o ×; os
-  conjuntos do Juntar, cada um com o × que o desfaz (`analise-selecionado-conjunto`). Uma unidade marcada sem um grupo da lista
+  como uma etiqueta com o × dele (`analise-selecionado-unidade`, "Tirar ABAIRA (BA)"), com "Pará · 142 de 144 municípios" na
+  linha do estado (desde 06/11/2026, com o nome da unidade; antes, "142 de 144"; com muitas etiquetas, elas rolam numa caixa
+  baixa, para o que vem abaixo continuar à vista); cada estado com o × que o tira inteiro (`analise-selecionado-tirar-grupo`); o
+  Brasil inteiro numa linha ("Todos os municípios do Brasil (5.570)"), com o ×; os grupos de Agregar territórios
+  (`analise-selecionado-conjunto`, desde 06/11/2026; antes, os conjuntos do Juntar, só com o nome e o ×): "Carajás · grupo · 2
+  municípios · 894 médicos · 1,52 por mil", com a marca "grupo", o número de unidades, os profissionais e a densidade que o motor
+  devolveu, o ✎ que edita o grupo e o × que o desfaz, e a ressalva da soma abaixo (`analise-selecionado-ressalva`). Uma unidade marcada sem um grupo da lista
   (numa planilha, sem o valor da coluna-mãe) aparece numa linha à parte. Sem nada marcado, "Nenhum município marcado ainda: marque
   na lista (o Brasil, um estado inteiro ou abra a lista dele; ou use a busca).". O mesmo resumo, em poucas palavras, aparece no
   título das análises, no resumo de cada aba e ao lado dos controles do alto (`analise-controles-territorios`; `resumoDoUniverso`).
@@ -200,8 +223,8 @@ da tela).
 - **No gráfico e no mapa** (06/11/2026, comando do responsável, item 3): tocar (ou Enter) numa bolha de estado abre os municípios
   dele ("Brasil › Pará"; a árvore marca o estado inteiro, e o Ver por volta a Município); tocar num município abre o lugar dele
   ("Brasil › Pará › MARABA (PA)", com o cartão do território, seção "Navegação por níveis"). A dica da bolha sob o mouse ou em foco
-  mostra a ação ("Ver os N municípios", "Abrir MARABA (PA)"). Com a Comparar ou a Juntar abertas (a escolha de itens em curso),
-  tocar marca e desmarca, como antes; a caixa da tabela dos Detalhes também marca. Voltar é pela trilha: o aviso diz "Mostrando os
+  mostra a ação ("Ver os N municípios", "Abrir MARABA (PA)"). Com a Comparar aberta (a escolha de itens em curso; até
+  06/11/2026, também com a Juntar), tocar marca e desmarca, como antes; a caixa da tabela dos Detalhes também marca. Voltar é pela trilha: o aviso diz "Mostrando os
   municípios do Amazonas. Para voltar, toque em Brasil na trilha, no alto." (até 06/11/2026, "Para voltar aos estados, use
   Desfazer, no alto."); o Desfazer continua desfazendo cada passo, mas não é o caminho para mudar de nível.
 - **Planilhas:** sem a unidade de análise (Brasil e Estados), com os mesmos passos e a nomenclatura da planilha (a busca "Buscar
@@ -228,7 +251,7 @@ a página (sem rolar até eles), em todas as abas, com os dados prontos. Ao lado
   interação na área. Até 25/10/2026, chamava-se "Voltar" (`analise-voltar`), com a seta ←; o nome e a seta pareciam levar ao
   começo da sessão, e o responsável pediu o nome e o símbolo do desfazer (25/10/2026). Cada ação reversível guarda o estado de antes: marcar ou desmarcar territórios (uma a uma, coletivas, o × da lista
   da direita), trocar o Ver por, abrir e fechar a lista de um estado, abrir um estado ou um município pela bolha, ir a um
-  lugar pela trilha, o atalho do mapa, Limpar seleção, juntar e desfazer um conjunto, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
+  lugar pela trilha, o atalho do mapa, Limpar seleção, agregar, editar e desfazer um grupo, trocar de aba (também a ida à Seleção pelo "Alterar a seleção"), mudar
   um ajuste (o indicador, a categoria, a competência, os grupos e as faixas, o período, a visão, o intervalo da série, a
   Escolha dos territórios calculada), a régua, as condições, a ordenação, a comparação, o filtro da classe, "Mostrar só quem atende",
   os itens marcados no desenho, Limpar filtros, a escala e a vista do desenho, um pedido da conversa e a reabertura do
@@ -470,7 +493,8 @@ O que cada análise mostra:
   `analise-sem-referencia-no-recorte`, que saiu com o filtro). Quando nenhum município da base fica com referência, o aviso
   `analise-ref-sem-resultado` diz o que aconteceu ("Nenhum município pode ser referência com esta escolha dos territórios: não
   há referência. Mude a aba Referência." ou as causas possíveis), com "Mudar a escolha dos territórios"
-  (`analise-ref-sem-resultado-mudar`). Um conjunto (Juntar) não tem distância com a consulta (cada membro tem a sua). Um pedido
+  (`analise-ref-sem-resultado-mudar`). Um grupo de Agregar territórios não tem distância com a consulta (cada membro tem a
+  sua). Um pedido
   da conversa por critério ("use como referência o município de maior densidade") abre a janela na aba Referência com o filtro
   do atributo citado e, desde 25/10/2026 (decisão 4), o operador do "maior" ou "menor" ("acima de" ou "abaixo de"), sem valor: o
   valor fica com a pessoa, e nada é escolhido pela posição na ordem (CAP-REF-01 pede uma condição; CAP-SUB-01). Uma
@@ -694,7 +718,8 @@ O desenho do mapa (pontos, cores, legendas, navegação e o que ele não mostra)
 - **Rótulos diretos seletivos:** siglas dos estados, itens destacados, conjuntos, referência, os N primeiros da ordenação (até 12)
   e a bolha sob o mouse ou em foco. Desde 05/11/2026, o nome que não cabe nem à direita nem à esquerda da bolha (gráfico estreito,
   no celular) fica centrado acima dela, dentro da área de desenho, sem cobrir o título do eixo vertical.
-- **Estados e municípios** nunca no mesmo eixo nem somados; na visão dos estados, Juntar fica desligado.
+- **Estados e municípios** nunca no mesmo eixo nem somados; o painel Agregar territórios junta municípios, e criar um grupo leva a
+  análise aos municípios.
 - **Modo leve:** acima de 400 bolhas, uma camada de círculos simples que não muda ao passar o mouse; só as bolhas em destaque
   ganham o desenho completo. A régua só esconde; as posições não mudam. Sem animação. A tabela mostra 100 linhas por vez.
 
@@ -710,11 +735,14 @@ entre 1.024 e 1.359 px e no lado a lado; na base da tela abaixo de 1.024 px). No
 | Condições | Separa quem atende a todas as condições, quem não atende e quem não tem dado (CAP-SUB-01, combinação "e"), com as contagens do motor; "Mostrar só quem atende" é filtro visual | `condicoes` |
 | Ordenar | Ordem e posições do motor, empates na mesma posição, os N primeiros (CAP-SUB-02 e CAP-SUB-03) | `ordenar` |
 | Comparar | 2 ou 3 itens lado a lado, com maior, menor e diferença do motor (CAP-CMP-01) | `comparar` |
-| Juntar | As unidades escolhidas viram uma bolha (CAP-AGR-01), com a soma das contagens dos componentes e possível dupla contagem (RQ-REP-14) | `conjuntos` |
 | Exportar | CSV com todos os itens do resultado, em precisão integral, com a avaliabilidade e o motivo (não muda com a vista); a coluna do grupo é "UF" na base do Brasil e, numa planilha (desde 28/10/2026), leva o nome do grupo dela ("Condado"), com o valor da coluna-mãe, ou não existe sem grupo (desde 29/10/2026, com o nome de outra coluna, como o "território" que o modelo sugere para a unidade e o grupo, "Território (grupo)"); Imprimir / PDF, com a vista em exibição (no lado a lado, as duas, uma abaixo da outra) e a frase-resumo; método e parâmetros em texto, com a frase-resumo que está na tela (numa planilha, uma linha antes dos parâmetros diz que as chaves são as do contrato da API: "nesta planilha, “municipios” são as comunas, e “estados”, os condados.") | Nenhum |
 
-A seleção (clique ou Enter nas bolhas com a Comparar ou a Juntar abertas, desde 06/11/2026, porque sem elas tocar num município
-abre o lugar dele; ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
+Desde 06/11/2026 (item 5 do comando de navegação por níveis), o Juntar não está nas Ferramentas: o grupo (CAP-AGR-01, com a
+soma das contagens dos componentes e possível dupla contagem, RQ-REP-14; no pedido, `conjuntos`) é criado em Agregar
+territórios, na Seleção de Territórios (seção "Seleção de Territórios"), e é um território como os outros nas funções.
+
+A seleção (clique ou Enter nas bolhas com a Comparar aberta, desde 06/11/2026, porque sem ela tocar num município abre o lugar
+dele; ou a caixa na tabela) destaca os itens marcados com o anel escuro e o nome; desde
 25/10/2026, não esmaece os demais, que ficam com a cor inteira, como no mapa (antes, ficavam a 22% de opacidade, e, no modo
 leve, a camada inteira a 30%; `opacidadeDaBolha`). Só a pintura apagada (não atende, fora dos primeiros) continua mais clara.
 
@@ -725,12 +753,13 @@ comparados redesenhados inteiros por cima). Na Análise Espacial, desde a Escolh
 base: sem comparação, nada esmaece (o esmaecimento das bolhas fora dos territórios base escolhidos um a um, de 26/10/2026,
 saiu com eles). A bolha sob o mouse ou o foco continua inteira enquanto ativa. Marcar, sozinho, continua sem esmaecer; o mapa não muda. Só estado visual
 (`destaqueDaAnalise` e `opacidadeComDestaque`, em `painelModel.ts`; `data-destaque` em cada bolha): nada vai ao motor.
-Comparar e Juntar agem sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
+Comparar age sobre a seleção. "Limpar filtros", com a vassoura, tira de uma vez a régua, as condições, a ordenação, a
 comparação, o filtro da classe e os itens marcados, e o Desfazer do alto a desfaz (seção "Desfazer e Limpar seleção"). Uma comparação só continua enquanto os itens dela estão na
 análise: ao trocar o nível ou tirar um item comparado da seleção, ela sai do pedido (com ela, o motor recusaria o pedido com
 "Itens da comparação fora do gráfico").
 
-Desde a segunda rodada de 24/10/2026, os painéis **Comparar** e **Juntar** começam por uma orientação objetiva
+Desde a segunda rodada de 24/10/2026, o painel **Comparar** (e o **Juntar**, até sair das Ferramentas em 06/11/2026) começa
+por uma orientação objetiva
 (`analise-comparar-orientacao`, "Escolha dois ou três itens: clique nas bolhas do gráfico (ou nas linhas do quadro de setas) ou
 marque a caixa na tabela dos Detalhes. Depois, use Comparar: o resultado diz qual é o maior, o menor e a diferença, e, no
 gráfico de bolhas, os demais esmaecem para destacar os comparados." — até 26/10/2026, "…; os demais esmaecem. Depois, …",
@@ -770,7 +799,9 @@ e o resultado da comparação continuam.
   territórios, as contagens por classe ficam acima do quadro de setas, só com as classes que têm territórios; com um só, as
   contagens saem. A classe do filtro em uso continua à vista, mesmo sem territórios, para o filtro poder ser desligado.
 - **Detalhes,** abaixo do desenho, em abas: Tabela (os mesmos itens do gráfico, na ordem do código territorial, com 100 linhas
-  por página; clicar num cabeçalho só reordena, sem criar posições), Não avaliáveis (por aspecto, com o motivo do motor:
+  por página; clicar num cabeçalho só reordena, sem criar posições; desde 06/11/2026, item 5 do comando, a busca
+  `analise-tabela-busca`, "Buscar na tabela", só filtra as linhas pelo nome, sem mudar a análise, e, sem linha, diz "Nenhuma
+  linha com esse nome."), Não avaliáveis (por aspecto, com o motivo do motor:
   indicador, distância, variação, tendência, condições, coorte e, com o mapa à vista, coordenada do mapa) e Método e procedência
   (notas, limitações, origem da referência, TPL-11, janela, versão da base e chave de execução). Na impressão, as três partes
   aparecem.
@@ -1006,6 +1037,15 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
 
 ## Testes
 
+- **Agregar territórios (06/11/2026, item 5 do comando):** Node, `painel.test.mjs` (`baseSemUnidades`, `baseComUnidades` e
+  `membrosNaSelecao`: os membros saem da seleção pela exclusão da árvore, e só os que estavam nela voltam; o grupo da conversa com
+  o nome pedido, no lugar dos membros, e o que vai ao motor sem as marcas da tela) e `conversaGrafico.test.mjs` (o nome do grupo
+  no pedido); pytest, `test_conversa_grafico.py` ("agregue … como …" e a resposta "Agreguei …, no lugar deles") e
+  `test_contexto_conversa.py` (Agregar territórios entre as funções da página, sem o Juntar); navegador, o passo 12 de
+  `ui_area_de_analise.py` (o Juntar fora das Ferramentas; o grupo pela busca e pela lista do estado; a linha em "Na análise"; a
+  busca na tabela) e o passo 14 de `ui_navegacao.py` (o aceite com a base versionada: "Pará · 142 de 144 municípios", "Carajás ·
+  grupo · 2 municípios · 894 médicos · 1,52 por mil", com a ressalva; Carajás no lugar das duas no gráfico; o ✎ com MACAPA (AP)
+  e a trilha "Brasil › Seleção"; o × que devolve só o Pará; "agregue Marabá e Parauapebas como Carajás" com o selo).
 - **Os estados em tela estreita (06/11/2026, item 7 do comando):** Node, `areaDeAnalise.test.mjs` (`ordemDoIndicadorDe` e
   `destaquesDaOrdem`, com os empates no corte); navegador, o passo 13 de `ui_navegacao.py` (a 360 px, nos modos claro e escuro: a
   lista na ordem do motor, do DF, 4,41, ao MA, 1,13, com "Brasil 2,36", sem textos sobrepostos e com o alvo de 40 px; nas bolhas,
@@ -1149,8 +1189,10 @@ de "os dois" e "os três" quando se refere aos itens. A conversa segue a mesma r
   um ponto por observação; a ordem por classe; o filtro pela contagem; a escolha da linha e o ritmo de variação dela no painel
   (desde 05/11/2026: o título com o nome da linha, a explicação, os valores do motor e o intervalo efetivo de cada um); a
   dica no mouse e no foco); a rotatividade com a apresentação e o motivo, sem pedido; Condições (com o convite ao mapa),
-  Ordenar, Comparar e Juntar (com a orientação e os escolhidos em etiquetas, sem os cartões de valores; desde 25/10/2026, as
-  bolhas marcadas para Comparar sem esmaecer as demais, todas com a opacidade inteira); "Limpar filtros", desfeito pelo
+  Ordenar e Comparar (com a orientação e os escolhidos em etiquetas, sem os cartões de valores; desde 25/10/2026, as bolhas
+  marcadas para Comparar sem esmaecer as demais, todas com a opacidade inteira); desde 06/11/2026, o Juntar fora das Ferramentas
+  e Agregar territórios na Seleção (a busca e a lista do estado, o grupo no lugar dos membros, a linha em "Na análise" com a
+  ressalva) e a busca na tabela dos Detalhes; "Limpar filtros", desfeito pelo
   Desfazer; o CSV; os Detalhes; o modo leve com todos os municípios do Brasil (base versionada); e o celular (o painel dos
   ajustes na largura, a vista à vista, Desfazer e Limpar seleção dentro da largura e as duas áreas da Seleção uma sobre a
   outra). Cada bolha é conferida com a resposta do motor. O mapa em si (pontos, pintura, transição e lado a lado) tem

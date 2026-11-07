@@ -47,6 +47,8 @@ export type PedidoDoChat = {
   /** O destaque pedido pela resposta de valor da conversa (06/11/2026, item 4.2): os lugares citados ficam em destaque no gráfico
    * em uso. Estado visual: nada é recalculado. */
   destacar?: { ids: string[] } | null;
+  /** O nome do grupo pedido na conversa (06/11/2026, item 5: "agregue Marabá e Parauapebas como Carajás"). */
+  nomeDoGrupo?: string | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026: "o de menor densidade e o mais próximo dele com
    * densidade de no mínimo 1,5"): a base, a referência e de onde cada uma parte, conferidas por lerConsulta. */
   consulta?: object | null;
@@ -510,12 +512,44 @@ export function textoDaContagem(contagem: string | null | undefined): string {
   return contagem.toLowerCase().replace(/_/g, " ");
 }
 /** A ressalva das somas de contagens que podem se sobrepor (05/11/2026, texto do comando do responsável): vale onde a tela mostra
- * um total que é a soma das contagens de vários territórios (os conjuntos do Juntar, CAP-AGR-01), nunca nos totais individualizados
+ * um total que é a soma das contagens de vários territórios (os grupos de Agregar territórios, CAP-AGR-01), nunca nos totais individualizados
  * (o Brasil pela fonte nacional, cada estado pela fonte estadual, cada município). */
 export const RESSALVA_DA_SOMA = "O total corresponde à soma dos quantitativos dos territórios selecionados. Profissionais que atuam " +
   "em mais de um território podem ser contabilizados mais de uma vez.";
 export const NOTA_SOMA = "Soma das contagens dos componentes, com possível dupla contagem. " + RESSALVA_DA_SOMA +
   " A população também é a soma dos membros.";
+
+/** Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis): a seleção sem os membros do grupo ("o grupo fica no
+ * lugar dos membros"), pela mesma exclusão da árvore (desmarcar uma unidade de um estado marcado deixa as demais). `baseComUnidades`
+ * faz o inverso, ao desfazer o grupo. As unidades fora da seleção ficam como estão. */
+type ContextoDaBase = { grupoDe: (id: string) => string; unidadesDoGrupo: (grupo: string) => string[]; todosOsGrupos: string[];
+  todasAsUnidades?: string[] };
+export function baseSemUnidades(base: PainelMunicipios, ids: string[], c: ContextoDaBase): PainelMunicipios {
+  let atual = base;
+  for (const id of ids) {
+    const grupo = c.grupoDe(id);
+    if (unidadeMarcada(atual, id, grupo))
+      atual = alternarUnidade(atual, id, grupo, c.unidadesDoGrupo(grupo), c.todosOsGrupos, c.todasAsUnidades ?? []);
+  }
+  return atual;
+}
+/** Os membros que estão na seleção: os que saem dela quando o grupo fica no lugar deles e os únicos que voltam quando o grupo se
+ * desfaz (um membro de fora da seleção, como um município de outro estado, não entra nela ao desfazer). */
+export function membrosNaSelecao(base: PainelMunicipios, ids: string[], grupoDe: (id: string) => string): string[] {
+  return ids.filter(id => unidadeMarcada(base, id, grupoDe(id)));
+}
+export function baseComUnidades(base: PainelMunicipios, ids: string[], c: ContextoDaBase): PainelMunicipios {
+  let atual = base;
+  for (const id of ids) {
+    const grupo = c.grupoDe(id);
+    if (!unidadeMarcada(atual, id, grupo))
+      atual = alternarUnidade(atual, id, grupo, c.unidadesDoGrupo(grupo), c.todosOsGrupos, c.todasAsUnidades ?? []);
+  }
+  return atual;
+}
+
+/** O limite de grupos de uma análise, dito quando um grupo novo não cabe (o painel e a conversa). */
+export const TEXTO_MAX_GRUPOS = "A análise já tem " + MAX_CONJUNTOS + " grupos, o máximo: desfaça um deles para agregar outro.";
 
 /** Novo conjunto (CAP-AGR-01 no motor): identificador c1, c2…; os membros são unidades, sem repetição. */
 export function novoConjunto(existentes: PainelConjuntoPedido[], membros: string[], rotulo: string): PainelConjuntoPedido {
@@ -2409,7 +2443,7 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   const varios = def.nivel !== "brasil";
   if (def.nivel === "municipios") {
     opcoes.base = { municipios: normalizarBase(def.base, grupoDe) };
-    if (def.conjuntos.length) opcoes.conjuntos = def.conjuntos;
+    if (def.conjuntos.length) opcoes.conjuntos = def.conjuntos.map(({ id, rotulo, membros }) => ({ id, rotulo, membros }));
     // A Escolha dos territórios (27/10/2026): `base` continua indo como a seleção prévia, lida pela consulta.
     if (familia === "espacial" && def.consulta) {
       opcoes.consulta = consultaParaOMotor(def.consulta);
@@ -2491,7 +2525,8 @@ function lerCondicao(bruto: unknown): CondicaoPedido | null {
   return { atributo: o.atributo as AtributoCondicao, operador: o.operador as OperadorCondicao, valor: o.valor };
 }
 
-export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "juntar" | "exportar" | "referencia";
+/** As gavetas das análises. Desde 06/11/2026 (item 5 do comando), sem o Juntar: o grupo é criado em Agregar territórios, na Seleção. */
+export type FuncaoPainel = "regua" | "condicoes" | "ordenar" | "comparar" | "exportar" | "referencia";
 /** `criterio`: a referência pedida por critério (sem membros): a Escolha dos territórios abre na aba Referência com um filtro do
  * atributo e do operador do pedido (operadorDoCriterio), e o valor é da pessoa.
  * `vista`: a vista do desenho pedida ("ver no mapa", "volte ao gráfico"), só quando ela pode aparecer; estado visual. */
@@ -2606,13 +2641,25 @@ export function aplicarPedido(def: DefinicaoAnalise, pedido: PedidoDoChat, c: { 
     if (selecao && selecao.length >= 2 && selecao.length <= 3) proxima.comparar = selecao;
     else if (selecao) mensagens.push("Para comparar, escolha dois ou três itens.");
   } else if (pedido.funcao === "juntar") {
-    abrir = "juntar";
+    // Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis): o grupo, com o nome pedido (ou "Grupo N"), fica
+    // no lugar dos membros, que saem da seleção, como no painel da Seleção de Territórios; a gaveta Juntar das análises saiu.
     const membros = (selecao || []).filter(id => !/^c\d+$/.test(id));  // conjuntos não entram em outro conjunto
     if (membros.length >= 2 && proxima.conjuntos.length < MAX_CONJUNTOS) {
-      const conjunto = novoConjunto(proxima.conjuntos, membros, membros.map(id => c.nomes.get(id) || id).join(", ").slice(0, 120));
-      proxima = { ...proxima, nivel: "municipios", conjuntos: [...proxima.conjuntos, conjunto] };
+      const nome = typeof pedido.nomeDoGrupo === "string" && pedido.nomeDoGrupo.trim() ? pedido.nomeDoGrupo.trim()
+        : "Grupo " + (proxima.conjuntos.length + 1);
+      const novo = novoConjunto(proxima.conjuntos, membros, nome);
+      const atual = normalizarBase(proxima.base, c.grupoDe), grupoDe = c.grupoDe ?? prefixoDe;
+      const retirados = proxima.nivel === "municipios" ? membrosNaSelecao(atual, novo.membros, grupoDe) : [];
+      const base = proxima.nivel === "municipios" ? baseSemUnidades(atual, retirados, { grupoDe, unidadesDoGrupo: c.unidadesDoGrupo ??
+        (() => []), todosOsGrupos: c.todosOsEstados ?? [], todasAsUnidades: [...c.nomes.keys()].filter(id => !/^c\d+$/.test(id) &&
+        !id.startsWith("uf:")) }) : proxima.base;
+      const conjunto = { ...novo, substitui: true, retirados };
+      proxima = { ...proxima, nivel: "municipios", base, conjuntos: [...proxima.conjuntos, conjunto] };
       selecao = [conjunto.id];
-    } else if (selecao) mensagens.push("Para juntar, escolha pelo menos duas unidades.");
+    } else if (proxima.conjuntos.length >= MAX_CONJUNTOS) mensagens.push(TEXTO_MAX_GRUPOS);
+    else if (selecao) mensagens.push("Para agregar, escolha pelo menos duas unidades.");
+    // A agregação escolhida sem nomes (numa alternativa da conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho.
+    else mensagens.push("Para agregar, use Agregar territórios, na Seleção de Territórios, ou diga os nomes no pedido.");
   } else if (pedido.funcao === "exportar") abrir = "exportar";
   else if (pedido.funcao === "ordenar") abrir = "ordenar";
   else if (pedido.funcao === "condicoes") abrir = "condicoes";
@@ -3098,8 +3145,8 @@ export function apresentacaoDaAba(aba: Aba, c: { rotulos: RotulosTerritoriais; b
       "tamanho, a população.",
     "Com vári" + (f ? "as " : "os ") + territorios + ", você pode dividi-l" + (f ? "as" : "os") + " em grupos do mesmo tamanho " +
       "(quartis, quintis ou decis) ou em faixas de " +
-      "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Juntar. No mapa, os pontos aparecem em 5 grupos " +
-      "iguais (quintis) do indicador."] };
+      "valores e usar as Ferramentas: Régua, Condições, Ordenar, Comparar e Exportar. Para somar " + territorios + " num grupo, use " +
+      "Agregar territórios, na Seleção. No mapa, os pontos aparecem em 5 grupos iguais (quintis) do indicador."] };
   if (aba === "espacial") return { titulo: NOMES_FAMILIAS.espacial, paragrafos: [
     "Mede a distância em linha reta entre cada " + unidade.singular + " da base e a referência mais próxima " + (fem(unidade) ? "dela" : "dele") +
       ". A base é sempre a seleção em uso, a da trilha e da Seleção de Territórios, com filtros por densidade, população ou " +

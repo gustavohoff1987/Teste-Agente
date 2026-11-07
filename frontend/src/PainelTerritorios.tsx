@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, ChevronDown, Search, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Layers3, Pencil, Search, X } from "lucide-react";
+import AgregarTerritorios, { type GrupoAgregado } from "./AgregarTerritorios";
 import type { PainelConjuntoPedido, PainelMunicipios, PainelNivel } from "./painelApi";
 import {
-  BASE_VAZIA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, grupoDaUnidade, grupoInteiro, maiuscula, marcadasNoGrupo,
+  BASE_VAZIA, RESSALVA_DA_SOMA, alternarUnidade, artigo, baseVazia, desmarcarGrupo, formatarNumero, grupoDaUnidade, grupoInteiro,
+  maiuscula, marcadasNoGrupo,
   marcadasPorGrupo, marcarGrupo, nomeDaUnidade, quantos, resumoDoUniverso, textoTodasAsUnidadesDoGrupo, todosOs,
   unidadeMarcada, type GrupoInfo, type OpcaoVerPor, type RotulosTerritoriais, type UnidadeDoCatalogo,
 } from "./painelModel";
@@ -54,14 +56,22 @@ type Props = {
   /** O "Ver por" escolhido (a área confere se a escolha permite). */
   onUnidade: (nivel: PainelNivel) => void;
   onAbrir: (grupo: string | null) => void;
-  /** Desfaz um conjunto criado no Juntar (o × dele, no que está marcado). */
+  /** Desfaz um grupo de Agregar territórios (o × dele, no que está na análise); com o grupo no lugar dos membros, eles voltam. */
   onDesfazerConjunto: (id: string) => void;
+  /** Agregar territórios (06/11/2026, item 5 do comando): cria um grupo ou salva o grupo editado (✎). */
+  onCriarGrupo: (grupo: GrupoAgregado) => void;
+  onSalvarGrupo: (id: string, grupo: GrupoAgregado) => void;
+  /** Os números de cada grupo, do motor (os itens "conjunto" da resposta em exibição), e o nome dos profissionais ("médicos"). */
+  valoresDosConjuntos?: Map<string, { quantidade: number | null; densidade: number | null }>;
+  profissionais: string;
   onVerAnalise: () => void;
 };
 
 export default function PainelTerritorios(p: Props) {
   const [consulta, setConsulta] = useState("");
   const [letra, setLetra] = useState("");
+  // O painel Agregar territórios: fechado (null), um grupo novo ("novo") ou o grupo em edição (o id).
+  const [agregar, setAgregar] = useState<string | null>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
   const unidade = p.rotulos.unidade, grupoRotulo = p.rotulos.grupo ?? { singular: "grupo", plural: "grupos" };
   const generoF = artigo(unidade, false) === "a", generoGrupoF = artigo(grupoRotulo, false) === "a";
@@ -283,7 +293,7 @@ export default function PainelTerritorios(p: Props) {
         return <li key={item.grupo || "unidades"} data-testid="analise-selecionado" data-grupo={item.grupo} className="analise-selecionado-grupo">
           <div className="analise-selecionado-cabeca">
             <span className="min-w-0"><strong className="text-ink">{item.nome || (temGrupos ? "Sem " + grupoRotulo.singular : maiuscula(unidade.plural))}</strong>
-              {" "}<span className="text-slate-600">· {item.inteiro ? (generoF ? "todas as " : "todos os ") + item.total : item.marcadas + " de " + item.total}</span></span>
+              {" "}<span className="text-slate-600">· {item.inteiro ? (generoF ? "todas as " : "todos os ") + item.total : item.marcadas + " de " + quantos(item.total, unidade)}</span></span>
             {g && <button type="button" data-testid="analise-selecionado-tirar-grupo" className="analise-icone analise-icone-pequeno"
               aria-label={"Tirar " + deGrupo(g)} onClick={() => tirarGrupo(g)}><X size={13} aria-hidden="true"/></button>}
           </div>
@@ -297,14 +307,26 @@ export default function PainelTerritorios(p: Props) {
         </li>;
       })}
       {p.conjuntos.length > 0 && <li data-testid="analise-selecionado" data-grupo="conjuntos" className="analise-selecionado-grupo">
-        <div className="analise-selecionado-cabeca"><strong className="text-ink">{p.conjuntos.length === 1 ? "Conjunto" : "Conjuntos"}</strong></div>
-        <ul className="analise-selecionado-unidades">
-          {p.conjuntos.map(conjunto => <li key={conjunto.id} data-testid="analise-selecionado-conjunto" data-id={conjunto.id} className="analise-etiqueta">
-            {conjunto.rotulo}
-            <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Desfazer o conjunto " + conjunto.rotulo}
-              onClick={() => p.onDesfazerConjunto(conjunto.id)}><X size={13} aria-hidden="true"/></button>
-          </li>)}
+        <ul className="analise-grupos-agregados" aria-label={p.conjuntos.length === 1 ? "Grupo agregado" : "Grupos agregados"}>
+          {p.conjuntos.map(conjunto => {
+            const valores = p.valoresDosConjuntos?.get(conjunto.id);
+            return <li key={conjunto.id} data-testid="analise-selecionado-conjunto" data-id={conjunto.id} className="analise-grupo-agregado">
+              <span data-testid="analise-selecionado-conjunto-texto" className="min-w-0">
+                <strong className="text-ink">{conjunto.rotulo}</strong> · <span className="analise-marca-grupo">grupo</span> ·{" "}
+                {quantos(conjunto.membros.length, unidade)}
+                {typeof valores?.quantidade === "number" && " · " + valores.quantidade.toLocaleString("pt-BR") + " " + p.profissionais}
+                {typeof valores?.densidade === "number" && " · " + formatarNumero(valores.densidade) + " por mil"}</span>
+              <span className="analise-grupo-agregado-acoes">
+                <button type="button" data-testid="analise-selecionado-conjunto-editar" className="analise-icone analise-icone-pequeno"
+                  aria-label={"Editar o grupo " + conjunto.rotulo} onClick={() => setAgregar(conjunto.id)}><Pencil size={13} aria-hidden="true"/></button>
+                <button type="button" className="analise-icone analise-icone-pequeno" aria-label={"Desfazer o grupo " + conjunto.rotulo}
+                  onClick={() => { if (agregar === conjunto.id) setAgregar(null); p.onDesfazerConjunto(conjunto.id); }}>
+                  <X size={13} aria-hidden="true"/></button>
+              </span>
+            </li>;
+          })}
         </ul>
+        <p data-testid="analise-selecionado-ressalva" className="analise-ressalva">{RESSALVA_DA_SOMA}</p>
       </li>}
     </ul>;
   })();
@@ -320,6 +342,20 @@ export default function PainelTerritorios(p: Props) {
             (generoGrupoF ? "a" : "e") + ", e você pode desmarcar " + (generoF ? "algumas" : "alguns") + ". Abra a lista de " +
             (generoGrupoF ? "uma " : "um ") + grupoRotulo.singular + " para escolher " + unidade.plural + (generoF ? " uma a uma." : " um a um.")
           : "Marque " + unidade.plural + (generoF ? " uma a uma" : " um a um") + " ou a planilha inteira."}</p>
+        {/* As ferramentas da Seleção (06/11/2026, item 5 do comando): Buscar e Agregar territórios. */}
+        <div role="group" aria-label="Ferramentas da Seleção" data-testid="analise-selecao-ferramentas" className="analise-selecao-ferramentas">
+          <button type="button" data-testid="analise-selecao-buscar" className="analise-botao-secundario"
+            onClick={() => buscaRef.current?.focus()}><Search size={14} aria-hidden="true"/>Buscar</button>
+          <button type="button" data-testid="analise-agregar-abrir" className="analise-botao-secundario" aria-expanded={agregar !== null}
+            onClick={() => setAgregar(atual => atual === null ? "novo" : null)}><Layers3 size={14} aria-hidden="true"/>Agregar territórios</button>
+        </div>
+        {agregar !== null && (() => {
+          const emEdicao = agregar === "novo" ? null : p.conjuntos.find(conjunto => conjunto.id === agregar) ?? null;
+          return <AgregarTerritorios key={agregar} unidades={validas} rotulos={p.rotulos} grupos={p.grupos} sugestao={"Grupo " + (p.conjuntos.length + 1)}
+            inicial={emEdicao ? { rotulo: emEdicao.rotulo, membros: emEdicao.membros, substitui: !!emEdicao.substitui } : null}
+            onCancelar={() => setAgregar(null)}
+            onCriar={grupo => { if (emEdicao) p.onSalvarGrupo(emEdicao.id, grupo); else p.onCriarGrupo(grupo); setAgregar(null); }}/>;
+        })()}
         <div className="analise-busca">
           <label className="sr-only" htmlFor="analise-busca">{rotuloDaBusca}</label>
           <Search size={16} aria-hidden="true" className="analise-busca-icone"/>

@@ -35,6 +35,77 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Agregar territórios (etapa 7 do comando, item 5): o Juntar sai das Ferramentas e vira um painel da Seleção, com o grupo no lugar dos membros
+- **Classificação (regra 1), pela leitura, antes de codar:** item 5 do comando de 06/11/2026, classificado de uma vez com os demais
+  (entrada da navegação por níveis, abaixo): decisão 3 do próprio comando (o Juntar vira "Agregar territórios", na Seleção).
+  Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* a soma continua do motor (CAP-AGR-01, o campo `conjuntos` de
+  `/api/painel`, sem mudança no contrato), com a ressalva da soma (RQ-REP-14; G3 do comando); a tela não calcula (INV-02) e só tira
+  da seleção, pela mesma exclusão da árvore, os membros que estavam nela. Surgidas na implementação e também previstas (decorrem do
+  item e não contrariam a SPEC): o grupo guarda os membros que saíram da seleção, para o desfazer devolver só esses; as perguntas e
+  as orientações da conversa dizem "agregar"; a agregação escolhida sem nomes diz o caminho (a gaveta que ela abria saiu); o limite
+  de 50 grupos passa a ser dito (antes, o pedido além dele era ignorado em silêncio).
+- **Antes:**
+  - O Juntar ficava nas Ferramentas de cada análise (a gaveta `analise-juntar`): os membros eram escolhidos pelas bolhas do gráfico
+    ou pela tabela dos Detalhes, sem busca (no Pará, 144 bolhas pequenas); o conjunto tinha "Nome do conjunto" (sem nome, os nomes
+    dos membros), e os membros continuavam no gráfico ao lado dele.
+  - Em "Na análise", o conjunto era uma etiqueta com o nome e o × ("Desfazer o conjunto …"), sem números nem ressalva; o estado em
+    parte dizia "Pará · 142 de 144".
+  - A conversa: "junte Manaus, Iranduba e Manacapuru" criava o conjunto com os nomes dos membros no rótulo, abria a gaveta Juntar e
+    respondia "Juntei … num conjunto", com os membros ao lado; "… como Carajás" não dava nome; comparar e juntar no mesmo pedido
+    perguntavam "Uma função por vez: comparar lado a lado ou juntar num conjunto?", com "Comparar" e "Juntar"; a orientação da
+    caixa dizia "comparar, juntar, usar como referência".
+  - A tabela dos Detalhes não tinha busca. O cartão de contexto da conversa listava o Juntar entre as funções das análises;
+    "Entenda esta análise" da Distribuição citava "Comparar e Juntar"; a gaveta Comparar dizia "Com mais, use Juntar.".
+- **Agora:**
+  - **As ferramentas da Seleção** são Buscar e Agregar territórios (Selecionar por critérios vem no item 6). O painel
+    (`AgregarTerritorios.tsx`) tem a mesma busca da Seleção (digitar e marcar; cada resultado com a caixa e o estado, "PARAUAPEBAS
+    (PA) · Pará"), a lista de um estado para marcar ("Ou marque na lista de um estado"), os escolhidos em etiquetas com o ×
+    ("Escolhidos"), "Nome do grupo" (a sugestão "Grupo 1", editável), "O grupo fica no lugar dos membros" (marcada) e "Criar
+    grupo". Vale juntar municípios de estados diferentes.
+  - **Em "Na análise",** o grupo com a marca "grupo", o número de unidades, os profissionais e a densidade que o motor devolveu
+    ("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil"), o ✎ (o mesmo painel, com "Salvar grupo": o nome e os membros)
+    e o × (desfaz), e a ressalva da soma abaixo; o estado em parte diz "Pará · 142 de 144 municípios", e muitas etiquetas de
+    municípios rolam numa caixa baixa, para o grupo continuar à vista.
+  - **Com a opção marcada,** os membros que estavam na seleção saem dela, e o grupo fica no lugar deles: ninguém aparece duas vezes
+    no mesmo gráfico; desmarcada, aparecem os dois. O grupo guarda quais membros saíram: só esses voltam ao desfazê-lo ou editá-lo
+    (um membro de outro estado, que não estava na seleção, não entra nela). Criar um grupo leva a análise aos municípios. Na
+    trilha, membros de um estado ficam dentro dele ("Brasil › Pará"); de estados diferentes, em "Brasil › Seleção".
+  - **A conversa:** "agregue Marabá e Parauapebas como Carajás" (também "com o nome …" e "chamado …") cria o mesmo grupo, no lugar
+    dos membros, com o nome (campo aditivo `nome_do_grupo` no `painel` da resposta; sem ele, "Grupo N"), sem abrir gaveta; a
+    resposta diz "Agreguei MARABA (PA) e PARAUAPEBAS (PA) como Carajás, no lugar deles: a bolha soma as contagens dos componentes,
+    com possível dupla contagem (…)." e só aparece com a confirmação conferida da área (o selo "conferido: está na tela"). Os dois
+    pedidos juntos perguntam "Uma função por vez: comparar lado a lado ou agregar num grupo?", com "Comparar" e "Agregar"; "Para
+    agregar, diga …"; a orientação da caixa diz "comparar, agregar, usar como referência". A agregação escolhida sem nomes (numa
+    alternativa) diz "Para agregar, use Agregar territórios, na Seleção de Territórios, ou diga os nomes no pedido."; além de 50
+    grupos, "A análise já tem 50 grupos, o máximo: desfaça um deles para agregar outro." (também no painel).
+  - **A tabela dos Detalhes** ganha a busca ("Buscar na tabela", `analise-tabela-busca`), que só filtra as linhas pelo nome; sem
+    linha, "Nenhuma linha com esse nome.".
+  - **Os textos** que citavam o Juntar (o cartão de contexto da conversa, "Entenda esta análise" da Distribuição e a gaveta
+    Comparar) indicam Agregar territórios, na Seleção.
+- **Permanece:** o motor e o contrato de `/api/painel` (`conjuntos` com `id`, `rotulo` e `membros`; as marcas da tela, `substitui`
+  e `retirados`, não vão ao motor); a soma das contagens e das populações, com possível dupla contagem e a ressalva; o anel e o
+  rótulo do grupo no gráfico; a Comparar (a gaveta e a marcação pelas bolhas com ela aberta); na Análise Espacial, o grupo sem
+  distância; o pedido da conversa continua `funcao: "juntar"` (nome interno); nada novo vai ao provedor de IA.
+- **Motivo:** comando do responsável de 06/11/2026, item 5 (decisão 3 do comando).
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO_INTERFACE.md` (as ferramentas da Seleção, Agregar territórios, "Na análise", Funções,
+    Desfazer, Detalhes e testes), `Docs/CONVERSACAO_INCREMENTO_FN.md` (comparar e agregar; a orientação),
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (a agregação escolhida), `Docs/MAPA_DA_PAGINA_UNICA.md` (o clique com a
+    Comparar) e o `README.md`.
+  - **Testes novos:** `frontend/tests/painel.test.mjs` ("Agregar territórios …": `baseSemUnidades`, `baseComUnidades` e
+    `membrosNaSelecao`; a agregação sem nomes e o limite), `frontend/tests/conversaGrafico.test.mjs` (o nome do grupo no pedido),
+    `backend/tests/test_conversa_grafico.py` ("agregue Manaus e Tefé como Médio Solimões") e o passo 14 de
+    `backend/tests/ui_navegacao.py` (o aceite com a base versionada: "Pará · 142 de 144 municípios", Carajás com 894 médicos e
+    1,52 por mil e a ressalva, no lugar das duas no gráfico; o ✎ com MACAPA (AP) e "Brasil › Seleção"; o × que devolve só o
+    Pará; a busca da tabela; "agregue Marabá e Parauapebas como Carajás" com o selo).
+  - **Testes que mudam de propósito:** `test_conversa_grafico.py` (o "junte" responde "Agreguei …, no lugar deles"),
+    `painel.test.mjs` (o juntar da conversa: "Grupo 1", no lugar dos membros, com `retirados`, sem gaveta; o que vai ao motor sem
+    as marcas da tela), `conversaGrafico.test.mjs` e `ui_planilha_ficticia.py` (a orientação diz "comparar, agregar"),
+    `test_contexto_conversa.py` (Agregar territórios entre as funções da página, sem o Juntar) e `ui_area_de_analise.py` (o passo
+    12: o Juntar fora das Ferramentas, o grupo criado na Seleção pela busca e pela lista do estado, a linha em "Na análise" e a
+    busca na tabela; a descrição e o resumo final). As listas dos verbos que só aparecem com a confirmação (`AFIRMA_EXECUCAO`, em
+    `conversaGrafico.test.mjs` e `ui_execucao_conversa.py`) ganham "Agreguei": ficam mais estritas.
+
 ### 2026-11-06 · Os estados em tela estreita (etapa 6 do comando, item 7): a lista na ordem do motor e, nas bolhas, os nomes só dos destaques
 - **Classificação (regra 1), pela leitura, antes de codar:** item 7 do comando de 06/11/2026, classificado de uma vez com os demais
   (entrada da navegação por níveis, abaixo). A ordem da lista foi consultada e aprovada na mesma data: **"Ordem do motor"**

@@ -833,10 +833,37 @@ test('comando da conversa aplicado ao gráfico: cada campo validado; o que não 
   assert.deepEqual(compara.definicao.comparar, ['code:130260', 'code:130420']);
   assert.equal(compara.abrir, 'comparar');
   assert.deepEqual(compara.selecao, ['code:130260', 'code:130420']);
+  // Desde 06/11/2026 (item 5 do comando de navegação por níveis, Agregar territórios; muda de propósito este teste), o grupo da
+  // conversa leva o nome pedido (sem ele, "Grupo N"), fica no lugar dos membros e não abre gaveta (antes, o rótulo eram os nomes
+  // dos membros, eles ficavam ao lado, e a gaveta Juntar abria).
   const junta = M.aplicarPedido(def, {funcao: 'juntar', selecao: ['code:130260', 'code:130420', 'code:130340']}, c);
-  assert.deepEqual(junta.definicao.conjuntos, [{id: 'c1', rotulo: 'MANAUS (AM), TEFE (AM), PARINTINS (AM)', membros: ['code:130260', 'code:130420', 'code:130340']}]);
+  // Vendo por estado, sem municípios na seleção, nenhum membro sai dela (retirados vazio).
+  assert.deepEqual(junta.definicao.conjuntos, [{id: 'c1', rotulo: 'Grupo 1', membros: ['code:130260', 'code:130420', 'code:130340'],
+    substitui: true, retirados: []}]);
   assert.deepEqual(junta.selecao, ['c1']);
   assert.equal(junta.definicao.nivel, 'municipios');
+  assert.equal(junta.abrir, null);
+  // Com o nome e com o Amazonas na seleção: os membros saem dela, pela mesma exclusão da árvore.
+  const am = definicao({nivel: 'municipios', base: {todos: false, estados: ['13'], ids: []}});
+  const nomeado = M.aplicarPedido(am, {funcao: 'juntar', selecao: ['code:130260', 'code:130420'], nomeDoGrupo: 'Médio Solimões'},
+    {...c, unidadesDoGrupo: g => g === '13' ? ['code:130260', 'code:130340', 'code:130420'] : [], todosOsEstados: ['13', '35']});
+  assert.equal(nomeado.definicao.conjuntos[0].rotulo, 'Médio Solimões');
+  assert.deepEqual(nomeado.definicao.base, {todos: false, estados: [], ids: ['code:130340']});
+  // O grupo guarda os membros que saíram da seleção: só eles voltam ao desfazê-lo.
+  assert.deepEqual(nomeado.definicao.conjuntos[0].retirados, ['code:130260', 'code:130420']);
+  // O que vai ao motor: o conjunto sem as marcas da tela.
+  assert.deepEqual(M.montarOpcoes(nomeado.definicao, 'distribuicao').conjuntos,
+    [{id: 'c1', rotulo: 'Médio Solimões', membros: ['code:130260', 'code:130420']}]);
+  // A agregação sem nomes (uma alternativa escolhida na conversa) abria a gaveta Juntar, que saiu: a resposta diz o caminho, e
+  // nada muda. Sem lugar para um grupo novo, o limite é dito.
+  const semNomes = M.aplicarPedido(def, {funcao: 'juntar'}, c);
+  assert.ok(semNomes.mensagens.includes('Para agregar, use Agregar territórios, na Seleção de Territórios, ou diga os nomes no pedido.'),
+    semNomes.mensagens);
+  assert.deepEqual([semNomes.definicao.conjuntos, semNomes.abrir], [[], null]);
+  const cheios = Array.from({length: M.MAX_CONJUNTOS}, (_, i) => ({id: 'c' + (i + 1), rotulo: 'G' + (i + 1), membros: ['code:130260', 'code:130420']}));
+  const semLugar = M.aplicarPedido({...def, conjuntos: cheios}, {funcao: 'juntar', selecao: ['code:130260', 'code:130340']}, c);
+  assert.ok(semLugar.mensagens.includes(M.TEXTO_MAX_GRUPOS), semLugar.mensagens);
+  assert.equal(semLugar.definicao.conjuntos.length, M.MAX_CONJUNTOS);
   const ordena = M.aplicarPedido(def, {ordenar: {atributo: 'densidade', ordem: 'desc', primeiros: 5}}, c);
   assert.deepEqual(ordena.definicao.ordenar, {atributo: 'densidade', ordem: 'desc', primeiros: 5});
   assert.equal(ordena.abrir, 'ordenar');
@@ -1234,4 +1261,21 @@ test('rótulos das bolhas (05/11/2026): sem lugar dos dois lados, o nome fica ce
   assert.equal(M.posicionarRotulos([{id: 'b', x: 60, y: 100, r: 6, largura: 80}], 244, 16, 52).get('b').ancora, 'start');
   assert.equal(M.posicionarRotulos([{id: 'c', x: 230, y: 100, r: 6, largura: 80}], 244, 16, 52).get('c').ancora, 'end');
   assert.equal(M.posicionarRotulos([{id: 'd', x: 150, y: 100, r: 6, largura: 170}], 244).get('d').ancora, 'end');
+});
+
+test('Agregar territórios (06/11/2026, item 5): os membros saem da seleção e voltam ao desfazer, pela exclusão da árvore', () => {
+  const c = {grupoDe: id => id.slice(5, 7), todosOsGrupos: ['13', '15'],
+    unidadesDoGrupo: g => ({'15': ['code:150001', 'code:150002', 'code:150003'], '13': ['code:130001']})[g] ?? []};
+  const para = {todos: false, estados: ['15'], ids: []};
+  const sem = M.baseSemUnidades(para, ['code:150001', 'code:150002'], c);
+  assert.deepEqual(sem, {todos: false, estados: [], ids: ['code:150003']});
+  assert.deepEqual(M.baseComUnidades(sem, ['code:150001', 'code:150002'], c), para);  // de volta ao estado inteiro
+  // Um membro fora da seleção fica como está, e não conta entre os que saem dela (nem volta a ela ao desfazer o grupo).
+  assert.deepEqual(M.baseSemUnidades(para, ['code:130001'], c), para);
+  assert.deepEqual(M.membrosNaSelecao(para, ['code:150001', 'code:130001', 'code:150003'], c.grupoDe), ['code:150001', 'code:150003']);
+  assert.deepEqual(M.membrosNaSelecao({todos: false, estados: [], ids: ['code:130001']}, ['code:150001', 'code:130001'], c.grupoDe),
+    ['code:130001']);
+  // O Brasil inteiro sem um do Pará: os outros estados inteiros e o resto do Pará.
+  assert.deepEqual(M.baseSemUnidades({todos: true, estados: [], ids: []}, ['code:150001'], c),
+    {todos: false, estados: ['13'], ids: ['code:150002', 'code:150003']});
 });

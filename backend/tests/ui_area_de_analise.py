@@ -6,8 +6,11 @@ permite, com o motivo; os totais individualizados), os estados em bolhas e a bol
 vertical do indicador com o arranjo
 horizontal, a dica no mouse e no foco, Quantidade (com os quintis do mapa no pedido, a troca pede ao motor; a volta vem da
 memória da tela), a régua que só esconde, grupos por posição, a análise espacial com a Escolha dos territórios, a tendência, a
-rotatividade com o motivo, Condições, Ordenar, Comparar, Juntar, Limpar filtros, Exportar (CSV em precisão integral), os
-Detalhes e o celular (abas roláveis e o botão Ferramentas).
+rotatividade com o motivo, Condições, Ordenar, Comparar, Limpar filtros, Exportar (CSV em precisão integral), os Detalhes (com
+a busca na tabela) e o celular (abas roláveis e o botão Ferramentas). Desde 06/11/2026 (item 5 do comando de navegação por
+níveis), o Juntar saiu das Ferramentas das análises: o grupo é criado em "Agregar territórios", na Seleção (a busca e a lista de
+um estado para marcar, o nome, "O grupo fica no lugar dos membros"), e entra em "Na análise" com a marca "grupo", os números do
+motor e a ressalva da soma.
 
 Desde 23/10/2026 (pedido integrado): uma linha de abas com a Seleção de Territórios primeiro e as quatro análises com os nomes
 padronizados (Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de Rotatividade); a lista de territórios
@@ -23,7 +26,7 @@ quando não há o que desfazer) e Limpar seleção (`analise-limpar-selecao`, a 
 sem apagar os dados; antes, só a do nível em uso); a lista de um estado aberta no lugar, com o botão que a fecha (até 05/11/2026,
 "Voltar aos estados"); a Seleção em duas áreas (à esquerda, a busca e a
 lista; à direita, o que entra na análise, estado a estado, com o × de cada município e de cada estado); as abas das análises só
-com o nome; Comparar e Juntar sem os cartões de valores, com a orientação e os
+com o nome; Comparar (e, até 06/11/2026, Juntar) sem os cartões de valores, com a orientação e os
 escolhidos; na tendência, "Entenda esta análise" recolhido, o período Anual (ou o único ritmo da base) e o Gráfico ao abrir, os
 ajustes no alto, o desenho em destaque e a explicação à direita, com a divisória ajustável (mouse e teclado, com limites); a
 coluna "Tendência" (sem "Classe (do motor)") e nenhum "motor" nos textos da área; as visões Tendência, Trajetória (com os
@@ -1506,7 +1509,7 @@ def main():
         page.wait_for_timeout(400)
         assert len(painel_calls) == calls, "a análise que não se executa com estes dados não pede nada ao motor"
 
-        # 12. Funções na distribuição: Condições, Ordenar, Comparar e Juntar, com os números do motor.
+        # 12. Funções na distribuição: Condições, Ordenar e Comparar, com os números do motor; depois, Agregar territórios, na Seleção.
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         drawn(ids_am)
         densidades = sorted(item["densidade"] for item in am["itens"] if item["densidade"] is not None)
@@ -1625,27 +1628,53 @@ def main():
         # A bolha ativa (com a dica, sob o mouse ou o foco) fica inteira enquanto está ativa.
         assert all(opacidade == ("1" if marca == "true" else "0.25") for _, marca, opacidade, ativa in destaque if not ativa), destaque
         fecha()
-        # Juntar: a mesma forma, com os escolhidos em etiquetas, cada uma com o ×.
-        juntar = abre("juntar").get_by_test_id("analise-juntar")
-        expect(area.get_by_test_id("analise-painel").locator("#analise-painel-titulo")).to_have_text("Juntar")
-        expect(juntar.get_by_test_id("analise-juntar-orientacao")).to_contain_text("Escolha dois ou mais municípios")
-        expect(juntar.get_by_test_id("analise-juntar-item")).to_have_count(2)
-        expect(juntar.locator("article, dl")).to_have_count(0)
-        juntar.get_by_test_id("analise-juntar-nome").fill("Capital e Tefé")
-        junto, sent = ok(lambda: aperta(juntar.get_by_test_id("analise-juntar-criar")))
+        # Agregar territórios (06/11/2026, item 5 do comando de navegação por níveis; muda de propósito este trecho, que
+        # conferia a gaveta Juntar das Ferramentas): o Juntar saiu das Ferramentas das análises; o grupo é criado no painel da
+        # Seleção de Territórios, com a busca, as etiquetas, o nome e "O grupo fica no lugar dos membros" (marcada).
+        expect(area.get_by_test_id("analise-funcao-juntar")).to_have_count(0)
+        aba_selecao()
+        aperta(territorios.get_by_test_id("analise-agregar-abrir"))
+        agregar = territorios.get_by_test_id("analise-agregar")
+        expect(agregar).to_be_visible()
+        expect(agregar.get_by_test_id("analise-agregar-nome")).to_have_value("Grupo 1")
+        expect(agregar.get_by_test_id("analise-agregar-substitui")).to_be_checked()
+        expect(agregar.get_by_test_id("analise-agregar-criar")).to_be_disabled()
+        # Digitar e marcar (a busca, com o estado de cada resultado) ou marcar na lista de um estado (a árvore do painel).
+        agregar.get_by_test_id("analise-agregar-busca").fill("Manaus")
+        resultado_manaus = agregar.locator('[data-testid="analise-agregar-resultado"][data-id="' + MANAUS + '"]')
+        expect(resultado_manaus).to_contain_text("Amazonas")
+        marca(resultado_manaus.locator("input"))
+        agregar.get_by_test_id("analise-agregar-grupo").select_option(AM)
+        marca(agregar.locator('[data-testid="analise-agregar-unidade"][data-id="' + TEFE + '"] input'))
+        expect(agregar.locator('[data-testid="analise-agregar-unidade"][data-id="' + MANAUS + '"] input')).to_be_checked()
+        expect(agregar.get_by_test_id("analise-agregar-membro")).to_have_count(2)
+        expect(agregar.get_by_test_id("analise-agregar-criar")).to_be_enabled()
+        agregar.get_by_test_id("analise-agregar-nome").fill("Capital e Tefé")
+        junto, sent = ok(lambda: aperta(agregar.get_by_test_id("analise-agregar-criar")))
         assert sent["conjuntos"] == [{"id": "c1", "rotulo": "Capital e Tefé", "membros": [MANAUS, TEFE]}], sent
+        base_sem = sent["base"]["municipios"]
+        assert MANAUS not in base_sem["ids"] and TEFE not in base_sem["ids"] and AM not in base_sem["estados"], sent["base"]
         conjunto = next(item for item in junto["itens"] if item["id"] == "c1")
         assert conjunto["tipo"] == "conjunto" and conjunto["contagem"] == "SOMA_DOS_COMPONENTES"
+        assert not any(item["id"] in (MANAUS, TEFE) for item in junto["itens"]), "o grupo fica no lugar dos membros"
+        # Em "Na análise": o grupo, com o número de unidades, os profissionais e a densidade do motor, e a ressalva da soma.
+        linha_grupo = territorios.locator('[data-testid="analise-selecionado-conjunto"][data-id="c1"]')
+        expect(linha_grupo.get_by_test_id("analise-selecionado-conjunto-texto")).to_contain_text("Capital e Tefé · grupo · 2 municípios")
+        if conjunto.get("quantidade") is not None:
+            expect(linha_grupo).to_contain_text(milhar(conjunto["quantidade"]) + " médicos")
+        expect(territorios.get_by_test_id("analise-selecionado-ressalva")).to_contain_text("contabilizados mais de uma vez")
+        expect(linha_grupo.get_by_test_id("analise-selecionado-conjunto-editar")).to_be_visible()
+        aba_analise("distribuicao")
         drawn(esperados(junto))
         expect(area.locator('[data-testid="analise-bolha"][data-id="c1"]')).to_have_attribute("data-tipo", "conjunto")
         expect(area.get_by_test_id("analise-simbolos")).to_contain_text("possível dupla contagem")
-        fecha()
-        # O conjunto aparece na lista da direita da Seleção, com o × que o desfaz.
-        aba_selecao()
-        expect(territorios.locator('[data-testid="analise-selecionado-conjunto"][data-id="c1"]')).to_contain_text("Capital e Tefé")
-        aba_analise("distribuicao")
         aperta(area.get_by_test_id("analise-detalhes-tabela"))
         expect(area.locator('[data-testid="analise-linha"][data-id="c1"]')).to_contain_text("soma das contagens dos componentes")
+        # A busca na tabela dos Detalhes só filtra as linhas pelo nome.
+        busca_tabela = area.get_by_test_id("analise-tabela-busca")
+        busca_tabela.fill("Capital")
+        expect(area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")).to_have_count(1)
+        busca_tabela.fill("")
         aperta(area.get_by_test_id("analise-detalhes-metodo"))
         expect(area.locator('[data-limitacao="SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"]')).to_contain_text("possível dupla contagem")
         shot("10-funcoes")
@@ -1887,8 +1916,8 @@ def main():
           "indicador, quintis do mapa no "
           "pedido, régua, grupos, análise espacial (a Escolha dos territórios, também sem territórios, quando o motor oferece a "
           "distância, ou o motivo: veja as notas), tendência com o Período anual e o Gráfico ao abrir, a explicação ao lado com a "
-          "divisória, as visões Tendência, Trajetória e Série temporal, rotatividade com o motivo, funções (Comparar e Juntar sem "
-          "cartões), exportação, nenhum \"motor\" nos textos e celular" +
+          "divisória, as visões Tendência, Trajetória e Série temporal, rotatividade com o motivo, funções (Comparar sem "
+          "cartões), Agregar territórios na Seleção (o grupo no lugar dos membros) e a busca na tabela, exportação, nenhum \"motor\" nos textos e celular" +
           (" (base versionada)." if real else " (catálogo sintético)."))
 
 

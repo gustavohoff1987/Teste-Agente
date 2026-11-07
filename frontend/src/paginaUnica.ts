@@ -50,6 +50,8 @@ export type PedidoDoChat = {
   /** O destaque pedido pela resposta de valor (06/11/2026, item 4.2): os lugares citados, em destaque no gráfico em uso. Estado
    * visual: nada é recalculado. */
   destacar?: { ids: string[] } | null;
+  /** O nome do grupo pedido na conversa (06/11/2026, item 5: "agregue Marabá e Parauapebas como Carajás"). */
+  nomeDoGrupo?: string | null;
   /** A Escolha dos territórios completa pedida na conversa (28/10/2026), que a área confere campo a campo. */
   consulta?: object | null;
 };

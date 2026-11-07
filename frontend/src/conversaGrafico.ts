@@ -176,6 +176,9 @@ export function pedidoDoPainel(painel: unknown): PedidoDoChat | null {
   // A Escolha dos territórios pedida na conversa (28/10/2026): a área a confere campo a campo (painelModel.lerConsulta).
   const consulta = objeto(p.consulta);
   if (consulta) pedido.consulta = consulta;
+  // O nome do grupo de Agregar territórios (06/11/2026, item 5), com o pedido de agregar.
+  if (pedido.funcao === "juntar" && typeof p.nome_do_grupo === "string" && p.nome_do_grupo.trim())
+    pedido.nomeDoGrupo = p.nome_do_grupo.trim().slice(0, 60);
   return Object.keys(pedido).length ? pedido : null;
 }
 
@@ -301,7 +304,7 @@ export function guiaDaConversa(fonte: EtapaDaFonte, contexto: ContextoDoGrafico 
     // território" (29/10/2026).
     const grupo = rotulos?.grupo && rotulos.grupo.singular.trim().toLowerCase() !== rotulos.unidade.singular.trim().toLowerCase()
       ? rotulos.grupo : null;
-    return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, juntar, usar como referência" +
+    return "Peça mudanças no gráfico citando " + unidades + " pelo nome: comparar, agregar, usar como referência" +
       (grupo && grupos ? " ou mostrar " + (rotulos && feminino(rotulos.unidade) ? "as " : "os ") + unidades + " de " +
         (feminino(grupo) ? "uma " : "um ") + grupo.singular : "") + ".";
   }

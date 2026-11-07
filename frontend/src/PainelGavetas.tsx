@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileText, Plus, Printer, Trash2, X } from "lucide-react";
 import type {
-  AtributoCondicao, AtributoOrdenacao, CondicaoPedido, OperadorCondicao, OrdenarPedido, PainelConjuntoPedido, PainelIndicador, PainelItem,
+  AtributoCondicao, AtributoOrdenacao, CondicaoPedido, OperadorCondicao, OrdenarPedido, PainelIndicador, PainelItem,
   PainelOrdem, PainelResposta, SituacaoCondicao,
 } from "./painelApi";
 import {
-  ATRIBUTOS, MAX_CONJUNTOS, OPERADORES, ORDENS, RESSALVA_DA_SOMA, SIMBOLOS, artigo, formatarIndicador, formatarNumero, formatarVariacao, generoDe,
-  maiuscula, numero, ordemNeutra, quantos, variacaoDe, type RotulosTerritoriais,
+  ATRIBUTOS, OPERADORES, ORDENS, SIMBOLOS, artigo, formatarIndicador, formatarNumero, formatarVariacao, maiuscula, numero, ordemNeutra, variacaoDe, type RotulosTerritoriais,
 } from "./painelModel";
 
 // Painéis laterais das funções e das opções das análises. Os valores, as posições, as contagens e as comparações vêm do motor;
@@ -184,7 +183,7 @@ export function GavetaComparar(p: CompararProps) {
       <li><button type="button" onClick={p.onLimpar} className="analise-link text-xs">Limpar a escolha</button></li>
     </ul> : <p className="text-xs text-slate-600">Nenhum item escolhido.</p>}
     {faltam > 0 && <p className="text-xs text-slate-600">Falta{faltam > 1 ? "m" : ""} {faltam === 1 ? "um item" : "dois itens"} para comparar.</p>}
-    {escolhidos.length > 3 && <p className="text-xs text-amber-900">Para comparar lado a lado, deixe até três itens. Com mais, use Juntar.</p>}
+    {escolhidos.length > 3 && <p className="text-xs text-amber-900">Para comparar lado a lado, deixe até três itens. Para somar mais, use Agregar territórios, na Seleção.</p>}
     <button type="button" data-testid="analise-comparar-calcular" className="analise-botao-primario"
       disabled={escolhidos.length < 2 || escolhidos.length > 3 || atual} onClick={() => p.onComparar(escolhidos.map(item => item.id))}>
       {atual ? "Comparação em exibição" : "Comparar"}</button>
@@ -201,50 +200,6 @@ export function GavetaComparar(p: CompararProps) {
       </div>)}
       {comparacao.textos.map(texto => <p key={texto} className="text-slate-600">{texto}</p>)}
     </section>}
-  </section>;
-}
-
-// ------------------------------------------------------------------------------------------------ juntar
-type JuntarProps = { itens: PainelItem[]; selecionados: string[]; conjuntos: PainelConjuntoPedido[]; rotulos: RotulosTerritoriais;
-  nivelGrupos: boolean; onJuntar: (rotulo: string) => void; onDesfazer: (id: string) => void; onAlternar: (id: string) => void };
-/** Juntar (CAP-AGR-01): as unidades escolhidas viram uma bolha agregada pelo motor, com a soma das contagens dos componentes e
- * possível dupla contagem (RQ-REP-14). Estados e municípios nunca se somam: na visão dos grupos, Juntar fica desligado. Desde
- * 24/10/2026, a escolha aparece como no Comparar: a orientação e as etiquetas dos escolhidos, cada uma com o ×. */
-export function GavetaJuntar(p: JuntarProps) {
-  const [nome, setNome] = useState("");
-  const unidades = p.selecionados.map(id => p.itens.find(item => item.id === id)).filter((item): item is PainelItem => !!item && item.tipo === "municipio");
-  const unidade = p.rotulos.unidade;
-  return <section data-testid="analise-juntar" aria-label="Juntar" className="space-y-3">
-    <p data-testid="analise-juntar-orientacao" className="text-xs leading-5 text-slate-600">Escolha {generoDe(unidade) === "f" ? "duas" : "dois"} ou mais{" "}
-      {unidade.plural}: clique nas bolhas do gráfico ou marque a caixa na tabela dos Detalhes. Juntar faz uma bolha só, com a soma das
-      populações e das contagens dos membros (soma das contagens dos componentes, com possível dupla contagem).</p>
-    <p data-testid="analise-juntar-ressalva" className="analise-ressalva">{RESSALVA_DA_SOMA}</p>
-    {p.nivelGrupos ? <p className="text-xs text-amber-900">Na visão dos {(p.rotulos.grupo?.plural || "grupos")}, Juntar fica desligado: {p.rotulos.grupo?.plural || "grupos"} e{" "}
-      {unidade.plural} nunca se somam aqui. Abra {unidade.plural} para juntar.</p> : <>
-      {unidades.length ? <ul className="flex flex-wrap gap-1.5" aria-label="Escolhidos para juntar">
-        {unidades.map(item => <li key={item.id} data-testid="analise-juntar-item" data-id={item.id} className="analise-etiqueta">
-          {item.rotulo}
-          <button type="button" aria-label={"Tirar " + item.rotulo} onClick={() => p.onAlternar(item.id)} className="analise-icone"><X size={13} aria-hidden="true"/></button>
-        </li>)}
-      </ul> : <p className="text-xs text-slate-600">Nenhum escolhido.</p>}
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="analise-rotulo-campo min-w-[12rem] flex-1">Nome do conjunto
-          <input data-testid="analise-juntar-nome" value={nome} onChange={event => setNome(event.target.value)} maxLength={60}
-            placeholder={"Conjunto " + (p.conjuntos.length + 1)} className="analise-campo"/>
-        </label>
-        <button type="button" data-testid="analise-juntar-criar" disabled={unidades.length < 2 || p.conjuntos.length >= MAX_CONJUNTOS}
-          onClick={() => { p.onJuntar(nome); setNome(""); }} className="analise-botao-primario">Juntar escolhidos</button>
-      </div>
-    </>}
-    {p.conjuntos.length >= MAX_CONJUNTOS && <p className="text-[12px] text-amber-900">O gráfico aceita até {MAX_CONJUNTOS} conjuntos.</p>}
-    {p.conjuntos.length > 0 && <ul className="space-y-1" aria-label="Conjuntos">
-      {p.conjuntos.map(conjunto => <li key={conjunto.id} data-testid="analise-conjunto" data-id={conjunto.id}
-        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs">
-        <span className="min-w-0"><strong className="text-ink">{conjunto.rotulo}</strong> · {quantos(conjunto.membros.length, unidade)} · soma das contagens dos
-          componentes, com possível dupla contagem</span>
-        <button type="button" onClick={() => p.onDesfazer(conjunto.id)} className="analise-link">Desfazer</button>
-      </li>)}
-    </ul>}
   </section>;
 }
 

@@ -514,6 +514,32 @@ button.analise-trilha-parte:hover { background: var(--cor-realce-destaque); }
 .analise-cartao-grupo, .analise-cartao-todo { opacity: .55; }
 .analise-cartao-valor { color: var(--cor-tinta); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .analise-cartao-distancia { margin: 0; color: var(--cor-tinta); font-size: 15px; }
+/* Agregar territórios (06/11/2026, item 5 do comando): as ferramentas da Seleção, o painel (busca, resultados, etiquetas, nome,
+   opção e ações) e os grupos em "Na análise", com os números do motor e a ressalva da soma. */
+.analise-selecao-ferramentas { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.analise-selecao-ferramentas .analise-botao-secundario { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.analise-agregar { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; padding: 12px; border: 1px solid var(--cor-borda-cartao);
+  border-radius: 12px; background: var(--cor-superficie-elevada); }
+.analise-agregar-titulo { margin: 0; color: var(--cor-tinta); font-size: 15px; font-weight: 700; }
+.analise-agregar-apoio { margin: 0; color: var(--cor-texto-apoio); font-size: 13px; line-height: 1.45; }
+.analise-agregar-resultados, .analise-agregar-lista { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+/* A lista de um estado (a árvore do painel): rola dentro da caixa, para o restante do painel ficar à vista. */
+.analise-agregar-lista { max-height: 14rem; overflow-y: auto; padding: 4px; border: 1px solid var(--cor-borda-suave); border-radius: 8px; }
+.analise-agregar-caixa { min-height: 36px; font-size: 14px; }
+.analise-agregar-grupo-do-item { color: var(--cor-texto-apoio); }
+.analise-agregar-rotulo { margin: 4px 0 0; color: var(--cor-texto-apoio); font-size: 13px; }
+.analise-agregar-ver-lista { align-self: flex-start; min-height: 36px; }
+.analise-agregar-opcao { font-size: 14px; }
+.analise-agregar-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.analise-grupos-agregados { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.analise-grupo-agregado { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--cor-texto); font-size: 14px; }
+.analise-grupo-agregado-acoes { display: inline-flex; flex-shrink: 0; gap: 2px; }
+.analise-marca-grupo { display: inline-block; padding: 0 8px; border: 1px solid var(--cor-borda-cartao); border-radius: 999px;
+  color: var(--cor-texto-apoio); font-size: 12px; line-height: 1.5; }
+/* Em "Na análise", os marcados de um estado em parte (por exemplo, os 142 do Pará sem os membros de um grupo) rolam numa caixa
+   baixa: o que vem abaixo, como os grupos, continua à vista. */
+.analise-selecionados-lista .analise-selecionado-unidades { max-height: 9.5rem; overflow-y: auto; }
+.analise-tabela-busca { display: block; max-width: 22rem; margin: 8px 0 0; }
 /* A lista dos grupos em tela estreita (06/11/2026, item 7 do comando): uma linha por estado, na ordem do motor, com a sigla, o ponto
    na escala do indicador, a marca do todo e o valor; a linha inteira é o alvo do toque (40 px). */
 .analise-lista-grupos { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
