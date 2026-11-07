@@ -1298,8 +1298,9 @@ test('dois níveis de grupo: os grupos de cima, o Ver por "Região | Distrito | 
   assert.deepEqual(opcoes(escolhaDaTrilha('municipios')), tres);  // nada escolhido
   assert.deepEqual(opcoes(escolhaDaTrilha('municipios', ['Braga', 'Porto', 'Beja'])).map(([nivel]) => nivel), ['estados', 'municipios'],
     'distritos que não fecham as regiões: sem a região');
-  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', ['Braga', 'Porto'])).map(([nivel]) => nivel), ['regioes', 'estados', 'municipios'],
-    'o Norte inteiro (os distritos dele): também a região');
+  // O Norte inteiro (os distritos dele) é o lugar em uso na trilha (a parte C2): o Ver por dentro dele tem o distrito e o concelho.
+  assert.deepEqual(opcoes(escolhaDaTrilha('municipios', ['Braga', 'Porto'])).map(([nivel]) => nivel), ['estados', 'municipios'],
+    'o Norte inteiro: o lugar é a região, e o Ver por fica abaixo dela');
   assert.deepEqual(M.opcoesVerPor(M.lugarDaTrilha(escolhaDaTrilha('municipios', [], [], true), trilha), escolhaDaTrilha('municipios', [], [], true),
     {...c, comRegioes: false}).map(opcao => opcao.nivel), ['estados', 'municipios'], 'sem o nível no motor, as duas opções de antes');
   // A escolha do nível de cima: sem nada marcado, todas as regiões; com o Norte inteiro (Braga e Porto), o Norte; com distritos que não

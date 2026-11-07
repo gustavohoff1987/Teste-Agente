@@ -145,6 +145,11 @@ export function exibirCompetencia(valor: string | null | undefined): string {
   if (!valor) return "";
   return ehAaaamm(valor) ? valor.slice(4) + "/" + valor.slice(0, 4) : valor;
 }
+/** Competência curta ("jun/2024"), como no resumo da fonte e na trilha da seleção por critérios (07/11/2026). */
+export function competenciaAbreviada(valor: string | null | undefined): string {
+  if (!valor) return "";
+  return ehAaaamm(valor) ? MESES[Number(valor.slice(4)) - 1].slice(0, 3) + "/" + valor.slice(0, 4) : valor;
+}
 /** Competência por extenso ("junho de 2024"), como no título. */
 export function competenciaPorExtenso(valor: string | null | undefined): string {
   if (!valor) return "";
@@ -1792,6 +1797,9 @@ export type DefinicaoAnalise = {
   consulta: ConsultaTerritorios | null; faixasDistancia: number[];
   janela: string[]; visao: Visao; agrupar: Agrupar; condicoes: CondicaoPedido[]; ordenar: OrdenarPedido | null;
   comparar: string[]; rotatividade: { inicial: string; final: string } | null; premissas: Premissas;
+  /** A regra de "Selecionar por critérios" (07/11/2026, item 6 do comando) que produziu a seleção em uso: vale enquanto a seleção
+   * for a que ela produziu (a trilha, o método e os Detalhes a mostram). */
+  regra?: RegraDaSelecao | null;
   /** Intervalo da Série temporal (24/10/2026): as competências escolhidas, em ordem; vazio = a extensão inteira da base (do
    * primeiro ao último período que ela tem, lidos dos dados a cada pedido). */
   serie?: string[];
@@ -2341,7 +2349,22 @@ export type LugarDaTrilha = {
   regiaoInteira?: boolean;
   partes: ParteDaTrilha[];
 };
+/** A regra de "Selecionar por critérios" (07/11/2026, item 6 do comando): o texto do motor ("densidade abaixo de 0,5"), a
+ * competência dos critérios, quantos entraram e a seleção que ela produziu (a base e os grupos agregados), para conferir se a
+ * seleção em uso ainda é a dela; e o pedido, para "Reaplicar em outra competência". */
+export type RegraDaSelecao = { texto: string; competencia: string; total: number; base: PainelMunicipios; conjuntos: string[];
+  pedido: { criterios: object; agrupar: object | null } };
+/** "densidade abaixo de 0,5 em jun/2024 (89)": a regra na trilha, no método e nos Detalhes. */
+export const textoDaRegra = (regra: Pick<RegraDaSelecao, "texto" | "competencia" | "total">) =>
+  regra.texto + " em " + competenciaAbreviada(regra.competencia) + " (" + inteiro.format(regra.total) + ")";
+/** A seleção em uso ainda é a que a regra produziu (a mesma base e os mesmos grupos agregados)? */
+export function regraConfere(regra: RegraDaSelecao | null | undefined, def: Pick<DefinicaoAnalise, "nivel" | "base" | "conjuntos">): boolean {
+  return !!regra && def.nivel === "municipios" && JSON.stringify(def.base) === JSON.stringify(regra.base) &&
+    def.conjuntos.map(conjunto => conjunto.id).join("|") === regra.conjuntos.join("|");
+}
 export type ContextoDaTrilha = { arvore: ContextoDaArvore; nomeDoTodo: string; nomes: Map<string, string>;
+  /** A regra da seleção por critérios em uso (07/11/2026): a parte da seleção diz a regra. */
+  regra?: RegraDaSelecao | null;
   /** Na base do Brasil, os estados como grupos da trilha; numa planilha sem a coluna-mãe, nenhum. */
   comGrupos: boolean };
 export const NOME_DA_SELECAO = "Seleção";
@@ -2390,6 +2413,8 @@ export function lugarDaTrilha(def: Pick<DefinicaoAnalise, "nivel" | "base" | "es
     return def.estados.length ? fim("selecao", [todo, selecao]) : fim("nenhum", [todo]);
   }
   const n = normalizarArvore(def.base, c.arvore);
+  // A seleção por critérios (07/11/2026, item 6 do comando): "Brasil › Seleção: densidade abaixo de 0,5 em jun/2024 (89)".
+  if (regraConfere(c.regra, def)) return fim("selecao", [todo, { ...selecao, rotulo: NOME_DA_SELECAO + ": " + textoDaRegra(c.regra!) }]);
   if (n.todos) return fim("todo", [todo]);
   if (baseVazia(n) && !def.conjuntos.length) return fim("nenhum", [todo]);
   if (!c.comGrupos) {

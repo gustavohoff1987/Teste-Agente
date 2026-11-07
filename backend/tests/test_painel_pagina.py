@@ -1124,10 +1124,12 @@ def test_dois_niveis_de_grupo_numa_planilha_a_regiao_pelas_unidades(repo):
         "uf:Macro Oeste"]
     refused(upload({**pedido, "estados": ["Macro Norte"]}, mapping=mapping, contents=macro_csv(macros)),
             "Macrorregiões inexistentes na planilha")
-    # A Tendência no nível de cima, pelas mesmas somas em cada competência.
+    # A Tendência e a Série no nível de cima, pelas mesmas somas em cada competência.
     tendencia = ok(upload({**pedido, "competencia_inicial": "2021", "tendencia": {"competencias": YEARS}}, mapping=mapping,
                           contents=macro_csv(macros)))
-    assert tendencia["tendencia"]["rotulo_itens"] == "macrorregiões"
+    assert all(item.get("tendencia") for item in tendencia["itens"]), tendencia["itens"]
+    serie = ok(upload({**pedido, "serie": {"competencias": YEARS}}, mapping=mapping, contents=macro_csv(macros)))
+    assert serie["serie"]["rotulo_itens"] == "macrorregiões"
     # No nível dos distritos e das províncias, nada muda com a coluna de cima.
     assert list(by_id(ok(upload({**pedido, "nivel": "estados"}, mapping=mapping, contents=macro_csv(macros))))) == [
         "uf:Província Norte", "uf:Província Sul"]
@@ -1535,11 +1537,11 @@ def test_total_do_todo_informado_pela_pessoa_no_lugar_da_soma(repo):
     assert (painel_["contexto"]["todo"]["origem"], painel_["contexto"]["todo"]["quantidade"]) == ("informado", 50)
     assert ok(upload({**pedido, "competencia": "2023"}, path="/api/painel/lugar"))["todo"]["origem"] == "soma"
     # Com o identificador individual em todas as linhas, as pessoas únicas, e o informado não é usado.
-    pessoas = ("distrito;provincia;ano;categoria;pessoa;populacao\n" + "".join(
+    pessoas = ("distrito;provincia;ano;categoria;id_pessoa;populacao\n" + "".join(
         distrito + ";" + provincia + ";2024;Enfermeiros;" + pessoa + ";1000\n"
         for distrito, provincia, pessoa in (("Alto Rio", "Província Norte", "p1"), ("Baixo Rio", "Província Norte", "p2"),
                                             ("Campina", "Província Sul", "p1")))).encode()
-    mapa = {"territory": "distrito", "period": "ano", "category": "categoria", "identity": "pessoa", "population": "populacao",
+    mapa = {"territory": "distrito", "period": "ano", "category": "categoria", "identity": "id_pessoa", "population": "populacao",
             "grupo_territorial": "provincia"}
     unicas = ok(upload({"competencia": "2024", "rotulos": LABELS, "total_informado": informado}, mapping=mapa, contents=pessoas,
                        name="pessoas.csv", path="/api/painel/lugar"))["todo"]

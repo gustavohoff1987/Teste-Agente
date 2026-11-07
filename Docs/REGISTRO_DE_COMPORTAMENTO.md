@@ -35,6 +35,20 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Correção do CI das partes C1, C2 e D (etapa 8 do comando, item 1): três testes novos
+- **Antes:** a execução 482 (`71b7019`) falhou em três testes escritos nas próprias partes: em `areaDeAnalise.test.mjs`, o "Ver
+  por" com o Norte inteiro esperava "Região | Distrito | Concelho"; em `test_painel_pagina.py`, o nível de cima conferia
+  `rotulo_itens` na Tendência, e o total informado usava uma coluna "pessoa" como identificador individual. Como o build parou no
+  teste Node, os roteiros de navegador não rodaram.
+- **Agora:** o comportamento do produto não muda. Conclusão do diagnóstico: os três defeitos eram dos testes. O primeiro ficou
+  desatualizado pela própria parte C2 (o Norte inteiro é o lugar em uso na trilha, e o "Ver por" dentro dele tem o distrito e
+  o concelho, como confere o teste da C2); o segundo conferia na Tendência o rótulo que é da Série temporal (agora confere a
+  Série e, na Tendência, a classe de cada item); o terceiro usava um nome de coluna que não é reconhecido como identificador
+  individual sem a escolha da pessoa (agora "id_pessoa", como no teste das pessoas únicas).
+- **Permanece:** o produto e as demais conferências.
+- **Motivo:** CI vermelho na execução 482; correção só do que falhou.
+- **Documentação e testes:** `frontend/tests/areaDeAnalise.test.mjs` e `backend/tests/test_painel_pagina.py`.
+
 ### 2026-11-07 · Nomes da base, parte D (etapa 8D do comando, item 1.4c): o total do todo informado pela pessoa, com a fonte
 - **Classificação (regra 1), pela leitura, antes de codar:** item 1.4 do comando de 06/11/2026 ("o total do todo … vêm, nesta
   ordem: (a) de pessoas únicas …; (b) senão, da soma das unidades, com a ressalva; (c) ou de um total informado pela pessoa, com

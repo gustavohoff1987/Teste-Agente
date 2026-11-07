@@ -871,3 +871,49 @@ export async function pedirMapa(fonte: FonteDoMotor, opcoes: MapaOpcoes, signal?
   return normalizarMapa(await lerResposta(response));
 }
 
+
+// ------------------------------------------------------------------------------------------------ selecionar por critérios
+/** Pedido de /api/painel/criterios (07/11/2026, item 6 do comando de 06/11/2026): onde procurar (o todo, o lugar em uso ou a
+ * seleção atual), os critérios de CAP-SUB-01 (o mesmo construtor das Condições), a distância opcional "a até X km de …" e, se a
+ * pessoa quiser, o agrupamento por proximidade em cadeia. Os valores e a distância são sempre da pessoa. */
+export type FiltroDoCriterio = { indicador: "densidade" | "quantidade" | "populacao"; operador: "<" | "<=" | ">" | ">="; valor: number };
+export type CriteriosOpcoes = { competencia: string; categoria: string; base?: { municipios: PainelMunicipios };
+  criterios: { partir_de: { tipo: "pais" | "ufs" | "regioes" | "selecao"; ufs?: string[]; regioes?: string[] }; filtros: FiltroDoCriterio[];
+    distancia?: { de: string; km: number } | null };
+  agrupar?: { km: number } | null; premissas?: Premissas; rotulos?: RotulosTerritoriais };
+export type GrupoPorProximidade = { id: string; rotulo: string; membros: string[]; gruposTerritoriais: { id: string; rotulo: string; unidades: number }[];
+  extensaoKm: number };
+export type RegraDosCriterios = { texto: string; competencia: string; partirDe: CriteriosOpcoes["criterios"]["partir_de"];
+  filtros: FiltroDoCriterio[]; distancia: { de: string; km: number } | null; agrupar: { km: number } | null };
+export type RespostaCriterios = { competencia: string; regra: RegraDosCriterios; atendem: number; ids: string[]; nomes: string[];
+  naoAvaliaveis: number; grupos: GrupoPorProximidade[] | null; isolados: string[] | null; semPosicao: string[] | null;
+  pontos: { id: string; lat: number; lon: number; grupo: string | null }[] | null; notas: string[]; limitacoes: string[] };
+const textos = (valor: unknown): string[] => lista(valor).filter((item): item is string => typeof item === "string");
+/** Resposta de /api/painel/criterios nos tipos da tela; nada é calculado aqui: os que atendem, os grupos e as extensões vêm do motor. */
+export function normalizarCriterios(bruto: unknown): RespostaCriterios {
+  const o = objeto(bruto) ?? {};
+  const regra = objeto(o.regra) ?? {};
+  const partir = objeto(regra.partir_de) ?? {};
+  const distancia = objeto(regra.distancia), agrupar = objeto(regra.agrupar);
+  const filtros = lista(regra.filtros).map(objeto).filter((f): f is Record<string, unknown> => !!f)
+    .map(f => ({ indicador: f.indicador as FiltroDoCriterio["indicador"], operador: f.operador as FiltroDoCriterio["operador"], valor: num(f.valor) ?? 0 }));
+  const grupos = Array.isArray(o.grupos) ? lista(o.grupos).map(objeto).filter((g): g is Record<string, unknown> => !!g).map(g => ({
+    id: texto(g.id) ?? "", rotulo: texto(g.rotulo) ?? "", membros: textos(g.membros), extensaoKm: num(g.extensao_km) ?? 0,
+    gruposTerritoriais: lista(g.grupos_territoriais).map(objeto).filter((t): t is Record<string, unknown> => !!t)
+      .map(t => ({ id: texto(t.id) ?? "", rotulo: texto(t.rotulo) ?? "", unidades: num(t.unidades) ?? 0 })) })) : null;
+  const pontos = Array.isArray(o.pontos) ? lista(o.pontos).map(objeto).filter((p): p is Record<string, unknown> => !!p && !!texto(p.id))
+    .map(p => ({ id: texto(p.id)!, lat: num(p.lat) ?? 0, lon: num(p.lon) ?? 0, grupo: texto(p.grupo) })) : null;
+  return { competencia: texto(o.competencia) ?? "", atendem: num(o.atendem) ?? 0, ids: textos(o.ids), nomes: textos(o.nomes),
+    naoAvaliaveis: num(o.nao_avaliaveis) ?? 0, grupos, isolados: Array.isArray(o.isolados) ? textos(o.isolados) : null,
+    semPosicao: Array.isArray(o.sem_posicao) ? textos(o.sem_posicao) : null, pontos, notas: textos(o.notas), limitacoes: textos(o.limitacoes),
+    regra: { texto: texto(regra.texto) ?? "", competencia: texto(regra.competencia) ?? "", filtros,
+      partirDe: { tipo: (texto(partir.tipo) ?? "pais") as CriteriosOpcoes["criterios"]["partir_de"]["tipo"],
+        ...(Array.isArray(partir.ufs) && partir.ufs.length ? { ufs: textos(partir.ufs) } : {}),
+        ...(Array.isArray(partir.regioes) && partir.regioes.length ? { regioes: textos(partir.regioes) } : {}) },
+      distancia: distancia && texto(distancia.de) ? { de: texto(distancia.de)!, km: num(distancia.km) ?? 0 } : null,
+      agrupar: agrupar ? { km: num(agrupar.km) ?? 0 } : null } };
+}
+export async function pedirCriterios(fonte: FonteDoMotor, opcoes: CriteriosOpcoes, signal?: AbortSignal): Promise<RespostaCriterios> {
+  const response = await buscar(fonte.apiBase + "/api/painel/criterios", { method: "POST", body: formulario(fonte, opcoes, true), signal });
+  return normalizarCriterios(await lerResposta(response));
+}
