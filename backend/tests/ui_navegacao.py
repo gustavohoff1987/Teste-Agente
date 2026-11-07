@@ -39,6 +39,7 @@ Nada é calculado na tela: os números vêm do motor. Servidor serve_ui_offline.
 import json
 import os
 import re
+import unicodedata
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -61,6 +62,11 @@ def br(valor, casas=2):
     """O número como a conversa o escreve (resumo_painel.number): casas fixas, arredondamento meio para cima, milhar com ponto."""
     arredondado = Decimal(str(valor)).quantize(Decimal(1).scaleb(-casas), rounding=ROUND_HALF_UP)
     return format(arredondado, ",f").replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def sem_acento(texto):
+    """O texto sem acentos e em minúsculas, como a busca da tabela compara os nomes."""
+    return unicodedata.normalize("NFD", texto).encode("ascii", "ignore").decode().lower()
 
 
 def js(valor):
@@ -625,7 +631,8 @@ def main():
             r"^O total corresponde à soma dos quantitativos .* podem ser contabilizados mais de uma vez\.$"))
         expect(partes).to_have_text(["Brasil", "Pará"])
         shot("15-agregar-carajas")
-        # No gráfico, Carajás no lugar das duas; a busca da tabela dos Detalhes acha o grupo pelo nome.
+        # No gráfico, Carajás no lugar das duas; a busca da tabela dos Detalhes filtra as linhas pelo nome: "Carajás" acha o grupo e
+        # os municípios do Pará com o nome (CANAA DOS CARAJAS e ELDORADO DOS CARAJAS), as linhas avaliáveis da resposta do motor.
         aperta(area.get_by_test_id("analise-familia-distribuicao"))
         expect(area.locator('[data-testid="analise-bolha"][data-id="c1"]')).to_have_attribute("data-tipo", "conjunto", timeout=60000)
         for membro in (PARAUAPEBAS, MARABA):
@@ -634,7 +641,12 @@ def main():
         aperta(area.get_by_test_id("analise-detalhes-tabela"))
         busca_tabela = area.get_by_test_id("analise-tabela-busca")
         busca_tabela.fill("Carajás")
-        expect(area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")).to_have_count(1)
+        com_o_nome = sorted(item["id"] for item in carajas["itens"]
+                            if "carajas" in sem_acento(item["rotulo"]) and item["densidade"] is not None)
+        assert "c1" in com_o_nome, com_o_nome
+        linhas_achadas = area.get_by_test_id("analise-tabela").get_by_test_id("analise-linha")
+        expect(linhas_achadas).to_have_count(len(com_o_nome))
+        assert sorted(linhas_achadas.evaluate_all("els => els.map(e => e.dataset.id)")) == com_o_nome
         expect(area.locator('[data-testid="analise-linha"][data-id="c1"]')).to_contain_text("soma das contagens dos componentes")
         busca_tabela.fill("Parauapebas")
         expect(area.get_by_test_id("analise-tabela-sem-resultado")).to_be_visible()
@@ -678,9 +690,16 @@ def main():
         expect(resposta_chat).to_contain_text("no lugar deles: a bolha soma as contagens dos componentes")
         expect(resposta_chat.get_by_test_id("chat-conferido")).to_have_text("conferido: está na tela", timeout=60000)
         expect(chat.locator('[data-papel="agente"]').last).to_have_attribute("data-execucao", "concluido")
-        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
         expect(partes).to_have_text(["Brasil", "Pará"])
+        # O pedido feito com a Seleção à vista leva à análise em uso: no gráfico, Carajás no lugar das duas; de volta à Seleção, a
+        # mesma linha do grupo em "Na análise".
+        expect(area).to_have_attribute("data-aba", "distribuicao")
+        expect(area.locator('[data-testid="analise-bolha"][data-id="c1"]')).to_have_attribute("data-tipo", "conjunto", timeout=60000)
+        for membro in (PARAUAPEBAS, MARABA):
+            expect(area.locator('[data-testid="analise-bolha"][data-id="' + membro + '"]')).to_have_count(0)
         shot("17-carajas-pela-conversa")
+        aperta(area.get_by_test_id("analise-aba-territorios"))
+        expect(texto_do_grupo).to_have_text("Carajás · grupo · 2 municípios · 894 médicos · 1,52 por mil", timeout=60000)
 
         assert not falhas, falhas
         assert not chamadas_llm, chamadas_llm
