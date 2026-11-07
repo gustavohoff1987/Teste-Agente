@@ -1514,6 +1514,45 @@ def test_place_numbers_come_ready_from_the_national_and_state_sources_with_the_c
                    path="/api/painel/lugar"), "inexistente na planilha")
 
 
+def test_total_do_todo_informado_pela_pessoa_no_lugar_da_soma(repo):
+    """O total do todo informado pela pessoa (07/11/2026, item 1.4c do comando de 06/11/2026; RQ-GOV-22): sem o identificador
+    individual, no lugar da soma das unidades, só no todo e só na competência indicada, com a fonte e a limitação
+    VALOR_FORNECIDO_PELO_USUARIO; os grupos continuam pelas unidades; noutra competência, a soma; com o identificador, as pessoas
+    únicas (a ordem do comando). A forma é conferida; a veracidade, não."""
+    informado = {"quantidade": 50, "competencia": "2024", "fonte": "Cadastro do conselho"}
+    pedido = {"competencia": "2024", "rotulos": LABELS, "premissas": {"count_unit": "pessoas"}, "total_informado": informado}
+    lugar = ok(upload({**pedido, "grupo": "Província Norte", "desde": "2021"}, path="/api/painel/lugar"))
+    todo, grupo = lugar["todo"], lugar["grupo"]
+    assert (todo["origem"], todo["contagem"], todo["quantidade"], todo["populacao"], todo["limitacoes"], todo["fonte_do_total"]) == (
+        "informado", "VALOR_FORNECIDO_PELO_USUARIO", 50, 3900, ["VALOR_FORNECIDO_PELO_USUARIO"], "Cadastro do conselho")
+    assert todo["densidade"] == 50 / 3900 * 1000
+    assert todo["motivo"].startswith("Total informado por você (fonte: Cadastro do conselho), sem validação externa")
+    # A variação desde 2021 compara o informado com a soma: não avaliável, com o motivo.
+    assert todo["variacao_percentual"] is None and any("INCOMPARABILIDADE" in motivo for motivo in todo["motivos_variacao"])
+    assert (grupo["origem"], grupo["quantidade"]) == ("soma", 21)
+    # A linha do todo no gráfico usa o mesmo total; noutra competência, a soma.
+    painel_ = ok(upload({"nivel": "municipios", "indicador": "densidade", **pedido, "base": {"municipios": {"todos": True}}}))
+    assert (painel_["contexto"]["todo"]["origem"], painel_["contexto"]["todo"]["quantidade"]) == ("informado", 50)
+    assert ok(upload({**pedido, "competencia": "2023"}, path="/api/painel/lugar"))["todo"]["origem"] == "soma"
+    # Com o identificador individual em todas as linhas, as pessoas únicas, e o informado não é usado.
+    pessoas = ("distrito;provincia;ano;categoria;pessoa;populacao\n" + "".join(
+        distrito + ";" + provincia + ";2024;Enfermeiros;" + pessoa + ";1000\n"
+        for distrito, provincia, pessoa in (("Alto Rio", "Província Norte", "p1"), ("Baixo Rio", "Província Norte", "p2"),
+                                            ("Campina", "Província Sul", "p1")))).encode()
+    mapa = {"territory": "distrito", "period": "ano", "category": "categoria", "identity": "pessoa", "population": "populacao",
+            "grupo_territorial": "provincia"}
+    unicas = ok(upload({"competencia": "2024", "rotulos": LABELS, "total_informado": informado}, mapping=mapa, contents=pessoas,
+                       name="pessoas.csv", path="/api/painel/lugar"))["todo"]
+    assert (unicas["origem"], unicas["quantidade"]) == ("pessoas_unicas", 2) and "fonte_do_total" not in unicas
+    # A forma: inteiro positivo, competência da planilha e a fonte; na base do Brasil, recusado.
+    for errado, texto in (({**informado, "quantidade": 0}, "número inteiro positivo"), ({**informado, "quantidade": 2.5},
+                          "número inteiro positivo"), ({**informado, "competencia": "1999"}, "Competência do total informado"),
+                          ({**informado, "fonte": " "}, "Diga a fonte do total informado"), ({"quantidade": 50}, "Total informado inválido")):
+        refused(upload({**pedido, "total_informado": errado}, path="/api/painel/lugar"), texto)
+    refused(post(inspection(), path="/api/painel/lugar", competencia="202406", total_informado=informado),
+            "Na base do Brasil, o total vem da fonte nacional")
+
+
 @pytest.fixture(scope="module")
 def real(tmp_path_factory):
     """Base versionada instalada numa pasta temporária (job dados-reais), somente em leitura."""

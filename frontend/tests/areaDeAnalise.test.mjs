@@ -1377,6 +1377,15 @@ test('dois níveis de grupo na trilha: "Portugal › Norte › Braga › Barcelo
   assert.equal(pedido([]).definicao.nivel, 'municipios');
 });
 
+test('total do todo informado (07/11/2026, item 1.4c): vai em todo pedido de uma planilha', () => {
+  const def = {...M.definicaoInicial({tipo: 'arquivo', periodos: ['2024'], categoria: 'Enfermagem', temGrupos: true, temPopulacao: true}),
+    base: {todos: true, estados: [], ids: []}};
+  const total = {quantidade: 50, competencia: '2024', fonte: 'Cadastro do conselho'};
+  assert.deepEqual(M.montarOpcoes(def, 'distribuicao', undefined, {totalInformado: total}).total_informado, total);
+  assert.equal('total_informado' in M.montarOpcoes(def, 'distribuicao', undefined, {}), false);
+  assert.equal('total_informado' in M.montarOpcoes(def, 'distribuicao', undefined, {totalInformado: null}), false);
+});
+
 test('faixa do lugar: a competência inicial da variação, os números e as referências', () => {
   const periodos = ['202006', '202101', '202106', '202201', '202206', '202301', '202306', '202401', '202406'];
   assert.equal(M.desdeDaFaixa(periodos, '202406'), '202106');  // os últimos 4 períodos anuais até a competência da análise

@@ -33,6 +33,10 @@ export const ARTIGOS_DO_TODO: [ArtigoDoTodo, string][] = [["", "sem artigo (de P
  * 07/11/2026 (item 1 do comando de 06/11/2026, até dois níveis de grupo), o grupo de cima (a região acima do distrito). */
 export type Rotulos = { unidade: Rotulo; grupo: Rotulo | null; todo?: { nome: string; artigo: ArtigoDoTodo } | null;
   grupo_superior?: Rotulo | null };
+/** O total do todo informado pela pessoa (07/11/2026, item 1.4c do comando; RQ-GOV-22): a quantidade, a competência a que ele se
+ * refere e a fonte que ela indicar. Vale só no todo e só nessa competência, e só sem o identificador individual (sem ele, no lugar
+ * da soma das unidades). */
+export type TotalInformado = { quantidade: number; competencia: string; fonte: string };
 /** A fonte que a área usa: a base do Brasil ou uma planilha enviada, com o mapeamento confirmado na tela. */
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string;
@@ -40,6 +44,8 @@ export type FonteDados = {
   geoVersion?: string; premissas?: Record<string, string | string[]>;
   /** Nomes das unidades e dos grupos: fixos na base do Brasil (município, estado); na planilha, os que a pessoa escolheu. */
   rotulos: Rotulos;
+  /** O total do todo informado pela pessoa no painel Colunas (07/11/2026, item 1.4c do comando): só numa planilha. */
+  totalInformado?: TotalInformado | null;
 };
 /** Comando da conversa para a área (campo `painel` da resposta do intérprete). */
 export type PedidoDoChat = {
@@ -275,6 +281,8 @@ export type EscolhasDaPlanilha = {
   rotulos: Rotulos;
   /** Nomes editados pela pessoa: deixam de acompanhar a sugestão quando a coluna muda. */
   rotulosEditados: { unidade: boolean; grupo: boolean; grupo_superior?: boolean };
+  /** O total do todo informado (07/11/2026, item 1.4c), como a pessoa escreveu; vazio, nenhum. */
+  totalInformado?: { quantidade: string; competencia: string; fonte: string };
 };
 
 /** Escolhas iniciais: só os papéis reconhecidos por regra conclusiva (o mapeamento sugerido pelo /api/inspect). As
@@ -343,6 +351,22 @@ export function editarTodo(escolhas: EscolhasDaPlanilha, campo: "nome" | "artigo
   return { ...escolhas, rotulos: { ...escolhas.rotulos, todo } };
 }
 
+/** A pessoa escreve o total do todo, a competência dele ou a fonte (07/11/2026, item 1.4c do comando). */
+export function editarTotal(escolhas: EscolhasDaPlanilha, campo: "quantidade" | "competencia" | "fonte", valor: string): EscolhasDaPlanilha {
+  const atual = escolhas.totalInformado ?? { quantidade: "", competencia: "", fonte: "" };
+  return { ...escolhas, totalInformado: { ...atual, [campo]: campo === "fonte" ? valor.slice(0, 120) : valor } };
+}
+/** O total informado pronto para o motor: um inteiro positivo, com a competência e a fonte; sem quantidade, nenhum (e o que faltar
+ * vira pendência). */
+export function totalDaPlanilha(escolhas: EscolhasDaPlanilha): TotalInformado | null {
+  const total = escolhas.totalInformado;
+  const texto = (total?.quantidade ?? "").replace(/[.\s]/g, "");
+  if (!total || !texto) return null;
+  const quantidade = /^\d+$/.test(texto) ? Number(texto) : NaN;
+  if (!Number.isInteger(quantidade) || quantidade <= 0 || !total.competencia || !total.fonte.trim()) return null;
+  return { quantidade, competencia: total.competencia, fonte: total.fonte.trim() };
+}
+
 /** O que ainda falta para começar a análise da planilha, na ordem dos campos. */
 export function pendenciasDasColunas(escolhas: EscolhasDaPlanilha): string[] {
   const { mapeamento, rotulos } = escolhas;
@@ -363,6 +387,14 @@ export function pendenciasDasColunas(escolhas: EscolhasDaPlanilha): string[] {
     faltam.push("Escolha a coluna do grupo territorial: o grupo de cima fica acima dele.");
   if (mapeamento.grupo_territorial_superior && (!rotulos.grupo_superior?.singular.trim() || !rotulos.grupo_superior?.plural.trim()))
     faltam.push("Diga como se chamam os grupos de cima, no singular e no plural.");
+  // O total do todo informado (07/11/2026, item 1.4c): opcional; com a quantidade, também a competência e a fonte.
+  const total = escolhas.totalInformado;
+  const quantidade = (total?.quantidade ?? "").replace(/[.\s]/g, "");
+  if (quantidade) {
+    if (!/^\d+$/.test(quantidade) || Number(quantidade) <= 0) faltam.push("O total informado precisa ser um número inteiro positivo.");
+    if (!total?.competencia) faltam.push("Diga a competência do total informado.");
+    if (!total?.fonte.trim()) faltam.push("Diga a fonte do total informado.");
+  }
   return faltam;
 }
 

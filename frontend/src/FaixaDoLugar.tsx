@@ -166,9 +166,13 @@ export default function FaixaDoLugar(p: FaixaProps) {
   // das unidades, com a ressalva da soma (G3). Na base do Brasil, os números vêm prontos nas fontes, sem a linha.
   const origem = (p.lugar.tipo === "grupo" ? grupo?.origem : p.lugar.tipo === "regiao" ? regiao?.origem : null) ?? todo?.origem ?? null;
   const unidade = p.rotulos.unidade;
+  // O total informado pela pessoa (07/11/2026, item 1.4c do comando): só no todo, com a fonte que ela indicou, sem validação externa.
+  const fonteDoTotal = todo?.fonteDoTotal ?? null;
   const daOrigem = origem === "soma" ? "Total: a soma d" + (generoDe(unidade) === "f" ? "as " : "os ") + unidade.plural + ". " + RESSALVA_DA_SOMA
     : origem === "pessoas_unicas" ? "Total: pessoas únicas, pelo identificador individual (quem atua em mais de " +
-      (generoDe(unidade) === "f" ? "uma " : "um ") + unidade.singular + " conta uma vez)." : "";
+      (generoDe(unidade) === "f" ? "uma " : "um ") + unidade.singular + " conta uma vez)."
+    : origem === "informado" ? "Total: informado por você" + (fonteDoTotal ? " (fonte: " + fonteDoTotal + ")" : "") +
+      ", sem validação externa; a população é a soma d" + (generoDe(unidade) === "f" ? "as " : "os ") + unidade.plural + "." : "";
   return <section data-testid="analise-faixa" data-lugar={p.lugar.tipo} data-grupo={p.lugar.grupo ?? ""} data-carregando={p.carregando ? "true" : "false"}
     aria-label={"Números do lugar em uso: " + titulo} className={"analise-faixa" + (p.lugar.tipo === "unidade" ? " analise-faixa-unidade" : "")}>
     {cabecalho}

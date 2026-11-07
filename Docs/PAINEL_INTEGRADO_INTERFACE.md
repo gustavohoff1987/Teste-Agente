@@ -330,7 +330,12 @@ data: o todo deixa de ser uma unidade de análise e passa a ser a referência fi
   do comando), também numa planilha: o todo pelo nome (ou "Toda a base") e o grupo da coluna-mãe, com os números do motor pelas
   unidades e a linha `analise-faixa-origem` (`data-origem`) que diz de onde vem o total: "Total: pessoas únicas, pelo
   identificador individual (quem atua em mais de uma comuna conta uma vez)." ou "Total: a soma das comunas.", com a ressalva da
-  soma; no gráfico, a linha tracejada do todo ("Solária 1,52").
+  soma; no gráfico, a linha tracejada do todo ("Solária 1,52"). Desde 07/11/2026 (item 1.4c do comando), o total do todo
+  pode ser **informado pela pessoa** no painel Colunas ("Total do todo (opcional)": `colunas-total-quantidade`, e, com ele,
+  `colunas-total-competencia` e `colunas-total-fonte`): sem o identificador individual, ele fica no lugar da soma, só no todo e
+  só na competência indicada; a faixa diz "Total: informado por você (fonte: …), sem validação externa; a população é a soma
+  das comunas." (`data-origem="informado"`), e a linha do todo usa o mesmo total. Os grupos continuam pelas unidades; noutra
+  competência, a soma; com o identificador, as pessoas únicas (a ordem do comando).
 - **O cartão do território** (`analise-cartao`, no lugar dos números da faixa, no nível da unidade): a quantidade e a população
   da unidade e as barras da densidade dela, do estado e do Brasil (`analise-cartao-barra`, com `data-chave` unidade, grupo e
   todo; o comprimento acompanha o valor do motor, sem classe nem posição); na Análise Espacial, também a distância até a

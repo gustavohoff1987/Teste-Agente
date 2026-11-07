@@ -76,6 +76,8 @@ export type PainelOpcoes = {
   comparar?: string[];
   rotatividade?: { inicial: string; final: string };
   premissas?: Premissas;
+  /** O total do todo informado pela pessoa (07/11/2026, item 1.4c do comando): só numa planilha; o todo usa-o na competência dele. */
+  total_informado?: { quantidade: number; competencia: string; fonte: string };
   /** Só nas planilhas (24/10/2026): os nomes da unidade e do grupo que a pessoa confirmou, para a resposta (os rótulos, a
    * frase-resumo) falar deles; sem eles, o motor responde com "unidades". Na base do Brasil, o motor recusa. */
   rotulos?: RotulosTerritoriais;
@@ -764,6 +766,7 @@ export function normalizarMapa(bruto: unknown): DadosDoMapa {
  * inicial da variação da faixa e, para as linhas de referência da Tendência, as competências da série. */
 /** `regiao` (07/11/2026): o grupo de cima de uma planilha com dois níveis, pelas unidades dele. */
 export type LugarOpcoes = { competencia: string; categoria: string; grupo?: string; regiao?: string; desde?: string; serie?: { competencias: string[] };
+  total_informado?: { quantidade: number; competencia: string; fonte: string };
   /** Numa planilha (07/11/2026, item 1.4 do comando): as escolhas do painel Colunas, como no pedido do gráfico. */
   premissas?: Premissas; rotulos?: RotulosTerritoriais };
 export type ValoresDaSerie = { competencia: string; quantidade: number | null; populacao: number | null; densidade: number | null };
@@ -774,7 +777,9 @@ export type NivelDoLugar = { id: string; nivel: "todo" | "grupo" | "regiao"; rot
   motivosVariacao: string[]; serie: ValoresDaSerie[] | null;
   /** Numa planilha (07/11/2026, item 1.4 do comando): de onde vem o total, "pessoas_unicas" (o identificador individual) ou
    * "soma" (a soma das unidades, com a limitação SOMA_COM_POSSIVEL_DUPLA_CONTAGEM); na base do Brasil, null (a fonte pronta). */
-  origem: "pessoas_unicas" | "soma" | null; limitacoes: string[] };
+  origem: "pessoas_unicas" | "soma" | "informado" | null; limitacoes: string[];
+  /** Com o total informado pela pessoa (07/11/2026), a fonte que ela indicou. */
+  fonteDoTotal?: string | null };
 export type RespostaLugar = { competencia: string; categoria: string; desde: string | null; todo: NivelDoLugar | null;
   grupo: NivelDoLugar | null; regiao?: NivelDoLugar | null; notas: string[] };
 function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
@@ -789,7 +794,8 @@ function nivelDoLugarDe(bruto: unknown): NivelDoLugar | null {
     desde: texto(o.desde), inicial: objeto(o.inicial) ? valores3(o.inicial) : null,
     variacaoPercentual: objeto(o.variacao_percentual) ? valores3(o.variacao_percentual) : null,
     motivosVariacao: lista(o.motivos_variacao).filter((m): m is string => typeof m === "string"), serie,
-    origem: o.origem === "pessoas_unicas" || o.origem === "soma" ? o.origem : null,
+    origem: o.origem === "pessoas_unicas" || o.origem === "soma" || o.origem === "informado" ? o.origem : null,
+    fonteDoTotal: texto(o.fonte_do_total),
     limitacoes: lista(o.limitacoes).filter((m): m is string => typeof m === "string") };
 }
 /** Resposta de /api/painel/lugar nos tipos da tela; nada é calculado aqui. */

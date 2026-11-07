@@ -35,6 +35,32 @@ cumprir uma das três opções. Para conferir antes do push: `python .github/scr
 
 ## Entradas
 
+### 2026-11-07 · Nomes da base, parte D (etapa 8D do comando, item 1.4c): o total do todo informado pela pessoa, com a fonte
+- **Classificação (regra 1), pela leitura, antes de codar:** item 1.4 do comando de 06/11/2026 ("o total do todo … vêm, nesta
+  ordem: (a) de pessoas únicas …; (b) senão, da soma das unidades, com a ressalva; (c) ou de um total informado pela pessoa, com
+  a fonte que ela indicar. A faixa diz qual dos três está em uso."), classificado de uma vez com os demais (entrada da navegação
+  por níveis, abaixo). Mudança prevista: *escopo:* decorre do comando; *compatibilidade:* o valor fornecido pelo usuário é
+  admitido pela SPEC (RQ-GOV-22), validado quanto à forma, sem validação externa de veracidade, registrado com a origem, o escopo
+  (o todo, a competência), o conteúdo e o impacto, e com a limitação VALOR_FORNECIDO_PELO_USUARIO; não se propaga (só esta
+  fonte, só o todo). Decisão tomada na implementação, para conferência do responsável: pela ordem do comando, com o
+  identificador individual valem as pessoas únicas, e o total informado só fica no lugar da soma.
+- **Antes:** numa planilha, o total do todo era as pessoas únicas (com o identificador) ou a soma das unidades; não havia como
+  informar um total.
+- **Agora:** o painel Colunas tem "Total do todo (opcional)": o total, a competência a que ele se refere e a fonte. Sem o
+  identificador individual, o todo usa esse total na competência indicada (a faixa: "Total: informado por você (fonte: …), sem
+  validação externa; a população é a soma das comunas."; a linha do todo, o mesmo total), com `origem: "informado"`,
+  `contagem` e limitação VALOR_FORNECIDO_PELO_USUARIO no motor (`total_informado` em `/api/painel` e `/api/painel/lugar`).
+- **Permanece:** os grupos e as zonas (pelas unidades); as outras competências (a soma); a planilha com o identificador (as
+  pessoas únicas); a base do Brasil (recusa `total_informado`).
+- **Motivo:** comando do responsável de 06/11/2026, item 1.4c.
+- **Documentação e testes:**
+  - **Documentação:** `Docs/PAINEL_INTEGRADO.md` (`total_informado`), `Docs/PAINEL_INTEGRADO_INTERFACE.md` (a faixa) e
+    `Docs/INTERFACE_CONVERSACIONAL_INTEGRADA.md` (o painel Colunas).
+  - **Testes novos:** em `test_painel_pagina.py`, o total informado no todo (50 no lugar de 45, a densidade, a limitação, a fonte,
+    a variação não avaliável, os grupos pela soma, a linha do todo, outra competência, o identificador com precedência, as formas
+    recusadas e a base do Brasil); em `paginaUnica.test.mjs`, as pendências e o total pronto; em `areaDeAnalise.test.mjs`, o
+    total no pedido; em `ui_planilha_ficticia.py`, o painel Colunas reaberto com o total (999), o pedido e a faixa.
+
 ### 2026-11-07 · Nomes da base, parte C2 (etapa 8C do comando, item 1): a árvore de dois níveis, a trilha com o grupo de cima, a faixa dele e a conversa
 - **Classificação (regra 1), pela leitura, antes de codar:** item 1 do comando de 06/11/2026 (aceite: "trilha "Portugal › Norte
   › Braga › Barcelos" e "Ver por: Região | Distrito | Concelho""), classificado de uma vez com os demais (entrada da navegação por

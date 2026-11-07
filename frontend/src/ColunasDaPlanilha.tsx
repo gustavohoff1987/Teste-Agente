@@ -1,7 +1,7 @@
 import { Play } from "lucide-react";
 import { fieldOptions } from "./fieldChoices";
 import { ARTIGOS_DO_TODO, PAPEIS, REFERENCIAIS, SEPARADORES, UNIDADES_DE_CONTAGEM, editarGenero, editarRotulo, editarTodo,
-  escolherColuna, type Disponibilidade, type EscolhasDaPlanilha } from "./paginaUnica";
+  editarTotal, escolherColuna, type Disponibilidade, type EscolhasDaPlanilha } from "./paginaUnica";
 import { generoDe } from "./painelModel";
 
 // Painel "Colunas" de uma planilha enviada (22/10/2026). A estrutura é a da base do Brasil, com os nomes que a planilha usar
@@ -23,6 +23,8 @@ type Props = {
   pendencias: string[] | null;
   /** Planilha já em uso: o botão aplica as colunas, e a análise recomeça com elas. */
   emUso: boolean;
+  /** As competências da planilha (do pré-exame), para a competência do total informado (07/11/2026, item 1.4c do comando). */
+  periodos?: string[];
   onEscolhas: (proximas: EscolhasDaPlanilha) => void;
   onComecar: () => void;
 };
@@ -30,7 +32,8 @@ type Props = {
 const CAMPO = "w-full min-w-0 rounded-lg border border-line bg-white px-2 py-1.5 text-sm text-ink";
 
 export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, disponibilidade, pedirSeparador, conferindo, erro,
-  pendencias, emUso, onEscolhas, onComecar }: Props) {
+  pendencias, emUso, periodos = [], onEscolhas, onComecar }: Props) {
+  const total = escolhas.totalInformado ?? { quantidade: "", competencia: "", fonte: "" };
   const { mapeamento, rotulos } = escolhas;
   const coordenadas = !!mapeamento.latitude && !!mapeamento.longitude;
   // Os nomes editáveis: a unidade, o grupo e, desde 07/11/2026 (item 1 do comando), o grupo de cima (test id "grupo-superior").
@@ -146,6 +149,35 @@ export default function ColunasDaPlanilha({ colunas, sugestoes, escolhas, dispon
         {rotulos.grupo_superior && nome("grupo_superior", "singular", "Grupo de cima, no singular")}
         {rotulos.grupo_superior && nome("grupo_superior", "plural", "Grupos de cima, no plural")}
         {rotulos.grupo_superior && genero("grupo_superior", "Gênero do grupo de cima")}
+      </div>
+    </fieldset>
+    {/* O total do todo informado (07/11/2026, item 1.4c do comando): opcional; sem o identificador individual, no lugar da soma das
+        unidades, só no todo e só na competência indicada, com a fonte. A faixa diz qual total está em uso. */}
+    <fieldset className="colunas-bloco" data-testid="colunas-total">
+      <legend>Total do todo (opcional)</legend>
+      <p className="text-[12px] leading-4 text-slate-600">Sem o identificador individual, o total do todo é a soma
+        d{generoDe(rotulos.unidade) === "f" ? "as" : "os"} {rotulos.unidade.plural}, com possível dupla contagem. Se você tem o total
+        de outra fonte, informe-o com a fonte: ele vale para o todo, na competência indicada, como informado por você.</p>
+      <div className="colunas-grade mt-1">
+        <label className="colunas-campo">
+          <span>Total informado</span>
+          <input aria-label="Total informado" data-testid="colunas-total-quantidade" className={CAMPO} inputMode="numeric"
+            value={total.quantidade} onChange={event => onEscolhas(editarTotal(escolhas, "quantidade", event.target.value))}/>
+        </label>
+        {!!total.quantidade.trim() && <label className="colunas-campo">
+          <span>Competência do total</span>
+          <select aria-label="Competência do total" data-testid="colunas-total-competencia" className={CAMPO} value={total.competencia}
+            onChange={event => onEscolhas(editarTotal(escolhas, "competencia", event.target.value))}>
+            <option value="">Escolher</option>
+            {periodos.map(periodo => <option key={periodo} value={periodo}>{periodo}</option>)}
+          </select>
+        </label>}
+        {!!total.quantidade.trim() && <label className="colunas-campo">
+          <span>Fonte do total</span>
+          <input aria-label="Fonte do total" data-testid="colunas-total-fonte" className={CAMPO} maxLength={120}
+            placeholder="Por exemplo: cadastro do conselho" value={total.fonte}
+            onChange={event => onEscolhas(editarTotal(escolhas, "fonte", event.target.value))}/>
+        </label>}
       </div>
     </fieldset>
     <div className="colunas-bloco" data-testid="colunas-disponibilidade" aria-live="polite">

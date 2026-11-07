@@ -29,6 +29,8 @@ export type Visao = "mudanca" | "classes" | "series";
 export type FonteDados = {
   tipo: "brasil" | "arquivo"; apiBase: string; datasetVersion: string; sheet: string; mapping: Record<string, string>;
   arquivo: File | null; nome: string; geoVersion?: string; premissas?: Premissas; rotulos?: RotulosTerritoriais;
+  /** O total do todo informado pela pessoa numa planilha (07/11/2026, item 1.4c do comando). */
+  totalInformado?: { quantidade: number; competencia: string; fonte: string } | null;
 };
 /** Comando da conversa para o gráfico (campo `painel` das rotas da conversa). Cada id novo é aplicado uma vez. */
 export type PedidoDoChat = {
@@ -2574,7 +2576,9 @@ export function familiaCalculada(def: DefinicaoAnalise, disponivel: boolean): Fa
 export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (id: string) => string = prefixoDe,
   c: { quintisDoMapa?: boolean; todosOsEstados?: string[]; rotulos?: RotulosTerritoriais;
     /** As competências da base: a Série temporal sem intervalo escolhido usa todas (24/10/2026). */
-    periodos?: string[] } = {}): PainelOpcoes {
+    periodos?: string[];
+    /** O total do todo informado pela pessoa numa planilha (07/11/2026, item 1.4c do comando): vai em todo pedido. */
+    totalInformado?: { quantidade: number; competencia: string; fonte: string } | null } = {}): PainelOpcoes {
   const tendencia = familia === "tendencia";
   // Série temporal (24/10/2026): os valores de cada competência do intervalo (toda a série, sem escolha), sem classificação; a
   // competência do pedido é a última do intervalo.
@@ -2623,6 +2627,7 @@ export function montarOpcoes(def: DefinicaoAnalise, familia: Familia, grupoDe: (
   if (Object.keys(def.premissas).length) opcoes.premissas = def.premissas;
   // Nas planilhas, os nomes confirmados vão em todo pedido (24/10/2026), como no do mapa: a resposta fala deles.
   if (c.rotulos) opcoes.rotulos = c.rotulos;
+  if (c.totalInformado) opcoes.total_informado = c.totalInformado;
   return opcoes;
 }
 

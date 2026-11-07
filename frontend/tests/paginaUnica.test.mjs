@@ -89,6 +89,20 @@ test('colunas: só o reconhecido por regra vem escolhido; escolher uma coluna ti
   assert.equal(P.escolherColuna(contada, 'population', 'pop').unidadeDeContagem, 'pessoas');
   // Tirar a coluna de um papel tira o papel das escolhas.
   assert.deepEqual(P.escolherColuna(escolhas, 'territory', '').escolhidos, ['grupo_territorial']);
+  // O total do todo informado (07/11/2026, item 1.4c do comando): opcional; com a quantidade, a competência e a fonte; um inteiro
+  // positivo (os pontos de milhar saem). Sem quantidade, nenhum, e nada falta.
+  assert.equal(P.totalDaPlanilha(escolhas), null);
+  const pendenciasDoTotal = e => P.pendenciasDasColunas(e).filter(texto => texto.includes('total informado'));
+  assert.deepEqual(pendenciasDoTotal(escolhas), []);
+  const soQuantidade = P.editarTotal(escolhas, 'quantidade', '1.250');
+  assert.deepEqual(pendenciasDoTotal(soQuantidade), ['Diga a competência do total informado.', 'Diga a fonte do total informado.']);
+  assert.equal(P.totalDaPlanilha(soQuantidade), null);
+  const completo = P.editarTotal(P.editarTotal(soQuantidade, 'competencia', '2024'), 'fonte', '  Cadastro do conselho ');
+  assert.deepEqual(P.totalDaPlanilha(completo), {quantidade: 1250, competencia: '2024', fonte: 'Cadastro do conselho'});
+  assert.deepEqual(pendenciasDoTotal(completo), []);
+  assert.deepEqual(pendenciasDoTotal(P.editarTotal(completo, 'quantidade', '-3')), ['O total informado precisa ser um número inteiro positivo.']);
+  assert.deepEqual(pendenciasDoTotal(P.editarTotal(completo, 'quantidade', '0')), ['O total informado precisa ser um número inteiro positivo.']);
+  assert.equal(P.editarTotal(completo, 'fonte', 'x'.repeat(200)).totalInformado.fonte.length, 120);
 });
 
 test('pendências: unidade territorial, período, quantidade e o que ela conta, quem são os trabalhadores e os nomes', () => {

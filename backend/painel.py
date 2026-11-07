@@ -100,7 +100,7 @@ SPATIAL_ROLES = frozenset(("latitude", "longitude"))
 PANEL_KEYS = frozenset(("competencia", "competencia_inicial", "categoria", "base", "conjuntos", "referencia"))
 PAGE_ONLY = frozenset(("nivel", "indicador", "faixas_distancia", "tendencia", "grupos", "grupos_mapa", "faixas",
                        "condicoes", "ordenar", "comparar", "rotatividade", "premissas", "rotulos", "estados", "serie",
-                       "consulta"))
+                       "consulta", "total_informado"))
 PAGE_KEYS = PANEL_KEYS | PAGE_ONLY
 REFERENCE_KEYS = frozenset(("competencia", "categoria", "universo", "criterio", "premissas", "rotulos"))
 ATTRIBUTES = {"densidade": "densidade", "quantidade": "quantidade", "populacao": "população"}
@@ -325,6 +325,9 @@ class Context:
     group2_column: str | None = None
     groups2: dict = field(default_factory=dict)
     regioes_motivo: str = ""
+    # O total do todo informado pela pessoa (07/11/2026, item 1.4c do comando de 06/11/2026; RQ-GOV-22): a quantidade, a
+    # competência e a fonte; vale só no todo e só nessa competência, sem o identificador individual.
+    total_informado: dict | None = None
     periods: list = field(default_factory=list)
     categories: list = field(default_factory=list)
     density: bool = True
@@ -570,6 +573,8 @@ def _brazil_context(sources, mapping, options, page) -> Context:
     if options.get("premissas") not in (None, {}):
         raise ValueError("Na base do Brasil, as premissas vêm do perfil oficial: não envie premissas.")
     labels = _labels(options.get("rotulos"), brazil=True)
+    if options.get("total_informado") is not None:
+        raise ValueError("Na base do Brasil, o total vem da fonte nacional: não envie total_informado.")
     if page and (mapping.get(GROUP_ROLE) or mapping.get(GROUP2_ROLE)):
         raise ValueError("Na base do Brasil, o grupo dos municípios é o estado, pelo prefixo do código IBGE: não envie "
                          "grupo_territorial nem grupo_territorial_superior no mapeamento.")
@@ -718,10 +723,29 @@ def _upload_context(frame, mapping, options, page) -> Context:
     groups = _groups_of(frame, mapping, group_column) if group_column else {}
     groups2 = _groups_of(frame, mapping, group2_column) if group2_column else {}
     motivo = _hierarquia_dos_grupos(labels, groups, groups2) if group2_column else ""
+    total = _total_informado(options.get("total_informado"), periods)
     return Context(frame, mapping, None, catalog, settings, period, category, positions, kind="arquivo", labels=labels,
                    premissas=premissas, group_column=group_column, groups=groups, group2_column=group2_column,
-                   groups2=groups2, regioes_motivo=motivo, periods=periods, categories=categories, density=density,
-                   page=page, periods_error=error)
+                   groups2=groups2, regioes_motivo=motivo, total_informado=total, periods=periods, categories=categories,
+                   density=density, page=page, periods_error=error)
+
+
+def _total_informado(raw, periods) -> dict | None:
+    """O total do todo informado pela pessoa no painel Colunas (07/11/2026, item 1.4c do comando de 06/11/2026; RQ-GOV-22): a
+    quantidade (um inteiro positivo), a competência a que ele se refere (uma das da planilha) e a fonte que ela indicar. Validado
+    só quanto à forma, sem validação externa de veracidade; nada vai ao provedor de IA."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) != {"quantidade", "competencia", "fonte"}:
+        raise ValueError("Total informado inválido: use {\"quantidade\", \"competencia\", \"fonte\"}.")
+    quantidade, competencia, fonte = raw["quantidade"], raw["competencia"], raw["fonte"]
+    if isinstance(quantidade, bool) or not isinstance(quantidade, int) or not 0 < quantidade <= 10 ** 9:
+        raise ValueError("Total informado inválido: a quantidade precisa ser um número inteiro positivo.")
+    if not isinstance(competencia, str) or competencia not in periods:
+        raise ValueError("Competência do total informado inexistente na planilha: " + str(competencia)[:16] + ".")
+    if not isinstance(fonte, str) or not fonte.strip() or len(fonte) > 120 or any(ord(ch) < 32 for ch in fonte):
+        raise ValueError("Diga a fonte do total informado: um texto de até 120 caracteres.")
+    return {"quantidade": quantidade, "competencia": competencia, "fonte": fonte.strip()}
 
 
 def _hierarquia_dos_grupos(labels, groups, groups2) -> str:
@@ -1941,6 +1965,8 @@ def _execution_key(ctx, final, initial, normalized, spatial, extra=None, frames=
         signature["grupo_territorial"] = ctx.group_column
         if ctx.group2_column:
             signature["grupo_territorial_superior"] = ctx.group2_column
+        if ctx.total_informado:
+            signature["total_informado"] = ctx.total_informado
     if initial is not None:
         signature["variacao"] = "CAP-TMP-01/DA-14"
     if spatial is not None:
@@ -2880,7 +2906,8 @@ def _context_line(ctx) -> dict:
     if not ctx.brazil:
         # Numa planilha (07/11/2026, item 2.3 do comando, a linha do todo em qualquer base): o todo pelas unidades, como na
         # faixa (pessoas únicas ou a soma, com a origem).
-        return {"brasil": None, "todo": _reaproveitar(ctx, "contexto", {}, lambda: _linha_do_todo_da_planilha(ctx))}
+        return {"brasil": None, "todo": _reaproveitar(ctx, "contexto", {"total": ctx.total_informado},
+                                                      lambda: _linha_do_todo_da_planilha(ctx))}
     if ctx.nivel == "brasil":
         return {"brasil": None}
     return _reaproveitar(ctx, "contexto", {}, lambda: _national_line(ctx))
@@ -2892,6 +2919,7 @@ def _linha_do_todo_da_planilha(ctx) -> dict:
     return {"rotulo": ctx.labels.todo.nome if ctx.labels.todo else "Toda a base", "competencia": ctx.period,
             "densidade": _num(values.get("densidade")), "quantidade": _num(values.get("quantidade")),
             "populacao": _num(values.get("populacao")), "origem": origem, "contagem": CONTAGEM_DA_ORIGEM[origem],
+            **({"fonte_do_total": ctx.total_informado["fonte"]} if origem == "informado" else {}),
             "avaliabilidade": "NAO_AVALIAVEL" if record is None else "AVALIAVEL" if values.get("densidade") is not None
             else "AVALIAVEL_COM_LIMITACOES", "motivo": motivo, "nota": NOTE_LUGAR_PLANILHA}
 
@@ -3657,7 +3685,8 @@ def territorios(sources, mapping, options, frame=None) -> dict:
 # fonte estadual, na competência da análise, com a variação percentual (CAP-TMP-01) desde a competência `desde` e, com `serie`,
 # os valores de cada competência do intervalo. Rota à parte do gráfico: trocar o "Ver por" (quem é comparado) não pede a faixa
 # de novo, e a chave de execução do gráfico não muda.
-LUGAR_KEYS = frozenset(("competencia", "categoria", "grupo", "regiao", "desde", "serie", "premissas", "rotulos"))
+LUGAR_KEYS = frozenset(("competencia", "categoria", "grupo", "regiao", "desde", "serie", "premissas", "rotulos",
+                        "total_informado"))
 NOTE_LUGAR = ("Números do lugar em uso, prontos nas fontes: o Brasil pela contagem da fonte nacional (população pela regra "
               "BR-POP-JUNHO-1) e o estado pela contagem estadual de médicos únicos (regra UF-CONTAGEM-ESTADUAL-1, população "
               "UF-POP-MUNICIPIOS-1). Nenhum deles é a soma dos municípios, e o do estado não é somado ao do Brasil.")
@@ -3774,7 +3803,10 @@ def _lugar_estado(ctx, prefix, desde, serie):
 # coluna-mãe vêm das unidades. Com o identificador individual em todas as linhas (sem coluna de quantidade), as pessoas únicas
 # da união (CAP-AGR-01, UNIDADES_DISTINTAS por deduplicação); senão, a soma das unidades (SOMA_DOS_COMPONENTES, com a ressalva
 # da soma: a decisão "Soma automática" do responsável, de 06/11/2026, divergência aprovada de CAP-AGR-01).
-CONTAGEM_DA_ORIGEM = {"pessoas_unicas": "UNIDADES_DISTINTAS", "soma": "SOMA_DOS_COMPONENTES"}
+CONTAGEM_DA_ORIGEM = {"pessoas_unicas": "UNIDADES_DISTINTAS", "soma": "SOMA_DOS_COMPONENTES",
+                      "informado": "VALOR_FORNECIDO_PELO_USUARIO"}
+# A limitação de cada origem do total (07/11/2026): a soma, com possível dupla contagem; o total informado pela pessoa (RQ-GOV-22).
+LIMITACOES_DA_ORIGEM = {"soma": ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"], "informado": ["VALOR_FORNECIDO_PELO_USUARIO"]}
 NOTE_LUGAR_PLANILHA = ("Numa planilha, o todo e cada grupo vêm das unidades: com o identificador individual em todas as linhas, "
                        "as pessoas únicas da união (quem atua em mais de uma unidade conta uma vez); sem ele, a soma das "
                        "unidades, com possível dupla contagem (quem atua em mais de uma unidade conta em cada uma). A população "
@@ -3804,6 +3836,13 @@ def _total_da_planilha(ctx, period, keys=None, measures=None):
         else:
             motivos.append("Há linhas sem o identificador individual: as pessoas únicas não podem ser estabelecidas, e o total "
                            "é a soma das unidades.")
+    informado = ctx.total_informado
+    if keys is None and origem == "soma" and informado and informado["competencia"] == period:
+        # O total informado pela pessoa (07/11/2026, item 1.4c do comando), no lugar da soma: só no todo, só na competência
+        # dele e só sem as pessoas únicas pelo identificador (a ordem do comando: pessoas únicas, a soma ou o informado).
+        quantidade, origem = informado["quantidade"], "informado"
+        motivos.append("Total informado por você (fonte: " + informado["fonte"] + "), sem validação externa; a população é a "
+                       "soma d" + ctx.labels.unidade.g("os", "as") + " " + ctx.labels.unidade.plural + ".")
     populations = [_num(value["populacao"]) for _key, value in with_count]
     populacao = densidade = None
     if ctx.density:
@@ -3822,16 +3861,16 @@ def _lugar_da_planilha(ctx, nivel, ident, rotulo, keys, desde, serie):
     """Um nível do lugar numa planilha (o todo ou um grupo), com a origem do total e, na soma, a limitação da soma."""
     final, origem, motivo = _total_da_planilha(ctx, ctx.period, keys)
     base = {"id": ident, "nivel": nivel, "rotulo": rotulo, "fonte": "planilha", "origem": origem,
-            "contagem": CONTAGEM_DA_ORIGEM[origem],
-            "limitacoes": ["SOMA_COM_POSSIVEL_DUPLA_CONTAGEM"] if origem == "soma" else []}
+            "contagem": CONTAGEM_DA_ORIGEM[origem], "limitacoes": list(LIMITACOES_DA_ORIGEM.get(origem, [])),
+            **({"fonte_do_total": ctx.total_informado["fonte"]} if origem == "informado" else {})}
     initial, origem_inicial = None, origem
     if desde:
         initial, origem_inicial, _motivo = _total_da_planilha(ctx, desde, keys)
     entry = _lugar_entrada(ctx, base, final, initial, desde)
     if desde and final is not None and initial is not None and origem_inicial != origem:
         entry.update(variacao_percentual=None, motivos_variacao=[
-            "Variação não avaliável: o total é de pessoas únicas numa competência e a soma das unidades na outra "
-            "(INCOMPARABILIDADE)."])
+            "Variação não avaliável: o total vem de origens diferentes nas duas competências (pessoas únicas, a soma das "
+            "unidades ou o total informado por você) (INCOMPARABILIDADE)."])
     entry["motivo"] = motivo if final is not None else (
         "Sem registro em " + human_period(ctx.period) + ": não avaliável, nunca zero (SEM_REGISTRO_OBSERVADO).")
     entry["serie"] = None if serie is None else [
@@ -3894,7 +3933,8 @@ def _lugar_planilha(ctx, options):
                 **({"regiao": _lugar_da_planilha(ctx, "regiao", "uf:" + regiao, regiao, da_regiao, desde, serie)} if regiao else {}),
                 "notas": notes}
 
-    return _reaproveitar(ctx, "lugar", {"grupo": grupo, "regiao": regiao, "desde": desde, "serie": serie, "todo": nome}, calcular)
+    return _reaproveitar(ctx, "lugar", {"grupo": grupo, "regiao": regiao, "desde": desde, "serie": serie, "todo": nome,
+                                        "total": ctx.total_informado}, calcular)
 
 
 def lugar(sources, mapping, options, frame=None) -> dict:

@@ -15,6 +15,7 @@ import { NOME_OFICIAL } from "./conexao";
 import { endSession, sessionFetch as fetch, trackSession, updateContextRevision } from "./conversationSession";
 import { ROTULOS_DO_BRASIL, analiseAnterior, contextoDaPlanilha, csvDaResposta, desfechoSemArea, disponibilidadeDaPlanilha,
   escolhasIniciais, horaDe, mapeamentoDaConversa, mapeamentoDaPlanilha, pendenciasDasColunas, premissasDaPlanilha, recusaDoArquivo,
+  totalDaPlanilha,
   registrarEstado, resultadoDaSessao, resumoDaFonte,
   type AnaliseGuardada, type ContextoDoGrafico, type DesfechoDoPedido, type EscolhasDaPlanilha, type EstadoSalvo, type FonteDados,
   type PedidoDoChat, type Rotulo, type Rotulos } from "./paginaUnica";
@@ -116,9 +117,10 @@ function fonteDaPlanilha(preparo: Preparo, arquivo: File, inspecao: Inspecao, es
     : escolhas.objeto.trim() ? [escolhas.objeto.trim()] : [];
   const dados: FonteDados = { tipo: "arquivo", apiBase: API, datasetVersion: "", sheet: preparo.aba,
     mapping: mapeamentoDaPlanilha(escolhas.mapeamento), arquivo, nome: arquivo.name, premissas: premissasDaPlanilha(escolhas),
-    rotulos };
+    rotulos, totalInformado: totalDaPlanilha(escolhas) };
   const { options } = contextoDaPlanilha(escolhas);
-  return { chave: "arquivo:" + preparo.arquivoId + ":" + JSON.stringify([preparo.aba, dados.mapping, dados.premissas, dados.rotulos]),
+  return { chave: "arquivo:" + preparo.arquivoId + ":" + JSON.stringify([preparo.aba, dados.mapping, dados.premissas, dados.rotulos,
+    dados.totalInformado ?? null]),
     dados, resumo: resumoDaFonte({ tipo: "arquivo", nome: arquivo.name, categorias, periodos, rotulos }),
     periodos, categorias, categoria: categorias[0] || "", municipios: preExame?.territory_choices || [],
     // A conversa recebe também os nomes da unidade e do grupo ("distrito", "província") para responder com eles.
@@ -453,6 +455,7 @@ function App() {
             colunasEmPreparo.preExame?.coordinate_separator === null)}
           pedirSeparador={colunasEmPreparo.preExame?.coordinate_separator === null} conferindo={colunasEmPreparo.conferindo}
           erro={colunasEmPreparo.erroDoPreExame} pendencias={colunasEmPreparo.pendencias} emUso={!!ativa?.planilha}
+          periodos={colunasEmPreparo.preExame?.values?.periods?.length ? colunasEmPreparo.preExame.values.periods : colunasEmPreparo.inspecao.periods || []}
           onEscolhas={mudarEscolhas} onComecar={comecarPlanilha}/>}
       </BarraDaFonte>
       <p role="status" data-testid="pagina-aviso" className="pagina-aviso no-print">{aviso}</p>

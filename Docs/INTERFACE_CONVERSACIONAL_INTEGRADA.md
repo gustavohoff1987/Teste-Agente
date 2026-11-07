@@ -95,6 +95,10 @@ O painel **Colunas** mostra a coluna de cada papel:
   conversa: nenhum texto da estrutura diz "município" quando a fonte é uma planilha. Com o grupo de cima, também o nome dele
   ("Grupo de cima, no singular", "Grupos de cima, no plural" e o gênero; `colunas-grupo-superior-singular`,
   `colunas-grupo-superior-plural` e `colunas-grupo-superior-genero`; sem resposta, "região");
+- **Total do todo (opcional)** (desde 07/11/2026, item 1.4c do comando): o total informado pela pessoa, com a competência (uma
+  das da planilha) e a fonte; sem o identificador individual, ele fica no lugar da soma das unidades, no todo e nessa
+  competência, e a faixa diz que é o informado. Com a quantidade, faltar a competência ou a fonte (ou a quantidade não ser um
+  inteiro positivo) vira pendência de "Começar a análise";
 - **O que esta planilha permite**: Análise de Distribuição, Análise Espacial, Análise de Tendência e Análise de
   Rotatividade (os nomes das abas, desde 23/10/2026), cada uma disponível ou
   indisponível com o motivo, pelo pré-exame do backend (`/api/preflight`), refeito a cada escolha. A escolha que se faz no

@@ -463,9 +463,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
   const bloqueio = pronto ? bloqueioDoPedido(def, { fonte: tipo, rotulos }) : "Preparando os dados…";
   const quintisDoMapa = precisaQuintisDoMapa(def, familiaPedida, mapaDe(def).disponivel);
   const rotulosDoPedido = tipo === "arquivo" ? fonte?.rotulos : undefined;
+  const totalDoPedido = tipo === "arquivo" ? fonte?.totalInformado ?? null : null;
   const opcoes = useMemo(() => bloqueio ? null : montarOpcoes(def, familiaPedida, grupoDe, { quintisDoMapa,
-    todosOsEstados: def.nivel === "regioes" ? idsDasRegioes : idsDosGrupos, rotulos: rotulosDoPedido, periodos }),
-    [def, familiaPedida, bloqueio, grupoDe, quintisDoMapa, idsDosGrupos, idsDasRegioes, rotulosDoPedido, periodos]);
+    todosOsEstados: def.nivel === "regioes" ? idsDasRegioes : idsDosGrupos, rotulos: rotulosDoPedido, periodos, totalInformado: totalDoPedido }),
+    [def, familiaPedida, bloqueio, grupoDe, quintisDoMapa, idsDosGrupos, idsDasRegioes, rotulosDoPedido, periodos, totalDoPedido]);
   const chave = opcoes ? chaveFonte + "::" + chaveDoPedido(opcoes) : "";
   const fonteMotor: FonteDoMotor | null = useMemo(() => fonte ? { tipo: fonte.tipo, apiBase: fonte.apiBase, datasetVersion: fonte.datasetVersion,
     sheet: fonte.sheet, mapping: fonte.mapping, arquivo: fonte.arquivo, geoVersion: fonte.geoVersion } : null, [fonte]);
@@ -570,8 +571,10 @@ export default function AreaDeAnalise(props: AreaDeAnaliseProps) {
       ...(lugar.tipo === "regiao" && lugar.regiao ? { regiao: lugar.regiao } : {}),
       ...(desde ? { desde } : {}), ...(opcoes?.serie ? { serie: opcoes.serie } : {}),
       ...(tipo === "arquivo" && opcoes ? { ...(opcoes.premissas ? { premissas: opcoes.premissas } : {}),
+        ...(opcoes.total_informado ? { total_informado: opcoes.total_informado } : {}),
         ...(opcoes.rotulos ? { rotulos: opcoes.rotulos } : {}) } : {}) };
-  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, lugar.regiao, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie, opcoes?.premissas, opcoes?.rotulos]);
+  }, [fonte, pronto, tipo, lugar.tipo, lugar.grupo, lugar.regiao, competenciaDaFaixa, def.categoria, periodos, opcoes?.serie, opcoes?.premissas, opcoes?.rotulos,
+    opcoes?.total_informado]);
   const chaveDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify(pedidoDoLugar) : "";
   // Sem a série, a mesma faixa: trocar de aba (a Série temporal pede a série) mantém os números à vista enquanto chega o pedido novo.
   const baseDoLugar = pedidoDoLugar ? chaveFonte + "::" + JSON.stringify({ ...pedidoDoLugar, serie: undefined }) : "";

@@ -382,6 +382,33 @@ def main():
         expect(area.locator('[data-testid="analise-bolha"][data-tipo="estado"][data-visivel="true"]')).to_have_count(2, timeout=60000)
         guarda("conversa")
 
+        # 7b. O total do todo informado (07/11/2026, item 1.4c do comando): pelo painel Colunas, na competência em uso, com a fonte;
+        # sem o identificador individual, ele fica no lugar da soma, e a faixa diz que é o informado.
+        if chat.get_attribute("data-minimizada") != "true":
+            chat.get_by_test_id("painel-chat-minimizar").click()
+        page.get_by_test_id("colunas-abrir").click()
+        colunas = page.get_by_test_id("colunas-painel")
+        expect(colunas).to_be_visible(timeout=60000)
+        expect(colunas.get_by_test_id("colunas-total-competencia")).to_have_count(0)
+        colunas.get_by_test_id("colunas-total-quantidade").fill("999")
+        colunas.get_by_test_id("colunas-total-competencia").select_option(resposta["competencia"])
+        colunas.get_by_test_id("colunas-total-fonte").fill("Cadastro fictício da Solária")
+        colunas.get_by_test_id("colunas-comecar").click()
+        expect(colunas).to_have_count(0, timeout=60000)
+        expect(area.get_by_test_id("analise-aba-territorios")).to_be_visible(timeout=90000)
+        informado, enviado = painel(marca_a_planilha)
+        assert enviado["total_informado"] == {"quantidade": 999, "competencia": resposta["competencia"],
+                                              "fonte": "Cadastro fictício da Solária"}, enviado
+        assert (informado["contexto"]["todo"]["origem"], informado["contexto"]["todo"]["quantidade"]) == ("informado", 999)
+        aperta(area.get_by_test_id("analise-familia-distribuicao"))
+        faixa = area.get_by_test_id("analise-faixa")
+        origem = faixa.get_by_test_id("analise-faixa-origem")
+        expect(origem).to_have_attribute("data-origem", "informado", timeout=60000)
+        expect(origem).to_contain_text("Total: informado por você (fonte: Cadastro fictício da Solária), sem validação externa")
+        expect(faixa.locator('[data-testid="analise-faixa-numero"][data-chave="profissionais"]')).to_have_attribute(
+            "data-valor", "999", timeout=60000)
+        guarda("total-informado")
+
         # 8. Nada do Brasil e nenhuma concordância de antes em tudo o que esteve à vista.
         for nome, texto in vistos.items():
             achados = sorted({m.group(0) for m in DO_BRASIL.finditer(texto)}) + sorted({m.group(0) for m in DISCORDANCIA.finditer(texto)})

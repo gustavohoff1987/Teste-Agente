@@ -734,6 +734,16 @@ região…). Só no formato com `nivel`, e só no nível municípios.
   07/11/2026, também `todo` (`{"nome", "artigo"}`) e `grupo_superior` (o nível de cima, com a forma do grupo; sem ele, "região"),
   devolvidos na resposta quando recebidos. Numa planilha, a disponibilidade traz `regioes` (o nível de cima: verdadeira só com a coluna
   dele e a hierarquia consistente; senão, o motivo); na base do Brasil, a chave não vem.
+- **`total_informado`** (desde 07/11/2026, item 1.4c do comando de 06/11/2026; RQ-GOV-22; em `/api/painel` e em
+  `/api/painel/lugar`, só numa planilha): `{"quantidade": <inteiro positivo>, "competencia": <uma competência da planilha>,
+  "fonte": <texto de até 120 caracteres>}`, o total do todo informado pela pessoa no painel Colunas. Sem o identificador
+  individual, ele fica no lugar da soma das unidades, só no todo e só nessa competência: `origem: "informado"`, `contagem:
+  "VALOR_FORNECIDO_PELO_USUARIO"`, `limitacoes: ["VALOR_FORNECIDO_PELO_USUARIO"]`, `fonte_do_total` e o motivo "Total
+  informado por você (fonte: …), sem validação externa; …"; a população continua a soma das unidades, e a densidade sai dos
+  dois. Os grupos não mudam; noutra competência, a soma; com o identificador em todas as linhas, as pessoas únicas; a variação
+  entre origens diferentes não é avaliável (INCOMPARABILIDADE). Forma inválida → 422 ("… número inteiro positivo",
+  "Competência do total informado inexistente …", "Diga a fonte do total informado …"); na base do Brasil → 422 "Na base do
+  Brasil, o total vem da fonte nacional: não envie total_informado.".
   Sem `genero`, o motor o deduz da primeira palavra só para a concordância dos artigos (feminino em -a, -ade, -ção, -são e
   -gião). Todas as mensagens, notas e motivos que citariam "município" ou "estado" usam esses rótulos, com o gênero de
   cada um ("Distritos base (2024): 2 de 2 com registro", "Províncias inexistentes na planilha …", "A coluna da província
